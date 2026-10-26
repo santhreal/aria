@@ -112,7 +112,7 @@ pub struct AriaJobStep {
 }
 
 /// What `decoder_open_video` reports about the stream it opened. The host fills the
-/// struct with zeros before the call and refuses a stream whose values break the
+/// struct with zeros before the call and rejects a stream whose values break the
 /// rules below.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

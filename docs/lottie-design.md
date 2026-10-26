@@ -32,7 +32,7 @@ Rationale:
   decoder by a drift test before it ships, so coverage gaps become curation
   rejects, not visible breakage.
 - **`vello_cpu` as the raster backend.** velato's optional `vello`
-  integration drags in wgpu; our compositor already owns the GPU. Instead
+  integration drags in wgpu; our compositor already holds the GPU device. Instead
   we implement velato's `RenderSink` (4 required methods) over
   `vello_cpu::RenderContext`, verified end-to-end (fills, strokes, clip
   layers, gradients render correctly to RGBA pixmaps). `vello_cpu` is
@@ -44,7 +44,7 @@ Rationale:
   `DecodeError`: a hostile or over-fancy file yields a failed load, never
   a crashed editor. The curation drift test catches these before shipping.
 
-The module lives in `aria-decoder` (`lottie.rs`), mirroring the
+The module is in `aria-decoder` (`lottie.rs`), mirroring the
 animated-sticker decode module: bytes/path in, `RgbaImage` frames out.
 velato and `vello_cpu` are portable pure-Rust deps compiled on every
 platform.
@@ -64,7 +64,7 @@ arbitrarily long. Policy instead:
   ~12 fps).
 - **Cap render resolution.** Frames rasterize at the composition's
   intrinsic size capped to **512 px** on the long side (`LOTTIE_MAX_DIM`).
-  Vector data upsamples cleanly only to a point; 512 px covers sticker
+  Vector data upsamples without visible loss only to a point; 512 px covers sticker
   placements on a 1080p canvas at typical scales, and the compositor
   samples it like any bitmap. (Placement-aware resolution was considered
   and rejected: it makes the cache key depend on zoom/scale and thrashes
@@ -112,7 +112,7 @@ Generator::Lottie {
   offline-relink story, not an error.
 - **Serialization** is additive: a new externally-tagged variant next to
   `Sticker`, mirrored in the hand-written back-compat deserializer. Old
-  builds refuse projects using it (unknown variant), the standard
+  builds reject projects using it (unknown variant), the standard
   additive-format position, surfaced by the app-update nudge.
 - Lane rules: `Generator::Lottie` lands on **sticker lanes**, like
   `Sticker`/`Shape`.

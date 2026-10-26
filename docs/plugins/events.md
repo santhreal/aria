@@ -239,7 +239,7 @@ is not delivered; the host logs a warning naming the kind.
 ### Replies
 
 - `command-proposed`: `{"veto": "<reason>"}` or `{"refuse": "<reason>"}`
-  refuses the command and shows the reason as written. `{"rewrite": <command>}`
+  rejects the command and shows the reason as written. `{"rewrite": <command>}`
   or a bare command replaces it. An empty reply, or any other, leaves the
   command as proposed. In `aria-sdk` these are `EventResponse::Refuse` and
   `EventResponse::RewriteCommand`.

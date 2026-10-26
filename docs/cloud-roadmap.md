@@ -47,7 +47,7 @@ accounts for those surfaces, never as a requirement for the editor.
 
 ## The client seam: `crates/aria-cloud`
 
-One crate owns all backend/provider HTTP for the editor, shaped like
+One crate makes every backend and provider HTTP request for the editor, shaped like
 `aria-ai`: engine-free, blocking HTTP on worker threads, trait-based so
 tests use scripted fakes.
 
@@ -135,7 +135,7 @@ code and in `aria-backend/docs/ARCHITECTURE.md`.
 8. **Lottie**: decoder backend (dotlottie-rs vs velato vs rlottie),
    capped-fps/on-demand frame strategy (never pre-render-all like
    stickers), file-backed animated asset model.
-9. **SFX + LUT packs**: catalog browsing/import; LUT browsing gates on
+9. **SFX + LUT packs**: catalog browsing/import; LUT browsing depends on
    the `.cube` compositor pass landing (no phantom features).
 10. **Agent rules & skills**: `~/.aria/agent/` (rules, skills, slash
     commands), read-only `read_skill` tool via the vocabulary growth

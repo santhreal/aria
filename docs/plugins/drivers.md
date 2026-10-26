@@ -104,8 +104,8 @@ same id, the latest live registration compiles the code.
 ## Program
 
 `inputs` lists every property the program reads. Aria checks the graph these
-inputs form when code is attached and refuses code that reads its own value
-back, directly or through other drivers. Evaluation refuses a cycle a clip
+inputs form when code is attached and rejects code that reads its own value
+back, directly or through other drivers. Evaluation rejects a cycle a clip
 rename creates later.
 
 An input names a clip, `InputClip::This` or `InputClip::Named` with a clip's

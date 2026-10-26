@@ -55,7 +55,7 @@ Secrets should stay in user config or environment variables. They should not be 
 
 ## Adding agent capabilities
 
-Every model-visible tool is one row in a domain group under `src/wire/tools/` (tracks, clips, timeline, effects, transitions, animation, retime, audio, look, markers, project). The registry is the only enumeration of the surface: the specs sent to a provider, the tool-call dispatch, and the tests all read it. Adding an operation means a wire DTO with its validation, a registry row in the group that owns it, and a case in that group's table giving the arguments a provider sends, the engine command they lower to, and the refusal an invalid call earns. A row without a case fails its group's test, and a `WireCommand` variant without a row fails the registry census, so a tool cannot reach a model untested. The checklist in `src/lib.rs` is the full form.
+Every model-visible tool is one row in a domain group under `src/wire/tools/` (tracks, clips, timeline, effects, transitions, animation, retime, audio, look, markers, project). The registry is the only enumeration of the surface: the specs sent to a provider, the tool-call dispatch, and the tests all read it. Adding an operation means a wire DTO with its validation, a registry row in the group that defines it, and a case in that group's table giving the arguments a provider sends, the engine command they lower to, and the rejection an invalid call returns. A row without a case fails its group's test, and a `WireCommand` variant without a row fails the registry census, so a tool cannot reach a model untested. The checklist in `src/lib.rs` is the full form.
 
 ## Testing
 

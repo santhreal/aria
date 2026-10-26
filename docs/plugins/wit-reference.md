@@ -424,7 +424,7 @@ Run a command previously registered by this plugin.
 export event: func(kind: string, event-json: string) -> result<option<string>, string>;
 ```
 
-Handle an event of a subscribed kind. `kind` is the kebab-case kind, whichever spelling subscribed; `event-json` is the event as a JSON object. The reply refuses or rewrites a `command-proposed` command and claims a `resolve-dropped` item; every other kind ignores it.
+Handle an event of a subscribed kind. `kind` is the kebab-case kind, whichever spelling subscribed; `event-json` is the event as a JSON object. The reply rejects or rewrites a `command-proposed` command and claims a `resolve-dropped` item; every other kind ignores it.
 
 ### export `%import`
 
@@ -812,7 +812,7 @@ Audio effect registration metadata.
 | `label` | `string` | The name the Effect menu and the mixer inserts list. Not empty. |
 | `params` | `list<audio-param-spec>` | Scalar parameters in slot order. `audio-process` receives their signals in this order. |
 | `latency` | `u32` | Frames at 48 kHz by which the output trails the input, at most 48000. The mixer delays every parallel path by the same amount. |
-| `sidechain` | `bool` | The effect reads a key signal: a mixer strip shows a Key from row, and `audio-block` carries the key lane. |
+| `sidechain` | `bool` | The effect reads a key signal: a mixer strip shows a Key from row, and `audio-block` holds the key lane. |
 
 ### type `instance`
 

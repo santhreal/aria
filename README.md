@@ -68,7 +68,7 @@ Per-platform steps, codec support, and the GStreamer packages Linux needs are in
 
 ## Docs
 
-[Documentation index](docs/README.md) lists every document and what it owns.
+[Documentation index](docs/README.md) lists every document and the concern it covers.
 
 - [Specification](docs/spec/README.md)
 - [Install](docs/install.md)

@@ -1,6 +1,6 @@
 # Plugins
 
-Every capability that a user sees, from the H.264 decoder to the Gaussian Blur
+Every capability of the editor, from the H.264 decoder to the Gaussian Blur
 effect to the assistant, is a plugin on one public API. Shipped plugins use the
 same API, the same manifest, and the same permissions as third-party plugins;
 the only difference is that they are linked into the binary.
@@ -356,7 +356,7 @@ plugin's name, and is visible to every `CommandProposed` handler.
 | `ResolveDropped` | Serial: handlers ordered by priority then mount order claim a dropped path or URL |
 | `ContextMenuRequested` | Waterfall: handlers add items for the clicked target |
 
-Handlers for notifications run off the UI thread unless they ask for it.
+Handlers for notifications run off the UI thread unless they request it.
 
 ## Developer workflow
 

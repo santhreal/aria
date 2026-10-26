@@ -1,6 +1,6 @@
 # Documentation index
 
-Reference first, then design notes. A document owns one concern; if a claim
+Reference first, then design notes. A document covers one concern; if a claim
 appears twice, the document listed here for that concern is the one to edit.
 
 ## Using Aria

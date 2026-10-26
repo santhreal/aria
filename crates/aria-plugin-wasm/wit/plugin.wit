@@ -141,7 +141,7 @@ world plugin {
         /// delays every parallel path by the same amount.
         latency: u32,
         /// The effect reads a key signal: a mixer strip shows a Key from row, and `audio-block`
-        /// carries the key lane.
+        /// holds the key lane.
         sidechain: bool,
     }
 
@@ -1415,7 +1415,7 @@ world plugin {
 
     /// Handle an event of a subscribed kind. `kind` is the kebab-case kind,
     /// whichever spelling subscribed; `event-json` is the event as a JSON
-    /// object. The reply refuses or rewrites a `command-proposed` command and
+    /// object. The reply rejects or rewrites a `command-proposed` command and
     /// claims a `resolve-dropped` item; every other kind ignores it.
     export event: func(kind: string, event-json: string) -> result<option<string>, string>;
 

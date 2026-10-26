@@ -1,6 +1,6 @@
 # aria-engine
 
-`aria-engine` is the headless editing engine for Aria. It owns an editable project session, applies structured commands, records undo/redo history, produces preview frames, and exports timelines.
+`aria-engine` is the headless editing engine for Aria. It holds an editable project session, applies structured commands, records undo/redo history, produces preview frames, and exports timelines.
 
 This crate is the main integration point for non-UI callers. The desktop editor, smoke-test CLI, tests, and AI bridge all rely on the engine instead of mutating project state directly.
 

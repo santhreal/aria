@@ -87,7 +87,7 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    would place the segment start before that keyframe. When the first frame
    after a seek decodes corrupt, or is an H.264 frame that shows before that
    keyframe and references frames before it, the seek moves earlier, one
-   second then doubling, until its first frame decodes clean. H.265 and H.266
+   second then doubling, until its first frame decodes without corruption. H.265 and H.266
    decoders drop such frames.
 2. **Frame cache.** Decoded and rendered frames are stored in a GPU-resident
    cache bounded by a size in Settings (default: 25 % of video memory) and a

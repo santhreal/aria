@@ -14,7 +14,7 @@ machinery on the highest-stakes surface (timeline mutation). v2 extends the
 same discipline (validated, observable, undoable or confirmed) to
 everything else the editor can do, instead of inventing a second, looser
 mechanism per feature. Local-first stays law: every capability below works
-against a local model and local analysis; cloud raises quality, never gates.
+against a local model and local analysis; cloud raises quality and is never required.
 
 ## v1 foundation (shipped)
 
@@ -47,7 +47,7 @@ Compressed from the v1 doc (phases 0–5, all landed on this line):
       asserting final timeline + action log, in CI, zero network.
 - [x] **Q&A without mutation** + the **vocabulary growth checklist** (wire
       DTO, schema snapshot, action line, eval case, per new command).
-- v1's deferred stretch (guarded `Import` with per-prompt confirmation) is
+- v1's deferred stretch (`Import` behind a per-prompt confirmation) is
   superseded by the tier model below.
 
 ## Vision
@@ -105,7 +105,7 @@ unprefixed. Dispatch requires exact membership in the host registry; the
 namespace is validated at registration time and used for grouping, not as a
 wildcard router. Unknown names fall through to the closed wire-command parser
 and return a model-readable rejection. The edit schema snapshot continues to
-cover only the closed vocabulary; host tools carry their own registry and
+cover only the closed vocabulary; host tools have their own registry and
 their own tests. Structural containment, not textual: no host tool can mutate
 the timeline except by the model reading its result and issuing validated
 edit commands.
@@ -121,13 +121,13 @@ edit commands.
 ## Phase 0: Runtime foundations
 
 What the loop, panel, and provider layer need before any new capability can
-land cleanly.
+land.
 
 - [x] **Multimodal messages**: `ImagePart` on the provider wire, a
       per-request image budget, text-only history (images are referenced,
       not resent; image tokens are the expensive kind).
 - [x] **`[ai] autonomy` setting** (`aria-settings`): `ask` default /
-      `full`, the System-tier gate above.
+      `full`, the System-tier confirmation above.
 - [x] **ToolHost registry + loop dispatch + phase commits**:
       host tools register exact `{namespace}_{tool}` specs; the loop dispatches
       only registry members; `commit_progress` lets the model commit rehearsed edits in

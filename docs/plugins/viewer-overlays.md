@@ -98,7 +98,7 @@ it. A plugin sends events to and refreshes only its own overlays. An `Err` from
 `event` is shown in the status bar after the overlay's title. A scene that
 fails `OverlayScene::check` is not drawn: the overlay keeps its last scene, the
 status bar shows why, and the refusal is recorded as a fault of the plugin.
-`check` refuses:
+`check` rejects:
 
 - more than `MAX_SHAPES` (4096) shapes, or more than `MAX_PATH_POINTS` (65 536)
   points across all paths;

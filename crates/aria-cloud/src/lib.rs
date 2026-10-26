@@ -1,6 +1,6 @@
 //! Aria cloud client (see `docs/cloud-roadmap.md`).
 //!
-//! One crate owns all backend/provider HTTP for the editor, shaped like
+//! One crate makes every backend and provider HTTP request for the editor, shaped like
 //! `aria-ai`: engine-free, blocking HTTP on worker threads, trait-based
 //! so tests use scripted fakes. Responsibilities:
 //!

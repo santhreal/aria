@@ -52,5 +52,5 @@ When `tool-pen` is active, four vertex sub-modes (`PenVariant::ALL` in `crates/a
 | --- | --- | --- |
 | `Standard` | Pen Tool | Clicks away from the active path start a new path mask or append a vertex (`click` for a corner vertex, `click-drag` for smooth mirrored tangents); clicking a segment inserts a vertex; `Ctrl+click` on a vertex deletes it; `Alt+click` or `Alt+drag` converts a vertex between corner and smooth. |
 | `AddVertex` | Add Vertex Tool | Inserts a vertex on a path segment without holding a modifier. |
-| `DeleteVertex` | Delete Vertex Tool | Removes a clicked vertex from a path mask without holding `Ctrl` (refuses when fewer than 3 vertices would remain). |
+| `DeleteVertex` | Delete Vertex Tool | Removes a clicked vertex from a path mask without holding `Ctrl` (rejected when fewer than 3 vertices would remain). |
 | `ConvertVertex` | Convert Vertex Tool | Toggles a clicked vertex between corner and smooth tangents without holding `Alt`. |

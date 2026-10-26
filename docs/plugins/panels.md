@@ -42,8 +42,8 @@ built-in entry: an overlay contribution is drawn over the viewer.
 
 `Viewer` and `Home` are slots whose entries are alternatives rather than a
 stack. The shipped set puts the preview and the assistant in `Viewer` and the
-launch screen in `Home`. Which one draws is decided by `visible`, a
-`fn(&AppState) -> bool` the entry carries:
+launch screen in `Home`. `visible`, a `fn(&AppState) -> bool` the entry
+holds, selects which one draws:
 
 ```rust
 host.add(PanelEntry {
@@ -155,8 +155,8 @@ could produce, and sends events to and refreshes only its own panels.
 
 An `Err` from `event` is drawn in the panel until the next event the handler
 accepts. A tree that fails `UiNode::check` is not drawn: the panel keeps its
-last tree, shows why the new one was refused, and the refusal is recorded as a
-fault of the plugin. `check` refuses:
+last tree, shows why the new one was rejected, and the refusal is recorded as a
+fault of the plugin. `check` rejects:
 
 - nesting deeper than `MAX_TREE_DEPTH` (24) or more than `MAX_TREE_NODES` (4096)
   nodes;

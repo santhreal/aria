@@ -1391,6 +1391,7 @@ Notes for the latest release. For previous releases, see the
 - Tests fail when a fenced code block under `docs/` never closes or a table runs into the paragraph after it.
 - `docs/icons.md` lists every registered icon constant with its file and the controls that draw it, and a test fails when the page and `icon_assets!` disagree.
 - Tests fail when prose in `README.md` or under `docs/` has an em dash or a persona noun in place of the control, setting, or file that acts.
+- Tests fail when prose in `README.md`, `CONTRIBUTING.md`, a crate or app README, or under `docs/` states that code owns, decides, or refuses, or uses filler such as `just`, a verdict such as `matters`, or a metaphor such as `under the hood`.
 - `docs/reference/controls.md` lists the 337 named controls of the editor across 22 surfaces, each per-row control included, with each control's id, label, action, and shortcut, and a test fails when a shared-widget call states an id the page omits, a row names a control the source does not draw, or a shortcut disagrees.
 - `docs/guide/` splits the usage guide into 21 chapters that each end in a worked example, and a test fails when a guide cites a menu row, control, key chord, or palette command the editor does not ship.
 - `docs/command-line.md` and `docs/plugins/` document every CLI verb, flag, plugin host call, type field, enum variant, and constant, and tests fail when a registry member and its page disagree.
@@ -2406,6 +2407,7 @@ Notes for the latest release. For previous releases, see the
 - The Inspector's Graph block draws each handle as a lever from its keyframe to its tip in the timeline graph's handle color instead of a tip alone in the curve's color, and cuts a lever or a tip at the graph's edge instead of drawing it over the Inspector.
 - A press on a keyframe or handle of the Inspector's Graph block grabs it instead of nothing, the graph draws the curve, keyframes and handles where the release writes them while the button is held, a drag on the Graph block or on the Speed tab's ramp follows the pointer past the graph's edge and is written wherever the button comes up, and a keyframe dragged past the graph's right edge lands on the clip's last frame.
 - A drag begun in a floating panel window, such as on a value readout, a color wheel, the Inspector's Graph block or a lane's border, is written wherever the button comes up and abandoned by Escape, as in the main window, instead of staying in flight while Escape moved the focus to the main window.
+- `docs/architecture.md` states that the Viewer draws the preview worker's texture from the window's shared `wgpu` device with no CPU readback, instead of a CPU readback of every frame.
 - With no property row chosen, the timeline graph editor draws the Graph block's property while its row is open and otherwise the first open row, and highlights the row it draws instead of a row of the same property on every expanded clip.
 - An effect's layer slot set to None marks its **None** chip.
 - A Project panel search that hides every item reads **Nothing matches the search.** instead of offering to import files.

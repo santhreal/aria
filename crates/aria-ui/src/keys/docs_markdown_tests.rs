@@ -434,6 +434,153 @@ fn docs_prose_has_no_em_dash_or_persona_noun() {
     );
 }
 
+/// Words outside the documentation register, in lowercase: verbs that give
+/// code a will, filler, verdicts, metaphors for a mechanism, and
+/// self-description.
+const REGISTER_WORDS: [&str; 36] = [
+    "actually",
+    "asks for",
+    "behind the scenes",
+    "cleanly",
+    "crucial",
+    "decides",
+    "deliberately",
+    "elegant",
+    "first-class",
+    "forgets",
+    "genuinely",
+    "honest",
+    "just",
+    "keep in mind",
+    "knows",
+    "lives in",
+    "load-bearing",
+    "matters",
+    "note that",
+    "of course",
+    "out of the box",
+    "owns",
+    "plumbing",
+    "reaches for",
+    "refuses",
+    "remembers",
+    "robust",
+    "says",
+    "sees",
+    "simply",
+    "teaches",
+    "the whole point",
+    "under the hood",
+    "wants",
+    "wire up",
+    "worth it",
+];
+
+/// The entries of [`REGISTER_WORDS`] that `line` holds as whole words once
+/// its inline code is removed and it is lowercased. A match is bounded on
+/// each side by the end of the line or a character that is not
+/// alphanumeric, `-`, or `_`, so `adjust` and `just-in-time` hold no `just`.
+fn register_words(line: &str) -> Vec<&'static str> {
+    let prose = strip_inline_code(line).to_lowercase();
+    let bounds = |c: Option<char>| !c.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_');
+    REGISTER_WORDS
+        .into_iter()
+        .filter(|word| {
+            prose.match_indices(word).any(|(at, _)| {
+                bounds(prose[..at].chars().next_back())
+                    && bounds(prose[at + word.len()..].chars().next())
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn register_words_match_whole_words_outside_inline_code() {
+    let cases: [(&str, &[&str]); 9] = [
+        ("The panel owns the window.", &["owns"]),
+        ("It Decides the order", &["decides"]),
+        (
+            "which simply works, just as robust",
+            &["just", "robust", "simply"],
+        ),
+        (
+            "The cache lives in memory and ends with owns",
+            &["lives in", "owns"],
+        ),
+        ("The cache lives inside memory.", &[]),
+        ("Adjust the gain of a just-in-time pass.", &[]),
+        ("`owns` and `refuses` are field names.", &[]),
+        ("Each owner of a value and its own range.", &[]),
+        (
+            "The registry is first-class and load-bearing.",
+            &["first-class", "load-bearing"],
+        ),
+    ];
+    for (line, want) in cases {
+        assert_eq!(register_words(line), want, "register_words({line:?})");
+    }
+}
+
+/// WHY: the documentation register states the mechanism that acts, in flat
+/// sentences, so a page does not state that a function owns, decides, or
+/// refuses, pad a sentence with `just` or `simply`, or describe a mechanism
+/// as `under the hood`. Rewriting the instances leaves the class open, so
+/// this walks the repository README and CONTRIBUTING, every crate and app
+/// README, and every file under `docs/`, the generated WIT and ABI
+/// references included, outside fenced blocks and inline code spans, and
+/// fails on a word [`register_words`] reports. Not caught: `carries`, which
+/// the model's own names use (`carries_audio`, `ClipCarriesNoSound`) and the
+/// pages quote; the passive `is refused`, which states the outcome and not an
+/// actor; `gate`, `guard`, `clean`, and `magic`, which are also terms of the
+/// trade (a noise gate, the `guards` module, a clean plate, magic bytes); and
+/// Rust doc comments outside the plugin ABI and WIT.
+#[test]
+fn docs_prose_has_no_word_outside_the_register() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut md_files = vec![root.join("README.md"), root.join("CONTRIBUTING.md")];
+    for dir in ["crates", "apps"] {
+        let entries =
+            std::fs::read_dir(root.join(dir)).unwrap_or_else(|e| panic!("read {dir}/: {e}"));
+        let mut readmes: Vec<PathBuf> = entries
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|e| panic!("read a {dir}/ entry: {e}"))
+                    .path()
+                    .join("README.md")
+            })
+            .filter(|readme| readme.is_file())
+            .collect();
+        readmes.sort();
+        md_files.extend(readmes);
+    }
+    collect_md_files(&root.join("docs"), &mut md_files);
+    let mut read = 0usize;
+    let mut found: Vec<String> = Vec::new();
+    for md_file in &md_files {
+        let text =
+            std::fs::read_to_string(md_file).unwrap_or_else(|e| panic!("read {md_file:?}: {e}"));
+        for (line_no, line) in prose_lines(&text) {
+            read += 1;
+            for word in register_words(line) {
+                found.push(format!(
+                    "{}:{line_no}: {word:?} in {:?}",
+                    md_file.display(),
+                    line.trim()
+                ));
+            }
+        }
+    }
+    assert!(
+        read >= 10_000,
+        "expected at least 10000 prose lines across the READMEs and docs/, read {read}"
+    );
+    assert!(
+        found.is_empty(),
+        "docs prose outside the register; state the mechanism that acts:\n{}",
+        found.join("\n")
+    );
+}
+
 /// WHY: the documentation is spelled in US English, as the editor's labels
 /// are, so a chapter does not write `colour` beside the Color panel it
 /// documents. This walks the repository README, the changelog, every file

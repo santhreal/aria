@@ -5,7 +5,7 @@
 Every value in a property row ([timeline.md](timeline.md#property-rows)) and in
 Effect Controls is a property. A property has a type (scalar, angle, 2D point,
 3D point, color, boolean, choice, text, path), a default, a range, and a
-display unit. Scalar properties carry a soft range (the slider's span) and a
+display unit. Scalar properties have a soft range (the slider's span) and a
 hard range (the clamp); typing a value outside the soft range is allowed up to
 the hard range.
 
@@ -53,7 +53,7 @@ the accent color.
 | Alt+Shift+Left / Alt+Shift+Right | Playhead to the previous / next keyframe on the visible property rows. |
 
 Keyframe edits are commands like any other edit: each gesture is one undo step,
-and a plugin's `CommandProposed` handler sees it.
+and a plugin's `CommandProposed` handler receives it.
 
 ### Migration of existing projects
 

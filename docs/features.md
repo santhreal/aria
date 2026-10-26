@@ -53,7 +53,7 @@ Anything not listed here is not in the build.
 - Multicam camera groups. Build one from the pool, cut between its cameras at
   the playhead, and place it on a lane; the frame decodes the camera live at
   that point, fitted at its own shape, and the placement is as long as the
-  group's longest camera reaches. Each angle carries its own offset on the
+  group's longest camera reaches. Each angle has its own offset on the
   group's clock, drawn as a waveform strip, nudged by the frame, or measured
   from the cameras' own sound.
 - Waveform overlays and filmstrip thumbnails per lane, decoded once per source
@@ -183,7 +183,7 @@ Anything not listed here is not in the build.
   Reduction, Reverb, Delay, Pitch Shifter, four channel tools, and a Loudness
   Normalizer. Parameters take keyframes, the mixer compensates each effect's
   latency, and a plugin adds effects of its own.
-- A mixer, one strip per lane and per submix bus, on Shift+6. Each strip carries
+- A mixer, one strip per lane and per submix bus, on Shift+6. Each strip has
   the lane's fader in decibels, the bus or master it outputs to, and a chip per
   bus that cycles the send off, post-fader, and pre-fader. Strips are drawn in
   the order the mixdown folds them, so a bus sits after everything feeding it,
@@ -228,7 +228,7 @@ Anything not listed here is not in the build.
   volume, pan, fades and denoise produce. The lane's fader, mute, solo and
   routing stay out of the file, because they are applied again when it plays
   back.
-- The assistant renders and restores the same way, by clip. A render it asks for
+- The assistant renders and restores the same way, by clip. A render it requests
   runs as a job, and it reports that the render started, not that the clip was
   replaced.
 

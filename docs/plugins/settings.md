@@ -45,7 +45,7 @@ one twice; when a default does not fit its kind; or when the plugin already has
 a section. Without a mounted Settings host, nothing is held.
 
 Editing a field checks the value against its kind, writes it through
-`SettingsService` under the key, and saves. A value the kind refuses is not
+`SettingsService` under the key, and saves. A value the kind rejects is not
 saved: the status bar shows `{label}: {reason}`, such as `Strength: 7 is above
 1`, and the field keeps the focus. Clearing a field stores nothing, and the key
 reads as its declared default again, through `SettingsService::get` as well as

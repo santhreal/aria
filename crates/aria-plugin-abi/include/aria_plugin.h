@@ -361,7 +361,7 @@ typedef struct AriaJobStep {
 } AriaJobStep;
 
 /// What `decoder_open_video` reports about the stream it opened. The host fills the
-/// struct with zeros before the call and refuses a stream whose values break the
+/// struct with zeros before the call and rejects a stream whose values break the
 /// rules below.
 typedef struct AriaVideoInfo {
     /// Frame width in pixels: even, from 2 to 16384.
@@ -871,7 +871,7 @@ typedef struct AriaPluginV1 {
 
     /// The scene of the viewer overlay `overlay_id`: `ARIA_BYTES_FOUND` with the
     /// scene as JSON, as in `docs/plugins/viewer-overlays.md`, at most 4 MiB. Any other
-    /// result refuses the scene with the error.
+    /// result rejects the scene with the error.
     AriaBytesResult (*overlay_scene)(void *host_ctx, AriaStr overlay_id);
 
     /// Handle `event_json`, a pointer event on a handle of the overlay `overlay_id`.

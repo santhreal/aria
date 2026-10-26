@@ -69,7 +69,7 @@ problems and share no mechanism.
   ```
 
   Tests and evals use a scripted fake, like `ScriptedProvider`.
-- The desktop owns server lifecycle: spawn configured servers lazily on
+- The desktop manages the server lifecycle: spawn configured servers lazily on
   the first prompt that runs with MCP enabled, keep them for the app's
   lifetime, kill on exit. Server stderr goes to the log file, never the
   transcript. A hung server is a timeout error string in the tool result,

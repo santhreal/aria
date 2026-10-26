@@ -1,7 +1,7 @@
 //! Commands: actions a plugin adds to the command palette, and the menu rows
 //! and default chords that offer them.
 //!
-//! A command runs on the thread that asks for it, through the registering
+//! A command runs on the thread that requests it, through the registering
 //! plugin's own view of the context, so it reads only the services its manifest
 //! declares. A command that panics fails its plugin for the session. A menu
 //! entry or key default holds no code: it names the command it runs.

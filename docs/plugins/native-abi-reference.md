@@ -257,7 +257,7 @@ Progress a plugin reports from `job_step`. The host sets `progress` to -1 and `d
 
 ### `AriaVideoInfo`
 
-What `decoder_open_video` reports about the stream it opened. The host fills the struct with zeros before the call and refuses a stream whose values break the rules below.
+What `decoder_open_video` reports about the stream it opened. The host fills the struct with zeros before the call and rejects a stream whose values break the rules below.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -1065,7 +1065,7 @@ AriaBytesResult (*overlay_scene)(void *host_ctx, AriaStr overlay_id);
 
 Prefix: [`ARIA_PLUGIN_V1_OVERLAYS_SIZE`](#table-sizes).
 
-The scene of the viewer overlay `overlay_id`: [`ARIA_BYTES_FOUND`](#bytes-status-codes) with the scene as JSON, as in `docs/plugins/viewer-overlays.md`, at most 4 MiB. Any other result refuses the scene with the error.
+The scene of the viewer overlay `overlay_id`: [`ARIA_BYTES_FOUND`](#bytes-status-codes) with the scene as JSON, as in `docs/plugins/viewer-overlays.md`, at most 4 MiB. Any other result rejects the scene with the error.
 
 ### `AriaPluginV1.overlay_event`
 

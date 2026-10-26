@@ -359,7 +359,7 @@ pub struct AriaPluginV1 {
     pub encoder_drop: unsafe extern "C" fn(host_ctx: *mut c_void, instance: u64) -> AriaResult,
     /// The scene of the viewer overlay `overlay_id`: [`ARIA_BYTES_FOUND`] with the
     /// scene as JSON, as in `docs/plugins/viewer-overlays.md`, at most 4 MiB. Any other
-    /// result refuses the scene with the error.
+    /// result rejects the scene with the error.
     pub overlay_scene:
         unsafe extern "C" fn(host_ctx: *mut c_void, overlay_id: AriaStr) -> AriaBytesResult,
     /// Handle `event_json`, a pointer event on a handle of the overlay `overlay_id`.

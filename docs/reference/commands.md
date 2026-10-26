@@ -104,7 +104,7 @@ Split a clip at the playhead, add a crossfade transition, and open the Audio Gai
 | `pal-time-remap` | Time Remapping | `Ctrl+Alt+T` | No clip is selected | Toggles variable-speed time remapping on the selected clip. |
 | `pal-audio-gain` | Audio Gain… | `G` | No clip is selected | Opens `aria.dialog.audio-gain`. |
 | `pal-project-clip-under-playhead` | Select Clip Under Playhead | `D` | No unlocked clip intersects the playhead | Selects the topmost unlocked clip intersecting the playhead. |
-| `pal-project-next-flagged-clip` | Go to Next Flagged Clip | `none` | No clip carries an effect, mask, chroma key, or retiming | Seeks to and selects the next clip with effects, masks, chroma key, or retiming (`aria_models::clip_facts`). |
+| `pal-project-next-flagged-clip` | Go to Next Flagged Clip | `none` | No clip has an effect, mask, chroma key, or retiming | Seeks to and selects the next clip with effects, masks, chroma key, or retiming (`aria_models::clip_facts`). |
 | `pal-project-duplicate-to-lane` | Duplicate Clip onto Another Lane | `none` | No clip is selected | Copies the selected clip onto the next compatible track at the same timeline tick. |
 | `pal-project-reveal-media` | Reveal a File in the Pool | `none` | Always enabled | Prompts for a file path and selects its corresponding item in the media pool. |
 | `pal-project-describe-template` | Describe a Template Bundle | `none` | Always enabled | Prompts for a `.ariat` bundle and reports its replaceable media and text slots on the status line. |

@@ -5,8 +5,8 @@ frontend. It mounts the built-in plugins and opens the `aria-ui` shell.
 Unlike the mobile apps, it links `aria-engine` **directly** (no C-ABI/JNI
 bridge).
 
-This crate owns process bring-up. Timeline state and edit validation live
-in the shared engine and model crates. Presentation lives in `aria-ui`.
+This crate performs process bring-up. Timeline state and edit validation are
+in the shared engine and model crates. Presentation is in `aria-ui`.
 
 ## Responsibilities
 

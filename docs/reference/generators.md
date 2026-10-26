@@ -57,7 +57,7 @@ Every `ClipSource::Generated` clip resolves through `generator_specs()` (`crates
   - `text`, `solid`, `shape`, `path-shape`, `sticker`, `lottie`: rasterize or evaluate their own layer texture before clip effects run (`Shape::Path` resolves to `path-shape`; parametric shapes resolve to `shape`).
   - `canvas-pass`: reprocesses the composite beneath the track (`filter` and `adjustment`), or runs a generator effect chain over the canvas (`effect`).
 - **Parameter time**: `clip_local` addresses keyframes in ticks from the clip's own start; `sequence` addresses keyframes in sequence ticks.
-- **Animates**: when `yes`, the generator's own content fields carry clip-relative keyframes that rebase on split or trim (`TextStyle` on `text`, `Shape` / `ShapeStroke` on `shape`).
+- **Animates**: when `yes`, the generator's own content fields hold clip-relative keyframes that rebase on split or trim (`TextStyle` on `text`, `Shape` / `ShapeStroke` on `shape`).
 
 ## Parametric shapes and animatable shape properties
 

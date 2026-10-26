@@ -54,7 +54,7 @@ The Settings dialog offers five delivery baselines (`CANVAS_BASELINES = [720, 10
 
 ## Marker colors and kinds (`MarkerColor` and `MarkerKind`)
 
-Markers on the sequence ruler or on clips carry a `MarkerColor` (`MarkerColor::ALL` in `crates/aria-models/src/timeline_canvas.rs`) and a `MarkerKind` (`MarkerKind::ALL`). When a marker is created without an explicit color, `MarkerColor::cycle(index)` selects `MarkerColor::ALL[index % 8]`. In `aria-ui`, `Theme::marker` (`crates/aria-ui/src/theme.rs`) converts each `MarkerColor` to HSLA with fixed saturation `0.68`, lightness `0.62` in Dark appearance and `0.46` in Light appearance, and per-color hue.
+Markers on the sequence ruler or on clips have a `MarkerColor` (`MarkerColor::ALL` in `crates/aria-models/src/timeline_canvas.rs`) and a `MarkerKind` (`MarkerKind::ALL`). When a marker is created without an explicit color, `MarkerColor::cycle(index)` selects `MarkerColor::ALL[index % 8]`. In `aria-ui`, `Theme::marker` (`crates/aria-ui/src/theme.rs`) converts each `MarkerColor` to HSLA with fixed saturation `0.68`, lightness `0.62` in Dark appearance and `0.46` in Light appearance, and per-color hue.
 
 | Variant | Wire Name | RGBA (`rgba()`) | UI Hue (`Theme::marker`) | Label Alias (`LabelColor::from`) |
 | --- | --- | --- | --- | --- |

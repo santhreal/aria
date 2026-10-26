@@ -4,7 +4,7 @@ Frame colorimetry metadata, CPU RGBA/BGRA-to-YUV 4:2:0 conversion matrices, the 
 
 ## Frame colorimetry (`ColorSpace`)
 
-Every `VideoFrame` and `SourceInfo` carries a `ColorSpace` (`crates/aria-core/src/color.rs`) composed of four H.273-aligned enums: `ColorPrimaries`, `TransferFunction`, `MatrixCoefficients`, and `ColorRange`. `ColorSpace::resolved(self)` maps any `Unspecified` field to its `Bt709` SDR fallback while preserving `range`.
+Every `VideoFrame` and `SourceInfo` has a `ColorSpace` (`crates/aria-core/src/color.rs`) composed of four H.273-aligned enums: `ColorPrimaries`, `TransferFunction`, `MatrixCoefficients`, and `ColorRange`. `ColorSpace::resolved(self)` maps any `Unspecified` field to its `Bt709` SDR fallback while preserving `range`.
 
 ### Color primaries (`ColorPrimaries`)
 

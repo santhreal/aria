@@ -2,7 +2,7 @@
 
 Thanks for your interest in Aria. It is early alpha software and there is
 plenty of room to help: fixing bugs, filling in editing features, improving
-docs, sharpening the AI assistant, or just reporting what breaks.
+docs, sharpening the AI assistant, or reporting what breaks.
 
 This guide explains how the repository is organized, how to build and test it,
 and what we expect from a change before it lands.
@@ -15,15 +15,15 @@ accept it as long as it adds something useful (a bug fix, a new feature, a
 performance win, tests, or docs) and meets the bar in this guide.
 
 That bar is the same for everyone: the change has to build, pass the checks
-below, be reasonably scoped and reviewable, and actually improve the project.
+below, be reasonably scoped and reviewable, and improve the project.
 You are responsible for any code you submit, so understand it, test it, and be
 ready to explain and revise it in review. Don't open low-effort or untested
-PRs (AI-generated or otherwise) just to make noise. Those waste reviewer time
+PRs (AI-generated or otherwise) to make noise. Those waste reviewer time
 and will be closed.
 
 It's nice (and appreciated) to mention in the PR description when a change was
 AI-generated or AI-assisted. It's not required and won't count against you. It
-just gives reviewers helpful context.
+gives reviewers helpful context.
 
 ## Before you start
 
@@ -118,12 +118,10 @@ The workspace is split into focused crates, layered from data up to the apps:
 Each crate has its own `README.md` describing its responsibilities and what
 does and does not belong there. Read the relevant one before adding code.
 
-Two boundaries matter:
-
 - **Keep the engine UI-agnostic.** GPUI views, widgets, file dialogs, and
   interaction state belong in `aria-ui` / `apps/aria-desktop`, not `aria-engine`.
 - **Keep `aria-models` pure data.** No file I/O, GPU work, UI bindings,
-  or undo/redo dispatch. Those live in higher crates.
+  or undo/redo dispatch. Those belong in higher crates.
 
 ## Coding conventions
 
@@ -132,7 +130,7 @@ Two boundaries matter:
   asymptotic cost of hot loops, avoid accidental O(n²), and profile or
   benchmark before rewriting hot code. Prioritize clarity on cold paths. See
   [`.cursor/rules/perf.mdc`](.cursor/rules/perf.mdc).
-- **Comments explain intent, not mechanics.** Skip comments that just narrate
+- **Comments explain intent, not mechanics.** Skip comments that narrate
   what the code does; document non-obvious trade-offs and constraints.
 - **Text the editor shows** is spelled in US English: `Color`, `center`,
   `Favorites`, `normalize`. Commands, menus, dialog titles and context menu
@@ -158,8 +156,8 @@ one giant change.
 - **Every commit must build and pass its targeted tests.** No empty, padding,
   or fabricated commits.
 - **Message style** matches existing history (`git log --oneline`): an
-  imperative, descriptive subject ending with a period that says what shipped
-  and why it matters, not which files changed. Feature milestones use the
+  imperative, descriptive subject ending with a period that states what shipped
+  and why, not which files changed. Feature milestones use the
   `Ship <milestone> <name>: <summary>.` shape. Use the body to explain intent,
   trade-offs, and deliberate gaps.
 - Use an author identity that matches your GitHub account so your contributions
@@ -168,7 +166,7 @@ one giant change.
 ## Submitting a pull request
 
 1. Fork the repo and create a topic branch from `main`.
-2. Make your change as a clean series of commits (see above).
+2. Make your change as a series of self-contained commits (see above).
 3. Run the same checks CI runs, and make sure they pass:
 
    ```bash

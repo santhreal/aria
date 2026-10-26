@@ -200,7 +200,7 @@ listed as `ContributionKind::Encoder`.
 | `register_encoder(spec, encoder)` | Validates `spec` and registers `encoder` |
 | `encoders()` | Every registered `Arc<EncoderSpec>`, in registration order |
 | `encoder(id)` | The `Arc<EncoderSpec>` registered under `id` |
-| `open_encoder(id, path, &config)` | Opens a guarded `Box<dyn VideoEncoder>` writing to `path` |
+| `open_encoder(id, path, &config)` | Opens a `Box<dyn VideoEncoder>` writing to `path`; a panic in the encoder returns an error and fails its plugin |
 
 | Type | Fields / Methods |
 | --- | --- |

@@ -47,7 +47,7 @@ many renders were over budget, and the worst one. During playback the editor
 also hands it each frame shown and each frame dropped with its cause, and the
 report adds the achieved rate (frames shown over the run's time) and the drops.
 The Info panel's Playback section reads the same report, so the number on
-screen and the number in the gate come from one counter.
+screen and the number the scenario checks come from one counter.
 
 `cargo test -p aria-render playback_rate_report` renders 120 frames of a solid
 generator at 640x360, 24 fps, through the preview entry point, excluding four
@@ -71,7 +71,7 @@ scrub makes, over `tests/fixtures/fixture-640x360-24fps-3s.mp4`:
 - `cold_open_and_seek` opens the decoder at a mid-clip frame and decodes it,
   as the renderer opens a clip's decoder: what clicking into the middle of an
   unopened clip costs, demuxer setup included.
-- `warm_scrub` holds one open decoder and asks for a backward jump, a one-frame
+- `warm_scrub` holds one open decoder and requests a backward jump, a one-frame
   step, and a long forward jump: the three gestures the preview issues once a
   clip is open.
 
@@ -95,7 +95,7 @@ which is the engine and the first projection a frame reads. Cold is an empty
 profile directory; warm is the same directory after a session has written its
 settings and a project into it.
 
-The boot cover ends on readiness, so these are the numbers that decide whether
+The boot cover ends on readiness, so these are the numbers that determine whether
 the boot cover is ever shown. `aria_ui::shell::SPLASH_MAX` (2 s) is the ceiling the
 test asserts against: a start past it is a start the cover's timeout ended.
 
@@ -157,7 +157,7 @@ by Last Frame Cost on the status line, so a frame that is dear because of a
 stacked chain shows the cause.
 
 The table is bounded (128 entries) and keyed on the pool's own views, so it is
-built and dropped with the pool that owns them: resizing the canvas cannot
+built and dropped with the pool that holds them: resizing the canvas cannot
 leave an entry naming a texture that is gone.
 
 ## What one edit costs
@@ -183,7 +183,7 @@ A project is copied per export and per assistant turn, where a snapshot is what
 is wanted: an export renders the timeline as it was when the job started, and an
 assistant turn rolls back to the state it began from. Neither is per command.
 
-## The gate
+## The workload budget test
 
 `cargo test -p aria-ui --lib workload_budget` asserts the same work stays
 inside a ceiling and grows with the clip count rather than faster. The ceilings

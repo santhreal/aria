@@ -73,7 +73,7 @@ Project
 ```
 
 **Tracks are explicit.** Create a track, then add clips to it. Content descriptors
-(`Text`, `Solid`, shapes, `media.subclip(...)`) describe *what*; `track.add` decides
+(`Text`, `Solid`, shapes, `media.subclip(...)`) describe *what*; `track.add` sets
 *where* and *when*.
 
 **Animation:** set constants with properties (`clip.opacity = 0.5`) or keyframes with
@@ -180,7 +180,7 @@ reads back what the getters report, and every shape the engine draws is checked
 against the descriptor a script names it with. It needs no flags because the
 crate's default feature links an interpreter. The wheel is the build that does
 not: `extension-module` leaves CPython's symbols to the host, which is what lets
-the module import into any supported Python, and it is what maturin asks for
+the module import into any supported Python, and it is what maturin requests
 (`[tool.maturin]` in `pyproject.toml`). On macOS point dyld at the framework:
 
 ```bash

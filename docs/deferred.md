@@ -33,7 +33,7 @@ still oversells it.
   compositor without a CPU round-trip.
 - **Today:** MediaCodec runs in ByteBuffer mode, so there is no
   `AHardwareBuffer` to import. `decoder_capability()` reports no GPU
-  surfaces on Android and `MediaCodecDecoder::open` refuses
+  surfaces on Android and `MediaCodecDecoder::open` rejects
   `OutputMode::Gpu`, so CPU planes are the shipped Android path
   ([architecture.md](architecture.md) “Decoder output modes”). Apple,
   Windows, and Linux have zero-copy import (Linux LINEAR NV12 only).
@@ -47,7 +47,7 @@ still oversells it.
 
 ## AI assistant
 
-### Guarded `Import`
+### `Import` behind a confirmation
 
 - **Wanted:** The agent can import media behind an explicit per-prompt
   confirmation card. `Open` / `Save` / `Export` stay human-only.
@@ -57,7 +57,7 @@ still oversells it.
 - **Acceptance:** an import verb exists in the schema, a prompt that uses it
   draws a confirmation naming the exact file, nothing is read until it is
   accepted, refusing it leaves the project untouched, and `Open` / `Save` /
-  `Export` still refuse.
+  `Export` are still rejected.
 - **Where:** [docs/ai-agent-roadmap.md](ai-agent-roadmap.md) Phase 5.
 
 ### Local-model tool-calling quality
@@ -73,10 +73,10 @@ Kept so a reader does not re-park something that landed.
 
 - **`describe_project` windows a long project.** Up to 300 clips it describes
   everything, unchanged. Past that it describes the clips around the playhead
-  and carries a `window` stating the span, how many clips it holds, and how many
+  and includes a `window` stating the span, how many clips it holds, and how many
   clips and markers sit outside it. The tool takes `from_seconds` and
   `to_seconds`, so the model reads another stretch by asking for it.
-- **A dropped setting** now says so: every value the loader cannot use keeps
+- **A dropped setting** is reported: every value the loader cannot use keeps
   its default and is recorded on the settings, and the storage report and the
   Caches section of Settings both name the key, the value, and the reason.
 - **Pitch lock** ships: `EditCommand::SetClipPitch` toggles it, a retimed clip
@@ -94,8 +94,8 @@ Kept so a reader does not re-park something that landed.
   field the renderer never reads, because the model resolves it into the
   stroke, background and shadow it names before a frame is drawn.
 - **Effect presets can be made, not only applied.** Saving is a name field the
-  rack's Save button opens, Enter commits it, and each saved row carries a
-  delete. Both write the preset file, so the list a launch reads is the list the
+  rack's Save button opens, Enter commits it, and each saved row has a
+  delete control. Both write the preset file, so the list a launch reads is the list the
   last one left.
 - **The export sheet is a value.** Pressing Export assembles an `ExportRequest`
   with no window, no session lock and no encoder probe, and queueing takes that

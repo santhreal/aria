@@ -28,7 +28,7 @@ GPUI.
 
 ## UI boundary
 
-`apps/aria-desktop` starts the process. `aria-ui` owns the window.
+`apps/aria-desktop` starts the process. `aria-ui` creates and draws the window.
 
 ```
 data dir (ARIA_DATA_DIR, else the platform default)
@@ -61,7 +61,7 @@ the frame.
 A poll compares the inputs the projection reads against the key the current
 store was built from (`ProjectionKey` in `app/engine_sync.rs`). Nothing moved: the
 poll returns. Only the playhead moved: the store keeps its projection, because
-the projection carries the tick as a value and derives nothing from it, and the
+the projection holds the tick as a value and derives nothing from it, and the
 poll re-samples what is read at the playhead instead. That is every frame of
 playback and every frame of a scrub, so the walk of every track, clip and
 keyframe plus the magnet index rebuild happen on edits, not on transport.
@@ -109,7 +109,7 @@ and Media Foundation. Aria never ships a codec.
 
 ### Waiting for work off the window's thread
 
-`handoff` owns every wait. `handoff::on_a_thread(label, work)` runs `work` on a
+Every wait goes through `handoff`. `handoff::on_a_thread(label, work)` runs `work` on a
 named thread and returns a future; `handoff::wakes()` gives a writer that never
 blocks and a reader a task awaits. A panic in `work` closes the handoff, so the
 caller reads `None` and the window keeps drawing.
@@ -152,7 +152,7 @@ before a file is opened, so a caller picks a mode instead of reading a refusal.
 | Linux | GStreamer | LINEAR NV12 DMA-BUF | yes |
 | Android | MediaCodec | no | yes |
 
-Preview asks for `OutputMode::Gpu`. On Linux a LINEAR NV12 DMABuf imports into
+Preview requests `OutputMode::Gpu`. On Linux a LINEAR NV12 DMABuf imports into
 Vulkan; a tiled modifier cannot be imported by wgpu-hal, so decode falls back to
 CPU NV12 and the modifier is named once per session in the log.
 
@@ -213,7 +213,7 @@ at stream start and seek on the first request.
 `aria_commands::every_edit_command()` and `every_project_command()` are the
 command census: one constructed sample per variant, library code rather than a
 test fixture because completeness is the contract. The wire-format lock pins
-their length and its exhaustive variant-name matches refuse to compile when a
+their length and its exhaustive variant-name matches fail to compile when a
 variant is added, so a command cannot exist without appearing in the census.
 
 `EditCommand::reach()` and `ProjectCommand::reach()` are exhaustive and return
@@ -228,7 +228,7 @@ is the assistant, a plugin, or the CLI.
 Naming the surface is the point of the payload: a command cannot be declared
 reachable without someone writing down which control sends it, which is the
 moment a missing control is noticed. `AddClip` is `Internal`, because a drop
-resolves through `OverwriteClip` or `RippleInsert`, which also decide what
+resolves through `OverwriteClip` or `RippleInsert`, which also set what
 happens to what is already there.
 
 The editor measures the other direction. Every control surface that can be
@@ -249,7 +249,7 @@ control, which is the class these close.
 
 `app/operator_surface_tests.rs` closes the forward direction. Dispatch is
 observed at `apply_command` through a `CommandProposed` subscription rather than
-read out of the history list, because saving, opening and exporting ask for a
+read out of the history list, because saving, opening and exporting issue a
 command and write no history entry. A command a driven table sends may not be
 declared `Planned` or `Internal`, and a row whose surface text names the palette
 or a chord has to be sent by one. A row that names a drawn control (an
@@ -257,7 +257,7 @@ inspector block, a context-menu item, an on-canvas handle) is a statement a
 reader checks: gpui keeps a drawn element's action in a closure, so nothing can
 enumerate those surfaces.
 
-A row that asks for a path is driven like any other. The pick is supplied to the
+A row that prompts for a path is driven like any other. The pick is supplied to the
 state before the row runs, so the row applies it and the test asserts the model
 change. The harnesses ask the state how many picks a row requested, so a new row
 that opens a dialog and is not driven with an answer fails the suite.
@@ -326,7 +326,7 @@ keyframe band all delegate to the row.
 An effect's parameters are rows too, built per clip rather than declared
 statically: they exist once per effect instance, addressed by
 `ClipParam::Effect { effect, param }` and resolved through `effect_spec`. A
-parameter nobody has written yet routes to its catalog default and carries no
+parameter nobody has written yet routes to its catalog default and has no
 keyframes, so a first keyframe pins what the renderer is already using. This is
 also how a plugin ships an animatable property: it contributes an effect through
 `EffectService`, and the effect's parameters reach the strip by the same route as
@@ -334,8 +334,8 @@ a shipped effect's. There is no separate plugin-property mechanism to keep in
 step.
 
 A row also states the block it belongs to, in `ParamSpec.group`. The panel that
-draws a block asks for its group and gets rows; it keeps no list of which
-properties it owns, and an id prefix is never parsed to guess one. The static
+draws a block requests its group and gets rows; it keeps no list of which
+properties belong to it, and an id prefix is never parsed to guess one. The static
 groups are `transform`, `framing`, `audio`, `filter`, `lut`, `grade`,
 `chroma`, `matte`, `shadow`, `glow`, `outline`, `background`, `text`, and
 `shape`. Every mask slot and every effect instance has its own indexed group
@@ -350,12 +350,12 @@ otherwise. The block commands (`SetClipMask`, `SetClipChroma`,
 addressing a single property through `set_param_scalar` preserves keyframes on
 the remaining properties in the block.
 
-`ParamRange` carries the bounds one side at a time, because the model's bounds
+`ParamRange` holds the bounds one side at a time, because the model's bounds
 are one-sided: a blur radius is non-negative with no ceiling, an opacity is
 `[0, 1]`, a mask rotation is `±3600`. A side left undeclared is a claim that the
 model accepts anything there, and the conformance sweep proves it by writing a
 far value on that side against three dressed fixtures. That test found sixteen
-rows whose real bounds lived only in the inspector's own knob table, where a
+rows whose real bounds were defined only in the inspector's own knob table, where a
 stepper clamped to numbers the model had never agreed to.
 
 A color adjustment is a row in `aria_models::adjust_slider_rows!`, and that row
@@ -366,7 +366,7 @@ uniform lanes, the filter fold and its clamps, and one WGSL accessor per slider
 all expand from it. The shader is handed a generated preamble that states the
 lane count and names each slider, so the uniform grows on both sides of the
 boundary in one build and no file counts vec4 components. What a row cannot
-carry is its own maths: a new slider needs its formula written in `grade.wgsl`
+hold is its own math: a new slider needs its formula written in `grade.wgsl`
 and in `ColorGrade::apply`, and until it is there the slider composites as
 neutral. The render census checks every row through a rendered frame on the
 layer path and the canvas pass and requires the output pixels to change.
@@ -409,7 +409,7 @@ each step compiles on its own.
 6. `aria-commands`: add the `EditCommand` variant and a sample in
    `edit_samples()`; the wire-format test is fail-by-default.
 7. `aria-ai`: DTO, `WireCommand` variant, `remap` arm, validate arm, a registry
-   row in the domain group under `wire/tools/` that owns the tool, a case in
+   row in the domain group under `wire/tools/` that defines the tool, a case in
    that group's table, agent summary, `TOOL_SCHEMA_VERSION` bump, then
    `BLESS_TOOL_SCHEMA=1`.
 8. `aria-ui`: projection field, `AppState` setter, inspector block, menu row,
@@ -425,7 +425,10 @@ rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
 
 ## GPU bridge
 
-- Compositor owns wgpu. Preview currently readbacks into a CPU frame.
+- The preview worker renders on the window's shared `wgpu` device
+  (`PreviewWorker::set_gpu_device`), and the Viewer draws the rendered texture
+  with no CPU readback. Without a shared device, frames are read back into CPU
+  memory.
 - Shipped effect and transition passes are listed by
   `aria_compositor::shipped_effect_descriptors` and
   `shipped_transition_descriptors`. A plugin adds a WGSL pass with

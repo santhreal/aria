@@ -1,7 +1,7 @@
 # Commands
 
 A plugin adds a palette command through its context. The command runs on the
-thread that asks for it, through the plugin's own view of the context, so it
+thread that requests it, through the plugin's own view of the context, so it
 reaches only the services its manifest declares:
 
 ```rust
@@ -56,13 +56,13 @@ boolean expression over these keys (`ContextKey::ALL` in `crates/aria-plugin/src
 
 `!` negates, `&&` binds tighter than `||`, and parentheses group:
 `(selection || in-out) && !playing`. A condition is at most 256 bytes and nests
-`!` and parentheses at most 16 deep. `Enablement::parse` refuses an unknown key
+`!` and parentheses at most 16 deep. `Enablement::parse` rejects an unknown key
 or a malformed condition with the column of the fault.
 
 The editor publishes the keys with every drawn frame through
 `PluginContext::set_context_keys`. While a condition is false, the palette draws
 the command dimmed, the menu bar and context menus leave its rows out, and
-`run_command` refuses it with `CommandError::Disabled`; the status bar shows
+`run_command` rejects it with `CommandError::Disabled`; the status bar shows
 `{title}: needs {condition}`. A context no host publishes to holds no key:
 `selection` is false there and `!playing` is true.
 

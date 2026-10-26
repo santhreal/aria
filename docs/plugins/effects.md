@@ -267,7 +267,7 @@ The first input is also bound as `input_tex`.
 A layer input holds the referenced clip's frame at the same instant, drawn with
 its transform, effects, and LUT on a transparent canvas-sized frame. A
 parameter that references no clip, a clip that draws nothing at that instant,
-and an adjustment clip read transparent. The model refuses a
+and an adjustment clip read transparent. The model rejects a
 reference to the clip itself and a reference that closes a cycle through other
 clips' layer parameters; the effect row in Effect Controls shows the refusal.
 
@@ -276,12 +276,12 @@ clips' layer parameters; the effect row in Effect Controls shows the refusal.
 `ctx.register_texture(id, &image)` registers a straight-alpha `RgbaImage` as a
 texture. Aria premultiplies it once and uploads it the first time a frame
 reads it. A pass reads it with `PassInput::Texture(id)`. Register a texture
-before the effects that read it: registration refuses an effect reading a
+before the effects that read it: registration rejects an effect reading a
 texture that is not registered. During `mount` the context keeps the
 registration until the plugin unmounts. An effect keeps the image it was
 registered with while the effect is registered.
 
-Registration refuses an id that is empty, holds characters other than ASCII
+Registration rejects an id that is empty, holds characters other than ASCII
 letters, digits, `_`, `.`, and `-`, or is already registered; an image with a
 zero side or a side above `MAX_TEXTURE_SIDE` (8192); and a pixel buffer that is
 not `width * height * 4` bytes. The refusal is

@@ -31,7 +31,7 @@ Settings overrides it for the rest of the session and persists to
 No motion is honored in two places, not at each call site. A one-shot spec runs
 through `with_animation`, which draws the end state and schedules no frames when
 motion is reduced. A traveling value runs through `motion::glide`, which reads
-the policy of the open motion frame, so a new eased value cannot forget it.
+the policy of the open motion frame, so a new eased value cannot skip it.
 Loaders read a phase of zero and hold still.
 
 ## Curves
@@ -155,7 +155,7 @@ going.
 
 `gpui::motion::fling::sample_velocity` keeps that number while the pan moves.
 It folds each pointer position into a rate in pixels per millisecond, weighting
-the newest sample at 0.4 so one jittery frame cannot decide the throw, clamping a single
+the newest sample at 0.4 so one jittery frame cannot set the throw, clamping a single
 sample to 6 px/ms so a pointer that jumps cannot throw the view across the
 sequence, and restarting rather than blending across a gap of 90 ms.
 
@@ -174,6 +174,6 @@ committed value and the overshoot is only ever drawn.
 The distance is committed as an ordinary scroll target through
 `AppState::fling_timeline_to`, and the travel to it is the `FLING` spec. There is
 no second animation system integrating velocity per frame: the gesture produces
-a target, and the store that already chases targets carries it there. Any other
+a target, and the store that already chases targets moves it there. Any other
 scroll clears the flag, whether it is a wheel notch, a fit, or playhead follow,
 so the overshoot belongs to the release that earned it.

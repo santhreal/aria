@@ -1,8 +1,8 @@
 # aria-commands
 
-`aria-commands` defines the structured command vocabulary for Aria. UI gestures, AI-generated edits, tests, and CLI flows all use these command values when they want to change a project.
+`aria-commands` defines the structured command vocabulary for Aria. UI gestures, AI-generated edits, tests, and CLI flows all use these command values to change a project.
 
-The crate describes what can be requested. `aria-engine` decides whether a command is valid for the current project state, applies it, and records undo/redo history.
+The crate describes what can be requested. `aria-engine` checks whether a command is valid for the current project state, applies it, and records undo/redo history.
 
 ## Responsibilities
 

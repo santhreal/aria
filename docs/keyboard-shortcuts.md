@@ -332,7 +332,7 @@ key-tool-razor = ""
 
 A keymap holds only the rows that differ from the shipped chords. An empty
 chord is a binding cleared on purpose. A file with another version, an unknown
-field, or a chord no key can carry is refused whole, with the reason. A row for
+field, or a chord no key can produce is rejected whole, with the reason. A row for
 a binding this build does not have is skipped on load, and the status line
 names it.
 

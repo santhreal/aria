@@ -47,9 +47,9 @@ and their parameters, see [Transitions](reference/transitions.md).
 
 ## Filters
 
-A filter carries its own grade, so a new filter needs no rebuild. Every key
+A filter has its own grade, so a new filter needs no rebuild. Every key
 except `id` and `label` is a grade offset at full intensity, and a key left out
-states no change. A key the grade does not carry refuses the file, so a
+states no change. A key the grade does not have fails the file, so a
 misspelled offset is reported rather than dropped:
 
 ```toml
@@ -156,9 +156,9 @@ For the shipped entries, see [Video effects](reference/effects.md),
 ## Animations, text effects, easings, speed presets
 
 An animation entry names a `slot` (`in`, `out`, or `combo`), an easing entry
-carries four bezier control `points`, and a speed preset carries the `points` of
+holds four bezier control `points`, and a speed preset holds the `points` of
 its ramp. A speed curve is validated the way one you draw in the editor is, so a
-file cannot introduce a ramp the editor would refuse.
+file cannot introduce a ramp the editor would reject.
 
 An animation id needs a sampler behind it. An entry the renderer has no
 implementation for is still listed, labeled `(no renderer)`, and applying it
