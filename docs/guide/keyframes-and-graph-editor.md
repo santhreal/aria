@@ -55,6 +55,10 @@ drawn.
 A property that can be animated has these controls, in Effect Controls and on a
 timeline property row:
 
+- The value prints in the same units on both: opacity and scale in percent,
+  rotation in degrees, volume in decibels, and a volume of zero as Silent.
+  Drag the value to scrub it, or click it and type a number in the units it
+  prints.
 - The stopwatch, left of the name, turns animation on and off. A click on a
   constant property writes a keyframe at the playhead. A click on an animated
   property deletes every keyframe and keeps the value at the playhead, as one

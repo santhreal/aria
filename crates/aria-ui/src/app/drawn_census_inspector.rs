@@ -35,9 +35,9 @@ use aria_models::{
 
 use crate::app::AppState;
 use crate::app::clip_params::ParamRow;
+use crate::app::param_units::{Scale, Units};
 use crate::app::premiere_tests::with_clip;
 use crate::app::sent_census::Watch;
-use crate::surfaces::param_units;
 
 /// One property group, with a project dressed so that group owns rows.
 ///
@@ -111,16 +111,12 @@ const STAGES: &[Stage] = &[
     },
 ];
 
-/// Nudge one row the way the drawn row does.
-///
-/// A generated row hands the stepper `nudge_param`; a row with units of its own
-/// hands it the write those units declare. Pressing the wrong one would measure
-/// this file rather than the panel.
-fn nudge(state: &mut AppState, group: &str, row: &ParamRow) -> Result<(), EngineError> {
-    match param_units::of_param(group, row.param) {
-        Some(units) => (units.write)(state, units.unit),
-        None => state.nudge_param(row.param, row.component, row.step()),
-    }
+/// Nudge one row the way the drawn row does: one unit of drag, in the units
+/// the row prints, through the write the catalog row hands its stepper.
+/// Pressing another write would measure this file rather than the panel.
+fn nudge(state: &mut AppState, row: &ParamRow) -> Result<(), EngineError> {
+    let number = Units::of(row.param, &row.range).number;
+    state.nudge_shared_param_in(row.param, row.component, number.scale, number.drag)
 }
 
 /// Every command the property rows asked for, one nudge per row.
@@ -130,7 +126,7 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
         let mut state = (stage.dress)();
         let watch = Watch::on(&state);
         for row in state.param_rows(stage.group) {
-            nudge(&mut state, stage.group, &row)
+            nudge(&mut state, &row)
                 .unwrap_or_else(|err| panic!("nudging {} was refused: {err}", row.id));
         }
         out.extend(watch.take());
@@ -241,7 +237,7 @@ fn every_row_a_block_draws_asks_for_a_parameter_edit() {
         let mut state = (stage.dress)();
         for row in state.param_rows(stage.group) {
             let watch = Watch::on(&state);
-            nudge(&mut state, stage.group, &row)
+            nudge(&mut state, &row)
                 .unwrap_or_else(|err| panic!("nudging {} was refused: {err}", row.id));
             let sent = watch.take();
             assert!(
@@ -264,51 +260,41 @@ fn the_census_reaches_the_parameter_command() {
     );
 }
 
-/// An override is a scale, not a second way to write. A row that reads in its
-/// own units still writes through the catalog's keyframe-aware path, which is the
-/// whole reason the gain row stopped flattening fades.
+/// A scale is how a row reads, not a second way to write. A row printed in
+/// other units than the model stores (a percent, a decibel) still writes one
+/// property through the catalog's keyframe-aware path, which is why the gain
+/// row stopped flattening fades. The rows are every staged row whose scale is
+/// not the stored one, so a property given a scale is pressed here.
 #[test]
-fn a_row_with_its_own_units_writes_through_the_catalog() {
-    for (group, units) in param_units::OVERRIDES {
-        let stage = STAGES
-            .iter()
-            .find(|stage| stage.group == *group)
-            .unwrap_or_else(|| panic!("the {group} block has units but no dressed state"));
-        for unit in *units {
+fn a_row_in_its_own_units_writes_through_the_catalog() {
+    let mut pressed = Vec::new();
+    for stage in STAGES {
+        let scaled: Vec<ParamRow> = (stage.dress)()
+            .param_rows(stage.group)
+            .into_iter()
+            .filter(|row| Units::of(row.param, &row.range).number.scale != Scale::Linear(1.0))
+            .collect();
+        for row in scaled {
             let mut state = (stage.dress)();
-            let row = state
-                .param_rows(group)
-                .into_iter()
-                .find(|row| row.param == unit.param)
-                .unwrap_or_else(|| {
-                    panic!("the {group} block declares units for a property it does not draw")
-                });
             let watch = Watch::on(&state);
-            (unit.write)(&mut state, unit.unit)
-                .unwrap_or_else(|err| panic!("riding {}: {err}", row.id));
+            nudge(&mut state, &row).unwrap_or_else(|err| panic!("riding {}: {err}", row.id));
             let sent = watch.take();
             assert_eq!(
                 sent,
                 vec!["Set parameter"],
-                "riding `{}` sent {sent:?}: a row with its own units must still \
+                "riding `{}` sent {sent:?}: a row in its own units must still \
                  write one property, not a command carrying the whole block",
                 row.id
             );
+            pressed.push(row.param);
         }
     }
-}
-
-/// The reading half of the same rule: a scale is declared for a property the
-/// catalog holds, so an override that outlives its property goes red.
-#[test]
-fn every_declared_scale_names_a_property_that_is_drawn() {
-    let groups = groups_with_rows();
-    for (group, units) in param_units::OVERRIDES {
+    for param in [ClipParam::Opacity, ClipParam::Scale, ClipParam::Volume] {
         assert!(
-            groups.contains(*group),
-            "`{group}` has a declared scale and no property group"
+            pressed.contains(&param),
+            "no staged row of {param:?} reads in units of its own, so the census \
+             pressed none of the scales it is written for"
         );
-        assert!(!units.is_empty(), "`{group}` declares an empty scale");
     }
 }
 
@@ -360,8 +346,7 @@ fn a_nudge_keeps_the_curve_the_property_carries() {
                 row.id
             );
 
-            nudge(&mut state, stage.group, &row)
-                .unwrap_or_else(|err| panic!("nudging {}: {err}", row.id));
+            nudge(&mut state, &row).unwrap_or_else(|err| panic!("nudging {}: {err}", row.id));
             assert_eq!(
                 state.keyframes_of(row.param).len(),
                 keyed,
@@ -441,7 +426,7 @@ fn every_row_of_every_mask_edits_its_own_mask() {
                 row.id
             );
             let watch = Watch::on(&state);
-            nudge(&mut state, &group, &row)
+            nudge(&mut state, &row)
                 .unwrap_or_else(|err| panic!("nudging {} was refused: {err}", row.id));
             assert!(
                 !watch.take().is_empty(),

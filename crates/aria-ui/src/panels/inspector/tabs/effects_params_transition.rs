@@ -3,7 +3,8 @@
 use aria_models::{EffectParamKind, EffectParamSpec, TransitionSpec};
 use gpui::{AnyElement, IntoElement, SharedString};
 
-use super::{scalar_readout, vec2_axes};
+use super::vec2_axes;
+use crate::app::param_units::Units;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
     Chip, Columns, Keys, Readout, chip_row, control_line, pick_button, swatch_row, unkeyed_row,
@@ -58,20 +59,24 @@ fn push_transition_slot_rows(
     match pspec.kind {
         EffectParamKind::Scalar | EffectParamKind::Angle => {
             let value = transition.scalar(slot).unwrap_or(pspec.default);
+            let units = Units::of_effect(pspec);
+            let scale = units.number.scale;
             out.push(
                 unkeyed_row(
                     theme,
                     state,
                     MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
-                    scalar_readout(value, pspec),
+                    Readout::of(units, value),
                     Columns::Keyed,
                     move |state, by| {
                         clip_pick::apply(
                             state,
                             Pick::TransitionParam {
                                 slot,
-                                edit: TransitionSlotEdit::NudgeScalar(by),
+                                edit: TransitionSlotEdit::NudgeScalar(
+                                    scale.stored_delta(value, by),
+                                ),
                             },
                         )
                     },
@@ -88,7 +93,7 @@ fn push_transition_slot_rows(
                     state,
                     MotionKey::new("tr-param-int", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
-                    Readout::number(value as f32, 0, 1.0),
+                    Readout::of(Units::of_effect(pspec), value as f32),
                     Columns::Keyed,
                     move |state, by| {
                         clip_pick::apply(
@@ -185,7 +190,7 @@ fn push_transition_slot_rows(
         }
         EffectParamKind::Vec2 | EffectParamKind::Size => {
             let value = transition.vec2(slot).unwrap_or(pspec.default_vec2);
-            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            let units = Units::of_effect(pspec);
             for (axis, name) in vec2_axes(pspec.kind) {
                 out.push(
                     unkeyed_row(
@@ -193,7 +198,7 @@ fn push_transition_slot_rows(
                         state,
                         MotionKey::new("tr-vec2", slot).with(name),
                         &format!("{} {name}", pspec.label),
-                        Readout::number(value[axis], 3, unit),
+                        Readout::of(units, value[axis]),
                         Columns::Keyed,
                         move |state, by| {
                             clip_pick::apply(
@@ -212,7 +217,7 @@ fn push_transition_slot_rows(
         }
         EffectParamKind::Point3 => {
             let value = transition.point3(slot).unwrap_or(pspec.default_vec3);
-            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            let units = Units::of_effect(pspec);
             for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
                 out.push(
                     unkeyed_row(
@@ -220,7 +225,7 @@ fn push_transition_slot_rows(
                         state,
                         MotionKey::new("tr-pt3", slot).with(name),
                         &format!("{} {name}", pspec.label),
-                        Readout::number(value[axis], 3, unit),
+                        Readout::of(units, value[axis]),
                         Columns::Keyed,
                         move |state, by| {
                             clip_pick::apply(

@@ -16,6 +16,7 @@ use crate::app::AppState;
 use crate::app::clip_params::{ColorRow, ParamRow};
 use crate::app::drivers::DriverDraft;
 use crate::app::key_strip::KeyStrip;
+use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind};
 use crate::components::Wraps as _;
 use crate::motion::{self, glide};
@@ -122,6 +123,17 @@ impl Readout {
             value,
             unit,
             kind,
+        }
+    }
+
+    /// A property's number in the units it is read in: printed, dragged and
+    /// typed as `units` declare, from the value the model stores.
+    pub fn of(units: Units<'_>, stored: f32) -> Self {
+        Self {
+            text: units.print(stored),
+            value: units.number.scale.shown(stored),
+            unit: units.number.drag,
+            kind: units.number.kind(),
         }
     }
 

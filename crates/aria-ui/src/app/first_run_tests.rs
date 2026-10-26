@@ -13,8 +13,8 @@ fn fixture() -> PathBuf {
 }
 
 /// The selected clip's level in decibels, read the way the fader row reads it:
-/// off the projected clip, through the conversion `surfaces::param_units`
-/// prints. `None` at silence, which has no decibel value.
+/// off the projected clip, through the conversion `app::param_units` prints.
+/// `None` at silence, which has no decibel value.
 fn level_db(state: &AppState) -> Option<f32> {
     state
         .selected_ui_clip()

@@ -35,6 +35,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, ClipSource, Generator, ParamValue, TextStyle};
 
 use crate::app::AppState;
+use crate::app::param_units::Scale;
 use crate::app::selected_detail::SelectedDetail;
 use crate::types::UiClip;
 
@@ -204,26 +205,30 @@ impl AppState {
         }
     }
 
-    /// A catalog row's step or scrub: move `param` by `delta` on the first
-    /// selected clip and give the other clips that have it the same value.
+    /// A catalog row's step or scrub, in stored units: move `param` by `delta`
+    /// on the first selected clip and give the other clips that have it the
+    /// same value.
     pub fn nudge_shared_param(
         &mut self,
         param: ClipParam,
         component: Option<u8>,
         delta: f32,
     ) -> Result<(), EngineError> {
-        let peers = self.peers_sharing(param);
-        self.land_each(peers, &[(param, component)], |state| {
-            state.nudge_param(param, component, delta)
-        })
+        self.nudge_shared_param_in(param, component, Scale::Linear(1.0), delta)
     }
 
-    /// The gain row's step or scrub, in decibels: move the first selected
-    /// clip's gain and give the other clips the same gain.
-    pub fn nudge_shared_volume_db(&mut self, decibels: f32) -> Result<(), EngineError> {
-        let peers = self.peers_sharing(ClipParam::Volume);
-        self.land_each(peers, &[(ClipParam::Volume, None)], |state| {
-            state.nudge_selected_volume_db(decibels)
+    /// [`Self::nudge_shared_param`] with `delta` in the units `scale` shows
+    /// the property in: a percent, a decibel.
+    pub fn nudge_shared_param_in(
+        &mut self,
+        param: ClipParam,
+        component: Option<u8>,
+        scale: Scale,
+        delta: f32,
+    ) -> Result<(), EngineError> {
+        let peers = self.peers_sharing(param);
+        self.land_each(peers, &[(param, component)], |state| {
+            state.nudge_param_in(param, component, scale, delta)
         })
     }
 

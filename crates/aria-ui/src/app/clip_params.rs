@@ -23,6 +23,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipParam, Easing, ParamValue, RationalTime};
 
 use super::AppState;
+use super::param_units::Scale;
 
 /// One control a panel draws for one animatable property.
 ///
@@ -94,20 +95,6 @@ impl ParamRow {
     pub fn step(&self) -> f32 {
         param_step(&self.range)
     }
-
-    /// The amount one unit of drag moves this row; see [`scrub_unit`].
-    pub fn unit(&self) -> f32 {
-        scrub_unit(&self.range)
-    }
-
-    /// Digits a row prints: two inside a bounded range, one where the property
-    /// is open-ended and typically counted in pixels.
-    pub fn decimals(&self) -> u8 {
-        match self.range.span() {
-            Some(_) => 2,
-            None => 1,
-        }
-    }
 }
 
 /// Whether `spec` holds something other than its reset value at clip-local
@@ -129,18 +116,6 @@ fn off_default(
         Some(shown)
     };
     held != Some(default)
-}
-
-/// The amount one unit of drag moves a property bounded by `range`.
-///
-/// A bounded property crosses its whole span in a hundred units, two hundred
-/// pixels of drag at the scrub rate. An open-ended property moves by one, a
-/// pixel-ish unit, which is what open-ended properties here are.
-pub(crate) fn scrub_unit(range: &aria_models::ParamRange) -> f32 {
-    match range.span() {
-        Some(span) if span > 0.0 => span / 100.0,
-        _ => 1.0,
-    }
 }
 
 /// The amount one nudge moves a property bounded by `range`.
@@ -461,18 +436,30 @@ impl AppState {
         Ok(())
     }
 
-    /// Move one property by `delta`, from whatever it reads now. The step is the
-    /// caller's; the bound is the model's.
+    /// Move one property by `delta`, in stored units, from whatever it reads
+    /// now. The step is the caller's; the bound is the model's.
     pub fn nudge_param(
         &mut self,
         param: ClipParam,
         component: Option<u8>,
         delta: f32,
     ) -> Result<(), EngineError> {
+        self.nudge_param_in(param, component, Scale::Linear(1.0), delta)
+    }
+
+    /// [`Self::nudge_param`] with `delta` in the units `scale` shows the
+    /// property in: a percent, a decibel.
+    pub fn nudge_param_in(
+        &mut self,
+        param: ClipParam,
+        component: Option<u8>,
+        scale: Scale,
+        delta: f32,
+    ) -> Result<(), EngineError> {
         let Some(current) = self.param_scalar(param, component) else {
             return Ok(());
         };
-        self.set_param_scalar(param, component, current + delta)
+        self.set_param_scalar(param, component, scale.moved(current, delta))
     }
 
     /// The tick a row reads at: the playhead, held inside the clip so a row

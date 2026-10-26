@@ -6,8 +6,7 @@ pub(crate) mod transition;
 
 use crate::tooltip::WithTip as _;
 use aria_models::{
-    ClipId, ClipParam, EffectCurvePoint, EffectGradientStop, EffectParamDisplay, EffectParamKind,
-    EffectParamSpec,
+    ClipId, ClipParam, EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec,
 };
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
@@ -17,6 +16,7 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::clip_params::{ColorRow, ParamRow};
 use crate::app::key_strip::KeyStrip;
+use crate::app::param_units::Units;
 use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
@@ -256,22 +256,6 @@ fn slot_chip(
     .into_any_element()
 }
 
-pub(super) fn scalar_readout(value: f32, pspec: &EffectParamSpec) -> Readout {
-    let min = pspec.soft_min.unwrap_or(pspec.min);
-    let max = pspec.soft_max.unwrap_or(pspec.max);
-    let unit = ((max - min) / 100.0).max(0.01);
-    if pspec.kind == EffectParamKind::Angle || pspec.display == Some(EffectParamDisplay::AngleDial)
-    {
-        Readout::printed(format!("{value:.1}°"), value, 1, unit)
-    } else if pspec.display == Some(EffectParamDisplay::Percentage) {
-        Readout::printed(format!("{:.0}%", value * 100.0), value, 2, unit)
-    } else if let Some(u) = pspec.unit.as_deref().filter(|u| !u.is_empty()) {
-        Readout::printed(format!("{value:.2} {u}"), value, 2, unit)
-    } else {
-        Readout::number(value, 2, unit)
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn push_effect_slot_rows(
     out: &mut Vec<AnyElement>,
@@ -296,7 +280,9 @@ fn push_effect_slot_rows(
                 || effect.scalar(slot).unwrap_or(pspec.default),
                 |(value, _)| *value,
             );
-            let readout = scalar_readout(value, pspec).dashed(keys.mixed(index, slot, None));
+            let units = Units::of_effect(pspec);
+            let scale = units.number.scale;
+            let readout = Readout::of(units, value).dashed(keys.mixed(index, slot, None));
             out.push(
                 div()
                     .id(MotionKey::new("fx-param-tip", index)
@@ -314,6 +300,7 @@ fn push_effect_slot_rows(
                         None,
                         keys_of(keyed),
                         move |state, by| {
+                            let by = scale.stored_delta(value, by);
                             effects_rack::apply(state, Gesture::NudgeScalar { index, slot, by })
                         },
                         cx,
@@ -340,7 +327,8 @@ fn push_effect_slot_rows(
                         state,
                         MotionKey::new(&pspec.name, index),
                         pspec.label.as_str(),
-                        Readout::number(value as f32, 0, 1.0).dashed(keys.mixed(index, slot, None)),
+                        Readout::of(Units::of_effect(pspec), value as f32)
+                            .dashed(keys.mixed(index, slot, None)),
                         None,
                         keys_of(keyed),
                         move |state, by| {
@@ -463,7 +451,7 @@ fn push_effect_slot_rows(
         }
         EffectParamKind::Vec2 | EffectParamKind::Size => {
             let value = effect.vec2(slot).unwrap_or(pspec.default_vec2);
-            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            let units = Units::of_effect(pspec);
             for (axis, name) in vec2_axes(pspec.kind) {
                 let keyed = keys.number(index, slot, Some(axis as u8));
                 let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
@@ -473,11 +461,7 @@ fn push_effect_slot_rows(
                         state,
                         MotionKey::new(&pspec.name, index).with(name),
                         &format!("{} {name}", pspec.label),
-                        Readout::number(shown, 3, unit).dashed(keys.mixed(
-                            index,
-                            slot,
-                            Some(axis as u8),
-                        )),
+                        Readout::of(units, shown).dashed(keys.mixed(index, slot, Some(axis as u8))),
                         None,
                         keys_of(keyed),
                         move |state, by| {
@@ -499,7 +483,7 @@ fn push_effect_slot_rows(
         }
         EffectParamKind::Point3 => {
             let value = effect.point3(slot).unwrap_or(pspec.default_vec3);
-            let unit = ((pspec.max - pspec.min) / 100.0).max(0.001);
+            let units = Units::of_effect(pspec);
             for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
                 let keyed = keys.number(index, slot, Some(axis as u8));
                 let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
@@ -509,11 +493,7 @@ fn push_effect_slot_rows(
                         state,
                         MotionKey::new(&pspec.name, index).with(name),
                         &format!("{} {name}", pspec.label),
-                        Readout::number(shown, 3, unit).dashed(keys.mixed(
-                            index,
-                            slot,
-                            Some(axis as u8),
-                        )),
+                        Readout::of(units, shown).dashed(keys.mixed(index, slot, Some(axis as u8))),
                         None,
                         keys_of(keyed),
                         move |state, by| {

@@ -24,6 +24,35 @@ pub struct Look {
     pub ink: Hsla,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The readouts drawn since [`record_readouts`].
+    static READOUTS: std::cell::RefCell<Option<Vec<DrawnReadout>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// A readout as it was drawn: the target a press hands the state, and what it
+/// printed closed.
+#[cfg(test)]
+#[derive(Debug, Clone)]
+pub(crate) struct DrawnReadout {
+    pub target: ScrubTarget,
+    pub text: SharedString,
+}
+
+/// Start a fresh record of the readouts drawn, on every surface.
+#[cfg(test)]
+pub(crate) fn record_readouts() {
+    READOUTS.set(Some(Vec::new()));
+}
+
+/// Stop recording and return every readout drawn since [`record_readouts`],
+/// in the order they were drawn.
+#[cfg(test)]
+pub(crate) fn drawn_readouts() -> Vec<DrawnReadout> {
+    READOUTS.with_borrow_mut(|drawn| drawn.take().unwrap_or_default())
+}
+
 /// One readout. `text` is what it prints closed.
 pub fn readout(
     theme: &Theme,
@@ -33,6 +62,16 @@ pub fn readout(
     look: Look,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
+    let text: SharedString = text.into();
+    #[cfg(test)]
+    READOUTS.with_borrow_mut(|drawn| {
+        if let Some(drawn) = drawn {
+            drawn.push(DrawnReadout {
+                target: target.clone(),
+                text: text.clone(),
+            });
+        }
+    });
     let key = target.key;
     let (draft, dragging, any_open) = {
         let scrubs = state.read(cx).value_scrubs();
@@ -95,7 +134,7 @@ pub fn readout(
         .text_color(ink)
         .cursor(CursorStyle::ResizeLeftRight)
         .on_hover(motion::hover_listener(hover))
-        .child(text.into())
+        .child(text)
         // The underline hangs below the text, outside the readout's box, so the
         // box is the text's line and the number centres on its row like the
         // label and the keyframe navigator beside it.

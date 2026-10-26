@@ -2,9 +2,9 @@
 //! color swatch rows of one group, and rows whose caller has the write.
 
 use crate::app::AppState;
+use crate::app::param_units::{Scale, Units};
 use crate::motion;
 use crate::surfaces::clip_pick;
-use crate::surfaces::param_units;
 use crate::theme::Theme;
 use aria_engine::EngineError;
 use gpui::{
@@ -51,20 +51,20 @@ pub fn unkeyed_row(
 ///
 /// A block states which group it draws and gets its rows; it keeps no list of
 /// the properties it owns, and it does not decide how an edit is written. That
-/// is what `AppState::nudge_param` is for, and it is the reason a slider here
-/// no longer erases the keyframes of the block it belongs to.
+/// is what `AppState::nudge_shared_param_in` is for, and it is the reason a
+/// slider here no longer erases the keyframes of the block it belongs to.
 ///
 /// It is also why the whole catalog animates at once: the range, the keyframe
 /// state and the value all arrive on the row, so [`stepper_row`] draws a track
 /// and a stopwatch for every property the catalog holds without any group
 /// opting in, and a property added to the catalog arrives animated.
 ///
-/// A property the model stores in units nobody reads it in carries an entry in
-/// [`crate::surfaces::param_units`], and that row is drawn in the units it
-/// declares, with its own step and its own write. Such a row keeps its stopwatch
-/// and loses its track: the value no longer travels along the range the catalog
-/// declared, and a track drawn from that range would put the thumb in the wrong
-/// place.
+/// Every row is printed, dragged and typed in the units
+/// [`crate::app::param_units`] declares for its property: an opacity in
+/// percent, a gain in decibels. A row in a linear scale keeps its track, which
+/// travels along the range the catalog declares. A gain row keeps its
+/// stopwatch and loses its track: a thumb placed along the multiplier would
+/// stand where the decibels it prints are not.
 ///
 /// The state entity is passed in rather than read back off the shell: a panel
 /// draws inside an update of the shell entity, so reading that entity from here
@@ -142,46 +142,28 @@ fn catalog_rows(
         let component = row.component;
         let stopwatch = watching.stopwatch(&row, strip);
         let key = motion::MotionKey::new(surface, &row.id);
-        if let Some(units) = param_units::of_param(group, param) {
-            let element = stepper_row(
-                theme,
-                &state,
-                key,
-                row.label.clone(),
-                Readout::printed(
-                    (units.read)(row.value),
-                    (units.shown)(row.value),
-                    units.decimals,
-                    units.unit,
-                )
-                .dashed(row.mixed),
-                None,
-                Keys::Watch(stopwatch),
-                units.write,
-                cx,
-            )
-            .into_any_element();
-            place(&row.id, element);
-            continue;
-        }
-        let step = row.step();
-        let travel = Travel {
-            value: row.value,
-            step,
-            range: match (row.range.min, row.range.max) {
-                (Some(min), Some(max)) => Some((min, max)),
-                _ => None,
-            },
+        let units = Units::of(param, &row.range);
+        let scale = units.number.scale;
+        let travel = match scale {
+            Scale::Linear(_) => Some(Travel {
+                value: row.value,
+                step: row.step(),
+                range: match (row.range.min, row.range.max) {
+                    (Some(min), Some(max)) => Some((min, max)),
+                    _ => None,
+                },
+            }),
+            Scale::Gain => None,
         };
         let element = stepper_row(
             theme,
             &state,
             key,
             row.label.clone(),
-            Readout::number(row.value, row.decimals(), row.unit()).dashed(row.mixed),
-            Some(travel),
+            Readout::of(units, row.value).dashed(row.mixed),
+            travel,
             Keys::Watch(stopwatch),
-            move |state, delta| state.nudge_shared_param(param, component, delta),
+            move |state, delta| state.nudge_shared_param_in(param, component, scale, delta),
             cx,
         )
         .into_any_element();

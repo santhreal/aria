@@ -35,7 +35,6 @@ pub mod lane_header;
 pub mod markers_pick;
 pub mod mixer_strip;
 pub mod overlay_gesture;
-pub mod param_units;
 pub mod pool_drop;
 pub mod pool_pick;
 pub mod ramp_gesture;

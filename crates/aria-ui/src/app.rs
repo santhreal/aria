@@ -176,6 +176,8 @@ pub mod multicam_sync;
 pub mod nested;
 #[path = "app/palette.rs"]
 pub mod palette;
+#[path = "app/param_units.rs"]
+pub mod param_units;
 #[path = "app/picker.rs"]
 pub mod picker;
 #[path = "app/plugin_commands.rs"]

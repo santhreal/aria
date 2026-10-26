@@ -83,17 +83,8 @@ impl LineDrag {
     /// What the readout prints for `value` on `model`: what the property's
     /// row in Effect Controls and on the timeline prints.
     fn readout(&self, model: &aria_models::Clip, value: f32) -> SharedString {
-        match crate::surfaces::param_units::of_param(&self.spec.group, self.param) {
-            Some(units) => (units.read)(value).into(),
-            None => {
-                super::property_rows::format_param_value(
-                    model,
-                    &self.spec,
-                    Some(ParamValue::Scalar(value)),
-                )
-                .0
-            }
-        }
+        super::property_rows::format_param_value(model, &self.spec, Some(ParamValue::Scalar(value)))
+            .0
     }
 }
 

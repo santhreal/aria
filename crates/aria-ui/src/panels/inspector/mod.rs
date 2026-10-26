@@ -17,6 +17,8 @@ mod strip_tests;
 pub mod tab_host;
 mod tab_strip;
 pub mod tabs;
+#[cfg(test)]
+mod units_tests;
 
 use aria_plugin::PanelLocation;
 use gpui::{

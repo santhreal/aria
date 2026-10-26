@@ -35,6 +35,7 @@ use super::AppState;
 use super::clip_keys::{KeyParam, key_params_of};
 use super::effects_browser::contains_folded;
 use super::mask_path_keys::{mask_path_label, path_masks};
+use super::param_units::{Number, Units};
 
 pub use graph::{
     GraphDragTarget, GraphHandleSide, GraphInfluenceHandle, GraphKeyNode, GraphMode,
@@ -199,17 +200,6 @@ pub struct TimelineKeyMark {
     pub interior: bool,
 }
 
-/// How a property row's readout is dragged and typed, in the units it prints.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RowReadout {
-    /// Printed units per stored unit: 100 for a fraction printed as a percent.
-    pub scale: f32,
-    /// Digits after the point.
-    pub decimals: u8,
-    /// One unit of drag, in printed units.
-    pub unit: f32,
-}
-
 /// One property row drawn under an expanded clip on a timeline track.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimelinePropertyRow {
@@ -221,9 +211,10 @@ pub struct TimelinePropertyRow {
     pub label: SharedString,
     pub value_label: SharedString,
     pub scalar_at_playhead: f32,
-    /// How the value readout drags and types. `None` for a colour or a
-    /// rectangle, which a single number cannot move.
-    pub readout: Option<RowReadout>,
+    /// How the value readout drags and types, in the units `value_label`
+    /// prints. `None` for a colour or a rectangle, which a single number
+    /// cannot move.
+    pub readout: Option<Number>,
     pub keyframed: bool,
     pub keyed_at_playhead: bool,
     pub has_prev_key: bool,
@@ -770,76 +761,34 @@ fn group_header_label(clip: &Clip, group: PropertyGroup) -> SharedString {
 }
 
 /// What a row prints, the scalar its readout moves (the first component of a
-/// pair), and how that readout drags and types.
+/// pair), and how that readout drags and types: in the units
+/// [`param_units`](super::param_units) defines for the property, the units
+/// its Effect Controls row prints.
 pub(super) fn format_param_value(
     clip: &Clip,
     spec: &ParamSpec,
     value: Option<ParamValue>,
-) -> (SharedString, f32, Option<RowReadout>) {
-    let readout = |scale: f32, decimals: u8| RowReadout {
-        scale,
-        decimals,
-        unit: super::clip_params::scrub_unit(&spec.range) * scale,
+) -> (SharedString, f32, Option<Number>) {
+    let effect = match spec.param {
+        ClipParam::Effect { effect, param } => clip
+            .effects
+            .get(effect as usize)
+            .and_then(|instance| aria_models::effect_spec(&instance.effect_id))
+            .map(|effect| (effect, param as usize)),
+        _ => None,
     };
+    let units = effect
+        .as_ref()
+        .and_then(|(effect, slot)| effect.param_at(*slot))
+        .map_or_else(|| Units::of(spec.param, &spec.range), Units::of_effect);
     match value {
-        Some(ParamValue::Scalar(v)) => {
-            let (text, shape) = match spec.param {
-                ClipParam::Opacity => (format!("{:.0}%", v * 100.0), readout(100.0, 0)),
-                ClipParam::Rotation => (format!("{v:.1}°"), readout(1.0, 1)),
-                ClipParam::Effect { effect, param } => {
-                    let pspec = clip
-                        .effects
-                        .get(effect as usize)
-                        .and_then(|inst| aria_models::effect_spec(&inst.effect_id))
-                        .and_then(|espec| espec.param_at(param as usize).cloned());
-                    match pspec {
-                        Some(p) if p.kind == aria_models::EffectParamKind::Int => (
-                            format!("{}", v.round() as i32),
-                            RowReadout {
-                                scale: 1.0,
-                                decimals: 0,
-                                unit: 1.0,
-                            },
-                        ),
-                        Some(p)
-                            if p.kind == aria_models::EffectParamKind::Angle
-                                || p.display
-                                    == Some(aria_models::EffectParamDisplay::AngleDial) =>
-                        {
-                            (format!("{v:.1}°"), readout(1.0, 1))
-                        }
-                        Some(p)
-                            if p.display == Some(aria_models::EffectParamDisplay::Percentage) =>
-                        {
-                            (format!("{:.0}%", v * 100.0), readout(100.0, 0))
-                        }
-                        Some(p) if p.unit.as_deref().is_some_and(|u| !u.is_empty()) => {
-                            let unit = p.unit.as_deref().unwrap_or_default();
-                            (format!("{v:.2} {unit}"), readout(1.0, 2))
-                        }
-                        _ => (format!("{v:.2}"), readout(1.0, 2)),
-                    }
-                }
-                _ => (format!("{v:.2}"), readout(1.0, 2)),
-            };
-            (text.into(), v, Some(shape))
+        Some(ParamValue::Scalar(v)) => (units.print(v).into(), v, Some(units.number)),
+        Some(ParamValue::Vec2(axes)) => {
+            (units.print_all(&axes).into(), axes[0], Some(units.number))
         }
-        Some(ParamValue::Vec2([x, y])) => {
-            if spec.param == ClipParam::Scale {
-                (
-                    format!("{:.0}%, {:.0}%", x * 100.0, y * 100.0).into(),
-                    x,
-                    Some(readout(100.0, 0)),
-                )
-            } else {
-                (format!("{x:.1}, {y:.1}").into(), x, Some(readout(1.0, 1)))
-            }
+        Some(ParamValue::Vec3(axes)) => {
+            (units.print_all(&axes).into(), axes[0], Some(units.number))
         }
-        Some(ParamValue::Vec3([x, y, z])) => (
-            format!("{x:.1}, {y:.1}, {z:.1}").into(),
-            x,
-            Some(readout(1.0, 1)),
-        ),
         Some(ParamValue::Color([r, g, b, _])) => {
             (format!("#{r:02X}{g:02X}{b:02X}").into(), f32::from(r), None)
         }

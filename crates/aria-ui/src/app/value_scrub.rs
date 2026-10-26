@@ -82,7 +82,7 @@ impl ValueKind {
     }
 
     /// Whether `ch` can be part of a typed value.
-    fn accepts(self, ch: char) -> bool {
+    pub(crate) fn accepts(self, ch: char) -> bool {
         match self {
             Self::Number { .. } => ch.is_ascii_digit() || matches!(ch, '.' | '-' | '+'),
             Self::Frames { .. } => ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.'),

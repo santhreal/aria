@@ -2,16 +2,16 @@
 //! is written by the generated row through `set_param_scalar`.
 //!
 //! Volume is stored as the linear multiplier a mixer applies and read by an
-//! operator in decibels, so both conversions come from
+//! operator in decibels, through [`Scale::Gain`], whose conversions come from
 //! [`aria_analysis::gain`] rather than being spelled out here: a clip's gain, a
 //! normalisation, and an export's headroom have to agree on what −6 dB means.
 
-use aria_analysis::{db_from_linear, linear_from_db};
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{ClipParam, Rational, RationalTime};
 
 use super::AppState;
+use super::param_units::Scale;
 
 /// The quietest fader position that still reads as a level. A step below this
 /// is silence, which has no decibel value, and a step up from silence lands
@@ -34,24 +34,11 @@ impl AppState {
         self.set_param_scalar(ClipParam::Volume, None, volume)
     }
 
-    /// Move the selected clip's gain by `decibels`.
-    ///
-    /// A fader step is constant in decibels, not in the multiplier: 1 dB down
-    /// from unity and 1 dB down from a whisper are the same gesture, while a
-    /// fixed linear step is inaudible at the top and a cliff at the bottom.
-    /// The bottom of the range is silence, so stepping under
-    /// `VOLUME_FLOOR_DB` mutes rather than approaching zero forever.
+    /// Move the selected clip's gain by `decibels`, in the scale its row
+    /// reads in ([`Scale::Gain`]): stepping under `VOLUME_FLOOR_DB` mutes, and a
+    /// step up from silence lands on the floor.
     pub fn nudge_selected_volume_db(&mut self, decibels: f32) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_ui_clip_ref() else {
-            return Ok(());
-        };
-        let level = db_from_linear(clip.volume).unwrap_or(SILENT_DB) + decibels;
-        let next = if level < VOLUME_FLOOR_DB {
-            0.0
-        } else {
-            linear_from_db(level)
-        };
-        self.set_selected_volume(next)
+        self.nudge_param_in(ClipParam::Volume, None, Scale::Gain, decibels)
     }
 
     pub fn set_selected_fade_in(&mut self, ticks: i64) -> Result<(), EngineError> {

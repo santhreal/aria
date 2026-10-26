@@ -15,7 +15,7 @@ use crate::app::AppState;
 use crate::app::property_rows::{
     PROPERTY_ROW_H, TimelineKeyMark, TimelineMaskPathRow, TimelineOutlineRow, TimelinePropertyRow,
 };
-use crate::app::value_scrub::{ScrubTarget, ValueKind};
+use crate::app::value_scrub::ScrubTarget;
 use crate::motion::MotionKey;
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::panels::value_readout;
@@ -557,7 +557,7 @@ fn value_readout(
         size: Theme::TEXT_SMALL,
         ink: theme.value,
     };
-    let Some(shape) = row.readout else {
+    let Some(number) = row.readout else {
         return div()
             .text_size(look.size)
             .text_color(look.ink)
@@ -565,15 +565,14 @@ fn value_readout(
             .into_any_element();
     };
     let (clip, param, stored) = (row.clip, row.param, row.scalar_at_playhead);
+    let scale = number.scale;
     let target = ScrubTarget {
         key: MotionKey::new("prop-val", clip.raw()).with(&row.id),
-        value: stored * shape.scale,
-        unit: shape.unit,
-        kind: ValueKind::Number {
-            decimals: shape.decimals,
-        },
+        value: scale.shown(stored),
+        unit: number.drag,
+        kind: number.kind(),
         write: Rc::new(move |state: &mut AppState, delta| {
-            state.write_property_scalar_at_playhead(clip, param, stored + delta / shape.scale)
+            state.write_property_scalar_at_playhead(clip, param, scale.moved(stored, delta))
         }),
     };
     value_readout::readout(theme, state, target, row.value_label.clone(), look, cx)

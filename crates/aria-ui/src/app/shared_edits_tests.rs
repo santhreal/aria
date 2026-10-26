@@ -35,6 +35,7 @@ use crate::app::AppState;
 use crate::app::clip_text::text_caret::tests::typing;
 use crate::app::fixtures::{blurred_clip, linked_pair, model_of, the_pair, twin_selected};
 use crate::app::grade_controls::WheelControl;
+use crate::app::param_units::Scale;
 use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{EFFECT_ITEMS, EffectMenu, MenuItem};
 use crate::surfaces::effects_rack::SlotEdit;
@@ -315,7 +316,7 @@ fn a_clip_without_the_property_is_left_alone_and_a_shared_gain_lands_on_both() {
     assert!(mixed(&state, "audio", ClipParam::Volume, None));
     let depth = state.history_depth();
     state
-        .nudge_shared_volume_db(-6.0)
+        .nudge_shared_param_in(ClipParam::Volume, None, Scale::Gain, -6.0)
         .expect("the gain step lands");
     let landed = read(&mut state, picture, &pair, ClipParam::Volume, None);
     assert!(landed < 1.0, "the drawn clip's gain did not move");

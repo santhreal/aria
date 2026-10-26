@@ -101,7 +101,9 @@ Parameters of the applied effect appear under its header. Each row reads its
 value at the playhead.
 
 - A numeric parameter is a value: drag it left or right to scrub it, or click it
-  to type one. A point parameter is two rows, x and y, and a 3D point is three.
+  to type one. A typed value is read in the units the row prints: a percentage
+  in percent, an angle in degrees. A point parameter is two rows, x and y, and a
+  3D point is three.
 - A color parameter prints its value beside the label, a preset's name or a
   hex such as `#ff0000`, with its swatches on the line under it. Click a
   swatch to set the color.
