@@ -579,3 +579,114 @@ async fn a_keyframe_dragged_off_the_graph_follows_the_pointer_and_lands_on_its_r
          the drag held"
     );
 }
+
+/// The history depth of the project in `state`.
+fn depth(state: &gpui::Entity<AppState>, window: &VisualTestContext) -> usize {
+    window.read(|app| state.read(app).history_depth())
+}
+
+/// Drag the first keyframe of the graph `window` draws halfway to the graph's
+/// center and end the drag each way: a release over the graph or outside the
+/// window writes the curve drawn while the button was held as one undo step,
+/// and Escape puts the committed curve back with no undo step.
+fn ends_each_way(state: &gpui::Entity<AppState>, window: &mut VisualTestContext, place: &str) {
+    let key = window.read(|app| Theme::of(app).text);
+    // The curve is drawn in the graph's own pixels, so it is read once the
+    // graph has been drawn in this window.
+    scrolled_to(window, "curve-editor-graph");
+    let committed = &drawn(state, window);
+    for end in ["release", "outside", "escape"] {
+        let graph = scrolled_to(window, "curve-editor-graph");
+        let marks = dots(window, key, KEYFRAME_DOT_SIZE, graph);
+        assert_eq!(
+            marks.len(),
+            committed.key_points.len(),
+            "{place}: the graph paints {marks:?} for its keyframes"
+        );
+        let (at, center) = (marks[0], graph.center());
+        let to = point((at.x + center.x) * 0.5, (at.y + center.y) * 0.5);
+        let before = depth(state, window);
+        window.simulate_mouse_move(at, None, Modifiers::none());
+        window.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+        assert!(
+            window.read(|app| state.read(app).curve_dragging().is_some()),
+            "{place}: a press on the first keyframe, painted at {at:?}, grabs nothing"
+        );
+        window.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+        let during = drawn(state, window);
+        match end {
+            "release" => window.simulate_mouse_up(to, MouseButton::Left, Modifiers::none()),
+            // Left of the window: the release lands on nothing the shell drew.
+            "outside" => window.simulate_mouse_up(
+                point(px(-10.0), to.y),
+                MouseButton::Left,
+                Modifiers::none(),
+            ),
+            _ => window.simulate_keystrokes("escape"),
+        }
+        window.run_until_parked();
+        assert!(
+            window.read(|app| state.read(app).curve_dragging().is_none()),
+            "{place}: the {end} left the drag in flight"
+        );
+        let after = drawn(state, window);
+        if end == "escape" {
+            assert!(
+                same_curve(&after, committed),
+                "{place}: Escape left the curve at {after:?}"
+            );
+            assert_eq!(
+                depth(state, window),
+                before,
+                "{place}: Escape left an undo step"
+            );
+            continue;
+        }
+        assert!(
+            same_curve(&after, &during) && !same_curve(&after, committed),
+            "{place}: the {end} wrote {after:?}, not the {during:?} drawn while the button was held"
+        );
+        assert_eq!(
+            depth(state, window),
+            before + 1,
+            "{place}: the {end} did not write the drag as one undo step"
+        );
+        window.update(|_, app| {
+            state.update(app, |state, cx| {
+                assert!(state.undo(), "{place}: the {end} left nothing to undo");
+                cx.notify();
+            });
+        });
+        window.run_until_parked();
+    }
+}
+
+/// A drag held on the graph ends the same way in the main window and in a
+/// floating panel window: a release over the graph or outside the window
+/// writes it, and Escape abandons it.
+///
+/// Closes the class "a gesture a floating window does not end". A floating
+/// panel window ended only a tab drag on its release, so a drag held on the
+/// graph, a value readout, a wheel or a lane's border stayed in flight until
+/// the next move with the button up, and Escape moved the focus to the main
+/// window with the drag still held. Both windows end a gesture through the
+/// same `Shell` handlers, so the graph's drag drawn in each window covers
+/// the routing of every gesture they end.
+///
+/// Not covered: what each gesture writes on its end, which its own tests
+/// cover in the main window.
+#[gpui::test]
+async fn a_graph_drag_ends_alike_in_the_main_window_and_a_floating_one(cx: &mut TestAppContext) {
+    let (state, visual, _) = keyed_twice(cx, "graph-floating");
+    ends_each_way(&state, visual, "the main window");
+
+    let (_, window) = crate::test_support::floated_window(
+        &state,
+        visual,
+        crate::dock::PANEL_INSPECTOR,
+        (100.0, 100.0, 360.0, 640.0),
+    );
+    let mut floating = VisualTestContext::from_window(window, &visual.cx);
+    floating.run_until_parked();
+    ends_each_way(&state, &mut floating, "a floating window");
+}

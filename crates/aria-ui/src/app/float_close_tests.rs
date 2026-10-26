@@ -15,31 +15,11 @@ use gpui::{AnyWindowHandle, Entity, TestAppContext, VisualTestContext};
 
 use crate::app::AppState;
 use crate::dock::{FrameId, PANEL_MIXER};
-use crate::test_support::drawn_shell;
+use crate::test_support::{drawn_shell, floated_window};
 
 /// Float the Mixer and return its frame and the window the shell opened for it.
 fn floated(state: &Entity<AppState>, visual: &mut VisualTestContext) -> (FrameId, AnyWindowHandle) {
-    let frame = visual.update(|_, app| {
-        state.update(app, |state, cx| {
-            state
-                .float_dock_panel(PANEL_MIXER, (100.0, 100.0, 480.0, 320.0), cx)
-                .expect("the Mixer floats")
-        })
-    });
-    visual.run_until_parked();
-    let main = visual.update(|window, _| window.window_handle());
-    let others: Vec<AnyWindowHandle> = visual
-        .cx
-        .windows()
-        .into_iter()
-        .filter(|window| *window != main)
-        .collect();
-    assert_eq!(
-        others.len(),
-        1,
-        "the shell opens one window for the floated frame"
-    );
-    (frame, others[0])
+    floated_window(state, visual, PANEL_MIXER, (100.0, 100.0, 480.0, 320.0))
 }
 
 /// Close `window` the way the window manager does, through its should-close

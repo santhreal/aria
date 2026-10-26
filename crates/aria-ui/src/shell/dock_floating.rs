@@ -178,54 +178,25 @@ impl Shell {
             });
         }
 
-        // A release outside the window ends a gesture as one inside it does:
-        // the press began in this window, so its release is this window's.
-        let release = move |this: &mut Self,
-                            _: &gpui::MouseUpEvent,
-                            window: &mut Window,
-                            cx: &mut Context<Self>| {
-            // A press on the tab row that never travelled moves nothing.
-            this.window_move = false;
-            let Some(drag) = this.drag.take() else {
-                return;
-            };
-            let hover = this.tab_hover.take().or_else(active_tab_hover);
-            set_active_tab_hover(None);
-            if let DragKind::DockTab {
-                panel,
-                source_frame,
-                moved: true,
-                ..
-            } = drag.kind
-                && let Some((target_frame, zone)) = hover
-                && !(target_frame == source_frame && zone == Zone::Center)
-            {
-                let still_floating = this.state.update(cx, |state, cx| {
-                    state.dock_tree.dock(panel, target_frame, zone);
-                    state.record_dock_edit(cx);
-                    state
-                        .dock_tree
-                        .floating
-                        .iter()
-                        .any(|fl| fl.frame.id == frame_id)
-                });
-                if !still_floating {
-                    window.remove_window();
-                    return;
-                }
-            }
-            this.persist(cx);
-            cx.notify();
-        };
         div()
             .id("floating-shell")
             .track_focus(&self.focus)
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .on_mouse_up(MouseButton::Left, cx.listener(release))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(release))
+            // A release outside the window ends a gesture as one inside it
+            // does: the press began in this window, so its release is this
+            // window's.
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_release))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_release))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 let key = event.keystroke.key.as_str();
                 if key.eq_ignore_ascii_case("escape") {
+                    // A gesture in flight is abandoned first, as in the main
+                    // window.
+                    if this.cancel_gesture(window, cx) {
+                        cx.stop_propagation();
+                        cx.notify();
+                        return;
+                    }
                     let has_modal = {
                         let s = this.state.read(cx);
                         s.dialog != crate::app::DialogKind::None

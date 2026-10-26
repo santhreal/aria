@@ -77,170 +77,9 @@ impl Shell {
             window.start_window_move();
             return;
         }
-        // A press on the Viewer's playhead field or mini ruler is held on the
-        // state, so the drag keeps going off the field or the strip.
-        if self.state.read(cx).viewer_scrub.press().is_some() {
-            let state = &self.state;
-            if event.pressed_button == Some(MouseButton::Left) {
-                let dx = f32::from(event.delta.x);
-                let x = f32::from(event.position.x);
-                let mods = event.modifiers;
-                let moved = state.update(cx, |state, _| {
-                    state.drag_viewer(dx, x, mods.shift, mods.control || mods.platform)
-                });
-                // The playhead field reads relative travel, so past the slop
-                // the cursor hides and holds its place, as on a value readout.
-                if state.read(cx).viewer_scrub.drag_held() {
-                    window.lock_pointer();
-                }
-                if moved {
-                    spawn_preview(self.state.clone(), cx);
-                    cx.notify();
-                }
-            } else if state.update(cx, |state, _| state.release_viewer()) {
-                // The button came up outside the window: the gesture is over.
-                window.unlock_pointer();
-                cx.notify();
-            }
-            return;
-        }
-        // A press on the work area bar is held on the state, so a drag keeps
-        // moving In and Out after the pointer leaves the 8 px bar.
-        if self.state.read(cx).work_area_held() {
-            let x = f32::from(event.position.x);
-            let moved = if event.pressed_button == Some(MouseButton::Left) {
-                self.state.update(cx, |state, _| state.drag_work_area(x))
-            } else {
-                // The button came up outside the window: the gesture is over.
-                self.state.update(cx, |state, _| state.release_work_area())
-            };
-            if moved {
-                cx.notify();
-            }
-            return;
-        }
-        // A pressed value readout is held on the state, not as a shell drag:
-        // the drag keeps going when the pointer leaves the readout, and the
-        // shell only routes the pointer.
-        if self.state.read(cx).value_scrubs().pressed() {
-            let dx = f32::from(event.delta.x);
-            let mods = event.modifiers;
-            let state = &self.state;
-            if event.pressed_button == Some(MouseButton::Left) {
-                let changed = state.update(cx, |state, _| {
-                    state.drag_value(dx, mods.shift, mods.control || mods.platform)
-                });
-                // Past the slop the cursor hides and holds its place, so the
-                // drag reads relative travel and never stops at a screen edge.
-                if state.read(cx).value_scrubs().drag_held() {
-                    window.lock_pointer();
-                }
-                if changed {
-                    spawn_preview(self.state.clone(), cx);
-                    cx.notify();
-                }
-            } else if state.update(cx, |state, _| state.release_value()) {
-                // The button came up outside the window: the gesture is over.
-                window.unlock_pointer();
-                cx.notify();
-            }
-            return;
-        }
-        // A held color wheel, likewise: the drag is the state's, so it keeps
-        // going when the pointer leaves the wheel.
-        if self.state.read(cx).wheel_held().is_some() {
-            let at = [f32::from(event.position.x), f32::from(event.position.y)];
-            let state = &self.state;
-            let changed = if event.pressed_button == Some(MouseButton::Left) {
-                state.update(cx, |state, _| state.drag_wheel(at))
-            } else {
-                // The button came up outside the window: the drag is over.
-                state.update(cx, |state, _| state.release_wheel())
-            };
-            if changed {
-                spawn_preview(self.state.clone(), cx);
-                cx.notify();
-            }
-            return;
-        }
-        // A press on an Effect Controls time area, likewise: a keyframe drag or
-        // a scrub keeps going when the pointer leaves the strip.
-        if self.state.read(cx).key_strip_held() {
-            let x = f32::from(event.position.x);
-            let alt = event.modifiers.alt;
-            let state = &self.state;
-            let changed = if event.pressed_button == Some(MouseButton::Left) {
-                state.update(cx, |state, _| state.drag_key_strip(x, alt))
-            } else {
-                // The button came up outside the window: the gesture is over.
-                state.update(cx, |state, _| state.release_key_strip())
-            };
-            if changed {
-                spawn_preview(self.state.clone(), cx);
-                cx.notify();
-            }
-            return;
-        }
-        // A grabbed keyframe or handle on the Inspector's graph, likewise: the
-        // drag follows the pointer past the graph's edge.
-        if self.state.read(cx).curve_dragging().is_some() {
-            let [x, y] = [f32::from(event.position.x), f32::from(event.position.y)];
-            let state = &self.state;
-            let changed = if event.pressed_button == Some(MouseButton::Left) {
-                state.update(cx, |state, _| state.update_curve_drag(x, y))
-            } else {
-                // The button came up outside the window: the drag is over.
-                state.update(cx, |state, _| state.release_curve_drag())
-            };
-            if changed {
-                cx.notify();
-            }
-            return;
-        }
-        // A grabbed point on the Speed tab's ramp, likewise.
-        if self.state.read(cx).ramp_dragging().is_some() {
-            let at = [f32::from(event.position.x), f32::from(event.position.y)];
-            let gesture = if event.pressed_button == Some(MouseButton::Left) {
-                Gesture::Drag { at }
-            } else {
-                // The button came up outside the window: the drag is over.
-                Gesture::Release
-            };
-            if self
-                .state
-                .update(cx, |state, _| ramp_gesture::run(state, gesture))
-            {
-                cx.notify();
-            }
-            return;
-        }
-        // A plugin panel's slider is held on the state, not as a shell drag:
-        // its value is the panel's, and the shell only routes the pointer.
-        if self.state.read(cx).plugin_panels.slide.is_some() {
-            let at = f32::from(event.position.x);
-            let state = &self.state;
-            let changed = if event.pressed_button == Some(MouseButton::Left) {
-                state.update(cx, |state, _| state.ride_panel_slider(at))
-            } else {
-                // The button came up outside the window: the drag is over.
-                state.update(cx, |state, _| state.release_panel_slider())
-            };
-            if changed {
-                cx.notify();
-            }
-            return;
-        }
-        // A viewer overlay's handle, likewise: the plugin moves it, and the
-        // shell only routes the pointer.
-        if self.state.read(cx).plugin_overlays.grab.is_some() {
-            let at = [f32::from(event.position.x), f32::from(event.position.y)];
-            let state = &self.state;
-            if event.pressed_button == Some(MouseButton::Left) {
-                state.update(cx, |state, _| state.carry_overlay_handle(at));
-            } else {
-                // The button came up outside the window: the drag is over.
-                state.update(cx, |state, _| state.release_overlay_handle(at));
-            }
+        // A gesture held on the state follows the pointer past the element it
+        // started on.
+        if self.carry_gesture(event, window, cx) {
             return;
         }
         // Mutable, because a pan has to remember the rate it is moving at: the
@@ -404,54 +243,9 @@ impl Shell {
             cx.notify();
             return;
         }
-        // Escape with a value readout held puts the value back where the press
-        // found it. The pointer stays down, but the gesture is over.
-        if key == "escape" && self.state.update(cx, |state, _| state.cancel_value_drag()) {
-            window.unlock_pointer();
-            spawn_preview(self.state.clone(), cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        // Escape with a clip bar's line held puts the line back.
-        if key == "escape" && self.state.update(cx, |state, _| state.cancel_clip_line()) {
-            spawn_preview(self.state.clone(), cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        // Escape with the work area bar held puts In and Out back where the
-        // press found them.
-        if key == "escape"
-            && self
-                .state
-                .update(cx, |state, _| state.cancel_work_area_drag())
-        {
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        // Escape with a playhead field or the mini ruler held puts the tab in
-        // front back on the frame the press found.
-        if key == "escape" && self.state.update(cx, |state, _| state.cancel_viewer_drag()) {
-            window.unlock_pointer();
-            spawn_preview(self.state.clone(), cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        // Escape with a colour wheel held puts the grade back where the press
-        // found it.
-        if key == "escape" && self.state.update(cx, |state, _| state.cancel_wheel_drag()) {
-            spawn_preview(self.state.clone(), cx);
-            cx.stop_propagation();
-            cx.notify();
-            return;
-        }
-        // Escape with a time area held drops the keyframe drag, or puts the
-        // playhead back where the press found it.
-        if key == "escape" && self.state.update(cx, |state, _| state.cancel_key_strip()) {
-            spawn_preview(self.state.clone(), cx);
+        // Escape ends the gesture in flight before it reaches a menu, a text
+        // box, a dialog or the editor: what the press found is put back.
+        if key == "escape" && self.cancel_gesture(window, cx) {
             cx.stop_propagation();
             cx.notify();
             return;
@@ -648,97 +442,16 @@ impl Shell {
             KeyRoute::Editor
         };
 
-        // Escape on the editor route is the shell's own key: it cancels the gesture
-        // in flight, and a splitter drag lives here rather than on the state, so it
-        // cannot be a binding that only sees `AppState`.
+        // Escape on the editor route with no gesture in flight closes this
+        // window's frame menu, drops the mask path the Pen is drawing, then
+        // closes what the state has open.
         if route == KeyRoute::Editor && key == "escape" && !ctrl {
-            if let Some(drag) = self.drag.take() {
-                self.tab_hover = None;
-                super::dock_view::set_active_tab_hover(None);
-                self.state.update(cx, |state, _| match drag.kind {
-                    DragKind::Timeline { .. } => {
-                        state.ui_settings.timeline_height = drag.start;
-                    }
-                    DragKind::Pan => {
-                        state.scroll_timeline_to(drag.start, false);
-                    }
-                    DragKind::Lane(_) => {
-                        state.take_lane_preview();
-                    }
-                    DragKind::Outline => {
-                        state.set_outline_width(drag.start);
-                    }
-                    DragKind::DockSplit {
-                        path,
-                        depth,
-                        index,
-                        w0,
-                        w1,
-                        ..
-                    } => {
-                        let full_path =
-                            super::dock_view::active_split_drag_path(&path[..usize::from(depth)]);
-                        let slice: &[usize] = &full_path;
-                        if let Some(mut weights) = state.dock_tree.split_weights(slice)
-                            && index + 1 < weights.len()
-                        {
-                            weights[index] = w0;
-                            weights[index + 1] = w1;
-                            state.dock_tree.set_weights(slice, &weights);
-                            state.sync_panes_from_dock_tree();
-                        }
-                    }
-                    DragKind::DockTab {
-                        panel,
-                        source_frame,
-                        from_index,
-                        ..
-                    } => {
-                        state
-                            .dock_tree
-                            .reorder_panel(source_frame, panel, from_index);
-                    }
-                });
-                cx.notify();
-                return;
-            }
             if self.frame_menu.take().is_some() {
                 cx.notify();
                 return;
             }
-            // A rubber band in flight is a gesture too: abandoning it leaves the
-            // selection exactly as the band found it.
-            if self.state.read(cx).marquee.is_some() {
-                self.state.update(cx, |state, _| state.cancel_marquee());
-                cx.notify();
-                return;
-            }
-            // An on-canvas handle drag outranks the rest: it is the gesture in
-            // flight, and abandoning it must cost nothing.
-            if self.state.read(cx).overlay_dragging() {
-                self.state
-                    .update(cx, |state, _| state.cancel_overlay_drag());
-                cx.notify();
-                return;
-            }
-            // A mask path the Pen is drawing is dropped, not committed.
             if self.state.read(cx).mask_path_drawing() {
                 self.state.update(cx, |state, _| state.cancel_mask_path());
-                cx.notify();
-                return;
-            }
-            if self.state.read(cx).track_dragging() {
-                self.state.update(cx, |state, _| state.cancel_track_drag());
-                cx.notify();
-                return;
-            }
-            if self.state.read(cx).ramp_dragging().is_some() {
-                self.state.update(cx, |state, _| state.cancel_ramp_drag());
-                cx.notify();
-                return;
-            }
-            if self.state.read(cx).curve_dragging().is_some() {
-                self.state.update(cx, |state, _| state.cancel_curve_drag());
                 cx.notify();
                 return;
             }

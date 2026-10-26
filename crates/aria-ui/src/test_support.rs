@@ -87,6 +87,37 @@ pub(crate) fn drawn_shell_at(
     (state, visual)
 }
 
+/// Float `panel` at `rect` on the screen and return its frame and the window
+/// the shell opens for it.
+pub(crate) fn floated_window(
+    state: &gpui::Entity<crate::app::AppState>,
+    visual: &mut gpui::VisualTestContext,
+    panel: crate::dock::PanelId,
+    rect: (f32, f32, f32, f32),
+) -> (crate::dock::FrameId, gpui::AnyWindowHandle) {
+    let frame = visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state
+                .float_dock_panel(panel, rect, cx)
+                .unwrap_or_else(|| panic!("{panel} does not float"))
+        })
+    });
+    visual.run_until_parked();
+    let main = visual.update(|window, _| window.window_handle());
+    let others: Vec<gpui::AnyWindowHandle> = visual
+        .cx
+        .windows()
+        .into_iter()
+        .filter(|window| *window != main)
+        .collect();
+    assert_eq!(
+        others.len(),
+        1,
+        "the shell opens one window for the floated {panel}"
+    );
+    (frame, others[0])
+}
+
 /// The painted bounds of `selector` once background follow-ups have drawn.
 ///
 /// A frame that replays a cached view keeps the bounds the view's debug

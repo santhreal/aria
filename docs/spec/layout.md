@@ -76,6 +76,11 @@ The menu button and a right-click on a tab open the frame menu under the tab row
 | Middle-click a tab | Closes the panel. |
 | Ctrl+W on a focused panel | Closes the panel, or the sequence tab when the Timeline has focus. |
 
+A drag begun in a floating window ends as one begun in the main window: the
+release writes it wherever the button comes up, and Escape puts back what the
+press found. With no drag in flight and no dialog or menu open, Escape in a
+floating window activates the main window.
+
 A drop zone is a translucent accent rectangle covering the half or the center
 of the target frame. It appears 80 ms after the pointer enters the frame and
 follows the pointer between zones with a 120 ms fade.

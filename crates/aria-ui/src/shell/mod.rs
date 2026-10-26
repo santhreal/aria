@@ -9,7 +9,6 @@ use crate::motion::glide;
 use crate::plugins::overlay_host as overlays;
 use crate::plugins::panel_host::host_of;
 use crate::settings::TIMELINE_MIN_HEIGHT;
-use crate::surfaces::ramp_gesture::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{EditorTool, UiRoute};
 use aria_plugin::PanelLocation;
@@ -242,68 +241,19 @@ impl Shell {
         self.title = Some(title);
     }
 
-    /// The left button came up, over this window or outside it.
+    /// The left button came up, over this window or outside it. The main
+    /// window and every floating panel window end their gestures here.
     fn on_release(&mut self, event: &MouseUpEvent, window: &mut Window, cx: &mut Context<Self>) {
         // A press on the bar that never travelled moves nothing.
         self.window_move = false;
-        // Letting go of a value readout closes its undo step or
-        // opens it as text, and gives the pointer back; the picture
-        // already shows the value.
-        if self.state.update(cx, |state, _| state.release_value()) {
-            window.unlock_pointer();
-            cx.notify();
-        }
-        // Letting go of a playhead field after a drag gives the
-        // pointer back; after a click it opens the field for
-        // typing. Letting go of the mini ruler ends its scrub.
-        if self.state.update(cx, |state, _| state.release_viewer()) {
-            window.unlock_pointer();
-            cx.notify();
-        }
-        // Letting go of the work area bar ends its move.
-        if self.state.update(cx, |state, _| state.release_work_area()) {
-            cx.notify();
-        }
-        if self
-            .state
-            .update(cx, |state, _| state.release_panel_slider())
-        {
-            cx.notify();
-        }
-        // Letting go of a color wheel keeps the drag as one undo
-        // step.
-        if self.state.update(cx, |state, _| state.release_wheel()) {
-            cx.notify();
-        }
-        // Letting go of a time area writes a keyframe drag as one undo
-        // step; a scrub stays where it ended.
-        if self.state.update(cx, |state, _| state.release_key_strip()) {
-            spawn_preview(self.state.clone(), cx);
-            cx.notify();
-        }
-        // Letting go of a keyframe or handle on the Inspector's graph, or of a
-        // point on the Speed tab's ramp, writes the drag as one undo step,
-        // wherever the button came up.
-        if self.state.update(cx, |state, _| state.release_curve_drag()) {
-            cx.notify();
-        }
-        if self
-            .state
-            .update(cx, |state, _| ramp_gesture::run(state, Gesture::Release))
-        {
-            cx.notify();
-        }
-        let at = [f32::from(event.position.x), f32::from(event.position.y)];
-        if self
-            .state
-            .update(cx, |state, _| state.release_overlay_handle(at))
-        {
-            cx.notify();
-        }
+        self.release_gestures(event, window, cx);
         let Some(drag) = self.drag.take() else {
             return;
         };
         let hover = self.tab_hover.take();
+        // A tab dragged out of a floating window is dropped on the frame the
+        // pointer is over in whichever window drew its drop zones.
+        let shared = dock_view::active_tab_hover();
         // The hover is shared with every floating panel window, and each one
         // draws its drop zones while it is set.
         dock_view::set_active_tab_hover(None);
@@ -332,7 +282,26 @@ impl Shell {
                 moved,
                 ..
             } => {
-                if moved {
+                if moved && let Some(frame_id) = self.floating_frame {
+                    if let Some((target_frame, zone)) = hover.or(shared)
+                        && !(target_frame == source_frame && zone == crate::dock::Zone::Center)
+                    {
+                        let still_floating = self.state.update(cx, |state, cx| {
+                            state.dock_tree.dock(panel, target_frame, zone);
+                            state.record_dock_edit(cx);
+                            state
+                                .dock_tree
+                                .floating
+                                .iter()
+                                .any(|fl| fl.frame.id == frame_id)
+                        });
+                        // The frame's last panel left it: so does its window.
+                        if !still_floating {
+                            window.remove_window();
+                            return;
+                        }
+                    }
+                } else if moved {
                     let x = f32::from(event.position.x);
                     let y = f32::from(event.position.y);
                     let (win_w, win_h) = {
@@ -813,6 +782,7 @@ fn motion_driver() -> impl IntoElement {
 
 // Further methods live in sibling files; inherent methods keep their paths.
 pub mod dock_view;
+mod gesture;
 mod slot;
 /// How often the status line is checked for expiry. Coarse on purpose: the
 /// strip is a receipt, so a fraction of a second either side of four is not
