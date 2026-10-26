@@ -116,9 +116,9 @@ fn another_thread_is_refused_by_name_within_the_contended_wait() {
         let applied = contender.apply(&Origin::Editor, add("late"));
         let waited = started.elapsed();
         let transacted = contender.transact(Origin::plugin("acme.late"), "Late", vec![add("late")]);
-        let grouped = contender
-            .group(&Origin::Editor)
-            .map(|group| group.rollback());
+        let grouped = contender.group(&Origin::Editor).map(|group| {
+            group.rollback();
+        });
         let undone = contender.undo();
         let replaced = contender.replace_session(&Origin::Editor, Engine::new_session);
         let _ = sent.send((

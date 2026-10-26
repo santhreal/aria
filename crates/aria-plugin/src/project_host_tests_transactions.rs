@@ -1,7 +1,7 @@
 use aria_commands::EditOutcome;
 use aria_engine::{ApplyOutcome, EngineError};
 
-use super::super::TransactError;
+use super::super::{Reverted, TransactError};
 use super::*;
 
 /// The History label a transaction named "Make lanes" gets. A new origin does
@@ -258,5 +258,64 @@ fn dropping_a_group_rolls_it_back() {
     assert!(lanes(&host).is_empty());
     assert!(history(&host).is_empty());
     assert!(announced(&log).is_empty());
+    assert_idle(&host);
+}
+
+/// A rollback reports the revision its group opened at, the one it found, and
+/// the one it left, all read under the engine lock, so a cache keyed by
+/// revision can tell which revisions the rollback reverted. Covers the
+/// outermost group, a savepoint, and a savepoint that applied nothing. Does
+/// not cover a group dropped without `rollback`, which reports nothing.
+#[test]
+fn a_rollback_reports_the_revisions_its_group_spanned() {
+    let (Fixture { host, ctx: _ctx }, _policy) = fixture();
+    host.apply(&Origin::Editor, add("base")).expect("base");
+    let base = host.revision();
+
+    let outer = host.group(&Origin::Editor).expect("open");
+    host.apply(&Origin::Editor, add("a")).expect("a");
+    let opened = host.revision();
+    let savepoint = host.group(&Origin::Editor).expect("savepoint");
+    host.apply(&Origin::Editor, add("b")).expect("b");
+    host.apply(&Origin::Editor, add("c")).expect("c");
+    let found = host.revision();
+    let reverted = savepoint.rollback();
+    assert_eq!(
+        reverted,
+        Reverted {
+            opened,
+            found,
+            left: host.revision(),
+        }
+    );
+    assert!(
+        reverted.left > found,
+        "a rollback that reverts commands is a new revision"
+    );
+    assert_eq!(lanes(&host), ["a", "base"]);
+
+    let idle = host.revision();
+    let empty = host.group(&Origin::Editor).expect("savepoint");
+    assert_eq!(
+        empty.rollback(),
+        Reverted {
+            opened: idle,
+            found: idle,
+            left: idle,
+        },
+        "a savepoint that applied nothing reverts nothing"
+    );
+
+    let found = host.revision();
+    assert_eq!(
+        outer.rollback(),
+        Reverted {
+            opened: base,
+            found,
+            left: host.revision(),
+        }
+    );
+    assert!(host.revision() > found);
+    assert_eq!(lanes(&host), ["base"]);
     assert_idle(&host);
 }

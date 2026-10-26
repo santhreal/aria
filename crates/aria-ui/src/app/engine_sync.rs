@@ -149,9 +149,10 @@ impl AppState {
                 }
             }
             Some(Poll::Rebuilt(snapshot)) => {
-                // `apply_command` advances this selectively before projection.
-                // Any other engine mutation reaches this fallback and drops
-                // every cell, so no direct engine path can retain stale pixels.
+                // `apply_command` advances this by span before projection, and
+                // `roll_back` reverts it by span. Any other engine mutation
+                // reaches this fallback and drops every cell, so no direct
+                // engine path can retain stale pixels.
                 self.filmstrips.sync_revision(snapshot.revision);
                 let edited = snapshot.revision != self.revision;
                 self.revision = snapshot.revision;

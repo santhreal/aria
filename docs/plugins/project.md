@@ -20,8 +20,8 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 | `markers_in_range(sequence, range)` | `Vec<Marker>` in the sequence whose point or span overlaps the half-open `range`, ordered by tick then id |
 | `holder()` | The origin holding the project from another thread, if any |
 | `apply(&origin, command)` | Proposes and applies one command as its own undo step, or as part of this thread's open group |
-| `apply_observed(&origin, command, before_event)` | Proposes and applies one command, running `before_event` under the engine lock before announcing |
-| `group(&origin)` | Opens an `EditGroup`: every command this thread applies until `commit` is one undo step. Dropping it rolls it back |
+| `apply_observed(&origin, command, before, after)` | `apply`, running `before(&command, &engine)` before the command and `after(observed, &outcome, &engine)` after it, both under the engine lock |
+| `group(&origin)` | Opens an `EditGroup`: every command this thread applies until `commit` is one undo step. `rollback` returns the `Reverted` revisions. Dropping it rolls it back |
 | `transact_with(origin, label, body)` | Runs `body` with a `Transaction`: `tx.apply(command)` and `tx.project()`. An `Err` or a panic from `body` reverts it |
 | `transact(origin, label, commands)` | Applies the commands as one undo step named `label`, or none of them |
 | `undo()` | Undoes the latest step (`Ok(false)` while this thread has a group open) |
@@ -40,6 +40,7 @@ that read `ProjectHost` and `EditorView`.
 | `CommandApplied` | `command`, `outcome`, `revision`, `origin` |
 | `Receipt` | `revision`, `outcomes` |
 | `EditGroup` | `commit`, `commit_as`, `rollback` |
+| `Reverted` | `opened`, `found`, `left` |
 | `Transaction` | `project`, `origin`, `apply` |
 | `TransactError` | `Busy`, `NotUndoable`, `Refused`, `Failed`, `Aborted`, `Panicked`, `Reentrant` |
 | `ClipRef` | `id`, `track`, `start`, `end`, `kind`, `name` |

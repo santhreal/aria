@@ -428,33 +428,65 @@ impl AppState {
         label: Option<&'static str>,
         body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
-        let group = self.host.group(&Origin::Editor)?;
-        let result = body(self);
-        match (&result, label) {
-            (Ok(_), Some(label)) => {
-                group.commit_as(label);
-            }
-            (Ok(_), None) => {
-                group.commit();
-            }
-            (Err(_), _) => group.rollback(),
-        }
+        let result = self.edit_group(body).map(|(group, value)| {
+            match label {
+                Some(label) => group.commit_as(label),
+                None => group.commit(),
+            };
+            value
+        });
         self.sync_from_engine();
         result
     }
 
+    /// Open an editor group and run `body` in it. Returns the open group when
+    /// `body` succeeds; when it fails, rolls the group back through
+    /// [`Self::roll_back`] and returns the error. The caller syncs the
+    /// projection.
+    pub(crate) fn edit_group<T>(
+        &mut self,
+        body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
+    ) -> Result<(aria_plugin::EditGroup, T), EngineError> {
+        let group = self.host.group(&Origin::Editor)?;
+        match body(self) {
+            Ok(value) => Ok((group, value)),
+            Err(err) => {
+                self.roll_back(group);
+                Err(err)
+            }
+        }
+    }
+
+    /// Roll `group` back, dropping only the filmstrip cells its edits
+    /// changed. A group dropped without this, or rolled back by another
+    /// path, costs every filmstrip cell instead. The caller syncs the
+    /// projection.
+    pub(crate) fn roll_back(&mut self, group: aria_plugin::EditGroup) {
+        let reverted = group.rollback();
+        self.filmstrips.revert(reverted);
+    }
+
     pub fn apply_command(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
-        let (outcome, (invalidation, revision)) = self.host.apply_observed(
+        let (outcome, (invalidation, from, to)) = self.host.apply_observed(
             &Origin::Editor,
             command,
-            FilmstripImpact::capture,
-            |impact, outcome, engine| (impact.finish(outcome, engine.project()), engine.revision()),
+            |command, engine| {
+                (
+                    FilmstripImpact::capture(command, engine.project()),
+                    engine.revision(),
+                )
+            },
+            |(impact, from), outcome, engine| {
+                (
+                    impact.finish(outcome, engine.project()),
+                    from,
+                    engine.revision(),
+                )
+            },
         )?;
         match invalidation {
-            FilmstripInvalidation::Full => self.filmstrips.sync_revision(revision),
-            FilmstripInvalidation::Spans(spans) => {
-                self.filmstrips.sync_revision_selective(revision, &spans);
-            }
+            FilmstripInvalidation::Full => self.filmstrips.sync_revision(to),
+            FilmstripInvalidation::Spans(spans) => self.filmstrips.advance(from, to, spans),
         }
         // Every edit funnels through here, so one line covers a drop, a paste, a
         // razor and an insert at the playhead rather than four.

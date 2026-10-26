@@ -198,9 +198,13 @@ with its transform, grade, and effects applied rather than the raw file.
 
 Cells render one at a time in the background. A picture edit invalidates cells
 inside its changed timeline spans; audio, labels, lane display settings, and
-other picture-neutral edits retain them. Work started before an edit is rejected
-when it finishes. A cell that is not ready leaves its space empty rather than
-borrowing a neighboring frame.
+other picture-neutral edits retain them. Each move of a value scrub, a clip
+line drag, or a color wheel drag replaces the edit of the move before it, and
+invalidates only the cells inside the spans of both edits; Escape invalidates
+only the cells inside the spans the drag changed. Undo, redo, and edits from
+the assistant or a plugin invalidate every cell. Work started before an edit
+is rejected when it finishes. A cell that is not ready leaves its space empty
+rather than borrowing a neighboring frame.
 
 ## Timeline display settings
 

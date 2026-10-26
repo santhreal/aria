@@ -91,7 +91,7 @@ pub use plugin_log::{
 };
 pub use presets::PluginPreset;
 pub use project_host::{
-    CommandApplied, EditGroup, Origin, ProjectHost, Receipt, TransactError, Transaction,
+    CommandApplied, EditGroup, Origin, ProjectHost, Receipt, Reverted, TransactError, Transaction,
 };
 pub use queries::{
     ClipRef, InOut, clip, clips_at, clips_in_range, in_out, markers_in_range, selected_clips,

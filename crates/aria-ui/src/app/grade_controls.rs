@@ -17,7 +17,7 @@
 
 use aria_engine::EngineError;
 use aria_models::{ClipParam, GAIN_NEUTRAL, GAMMA_NEUTRAL, LIFT_NEUTRAL, LookParam};
-use aria_plugin::{EditGroup, Origin};
+use aria_plugin::EditGroup;
 
 use super::AppState;
 
@@ -131,21 +131,9 @@ impl WheelControl {
     /// neutral leaves no step.
     pub fn reset(self, state: &mut AppState) -> Result<(), EngineError> {
         let peers = state.peers_sharing(self.look(self.master_param()));
-        // A refused write drops the group, which rolls it back.
-        let wrote = state.host.group(&Origin::Editor).and_then(|group| {
-            state.edit_each(peers, |state| self.neutralize(state))?;
-            Ok(group)
-        });
-        let result = match wrote {
-            Ok(group) => {
-                group.commit_as(self.reset_label());
-                Ok(())
-            }
-            Err(err) => Err(err),
-        };
-        // The commit changes the History list, and a rollback the project.
-        state.sync_from_engine();
-        result
+        state.one_step_as(self.reset_label(), |state| {
+            state.edit_each(peers, |state| self.neutralize(state))
+        })
     }
 
     /// Put the selected clip's channels and master at neutral.
@@ -344,9 +332,8 @@ impl AppState {
             return false;
         }
         let (control, mean) = (held.control, held.mean);
-        let previous = held.group.take();
-        if let Some(group) = previous {
-            group.rollback();
+        if let Some(group) = held.group.take() {
+            self.roll_back(group);
             self.sync_from_engine();
         }
         // The other selected clips that grade take the channels the drag
@@ -355,14 +342,13 @@ impl AppState {
         let landed = control
             .rgb_params()
             .map(|param| (control.look(param), None::<u8>));
-        let wrote = self.host.group(&Origin::Editor).and_then(|group| {
-            self.land_each(peers, &landed, |state| {
+        let wrote = self.edit_group(|state| {
+            state.land_each(peers, &landed, |state| {
                 control.apply_offset(state, offset, mean)
-            })?;
-            Ok(group)
+            })
         });
         match wrote {
-            Ok(group) => {
+            Ok((group, ())) => {
                 if let Some(held) = self.grade_controls.held.as_mut() {
                     held.applied = Some(offset);
                     held.group = Some(group);
@@ -400,7 +386,7 @@ impl AppState {
             return false;
         };
         if let Some(group) = held.group {
-            group.rollback();
+            self.roll_back(group);
             self.sync_from_engine();
         }
         true

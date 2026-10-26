@@ -145,6 +145,19 @@ pub struct Receipt {
     pub outcomes: Vec<ApplyOutcome>,
 }
 
+/// The engine revisions a rolled-back group spanned, for a cache keyed by
+/// revision: at `left`, the commands applied between `opened` and `found` are
+/// reverted. A group that applied nothing leaves `found` and `left` equal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reverted {
+    /// The engine revision when the group opened.
+    pub opened: u64,
+    /// The engine revision just before the rollback.
+    pub found: u64,
+    /// The engine revision after the rollback.
+    pub left: u64,
+}
+
 /// Who holds the project, and what they have open.
 #[derive(Default)]
 struct Sequence {
@@ -302,6 +315,8 @@ struct Marks {
     steps: usize,
     /// Announcements queued when this one opened.
     announced: usize,
+    /// The engine revision when this one opened.
+    revision: u64,
 }
 
 enum Finish {
@@ -529,7 +544,7 @@ impl ProjectHost {
         engine: &mut Engine,
         origin: &Origin,
         command: Command,
-        before: impl FnOnce(&Command, &Project) -> B,
+        before: impl FnOnce(&Command, &Engine) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R, Announced), Rejection> {
         let command = self
@@ -551,7 +566,7 @@ impl ProjectHost {
         if let Some(path) = &export {
             self.events.post(ExportStarted { path: path.clone() });
         }
-        let observed = before(&command, engine.project());
+        let observed = before(&command, engine);
         let outcome = engine.apply(command);
         if let Some(path) = export {
             let result = match &outcome {
@@ -582,7 +597,7 @@ impl ProjectHost {
     }
 
     /// [`apply`](Self::apply), with observers that run under the engine lock:
-    /// `before` sees the command the handlers settled on and the project it
+    /// `before` sees the command the handlers settled on and the engine it
     /// applies to, `after` sees the outcome and the engine after it.
     ///
     /// # Panics
@@ -592,7 +607,7 @@ impl ProjectHost {
         &self,
         origin: &Origin,
         command: Command,
-        before: impl FnOnce(&Command, &Project) -> B,
+        before: impl FnOnce(&Command, &Engine) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R), EngineError> {
         assert!(!in_handler(), "{}", TransactError::Reentrant);
@@ -646,13 +661,17 @@ impl ProjectHost {
         Ok(Marks {
             steps,
             announced: sequence.announced.len(),
+            revision: engine.revision(),
         })
     }
 
-    fn close_group(&self, marks: Marks, finish: Finish) -> u64 {
-        let revision = {
+    /// Close the open group by `finish`. Returns the engine revision before
+    /// and after.
+    fn close_group(&self, marks: Marks, finish: Finish) -> (u64, u64) {
+        let revisions = {
             let mut engine = self.engine.lock();
             let mut sequence = self.sequence.lock();
+            let found = engine.revision();
             let outermost = sequence.groups == 1;
             match (finish, outermost) {
                 (Finish::Commit(Some(label)), true) => engine.commit_group_as(label),
@@ -668,10 +687,10 @@ impl ProjectHost {
                 }
             }
             sequence.groups -= 1;
-            engine.revision()
+            (found, engine.revision())
         };
         self.announce(self.leave([]));
-        revision
+        revisions
     }
 
     /// Run `body` as one transaction named `label`: its commands land as one
@@ -704,7 +723,7 @@ impl ProjectHost {
         };
         match result {
             Ok(value) => {
-                let revision = self.close_group(marks, Finish::Commit(Some(label)));
+                let (_, revision) = self.close_group(marks, Finish::Commit(Some(label)));
                 Ok((
                     value,
                     Receipt {
@@ -817,7 +836,7 @@ impl EditGroup {
     /// revision.
     pub fn commit(mut self) -> u64 {
         self.open = false;
-        self.host.close_group(self.marks, Finish::Commit(None))
+        self.host.close_group(self.marks, Finish::Commit(None)).1
     }
 
     /// Commit, naming the undo step `label`. Returns the engine revision.
@@ -825,12 +844,19 @@ impl EditGroup {
         self.open = false;
         self.host
             .close_group(self.marks, Finish::Commit(Some(label.into())))
+            .1
     }
 
-    /// Revert every command applied since the group opened.
-    pub fn rollback(mut self) {
+    /// Revert every command applied since the group opened. Returns the
+    /// revisions the group spanned.
+    pub fn rollback(mut self) -> Reverted {
         self.open = false;
-        self.host.close_group(self.marks, Finish::Rollback);
+        let (found, left) = self.host.close_group(self.marks, Finish::Rollback);
+        Reverted {
+            opened: self.marks.revision,
+            found,
+            left,
+        }
     }
 }
 

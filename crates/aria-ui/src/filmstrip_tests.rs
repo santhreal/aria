@@ -108,7 +108,7 @@ fn a_picture_edit_invalidates_only_cells_inside_its_tick_spans() {
         store.finish(4, tick, Some(cell()));
     }
 
-    store.sync_revision_selective(5, &[(16, 32)]);
+    store.advance(4, 5, vec![(16, 32)]);
 
     assert!(
         store.get(8).is_some(),
@@ -130,7 +130,7 @@ fn an_audio_only_edit_keeps_every_cell_but_rejects_old_in_flight_work() {
     store.finish(7, 8, Some(cell()));
     store.start(24);
 
-    store.sync_revision_selective(8, &[]);
+    store.advance(7, 8, Vec::new());
     store.finish(7, 24, Some(cell()));
 
     assert!(store.get(8).is_some(), "an audio edit discarded a picture");

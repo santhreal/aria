@@ -392,7 +392,7 @@ fn project_doc_matches_project_render_audio_host_registries_bidirectionally() {
                 .unwrap_or_else(|| panic!("missing `{enum_ty}`")),
         );
     }
-    for struct_ty in ["CommandApplied", "Receipt"] {
+    for struct_ty in ["CommandApplied", "Receipt", "Reverted"] {
         assert_key_parity(
             &format!("project.md {struct_ty} fields"),
             &extract_struct_pub_fields(&project_host_src, struct_ty),

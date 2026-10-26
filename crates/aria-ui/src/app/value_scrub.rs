@@ -18,7 +18,7 @@
 use std::rc::Rc;
 
 use aria_engine::EngineError;
-use aria_plugin::{EditGroup, Origin};
+use aria_plugin::EditGroup;
 
 use super::AppState;
 use crate::motion::MotionKey;
@@ -284,21 +284,15 @@ impl AppState {
             return false;
         }
         let write = Rc::clone(&press.target.write);
-        let previous = press.group.take();
-        let had = previous.is_some();
-        if let Some(group) = previous {
-            group.rollback();
-        }
-        if had {
+        if let Some(group) = press.group.take() {
+            self.roll_back(group);
             self.sync_from_engine();
         }
         let wrote = if delta == 0.0 {
             Ok(None)
         } else {
-            self.host.group(&Origin::Editor).and_then(|group| {
-                write(self, delta)?;
-                Ok(Some(group))
-            })
+            self.edit_group(|state| write(state, delta))
+                .map(|(group, ())| Some(group))
         };
         let press = self.value_scrubs.press.as_mut().expect("held above");
         match wrote {
@@ -347,7 +341,7 @@ impl AppState {
             return false;
         };
         if let Some(group) = press.group {
-            group.rollback();
+            self.roll_back(group);
             self.sync_from_engine();
         }
         true

@@ -16,7 +16,7 @@ use aria_commands::{Command, EditCommand};
 use aria_models::{
     ClipId, ClipParam, Easing, ParamKind, ParamRange, ParamSpec, ParamValue, RationalTime,
 };
-use aria_plugin::{EditGroup, Origin};
+use aria_plugin::EditGroup;
 use gpui::SharedString;
 
 use super::AppState;
@@ -191,13 +191,12 @@ impl AppState {
         }
         let (clip, param, scale) = (drag.clip, drag.param, drag.scale);
         let writes = drag.values(travel);
-        let previous = drag.group.take();
-        if let Some(group) = previous {
-            group.rollback();
+        if let Some(group) = drag.group.take() {
+            self.roll_back(group);
             self.sync_from_engine();
         }
         let rate = self.store.sequence.frame_rate;
-        let wrote = self.host.group(&Origin::Editor).and_then(|group| {
+        let wrote = self.edit_group(|state| {
             for &(tick, value, easing) in &writes {
                 let value = ParamValue::Scalar(value);
                 let command = match tick {
@@ -211,12 +210,12 @@ impl AppState {
                         tangents: None,
                     },
                 };
-                self.apply_command(Command::Edit(command))?;
+                state.apply_command(Command::Edit(command))?;
             }
-            Ok(group)
+            Ok(())
         });
         let wrote = match wrote {
-            Ok(group) => Some(group),
+            Ok((group, ())) => Some(group),
             Err(err) => {
                 self.sync_from_engine();
                 self.report_error(&err);
@@ -273,7 +272,7 @@ impl AppState {
         };
         self.trim_feedback = None;
         if let Some(group) = drag.group {
-            group.rollback();
+            self.roll_back(group);
         }
         self.projected = None;
         self.sync_from_engine();
