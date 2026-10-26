@@ -132,16 +132,45 @@ pub(crate) fn timed_frame(
     window: &mut gpui::TestAppWindow<Shell>,
     change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
 ) -> f64 {
-    let lag = Instant::now().saturating_duration_since(app.background_executor().now());
-    app.advance_clock(lag);
-    app.run_until_parked();
-    window.draw();
-    app.run_until_parked();
+    settle(app, window);
     let (cx, handle) = (app.to_async(), window.handle());
     let started = Instant::now();
     cx.update(|cx| handle.update(cx, change))
         .expect("the editor window is open");
     started.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Dispatches `event` to the editor window as the platform delivers it and
+/// returns the milliseconds until the frame it causes is drawn: the window's
+/// own listeners take it, as they take a real pointer or key. The window is
+/// settled first, as in [`timed_frame`].
+pub(crate) fn timed_input(
+    app: &gpui::TestApp,
+    window: &mut gpui::TestAppWindow<Shell>,
+    event: impl gpui::InputEvent,
+) -> f64 {
+    settle(app, window);
+    let input = event.to_platform_input();
+    let (cx, handle) = (app.to_async(), gpui::AnyWindowHandle::from(window.handle()));
+    let started = Instant::now();
+    cx.update(|cx| {
+        handle.update(cx, |_, window, cx| {
+            window.dispatch_event(input, cx);
+        })
+    })
+    .expect("the editor window is open");
+    started.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Advance the test clock to the wall clock, run the work an earlier sample
+/// left behind, and draw the window, so a sample starts from a drawn window
+/// with nothing pending.
+fn settle(app: &gpui::TestApp, window: &mut gpui::TestAppWindow<Shell>) {
+    let lag = Instant::now().saturating_duration_since(app.background_executor().now());
+    app.advance_clock(lag);
+    app.run_until_parked();
+    window.draw();
+    app.run_until_parked();
 }
 
 /// Reusable GPU texture sink for display-path renders with no CPU readback.

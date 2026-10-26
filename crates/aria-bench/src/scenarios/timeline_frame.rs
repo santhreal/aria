@@ -1,9 +1,18 @@
-//! `timeline-frame` scenario: `project-10k` scroll, zoom, and drag UI frame build latency.
+//! `timeline-frame` scenario: `project-10k` scroll, zoom, and drag UI frame build latency,
+//! with the window chrome, playback vsyncs, and an Inspector value scrub measured beside it.
 
+use std::rc::Rc;
+
+use aria_models::{ClipId, ClipParam};
+use aria_ui::app::AppState;
+use aria_ui::app::value_scrub::{CLICK_SLOP_PX, ScrubTarget, ValueKind};
+use aria_ui::motion::MotionKey;
 use aria_ui::shell::Moved;
+use aria_ui::types::UiTrackKind;
+use gpui::{Modifiers, MouseButton, MouseMoveEvent, MouseUpEvent, point, px};
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame};
+use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame, timed_input};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 /// The time between two playback vsyncs: longer than one tick of a 24 fps
@@ -109,6 +118,75 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         })
     });
 
+    // 6. A value scrub in the Inspector: the video clip at frame 0 selected,
+    // its Opacity readout pressed as the Inspector's row presses it, and each
+    // sample one move of the held button, taken by the window's own pointer
+    // listener as a real move is. Each move travels 2 px, one step of 0.01 at
+    // the readout's rate, so every sample writes the value. Not part of the
+    // target.
+    let drawn = app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.set_playhead(0);
+            let clip = s
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .filter(|track| track.kind == UiTrackKind::Video)
+                .find_map(|track| {
+                    track
+                        .clips
+                        .iter()
+                        .find(|clip| clip.timeline_start_ticks == 0)
+                })
+                .map(|clip| ClipId::from_raw(clip.id))?;
+            s.select_clip(clip);
+            cx.notify();
+            s.param_scalar(ClipParam::Opacity, None)
+        })
+    });
+    let Some(drawn) = drawn else {
+        return Err("project-10k has no video clip with an Opacity at frame 0".to_string());
+    };
+    app.update(|cx| {
+        state.update(cx, |s, _| {
+            s.press_value(ScrubTarget {
+                key: MotionKey::new("bench-scrub", "opacity"),
+                value: drawn,
+                unit: 0.01,
+                kind: ValueKind::Number { decimals: 2 },
+                write: Rc::new(move |s: &mut AppState, delta| {
+                    s.set_param_scalar(ClipParam::Opacity, None, drawn + delta)
+                }),
+            });
+        })
+    });
+    let at = point(px(640.0), px(360.0));
+    let held = |dx: f32| MouseMoveEvent {
+        position: at,
+        delta: point(px(dx), px(0.0)),
+        modifiers: Modifiers::default(),
+        pressed_button: Some(MouseButton::Left),
+    };
+    // The first move passes the click slop and opens the edit group.
+    timed_input(&app, &mut window, held(-2.0 - CLICK_SLOP_PX));
+    let mut scrub_samples = Vec::with_capacity(30);
+    for _ in 0..30 {
+        scrub_samples.push(timed_input(&app, &mut window, held(-2.0)));
+    }
+    window.simulate_event(MouseUpEvent {
+        position: at,
+        button: MouseButton::Left,
+        modifiers: Modifiers::default(),
+        click_count: 1,
+    });
+    let scrubbed = app.update(|cx| state.read(cx).param_scalar(ClipParam::Opacity, None));
+    if scrubbed.is_none_or(|value| value >= drawn) {
+        return Err(format!(
+            "the Inspector scrub left Opacity at {scrubbed:?} from {drawn}: the moves did not reach the held readout"
+        ));
+    }
+
     let paint_stats = app.update(|cx| state.read(cx).timeline_paint_stats);
 
     drop(state);
@@ -127,6 +205,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let drag_series = SampleSeries::from_values("drag_frame_ms", "ms", drag_samples);
     let chrome_series = SampleSeries::from_values("chrome_frame_ms", "ms", chrome_samples);
     let playback_series = SampleSeries::from_values("playback_vsync_ms", "ms", playback_samples);
+    let scrub_series = SampleSeries::from_values("inspector_scrub_frame_ms", "ms", scrub_samples);
 
     let targets = vec![TargetEvaluation::measured(
         "ui_frame_build_ms",
@@ -138,7 +217,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     )];
 
     let notes = vec![format!(
-        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms, playback vsync p50={:.2} ms (p95={:.2} ms; {} presented, {} dropped); TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
+        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms, playback vsync p50={:.2} ms (p95={:.2} ms; {} presented, {} dropped), Inspector value scrub p50={:.2} ms (p95={:.2} ms); TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
         scroll_series.p50,
         zoom_series.p50,
         drag_series.p50,
@@ -148,6 +227,8 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         playback_series.p95,
         playback.presented,
         playback.dropped.total(),
+        scrub_series.p50,
+        scrub_series.p95,
         paint_stats.total_lanes,
         paint_stats.visible_lanes,
         paint_stats.total_clips,
@@ -168,6 +249,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             drag_series,
             chrome_series,
             playback_series,
+            scrub_series,
         ],
         notes,
     ))

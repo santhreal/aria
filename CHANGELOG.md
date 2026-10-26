@@ -1405,6 +1405,7 @@ Notes for the latest release. For previous releases, see the
 - `aria_decoder::open_video_decoder_at` opens a video decoder with its pipeline prerolled at the sync sample at or before a start time.
 - `AppState::finish_autosave` waits for the recovery copy being written, and the `project-io` benchmark measures the UI-thread time of a `project-10k` autosave against a 4 ms target and the cost of an edit made while the copy is written.
 - `aria_render::PlaybackReport::holds_rate` reports whether a playback run held its rate, counting dropped frames as well as late renders.
+- `aria-bench timeline-frame` reports `inspector_scrub_frame_ms`, one held pointer move of an Inspector value scrub on a `project-10k` clip's Opacity and the frame it draws, beside its target series.
 
 ### Changed
 
