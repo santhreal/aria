@@ -289,27 +289,42 @@ pub fn capability() -> EncoderCapability {
     }
 }
 
-/// The codecs a picker should offer here: what the backend can be asked for,
-/// narrowed to what this machine can actually do.
+/// Start finding which of [`capability`]'s codecs this machine can write.
 ///
 /// On Linux the codec plugins are installed separately from GStreamer itself,
-/// so the compiled-in list is filtered by probing for each codec's elements. A
-/// picker offering a codec the pipeline would then refuse is worse than a
+/// so each codec is probed by opening one of its encoders, on a thread of its
+/// own: a hardware encoder takes up to a third of a second to open and close,
+/// which a sheet must not spend on the thread that draws. Returns at once; only
+/// the first call in a process probes. Elsewhere the backend's list is the
+/// answer and nothing runs.
+pub fn probe_codecs() {
+    #[cfg(target_os = "linux")]
+    gst::probe_codecs(capability().codecs);
+}
+
+/// The codecs a picker should offer here, or `None` until [`probe_codecs`]
+/// answers. Never blocks.
+///
+/// A picker offering a codec the pipeline would then refuse is worse than a
 /// picker with one entry.
-pub fn available_codecs() -> Vec<VideoCodec> {
-    let cap = capability();
+pub fn probed_codecs() -> Option<&'static [VideoCodec]> {
     #[cfg(target_os = "linux")]
     {
-        cap.codecs
-            .iter()
-            .copied()
-            .filter(|codec| gst::can_encode(*codec))
-            .collect()
+        gst::probed_codecs()
     }
     #[cfg(not(target_os = "linux"))]
     {
-        cap.codecs.to_vec()
+        Some(capability().codecs)
     }
+}
+
+/// The codecs a picker should offer here, waiting for [`probe_codecs`] and
+/// starting it when no call has. Empty when the probe could not run.
+pub fn available_codecs() -> &'static [VideoCodec] {
+    probe_codecs();
+    #[cfg(target_os = "linux")]
+    gst::await_codec_probe();
+    probed_codecs().unwrap_or_default()
 }
 
 pub use aria_core::EncoderChoice;
@@ -372,13 +387,16 @@ mod capability_tests {
         }
     }
 
-    /// Every offered codec is one the backend admits to, and the offer is
-    /// narrowed by what the machine has rather than by what was compiled.
+    /// Every offered codec is one the backend admits to, the offer is narrowed
+    /// by what the machine has rather than by what was compiled, and the
+    /// answer a sheet reads without waiting is the one the wait returns. The
+    /// class closed here is a sheet that never sees the probe's answer and
+    /// offers no codec choice.
     #[test]
     fn every_offered_codec_is_one_the_backend_claims() {
         let cap = capability();
         let offered = available_codecs();
-        for codec in &offered {
+        for codec in offered {
             assert!(
                 cap.codecs.contains(codec),
                 "{} is offered but not claimed",
@@ -386,6 +404,7 @@ mod capability_tests {
             );
         }
         assert!(offered.len() <= cap.codecs.len());
+        assert_eq!(probed_codecs(), Some(offered));
     }
 
     /// A codec outside the list is refused by name, and refused before any file

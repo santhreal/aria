@@ -317,6 +317,9 @@ pub struct AppState {
     /// The export sheet's own choices: resolution, rate, keyframes, audio, and
     /// whether to render only the marked range. Not part of the project.
     pub export_options: crate::app::export_options::ExportOptions,
+    /// Whether the export sheet waits on the codec probe, so the window
+    /// redraws once it answers.
+    pub(crate) codec_probe_pending: bool,
     /// The Speed/Duration dialog's form state.
     pub speed_duration: clip_ops::SpeedDurationForm,
     /// The Audio Gain dialog's form state.

@@ -169,5 +169,5 @@ Defined in `crates/aria-ui/src/panels/inspector/tabs/effects.rs`.
 
 ## Text labels
 
-Timecode separators, the zoom readout, and word buttons in dialogs (Choose…,
+Timecode separators, the zoom readout, and word buttons in dialogs (Export As…,
 Cancel, Export, Done, New Project, Import) are text and have no icon.

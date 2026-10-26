@@ -86,7 +86,7 @@ impl AppState {
     }
 
     /// Ask where to write the export the sheet is describing, then queue it
-    /// there: the sheet's Choose button.
+    /// there: the sheet's Export As… button.
     ///
     /// The dialog offers the format's own extension and proposes the name the
     /// sheet prints, so a save that keeps the proposal writes where Export would.

@@ -2,6 +2,8 @@
 //! are tried in, opening each on the decoders' device contexts, demoting a
 //! plugin that fails to load, and applying the export's rate settings.
 
+use std::sync::OnceLock;
+
 use aria_core::{EncodeError, EncoderConfig, VideoCodec};
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -147,14 +149,51 @@ fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
 /// then refuse is worse than a picker with one entry.
 ///
 /// Initialises GStreamer first. A registry lookup on an uninitialised library
-/// panics, and this is called from the export sheet, which may run in a process
-/// that has not encoded anything yet.
-pub(crate) fn can_encode(codec: VideoCodec) -> bool {
+/// panics, and the probe may run in a process that has not encoded anything
+/// yet.
+fn can_encode(codec: VideoCodec) -> bool {
     ensure_init().is_ok()
         && pick_encoder(codec).is_ok_and(|(_, opened)| {
             let _ = opened.set_state(gst::State::Null);
             true
         })
+}
+
+/// The codec probe, run once per process.
+static PROBE: aria_decoder::OnceJob = aria_decoder::OnceJob::new();
+
+/// The codecs the probe found this host can encode, in the order it was given.
+static PROBED: OnceLock<Vec<VideoCodec>> = OnceLock::new();
+
+/// Start finding which of `claimed` this host can encode, on a thread of its
+/// own. Returns at once; only the first call in a process starts the probe.
+///
+/// Each codec costs an encoder open and close, and `nvh264enc` closes in
+/// 250 ms on an RTX 5090. A probe the process ends during returns before its
+/// next codec and records no answer.
+pub(crate) fn probe_codecs(claimed: &'static [VideoCodec]) {
+    PROBE.start("aria-codec-probe", move || {
+        let mut found = Vec::with_capacity(claimed.len());
+        for &codec in claimed {
+            if PROBE.stopping() {
+                return;
+            }
+            if can_encode(codec) {
+                found.push(codec);
+            }
+        }
+        let _ = PROBED.set(found);
+    });
+}
+
+/// What [`probe_codecs`] found, or `None` until it answers.
+pub(crate) fn probed_codecs() -> Option<&'static [VideoCodec]> {
+    PROBED.get().map(Vec::as_slice)
+}
+
+/// Block until a started probe finishes; return at once when none was started.
+pub(crate) fn await_codec_probe() {
+    PROBE.wait();
 }
 
 /// Apply what the caller chose: the keyframe spacing and the bitrate.

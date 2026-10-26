@@ -176,6 +176,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
          the window's thread before the copy is rewritten or removed and when \
          the session drops; the write never needs the scheduler",
     ),
+    (
+        "crates/aria-ui/src/app/export_options.rs",
+        "the codec probe waiter: at most one per session, started when the \
+         export sheet opens before the encoder's probe has answered, never \
+         joined, and reports through the preview worker's handoff wake",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

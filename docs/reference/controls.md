@@ -364,14 +364,22 @@ The AI Assistant panel (`crates/aria-ui/src/panels/ai_panel*.rs`) renders the pr
 
 ## Export & Transcode
 
-The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders destination path selection, image-sequence mode toggle, and export start and cancel buttons.
+The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders a chip for each export choice, the save-as and image-sequence buttons, and the export start and cancel buttons. Each chip row lights the choice in force; a row with one choice states it as text instead.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
+| `export-audio` (per row) | Included / Video only | Sets whether the exported file carries the sequence's audio track. Shown unless the chosen plugin encoder writes no audio. | None |
+| `export-bitrate` (per row) | Encoder default / 4 Mb/s / 8 Mb/s / 16 Mb/s / 40 Mb/s | Sets the target video bitrate. Shown where the platform encoder honors a bitrate. | None |
 | `export-cancel` | Cancel | Closes the Export dialog without starting an export job. | None |
-| `export-dest` | Choose… | Opens the Export save dialog with the format's extension and the proposed file name, then starts the export to the chosen path and opens the Jobs dialog. | None |
-| `export-frames` | Frames | Opens a folder picker and starts an image-sequence export job to the chosen folder, opening the Jobs dialog. | None |
+| `export-codec` (per row) | H.264 / H.265 | Sets the video codec, from the codecs this machine's encoder opens and the codec in force. Shown once the codec probe has answered and more than one codec is offered. | None |
+| `export-dest` | Export As… | Opens the Export save dialog with the format's extension and the proposed file name, then starts the export to the chosen path and opens the Jobs dialog. | None |
+| `export-format` (per row) | Platform format / plugin encoder | Selects the platform encoder or a mounted plugin encoder. Shown when a plugin registers an encoder. | None |
+| `export-frames` | Export Frames… | Opens a folder picker and starts an image-sequence export job to the chosen folder, opening the Jobs dialog. | None |
 | `export-go` | Export | Starts rendering the sequence or selected range with the current export settings. | None |
+| `export-gop` (per row) | Codec default / Every 15 / Every 30 / Every 60 | Sets the maximum keyframe interval in frames. | None |
+| `export-range` (per row) | Whole timeline / marked span | Renders the whole timeline or only the span between In and Out; with nothing marked, the marked choice reports how to mark one. | None |
+| `export-rate` (per row) | Project / 24 / 25 / 30 / 50 / 60 | Sets the output frame rate: the sequence's own or a fixed delivery rate. | None |
+| `export-scale` (per row) | 100% / 75% / 50% / 25% | Sets the output size as a fraction of the canvas; the row shows the resulting size. | None |
 
 ## Settings
 

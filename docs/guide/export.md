@@ -48,27 +48,36 @@ See [Templates](#templates) for the marks.
 - Export runs in the background and opens the Jobs board. Editing and playback
   continue while it renders.
 
-The Export sheet holds seven choices. Each row steps to its next value when
-clicked, and none of them is an edit or is saved with the project:
+The Export sheet holds one row per setting: its label, then a chip for each
+choice, the one in force lit. Click a chip to choose it. A row with one choice
+states it as text. None of the choices is an edit or is saved with the
+project:
 
-- **Scale** renders at 100, 75, 50, or 25 per cent of the canvas. The row shows
-  the resulting pixel size.
+- **Format** is the platform encoder or a plugin encoder. The row is drawn as
+  chips when a plugin registers an encoder.
+- **Scale** renders at 100, 75, 50, or 25 per cent of the canvas. The resulting
+  pixel size is shown at the end of the row.
 - **Frame rate** is the project's rate or a fixed 24, 25, 30, 50, or 60.
 - **Codec** is H.264 or H.265. The row offers only the codecs this machine can
-  write: on Linux that is probed from the installed GStreamer encoders, and on
-  macOS, Windows, and Android it is H.264 alone. With one codec available the
-  row fails and states it.
+  write: on Linux that is probed from the installed GStreamer encoders when the
+  sheet first opens, and on macOS, Windows, and Android it is H.264 alone. With
+  one codec available the row states it.
 - **Bitrate** is the encoder's own rate control, or a target of 4, 8, 16, or 40
-  Mb/s. Only GStreamer takes a target; the other backends reject the row and state
-  so. A codec or bitrate the encoder cannot honor is refused by name before any
-  file is created, never swapped for something else.
-- **Keyframes** is the codec's own spacing or one every 15, 30, or 60 frames.
+  Mb/s. Only GStreamer takes a target; on the other backends the row states that
+  the backend sets the rate. A codec or bitrate the encoder cannot honor is
+  refused by name before any file is created, never swapped for something else.
+- **Keyframes** is the codec's own spacing or one keyframe every 15, 30, or 60
+  frames.
 - **Audio** includes the mix or writes a video-only file.
-- **Range** is the whole timeline or the marked range. Marking is required
-  first: with no In and Out set, the row fails and states why.
+- **Range** is the whole timeline or the marked range, which the chip names by
+  its In and Out timecodes. With no In and Out set, clicking the marked range
+  reports how to set them and keeps the whole timeline.
 
-The **Destination** row shows the file the export writes. A path wider than the
+The **Destination** row shows the file **Export** writes. A path wider than the
 sheet loses its start to an ellipsis, and the file name stays in view.
+**Export As…** prompts for another path and starts the export there. **Export
+Frames…** prompts for a folder and writes the frames as an image sequence, with
+the same scale, rate, and range.
 
 The status line states the size, whether audio is included, and the span when the
 export starts.
@@ -110,8 +119,8 @@ Export a sequence as an H.264 `.mp4` file for web delivery:
 
 1. Mark the sequence In and Out points if exporting a sub-range, or leave the work area spanning the full cut, and press <kbd>Ctrl+S</kbd> (`key-save`) or choose **File > Save** to save the project first. The window title clears its unsaved `*` indicator.
 2. Press <kbd>Ctrl+M</kbd> (`key-export`) or choose **File > Export > Media…** (or run **Export** (`pal-export`) in the Command Palette). The Export modal sheet opens over the workspace.
-3. In the Export sheet, verify **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** includes the mix, and **Range** matches the intended span, then click [`export-dest`](../reference/controls.md#export--transcode) to pick the output `.mp4` path. The **Destination** row displays the target file path and resolved pixel dimensions.
-4. Click [`export-go`](../reference/controls.md#export--transcode) to start the background encode (or click [`export-cancel`](../reference/controls.md#export--transcode) to close the sheet without rendering). The Jobs board opens showing frame progress and estimated time remaining, and clicking [`job-reveal`](../reference/controls.md#modal-dialogs) once the job finishes opens the exported `.mp4` in the system file manager.
+3. In the Export sheet, check that **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** is `Included`, and **Range** matches the intended span. The **Destination** row shows the file **Export** writes; click [`export-dest`](../reference/controls.md#export--transcode) (**Export As…**) to write elsewhere instead, which starts the export at the chosen path.
+4. Click [`export-go`](../reference/controls.md#export--transcode) to start the background encode to the Destination file (or click [`export-cancel`](../reference/controls.md#export--transcode) to close the sheet without rendering). The Jobs board opens showing frame progress and estimated time remaining, and clicking [`job-reveal`](../reference/controls.md#modal-dialogs) once the job finishes opens the exported `.mp4` in the system file manager.
 
 ## Reference
 

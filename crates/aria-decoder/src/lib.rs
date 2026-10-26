@@ -87,6 +87,10 @@ mod gst_context;
 #[cfg(target_os = "linux")]
 pub use gst_context::{await_warm_up, open_on_kept_contexts, warm_up};
 #[cfg(target_os = "linux")]
+mod gst_job;
+#[cfg(target_os = "linux")]
+pub use gst_job::OnceJob;
+#[cfg(target_os = "linux")]
 mod gst_dmabuf_watch;
 #[cfg(target_os = "linux")]
 mod gst_fds;

@@ -244,6 +244,7 @@ impl AppState {
             mark_out: None,
             work_area_press: None,
             export_options: Default::default(),
+            codec_probe_pending: false,
             speed_duration: Default::default(),
             audio_gain: Default::default(),
             remove_attributes: Default::default(),

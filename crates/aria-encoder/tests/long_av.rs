@@ -138,7 +138,7 @@ fn a_video_coder_delay_of_many_seconds_does_not_wedge_the_audio_branch() {
         codecs.contains(&VideoCodec::H265),
         "this host encodes no H.265, the codec whose coder delay this test needs: {codecs:?}"
     );
-    for codec in codecs {
+    for &codec in codecs {
         interleaved_export_in(&format!("lag-{codec:?}"), (128, 72), 1, 30, codec);
     }
 }

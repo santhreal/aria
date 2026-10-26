@@ -566,7 +566,8 @@ impl AppState {
 
     /// Apply what the preview worker left in its mailbox: a scope reading for
     /// the frame on screen, the colour under the pointer, the reason a
-    /// render-ahead frame failed, and a finished render bar.
+    /// render-ahead frame failed, a finished render bar, and the codec probe's
+    /// answer.
     pub(crate) fn take_preview_mail(&mut self) -> Mail {
         let scopes = self.adopt_scopes(self.preview_worker.take_measured());
         let probed = self.adopt_probe(self.preview_worker.take_probed());
@@ -578,7 +579,8 @@ impl AppState {
             None => false,
         };
         let render_bar = self.poll_render_bar();
-        if failed || render_bar {
+        let codecs = self.land_codec_probe();
+        if failed || render_bar || codecs {
             Mail::Window
         } else if scopes || probed {
             Mail::Reading

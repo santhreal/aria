@@ -2395,6 +2395,10 @@ Notes for the latest release. For previous releases, see the
 - Readouts, status lines, and Settings rows join two facts with `·` and set a clause off with a comma, a semicolon, or a colon instead of a spaced dash, such as `Peak -0.3 dBFS, clipping` in the Inspector's Audio tab and `Queued: <job id>` for a generation job.
 - A tool's tooltip names the tool as the tool bar's table does, such as `Select` instead of `Pointer` and `Ripple Trim` instead of `Ripple trim`, and shows what the tool does on a line under its name instead of after a dash; the popover held under a tool names the ripple tool `Ripple Trim` instead of `Ripple Edit`.
 - `ProjectHost::apply_observed` passes its `before` observer the engine instead of the project, and `EditGroup::rollback` returns the `Reverted` revisions the group spanned.
+- The Export sheet shows each choice of Format, Scale, Frame rate, Codec, Bitrate, Keyframes, Audio, and Range as a chip with the choice in force lit, and a click on a chip selects it, instead of each row stepping to its next value per click.
+- The Export sheet's Range row names the marked span by its In and Out timecodes before it is chosen, and its Keyframes chips read `Every 15`, `Every 30`, and `Every 60`.
+- The Export sheet's `Choose…` button reads `Export As…` and its `Frames` button reads `Export Frames…`.
+- The Export sheet probes the codecs this machine writes once per process, on a thread of its own when the sheet first opens, and its Codec row states the chosen codec until the probe answers, instead of probing again on the thread that draws at every click of the Codec row.
 
 ### Fixed
 

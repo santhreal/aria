@@ -36,6 +36,8 @@ Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENC
 
 `x264enc` also runs `tune=zerolatency` with trellis quantization off. A hardware element whose GStreamer plugin failed to load in the process is skipped without being built again. Only `x265enc` has `videoconvert` in front of it, because it takes no NV12.
 
+The export sheet's Codec row offers the codecs `aria_encoder::available_codecs` returns. On Linux, a codec is offered when one of its elements opens; the probe runs once per process, on the `aria-codec-probe` thread, when the Export sheet first opens. Until it answers, the row states the chosen codec. On other targets the row offers the Codecs column above.
+
 The GStreamer encoder takes CPU NV12 frames. An export frame that is one BT.709 NV12 clip decoded on the CPU and drawn unchanged over the whole canvas at the output size goes to the encoder as decoded, with no composite and no RGBA to NV12 conversion. Every other frame is composited on the GPU and converted.
 
 Each NV12 frame is written with rows as wide as the frame. When GStreamer's default NV12 layout pads the rows to 4 bytes, as at a width 2 more than a multiple of 4, the frame buffer has a `GstVideoMeta` stating its row stride and plane offsets.
@@ -85,9 +87,9 @@ Each dimension is scaled by `(v * num / den).max(2)` and rounded down to an even
 | Variant | Label | Max interval (`frames`) | Default |
 | --- | --- | --- | --- |
 | `Codec` | Codec default | `none` | `yes` |
-| `Frames(15)` | Every 15 frames | `15` | `no` |
-| `Frames(30)` | Every 30 frames | `30` | `no` |
-| `Frames(60)` | Every 60 frames | `60` | `no` |
+| `Frames(15)` | Every 15 | `15` | `no` |
+| `Frames(30)` | Every 30 | `30` | `no` |
+| `Frames(60)` | Every 60 | `60` | `no` |
 
 ### Target video bitrate (`ExportBitrate::ALL`)
 

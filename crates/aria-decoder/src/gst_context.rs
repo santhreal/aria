@@ -17,14 +17,15 @@
 //!
 //! A process that ends through `exit` stops the warm-up at its next step and
 //! waits for the step in progress, so no plugin loads while the C library
-//! runs the destructors of the process's libraries.
+//! runs the destructors of the process's libraries: the warm-up is a
+//! [`OnceJob`].
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Condvar, Mutex, PoisonError};
-use std::time::Duration;
+use std::sync::{Mutex, PoisonError};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
+
+use crate::gst_job::OnceJob;
 
 /// Contexts kept so far, one per context type, in the order they arrived.
 static KEPT: Mutex<Vec<gst::Context>> = Mutex::new(Vec::new());
@@ -102,155 +103,12 @@ const DEVICES: &[(&str, &str)] = &[(
 )];
 
 /// How long one device warm-up may take before it is abandoned, in seconds.
-const DEVICE_WAIT_SECS: u64 = 10;
+pub(crate) const DEVICE_WAIT_SECS: u64 = 10;
 
 /// How long one device warm-up may take before it is abandoned.
 const DEVICE_WAIT: gst::ClockTime = gst::ClockTime::from_seconds(DEVICE_WAIT_SECS);
 
-/// How long a process ending through `exit` waits for a started [`Once`] job
-/// to finish the step it is in: longer than the slowest warm-up step, one
-/// device held for [`DEVICE_WAIT`].
-const EXIT_WAIT: Duration = Duration::from_secs(DEVICE_WAIT_SECS + 5);
-
-/// Where a [`Once`] job is.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Stage {
-    Idle,
-    Running,
-    Finished,
-}
-
-/// A job that runs at most once per process, on a thread of its own, and can
-/// be waited for or stopped.
-///
-/// A started job is stopped when the process ends through `exit`, the path a
-/// return from `main` and every test binary take: an exit handler calls
-/// [`Once::stop`] with [`EXIT_WAIT`] before the C library runs the
-/// destructors of the process's libraries. The job checks
-/// [`Once::stopping`] between its steps. A warm-up thread that loaded a
-/// GStreamer plugin during those destructors aborted the process in GObject's
-/// type registration (`cannot register existing fundamental type 'gchar'`)
-/// after its work was done. [`crate::exit_process`] ends the process through
-/// `_exit`, which runs no exit handler and does not wait.
-pub(crate) struct Once {
-    stage: Mutex<Stage>,
-    finished: Condvar,
-    stopping: AtomicBool,
-}
-
-impl Once {
-    pub(crate) const fn new() -> Self {
-        Self {
-            stage: Mutex::new(Stage::Idle),
-            finished: Condvar::new(),
-            stopping: AtomicBool::new(false),
-        }
-    }
-
-    /// Run `job` on a thread named `name` unless a job was started or stopped
-    /// before. Returns whether this call started it.
-    pub(crate) fn start(&'static self, name: &str, job: impl FnOnce() + Send + 'static) -> bool {
-        {
-            let mut stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-            if *stage != Stage::Idle || self.stopping() {
-                return false;
-            }
-            *stage = Stage::Running;
-        }
-        stop_at_exit(self);
-        let spawned = std::thread::Builder::new()
-            .name(name.to_owned())
-            .spawn(move || {
-                // Finishes even when `job` panics, so no waiter blocks forever.
-                let _finish = Finish(self);
-                job();
-            });
-        if let Err(err) = spawned {
-            tracing::warn!(%err, "the device warm-up thread did not start; decoders open their own devices");
-            self.finish();
-        }
-        true
-    }
-
-    fn finish(&self) {
-        *self.stage.lock().unwrap_or_else(PoisonError::into_inner) = Stage::Finished;
-        self.finished.notify_all();
-    }
-
-    /// Block until a started job finishes; return at once when none runs.
-    pub(crate) fn wait(&self) {
-        let stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-        let _finished = self
-            .finished
-            .wait_while(stage, |stage| *stage == Stage::Running)
-            .unwrap_or_else(PoisonError::into_inner);
-    }
-
-    /// Whether [`Once::stop`] was called. The job returns at its next step
-    /// once this holds.
-    pub(crate) fn stopping(&self) -> bool {
-        self.stopping.load(Ordering::Acquire)
-    }
-
-    /// Make the job return at its next step and block until it finishes or
-    /// `bound` passes; a job not started yet never starts. Returns whether no
-    /// job runs.
-    pub(crate) fn stop(&self, bound: Duration) -> bool {
-        self.stopping.store(true, Ordering::Release);
-        let stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-        let (stage, _) = self
-            .finished
-            .wait_timeout_while(stage, bound, |stage| *stage == Stage::Running)
-            .unwrap_or_else(PoisonError::into_inner);
-        *stage != Stage::Running
-    }
-
-    #[cfg(test)]
-    pub(crate) fn stage(&self) -> Stage {
-        *self.stage.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-/// Marks its [`Once`] finished when dropped.
-struct Finish(&'static Once);
-
-impl Drop for Finish {
-    fn drop(&mut self) {
-        self.0.finish();
-    }
-}
-
-/// Every [`Once`] started in this process, in start order.
-static STARTED: Mutex<Vec<&'static Once>> = Mutex::new(Vec::new());
-
-/// Stop `job` when the process ends through `exit`.
-fn stop_at_exit(job: &'static Once) {
-    static REGISTERED: std::sync::Once = std::sync::Once::new();
-    STARTED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .push(job);
-    REGISTERED.call_once(|| {
-        #[allow(unsafe_code)]
-        // SAFETY: registers a handler with the C exit path; `stop_started`
-        // takes no arguments, does not unwind, and reads only statics.
-        let registered = unsafe { libc::atexit(stop_started) };
-        if registered != 0 {
-            tracing::warn!("the exit handler did not register; a process exit does not wait for the device warm-up");
-        }
-    });
-}
-
-/// Stop every started [`Once`], waiting up to [`EXIT_WAIT`] for each. Runs in
-/// `exit`, before the C library runs library destructors.
-extern "C" fn stop_started() {
-    let started = std::mem::take(&mut *STARTED.lock().unwrap_or_else(PoisonError::into_inner));
-    for job in started {
-        job.stop(EXIT_WAIT);
-    }
-}
-
-static WARM_UP: Once = Once::new();
+static WARM_UP: OnceJob = OnceJob::new();
 
 /// Open this host's hardware decode devices on a thread of their own and keep
 /// their contexts for every later decode pipeline. Returns at once; only the
@@ -442,51 +300,6 @@ mod tests {
         );
     }
 
-    /// WHY: a decoder opened while the device warm-up runs must wait for it
-    /// rather than open a second device beside it, and must not wait forever
-    /// when the warm-up job panics. Covers start-once, the wait, and the panic
-    /// path; does not cover the CUDA device itself, which the build host lacks.
-    #[test]
-    fn a_waiter_blocks_until_the_one_job_finishes_even_when_it_panics() {
-        use std::sync::mpsc;
-        use std::time::Duration;
-
-        static JOB: Once = Once::new();
-        JOB.wait();
-        assert_eq!(JOB.stage(), Stage::Idle, "waiting started nothing");
-
-        let (release, released) = mpsc::channel::<()>();
-        let (ran, runs) = mpsc::channel::<()>();
-        let started = JOB.start("aria-test-once", move || {
-            let _ = ran.send(());
-            let _ = released.recv();
-            panic!("the job panics after its release");
-        });
-        assert!(started, "the first start did not run the job");
-        assert!(
-            !JOB.start("aria-test-once", || unreachable!("a second job ran")),
-            "a second start was accepted"
-        );
-        runs.recv_timeout(Duration::from_secs(5))
-            .expect("the job runs");
-
-        let (done, waited) = mpsc::channel::<()>();
-        let waiter = std::thread::spawn(move || {
-            JOB.wait();
-            let _ = done.send(());
-        });
-        assert!(
-            waited.recv_timeout(Duration::from_millis(200)).is_err(),
-            "the wait returned while the job ran"
-        );
-        release.send(()).expect("release the job");
-        waited
-            .recv_timeout(Duration::from_secs(5))
-            .expect("the wait ends once the job panics");
-        waiter.join().expect("waiter");
-        assert_eq!(JOB.stage(), Stage::Finished);
-    }
-
     /// WHY: the warm-up runs in every session, before any decoder, on hosts
     /// whose registry lists a device element that no longer loads (a CUDA
     /// plugin cached before the driver went away). Launching that element
@@ -606,7 +419,3 @@ mod tests {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "gst_context_exit_tests.rs"]
-mod exit_tests;

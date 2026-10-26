@@ -138,6 +138,10 @@ const FORWARDERS: &[Forwarder] = &[
         name: "transition_chip",
         arg: 1,
     },
+    Forwarder {
+        name: "chip_line",
+        arg: 1,
+    },
 ];
 
 /// A widget call whose id is a field of a static table.

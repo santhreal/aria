@@ -24,7 +24,7 @@ mod element;
 #[path = "gst_frame.rs"]
 mod frame;
 
-pub(crate) use element::can_encode;
+pub(crate) use element::{await_codec_probe, probe_codecs, probed_codecs};
 use element::{configure_encoder, pick_encoder};
 use frame::{FrameLayout, open_buffer_pool, video_caps, write_frame_to_nv12};
 

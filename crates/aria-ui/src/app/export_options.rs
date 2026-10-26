@@ -9,7 +9,6 @@
 //! One owner, because the sheet, the job that renders, and the status line that
 //! reports what was rendered must agree on the same choices.
 
-use aria_core::count::counted;
 use aria_core::{ExportFormat, Rational, VideoCodec};
 use aria_render::ExportSettings;
 
@@ -113,10 +112,12 @@ impl ExportGop {
         Self::Frames(60),
     ];
 
+    /// The interval as the Keyframes row's chip reads it, beside the row's own
+    /// label: `Every 30`.
     pub fn label(self) -> String {
         match self {
             Self::Codec => "Codec default".to_string(),
-            Self::Frames(frames) => format!("Every {}", counted(frames, "frame", "frames")),
+            Self::Frames(frames) => format!("Every {frames}"),
         }
     }
 
@@ -199,27 +200,30 @@ impl Default for ExportOptions {
     }
 }
 
-/// Step to the next entry of `all` after `current`, wrapping.
-fn next_of<T: PartialEq + Copy>(all: &[T], current: T) -> T {
-    let at = all.iter().position(|item| *item == current).unwrap_or(0);
-    all[(at + 1) % all.len()]
-}
+/// The Range row's whole-timeline choice, and how the sheet and the status line
+/// name an export of the whole timeline.
+pub const WHOLE_TIMELINE: &str = "Whole timeline";
+
+/// The Audio row's choices: whether the file carries the sound, and how each
+/// reads.
+pub const AUDIO_CHOICES: [(bool, &str); 2] = [(true, "Included"), (false, "Video only")];
 
 impl AppState {
-    pub fn cycle_export_scale(&mut self) {
-        self.export_options.scale = next_of(&ExportScale::ALL, self.export_options.scale);
+    pub fn set_export_scale(&mut self, scale: ExportScale) {
+        self.export_options.scale = scale;
     }
 
-    pub fn cycle_export_rate(&mut self) {
-        self.export_options.rate = next_of(&ExportRate::ALL, self.export_options.rate);
+    pub fn set_export_rate(&mut self, rate: ExportRate) {
+        self.export_options.rate = rate;
     }
 
-    pub fn cycle_export_gop(&mut self) {
-        self.export_options.gop = next_of(&ExportGop::ALL, self.export_options.gop);
+    pub fn set_export_gop(&mut self, gop: ExportGop) {
+        self.export_options.gop = gop;
     }
 
-    pub fn toggle_export_audio(&mut self) {
-        self.export_options.audio = !self.export_options.audio;
+    /// Carry the sound, or write video only.
+    pub fn set_export_audio(&mut self, audio: bool) {
+        self.export_options.audio = audio;
     }
 
     /// Select a registered plugin encoder by id, or `None` for the platform
@@ -228,24 +232,23 @@ impl AppState {
         self.export_options.plugin_encoder = encoder_id;
     }
 
-    /// Cycle the export format across the platform encoder (`None`) and all
-    /// currently registered plugin encoders in registration order.
-    pub fn cycle_export_format(&mut self) {
-        let encoders = self.ctx.encoders();
-        if encoders.is_empty() {
-            self.export_options.plugin_encoder = None;
-            return;
+    /// The Format row's choices and their labels, in order: the platform
+    /// encoder (`None`), each mounted plugin encoder in registration order, and
+    /// the chosen plugin encoder when it is no longer mounted, so the choice in
+    /// force is always one of them.
+    pub fn export_format_choices(&self) -> Vec<(Option<String>, String)> {
+        let mut ids: Vec<Option<String>> = std::iter::once(None)
+            .chain(self.ctx.encoders().iter().map(|spec| Some(spec.id.clone())))
+            .collect();
+        if !ids.contains(&self.export_options.plugin_encoder) {
+            ids.push(self.export_options.plugin_encoder.clone());
         }
-        let mut choices: Vec<Option<String>> = Vec::with_capacity(1 + encoders.len());
-        choices.push(None);
-        for spec in encoders {
-            choices.push(Some(spec.id.clone()));
-        }
-        let at = choices
-            .iter()
-            .position(|item| *item == self.export_options.plugin_encoder)
-            .unwrap_or(0);
-        self.export_options.plugin_encoder = choices[(at + 1) % choices.len()].clone();
+        ids.into_iter()
+            .map(|id| {
+                let label = self.format_choice_label(id.as_deref());
+                (id, label)
+            })
+            .collect()
     }
 
     /// The active plugin encoder spec when `plugin_encoder` names a mounted
@@ -265,13 +268,20 @@ impl AppState {
 
     /// Label for the Format row in the Export dialog.
     pub fn export_format_label(&self) -> String {
-        if let Some(spec) = self.active_plugin_encoder() {
-            return format!("{} (.{})", spec.name, spec.extension);
+        self.format_choice_label(self.export_options.plugin_encoder.as_deref())
+    }
+
+    /// How the Format row names `choice`: a plugin encoder by its name and
+    /// extension, or by its id once unmounted, and the platform encoder by what
+    /// it writes with the chosen codec.
+    fn format_choice_label(&self, choice: Option<&str>) -> String {
+        let Some(id) = choice else {
+            return format_label(self.export_options.codec);
+        };
+        match self.ctx.encoder(id) {
+            Some(spec) => format!("{} (.{})", spec.name, spec.extension),
+            None => format!("{id} (unmounted)"),
         }
-        if let Some(id) = self.export_options.plugin_encoder.as_deref() {
-            return format!("{id} (unmounted)");
-        }
-        format_label(self.export_options.codec)
     }
 
     /// Label for the Encoder row in the Export dialog.
@@ -297,48 +307,65 @@ impl AppState {
         self.active_plugin_encoder().is_none_or(|spec| spec.audio)
     }
 
-    /// Step to the next codec this build's encoder can write.
-    ///
-    /// The list comes from the encoder, so a machine missing an H.265 plugin
-    /// never offers one; with a single codec available the control says so
-    /// rather than appearing to do nothing.
-    pub fn cycle_export_codec(&mut self) {
-        let codecs = aria_encoder::available_codecs();
-        match codecs.len() {
-            0 => {
-                self.report_error("This build has no encoder, so it cannot export");
-            }
-            1 => {
-                self.report_error(format!(
-                    "{} is the only codec {} can write here",
-                    codecs[0].label(),
-                    aria_encoder::capability().backend
-                ));
-            }
-            _ => self.export_options.codec = next_of(&codecs, self.export_options.codec),
-        }
+    /// Write `codec`. The sheet offers what [`aria_encoder::probed_codecs`]
+    /// found; a codec this machine cannot write is refused by name when the
+    /// export resolves, in [`ExportSettings::resolved`].
+    pub fn set_export_codec(&mut self, codec: VideoCodec) {
+        self.export_options.codec = codec;
     }
 
-    /// Step to the next bitrate, where the encoder honours one.
-    pub fn cycle_export_bitrate(&mut self) {
-        if !aria_encoder::capability().bitrate {
-            self.report_error(format!(
-                "{} sets its own bitrate",
-                aria_encoder::capability().backend
-            ));
-            return;
-        }
-        self.export_options.bitrate = next_of(&ExportBitrate::ALL, self.export_options.bitrate);
+    /// Ask for `bitrate`. The sheet offers the ladder only where the encoder
+    /// honours one; elsewhere [`ExportSettings::resolved`] refuses it by name.
+    pub fn set_export_bitrate(&mut self, bitrate: ExportBitrate) {
+        self.export_options.bitrate = bitrate;
     }
 
-    /// Ask for the marked range. Refused with a sentence when nothing is marked,
-    /// because an export of an empty span writes an empty file.
-    pub fn toggle_export_range(&mut self) {
-        if !self.export_options.marked_range && self.marked_range().is_none() {
+    /// Render only the marked range, or the whole timeline. The marked range is
+    /// refused with a sentence when nothing is marked, because an export of an
+    /// empty span writes an empty file.
+    pub fn set_export_marked_range(&mut self, marked: bool) {
+        if marked && self.marked_range().is_none() {
             self.report_error("No range is marked. Set In and Out first, with I and O.");
             return;
         }
-        self.export_options.marked_range = !self.export_options.marked_range;
+        self.export_options.marked_range = marked;
+    }
+
+    /// Find which codecs this machine can write, unless that is known or
+    /// already asked for.
+    ///
+    /// The probe opens each codec's encoder, up to a third of a second for a
+    /// hardware one, so it runs off the thread that draws; the Codec row states
+    /// the chosen codec until it answers. A waiter thread wakes the preview
+    /// worker's mailbox once it does, and [`Self::land_codec_probe`] redraws
+    /// the window.
+    pub(crate) fn probe_export_codecs(&mut self) {
+        if self.codec_probe_pending || aria_encoder::probed_codecs().is_some() {
+            return;
+        }
+        aria_encoder::probe_codecs();
+        self.codec_probe_pending = true;
+        let wake = self.preview_worker.clone_wake();
+        let waiter = std::thread::Builder::new()
+            .name("aria-codec-probe-wait".to_owned())
+            .spawn(move || {
+                // Returns once the probe answers.
+                aria_encoder::available_codecs();
+                wake.wake(());
+            });
+        if let Err(err) = waiter {
+            tracing::warn!(%err, "the codec probe waiter did not start; the Codec row offers its choices on the next redraw");
+        }
+    }
+
+    /// Whether the codec probe the sheet waits on has answered since the last
+    /// check, so the window redraws once and the Codec row offers its choices.
+    pub(crate) fn land_codec_probe(&mut self) -> bool {
+        let landed = self.codec_probe_pending && aria_encoder::probed_codecs().is_some();
+        if landed {
+            self.codec_probe_pending = false;
+        }
+        landed
     }
 
     /// The marked span in ticks, `[in, out)`, or nothing when it is unset or
@@ -403,22 +430,25 @@ impl AppState {
 
     /// How the sheet and the status line describe the span being rendered.
     pub fn export_range_label(&self) -> String {
-        match self
-            .export_options
-            .marked_range
-            .then(|| self.marked_range())
-            .flatten()
-        {
-            None => "Whole timeline".to_string(),
-            Some((from, to)) => {
-                let rate = self.store.sequence.frame_rate;
-                format!(
-                    "{} to {}",
-                    crate::timecode::display_ticks(from, rate.num, rate.den),
-                    crate::timecode::display_ticks(to, rate.num, rate.den)
-                )
-            }
+        if self.export_options.marked_range && self.marked_range().is_some() {
+            self.marked_range_label()
+        } else {
+            WHOLE_TIMELINE.to_string()
         }
+    }
+
+    /// The Range row's marked choice: both ends of the marked span, or
+    /// `Marked range` while nothing is marked.
+    pub fn marked_range_label(&self) -> String {
+        let Some((from, to)) = self.marked_range() else {
+            return "Marked range".to_string();
+        };
+        let rate = self.store.sequence.frame_rate;
+        format!(
+            "{} to {}",
+            crate::timecode::display_ticks(from, rate.num, rate.den),
+            crate::timecode::display_ticks(to, rate.num, rate.den)
+        )
     }
 
     /// The output size the sheet shows, after the scale.

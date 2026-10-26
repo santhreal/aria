@@ -9,10 +9,14 @@
 //! covered without editing this file.
 //!
 //! Not covered: the encode itself, which needs a GPU. `export_settings` is what
-//! the job hands to `aria_render`, so it is the seam worth pinning.
+//! the job hands to `aria_render`, so it is the seam worth pinning. The sheet's
+//! chips, and that each press sets its own choice, are covered in
+//! `panels/export_dialog_tests.rs`.
 
 use super::premiere_tests::with_clip;
-use crate::app::export_options::{ExportBitrate, ExportGop, ExportRate, ExportScale};
+use crate::app::export_options::{
+    AUDIO_CHOICES, ExportBitrate, ExportGop, ExportRate, ExportScale, WHOLE_TIMELINE,
+};
 
 #[test]
 fn the_defaults_reproduce_the_project() {
@@ -31,49 +35,84 @@ fn the_defaults_reproduce_the_project() {
     assert_eq!(settings.range, None);
 }
 
+/// Each setter puts its own argument in force, from any other choice of its
+/// ladder. The class closed here is a setter that ignores its argument or
+/// writes a neighboring field.
 #[test]
-fn every_preset_of_every_option_is_reachable_by_cycling() {
+fn every_choice_of_every_ladder_is_set_by_its_setter() {
     let (mut state, _) = with_clip();
-    let mut seen = Vec::new();
-    for _ in 0..ExportScale::ALL.len() {
-        seen.push(state.export_options.scale);
-        state.cycle_export_scale();
+    for from in ExportScale::ALL {
+        for to in ExportScale::ALL {
+            state.set_export_scale(from);
+            state.set_export_scale(to);
+            assert_eq!(
+                state.export_options.scale,
+                to,
+                "{} from {}",
+                to.label(),
+                from.label()
+            );
+        }
     }
-    for preset in ExportScale::ALL {
-        assert!(seen.contains(&preset), "{} is unreachable", preset.label());
+    for from in ExportRate::ALL {
+        for to in ExportRate::ALL {
+            state.set_export_rate(from);
+            state.set_export_rate(to);
+            assert_eq!(
+                state.export_options.rate,
+                to,
+                "{} from {}",
+                to.label(),
+                from.label()
+            );
+        }
     }
-    assert_eq!(
-        state.export_options.scale,
-        ExportScale::Full,
-        "a full cycle returns to where it started"
-    );
-
-    let mut rates = Vec::new();
-    for _ in 0..ExportRate::ALL.len() {
-        rates.push(state.export_options.rate);
-        state.cycle_export_rate();
+    for from in ExportGop::ALL {
+        for to in ExportGop::ALL {
+            state.set_export_gop(from);
+            state.set_export_gop(to);
+            assert_eq!(
+                state.export_options.gop,
+                to,
+                "{} from {}",
+                to.label(),
+                from.label()
+            );
+        }
     }
-    for preset in ExportRate::ALL {
-        assert!(rates.contains(&preset), "{} is unreachable", preset.label());
+    for from in ExportBitrate::ALL {
+        for to in ExportBitrate::ALL {
+            state.set_export_bitrate(from);
+            state.set_export_bitrate(to);
+            assert_eq!(
+                state.export_options.bitrate,
+                to,
+                "{} from {}",
+                to.label(),
+                from.label()
+            );
+        }
     }
-
-    let mut gops = Vec::new();
-    for _ in 0..ExportGop::ALL.len() {
-        gops.push(state.export_options.gop);
-        state.cycle_export_gop();
+    for codec in aria_core::VideoCodec::ALL {
+        state.set_export_codec(codec);
+        assert_eq!(state.export_options.codec, codec);
     }
-    for preset in ExportGop::ALL {
-        assert!(gops.contains(&preset), "{} is unreachable", preset.label());
+    for (audio, label) in AUDIO_CHOICES {
+        state.set_export_audio(!audio);
+        state.set_export_audio(audio);
+        assert_eq!(state.export_options.audio, audio, "{label}");
     }
+    // The ladders did not touch each other's fields or the range.
+    assert!(!state.export_options.marked_range);
+    assert_eq!(state.export_options.plugin_encoder, None);
 }
 
 #[test]
 fn a_scale_shrinks_the_output_and_never_below_two_pixels() {
     let (mut state, _) = with_clip();
     let full = state.export_size();
-    state.cycle_export_scale();
     for preset in ExportScale::ALL {
-        state.export_options.scale = preset;
+        state.set_export_scale(preset);
         let (w, h) = state.export_size();
         assert!(w >= 2 && h >= 2, "{} produced {w}x{h}", preset.label());
         assert!(
@@ -82,7 +121,7 @@ fn a_scale_shrinks_the_output_and_never_below_two_pixels() {
             preset.label()
         );
     }
-    state.export_options.scale = ExportScale::Half;
+    state.set_export_scale(ExportScale::Half);
     let (w, h) = state.export_size();
     assert_eq!((w, h), (full.0 / 2, full.1 / 2));
 }
@@ -90,11 +129,11 @@ fn a_scale_shrinks_the_output_and_never_below_two_pixels() {
 #[test]
 fn a_fixed_rate_overrides_the_project_rate() {
     let (mut state, _) = with_clip();
-    state.export_options.rate = ExportRate::Fps60;
+    state.set_export_rate(ExportRate::Fps60);
     let settings = state.export_settings();
     assert_eq!(settings.frame_rate.num, 60);
     assert_eq!(settings.frame_rate.den, 1);
-    state.export_options.rate = ExportRate::Project;
+    state.set_export_rate(ExportRate::Project);
     assert_eq!(
         state.export_settings().frame_rate,
         state.store.sequence.frame_rate
@@ -104,18 +143,27 @@ fn a_fixed_rate_overrides_the_project_rate() {
 #[test]
 fn a_keyframe_choice_reaches_the_encoder_config() {
     let (mut state, _) = with_clip();
-    state.export_options.gop = ExportGop::Frames(30);
+    state.set_export_gop(ExportGop::Frames(30));
     assert_eq!(state.export_settings().keyframe_interval, Some(30));
-    state.export_options.gop = ExportGop::Codec;
+    state.set_export_gop(ExportGop::Codec);
     assert_eq!(state.export_settings().keyframe_interval, None);
+}
+
+/// A keyframe chip reads beside the row's own label, so it names the interval
+/// and nothing else: `Every 30`.
+#[test]
+fn a_keyframe_interval_reads_as_every_n() {
+    assert_eq!(ExportGop::Codec.label(), "Codec default");
+    assert_eq!(ExportGop::Frames(1).label(), "Every 1");
+    assert_eq!(ExportGop::Frames(30).label(), "Every 30");
 }
 
 #[test]
 fn audio_off_writes_a_video_only_file() {
     let (mut state, _) = with_clip();
-    state.toggle_export_audio();
+    state.set_export_audio(false);
     assert!(!state.export_settings().audio);
-    state.toggle_export_audio();
+    state.set_export_audio(true);
     assert!(state.export_settings().audio);
 }
 
@@ -123,7 +171,7 @@ fn audio_off_writes_a_video_only_file() {
 fn the_marked_range_is_refused_until_a_range_is_marked() {
     let (mut state, _) = with_clip();
     state.last_error = None;
-    state.toggle_export_range();
+    state.set_export_marked_range(true);
     assert!(!state.export_options.marked_range);
     assert!(
         state
@@ -134,6 +182,12 @@ fn the_marked_range_is_refused_until_a_range_is_marked() {
         state.last_error
     );
     assert_eq!(state.export_settings().range, None);
+    assert_eq!(state.marked_range_label(), "Marked range");
+    // Asking for the whole timeline needs no marks and reports nothing.
+    state.last_error = None;
+    state.set_export_marked_range(false);
+    assert_eq!(state.last_error, None);
+    assert!(!state.export_options.marked_range);
 }
 
 #[test]
@@ -144,8 +198,12 @@ fn a_marked_range_becomes_the_exported_span() {
     state.set_playhead(80);
     state.set_mark_out();
     assert_eq!(state.marked_range(), Some((20, 80)));
+    // The marked choice names its span before it is in force, so the chip
+    // says what a press renders.
+    assert_eq!(state.marked_range_label(), "00:00:00:20 to 00:00:03:08");
+    assert_eq!(state.export_range_label(), WHOLE_TIMELINE);
 
-    state.toggle_export_range();
+    state.set_export_marked_range(true);
     assert!(state.export_options.marked_range);
     let range = state.export_settings().range.expect("a span");
     assert_eq!(range.0.value, 20);
@@ -156,9 +214,9 @@ fn a_marked_range_becomes_the_exported_span() {
         "the sheet must name both ends in one SMPTE range"
     );
 
-    state.toggle_export_range();
+    state.set_export_marked_range(false);
     assert_eq!(state.export_settings().range, None);
-    assert_eq!(state.export_range_label(), "Whole timeline");
+    assert_eq!(state.export_range_label(), WHOLE_TIMELINE);
 }
 
 #[test]
@@ -172,7 +230,7 @@ fn an_empty_mark_pair_is_not_a_range() {
         None,
         "In and Out on the same frame cover nothing"
     );
-    state.toggle_export_range();
+    state.set_export_marked_range(true);
     assert!(!state.export_options.marked_range);
 }
 
@@ -180,10 +238,11 @@ fn an_empty_mark_pair_is_not_a_range() {
 fn choosing_how_to_export_is_not_an_edit() {
     let (mut state, _) = with_clip();
     let depth = state.history_depth();
-    state.cycle_export_scale();
-    state.cycle_export_rate();
-    state.cycle_export_gop();
-    state.toggle_export_audio();
+    state.set_export_scale(ExportScale::Half);
+    state.set_export_rate(ExportRate::Fps30);
+    state.set_export_gop(ExportGop::Frames(15));
+    state.set_export_audio(false);
+    state.set_export_bitrate(ExportBitrate::Kbps(8_000));
     assert_eq!(state.history_depth(), depth);
 }
 
@@ -194,7 +253,7 @@ fn a_ranged_span_covers_the_frames_between_the_marks() {
     state.set_mark_in();
     state.set_playhead(90);
     state.set_mark_out();
-    state.toggle_export_range();
+    state.set_export_marked_range(true);
     let settings = state.export_settings();
     let project = {
         let engine = state.engine().lock();
@@ -225,7 +284,7 @@ fn the_format_row_names_what_this_export_will_write() {
     if cap.available {
         assert!(label.contains(cap.container), "{label} hides the container");
         assert!(label.contains(cap.video), "{label} hides the codec");
-        for codec in aria_encoder::available_codecs() {
+        for &codec in aria_encoder::available_codecs() {
             let chosen = crate::app::export_options::format_label(codec);
             assert!(
                 chosen.contains(codec.label()),
@@ -236,43 +295,6 @@ fn the_format_row_names_what_this_export_will_write() {
         assert!(
             !label.contains("MP4"),
             "{label} promises a format this build cannot write"
-        );
-    }
-}
-
-/// Codec and bitrate are offered only where the encoder can honour them, and
-/// what is offered is what the encoder claims. The class closed here is a
-/// picker that cycles to a value the export would then refuse.
-#[test]
-fn the_codec_and_bitrate_rows_only_offer_what_the_encoder_takes() {
-    let (mut state, _) = crate::app::premiere_tests::with_clip();
-    let cap = aria_encoder::capability();
-    let codecs = aria_encoder::available_codecs();
-
-    // Whatever the ladder does, the settings never carry a codec the encoder
-    // does not claim, nor a bitrate it does not honour.
-    for _ in 0..(ExportBitrate::ALL.len() + codecs.len() + 2) {
-        state.cycle_export_codec();
-        state.cycle_export_bitrate();
-        let settings = state.export_settings();
-        if !codecs.is_empty() {
-            assert!(
-                codecs.contains(&settings.video_codec),
-                "{:?} is not offered here",
-                settings.video_codec
-            );
-        }
-        assert!(
-            cap.bitrate || settings.bitrate_kbps.is_none(),
-            "a bitrate was set on a backend that ignores it"
-        );
-    }
-
-    // A control that cannot move says why instead of doing nothing.
-    if codecs.len() < 2 || !cap.bitrate {
-        assert!(
-            state.last_error.is_some(),
-            "a control with one choice went silent"
         );
     }
 }
@@ -288,43 +310,43 @@ fn a_bitrate_reads_as_megabits_when_it_is_a_round_one() {
     assert_eq!(ExportBitrate::Kbps(4_000).kbps(), Some(4_000));
 }
 
+/// A sheet that opened before the codec probe answered redraws once when it
+/// does, and a sheet opened after it asks for no probe. The class closed here
+/// is a Codec row that stays a fact until something else redraws, and a probe
+/// waiter started on every open.
 #[test]
-fn cycle_buttons_wraparound_invariants_and_custom_range_duration_math() {
+fn a_codec_probe_lands_once_and_is_not_asked_for_again() {
     let (mut state, _) = with_clip();
-
-    // Wraparound invariant: cycling through any option array exactly N times returns to start
-    for _ in 0..ExportScale::ALL.len() {
-        state.cycle_export_scale();
-    }
-    assert_eq!(state.export_options.scale, ExportScale::Full);
-
-    for _ in 0..ExportRate::ALL.len() {
-        state.cycle_export_rate();
-    }
-    assert_eq!(state.export_options.rate, ExportRate::Project);
-
-    for _ in 0..ExportGop::ALL.len() {
-        state.cycle_export_gop();
-    }
-    assert_eq!(state.export_options.gop, ExportGop::Codec);
-
-    // Custom-range duration math
-    state.set_playhead(48);
-    state.set_mark_in();
-    state.set_playhead(120);
-    state.set_mark_out();
-    assert_eq!(state.marked_range(), Some((48, 120)));
-    let range_span = 120 - 48;
-    assert_eq!(range_span, 72); // 3 seconds at 24fps
+    aria_encoder::available_codecs();
+    state.codec_probe_pending = true;
+    assert!(state.land_codec_probe(), "the answered probe lands");
+    assert!(!state.codec_probe_pending);
+    assert!(!state.land_codec_probe(), "a probe lands once");
+    state.probe_export_codecs();
+    assert!(
+        !state.codec_probe_pending,
+        "a probe that has answered is not waited on again"
+    );
+    assert!(!state.land_codec_probe());
 }
 
+/// The Format row lists the platform encoder and every mounted plugin encoder
+/// in registration order, and selecting one moves the extension and the rows
+/// it governs. A plugin encoder chosen and then unmounted stays a choice, named
+/// as unmounted, so the choice in force is always on the row.
 #[test]
-fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extension() {
+fn the_format_choices_are_the_platform_and_each_plugin_encoder() {
     use crate::test_support::NullEncoder;
     use aria_plugin::EncoderSpec;
 
     let (mut state, _) = with_clip();
-    let _prores = state
+    let platform = crate::app::export_options::format_label(state.export_options.codec);
+    assert_eq!(
+        state.export_format_choices(),
+        vec![(None, platform.clone())],
+        "with no plugin encoder the platform encoder is the one choice"
+    );
+    let prores = state
         .ctx
         .register_encoder(
             EncoderSpec {
@@ -348,6 +370,14 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
             NullEncoder,
         )
         .expect("register gif");
+    assert_eq!(
+        state.export_format_choices(),
+        vec![
+            (None, platform.clone()),
+            (Some("prores.422".into()), "Apple ProRes 422 (.mov)".into()),
+            (Some("anim.gif".into()), "Animated GIF (.gif)".into()),
+        ]
+    );
 
     // Platform encoder selected by default.
     assert_eq!(state.export_options.plugin_encoder, None);
@@ -355,12 +385,8 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
     assert!(state.export_shows_codec_and_bitrate());
     assert!(state.export_shows_audio_toggle());
 
-    // Step 1 -> prores.422 (audio = true): hides codec/bitrate, keeps audio toggle, sets .mov.
-    state.cycle_export_format();
-    assert_eq!(
-        state.export_options.plugin_encoder.as_deref(),
-        Some("prores.422")
-    );
+    // prores.422 (audio = true): hides codec/bitrate, keeps audio, sets .mov.
+    state.select_export_plugin_encoder(Some("prores.422".into()));
     assert_eq!(state.export_extension(), "mov");
     assert_eq!(state.export_format_label(), "Apple ProRes 422 (.mov)");
     assert_eq!(state.export_encoder_label(), "prores.422");
@@ -368,21 +394,28 @@ fn plugin_encoders_list_in_format_cycle_and_control_dialog_visibility_and_extens
     assert!(state.export_shows_audio_toggle());
     assert!(state.export_settings().audio);
 
-    // Step 2 -> anim.gif (audio = false): hides codec/bitrate AND audio toggle, sets .gif, forces audio = false.
-    state.cycle_export_format();
-    assert_eq!(
-        state.export_options.plugin_encoder.as_deref(),
-        Some("anim.gif")
-    );
+    // anim.gif (audio = false): hides codec/bitrate and audio, forces audio off.
+    state.select_export_plugin_encoder(Some("anim.gif".into()));
     assert_eq!(state.export_extension(), "gif");
     assert_eq!(state.export_format_label(), "Animated GIF (.gif)");
     assert!(!state.export_shows_codec_and_bitrate());
     assert!(!state.export_shows_audio_toggle());
     assert!(!state.export_settings().audio);
 
-    // Step 3 -> wraps back to platform encoder (`None`).
-    state.cycle_export_format();
-    assert_eq!(state.export_options.plugin_encoder, None);
+    // The chosen encoder unmounts: it stays the last choice, named as such.
+    state.select_export_plugin_encoder(Some("prores.422".into()));
+    drop(prores);
+    assert_eq!(
+        state.export_format_choices(),
+        vec![
+            (None, platform),
+            (Some("anim.gif".into()), "Animated GIF (.gif)".into()),
+            (Some("prores.422".into()), "prores.422 (unmounted)".into()),
+        ]
+    );
+
+    // Back to the platform encoder.
+    state.select_export_plugin_encoder(None);
     assert_eq!(state.export_extension(), "mp4");
     assert!(state.export_shows_codec_and_bitrate());
     assert!(state.export_shows_audio_toggle());

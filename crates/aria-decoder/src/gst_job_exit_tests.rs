@@ -1,4 +1,4 @@
-//! A started [`Once`] job returns at its next step once stopped, and a process
+//! A started [`OnceJob`] returns at its next step once stopped, and a process
 //! that ends through `exit` waits for the step the job is in.
 //!
 //! WHY: the decode device warm-up thread loaded a GStreamer plugin while a
@@ -9,14 +9,15 @@
 //! whose one step outlasts its test and lets libtest end the process; the
 //! parent asserts the step finished and the job returned at the stop before
 //! the child ended. The in-process tests bound the stop and hold that a
-//! stopped job never starts. They do not check that the warm-up tests
-//! [`Once::stopping`] between its steps, and do not cover a process ended
-//! through `_exit` ([`crate::exit_process`]), which runs no exit handler.
+//! stopped job never starts. They do not check that the warm-up or the codec
+//! probe tests [`OnceJob::stopping`] between its steps, and do not cover a
+//! process ended through `_exit` ([`crate::exit_process`]), which runs no exit
+//! handler.
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use super::{Once, Stage};
+use super::{OnceJob, Stage};
 
 /// How long the child's one step runs; its test returns long before.
 const STEP: Duration = Duration::from_millis(500);
@@ -36,7 +37,7 @@ const BOUND: Duration = Duration::from_secs(30);
 #[test]
 #[ignore = "child process of an_exit_waits_for_the_step_in_progress_and_stops_the_job"]
 fn exit_child() {
-    static JOB: Once = Once::new();
+    static JOB: OnceJob = OnceJob::new();
     let (entered, entering) = mpsc::channel::<()>();
     let started = JOB.start("aria-test-exit-stop", move || {
         let _ = entered.send(());
@@ -56,7 +57,7 @@ fn exit_child() {
 
 #[test]
 fn an_exit_waits_for_the_step_in_progress_and_stops_the_job() {
-    let ran = crate::test_child::run("gst_context::exit_tests::exit_child", BOUND);
+    let ran = crate::test_child::run("gst_job::exit_tests::exit_child", BOUND);
     let status = ran.status.unwrap_or_else(|| {
         panic!(
             "the child did not end within {BOUND:?}\n{}",
@@ -84,7 +85,7 @@ fn an_exit_waits_for_the_step_in_progress_and_stops_the_job() {
 /// no longer; once it returns, a stop finds no job running.
 #[test]
 fn a_stop_waits_no_longer_than_its_bound() {
-    static JOB: Once = Once::new();
+    static JOB: OnceJob = OnceJob::new();
     let (release, released) = mpsc::channel::<()>();
     let (entered, entering) = mpsc::channel::<()>();
     assert!(
@@ -121,7 +122,7 @@ fn a_stop_waits_no_longer_than_its_bound() {
 /// A job stopped before it starts never runs, and a waiter finds none.
 #[test]
 fn a_stopped_job_never_starts() {
-    static JOB: Once = Once::new();
+    static JOB: OnceJob = OnceJob::new();
     assert!(
         JOB.stop(Duration::ZERO),
         "a stop found a job that never started running"

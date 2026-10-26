@@ -640,6 +640,12 @@ impl AppState {
         if kind == DialogKind::MediaSupport {
             self.media_support_report();
         }
+        // The Codec row offers what this machine can write, which takes an
+        // encoder open per codec to learn; that runs off the thread that
+        // draws, once per process.
+        if kind == DialogKind::Export {
+            self.probe_export_codecs();
+        }
         // A theme file written or a theme registered while the app runs is
         // listed the next time Settings opens, and so is a key set copied into
         // `<data dir>/keymaps`.
