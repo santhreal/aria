@@ -28,7 +28,7 @@ fn every_crop_edge_moves_alone() {
     let ui = state.selected_ui_clip().expect("clip");
     for (id, ..) in CROP_EDGES {
         assert!(
-            (crop_inset(&ui.crop, id) - 0.1).abs() < 1e-3,
+            (crop_inset(&ui.crop, id) - 0.1).abs() < 1e-6,
             "{id} was reset by a later edge edit"
         );
     }
@@ -57,6 +57,46 @@ fn a_crop_edge_stops_at_the_frame_instead_of_being_refused() {
     }
 }
 
+/// An edge set from the whole frame lands where it is set, and no other edge
+/// moves. The class closed: a clamp that keeps the origin a fixed margin inside
+/// the frame. With the far edge on the frame's, the margin landed a left or top
+/// inset short of its value and moved the far edge in by the margin, which a
+/// tolerance of 1e-3 did not see. The values run from the smallest step the
+/// Inspector writes (1%) to the widest crop the model keeps, on every edge in
+/// `CROP_EDGES`. Not caught: an error under 1e-6 of the frame, or one that
+/// shows only with the other edges already moved.
+#[test]
+fn a_crop_edge_lands_where_it_is_set_and_moves_no_other() {
+    use crate::app::clip_frame::{CROP_EDGES, crop_inset};
+    let (mut state, _) = with_clip();
+    for value in [
+        0.01,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1.0 - aria_models::MIN_CROP_FRACTION,
+    ] {
+        for (id, ..) in CROP_EDGES {
+            state
+                .set_selected_crop_inset(id, value)
+                .unwrap_or_else(|err| panic!("set {id} to {value}: {err:?}"));
+            let crop = state.selected_ui_clip().expect("clip").crop;
+            crop.validate()
+                .unwrap_or_else(|err| panic!("{id} at {value} is an invalid rect: {err:?}"));
+            for (other, ..) in CROP_EDGES {
+                let want = if other == id { value } else { 0.0 };
+                let got = crop_inset(&crop, other);
+                assert!(
+                    (got - want).abs() <= 1e-6,
+                    "setting {id} to {value} left {other} at {got} instead of {want}"
+                );
+            }
+            state.clear_selected_crop().expect("reset");
+        }
+    }
+}
+
 #[test]
 fn an_unknown_crop_edge_is_inert() {
     let (mut state, _) = with_clip();
@@ -78,14 +118,14 @@ fn mirroring_survives_a_crop_edit_and_the_reverse() {
 
     let ui = state.selected_ui_clip().expect("clip");
     assert!(ui.flip_h && ui.flip_v, "a crop edit must keep the mirrors");
-    assert!((crop_inset(&ui.crop, "crop-left") - 0.2).abs() < 1e-3);
+    assert!((crop_inset(&ui.crop, "crop-left") - 0.2).abs() < 1e-6);
 
     state.toggle_selected_flip_h().expect("unflip h");
     let ui = state.selected_ui_clip().expect("clip");
     assert!(!ui.flip_h, "flip must toggle back");
     assert!(ui.flip_v, "one mirror must not clear the other");
     assert!(
-        (crop_inset(&ui.crop, "crop-left") - 0.2).abs() < 1e-3,
+        (crop_inset(&ui.crop, "crop-left") - 0.2).abs() < 1e-6,
         "a mirror toggle must keep the crop"
     );
 

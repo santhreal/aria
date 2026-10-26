@@ -69,23 +69,24 @@ pub fn crop_inset(crop: &CropRect, id: &str) -> f32 {
         .unwrap_or(0.0)
 }
 
-/// Keeps the origin a hair inside the far edge: the model rejects
-/// `x + w > 1.0`, and clamping to exactly `1.0 - w` can land an ulp past it.
-const EDGE_GUARD: f32 = 1e-4;
-
 /// Clamp a rect into the model's valid set so a drag stops at the limit rather
 /// than being refused.
 ///
 /// Extent first, then origin: the extent has a hard floor
 /// ([`MIN_CROP_FRACTION`]), so the origin is what has to give way at the edge.
+/// The origin stops at `1.0 - extent` exactly. That difference rounds by at
+/// most half the `f32` spacing below 1.0, a quarter of the spacing above it, so
+/// adding the extent back rounds to at most 1.0 and the model accepts the far
+/// edge. A margin short of it moves an edge set beside a far edge on the
+/// frame's off its value and moves that far edge in.
 fn clamp_crop(mut crop: CropRect) -> CropRect {
     if !crop.x.is_finite() || !crop.y.is_finite() || !crop.w.is_finite() || !crop.h.is_finite() {
         return CropRect::FULL;
     }
     crop.w = crop.w.clamp(MIN_CROP_FRACTION, 1.0);
     crop.h = crop.h.clamp(MIN_CROP_FRACTION, 1.0);
-    crop.x = crop.x.clamp(0.0, (1.0 - crop.w - EDGE_GUARD).max(0.0));
-    crop.y = crop.y.clamp(0.0, (1.0 - crop.h - EDGE_GUARD).max(0.0));
+    crop.x = crop.x.clamp(0.0, 1.0 - crop.w);
+    crop.y = crop.y.clamp(0.0, 1.0 - crop.h);
     crop
 }
 

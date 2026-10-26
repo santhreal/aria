@@ -2396,6 +2396,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A crop's left or top inset lands where it is set, where an inset set while the opposite edge stood at the frame's edge landed 0.01% of the frame short and moved that edge in by 0.01%.
 - Picking a key color, a matte source, a matte invert, a filter, or a layer style, reloading a LUT, mirroring the picture, and editing a crop edge or dragging a crop handle keep the keyframes on the clip's key strength and shadow, matte softness, filter and LUT amounts, style properties, and crop, where each used to flatten them to one value.
 - On an animated crop, the crop insets in Effect Controls and the crop handles in the Viewer read the rect under the playhead instead of the clip's first frame, and an edit sets a keyframe at the playhead.
 - A layer style's color is set from a color row with a stopwatch, keyframe navigator, and the shared swatches, which add Half black, instead of from three Black, White, and Half black buttons that flattened an animated color.
