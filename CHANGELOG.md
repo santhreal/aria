@@ -2870,6 +2870,7 @@ Notes for the latest release. For previous releases, see the
 - **Discard** in the Unsaved Changes prompt replaces the project with an empty one on Close or Home and deletes the recovery copy on Close, Home, or Quit, so Quit on Home no longer prompts a second time and the next launch no longer offers the discarded work as a session that ended early.
 - Each move and the Escape of a value scrub, a clip line drag, or a color wheel drag, and a failed one-step edit, render again only the filmstrip cells inside the clip spans their edits changed instead of every cell on the timeline.
 - An edit after a change the filmstrip cells did not follow, such as an assistant edit not yet drawn or a gesture dropped by a panic, renders every cell again instead of keeping cells drawn before that change.
+- Markers on the timeline ruler stand on its bottom edge below the timecode labels instead of at its top edge, where a marker covered the label at its time.
 
 ## [alpha-0.7.0] — 2026-07-22
 

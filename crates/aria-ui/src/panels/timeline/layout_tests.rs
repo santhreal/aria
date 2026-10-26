@@ -1,15 +1,15 @@
-//! Layout invariants of the Timeline's header column, track headers, lane
-//! sides, footer and graph editor, measured on the drawn shell.
+//! Layout invariants of the Timeline's header column, ruler, track headers,
+//! lane sides, footer and graph editor, measured on the drawn shell.
 //!
 //! The class closed here is a control or a label drawn off its grid: a toggle
 //! at another size than its neighbours, a label that runs into a control or
 //! past its column, two rows of a column that disagree about an edge, a value
 //! axis label at a y the curve does not map its value to, a side of the stack
-//! drawn as an empty band, and a playhead field left open with its caret after
-//! the pointer went elsewhere. Every sweep runs at the outline widths the
-//! settings allow, from the minimum through the width where the timecode steps
-//! down to the maximum, so a layout that holds at the default and breaks narrow
-//! goes red.
+//! drawn as an empty band, a marker drawn over a ruler label, and a playhead
+//! field left open with its caret after the pointer went elsewhere. Every sweep
+//! runs at the outline widths the settings allow, from the minimum through the
+//! width where the timecode steps down to the maximum, so a layout that holds
+//! at the default and breaks narrow goes red.
 //!
 //! Not caught: colours, glyph shapes inside a hit box, and text measured by a
 //! real font: the test text system lays every glyph 0.6 em wide, which is wider
@@ -580,4 +580,77 @@ fn a_narrow_timeline_keeps_its_time_area() {
             );
         }
     }
+}
+
+/// Every ruler label reads clear of the markers on the ruler: a point marker
+/// or a range marker at a labeled time stands below the label, and none
+/// covers a digit of it.
+///
+/// Closes the class "a marker drawn over a ruler label", where every marker
+/// stood at the ruler's top edge and a sequence with markers read its
+/// timecodes through them. Sequence markers are placed two frames apart over
+/// the still, so markers share their x with the labels over it, and the first
+/// is turned into a one second range. Not caught: the playhead's head, which
+/// stands on the time it shows, a beat tick, which is a line one pixel wide,
+/// and a clip marker, which is drawn on its clip.
+#[gpui::test]
+fn a_ruler_label_reads_clear_of_every_marker(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = shell_with_still(cx, "timeline-ruler-markers");
+    change(visual, &state, |state| {
+        state.clear_selection();
+        let end = state.store.sequence.tracks[0].clips[0].timeline_end_ticks;
+        for tick in (0..end).step_by(2) {
+            state.set_playhead(tick);
+            state.add_marker_at_playhead().expect("add a marker");
+        }
+        let first = state.store.sequence.markers[0].clone();
+        let second = i64::from(state.store.sequence.frame_rate.num)
+            / i64::from(state.store.sequence.frame_rate.den).max(1);
+        state
+            .edit_marker_full(
+                first.id,
+                first.name.to_string(),
+                first.comment.to_string(),
+                first.color,
+                second.max(1),
+                first.kind,
+            )
+            .expect("turn the first marker into a range");
+        state.set_playhead(end);
+    });
+    let markers: Vec<(u64, i64)> = visual.read(|app| {
+        state
+            .read(app)
+            .store
+            .sequence
+            .markers
+            .iter()
+            .map(|marker| (marker.id, marker.duration_ticks))
+            .collect()
+    });
+    assert!(
+        markers.iter().any(|(_, duration)| *duration > 0),
+        "no range marker on the sequence"
+    );
+    let ruler = bounds(visual, "timeline-ruler");
+    let labels = runs_in(&runs(visual), ruler);
+    assert!(!labels.is_empty(), "the ruler draws no label");
+    let mut shared = 0;
+    for (id, _) in &markers {
+        let Some(marker) = visual.debug_bounds(intern(format!("ruler-marker-{id}"))) else {
+            continue;
+        };
+        for label in &labels {
+            assert!(
+                !marker.intersects(&label.bounds),
+                "marker {id} at {marker:?} covers the label `{}` at {:?}",
+                label.text,
+                label.bounds
+            );
+            if marker.left() < label.bounds.right() && marker.right() > label.bounds.left() {
+                shared += 1;
+            }
+        }
+    }
+    assert!(shared > 0, "no marker stands at a labeled time");
 }

@@ -25,6 +25,9 @@ use super::{RULER_H, RULER_TICKS_H, ruler_label_chars, ruler_scale, ticks_to_px}
 
 /// Height of an unlabelled tick, standing on the ticks' bottom edge.
 const MINOR_TICK_H: f32 = 6.0;
+/// Height of a marker on the ruler. A marker stands on the ticks' bottom edge,
+/// below the labels, so every label reads clear of the markers at its time.
+const MARKER_H: f32 = 10.0;
 /// Where the work area bar starts under the ticks, and how tall it is.
 const WORK_AREA_TOP: f32 = RULER_TICKS_H + 2.0;
 const WORK_AREA_H: f32 = 8.0;
@@ -233,11 +236,12 @@ fn ruler_body(
                 flags.push(
                     div()
                         .id(gpui::ElementId::named_usize("marker", id as usize))
+                        .debug_selector(move || format!("ruler-marker-{id}"))
                         .absolute()
                         .left(px(left))
-                        .top_0()
+                        .top(px(RULER_TICKS_H - MARKER_H))
                         .w(px(width))
-                        .h(px(10.))
+                        .h(px(MARKER_H))
                         .bg(if is_range {
                             swatch.opacity(0.42)
                         } else {

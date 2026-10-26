@@ -75,6 +75,9 @@ columns, 49 px tall with its bottom border, the height of the ruler beside it.
   sequence's display format (timecode, frames, or feet+frames). Clicking or
   dragging in the ruler moves the playhead; the playhead follows the pointer
   without easing.
+- Markers: a point marker is a flag 6 px wide and a range marker a bar across
+  its duration, both 10 px tall and standing on the bottom edge of the ticks,
+  below the labels. Clicking a marker moves the playhead to it.
 - Work area: the In to Out range, drawn as a bar under the ruler. Dragging the
   bar moves both points; dragging an end moves one; double-clicking it sets it
   to the sequence length.
