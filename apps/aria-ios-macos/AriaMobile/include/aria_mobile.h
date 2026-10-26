@@ -118,8 +118,11 @@ AriaSession *aria_session_open(const uint8_t *path_utf8, size_t path_len);
 void aria_session_close(AriaSession *handle);
 
 /*
- * Retrieve the last error message recorded by a session open or new failure.
- * NULL if no error was recorded. Free with `aria_string_free`.
+ * Take the error recorded by the last session open or new on the calling
+ * thread; the next call returns NULL. Each thread records its own error, so
+ * call this on the thread that received the NULL handle, before an await or
+ * another open or new on that thread. NULL if that call succeeded or the
+ * error was already taken. Free with `aria_string_free`.
  */
 char *aria_last_error(void);
 

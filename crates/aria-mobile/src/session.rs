@@ -7,8 +7,12 @@
 //!
 //! Threading: a session is **not** internally synchronized. The shell must
 //! serialize all calls on one handle (the Swift bridge wraps it in an actor;
-//! the engine is `Send`, so the actor's executor may hop threads).
+//! the engine is `Send`, so the actor's executor may hop threads). The error
+//! of a failed open or new is recorded per thread: call [`aria_last_error`]
+//! on the thread that received the null handle, before an `await` or another
+//! open or new on that thread.
 
+use std::cell::Cell;
 use std::ffi::c_char;
 use std::path::PathBuf;
 
@@ -119,27 +123,20 @@ impl AriaSession {
     }
 }
 
-static LAST_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-
-pub(crate) fn set_last_error(msg: impl Into<String>) {
-    if let Ok(mut lock) = LAST_ERROR.lock() {
-        *lock = Some(msg.into());
-    }
+thread_local! {
+    /// The error of the last failed session open or new on this thread. Each
+    /// thread holds its own, so a session opened on another thread cannot
+    /// clear or replace it before [`aria_last_error`] reads it.
+    static LAST_ERROR: Cell<Option<String>> = const { Cell::new(None) };
 }
 
-pub(crate) fn clear_last_error() {
-    if let Ok(mut lock) = LAST_ERROR.lock() {
-        *lock = None;
-    }
-}
-
-/// Retrieve the last error message recorded by a session open or new failure.
-/// Returns a NUL-terminated C string that the caller owns and must free with
-/// [`crate::wire::aria_string_free`]. Returns null if no error was recorded.
+/// Take the error recorded by the last session open or new on the calling
+/// thread, which leaves none recorded. Returns a NUL-terminated C string that
+/// the caller owns and must free with [`crate::wire::aria_string_free`].
+/// Returns null if that call succeeded or the error was already taken.
 #[unsafe(no_mangle)]
 pub extern "C" fn aria_last_error() -> *mut c_char {
-    let err = LAST_ERROR.lock().ok().and_then(|mut lock| lock.take());
-    match err {
+    match LAST_ERROR.take() {
         Some(msg) => to_c_string(msg),
         None => std::ptr::null_mut(),
     }
@@ -157,13 +154,13 @@ pub extern "C" fn aria_session_new(fps_num: i32, fps_den: i32) -> *mut AriaSessi
     };
     match AriaSession::new(rate) {
         Ok(session) => {
-            clear_last_error();
+            LAST_ERROR.set(None);
             Box::into_raw(Box::new(session))
         }
         Err(e) => {
             let msg = format!("session new failed: {e}");
             log::error!("{msg}");
-            set_last_error(msg);
+            LAST_ERROR.set(Some(msg));
             std::ptr::null_mut()
         }
     }
@@ -181,18 +178,20 @@ pub unsafe extern "C" fn aria_session_open(
 ) -> *mut AriaSession {
     // SAFETY: caller guarantees the byte range.
     let Some(path) = (unsafe { str_arg(path_utf8, path_len) }) else {
-        set_last_error("session open failed: invalid path UTF-8 or null pointer");
+        LAST_ERROR.set(Some(
+            "session open failed: invalid path UTF-8 or null pointer".to_owned(),
+        ));
         return std::ptr::null_mut();
     };
     match AriaSession::open(path) {
         Ok(session) => {
-            clear_last_error();
+            LAST_ERROR.set(None);
             Box::into_raw(Box::new(session))
         }
         Err(e) => {
             let msg = format!("session open failed for {path}: {e}");
             log::error!("{msg}");
-            set_last_error(msg);
+            LAST_ERROR.set(Some(msg));
             std::ptr::null_mut()
         }
     }

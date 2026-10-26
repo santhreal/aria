@@ -38,6 +38,26 @@ fn apply(session: *mut AriaSession, command: serde_json::Value) -> serde_json::V
     take_json(response)
 }
 
+fn open(path: &str) -> *mut AriaSession {
+    unsafe { aria_session_open(path.as_ptr(), path.len()) }
+}
+
+/// Take the calling thread's last session error as an owned string.
+fn take_last_error() -> Option<String> {
+    let ptr = aria_last_error();
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: a non-null aria_last_error is a NUL-terminated string the
+    // caller owns.
+    let text = unsafe { CStr::from_ptr(ptr) }
+        .to_str()
+        .expect("FFI strings are UTF-8")
+        .to_owned();
+    unsafe { aria_string_free(ptr) };
+    Some(text)
+}
+
 fn intent(session: *mut AriaSession, intent: serde_json::Value) -> serde_json::Value {
     let json = intent.to_string();
     let response = unsafe { aria_session_intent(session, json.as_ptr(), json.len()) };
@@ -410,7 +430,7 @@ fn save_then_open_restores_the_project() {
     let before = lanes(session);
     unsafe { aria_session_close(session) };
 
-    let reopened = unsafe { aria_session_open(path_str.as_ptr(), path_str.len()) };
+    let reopened = open(path_str);
     assert!(!reopened.is_null(), "open should succeed");
     assert_eq!(
         lanes(reopened),
@@ -454,42 +474,55 @@ fn render_fit_returns_scaled_pixels() {
 #[test]
 fn last_error_reports_missing_and_corrupt_file_reasons() {
     let missing_path = "/nonexistent/path/to/project.aria";
-    let missing_session = unsafe { aria_session_open(missing_path.as_ptr(), missing_path.len()) };
-    assert!(missing_session.is_null());
+    assert!(open(missing_path).is_null());
+    let err = take_last_error().expect("expected last_error string");
+    assert!(err.contains("session open failed"), "{err}");
+    assert!(err.contains(missing_path), "{err}");
+    assert_eq!(take_last_error(), None, "taking the error leaves none");
 
-    let err_ptr = aria_last_error();
-    assert!(!err_ptr.is_null(), "expected last_error string");
-    let err_str = unsafe { CStr::from_ptr(err_ptr) }
-        .to_str()
-        .unwrap()
-        .to_owned();
-    unsafe { aria_string_free(err_ptr) };
-    assert!(err_str.contains("session open failed"));
-    assert!(err_str.contains(missing_path));
-
-    // Corrupt file
     let dir = tempfile::tempdir().expect("tempdir");
     let corrupt_path = dir.path().join("corrupt.aria");
     std::fs::write(&corrupt_path, b"not a valid aria project").unwrap();
-    let corrupt_str = corrupt_path.to_str().unwrap();
-    let corrupt_session = unsafe { aria_session_open(corrupt_str.as_ptr(), corrupt_str.len()) };
-    assert!(corrupt_session.is_null());
+    assert!(open(corrupt_path.to_str().unwrap()).is_null());
+    let err = take_last_error().expect("expected last_error string");
+    assert!(err.contains("session open failed"), "{err}");
 
-    let err_ptr2 = aria_last_error();
-    assert!(!err_ptr2.is_null());
-    let err_str2 = unsafe { CStr::from_ptr(err_ptr2) }
-        .to_str()
-        .unwrap()
-        .to_owned();
-    unsafe { aria_string_free(err_ptr2) };
-    assert!(err_str2.contains("session open failed"));
-
-    // Successful session_new clears last_error
+    assert!(open(missing_path).is_null());
     let session = aria_session_new(30, 1);
     assert!(!session.is_null());
-    assert!(
-        aria_last_error().is_null(),
-        "last_error cleared after success"
+    assert_eq!(
+        take_last_error(),
+        None,
+        "a successful new clears the error of the failed open before it"
     );
     unsafe { aria_session_close(session) };
+}
+
+/// WHY: `aria_last_error` read one process-wide slot, so a session opened or
+/// created on another thread between a failed open and the read cleared or
+/// replaced the error, and the caller read null or another path's error.
+/// Each thread now records its own error. Between this thread's failed open
+/// and its read, another thread fails an open, which replaces a shared slot,
+/// and then succeeds a new, which clears it; the read must still state this
+/// thread's path. Not caught: a shell that reads the error on a thread other
+/// than the one that received the null handle, which reads null.
+#[test]
+fn last_error_belongs_to_the_thread_that_failed() {
+    let here = "/nonexistent/aria-last-error/here.aria";
+    assert!(open(here).is_null());
+    std::thread::spawn(|| {
+        assert!(open("/nonexistent/aria-last-error/there.aria").is_null());
+        let session = aria_session_new(30, 1);
+        assert!(!session.is_null());
+        unsafe { aria_session_close(session) };
+        assert_eq!(
+            take_last_error(),
+            None,
+            "the other thread's new clears the other thread's error"
+        );
+    })
+    .join()
+    .expect("the other thread runs to its end");
+    let err = take_last_error().expect("this thread's error survives the other thread's calls");
+    assert!(err.contains(here), "{err}");
 }

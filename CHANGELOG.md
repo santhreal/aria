@@ -902,6 +902,7 @@ Notes for the latest release. For previous releases, see the
 - An edit after a change the filmstrip cells did not follow, such as an assistant edit not yet drawn or a gesture dropped by a panic, renders every cell again instead of keeping cells drawn before that change.
 - Markers on the timeline ruler stand on its bottom edge below the timecode labels instead of at its top edge, where a marker covered the label at its time.
 - An `Auto` canvas sized by two video sources of equal area takes the size of the one placed lowest and earliest on the timeline instead of the one the clip store listed first.
+- `aria_last_error` reports the error of the last session open or new on the calling thread, where a session opened or created on another thread could clear or replace it before it was read.
 
 ## [alpha-0.7.0] - 2026-07-22
 
