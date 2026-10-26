@@ -555,14 +555,15 @@ impl Project {
         clip_id: ClipId,
         preserve_pitch: bool,
     ) -> Result<(), ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        if clip.source_range().is_none() {
-            return Err(ModelError::InvalidParam(
-                "pitch lock requires a media-backed clip".into(),
-            ));
-        }
-        clip.preserve_pitch = preserve_pitch;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            if clip.source_range().is_none() {
+                return Err(ModelError::InvalidParam(
+                    "pitch lock requires a media-backed clip".into(),
+                ));
+            }
+            clip.preserve_pitch = preserve_pitch;
+            Ok(())
+        })
     }
 
     /// Toggle noise reduction on a media clip (CapCut "Reduce noise", M8
@@ -570,13 +571,14 @@ impl Project {
     /// the clip's audio through RNNoise when set. Rejected on generated clips
     /// (no source audio to clean).
     pub fn set_clip_denoise(&mut self, clip_id: ClipId, denoise: bool) -> Result<bool, ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        if clip.source_range().is_none() {
-            return Err(ModelError::InvalidParam(
-                "noise reduction requires a media-backed clip".into(),
-            ));
-        }
-        Ok(std::mem::replace(&mut clip.denoise, denoise))
+        self.edit_clip(clip_id, |clip| {
+            if clip.source_range().is_none() {
+                return Err(ModelError::InvalidParam(
+                    "noise reduction requires a media-backed clip".into(),
+                ));
+            }
+            Ok(std::mem::replace(&mut clip.denoise, denoise))
+        })
     }
 
     /// Set (or clear with `None`) a clip's organizational label colour,
@@ -589,8 +591,9 @@ impl Project {
         clip_id: ClipId,
         label: Option<crate::LabelColor>,
     ) -> Result<Option<crate::LabelColor>, ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        Ok(std::mem::replace(&mut clip.label, label))
+        self.edit_clip(clip_id, |clip| {
+            Ok(std::mem::replace(&mut clip.label, label))
+        })
     }
 
     /// Set (or clear with `None`) a clip's operator-given name, returning the
@@ -605,8 +608,7 @@ impl Project {
         name: Option<String>,
     ) -> Result<Option<String>, ModelError> {
         let name = name.filter(|text| !text.trim().is_empty());
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        Ok(std::mem::replace(&mut clip.name, name))
+        self.edit_clip(clip_id, |clip| Ok(std::mem::replace(&mut clip.name, name)))
     }
 
     /// Set (or with `None` clear) the clip type `clip_id` is, returning the
@@ -638,8 +640,9 @@ impl Project {
                 return Err(ModelError::InvalidParam(fault));
             }
         }
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        Ok(std::mem::replace(&mut clip.clip_type, clip_type))
+        self.edit_clip(clip_id, |clip| {
+            Ok(std::mem::replace(&mut clip.clip_type, clip_type))
+        })
     }
 
     /// Set (or with `None` clear) the property `clip_id`'s bar on the timeline
@@ -656,15 +659,16 @@ impl Project {
             .track_of(clip_id)
             .and_then(|track| self.timeline().track(track))
             .is_some_and(|track| track.kind.is_audio());
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        if let Some(param) = param
-            && clip.line_row(param, audio_lane).is_none()
-        {
-            return Err(ModelError::InvalidParam(format!(
-                "the clip has no property {param:?} to draw on its bar; choose one from its fx badge menu"
-            )));
-        }
-        Ok(std::mem::replace(&mut clip.line_param, param))
+        self.edit_clip(clip_id, |clip| {
+            if let Some(param) = param
+                && clip.line_row(param, audio_lane).is_none()
+            {
+                return Err(ModelError::InvalidParam(format!(
+                    "the clip has no property {param:?} to draw on its bar; choose one from its fx badge menu"
+                )));
+            }
+            Ok(std::mem::replace(&mut clip.line_param, param))
+        })
     }
 
     /// Set a media clip's audio mix (CapCut volume + fades): `volume` is
@@ -707,21 +711,19 @@ impl Project {
             }
         }
 
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above");
-        // `Some` is the basic volume slider: a flat level that flattens any
-        // envelope (CapCut). `None` keeps the gain (constant or envelope) and
-        // touches only the fades, so a fade edit never destroys automation;
-        // envelopes are otherwise drawn through the volume keyframe commands
-        // (`ClipParam::Volume`).
-        if let Some(volume) = volume {
-            clip.volume = Param::Constant(volume);
-        }
-        clip.fade_in = fade_in.value;
-        clip.fade_out = fade_out.value;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            // `Some` is the basic volume slider: a flat level that flattens any
+            // envelope (CapCut). `None` keeps the gain (constant or envelope)
+            // and touches only the fades, so a fade edit never destroys
+            // automation; envelopes are otherwise drawn through the volume
+            // keyframe commands (`ClipParam::Volume`).
+            if let Some(volume) = volume {
+                clip.volume = Param::Constant(volume);
+            }
+            clip.fade_in = fade_in.value;
+            clip.fade_out = fade_out.value;
+            Ok(())
+        })
     }
 
     /// Set a clip's framing (CapCut crop, M1): the normalized kept region
@@ -755,25 +757,27 @@ impl Project {
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        // The rect in force at an animated frame is written nowhere, so it is
-        // not held to the valid set: an eased curve may overshoot between keys.
-        match at {
-            Some(at) if clip.crop.is_animated() => {
-                let tick = clip.param_tick(at.value);
-                if clip.crop.sample(tick) != crop {
+        self.edit_clip(clip_id, |clip| {
+            // The rect in force at an animated frame is written nowhere, so it
+            // is not held to the valid set: an eased curve may overshoot
+            // between keys.
+            match at {
+                Some(at) if clip.crop.is_animated() => {
+                    let tick = clip.param_tick(at.value);
+                    if clip.crop.sample(tick) != crop {
+                        crop.validate()?;
+                        clip.crop.set_keyframe(tick, crop, Easing::Linear);
+                    }
+                }
+                _ => {
                     crop.validate()?;
-                    clip.crop.set_keyframe(tick, crop, Easing::Linear);
+                    clip.crop.set_constant(crop);
                 }
             }
-            _ => {
-                crop.validate()?;
-                clip.crop.set_constant(crop);
-            }
-        }
-        clip.flip_h = flip_h;
-        clip.flip_v = flip_v;
-        Ok(())
+            clip.flip_h = flip_h;
+            clip.flip_v = flip_v;
+            Ok(())
+        })
     }
 
     /// Replace a clip's detected beat markers (M8 Phase 6), returning the
@@ -802,11 +806,9 @@ impl Project {
         beats.sort_unstable();
         beats.dedup();
 
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above");
-        Ok(std::mem::replace(&mut clip.beats, beats))
+        self.edit_clip(clip_id, |clip| {
+            Ok(std::mem::replace(&mut clip.beats, beats))
+        })
     }
 
     pub fn audio_layout(&self) -> AudioLayout {

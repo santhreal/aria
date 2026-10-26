@@ -84,8 +84,9 @@ pub struct Project {
     #[serde(skip)]
     active_sequence: Option<crate::ids::SequenceId>,
     /// Largest video dimensions referenced by the open timeline. Render
-    /// resolution reads this every frame, while timeline and media mutators
-    /// invalidate it before returning a mutable reference.
+    /// resolution reads this every frame. Timeline and media mutators
+    /// invalidate it before returning a mutable reference, and
+    /// [`Project::edit_clip`] when an edit changed the media a clip places.
     #[serde(skip)]
     largest_used_video: std::sync::OnceLock<Option<(u32, u32)>>,
 }
@@ -150,7 +151,8 @@ impl Project {
     /// Largest video dimensions referenced by the open timeline.
     ///
     /// The first read after a timeline, sequence, or media mutation computes
-    /// the value. Frame resolution then reads the `OnceLock` in O(1).
+    /// the value. Frame resolution then reads the `OnceLock` in O(1), and an
+    /// edit through [`Self::edit_clip`] keeps it.
     pub fn largest_used_video_dimensions(&self) -> Option<(u32, u32)> {
         *self
             .largest_used_video
@@ -158,25 +160,44 @@ impl Project {
     }
 
     /// Largest video dimensions referenced by `timeline`, the open one or a
-    /// nested sequence's, computed on every call.
+    /// nested sequence's, computed on every call. Visual lanes are read bottom
+    /// to top and each lane's clips in timeline order, so of two sources with
+    /// the same area the one placed first sizes the canvas.
     pub fn largest_video_dimensions_on(&self, timeline: &Timeline) -> Option<(u32, u32)> {
+        self.largest_video_among(
+            timeline
+                .tracks_ordered()
+                .filter(|track| track.kind.is_visual())
+                .flat_map(Track::clips_ordered)
+                .filter_map(Clip::media),
+        )
+    }
+
+    /// Largest dimensions among the sources `media`, by area: of two with the
+    /// same area, the earlier. A still, a sound-only source and an id not in
+    /// the pool are skipped.
+    ///
+    /// The single definition of which placed source sizes an `Auto` canvas. A
+    /// caller holding the sources each visual lane places, lanes bottom to top
+    /// and each lane's sources in the timeline order of the clip first placing
+    /// it, reads the size
+    /// [`largest_video_dimensions_on`](Self::largest_video_dimensions_on)
+    /// reads, without a walk over every clip.
+    pub fn largest_video_among(
+        &self,
+        media: impl IntoIterator<Item = MediaId>,
+    ) -> Option<(u32, u32)> {
         let mut best: Option<(u32, u32)> = None;
-        for track in timeline.tracks_ordered() {
-            if !track.kind.is_visual() {
+        for id in media {
+            let Some(media) = self.media(id) else {
+                continue;
+            };
+            if media.kind() != MediaKind::Video {
                 continue;
             }
-            for clip in track.clips() {
-                let Some(id) = clip.media() else { continue };
-                let Some(media) = self.media(id) else {
-                    continue;
-                };
-                if media.kind() != MediaKind::Video {
-                    continue;
-                }
-                let area = u64::from(media.width) * u64::from(media.height);
-                if best.is_none_or(|(width, height)| area > u64::from(width) * u64::from(height)) {
-                    best = Some((media.width, media.height));
-                }
+            let area = u64::from(media.width) * u64::from(media.height);
+            if best.is_none_or(|(width, height)| area > u64::from(width) * u64::from(height)) {
+                best = Some((media.width, media.height));
             }
         }
         best
@@ -208,12 +229,38 @@ impl Project {
     /// The timeline being edited, mutably. See [`timeline`](Self::timeline).
     pub fn timeline_mut(&mut self) -> &mut Timeline {
         self.invalidate_largest_used_video();
+        self.open_timeline_mut()
+    }
+
+    /// [`Self::timeline_mut`] with the largest video size kept.
+    fn open_timeline_mut(&mut self) -> &mut Timeline {
         if let Some(id) = self.active_sequence
             && let Some(seq) = self.sequences.get_mut(&id)
         {
             return &mut seq.timeline;
         }
         &mut self.timeline
+    }
+
+    /// Apply `edit` to the clip `clip_id` on the open timeline: an edit to
+    /// how the clip draws or sounds, never to where it sits.
+    ///
+    /// The largest video size an `Auto` canvas reads stays cached unless
+    /// `edit` changed the media the clip places, so a parameter scrub reads
+    /// it without a walk over every clip. An edit that moves the clip goes
+    /// through [`Self::clip_timeline_mut`].
+    pub fn edit_clip<R>(
+        &mut self,
+        clip_id: ClipId,
+        edit: impl FnOnce(&mut Clip) -> Result<R, ModelError>,
+    ) -> Result<R, ModelError> {
+        let clip = self.open_timeline_mut().require_clip_mut(clip_id)?;
+        let placed = clip.media();
+        let edited = edit(&mut *clip);
+        if clip.media() != placed {
+            self.invalidate_largest_used_video();
+        }
+        edited
     }
 
     /// The project's own root timeline, whatever is open for editing.

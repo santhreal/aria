@@ -45,15 +45,16 @@ impl Project {
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        match at {
-            Some(at) => {
-                let tick = clip.param_tick(at.value);
-                clip.transform.compose_at(transform, tick);
+        self.edit_clip(clip_id, |clip| {
+            match at {
+                Some(at) => {
+                    let tick = clip.param_tick(at.value);
+                    clip.transform.compose_at(transform, tick);
+                }
+                None => clip.transform.set_constant(transform),
             }
-            None => clip.transform.set_constant(transform),
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Replace a visual clip's complete animated transform.
@@ -68,8 +69,10 @@ impl Project {
     ) -> Result<(), ModelError> {
         transform.validate()?;
         self.check_visual_target(clip_id)?;
-        self.timeline_mut().require_clip_mut(clip_id)?.transform = transform;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.transform = transform;
+            Ok(())
+        })
     }
 
     /// The target rule the parameter's registry row declares.
@@ -153,8 +156,9 @@ impl Project {
         param.check_keyframe(value, easing, tangents)?;
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        param.write_keyframe(clip, tick, value, easing, tangents)
+        self.edit_clip(clip_id, |clip| {
+            param.write_keyframe(clip, tick, value, easing, tangents)
+        })
     }
 
     /// Set or clear spatial bezier tangents on a position keyframe at `at`.
@@ -176,10 +180,11 @@ impl Project {
         }
         self.check_visual_target(clip_id)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        clip.transform
-            .position
-            .set_keyframe_tangents(tick, tangents)
+        self.edit_clip(clip_id, |clip| {
+            clip.transform
+                .position
+                .set_keyframe_tangents(tick, tangents)
+        })
     }
 
     /// Set incoming/outgoing temporal ease and/or hold state on the keyframe at
@@ -201,8 +206,9 @@ impl Project {
         }
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        param.set_keyframe_temporal_ease(clip, tick, in_ease, out_ease, hold)
+        self.edit_clip(clip_id, |clip| {
+            param.set_keyframe_temporal_ease(clip, tick, in_ease, out_ease, hold)
+        })
     }
 
     /// Set or clear roving on the keyframe at `at` (absolute timeline position)
@@ -218,10 +224,11 @@ impl Project {
         self.check_param_target(clip_id, param)?;
         let rate = self.timeline().frame_rate;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        let start_tick = clip.timeline.start.value;
-        let solved_local = param.set_keyframe_roving(clip, tick, roving)?;
-        Ok(RationalTime::new(start_tick + solved_local, rate))
+        self.edit_clip(clip_id, |clip| {
+            let start_tick = clip.timeline.start.value;
+            let solved_local = param.set_keyframe_roving(clip, tick, roving)?;
+            Ok(RationalTime::new(start_tick + solved_local, rate))
+        })
     }
 
     /// Remove the keyframe at exactly `at` (absolute timeline position) on
@@ -234,8 +241,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        param.remove_keyframe(clip, tick)
+        self.edit_clip(clip_id, |clip| param.remove_keyframe(clip, tick))
     }
 
     /// Replace one animatable property with a constant, dropping keyframes.
@@ -247,8 +253,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         param.validate_value(value)?;
         self.check_param_target(clip_id, param)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        param.set_constant(clip, value)
+        self.edit_clip(clip_id, |clip| param.set_constant(clip, value))
     }
 
     /// The name a driver addresses `clip` by: the clip's own name when it has
@@ -306,8 +311,7 @@ impl Project {
                 )));
             }
         }
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        Ok(clip.put_driver(param, code))
+        self.edit_clip(clip_id, |clip| Ok(clip.put_driver(param, code)))
     }
 
     /// Expand the outgoing keyframe segment at `at` with a piecewise easing
@@ -323,8 +327,9 @@ impl Project {
     ) -> Result<(), ModelError> {
         let tick = self.keyframe_tick(clip_id, at)?;
         self.check_param_target(clip_id, param)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        param.apply_easing_preset(clip, tick, preset)
+        self.edit_clip(clip_id, |clip| {
+            param.apply_easing_preset(clip, tick, preset)
+        })
     }
 
     /// Append an effect (M4) to a visual clip's chain; the id must exist in
@@ -334,22 +339,24 @@ impl Project {
         // Reject unknown ids up front (validate also covers an empty chain).
         instance.validate()?;
         self.check_visual_target(clip_id)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        clip.effects.push(instance);
-        Ok(clip.effects.len() - 1)
+        self.edit_clip(clip_id, |clip| {
+            clip.effects.push(instance);
+            Ok(clip.effects.len() - 1)
+        })
     }
 
     /// Remove the effect at `index` from a clip's chain.
     pub fn remove_effect(&mut self, clip_id: ClipId, index: usize) -> Result<(), ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        if index >= clip.effects.len() {
-            return Err(ModelError::InvalidParam(format!(
-                "effect index {index} out of range"
-            )));
-        }
-        clip.effects.remove(index);
-        clip.remap_effect_refs(index_after_remove(index as u32));
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            if index >= clip.effects.len() {
+                return Err(ModelError::InvalidParam(format!(
+                    "effect index {index} out of range"
+                )));
+            }
+            clip.effects.remove(index);
+            clip.remap_effect_refs(index_after_remove(index as u32));
+            Ok(())
+        })
     }
 
     /// Replace a visual clip's entire effect chain with `effects`. Drivers on
@@ -365,10 +372,11 @@ impl Project {
             effect.mark_from_catalog();
         }
         self.check_visual_target(clip_id)?;
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        clip.effects = effects;
-        clip.remap_effect_refs(|_| None);
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.effects = effects;
+            clip.remap_effect_refs(|_| None);
+            Ok(())
+        })
     }
 
     /// Apply an animation preset to `clip_id` anchored at `at`.
@@ -458,8 +466,10 @@ impl Project {
         staged.effects.extend(shifted.effects);
         staged.audio_effects.extend(shifted.audio_effects);
 
-        *self.timeline_mut().require_clip_mut(clip_id)? = staged;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            *clip = staged;
+            Ok(())
+        })
     }
 
     /// Move one effect within a clip's chain. Both indices address the chain
@@ -471,26 +481,27 @@ impl Project {
         from_index: usize,
         to_index: usize,
     ) -> Result<(), ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        let len = clip.effects.len();
-        if from_index >= len {
-            return Err(ModelError::InvalidParam(format!(
-                "effect from index {from_index} out of range for chain length {len}"
-            )));
-        }
-        if to_index >= len {
-            return Err(ModelError::InvalidParam(format!(
-                "effect to index {to_index} out of range for chain length {len}"
-            )));
-        }
-        if from_index == to_index {
-            return Ok(());
-        }
+        self.edit_clip(clip_id, |clip| {
+            let len = clip.effects.len();
+            if from_index >= len {
+                return Err(ModelError::InvalidParam(format!(
+                    "effect from index {from_index} out of range for chain length {len}"
+                )));
+            }
+            if to_index >= len {
+                return Err(ModelError::InvalidParam(format!(
+                    "effect to index {to_index} out of range for chain length {len}"
+                )));
+            }
+            if from_index == to_index {
+                return Ok(());
+            }
 
-        let effect = clip.effects.remove(from_index);
-        clip.effects.insert(to_index, effect);
-        clip.remap_effect_refs(index_after_move(from_index as u32, to_index as u32));
-        Ok(())
+            let effect = clip.effects.remove(from_index);
+            clip.effects.insert(to_index, effect);
+            clip.remap_effect_refs(index_after_move(from_index as u32, to_index as u32));
+            Ok(())
+        })
     }
 
     /// Set one effect parameter to a constant (the non-animated quick edit;
@@ -503,8 +514,9 @@ impl Project {
         param: usize,
         value: f32,
     ) -> Result<(), ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        effect_mut(clip, index as u32)?.set_param_constant(param, value)
+        self.edit_clip(clip_id, |clip| {
+            effect_mut(clip, index as u32)?.set_param_constant(param, value)
+        })
     }
 
     /// Switch the effect at `index` on `clip_id` off, or back on. A bypassed
@@ -515,8 +527,10 @@ impl Project {
         index: usize,
         bypass: bool,
     ) -> Result<(), ModelError> {
-        self.effect_instance_mut(clip_id, index)?.bypass = bypass;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            effect_mut(clip, index as u32)?.bypass = bypass;
+            Ok(())
+        })
     }
 
     /// Borrow an effect instance on `clip_id` at `index`.
@@ -529,16 +543,6 @@ impl Project {
         clip.effects
             .get(index)
             .ok_or_else(|| ModelError::InvalidParam(format!("effect index {index} out of range")))
-    }
-
-    /// Mutably borrow an effect instance on `clip_id` at `index`.
-    pub fn effect_instance_mut(
-        &mut self,
-        clip_id: ClipId,
-        index: usize,
-    ) -> Result<&mut EffectInstance, ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        effect_mut(clip, index as u32)
     }
 
     /// Validate layer-reference parameters on `effect` attached to `clip_id`.
@@ -609,9 +613,9 @@ impl Project {
         if let Some(err) = self.effect_layer_ref_error(clip_id, &effect) {
             return Err(ModelError::InvalidParam(err));
         }
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        let slot = effect_mut(clip, index as u32)?;
-        *slot = effect;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            *effect_mut(clip, index as u32)? = effect;
+            Ok(())
+        })
     }
 }

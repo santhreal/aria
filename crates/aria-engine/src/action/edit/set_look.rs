@@ -70,66 +70,47 @@ impl EditAction for RestoreLookPropertyAction {
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
-        let clip_id = self.clip;
-        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
-
-        let current = match self.property {
-            LookProperty::BlendMode(mode) => {
-                let prev = clip.blend_mode;
-                clip.blend_mode = mode;
-                LookProperty::BlendMode(prev)
-            }
-            LookProperty::MotionBlur(mb) => {
-                let prev = clip.motion_blur;
-                clip.motion_blur = mb;
-                LookProperty::MotionBlur(prev)
-            }
-            LookProperty::LayerStyles(styles) => {
-                let prev = clip.styles.clone();
-                clip.styles = styles;
-                LookProperty::LayerStyles(prev)
-            }
-            LookProperty::ChromaKey(chroma) => {
-                let prev = clip.chroma_key.clone();
-                clip.chroma_key = chroma;
-                LookProperty::ChromaKey(prev)
-            }
-            LookProperty::Matte(matte) => {
-                let prev = clip.matte.clone();
-                clip.matte = matte;
-                LookProperty::Matte(prev)
-            }
-            LookProperty::Stabilize(stab) => {
-                let prev = clip.stabilize;
-                clip.stabilize = stab;
-                LookProperty::Stabilize(prev)
-            }
-            LookProperty::Filter(filter) => {
-                let prev = clip.filter.clone();
-                clip.filter = filter;
-                LookProperty::Filter(prev)
-            }
-            LookProperty::Lut(lut) => {
-                let prev = clip.lut.clone();
-                clip.lut = lut;
-                LookProperty::Lut(prev)
-            }
-            LookProperty::Adjustments(adjust) => {
-                let prev = clip.adjust.clone();
-                clip.adjust = adjust;
-                LookProperty::Adjustments(prev)
-            }
-            LookProperty::Animations(slots) => {
-                let prev = AnimationSlots::of(clip);
-                slots.write_to(clip);
-                LookProperty::Animations(prev)
-            }
-            LookProperty::AudioRole(role) => {
-                let prev = clip.audio_role;
-                clip.audio_role = role;
-                LookProperty::AudioRole(prev)
-            }
-        };
+        let Self {
+            clip: clip_id,
+            property,
+        } = *self;
+        let current = ctx.project.edit_clip(clip_id, |clip| {
+            Ok(match property {
+                LookProperty::BlendMode(mode) => {
+                    LookProperty::BlendMode(std::mem::replace(&mut clip.blend_mode, mode))
+                }
+                LookProperty::MotionBlur(mb) => {
+                    LookProperty::MotionBlur(std::mem::replace(&mut clip.motion_blur, mb))
+                }
+                LookProperty::LayerStyles(styles) => {
+                    LookProperty::LayerStyles(std::mem::replace(&mut clip.styles, styles))
+                }
+                LookProperty::ChromaKey(chroma) => {
+                    LookProperty::ChromaKey(std::mem::replace(&mut clip.chroma_key, chroma))
+                }
+                LookProperty::Matte(matte) => {
+                    LookProperty::Matte(std::mem::replace(&mut clip.matte, matte))
+                }
+                LookProperty::Stabilize(stab) => {
+                    LookProperty::Stabilize(std::mem::replace(&mut clip.stabilize, stab))
+                }
+                LookProperty::Filter(filter) => {
+                    LookProperty::Filter(std::mem::replace(&mut clip.filter, filter))
+                }
+                LookProperty::Lut(lut) => LookProperty::Lut(std::mem::replace(&mut clip.lut, lut)),
+                LookProperty::Adjustments(adjust) => {
+                    LookProperty::Adjustments(std::mem::replace(&mut clip.adjust, adjust))
+                }
+                LookProperty::Animations(slots) => {
+                    let prev = AnimationSlots::of(clip);
+                    slots.write_to(clip);
+                    LookProperty::Animations(prev)
+                }
+                LookProperty::AudioRole(role) => {
+                    LookProperty::AudioRole(std::mem::replace(&mut clip.audio_role, role))
+                }
+            })
+        })?;
 
         Ok(Box::new(RestoreLookPropertyAction {
             clip: clip_id,

@@ -27,6 +27,7 @@ pub struct ProjectHistoryEntry {
 }
 
 /// What a frame asks the session, answered once per change.
+#[derive(Debug, PartialEq)]
 pub struct ProjectFacts {
     /// The project's canvas settings: aspect, background, explicit size.
     pub canvas: CanvasSettings,
@@ -65,8 +66,17 @@ impl ProjectFacts {
         basis: Option<&crate::projection::LaneBasis>,
     ) -> Self {
         let project: &Project = engine.project();
-        let (w, h) = aria_render::canvas_size(project);
-        let (dw, dh) = aria_render::derived_canvas_size(project);
+        let canvas = project.timeline().canvas();
+        // An `Auto` canvas follows the largest video placed. The basis holds the
+        // sources every lane placed when it was built, so reading it costs no
+        // walk over every clip of every lane, which an edit to one clip would
+        // otherwise pay.
+        let largest = || match basis {
+            Some(basis) => basis.largest_video(project),
+            None => project.largest_used_video_dimensions(),
+        };
+        let (w, h) = aria_render::canvas_size_of(canvas, largest);
+        let (dw, dh) = aria_render::derived_canvas_size_of(canvas, largest);
         let media_in_use = match basis {
             Some(basis) => basis.media_in_use(),
             None => {
@@ -86,7 +96,7 @@ impl ProjectFacts {
             None => project.timeline().marker_count(),
         };
         Self {
-            canvas: project.timeline().canvas(),
+            canvas,
             audio_layout: project.timeline().audio_layout(),
             largest_source_rate: project.largest_source_frame_rate(),
             canvas_size: [w, h],

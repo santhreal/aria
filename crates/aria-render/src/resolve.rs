@@ -51,7 +51,7 @@ mod sample;
 mod shape;
 
 use canvas::timeline_canvas;
-pub use canvas::{canvas_size, derived_canvas_size};
+pub use canvas::{canvas_size, canvas_size_of, derived_canvas_size, derived_canvas_size_of};
 use clip::{resolve_clip, resolve_clip_pooled};
 #[cfg(test)]
 use generator::map_text_style;

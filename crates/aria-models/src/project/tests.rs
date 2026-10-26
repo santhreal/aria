@@ -74,37 +74,6 @@ fn packed_track() -> (Project, MediaId, TrackId, [ClipId; 3]) {
     (project, media_id, track, [a, b, c])
 }
 
-#[test]
-fn largest_used_video_dimensions_cache_and_invalidate_at_mutation_boundaries() {
-    let (mut project, media, track) = project_with_media(100);
-    let larger = project.add_media(MediaSource::new(
-        "/tmp/larger.mp4",
-        3840,
-        2160,
-        R24,
-        100,
-        false,
-    ));
-    project.add_clip(track, media, tr(0, 24), rt(0)).unwrap();
-
-    assert_eq!(project.largest_used_video_dimensions(), Some((1920, 1080)));
-    assert_eq!(
-        project.largest_used_video.get().copied().flatten(),
-        Some((1920, 1080))
-    );
-    assert_eq!(project.largest_used_video_dimensions(), Some((1920, 1080)));
-
-    project.add_clip(track, larger, tr(0, 24), rt(24)).unwrap();
-    assert!(project.largest_used_video.get().is_none());
-    assert_eq!(project.largest_used_video_dimensions(), Some((3840, 2160)));
-
-    let source = project.media_mut(media).expect("used media");
-    source.width = 7680;
-    source.height = 4320;
-    assert!(project.largest_used_video.get().is_none());
-    assert_eq!(project.largest_used_video_dimensions(), Some((7680, 4320)));
-}
-
 // --- Phase I look properties --------------------------------------------
 
 use crate::look::{BlendMode, LayerShadow, LayerStyles, MaskKind, MotionBlur};
@@ -168,3 +137,6 @@ mod parent;
 
 #[path = "tests_layer_refs.rs"]
 mod layer_refs;
+
+#[path = "tests_largest_video.rs"]
+mod largest_video;

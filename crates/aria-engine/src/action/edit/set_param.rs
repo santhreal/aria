@@ -185,8 +185,10 @@ impl EditAction for RestoreParamAction {
     ) -> Result<Box<dyn EditAction>, EngineError> {
         let clip_id = self.clip;
         let param = self.param;
-        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
-        let current_state = self.state.restore(clip, param)?;
+        let state = self.state;
+        let current_state = ctx
+            .project
+            .edit_clip(clip_id, |clip| state.restore(clip, param))?;
         Ok(Box::new(RestoreParamAction {
             clip: clip_id,
             param,

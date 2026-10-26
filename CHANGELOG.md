@@ -698,6 +698,7 @@ Notes for the latest release. For previous releases, see the
 - The Export sheet probes the codecs this machine writes once per process, on a thread of its own when the sheet first opens, and its Codec row states the chosen codec until the probe answers, instead of probing again on the thread that draws at every click of the Codec row.
 - Settings shows the On and Off choices of its Playback rows and the Source, Protocol, Reasoning, and Autonomy choices of its AI rows as chips with the choice in force lit, instead of filling the choice in force as a button is filled.
 - A Settings choice reports itself on the status line by the name the dialog prints, such as `AI protocol: Chat Completions` and `Accent: Ember`, instead of by its config key, such as `AI protocol is chat_completions`.
+- A clip's parameter, look, mask, crop and audio edits keep the cached size of the largest video on the timeline, and the timeline view reads the `Auto` canvas size from the lanes it already holds instead of walking every clip, which brings `project-10k` edit-to-visible-frame p50 on Server from 3.55 ms to 3.40 ms and an Inspector value scrub move from 6.38 ms to 6.09 ms (medians of eight paired runs).
 
 ### Fixed
 
@@ -900,6 +901,7 @@ Notes for the latest release. For previous releases, see the
 - Each move and the Escape of a value scrub, a clip line drag, or a color wheel drag, and a failed one-step edit, render again only the filmstrip cells inside the clip spans their edits changed instead of every cell on the timeline.
 - An edit after a change the filmstrip cells did not follow, such as an assistant edit not yet drawn or a gesture dropped by a panic, renders every cell again instead of keeping cells drawn before that change.
 - Markers on the timeline ruler stand on its bottom edge below the timecode labels instead of at its top edge, where a marker covered the label at its time.
+- An `Auto` canvas sized by two video sources of equal area takes the size of the one placed lowest and earliest on the timeline instead of the one the clip store listed first.
 
 ## [alpha-0.7.0] - 2026-07-22
 

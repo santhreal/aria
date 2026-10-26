@@ -246,7 +246,9 @@ fn text(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
 /// constructing 230 headless GPU devices.
 fn reset_fixture(engine: &mut Engine, aim: Aim) -> Targets {
     let mut project = Project::new("lanes", RATE);
-    let media = project.add_media(MediaSource::new("take.mp4", 1920, 1080, RATE, 300, true));
+    // Not the 1920×1080 an `Auto` canvas falls back to, so a canvas fact the
+    // basis answers wrongly cannot pass for the fallback.
+    let media = project.add_media(MediaSource::new("take.mp4", 1280, 720, RATE, 300, true));
     let mut place = |kind: TrackKind, name: &str, at: i64| {
         let track = project.add_track(kind, name);
         let clip = project
@@ -386,6 +388,16 @@ fn project(
     )
 }
 
+/// The facts read through `basis` against the facts read off the project
+/// alone, when they differ: every fact the basis answers must read as the
+/// project does.
+fn stale_facts(engine: &Engine, basis: &LaneBasis) -> Option<String> {
+    use crate::app::project_facts::ProjectFacts;
+    let kept = ProjectFacts::of_with_basis(engine, Some(basis));
+    let read = ProjectFacts::of_with_basis(engine, None);
+    (kept != read).then(|| format!("kept {kept:?}\nread {read:?}"))
+}
+
 fn catalogs() -> [u64; 4] {
     [
         aria_models::effect_catalog().revision(),
@@ -417,11 +429,9 @@ fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Re
             "{id} aimed at {aim:?}: the kept store is stale\n{wrong}"
         ));
     }
-    if crate::app::project_facts::ProjectFacts::of_with_basis(engine, Some(&basis_after)).mixer
-        != crate::app::project_facts::ProjectFacts::of_with_basis(engine, None).mixer
-    {
+    if let Some(wrong) = stale_facts(engine, &basis_after) {
         return Err(format!(
-            "{id} aimed at {aim:?}: the kept mixer facts are stale"
+            "{id} aimed at {aim:?}: the kept facts are stale\n{wrong}"
         ));
     }
     let kept = after
@@ -448,11 +458,9 @@ fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Re
                 "{id} aimed at {aim:?}: the kept store is stale after its undo\n{wrong}"
             ));
         }
-        if crate::app::project_facts::ProjectFacts::of_with_basis(engine, Some(&basis_undone)).mixer
-            != crate::app::project_facts::ProjectFacts::of_with_basis(engine, None).mixer
-        {
+        if let Some(wrong) = stale_facts(engine, &basis_undone) {
             return Err(format!(
-                "{id} aimed at {aim:?}: the kept mixer facts are stale after its undo"
+                "{id} aimed at {aim:?}: the kept facts are stale after its undo\n{wrong}"
             ));
         }
     }
@@ -764,5 +772,164 @@ fn a_rebuilt_lane_builds_only_the_rows_that_moved() {
                 new.name
             );
         }
+    }
+}
+
+/// Six video lanes and one audio lane, bottom to top, for
+/// [`the_largest_video_off_the_basis_is_the_one_the_walk_finds`].
+struct Sources {
+    /// The video lanes, bottom to top.
+    lanes: Vec<TrackId>,
+    /// Eight sources of one area in eight shapes.
+    tied: Vec<MediaId>,
+    /// The clip placing each of `tied`, by the same index.
+    placing: Vec<ClipId>,
+}
+
+/// The sizes of [`Sources::tied`]: one area, eight shapes.
+const TIED: [(u32, u32); 8] = [
+    (1920, 1080),
+    (1080, 1920),
+    (2160, 960),
+    (960, 2160),
+    (1440, 1440),
+    (1600, 1296),
+    (1296, 1600),
+    (2880, 720),
+];
+
+/// An audio lane at the bottom placing a 3840×2160 video, then six video
+/// lanes. The first, the main lane no other lane moves below, places a
+/// 4000×4000 still. The second places the first four tied sources in timeline
+/// order the reverse of the order the pool holds them and the order they were
+/// placed; each lane above places the next tied source.
+fn sources() -> (Project, Sources) {
+    let mut project = Project::new("canvas", RATE);
+    let tied: Vec<MediaId> = TIED
+        .iter()
+        .map(|&(w, h)| project.add_media(MediaSource::new("tied.mp4", w, h, RATE, 300, false)))
+        .collect();
+    let wide = project.add_media(MediaSource::new("wide.mp4", 3840, 2160, RATE, 300, true));
+    let still = project.add_media(MediaSource::image("still.png", 4000, 4000));
+    let place = |project: &mut Project, lane: TrackId, media: MediaId, at: i64| {
+        let rate = project.media(media).expect("a pooled source").frame_rate;
+        project
+            .add_clip(
+                lane,
+                media,
+                TimeRange::at_rate(0, 10, rate),
+                RationalTime::new(at, RATE),
+            )
+            .expect("a clip on an open stretch of its lane")
+    };
+    let sound = project.add_track(TrackKind::Audio, "A1");
+    place(&mut project, sound, wide, 0);
+    let mut lanes = Vec::new();
+    let mut placing = vec![None; TIED.len()];
+    let main = project.add_track(TrackKind::Video, "V1");
+    place(&mut project, main, still, 0);
+    lanes.push(main);
+    let second = project.add_track(TrackKind::Video, "V2");
+    for (n, at) in [90, 60, 30, 0].into_iter().enumerate() {
+        placing[n] = Some(place(&mut project, second, tied[n], at));
+    }
+    lanes.push(second);
+    for (n, &media) in tied.iter().enumerate().skip(4) {
+        let lane = project.add_track(TrackKind::Video, format!("V{}", lanes.len() + 1));
+        placing[n] = Some(place(&mut project, lane, media, 0));
+        lanes.push(lane);
+    }
+    let placing = placing
+        .into_iter()
+        .map(|clip| clip.expect("every tied source placed"))
+        .collect();
+    (
+        project,
+        Sources {
+            lanes,
+            tied,
+            placing,
+        },
+    )
+}
+
+/// One write to the project between two projections.
+type SourceWrite = fn(&mut Project, &Sources);
+
+/// The largest video read off the basis is the size a walk over every clip
+/// finds, across what selects it: lane order, the timeline order of the clips
+/// on a lane against the order of the pool and the order they were placed, a
+/// tie in area, a lane that is not visual, a still, a source that grew while
+/// every lane was kept, and a source whose clip left.
+///
+/// WHY: an `Auto` canvas follows the largest video placed. The facts read it
+/// with a walk over every clip of every lane on each edit, ten thousand clips
+/// per Inspector scrub move on `project-10k`, and now read the sources each
+/// lane placed when it was built. The classes closed: a canvas from the basis
+/// that differs from the canvas the renderer sizes the frame by, and a tie in
+/// area settled by the hash order of a lane's clips rather than the timeline.
+/// The census above compares every fact the basis answers after every edit.
+/// What it does not catch: the cost; `aria-bench timeline-frame` measures it.
+#[test]
+fn the_largest_video_off_the_basis_is_the_one_the_walk_finds() {
+    let empty = Project::new("empty", RATE);
+    let (_, basis) = project_to_ui_from(&empty, at(), &[], false, false, false, None);
+    assert_eq!(basis.largest_video(&empty), None, "an empty timeline");
+
+    let steps: [(&str, SourceWrite, (u32, u32)); 4] = [
+        (
+            "of eight the same area, the first clip of the lowest lane placing one",
+            |_, _| {},
+            TIED[3],
+        ),
+        (
+            "the top lane moved to the bottom of the lanes above the main lane",
+            |project, sources| {
+                project
+                    .timeline_mut()
+                    .move_track(sources.lanes[5], 0)
+                    .expect("a lane of the stack");
+            },
+            TIED[7],
+        ),
+        (
+            "a source grew while every lane was kept",
+            |project, sources| {
+                let grown = project.media_mut(sources.tied[4]).expect("a pooled source");
+                (grown.width, grown.height) = (2560, 1440);
+            },
+            (2560, 1440),
+        ),
+        (
+            "the clip placing the largest left",
+            |project, sources| {
+                project
+                    .remove_clip(sources.placing[4])
+                    .expect("a placed clip");
+            },
+            TIED[7],
+        ),
+    ];
+    let (mut project, sources) = sources();
+    for (what, write, expected) in steps {
+        let before = project.clone();
+        write(&mut project, &sources);
+        let found = steady(|| {
+            let (store, basis) = project_to_ui_from(&before, at(), &[], false, false, false, None);
+            let previous = Previous {
+                store: &store,
+                basis: &basis,
+            };
+            let (_, basis) =
+                project_to_ui_from(&project, at(), &[], false, false, false, Some(previous));
+            basis.largest_video(&project)
+        })
+        .expect("the catalogs kept moving");
+        assert_eq!(
+            project.largest_video_dimensions_on(project.timeline()),
+            Some(expected),
+            "{what}: the walk"
+        );
+        assert_eq!(found, Some(expected), "{what}: the basis");
     }
 }

@@ -11,27 +11,28 @@ const DEFAULT_CANVAS: (u32, u32) = (1920, 1080);
 /// follows the largest video media (falling back to 1920×1080 when there is
 /// none).
 pub fn canvas_size(project: &Project) -> (u32, u32) {
-    sized_canvas(project.timeline().canvas(), || {
+    canvas_size_of(project.timeline().canvas(), || {
         project.largest_used_video_dimensions()
     })
 }
 
 /// [`canvas_size`] of `timeline`, the open one or a nested sequence's.
 pub(super) fn timeline_canvas(project: &Project, timeline: &Timeline) -> (u32, u32) {
-    sized_canvas(timeline.canvas(), || {
+    canvas_size_of(timeline.canvas(), || {
         project.largest_video_dimensions_on(timeline)
     })
 }
 
 /// The size `canvas` sets, else the size it derives from its aspect preset,
-/// else from `largest`, the largest video media on its timeline.
-fn sized_canvas(
+/// else from `largest`, the largest video media on its timeline. `largest` is
+/// read only for an `Auto` canvas with no explicit size.
+pub fn canvas_size_of(
     canvas: CanvasSettings,
     largest: impl FnOnce() -> Option<(u32, u32)>,
 ) -> (u32, u32) {
     match canvas.resolution {
         Some([w, h]) => (even(w), even(h)),
-        None => derived_canvas(canvas, largest),
+        None => derived_canvas_size_of(canvas, largest),
     }
 }
 
@@ -44,14 +45,14 @@ fn sized_canvas(
 /// directly is also the difference between a read and a copy of the whole
 /// project: the caller used to clear the resolution on a clone.
 pub fn derived_canvas_size(project: &Project) -> (u32, u32) {
-    derived_canvas(project.timeline().canvas(), || {
+    derived_canvas_size_of(project.timeline().canvas(), || {
         project.largest_used_video_dimensions()
     })
 }
 
 /// The size `canvas`'s aspect preset implies; for `Auto`, the largest video
 /// media `largest` reads, or the default.
-fn derived_canvas(
+pub fn derived_canvas_size_of(
     canvas: CanvasSettings,
     largest: impl FnOnce() -> Option<(u32, u32)>,
 ) -> (u32, u32) {

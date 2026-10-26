@@ -55,17 +55,15 @@ impl Project {
     pub fn add_clip_mask(&mut self, clip_id: ClipId, mask: Mask) -> Result<u32, ModelError> {
         mask.validate()?;
         self.require_visual(clip_id, "a mask")?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above");
-        if clip.masks.len() >= MAX_CLIP_MASKS {
-            return Err(ModelError::InvalidParam(format!(
-                "clip {clip_id} already carries {MAX_CLIP_MASKS} masks"
-            )));
-        }
-        clip.masks.push(mask);
-        Ok((clip.masks.len() - 1) as u32)
+        self.edit_clip(clip_id, |clip| {
+            if clip.masks.len() >= MAX_CLIP_MASKS {
+                return Err(ModelError::InvalidParam(format!(
+                    "clip {clip_id} already carries {MAX_CLIP_MASKS} masks"
+                )));
+            }
+            clip.masks.push(mask);
+            Ok((clip.masks.len() - 1) as u32)
+        })
     }
 
     /// Replace the mask at `index` in a clip's stack. Drivers on its
@@ -78,23 +76,22 @@ impl Project {
     ) -> Result<(), ModelError> {
         mask.validate()?;
         self.require_visual(clip_id, "a mask")?;
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above");
-        *mask_mut(&mut clip.masks, index)? = mask;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            *mask_mut(&mut clip.masks, index)? = mask;
+            Ok(())
+        })
     }
 
     /// Remove the mask at `index` from a clip's stack and return it. Drivers on
     /// its properties are dropped; drivers on the masks below it follow them up
     /// one index.
     pub fn remove_clip_mask(&mut self, clip_id: ClipId, index: u32) -> Result<Mask, ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        mask_mut(&mut clip.masks, index)?;
-        let removed = clip.masks.remove(index as usize);
-        clip.remap_mask_refs(index_after_remove(index));
-        Ok(removed)
+        self.edit_clip(clip_id, |clip| {
+            mask_mut(&mut clip.masks, index)?;
+            let removed = clip.masks.remove(index as usize);
+            clip.remap_mask_refs(index_after_remove(index));
+            Ok(removed)
+        })
     }
 
     /// Move one mask within a clip's stack. Both indices address the stack
@@ -106,27 +103,27 @@ impl Project {
         from_index: u32,
         to_index: u32,
     ) -> Result<(), ModelError> {
-        let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        mask_mut(&mut clip.masks, from_index)?;
-        mask_mut(&mut clip.masks, to_index)?;
-        if from_index == to_index {
-            return Ok(());
-        }
-        let mask = clip.masks.remove(from_index as usize);
-        clip.masks.insert(to_index as usize, mask);
-        clip.remap_mask_refs(index_after_move(from_index, to_index));
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            mask_mut(&mut clip.masks, from_index)?;
+            mask_mut(&mut clip.masks, to_index)?;
+            if from_index == to_index {
+                return Ok(());
+            }
+            let mask = clip.masks.remove(from_index as usize);
+            clip.masks.insert(to_index as usize, mask);
+            clip.remap_mask_refs(index_after_move(from_index, to_index));
+            Ok(())
+        })
     }
 
     /// Set how the clip composites over the stack below (M-blend). Visual
     /// clips only; audio has nothing to blend.
     pub fn set_blend_mode(&mut self, clip_id: ClipId, mode: BlendMode) -> Result<(), ModelError> {
         self.require_visual(clip_id, "a blend mode")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .blend_mode = mode;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.blend_mode = mode;
+            Ok(())
+        })
     }
 
     /// Set per-clip motion blur (temporal supersampling of the animated
@@ -139,11 +136,10 @@ impl Project {
     ) -> Result<(), ModelError> {
         self.require_visual(clip_id, "motion blur")?;
         motion_blur.validate()?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .motion_blur = motion_blur;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.motion_blur = motion_blur;
+            Ok(())
+        })
     }
 
     /// Set layer-quad styles (shadow/glow/outline/background) on a visual
@@ -155,11 +151,10 @@ impl Project {
     ) -> Result<(), ModelError> {
         self.require_visual(clip_id, "layer styles")?;
         styles.validate()?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .styles = styles;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.styles = styles;
+            Ok(())
+        })
     }
 
     /// Set (or clear) chroma keying (CapCut chroma key, Phase I —
@@ -174,11 +169,10 @@ impl Project {
             chroma.validate()?;
         }
         self.require_visual_media(clip_id, "chroma key")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .chroma_key = chroma;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.chroma_key = chroma;
+            Ok(())
+        })
     }
 
     /// Set (or with `None` clear) a clip's track matte: the layer immediately
@@ -194,11 +188,10 @@ impl Project {
             matte.validate()?;
         }
         self.require_visual(clip_id, "a track matte")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .matte = matte;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.matte = matte;
+            Ok(())
+        })
     }
 
     /// Set (or clear) stabilization (CapCut stabilize, Phase I —
@@ -218,11 +211,10 @@ impl Project {
                 "stabilization requires video (stills have no motion)".into(),
             ));
         }
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .stabilize = stabilize;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.stabilize = stabilize;
+            Ok(())
+        })
     }
 
     /// Set (or clear) a color-grade filter preset (CapCut filters, Phase I —
@@ -237,11 +229,10 @@ impl Project {
             filter.validate()?;
         }
         self.require_visual(clip_id, "a filter")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .filter = filter;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.filter = filter;
+            Ok(())
+        })
     }
 
     /// Set (or clear) a `.cube` 3D LUT (applied after filter + adjust). Any
@@ -252,11 +243,10 @@ impl Project {
             lut.validate()?;
         }
         self.require_visual(clip_id, "a LUT")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .lut = lut;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.lut = lut;
+            Ok(())
+        })
     }
 
     /// Set a clip's manual color grade (CapCut adjust, Phase I —
@@ -269,11 +259,10 @@ impl Project {
     ) -> Result<(), ModelError> {
         adjust.validate()?;
         self.require_visual(clip_id, "adjustments")?;
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .adjust = adjust;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.adjust = adjust;
+            Ok(())
+        })
     }
 
     /// Set (or clear) one animation slot (CapCut animation In / Out / Combo,
@@ -312,32 +301,30 @@ impl Project {
         } else {
             None
         };
-        let clip = self
-            .timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above");
-        match slot {
-            AnimationSlot::In => {
-                clip.animation_in = animation;
-                if clip.animation_in.is_some() {
-                    clip.animation_combo = None;
+        self.edit_clip(clip_id, |clip| {
+            match slot {
+                AnimationSlot::In => {
+                    clip.animation_in = animation;
+                    if clip.animation_in.is_some() {
+                        clip.animation_combo = None;
+                    }
+                }
+                AnimationSlot::Out => {
+                    clip.animation_out = animation;
+                    if clip.animation_out.is_some() {
+                        clip.animation_combo = None;
+                    }
+                }
+                AnimationSlot::Combo => {
+                    clip.animation_combo = animation;
+                    if clip.animation_combo.is_some() {
+                        clip.animation_in = None;
+                        clip.animation_out = None;
+                    }
                 }
             }
-            AnimationSlot::Out => {
-                clip.animation_out = animation;
-                if clip.animation_out.is_some() {
-                    clip.animation_combo = None;
-                }
-            }
-            AnimationSlot::Combo => {
-                clip.animation_combo = animation;
-                if clip.animation_combo.is_some() {
-                    clip.animation_in = None;
-                    clip.animation_out = None;
-                }
-            }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Tag (or untag) what an audio-lane clip *is* (music / sound FX /
@@ -354,10 +341,9 @@ impl Project {
                 kind,
             });
         }
-        self.timeline_mut()
-            .clip_mut(clip_id)
-            .expect("clip existence checked above")
-            .audio_role = role;
-        Ok(())
+        self.edit_clip(clip_id, |clip| {
+            clip.audio_role = role;
+            Ok(())
+        })
     }
 }

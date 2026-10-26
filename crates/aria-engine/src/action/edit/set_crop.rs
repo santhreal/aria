@@ -16,21 +16,25 @@ impl EditAction for RestoreCropAction {
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
-        let clip_id = self.clip;
-        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
-        let current_crop = clip.crop.clone();
-        let current_flip_h = clip.flip_h;
-        let current_flip_v = clip.flip_v;
-
-        clip.crop = self.crop;
-        clip.flip_h = self.flip_h;
-        clip.flip_v = self.flip_v;
+        let Self {
+            clip: clip_id,
+            crop,
+            flip_h,
+            flip_v,
+        } = *self;
+        let (crop, flip_h, flip_v) = ctx.project.edit_clip(clip_id, |clip| {
+            Ok((
+                std::mem::replace(&mut clip.crop, crop),
+                std::mem::replace(&mut clip.flip_h, flip_h),
+                std::mem::replace(&mut clip.flip_v, flip_v),
+            ))
+        })?;
 
         Ok(Box::new(RestoreCropAction {
             clip: clip_id,
-            crop: current_crop,
-            flip_h: current_flip_h,
-            flip_v: current_flip_v,
+            crop,
+            flip_h,
+            flip_v,
         }))
     }
 }

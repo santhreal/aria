@@ -77,6 +77,7 @@ pub use render::{
 pub use render_files::{FORMAT_VERSION, FrameKey, RenderFiles};
 pub use resolve::{
     GESTURE_IDENTITY_TRANSFORM, GestureScenePartition, ResolveOverrides, canvas_size,
-    derived_canvas_size, resolve, resolve_gesture_partitions, resolve_with,
+    canvas_size_of, derived_canvas_size, derived_canvas_size_of, resolve,
+    resolve_gesture_partitions, resolve_with,
 };
 pub use scene::{LayerSource, Scene, SceneLayer, SizeSpec, TextAnimation};

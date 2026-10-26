@@ -65,6 +65,8 @@ struct Built {
     has_transitions: bool,
     has_clip_types: bool,
     clip_markers: usize,
+    /// The sources the lane's clips place, each once, in the timeline order of
+    /// the first clip placing it.
     media_in_use: Arc<[u64]>,
 }
 
@@ -139,8 +141,8 @@ impl Built {
         let mut has_effects = false;
         let mut has_clip_types = false;
         let mut clip_markers = 0usize;
-        let mut media: Vec<u64> = Vec::new();
-        for clip in track.clips() {
+        let mut media: Vec<(u64, usize)> = Vec::new();
+        for (at, clip) in track.clips_ordered().enumerate() {
             #[cfg(test)]
             BUILT_CLIP_PROBES.with(|n| n.set(n.get() + 1));
             has_links |= clip.link.is_some();
@@ -148,11 +150,14 @@ impl Built {
             has_clip_types |= clip.clip_type.is_some();
             clip_markers += clip.markers.len();
             if let Some(m) = clip.media() {
-                media.push(m.raw());
+                media.push((m.raw(), at));
             }
         }
+        // Each source once, at the first clip placing it, then in timeline
+        // order: of two sources the same size, the canvas follows the earlier.
         media.sort_unstable();
-        media.dedup();
+        media.dedup_by_key(|(id, _)| *id);
+        media.sort_unstable_by_key(|&(_, at)| at);
         Self {
             revision: track.revision(),
             clips: clips.downgrade(),
@@ -162,7 +167,7 @@ impl Built {
             has_transitions: !track.transitions().is_empty(),
             has_clip_types,
             clip_markers,
-            media_in_use: media.into(),
+            media_in_use: media.into_iter().map(|(id, _)| id).collect(),
         }
     }
 }
@@ -197,6 +202,21 @@ impl LaneBasis {
         used.sort_unstable();
         used.dedup();
         used
+    }
+
+    /// The largest video the open timeline places, the size
+    /// [`Project::largest_video_dimensions_on`] finds, read off the sources
+    /// each visual lane placed when it was built: an edit to one clip costs no
+    /// walk over every clip of every lane.
+    pub(crate) fn largest_video(&self, project: &Project) -> Option<(u32, u32)> {
+        project.largest_video_among(
+            self.order
+                .iter()
+                .filter_map(|id| self.lanes.get(id))
+                .filter(|built| built.rows.lane.kind.is_visual())
+                .flat_map(|built| built.media_in_use.iter())
+                .map(|&raw| aria_models::MediaId::from_raw(raw)),
+        )
     }
 
     pub(crate) fn mixer(&self) -> crate::app::mixer::MixerFacts {

@@ -16,21 +16,25 @@ impl EditAction for RestoreAudioAction {
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
-        let clip_id = self.clip;
-        let clip = ctx.project.timeline_mut().require_clip_mut(clip_id)?;
-        let current_volume = clip.volume.clone();
-        let current_fade_in = clip.fade_in;
-        let current_fade_out = clip.fade_out;
-
-        clip.volume = self.volume;
-        clip.fade_in = self.fade_in;
-        clip.fade_out = self.fade_out;
+        let Self {
+            clip: clip_id,
+            volume,
+            fade_in,
+            fade_out,
+        } = *self;
+        let (volume, fade_in, fade_out) = ctx.project.edit_clip(clip_id, |clip| {
+            Ok((
+                std::mem::replace(&mut clip.volume, volume),
+                std::mem::replace(&mut clip.fade_in, fade_in),
+                std::mem::replace(&mut clip.fade_out, fade_out),
+            ))
+        })?;
 
         Ok(Box::new(RestoreAudioAction {
             clip: clip_id,
-            volume: current_volume,
-            fade_in: current_fade_in,
-            fade_out: current_fade_out,
+            volume,
+            fade_in,
+            fade_out,
         }))
     }
 }
