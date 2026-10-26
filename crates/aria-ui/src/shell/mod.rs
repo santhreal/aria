@@ -9,6 +9,7 @@ use crate::motion::glide;
 use crate::plugins::overlay_host as overlays;
 use crate::plugins::panel_host::host_of;
 use crate::settings::TIMELINE_MIN_HEIGHT;
+use crate::surfaces::ramp_gesture::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{EditorTool, UiRoute};
 use aria_plugin::PanelLocation;
@@ -269,7 +270,7 @@ impl Shell {
         {
             cx.notify();
         }
-        // Letting go of a colour wheel keeps the drag as one undo
+        // Letting go of a color wheel keeps the drag as one undo
         // step.
         if self.state.update(cx, |state, _| state.release_wheel()) {
             cx.notify();
@@ -278,6 +279,18 @@ impl Shell {
         // step; a scrub stays where it ended.
         if self.state.update(cx, |state, _| state.release_key_strip()) {
             spawn_preview(self.state.clone(), cx);
+            cx.notify();
+        }
+        // Letting go of a keyframe or handle on the Inspector's graph, or of a
+        // point on the Speed tab's ramp, writes the drag as one undo step,
+        // wherever the button came up.
+        if self.state.update(cx, |state, _| state.release_curve_drag()) {
+            cx.notify();
+        }
+        if self
+            .state
+            .update(cx, |state, _| ramp_gesture::run(state, Gesture::Release))
+        {
             cx.notify();
         }
         let at = [f32::from(event.position.x), f32::from(event.position.y)];

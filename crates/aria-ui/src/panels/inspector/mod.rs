@@ -9,6 +9,8 @@ mod graph_tests;
 #[cfg(test)]
 mod keyframes_tests;
 #[cfg(test)]
+mod ramp_tests;
+#[cfg(test)]
 mod reorder_tests;
 #[cfg(test)]
 mod strip_tests;

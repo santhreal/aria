@@ -20,7 +20,7 @@
 
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
-use crate::param::{Easing, Param, PiecewiseEasingPreset, TemporalEase};
+use crate::param::{Easing, Param, PiecewiseEasingPreset, SpatialTangents, TemporalEase};
 
 use super::clip_param::{ClipParam, ClipParamClass, ParamExclusion};
 use super::param_catalog::{ParamKind, ParamRange, ParamRoute, ParamScope, param_spec};
@@ -239,6 +239,57 @@ impl ClipParam {
     ) -> Result<(), ModelError> {
         easing.validate()?;
         self.validate_value(value)?;
+        (self.spec().keyframe)(clip, self, tick, value, easing)
+    }
+
+    /// Check a keyframe write before anything is written: spatial `tangents`
+    /// only on [`ClipParam::Position`], then the tangents, the easing and the
+    /// value each well formed.
+    pub fn check_keyframe(
+        self,
+        value: ParamValue,
+        easing: Easing,
+        tangents: Option<SpatialTangents>,
+    ) -> Result<(), ModelError> {
+        if tangents.is_some() && self != Self::Position {
+            return Err(ModelError::InvalidParam(
+                "spatial tangents are only supported on position".into(),
+            ));
+        }
+        if let Some(t) = tangents {
+            t.validate()?;
+        }
+        easing.validate()?;
+        self.validate_value(value)
+    }
+
+    /// Insert or replace a keyframe at a clip-relative `tick` as a keyframe
+    /// command writes it, checked by [`Self::check_keyframe`].
+    ///
+    /// A position keyframe is written with its value, its easing and its
+    /// spatial `tangents` together, so `None` clears the tangents a replaced
+    /// keyframe had and the motion between its neighbors is a straight line.
+    /// Every other property is written by [`Self::set_keyframe`]'s row verb.
+    pub fn write_keyframe(
+        self,
+        clip: &mut Clip,
+        tick: i64,
+        value: ParamValue,
+        easing: Easing,
+        tangents: Option<SpatialTangents>,
+    ) -> Result<(), ModelError> {
+        self.check_keyframe(value, easing, tangents)?;
+        if self == Self::Position {
+            // Value, easing and tangents land together, before roving ticks
+            // and temporal control points are solved.
+            clip.transform.position.set_keyframe_with_tangents(
+                tick,
+                value.vec2()?,
+                easing,
+                tangents,
+            );
+            return Ok(());
+        }
         (self.spec().keyframe)(clip, self, tick, value, easing)
     }
 

@@ -35,7 +35,8 @@ properties that hold keyframes, and the chosen property when it holds none. A
 point property such as Position adds X and Y chips, which select the axis
 drawn.
 
-- Drag a keyframe point to move it in time and value.
+- Drag a keyframe point to move it in time and value. A keyframe dragged past
+  the graph's right edge lands on the clip's last frame.
 - Drag a handle to bend the curve of the segment it shapes. A handle is drawn
   as a lever from its keyframe to its tip, in the color the timeline graph
   draws its handles in, and lies on the curve's tangent at its keyframe. A
@@ -43,6 +44,10 @@ drawn.
   runs past the graph's edge is cut there.
 - A press grabs the nearest keyframe or handle. A keyframe wins over a handle
   at the same distance.
+- While the button is held, the graph draws the curve, the keyframes and the
+  handles where the release writes them. The drag follows the pointer past the
+  graph's edge, held to the clip and to the property's range, and is written
+  wherever the button comes up.
 - Esc drops a drag unwritten. Each drag is one undo step.
 
 ### Property controls

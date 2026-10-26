@@ -1,14 +1,14 @@
 //! Graph block: the property picker, the axis picker, and the graph.
 //!
-//! Nothing here holds drag state. A press, a move and a release go straight to
-//! [`crate::app::curve_drag`], which owns the draft between events and commits
-//! it as one edit; the panel's job is to report where it drew the graph so a
-//! window pointer can be read against it.
+//! Nothing here holds drag state. A press goes straight to
+//! [`crate::app::curve_drag`], which holds the draft between events and commits
+//! it as one edit. The moves and the release reach the drag through the window,
+//! so a drag continues past the graph's edge. The graph's canvas records the
+//! box it paints in, so a window pointer is read against the marks as drawn.
 
 use gpui::{
     AnyElement, Bounds, ContentMask, Hsla, InteractiveElement, IntoElement, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Styled, canvas, div,
-    point, px, size,
+    MouseDownEvent, ParentElement, Pixels, Styled, canvas, div, point, px, size,
 };
 
 use crate::app::AppState;
@@ -40,18 +40,12 @@ pub fn curve_editor_block(
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Option<AnyElement> {
-    let (params, active_param, component, polyline, dragging) = {
+    let (params, active_param, component, polyline) = {
         let read = state.read(cx);
         let active = read.curve_param();
         let component = active.and_then(|param| read.curve_component(param));
         let polyline = active.and_then(|param| read.curve_polyline(param, component));
-        (
-            read.key_params(),
-            active,
-            component,
-            polyline,
-            read.curve_dragging().is_some(),
-        )
+        (read.key_params(), active, component, polyline)
     };
 
     if params.iter().all(|row| row.marks.is_empty()) {
@@ -124,11 +118,10 @@ pub fn curve_editor_block(
         .bg(theme.surface)
         .border_1()
         .border_color(theme.border)
-        .child(render_canvas(theme, polyline))
-        // Where the graph landed, in window pixels: a pointer arrives in those,
-        // and the geometry is in the graph's own. Measured on every draw and
-        // notified only when it moved, so a repaint is not a repaint loop.
-        .child(measure(state))
+        .child(render_canvas(theme, state, polyline))
+        // A press grabs the mark under it. The moves and the release reach the
+        // drag through the window, so it follows the pointer past the graph's
+        // edge and ends wherever the button comes up.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -140,35 +133,6 @@ pub fn curve_editor_block(
                 if grabbed {
                     cx.notify();
                 }
-            }),
-        )
-        .when(dragging, |el| {
-            el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                let x = f32::from(event.position.x);
-                let y = f32::from(event.position.y);
-                let moved = this
-                    .state
-                    .update(cx, |state, _| state.update_curve_drag(x, y));
-                if moved {
-                    cx.notify();
-                }
-            }))
-        })
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                let dragging = this
-                    .state
-                    .update(cx, |state, _| state.curve_dragging().is_some());
-                if !dragging {
-                    return;
-                }
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = state.commit_curve_drag() {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
             }),
         );
 
@@ -197,28 +161,6 @@ pub fn curve_editor_block(
             ))
             .into_any_element(),
     )
-}
-
-/// Report the graph's window rectangle to the state, so a pointer can be read
-/// against it. Draws nothing.
-fn measure(state: &gpui::Entity<AppState>) -> impl IntoElement {
-    let state = gpui::Entity::clone(state);
-    canvas(
-        move |bounds: Bounds<Pixels>, _, cx| {
-            let frame = [
-                f32::from(bounds.origin.x),
-                f32::from(bounds.origin.y),
-                f32::from(bounds.size.width),
-                f32::from(bounds.size.height),
-            ];
-            if state.update(cx, |state, _| state.record_curve_frame(frame)) {
-                crate::shell::notify_after_draw(&state, cx);
-            }
-        },
-        |_, _, _, _| (),
-    )
-    .absolute()
-    .size_full()
 }
 
 /// The colors the graph paints its marks in.
@@ -284,11 +226,31 @@ fn dot(at: (f32, f32), side: f32) -> [f32; 4] {
     [at.0 - side * 0.5, at.1 - side * 0.5, side, side]
 }
 
-/// Paint [`graph_marks`] at the canvas's origin, cut at its edges.
-fn render_canvas(theme: &Theme, polyline: Option<CurvePolyline>) -> impl IntoElement {
+/// Paint [`graph_marks`] at the canvas's origin, cut at its edges, and record
+/// the box they are painted in.
+///
+/// A pointer arrives in window pixels and the marks are placed in the graph's
+/// own, so the box recorded is the one the marks are painted in. The state is
+/// notified only when the box moved, so a repaint is not a repaint loop.
+fn render_canvas(
+    theme: &Theme,
+    state: &gpui::Entity<AppState>,
+    polyline: Option<CurvePolyline>,
+) -> impl IntoElement {
     let ink = GraphInk::of(theme);
+    let state = gpui::Entity::clone(state);
     canvas(
-        |_, _, _| (),
+        move |bounds: Bounds<Pixels>, _, cx| {
+            let frame = [
+                f32::from(bounds.origin.x),
+                f32::from(bounds.origin.y),
+                f32::from(bounds.size.width),
+                f32::from(bounds.size.height),
+            ];
+            if state.update(cx, |state, _| state.record_curve_frame(frame)) {
+                crate::shell::notify_after_draw(&state, cx);
+            }
+        },
         move |bounds: Bounds<Pixels>, _, window, _| {
             let (ox, oy) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
             let (width, height) = (f32::from(bounds.size.width), f32::from(bounds.size.height));

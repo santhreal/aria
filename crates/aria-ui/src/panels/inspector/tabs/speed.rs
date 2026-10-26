@@ -12,13 +12,15 @@
 //! near the middle instead of the bottom two percent.
 //!
 //! A drag is one edit: pointer moves update a draft on `AppState`, the release
-//! commits, Esc abandons. What each pointer event means is a row of
+//! commits, Esc abandons. The press lands on the graph; the moves and the
+//! release reach the ramp through the window, so a drag follows the pointer
+//! past the graph's edge. What each pointer event means is a row of
 //! [`ramp_gesture`] rather than a rule inside a
 //! listener, so the graph's behavior can be enumerated and pressed.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    ParentElement, SharedString, Styled, canvas, div, px, relative,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled, canvas, div, px, relative,
 };
 
 use crate::app::clip_speed::{RAMP_POINTS, ramp_tick_to_frac, ramp_value_to_frac, speed_presets};
@@ -186,9 +188,10 @@ fn measure(state: &gpui::Entity<crate::app::AppState>) -> impl IntoElement {
 /// The curve graph: a measured box, a 1x guide, the curve as columns, and one
 /// draggable dot per keyframe.
 ///
-/// Every pointer gesture is routed on the box rather than on the dots, because a
-/// press has to be able to grab a nearby point *or* add one where it landed, and
-/// only the box knows where the pointer is.
+/// A press is routed on the box rather than on the dots, because a press has to
+/// be able to grab a nearby point *or* add one where it landed, and only the box
+/// has the pointer's place on the graph. The moves and the release that follow
+/// reach the ramp through the window.
 fn graph(
     theme: &Theme,
     curve: &[(i64, f32)],
@@ -275,21 +278,6 @@ fn graph(
                 );
             }),
         )
-        .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-            run(
-                this,
-                Gesture::Drag {
-                    at: point(event.position),
-                },
-                cx,
-            );
-        }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                run(this, Gesture::Release, cx);
-            }),
-        )
 }
 
 /// A pointer position in the graph's own units.
@@ -304,16 +292,10 @@ fn run(
     gesture: Gesture,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) {
-    let drew = shell
+    if shell
         .state
-        .update(cx, |state, _| match ramp_gesture::apply(state, gesture) {
-            Ok(drew) => drew,
-            Err(err) => {
-                state.report_error(&err);
-                true
-            }
-        });
-    if drew {
+        .update(cx, |state, _| ramp_gesture::run(state, gesture))
+    {
         cx.notify();
     }
 }

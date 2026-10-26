@@ -12,8 +12,9 @@ nothing to retime.
   up, logarithmically, so 1x sits near the middle and the guide line marks it.
   Every point of the ramp is a dot.
 - Drag a dot to move it. The first and last dot keep their position in time and
-  change only their speed. The graph follows the pointer; the edit is written on
-  release, and Esc abandons the drag.
+  change only their speed. The dot follows the pointer past the graph's edge,
+  held to the ramp's span and to the speed bounds. The edit is written wherever
+  the button comes up, and Esc abandons the drag.
 - Click the graph away from a dot to add a point there. Right-click a dot to
   remove it. A ramp keeps its last two points; removing one of those is refused.
   Use **Clear ramp** to go back to flat speed.

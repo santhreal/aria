@@ -147,35 +147,14 @@ impl Project {
         easing: Easing,
         tangents: Option<SpatialTangents>,
     ) -> Result<(), ModelError> {
-        if tangents.is_some() && param != ClipParam::Position {
-            return Err(ModelError::InvalidParam(
-                "spatial tangents are only supported on position".into(),
-            ));
-        }
-        if let Some(t) = tangents {
-            t.validate()?;
-        }
         // The registry validates again on the way in; running it here first is
         // what fixes the precedence: a malformed value is reported as a bad
         // value, not as a bad target, whichever clip the command names.
-        easing.validate()?;
-        param.validate_value(value)?;
+        param.check_keyframe(value, easing, tangents)?;
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
         let clip = self.timeline_mut().require_clip_mut(clip_id)?;
-        if param == ClipParam::Position {
-            // Write value, easing, and tangents together before solving roving
-            // ticks and temporal control points.
-            clip.transform.position.set_keyframe_with_tangents(
-                tick,
-                value.vec2()?,
-                easing,
-                tangents,
-            );
-        } else {
-            param.set_keyframe(clip, tick, value, easing)?;
-        }
-        Ok(())
+        param.write_keyframe(clip, tick, value, easing, tangents)
     }
 
     /// Set or clear spatial bezier tangents on a position keyframe at `at`.

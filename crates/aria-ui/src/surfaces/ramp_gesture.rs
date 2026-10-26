@@ -17,7 +17,10 @@
 //! instead of splitting it across the listener and the state.
 //!
 //! [`apply`] answers whether the window has anything new to draw, so the panel
-//! asks for a repaint from the outcome rather than deciding for itself.
+//! asks for a repaint from the outcome rather than deciding for itself. The
+//! press lands on the graph; the moves and the release reach [`run`] through
+//! the window, so a drag follows the pointer past the graph's edge and ends
+//! wherever the button comes up.
 
 use aria_engine::EngineError;
 
@@ -64,6 +67,21 @@ fn grabbed(state: &AppState) -> bool {
 /// The ramp point at `tick`, if the curve has one there.
 fn point_at(state: &AppState, tick: i64) -> Option<i64> {
     crate::app::clip_speed::ramp_point_at(&state.selected_ramp_curve(), tick)
+}
+
+/// Run one gesture, reporting a refusal in the status line rather than
+/// swallowing it. `true` means the window has something new to draw.
+///
+/// Above [`apply`], as `under` is, so the census does not count the report
+/// among the calls `apply` makes.
+pub fn run(state: &mut AppState, gesture: Gesture) -> bool {
+    match apply(state, gesture) {
+        Ok(drew) => drew,
+        Err(err) => {
+            state.report_error(&err);
+            true
+        }
+    }
 }
 
 /// Run one gesture. `true` means the graph changed and the window should draw.

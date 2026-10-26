@@ -146,7 +146,7 @@ impl Shell {
             }
             return;
         }
-        // A held colour wheel, likewise: the drag is the state's, so it keeps
+        // A held color wheel, likewise: the drag is the state's, so it keeps
         // going when the pointer leaves the wheel.
         if self.state.read(cx).wheel_held().is_some() {
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
@@ -177,6 +177,39 @@ impl Shell {
             };
             if changed {
                 spawn_preview(self.state.clone(), cx);
+                cx.notify();
+            }
+            return;
+        }
+        // A grabbed keyframe or handle on the Inspector's graph, likewise: the
+        // drag follows the pointer past the graph's edge.
+        if self.state.read(cx).curve_dragging().is_some() {
+            let [x, y] = [f32::from(event.position.x), f32::from(event.position.y)];
+            let state = &self.state;
+            let changed = if event.pressed_button == Some(MouseButton::Left) {
+                state.update(cx, |state, _| state.update_curve_drag(x, y))
+            } else {
+                // The button came up outside the window: the drag is over.
+                state.update(cx, |state, _| state.release_curve_drag())
+            };
+            if changed {
+                cx.notify();
+            }
+            return;
+        }
+        // A grabbed point on the Speed tab's ramp, likewise.
+        if self.state.read(cx).ramp_dragging().is_some() {
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            let gesture = if event.pressed_button == Some(MouseButton::Left) {
+                Gesture::Drag { at }
+            } else {
+                // The button came up outside the window: the drag is over.
+                Gesture::Release
+            };
+            if self
+                .state
+                .update(cx, |state, _| ramp_gesture::run(state, gesture))
+            {
                 cx.notify();
             }
             return;

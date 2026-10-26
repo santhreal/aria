@@ -8,8 +8,14 @@
 //!
 //! 1. `begin_curve_drag` on the press — grab the nearest keyframe or handle,
 //! 2. `update_curve_drag` on every move — draft only, nothing reaches the engine,
-//! 3. `commit_curve_drag` on the release — one history group, so a keyframe that
-//!    moved in time (a remove plus a write) is one undo.
+//! 3. `release_curve_drag` on the release — one history group, so a keyframe
+//!    that moved in time (a remove plus a write) is one undo.
+//!
+//! The press lands on the graph. The moves and the release reach the drag
+//! through the window, so a drag follows the pointer past the graph's edge and
+//! ends wherever the button comes up. While the button is held the graph draws
+//! the curve the release writes: the draft is written to a copy of the clip
+//! through the model's own keyframe write.
 //!
 //! Esc cancels at no cost, because a draft has written nothing.
 //!
@@ -18,9 +24,10 @@
 //! ([`AppState::record_curve_frame`]) and every conversion happens here.
 
 use aria_engine::EngineError;
-use aria_models::{ClipParam, Easing};
+use aria_models::{Clip, ClipParam, Easing, ParamSpec};
 
 use super::AppState;
+use super::clip_keys::axis_payload;
 use super::curve_geometry::{
     BezierHandleKind, CurveBounds, CurvePolyline, build_curve_polyline, drawn_control_points,
 };
@@ -60,6 +67,23 @@ pub enum CurveDragTarget {
         /// The four control coordinates, with the dragged pair updated.
         points: [f32; 4],
     },
+}
+
+impl CurveDragTarget {
+    /// Whether the drag left its keyframe where it was committed, so its
+    /// release writes nothing. A handle drag always writes: its keyframe's
+    /// easing becomes the bezier it drew.
+    fn is_unmoved(&self) -> bool {
+        match *self {
+            Self::Keyframe {
+                origin_tick,
+                origin_val,
+                current_tick,
+                current_val,
+            } => origin_tick == current_tick && (origin_val - current_val).abs() < 1e-4,
+            Self::BezierHandle { .. } => false,
+        }
+    }
 }
 
 /// Draft state for an in-flight curve drag.
@@ -109,7 +133,7 @@ impl AppState {
     /// The axis the graph reads for `param`: `None` for a scalar property, and
     /// the chosen axis for a two-dimensional one.
     ///
-    /// A colour and a rect are not graphed as one curve — three channels or
+    /// A color and a rect are not graphed as one curve — three channels or
     /// four edges on one value axis is a picker's job. They report `None`, and
     /// the graph draws nothing for them rather than drawing the wrong channel.
     pub fn curve_component(&self, param: ClipParam) -> Option<u8> {
@@ -187,13 +211,32 @@ impl AppState {
         )
     }
 
-    /// The polyline the graph draws, in graph pixels. `None` before the panel
-    /// has been drawn once, and for a property carrying no keyframes.
+    /// The polyline the graph draws, in graph pixels, with the drag in flight
+    /// drawn where its release writes it. `None` before the panel has been
+    /// drawn once, and for a property carrying no keyframes.
+    ///
+    /// The drafted curve is plotted on the committed curve's bounds, so the
+    /// graph does not rescale under a drag that reaches past the keyed values.
     pub fn curve_polyline(&self, param: ClipParam, component: Option<u8>) -> Option<CurvePolyline> {
+        self.polyline_with(param, component, self.curve_drag)
+    }
+
+    /// The polyline of `param` on `component`, with `draft` written to a copy
+    /// of the clip when it is a drag on that curve.
+    fn polyline_with(
+        &self,
+        param: ClipParam,
+        component: Option<u8>,
+        draft: Option<CurveDragDraft>,
+    ) -> Option<CurvePolyline> {
         let bounds = self.curve_bounds(param, component)?;
         let clip = self.selected_model()?;
         let spec = &self.key_param(param)?.spec;
-        build_curve_polyline(spec, clip, component, bounds, CURVE_SAMPLES)
+        let drafted = draft
+            .filter(|draft| draft.param == param && draft.component == component)
+            .and_then(|draft| drafted_clip(spec, clip, draft));
+        let drawn = drafted.as_ref().unwrap_or(clip);
+        build_curve_polyline(spec, drawn, component, bounds, CURVE_SAMPLES)
     }
 
     /// The drag in flight, if any.
@@ -225,7 +268,7 @@ impl AppState {
         let Some((px, py)) = self.curve_pointer(x, y) else {
             return false;
         };
-        let Some(poly) = self.curve_polyline(param, component) else {
+        let Some(poly) = self.polyline_with(param, component, None) else {
             return false;
         };
         let mut nearest: Option<(f32, CurveDragTarget)> = None;
@@ -285,7 +328,7 @@ impl AppState {
         let Some((px, py)) = self.curve_pointer(x, y) else {
             return false;
         };
-        let Some(poly) = self.curve_polyline(draft.param, draft.component) else {
+        let Some(poly) = self.polyline_with(draft.param, draft.component, None) else {
             return false;
         };
         let mut next = draft;
@@ -299,6 +342,10 @@ impl AppState {
                 if !value.is_finite() {
                     return false;
                 }
+                // The plotted span ends on the clip's end, the first tick after
+                // the clip, where the model refuses a keyframe.
+                let last = (poly.bounds.max_tick - 1).max(poly.bounds.min_tick);
+                let tick = tick.clamp(poly.bounds.min_tick, last);
                 let moved = *current_tick != tick || (*current_val - value).abs() >= 1e-4;
                 *current_tick = tick;
                 *current_val = value;
@@ -356,16 +403,16 @@ impl AppState {
         let Some(draft) = self.curve_drag.take() else {
             return Ok(());
         };
+        if draft.target.is_unmoved() {
+            return Ok(());
+        }
         match draft.target {
             CurveDragTarget::Keyframe {
                 origin_tick,
-                origin_val,
                 current_tick,
                 current_val,
+                ..
             } => {
-                if origin_tick == current_tick && (origin_val - current_val).abs() < 1e-4 {
-                    return Ok(());
-                }
                 // The segment's shape belongs to the keyframe, not to the tick
                 // it sat on: read it before the move so a drag in time does not
                 // silently flatten the curve leaving it.
@@ -404,10 +451,70 @@ impl AppState {
         }
     }
 
+    /// End the drag in flight on the release of the button, wherever it came
+    /// up. A write the engine refuses is reported in the status line. Reports
+    /// whether a drag was in flight, so the window draws its end.
+    pub fn release_curve_drag(&mut self) -> bool {
+        if self.curve_drag.is_none() {
+            return false;
+        }
+        if let Err(err) = self.commit_curve_drag() {
+            self.report_error(&err);
+        }
+        true
+    }
+
     /// Abandon the drag at no cost: a draft has written nothing.
     pub fn cancel_curve_drag(&mut self) {
         self.curve_drag = None;
     }
+}
+
+/// A copy of `clip` with `draft` written to it as its release writes it, or
+/// `None` when the release writes nothing.
+///
+/// The write is the model's own: a keyframe moved in time is removed and
+/// written at the tick under the pointer with the easing it left with, and a
+/// handle's keyframe takes the bezier it drew, keeping its value.
+fn drafted_clip(spec: &ParamSpec, clip: &Clip, draft: CurveDragDraft) -> Option<Clip> {
+    if draft.target.is_unmoved() {
+        return None;
+    }
+    let mut drafted = clip.clone();
+    match draft.target {
+        CurveDragTarget::Keyframe {
+            origin_tick,
+            current_tick,
+            current_val,
+            ..
+        } => {
+            let origin = clip.param_tick(origin_tick);
+            let easing = spec.easing_at(clip, origin).unwrap_or(Easing::Linear);
+            if current_tick != origin_tick {
+                draft.param.remove_keyframe(&mut drafted, origin).ok()?;
+            }
+            let tick = drafted.param_tick(current_tick);
+            let value = axis_payload(spec, &drafted, draft.component, tick, current_val);
+            draft
+                .param
+                .write_keyframe(&mut drafted, tick, value, easing, None)
+                .ok()?;
+        }
+        CurveDragTarget::BezierHandle {
+            segment_tick,
+            points,
+            ..
+        } => {
+            let tick = clip.param_tick(segment_tick);
+            let value = spec.sample(clip, tick)?;
+            let easing = Easing::Bezier { points };
+            draft
+                .param
+                .write_keyframe(&mut drafted, tick, value, easing, None)
+                .ok()?;
+        }
+    }
+    Some(drafted)
 }
 
 /// Squared distance in graph pixels from the pointer to a mark.

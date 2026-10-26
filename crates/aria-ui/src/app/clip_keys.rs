@@ -356,16 +356,7 @@ impl AppState {
                 "property not reachable".into(),
             )))?
             .spec;
-        let clamped = spec.range.clamp(value);
-        let payload = match (component, spec.sample(model, model.param_tick(tick))) {
-            (Some(axis), Some(ParamValue::Vec2(mut axes))) => {
-                if let Some(slot) = axes.get_mut(axis as usize) {
-                    *slot = clamped;
-                }
-                ParamValue::Vec2(axes)
-            }
-            _ => ParamValue::Scalar(clamped),
-        };
+        let payload = axis_payload(spec, model, component, model.param_tick(tick), value);
         let at = aria_models::RationalTime::new(tick, self.store.sequence.frame_rate);
         self.apply_command(Command::Edit(EditCommand::SetParamKeyframe {
             clip,
@@ -525,4 +516,28 @@ impl AppState {
 /// The named bezier presets, for a picker.
 pub fn easing_presets() -> &'static [EasingPreset] {
     &aria_models::EASING_PRESETS
+}
+
+/// The value a write of one scalar, or of one axis of a vector, carries at the
+/// clip-relative `tick` of `clip`, held to the property's range.
+///
+/// `component` is the axis a two-dimensional property is edited on; `None` is
+/// a scalar property. The other axis keeps the value it samples to at `tick`.
+pub(super) fn axis_payload(
+    spec: &ParamSpec,
+    clip: &Clip,
+    component: Option<u8>,
+    tick: i64,
+    value: f32,
+) -> ParamValue {
+    let clamped = spec.range.clamp(value);
+    match (component, spec.sample(clip, tick)) {
+        (Some(axis), Some(ParamValue::Vec2(mut axes))) => {
+            if let Some(slot) = axes.get_mut(axis as usize) {
+                *slot = clamped;
+            }
+            ParamValue::Vec2(axes)
+        }
+        _ => ParamValue::Scalar(clamped),
+    }
 }
