@@ -1,7 +1,9 @@
 //! Markdown checks over every file under `docs/`: relative links and
 //! `#anchor` fragments resolve, fenced code blocks close, tables end at a
 //! blank line, and prose stays in the documentation register, is spelled in
-//! US English, and counts no catalog members.
+//! US English, and counts no catalog members. The register and spelling
+//! checks also read the repository README and `CHANGELOG.md`, whose entries
+//! are one sentence on one line each.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -396,15 +398,16 @@ fn prose_lines(text: &str) -> Vec<(usize, &str)> {
 /// WHY: the documentation register states the control, setting, or file
 /// that acts, in flat sentences, so an em dash and the persona nouns "the
 /// user" and "the operator" are out of the register. Rewriting the instances
-/// leaves the class open, so this walks the repository README and every file
-/// under `docs/` outside fenced blocks and inline code spans and fails on an
-/// em dash or one of those phrases. Not caught: the other banned filler and
-/// metaphor words, and a persona phrased another way, such as "users".
+/// leaves the class open, so this walks the repository README, the
+/// changelog, and every file under `docs/` outside fenced blocks and inline
+/// code spans and fails on an em dash or one of those phrases. Not caught:
+/// the other banned filler and metaphor words, and a persona phrased another
+/// way, such as "users".
 #[test]
 fn docs_prose_has_no_em_dash_or_persona_noun() {
     const BANNED: [&str; 4] = ["\u{2014}", "the user", "the operator", "an operator"];
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut md_files = vec![root.join("README.md")];
+    let mut md_files = vec![root.join("README.md"), root.join("CHANGELOG.md")];
     collect_md_files(&root.join("docs"), &mut md_files);
     let mut read = 0usize;
     let mut found: Vec<String> = Vec::new();
@@ -425,11 +428,56 @@ fn docs_prose_has_no_em_dash_or_persona_noun() {
     }
     assert!(
         read >= 10_000,
-        "expected at least 10000 prose lines across docs/ and README.md, read {read}"
+        "expected at least 10000 prose lines across docs/, README.md and CHANGELOG.md, read {read}"
     );
     assert!(
         found.is_empty(),
         "docs prose outside the register:\n{}",
+        found.join("\n")
+    );
+}
+
+/// WHY: the release workflow publishes `CHANGELOG.md` as the body of the
+/// GitHub release, and a changelog entry is one flat declarative sentence on
+/// one line, so the notes read as a list of changes and not as paragraphs.
+/// An entry wrapped over several lines, or a run of sentences, rewritten one
+/// at a time leaves the class open, so this walks every line from the first
+/// version heading and fails on a line that is not blank, a heading, or a
+/// link reference and does not start with `- `, end in a period, and hold a
+/// single sentence outside inline code spans. Not caught: two sentences
+/// joined by a semicolon, and a second sentence that starts with a digit or
+/// an inline code span.
+#[test]
+fn every_changelog_entry_is_one_sentence_on_one_line() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../CHANGELOG.md");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
+    let mut entries = 0usize;
+    let mut found: Vec<String> = Vec::new();
+    let lines = text
+        .lines()
+        .enumerate()
+        .skip_while(|(_, line)| !line.starts_with("## "));
+    for (idx, line) in lines {
+        let link_reference = line.starts_with('[') && line.contains("]: ");
+        if line.is_empty() || line.starts_with('#') || link_reference {
+            continue;
+        }
+        entries += 1;
+        let prose = strip_inline_code(line);
+        let second_sentence = prose
+            .match_indices(". ")
+            .any(|(at, _)| prose[at + 2..].starts_with(|c: char| c.is_ascii_uppercase()));
+        if !line.starts_with("- ") || !line.ends_with('.') || second_sentence {
+            found.push(format!("CHANGELOG.md:{}: {line:?}", idx + 1));
+        }
+    }
+    assert!(
+        entries >= 100,
+        "expected at least 100 changelog entries, read {entries}"
+    );
+    assert!(
+        found.is_empty(),
+        "changelog entries that are not one sentence on one line:\n{}",
         found.join("\n")
     );
 }
@@ -525,8 +573,8 @@ fn register_words_match_whole_words_outside_inline_code() {
 /// sentences, so a page does not state that a function owns, decides, or
 /// refuses, pad a sentence with `just` or `simply`, or describe a mechanism
 /// as `under the hood`. Rewriting the instances leaves the class open, so
-/// this walks the repository README and CONTRIBUTING, every crate and app
-/// README, and every file under `docs/`, the generated WIT and ABI
+/// this walks the repository README, CONTRIBUTING and changelog, every crate
+/// and app README, and every file under `docs/`, the generated WIT and ABI
 /// references included, outside fenced blocks and inline code spans, and
 /// fails on a word [`register_words`] reports. Not caught: `carries`, which
 /// the model's own names use (`carries_audio`, `ClipCarriesNoSound`) and the
@@ -537,7 +585,11 @@ fn register_words_match_whole_words_outside_inline_code() {
 #[test]
 fn docs_prose_has_no_word_outside_the_register() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut md_files = vec![root.join("README.md"), root.join("CONTRIBUTING.md")];
+    let mut md_files = vec![
+        root.join("README.md"),
+        root.join("CONTRIBUTING.md"),
+        root.join("CHANGELOG.md"),
+    ];
     for dir in ["crates", "apps"] {
         let entries =
             std::fs::read_dir(root.join(dir)).unwrap_or_else(|e| panic!("read {dir}/: {e}"));
