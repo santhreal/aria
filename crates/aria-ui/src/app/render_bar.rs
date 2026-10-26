@@ -3,8 +3,11 @@
 //!
 //! Computing [`RenderSegment`]s runs on the `aria-render-bar` thread or at
 //! the tail of a render-file job, never on the ruler's paint path and never
-//! on the `aria-preview` thread, so a Viewer frame never waits behind it. A
-//! newer request abandons the pass in progress at its next frame.
+//! on the `aria-preview` thread, so a Viewer frame never waits behind it. The
+//! thread starts at the session's first request and serves every later one,
+//! waiting while none is pending, so an edit starts no thread; it ends when
+//! the [`RenderBarState`] that started it drops. A newer request abandons the
+//! pass in progress at its next frame.
 //!
 //! The thread reads the project one frame at a time under the engine lock and
 //! holds no snapshot between two frames. A pass over a long sequence runs for
@@ -19,7 +22,7 @@ use aria_engine::Engine;
 use aria_models::Project;
 use aria_plugin::ProjectHost;
 use aria_render::{RenderFiles, Scene};
-use parking_lot::{Condvar, Mutex};
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use super::render_files::{RenderQuality, RenderSegment};
 use crate::handoff::Wake;
@@ -28,6 +31,9 @@ use crate::preview_worker::PreviewWorker;
 #[cfg(test)]
 #[path = "render_bar_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "render_bar_thread_tests.rs"]
+mod thread_tests;
 
 /// Name of the thread that computes render-bar segments.
 const THREAD_NAME: &str = "aria-render-bar";
@@ -248,14 +254,22 @@ impl std::fmt::Debug for Request {
 #[derive(Debug)]
 struct WorkerState {
     observed: bool,
-    /// An `aria-render-bar` thread is draining [`Self::pending`].
+    /// The `aria-render-bar` thread is started and serves [`Self::pending`].
     running: bool,
-    /// The newest request not yet taken by a draining thread.
+    /// The thread is computing a request it took from [`Self::pending`].
+    busy: bool,
+    /// The [`RenderBarState`] that started the thread has dropped: the thread
+    /// abandons its pass and ends.
+    closed: bool,
+    /// The newest request the thread has not taken yet.
     pending: Option<Request>,
     submitted_stamp: Option<BarStamp>,
     latest_seq: u64,
     completed_seq: u64,
     completed: Arc<Vec<RenderSegment>>,
+    /// How many times an `aria-render-bar` thread was started.
+    #[cfg(test)]
+    starts: usize,
 }
 
 #[derive(Debug)]
@@ -265,56 +279,63 @@ pub(crate) struct RenderBarShared {
 }
 
 impl RenderBarShared {
-    /// Compute every pending request until none is left, dropping a request
-    /// the moment a newer one replaces it. Returns `true` when it recorded new
-    /// segments.
-    fn drain_pending(&self) -> bool {
+    /// Serve requests until the worker is closed: compute the newest request,
+    /// drop a request the moment a newer one replaces it, and wait while none
+    /// is pending. Wakes the window each time it goes idle with new segments
+    /// recorded.
+    fn serve(&self, wake: &Wake<()>) {
         let _unwinding = Unwinding(self);
         let mut updated = false;
+        let mut state = self.state.lock();
         loop {
-            let next = {
-                let mut state = self.state.lock();
-                let next = state.pending.take();
-                // Cleared under the lock that saw no request, so a request
-                // made after this point starts a new thread.
-                state.running = next.is_some();
-                next
-            };
-            let Some(request) = next else {
-                // A pass the project moved past completes nothing, so a wait
-                // for its request ends here, on the thread recorded as gone.
+            if state.closed {
+                state.running = false;
+                state.busy = false;
                 self.cv.notify_all();
-                return updated;
-            };
-            let Some(segments) =
-                engine_segments_unless(&request, || self.state.lock().pending.is_some())
-            else {
+                return;
+            }
+            let Some(request) = state.pending.take() else {
+                // A pass the project moved past completes nothing, so a wait
+                // for its request ends here, on the thread recorded as idle.
+                state.busy = false;
+                self.cv.notify_all();
+                if std::mem::take(&mut updated) {
+                    wake.wake(());
+                }
+                self.cv.wait(&mut state);
                 continue;
             };
+            state.busy = true;
             let seq = request.seq;
-            let mut state = self.state.lock();
-            if seq >= state.completed_seq {
-                state.completed_seq = seq;
-                state.completed = Arc::new(segments);
-                updated = true;
+            // The request, and the engine it holds, drops with the lock
+            // released.
+            let segments = MutexGuard::unlocked(&mut state, move || {
+                engine_segments_unless(&request, || {
+                    let state = self.state.lock();
+                    state.pending.is_some() || state.closed
+                })
+            });
+            match segments {
+                Some(segments) if seq >= state.completed_seq => {
+                    state.completed_seq = seq;
+                    state.completed = Arc::new(segments);
+                    updated = true;
+                }
+                _ => {}
             }
             self.cv.notify_all();
         }
     }
 
-    /// Start an `aria-render-bar` thread for the pending request. Called with
-    /// `running` already set.
-    fn spawn_drain(self: &Arc<Self>, wake: Wake<()>) {
+    /// Start the `aria-render-bar` thread. Called with `running` already set.
+    fn spawn_serve(self: &Arc<Self>, wake: Wake<()>) {
         let shared = Arc::clone(self);
         let spawned = std::thread::Builder::new()
             .name(THREAD_NAME.to_owned())
-            .spawn(move || {
-                if shared.drain_pending() {
-                    wake.wake(());
-                }
-            });
+            .spawn(move || shared.serve(&wake));
         if let Err(err) = spawned {
             self.state.lock().running = false;
+            self.cv.notify_all();
             tracing::error!(
                 "could not start the {THREAD_NAME} thread: {err}; the render bar keeps its last \
                  segments until the next edit retries"
@@ -342,20 +363,69 @@ impl RenderBarShared {
     }
 }
 
-/// Clears [`WorkerState::running`] when a draining thread panics, so the next
-/// request starts a new thread.
+#[cfg(test)]
+impl RenderBarShared {
+    /// The segments of request `target_seq`, once a pass completes it, or
+    /// `None` once nothing is left to complete it: the thread went idle with
+    /// the pass abandoned, it panicked, or it could not be started.
+    pub(crate) fn wait_for(&self, target_seq: u64) -> Option<Arc<Vec<RenderSegment>>> {
+        let mut state = self.state.lock();
+        while state.completed_seq < target_seq {
+            if !state.running || (!state.busy && state.pending.is_none()) {
+                return None;
+            }
+            self.cv.wait(&mut state);
+        }
+        Some(Arc::clone(&state.completed))
+    }
+
+    /// [`Self::wait_for`] bounded by `limit`; `None` when it ran out.
+    pub(crate) fn wait_within(
+        &self,
+        target_seq: u64,
+        limit: std::time::Duration,
+    ) -> Option<Arc<Vec<RenderSegment>>> {
+        let deadline = std::time::Instant::now() + limit;
+        let mut state = self.state.lock();
+        while state.completed_seq < target_seq {
+            if self.cv.wait_until(&mut state, deadline).timed_out() {
+                return None;
+            }
+        }
+        Some(Arc::clone(&state.completed))
+    }
+
+    /// The sequence number of the newest request.
+    pub(crate) fn latest_seq(&self) -> u64 {
+        self.state.lock().latest_seq
+    }
+
+    /// Whether a request waits for the thread to take it.
+    pub(crate) fn is_pending(&self) -> bool {
+        self.state.lock().pending.is_some()
+    }
+}
+
+/// Clears [`WorkerState::running`] and [`WorkerState::busy`] when the serving
+/// thread panics, so a wait for its request ends and the next request starts
+/// a new thread.
 struct Unwinding<'a>(&'a RenderBarShared);
 
 impl Drop for Unwinding<'_> {
     fn drop(&mut self) {
         if std::thread::panicking() {
-            self.0.state.lock().running = false;
+            let mut state = self.0.state.lock();
+            state.running = false;
+            state.busy = false;
+            drop(state);
             self.0.cv.notify_all();
         }
     }
 }
 
-#[derive(Debug, Clone)]
+/// The session's handle on the render-bar worker. Dropping it ends the
+/// `aria-render-bar` thread.
+#[derive(Debug)]
 pub(crate) struct RenderBarState {
     pub(crate) shared: Arc<RenderBarShared>,
 }
@@ -367,15 +437,26 @@ impl Default for RenderBarState {
                 state: Mutex::new(WorkerState {
                     observed: false,
                     running: false,
+                    busy: false,
+                    closed: false,
                     pending: None,
                     submitted_stamp: None,
                     latest_seq: 0,
                     completed_seq: 0,
                     completed: Arc::new(Vec::new()),
+                    #[cfg(test)]
+                    starts: 0,
                 }),
                 cv: Condvar::new(),
             }),
         }
+    }
+}
+
+impl Drop for RenderBarState {
+    fn drop(&mut self) {
+        self.shared.state.lock().closed = true;
+        self.shared.cv.notify_all();
     }
 }
 
@@ -422,59 +503,20 @@ impl RenderBarState {
         });
         let start = !state.running;
         state.running = true;
+        #[cfg(test)]
+        {
+            state.starts += usize::from(start);
+        }
         drop(state);
         if start {
-            self.shared.spawn_drain(preview_worker.clone_wake());
+            self.shared.spawn_serve(preview_worker.clone_wake());
+        } else {
+            self.shared.cv.notify_all();
         }
         seq
     }
 
     pub(super) fn latest_nonblocking(&self) -> Arc<Vec<RenderSegment>> {
         Arc::clone(&self.shared.state.lock().completed)
-    }
-
-    /// The segments of request `target_seq`, once a pass completes it, or
-    /// `None` once no `aria-render-bar` thread is left to complete it: the
-    /// pass was abandoned, the draining thread panicked, or it could not be
-    /// started.
-    #[cfg(test)]
-    pub(super) fn wait_for(&self, target_seq: u64) -> Option<Arc<Vec<RenderSegment>>> {
-        let mut state = self.shared.state.lock();
-        while state.completed_seq < target_seq {
-            if !state.running {
-                return None;
-            }
-            self.shared.cv.wait(&mut state);
-        }
-        Some(Arc::clone(&state.completed))
-    }
-
-    /// The sequence number of the newest request.
-    #[cfg(test)]
-    pub(crate) fn latest_seq(&self) -> u64 {
-        self.shared.state.lock().latest_seq
-    }
-
-    /// Whether a request waits for a draining thread to take it.
-    #[cfg(test)]
-    pub(crate) fn is_pending(&self) -> bool {
-        self.shared.state.lock().pending.is_some()
-    }
-
-    /// [`Self::wait_for`] bounded by `limit`; `None` when it ran out.
-    #[cfg(test)]
-    pub(crate) fn wait_within(
-        &self,
-        target_seq: u64,
-        limit: std::time::Duration,
-    ) -> Option<Arc<Vec<RenderSegment>>> {
-        let deadline = std::time::Instant::now() + limit;
-        let mut state = self.shared.state.lock();
-        while state.completed_seq < target_seq {
-            if self.shared.cv.wait_until(&mut state, deadline).timed_out() {
-                return None;
-            }
-        }
-        Some(Arc::clone(&state.completed))
     }
 }

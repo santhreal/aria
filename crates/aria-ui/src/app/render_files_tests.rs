@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use aria_commands::{Command, EditCommand};
 use aria_jobs::{JobId, JobSnapshot, JobState};
 use aria_models::{ClipId, Easing, Keyframe, MotionBlur, Param, Rational, RationalTime};
-use aria_plugin::PluginContext;
+use aria_plugin::{Plugin, PluginContext, PluginError, PluginManifest};
 
 use super::{RenderQuality, RenderSegment};
 use crate::app::AppState;
@@ -368,9 +368,10 @@ fn render_bar_completes_while_the_preview_worker_is_busy() {
     state.mark_in = Some(1);
     state.mark_out = Some(3);
     let _ = state.render_bar();
-    let seq = state.render_bar_state.latest_seq();
+    let seq = state.render_bar_state.shared.latest_seq();
     let segments = state
         .render_bar_state
+        .shared
         .wait_within(seq, JOB_BOUND)
         .expect("render bar segments arrive while the preview worker is busy");
     drop(release);
@@ -439,9 +440,9 @@ fn add_marker() -> Command {
 fn an_edit_during_a_render_bar_pass_changes_the_project_in_place() {
     let mut state = long_sequence();
     let _ = state.render_bar();
-    let seq = state.render_bar_state.latest_seq();
+    let seq = state.render_bar_state.shared.latest_seq();
     let deadline = Instant::now() + JOB_BOUND;
-    while state.render_bar_state.is_pending() {
+    while state.render_bar_state.shared.is_pending() {
         assert!(
             Instant::now() < deadline,
             "no render-bar thread took the request within {JOB_BOUND:?}"
@@ -462,6 +463,7 @@ fn an_edit_during_a_render_bar_pass_changes_the_project_in_place() {
     assert!(
         state
             .render_bar_state
+            .shared
             .wait_within(seq, Duration::ZERO)
             .is_none(),
         "the pass completed before the edit, so the edit did not run during it"
@@ -479,13 +481,13 @@ fn an_edit_during_a_render_bar_pass_changes_the_project_in_place() {
 fn a_render_bar_pass_abandons_once_the_project_moves_on() {
     let state = long_sequence();
     let _ = state.render_bar();
-    let seq = state.render_bar_state.latest_seq();
+    let seq = state.render_bar_state.shared.latest_seq();
     state
         .engine
         .lock()
         .apply(add_marker())
         .expect("the marker lands");
-    let bar = state.render_bar_state;
+    let bar = Arc::clone(&state.render_bar_state.shared);
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(bar.wait_for(seq).is_some());
@@ -496,5 +498,67 @@ fn a_render_bar_pass_abandons_once_the_project_moves_on() {
     assert!(
         !completed,
         "a pass recorded segments after the engine moved past its revision"
+    );
+}
+
+/// The render-files environment names the plugins mounted at the last edit:
+/// one mounted after the session opened is named once an edit follows, one a
+/// fault fails is dropped at the next, and an edit with the mounted set
+/// unchanged keeps the handle and the frames looked up through it. A frame
+/// cached under one set of plugins is never served under another. Closes the
+/// class where a change to the mounted set went unseen, or every edit rebuilt
+/// the handle. Does not cover a change to the storage directory, which the
+/// control that makes it applies.
+#[test]
+fn the_render_files_environment_follows_the_mounted_set() {
+    static MANIFEST: PluginManifest =
+        PluginManifest::new("test.render-env", "Render Env", "0.1.0", &[], &[]);
+    struct Named;
+    impl Plugin for Named {
+        fn manifest(&self) -> &PluginManifest {
+            &MANIFEST
+        }
+        fn mount(&self, _: &PluginContext) -> Result<(), PluginError> {
+            Ok(())
+        }
+    }
+    fn edit(state: &mut AppState, frame: i64) {
+        state
+            .apply_command(Command::Edit(EditCommand::AddMarker {
+                at: RationalTime::new(frame, Rational::FPS_24),
+                name: format!("edit at {frame}"),
+                color: None,
+            }))
+            .expect("the marker lands");
+    }
+    fn named(state: &AppState) -> bool {
+        state
+            .render_files()
+            .environment()
+            .split(';')
+            .any(|plugin| plugin == "test.render-env@0.1.0")
+    }
+
+    let (mut state, _) = with_clip();
+    assert!(!named(&state), "a plugin not mounted yet is named");
+    let before = state.render_files();
+    edit(&mut state, 1);
+    assert!(
+        Arc::ptr_eq(&before, &state.render_files()),
+        "an edit rebuilt the handle with the mounted set unchanged"
+    );
+
+    state.ctx.mount(&Named).expect("mounts");
+    edit(&mut state, 2);
+    assert!(
+        named(&state),
+        "a plugin mounted before the edit is not named"
+    );
+
+    assert!(state.ctx.fail("test.render-env", "a fault in its code"));
+    edit(&mut state, 3);
+    assert!(
+        !named(&state),
+        "a plugin failed before the edit is still named"
     );
 }

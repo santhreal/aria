@@ -574,6 +574,9 @@ pub struct AppState {
     /// Latest timeline render-bar segments computed off the UI thread.
     pub render_bar: std::sync::Arc<Vec<crate::app::render_files::RenderSegment>>,
     pub(crate) render_files_handle: std::sync::Arc<aria_render::RenderFiles>,
+    /// The mounted-plugin revision the render-files environment was formatted
+    /// at; an edit reformats it only when the revision has moved since.
+    pub(crate) render_files_mounts: u64,
     pub(crate) render_files_generation: std::sync::Arc<std::sync::atomic::AtomicU64>,
     pub(crate) render_bar_state: crate::app::render_bar::RenderBarState,
     /// The readout a press holds, and the one open as text.

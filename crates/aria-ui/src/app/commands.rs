@@ -133,6 +133,7 @@ impl AppState {
                 "couldn't start the preview thread: {err}. Free system resources and reopen."
             ))
         })?;
+        let render_files_mounts = plugin_ctx.mounted_revision();
         let render_files_handle = Arc::new(aria_render::RenderFiles::new(
             data_dir.join("render-files"),
             crate::app::render_files::render_files_environment(&plugin_ctx),
@@ -355,6 +356,7 @@ impl AppState {
             timeline_paint_stats: crate::types::TimelinePaintStats::default(),
             render_bar: Arc::new(Vec::new()),
             render_files_handle,
+            render_files_mounts,
             render_files_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             render_bar_state: crate::app::render_bar::RenderBarState::default(),
             value_scrubs: crate::app::value_scrub::ValueScrubs::default(),

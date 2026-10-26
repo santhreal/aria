@@ -25,6 +25,10 @@ A failed mount is recorded as well as returned. `ctx.failures()` lists every
 plugin that did not mount and the reason it gave; a later successful mount of the
 same id clears its entry. `ctx.mounted()` lists what did mount, each with the
 service type names and contributions it registered. Settings shows both.
+`ctx.mounted_revision()` returns a counter that moves by one each time a plugin
+joins or leaves the mounted set, through a mount, an unmount, or a failure; a
+host compares it to rebuild what it derives from `ctx.mounted()` only after a
+change.
 
 `ctx.unmount(id)` drops that plugin's registrations, so its services are gone from
 the registry. A surface that needs one calls `try_get` and hides itself when the

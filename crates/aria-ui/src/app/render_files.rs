@@ -85,45 +85,50 @@ impl AppState {
             .expect("RenderFiles is a disk cache")
     }
 
-    /// Build or refresh the [`RenderFiles`] handle from the current storage layout
-    /// and mounted plugin list, installing it on the engine and waking the render
-    /// bar worker.
+    /// Build the [`RenderFiles`] handle from the current storage layout and
+    /// mounted plugin list, installing it on the engine and waking the render
+    /// bar worker. Every change to the storage settings made in the app calls
+    /// this where it is made.
     pub(crate) fn refresh_render_files(&mut self) {
+        self.render_files_mounts = self.ctx.mounted_revision();
         let env = render_files_environment(&self.ctx);
         let dir = self.render_files_cache_dir();
+        self.install_render_files(dir, env);
+        self.request_render_bar_refresh();
+    }
+
+    /// The active [`RenderFiles`] handle, rebuilt first when a plugin has
+    /// joined or left the mounted set since it was built. Its environment
+    /// names every mounted plugin, so a frame rendered under another set is
+    /// never served. A plugin leaves the set off the UI thread when a fault in
+    /// its code fails it, so the set is compared here, by revision, rather
+    /// than at each mount.
+    pub(crate) fn sync_render_files_handle(&mut self) -> Arc<RenderFiles> {
+        let mounts = self.ctx.mounted_revision();
+        if mounts != self.render_files_mounts {
+            self.render_files_mounts = mounts;
+            let env = render_files_environment(&self.ctx);
+            if self.render_files_handle.environment() != env {
+                let dir = self.render_files_handle.dir().to_path_buf();
+                self.install_render_files(dir, env);
+            }
+        }
+        Arc::clone(&self.render_files_handle)
+    }
+
+    /// Point the session and the engine at a new [`RenderFiles`] handle and
+    /// drop the frames looked up through the old one.
+    fn install_render_files(&mut self, dir: PathBuf, env: String) {
         let rf = Arc::new(RenderFiles::new(dir, env));
         self.engine.lock().set_render_files(Some(Arc::clone(&rf)));
         self.render_files_handle = rf;
         self.preview_worker.clear();
-        self.bump_render_files_generation();
-    }
-
-    /// Ensure [`Self::render_files_handle`] and the engine's [`RenderFiles`]
-    /// reflect the current storage layout and mounted plugins, returning the
-    /// active handle.
-    pub(crate) fn sync_render_files_handle(&mut self) -> Arc<RenderFiles> {
-        let env = render_files_environment(&self.ctx);
-        let dir = self.render_files_cache_dir();
-        if self.render_files_handle.environment() != env || self.render_files_handle.dir() != dir {
-            let rf = Arc::new(RenderFiles::new(dir, env));
-            self.engine.lock().set_render_files(Some(Arc::clone(&rf)));
-            self.render_files_handle = rf;
-            self.preview_worker.clear();
-            self.render_files_generation.fetch_add(1, Ordering::AcqRel);
-        }
-        Arc::clone(&self.render_files_handle)
+        self.render_files_generation.fetch_add(1, Ordering::AcqRel);
     }
 
     /// The session's [`RenderFiles`] cache handle.
     pub fn render_files(&self) -> Arc<RenderFiles> {
         Arc::clone(&self.render_files_handle)
-    }
-
-    /// Bump the render-files generation counter and schedule a background
-    /// render-bar refresh.
-    pub(crate) fn bump_render_files_generation(&mut self) {
-        self.render_files_generation.fetch_add(1, Ordering::AcqRel);
-        self.request_render_bar_refresh();
     }
 
     fn current_bar_stamp(&self, files: &RenderFiles) -> BarStamp {
@@ -192,12 +197,16 @@ impl AppState {
         let seq =
             self.render_bar_state
                 .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
-        let completed = self.render_bar_state.wait_for(seq).unwrap_or_else(|| {
-            panic!(
-                "the render-bar pass ended without completing request {seq}: its thread \
+        let completed = self
+            .render_bar_state
+            .shared
+            .wait_for(seq)
+            .unwrap_or_else(|| {
+                panic!(
+                    "the render-bar pass ended without completing request {seq}: its thread \
                  panicked or could not be started"
-            )
-        });
+                )
+            });
         self.render_bar = Arc::clone(&completed);
         completed
     }

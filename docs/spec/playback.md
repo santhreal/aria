@@ -107,8 +107,8 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    colors are computed on a thread of their own, so the next Viewer frame
    never waits for them; a newer edit stops an older computation.
 
-No thread is created per frame. The decode pool, render thread, audio thread,
-and present path are created once per session.
+No thread is created per frame or per edit. The decode pool, render thread,
+render-bar thread, audio thread, and present path are created once per session.
 
 ## Rendering ranges
 

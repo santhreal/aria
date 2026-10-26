@@ -2,6 +2,7 @@
 
 use std::any::{Any, TypeId};
 use std::borrow::Cow;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
@@ -76,6 +77,9 @@ struct Shared {
     services: Arc<ServiceMap>,
     events: Arc<EventBus>,
     plugins: RwLock<Vec<MountedPlugin>>,
+    /// Moves each time a plugin joins or leaves `plugins`, under its write
+    /// lock.
+    mounted_revision: AtomicU64,
     pending: Mutex<Option<Vec<Registration>>>,
     /// Plugins that failed, in the order they failed. A host reads this to
     /// report which capability is missing and why in the editor, instead of in
@@ -218,6 +222,7 @@ impl PluginContext {
                 services: Arc::new(RwLock::new(FxHashMap::default())),
                 events: Arc::new(EventBus::new()),
                 plugins: RwLock::new(Vec::new()),
+                mounted_revision: AtomicU64::new(0),
                 pending: Mutex::new(None),
                 failures: RwLock::new(Vec::new()),
                 denials: RwLock::new(Vec::new()),

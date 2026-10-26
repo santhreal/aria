@@ -236,6 +236,42 @@ fn mounting_and_unmounting_announce_the_plugin() {
     );
 }
 
+/// The mounted revision moves once for every change to the mounted set and
+/// for nothing else: a mount that took, an unmount and a failure each move it
+/// by one; a mount that failed, and an unmount or a failure of an id that is
+/// not mounted, leave it. A host keys what it derives from the set on this, so
+/// a missed move serves a stale derivation and a spurious one rebuilds for
+/// nothing.
+#[test]
+fn the_mounted_revision_moves_once_per_change_to_the_mounted_set() {
+    let ctx = PluginContext::new();
+    let mut last = ctx.mounted_revision();
+    let mut step = |what: &str, moved: bool, ctx: &PluginContext| {
+        let now = ctx.mounted_revision();
+        let want = if moved { last + 1 } else { last };
+        assert_eq!(now, want, "{what}: the revision went from {last} to {now}");
+        last = now;
+    };
+
+    let bad = PanickingPlugin {
+        manifest: PluginManifest::new("test.panic", "Panicker", "0.1.0", &[], &[]),
+    };
+    assert!(ctx.mount(&bad).is_err());
+    step("a mount that failed", false, &ctx);
+    ctx.mount(&consumer(&[])).expect("mounts");
+    step("a mount that took", true, &ctx);
+    assert!(ctx.unmount("test.absent").is_err());
+    step("an unmount of an id that is not mounted", false, &ctx);
+    ctx.unmount("test.consumer").expect("unmounts");
+    step("an unmount", true, &ctx);
+    ctx.mount(&consumer(&[])).expect("mounts again");
+    step("a second mount", true, &ctx);
+    assert!(!ctx.fail("test.absent", "not mounted"));
+    step("a failure of an id that is not mounted", false, &ctx);
+    assert!(ctx.fail("test.consumer", "faulted"));
+    step("a failure", true, &ctx);
+}
+
 /// A plugin that adds one effect and one transition while it mounts, and fails
 /// the mount after adding them when `fail` is set.
 struct Passes {

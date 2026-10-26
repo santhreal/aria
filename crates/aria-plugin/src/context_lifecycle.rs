@@ -2,6 +2,7 @@
 //! fault, log, and cost records kept for each plugin.
 
 use std::borrow::Cow;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use super::{MountFailure, MountedPlugin, MountedPluginInfo, PluginContext, PluginFault};
@@ -221,11 +222,15 @@ impl PluginContext {
         }
         self.shared.failures.write().retain(|f| f.id != manifest.id);
         let id = manifest.id.clone();
-        self.shared.plugins.write().push(MountedPlugin {
-            manifest,
-            registrations,
-            mount: elapsed,
-        });
+        {
+            let mut plugins = self.shared.plugins.write();
+            plugins.push(MountedPlugin {
+                manifest,
+                registrations,
+                mount: elapsed,
+            });
+            self.shared.mounted_revision.fetch_add(1, Ordering::Release);
+        }
         self.shared.jobs.release();
         self.shared.events.post(PluginActivated { id });
         Ok(())
@@ -278,7 +283,9 @@ impl PluginContext {
             let index = plugins
                 .iter()
                 .position(|mounted| mounted.manifest.id == plugin)?;
-            plugins.remove(index)
+            let removed = plugins.remove(index);
+            self.shared.mounted_revision.fetch_add(1, Ordering::Release);
+            removed
         };
         self.shared.denials.write().retain(|d| d.plugin != plugin);
         self.shared.faults.write().retain(|f| f.plugin != plugin);
@@ -348,6 +355,14 @@ impl PluginContext {
                 }
             })
             .collect()
+    }
+
+    /// Moves each time a plugin joins or leaves the mounted set: a mount that
+    /// took, an [`unmount`](Self::unmount), or a [`fail`](Self::fail). A host
+    /// that derives something from [`mounted`](Self::mounted) rebuilds it when
+    /// this moves.
+    pub fn mounted_revision(&self) -> u64 {
+        self.shared.mounted_revision.load(Ordering::Acquire)
     }
 
     /// Measured per-frame and per-block runtime costs for every mounted plugin,
