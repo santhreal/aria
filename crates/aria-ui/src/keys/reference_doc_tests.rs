@@ -22,7 +22,7 @@ use crate::app::clip_ops::AudioGainMode;
 use crate::app::decline::Decline;
 use crate::chrome::menu_items::items_for;
 use crate::commands::{BUILTIN_COMMANDS, BUILTIN_JOB_COMMANDS};
-use crate::dock::{Axis, DOCK_VERSION, FrameId, Node};
+use crate::dock::{Axis, DOCK_VERSION, DockTree, FrameId, Node};
 use crate::layouts::{WORKSPACES, workspace_tree_for_width};
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
@@ -233,7 +233,7 @@ fn default_dock_trees_doc_matches_the_shipped_trees() {
                         let Node::Frame(frame) = node else {
                             panic!("{} row {name} nests a split", ws.id);
                         };
-                        (width_cell(*share, *other_share), frame)
+                        (width_cell(*share, *other_share, children.len()), frame)
                     })
                     .collect(),
                 _ => panic!(
@@ -270,12 +270,13 @@ fn default_dock_trees_doc_matches_the_shipped_trees() {
     );
 }
 
-/// The Width cell of a frame whose share of its row is `share` at the wide
-/// [`TREE_WIDTHS`] and `other` at the narrow one.
-fn width_cell(share: f32, other: f32) -> String {
+/// The Width cell of a frame, one of `frames` in its row, whose share of the
+/// row is `share` at the wide [`TREE_WIDTHS`] and `other` at the narrow one.
+fn width_cell(share: f32, other: f32, frames: usize) -> String {
     let (wide, narrow) = TREE_WIDTHS;
-    if (share * wide - other * narrow).abs() < 0.5 {
-        format!("{:.0} px", share * wide)
+    let drawn = share * DockTree::frame_pool(wide, frames);
+    if (drawn - other * DockTree::frame_pool(narrow, frames)).abs() < 0.5 {
+        format!("{drawn:.0} px")
     } else if (share - other).abs() < 1e-4 {
         format!("{:.0}%", share * 100.0)
     } else {

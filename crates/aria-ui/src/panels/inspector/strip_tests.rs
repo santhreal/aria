@@ -17,7 +17,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::dock::{Axis, FrameId, Node, PANEL_INSPECTOR};
+use crate::dock::{Axis, DockTree, FrameId, Node, PANEL_INSPECTOR};
 use crate::panels::inspector::blocks::key_strip::{STRIP_MIN, STRIP_W};
 use crate::panels::inspector::blocks::widgets::{LABEL_RESERVE, VALUE_MIN};
 use crate::surfaces::effects_rack::{self, Gesture};
@@ -629,6 +629,41 @@ async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &m
         full && narrowing && blank && shrinking,
         "the steps reached full {full}, narrowing {narrowing}, blank {blank}, shrinking {shrinking}"
     );
+}
+
+/// The shipped Editing layout opens Effect Controls with every Transform
+/// row's strip whole: the left frame opens [`DockTree::EDITING_LEFT_PX`] wide,
+/// which holds a keyed row's stopwatch, label, value column, keyframe buttons
+/// and a `STRIP_W` strip.
+///
+/// Closes the class "a default frame too narrow for the controls it opens
+/// with", where the left frame opened 320 px wide and every strip drew 36 of
+/// its 112 px. Does not cover a window too narrow for the Editing layout's
+/// side frames beside the Viewer's minimum, where the left frame narrows, or a
+/// value wider than the value column.
+#[gpui::test]
+async fn the_editing_layout_opens_effect_controls_with_whole_strips(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_on(cx, "effect-controls-default", "transform", |_| {});
+    let frame = visual.read(|app| {
+        let [_, _, w, _] = *state
+            .read(app)
+            .dock_frame_rects
+            .lock()
+            .get(&FrameId::LEFT)
+            .expect("the left frame was drawn");
+        w
+    });
+    assert!(
+        (frame - DockTree::EDITING_LEFT_PX).abs() < 0.5,
+        "the left frame opened {frame} px wide"
+    );
+    for param in TRANSFORM {
+        let wide = f32::from(painted(visual, "strip", param).size.width);
+        assert!(
+            wide >= STRIP_W - 0.1,
+            "{param:?}: in a {frame} px frame the strip drew {wide} of {STRIP_W} px"
+        );
+    }
 }
 
 /// The playhead, in ticks.

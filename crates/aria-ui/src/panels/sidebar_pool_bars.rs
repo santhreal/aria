@@ -7,7 +7,7 @@
 //! control names itself through its tip.
 
 use super::*;
-use crate::chrome::tool_strip::lit_icon;
+use crate::components::lit_icon;
 use crate::icons;
 use crate::tooltip::WithTip as _;
 use gpui::deferred;

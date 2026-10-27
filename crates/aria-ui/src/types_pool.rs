@@ -34,7 +34,8 @@ pub enum PoolLayout {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PoolView {
-    /// One item per row, with its picture above its facts.
+    /// One item per row, its picture at the left and its name and facts
+    /// beside it.
     #[default]
     Tiles,
     /// One line per item: name on the left, facts on the right, no picture.
@@ -66,6 +67,14 @@ impl PoolView {
             Self::Tiles | Self::Icons | Self::Freeform => true,
             Self::List => false,
         }
+    }
+
+    /// Whether an item draws its picture beside its text rather than above it.
+    /// An item that fills the rail has room beside a thumbnail for its name
+    /// and facts; a fixed-width cell has not, so it stacks them under the
+    /// picture.
+    pub fn picture_beside(self) -> bool {
+        self.picture() && self.width().is_none()
     }
 
     /// Whether an item draws the facts line: duration, size, codec, proxy state.

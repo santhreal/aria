@@ -204,16 +204,15 @@ pub fn choice_chip(
     file: impl Fn(&mut AppState) -> Result<(), EngineError> + 'static,
 ) -> Chip {
     let label = label.into();
-    Chip {
-        #[cfg(test)]
-        pick: Some((label.clone(), on)),
-        element: filing(
+    Chip::choice(
+        label.clone(),
+        on,
+        filing(
             components::chip(id, label, on, ChipSize::Regular, theme),
             cx,
             file,
-        )
-        .into_any_element(),
-    }
+        ),
+    )
 }
 
 /// A switch of the selection in `columns`: the line `key` with its `label`,
@@ -263,6 +262,18 @@ pub struct Chip {
 }
 
 impl Chip {
+    /// The `element` that picks the choice `label`, in force while `on`: a
+    /// chip whose press the caller adds, such as one that reads the modifiers.
+    pub fn choice(label: impl Into<SharedString>, on: bool, element: impl IntoElement) -> Self {
+        #[cfg(not(test))]
+        let _ = (label, on);
+        Self {
+            element: element.into_any_element(),
+            #[cfg(test)]
+            pick: Some((label.into(), on)),
+        }
+    }
+
     /// A control that picks no choice.
     pub fn other(element: impl IntoElement) -> Self {
         Self {

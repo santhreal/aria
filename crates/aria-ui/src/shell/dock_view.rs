@@ -624,26 +624,14 @@ impl Shell {
                         return;
                     }
                     set_active_split_drag_path(&full_path);
-                    // The docked frames stand a gutter in from the window's
-                    // edges on both sides.
-                    let root_extent = match axis {
+                    let window_px = match axis {
                         Axis::Row => f32::from(window.viewport_size().width),
                         Axis::Column => f32::from(window.viewport_size().height),
                     };
-                    let root_extent = (root_extent - 2.0 * DOCK_GUTTER).max(200.0);
-                    let (span_frac, splitters_px) = {
-                        let read = this.state.read(cx);
-                        let frac = read.dock_tree.split_span_fraction(&full_path, axis);
-                        let drawn_count = match read.dock_tree.node_at(&full_path) {
-                            Some(Node::Split { children, .. }) => children
-                                .iter()
-                                .filter(|c| read.node_has_registered_panel(&c.1))
-                                .count(),
-                            _ => 2,
-                        };
-                        (frac, (drawn_count.saturating_sub(1) as f32) * DOCK_GUTTER)
-                    };
-                    let span_px = (root_extent * span_frac - splitters_px).max(100.0);
+                    let span_px = this
+                        .state
+                        .read(cx)
+                        .split_span_px(&full_path, axis, window_px);
                     let origin = match axis {
                         Axis::Row => f32::from(event.position.x),
                         Axis::Column => f32::from(event.position.y),

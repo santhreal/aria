@@ -5,8 +5,9 @@
 //! against the source. The shared controls are the public functions of
 //! `components.rs` that take a control id first: `components::button`,
 //! `ghost_button`, `disclosure_button`, `danger_button`, `chip`, `list_chip`,
-//! `switch`, `text_box`, `field_frame` and the icon button. A call states its
-//! control id in one of four forms, read from the call's own text:
+//! `switch`, `text_box`, `field_frame`, the icon button and the lit icon. A
+//! call states its control id in one of four forms, read from the call's own
+//! text:
 //!
 //! - a string literal, for a control drawn once;
 //! - a tuple whose first element is a literal, `("speed-preset", id)`, for a
@@ -31,7 +32,7 @@ use super::sources::without_test_items;
 /// The shared widgets. Spelled with `concat!` so that no needle appears whole
 /// in this file: the tooltip census reads every non-test file for icon button
 /// calls without stripping comments or strings.
-const WIDGETS: [&str; 11] = [
+const WIDGETS: [&str; 12] = [
     concat!("components::", "button("),
     concat!("ghost_", "button("),
     concat!("disclosure_", "button("),
@@ -42,6 +43,7 @@ const WIDGETS: [&str; 11] = [
     concat!("components::", "text_box("),
     concat!("components::", "field_frame("),
     concat!("icon_", "button("),
+    concat!("lit_", "icon("),
     concat!("components::", "underline_tab("),
 ];
 
@@ -56,10 +58,6 @@ struct Forwarder {
 }
 
 const FORWARDERS: &[Forwarder] = &[
-    Forwarder {
-        name: "lit_icon",
-        arg: 0,
-    },
     Forwarder {
         name: "tool_btn",
         arg: 0,

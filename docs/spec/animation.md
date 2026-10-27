@@ -96,13 +96,15 @@ Pen tool adds a keyframe at that point.
 
 ## Parenting
 
-The Transform group has a Parent row. Dragging its pick whip onto another clip,
-or choosing a clip from its menu, makes this clip's transform relative to the
-parent's. The parent must overlap the child in time; outside the overlap the
-child uses its own transform. Parenting keeps the child's current world
-position: setting or clearing a parent rewrites the child's transform so the
-frame does not change. Shift+parent snaps the child to the parent's transform
-instead.
+The Transform group has a Parent row. It shows the parent in the value column,
+and on the line under it None, a chip for each clip the model accepts as the
+parent, and the pick whip, a link icon lit while armed. Dragging the pick whip
+onto another clip, clicking it and then a clip, or choosing a clip's chip makes
+this clip's transform relative to the parent's. The parent must overlap the
+child in time; outside the overlap the child uses its own transform. Parenting
+keeps the child's current world position: setting or clearing a parent
+rewrites the child's transform so the frame does not change. Shift+parent
+snaps the child to the parent's transform instead.
 
 ## Drivers
 
@@ -117,7 +119,8 @@ plugin, `aria.expressions`, a JavaScript subset with the After Effects
 expression library: `time`, `value`, `thisLayer`, `thisComp`, `wiggle`,
 `loopOut`, `loopIn`, `linear`, `ease`, `valueAtTime`, `velocityAtTime`, and the
 vector math functions. A driver reads other properties through the pick whip,
-which inserts a reference such as `thisComp.layer("Logo").transform.position`.
+the link icon beside the source being edited, which inserts a reference such as
+`thisComp.layer("Logo").transform.position`.
 Drivers run at render time on every frame, on a worker thread, with a time
 budget per frame; a driver that exceeds it is stopped and reported.
 

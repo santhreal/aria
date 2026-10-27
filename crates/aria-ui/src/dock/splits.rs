@@ -3,9 +3,27 @@
 use super::nodes::{
     find_split_weights_by_signature, first_frame_id, node_at_path, node_at_path_mut, node_has_frame,
 };
-use super::{Axis, DockTree, FrameId, MIN_WEIGHT, Node};
+use super::{Axis, DOCK_GUTTER, DockTree, FrameId, MIN_WEIGHT, Node};
 
 impl DockTree {
+    /// The length of the dock area along an axis of a window `window` px long:
+    /// the dock area stands one gutter in from each edge.
+    pub fn dock_extent(window: f32) -> f32 {
+        window - 2.0 * DOCK_GUTTER
+    }
+
+    /// The length the `frames` drawn frames of a split `extent` px long share:
+    /// one splitter gutter stands between each pair of them.
+    pub fn split_pool(extent: f32, frames: usize) -> f32 {
+        extent - frames.saturating_sub(1) as f32 * DOCK_GUTTER
+    }
+
+    /// The width the `frames` frames of a row across a window `window_w` px
+    /// wide share: the dock area's width less the splitters between them.
+    pub fn frame_pool(window_w: f32, frames: usize) -> f32 {
+        Self::split_pool(Self::dock_extent(window_w), frames)
+    }
+
     /// Update the child weights of the [`Node::Split`] addressed by `split_path`
     /// (child indices from `root`).
     pub fn set_weights(&mut self, split_path: &[usize], weights: &[f32]) -> bool {
@@ -57,39 +75,6 @@ impl DockTree {
         match node {
             Node::Split { children, .. } => Some(children.iter().map(|(w, _)| *w).collect()),
             Node::Frame(_) => None,
-        }
-    }
-
-    /// Fraction of the root dock area's size along `axis` occupied by the split
-    /// container at `split_path`, computed from ancestor split weights along
-    /// `axis` so nested splitters convert pixel travel against their own
-    /// container span rather than the full window viewport.
-    pub fn split_span_fraction(&self, split_path: &[usize], axis: Axis) -> f32 {
-        let mut frac_w = 1.0_f32;
-        let mut frac_h = 1.0_f32;
-        let mut cur = &self.root;
-        for &step in split_path {
-            let Node::Split {
-                axis: step_axis,
-                children,
-            } = cur
-            else {
-                break;
-            };
-            let sum: f32 = children.iter().map(|(w, _)| *w).sum::<f32>().max(1e-5);
-            let Some((w, next)) = children.get(step) else {
-                break;
-            };
-            let share = (*w / sum).clamp(0.02, 1.0);
-            match step_axis {
-                Axis::Row => frac_w *= share,
-                Axis::Column => frac_h *= share,
-            }
-            cur = next;
-        }
-        match axis {
-            Axis::Row => frac_w.clamp(0.02, 1.0),
-            Axis::Column => frac_h.clamp(0.02, 1.0),
         }
     }
 

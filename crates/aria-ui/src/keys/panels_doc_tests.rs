@@ -214,19 +214,8 @@ fn panels_doc_matches_registry() {
         "docs/reference/panels.md Home rail items drifted from HomeRail"
     );
 
-    let expected_pool_views: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        bool,
-    )> = PoolView::ALL
+    // One row per view, each cell as the table prints it.
+    let expected_pool_views: Vec<Vec<String>> = PoolView::ALL
         .iter()
         .map(|&v| {
             match v {
@@ -240,53 +229,37 @@ fn panels_doc_matches_registry() {
             let width_s = v
                 .width()
                 .map_or_else(|| "none".to_string(), |w| format!("{w:.1}"));
-            (
+            let default_s = if v == PoolView::default() {
+                "yes"
+            } else {
+                "no"
+            };
+            vec![
                 format!("{v:?}"),
                 serde_s,
                 v.label().to_string(),
                 v.picture().to_string(),
+                v.picture_beside().to_string(),
                 v.facts().to_string(),
                 v.inline().to_string(),
                 v.wraps().to_string(),
                 v.freeform().to_string(),
                 width_s,
                 format!("{:?}", v.layout()),
-                v == PoolView::default(),
-            )
+                default_s.to_string(),
+            ]
         })
         .collect();
-    let documented_pool_views: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        bool,
-    )> = parse_table_rows(section_slice(
+    let documented_pool_views: Vec<Vec<String>> = parse_table_rows(section_slice(
         PANELS_DOC,
         "Media pool views and sort orders",
     ))
     .iter()
     .map(|cells| {
-        assert!(cells.len() >= 11, "malformed PoolView row: {cells:?}");
-        (
-            strip_ticks(cells[0]).to_string(),
-            strip_ticks(cells[1]).to_string(),
-            cells[2].to_string(),
-            strip_ticks(cells[3]).to_string(),
-            strip_ticks(cells[4]).to_string(),
-            strip_ticks(cells[5]).to_string(),
-            strip_ticks(cells[6]).to_string(),
-            strip_ticks(cells[7]).to_string(),
-            strip_ticks(cells[8]).to_string(),
-            strip_ticks(cells[9]).to_string(),
-            strip_ticks(cells[10]) == "yes",
-        )
+        cells
+            .iter()
+            .map(|cell| strip_ticks(cell).to_string())
+            .collect()
     })
     .collect();
     assert_eq!(

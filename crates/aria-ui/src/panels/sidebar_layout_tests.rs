@@ -13,9 +13,12 @@
 //! Not covered: the glyphs, which the test text system does not raster. A
 //! control drawn inside an item is the item's.
 
+use std::time::Duration;
+
 use gpui::{Bounds, FontWeight, Pixels, TestAppContext, VisualTestContext, px};
 
 use crate::components::drawn::{self, Drawn};
+use crate::dock::DockTree;
 use crate::interned::intern;
 use crate::test_support::drawn_shell;
 use crate::theme::Theme;
@@ -52,9 +55,13 @@ fn pool_with_a_still<'a>(
     (state, visual)
 }
 
-/// Set the Project panel's column to `width` px of the 1920 px row, and draw
-/// twice: the panel reads its width from the frame the previous draw laid
-/// out, so the second draw is the one at `width`.
+/// Draw the Project panel's column `width` px wide, or at the frame's 160 px
+/// minimum when `width` is narrower.
+///
+/// The frames glide to new split weights, so the clock moves past the glide
+/// before the frame is measured: without it every draw is at the launch
+/// width. Then the shell draws once more, because the panel reads its width
+/// from the frame the previous draw laid out.
 pub(super) fn project_width(
     state: &gpui::Entity<crate::app::AppState>,
     visual: &mut VisualTestContext,
@@ -66,8 +73,9 @@ pub(super) fn project_width(
                 .dock_tree
                 .split_weights(&[0])
                 .expect("the launch layout's upper area is a row split");
+            let (window_w, _) = state.last_window_size();
+            let left = width / DockTree::frame_pool(window_w, row.len());
             let (_, rest) = row.split_first().expect("a row has children");
-            let left = width / 1920.0;
             let total: f32 = rest.iter().sum();
             let weights: Vec<f32> = std::iter::once(left)
                 .chain(rest.iter().map(|w| w / total * (1.0 - left)))
@@ -77,8 +85,11 @@ pub(super) fn project_width(
         });
     });
     visual.run_until_parked();
-    visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
-    visual.run_until_parked();
+    visual.executor().advance_clock(Duration::from_secs(2));
+    for _ in 0..2 {
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+    }
 }
 
 #[gpui::test]
@@ -191,10 +202,11 @@ fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut Test
     // them.
     let compact = sum + count * 2.0 * Theme::SPACE_XS;
     let regular = sum + count * 2.0 * Theme::SPACE_SM + (count - 1.0) * Theme::SPACE_XXS;
-    let (mut held, mut decisive) = (0, 0);
+    let (mut held, mut decisive, mut narrowest) = (0, 0, f32::INFINITY);
     for width in (160..=400).rev().step_by(4) {
         project_width(&state, visual, width as f32);
         let row = f32::from(bounds(visual, "sidebar-groups").size.width);
+        narrowest = narrowest.min(row);
         if row < compact + EPS {
             continue;
         }
@@ -214,6 +226,13 @@ fn every_group_reads_whole_while_the_compact_padding_holds_the_row(cx: &mut Test
             );
         }
     }
+    // A walk whose widths never reach the panel draws every row at the launch
+    // width and passes or fails by where that width falls.
+    assert!(
+        narrowest < compact,
+        "the narrowest group row the walk drew is {narrowest} px, wide enough for the compact \
+         padding ({compact} px): the panel did not take the widths the walk set"
+    );
     assert!(
         held > 0 && decisive > 0,
         "the walk drew {held} rows that hold the labels, {decisive} of them narrower than the \

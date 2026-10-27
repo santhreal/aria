@@ -11,7 +11,7 @@
 | Controls             |                                |                      |
 |                      |                                |                      |
 |   left frame         |                                |   right column       |
-|   320 px             |                                |   300 px             |
+|   400 px             |                                |   300 px             |
 +----------------------+--------------------------------+----------------------+
 | Timeline: Sequence 01 | Sequence 02                              | Audio     |
 |                                                                  | meters    |
@@ -35,7 +35,7 @@ The upper area takes 55 % of the height between the tool bar and the status
 bar. The Timeline takes the rest.
 
 A resized window lays out a workspace with no changes for its new size, as
-choosing the workspace again does: Editing keeps its side frames at 320 px and
+choosing the workspace again does: Editing keeps its side frames at 400 px and
 300 px and Audio Meters at 64 px, and the Viewer and the Timeline take the
 difference. A workspace with a dragged splitter or a moved panel keeps the
 shares of its frames instead.
@@ -48,7 +48,7 @@ History, and the rest in the right column. Audio Meters opens right of the
 Timeline. When a panel's default frame has closed, such as the right column
 after its last panel floats, opening the panel re-creates that frame at its
 shipped edge: the left or right column at that end of the Viewer's row, at
-320 px or 300 px of a 1440 px window; the Timeline frame as a lower row, left
+400 px or 300 px of a 1440 px window; the Timeline frame as a lower row, left
 of Audio Meters when docked; Audio Meters at 64 px right of the Timeline. A
 panel opens as a tab of the largest frame when its default frame is the
 Viewer's, or when its column has no docked Viewer frame to sit beside.

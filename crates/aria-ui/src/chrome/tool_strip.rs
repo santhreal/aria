@@ -288,35 +288,13 @@ pub(crate) fn tool_btn(
     cx: &mut Context<Shell>,
     action: impl Fn(&mut AppState) + 'static,
 ) -> gpui::Stateful<gpui::Div> {
-    lit_icon(id, path, on, &Theme::of(cx)).on_mouse_down(
+    crate::components::lit_icon(id, path, on, &Theme::of(cx)).on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             this.state.update(cx, |state, _| action(state));
             cx.notify();
         }),
     )
-}
-
-/// The look of a toggle: an icon control `id` that reads lit while `on`. The
-/// caller adds the press.
-pub(crate) fn lit_icon(
-    id: &'static str,
-    path: &'static str,
-    on: bool,
-    theme: &Theme,
-) -> gpui::Stateful<gpui::Div> {
-    // The same key `icon_button` fades on: it owns the hover listener, and a
-    // second one on the same element is not supported, so the selected look
-    // reads that fade rather than starting another.
-    let key = motion::MotionKey::new("icon", id);
-    let (selected, active) = (theme.glass_selected_bg(), theme.element_active);
-    let text = theme.text;
-    crate::components::icon_button(id, path, theme)
-        .debug_selector(move || id.into())
-        .when(on, |el| {
-            el.bg(motion::hover_blend(key, selected, active))
-                .text_color(text)
-        })
 }
 
 fn word_icon(

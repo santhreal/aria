@@ -107,35 +107,37 @@ fn interaction_a_splitter_drag_resizes_the_media_rail(cx: &mut gpui::TestAppCont
     // Two pixels into the six-pixel splitter, which begins where the left frame ends.
     let grip = lx + lw + 2.0;
 
+    // The rail opens at the widest width it records, so the first drag narrows
+    // it and the second widens it.
     visual.simulate_mouse_down(point(px(grip), px(y)), MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(
-        point(px(grip + 60.0), px(y)),
+        point(px(grip - 60.0), px(y)),
         MouseButton::Left,
         Modifiers::none(),
     );
     visual.run_until_parked();
-    let widened = visual.read(|app| state.read(app).ui_settings.sidebar_width);
+    let narrowed = visual.read(|app| state.read(app).ui_settings.sidebar_width);
     assert_eq!(
-        widened,
-        (start + 60.0).clamp(SIDEBAR_MIN, SIDEBAR_MAX),
+        narrowed,
+        (start - 60.0).clamp(SIDEBAR_MIN, SIDEBAR_MAX),
         "the rail follows the pointer while the button is down"
     );
 
     visual.simulate_mouse_up(
-        point(px(grip + 60.0), px(y)),
+        point(px(grip - 60.0), px(y)),
         MouseButton::Left,
         Modifiers::none(),
     );
     visual.run_until_parked();
     assert_eq!(
         visual.read(|app| state.read(app).ui_settings.sidebar_width),
-        widened,
+        narrowed,
         "the release keeps the width the drag reached"
     );
 
     // A second drag, abandoned: Escape puts the rail back where the press found
     // it, which is the shell's own gesture cancel and not a binding.
-    let before = widened;
+    let before = narrowed;
     let [lx2, _, lw2, _] = visual
         .read(|app| {
             state
@@ -150,7 +152,7 @@ fn interaction_a_splitter_drag_resizes_the_media_rail(cx: &mut gpui::TestAppCont
         Modifiers::none(),
     );
     visual.simulate_mouse_move(
-        point(px(grip2 - 40.0), px(y)),
+        point(px(grip2 + 40.0), px(y)),
         MouseButton::Left,
         Modifiers::none(),
     );

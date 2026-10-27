@@ -47,7 +47,11 @@ multicam. Every icon control states its name in its tip. In a narrow panel
 the active view icon stands for the four views and cycles through them on
 click, and the count shortens with an ellipsis so the footer stays on one line.
 An item's name with
-no room ends in an ellipsis.
+no room ends in an ellipsis. In Tiles an item draws its 120 × 68 px picture at
+the left and its name and facts beside it, and in a panel too narrow for both
+the name and facts wrap under the picture. In every view that draws pictures,
+an item with no frame to show (an audio file, a file that is gone) draws a
+glyph in a slot the size of the others' pictures.
 
 Between the two rows: the breadcrumb, while a bin is open, with Rename and
 Delete bin at the right, which move to a line of their own when the

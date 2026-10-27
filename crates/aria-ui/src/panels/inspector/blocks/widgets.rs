@@ -691,22 +691,20 @@ fn driver_source(
             }),
         );
     let whip = line.editing.then(|| {
-        crate::components::ghost_button(("param-whip", key.with("whip")), "@", theme)
-            .when(line.picking, |el| {
-                el.bg(theme.accent).text_color(theme.text)
-            })
-            .when_some(
-                crate::tooltip::builder("inspector-driver-whip"),
-                |el, tip| el.with_tip(tip),
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, _| state.toggle_driver_pick());
-                    cx.notify();
-                }),
-            )
+        crate::components::lit_icon(
+            ("inspector-driver-whip", key.with("whip")),
+            crate::icons::LINK,
+            line.picking,
+            theme,
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                cx.stop_propagation();
+                this.state.update(cx, |state, _| state.toggle_driver_pick());
+                cx.notify();
+            }),
+        )
     });
     div()
         .flex()

@@ -630,7 +630,7 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
 async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
     // Two properties keyed at the playhead, so the keyframes block draws two
     // rows, each with its navigator and easing presets.
-    let (_, _, held) = every_line_stands_in_the_columns(
+    let (_, choices, held) = every_line_stands_in_the_columns(
         cx,
         ("texture.png", "transform"),
         ClipParam::Opacity,
@@ -647,6 +647,8 @@ async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
             }
         },
     );
+    // A clip with no parent shows None and marks the None chip.
+    shows_and_marks("transform", &choices, "insp-label-Parent", "None");
     holds(
         "transform",
         &held,

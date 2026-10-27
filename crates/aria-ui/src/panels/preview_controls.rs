@@ -197,14 +197,13 @@ pub(super) fn loop_btn(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let on = state.read(cx).looping;
-    crate::chrome::tool_strip::lit_icon("preview-loop", crate::icons::LOOP, on, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| state.toggle_loop());
-                cx.notify();
-            }),
-        )
+    crate::components::lit_icon("preview-loop", crate::icons::LOOP, on, theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| state.toggle_loop());
+            cx.notify();
+        }),
+    )
 }
 
 /// A preview zoom step, drawn with the shipped zoom glyph in an icon button's

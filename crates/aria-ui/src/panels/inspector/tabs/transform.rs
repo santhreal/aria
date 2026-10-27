@@ -7,8 +7,6 @@
 //! animated property with the constant the pointer left it at, and it silently
 //! lacked the anchor point the catalog has always carried.
 
-use crate::components::Wraps as _;
-use crate::tooltip::WithTip as _;
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
     Styled, div, px,
@@ -24,7 +22,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Columns, param_rows, under_labels};
+use crate::panels::inspector::blocks::widgets::{Chip, Columns, chip_row, param_rows};
 
 pub fn transform_tab(
     theme: &Theme,
@@ -76,15 +74,16 @@ struct ParentChip {
     eligible: bool,
 }
 
-/// The Parent row: None, then every clip the model accepts as this clip's
-/// parent, and the pick whip that takes the next clip pressed on the timeline.
-/// A press keeps the clip where it is drawn at the playhead; Shift snaps it
-/// onto the parent's anchor.
+/// The Parent row: the clip's parent where a number row's value stands, and on
+/// the line under it None, every clip the model accepts as this clip's parent,
+/// and the pick whip that takes the next clip pressed on the timeline. A press
+/// keeps the clip where it is drawn at the playhead; Shift snaps it onto the
+/// parent's anchor.
 fn parent_row(
     theme: &Theme,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> Option<impl IntoElement> {
+) -> Option<gpui::Div> {
     let app = state.read(cx);
     let choices = app.selected_parent_choices()?;
     let current = choices.current;
@@ -95,7 +94,7 @@ fn parent_row(
         )
     };
     let stale = current.filter(|clip| !choices.eligible.contains(clip));
-    let chips: Vec<ParentChip> = stale
+    let parents: Vec<ParentChip> = stale
         .into_iter()
         .map(|clip| (clip, false))
         .chain(choices.eligible.iter().map(|clip| (*clip, true)))
@@ -106,13 +105,14 @@ fn parent_row(
             eligible,
         })
         .collect();
+    let shown = current.map_or(SharedString::new_static("None"), name_of);
     let whip_armed = app.parent_whip().is_some();
 
     let none = components::chip(
         "parent-none",
         "None",
         current.is_none(),
-        ChipSize::Compact,
+        ChipSize::Regular,
         theme,
     )
     .when(current.is_some(), |el| {
@@ -123,44 +123,44 @@ fn parent_row(
             }),
         )
     });
-    let chips: Vec<_> = chips
-        .into_iter()
-        .map(|chip| {
-            let ParentChip {
-                clip,
-                name,
-                current,
-                eligible,
-            } = chip;
-            components::chip(
-                MotionKey::new("parent-choice", clip.raw()),
-                name,
-                current,
-                ChipSize::Compact,
-                theme,
+    let mut chips = Vec::with_capacity(parents.len() + 2);
+    chips.push(Chip::choice("None", current.is_none(), none));
+    chips.extend(parents.into_iter().map(|chip| {
+        let ParentChip {
+            clip,
+            name,
+            current,
+            eligible,
+        } = chip;
+        let element = components::chip(
+            MotionKey::new("parent-choice", clip.raw()),
+            name.clone(),
+            current,
+            ChipSize::Regular,
+            theme,
+        )
+        .when(eligible, |el| {
+            el.on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                    // The parent again keeps the clip where it is; only a
+                    // snap onto it is an edit.
+                    if current && !event.modifiers.shift {
+                        return;
+                    }
+                    let keep = keep_for(event.modifiers.shift);
+                    pick_parent(this, Pick::Parent { parent: clip, keep }, cx);
+                }),
             )
-            .when(eligible, |el| {
-                el.on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                        // The parent again keeps the clip where it is; only a
-                        // snap onto it is an edit.
-                        if current && !event.modifiers.shift {
-                            return;
-                        }
-                        let keep = keep_for(event.modifiers.shift);
-                        pick_parent(this, Pick::Parent { parent: clip, keep }, cx);
-                    }),
-                )
-            })
-            .into_any_element()
-        })
-        .collect();
-    let whip = components::ghost_button("parent-whip", "@", theme)
-        .when(whip_armed, |el| el.bg(theme.accent).text_color(theme.text))
-        .when_some(
-            crate::tooltip::builder("inspector-parent-whip"),
-            |el, tip| el.with_tip(tip),
+        });
+        Chip::choice(name, current, element)
+    }));
+    chips.push(Chip::other(
+        components::lit_icon(
+            "inspector-parent-whip",
+            crate::icons::LINK,
+            whip_armed,
+            theme,
         )
         .on_mouse_down(
             MouseButton::Left,
@@ -168,29 +168,16 @@ fn parent_row(
                 this.state.update(cx, |state, _| state.toggle_parent_whip());
                 cx.notify();
             }),
-        );
-    Some(
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(Theme::SPACE_XS))
-            .pt(px(Theme::SPACE_SM))
-            .child(components::section_label(theme, "Parent"))
-            .child(under_labels(
-                Columns::Keyed,
-                [div()
-                    .w_full()
-                    .flex()
-                    .flex_row()
-                    .wraps()
-                    .items_center()
-                    .gap(px(Theme::SPACE_XS))
-                    .child(none)
-                    .children(chips)
-                    .child(whip)
-                    .into_any_element()],
-            )),
-    )
+        ),
+    ));
+    Some(chip_row(
+        theme,
+        MotionKey::new("insp.row", "parent"),
+        "Parent",
+        Columns::Keyed,
+        shown,
+        chips,
+    ))
 }
 
 fn pick_parent(

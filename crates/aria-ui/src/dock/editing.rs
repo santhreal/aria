@@ -9,8 +9,10 @@ use super::{
 impl DockTree {
     /// Default window width in logical pixels (`docs/spec/layout.md`).
     pub const DEFAULT_WINDOW_WIDTH: f32 = 1440.0;
-    /// Default width of the left frame in the Editing workspace (`320 px`).
-    pub const EDITING_LEFT_PX: f32 = 320.0;
+    /// Default width of the left frame in the Editing workspace (`400 px`):
+    /// wide enough for an Effect Controls row to draw its whole keyframe strip
+    /// beside its label, value and keyframe buttons.
+    pub const EDITING_LEFT_PX: f32 = 400.0;
     /// Default width of the right column in the Editing workspace (`300 px`).
     pub const EDITING_RIGHT_PX: f32 = 300.0;
     /// Default width of the Audio Meters frame in the Editing workspace (`64 px`).
@@ -21,8 +23,9 @@ impl DockTree {
     /// The shipped Editing layout (`docs/spec/layout.md` window diagram), six
     /// panels:
     /// - Column split: upper area `55 %`, lower area `45 %`.
-    /// - Upper row: left frame `320 px` (`Project | Effect Controls`), centre
-    ///   frame (`Viewer`), and right column `300 px` (`Effects & Presets`).
+    /// - Upper row: left frame [`Self::EDITING_LEFT_PX`] (`Project | Effect
+    ///   Controls`), centre frame (`Viewer`), and right column
+    ///   [`Self::EDITING_RIGHT_PX`] (`Effects & Presets`).
     /// - Lower row: `Timeline` on the left, `Audio Meters` at `64 px` on the
     ///   right.
     ///
@@ -32,8 +35,9 @@ impl DockTree {
         Self::editing_for_width(Self::DEFAULT_WINDOW_WIDTH)
     }
 
-    /// Build the shipped Editing layout with row weights derived from the
-    /// spec's pixel widths (`320 px` left, `300 px` right, `64 px` audio
+    /// Build the shipped Editing layout with row weights that draw its frames
+    /// at the spec's pixel widths ([`Self::EDITING_LEFT_PX`] left,
+    /// [`Self::EDITING_RIGHT_PX`] right, [`Self::EDITING_METERS_PX`] audio
     /// meters) at `window_w`.
     pub fn editing_for_width(window_w: f32) -> Self {
         let (left_w, center_w, right_w) = Self::upper_row_weights_for_width(window_w, true);
@@ -93,10 +97,12 @@ impl DockTree {
         }
     }
 
-    /// Compute normalized weights `(left, center, right)` for an upper row with
-    /// a `320 px` left frame and optional `300 px` right frame at `window_w`.
+    /// Compute normalized weights `(left, center, right)` that draw an upper
+    /// row's left frame [`Self::EDITING_LEFT_PX`] wide and its optional right
+    /// frame [`Self::EDITING_RIGHT_PX`] wide at `window_w`.
     pub fn upper_row_weights_for_width(window_w: f32, has_right: bool) -> (f32, f32, f32) {
-        let avail = window_w.max(640.0);
+        let frames = if has_right { 3 } else { 2 };
+        let avail = Self::frame_pool(window_w.max(640.0), frames);
         let left_px = Self::EDITING_LEFT_PX.clamp(160.0, (avail - 320.0).max(160.0));
         if has_right {
             let right_px =
@@ -111,10 +117,11 @@ impl DockTree {
         }
     }
 
-    /// Compute normalized weights `(timeline, meters)` for the lower row with
-    /// a `64 px` Audio Meters frame on the right at `window_w`.
+    /// Compute normalized weights `(timeline, meters)` that draw the lower
+    /// row's Audio Meters frame [`Self::EDITING_METERS_PX`] wide at
+    /// `window_w`.
     pub fn lower_row_weights_for_width(window_w: f32) -> (f32, f32) {
-        let avail = window_w.max(464.0);
+        let avail = Self::frame_pool(window_w.max(464.0), 2);
         let meters_px = Self::EDITING_METERS_PX.clamp(48.0, (avail - 400.0).max(48.0));
         let timeline_px = (avail - meters_px).max(400.0);
         let sum = timeline_px + meters_px;

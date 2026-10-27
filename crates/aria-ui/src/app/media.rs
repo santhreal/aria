@@ -366,7 +366,7 @@ pub fn codec_label(codec: Option<&str>) -> String {
     }
 }
 
-/// The one-line caption under a pool row: what the pool can prove about the
+/// The facts line of a pool row: what the pool can prove about the
 /// file. Shape, length, codec, and whether there is sound in it — a video with
 /// no audio track is the one found missing halfway through a cut.
 ///

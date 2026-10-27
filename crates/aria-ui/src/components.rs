@@ -819,6 +819,23 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
         .child(crate::icons::icon(path))
 }
 
+/// An [`icon_button`] that reads lit while `on`: a toggle, or a mode such as a
+/// pick whip that waits for the next click. The caller adds the press.
+pub fn lit_icon(id: impl IconId, path: &'static str, on: bool, theme: &Theme) -> Stateful<Div> {
+    let element = id.element_id();
+    // The key `icon_button` fades on. It holds the element's hover listener,
+    // and an element takes one, so the lit look reads that fade rather than
+    // starting another.
+    let key = motion::MotionKey::new("icon", &element);
+    let (lit, pressed, text) = (theme.glass_selected_bg(), theme.element_active, theme.text);
+    icon_button(id, path, theme)
+        .debug_selector(move || element.to_string())
+        .when(on, |el| {
+            el.bg(motion::hover_blend(key, lit, pressed))
+                .text_color(text)
+        })
+}
+
 /// The room of an [`icon_button`] with nothing in it, for a row of icon
 /// controls where one does not apply: the controls after it stand in the
 /// columns the rows above and below draw them in.

@@ -130,7 +130,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-fx-remove` | Remove effect | Removes the effect row from the selected clip's stack. | None |
 | `inspector-fx-reset` | Reset effect | Resets all parameters of the effect row to their default values. | None |
 | `inspector-fx-up` (per row) | Move earlier | Moves the effect one slot earlier in the clip's evaluation order. | None |
-| `inspector-parent-whip` | Parent pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
+| `inspector-parent-whip` | Link icon | Arms or disarms the transform parent pick whip, lit while armed; the next timeline clip clicked, or the clip a drag from the icon is released over, becomes the selected clip's parent. Drawn last on the line under the Transform block's Parent row. | None |
 | `inspector-pitch` | Switch | Toggles pitch preservation when the selected clip plays at a non-unit speed; drawn on the Audio tab's Pitch lock line. | None |
 | `inspector-replace-media` | Media name | Repoints the selected clip at the pooled media and keeps its placement, transform, and effects; drawn under Replace media in the Info tab. | None |
 | `inspector-reset` | Reset transform | Resets position, scale, rotation, anchor, and opacity on the selected clip. | None |
@@ -154,7 +154,6 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `matte-source` (per row) | Alpha / Luma | Sets whether the track matte reads the alpha or the luma of the layer above the selected clip. | None |
 | `parent-choice` (per row) | Clip name | Assigns the clicked timeline clip as the transform parent of the selected clip. | None |
 | `parent-none` | None | Detaches the selected clip from its current transform parent. | None |
-| `parent-whip` | @ | Arms or disarms the transform parent pick whip for clicking or dragging onto a target clip. | None |
 | `relink-media` | Relink | Opens the Relink Media file picker, filtered to media files, and relinks the missing media pool item to the chosen file. Drawn in the Info tab and on a missing pool item. | None |
 | `speed-clear` | Clear ramp | Removes variable speed ramp segments and returns the clip to constant speed. | None |
 | `speed-preset` (per row) | Ramp up / Ramp down / Montage / Hero / Bullet / Jump cut / Flash in / Flash out | Applies the speed ramp preset to the selected clip. | None |
@@ -203,8 +202,8 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `pool-sort` | Sort order | Opens the media pool sort order menu (Name, Duration, Resolution, Date added). | None |
 | `pool-view-freeform` | Freeform | Switches the media pool layout to a freeform spatial canvas. | None |
 | `pool-view-icons` | Icons | Switches the media pool layout to large thumbnail icons. | None |
-| `pool-view-list` | List | Switches the media pool layout to a columnar metadata list. | None |
-| `pool-view-tiles` | Tiles | Switches the media pool layout to compact tiles with metadata. | None |
+| `pool-view-list` | List | Switches the media pool to one line per item, name on the left and facts on the right, with no picture. | None |
+| `pool-view-tiles` | Tiles | Switches the media pool to one row per item, its picture on the left and its name and facts beside it. | None |
 | `relink-all` | Relink All | Opens a file picker to relink all missing media items in the project. | None |
 | `sidebar-group` (per row) | Group tab | Switches the top-level Project panel category (Media, Graphics, Effects, Library, Analyze). | None |
 | `sidebar-tab` (per row) | Tab label | Switches the Project panel to the tab (Media, Titles, Shapes, Stickers, Generators, Animations, Masks, Transitions, Effects, Stock, SFX, Generate, Captions, Analysis, Audio) within the open group. | None |
@@ -329,7 +328,7 @@ The Inspector's Keyframes and Graph blocks and property row keyframe navigator (
 | --- | --- | --- | --- |
 | `curve-axis` (per row) | X / Y | Selects the axis of a two-dimensional property the Graph block draws. | None |
 | `curve-param` (per row) | Property name | Selects the keyframed property the Graph block draws. | None |
-| `inspector-driver-whip` | Driver pick whip | Arms the expression driver pick whip to bind a parameter to another property. | None |
+| `inspector-driver-whip` (per row) | Link icon | Arms or disarms the driver pick whip beside the driver source being edited, lit while armed; the next property row clicked is read in the driver. | None |
 | `keyframe-easing` (per row) | Snappy / Overshoot / Anticipate | Applies the bezier easing preset to the segment leaving the keyframe at the playhead. | None |
 | `keyframe-piecewise` (per row) | Bounce out / Elastic out / Back out | Applies the piecewise easing preset to the segment leaving the keyframe at the playhead. | None |
 | `kf-at` | ◆ / ◇ | Adds a keyframe at the playhead or removes the existing keyframe on the property row. | None |
@@ -338,7 +337,6 @@ The Inspector's Keyframes and Graph blocks and property row keyframe navigator (
 | `kf-next` (per row) | › | Moves the playhead to the next keyframe on the property. | None |
 | `kf-prev` (per row) | ‹ | Moves the playhead to the previous keyframe on the property. | None |
 | `kf-toggle` (per row) | ◆ / ◇ | Toggles a keyframe at the playhead on the property of the Keyframes block row. | None |
-| `param-whip` (per row) | @ | Arms or disarms the driver pick whip for the property row being edited. | None |
 | `path-watch` | Path stopwatch | Enables or disables keyframe animation for a mask path on the timeline. | None |
 | `prop-reset` | Reset property | Resets the property to its default value, writing a keyframe when the property is animated. | None |
 | `prop-watch` | Stopwatch | Enables or disables keyframe animation on the property; Alt-click attaches or removes a driver. | None |

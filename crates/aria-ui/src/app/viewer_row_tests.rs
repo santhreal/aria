@@ -33,7 +33,7 @@
 //!
 //! Not covered: the play button, whose click starts the vsync loop a test
 //! window does not run, the lit look of a toggle, which
-//! `chrome::tool_strip::lit_icon` draws, widths under real glyph metrics,
+//! `components::lit_icon` draws, widths under real glyph metrics,
 //! which the test text system does not have, and the shared buttons, chips
 //! and boxes of `components`, which draw no debug selector, so their bounds
 //! are absent on both sides of the comparison.

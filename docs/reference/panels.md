@@ -112,12 +112,14 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers five vi
 
 Defined in `crates/aria-ui/src/types_pool.rs` (`PoolView::ALL`, `PoolLayout`, `POOL_CELL_WIDTH = 96.0`) and `crates/aria-ui/src/types_editor.rs` (`MediaSort::ALL`).
 
-| Variant | Serde name | Label | Picture | Facts | Inline | Wraps | Freeform | Cell width | Layout (`PoolLayout`) | Default |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Tiles` | `tiles` | Tiles | `true` | `true` | `false` | `false` | `false` | `none` | `Stack` | `yes` |
-| `List` | `list` | List | `false` | `true` | `true` | `false` | `false` | `none` | `Stack` | `no` |
-| `Icons` | `icons` | Icons | `true` | `false` | `false` | `true` | `false` | `96.0` | `Wrap` | `no` |
-| `Freeform` | `freeform` | Freeform | `true` | `false` | `false` | `false` | `true` | `96.0` | `Freeform` | `no` |
+| Variant | Serde name | Label | Picture | Beside | Facts | Inline | Wraps | Freeform | Cell width | Layout (`PoolLayout`) | Default |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Tiles` | `tiles` | Tiles | `true` | `true` | `true` | `false` | `false` | `false` | `none` | `Stack` | `yes` |
+| `List` | `list` | List | `false` | `false` | `true` | `true` | `false` | `false` | `none` | `Stack` | `no` |
+| `Icons` | `icons` | Icons | `true` | `false` | `false` | `false` | `true` | `false` | `96.0` | `Wrap` | `no` |
+| `Freeform` | `freeform` | Freeform | `true` | `false` | `false` | `false` | `false` | `true` | `96.0` | `Freeform` | `no` |
+
+**Beside** (`PoolView::picture_beside`) is `true` for a view that draws pictures and has no cell width. Its items draw the 120 px picture at the left and the name and facts beside it, and wrap the name and facts under the picture in a row narrower than the picture, an 8 px gap, and 96 px of text.
 
 ## Media pool sort orders
 

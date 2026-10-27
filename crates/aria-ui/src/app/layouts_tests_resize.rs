@@ -4,8 +4,8 @@
 //! passed through. A first launch draws once at its 1440 px unmaximized size
 //! before the window manager maximizes it, and the shipped pixel widths were
 //! derived from the first size alone, so Editing opened with side frames a
-//! third wider than its 320 px and 300 px, and choosing it again drew them at
-//! those widths.
+//! third wider than their shipped pixel widths, and choosing it again drew
+//! them at those widths.
 //!
 //! For every shipped workspace, read from `layouts::WORKSPACES` at run time,
 //! chosen before the first size and drawn through each window history, the

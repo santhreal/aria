@@ -189,10 +189,7 @@ impl AppState {
                 .iter()
                 .filter(|c| self.node_has_registered_panel(&c.1))
                 .count();
-            // The row spans the window less the dock area's margin on each side
-            // and one gutter between each pair of drawn frames.
-            let gutters_px = (drawn_count.saturating_sub(1) as f32 + 2.0) * DOCK_GUTTER;
-            let frame_pool_w = (win_w - gutters_px).max(1.0);
+            let frame_pool_w = DockTree::frame_pool(win_w, drawn_count).max(1.0);
             self.ui_settings.sidebar_width = (first.0 * frame_pool_w)
                 .round()
                 .clamp(crate::settings::SIDEBAR_MIN, crate::settings::SIDEBAR_MAX);
@@ -405,33 +402,76 @@ impl AppState {
     }
 
     /// Drag a splitter at `split_path` between `index` and `index + 1` by
-    /// `delta_px` pixels inside a root dock area of `root_extent_px` along the
-    /// split's axis, scaling by the split container's own span fraction so a
-    /// nested split moves 1:1 with the pointer.
+    /// `delta_px` pixels in a window `window_px` long along the split's axis,
+    /// against [`Self::split_span_px`], so a nested split moves 1:1 with the
+    /// pointer.
     pub fn drag_split_by_pixels(
         &mut self,
         split_path: &[usize],
         index: usize,
         delta_px: f32,
-        root_extent_px: f32,
+        window_px: f32,
     ) -> bool {
         let Some(Node::Split { axis, .. }) = self.dock_tree.node_at(split_path) else {
             return false;
         };
-        let axis = *axis;
-        let span_px = (root_extent_px.max(100.0)
-            * self.dock_tree.split_span_fraction(split_path, axis))
-        .max(100.0);
-        let delta_weight = delta_px / span_px;
-        self.drag_split_clamped(split_path, index, delta_weight, span_px)
+        let span_px = self.split_span_px(split_path, *axis, window_px);
+        self.drag_split_clamped(split_path, index, delta_px / span_px, span_px)
+    }
+
+    /// The length the drawn frames of the split at `split_path` share along
+    /// `axis` in a window `window_px` long, as the dock draws it: each split on
+    /// the way along `axis` gives the next its share of its frames' length,
+    /// which is the split's length less the splitters between its drawn
+    /// frames. A splitter drag converts pointer travel into weight against
+    /// this length.
+    pub(crate) fn split_span_px(&self, split_path: &[usize], axis: Axis, window_px: f32) -> f32 {
+        let drawn = |children: &[(f32, Node)]| {
+            children
+                .iter()
+                .filter(|child| self.node_has_registered_panel(&child.1))
+                .map(|child| child.0)
+                .fold((0, 0.0_f32), |(count, sum), weight| {
+                    (count + 1, sum + weight)
+                })
+        };
+        let mut extent = DockTree::dock_extent(window_px).max(200.0);
+        let mut node = &self.dock_tree.root;
+        for &step in split_path {
+            let Node::Split {
+                axis: along,
+                children,
+            } = node
+            else {
+                break;
+            };
+            let Some((weight, child)) = children.get(step) else {
+                break;
+            };
+            if *along == axis {
+                let (count, sum) = drawn(children);
+                extent = DockTree::split_pool(extent, count) * weight / sum.max(f32::EPSILON);
+            }
+            node = child;
+        }
+        let count = match node {
+            Node::Split { children, .. } => drawn(children).0,
+            Node::Frame(_) => 2,
+        };
+        DockTree::split_pool(extent, count).max(100.0)
     }
 
     /// Rebalance split weights when a window resize would push a child frame
     /// below its minimum pixel size, taking the needed delta from sibling
     /// frames that still have slack (`docs/spec/layout.md:58-59`).
-    pub fn rebalance_splits_for_window(&mut self, avail_w: f32, avail_h: f32) -> bool {
+    pub fn rebalance_splits_for_window(&mut self, window_w: f32, window_h: f32) -> bool {
         let root_clone = self.dock_tree.root.clone();
-        self.rebalance_node_mins(&root_clone, &[], avail_w, avail_h)
+        self.rebalance_node_mins(
+            &root_clone,
+            &[],
+            DockTree::dock_extent(window_w),
+            DockTree::dock_extent(window_h),
+        )
     }
 
     fn rebalance_node_mins(
@@ -444,10 +484,19 @@ impl AppState {
         let Node::Split { axis, children } = snapshot else {
             return false;
         };
-        let extent = match axis {
-            Axis::Row => avail_w,
-            Axis::Column => avail_h,
-        };
+        let drawn = children
+            .iter()
+            .filter(|child| self.node_has_registered_panel(&child.1))
+            .count();
+        // The split's frames share its length less the splitters between them,
+        // so a minimum is a share of that, not of the whole length.
+        let extent = DockTree::split_pool(
+            match axis {
+                Axis::Row => avail_w,
+                Axis::Column => avail_h,
+            },
+            drawn,
+        );
         if extent <= 1.0 || children.is_empty() {
             return false;
         }
@@ -507,8 +556,8 @@ impl AppState {
         for (idx, child) in children.iter().enumerate() {
             let w = weights[idx];
             let (child_w, child_h) = match axis {
-                Axis::Row => (avail_w * w, avail_h),
-                Axis::Column => (avail_w, avail_h * w),
+                Axis::Row => (extent * w, avail_h),
+                Axis::Column => (avail_w, extent * w),
             };
             let mut child_path = path.to_vec();
             child_path.push(idx);

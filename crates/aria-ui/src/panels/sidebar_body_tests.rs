@@ -162,7 +162,7 @@ fn every_tab_label_starts_on_the_group_labels_edge(cx: &mut TestAppContext) {
         })
         .collect();
     assert!(!listed.is_empty(), "no group lists its tabs");
-    // At the launch layout's 280 px the groups take the compact padding; at
+    // In a 280 px panel the groups take the compact padding; at
     // 420 px they hold the regular one. In the narrow panel an inactive chip
     // may draw its label cut short, which starts where the whole label does.
     for width in [280.0, 420.0] {

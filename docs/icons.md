@@ -115,7 +115,7 @@ Defined in `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`.
 | `PLUS` | `assets/icon/plus.svg` | The New rail tab and the New Project tile, and Add Track at the left of the timeline zoom bar (`panels/timeline/overview.rs`). |
 | `FOLDER_OPEN` | `assets/icon/folder-open.svg` | The Open rail tab and the Open tile. |
 | `CLAPPERBOARD` | `assets/icon/clapperboard.svg` | The Recents rail tab, and the Sample Project and Use Template… tiles (`panels/home/panes.rs`). |
-| `IMAGE` | `assets/icon/library/image.svg` | The Samples rail tab, and the media pool's Tiles view (`panels/sidebar_pool_bars.rs`). |
+| `IMAGE` | `assets/icon/library/image.svg` | The Samples rail tab, the media pool's Tiles view (`panels/sidebar_pool_bars.rs`), and a pool item's picture while it decodes (`panels/sidebar_media_grid.rs`). |
 | `SPARKLES` | `assets/icon/shell/sparkles.svg` | The Learn rail tab. |
 
 ### Timeline
@@ -134,7 +134,7 @@ Defined in `crates/aria-ui/src/surfaces/lane_header.rs`,
 | `LOCK_OPEN` | `assets/icon/timeline/lock-open.svg` | An unlocked lane. |
 | `CROSSHAIR` | `assets/icon/timeline/crosshair.svg` | Lane target. |
 | `LINK` | `assets/icon/timeline/link.svg` | A lane with sync lock on, and linked selection in the Timeline header. |
-| `UNLINK` | `assets/icon/timeline/unlink.svg` | A lane with sync lock off. |
+| `UNLINK` | `assets/icon/timeline/unlink.svg` | A lane with sync lock off, and a pool item whose file is gone, in place of its picture (`panels/sidebar_media_grid.rs`). |
 | `MAGNET` | `assets/icon/timeline/magnet.svg` | Snapping, in the Timeline header. |
 | `FLAG` | `assets/icon/timeline/flag.svg` | Add a marker at the playhead, or open Marker Edit for the marker already on the playhead's frame. |
 | `GRAPH` | `assets/icon/timeline/chart-spline.svg` | Open or close the Graph Editor. |
@@ -143,12 +143,12 @@ Defined in `crates/aria-ui/src/surfaces/lane_header.rs`,
 ### Media pool
 
 Defined in `crates/aria-ui/src/panels/sidebar_pool_bars.rs`,
-`sidebar_multicam.rs`, and `surfaces/bin_strip.rs`.
+`sidebar_multicam.rs`, `sidebar_media_grid.rs`, and `surfaces/bin_strip.rs`.
 
 | Constant | File | Use |
 | --- | --- | --- |
 | `IMPORT` | `assets/icon/library/import.svg` | Import: the file picker, filtered to the formats the pool reads. |
-| `AUDIO_LINES` | `assets/icon/timeline/audio-lines.svg` | Audio only, beside the search field, which lists the pool's audio sources; and sync a multicam group by the sound its cameras recorded (`panels/sidebar_multicam.rs`). |
+| `AUDIO_LINES` | `assets/icon/timeline/audio-lines.svg` | Audio only, beside the search field, which lists the pool's audio sources; sync a multicam group by the sound its cameras recorded (`panels/sidebar_multicam.rs`); and an audio file in the pool, in place of a picture (`panels/sidebar_media_grid.rs`). |
 | `LIST` | `assets/icon/library/list.svg` | The pool's List view. |
 | `LAYOUT_GRID` | `assets/icon/library/layout-grid.svg` | The pool's Icons view. |
 | `MOVE` | `assets/icon/library/move.svg` | The pool's Freeform view. |

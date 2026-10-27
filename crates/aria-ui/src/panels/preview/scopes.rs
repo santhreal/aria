@@ -405,7 +405,7 @@ pub(super) fn toggle(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let open = state.read(cx).scopes_open;
-    crate::chrome::tool_strip::lit_icon("preview-scopes-toggle", crate::icons::SCOPES, open, theme)
+    crate::components::lit_icon("preview-scopes-toggle", crate::icons::SCOPES, open, theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {

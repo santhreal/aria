@@ -58,11 +58,15 @@ item shows **Nothing matches the search.** in place of the pool, and an empty
 pool shows **Import files or drag from your file manager.**
 
 The view buttons set the pool layout; in a narrow Project frame one button cycles the four. **Tiles** puts each
-item on its own row with its picture above its facts. **List** drops the picture
+item on its own row with its picture on the left and its name and facts beside
+it; in a frame too narrow for both, the name and facts wrap under the picture.
+**List** drops the picture
 and reads each item as one line, name on the left and facts on the right, which
 is the view to use on a pool of hundreds: no picture means no decode. **Icons**
 wraps the pictures into a 96px grid with the name underneath and no facts.
-**Freeform** places the pictures where you drag them. The
+**Freeform** places the pictures where you drag them. In the three picture
+views, an audio file shows a waveform glyph and a file that is gone shows a
+broken-link glyph where its picture would be. The
 view is saved with your settings, not with the project, so it is the same in the
 next project you open.
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::dock::DockTree;
 
 #[test]
 fn animation_workspace_opens_timeline_graph_and_workspaces_scale_spec_px_at_1920_and_1280() {
@@ -13,6 +14,10 @@ fn animation_workspace_opens_timeline_graph_and_workspaces_scale_spec_px_at_1920
     );
 
     for width in [1920.0_f32, 1280.0_f32] {
+        let (upper_pool, lower_pool) = (
+            DockTree::frame_pool(width, 3),
+            DockTree::frame_pool(width, 2),
+        );
         cx.update(|app| {
             subject.update(app, |state: &mut AppState, cx| {
                 state.observe_main_window_size(width, 900.0);
@@ -26,15 +31,15 @@ fn animation_workspace_opens_timeline_graph_and_workspaces_scale_spec_px_at_1920
                 else {
                     panic!("expected upper row split");
                 };
+                let left = upper[0].0 * upper_pool;
                 assert!(
-                    (upper[0].0 * width - 320.0).abs() < 0.5,
-                    "left frame at {width}px was {}px",
-                    upper[0].0 * width
+                    (left - DockTree::EDITING_LEFT_PX).abs() < 0.5,
+                    "left frame at {width}px was {left}px"
                 );
+                let right = upper[2].0 * upper_pool;
                 assert!(
-                    (upper[2].0 * width - 300.0).abs() < 0.5,
-                    "right frame at {width}px was {}px",
-                    upper[2].0 * width
+                    (right - DockTree::EDITING_RIGHT_PX).abs() < 0.5,
+                    "right frame at {width}px was {right}px"
                 );
                 let crate::dock::Node::Split {
                     children: lower, ..
@@ -42,10 +47,10 @@ fn animation_workspace_opens_timeline_graph_and_workspaces_scale_spec_px_at_1920
                 else {
                     panic!("expected lower row split");
                 };
+                let meters = lower[1].0 * lower_pool;
                 assert!(
-                    (lower[1].0 * width - 64.0).abs() < 0.5,
-                    "Audio Meters at {width}px was {}px",
-                    lower[1].0 * width
+                    (meters - DockTree::EDITING_METERS_PX).abs() < 0.5,
+                    "Audio Meters at {width}px was {meters}px"
                 );
             });
         });
@@ -300,8 +305,8 @@ fn six_deep_nested_splitter_and_half_window_nested_split_span_and_window_placeme
             );
 
             // Defect 2: a nested Row split that occupies half the window (`[0]` has weight 0.5
-            // in a Row root of width 1200 px -> container is 600 px wide). Dragging its
-            // splitter by N = 60 px moves the boundary by N = 60 px (weight delta = 60 / 600 = 0.10).
+            // in a Row root 1200 px wide). Dragging its splitter by 60 px moves the boundary
+            // by 60 px.
             state.dock_tree = DockTree {
                 version: DOCK_VERSION,
                 root: Node::Split {
@@ -336,13 +341,20 @@ fn six_deep_nested_splitter_and_half_window_nested_split_span_and_window_placeme
                 maximized: None,
                 focused: FrameId::LEFT,
             };
-            assert!((state.dock_tree.split_span_fraction(&[0], Axis::Row) - 0.5).abs() < 1e-5);
             assert!(state.drag_split_by_pixels(&[0], 0, 60.0, 1200.0));
+            // The dock area stands a gutter in from each edge of the 1200 px
+            // window. The root row gives the nested row half of what its two
+            // frames share past its splitter, and the nested row's two frames
+            // share that less their own splitter. A span that leaves out the
+            // root's splitter is 3 px too long here and moves the boundary
+            // 0.3 px short, so the bound is a twentieth of a pixel.
+            let gutter = crate::dock::DOCK_GUTTER;
+            let span = ((1200.0 - 2.0 * gutter) - gutter) * 0.5 - gutter;
             let nested_w = state.dock_tree.split_weights(&[0]).expect("nested weights");
-            let boundary_px_before = 0.5 * 600.0;
-            let boundary_px_after = nested_w[0] * 600.0;
+            let boundary_px_before = 0.5 * span;
+            let boundary_px_after = nested_w[0] * span;
             assert!(
-                ((boundary_px_after - boundary_px_before) - 60.0).abs() < 0.5,
+                ((boundary_px_after - boundary_px_before) - 60.0).abs() < 0.05,
                 "dragging by 60 px in a half-window split must move boundary by 60 px, got {}",
                 boundary_px_after - boundary_px_before
             );

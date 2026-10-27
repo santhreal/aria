@@ -75,16 +75,17 @@ fn shipped_editing_tree_satisfies_invariants_and_reading_order() {
     assert!(tree.is_active(PANEL_AUDIO_METERS));
     assert_eq!(tree.largest_frame(), FrameId::BOTTOM);
 
-    // At both 1920 px and 1280 px, the upper row weights give a 320 px left
-    // frame and 300 px right frame, and the lower row gives a 64 px Audio Meters
-    // frame.
+    // At both 1920 px and 1280 px, the upper row draws the left and right
+    // frames at their pixel widths, and the lower row draws Audio Meters at
+    // its own.
     for w in [1920.0f32, 1280.0f32] {
         let sized = DockTree::editing_for_width(w);
+        let (upper, lower) = (DockTree::frame_pool(w, 3), DockTree::frame_pool(w, 2));
         let upper_weights = sized.split_weights(&[0]).expect("upper row");
-        assert!((upper_weights[0] * w - 320.0).abs() < 0.5);
-        assert!((upper_weights[2] * w - 300.0).abs() < 0.5);
+        assert!((upper_weights[0] * upper - DockTree::EDITING_LEFT_PX).abs() < 0.5);
+        assert!((upper_weights[2] * upper - DockTree::EDITING_RIGHT_PX).abs() < 0.5);
         let lower_weights = sized.split_weights(&[1]).expect("lower row");
-        assert!((lower_weights[1] * w - 64.0).abs() < 0.5);
+        assert!((lower_weights[1] * lower - DockTree::EDITING_METERS_PX).abs() < 0.5);
     }
 }
 

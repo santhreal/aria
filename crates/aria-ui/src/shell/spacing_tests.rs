@@ -7,6 +7,9 @@
 //! - A docked frame off the gutter grid: two frames closer or farther apart
 //!   than [`DOCK_GUTTER`], or a frame at another distance from the bars and the
 //!   window's edges than from its neighbours.
+//! - A frame drawn at another width than its share of the width
+//!   [`DockTree::frame_pool`] gives its row's frames, the width the shipped
+//!   layouts state in pixels.
 //! - A doubled rule: two parallel grey lines of different elements that touch
 //!   or stand one pixel apart, which reads as one thick line or as a line with
 //!   a sliver beside it. A panel border against its frame's border, a divider
@@ -35,6 +38,7 @@
 use gpui::{Bounds, Hsla, Pixels, TestAppContext, VisualTestContext, point, px, size};
 
 use crate::app::AppState;
+use crate::dock::{self, DockTree, Frame, Node};
 use crate::interned::intern;
 use crate::test_support::{drawn_shell_at, wait_out_splash};
 use crate::theme::Theme;
@@ -471,6 +475,70 @@ fn docked_frames_stand_one_gutter_apart_and_in(cx: &mut TestAppContext) {
                 }
             }
         }
+    });
+    assert!(frames_seen > 0, "the walk drew no frame");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every frame in a row of the root column draws at its share of the width
+/// [`DockTree::frame_pool`] gives the row's frames, so a pixel width a shipped
+/// workspace states, such as the Editing layout's 400 px left frame, is the
+/// width drawn.
+#[gpui::test]
+fn every_frame_draws_at_its_share_of_the_frame_pool(cx: &mut TestAppContext) {
+    let mut failures = Vec::new();
+    let mut frames_seen = 0;
+    walk(cx, &[false], |case, state, visual| {
+        visual.read(|app| {
+            let state = state.read(app);
+            let (window_w, _) = state.last_window_size();
+            let rects = state.dock_frame_rects.lock();
+            let rows: Vec<&Node> = match &state.dock_tree.root {
+                Node::Split {
+                    axis: dock::Axis::Column,
+                    children,
+                } => children.iter().map(|(_, row)| row).collect(),
+                root => vec![root],
+            };
+            for row in rows {
+                let frames: Vec<(f32, &Frame)> = match row {
+                    Node::Frame(frame) => vec![(1.0, frame)],
+                    Node::Split {
+                        axis: dock::Axis::Row,
+                        children,
+                    } if children
+                        .iter()
+                        .all(|(_, node)| matches!(node, Node::Frame(_))) =>
+                    {
+                        children
+                            .iter()
+                            .filter(|(_, node)| state.node_has_registered_panel(node))
+                            .filter_map(|(weight, node)| match node {
+                                Node::Frame(frame) => Some((*weight, frame)),
+                                Node::Split { .. } => None,
+                            })
+                            .collect()
+                    }
+                    Node::Split { .. } => continue,
+                };
+                let sum: f32 = frames.iter().map(|(weight, _)| weight).sum();
+                let pool = DockTree::frame_pool(window_w, frames.len());
+                for (weight, frame) in frames {
+                    let Some([_, _, drawn, _]) = rects.get(&frame.id) else {
+                        continue;
+                    };
+                    frames_seen += 1;
+                    let share = weight / sum * pool;
+                    if (drawn - share).abs() > EPS {
+                        failures.push(format!(
+                            "{case}: frame {} drew {drawn} px, its share of the {pool} px \
+                             frame pool is {share} px",
+                            frame.id
+                        ));
+                    }
+                }
+            }
+        });
     });
     assert!(frames_seen > 0, "the walk drew no frame");
     assert!(failures.is_empty(), "{}", failures.join("\n"));

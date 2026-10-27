@@ -599,9 +599,10 @@ fn button_states(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("ghost", "st-ghost-hover", cx);
     pin_hover("danger", "st-danger-hover", cx);
     pin_hover("icon", "st-icon-hover", cx);
+    pin_hover("icon", "st-icon-lit-hover", cx);
     group(
         theme,
-        "button / ghost_button / danger_button / icon_button",
+        "button / ghost_button / danger_button / icon_button / lit_icon",
         div()
             .flex()
             .flex_col()
@@ -677,6 +678,16 @@ fn button_states(theme: &Theme, cx: &App) -> AnyElement {
                         icons::SETTINGS,
                         theme,
                     )),
+                ),
+                specimen(
+                    theme,
+                    "icon lit",
+                    components::lit_icon("st-icon-lit", icons::SETTINGS, true, theme),
+                ),
+                specimen(
+                    theme,
+                    "icon lit hover",
+                    components::lit_icon("st-icon-lit-hover", icons::SETTINGS, true, theme),
                 ),
             ])),
     )

@@ -24,18 +24,19 @@ Switch to the **Audio** workspace, adjust a splitter, save the arrangement, and 
 
 Each shipped workspace builds a `DockTree` (`DOCK_VERSION = 2`) of an upper and a
 lower row, each a share of the dock area's height. A frame's width is a share of
-its row, a width in pixels kept at every window width wide enough for it, or
-`Rest`, the part of the row the other frames leave. Focused marks the frame that
-has keyboard focus when the workspace is chosen.
+its row less the gutters around its frames, a drawn width in pixels kept at
+every window width wide enough for it, or `Rest`, the part of the row the other
+frames leave. Focused marks the frame that has keyboard focus when the
+workspace is chosen.
 
 | Workspace | Row | Height | Frame | Width | Tabs | Visible tab | Focused |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `win-workspace-editing` | Upper | 55% | Left | 320 px | `aria.panel.media`, `aria.panel.inspector` | `aria.panel.media` | no |
+| `win-workspace-editing` | Upper | 55% | Left | 400 px | `aria.panel.media`, `aria.panel.inspector` | `aria.panel.media` | no |
 | `win-workspace-editing` | Upper | 55% | Center | Rest | `aria.panel.viewer` | `aria.panel.viewer` | no |
 | `win-workspace-editing` | Upper | 55% | Right | 300 px | `aria.panel.effects` | `aria.panel.effects` | no |
 | `win-workspace-editing` | Lower | 45% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | yes |
 | `win-workspace-editing` | Lower | 45% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
-| `win-workspace-animation` | Upper | 50% | Left | 320 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | no |
+| `win-workspace-animation` | Upper | 50% | Left | 400 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | no |
 | `win-workspace-animation` | Upper | 50% | Center | Rest | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
 | `win-workspace-animation` | Upper | 50% | Right | 300 px | `aria.panel.info`, `aria.panel.effects`, `aria.panel.align` | `aria.panel.effects` | no |
 | `win-workspace-animation` | Lower | 50% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |

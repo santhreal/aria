@@ -15,7 +15,7 @@ use crate::app::AppState;
 use crate::app::canvas_overlay::{
     CropHandle, MaskHandle, Rect, TransformHandle, crop_handle_anchor, mask_box, mask_handle_anchor,
 };
-use crate::chrome::tool_strip::lit_icon;
+use crate::components::lit_icon;
 use crate::icons;
 use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;

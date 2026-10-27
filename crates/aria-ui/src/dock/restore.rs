@@ -16,8 +16,9 @@ impl DockTree {
     ///
     /// - `Left` becomes the first and `Right` the last child of the outermost
     ///   row holding [`FrameId::CENTER`], at the Editing layout's share of that
-    ///   row (`320 px` and `300 px` of [`DockTree::DEFAULT_WINDOW_WIDTH`]). With
-    ///   no row around the centre frame, the centre frame splits.
+    ///   row ([`DockTree::EDITING_LEFT_PX`] and [`DockTree::EDITING_RIGHT_PX`]
+    ///   of [`DockTree::DEFAULT_WINDOW_WIDTH`]). With no row around the centre
+    ///   frame, the centre frame splits.
     /// - `Bottom` splits [`FrameId::METERS`] with the new frame on its left at
     ///   the Editing lower-row share, or adds a lower row under the whole root
     ///   at [`DockTree::EDITING_TIMELINE_SHARE`] when Audio Meters is not docked.

@@ -431,6 +431,13 @@ Notes for the latest release. For previous releases, see the
 - An Inspector switch stands on its label's line and ends where the numbers above it end.
 - Ghost buttons draw a border, and the Inspector's chips and ghost buttons stand their frames on the label column.
 - Audio Track Mixer strips are 140 px wide, so the outlined **+ Audio effect** button stays inside its strip.
+- The Editing and Animation workspaces open the left frame 400 px wide instead of 320 px, so every Effect Controls row draws its whole 112 px keyframe strip.
+- The shipped workspaces draw their side frames and Audio Meters at their stated pixel widths instead of a few pixels narrower.
+- A splitter drag moves the frame edge with the pointer instead of falling slightly behind it, and a window resize holds frames at their minimum widths measured against the space the frames share.
+- The media pool's Tiles view draws each item's picture at the left with its name and facts beside it, so a row is one picture tall instead of a picture with two lines under it.
+- In the pool's picture views, an audio file shows a waveform glyph and a missing file a broken-link glyph where a picture would be, and a picture still decoding shows an image glyph instead of a typed square.
+- The Transform tab's Parent row shows the parent in the value column and None, the clips it accepts and the pick whip on the line under it, as other choice rows do.
+- The Parent and driver pick whips are link icons, lit while armed, instead of **@** buttons.
 - The Inspector's **Crop** and **Grade** headings end in a reset icon in place of the **Reset framing** and **Reset grade** buttons.
 - The Look tab lists its filters as chips under a **Filter** row instead of a Catalog section.
 - The Looks list stacked under every Inspector tab is removed, and the Look tab's **Filter** row applies the same looks.

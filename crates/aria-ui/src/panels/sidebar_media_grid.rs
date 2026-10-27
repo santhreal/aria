@@ -155,6 +155,10 @@ pub(super) fn media_grid(
 /// tile's plate and border are drawn whole.
 pub(super) const TILE_INSET: f32 = Theme::SPACE_SM + 1.0;
 
+/// The narrowest a Tiles row's text stands beside its picture. A row too
+/// narrow for the picture, the gap and this wraps the text under the picture.
+const TILE_TEXT_MIN: f32 = 96.0;
+
 pub(super) fn media_tile(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -193,17 +197,86 @@ pub(super) fn media_tile(
             }),
         )
     });
+    // Drawing the picture is what asks for a decode, so a view that does not
+    // show one costs nothing per item beyond its text. An item with no frame
+    // to show draws a plate the picture's size instead, so its name stands
+    // where its neighbours' names do.
+    let picture_width = view
+        .picture_beside()
+        .then_some(pool_preview::THUMB_W as f32);
+    let slot = view.picture().then(|| {
+        let slot = if missing {
+            plate(
+                theme,
+                id,
+                picture_width,
+                crate::icons::UNLINK,
+                theme.warning,
+            )
+        } else if item.kind == UiClipKind::Audio {
+            plate(
+                theme,
+                id,
+                picture_width,
+                crate::icons::AUDIO_LINES,
+                theme.text_faint,
+            )
+        } else {
+            thumbnail(theme, state, id, item.duration_ticks, picture_width, cx)
+        };
+        slot.debug_selector(move || format!("pool-picture-{index}"))
+    });
+    // A name with no space to wrap at ends in an ellipsis at the tile's edge
+    // rather than drawing past the panel.
+    let name = div()
+        .debug_selector(move || format!("pool-name-{index}"))
+        .min_w_0()
+        .flex()
+        .flex_row()
+        .items_center()
+        .gap(px(Theme::SPACE_XS))
+        .when_some(item.label, |el, label| {
+            el.child(
+                div()
+                    .flex_none()
+                    .w(px(8.))
+                    .h(px(8.))
+                    .rounded(px(4.))
+                    .bg(theme.label(label, false)),
+            )
+        })
+        .child(
+            div()
+                .min_w_0()
+                .truncate()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(item.name.clone()),
+        );
+    let text = [
+        Some(name.into_any_element()),
+        view.facts().then(|| {
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(caption_color)
+                .child(caption)
+                .into_any_element()
+        }),
+        note.map(|note| {
+            div()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.warning)
+                .child(note)
+                .into_any_element()
+        }),
+        relink.map(IntoElement::into_any_element),
+    ]
+    .into_iter()
+    .flatten();
     let tile = div()
         .id(gpui::ElementId::named_usize("media", id as usize))
         .debug_selector(move || format!("pool-item-{index}"))
         .flex()
-        // The compact view reads left to right, so the name and the facts share
-        // one line instead of stacking into two.
-        .when_else(
-            view.inline(),
-            |el| el.flex_row().items_center().justify_between(),
-            |el| el.flex_col(),
-        )
         .when_some(view.width(), |el, width| el.w(px(width)))
         .gap(px(Theme::SPACE_XS))
         .px(px(Theme::SPACE_SM))
@@ -226,58 +299,38 @@ pub(super) fn media_tile(
         // The tile rises under the pointer. A pool of near-identical
         // thumbnails needs the one that is about to be placed to stand out
         // from the ones beside it, and colour alone does not do it.
-        .rise_on_hover(2.0, lit, motion::hover_listener(key))
-        // Drawing the picture is what asks for a decode, so a view that does not
-        // show one costs nothing per item beyond its text.
-        .when(
-            view.picture() && !missing && item.kind != UiClipKind::Audio,
-            |el| el.child(thumbnail(theme, state, item.id, item.duration_ticks, cx)),
-        )
-        .child(
-            // A name with no space to wrap at ends in an ellipsis at the
-            // tile's edge rather than drawing past the panel.
-            div()
-                .min_w_0()
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(px(Theme::SPACE_XS))
-                .when_some(item.label, |el, label| {
-                    el.child(
-                        div()
-                            .flex_none()
-                            .w(px(8.))
-                            .h(px(8.))
-                            .rounded(px(4.))
-                            .bg(theme.label(label, false)),
-                    )
-                })
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text)
-                        .child(item.name.clone()),
-                ),
-        )
-        .when(view.facts(), |el| {
-            el.child(
+        .rise_on_hover(2.0, lit, motion::hover_listener(key));
+    // A row that fills the rail stands its text beside the picture, and wraps
+    // it under the picture in a frame too narrow for both. It wraps as a flex
+    // row, not as a `Wraps` row of labels: the text beside the picture is a
+    // block whose facts run onto further lines. The compact view reads left
+    // to right, so the name and the facts share one line. A cell stacks its
+    // name under its picture.
+    let tile = if view.picture_beside() {
+        tile.flex_row()
+            .flex_wrap()
+            .items_start()
+            .gap_x(px(Theme::SPACE_SM))
+            .children(slot)
+            .child(
                 div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(caption_color)
-                    .child(caption),
+                    .flex_1()
+                    .min_w(px(TILE_TEXT_MIN))
+                    .flex()
+                    .flex_col()
+                    .gap(px(Theme::SPACE_XS))
+                    .children(text),
             )
-        })
-        .when_some(note, |el, note| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.warning)
-                    .child(note),
-            )
-        })
-        .when_some(relink, |el, btn| el.child(btn))
+    } else if view.inline() {
+        tile.flex_row()
+            .items_center()
+            .justify_between()
+            .children(slot)
+            .children(text)
+    } else {
+        tile.flex_col().children(slot).children(text)
+    };
+    let tile = tile
         .when(!missing, |el| {
             let label = item.name.clone();
             el.on_drag(
@@ -326,6 +379,38 @@ pub(super) fn media_tile(
     crate::pending::arriving(crate::motion::MotionKey::new("media-in", id), index, tile)
 }
 
+/// The box a picture or its stand-in fills: `width` wide, or the cell's
+/// whole width when the view gives none, and a thumbnail tall.
+fn picture_box(theme: &Theme, width: Option<f32>) -> gpui::Div {
+    div()
+        .relative()
+        .map(|el| match width {
+            Some(width) => el.flex_none().w(px(width)),
+            None => el.w_full(),
+        })
+        .h(px(pool_preview::THUMB_H as f32))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .overflow_hidden()
+        .bg(theme.surface_raised)
+        .flex()
+        .items_center()
+        .justify_center()
+}
+
+/// What an item with no frame to show draws in its picture's place: the
+/// picture's box with `glyph` in its middle, in `color`.
+fn plate(
+    theme: &Theme,
+    media: u64,
+    width: Option<f32>,
+    glyph: &'static str,
+    color: gpui::Hsla,
+) -> gpui::Stateful<gpui::Div> {
+    picture_box(theme, width)
+        .id(gpui::ElementId::named_usize("media-plate", media as usize))
+        .child(crate::icons::icon(glyph).text_color(color))
+}
+
 /// A tile's picture: the first frame of the source, or the frame under the
 /// pointer while the row is being scrubbed.
 ///
@@ -338,8 +423,9 @@ pub(super) fn thumbnail(
     state: &Entity<AppState>,
     media: u64,
     duration_ticks: i64,
+    width: Option<f32>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
+) -> gpui::Stateful<gpui::Div> {
     let tick = state.read(cx).pool_tile_tick(media);
     pool_preview::request_thumb(state, cx, media, tick);
     let image = state.read(cx).pool_preview.get(media, tick).cloned();
@@ -358,25 +444,11 @@ pub(super) fn thumbnail(
         .absolute()
         .size_full()
     };
-    div()
+    picture_box(theme, width)
         .id(gpui::ElementId::named_usize("media-thumb", media as usize))
-        .relative()
-        .w_full()
-        .h(px(pool_preview::THUMB_H as f32))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .overflow_hidden()
-        .bg(theme.surface_raised)
-        .flex()
-        .items_center()
-        .justify_center()
         .child(measure)
         .when(image.is_none(), |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("▣"),
-            )
+            el.child(crate::icons::icon(crate::icons::IMAGE).text_color(theme.text_faint))
         })
         .when_some(image, |el, image| {
             el.child(crate::components::picture(
@@ -413,5 +485,4 @@ pub(super) fn thumbnail(
             this.state
                 .update(cx, |state, cx| state.hover_pool_tile(None, cx));
         }))
-        .into_any_element()
 }

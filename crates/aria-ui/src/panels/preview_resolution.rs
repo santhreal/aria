@@ -70,7 +70,7 @@ pub(super) fn proxy_toggle(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let on = state.read(cx).proxies_on();
-    crate::chrome::tool_strip::lit_icon("preview-proxies-toggle", crate::icons::PROXY, on, theme)
+    crate::components::lit_icon("preview-proxies-toggle", crate::icons::PROXY, on, theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
