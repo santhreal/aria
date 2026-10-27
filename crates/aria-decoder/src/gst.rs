@@ -412,15 +412,22 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
         DecodeError::Open("GStreamer sample has no caps. Try another file.".into())
     })?;
     let vinfo = gst_video::VideoInfo::from_caps(caps).map_err(|e| gst_err(DecodeError::Open, e))?;
-    let width = vinfo.width();
-    let height = vinfo.height();
-    let fps = vinfo.fps();
-    let frame_rate = if fps.numer() > 0 && fps.denom() > 0 {
-        Rational::new(fps.numer(), fps.denom())
-    } else {
-        Rational::new(30, 1)
+    Ok(source_info(
+        vinfo.width(),
+        vinfo.height(),
+        Some(vinfo.fps()),
+    ))
+}
+
+/// The [`SourceInfo`] of a video stream `width` by `height` at `fps`, with no
+/// duration. A stream that states no rate, or states `0/1` for a variable
+/// one, reads as 30 fps.
+pub(crate) fn source_info(width: u32, height: u32, fps: Option<gst::Fraction>) -> SourceInfo {
+    let frame_rate = match fps {
+        Some(fps) if fps.numer() > 0 && fps.denom() > 0 => Rational::new(fps.numer(), fps.denom()),
+        _ => Rational::new(30, 1),
     };
-    Ok(SourceInfo {
+    SourceInfo {
         coded_size: (width, height),
         display_size: (width, height),
         rotation: Rotation::None,
@@ -429,7 +436,7 @@ fn sample_source_info(sample: &gst::Sample) -> Result<SourceInfo, DecodeError> {
         frame_rate,
         time_base: Rational::new(NS_PER_SEC as i32, 1),
         duration: None,
-    })
+    }
 }
 
 pub(crate) fn sample_to_cpu_frame(
@@ -515,68 +522,49 @@ pub(crate) fn bus_or(pipeline: &gst::Pipeline, fallback: DecodeError) -> DecodeE
     bus_error(pipeline).unwrap_or(fallback)
 }
 
-/// Duration of the first audio track, for the audio-only fallback probe.
-pub(crate) fn audio_track_duration(path: &Path) -> Option<RationalTime> {
-    ensure_init().ok()?;
-    let uri = path_uri(path).ok()?;
-    let discoverer = gstreamer_pbutils::Discoverer::new(gst::ClockTime::from_seconds(8)).ok()?;
-    let info = discoverer.discover_uri(uri.as_str()).ok()?;
-    let audio = info.audio_streams().into_iter().next()?;
-    let dur = info.duration()?;
-    let _ = audio;
-    Some(RationalTime::new(
-        dur.nseconds() as i64,
-        Rational::new(NS_PER_SEC as i32, 1),
-    ))
+/// The duration `pipeline`'s demuxer states, in nanoseconds. Ask once the
+/// pipeline has prerolled.
+pub(crate) fn stream_duration(pipeline: &gst::Pipeline) -> Option<RationalTime> {
+    pipeline.query_duration::<gst::ClockTime>().map(|duration| {
+        RationalTime::new(
+            duration.nseconds() as i64,
+            Rational::new(NS_PER_SEC as i32, 1),
+        )
+    })
 }
 
-/// What one discovery pass can say about a file's tracks.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct StreamSummary {
-    pub has_audio: bool,
-    /// Codec names as the demuxer describes them ("H.264", "MPEG-4 AAC"), or
-    /// `None` when a track is absent or the caps carry no description.
-    pub video_codec: Option<String>,
-    pub audio_codec: Option<String>,
-}
-
-/// Everything the probe needs from the demuxer, in one discovery pass.
-///
-/// One pass rather than one per question: a discovery walks the file and can
-/// wait up to its timeout, so asking separately for the audio track and then
-/// for each codec name would multiply the cost of every import.
-pub(crate) fn stream_summary(path: &Path) -> StreamSummary {
-    let mut summary = StreamSummary::default();
-    if ensure_init().is_err() {
-        return summary;
-    }
-    let Ok(uri) = path_uri(path) else {
-        return summary;
-    };
-    let Ok(discoverer) = gstreamer_pbutils::Discoverer::new(gst::ClockTime::from_seconds(8)) else {
-        return summary;
-    };
-    let Ok(info) = discoverer.discover_uri(uri.as_str()) else {
-        return summary;
-    };
-    let audio = info.audio_streams();
-    summary.has_audio = !audio.is_empty();
-    summary.audio_codec = audio.first().and_then(codec_name);
-    summary.video_codec = info.video_streams().first().and_then(codec_name);
-    summary
-}
-
-/// The description GStreamer gives a stream's caps, e.g. `H.264`. `None` when
-/// the stream reports no caps, so an unknown codec is stated rather than named
-/// wrongly.
-fn codec_name(stream: &impl gstreamer_pbutils::prelude::DiscovererStreamInfoExt) -> Option<String> {
-    let caps = stream.caps()?;
-    let described = gstreamer_pbutils::functions::pb_utils_get_codec_description(&caps).to_string();
-    if described.is_empty() {
-        None
-    } else {
-        Some(described)
-    }
+/// Has `src`, a `uridecodebin`, plug each element `plugs` accepts for a
+/// stream of the caps it is offered, and expose the stream at those caps, not
+/// decoded further, at the first element `plugs` rejects.
+pub(crate) fn plug_only(
+    src: &gst::Element,
+    plugs: fn(&gst::CapsRef, &gst::ElementFactory) -> bool,
+) -> Result<(), DecodeError> {
+    let results = glib::Type::from_name("GstAutoplugSelectResult")
+        .and_then(glib::EnumClass::with_type)
+        .filter(|results| {
+            results.to_value_by_nick("try").is_some()
+                && results.to_value_by_nick("expose").is_some()
+        })
+        .ok_or_else(|| {
+            DecodeError::Open(
+                "GStreamer's uridecodebin has no autoplug-select result type. Reinstall gstreamer1.0-plugins-base.".into(),
+            )
+        })?;
+    src.connect("autoplug-select", false, move |values| {
+        let caps = values
+            .get(2)
+            .and_then(|value| value.get::<gst::Caps>().ok());
+        let factory = values
+            .get(3)
+            .and_then(|value| value.get::<gst::ElementFactory>().ok());
+        let plug = match (caps, factory) {
+            (Some(caps), Some(factory)) => plugs(&caps, &factory),
+            _ => true,
+        };
+        results.to_value_by_nick(if plug { "try" } else { "expose" })
+    });
+    Ok(())
 }
 
 /// Resets a [`gst::Pipeline`] to [`gst::State::Null`] on drop unless
@@ -661,9 +649,9 @@ mod tests {
     /// instead of the NULL state` and racing `decodebin` pad teardown into
     /// `g_object_set_data: assertion 'G_IS_OBJECT (object)' failed` segfaults.
     /// Covers every GStreamer open path (`GstDecoder::open` in `Gpu` and `Cpu`
-    /// modes plus `GstAudioReader::open`). Does not catch a pipeline leaked
-    /// after `PipelineGuard::take` succeeds; `GstDecoder::drop` and
-    /// `GstAudioReader::drop` own post-open teardown.
+    /// modes, `GstAudioReader::open`, and the stream probe). Does not catch a
+    /// pipeline leaked after `PipelineGuard::take` succeeds; `GstDecoder::drop`
+    /// and `GstAudioReader::drop` own post-open teardown.
     #[test]
     fn a_failed_open_returns_its_pipeline_to_null_before_dropping_it() {
         ABORTED_DROPS.with(|drops| drops.borrow_mut().clear());
@@ -671,11 +659,12 @@ mod tests {
         assert!(GstDecoder::open(empty, OutputMode::Gpu).is_err());
         assert!(GstDecoder::open(empty, OutputMode::Cpu).is_err());
         assert!(crate::gst_audio::GstAudioReader::open(empty, 48_000, 2).is_err());
+        assert!(crate::gst_probe::probe(empty).is_err());
 
         let drops = ABORTED_DROPS.with(|drops| std::mem::take(&mut *drops.borrow_mut()));
         assert!(
-            drops.len() >= 3,
-            "expected at least 3 aborted pipeline opens (GPU/CPU video + audio), got {}",
+            drops.len() >= 4,
+            "expected at least 4 aborted pipeline opens (GPU/CPU video, audio, probe), got {}",
             drops.len()
         );
         for (idx, (pipeline_state, non_null_children)) in drops.iter().enumerate() {

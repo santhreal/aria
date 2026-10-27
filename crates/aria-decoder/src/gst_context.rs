@@ -9,8 +9,8 @@
 //! leaves `NULL`, so a `GstBin` hands it to the decoder `decodebin` plugs, and
 //! the device opens once per process.
 //!
-//! [`warm_up`] opens those devices on a thread of its own when the session
-//! starts, so the first decoder finds its context kept: on the RTX 5090 the
+//! [`warm_up`] opens those devices on a thread of its own before the editor's
+//! window opens, so the first decoder finds its context kept: on the RTX 5090 the
 //! first `nvh264dec` open takes about 1.7 s cold and 50 to 65 ms after the
 //! warm-up. A decoder open waits for a warm-up still running rather than
 //! opening a second device beside it.

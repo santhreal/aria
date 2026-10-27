@@ -14,8 +14,8 @@ const TARGET: &str =
     "h264-1080p60 timeline to H.264 1080p on the hardware encoder: at least 4x real time";
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
-    // The app starts the decode device warm-up with its preview worker at
-    // startup, so an export from it opens a warm device. Without this the
+    // The app starts the decode device warm-up before its window opens, so an
+    // export from it opens a warm device. Without this the
     // timed export carries the process's first CUDA initialisation (1.8 s on
     // the Desktop machine), a startup cost `play-start` measures cold. The
     // warm-up is awaited, not only started: a warm-up still running when the

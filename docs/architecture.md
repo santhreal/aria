@@ -177,13 +177,25 @@ DMABuf open is logged with each plugged decoder and its output memory, is
 remembered for the process, and later opens go straight to CPU NV12. Every
 decode pipeline in the process receives the first device context of each type
 a decoder posted (`gst.cuda.context` for NVDEC, a VA display for VA-API), so the
-device opens once per process. The preview worker starts
-`aria_decoder::warm_up` when it starts: where `cudaupload` exists, a one-buffer
-pipeline opens the CUDA device on its own thread and keeps its context. A
-decoder opened during the warm-up waits for it. A process that ends through
-`exit` stops the warm-up at its next step and waits up to 15 s for the step in
-progress, so no plugin loads while the C library runs library destructors; the
-editor, `aria` and `aria-bench` end through `_exit` and do not wait.
+device opens once per process. The editor starts `aria_decoder::warm_up` after
+it probes the media named on its command line and before it opens its window:
+where `cudaupload` exists, a one-buffer pipeline opens the CUDA device on its
+own thread and keeps its context. A decoder opened during the warm-up waits for
+it. A process that ends through `exit` stops the warm-up at its next step and
+waits up to 15 s for the step in progress, so no plugin loads while the C
+library runs library destructors; the editor, `aria` and `aria-bench` end
+through `_exit` and do not wait.
+
+A Linux media probe (`aria_decoder::probe`, `crates/aria-decoder/src/gst_probe.rs`)
+runs `uridecodebin` to `PAUSED` with every decoder declined at
+`autoplug-select`, so each stream is exposed at the caps its demuxer and parser
+state. The first video stream's caps give the frame size, frame rate, and codec
+name, the first audio stream's caps give the audio codec name, and the demuxer
+gives the duration. The probe loads no decoder plugin and opens no device, so
+it does not wait for the warm-up. A video stream whose caps state no frame size
+is opened with its decoder instead. GStreamer loads one plugin at a time, so the
+editor starts the warm-up after its command-line probes: the CUDA plugin load
+takes about 1.5 s on the Desktop machine.
 
 The warm-up loads each device element's plugin before it opens the device. A
 plugin that fails to load (a CUDA plugin registered while a working driver was

@@ -61,7 +61,11 @@ impl GstAudioReader {
         let src = pipeline
             .by_name("src")
             .ok_or_else(|| DecodeError::Open("audio pipeline is missing uridecodebin.".into()))?;
-        expose_all_but_audio(&src)?;
+        // Every stream but the audio is exposed undecoded and links to
+        // nothing, as a decoded video pad did, so reading a file's sound
+        // creates no video parser or decoder: on a host with a CUDA decoder,
+        // each one opened a GPU context of its own.
+        crate::gst::plug_only(&src, plugs_for_audio)?;
         let sink = pipeline
             .by_name("out")
             .ok_or_else(|| DecodeError::Open("audio pipeline is missing appsink.".into()))?
@@ -162,38 +166,6 @@ fn plugs_for_audio(caps: &gst::CapsRef, factory: &gst::ElementFactory) -> bool {
         || factory
             .metadata(gst::ELEMENT_METADATA_KLASS)
             .is_some_and(|klass| klass.contains("Demuxer"))
-}
-
-/// Has `src`, a `uridecodebin`, expose every stream [`plugs_for_audio`] does
-/// not plug, undecoded. The exposed pad links to nothing, as a decoded video
-/// pad did, so reading a file's sound creates no video parser or decoder: on
-/// a host with a CUDA decoder, each one opened a GPU context of its own.
-fn expose_all_but_audio(src: &gst::Element) -> Result<(), DecodeError> {
-    let results = glib::Type::from_name("GstAutoplugSelectResult")
-        .and_then(glib::EnumClass::with_type)
-        .filter(|results| {
-            results.to_value_by_nick("try").is_some()
-                && results.to_value_by_nick("expose").is_some()
-        })
-        .ok_or_else(|| {
-            DecodeError::Open(
-                "GStreamer's uridecodebin has no autoplug-select result type. Reinstall gstreamer1.0-plugins-base.".into(),
-            )
-        })?;
-    src.connect("autoplug-select", false, move |values| {
-        let caps = values
-            .get(2)
-            .and_then(|value| value.get::<gst::Caps>().ok());
-        let factory = values
-            .get(3)
-            .and_then(|value| value.get::<gst::ElementFactory>().ok());
-        let plug = match (caps, factory) {
-            (Some(caps), Some(factory)) => plugs_for_audio(&caps, &factory),
-            _ => true,
-        };
-        results.to_value_by_nick(if plug { "try" } else { "expose" })
-    });
-    Ok(())
 }
 
 impl AudioReader for GstAudioReader {

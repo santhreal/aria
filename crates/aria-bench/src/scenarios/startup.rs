@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use crate::fixtures::{FixtureId, ensure_fixture};
 use crate::process::{measure_process_window_launch, start_private_xvfb};
 use crate::scenarios::{BenchContext, open_editor};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
@@ -51,6 +52,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
 
     let mut cold_process_samples = Vec::new();
     let mut warm_process_samples = Vec::new();
+    let mut media_process_samples = Vec::new();
     if let (Some(xvfb), Some(bin)) = (start_private_xvfb(), find_aria_desktop_binary()) {
         notes.push(format!(
             "Measured full aria-desktop process spawn to mapped X11 window on private Xvfb {}",
@@ -59,22 +61,46 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         for i in 0..3usize {
             let d = scratch.join(format!("proc-cold-data-{i}"));
             let c = scratch.join(format!("proc-cold-cache-{i}"));
-            if let Ok(ms) = measure_process_window_launch(&bin, &xvfb.display, &d, &c) {
+            if let Ok(ms) = measure_process_window_launch(&bin, &xvfb.display, &d, &c, &[]) {
                 cold_process_samples.push(ms);
             }
         }
         let warm_proc_data = scratch.join("proc-warm-data");
         let warm_proc_cache = scratch.join("proc-warm-cache");
-        let _ =
-            measure_process_window_launch(&bin, &xvfb.display, &warm_proc_data, &warm_proc_cache);
+        let _ = measure_process_window_launch(
+            &bin,
+            &xvfb.display,
+            &warm_proc_data,
+            &warm_proc_cache,
+            &[],
+        );
         for _ in 0..3usize {
             if let Ok(ms) = measure_process_window_launch(
                 &bin,
                 &xvfb.display,
                 &warm_proc_data,
                 &warm_proc_cache,
+                &[],
             ) {
                 warm_process_samples.push(ms);
+            }
+        }
+        // The editor probes media named on its command line before its window
+        // opens, so this is the wait for the window over three codecs.
+        let media = [
+            FixtureId::H264_1080p60,
+            FixtureId::Hevc2160p60,
+            FixtureId::ProRes2160p30,
+        ]
+        .into_iter()
+        .map(|id| ensure_fixture(&ctx.fixtures_dir, id).map(|fixture| fixture.path))
+        .collect::<Result<Vec<PathBuf>, String>>()?;
+        let named: Vec<&Path> = media.iter().map(PathBuf::as_path).collect();
+        for i in 0..5usize {
+            let d = scratch.join(format!("proc-media-data-{i}"));
+            let c = scratch.join(format!("proc-media-cache-{i}"));
+            if let Ok(ms) = measure_process_window_launch(&bin, &xvfb.display, &d, &c, &named) {
+                media_process_samples.push(ms);
             }
         }
     } else {
@@ -108,12 +134,19 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         ));
         samples.push(warm_proc_series);
     }
+    let media_measured = (!media_process_samples.is_empty()).then(|| {
+        let series =
+            SampleSeries::from_values("media_process_window_ms", "ms", media_process_samples);
+        let p50 = series.p50;
+        samples.push(series);
+        p50
+    });
 
     let warm_measured = warm_inproc_series.p50;
     samples.push(cold_inproc_series);
     samples.push(warm_inproc_series);
 
-    let targets = vec![
+    let mut targets = vec![
         TargetEvaluation::measured(
             "cold_interactive_ms",
             "Window interactive in 1 s cold",
@@ -131,6 +164,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             warm_measured,
         ),
     ];
+    if let Some(measured) = media_measured {
+        targets.push(TargetEvaluation::measured(
+            "media_interactive_ms",
+            "Window interactive in 1 s with H.264, HEVC, and ProRes media named on the command line",
+            Comparison::AtMost,
+            1000.0,
+            "ms",
+            measured,
+        ));
+    }
 
     Ok(ScenarioReport::new(
         ScenarioId::Startup,

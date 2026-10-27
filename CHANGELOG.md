@@ -727,6 +727,7 @@ Notes for the latest release. For previous releases, see the
 - Settings shows the Source, Protocol, Reasoning, and Autonomy choices of its AI rows as chips with the choice in force lit, instead of filling the choice in force as a button is filled.
 - A Settings choice reports itself on the status line by the name the dialog prints, such as `AI protocol: Chat Completions` and `Accent: Ember`, instead of by its config key, such as `AI protocol is chat_completions`.
 - A clip's parameter, look, mask, crop and audio edits keep the cached size of the largest video on the timeline, and the timeline view reads the `Auto` canvas size from the lanes it already holds instead of walking every clip, which brings `project-10k` edit-to-visible-frame p50 on Server from 3.55 ms to 3.40 ms and an Inspector value scrub move from 6.38 ms to 6.09 ms (medians of eight paired runs).
+- A Linux media probe reads each file's streams at the caps its demuxer and parsers state instead of plugging a decoder, and the decode device warm-up starts after the files named on the command line open, which brings the window with `h264-1080p60`, `hevc-2160p60` and `prores-2160p30` named on the command line on Server from a process-to-window p50 between 945.8 ms and 957.7 ms to between 496.2 ms and 513.7 ms over five paired runs.
 
 ### Fixed
 

@@ -246,10 +246,6 @@ impl PreviewWorker {
     /// Start the worker for the session rendering through `engine`, measuring
     /// the scopes `plugins` registers beside the built-in three.
     pub fn spawn(engine: Arc<Mutex<Engine>>, plugins: PluginContext) -> std::io::Result<Self> {
-        // The hardware decode device opens while the window builds, so the
-        // first clip's decoder finds it open.
-        #[cfg(target_os = "linux")]
-        aria_decoder::warm_up();
         let (first_lane, queue) = crossbeam_channel::unbounded();
         let (pictures, picture_queue) = crossbeam_channel::unbounded();
         let (wake, wakes) = wakes();

@@ -1,21 +1,18 @@
-//! Lightweight media probing: open the native decoder, read its [`SourceInfo`],
-//! and drop it — no frames are decoded.
+//! Lightweight media probing: read a source's frame size, rate, duration, and
+//! tracks without decoding a frame.
 //!
-//! This is the FFmpeg-free replacement for container probing. Every platform
-//! decoder reports its source's dimensions, frame rate, and duration at open
-//! time, which is all the media pool needs to register a clip.
+//! This is the FFmpeg-free replacement for container probing. On Linux one
+//! demux-and-parse pass reads the stream caps ([`crate::gst_probe`]); every
+//! other platform decoder reports its source's dimensions, frame rate, and
+//! duration at open time, which is all the media pool needs to register a
+//! clip.
 
 use std::path::Path;
 
-use aria_core::{DecodeError, Rational, VideoDecoder, resample};
+use aria_core::{DecodeError, Rational, RationalTime, SourceInfo, resample};
 
-// Native `open()` variants construct a decoder with an `OutputMode`.
-#[cfg(any(
-    target_vendor = "apple",
-    target_os = "windows",
-    target_os = "android",
-    target_os = "linux"
-))]
+// Non-Linux native probes construct a decoder with an `OutputMode`.
+#[cfg(any(target_vendor = "apple", target_os = "windows", target_os = "android"))]
 use crate::OutputMode;
 
 /// Static metadata for a media file, read without decoding any frames.
@@ -33,8 +30,8 @@ pub struct MediaProbe {
     /// placement length is a policy of the media pool, not the file).
     pub frame_count: i64,
     /// Whether the source carries an audio track, detected per-platform at
-    /// probe time. The [`VideoDecoder`] surfaces only the video track, so
-    /// audio presence is answered by the demuxer.
+    /// probe time. The [`aria_core::VideoDecoder`] surfaces only the video
+    /// track, so audio presence is answered by the demuxer.
     pub has_audio: bool,
     /// Still image (PNG/JPEG/HEIC/WebP/...): one frame, no timebase.
     /// Detected by magic bytes before the video probe runs.
@@ -47,9 +44,18 @@ pub struct MediaProbe {
     pub audio_codec: Option<String>,
 }
 
+/// What a demuxer reports about a source's tracks besides the picture. A
+/// backend that cannot name a codec leaves it `None` rather than guessing.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Tracks {
+    pub(crate) has_audio: bool,
+    pub(crate) video_codec: Option<String>,
+    pub(crate) audio_codec: Option<String>,
+}
+
 impl MediaProbe {
-    fn from_info(opened: &Opened) -> Self {
-        let info = opened.decoder.info();
+    /// A video source of `info`'s frame size, frame rate, and duration.
+    pub(crate) fn video(info: &SourceInfo, tracks: Tracks) -> Self {
         let (width, height) = info.display_size_rotated();
         // Reduce the container's timescale-derived rate (e.g. `600/25`) to its
         // canonical form (`24/1`) so it matches source ranges authored at the
@@ -64,10 +70,25 @@ impl MediaProbe {
             height,
             frame_rate,
             frame_count,
-            has_audio: opened.has_audio,
+            has_audio: tracks.has_audio,
             is_image: false,
-            video_codec: opened.video_codec.clone(),
-            audio_codec: opened.audio_codec.clone(),
+            video_codec: tracks.video_codec,
+            audio_codec: tracks.audio_codec,
+        }
+    }
+
+    /// A source with no decodable video track (a music or voiceover file):
+    /// zero dimensions, millisecond ticks, and the audio track's `duration`.
+    pub(crate) fn audio_only(duration: RationalTime, audio_codec: Option<String>) -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            frame_rate: AUDIO_TICK_RATE,
+            frame_count: resample(duration, AUDIO_TICK_RATE).value.max(0),
+            has_audio: true,
+            is_image: false,
+            video_codec: None,
+            audio_codec,
         }
     }
 }
@@ -82,12 +103,10 @@ const AUDIO_TICK_RATE: Rational = Rational::new(1000, 1);
 ///
 /// Still images are recognized first by magic bytes (a cheap 16-byte read)
 /// and probed via [`crate::probe_image`] — dimensions only, no timebase.
-/// Otherwise this opens the source (demux + codec setup) far enough to read
-/// its [`aria_core::SourceInfo`], then drops the decoder, and separately checks for an
-/// audio track. Sources without a video stream (music/voiceover files) fall
-/// back to an audio-only probe: zero dimensions, millisecond ticks, and the
-/// audio track's duration. Returns [`DecodeError::Unsupported`] on platforms
-/// without a native decoder.
+/// Sources without a decodable video stream (music/voiceover files) probe as
+/// audio-only: zero dimensions, millisecond ticks, and the audio track's
+/// duration. Returns [`DecodeError::Unsupported`] on platforms without a
+/// native decoder.
 pub fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
     crate::external::dispatch(path, |decoder| decoder.probe(path), || probe_native(path))
 }
@@ -110,108 +129,77 @@ fn probe_native(path: &Path) -> Result<MediaProbe, DecodeError> {
             audio_codec: None,
         });
     }
-    let opened = match open(path) {
-        Ok(opened) => opened,
-        Err(video_err) => {
-            return audio_only_probe(path).ok_or(video_err);
-        }
-    };
-    Ok(MediaProbe::from_info(&opened))
+    probe_stream(path)
 }
 
-/// Probe for sources with no decodable video stream. `Some` iff the demuxer
-/// finds an audio track with a reported duration.
-fn audio_only_probe(path: &Path) -> Option<MediaProbe> {
-    let duration = audio_track_duration(path)?;
-    Some(MediaProbe {
-        width: 0,
-        height: 0,
-        frame_rate: AUDIO_TICK_RATE,
-        frame_count: resample(duration, AUDIO_TICK_RATE).value.max(0),
-        has_audio: true,
-        is_image: false,
-        video_codec: None,
-        audio_codec: audio_only_codec(path),
+/// One demux-and-parse pass answers every track question, and plugs no
+/// decoder.
+#[cfg(target_os = "linux")]
+fn probe_stream(path: &Path) -> Result<MediaProbe, DecodeError> {
+    crate::gst_probe::probe(path)
+}
+
+/// Open the video decoder for its [`SourceInfo`], and fall back to the audio
+/// track when the source has no video the decoder opens.
+#[cfg(not(target_os = "linux"))]
+fn probe_stream(path: &Path) -> Result<MediaProbe, DecodeError> {
+    probe_video(path).or_else(|video_err| {
+        audio_track_duration(path)
+            .map(|duration| MediaProbe::audio_only(duration, None))
+            .ok_or(video_err)
     })
 }
 
-/// The audio codec of a source with no video track. `None` on a platform whose
-/// demuxer is not asked for codec names.
-#[cfg(target_os = "linux")]
-fn audio_only_codec(path: &Path) -> Option<String> {
-    crate::gst::stream_summary(path).audio_codec
-}
-
-#[cfg(not(target_os = "linux"))]
-fn audio_only_codec(_path: &Path) -> Option<String> {
-    None
-}
-
-// Each platform's `open` also answers "does the source carry audio?", so a
-// backend whose reader can report both (Windows) opens the file **once**;
+// Each platform's video probe also answers "does the source carry audio?", so
+// a backend whose reader can report both (Windows) opens the file **once**;
 // the others ask their demuxer separately. A missing audio track is never
-// fatal to probing — the separate checks return `false` on any error.
-
-/// What a platform's open reports: the decoder, plus what its demuxer could say
-/// about the tracks. A backend that cannot name a codec leaves it `None` rather
-/// than guessing from the file extension.
-struct Opened {
-    decoder: Box<dyn VideoDecoder>,
-    has_audio: bool,
-    video_codec: Option<String>,
-    audio_codec: Option<String>,
-}
-
-impl Opened {
-    /// A backend that reports track presence but no codec names.
-    #[cfg_attr(target_os = "linux", allow(dead_code))]
-    fn new(decoder: Box<dyn VideoDecoder>, has_audio: bool) -> Self {
-        Self {
-            decoder,
-            has_audio,
-            video_codec: None,
-            audio_codec: None,
-        }
-    }
-}
+// fatal to probing — the separate checks return `false` on any error. None of
+// these backends names a codec.
 
 #[cfg(target_vendor = "apple")]
-fn open(path: &Path) -> Result<Opened, DecodeError> {
+fn probe_video(path: &Path) -> Result<MediaProbe, DecodeError> {
+    use aria_core::VideoDecoder;
     // The audio-track check reads the decoder's already-parsed asset — no
     // second open of the file.
     let decoder = crate::AvfDecoder::open(path, OutputMode::Cpu)?;
     let has_audio = decoder.has_audio_track();
-    Ok(Opened::new(Box::new(decoder), has_audio))
+    Ok(MediaProbe::video(
+        decoder.info(),
+        Tracks {
+            has_audio,
+            ..Tracks::default()
+        },
+    ))
 }
 
 #[cfg(target_os = "windows")]
-fn open(path: &Path) -> Result<Opened, DecodeError> {
+fn probe_video(path: &Path) -> Result<MediaProbe, DecodeError> {
+    use aria_core::VideoDecoder;
     // The audio-track check reads the open reader's presentation descriptor
     // — no second open of the file.
     let decoder = crate::WmfDecoder::open(path, OutputMode::Cpu)?;
     let has_audio = decoder.has_audio_track();
-    Ok(Opened::new(Box::new(decoder), has_audio))
+    Ok(MediaProbe::video(
+        decoder.info(),
+        Tracks {
+            has_audio,
+            ..Tracks::default()
+        },
+    ))
 }
 
 #[cfg(target_os = "android")]
-fn open(path: &Path) -> Result<Opened, DecodeError> {
+fn probe_video(path: &Path) -> Result<MediaProbe, DecodeError> {
+    use aria_core::VideoDecoder;
     let decoder = crate::MediaCodecDecoder::open(path, OutputMode::Cpu)?;
-    Ok(Opened::new(
-        Box::new(decoder),
-        crate::android::has_audio_track(path),
+    let has_audio = crate::android::has_audio_track(path);
+    Ok(MediaProbe::video(
+        decoder.info(),
+        Tracks {
+            has_audio,
+            ..Tracks::default()
+        },
     ))
-}
-#[cfg(target_os = "linux")]
-fn open(path: &Path) -> Result<Opened, DecodeError> {
-    let decoder = crate::GstDecoder::open(path, OutputMode::Cpu)?;
-    // One discovery pass answers the audio track and both codec names.
-    let summary = crate::gst::stream_summary(path);
-    Ok(Opened {
-        decoder: Box::new(decoder),
-        has_audio: summary.has_audio,
-        video_codec: summary.video_codec,
-        audio_codec: summary.audio_codec,
-    })
 }
 
 #[cfg(not(any(
@@ -220,7 +208,7 @@ fn open(path: &Path) -> Result<Opened, DecodeError> {
     target_os = "android",
     target_os = "linux"
 )))]
-fn open(_path: &Path) -> Result<(Box<dyn VideoDecoder>, bool), DecodeError> {
+fn probe_video(_path: &Path) -> Result<MediaProbe, DecodeError> {
     Err(DecodeError::unsupported(
         "no native video decoder for this platform",
     ))
@@ -230,21 +218,16 @@ fn open(_path: &Path) -> Result<(Box<dyn VideoDecoder>, bool), DecodeError> {
 /// `None` when the platform can't report one (the fallback then propagates
 /// the original video-open error).
 #[cfg(target_vendor = "apple")]
-fn audio_track_duration(path: &Path) -> Option<aria_core::RationalTime> {
+fn audio_track_duration(path: &Path) -> Option<RationalTime> {
     crate::apple::audio_track_duration(path)
 }
 
 #[cfg(target_os = "windows")]
-fn audio_track_duration(path: &Path) -> Option<aria_core::RationalTime> {
+fn audio_track_duration(path: &Path) -> Option<RationalTime> {
     crate::wmf::audio_track_duration(path)
 }
 
-#[cfg(target_os = "linux")]
-fn audio_track_duration(path: &Path) -> Option<aria_core::RationalTime> {
-    crate::gst::audio_track_duration(path)
-}
-
 #[cfg(not(any(target_vendor = "apple", target_os = "windows", target_os = "linux")))]
-fn audio_track_duration(_path: &Path) -> Option<aria_core::RationalTime> {
+fn audio_track_duration(_path: &Path) -> Option<RationalTime> {
     None
 }

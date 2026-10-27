@@ -417,12 +417,7 @@ fn try_open(
             "DMABuf preroll is not a LINEAR NV12 fd. Falling back to CPU.".into(),
         ));
     }
-    if let Some(dur) = pipeline.query_duration::<gst::ClockTime>() {
-        info.duration = Some(RationalTime::new(
-            dur.nseconds() as i64,
-            Rational::new(crate::gst::NS_PER_SEC as i32, 1),
-        ));
-    }
+    info.duration = crate::gst::stream_duration(&pipeline);
     pipeline
         .set_state(gst::State::Playing)
         .map_err(|e| gst_err(DecodeError::Open, e))?;

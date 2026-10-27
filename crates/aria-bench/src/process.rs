@@ -160,13 +160,15 @@ fn start_xvfb_on(num: u32) -> Option<XvfbGuard> {
     None
 }
 
-/// Spawn `aria-desktop` against a private `Xvfb` display and measure milliseconds
-/// until its top-level X11 window is mapped and visible.
+/// Spawn `aria-desktop` with `media` named on its command line against a
+/// private `Xvfb` display and measure milliseconds until a top-level X11
+/// window of that process, found by its `_NET_WM_PID`, is mapped and visible.
 pub(crate) fn measure_process_window_launch(
     bin: &Path,
     display: &str,
     data_dir: &Path,
     cache_dir: &Path,
+    media: &[&Path],
 ) -> Result<f64, String> {
     std::fs::create_dir_all(data_dir)
         .map_err(|err| format!("failed to create data_dir {}: {err}", data_dir.display()))?;
@@ -175,6 +177,7 @@ pub(crate) fn measure_process_window_launch(
 
     let started = Instant::now();
     let mut cmd = Command::new(bin);
+    cmd.args(media);
     cmd.env("DISPLAY", display)
         .env("WAYLAND_DISPLAY", "")
         .env("XDG_SESSION_TYPE", "x11")
@@ -193,6 +196,9 @@ pub(crate) fn measure_process_window_launch(
         .spawn()
         .map_err(|err| format!("failed to spawn {}: {err}", bin.display()))?;
 
+    // Every display has a root window, which a search by name alone returns
+    // before anything maps; only a window that states the child's pid counts.
+    let pid = child.id().to_string();
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut mapped_ms = None;
     while Instant::now() < deadline {
@@ -203,7 +209,7 @@ pub(crate) fn measure_process_window_launch(
         }
         let out = Command::new("xdotool")
             .env("DISPLAY", display)
-            .args(["search", "--onlyvisible", ".*"])
+            .args(["search", "--onlyvisible", "--pid", &pid])
             .output();
         if let Ok(out) = out
             && out.status.success()

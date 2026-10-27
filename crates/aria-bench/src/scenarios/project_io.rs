@@ -140,10 +140,14 @@ fn autosave_samples(fixture: &Path, scratch: &Path) -> Result<(Vec<f64>, Vec<f64
     mount_builtin_plugins(&plugin_ctx, &data_dir)?;
     let mut state =
         AppState::new(plugin_ctx, data_dir).map_err(|err| format!("AppState::new: {err}"))?;
-    // The decode warm-up maps the codec plugins on a thread of its own; it is
-    // awaited so it does not compete with the first rounds.
+    // The app starts the decode warm-up before its window opens, which maps the
+    // codec plugins on a thread of its own; it is run to the end so it does not
+    // compete with the first rounds.
     #[cfg(target_os = "linux")]
-    aria_decoder::await_warm_up();
+    {
+        aria_decoder::warm_up();
+        aria_decoder::await_warm_up();
+    }
     state
         .open_project(fixture.to_path_buf())
         .map_err(|err| format!("open_project(project-10k) failed: {err}"))?;

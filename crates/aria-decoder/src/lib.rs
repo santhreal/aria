@@ -99,6 +99,8 @@ mod gst_gpu;
 #[cfg(target_os = "linux")]
 mod gst_key_snap;
 #[cfg(target_os = "linux")]
+mod gst_probe;
+#[cfg(target_os = "linux")]
 mod gst_start;
 #[cfg(all(test, target_os = "linux"))]
 mod gst_test_media;

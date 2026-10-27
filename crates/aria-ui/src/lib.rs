@@ -149,6 +149,12 @@ pub fn run_app_with(config: UiConfig) -> ! {
         tracing::error!(error = %err, "could not open the paths given on the command line");
         eprintln!("aria could not open what you asked for: {err}");
     }
+    // The hardware decode device opens while the window builds, so the first
+    // clip's decoder finds it open. It starts once the command-line media is
+    // probed: loading the device plugin holds GStreamer's plugin loader for
+    // about 1.5 s, and a probe that loads a demuxer meanwhile waits for it.
+    #[cfg(target_os = "linux")]
+    aria_decoder::warm_up();
     // The session resolved the profile root (a relative `ARIA_DATA_DIR` is
     // resolved against the working directory), so the settings the first frame
     // reads come from the directory the session is actually using.

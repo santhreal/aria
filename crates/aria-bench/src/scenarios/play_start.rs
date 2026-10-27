@@ -11,7 +11,7 @@ use crate::scenarios::{BenchContext, GpuTextureSink};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
-    // The app starts the decode device warm-up with its preview worker, before
+    // The app starts the decode device warm-up before its window opens, ahead of
     // the GPU context and the window; the paused frame below then measures
     // what a session waits for after the warm-up had the GPU set-up to run in.
     #[cfg(target_os = "linux")]
