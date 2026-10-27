@@ -23,13 +23,15 @@
 //!
 //! **What this does not catch.** A `&mut self` method may lock freely and is not
 //! examined, because an edit already owns the session; the frame reads `&self`.
-//! A panel that calls `engine().lock()` inline is caught by the same scan (the
-//! export sheet did exactly that), but a lock reached through a closure stored
-//! in a registry, or through a free function taking `&AppState`, would not be.
-//! The behavioural half of the proof is
-//! `tests_shell.rs::a_frame_draws_while_the_session_is_held`, which holds the
-//! mutex on a helper thread and draws every panel, and which does not care how
-//! the lock was reached.
+//! A lock is seen where it is spelled, where it is one of the project host's
+//! methods that lock (read from `aria-plugin`'s source) called on `self.host`
+//! or on a `&ProjectHost` parameter, and where it is reached through a call on
+//! `self` or on one of its fields. One reached through a closure stored in a
+//! registry, a free function taking `&AppState`, or a receiver two fields deep
+//! is not. The behavioural half of the proof is
+//! `shell/panel_view_session_tests.rs`, which holds the mutex on a helper
+//! thread while the window draws, and which does not care how the lock was
+//! reached.
 
 use std::path::Path;
 
@@ -45,6 +47,11 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "app/ai_reach_tools.rs",
         "ai_system_prompt",
         "builds the model's system prompt when a turn is sent, not while drawing one",
+    ),
+    (
+        "app/assistant.rs",
+        "lower",
+        "validates an assistant command against the project on the turn's own thread",
     ),
     (
         "app/drag_room.rs",
@@ -140,6 +147,12 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "hands that snapshot to the audio engine after an edit or a seek",
     ),
     (
+        "app/view_events.rs",
+        "plugin_menu_rows",
+        "hands plugins the project once when a context menu opens; the drawn menu reads \
+         the rows it stored",
+    ),
+    (
         "app/viewer_match.rs",
         "clip_frame",
         "maps the playhead into a clip's take when Match Frame or a double-click \
@@ -155,11 +168,16 @@ const DECLARED: &[(&str, &str, &str)] = &[
 /// How a lock is spelled, whitespace squashed.
 const LOCKS: [&str; 2] = ["engine.lock(", "engine().lock("];
 
+/// The project host, whose methods that lock the engine are locks too.
+const PROJECT_HOST: &str = "../aria-plugin/src/project_host.rs";
+
 /// One `&self` method of the session state.
 struct Reader {
     file: String,
     line: usize,
     name: String,
+    /// The parameter list, whitespace squashed: `(&self,host:&ProjectHost`.
+    params: String,
     body: String,
 }
 
@@ -218,11 +236,120 @@ fn readers(file: &str, text: &str) -> Vec<Reader> {
             file: file.to_string(),
             line: text[..start].matches('\n').count() + 1,
             name,
+            params: args,
             body: squash(&text[brace..end.min(bytes.len())]),
         });
         at = end;
     }
     found
+}
+
+/// Whether `text` ends with `word`, and not with a longer identifier that ends
+/// the same way.
+fn ends_with_word(text: &str, word: &str) -> bool {
+    text.strip_suffix(word)
+        .is_some_and(|before| !before.ends_with(|c: char| c.is_alphanumeric() || c == '_'))
+}
+
+/// Whether `body` calls `name` on `self`, on a field of `self`, or on what a
+/// getter of `self` returns: `self.name(`, `self.field.name(` or
+/// `self.field().name(`. With `field`, only a call on that field counts.
+fn calls_on_self(body: &str, name: &str, field: Option<&str>) -> bool {
+    let call = format!(".{name}(");
+    body.match_indices(&call).any(|(at, _)| {
+        let receiver = &body[..at];
+        if field.is_none() && ends_with_word(receiver, "self") {
+            return true;
+        }
+        let receiver = receiver.strip_suffix("()").unwrap_or(receiver);
+        let start = receiver
+            .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
+            .map_or(0, |i| i + 1);
+        let named = &receiver[start..];
+        !named.is_empty()
+            && field.is_none_or(|field| named == field)
+            && ends_with_word(&receiver[..start], "self.")
+    })
+}
+
+/// Whether `body` calls `name` on a parameter that `params` declares as the
+/// project host.
+fn calls_on_host_param(params: &str, body: &str, name: &str) -> bool {
+    params
+        .split(',')
+        .filter_map(|param| param.split_once(':'))
+        .filter(|(_, kind)| kind.contains("ProjectHost"))
+        .any(|(param, _)| {
+            let call = format!("{param}.{name}(");
+            body.match_indices(&call)
+                .any(|(at, _)| ends_with_word(&body[..at + param.len()], param))
+        })
+}
+
+/// The project host's `&self` methods that lock the engine, directly or
+/// through one another, read from its source.
+fn host_locks() -> Vec<String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(PROJECT_HOST);
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("the project host's source at {path:?}: {err}"));
+    let methods = readers(PROJECT_HOST, &text);
+    let mut locking: Vec<String> = methods
+        .iter()
+        .filter(|method| LOCKS.iter().any(|lock| method.body.contains(lock)))
+        .map(|method| method.name.clone())
+        .collect();
+    loop {
+        let grown: Vec<String> = methods
+            .iter()
+            .filter(|method| {
+                !locking.contains(&method.name)
+                    && locking
+                        .iter()
+                        .any(|name| calls_on_self(&method.body, name, None))
+            })
+            .map(|method| method.name.clone())
+            .collect();
+        if grown.is_empty() {
+            return locking;
+        }
+        locking.extend(grown);
+    }
+}
+
+/// The readers in `all` that take the session: those that lock where they say
+/// so, call a method of the project host in `host` on `self.host` or on a
+/// `&ProjectHost` parameter, or call one of their own that takes it. Iterated
+/// to a fixed point, so a lock three clean calls deep is still a lock.
+fn locking(all: &[Reader], host: &[String]) -> Vec<usize> {
+    let mut locking: Vec<usize> = all
+        .iter()
+        .enumerate()
+        .filter(|(_, reader)| {
+            LOCKS.iter().any(|lock| reader.body.contains(lock))
+                || host.iter().any(|name| {
+                    calls_on_self(&reader.body, name, Some("host"))
+                        || calls_on_host_param(&reader.params, &reader.body, name)
+                })
+        })
+        .map(|(index, _)| index)
+        .collect();
+    loop {
+        let grown: Vec<usize> = all
+            .iter()
+            .enumerate()
+            .filter(|(index, reader)| {
+                !locking.contains(index)
+                    && locking
+                        .iter()
+                        .any(|held| calls_on_self(&reader.body, &all[*held].name, None))
+            })
+            .map(|(index, _)| index)
+            .collect();
+        if grown.is_empty() {
+            return locking;
+        }
+        locking.extend(grown);
+    }
 }
 
 /// **A frame takes no session lock, and every exception is declared.**
@@ -246,21 +373,58 @@ fn engine_lock_census() {
     );
 
     // The scan has to see a wrapped call and name the line the method starts on,
-    // and it has to leave `&mut self` alone.
+    // leave `&mut self` alone, follow a call through a field, see the project
+    // host's locks on `self.host` and on a host parameter, and tell the project
+    // host from another value named `host`.
     {
-        let sample = "impl S {\n    fn a(&self) -> u32 {\n        let e = self\n            \
-                      .engine()\n            .lock();\n        e.n()\n    }\n    fn b(&mut self) \
-                      {\n        self.engine.lock();\n    }\n    fn c(&self) -> u32 {\n        \
-                      self.a()\n    }\n}\n";
+        let sample = r#"
+impl S {
+    fn a(&self) -> u32 {
+        let e = self
+            .engine()
+            .lock();
+        e.n()
+    }
+    fn b(&mut self) {
+        self.engine.lock();
+    }
+    fn c(&self) -> u32 {
+        self.a()
+    }
+    fn d(&self) -> u32 {
+        self.inner.c()
+    }
+    fn e(&self, host: &ProjectHost) -> u64 {
+        host.revision()
+    }
+    fn f(&self) -> u64 {
+        self.host().snapshot().n
+    }
+    fn g(&self) -> Option<u64> {
+        self.menus.as_ref().map(|host| host.revision())
+    }
+}
+"#;
         let found = readers("sample.rs", sample);
         let names: Vec<&str> = found.iter().map(|r| r.name.as_str()).collect();
-        assert_eq!(names, vec!["a", "c"], "the scan misread its own sample");
-        assert_eq!(found[0].line, 2);
-        assert!(
-            LOCKS.iter().any(|lock| found[0].body.contains(lock)),
-            "the scan cannot see a lock split across lines"
+        assert_eq!(
+            names,
+            vec!["a", "c", "d", "e", "f", "g"],
+            "the scan misread its own sample"
         );
-        assert!(found[1].body.contains("self.a()"));
+        assert_eq!(found[0].line, 3);
+        let host = ["revision".to_owned(), "snapshot".to_owned()];
+        let mut locked: Vec<&str> = locking(&found, &host)
+            .into_iter()
+            .map(|index| found[index].name.as_str())
+            .collect();
+        locked.sort_unstable();
+        assert_eq!(
+            locked,
+            vec!["a", "c", "d", "e", "f"],
+            "the scan misjudged its own sample: `g` reads a menu host, every other method \
+             takes the session"
+        );
     }
 
     let mut all: Vec<Reader> = Vec::new();
@@ -288,32 +452,15 @@ fn engine_lock_census() {
         files.len()
     );
 
-    // A method locks if it says so, or if it calls something that does. Iterated
-    // to a fixed point so a lock three clean calls deep is still a lock.
-    let mut locking: Vec<usize> = all
-        .iter()
-        .enumerate()
-        .filter(|(_, reader)| LOCKS.iter().any(|lock| reader.body.contains(lock)))
-        .map(|(index, _)| index)
-        .collect();
-    loop {
-        let named: Vec<String> = locking
+    let host = host_locks();
+    assert!(
+        ["snapshot", "revision"]
             .iter()
-            .map(|index| format!("self.{}(", all[*index].name))
-            .collect();
-        let grown: Vec<usize> = all
-            .iter()
-            .enumerate()
-            .filter(|(index, reader)| {
-                !locking.contains(index) && named.iter().any(|call| reader.body.contains(call))
-            })
-            .map(|(index, _)| index)
-            .collect();
-        if grown.is_empty() {
-            break;
-        }
-        locking.extend(grown);
-    }
+            .all(|name| host.iter().any(|lock| lock == name)),
+        "the project host's snapshot and revision read the engine under its lock, and the \
+         scan of {PROJECT_HOST} found only {host:?}: the parse is broken"
+    );
+    let locking = locking(&all, &host);
 
     let declared = |file: &str, name: &str| {
         DECLARED

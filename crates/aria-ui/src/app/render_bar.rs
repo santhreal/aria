@@ -12,7 +12,12 @@
 //! The thread reads the project one frame at a time under the engine lock and
 //! holds no snapshot between two frames. A pass over a long sequence runs for
 //! seconds and restarts after every edit; a snapshot held across it would make
-//! every edit copy the whole project.
+//! every edit copy the whole project. A request carries the revision the
+//! session last read from the engine and takes no lock on it, so a ruler
+//! drawn, a mark set, or an edit landed while a preview decode holds the
+//! engine does not wait for the decode. The pass reads the sequence's rate and
+//! length on the thread, and abandons at the first frame it finds the engine
+//! at any other revision.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,7 +25,6 @@ use std::sync::Arc;
 use aria_core::{Rational, RationalTime};
 use aria_engine::Engine;
 use aria_models::Project;
-use aria_plugin::ProjectHost;
 use aria_render::{RenderFiles, Scene};
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
@@ -64,22 +68,26 @@ pub(super) fn segments_unless(
     )
 }
 
-/// [`segments_unless`] over the project `request` names, read one frame at a
-/// time under the engine lock. `None` once `superseded` returns `true` or the
-/// engine moves past the request's revision.
+/// [`segments_unless`] over `request`'s engine, read one frame at a time under
+/// the engine lock. The sequence's rate and length are read under the first
+/// lock. `None` once `superseded` returns `true` or a frame finds the engine
+/// at a revision other than the request's.
 fn engine_segments_unless(
     request: &Request,
     superseded: impl Fn() -> bool,
 ) -> Option<Vec<RenderSegment>> {
     let Request {
-        engine,
         revision,
-        rate,
-        frames,
+        engine,
         files,
         ..
     } = request;
-    segments_reading(*rate, *frames, files, superseded, |read| {
+    let (rate, frames) = {
+        let guard = engine.lock();
+        let timeline = guard.project().timeline();
+        (timeline.frame_rate, timeline.duration().value)
+    };
+    segments_reading(rate, frames, files, superseded, |read| {
         let guard = engine.lock();
         let current = guard.revision() == *revision;
         if current {
@@ -231,14 +239,10 @@ pub(crate) struct BarStamp {
 /// A request for a segment pass.
 struct Request {
     seq: u64,
+    /// The engine revision the pass covers.
+    revision: u64,
     /// The engine whose project the pass reads, one frame at a time.
     engine: Arc<Mutex<Engine>>,
-    /// The engine revision at the request. The pass abandons once the engine
-    /// moves past it rather than record segments read from two projects.
-    revision: u64,
-    /// The sequence's frame rate and length in frames at `revision`.
-    rate: Rational,
-    frames: i64,
     files: Arc<RenderFiles>,
 }
 
@@ -465,10 +469,14 @@ impl RenderBarState {
         self.shared.state.lock().observed
     }
 
+    /// Ask for a pass over `engine`'s project at `stamp`'s revision, unless
+    /// the newest request already has that stamp, and return the request's
+    /// sequence number. Takes no lock on the engine; the pass reads it on its
+    /// own thread.
     pub(super) fn ensure_submitted(
         &self,
         preview_worker: &PreviewWorker,
-        host: &ProjectHost,
+        engine: &Arc<Mutex<Engine>>,
         files: &Arc<RenderFiles>,
         stamp: BarStamp,
     ) -> u64 {
@@ -479,26 +487,12 @@ impl RenderBarState {
         }
         state.latest_seq += 1;
         let seq = state.latest_seq;
+        let revision = stamp.revision;
         state.submitted_stamp = Some(stamp);
-        let revision = host.revision();
-        let (rate, frames) = {
-            let project = host.snapshot();
-            let timeline = project.timeline();
-            (timeline.frame_rate, timeline.duration().value)
-        };
-        if frames <= 0 {
-            state.pending = None;
-            state.completed_seq = seq;
-            state.completed = Arc::new(Vec::new());
-            self.shared.cv.notify_all();
-            return seq;
-        }
         state.pending = Some(Request {
             seq,
-            engine: Arc::clone(host.engine()),
             revision,
-            rate,
-            frames,
+            engine: Arc::clone(engine),
             files: Arc::clone(files),
         });
         let start = !state.running;

@@ -150,6 +150,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
         "the rule here names the calls it refuses, and would match itself",
     ),
     (
+        "crates/aria-ui/src/test_support/hold.rs",
+        "a test's holder of the session: one thread that takes the engine as a \
+         preview decode does, lets go after a bounded wait, and is joined before \
+         the test goes on",
+    ),
+    (
         "crates/aria-ui/src/scratch_pool.rs",
         "the pool's own rules: a thread that finds every slot held, and a \
          holder that panics while it has one",

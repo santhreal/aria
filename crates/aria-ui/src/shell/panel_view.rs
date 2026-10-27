@@ -62,6 +62,10 @@ mod playback_tests;
 #[path = "panel_view_playhead_tests.rs"]
 mod playhead_tests;
 
+#[cfg(test)]
+#[path = "panel_view_session_tests.rs"]
+mod session_tests;
+
 /// What a narrow change moved.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Moved {

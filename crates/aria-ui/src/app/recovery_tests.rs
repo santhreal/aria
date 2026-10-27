@@ -32,6 +32,7 @@ use aria_plugin::PluginContext;
 use crate::app::AppState;
 use crate::app::recovery::{AUTOSAVE_INTERVAL, Autosave, recovery_path};
 use crate::scratch_pool::scratch;
+use crate::test_support::while_held;
 
 /// How long a late copy stays in flight before it lands. Long enough that the
 /// test acts while it is still being written.
@@ -163,20 +164,13 @@ fn a_tick_while_the_session_is_held_starts_nothing() {
     let mut state = dirty(scratch("recovery"));
     let now = Instant::now();
     let engine = Arc::clone(&state.engine);
-    let (taken, is_taken) = mpsc::channel::<()>();
-    let (release, held) = mpsc::channel::<()>();
-    let holder = std::thread::spawn(move || {
-        let _session = engine.lock();
-        taken.send(()).expect("the test waits for the hold");
-        let _ = held.recv_timeout(BOUND);
+    let waited = while_held(&engine, || {
+        assert!(
+            !state.autosave_tick(now),
+            "the tick started a copy while the session was held"
+        );
     });
-    is_taken.recv_timeout(BOUND).expect("the session is held");
-    assert!(
-        !state.autosave_tick(now),
-        "the tick waited for the held session"
-    );
-    release.send(()).expect("the holder is waiting");
-    holder.join().expect("the holder");
+    assert!(!waited, "the tick waited for the held session");
     assert!(
         state.autosave_tick(now),
         "the session came free and the next tick started nothing"

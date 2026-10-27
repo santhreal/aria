@@ -15,7 +15,9 @@
 
 use std::path::{Path, PathBuf};
 
+mod hold;
 mod window;
+pub(crate) use hold::while_held;
 pub(crate) use window::{release_at_teardown, window_view};
 pub(crate) mod catalogs;
 pub(crate) mod control_sites;
@@ -67,9 +69,22 @@ pub(crate) fn drawn_shell_at(
     tag: &str,
     bounds: gpui::Bounds<gpui::Pixels>,
 ) -> (gpui::Entity<crate::app::AppState>, gpui::VisualTestContext) {
+    let state = shell_state(cx, tag);
+    let visual = shell_window_at(cx, &state, bounds);
+    visual.run_until_parked();
+    (state, visual)
+}
+
+/// A window at `bounds` with the shell over `state` in it, returned once its
+/// first frame is drawn and before any task that frame started has run. On
+/// the test platform those tasks run on the test's thread at its next drain.
+pub(crate) fn shell_window_at(
+    cx: &mut gpui::TestAppContext,
+    state: &gpui::Entity<crate::app::AppState>,
+    bounds: gpui::Bounds<gpui::Pixels>,
+) -> gpui::VisualTestContext {
     use gpui::AppContext as _;
     release_at_teardown(cx);
-    let state = shell_state(cx, tag);
     let owned = state.clone();
     let window = cx
         .update(|app| {
@@ -82,9 +97,7 @@ pub(crate) fn drawn_shell_at(
             )
         })
         .unwrap_or_else(|err| panic!("a test window at {bounds:?}: {err:?}"));
-    let visual = gpui::VisualTestContext::from_window(*window, cx);
-    visual.run_until_parked();
-    (state, visual)
+    gpui::VisualTestContext::from_window(*window, cx)
 }
 
 /// Float `panel` at `rect` on the screen and return its frame and the window
@@ -155,7 +168,10 @@ pub(crate) fn wait_out_splash(visual: &mut gpui::VisualTestContext) {
 
 /// The state [`drawn_shell`] draws: the UI plugin mounted and an empty
 /// project open.
-fn shell_state(cx: &mut gpui::TestAppContext, tag: &str) -> gpui::Entity<crate::app::AppState> {
+pub(crate) fn shell_state(
+    cx: &mut gpui::TestAppContext,
+    tag: &str,
+) -> gpui::Entity<crate::app::AppState> {
     use gpui::AppContext as _;
     cx.update(|app| {
         crate::theme::Theme::install(

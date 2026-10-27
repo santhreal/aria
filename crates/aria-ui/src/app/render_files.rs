@@ -148,8 +148,12 @@ impl AppState {
         let files = self.sync_render_files_handle();
         if self.render_bar_state.is_observed() {
             let stamp = self.current_bar_stamp(&files);
-            self.render_bar_state
-                .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
+            self.render_bar_state.ensure_submitted(
+                &self.preview_worker,
+                self.host.engine(),
+                &files,
+                stamp,
+            );
         }
         self.render_bar = self.render_bar_state.latest_nonblocking();
     }
@@ -159,8 +163,12 @@ impl AppState {
     pub(crate) fn poll_render_bar(&mut self) -> bool {
         let files = self.sync_render_files_handle();
         let stamp = self.current_bar_stamp(&files);
-        self.render_bar_state
-            .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
+        self.render_bar_state.ensure_submitted(
+            &self.preview_worker,
+            self.host.engine(),
+            &files,
+            stamp,
+        );
         let latest = self.render_bar_state.latest_nonblocking();
         if !Arc::ptr_eq(&self.render_bar, &latest) && *self.render_bar != *latest {
             self.render_bar = latest;
@@ -177,8 +185,12 @@ impl AppState {
     pub fn render_bar(&self) -> Arc<Vec<RenderSegment>> {
         let files = self.render_files();
         let stamp = self.current_bar_stamp(&files);
-        self.render_bar_state
-            .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
+        self.render_bar_state.ensure_submitted(
+            &self.preview_worker,
+            self.host.engine(),
+            &files,
+            stamp,
+        );
         self.render_bar_state.latest_nonblocking()
     }
 
@@ -194,9 +206,12 @@ impl AppState {
     pub(crate) fn render_bar_segments(&mut self) -> Arc<Vec<RenderSegment>> {
         let files = self.sync_render_files_handle();
         let stamp = self.current_bar_stamp(&files);
-        let seq =
-            self.render_bar_state
-                .ensure_submitted(&self.preview_worker, &self.host, &files, stamp);
+        let seq = self.render_bar_state.ensure_submitted(
+            &self.preview_worker,
+            self.host.engine(),
+            &files,
+            stamp,
+        );
         let completed = self
             .render_bar_state
             .shared

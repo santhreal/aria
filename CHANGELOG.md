@@ -731,6 +731,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- The window draws its first frame, and the frame after In or Out is set or cleared, without waiting for the Viewer's picture to finish decoding.
 - Dragging the timeline zoom bar's window keeps the pressed point under the pointer, dragging a handle zooms with the other end held in place, a click beside the window centers the view there, the drag continues when the pointer leaves the bar, and Escape puts the zoom and the scroll back.
 - A ruler scrub, a clip move or trim, the divider between the video and audio lanes, and a Graph Editor keyframe drag follow the pointer when it leaves the element they started on and end where the button comes up, instead of stopping at the element's edge and staying held.
 - A press on a linear keyframe in the Graph Editor moves the keyframe instead of grabbing the collapsed influence handle under it.
