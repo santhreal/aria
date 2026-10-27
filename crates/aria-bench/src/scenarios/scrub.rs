@@ -1,15 +1,23 @@
 //! `scrub` scenario: warm scrub (decoder open, within one GOP) and cold seek latency.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use aria_compositor::GpuContext;
 use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 use aria_render::{Renderer, ResolveOverrides, SeekPolicy};
+use aria_ui::shell::Moved;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::scenarios::{BenchContext, GpuTextureSink};
+use crate::scenarios::{BenchContext, GpuTextureSink, open_editor, timed_frame};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
+
+/// The time between two pointer moves of a hand scrubbing the ruler: a
+/// 125 Hz mouse.
+const MOVE_GAP: Duration = Duration::from_millis(8);
+
+/// The pointer moves one ruler scrub makes.
+const MOVES: u32 = 30;
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let h264 = ensure_fixture(&ctx.fixtures_dir, FixtureId::H264_1080p60)?;
@@ -148,12 +156,29 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         long_gop_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
 
+    // 3. A paused scrub on the timeline ruler in the editor. Each sample is one
+    // pointer move as the ruler's held press takes it: the playhead to the
+    // tick under the pointer, the Viewer frame asked for, and the playhead
+    // redrawn, `MOVE_GAP` after the move before. Over `h264-1080p60` each move
+    // is six frames, within a GOP; over the long-GOP file each move is a
+    // second, a seek the worker is still decoding when the next move comes.
+    // Not part of a target.
+    let ruler_scrub_samples = ruler_scrub(ctx, "ruler-h264", &h264.path, 10.0, 0.1)?;
+    let ruler_long_gop_samples = ruler_scrub(ctx, "ruler-long-gop", &long_gop.path, 100.0, 1.0)?;
+
     let warm_series = SampleSeries::from_values("warm_scrub_ms", "ms", warm_scrub_samples);
     let warm_render_series =
         SampleSeries::from_values("warm_renderer_scrub_ms", "ms", warm_renderer_samples);
     let cold_series = SampleSeries::from_values("cold_seek_ms", "ms", cold_seek_samples);
     let long_gop_series =
         SampleSeries::from_values("long_gop_exact_seek_ms", "ms", long_gop_samples);
+    let ruler_series =
+        SampleSeries::from_values("ruler_scrub_move_ms", "ms", ruler_scrub_samples);
+    let ruler_long_gop_series = SampleSeries::from_values(
+        "ruler_scrub_long_gop_move_ms",
+        "ms",
+        ruler_long_gop_samples,
+    );
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -175,13 +200,19 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     ];
 
     let notes = vec![format!(
-        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms",
+        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
         warm_series.p50,
         warm_series.p95,
         warm_render_series.p50,
         cold_series.p50,
         cold_series.p95,
-        long_gop_series.p50
+        long_gop_series.p50,
+        ruler_series.p50,
+        ruler_series.p95,
+        ruler_series.max,
+        ruler_long_gop_series.p50,
+        ruler_long_gop_series.p95,
+        ruler_long_gop_series.max,
     )];
 
     Ok(ScenarioReport::new(
@@ -194,7 +225,84 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             warm_render_series,
             cold_series,
             long_gop_series,
+            ruler_series,
+            ruler_long_gop_series,
         ],
         notes,
     ))
+}
+
+/// The milliseconds each move of a paused ruler scrub over `media` holds the
+/// editor's window: the press at `from` seconds, then [`MOVES`] moves of
+/// `step` seconds each. Fails when no frame the moves asked for landed, as
+/// such a scrub measures no work.
+fn ruler_scrub(
+    ctx: &BenchContext,
+    label: &str,
+    media: &std::path::Path,
+    from: f32,
+    step: f32,
+) -> Result<Vec<f64>, String> {
+    let data_dir = ctx.ensure_scratch_subdir(label)?.join("data");
+    std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
+    let (mut app, state, mut window) = open_editor(&data_dir);
+    let per_second = app.update(|cx| {
+        state.update(cx, |s, cx| {
+            let id = s
+                .import_media(media.to_path_buf())
+                .map_err(|err| format!("import {} failed: {err}", media.display()))?;
+            s.drop_media_on_timeline(id, None, 0)
+                .map_err(|err| format!("placing {} failed: {err}", media.display()))?;
+            let per_second = s.store.sequence.ticks_per_second();
+            s.set_playhead((from * per_second).round() as i64);
+            cx.notify();
+            Ok::<f32, String>(per_second)
+        })
+    })?;
+    let landed = std::rc::Rc::new(std::cell::Cell::new(0usize));
+    let _counting = app.update(|cx| {
+        let landed = landed.clone();
+        cx.subscribe(&state, move |_, _: &aria_ui::app::FrameReady, _| {
+            landed.set(landed.get() + 1);
+        })
+    });
+    // The frame at the press.
+    let _ = timed_frame(&app, &mut window, |shell, _, cx| {
+        aria_ui::app::spawn_preview(shell.state.clone(), cx);
+    });
+    let (start, stride) = ((from * per_second).round() as i64, (step * per_second).round() as i64);
+    let tick = |moves: u32| start + stride * i64::from(moves);
+    let mut samples = Vec::with_capacity(MOVES as usize);
+    for moves in 1..=MOVES {
+        std::thread::sleep(MOVE_GAP);
+        let to = tick(moves);
+        samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
+            shell
+                .state
+                .update(cx, |s, _| s.scrub_playhead_on_ruler(to));
+            aria_ui::app::spawn_preview(shell.state.clone(), cx);
+            shell.redraw(Moved::Playhead, cx);
+        }));
+    }
+    let (at, error) = app.update(|cx| {
+        let state = state.read(cx);
+        (state.playhead.value, state.last_error.clone())
+    });
+    let end = tick(MOVES);
+    if at != end {
+        return Err(format!(
+            "the ruler scrub over {} left the playhead at {at}, not {end}: the moves did not reach it",
+            media.display()
+        ));
+    }
+    if landed.get() == 0 {
+        return Err(format!(
+            "no frame landed during the ruler scrub over {} ({error:?}): it measured no decode",
+            media.display()
+        ));
+    }
+    drop(state);
+    drop(window);
+    app.update(|cx| cx.shutdown());
+    Ok(samples)
 }
