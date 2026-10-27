@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use aria_compositor::GpuContext;
 use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
+use aria_engine::{CellRenderer, Engine, EngineConfig};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 use aria_render::{Renderer, ResolveOverrides, SeekPolicy};
 use aria_ui::shell::Moved;
@@ -72,6 +73,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             RationalTime::new(0, rate60),
         )
         .map_err(|err| format!("failed to add clip: {err}"))?;
+    let engine_gpu = gpu.share();
     let mut renderer = Renderer::with_gpu(gpu.share());
     let mut sink = GpuTextureSink::new(gpu);
     sink.preallocate(960, 540);
@@ -103,6 +105,55 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             )
             .map_err(|err| format!("renderer scrub failed at {tick}: {err}"))?;
         warm_renderer_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+    }
+
+    // The Viewer's playback frames while the timeline's filmstrip fills. The
+    // filmstrip thread takes the engine between two frames of the preview
+    // worker's, so each frame, rendered as the worker renders it, follows one
+    // cell, rendered as the filmstrip renders it, at the cell's tick: a strip's
+    // cells walk the lane a cell step apart, away from the playhead. The same
+    // frames with no cell between them follow. A cell is timed whole, and for
+    // the part of it that needs the engine: taking its source.
+    let mut engine_sink = GpuTextureSink::new(engine_gpu.share());
+    engine_sink.preallocate(960, 540);
+    let mut engine = Engine::with_renderer(
+        EngineConfig::default(),
+        project.clone(),
+        Renderer::with_gpu(engine_gpu),
+    );
+    let mut play = |engine: &mut Engine, tick: i64| {
+        let t0 = Instant::now();
+        engine
+            .get_frame_fit_into(
+                RationalTime::new(tick, rate60),
+                960,
+                540,
+                SeekPolicy::Exact,
+                &mut engine_sink,
+            )
+            .map_err(|err| format!("playback frame at {tick} failed: {err}"))?;
+        Ok::<f64, String>(t0.elapsed().as_secs_f64() * 1000.0)
+    };
+    for tick in 570..600i64 {
+        play(&mut engine, tick)?;
+    }
+    let mut cells = CellRenderer::default();
+    let mut after_cell_samples = Vec::with_capacity(30);
+    let mut cell_samples = Vec::with_capacity(30);
+    let mut cell_engine_samples = Vec::with_capacity(30);
+    for (n, tick) in (600..630i64).enumerate() {
+        let cell = RationalTime::new(1_800 + 64 * n as i64, rate60);
+        let t0 = Instant::now();
+        let source = engine.cell_source();
+        cell_engine_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        std::hint::black_box(aria_ui::filmstrips::render_cell(&mut cells, &source, cell));
+        drop(source);
+        cell_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
+        after_cell_samples.push(play(&mut engine, tick)?);
+    }
+    let mut no_cell_samples = Vec::with_capacity(30);
+    for tick in 630..660i64 {
+        no_cell_samples.push(play(&mut engine, tick)?);
     }
 
     // 2. Cold seek: open a decoder at a distant target and decode the frame
@@ -175,6 +226,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let ruler_series = SampleSeries::from_values("ruler_scrub_move_ms", "ms", ruler_scrub_samples);
     let ruler_long_gop_series =
         SampleSeries::from_values("ruler_scrub_long_gop_move_ms", "ms", ruler_long_gop_samples);
+    let after_cell_series = SampleSeries::from_values(
+        "playback_frame_after_filmstrip_cell_ms",
+        "ms",
+        after_cell_samples,
+    );
+    let no_cell_series =
+        SampleSeries::from_values("playback_frame_no_cell_ms", "ms", no_cell_samples);
+    let cell_series = SampleSeries::from_values("filmstrip_cell_ms", "ms", cell_samples);
+    let cell_engine_series =
+        SampleSeries::from_values("filmstrip_cell_engine_ms", "ms", cell_engine_samples);
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -196,10 +257,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     ];
 
     let notes = vec![format!(
-        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
+        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, filmstrip cell p50={:.2} ms (p95={:.2} ms) of which the engine p50={:.2} ms, playback frame after a filmstrip cell p50={:.2} ms (p95={:.2} ms), with no cell p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
         warm_series.p50,
         warm_series.p95,
         warm_render_series.p50,
+        cell_series.p50,
+        cell_series.p95,
+        cell_engine_series.p50,
+        after_cell_series.p50,
+        after_cell_series.p95,
+        no_cell_series.p50,
         cold_series.p50,
         cold_series.p95,
         long_gop_series.p50,
@@ -219,6 +286,10 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         vec![
             warm_series,
             warm_render_series,
+            cell_series,
+            cell_engine_series,
+            after_cell_series,
+            no_cell_series,
             cold_series,
             long_gop_series,
             ruler_series,

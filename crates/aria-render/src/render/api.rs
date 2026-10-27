@@ -21,7 +21,10 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SizeSpec};
 
 use super::media_cache::default_decode_mode;
 use super::realize::Output;
-use super::{FrameStats, GestureFrames, PendingFrame, Renderer, SeekPolicy};
+use super::{
+    FrameStats, GestureFrames, MediaSources, PendingFrame, Renderer, SeekPolicy,
+    next_media_generation,
+};
 
 pub(super) fn media_scene(
     project: &Project,
@@ -106,8 +109,9 @@ impl Renderer {
             look_ticks: Vec::new(),
             luts: HashMap::new(),
             decode_mode: default_decode_mode(),
-            proxies: HashMap::new(),
+            proxies: Arc::default(),
             use_proxies: true,
+            media_generation: next_media_generation(),
             apply_motion_blur: false,
             realize_scratch: super::realize::RealizeScratch::default(),
             resolve_scene: Scene::empty(0, 0, [0, 0, 0, 255]),
@@ -183,15 +187,18 @@ impl Renderer {
     /// the project's own path, from the next frame on. Drops the media's
     /// open decoders so no cursor keeps reading the original.
     pub fn set_proxy(&mut self, media: MediaId, path: PathBuf) {
-        self.proxies.insert(media, path);
+        Arc::make_mut(&mut self.proxies).insert(media, path);
         self.drop_decoders_for(media);
+        self.media_generation = next_media_generation();
     }
 
     /// Remove `media`'s proxy substitution (e.g. the media was relinked to a
     /// new file), returning decode to the project's path.
     pub fn clear_proxy(&mut self, media: MediaId) {
-        if self.proxies.remove(&media).is_some() {
+        if self.proxies.contains_key(&media) {
+            Arc::make_mut(&mut self.proxies).remove(&media);
             self.drop_decoders_for(media);
+            self.media_generation = next_media_generation();
         }
     }
 
@@ -199,11 +206,13 @@ impl Renderer {
     /// decoders. Use [`reset_media_sources`](Self::reset_media_sources) when
     /// the project/media-id namespace itself changes.
     pub fn clear_proxies(&mut self) {
-        let stale: Vec<MediaId> = self.proxies.keys().copied().collect();
-        self.proxies.clear();
-        for media in stale {
-            self.drop_decoders_for(media);
+        if self.proxies.is_empty() {
+            return;
         }
+        let stale = std::mem::take(&mut self.proxies);
+        self.decoders
+            .retain(|key, _| !stale.contains_key(&key.media));
+        self.media_generation = next_media_generation();
     }
 
     /// Drop every cache keyed by the current project's media-id namespace.
@@ -216,15 +225,44 @@ impl Renderer {
     pub fn reset_media_sources(&mut self) {
         self.decoders.clear();
         self.stills.clear();
-        self.proxies.clear();
+        self.proxies = Arc::default();
+        self.media_generation = next_media_generation();
     }
 
     /// Invalidate one media id after its source path or probed metadata
     /// changes. The next frame reopens/redecodes it from the project.
     pub fn invalidate_media_source(&mut self, media: MediaId) {
-        self.proxies.remove(&media);
+        if self.proxies.contains_key(&media) {
+            Arc::make_mut(&mut self.proxies).remove(&media);
+        }
         self.drop_decoders_for(media);
         self.stills.remove(&media);
+        self.media_generation = next_media_generation();
+    }
+
+    /// The files this renderer decodes each media id from, for a second
+    /// renderer to [`adopt`](Self::adopt_media_sources).
+    pub fn media_sources(&self) -> MediaSources {
+        MediaSources {
+            generation: self.media_generation,
+            proxies: Arc::clone(&self.proxies),
+            use_proxies: self.use_proxies,
+        }
+    }
+
+    /// Decode every media id from the files in `sources`, as the renderer
+    /// that produced them does. A change of files since the last adoption
+    /// drops every open decoder and still bitmap, so none keeps reading a
+    /// file it no longer names; the same sources again keep them.
+    pub fn adopt_media_sources(&mut self, sources: &MediaSources) {
+        if self.media_generation == sources.generation {
+            return;
+        }
+        self.decoders.clear();
+        self.stills.clear();
+        self.proxies = Arc::clone(&sources.proxies);
+        self.use_proxies = sources.use_proxies;
+        self.media_generation = sources.generation;
     }
 
     /// The proxy path registered for `media`, if any (regardless of
@@ -242,10 +280,10 @@ impl Renderer {
             return;
         }
         self.use_proxies = on;
-        let proxied: Vec<MediaId> = self.proxies.keys().copied().collect();
-        for media in proxied {
-            self.drop_decoders_for(media);
-        }
+        let proxies = &self.proxies;
+        self.decoders
+            .retain(|key, _| !proxies.contains_key(&key.media));
+        self.media_generation = next_media_generation();
     }
 
     /// Drop every open decoder for `media` (see `decoders`: one entry per

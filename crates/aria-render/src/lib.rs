@@ -72,7 +72,8 @@ pub use playback_meter::{DropCause, DroppedFrames, PlaybackMeter, PlaybackReport
 #[doc(hidden)]
 pub use render::text_anim_bench;
 pub use render::{
-    FrameStats, GestureFrames, LayerCaret, Renderer, SeekPolicy, drawn_bounds, path_style,
+    FrameStats, GestureFrames, LayerCaret, MediaSources, Renderer, SeekPolicy, drawn_bounds,
+    path_style,
 };
 pub use render_files::{FORMAT_VERSION, FrameKey, RenderFiles};
 pub use resolve::{

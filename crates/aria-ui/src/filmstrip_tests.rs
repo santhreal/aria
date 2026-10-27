@@ -7,16 +7,19 @@
 //! retried on every frame.
 //!
 //! The request is made from the timeline's draw, so it must never wait on the
-//! engine lock, which a cell render holds for as long as its decode runs.
-//!
-//! Not covered: the render itself, which needs a GPU renderer and a project.
+//! engine lock. A cell draws nothing on the session's renderer: its thread
+//! holds the engine only to take the cell's source, and decodes on the
+//! store's own renderer.
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use aria_models::RationalTime;
 use gpui::AppContext as _;
 
-use super::{FilmstripStore, cell_spans, cell_step, request, test_cell as cell};
+use super::{
+    CELL_H, CELL_MAX_W, FilmstripStore, cell_spans, cell_step, request, test_cell as cell,
+};
 
 /// Every tick a clip from `start` to `end` draws, as cell heads.
 fn heads(start: i64, end: i64, width: f32) -> Vec<i64> {
@@ -230,7 +233,7 @@ const HELD: Duration = Duration::from_secs(3);
 /// draw read the revision under the engine lock and the window stood still
 /// behind a cell decode. The holder releases after [`HELD`] whatever happens,
 /// so a request that waits ends the test red instead of hanging it. Does not
-/// cover the engine reads of the render thread, which wait by design.
+/// cover the render thread's read of the cell's source, which waits by design.
 #[test]
 fn a_cell_request_does_not_wait_on_the_engine_lock() {
     let cx = gpui::TestAppContext::single();
@@ -262,4 +265,75 @@ fn a_cell_request_does_not_wait_on_the_engine_lock() {
     // The cell task holds the state until its render lands; a task left
     // pending at the end is a leaked handle.
     cx.run_until_parked();
+}
+
+/// The session's last frame stats, bit for bit.
+fn stats(engine: &parking_lot::Mutex<aria_engine::Engine>) -> [u64; 5] {
+    let stats = engine.lock().last_frame_stats();
+    [
+        stats.decode_ms.to_bits(),
+        stats.raster_ms.to_bits(),
+        stats.composite_ms.to_bits(),
+        u64::from(stats.effect_passes),
+        u64::from(stats.effect_pass_bind_groups),
+    ]
+}
+
+/// WHY: a cell rendered on the session's renderer held the engine through its
+/// decode, 81 to 90 ms at the median on Server, and moved the decoder the
+/// Viewer reads from, so the Viewer's next frame took 21 ms instead of 1.7 ms.
+/// Closes the class of cell work reaching the session's renderer: a cell
+/// requested far from the Viewer's frame renders nothing there, which leaves
+/// the session's last frame stats as the Viewer's frame left them, and lands
+/// the frame the session itself draws at the cell's tick. Does not cover the
+/// engine read that takes the cell's source.
+#[test]
+fn a_cell_renders_nothing_on_the_sessions_renderer() {
+    let cx = gpui::TestAppContext::single();
+    let state = cx.update(|app| {
+        app.new(|_| {
+            crate::app::premiere_tests::with_media(crate::app::fixtures::asset(
+                "fixture-640x360-24fps-3s.mp4",
+            ))
+            .0
+        })
+    });
+    let (engine, rate) = cx.update(|app| {
+        let state = state.read(app);
+        (state.engine().clone(), state.playhead.rate)
+    });
+    let far = 48;
+    engine
+        .lock()
+        .get_frame_fit(RationalTime::new(0, rate), 320, 180)
+        .expect("the Viewer's frame");
+    let viewer = stats(&engine);
+
+    cx.update(|app| request(&state, app, far));
+    cx.run_until_parked();
+
+    assert_eq!(
+        stats(&engine),
+        viewer,
+        "the cell rendered on the session's renderer"
+    );
+    let landed = cx
+        .update(|app| {
+            state
+                .read(app)
+                .filmstrips
+                .get(far)
+                .map(|cell| cell.image.clone())
+        })
+        .expect("the cell landed");
+    let drawn = engine
+        .lock()
+        .get_frame_fit(RationalTime::new(far, rate), CELL_MAX_W, CELL_H)
+        .expect("the session's frame at the cell's tick");
+    let drawn = crate::frame::rgba_to_render(&drawn).expect("a drawable frame");
+    assert_eq!(landed.size(0), drawn.size(0), "the cell's size");
+    assert!(
+        landed.as_bytes(0) == drawn.as_bytes(0),
+        "the cell differs from the frame the session draws at its tick"
+    );
 }

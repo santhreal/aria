@@ -21,6 +21,8 @@ pub mod text_anim_bench {
 }
 
 #[cfg(test)]
+mod media_sources_tests;
+#[cfg(test)]
 mod playback_rate;
 #[cfg(test)]
 mod tests;
@@ -98,6 +100,26 @@ pub enum SeekPolicy {
     /// sync point at/before it (or a short exact roll when the target is
     /// just ahead of the decoder's position).
     NearestSync,
+}
+
+/// The files one renderer decodes each media id from, at one moment: the
+/// proxies registered and whether they are in use.
+///
+/// A second renderer that adopts it ([`Renderer::adopt_media_sources`])
+/// decodes every media id from the same file as the first. Taking one costs a
+/// reference count.
+#[derive(Debug, Clone)]
+pub struct MediaSources {
+    generation: u64,
+    proxies: Arc<HashMap<MediaId, PathBuf>>,
+    use_proxies: bool,
+}
+
+/// A media-source generation no renderer in this process has used, so two
+/// renderers never hold one generation for different files.
+fn next_media_generation() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 pub(crate) struct PendingFrame {
@@ -185,12 +207,16 @@ pub struct Renderer {
     /// (open/load/relink). Content must match the original frame-for-frame;
     /// only resolution/GOP may differ, so placement geometry (driven by the
     /// model's dimensions) stays valid and normalized UVs sample correctly.
-    proxies: HashMap<MediaId, PathBuf>,
+    proxies: Arc<HashMap<MediaId, PathBuf>>,
     /// Whether [`decode`](Self::decode) honors `proxies`. Preview leaves
     /// this on; full-quality paths sharing this renderer (the engine's
     /// export command) flip it off for the pass. Toggling drops the
     /// proxied media's open decoders so no cursor outlives its file.
     use_proxies: bool,
+    /// Changes whenever a media id may decode from a different file than
+    /// before: a media-source reset or invalidation, a proxy registered or
+    /// cleared, or proxies switched on or off. See [`MediaSources`].
+    media_generation: u64,
     /// When true, export-quality motion blur runs: clips with motion blur
     /// enabled and an animated transform are supersampled across the shutter.
     /// Interactive preview leaves this false (N× layer draws is too costly

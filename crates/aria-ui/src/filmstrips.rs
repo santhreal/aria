@@ -12,13 +12,19 @@
 //! session revision still rejects a render that finishes after a newer edit.
 //! Only one render is in flight at a time: a filmstrip is worth idle
 //! capacity, never a stall in front of a scrub.
+//!
+//! Cells render on a [`CellRenderer`] of their own, so a cell neither holds
+//! the engine through its decode nor moves the decoders the Viewer's frames
+//! are read from.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
+use aria_engine::{CellRenderer, CellSource};
 use aria_models::RationalTime;
 use aria_plugin::Reverted;
 use gpui::{App, Context, Entity, RenderImage};
+use parking_lot::Mutex;
 
 use crate::app::AppState;
 
@@ -66,6 +72,8 @@ pub struct FilmstripStore {
     /// The latest edits followed by span, oldest first. The newest ends at
     /// `revision`; the store forgets them all when it drops every cell.
     journal: VecDeque<Step>,
+    /// The renderer every cell is drawn on.
+    renderer: Arc<Mutex<CellRenderer>>,
 }
 
 impl FilmstripStore {
@@ -264,7 +272,7 @@ pub fn cell_spans(
 
 /// Render one cell if the store wants it. Safe to call from a render: the tick
 /// is marked in flight before the thread starts, and nothing here takes the
-/// engine lock, which the cell render holds for as long as its decode runs.
+/// engine lock. The render thread holds it only to take the cell's source.
 pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
     let wanted = state.update(cx, |state, _| {
         // The revision the drawn timeline was projected from. An engine edit
@@ -276,9 +284,14 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
             return None;
         }
         state.filmstrips.start(tick);
-        Some((revision, state.engine().clone(), state.playhead.rate))
+        Some((
+            revision,
+            state.engine().clone(),
+            Arc::clone(&state.filmstrips.renderer),
+            state.playhead.rate,
+        ))
     });
-    let Some((revision, engine, rate)) = wanted else {
+    let Some((revision, engine, renderer, rate)) = wanted else {
         return;
     };
     let state = state.clone();
@@ -290,7 +303,8 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
         // asks for one after another.
         let rendered =
             crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
-                render_cell(&mut engine.lock(), at)
+                let source = engine.lock().cell_source();
+                render_cell(&mut renderer.lock(), &source, at)
             })
             .await
             .flatten();
@@ -307,11 +321,15 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
     .detach();
 }
 
-/// The cell at `at`: the frame that plays there, fit to a cell. `None` where
-/// nothing plays or the render fails.
-pub fn render_cell(engine: &mut aria_engine::Engine, at: RationalTime) -> Option<Arc<RenderImage>> {
-    engine
-        .get_frame_fit(at, CELL_MAX_W, CELL_H)
+/// The cell at `at`: the frame `source` plays there, fit to a cell and drawn
+/// on `renderer`. `None` where nothing plays or the render fails.
+pub fn render_cell(
+    renderer: &mut CellRenderer,
+    source: &CellSource,
+    at: RationalTime,
+) -> Option<Arc<RenderImage>> {
+    renderer
+        .render_fit(source, at, CELL_MAX_W, CELL_H)
         .ok()
         .and_then(|frame| crate::frame::rgba_to_render(&frame))
 }

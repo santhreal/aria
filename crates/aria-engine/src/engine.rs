@@ -20,7 +20,10 @@ use aria_render::{
 use crate::action::{ApplyContext, ApplyOutcome, EditAction, History, HistoryStep, dispatch};
 use crate::error::EngineError;
 
+mod cells;
 mod source_frame;
+
+pub use cells::{CellRenderer, CellSource};
 
 /// Session configuration for [`Engine`].
 #[derive(Debug, Clone)]

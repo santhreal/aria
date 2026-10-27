@@ -232,7 +232,8 @@ clip's first frame, and each picture keeps its width and is cropped where the
 next cell starts or the clip ends. Where one frame is wider than a cell, its
 picture repeats across the frame. Only cells on screen are rendered.
 
-Cells render one at a time in the background. A picture edit invalidates cells
+Cells render one at a time in the background on a renderer of their own, so
+the Viewer never waits for a cell. A picture edit invalidates cells
 inside its changed timeline spans; audio, labels, lane display settings, and
 other picture-neutral edits retain them. Each move of a value scrub, a clip
 line drag, or a color wheel drag replaces the edit of the move before it, and

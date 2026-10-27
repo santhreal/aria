@@ -730,6 +730,7 @@ Notes for the latest release. For previous releases, see the
 - A Linux media probe reads each file's streams at the caps its demuxer and parsers state instead of plugging a decoder, and the decode device warm-up starts after the files named on the command line open, which brings the window with `h264-1080p60`, `hevc-2160p60` and `prores-2160p30` named on the command line on Server from a process-to-window p50 between 933.2 ms and 965.5 ms to between 509.5 ms and 526.3 ms over five paired runs.
 - The window draws its first frame without waiting for the first picture to decode, which brings process spawn to the first frame drawn on a refresh with `h264-1080p60`, `hevc-2160p60` and `prores-2160p30` named on the command line on Server from a p50 between 1125.5 ms and 1200.7 ms to between 822.5 ms and 834.7 ms over four paired runs.
 - The `startup` bench times each launch to the window's first frame drawn on a refresh as well as to the mapped window, and its targets use the first frame.
+- Timeline filmstrip cells render on a renderer of their own and hold the session only to read the project, which brings a Viewer playback frame drawn after a cell on Server from a p50 between 21.3 ms and 21.5 ms to between 1.75 ms and 1.82 ms, and a cell from a p50 between 82.7 ms and 84.2 ms, all of it holding the session, to between 36.6 ms and 37.8 ms, of which 0.001 ms holds it, over three paired runs.
 
 ### Fixed
 

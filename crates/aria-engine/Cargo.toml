@@ -16,6 +16,9 @@ autobenches = false
 autoexamples = false
 
 [dependencies]
+# The GPU device a filmstrip cell renderer shares with the session's renderer;
+# the drift guard tests read its pass descriptors.
+aria-compositor = { path = "../aria-compositor" }
 aria-core = { path = "../aria-core" }
 aria-commands = { path = "../aria-commands" }
 aria-decoder = { path = "../aria-decoder" }
@@ -27,8 +30,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-# Drift guard: model catalog vs compositor pass descriptors.
-aria-compositor = { path = "../aria-compositor" }
 # Apple-only: synthesize a real mp4 in tests so native import/probe is exercised
 # without a checked-in fixture.
 aria-encoder = { path = "../aria-encoder" }
