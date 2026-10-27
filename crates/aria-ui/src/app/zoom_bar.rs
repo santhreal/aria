@@ -14,17 +14,19 @@
 use super::AppState;
 use crate::transport::TIMELINE_BASE_PPS;
 
-/// Width of the grip at each end of a thumb wide enough for three grips, in
-/// pixels.
-const HANDLE_W: f32 = 6.0;
+/// Diameter of the round knob at each end of the thumb, and the height of the
+/// thumb, in pixels. A press on a knob takes that end's grip.
+pub const HANDLE_W: f32 = 12.0;
 /// How far past the thumb's ends a press still takes its grip, in pixels, so
-/// a grip 6 px wide is not a target the pointer has to land on exactly.
+/// a press just off a knob's rim zooms rather than scrolls.
 const GRIP_SLOP: f32 = 3.0;
-/// The narrowest the thumb is drawn, in pixels.
-const MIN_THUMB_W: f32 = 18.0;
+/// The narrowest the thumb is drawn, in pixels: a whole knob at each end and a
+/// knob's width of middle that scrolls.
+const MIN_THUMB_W: f32 = 3.0 * HANDLE_W;
 
-/// Width of the grip at each end of a thumb `thumb_w` pixels wide: a third of
-/// a narrow thumb, so its middle third still scrolls.
+/// Width of the grip, and diameter of the knob, at each end of a thumb
+/// `thumb_w` pixels wide: a third of a thumb narrower than three knobs, so its
+/// middle third still scrolls.
 pub fn zoom_bar_grip_w(thumb_w: f32) -> f32 {
     HANDLE_W.min(thumb_w / 3.0)
 }
@@ -186,6 +188,11 @@ impl AppState {
     /// Whether a press on the zoom scroll bar is held.
     pub fn zoom_bar_held(&self) -> bool {
         self.zoom_bar_press.is_some()
+    }
+
+    /// The grip a held press on the zoom scroll bar holds.
+    pub fn zoom_bar_grip(&self) -> Option<ZoomBarGrip> {
+        self.zoom_bar_press.map(|press| press.grip)
     }
 
     /// The pointer is at window `x` with the press held: the thumb follows it,

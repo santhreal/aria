@@ -136,10 +136,10 @@ display, and a press or drag in the ruler draws the playhead under the pointer
 without easing. The work area bar under the ruler spans In to Out: dragging it
 moves both points, dragging an end moves one, Escape puts the range back, and a
 double-click sets it to the sequence (`crates/aria-ui/src/app/work_area.rs`).
-The zoom scroll bar along the bottom of the timeline scrolls from its window and
-zooms from either handle with the other end held, keeps the pressed point under
-the pointer, follows a drag past the bar, puts the view back on Escape, and
-zooms about the playhead under a wheel turned over it
+The zoom scroll bar along the bottom of the timeline scrolls from its thumb and
+zooms from the round knob at either end with the other end held, keeps the
+pressed point under the pointer, follows a drag past the bar, puts the view back
+on Escape, and zooms about the playhead under a wheel turned over it
 (`crates/aria-ui/src/app/zoom_bar.rs`,
 `crates/aria-ui/src/panels/timeline/overview.rs`). A clip's twirl control or the
 `Alt` reveal keys (`Alt+P`, `Alt+S`, `Alt+R`, `Alt+T`, `Alt+A`, `Alt+E`,

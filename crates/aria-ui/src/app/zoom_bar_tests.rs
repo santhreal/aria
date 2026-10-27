@@ -8,17 +8,19 @@
 //! not stay under the pointer, a press that takes the wrong grip, a view that
 //! leaves the strip, a press that keeps moving after Escape, and a drag that
 //! stops at the bar's 24 px edge. Every grip is driven through the same press,
-//! drag and release, and the drawn tests drive the bar the shell draws. A wheel
-//! turned over the bar zooms about the playhead, the way it turns.
+//! drag and release, and the drawn tests drive the bar the shell draws: the
+//! thumb is drawn over the view and each knob over the grip a press on it
+//! takes. A wheel turned over the bar zooms about the playhead, the way it
+//! turns.
 //!
-//! Not covered: the bar's colors and the clip spans drawn on it, which a
+//! Not covered: the bar's colors and the clip band drawn on it, which a
 //! snapshot and the overview's own tests own.
 
 use gpui::{
     Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TouchPhase, VisualTestContext, point, px,
 };
 
-use super::{MIN_THUMB_W, Strip, ZoomBarGrip};
+use super::{HANDLE_W, MIN_THUMB_W, Strip, ZoomBarGrip};
 use crate::app::AppState;
 use crate::app::premiere_tests::with_sequence;
 use crate::app::viewer_row_tests::{change, shell_with_take};
@@ -73,7 +75,7 @@ fn thumb(state: &AppState) -> (f32, f32) {
 }
 
 fn grip(state: &AppState) -> Option<ZoomBarGrip> {
-    state.zoom_bar_press.map(|press| press.grip)
+    state.zoom_bar_grip()
 }
 
 #[track_caller]
@@ -109,8 +111,9 @@ fn the_thumb_is_drawn_over_the_view_on_a_strip_of_the_sequence() {
     }
 
     // A view narrower than the thumb's least width draws that width, centered
-    // on the view, and held to the strip at its end.
+    // on the view, and held to the strip at either end.
     state.set_zoom(ZOOM_MAX, false);
+    state.scroll_timeline_to((duration / 2.0 / state.ticks_per_px()) as f32, false);
     let (start, end) = state.view_ticks();
     let (x0, x1) = thumb(&state);
     assert!(
@@ -134,6 +137,12 @@ fn the_thumb_is_drawn_over_the_view_on_a_strip_of_the_sequence() {
         f64::from(thumb(&state).1),
         f64::from(edge.left + edge.width),
         "a narrow thumb at the end",
+    );
+    state.scroll_timeline_to(0.0, false);
+    near(
+        f64::from(thumb(&state).0),
+        f64::from(edge.left),
+        "a narrow thumb at the start",
     );
 
     // A view that reaches past the sequence's end draws a strip out to the
@@ -163,11 +172,11 @@ fn a_press_takes_the_grip_it_lands_on() {
     let cases = [
         (x0 - 2.0, ZoomBarGrip::Start),
         (x0 + 1.0, ZoomBarGrip::Start),
-        (x0 + 5.0, ZoomBarGrip::Start),
-        (x0 + 8.0, ZoomBarGrip::Thumb),
+        (x0 + HANDLE_W - 1.0, ZoomBarGrip::Start),
+        (x0 + HANDLE_W + 2.0, ZoomBarGrip::Thumb),
         ((x0 + x1) / 2.0, ZoomBarGrip::Thumb),
-        (x1 - 8.0, ZoomBarGrip::Thumb),
-        (x1 - 5.0, ZoomBarGrip::End),
+        (x1 - HANDLE_W - 2.0, ZoomBarGrip::Thumb),
+        (x1 - HANDLE_W + 1.0, ZoomBarGrip::End),
         (x1 + 2.0, ZoomBarGrip::End),
         // Beside the thumb: the view comes to the press, which scrolls.
         (x1 + 10.0, ZoomBarGrip::Thumb),
@@ -417,14 +426,15 @@ fn view(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext) -> (f64,
     })
 }
 
-#[gpui::test]
-fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
-    cx: &mut gpui::TestAppContext,
+/// Five takes end to end in the drawn shell and a view a third of them wide,
+/// scrolled to `scroll_x`: a view the closest zoom can draw in any test window.
+fn a_third_of_five_takes(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    take: aria_models::MediaId,
+    scroll_x: impl FnOnce(&AppState) -> f32,
 ) {
-    let (state, visual, take) = shell_with_take(cx, "zoom-scroll-bar");
-    // Five takes end to end, and a view a third of them wide, at the start: a
-    // view the closest zoom can draw in any test window.
-    change(visual, &state, |state| {
+    change(visual, state, |state| {
         for _ in 1..5 {
             let end = state.store.sequence.duration_ticks;
             state
@@ -435,8 +445,17 @@ fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
         let seconds = sequence.duration_ticks as f32 / sequence.ticks_per_second() / 3.0;
         let zoom = state.timeline_viewport_px() / (seconds * TIMELINE_BASE_PPS);
         state.set_zoom(zoom, false);
-        state.scroll_timeline_to(0.0, false);
+        let scroll = scroll_x(state);
+        state.scroll_timeline_to(scroll, false);
     });
+}
+
+#[gpui::test]
+fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual, take) = shell_with_take(cx, "zoom-scroll-bar");
+    a_third_of_five_takes(&state, visual, take, |_| 0.0);
     let bar = visual
         .debug_bounds(intern("sequence-overview"))
         .expect("the timeline draws its zoom scroll bar");
@@ -515,6 +534,115 @@ fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
     visual.simulate_mouse_up(at(mid + 40.0, y), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
     assert_eq!(view(&state, visual), zoomed, "the drag ended at Escape");
+}
+
+/// The drawn thumb spans the view's stretch of the strip, and each drawn knob
+/// is a circle `HANDLE_W` across, centered on the bar's row, at its end of the
+/// thumb and inside the bar wherever the view is: a press anywhere on a knob
+/// takes that end's grip, and a press on the thumb past the knob scrolls.
+///
+/// The class: a bar whose drawing and whose grips disagree, a knob drawn wider
+/// or narrower than the press it takes, off its end of the thumb, or out of
+/// the bar at the strip's ends. Not covered: the colors.
+#[gpui::test]
+fn each_drawn_knob_takes_the_grip_of_its_end(cx: &mut gpui::TestAppContext) {
+    let (state, visual, take) = shell_with_take(cx, "zoom-bar-knobs");
+    let ends: [fn(&AppState) -> f32; 3] = [
+        |_| 0.0,
+        |state| state.timeline_viewport_px(),
+        |state| 2.0 * state.timeline_viewport_px(),
+    ];
+    for (n, scroll_x) in ends.into_iter().enumerate() {
+        if n == 0 {
+            a_third_of_five_takes(&state, visual, take, scroll_x);
+        } else {
+            change(visual, &state, |state| {
+                let scroll = scroll_x(state);
+                state.scroll_timeline_to(scroll, false);
+            });
+        }
+        let drawn = |visual: &mut VisualTestContext, name: &str| {
+            visual
+                .debug_bounds(intern(name))
+                .unwrap_or_else(|| panic!("the bar draws {name}"))
+        };
+        let body = drawn(visual, "sequence-overview-body");
+        let window = drawn(visual, "sequence-overview-window");
+        let (x0, x1) = visual.read(|app| thumb(state.read(app)));
+        let row = f64::from(body.center().y);
+        let before = view(&state, visual);
+        let at = |x: f32| point(px(x), body.center().y);
+        near(
+            f64::from(window.left()),
+            f64::from(x0),
+            "the thumb's left end",
+        );
+        near(
+            f64::from(window.right()),
+            f64::from(x1),
+            "the thumb's right end",
+        );
+        near(
+            f64::from(window.size.height),
+            f64::from(HANDLE_W),
+            "the thumb's height",
+        );
+        near(f64::from(window.center().y), row, "the thumb's middle");
+
+        for (name, end) in [
+            ("sequence-overview-handle-left", ZoomBarGrip::Start),
+            ("sequence-overview-handle-right", ZoomBarGrip::End),
+        ] {
+            let knob = drawn(visual, name);
+            near(
+                f64::from(knob.size.width),
+                f64::from(HANDLE_W),
+                "a knob's width",
+            );
+            near(
+                f64::from(knob.size.height),
+                f64::from(HANDLE_W),
+                "a knob's height",
+            );
+            near(f64::from(knob.center().y), row, "a knob's middle");
+            let (outer, inner, past) = match end {
+                ZoomBarGrip::Start => (window.left(), knob.left(), f32::from(knob.right()) + 2.0),
+                _ => (window.right(), knob.right(), f32::from(knob.left()) - 2.0),
+            };
+            near(
+                f64::from(inner),
+                f64::from(outer),
+                "a knob at its end of the thumb",
+            );
+            assert!(
+                body.left() <= knob.left() && knob.right() <= body.right(),
+                "{name} is inside the bar at scroll {n}: {knob:?} in {body:?}"
+            );
+            let (left, right) = (f32::from(knob.left()), f32::from(knob.right()));
+            for (x, expected) in [
+                (left + 0.5, end),
+                ((left + right) / 2.0, end),
+                (right - 0.5, end),
+                (past, ZoomBarGrip::Thumb),
+            ] {
+                visual.simulate_mouse_down(at(x), MouseButton::Left, Modifiers::none());
+                visual.run_until_parked();
+                let pressed = visual.read(|app| grip(state.read(app)));
+                visual.simulate_mouse_up(at(x), MouseButton::Left, Modifiers::none());
+                visual.run_until_parked();
+                assert_eq!(
+                    pressed,
+                    Some(expected),
+                    "a press at {x} on {name}, scroll {n}"
+                );
+                assert_eq!(
+                    view(&state, visual),
+                    before,
+                    "a press and release moved nothing"
+                );
+            }
+        }
+    }
 }
 
 /// The zoom, the scroll, and the playhead's pixel in the view.

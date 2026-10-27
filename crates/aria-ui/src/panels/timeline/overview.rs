@@ -1,6 +1,7 @@
 //! Sequence overview and zoom scroll bar along the bottom of the timeline.
 //!
-//! The strip draws the sequence's clips and the stretch on screen as a thumb.
+//! The strip draws the sequence's clips as a band and the stretch on screen as
+//! a thumb: a capsule with a round knob at each end that zooms the view.
 //! A press anywhere on it is held on the state ([`crate::app::zoom_bar`]),
 //! which reads the grip, scrolls, and zooms; the shell carries the drag past
 //! the bar. A wheel turned over the strip zooms about the playhead; Shift or a
@@ -22,6 +23,7 @@ use gpui::{
 use aria_models::TrackKind;
 
 use crate::app::AppState;
+use crate::app::zoom_bar::{HANDLE_W, ZoomBarGrip, zoom_bar_grip_w};
 use crate::motion;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
@@ -35,6 +37,10 @@ pub(super) const OVERVIEW_H: f32 = Theme::ICON_HIT + 1.0;
 /// timecode does.
 const CONTROL_INSET: f32 = Theme::SPACE_XS;
 const MAX_OVERVIEW_SPANS: usize = 64;
+/// Height of the band the sequence's clips are drawn as along the zoom bar.
+const CLIP_BAND_H: f32 = 4.0;
+/// Top of the thumb, and of the track it rides, in the control row.
+const THUMB_TOP: f32 = (Theme::ICON_HIT - HANDLE_W) / 2.0;
 
 struct TrackSpanCache {
     clips: std::sync::Weak<Vec<crate::types::UiClip>>,
@@ -224,10 +230,15 @@ pub(super) fn overview(
     let duration = store.sequence.duration_ticks;
     let spans = overview_spans(store, state.read(cx).projections, duration, view_w);
     let ((window_x, window_w), clip_share) = state.read(cx).zoom_bar_thumb(scroll_x, zoom);
-    let grip_w = crate::app::zoom_bar::zoom_bar_grip_w(window_w);
-    let accent = theme.accent;
-    let raised = theme.surface_raised;
-    let wash = theme.wash(0.35);
+    let held = state.read(cx).zoom_bar_grip();
+    let knob_d = zoom_bar_grip_w(window_w);
+    let thumb_key = motion::MotionKey::new("zoom-bar-thumb", "");
+    let thumb_fill = if held == Some(ZoomBarGrip::Thumb) {
+        theme.wash(0.26)
+    } else {
+        motion::hover_blend(thumb_key, theme.wash(0.14), theme.wash(0.2))
+    };
+    let band = theme.text_faint;
     let border = theme.border;
     let fit_key = motion::MotionKey::new("timeline-zoom-fit", "");
 
@@ -342,51 +353,94 @@ pub(super) fn overview(
                         this.redraw(crate::shell::Moved::View, cx);
                     }
                 }))
+                // The track the thumb rides, the clips as a band along it, and
+                // the thumb over both.
+                .child(
+                    div()
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .top(px(THUMB_TOP))
+                        .h(px(HANDLE_W))
+                        .rounded(px(HANDLE_W / 2.0))
+                        .bg(theme.hairline),
+                )
                 .children(spans.iter().map(|&(x, w)| {
                     div()
                         .absolute()
                         .left(px(x * clip_share))
-                        .top(px(2.0))
-                        .h(px(OVERVIEW_H - 4.0))
+                        .top(px((Theme::ICON_HIT - CLIP_BAND_H) / 2.0))
+                        .h(px(CLIP_BAND_H))
                         .w(px((w * clip_share).max(1.0)))
-                        .bg(raised)
+                        .rounded(px(CLIP_BAND_H / 2.0))
+                        .bg(band)
                 }))
                 .child(
                     div()
                         .id("sequence-overview-window")
+                        .debug_selector(|| "sequence-overview-window".into())
                         .absolute()
                         .left(px(window_x))
-                        .top(px(0.0))
-                        .h_full()
+                        .top(px(THUMB_TOP))
+                        .h(px(HANDLE_W))
                         .w(px(window_w))
-                        .border_1()
-                        .border_color(accent)
-                        .bg(wash)
+                        .rounded(px(HANDLE_W / 2.0))
+                        .bg(thumb_fill)
+                        .on_hover(motion::hover_listener(thumb_key))
                         .cursor(CursorStyle::OpenHand)
                         .child(
-                            div()
-                                .id("sequence-overview-handle-left")
-                                .absolute()
-                                .left_0()
-                                .top_0()
-                                .bottom_0()
-                                .w(px(grip_w))
-                                .bg(accent)
-                                .cursor(CursorStyle::ResizeLeftRight),
+                            knob(
+                                "sequence-overview-handle-left",
+                                knob_d,
+                                held,
+                                ZoomBarGrip::Start,
+                                theme,
+                            )
+                            .left_0(),
                         )
                         .child(
-                            div()
-                                .id("sequence-overview-handle-right")
-                                .absolute()
-                                .right_0()
-                                .top_0()
-                                .bottom_0()
-                                .w(px(grip_w))
-                                .bg(accent)
-                                .cursor(CursorStyle::ResizeLeftRight),
+                            knob(
+                                "sequence-overview-handle-right",
+                                knob_d,
+                                held,
+                                ZoomBarGrip::End,
+                                theme,
+                            )
+                            .right_0(),
                         ),
                 ),
         )
+}
+
+/// The round knob `d` pixels across at the `end` of the zoom bar's thumb:
+/// muted at rest, lit under the pointer, and in the accent while a press holds
+/// it.
+fn knob(
+    id: impl Into<motion::ControlId>,
+    d: f32,
+    held: Option<ZoomBarGrip>,
+    end: ZoomBarGrip,
+    theme: &Theme,
+) -> gpui::Stateful<gpui::Div> {
+    let id = id.into();
+    let key = id.motion("zoom-bar-knob");
+    let ink = if held == Some(end) {
+        theme.accent
+    } else {
+        motion::hover_blend(key, theme.text_muted, theme.text)
+    };
+    div()
+        .id(id.element("zoom-bar-knob"))
+        .when_some(id.fixed_name(), |el, name| {
+            el.debug_selector(move || name.to_owned())
+        })
+        .absolute()
+        .top(px((HANDLE_W - d) / 2.0))
+        .size(px(d))
+        .rounded(px(d / 2.0))
+        .bg(ink)
+        .on_hover(motion::hover_listener(key))
+        .cursor(CursorStyle::ResizeLeftRight)
 }
 
 /// The zoom readout: a whole percentage from 10% up, and two significant digits

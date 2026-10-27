@@ -184,10 +184,11 @@ during the drag puts both points back. The render bar runs along the bottom of
 the ruler (see [Render files](viewer.md#render-files)).
 
 The zoom bar along the bottom of the timeline maps the whole sequence, and past
-its end the view when the view reaches further. Drag the window to scroll; the
-point you pressed stays under the pointer. Drag either handle to zoom with the
-other end held in place; drag the handles to the bar's two ends to show the
-whole sequence. Click outside the window to center the view there and keep
+its end the view when the view reaches further. The clips draw as a thin band,
+and the view as a thumb with a round knob at each end. Drag the thumb to
+scroll; the point you pressed stays under the pointer. Drag either knob to zoom
+with the other end held in place; drag the knobs to the bar's two ends to show
+the whole sequence. Click outside the thumb to center the view there and keep
 dragging from there. A drag continues when the pointer leaves the bar, and Esc
 during the drag puts the zoom and the scroll back. Turn the wheel over the bar
 to zoom about the playhead, in when turned up and out when turned down;
