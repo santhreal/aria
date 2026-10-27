@@ -668,13 +668,15 @@ pub trait ReportableError {
 
 impl ReportableError for &EngineError {
     fn into_error_message(self) -> String {
+        // The copy names the next action; the log keeps the cause behind it.
+        tracing::warn!(error = %self, "engine error reported");
         describe_engine_error(self)
     }
 }
 
 impl ReportableError for EngineError {
     fn into_error_message(self) -> String {
-        describe_engine_error(&self)
+        (&self).into_error_message()
     }
 }
 

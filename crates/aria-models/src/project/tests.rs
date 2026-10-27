@@ -144,5 +144,8 @@ mod largest_video;
 #[path = "tests_trim_reach.rs"]
 mod trim_reach;
 
+#[path = "tests_trim_edges.rs"]
+mod trim_edges;
+
 #[path = "tests_stretch.rs"]
 mod stretch;

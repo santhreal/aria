@@ -266,46 +266,19 @@ impl Project {
                     .media
                     .get(media)
                     .ok_or(ModelError::UnknownMedia(*media))?;
-                // Source ticks consumed per timeline tick scale with the
-                // clip's speed (1:1 for never-retimed clips).
-                let head_delta = clip.scale_by_speed(
-                    resample(
-                        RationalTime::new(new_timeline.start.value - old_tl.start.value, tl_rate),
-                        media.frame_rate,
-                    )
-                    .value,
-                );
-                let new_src_dur = clip
-                    .scale_by_speed(resample(new_timeline.duration, media.frame_rate).value)
-                    .max(1);
-                // A reversed clip plays its window backward, so the
-                // timeline head shows the window's END: a head trim drops
-                // source from the top, a tail trim from the bottom —
-                // mirror-image of the forward case.
-                let new_src_start = if clip.reversed {
-                    source.start.value + source.duration.value - new_src_dur - head_delta
-                } else {
-                    source.start.value + head_delta
-                };
+                let (start, duration) =
+                    trimmed_window(clip, *source, new_timeline, media.frame_rate);
                 // Stills extend freely past the pool's default 5s window —
                 // the one frame repeats and decode ignores the window, so
                 // the source range is duration bookkeeping only. Clamp the
                 // start to 0 so extensions stay canonical.
                 if media.is_image {
-                    Some(TimeRange::at_rate(
-                        new_src_start.max(0),
-                        new_src_dur,
-                        media.frame_rate,
-                    ))
+                    Some(TimeRange::at_rate(start.max(0), duration, media.frame_rate))
                 } else {
-                    if new_src_start < 0 || new_src_start + new_src_dur > media.duration.value {
+                    if start < 0 || start + duration > media.duration.value {
                         return Err(ModelError::SourceOutOfBounds);
                     }
-                    Some(TimeRange::at_rate(
-                        new_src_start,
-                        new_src_dur,
-                        media.frame_rate,
-                    ))
+                    Some(TimeRange::at_rate(start, duration, media.frame_rate))
                 }
             }
             ClipSource::Multicam { source, .. } => {
@@ -322,25 +295,11 @@ impl Project {
                     .get(sequence)
                     .ok_or(ModelError::UnknownSequence(*sequence))?;
                 let seq_fps = seq.timeline.frame_rate;
-                let head_delta = clip.scale_by_speed(
-                    resample(
-                        RationalTime::new(new_timeline.start.value - old_tl.start.value, tl_rate),
-                        seq_fps,
-                    )
-                    .value,
-                );
-                let new_src_dur = clip
-                    .scale_by_speed(resample(new_timeline.duration, seq_fps).value)
-                    .max(1);
-                let new_src_start = if clip.reversed {
-                    source.start.value + source.duration.value - new_src_dur - head_delta
-                } else {
-                    source.start.value + head_delta
-                };
-                if new_src_start < 0 {
+                let (start, duration) = trimmed_window(clip, *source, new_timeline, seq_fps);
+                if start < 0 {
                     return Err(ModelError::SourceOutOfBounds);
                 }
-                Some(TimeRange::at_rate(new_src_start, new_src_dur, seq_fps))
+                Some(TimeRange::at_rate(start, duration, seq_fps))
             }
             ClipSource::Generated(_) => None,
         })
@@ -875,4 +834,41 @@ fn split_source_window(
         TimeRange::at_rate(left_src_start, left_src_dur, rate),
         TimeRange::at_rate(right_src_start, source.duration.value - left_src_dur, rate),
     ))
+}
+
+/// The source window, as `(start, duration)` in `rate`, that `clip` plays
+/// over `new_timeline`. Each source edge moves by its own timeline edge's
+/// delta, scaled by the clip's speed and resampled to `rate` as
+/// [`Clip::source_time_at`] maps a position. A head trimmed to a tick starts
+/// the window where a split there starts its right half, an edge the trim
+/// leaves in place keeps its source frame, and a trim inside the clip stays
+/// inside its window. A reversed clip plays its window backward: its timeline
+/// head moves the window's end and its tail the window's start. A window that
+/// rounds to nothing keeps one frame beside the edge that stayed.
+fn trimmed_window(
+    clip: &Clip,
+    source: TimeRange,
+    new_timeline: TimeRange,
+    rate: Rational,
+) -> (i64, i64) {
+    let shift = |ticks: i64| {
+        let scaled = clip.scale_by_speed(ticks);
+        resample(RationalTime::new(scaled, new_timeline.start.rate), rate).value
+    };
+    let head = shift(new_timeline.start.value - clip.timeline.start.value);
+    let tail = shift(new_timeline.end_tick() - clip.timeline.end_tick());
+    let (low, high) = if clip.reversed {
+        (-tail, -head)
+    } else {
+        (head, tail)
+    };
+    let start = source.start.value + low;
+    let end = source.end_tick() + high;
+    if end > start {
+        (start, end - start)
+    } else if high == 0 {
+        (end - 1, 1)
+    } else {
+        (start, 1)
+    }
 }

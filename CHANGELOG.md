@@ -960,6 +960,7 @@ Notes for the latest release. For previous releases, see the
 - Markers on the timeline ruler stand on its bottom edge below the timecode labels instead of at its top edge, where a marker covered the label at its time.
 - An `Auto` canvas sized by two video sources of equal area takes the size of the one placed lowest and earliest on the timeline instead of the one the clip store listed first.
 - `aria_last_error` reports the error of the last session open or new on the calling thread, where a session opened or created on another thread could clear or replace it before it was read.
+- Trimming an edge of a clip inward, including the trim a move or overwrite makes of a clip it lands on, keeps the source frame at the other edge, so such an edit on a take that ends at its media's end no longer fails with `Couldn't apply that edit` when the trim is not a whole number of the take's frames.
 
 ## [alpha-0.7.0] - 2026-07-22
 
