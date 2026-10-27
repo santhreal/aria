@@ -63,6 +63,13 @@ cargo run -p aria-bench --release -- all
 result records the machine, GPU, driver, build commit, profile, and the raw
 samples, so a regression is compared against the same machine.
 
+The `startup` scenario launches the `aria-desktop` binary that stands next to
+the `aria-bench` binary. Build it with a command of its own,
+`cargo build --release -p aria-desktop`, before the run. Built in one command
+with `aria-bench`, it takes the `test-support` features `aria-bench` enables on
+`gpui`, which record every entity handle and panic at exit on a leaked one, and
+it differs from the binary a release ships.
+
 Scenarios that need a window run on a private headless compositor. Dropped
 frames, A/V offset, and latencies come from the same counters the status bar
 and the dropped-frame indicator read.
