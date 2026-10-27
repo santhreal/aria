@@ -172,13 +172,9 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let cold_series = SampleSeries::from_values("cold_seek_ms", "ms", cold_seek_samples);
     let long_gop_series =
         SampleSeries::from_values("long_gop_exact_seek_ms", "ms", long_gop_samples);
-    let ruler_series =
-        SampleSeries::from_values("ruler_scrub_move_ms", "ms", ruler_scrub_samples);
-    let ruler_long_gop_series = SampleSeries::from_values(
-        "ruler_scrub_long_gop_move_ms",
-        "ms",
-        ruler_long_gop_samples,
-    );
+    let ruler_series = SampleSeries::from_values("ruler_scrub_move_ms", "ms", ruler_scrub_samples);
+    let ruler_long_gop_series =
+        SampleSeries::from_values("ruler_scrub_long_gop_move_ms", "ms", ruler_long_gop_samples);
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -270,16 +266,17 @@ fn ruler_scrub(
     let _ = timed_frame(&app, &mut window, |shell, _, cx| {
         aria_ui::app::spawn_preview(shell.state.clone(), cx);
     });
-    let (start, stride) = ((from * per_second).round() as i64, (step * per_second).round() as i64);
+    let (start, stride) = (
+        (from * per_second).round() as i64,
+        (step * per_second).round() as i64,
+    );
     let tick = |moves: u32| start + stride * i64::from(moves);
     let mut samples = Vec::with_capacity(MOVES as usize);
     for moves in 1..=MOVES {
         std::thread::sleep(MOVE_GAP);
         let to = tick(moves);
         samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
-            shell
-                .state
-                .update(cx, |s, _| s.scrub_playhead_on_ruler(to));
+            shell.state.update(cx, |s, _| s.scrub_playhead_on_ruler(to));
             aria_ui::app::spawn_preview(shell.state.clone(), cx);
             shell.redraw(Moved::Playhead, cx);
         }));

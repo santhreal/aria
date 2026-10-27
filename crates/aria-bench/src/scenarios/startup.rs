@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::fixtures::{FixtureId, ensure_fixture};
-use crate::process::{measure_process_window_launch, start_private_xvfb};
+use crate::process::{WindowLaunch, measure_process_window_launch, start_private_xvfb};
 use crate::scenarios::{BenchContext, open_editor};
 use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluation};
 fn find_aria_desktop_binary() -> Option<PathBuf> {
@@ -28,6 +28,30 @@ fn measure_inproc_interactive(data_dir: &Path) -> Result<f64, String> {
     drop(window);
     app.update(|cx| cx.shutdown());
     Ok(elapsed_ms)
+}
+
+/// Push the `<kind>_process_window_ms` and `<kind>_process_first_frame_ms`
+/// series of `launches` onto `samples` and return the first frame's p50, the
+/// time to a window that draws. `None` when no launch was measured.
+fn launch_series(
+    samples: &mut Vec<SampleSeries>,
+    kind: &str,
+    launches: &[WindowLaunch],
+) -> Option<f64> {
+    if launches.is_empty() {
+        return None;
+    }
+    let mapped = launches.iter().map(|launch| launch.mapped_ms).collect();
+    let drawn = launches.iter().map(|launch| launch.drawn_ms).collect();
+    samples.push(SampleSeries::from_values(
+        format!("{kind}_process_window_ms"),
+        "ms",
+        mapped,
+    ));
+    let drawn = SampleSeries::from_values(format!("{kind}_process_first_frame_ms"), "ms", drawn);
+    let p50 = drawn.p50;
+    samples.push(drawn);
+    Some(p50)
 }
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
@@ -55,14 +79,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let mut media_process_samples = Vec::new();
     if let (Some(xvfb), Some(bin)) = (start_private_xvfb(), find_aria_desktop_binary()) {
         notes.push(format!(
-            "Measured full aria-desktop process spawn to mapped X11 window on private Xvfb {}",
+            "Measured full aria-desktop process spawn to mapped X11 window and to its first frame \
+             drawn on a refresh on private Xvfb {}",
             xvfb.display
         ));
         for i in 0..3usize {
             let d = scratch.join(format!("proc-cold-data-{i}"));
             let c = scratch.join(format!("proc-cold-cache-{i}"));
-            if let Ok(ms) = measure_process_window_launch(&bin, &xvfb.display, &d, &c, &[]) {
-                cold_process_samples.push(ms);
+            match measure_process_window_launch(&bin, &xvfb.display, &d, &c, &[]) {
+                Ok(launch) => cold_process_samples.push(launch),
+                Err(err) => notes.push(format!("cold launch {i}: {err}")),
             }
         }
         let warm_proc_data = scratch.join("proc-warm-data");
@@ -74,15 +100,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             &warm_proc_cache,
             &[],
         );
-        for _ in 0..3usize {
-            if let Ok(ms) = measure_process_window_launch(
+        for i in 0..3usize {
+            match measure_process_window_launch(
                 &bin,
                 &xvfb.display,
                 &warm_proc_data,
                 &warm_proc_cache,
                 &[],
             ) {
-                warm_process_samples.push(ms);
+                Ok(launch) => warm_process_samples.push(launch),
+                Err(err) => notes.push(format!("warm launch {i}: {err}")),
             }
         }
         // The editor probes media named on its command line before its window
@@ -99,8 +126,9 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         for i in 0..5usize {
             let d = scratch.join(format!("proc-media-data-{i}"));
             let c = scratch.join(format!("proc-media-cache-{i}"));
-            if let Ok(ms) = measure_process_window_launch(&bin, &xvfb.display, &d, &c, &named) {
-                media_process_samples.push(ms);
+            match measure_process_window_launch(&bin, &xvfb.display, &d, &c, &named) {
+                Ok(launch) => media_process_samples.push(launch),
+                Err(err) => notes.push(format!("media launch {i}: {err}")),
             }
         }
     } else {
@@ -115,32 +143,16 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let warm_inproc_series =
         SampleSeries::from_values("warm_inproc_interactive_ms", "ms", warm_inproc_samples);
 
-    let cold_measured = if !cold_process_samples.is_empty() {
-        let proc_series =
-            SampleSeries::from_values("cold_process_window_ms", "ms", cold_process_samples);
-        let p50 = proc_series.p50;
-        samples.push(proc_series);
-        p50
-    } else {
-        cold_inproc_series.p50
-    };
-
-    if !warm_process_samples.is_empty() {
-        let warm_proc_series =
-            SampleSeries::from_values("warm_process_window_ms", "ms", warm_process_samples);
+    let cold_measured = launch_series(&mut samples, "cold", &cold_process_samples)
+        .unwrap_or(cold_inproc_series.p50);
+    if let Some(warm_drawn) = launch_series(&mut samples, "warm", &warm_process_samples) {
         notes.push(format!(
-            "Warm process spawn-to-window p50={:.2} ms; warm in-process session+Shell draw p50={:.2} ms",
-            warm_proc_series.p50, warm_inproc_series.p50
+            "Warm process spawn-to-first-frame p50={warm_drawn:.2} ms; warm in-process \
+             session+Shell draw p50={:.2} ms",
+            warm_inproc_series.p50
         ));
-        samples.push(warm_proc_series);
     }
-    let media_measured = (!media_process_samples.is_empty()).then(|| {
-        let series =
-            SampleSeries::from_values("media_process_window_ms", "ms", media_process_samples);
-        let p50 = series.p50;
-        samples.push(series);
-        p50
-    });
+    let media_measured = launch_series(&mut samples, "media", &media_process_samples);
 
     let warm_measured = warm_inproc_series.p50;
     samples.push(cold_inproc_series);

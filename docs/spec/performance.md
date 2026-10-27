@@ -70,6 +70,11 @@ with `aria-bench`, it takes the `test-support` features `aria-bench` enables on
 `gpui`, which record every entity handle and panic at exit on a leaked one, and
 it differs from the binary a release ships.
 
+Each launch is timed to two points: the window mapped, as `xdotool` finds it
+by the process id, and the first frame the window draws on a display refresh,
+as the `frame duration` line `gpui` prints to stderr with `ZED_MEASUREMENTS=1`.
+The window maps before it draws. The targets use the first frame.
+
 Scenarios that need a window run on a private headless compositor. Dropped
 frames, A/V offset, and latencies come from the same counters the status bar
 and the dropped-frame indicator read.

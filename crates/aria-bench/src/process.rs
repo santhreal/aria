@@ -160,16 +160,34 @@ fn start_xvfb_on(num: u32) -> Option<XvfbGuard> {
     None
 }
 
+/// Milliseconds from the spawn of an `aria-desktop` process to two points of
+/// its start.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct WindowLaunch {
+    /// A top-level X11 window of the process is mapped and visible. The window
+    /// maps before it draws anything.
+    pub(crate) mapped_ms: f64,
+    /// The window has drawn and presented a frame on a display refresh: the
+    /// first `frame duration` line gpui prints with `ZED_MEASUREMENTS=1`. The
+    /// first frame, drawn as the window opens, comes before it.
+    pub(crate) drawn_ms: f64,
+}
+
+/// The line gpui prints to stderr after each frame it draws on a refresh,
+/// with `ZED_MEASUREMENTS=1`.
+const FRAME_LINE: &str = "frame duration: ";
+
 /// Spawn `aria-desktop` with `media` named on its command line against a
-/// private `Xvfb` display and measure milliseconds until a top-level X11
-/// window of that process, found by its `_NET_WM_PID`, is mapped and visible.
+/// private `Xvfb` display and measure the [`WindowLaunch`]: until a top-level
+/// X11 window of that process, found by its `_NET_WM_PID`, is mapped and
+/// visible, and until it has drawn a frame.
 pub(crate) fn measure_process_window_launch(
     bin: &Path,
     display: &str,
     data_dir: &Path,
     cache_dir: &Path,
     media: &[&Path],
-) -> Result<f64, String> {
+) -> Result<WindowLaunch, String> {
     std::fs::create_dir_all(data_dir)
         .map_err(|err| format!("failed to create data_dir {}: {err}", data_dir.display()))?;
     std::fs::create_dir_all(cache_dir)
@@ -185,8 +203,9 @@ pub(crate) fn measure_process_window_launch(
         .env("XDG_DATA_HOME", data_dir)
         .env("XDG_CONFIG_HOME", data_dir)
         .env("XDG_CACHE_HOME", cache_dir)
+        .env("ZED_MEASUREMENTS", "1")
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     if std::env::var_os("VK_ICD_FILENAMES").is_none()
         && Path::new("/usr/share/vulkan/icd.d/lvp_icd.json").exists()
     {
@@ -196,35 +215,73 @@ pub(crate) fn measure_process_window_launch(
         .spawn()
         .map_err(|err| format!("failed to spawn {}: {err}", bin.display()))?;
 
+    // Read to the end, so the child never blocks on a full pipe; the first
+    // frame line is sent the moment it arrives.
+    let stderr = child.stderr.take();
+    let (drawn, first_frame) = std::sync::mpsc::channel::<Instant>();
+    let reader = std::thread::spawn(move || {
+        let Some(stderr) = stderr else { return };
+        let mut sent = false;
+        for line in std::io::BufRead::lines(std::io::BufReader::new(stderr)) {
+            let Ok(line) = line else { return };
+            if !sent && line.contains(FRAME_LINE) {
+                sent = drawn.send(Instant::now()).is_ok();
+            }
+        }
+    });
+
     // Every display has a root window, which a search by name alone returns
     // before anything maps; only a window that states the child's pid counts.
     let pid = child.id().to_string();
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut mapped_ms = None;
-    while Instant::now() < deadline {
+    let mut drawn_ms = None;
+    let mut exited = None;
+    while Instant::now() < deadline && (mapped_ms.is_none() || drawn_ms.is_none()) {
         if let Ok(Some(status)) = child.try_wait() {
-            return Err(format!(
-                "aria-desktop exited before mapping window: {status:?}"
-            ));
-        }
-        let out = Command::new("xdotool")
-            .env("DISPLAY", display)
-            .args(["search", "--onlyvisible", "--pid", &pid])
-            .output();
-        if let Ok(out) = out
-            && out.status.success()
-            && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
-        {
-            mapped_ms = Some(started.elapsed().as_secs_f64() * 1000.0);
+            exited = Some(status);
             break;
+        }
+        if drawn_ms.is_none()
+            && let Ok(at) = first_frame.try_recv()
+        {
+            drawn_ms = Some(at.duration_since(started).as_secs_f64() * 1000.0);
+        }
+        if mapped_ms.is_none() {
+            let out = Command::new("xdotool")
+                .env("DISPLAY", display)
+                .args(["search", "--onlyvisible", "--pid", &pid])
+                .output();
+            if let Ok(out) = out
+                && out.status.success()
+                && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
+            {
+                mapped_ms = Some(started.elapsed().as_secs_f64() * 1000.0);
+            }
         }
         std::thread::sleep(Duration::from_millis(2));
     }
 
     let _ = child.kill();
     let _ = child.wait();
+    let _ = reader.join();
 
-    mapped_ms.ok_or_else(|| "timed out waiting for aria-desktop X11 window to map".to_string())
+    if let Some(status) = exited {
+        return Err(format!(
+            "aria-desktop exited before drawing its window: {status:?}"
+        ));
+    }
+    match (mapped_ms, drawn_ms) {
+        (Some(mapped_ms), Some(drawn_ms)) => Ok(WindowLaunch {
+            mapped_ms,
+            drawn_ms,
+        }),
+        (None, _) => Err("timed out waiting for aria-desktop X11 window to map".to_string()),
+        (Some(_), None) => Err(format!(
+            "timed out waiting for aria-desktop to draw a frame: no `{FRAME_LINE}` line on its \
+             stderr"
+        )),
+    }
 }
 
 #[cfg(test)]
