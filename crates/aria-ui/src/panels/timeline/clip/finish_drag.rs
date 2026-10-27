@@ -63,10 +63,19 @@ pub(super) fn carry(
             start_ticks,
             end_ticks,
         } => {
+            // A move takes the lane under the pointer when that lane's kind
+            // holds the clip; over any other lane it keeps the last one.
             if matches!(kind, DragKind::Move)
                 && let Some(hovered_lane) = lanes
                     .iter()
                     .find(|l| local_y >= l.y_top && local_y <= l.y_bottom && !l.locked)
+                && hovered_lane.track_id != target_track_id
+                && this.state.update(cx, |state, _| {
+                    state.drag_lands_on(
+                        ClipId::from_raw(clip_id),
+                        TrackId::from_raw(hovered_lane.track_id),
+                    )
+                })
             {
                 target_track_id = hovered_lane.track_id;
                 ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {

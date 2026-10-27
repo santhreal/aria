@@ -117,6 +117,19 @@ impl AppState {
         self.drag_project = None;
     }
 
+    /// Whether a move of `clip` may take `track`: the lane's kind holds the
+    /// clip, read off the project the drag found. A move carried over a lane
+    /// that refuses the clip keeps the lane it had, so its release never sends
+    /// an edit the engine refuses.
+    pub(crate) fn drag_lands_on(&mut self, clip: ClipId, track: TrackId) -> bool {
+        let project = self.drag_project();
+        let timeline = project.timeline();
+        timeline
+            .clip(clip)
+            .zip(timeline.track(track))
+            .is_some_and(|(clip, track)| track.kind.accepts_clip(clip))
+    }
+
     /// The project as the drag in flight found it, read at its press: reading
     /// it locks the engine.
     fn drag_project(&mut self) -> Arc<Project> {

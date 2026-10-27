@@ -7,15 +7,20 @@
 //! dropped nothing. The drag sends the overwrite move, which covers what it
 //! lands on, and a release on another lane lands there however little the
 //! pointer travelled along the lane. A slip or a slide keeps its lane, so the
-//! same release with either tool edits nothing. Each case drives the pointer
-//! through the drawn shell, and one undo puts a drop back.
+//! same release with either tool edits nothing. A move carried over a lane
+//! whose kind refuses the clip keeps the last lane that holds it, so its
+//! release sends no edit the engine refuses; a lane of every kind the model
+//! declares is driven. Each case drives the pointer through the drawn shell,
+//! and one undo puts a drop back.
 //!
 //! Not covered: the rule of the cover at every landing tick and its redo,
-//! which `aria-engine/tests/overwrite_move.rs` asserts against the commands.
+//! which `aria-engine/tests/overwrite_move.rs` asserts against the commands,
+//! and a picture clip carried to the audio side, which no lane there takes
+//! from a drag that began on the video side.
 
 use std::path::PathBuf;
 
-use aria_models::TrackKind;
+use aria_models::{ClipId, TrackId, TrackKind, track_kind_specs};
 use gpui::{Entity, Pixels, VisualTestContext, point, px};
 
 use super::held_drag_tests::{bounds, carry, picture_clip, press, release, tick_px};
@@ -190,6 +195,107 @@ fn a_clip_carried_straight_to_another_lane_lands_there(cx: &mut gpui::TestAppCon
             "linked selection {linked}: the take after undo"
         );
     }
+}
+
+#[gpui::test]
+fn a_clip_carried_over_a_lane_that_refuses_it_keeps_the_lane_that_holds_it(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual, _) = shell_with_take(cx, "move-drop-kind");
+    let (take, start, end) = picture_clip(&state, visual);
+    let (home, ..) = placed(&state, visual, take);
+    // The header of `lane`, by the badge the shell draws on it.
+    let header = |visual: &mut VisualTestContext, lane: u64| {
+        let badge = visual.read(|app| {
+            let state = state.read(app);
+            let row = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .position(|track| track.id == lane)
+                .expect("the lane is on the sequence");
+            state.lane_badge_at(row)
+        });
+        bounds(visual, &format!("track-header-{badge}"))
+    };
+    let (mut taken, mut kept) = (0, 0);
+    for spec in track_kind_specs() {
+        let name = format!("{} extra", spec.default_name);
+        change(visual, &state, |state| {
+            state
+                .add_track(spec.kind, name.clone())
+                .unwrap_or_else(|err| panic!("a {:?} lane: {err}", spec.kind));
+        });
+        let (lane, holds) = visual.read(|app| {
+            let state = state.read(app);
+            let lane = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .find(|track| track.name == name)
+                .expect("the lane is on the sequence")
+                .id;
+            let engine = state.engine.lock();
+            let timeline = engine.project().timeline();
+            let clip = timeline.clip(ClipId::from_raw(take)).expect("the take");
+            let kind = timeline
+                .track(TrackId::from_raw(lane))
+                .expect("the lane")
+                .kind;
+            (lane, kind.accepts_clip(clip))
+        });
+        let video = bounds(visual, "timeline-video-canvas");
+        let over = header(visual, lane).center().y;
+        // The lanes a drag begun on the video side can reach.
+        let reached = video.top() <= over && over <= video.bottom();
+        let to = if holds && reached { lane } else { home };
+        if to == lane {
+            taken += 1;
+        } else {
+            kept += 1;
+        }
+
+        let x = tick_x(&state, visual, (start + end) / 2);
+        let from = point(x, header(visual, home).top() + px(10.0));
+        press(visual, from);
+        carry(visual, point(x, over));
+        let target = visual.read(|app| state.read(app).held_move.as_ref().map(|held| held.track));
+        assert_eq!(
+            target,
+            Some(to),
+            "the take held over a {:?} lane",
+            spec.kind
+        );
+        let up = point(x + px(1.0), over);
+        carry(visual, up);
+        release(visual, up);
+        assert_eq!(
+            placed(&state, visual, take),
+            (to, start, end),
+            "the take let go over a {:?} lane",
+            spec.kind
+        );
+        assert_eq!(
+            visual.read(|app| state.read(app).last_error.clone()),
+            None,
+            "the release over a {:?} lane",
+            spec.kind
+        );
+        if to == lane {
+            assert!(undo(visual, &state), "{:?}: undo", spec.kind);
+        }
+        change(visual, &state, |state| {
+            state
+                .remove_track(TrackId::from_raw(lane))
+                .unwrap_or_else(|err| panic!("remove the {:?} lane: {err}", spec.kind));
+        });
+    }
+    assert!(
+        taken > 0 && kept > 0,
+        "every kind landed one way: {taken} took the take, {kept} kept it home"
+    );
 }
 
 #[gpui::test]

@@ -5,7 +5,8 @@
 - Space plays and pauses.
 - Ctrl+K splits the selected clip at the playhead; Ctrl+Shift+K splits every
   track.
-- Drag a clip to move it along its lane or onto another lane of its kind. The
+- Drag a clip to move it along its lane or onto another lane of its kind;
+  over a lane of another kind it stays on the last lane of its kind. The
   clip covers what it lands on: a clip under it is trimmed back to the landing
   edges, cut in two around it, or removed, and nothing else moves. A clip
   carried straight up or down keeps its start. While the button is down, the
