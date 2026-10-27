@@ -1,6 +1,6 @@
 //! Subclip creation and bin integration for the media sidebar.
 
-use gpui::{AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, div};
+use gpui::{AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent};
 
 use crate::app::AppState;
 use crate::components;
@@ -15,18 +15,20 @@ fn press(state: &mut AppState, pick: Pick) {
     }
 }
 
-/// UI control to create a subclip from the current source monitor in/out marks.
+/// The chip that makes a subclip from the source monitor's in/out marks, while
+/// a focused source has a range; nothing otherwise, so the column holds no
+/// empty row and no gap for one.
 pub(super) fn subclip_button(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> AnyElement {
+) -> Option<AnyElement> {
     let can_subclip =
         state.read(cx).sources.focused().is_some() && state.read(cx).source_range().is_some();
     if !can_subclip {
-        return div().into_any_element();
+        return None;
     }
-    components::chip(
+    let chip = components::chip(
         "create-subclip",
         "Make Subclip",
         false,
@@ -41,5 +43,6 @@ pub(super) fn subclip_button(
             cx.notify();
         }),
     )
-    .into_any_element()
+    .into_any_element();
+    Some(chip)
 }

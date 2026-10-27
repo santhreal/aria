@@ -31,7 +31,7 @@ pub fn render(
         .find(crate::dock::PANEL_PROJECT)
         .and_then(|id| state.read(cx).dock_frame_rect(id))
         .map(|[_, _, w, _]| w);
-    // for the two tabs that draw one.
+    // The pool's rows, read once for the two tabs that draw them.
     let rows = tab.shows_pool().then(|| state.read(cx).pool_rows(tab));
     div()
         .id("sidebar")
@@ -40,7 +40,7 @@ pub fn render(
         .flex()
         .flex_col()
         .bg(theme.surface)
-        .child(filter_chips(&theme, tab, width, cx))
+        .child(header(&theme, tab, width, cx))
         .child(
             div()
                 .flex_1()
@@ -50,35 +50,44 @@ pub fn render(
                 .flex_col()
                 .gap(px(Theme::SPACE_SM))
                 .child(match tab {
-                    SidebarTab::Titles => {
-                        generator_grid(&theme, &[("Title", Generator::text("Title"))], cx)
-                            .into_any_element()
-                    }
-                    SidebarTab::Shapes => generator_grid(
+                    SidebarTab::Titles => entry_list(
                         &theme,
-                        &[
-                            (
-                                "Rectangle",
-                                Generator::shape(Shape::Rectangle, [255, 255, 255, 255]),
-                            ),
-                            (
-                                "Ellipse",
-                                Generator::shape(Shape::Ellipse, [255, 255, 255, 255]),
-                            ),
-                        ],
-                        cx,
-                    )
-                    .into_any_element(),
-                    SidebarTab::Stickers => catalog_grid(
+                        "sidebar-titles",
+                        PLACE,
+                        generator_rows(&theme, &[("Title", Generator::text("Title"))], cx),
+                    ),
+                    SidebarTab::Shapes => entry_list(
                         &theme,
-                        crate::catalog_text::stickers(),
-                        CatalogDragKind::Sticker,
-                        "Click to place at the playhead, or drag onto a lane",
-                        |state, id| state.add_generated(Generator::sticker(id)),
-                        |_| false,
-                        cx,
-                    )
-                    .into_any_element(),
+                        "sidebar-shapes",
+                        PLACE,
+                        generator_rows(
+                            &theme,
+                            &[
+                                (
+                                    "Rectangle",
+                                    Generator::shape(Shape::Rectangle, [255, 255, 255, 255]),
+                                ),
+                                (
+                                    "Ellipse",
+                                    Generator::shape(Shape::Ellipse, [255, 255, 255, 255]),
+                                ),
+                            ],
+                            cx,
+                        ),
+                    ),
+                    SidebarTab::Stickers => entry_list(
+                        &theme,
+                        "sidebar-stickers",
+                        PLACE_OR_DRAG,
+                        catalog_rows(
+                            &theme,
+                            crate::catalog_text::stickers(),
+                            CatalogDragKind::Sticker,
+                            |state, id| state.add_generated(Generator::sticker(id)),
+                            |_| false,
+                            cx,
+                        ),
+                    ),
                     SidebarTab::Generators => {
                         let generators = crate::catalog_text::generators();
                         let types = crate::catalog_text::clip_types();
@@ -86,26 +95,18 @@ pub fn render(
                             components::empty_state("generators", "No generators.", &theme)
                                 .into_any_element()
                         } else {
-                            let typed = (!types.is_empty())
-                                .then(|| clip_types::clip_type_grid(&theme, &types, cx));
-                            let plain = (!generators.is_empty()).then(|| {
-                                catalog_grid(
-                                    &theme,
-                                    &generators,
-                                    CatalogDragKind::Generator,
-                                    "Click to place at the playhead, or drag onto a lane",
-                                    |state, id| state.add_effect_generator(id),
-                                    |_| false,
-                                    cx,
-                                )
-                            });
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(Theme::SPACE_MD))
-                                .children(typed)
-                                .children(plain)
-                                .into_any_element()
+                            // One list: a plugin's clip types first, then the
+                            // built-in generators, placed the same way.
+                            let mut rows = clip_types::clip_type_rows(&theme, &types, cx);
+                            rows.extend(catalog_rows(
+                                &theme,
+                                &generators,
+                                CatalogDragKind::Generator,
+                                |state, id| state.add_effect_generator(id),
+                                |_| false,
+                                cx,
+                            ));
+                            entry_list(&theme, "sidebar-generators", PLACE_OR_DRAG, rows)
                         }
                     }
                     SidebarTab::Animations => {
@@ -117,16 +118,19 @@ pub fn render(
                                     .map(|animation| animation.id.clone())
                             })
                         };
-                        catalog_grid(
+                        entry_list(
                             &theme,
-                            crate::catalog_text::animations(),
-                            CatalogDragKind::Animation,
-                            "Click for the selected clip, or drag onto a clip",
-                            |state, id| state.set_selected_animation(id),
-                            |id| animations.iter().flatten().any(|animation| animation == id),
-                            cx,
+                            "sidebar-animations",
+                            FOR_THE_CLIP,
+                            catalog_rows(
+                                &theme,
+                                crate::catalog_text::animations(),
+                                CatalogDragKind::Animation,
+                                |state, id| state.set_selected_animation(id),
+                                |id| animations.iter().flatten().any(|animation| animation == id),
+                                cx,
+                            ),
                         )
-                        .into_any_element()
                     }
                     SidebarTab::Masks => {
                         let mask = state.read(cx).selected_ui_clip_ref().map_or(0, |clip| {
@@ -134,22 +138,25 @@ pub fn render(
                                 .iter()
                                 .fold(0, |bits, mask| bits | mask_bit(mask.kind))
                         });
-                        catalog_grid(
+                        entry_list(
                             &theme,
-                            crate::catalog_text::masks(),
-                            CatalogDragKind::Mask,
-                            "Click for the selected clip, or drag onto a clip",
-                            |state, id| match aria_models::MaskKind::from_id(id) {
-                                Some(kind) => state.add_selected_mask(kind),
-                                None => Ok(()),
-                            },
-                            |id| {
-                                aria_models::MaskKind::from_id(id)
-                                    .is_some_and(|kind| mask & mask_bit(kind) != 0)
-                            },
-                            cx,
+                            "sidebar-masks",
+                            FOR_THE_CLIP,
+                            catalog_rows(
+                                &theme,
+                                crate::catalog_text::masks(),
+                                CatalogDragKind::Mask,
+                                |state, id| match aria_models::MaskKind::from_id(id) {
+                                    Some(kind) => state.add_selected_mask(kind),
+                                    None => Ok(()),
+                                },
+                                |id| {
+                                    aria_models::MaskKind::from_id(id)
+                                        .is_some_and(|kind| mask & mask_bit(kind) != 0)
+                                },
+                                cx,
+                            ),
                         )
-                        .into_any_element()
                     }
                     SidebarTab::Transitions => {
                         let transition = state
@@ -157,16 +164,19 @@ pub fn render(
                             .selected_ui_clip_ref()
                             .and_then(|clip| clip.transition.as_ref())
                             .map(|transition| transition.id.clone());
-                        catalog_grid(
+                        entry_list(
                             &theme,
-                            &crate::catalog_text::transitions(),
-                            CatalogDragKind::Transition,
+                            "sidebar-transitions",
                             "Drag onto a cut, or click for the selected clip's right cut",
-                            |state, id| state.set_selected_transition(id),
-                            |id| transition.as_deref() == Some(id),
-                            cx,
+                            catalog_rows(
+                                &theme,
+                                &crate::catalog_text::transitions(),
+                                CatalogDragKind::Transition,
+                                |state, id| state.set_selected_transition(id),
+                                |id| transition.as_deref() == Some(id),
+                                cx,
+                            ),
                         )
-                        .into_any_element()
                     }
                     SidebarTab::Effects => super::effects_browser::effects_panel(&theme, state, cx),
                     SidebarTab::Stock => {
@@ -193,13 +203,46 @@ pub fn render(
             }),
         )
 }
+
+/// What a click on a generator row does.
+const PLACE: &str = "Click to place at the playhead";
+/// What a click or a drag on a placed catalog row does.
+const PLACE_OR_DRAG: &str = "Click to place at the playhead, or drag onto a lane";
+/// What a click or a drag on a row that applies to a clip does.
+const FOR_THE_CLIP: &str = "Click to apply to the selected clip, or drag onto a clip";
+
+/// One stock media kind: its chip, and the query box's placeholder while it
+/// is chosen.
+struct StockKindRow {
+    id: &'static str,
+    label: &'static str,
+    kind: StockKind,
+    placeholder: &'static str,
+}
+
 /// The stock media kinds, as chips. A data table so a new [`StockKind`] shows up as a
 /// missing row here rather than as a kind nobody can ask for.
-const STOCK_KINDS: [(&str, &str, StockKind); 3] = [
-    ("stock-kind-video", "Video", StockKind::Video),
-    ("stock-kind-photo", "Photo", StockKind::Photo),
-    ("stock-kind-audio", "Audio", StockKind::Audio),
+const STOCK_KINDS: [StockKindRow; 3] = [
+    StockKindRow {
+        id: "stock-kind-video",
+        label: "Video",
+        kind: StockKind::Video,
+        placeholder: "Search stock video",
+    },
+    StockKindRow {
+        id: "stock-kind-photo",
+        label: "Photo",
+        kind: StockKind::Photo,
+        placeholder: "Search stock photos",
+    },
+    StockKindRow {
+        id: "stock-kind-audio",
+        label: "Audio",
+        kind: StockKind::Audio,
+        placeholder: "Search stock audio",
+    },
 ];
+
 #[path = "sidebar_bins.rs"]
 pub(crate) mod bins;
 #[path = "sidebar_clip_types.rs"]
@@ -262,9 +305,13 @@ mod media;
 pub(crate) mod multicam;
 #[path = "sidebar_subclip.rs"]
 mod subclip;
-use grid::{catalog_grid, cloud_grid, filter_chips, generator_grid};
+use grid::{catalog_rows, cloud_grid, entry_list, generator_rows, header};
 use media::bin;
 
 #[cfg(test)]
 #[path = "sidebar_layout_tests.rs"]
 mod layout_tests;
+
+#[cfg(test)]
+#[path = "sidebar_body_tests.rs"]
+mod body_tests;

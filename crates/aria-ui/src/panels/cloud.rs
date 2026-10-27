@@ -1,12 +1,15 @@
-//! The two cloud-feed widgets every surface shares: a card row, and a catalog block.
+//! The cloud-feed widgets every surface shares: a card row, a catalog block,
+//! and a feed list that fills a panel.
 //!
-//! Three panels list cloud feeds — the sidebar SFX tab, the Look tab's LUT section,
-//! and the Text tab's preset packs. They differ only in which feed they name, so the
-//! row and the load-and-list block live here once. A copy per panel is how one of them
-//! ends up fetching from inside a render, or showing an outage as an empty list.
+//! The sidebar's Stock and SFX tabs fill their panel with a feed; the Look
+//! tab's LUT section, the Text tab's preset packs, Home's templates and the
+//! Assistant's skills hold one as a section among others. They differ only in
+//! which feed they name, so the row, the block and the list are defined here
+//! once. A copy per panel is how one of them ends up fetching from inside a
+//! render, or showing an outage as an empty list.
 
 use gpui::{
-    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    AnyElement, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
@@ -29,12 +32,15 @@ pub(crate) fn cloud_catalog_block(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let load = state.read(cx).feed(feed);
-    let rows: Vec<_> = load
-        .cards()
-        .iter()
-        .cloned()
-        .map(|card| cloud_card_row(theme, feed, card, cx))
-        .collect();
+    let loading = matches!(load, FeedState::Loading);
+    let placeholder = load.placeholder();
+    let rows: Vec<_> = match load {
+        FeedState::Ready(cards) => cards
+            .into_iter()
+            .map(|card| cloud_card_row(theme, feed, card, cx))
+            .collect(),
+        _ => Vec::new(),
+    };
 
     div()
         .flex()
@@ -52,30 +58,82 @@ pub(crate) fn cloud_catalog_block(
                 }),
             ),
         ))
-        .when_some(load.placeholder(), |el, line| {
-            // A feed that is fetching gets a loader; a feed that is idle or
-            // out of reach keeps the line it already had, faded up so the
-            // answer arrives rather than replacing the wait in one frame.
-            el.child(div().px(px(components::GHOST_INSET.0)).child(
-                if matches!(load, FeedState::Loading) {
-                    crate::pending::working(
-                        theme,
-                        &format!("cloud.feed.{}", feed.label()),
-                        line,
-                        cx,
-                    )
-                } else {
-                    crate::pending::settled(
-                        crate::motion::MotionKey::new(feed.label(), &line),
-                        div()
-                            .text_size(Theme::TEXT_UI)
-                            .text_color(theme.text_faint)
-                            .child(SharedString::from(line)),
-                    )
-                },
-            ))
+        .when_some(placeholder, |el, line| {
+            // A feed that is fetching gets a loader; a feed that failed or
+            // holds nothing states it, faded up so the answer arrives rather
+            // than replacing the wait in one frame.
+            el.child(div().px(px(components::GHOST_INSET.0)).child(if loading {
+                crate::pending::working(theme, &format!("cloud.feed.{}", feed.label()), line, cx)
+            } else {
+                crate::pending::settled(
+                    crate::motion::MotionKey::new(feed.label(), &line),
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_faint)
+                        .child(SharedString::from(line)),
+                )
+            }))
         })
         .children(rows)
+}
+
+/// A feed that fills its panel: the cards as a list that scrolls, or, while
+/// there are none, one line centered in the space the cards fill.
+///
+/// `idle` is the line before the first fetch. `action` is the control under
+/// the line before the first fetch and after a failed one, the click that
+/// fetches. The caller lays the list out as a flex item of a column, so it
+/// takes the height the column has left. The list hangs one ghost inset past
+/// the column on each side, so each card's name starts on the column's edge.
+pub(crate) fn cloud_feed_list(
+    theme: &Theme,
+    feed: CloudFeed,
+    state: &Entity<AppState>,
+    idle: impl Into<SharedString>,
+    action: Option<AnyElement>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> AnyElement {
+    let id = feed.label();
+    match state.read(cx).feed(feed) {
+        FeedState::Ready(cards) if !cards.is_empty() => crate::edge_fade::scroll_y(
+            div()
+                .id(crate::motion::MotionKey::new("cloud-feed-list", id).element_id("list"))
+                .debug_selector(move || format!("cloud-feed-list-{id}"))
+                .flex_1()
+                .min_h_0()
+                .mx(px(-components::GHOST_INSET.0))
+                .flex()
+                .flex_col()
+                .gap(px(Theme::SPACE_XXS))
+                .children(
+                    cards
+                        .into_iter()
+                        .map(|card| cloud_card_row(theme, feed, card, cx)),
+                ),
+        )
+        .into_any_element(),
+        FeedState::Loading => div()
+            .flex_1()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(crate::pending::working(
+                theme,
+                &format!("cloud.feed.{id}"),
+                "Loading…",
+                cx,
+            ))
+            .into_any_element(),
+        FeedState::Idle => components::empty_state(id, idle, theme)
+            .children(action)
+            .into_any_element(),
+        FeedState::Failed(err) => components::empty_state(id, err, theme)
+            .children(action)
+            .into_any_element(),
+        FeedState::Ready(_) => {
+            components::empty_state(id, "Nothing found", theme).into_any_element()
+        }
+    }
 }
 
 /// One cloud card. Clicking downloads it into the cache and adopts it, which is

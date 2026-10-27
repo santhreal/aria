@@ -55,10 +55,12 @@ between 1 second and 24 hours, so a stepper cannot write a value the downloader
 rejects. A slow link needs a larger `Read`; a large model on a slow link needs a
 larger `Total`.
 
-With a model installed, select a clip whose media has an audio track and open
-the Project panel's **Captions** tab. Set a language code such as `en` in the
-**Language** box, or leave it empty to detect one. The thread chips set how
-many CPU threads the decoder uses. Press Enter or click **Transcribe**.
+With no model installed, the Project panel's **Captions** tab offers **Open
+Settings**, which opens the **Transcription** section. With a model installed,
+select a clip whose media has an audio track and open the **Captions** tab. Set
+a language code such as `en` in the **Language** box, or leave it empty to
+detect one. The **Threads** chips set how many CPU threads the decoder uses;
+**Auto** uses one per core, up to 8. Press Enter or click **Transcribe**.
 
 The run is a job: it decodes the clip's source range as 16 kHz mono, transcribes
 it, and lists the segments with their timecodes. Cancel stops it and leaves the
@@ -66,9 +68,10 @@ project untouched. A run fails before it starts, by name, when nothing is
 selected, the clip is generated, the media has no audio track, the media is
 offline, no model is installed, or the language is one Whisper does not support.
 
-**Text clips** and **Markers** choose what a commit writes. **One clip per word**
-splits each segment by its word timings; a segment the model gave no word timings
-for stays whole. **Commit** writes the units at their own times: caption clips
+The **Output** chips, **Text clips** and **Markers**, choose what a commit
+writes. **One clip per word** in the **Split** row splits each segment by its
+word timings; a segment the model gave no word timings for stays whole.
+**Commit** writes the units at their own times: caption clips
 onto the text lane, markers onto the timeline. Each unit is its own undo entry.
 
 Limits: audio longer than 30 minutes is refused, the window comes from the clip's

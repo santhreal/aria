@@ -9,7 +9,8 @@ their results in a moments index under `analysis/` in the data directory.
 - **Silence** finds the spans quieter than −50 dBFS.
 - **Beats** finds the beat times in the audio.
 
-Each detector has a **Detect** button and a `×` that clears its results for that
+The **Detect** row has one button per detector. A detector with stored results
+shows a `×` beside its button that clears its results for that
 media file. A run is a job: it decodes and detects on a background thread, reports
 progress, and can be cancelled. A run fails before it starts, by name, when
 nothing is selected, the clip is generated, the media is offline, or an audio
@@ -22,8 +23,8 @@ trimmed clip offers only the beats it kept, and the grid saves and reloads with
 the project. Clearing the beats analysis clears that grid too. A run that finds
 nothing stores nothing, which also clears a grid left by an older run.
 
-Results are rows with a timecode and a confidence. The kind chips filter by
-detector and the confidence chips set a floor, both without re-reading the index.
+Results are rows with a timecode and a confidence. The **Show** chips filter by
+detector and the **Confidence** chips set a floor, both without re-reading the index.
 **Refresh** re-reads the index, which is how a run that finished while the tab
 was showing another clip appears without re-detecting anything.
 **Previous** and **Next** move the playhead between the visible rows and stop at
@@ -37,9 +38,10 @@ Two rows turn a detection into an edit:
 - **Ripple-delete silence** removes every silent span inside the selected clip and
   closes the gaps. Each span is its own undo entry.
 
-**Measure loudness** measures the clip's loudness contour and draws it in the
-Effect Controls panel's Audio tab, one column per window, with the peak level and
-a clipping flag. The contour is measured on demand, not per frame.
+**Measure** in the **Loudness** row measures the clip's loudness contour, prints
+the peak level beside the button with a clipping flag, and draws the contour in
+the Effect Controls panel's Audio tab, one column per window. The contour is
+measured on demand, not per frame.
 
 Results are keyed on the media file, identified by its path, length, and
 modification time rather than a digest of its bytes: hashing a multi-gigabyte file

@@ -31,7 +31,7 @@ use super::sources::without_test_items;
 /// The shared widgets. Spelled with `concat!` so that no needle appears whole
 /// in this file: the tooltip census reads every non-test file for icon button
 /// calls without stripping comments or strings.
-const WIDGETS: [&str; 9] = [
+const WIDGETS: [&str; 10] = [
     concat!("components::", "button("),
     concat!("ghost_", "button("),
     concat!("disclosure_", "button("),
@@ -41,6 +41,7 @@ const WIDGETS: [&str; 9] = [
     concat!("components::", "text_box("),
     concat!("components::", "field_frame("),
     concat!("icon_", "button("),
+    concat!("components::", "underline_tab("),
 ];
 
 /// A function or closure that passes one of its arguments to a shared widget

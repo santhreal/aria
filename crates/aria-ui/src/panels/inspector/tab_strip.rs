@@ -41,7 +41,6 @@ pub(super) fn tab_row(
     let text = theme.text;
     let muted = theme.text_muted;
     let accent = theme.accent;
-    let active_bg = theme.element_hover;
     let idle_bg = theme.wash(0.0);
     let hover_bg = theme.glass_hover();
 
@@ -103,11 +102,9 @@ pub(super) fn tab_row(
                 } else {
                     motion::mix(muted, text, motion::hover_t(key))
                 })
-                .bg(if selected {
-                    active_bg
-                } else {
-                    motion::hover_blend(key, idle_bg, hover_bg)
-                })
+                // The open tab is marked by its text and the underline, as a
+                // dock tab is; a fill under it too reads as a second mark.
+                .bg(motion::hover_blend(key, idle_bg, hover_bg))
                 .cursor(CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
                 .on_hover(motion::hover_listener(key))

@@ -329,11 +329,7 @@ fn loudness_rows(
             } else {
                 theme.text_muted
             },
-            if clipping {
-                format!("Peak {peak:.1} dBFS, clipping")
-            } else {
-                format!("Peak {peak:.1} dBFS")
-            },
+            crate::app::analysis::peak_line(peak, clipping),
         )
         .into_any_element(),
     ]

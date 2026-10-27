@@ -136,7 +136,7 @@ pub fn render(
         .child(
             div()
                 .ml_auto()
-                .py(px(CHIP.pad().1))
+                .line_height(px(CHIP.height()))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(format!("{out_w}×{out_h}")),
@@ -315,7 +315,7 @@ fn line(theme: &Theme, label: &'static str, value: impl IntoElement) -> gpui::Di
             div()
                 .flex_none()
                 .w(px(LABEL_WIDTH))
-                .py(px(CHIP.pad().1))
+                .line_height(px(CHIP.height()))
                 .whitespace_nowrap()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
@@ -324,10 +324,10 @@ fn line(theme: &Theme, label: &'static str, value: impl IntoElement) -> gpui::Di
         .child(value)
 }
 
-/// A setting with nothing to choose here, as one line of text. Padded as a
-/// chip's label is, so the row stands one chip tall and its text on the chips'
-/// line. A value wider than the card gives up its start, so a destination
-/// keeps its file name in view and an encoder its codec.
+/// A setting with nothing to choose here, as one line of text a chip tall, so
+/// its text stands on the chips' line. A value wider than the card gives up
+/// its start, so a destination keeps its file name in view and an encoder its
+/// codec.
 fn fact(theme: &Theme, label: &'static str, value: String) -> gpui::Div {
     line(
         theme,
@@ -336,7 +336,7 @@ fn fact(theme: &Theme, label: &'static str, value: String) -> gpui::Div {
             .debug_selector(move || format!("export-row-{label}"))
             .flex_1()
             .min_w_0()
-            .py(px(CHIP.pad().1))
+            .line_height(px(CHIP.height()))
             .overflow_hidden()
             .whitespace_nowrap()
             .text_ellipsis_start()

@@ -1,6 +1,6 @@
 //! The Analysis tab: run a detector, read what it found, act on it.
 //!
-//! The panel starts nothing and polls nothing. Each Detect hands the selection to
+//! The panel starts nothing and polls nothing. Each detector's button hands the selection to
 //! [`crate::app::AppState::analyze_selected`], which owns the decode, the job, and the
 //! index write; the rows below are what the index holds for the selected media, already
 //! filtered and ordered by the crate that owns the query.
@@ -9,6 +9,7 @@
 //! and the row offers both a re-run and a clear.
 
 use aria_core::count::counted;
+use gpui::prelude::FluentBuilder;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
@@ -19,7 +20,6 @@ use crate::app::analysis::{AnalysisKind, CONFIDENCE_CHOICES};
 use crate::components;
 use crate::surfaces::analysis_pick::{self, Pick};
 use crate::theme::Theme;
-use gpui::prelude::FluentBuilder;
 
 /// Press one row of the registry, reporting a refusal in the status line rather
 /// than swallowing it.
@@ -76,136 +76,119 @@ pub(crate) fn analysis_panel(
         )
     };
     let jobs = crate::pending::job_rows(theme, state, JOB_LIMIT, mine, cx);
+    let status = if !selected {
+        "Select a clip, then detect".to_string()
+    } else if total == 0 {
+        "Nothing detected for this media yet".to_string()
+    } else {
+        counted(total, "moment", "moments").to_string()
+    };
+
+    // The steps through the rows, then the edits the rows offer, on one line
+    // of ghost buttons hung one inset left so their labels start on the
+    // column's edge.
+    let mut acts = Vec::with_capacity(4);
+    if total > 0 {
+        acts.push(pressing(
+            components::ghost_button("analysis-prev", "Previous", theme),
+            Pick::SeekPrevious,
+            cx,
+        ));
+        acts.push(pressing(
+            components::ghost_button("analysis-next", "Next", theme),
+            Pick::SeekNext,
+            cx,
+        ));
+    }
+    if shots > 0 {
+        acts.push(pressing(
+            components::ghost_button("analysis-split-shots", "Split at shots", theme),
+            Pick::SplitAtShots,
+            cx,
+        ));
+    }
+    if silence > 0 {
+        acts.push(pressing(
+            components::ghost_button("analysis-cut-silence", "Ripple-delete silence", theme),
+            Pick::CutSilence,
+            cx,
+        ));
+    }
 
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
-        .child(
-            div().flex().gap(px(Theme::SPACE_XS)).children(
-                AnalysisKind::ALL
-                    .iter()
-                    .zip(stored)
-                    .map(|(kind, stored)| detect_button(theme, *kind, stored, cx)),
-            ),
-        )
+        .child(components::form_row(
+            theme,
+            "Detect",
+            AnalysisKind::ALL
+                .iter()
+                .zip(stored)
+                .map(|(kind, stored)| detect_button(theme, *kind, stored, selected, cx)),
+        ))
+        .child(components::form_row(
+            theme,
+            "Loudness",
+            std::iter::once(measure_button(theme, selected && peak.is_none(), cx)).chain(peak.map(
+                |dbfs| {
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(if clipping {
+                            theme.danger
+                        } else {
+                            theme.text_muted
+                        })
+                        .child(crate::app::analysis::peak_line(dbfs, clipping))
+                        .into_any_element()
+                },
+            )),
+        ))
+        .child(components::form_row(
+            theme,
+            "Show",
+            std::iter::once(None)
+                .chain(AnalysisKind::ALL.iter().copied().map(Some))
+                .map(|kind| kind_chip(theme, kind, kind_filter, cx)),
+        ))
+        .child(components::form_row(
+            theme,
+            "Confidence",
+            CONFIDENCE_CHOICES
+                .iter()
+                .map(|choice| confidence_chip(theme, *choice, minimum, cx)),
+        ))
         .child(
             div()
                 .flex()
-                .gap(px(Theme::SPACE_XS))
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
+                .pt(px(Theme::SPACE_XS))
                 .child(
-                    components::ghost_button("analysis-loudness", "Loudness", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, cx| {
-                                if let Err(err) = state.measure_loudness(cx) {
-                                    state.report_error(err);
-                                }
-                            });
-                            cx.notify();
-                        }),
-                    ),
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(SharedString::from(status)),
                 )
                 .child(
-                    components::ghost_button("analysis-refresh", "Refresh", theme).on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| press(state, Pick::Refresh));
-                            cx.notify();
-                        }),
-                    ),
-                ),
-        )
-        .child(
-            div()
-                .flex()
-                .gap(px(Theme::SPACE_XS))
-                .child(kind_chip(theme, None, kind_filter, cx))
-                .children(
-                    AnalysisKind::ALL
-                        .iter()
-                        .map(|kind| kind_chip(theme, Some(*kind), kind_filter, cx)),
-                ),
-        )
-        .child(
-            div().flex().gap(px(Theme::SPACE_XS)).children(
-                CONFIDENCE_CHOICES
-                    .iter()
-                    .map(|choice| confidence_chip(theme, *choice, minimum, cx)),
-            ),
-        )
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(SharedString::from(if !selected {
-                    "Select a clip, then detect".to_string()
-                } else if total == 0 {
-                    "Nothing detected for this media yet".to_string()
-                } else {
-                    format!(
-                        "{}{}",
-                        counted(total, "moment", "moments"),
-                        match peak {
-                            Some(dbfs) if clipping => format!(" · peak {dbfs:.1} dBFS, clipping"),
-                            Some(dbfs) => format!(" · peak {dbfs:.1} dBFS"),
-                            None => String::new(),
-                        }
+                    pressing(
+                        components::ghost_button("analysis-refresh", "Refresh", theme),
+                        Pick::Refresh,
+                        cx,
                     )
-                })),
+                    .mr(px(-components::GHOST_INSET.0)),
+                ),
         )
-        .when(shots > 0, |el| {
-            el.child(
-                components::ghost_button("analysis-split-shots", "Split at shots", theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| press(state, Pick::SplitAtShots));
-                            cx.notify();
-                        }),
-                    ),
-            )
-        })
-        .when(silence > 0, |el| {
-            el.child(
-                components::ghost_button("analysis-cut-silence", "Ripple-delete silence", theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| press(state, Pick::CutSilence));
-                            cx.notify();
-                        }),
-                    ),
-            )
-        })
-        .when(total > 0, |el| {
+        .when(!acts.is_empty(), |el| {
             el.child(
                 div()
                     .flex()
-                    .gap(px(Theme::SPACE_XS))
-                    .child(
-                        components::ghost_button("analysis-prev", "Previous", theme).on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                this.state
-                                    .update(cx, |state, _| press(state, Pick::SeekPrevious));
-                                cx.notify();
-                            }),
-                        ),
-                    )
-                    .child(
-                        components::ghost_button("analysis-next", "Next", theme).on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                this.state
-                                    .update(cx, |state, _| press(state, Pick::SeekNext));
-                                cx.notify();
-                            }),
-                        ),
-                    ),
+                    .flex_wrap()
+                    .gap(px(Theme::SPACE_XXS))
+                    .ml(px(-components::GHOST_INSET.0))
+                    .children(acts),
             )
         })
         .children(moment_rows(theme, state, cx))
@@ -213,23 +196,67 @@ pub(crate) fn analysis_panel(
         .into_any_element()
 }
 
+/// `button`, pressing `pick` on a click.
+fn pressing(
+    button: gpui::Stateful<gpui::Div>,
+    pick: Pick,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::Stateful<gpui::Div> {
+    button.on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| press(state, pick));
+            cx.notify();
+        }),
+    )
+}
+
+/// The loudness measurement: solid while a clip is selected and has no
+/// contour, a ghost otherwise, as a detector's button is.
+fn measure_button(
+    theme: &Theme,
+    offered: bool,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    let button = if offered {
+        components::button("analysis-loudness", "Measure", theme)
+    } else {
+        components::ghost_button("analysis-loudness", "Measure", theme)
+    };
+    button
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, cx| {
+                    if let Err(err) = state.measure_loudness(cx) {
+                        state.report_error(err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element()
+}
+
 /// One detector: run it, and clear what it already stored.
 ///
-/// A detector with nothing stored gets the solid button, because running it is
-/// the action the panel is offering; once it holds results the same control
-/// steps back to a ghost and the clear appears beside it. A clear with nothing
+/// While a clip is selected and the detector has nothing stored, the run gets
+/// the solid button, because running it is the action the panel is offering.
+/// With no clip selected, or once it holds results, the same control is a
+/// ghost, and a stored detector has the clear beside it. A clear with nothing
 /// to clear is not drawn at all.
 fn detect_button(
     theme: &Theme,
     kind: AnalysisKind,
     stored: bool,
+    selected: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let label = SharedString::from(kind.label());
-    let run = if stored {
-        components::ghost_button(("analysis-run", kind.id()), label, theme)
-    } else {
+    let run = if selected && !stored {
         components::button(("analysis-run", kind.id()), label, theme)
+    } else {
+        components::ghost_button(("analysis-run", kind.id()), label, theme)
     };
     div()
         .flex()

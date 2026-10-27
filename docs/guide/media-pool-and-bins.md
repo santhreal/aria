@@ -23,7 +23,8 @@ with more than one tab lists its tabs in a smaller row underneath:
   [Captions](text-and-captions.md#captions). **Analysis** detects shots, silences, and beats on the
   selected clip; see [Analysis](analysis.md#analysis).
 
-With no clip selected, or on a clip that rejects the entry, a click that
+A tab that lists entries states on its first line what a click on an entry
+does. With no clip selected, or on a clip that rejects the entry, a click that
 applies an entry reports why. Markers are listed in the Markers panel; see
 [Markers](markers.md#markers).
 

@@ -126,11 +126,14 @@ pub(super) fn header_controls(
             }))
         });
 
+    // As tall as the toggles in the row under it, so the field and the toggles
+    // stand the same step in from the header's top and bottom edges.
     let search = components::text_box("property-search", query, "Search", search_open, theme)
         .debug_selector(|| "property-search".into())
         .flex_1()
         .min_w_0()
-        .h(px(Theme::INPUT_HEIGHT))
+        .min_h(px(Theme::ICON_HIT_ROW))
+        .h(px(Theme::ICON_HIT_ROW))
         .truncate()
         .on_mouse_down(
             MouseButton::Left,

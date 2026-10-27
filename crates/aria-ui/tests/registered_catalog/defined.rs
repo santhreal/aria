@@ -12,7 +12,7 @@ use aria_ui::types::UiSlots as _;
 
 use super::{
     AppState, ClipTypeSpec, EffectParamKind, EffectParamSpec, MarkerColor, Offered, PluginContext,
-    assert_generator_clip, clip_count, clip_type_row, in_generator_grid, only_clip, state,
+    assert_generator_clip, clip_count, clip_type_row, in_generator_list, only_clip, state,
 };
 
 /// A scalar field `level`, 0 to 1, 0.25 by default.
@@ -100,11 +100,11 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
         .define_clip_type(definition)
         .expect("the type is defined");
 
-    // Listed once, as the type: its own generator is not a second grid row.
-    let row = clip_type_row(id).expect("the grid lists the type");
+    // Listed once, as the type: its own generator is not a second row.
+    let row = clip_type_row(id).expect("the list holds the type");
     assert_eq!(row.unavailable, None);
     assert!(
-        !in_generator_grid(id),
+        !in_generator_list(id),
         "the type's own generator is listed beside the type"
     );
     let panel_rows: Vec<EntryKind> = aria_ui::catalog_text::effect_entries()

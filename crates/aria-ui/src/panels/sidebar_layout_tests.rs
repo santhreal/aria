@@ -24,7 +24,7 @@ use crate::types::SidebarGroup;
 /// Layout is in floats; an edge two boxes share lands within this.
 const EPS: f32 = 0.51;
 
-fn bounds(visual: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
+pub(super) fn bounds(visual: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
     visual
         .debug_bounds(intern(selector))
         .unwrap_or_else(|| panic!("the Project panel draws no {selector}"))
@@ -55,7 +55,7 @@ fn pool_with_a_still<'a>(
 /// Set the Project panel's column to `width` px of the 1920 px row, and draw
 /// twice: the panel reads its width from the frame the previous draw laid
 /// out, so the second draw is the one at `width`.
-fn project_width(
+pub(super) fn project_width(
     state: &gpui::Entity<crate::app::AppState>,
     visual: &mut VisualTestContext,
     width: f32,
@@ -247,7 +247,7 @@ fn at_rest_the_media_tab_draws_two_control_rows_around_its_items(cx: &mut TestAp
         header.bottom() <= items.top() + px(EPS) && items.bottom() <= footer.top() + px(EPS),
         "the filter row {header:?}, the items {items:?} and the footer {footer:?} are out of order"
     );
-    let one_control = px(Theme::INPUT_HEIGHT.max(Theme::ICON_HIT) + EPS);
+    let one_control = px(Theme::CONTROL_HEIGHT.max(Theme::ICON_HIT) + EPS);
     assert!(
         header.size.height <= one_control,
         "the filter row is {:?} tall, more than one control",

@@ -53,16 +53,21 @@ pub(super) fn bin(
                 .debug_selector(|| "pool-items".into())
                 .flex_1()
                 .min_h_0()
+                // The frame clips its content to its own width, so it stands
+                // a tile's inset past the column and pads back in; the tiles
+                // hang into that margin and are drawn whole.
+                .mx(px(-grid::TILE_INSET))
+                .px(px(grid::TILE_INSET))
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_SM))
-                .child(bins::strip(theme, state, cx))
+                .children(bins::strip(theme, state, cx))
                 .children(multicam::multicam_section(theme, state, cx))
                 // The source monitor's in/out marks are only worth setting if
                 // something consumes them; the button appears exactly when a
                 // range exists and lands the subclip in the same pool the rows
                 // below come from.
-                .child(subclip::subclip_button(theme, state, cx))
+                .children(subclip::subclip_button(theme, state, cx))
                 .child(grid::media_grid(theme, state, tab, rows, view, cx))
                 .when(!properties.is_empty(), |el| {
                     el.child(properties_block(theme, &properties))

@@ -255,6 +255,7 @@ fn folder_row(
         .flex()
         .flex_row()
         .items_center()
+        .min_h(px(Theme::ROW_HEIGHT))
         .gap(px(Theme::SPACE_XS))
         .pl(px(indent(folder.depth)))
         .pr(px(Theme::SPACE_XS))
@@ -286,9 +287,9 @@ fn folder_row(
                 .flex_1()
                 .min_w_0()
                 .truncate()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .font_weight(if folder.depth == 0 {
-                    FontWeight::SEMIBOLD
+                    FontWeight::MEDIUM
                 } else {
                     FontWeight::NORMAL
                 })
@@ -337,6 +338,7 @@ fn entry_row(
         .flex()
         .flex_row()
         .items_center()
+        .min_h(px(Theme::ROW_HEIGHT))
         .gap(px(Theme::SPACE_XS))
         .pl(px(indent(place.depth)))
         .pr(px(Theme::SPACE_XS))
@@ -387,7 +389,7 @@ fn entry_row(
                 .flex_1()
                 .min_w_0()
                 .truncate()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(text)
                 .child(entry.label.clone()),
         )
@@ -448,7 +450,7 @@ fn failed_row(theme: &Theme, failed: &Failed) -> gpui::AnyElement {
         .py(px(Theme::SPACE_XXS))
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(failed.source.clone()),
         )

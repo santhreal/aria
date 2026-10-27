@@ -14,11 +14,7 @@ pub(super) const ROW_INSET: f32 = Theme::SPACE_SM + 1.0;
 
 /// The label a Settings row starts with, in the label column.
 pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
-    div()
-        .w(px(LABEL_WIDTH))
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_muted)
-        .child(label.into())
+    crate::components::row_label(theme, label, LABEL_WIDTH)
 }
 
 /// A row of choices: `label` in the label column, then one chip per choice

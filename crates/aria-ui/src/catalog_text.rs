@@ -128,14 +128,14 @@ pub fn generators() -> Arc<[Choice]> {
     })
 }
 
-/// One clip type as the Generators grid draws it.
+/// One clip type as the Generators list draws it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClipTypeChoice {
     /// The catalog id, which placing the type sends.
     pub id: SharedString,
     /// The type's name.
     pub label: SharedString,
-    /// The timeline colour, which the grid's swatch shows.
+    /// The timeline colour, which the row's swatch shows.
     pub colour: aria_models::MarkerColor,
     /// The icon's asset path.
     pub icon: Option<&'static str>,
@@ -143,7 +143,7 @@ pub struct ClipTypeChoice {
     pub unavailable: Option<SharedString>,
 }
 
-/// The clip types plugins list, for the sidebar's Generators grid. Whether a
+/// The clip types plugins list, for the sidebar's Generators list. Whether a
 /// type can be placed depends on its generator, so the share follows the
 /// effect catalog's revision as well as the clip type catalog's.
 pub fn clip_types() -> Arc<[ClipTypeChoice]> {
@@ -260,7 +260,7 @@ pub fn text_effects() -> &'static [Choice] {
     &ROWS
 }
 
-/// The sticker catalog, for the sidebar's Stickers grid.
+/// The sticker catalog, for the sidebar's Stickers list.
 pub fn stickers() -> &'static [Choice] {
     static ROWS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
         shared(
@@ -272,7 +272,7 @@ pub fn stickers() -> &'static [Choice] {
     &ROWS
 }
 
-/// The animation catalog, for the sidebar's Animations grid.
+/// The animation catalog, for the sidebar's Animations list.
 pub fn animations() -> &'static [Choice] {
     static ROWS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
         shared(
@@ -284,7 +284,7 @@ pub fn animations() -> &'static [Choice] {
     &ROWS
 }
 
-/// The mask catalog, for the sidebar's Masks grid.
+/// The mask catalog, for the sidebar's Masks list.
 ///
 /// A mask's id belongs to its shape rather than to the row, so the shape hands
 /// it over; everything downstream reads the same two fields as every other

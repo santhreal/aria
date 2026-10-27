@@ -49,6 +49,7 @@ mod analysis_project;
 
 pub(crate) use analysis_kind::AnalysisRequest;
 pub use analysis_kind::{AnalysisForm, AnalysisKind, CONFIDENCE_CHOICES, UiLoudness, UiMoment};
+pub(crate) use analysis_loudness::peak_line;
 pub(crate) use analysis_project::{
     AnalysisReport, content_key_for, decode_analysis_pcm, project_moment, ticks_for_seconds,
     validated_pcm,

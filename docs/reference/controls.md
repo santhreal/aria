@@ -177,7 +177,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `analysis-confidence` (per row) | ≥0% / ≥25% / ≥50% / ≥75% | Hides detected moments whose confidence is below the chosen value. | None |
 | `analysis-cut-silence` | Ripple-delete silence | Splits and ripple-deletes detected silent spans on the selected timeline clip. | None |
 | `analysis-kind` (per row) | All / Shots / Silence / Beats | Lists the moments of every detector, or of the chosen detector only. | None |
-| `analysis-loudness` | Loudness | Measures the windowed dBFS loudness contour across the selected clip's audio stream. | None |
+| `analysis-loudness` | Measure | Measures the windowed dBFS loudness contour across the selected clip's audio stream. | None |
 | `analysis-next` | Next | Moves the playhead to the next detected analysis moment. | None |
 | `analysis-prev` | Previous | Moves the playhead to the previous detected analysis moment. | None |
 | `analysis-refresh` | Refresh | Reloads stored analysis moments for the selected clip from the on-disk moments index into the Analysis panel. | None |
@@ -187,9 +187,11 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `bin-name` | Bin name | Edits the name of the bin currently being renamed. | None |
 | `bin-new` | New bin | Creates a new media bin inside the current Project panel folder. | None |
 | `bin-rename` | Rename | Focuses the inline name field to rename the currently open bin. | None |
+| `cloud-feed-load` | Load catalog | Fetches the sound effect catalog in the SFX tab, before the first fetch and after a failed one. | None |
 | `create-multicam-group` | New multicam | Creates a new multicam group from the selected media pool items. | None |
 | `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the AI generation output kind (Image, Video, or Voice) in the Project panel Generate tab. | None |
+| `generate-keys` | Open Settings | Opens Settings at the Keys section while no generation provider key is set. | None |
 | `generate-prompt` | Describe what to generate | Edits the prompt the Generate tab submits; Enter submits it. | None |
 | `generate-submit` | Generate | Submits the prompt in the Generate tab to the fal AI generation provider as a background job and imports the generated media file into the pool. | None |
 | `media-import` | Import | Opens the File > Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. | `Ctrl+I` |
@@ -245,9 +247,10 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 | --- | --- | --- | --- |
 | `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, one undo entry per caption. | None |
 | `caption-language` | Language | Edits the language code transcription runs in, such as `en`; an empty box detects the language. Enter starts transcription. | None |
+| `caption-models` | Open Settings | Opens Settings at the Transcription section while no transcription model is installed. | None |
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
 | `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
-| `caption-threads` (per row) | 1 thread / 2 threads / 4 threads / 8 threads | Sets how many CPU threads the transcription model decodes with. | None |
+| `caption-threads` (per row) | Auto / 1 / 2 / 4 / 8 | Sets how many CPU threads the transcription model decodes with; Auto uses one per core, up to 8. | None |
 | `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that carry word timings. | None |
 
 ## Text

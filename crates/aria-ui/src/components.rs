@@ -2,6 +2,7 @@
 
 use crate::tooltip::WithTip as _;
 use gpui::motion::presets;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     CursorStyle, Div, InteractiveElement, IntoElement, ParentElement, Pixels, SharedString,
     Stateful, StatefulInteractiveElement, Styled, div, px,
@@ -52,6 +53,10 @@ pub fn chevron(
         .with_transformation(gpui::Transformation::rotate(gpui::radians(turn)))
 }
 
+/// A solid button: an action, such as Done or Export. One control tall, so it
+/// stands level with a [`text_box`] beside it. Under the pointer the plate
+/// dims a step and the label keeps its color, so the button reads as the same
+/// control while it lights.
 pub fn button(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,
@@ -60,16 +65,18 @@ pub fn button(
     let id = id.into();
     let key = id.motion("button");
     let lit = motion::hover_t(key);
-    let pressed = theme.element_active;
+    let pressed = theme.solid.opacity(0.76);
     div()
         .id(id.element("button"))
         // Press reads as a settle: the fill deepens and the control dims.
         .active(move |style| style.bg(pressed).opacity(0.92))
+        .h(px(Theme::CONTROL_HEIGHT))
+        .flex()
+        .items_center()
         .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::mix(theme.solid, theme.surface_raised_hover, lit))
-        .text_color(motion::mix(theme.on_solid, theme.text, lit))
+        .bg(motion::mix(theme.solid, theme.solid.opacity(0.88), lit))
+        .text_color(theme.on_solid)
         .text_size(Theme::TEXT_UI)
         .cursor(CursorStyle::PointingHand)
         .on_hover(motion::hover_listener(key))
@@ -213,6 +220,8 @@ pub const GHOST_INSET: (f32, f32) = (Theme::SPACE_SM, Theme::SPACE_XS);
 
 /// The frame of a [`ghost_button`]: its padding, its wash and text color,
 /// which fade in under the pointer, and its press dim, with nothing in it.
+/// The label's line fills the frame to [`Theme::CONTROL_HEIGHT`], so a ghost
+/// stands level with a solid button, a chip and a text box beside it.
 fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
     let key = id.motion("ghost");
     let lit = motion::hover_t(key);
@@ -222,6 +231,7 @@ fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
         .active(move |style| style.bg(pressed).opacity(0.92))
         .px(px(GHOST_INSET.0))
         .py(px(GHOST_INSET.1))
+        .line_height(px(Theme::CONTROL_HEIGHT - 2.0 * GHOST_INSET.1))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
         .text_color(motion::mix(theme.text_muted, theme.text, lit))
@@ -234,8 +244,10 @@ fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
 ///
 /// Two sizes, because a chip row is one of two things: the panel's own filter,
 /// which is the first thing read in it, or a secondary row beside a title or a
-/// count. A size answers for the padding, the text, and how far the inactive
-/// chips recede, so the two rows cannot drift apart in three separate files.
+/// count. A size sets the padding, the text and the height, so the two rows
+/// cannot drift apart in separate files. Both rest at muted text: faint text
+/// marks a disabled control, and an inactive chip is a choice that is
+/// available.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChipSize {
     /// The panel's primary filter row.
@@ -257,19 +269,19 @@ impl ChipSize {
         }
     }
 
+    /// A chip's height: a regular chip is one control row, level with a text
+    /// box and a button beside it; a compact one is an icon control's row.
+    pub fn height(self) -> f32 {
+        match self {
+            Self::Regular => Theme::CONTROL_HEIGHT,
+            Self::Compact => Theme::ICON_HIT_ROW,
+        }
+    }
+
     fn text_size(self) -> gpui::Pixels {
         match self {
             Self::Regular => Theme::TEXT_UI,
             Self::Compact => Theme::TEXT_SMALL,
-        }
-    }
-
-    /// The color an inactive chip rests at. A secondary row recedes further,
-    /// so the primary row stays the one the eye lands on.
-    fn rest(self, theme: &Theme) -> gpui::Hsla {
-        match self {
-            Self::Regular => theme.text_muted,
-            Self::Compact => theme.text_faint,
         }
     }
 }
@@ -302,6 +314,7 @@ pub fn chip(
         .items_center()
         .px(px(pad_x))
         .py(px(pad_y))
+        .line_height(px(size.height() - 2.0 * pad_y))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(
             theme.wash(if active { 0.11 } else { 0.0 }),
@@ -310,7 +323,7 @@ pub fn chip(
         ))
         .text_size(size.text_size())
         .text_color(motion::mix(
-            if active { theme.text } else { size.rest(theme) },
+            if active { theme.text } else { theme.text_muted },
             theme.text,
             lit,
         ))
@@ -338,47 +351,69 @@ pub fn list_chip(
         )
 }
 
-/// A compact tab strip for static surface catalogs and galleries.
+/// One tab of a tab row: muted text at rest, and full-strength text over the
+/// accent underline while it is the open one, as a dock tab is. The underline is
+/// drawn over the tab's bottom edge and takes no layout, so an open label
+/// stands on the same center line as the others. A tab with no room for its
+/// label ends it in an ellipsis.
 ///
-/// The label and its position form the identity, so duplicate labels in one
-/// strip animate independently without allocating an id on each draw.
-pub fn tab_bar(theme: &Theme, tabs: &[(&'static str, bool)]) -> Div {
+/// The tab fills the height of its row, so a row of these is as tall as the
+/// row the caller sets. Drawing only: the caller attaches the click.
+pub fn underline_tab(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<SharedString>,
+    active: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let id = id.into();
+    let key = id.motion("tab");
+    let lit = motion::hover_t(key);
     div()
+        .id(id.element("tab"))
+        .relative()
+        .min_w_0()
+        .h_full()
         .flex()
         .items_center()
+        .gap(px(Theme::SPACE_XS))
+        .px(px(Theme::SPACE_SM))
+        .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
+        .text_size(Theme::TEXT_UI)
+        .text_color(motion::mix(
+            if active { theme.text } else { theme.text_muted },
+            theme.text,
+            lit,
+        ))
+        .cursor(CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .on_hover(motion::hover_listener(key))
+        .child(div().min_w_0().truncate().child(label.into()))
+        .when(active, |el| {
+            el.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .bottom_0()
+                    .h(px(Theme::TAB_UNDERLINE))
+                    .bg(theme.accent),
+            )
+        })
+}
+
+/// A tab row for static surface catalogs and galleries: one [`underline_tab`]
+/// per label, the open ones underlined.
+///
+/// The label and its position form the identity, so duplicate labels in one
+/// row animate independently without allocating an id on each draw.
+pub fn tab_bar(theme: &Theme, tabs: &[(&'static str, bool)]) -> Div {
+    div()
+        .h(px(Theme::TAB_ROW_HEIGHT))
+        .flex()
         .gap(px(Theme::SPACE_XXS))
         .children(tabs.iter().enumerate().map(|(index, (label, active))| {
             let key = motion::MotionKey::new("tab", format_args!("{label}-{index}"));
-            let lit = motion::hover_t(key);
-            div()
-                .id(key.element_id("tab"))
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XS))
-                .border_b_2()
-                .border_color(if *active {
-                    theme.accent
-                } else {
-                    theme.wash(0.0)
-                })
-                .bg(motion::mix(
-                    theme.wash(if *active { 0.08 } else { 0.0 }),
-                    theme.element_hover,
-                    lit,
-                ))
-                .text_size(Theme::TEXT_UI)
-                .text_color(motion::mix(
-                    if *active {
-                        theme.text
-                    } else {
-                        theme.text_muted
-                    },
-                    theme.text,
-                    lit,
-                ))
-                .cursor(CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
-                .on_hover(motion::hover_listener(key))
-                .child(*label)
+            underline_tab(key, *label, *active, theme).flex_none()
         }))
 }
 
@@ -412,6 +447,56 @@ pub fn menu_lead(checked: bool, icon: Option<&'static str>, theme: &Theme) -> Di
             (false, Some(path)) => Some(crate::icons::icon(path).into_any_element()),
             (false, None) => None,
         })
+}
+
+/// The label a form row starts with: `label` in a column `width` wide that
+/// keeps its width, so the controls after the labels of a form start on one
+/// edge.
+pub fn row_label(theme: &Theme, label: impl Into<SharedString>, width: f32) -> Div {
+    div()
+        .flex_none()
+        .w(px(width))
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_muted)
+        .child(label.into())
+}
+
+/// How wide the label column of a panel form is: the widest label a Project
+/// panel form draws, with room to spare.
+pub const FORM_LABEL_WIDTH: f32 = 64.0;
+
+/// One row of a panel form: `label` in the label column, then `controls` in
+/// the rest of the row, `SPACE_XS` apart and wrapping onto further lines in a
+/// narrow panel. The label stands on the center line of the first line of
+/// controls. Drawn as `form-{label}`, with the controls as
+/// `form-{label}-controls`.
+pub fn form_row(
+    theme: &Theme,
+    label: &'static str,
+    controls: impl IntoIterator<Item = gpui::AnyElement>,
+) -> Div {
+    div()
+        .debug_selector(move || format!("form-{label}"))
+        .flex()
+        .items_start()
+        .gap(px(Theme::SPACE_SM))
+        .child(
+            row_label(theme, label, FORM_LABEL_WIDTH)
+                .h(px(Theme::CONTROL_HEIGHT))
+                .flex()
+                .items_center(),
+        )
+        .child(
+            div()
+                .debug_selector(move || format!("form-{label}-controls"))
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .children(controls),
+        )
 }
 
 /// A key-routed text box: the value, or the placeholder while it is empty, and
@@ -507,7 +592,7 @@ pub fn field_frame(
     div()
         .id(id.element("field"))
         .px(px(Theme::SPACE_SM))
-        .min_h(px(Theme::INPUT_HEIGHT))
+        .min_h(px(Theme::CONTROL_HEIGHT))
         .min_w_0()
         .flex()
         .items_center()
@@ -678,12 +763,15 @@ pub fn readout_tinted(
         )
 }
 
-/// The heading over a group of rows, such as a group of [`readout`] rows.
+/// The heading over a group of rows, such as a group of [`readout`] rows: full
+/// text in medium weight, so it reads as a heading over the rows' labels and
+/// not as a disabled control, which faint text marks.
 pub fn section_label(theme: &Theme, title: impl Into<SharedString>) -> Div {
     div()
         .pt(px(Theme::SPACE_SM))
         .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(theme.text)
         .child(title.into())
 }
 
@@ -765,3 +853,7 @@ mod readout_tests;
 #[cfg(test)]
 #[path = "components_field_tests.rs"]
 mod field_tests;
+
+#[cfg(test)]
+#[path = "components_control_tests.rs"]
+mod control_tests;

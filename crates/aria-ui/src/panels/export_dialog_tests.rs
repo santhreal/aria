@@ -151,7 +151,9 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
         chip_text.bounds.left(),
         fact.left()
     );
-    // Each row's value stands on its label's line, a fact's as a chip's.
+    // Each row's value stands on its label's line, a fact's as a chip's. A
+    // line box centers its text, so two runs stand on one line when their
+    // boxes share a center, whatever each line's height.
     let encoder = visual.read(|app| state.read(app).export_encoder_label());
     for (label, value) in [
         ("Encoder", encoder.as_str()),
@@ -159,10 +161,10 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
     ] {
         let (label_run, value_run) = (run(label), run(value));
         assert!(
-            (label_run.bounds.top() - value_run.bounds.top()).abs() < px(EPS),
+            (label_run.bounds.center().y - value_run.bounds.center().y).abs() < px(EPS),
             "{label} stands at {:?}, its value {value} at {:?}",
-            label_run.bounds.top(),
-            value_run.bounds.top()
+            label_run.bounds.center().y,
+            value_run.bounds.center().y
         );
     }
 }

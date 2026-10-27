@@ -134,7 +134,7 @@ pub(super) fn media_grid(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .when(missing_any, |el| {
-            el.child(
+            el.child(div().flex().ml(px(-components::GHOST_INSET.0)).child(
                 components::ghost_button("relink-all", "Relink All", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -142,11 +142,18 @@ pub(super) fn media_grid(
                         cx.notify();
                     }),
                 ),
-            )
+            ))
         })
-        .child(items)
+        // The tiles hang their inset past the column, so each name and each
+        // picture starts on the column's edge.
+        .child(div().mx(px(-TILE_INSET)).child(items))
         .into_any_element()
 }
+
+/// How far a tile's contents stand inside its edge: its padding and its 1 px
+/// border. The pool's scroll frame stands this far past the column, so a hung
+/// tile's plate and border are drawn whole.
+pub(super) const TILE_INSET: f32 = Theme::SPACE_SM + 1.0;
 
 pub(super) fn media_tile(
     theme: &Theme,

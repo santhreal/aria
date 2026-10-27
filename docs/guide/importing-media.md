@@ -87,16 +87,17 @@ states why on it:
 
 ## Stock and sound effects
 
-The Project panel holds a **Stock** tab and an **SFX** tab.
+The Project panel's **Library** group holds the **Stock**, **SFX**, and
+**Generate** tabs.
 
 Stock searches video, photo, and audio libraries. Click the query box, type, and
-press Enter or click **Search**. Escape leaves the box. The **Video**, **Photo**,
-and **Audio** chips choose what to search for; switching chips clears the results,
-which answered the previous kind.
+press Enter or click **Search** beside the box. Escape leaves the box. The
+**Video**, **Photo**, and **Audio** chips under the box choose what to search
+for; switching chips clears the results, which answered the previous kind.
 
-The caption above the box states the route. With a Pexels or Pixabay key set in
-Settings, the query goes straight to that provider and Aria's servers never receive it.
-With no key, the query goes through Aria's anonymous search endpoint.
+Before the first search the panel states the route. With a Pexels or Pixabay key
+set in Settings, the query goes straight to that provider and Aria's servers never
+receive it. With no key, the query goes through Aria's anonymous search endpoint.
 
 SFX lists the sound-effect catalog. Click **Load catalog** to fetch it.
 
@@ -123,17 +124,21 @@ Stock results and SFX import into the media pool instead.
 
 The Project panel's **Generate** tab sends a prompt to fal.ai with your own key.
 
-Click the prompt box, type a description, and press Enter or click **Generate**.
-The **Image**, **Video**, and **Voice** chips choose what to produce; switching
-chips keeps the prompt. Escape leaves the box.
+Click the prompt box, type a description, and press Enter or click **Generate**
+beside the box. The **Image**, **Video**, and **Voice** chips choose what to
+produce; switching chips keeps the prompt. Escape leaves the box.
 
 Each submit becomes a job. Its row appears under the prompt and on the Jobs
 board with the queue state and the download progress, and Cancel stops it. The
 result downloads into the download cache, is pinned, and imports into the media
 pool.
 
-Without a `fal` key the tab states which key to add and offers no button. See
-[Provider keys](settings-and-storage.md#provider-keys) for where the key goes.
+Without a `fal` key the tab states which key to add and offers no **Generate**
+button. **Open Settings** under the line opens Settings at the **Keys** section.
+See [Provider keys](settings-and-storage.md#provider-keys) for where the key goes.
+
+**Lottie animations** under the jobs lists the Lottie catalog. Click **Load
+catalog** to fetch it; clicking an animation places it at the playhead.
 
 
 ## Example

@@ -124,10 +124,12 @@ impl FeedState {
         }
     }
 
-    /// The line to show instead of cards, or `None` when cards are the answer.
+    /// The line to show instead of cards, or `None` when there is nothing to
+    /// say: the cards are the answer, or nothing was fetched yet and the
+    /// control that fetches is the only thing to show.
     pub fn placeholder(&self) -> Option<String> {
         match self {
-            FeedState::Idle => Some("Not loaded".into()),
+            FeedState::Idle => None,
             FeedState::Loading => Some("Loading…".into()),
             FeedState::Failed(err) => Some(err.clone()),
             FeedState::Ready(cards) if cards.is_empty() => Some("Nothing found".into()),

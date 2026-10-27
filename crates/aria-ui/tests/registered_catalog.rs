@@ -4,9 +4,9 @@
 //!
 //! Closes the class "a list cached from the catalog never sees a later
 //! registration": the command palette, the inspector's Add list, the
-//! Generators grid, and the transition chips each rebuild when the catalog
+//! Generators list, and the transition chips each rebuild when the catalog
 //! revision moves. Also covers placing a generator or a clip type as a clip,
-//! a clip type's grid row following its generator's registration, and a clip
+//! a clip type's row following its generator's registration, and a clip
 //! type that declares its fields: placed, edited through the inspector as one
 //! undo step, saved and reopened with the value, and drawn by its callback.
 //! Drawing other registrations is covered by `aria-render`'s
@@ -157,7 +157,7 @@ fn register_generator(id: &str, label: &str, params: Vec<EffectParamSpec>) -> Pa
     .expect("the generator registers")
 }
 
-fn in_generator_grid(id: &str) -> bool {
+fn in_generator_list(id: &str) -> bool {
     aria_ui::catalog_text::generators()
         .iter()
         .any(|choice| choice.id == id)
@@ -207,12 +207,12 @@ fn a_registered_generator_is_offered_and_placed_as_one_clip_in_one_undo_step() {
     let mut state = state("registered-generator");
     state.new_project().expect("a project");
     let id = "test.ui.bars";
-    // Builds and caches the grid and the palette before the registration.
-    assert!(!in_generator_grid(id));
+    // Builds and caches the list and the palette before the registration.
+    assert!(!in_generator_list(id));
     assert!(state.palette_catalog().iter().all(|offer| offer.id != id));
     let registration = register_generator(id, "Bars", Vec::new());
 
-    assert!(in_generator_grid(id), "the grid kept the share from before");
+    assert!(in_generator_list(id), "the list kept the share from before");
     assert!(
         state.palette_catalog().iter().any(|offer| offer.id == id
             && matches!(&offer.action, Offered::Generator(at) if at.as_str() == id)),
@@ -250,7 +250,7 @@ fn a_registered_generator_is_offered_and_placed_as_one_clip_in_one_undo_step() {
     assert_generator_clip(&state, id, "Bars", 48);
 
     drop(registration);
-    assert!(!in_generator_grid(id), "the grid kept a removed generator");
+    assert!(!in_generator_list(id), "the list kept a removed generator");
     assert!(state.palette_catalog().iter().all(|offer| offer.id != id));
     let before = clip_count(&state);
     let err = state
@@ -278,7 +278,7 @@ fn vec2_param(name: &str) -> EffectParamSpec {
     }
 }
 
-/// The Generators grid's row for the clip type `id`.
+/// The Generators list's row for the clip type `id`.
 fn clip_type_row(id: &str) -> Option<aria_ui::catalog_text::ClipTypeChoice> {
     aria_ui::catalog_text::clip_types()
         .iter()

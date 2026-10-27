@@ -70,3 +70,13 @@ impl AppState {
         self.loudness_peak_dbfs().is_some_and(|peak| peak >= -0.1)
     }
 }
+
+/// The line that states a contour's peak: `Peak -3.2 dBFS`, with `, clipping`
+/// when it reaches the ceiling. One spelling for every surface that shows it.
+pub fn peak_line(peak: f32, clipping: bool) -> String {
+    if clipping {
+        format!("Peak {peak:.1} dBFS, clipping")
+    } else {
+        format!("Peak {peak:.1} dBFS")
+    }
+}

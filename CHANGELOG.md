@@ -408,6 +408,22 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- Text boxes, solid buttons, ghost buttons and chips are 24 px high, the height of an icon control's hit box, so a form label and every control in its row stand on one center line; compact chips are 20 px high.
+- Inactive chips and tabs of every size show muted text; faint text marks only a disabled control.
+- The Project panel lists the open group's tabs as underlined tabs whose labels start on the group labels' edge, and the Viewer tabs share the same tab.
+- An open tab in a tab row and in the Effect Controls tab strip is marked by its text and the accent underline, without a fill.
+- Section headings are drawn in full text at medium weight instead of faint text.
+- The Stock tab shows the Search button beside the query box and the kind chips under it, and before the first search it states where searches go in an empty state that fills the panel.
+- The SFX tab shows **Load catalog** as a button in an empty state that fills the panel instead of a "Not loaded" line.
+- The Generate tab shows the **Generate** button beside the prompt box, an **Open Settings** button that opens the Keys section while no provider key is set, and the Lottie catalog under a **Lottie animations** heading.
+- The Titles, Shapes, Stickers, Generators, Animations, Masks and Transitions tabs list one entry per line on the panel's text edge under one line that states the click, and scroll when the list is taller than the panel.
+- Media pool tiles start on the panel's text edge, and the pool shows no empty row where the folder strip and the subclip button are absent.
+- The Captions tab lays out Language, Output, Split and Threads as a labeled form, lights an **Auto** threads chip while the decoder uses its per-core default, shows **Transcribe** and **Commit** as buttons, and shows an **Open Settings** button that opens the Transcription section while no model is installed.
+- The Analysis tab lays out Detect, Loudness, Show and Confidence as a labeled form, prints the loudness peak beside **Measure**, puts **Refresh** at the end of the status line, and lists Previous, Next and the edits on one line on the panel's text edge.
+- A detector's button and **Measure** on the Analysis tab are solid only while a clip is selected and they hold no result.
+- The Effects tab's tree and the media pool's folder rows use the panel's text size, with top-level folders in medium weight instead of bold.
+- A solid button dims under the pointer instead of turning light.
+- The timeline's search box is as tall as the toggles in its row.
 - On the Effect Controls tabs, rows that cannot be keyed, such as the fades, Reverse, Pitch lock, the crop insets, the audio role, the duck settings and an effect's switch, choice, text, font, curve, gradient and layer slots, print their name and value in the keyed rows' columns.
 - A choice row shows the current choice in the value column and the choices on the line under it, with the one in force marked `•`, and the audio role chips mark the clip's role.
 - Reverse and Pitch lock read **On** or **Off** in the value column.

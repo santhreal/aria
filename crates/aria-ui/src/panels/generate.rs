@@ -45,66 +45,88 @@ pub(crate) fn generate_panel(
         .flex_col()
         .gap(px(Theme::SPACE_SM))
         .child(
-            components::text_box(
-                "generate-prompt",
-                &form.prompt,
-                "Describe what to generate",
-                form.focused,
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.focus_generate_prompt(true));
-                    cx.notify();
+            div()
+                .flex()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    components::text_box(
+                        "generate-prompt",
+                        &form.prompt,
+                        "Describe what to generate",
+                        form.focused,
+                        theme,
+                    )
+                    .flex_1()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                            this.state
+                                .update(cx, |state, _| state.focus_generate_prompt(true));
+                            cx.notify();
+                        }),
+                    ),
+                )
+                .when(configured, |el| {
+                    el.child(
+                        components::button("generate-submit", "Generate", theme)
+                            .flex_none()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                    this.state.update(cx, |state, cx| {
+                                        if let Err(err) = state.submit_generation(cx) {
+                                            state.report_error(err);
+                                        }
+                                    });
+                                    cx.notify();
+                                }),
+                            ),
+                    )
                 }),
-            ),
         )
         .child(
-            div().flex().gap(px(Theme::SPACE_XS)).children(
+            div().flex().gap(px(Theme::SPACE_XXS)).children(
                 GenerateKind::ALL
                     .iter()
                     .map(|(kind, label, _)| kind_chip(theme, *kind, label, form.kind, cx)),
             ),
         )
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(SharedString::from(if !configured {
-                    missing_key_line()
-                } else if form.focused {
-                    "Enter submits, Esc leaves the box".to_string()
-                } else {
-                    String::new()
-                })),
-        )
-        .when(configured, |el| {
+        // With no key the panel states what is missing, and the button under
+        // the line opens the Settings section that takes it. In a row of its
+        // own, so the button is as wide as its label rather than the column.
+        .when(!configured, |el| {
             el.child(
-                components::ghost_button("generate-submit", "Generate", theme).on_mouse_down(
+                div()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text_muted)
+                    .child(SharedString::from(missing_key_line())),
+            )
+            .child(div().flex().child(
+                components::button("generate-keys", "Open Settings", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, cx| {
-                            if let Err(err) = state.submit_generation(cx) {
-                                state.report_error(err);
-                            }
-                        });
+                        this.state
+                            .update(cx, |state, _| state.open_settings_at("Keys"));
                         cx.notify();
                     }),
                 ),
-            )
+            ))
         })
         .children(rows)
         // Lottie animations are generated clips too, and the endpoint the client
         // has always been able to call had no surface: a downloaded animation is
         // placed at the playhead like any other generator.
-        .child(super::cloud::cloud_catalog_block(
-            theme,
-            crate::cloud::CloudFeed::Lottie,
-            state,
-            cx,
-        ))
+        .child(components::section_label(theme, "Lottie animations"))
+        .child(
+            div()
+                .ml(px(-components::GHOST_INSET.0))
+                .child(super::cloud::cloud_catalog_block(
+                    theme,
+                    crate::cloud::CloudFeed::Lottie,
+                    state,
+                    cx,
+                )),
+        )
         .into_any_element()
 }
 

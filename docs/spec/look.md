@@ -46,7 +46,7 @@ adjustment clips to Yellow.
 | Tab row | 24 px |
 | Icon | 16 px glyph in a 24 px hit box; 28 px in the tool bar; 20 px in a 22 px row |
 | Worded control in a 24 px control row | 24 px high, 4 px side padding |
-| Inputs | 20 px high |
+| Text boxes and solid buttons | 24 px high |
 | Spacing grid | 4 px; 2 px for icon-to-text gaps |
 | Panel inset | 12 px |
 

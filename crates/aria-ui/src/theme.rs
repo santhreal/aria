@@ -199,8 +199,10 @@ impl Theme {
     /// bottom edge, not in its layout, so every label in a row stands on one
     /// centre line.
     pub const TAB_UNDERLINE: f32 = 2.0;
-    /// Height of a text input.
-    pub const INPUT_HEIGHT: f32 = 20.0;
+    /// Height of a text box and a worded button: one control row, the height
+    /// of an icon control's hit box, so a box and the controls beside it stand
+    /// level.
+    pub const CONTROL_HEIGHT: f32 = 24.0;
     /// Drawn size of an icon glyph.
     pub const ICON_SIZE: f32 = 16.0;
     /// Hit box of an icon control on a bar or a header row.

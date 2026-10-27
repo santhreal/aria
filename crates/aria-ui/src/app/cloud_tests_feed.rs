@@ -147,7 +147,9 @@ fn a_failed_feed_does_not_render_as_an_empty_one() {
         Some("Stock search: offline")
     );
     assert_eq!(empty.placeholder().as_deref(), Some("Nothing found"));
-    assert_eq!(FeedState::Idle.placeholder().as_deref(), Some("Not loaded"));
+    // Before the first fetch the control that fetches is the whole answer: a
+    // line under it would restate that nothing was fetched.
+    assert_eq!(FeedState::Idle.placeholder(), None);
     assert_eq!(
         FeedState::Loading.placeholder().as_deref(),
         Some("Loading…")

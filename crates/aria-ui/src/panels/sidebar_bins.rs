@@ -30,12 +30,14 @@ use gpui::prelude::FluentBuilder;
 const CRUMBS_MIN: f32 = 96.0;
 
 /// The folder strip: while a folder is open, where you are and the buttons
-/// that act on it on one row; then the folders inside the open one.
+/// that act on it on one row; then the folders inside the open one. Nothing at
+/// the pool root with no folders, so the column holds no empty row and no gap
+/// for one.
 pub fn strip(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
+) -> Option<gpui::AnyElement> {
     let (path, children, open, rename, strip) = {
         let read = state.read(cx);
         (
@@ -49,6 +51,9 @@ pub fn strip(
             BinStrip::of(read),
         )
     };
+    if open.is_none() && children.is_empty() {
+        return None;
+    }
 
     let mut crumbs: Vec<gpui::AnyElement> = Vec::with_capacity(path.len() + 1);
     crumbs.push(crumb(theme, "Pool".into(), None, open.is_none(), cx));
@@ -80,7 +85,7 @@ pub fn strip(
 
     let buttons = actions(theme, strip, false, cx);
 
-    div()
+    let column = div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XXS))
@@ -136,7 +141,8 @@ pub fn strip(
                     .children(rows),
             )
         })
-        .into_any_element()
+        .into_any_element();
+    Some(column)
 }
 
 /// The folder buttons the pool's footer draws: each offered row with an icon.
@@ -370,7 +376,7 @@ fn row(
         )
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(label),
         );
