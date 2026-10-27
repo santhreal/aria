@@ -27,7 +27,6 @@ pub fn render(
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
     let playing = state.read(cx).viewer_playing();
-    let zoom_label = state.read(cx).preview_zoom_label();
     let focused = state.read(cx).sources.focused().cloned();
     let split = state.read(cx).sources.split_source().cloned();
     let scopes_open = state.read(cx).scopes_open;
@@ -104,18 +103,7 @@ pub fn render(
                             cx,
                             |state| state.preview_zoom_out(),
                         ))
-                        .child(
-                            // The label is the fit control: clicking the
-                            // number returns to whole.
-                            row_text("preview-zoom-label", zoom_label, theme.text_muted, &theme)
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                        this.state.update(cx, |state, _| state.preview_zoom_fit());
-                                        cx.notify();
-                                    }),
-                                ),
-                        )
+                        .child(zoom::picker(state, &theme, cx))
                         .child(zoom_btn(
                             "preview-zoom-in",
                             crate::icons::ZOOM_IN,
@@ -212,6 +200,7 @@ fn program_pane(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::Stateful<gpui::Div> {
     let view = state.read(cx).preview_view;
+    let pannable = state.read(cx).preview_pannable();
     div()
         .id("preview-program")
         .flex_1()
@@ -219,7 +208,7 @@ fn program_pane(
         .min_h_0()
         .flex()
         .p(px(handles::HANDLE / 2.0))
-        .when(view.pannable(), |el| el.cursor(gpui::CursorStyle::OpenHand))
+        .when(pannable, |el| el.cursor(gpui::CursorStyle::OpenHand))
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
@@ -302,6 +291,8 @@ fn row_group(selector: &'static str) -> gpui::Div {
 mod compare;
 #[path = "preview_controls.rs"]
 mod controls;
+#[path = "preview_menu.rs"]
+mod menu;
 #[path = "preview_peak.rs"]
 mod peak;
 #[path = "preview_resolution.rs"]
@@ -320,8 +311,11 @@ mod viewer_row_height_tests;
 #[cfg(test)]
 #[path = "viewer_words_tests.rs"]
 mod viewer_words_tests;
-use controls::{
-    clock_field, jump_btn, loop_btn, mark_btn, row_text, step_btn, transport_btn, zoom_btn,
-};
+#[cfg(test)]
+#[path = "viewer_zoom_tests.rs"]
+mod viewer_zoom_tests;
+#[path = "preview_zoom.rs"]
+mod zoom;
+use controls::{clock_field, jump_btn, loop_btn, mark_btn, step_btn, transport_btn, zoom_btn};
 use peak::peak_meter;
 use source::{frame_view, guides, source_stage};

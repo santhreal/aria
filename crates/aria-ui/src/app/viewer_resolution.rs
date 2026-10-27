@@ -50,7 +50,6 @@ impl AppState {
         choice: PlaybackResolution,
         cx: &mut gpui::Context<Self>,
     ) {
-        self.resolution_list_open = false;
         if self.ui_settings.playback_resolution == choice {
             return;
         }
@@ -71,7 +70,6 @@ impl AppState {
         choice: PausedResolution,
         cx: &mut gpui::Context<Self>,
     ) {
-        self.resolution_list_open = false;
         if self.ui_settings.paused_resolution == choice {
             return;
         }

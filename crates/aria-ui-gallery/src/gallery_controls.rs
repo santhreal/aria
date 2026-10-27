@@ -320,14 +320,16 @@ fn disclosure_rows(theme: &Theme, reduced: bool) -> AnyElement {
 }
 
 /// The two controls that open rows under them, shut and open: the disclosure
-/// button over a group of rows, and the list chip over a list of choices.
+/// button over a group of rows, and the list chip over a list of choices, also
+/// held at the width of its widest choice.
 fn opener_rows(theme: &Theme, reduced: bool) -> AnyElement {
     let disclosure = |id: &'static str, open: bool| {
         components::disclosure_button(id, "Basic Correction", open, theme, reduced)
     };
     group(
         theme,
-        "disclosure_button(id, label, open, theme, reduced) / list_chip(id, label, open, theme)",
+        "disclosure_button(id, label, open, theme, reduced) / list_chip(id, label, open, theme) \
+         / sized_list_chip(id, label, widest, open, theme)",
         shelf(vec![
             specimen(
                 theme,
@@ -348,6 +350,11 @@ fn opener_rows(theme: &Theme, reduced: bool) -> AnyElement {
                 theme,
                 "list_chip open",
                 components::list_chip("ctl-list-open", "Name", true, theme),
+            ),
+            specimen(
+                theme,
+                "sized_list_chip at 50% of 800%",
+                components::sized_list_chip("ctl-list-sized", "50%", "800%", false, theme),
             ),
         ]),
     )

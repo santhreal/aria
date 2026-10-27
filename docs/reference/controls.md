@@ -49,9 +49,9 @@ The Viewer and Source Monitor (`crates/aria-ui/src/panels/preview*.rs`) render t
 | `preview-proxies-toggle` | Proxy toggle | Toggles playback decoding between generated proxy files and original source media. | None |
 | `preview-resolution` | Resolution | Opens the playback and paused raster divisor picker (Full, 1/2, 1/4). | None |
 | `preview-shuttle` | Shuttle speed | Displays the active J/K/L shuttle multiplier and resets playback speed to 1x when clicked. | `L` |
-| `preview-zoom-in` | Zoom in | Steps the Viewer canvas magnification up one preset level. | None |
-| `preview-zoom-label` | Zoom percentage | Displays the current magnification percentage and fits the frame to the pane when clicked. | None |
-| `preview-zoom-out` | Zoom out | Steps the Viewer canvas magnification down one preset level. | None |
+| `preview-zoom` | Zoom level | Shows the zoom on screen and opens the zoom level list: Fit, then 10% to 800%, where 100% draws one canvas pixel per display pixel. | None |
+| `preview-zoom-in` | Zoom in | Steps the Viewer to the next zoom level above the one on screen, holding the picture's center. | None |
+| `preview-zoom-out` | Zoom out | Steps the Viewer to the next zoom level below the one on screen, holding the picture's center. | None |
 | `program-mark-in` | In | Sets the sequence in mark at the current playhead frame. | `I` |
 | `program-mark-out` | Out | Sets the sequence out mark at the current playhead frame. | `O` |
 | `source-close` | Sequence | Closes the Source Monitor view and returns focus to the active sequence. | `Space` |

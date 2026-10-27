@@ -16,12 +16,37 @@ fn press(state: &mut AppState, pick: Pick) {
     }
 }
 
+/// Lay a picture out in its stage: the zoomed frame's own rectangle, which
+/// the handles and overlays are placed by too, or while the view fits, a box
+/// `1 / width` by `1 / height` times the stage, where `ObjectFit::Contain`
+/// letterboxes it. A stage cut down to `width` by `height` of the pane by a
+/// divider still lines its fitted picture up with the pane's.
+pub(super) fn place<E: Styled>(
+    picture: E,
+    zoomed: Option<crate::app::canvas_overlay::Rect>,
+    [width, height]: [f32; 2],
+) -> E {
+    let picture = picture.absolute();
+    match zoomed {
+        Some(frame) => picture
+            .left(px(frame.x))
+            .top(px(frame.y))
+            .w(px(frame.w))
+            .h(px(frame.h)),
+        None => picture
+            .left_0()
+            .top_0()
+            .w(relative(1.0 / width))
+            .h(relative(1.0 / height)),
+    }
+}
+
 pub(super) fn frame_view(
     state: &Entity<AppState>,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let view = state.read(cx).preview_view;
+    let zoomed = state.read(cx).preview_zoomed_frame();
     let ticks = state.read(cx).store.playhead_ticks;
     let texture = state.read(cx).preview_worker.shown_texture();
     let image = state.read(cx).last_render.clone();
@@ -46,8 +71,6 @@ pub(super) fn frame_view(
         |_, _, _, _| {},
     )
     .size_0();
-    let scale = view.scale();
-    let (dx, dy) = view.pan;
     if let Some(texture) = texture {
         div()
             .id("preview-stage")
@@ -57,13 +80,11 @@ pub(super) fn frame_view(
             .child(gpu_probe)
             .child(motion::fade_quick(
                 seek::frame_id("preview-frame-fade", ticks),
-                gpui::surface(texture)
-                    .object_fit(ObjectFit::Contain)
-                    .absolute()
-                    .left(px(dx))
-                    .top(px(dy))
-                    .w(gpui::relative(scale))
-                    .h(gpui::relative(scale)),
+                place(
+                    gpui::surface(texture).object_fit(ObjectFit::Contain),
+                    zoomed,
+                    [1.0, 1.0],
+                ),
             ))
             .into_any_element()
     } else if let Some(image) = image {
@@ -78,19 +99,13 @@ pub(super) fn frame_view(
                 // do not, because a fade restarted every frame never
                 // finishes and would leave the picture permanently dim.
                 seek::frame_id("preview-frame-fade", ticks),
-                // A zoomed frame is drawn larger than the pane and offset by
-                // the pan; a fitted one is exactly the pane and `Contain`
-                // does the rest.
-                crate::components::picture(
+                crate::components::picture(place(
                     img(image)
                         .id("preview-frame")
-                        .object_fit(ObjectFit::Contain)
-                        .absolute()
-                        .left(px(dx))
-                        .top(px(dy))
-                        .w(gpui::relative(scale))
-                        .h(gpui::relative(scale)),
-                ),
+                        .object_fit(ObjectFit::Contain),
+                    zoomed,
+                    [1.0, 1.0],
+                )),
             ))
             .into_any_element()
     } else {

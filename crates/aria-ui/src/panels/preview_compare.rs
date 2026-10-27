@@ -51,31 +51,24 @@ fn caption(state: &AppState) -> Option<SharedString> {
     })
 }
 
-/// The reference drawn as the Program frame is: the same fit, zoom, and pan
-/// inside a box `width` by `height` times the stage, so a box cut down to one
-/// side of the divider still lines up with the frame beside it.
+/// The reference drawn as the Program frame is, placed the way
+/// [`super::source::place`] places the frame in an area `width` by `height`
+/// of the stage.
 fn reference_area(
     state: &Entity<AppState>,
     theme: &Theme,
-    width: f32,
-    height: f32,
+    zoomed: Option<crate::app::canvas_overlay::Rect>,
+    [width, height]: [f32; 2],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::Div {
-    let view = state.read(cx).preview_view;
-    let scale = view.scale();
-    let (dx, dy) = view.pan;
     let label = caption(state.read(cx));
     let area = div().relative().overflow_hidden().bg(theme.bg);
     let area = match picture(state, cx) {
-        Some(picture) => area.child(crate::components::picture(
-            img(picture)
-                .object_fit(ObjectFit::Contain)
-                .absolute()
-                .left(px(dx))
-                .top(px(dy))
-                .w(relative(scale / width))
-                .h(relative(scale / height)),
-        )),
+        Some(picture) => area.child(crate::components::picture(super::source::place(
+            img(picture).object_fit(ObjectFit::Contain),
+            zoomed,
+            [width, height],
+        ))),
         None => area
             .flex()
             .items_center()
@@ -214,7 +207,8 @@ pub(super) fn wipe(
         } else {
             (split, 1.0)
         };
-        let area = reference_area(state, theme, width, height, cx)
+        let zoomed = state.read(cx).preview_zoomed_frame();
+        let area = reference_area(state, theme, zoomed, [width, height], cx)
             .id("compare-reference")
             .debug_selector(|| "compare-reference".into())
             .absolute()
@@ -246,6 +240,11 @@ pub(super) fn beside(
         return pane.into_any_element();
     }
     let split = compare.divider();
+    // The reference pane is the stage's width up to the divider, and its
+    // zoomed frame stands about that pane's own center.
+    let zoomed = compare
+        .stage()
+        .and_then(|[_, _, w, h]| state.read(cx).preview_zoomed_frame_in([w * split, h]));
     div()
         .id("compare-stage")
         .flex_1()
@@ -255,7 +254,7 @@ pub(super) fn beside(
         .relative()
         .child(stage_probe(state))
         .child(
-            reference_area(state, theme, 1.0, 1.0, cx)
+            reference_area(state, theme, zoomed, [1.0, 1.0], cx)
                 .id("compare-reference")
                 .debug_selector(|| "compare-reference".into())
                 .flex_none()

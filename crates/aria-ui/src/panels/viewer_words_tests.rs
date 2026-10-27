@@ -5,9 +5,9 @@
 //! icon controls, as the tab row's Split, Rulers, Safe, Guides and Alpha chips
 //! and the control row's Handles label and Transform, Crop, Mask, Scopes, Loop
 //! and Proxy words were. The worded controls are the timecode field, the
-//! Program and Source tabs, the zoom label that fits the frame, the resolution
-//! menu, and the In and Out marks. Every text run either row draws must stand
-//! inside one of them, and every control in `CONTROL_TIPS` drawn in either row
+//! Program and Source tabs, the zoom and resolution menus, and the In and Out
+//! marks. Every text run either row draws must stand inside one of them, and
+//! every control in `CONTROL_TIPS` drawn in either row
 //! that is not one of them must draw no text. A Source tab is open and Program
 //! is in front, so a Source tab and the marks are both drawn.
 //!
@@ -23,13 +23,13 @@ use crate::interned::intern;
 use crate::test_support::drawn_shell;
 use crate::tooltip::CONTROL_TIPS;
 
-/// The controls a word names: the timecode field, the tabs, the zoom label,
-/// the resolution menu, and the marks.
+/// The controls a word names: the timecode field, the tabs, the zoom and
+/// resolution menus, and the marks.
 const WORDED: [&str; 7] = [
     "playhead-tc",
     "viewer-tab-program",
     "viewer-tab-source-0",
-    "preview-zoom-label",
+    "preview-zoom",
     "preview-resolution",
     "program-mark-in",
     "program-mark-out",

@@ -226,9 +226,11 @@ fn a_title_selection_dragged_off_the_viewer_follows_the_pointer(cx: &mut gpui::T
 #[gpui::test]
 fn a_zoomed_frame_panned_off_the_viewer_follows_the_pointer(cx: &mut gpui::TestAppContext) {
     let (state, visual, _) = shell_with_take(cx, "held-viewer-pan");
+    // The top level, so the frame overhangs the pane farther than the pointer
+    // travels and no move below meets the pan's limit.
     change(visual, &state, |state| {
         state.clear_selection();
-        state.preview_view.zoom = Some(2.0);
+        state.preview_view.zoom = crate::app::preview_view::ZOOM_STEPS.last().copied();
         state.preview_view.pan = (0.0, 0.0);
     });
     settle(visual);

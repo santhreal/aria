@@ -138,7 +138,7 @@ Defined in `crates/aria-ui/src/surfaces/lane_header.rs`,
 | `MAGNET` | `assets/icon/timeline/magnet.svg` | Snapping, in the Timeline header. |
 | `FLAG` | `assets/icon/timeline/flag.svg` | Add a marker at the playhead, or open Marker Edit for the marker already on the playhead's frame. |
 | `GRAPH` | `assets/icon/timeline/chart-spline.svg` | Open or close the Graph Editor. |
-| `CHEVRON_DOWN` | `assets/icon/ui/chevron-down.svg` | Every disclosure: a lane, a property group, an effect's parameter group (`components::disclosure_button`), an Effects & Presets folder, and a bin row. `components::chevron` turns it a quarter turn for a shut row. It also ends a chip that opens a list, such as the Viewer's resolution menu (`components::list_chip`), and moves an effect or an audio insert one place later. |
+| `CHEVRON_DOWN` | `assets/icon/ui/chevron-down.svg` | Every disclosure: a lane, a property group, an effect's parameter group (`components::disclosure_button`), an Effects & Presets folder, and a bin row. `components::chevron` turns it a quarter turn for a shut row. It also ends a chip that opens a list, such as the Viewer's resolution menu (`components::list_chip`) and zoom menu (`components::sized_list_chip`), and moves an effect or an audio insert one place later. |
 
 ### Media pool
 

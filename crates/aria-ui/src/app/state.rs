@@ -385,8 +385,8 @@ pub struct AppState {
     pub(super) dropped: aria_render::DroppedFrames,
     /// The Auto playback resolution level and the drops it steps on.
     pub(super) auto_resolution: crate::resolution::AutoResolution,
-    /// Whether the Viewer's resolution list is open.
-    pub(crate) resolution_list_open: bool,
+    /// The control-row list open above the Viewer, if any.
+    pub(crate) viewer_menu: Option<super::preview_view::ViewerMenu>,
     /// What playback is actually managing, against the sequence's own rate.
     ///
     /// One counter for the session's current run: it is re-made at the rate

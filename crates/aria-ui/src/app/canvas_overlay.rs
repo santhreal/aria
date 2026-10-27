@@ -101,19 +101,26 @@ pub fn fit_frame(container: Rect, canvas: [u32; 2]) -> Rect {
     )
 }
 
-/// Where the preview draws the canvas inside `container` under `view`. The
-/// frame image is the container scaled by the zoom and moved by the pan, and
-/// the canvas fits that image the way `ObjectFit::Contain` does.
+/// Where the preview draws the canvas inside `container` under `view`: fitted
+/// the way `ObjectFit::Contain` does, or each canvas pixel over the zoom's
+/// device pixels, centered on the container and moved by the pan.
 pub fn view_frame(container: Rect, view: PreviewView, canvas: [u32; 2]) -> Rect {
-    let scale = view.scale();
+    let Some(zoom) = view.zoom else {
+        return fit_frame(container, canvas);
+    };
+    let ratio = view.pixel_ratio;
+    if canvas[0] == 0 || canvas[1] == 0 || ratio <= 0.0 {
+        return container;
+    }
+    let w = canvas[0] as f32 * zoom / ratio;
+    let h = canvas[1] as f32 * zoom / ratio;
     let (dx, dy) = view.pan;
-    let image = Rect::new(
-        container.x + dx,
-        container.y + dy,
-        container.w * scale,
-        container.h * scale,
-    );
-    fit_frame(image, canvas)
+    Rect::new(
+        container.x + (container.w - w) * 0.5 + dx,
+        container.y + (container.h - h) * 0.5 + dy,
+        w,
+        h,
+    )
 }
 
 /// A clip's quad inside the canvas rectangle, from the resolved layer's center

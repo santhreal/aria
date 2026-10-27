@@ -12,8 +12,12 @@ impl AppState {
     /// the only place the drawn geometry is known.
     ///
     /// Returns whether anything moved, so the caller repaints once on a resize
-    /// instead of every frame.
+    /// instead of every frame. A resize also pulls a pan back inside the
+    /// zoomed frame's new overhang.
     pub fn record_overlay_frame(&mut self, container: Rect) -> bool {
+        let (before, pan) = (self.overlay_frame, self.preview_view.pan);
+        self.overlay_frame.container = Some(container);
+        self.clamp_preview_pan();
         let canvas_size = self.canvas_size();
         let canvas = view_frame(container, self.preview_view, canvas_size);
         let layer = self
@@ -24,7 +28,7 @@ impl AppState {
             canvas: Some(canvas),
             layer,
         };
-        let moved = next != self.overlay_frame;
+        let moved = next != before || self.preview_view.pan != pan;
         self.overlay_frame = next;
         moved
     }

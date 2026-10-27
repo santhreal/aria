@@ -111,6 +111,11 @@ impl ViewerCompare {
         self.dragging
     }
 
+    /// The stage as last painted, `[x, y, width, height]` in window pixels.
+    pub fn stage(&self) -> Option<[f32; 4]> {
+        self.stage
+    }
+
     /// The stage painted at `stage`. Returns whether it moved.
     pub fn record_stage(&mut self, stage: [f32; 4]) -> bool {
         let moved = self.stage != Some(stage);

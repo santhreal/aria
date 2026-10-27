@@ -363,8 +363,20 @@ pub fn chip(
     size: ChipSize,
     theme: &Theme,
 ) -> Stateful<Div> {
-    let id = id.into();
     let label: SharedString = label.into();
+    chip_frame(id, &label, active, size, theme).child(div().min_w_0().truncate().child(label))
+}
+
+/// A [`chip`] without its label: the box, the wash, the text style, and the
+/// hover. `label` is the name the chip is recorded under in tests.
+fn chip_frame(
+    id: impl Into<motion::ControlId>,
+    #[cfg_attr(not(test), expect(unused_variables))] label: &SharedString,
+    active: bool,
+    size: ChipSize,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let id = id.into();
     let key = id.motion("chip");
     let lit = motion::hover_t(key);
     let (pad_x, pad_y) = size.pad();
@@ -404,7 +416,7 @@ pub fn chip(
         Some(selector) => chip.debug_selector(move || selector),
         None => chip,
     };
-    chip.child(div().min_w_0().truncate().child(label))
+    chip
 }
 
 /// A [`chip`] that opens a list of choices: the chosen one's name, then the
@@ -417,11 +429,40 @@ pub fn list_chip(
 ) -> Stateful<Div> {
     chip(id, label, open, ChipSize::Compact, theme)
         .gap(px(Theme::SPACE_XXS))
+        .child(chevron_down())
+}
+
+/// A [`list_chip`] held at the width of `widest`, the longest choice it can
+/// state, so the controls beside it stay put as its choice changes. Figures
+/// are tabular, so one run of figures is as wide as any other of its length.
+pub fn sized_list_chip(
+    id: impl Into<motion::ControlId>,
+    label: impl Into<SharedString>,
+    widest: &'static str,
+    open: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let label: SharedString = label.into();
+    chip_frame(id, &label, open, ChipSize::Compact, theme)
+        .font_features(crate::theme::tabular_figures())
+        .gap(px(Theme::SPACE_XXS))
         .child(
-            crate::icons::icon(crate::icons::CHEVRON_DOWN)
-                .flex_none()
-                .size(px(CHEVRON_PX)),
+            // The hidden second line is laid out and never drawn: it sets the
+            // column's width and adds no height.
+            div()
+                .flex()
+                .flex_col()
+                .child(label)
+                .child(div().h_0().invisible().child(widest)),
         )
+        .child(chevron_down())
+}
+
+/// The disclosure glyph a [`list_chip`] ends with.
+fn chevron_down() -> crate::icons::Icon {
+    crate::icons::icon(crate::icons::CHEVRON_DOWN)
+        .flex_none()
+        .size(px(CHEVRON_PX))
 }
 
 /// How wide a [`switch`]'s track is.

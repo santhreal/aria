@@ -280,7 +280,7 @@ impl AppState {
             last_present: None,
             dropped: aria_render::DroppedFrames::default(),
             auto_resolution: crate::resolution::AutoResolution::default(),
-            resolution_list_open: false,
+            viewer_menu: None,
             // Empty until playback runs, at the rate the project opens with.
             playback: aria_render::PlaybackMeter::at_rate(snapshot.playhead.rate),
             audio: crate::audio::AudioHandle::new(),

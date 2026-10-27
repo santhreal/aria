@@ -35,14 +35,19 @@ pub(super) const HANDLE: f32 = 12.0;
 pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
     let state = state.clone();
     canvas(
-        move |bounds, _, cx| {
+        move |bounds, window, cx| {
             let rect = Rect::new(
                 f32::from(bounds.origin.x),
                 f32::from(bounds.origin.y),
                 f32::from(bounds.size.width),
                 f32::from(bounds.size.height),
             );
-            if state.update(cx, |state, _| state.record_overlay_frame(rect)) {
+            let ratio = window.scale_factor();
+            let moved = state.update(cx, |state, _| {
+                state.preview_view.pixel_ratio = ratio;
+                state.record_overlay_frame(rect)
+            });
+            if moved {
                 crate::shell::notify_after_draw(&state, cx);
             }
         },

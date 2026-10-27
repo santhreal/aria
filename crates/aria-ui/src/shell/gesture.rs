@@ -288,7 +288,7 @@ impl Shell {
             }
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
             self.preview_pan = Some(at);
-            if self.state.read(cx).preview_view.pannable() {
+            if self.state.read(cx).preview_pannable() {
                 self.state.update(cx, |state, _| {
                     state.pan_preview(at[0] - from[0], at[1] - from[1])
                 });

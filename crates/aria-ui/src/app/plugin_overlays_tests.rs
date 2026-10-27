@@ -176,23 +176,23 @@ fn the_canvas_rectangle_follows_zoom_and_pan() {
         Rect::new(10.0, 57.5, 400.0, 225.0)
     ));
     let zoomed = PreviewView {
-        zoom: Some(2.0),
+        zoom: Some(1.0),
         pan: (-30.0, 15.0),
+        pixel_ratio: 2.0,
         ..PreviewView::default()
     };
-    // The frame image is 800 by 600 at (-20, 35); the canvas fits it 800 wide.
-    assert!(close(
-        view_frame(container, zoomed, [1920, 1080]),
-        Rect::new(-20.0, 110.0, 800.0, 450.0)
-    ));
+    // At 100% on a display of two device pixels per window pixel the canvas
+    // is 960 by 540, centered on the container at (-270, -100) and moved by
+    // the pan.
+    let drawn = Rect::new(-300.0, -85.0, 960.0, 540.0);
+    assert!(close(view_frame(container, zoomed, [1920, 1080]), drawn));
 
-    let map = CanvasMap::new(Rect::new(-20.0, 110.0, 800.0, 450.0), [1600, 900])
-        .expect("the canvas has an area");
+    let map = CanvasMap::new(drawn, [1920, 1080]).expect("the canvas has an area");
     assert_eq!(map.scale(), [0.5, 0.5]);
-    assert_eq!(map.to_window([100.0, 40.0]), [30.0, 130.0]);
-    assert_eq!(map.to_canvas([30.0, 130.0]), [100.0, 40.0]);
+    assert_eq!(map.to_window([100.0, 40.0]), [-250.0, -65.0]);
+    assert_eq!(map.to_canvas([-250.0, -65.0]), [100.0, 40.0]);
     assert_eq!(
-        map.to_canvas([-40.0, 100.0]),
+        map.to_canvas([-320.0, -95.0]),
         [-40.0, -20.0],
         "a point off the frame is not clamped"
     );
@@ -216,10 +216,15 @@ fn the_recorded_canvas_is_the_one_drawn_under_zoom_and_pan() {
     assert!(state.record_overlay_frame(container), "the canvas moved");
     let drawn = state.overlay_frame.canvas.expect("recorded");
     assert_eq!(drawn, view_frame(container, state.preview_view, size));
-    let fitted = fit_frame(container, size);
     assert!(
-        (drawn.w - fitted.w * 2.0).abs() < 1e-3,
-        "drawn at twice the fit"
+        (drawn.w - size[0] as f32 * 2.0).abs() < 1e-3,
+        "drawn at two window pixels per canvas pixel"
+    );
+    let center = [drawn.x + drawn.w / 2.0, drawn.y + drawn.h / 2.0];
+    assert_eq!(
+        center,
+        [container.x + 200.0 - 30.0, container.y + 150.0 + 15.0],
+        "centered on the picture area, moved by the pan"
     );
     assert_eq!(
         state.overlay_frame.container,
@@ -260,10 +265,12 @@ fn a_drag_reaches_the_overlay_in_canvas_pixels_and_moves_its_handle() {
 #[test]
 fn pointer_positions_follow_zoom_and_pan() {
     let (mut state, probe, _registration) = mounted();
-    // Twice the fit, panned 40 left and 20 up: one window pixel is one canvas
-    // pixel, and the canvas origin sits at (-40, -20).
-    state.preview_view.zoom = Some(2.0);
-    state.preview_view.pan = (-40.0, -20.0);
+    // At 100% one window pixel is one canvas pixel. The canvas is centered a
+    // quarter of its size up and left of the half-size area; the pan moves its
+    // origin to (-40, -20).
+    let [width, height] = state.canvas_size().map(|side| side as f32);
+    state.preview_view.zoom = Some(1.0);
+    state.preview_view.pan = (width / 4.0 - 40.0, height / 4.0 - 20.0);
     let area = half(&state);
     state.record_overlay_frame(area);
 

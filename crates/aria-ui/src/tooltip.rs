@@ -117,7 +117,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     // Preview view.
     ControlTip::named("preview-zoom-out", "Zoom the preview out"),
     ControlTip::named("preview-zoom-in", "Zoom the preview in"),
-    ControlTip::named("preview-zoom-label", "Fit the frame to the pane"),
+    ControlTip::named("preview-zoom", "Zoom level"),
     ControlTip::named("preview-handles-transform", "Transform handles"),
     ControlTip::named("preview-handles-crop", "Crop handles"),
     ControlTip::named("preview-handles-mask", "Mask handles"),

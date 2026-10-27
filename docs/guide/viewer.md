@@ -15,14 +15,17 @@ narrow Viewer the row wraps onto a second line before the transport or before
 the handle toggles.
 
 The Viewer fits the frame to the panel by default. The control row holds
-`−`, the zoom readout, and `+`. The readout shows `Fit` or a whole percentage;
-clicking it returns to fit. The buttons walk a fixed ladder: 25, 50, 75, 100,
-150, 200, 400 per cent, and stop at either end.
+`−`, the zoom menu, and `+`. The zoom menu shows `Fit` or the zoom level and
+opens the list of levels: Fit, then 10, 25, 50, 75, 100, 150, 200, 400, and
+800 per cent. At 100 per cent one pixel of the sequence covers one pixel of the
+display. `−` and `+` step to the next level below or above the zoom on screen,
+from Fit as well, and stop at either end. A zoom change holds the point at the
+center of the Viewer in place.
 
-Above 100 per cent the frame can be panned: the cursor becomes an open hand and
-dragging moves the picture, and the drag keeps going when the pointer leaves
-the Viewer. Returning to fit, or zooming back to 100 per cent or below,
-re-centers it.
+A frame larger than the Viewer can be panned: the cursor becomes an open hand,
+dragging moves the picture until its edge meets the Viewer's edge, and the drag
+keeps going when the pointer leaves the Viewer. A frame no larger than the
+Viewer stays centered.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same

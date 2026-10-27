@@ -35,7 +35,7 @@ const BORDER_T: f32 = 1.0;
 /// fewer fails.
 const FLOOR: [&str; 11] = [
     "playhead-tc",
-    "preview-zoom-label",
+    "preview-zoom",
     "preview-resolution",
     "preview-proxies-toggle",
     "go-start",
@@ -57,7 +57,7 @@ const PRESSED: [&str; 5] = [
 ];
 
 /// The row's bounds and the bounds of every tipped control drawn in it.
-fn measure(
+pub(super) fn measure(
     visual: &mut VisualTestContext,
 ) -> (Bounds<Pixels>, Vec<(&'static str, Bounds<Pixels>)>) {
     let row = visual
@@ -99,7 +99,7 @@ fn assert_line(visual: &mut VisualTestContext, what: &str) -> Vec<&'static str> 
     controls.into_iter().map(|(control, _)| control).collect()
 }
 
-fn press(visual: &mut VisualTestContext, control: &str) {
+pub(super) fn press(visual: &mut VisualTestContext, control: &str) {
     let at = visual
         .debug_bounds(intern(control))
         .unwrap_or_else(|| panic!("the Viewer draws no {control}"))
@@ -108,10 +108,17 @@ fn press(visual: &mut VisualTestContext, control: &str) {
     visual.run_until_parked();
 }
 
-#[gpui::test]
-fn the_control_row_holds_one_height_in_every_state(cx: &mut TestAppContext) {
+/// A drawn shell with a take on the timeline and in a Source tab, Program in
+/// front, past the boot cover.
+pub(super) fn viewer_with_take<'a>(
+    cx: &'a mut TestAppContext,
+    tag: &str,
+) -> (
+    gpui::Entity<crate::app::AppState>,
+    &'a mut VisualTestContext,
+) {
     cx.executor().allow_parking();
-    let (state, visual) = drawn_shell(cx, "viewer-row-height");
+    let (state, visual) = drawn_shell(cx, tag);
     let take = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
     visual.update(|_, app| {
@@ -127,6 +134,12 @@ fn the_control_row_holds_one_height_in_every_state(cx: &mut TestAppContext) {
     });
     // The boot cover takes the presses until it is gone.
     crate::test_support::wait_out_splash(visual);
+    (state, visual)
+}
+
+#[gpui::test]
+fn the_control_row_holds_one_height_in_every_state(cx: &mut TestAppContext) {
+    let (_state, visual) = viewer_with_take(cx, "viewer-row-height");
 
     let at_rest = assert_line(visual, "at rest");
     for control in FLOOR {
