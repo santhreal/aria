@@ -7,8 +7,10 @@ Anything not listed here is not in the build.
 
 - Create, open, save, and Save As a `.aria` project. Home lists recents with
   their last-modified time and drops entries whose file is gone.
-- Import files from the File menu, the pool, or a drop onto the window. A
-  multi-file drop lands the files end to end on the matching lane.
+- Import files from the File menu, the pool, or a drop onto the window. Media
+  dropped or imported lands end to end from the playhead on the matching lane,
+  each file in the first span free on every lane it fills; nothing already on
+  the timeline moves or is covered.
 - Media pool with bins and folders, rename, remove, and relink for a moved
   source.
 - Save the session as an `.ariat` template, and start a project from one by

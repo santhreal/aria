@@ -41,16 +41,24 @@ impl AppState {
     /// undo step. `Ok(false)` when every channel the source has is patched
     /// off, with the status line naming the fix.
     pub(crate) fn place_source(&mut self, placement: SourcePlacement) -> Result<bool, EngineError> {
-        let SourcePlacement {
-            media,
-            source,
-            at,
-            fill,
-            ripple,
-            aimed,
-        } = placement;
-        let Some(has) = self.source_channels(media) else {
+        let Some(lanes) = self.source_lanes(placement.media, placement.aimed)? else {
             return Ok(false);
+        };
+        self.place_source_on(placement, lanes)?;
+        Ok(true)
+    }
+
+    /// The lanes a source edit of `media` lands on: `aimed` for the channel of
+    /// its kind, the patching for the other. `Ok(None)` when `media` is not in
+    /// the pool, or when every channel it has is patched off, with the status
+    /// line naming the fix.
+    pub(crate) fn source_lanes(
+        &mut self,
+        media: MediaId,
+        aimed: Option<TrackId>,
+    ) -> Result<Option<SourceLanes>, EngineError> {
+        let Some(has) = self.source_channels(media) else {
+            return Ok(None);
         };
         // The lane under the pointer takes the channel of its kind, whatever
         // that channel's patch says.
@@ -68,7 +76,7 @@ impl AppState {
                 .filter(|(aimed, _)| *aimed == channel)
                 .map(|(_, id)| id)
         };
-        let track = match (has.0, aimed_at(SourceChannel::Video)) {
+        let picture = match (has.0, aimed_at(SourceChannel::Video)) {
             (false, _) => None,
             (true, Some(lane)) => Some(lane),
             (true, None) => self.patched_picture_lane()?,
@@ -76,23 +84,41 @@ impl AppState {
         let sound = match (has.1, aimed_at(SourceChannel::Audio)) {
             (false, _) => SoundPlacement::Off,
             (true, Some(lane)) => SoundPlacement::Lane(lane),
-            (true, None) => self.patched_sound(track.is_some())?,
+            (true, None) => self.patched_sound(picture.is_some())?,
         };
-        if track.is_none() && sound.lane().is_none() {
+        if picture.is_none() && sound.lane().is_none() {
             self.status_message =
                 Some("Both source channels are patched off; patch one in a lane header".into());
-            return Ok(false);
+            return Ok(None);
         }
+        Ok(Some(SourceLanes { picture, sound }))
+    }
+
+    /// Place `placement` on `lanes`, resolved by [`Self::source_lanes`], as one
+    /// `Source edit`. `placement.aimed` is not read again.
+    pub(crate) fn place_source_on(
+        &mut self,
+        placement: SourcePlacement,
+        lanes: SourceLanes,
+    ) -> Result<(), EngineError> {
+        let SourcePlacement {
+            media,
+            source,
+            at,
+            fill,
+            ripple,
+            aimed: _,
+        } = placement;
         self.apply_command(Command::Edit(EditCommand::SourceEdit {
             media,
             source,
             at,
             fill,
             ripple,
-            track,
-            sound,
+            track: lanes.picture,
+            sound: lanes.sound,
         }))?;
-        Ok(true)
+        Ok(())
     }
 
     /// Drop the open Source tab's marked range at `tick`: on `aimed` for the
@@ -185,4 +211,20 @@ pub(crate) struct SourcePlacement {
     pub ripple: bool,
     /// The lane under the pointer, for a drop.
     pub aimed: Option<TrackId>,
+}
+
+/// The lanes one source edit lands on.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SourceLanes {
+    /// The lane the picture lands on; `None` when the source has none or it is
+    /// patched off.
+    pub picture: Option<TrackId>,
+    pub sound: SoundPlacement,
+}
+
+impl SourceLanes {
+    /// Every lane the edit places a clip on: the picture's, then the sound's.
+    pub(crate) fn lanes(self) -> impl Iterator<Item = TrackId> {
+        self.picture.into_iter().chain(self.sound.lane())
+    }
 }

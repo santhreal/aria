@@ -8,7 +8,7 @@ What a dropped file becomes follows its type, on Home and in Aria alike:
 | --- | --- |
 | `.aria` | Opens as a project, replacing the session |
 | `.edl`, `.fcpxml`, `.otio`, `.srt`, `.vtt`, or another extension a timeline plugin reads | Read into the open timeline, one undo step per file |
-| Media (see the list above) | Imported into the media pool |
+| Media (see the list above) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
 | `.cube` | Applied to the selected clip; with no clip selected, read as a LUT filter over the sequence |
 | `SKILL.md` | Installed as an assistant skill |
 | Anything else | Imported as media, which reports why it cannot be |

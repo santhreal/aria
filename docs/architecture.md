@@ -113,7 +113,8 @@ slow preview frame drops instead of stretching time. When the timeline
 has audible clips, `AudioSystem` (cpal, UI thread) drives the playhead
 from mixed PCM and `advance_playhead` prefers that clock.
 File drops use `os_drop::plan_sequential_starts` so multiple files land
-end-to-end on the matching lane.
+end to end on the matching lane, each planned at its placed length against
+every lane it fills and placed without a ripple.
 
 Linux decode and encode wrap host GStreamer plugins behind the same
 `VideoDecoder` / `AudioReader` / `VideoEncoder` traits as AVFoundation

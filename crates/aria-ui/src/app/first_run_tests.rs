@@ -9,7 +9,33 @@ fn scratch() -> PathBuf {
 }
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
+    fixture_at("texture.png")
+}
+
+fn fixture_at(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures")
+        .join(name)
+}
+
+/// The clip spans on every lane of `kind`, in lane order, each lane's sorted.
+fn spans_of(state: &AppState, kind: crate::types::UiTrackKind) -> Vec<Vec<(i64, i64)>> {
+    state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .filter(|lane| lane.kind == kind)
+        .map(|lane| {
+            let mut spans: Vec<(i64, i64)> = lane
+                .clips
+                .iter()
+                .map(|clip| (clip.timeline_start_ticks, clip.timeline_end_ticks))
+                .collect();
+            spans.sort_unstable();
+            spans
+        })
+        .collect()
 }
 
 /// The selected clip's level in decibels, read the way the fader row reads it:
@@ -153,6 +179,152 @@ fn dropped_files_land_end_to_end() {
     assert_eq!(clips.len(), 2);
     assert_eq!(clips[0].0, 0);
     assert_eq!(clips[1].0, clips[0].1);
+}
+
+/// A drop places files in free space. In either edit mode nothing on the
+/// timeline before the drop moves or is covered, and each file starts at the
+/// first tick, from the playhead or from where the file before it ends, at
+/// which its whole length is free on every lane it places a clip on.
+///
+/// Closes the class where a drop chain planned each file as one tick long on
+/// the picture lane alone and placed it through the edit mode: a sound
+/// dropped with a picture was inserted at the playhead and pushed the picture
+/// off the start, a file planned into a gap shorter than itself pushed or
+/// covered the clip past the gap, and a picture whose sound lane was taken
+/// pushed or covered the sound there. A pool item dragged onto a lane goes
+/// through [`AppState::drop_media_on_timeline`] and the edit mode, and is not
+/// covered here.
+#[test]
+fn a_drop_lands_in_free_space_and_moves_nothing() {
+    use crate::types::EditMode;
+    use crate::types::UiTrackKind::{Audio, Video};
+    let fresh = |mode: EditMode| {
+        let mut state = AppState::new(PluginContext::new(), scratch()).unwrap();
+        state.new_project().unwrap();
+        state.edit_mode = mode;
+        state
+    };
+    for mode in [EditMode::Ripple, EditMode::Overwrite] {
+        // A picture with sound and a sound, dropped together into a project
+        // with no audio lane: each starts at the playhead on its own lane.
+        let mut state = fresh(mode);
+        state
+            .import_dropped_paths(vec![
+                fixture_at("fixture-640x360-24fps-3s-av.mp4"),
+                fixture_at("fixture-sine-48k-2s.wav"),
+            ])
+            .expect("drop a picture and a sound");
+        for (kind, what) in [(Video, "picture"), (Audio, "sound")] {
+            let starts: Vec<Vec<i64>> = spans_of(&state, kind)
+                .iter()
+                .map(|lane| lane.iter().map(|span| span.0).collect())
+                .collect();
+            assert_eq!(
+                starts,
+                vec![vec![0]],
+                "{mode:?}: the {what} of a picture and a sound dropped together"
+            );
+        }
+
+        // A take longer than the gap at the playhead lands after the clip
+        // past the gap, and both clips stay where they were.
+        let mut state = fresh(mode);
+        let take = state
+            .import_media(fixture_at("fixture-640x360-24fps-3s.mp4"))
+            .expect("import a take");
+        state
+            .drop_media_on_timeline(take, None, 0)
+            .expect("place the first clip");
+        let first = spans_of(&state, Video)[0][0];
+        let length = first.1 - first.0;
+        let second = (first.1 + 24, first.1 + 24 + length);
+        state
+            .drop_media_on_timeline(take, None, second.0)
+            .expect("place the second clip a second later");
+        assert_eq!(spans_of(&state, Video), vec![vec![first, second]]);
+        state.playhead.value = first.1;
+        let again = scratch().join("again.mp4");
+        std::fs::copy(fixture_at("fixture-640x360-24fps-3s.mp4"), &again).unwrap();
+        state
+            .import_dropped_paths(vec![again])
+            .expect("drop the take into the gap");
+        assert_eq!(
+            spans_of(&state, Video),
+            vec![vec![first, second, (second.1, second.1 + length)]],
+            "{mode:?}: a take dropped at a gap a second long"
+        );
+
+        // A picture whose sound lands on a lane holding a clip at the
+        // playhead slides past that clip on both lanes, though its own
+        // picture lane is free there.
+        let mut state = fresh(mode);
+        state
+            .import_dropped_paths(vec![fixture_at("fixture-sine-48k-2s.wav")])
+            .expect("drop a sound");
+        let sound = spans_of(&state, Audio)[0][0];
+        assert_eq!(sound.0, 0, "{mode:?}: a sound dropped into a new project");
+        state
+            .import_dropped_paths(vec![fixture_at("fixture-640x360-24fps-3s-av.mp4")])
+            .expect("drop a picture with sound");
+        let lanes = (spans_of(&state, Video), spans_of(&state, Audio));
+        let end = lanes
+            .0
+            .first()
+            .and_then(|lane| lane.first())
+            .map(|span| span.1);
+        let end = end.unwrap_or_else(|| panic!("{mode:?}: no picture placed: {lanes:?}"));
+        assert_eq!(
+            lanes,
+            (
+                vec![vec![(sound.1, end)]],
+                vec![vec![sound, (sound.1, end)]]
+            ),
+            "{mode:?}: a picture with sound dropped where its sound lane holds a clip"
+        );
+
+        // Files keep the order they were dropped in: a take that fits the gap
+        // at the playhead does not jump ahead of the still dropped before it,
+        // which does not fit there.
+        let mut state = fresh(mode);
+        let take = state
+            .import_media(fixture_at("fixture-640x360-24fps-3s.mp4"))
+            .expect("import a take");
+        state
+            .drop_media_on_timeline(take, None, 0)
+            .expect("measure the take");
+        let length = spans_of(&state, Video)[0][0].1;
+        assert!(state.undo(), "{mode:?}: take the measuring clip back");
+        let blocker = (length + 24, 2 * length + 24);
+        state
+            .drop_media_on_timeline(take, None, blocker.0)
+            .expect("place a clip a second past a take's length");
+        let dir = scratch();
+        let (still, again) = (dir.join("still.png"), dir.join("again.mp4"));
+        std::fs::copy(fixture(), &still).unwrap();
+        std::fs::copy(fixture_at("fixture-640x360-24fps-3s.mp4"), &again).unwrap();
+        state
+            .import_dropped_paths(vec![still, again])
+            .expect("drop a still, then a take");
+        let lane = spans_of(&state, Video).remove(0);
+        let held = aria_models::resample(
+            aria_models::RationalTime::new(
+                aria_models::STILL_DEFAULT_DURATION_TICKS,
+                aria_models::STILL_TICK_RATE,
+            ),
+            state.playhead.rate,
+        )
+        .value;
+        assert!(held > blocker.0, "a still must not fit the gap it skips");
+        assert_eq!(
+            lane,
+            vec![
+                blocker,
+                (blocker.1, blocker.1 + held),
+                (blocker.1 + held, blocker.1 + held + length),
+            ],
+            "{mode:?}: a still and a take dropped at a gap the take fits"
+        );
+    }
 }
 
 #[test]

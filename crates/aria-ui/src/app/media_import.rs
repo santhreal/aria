@@ -242,6 +242,11 @@ impl AppState {
         }
     }
 
+    /// Place `items` end to end from the playhead on the first lane of
+    /// `kind`. Each lands at the first tick from where the one before it ends
+    /// that leaves its whole span free on every lane it places a clip on, so
+    /// nothing already on the timeline moves or is covered, in either edit
+    /// mode.
     pub(super) fn place_chain(
         &mut self,
         kind: TrackKind,
@@ -251,11 +256,39 @@ impl AppState {
             return Ok(());
         }
         let track = self.ensure_kind_track(kind)?;
-        for media in items {
-            let spans = self.spans_on(track);
-            let start =
-                crate::os_drop::plan_sequential_starts(&spans, self.playhead.value, &[1])[0];
-            self.drop_media_on_timeline(*media, Some(track), start)?;
+        let rate = self.playhead.rate;
+        let mut cursor = self.playhead.value;
+        for &media in items {
+            let Some(source) = self
+                .engine
+                .lock()
+                .project()
+                .media(media)
+                .map(|item| item.full_range())
+            else {
+                continue;
+            };
+            let Some(lanes) = self.source_lanes(media, Some(track))? else {
+                continue;
+            };
+            // The span the engine places the source at, in the sequence clock.
+            let span = aria_models::resample(source.duration, rate).value.max(1);
+            let mut taken: Vec<(i64, i64)> =
+                lanes.lanes().flat_map(|lane| self.spans_on(lane)).collect();
+            taken.sort_unstable();
+            let at = crate::os_drop::plan_sequential_starts(&taken, cursor, &[span])[0];
+            self.place_source_on(
+                crate::app::source_patch::SourcePlacement {
+                    media,
+                    source,
+                    at: aria_models::RationalTime::new(at, rate),
+                    fill: None,
+                    ripple: false,
+                    aimed: None,
+                },
+                lanes,
+            )?;
+            cursor = at + span;
         }
         Ok(())
     }
