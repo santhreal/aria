@@ -28,6 +28,12 @@ use crate::tool_catalog::{BodyDrag, EdgeDrag};
 /// This registry's file, for the shared parsers in the parent module.
 const REGISTRY: &str = "timeline_gesture.rs";
 
+#[path = "drawn_census_timeline_room.rs"]
+mod room;
+
+#[path = "drawn_census_timeline_preview.rs"]
+mod preview;
+
 /// How far a drag goes, in ticks. Six frames at the fixture's rate: far enough
 /// that every verb has something to do, near enough that the magnet's threshold
 /// can reach across it in the test that wants it to.

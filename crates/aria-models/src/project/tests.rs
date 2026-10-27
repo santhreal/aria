@@ -140,3 +140,9 @@ mod layer_refs;
 
 #[path = "tests_largest_video.rs"]
 mod largest_video;
+
+#[path = "tests_trim_reach.rs"]
+mod trim_reach;
+
+#[path = "tests_stretch.rs"]
+mod stretch;

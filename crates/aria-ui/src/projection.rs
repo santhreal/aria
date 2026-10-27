@@ -171,6 +171,7 @@ mod bar;
 mod clip;
 #[path = "projection_effect.rs"]
 mod effect;
+pub(crate) use clip::Placement;
 use clip::{bins_to_ui, media_to_ui};
 #[path = "projection_lanes.rs"]
 mod lanes;

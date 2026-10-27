@@ -89,19 +89,6 @@ pub(super) fn carry(
                 magnet: !event.modifiers.alt,
             };
             this.state.update(cx, |state, _| {
-                let candidate = match kind {
-                    DragKind::Move => Some((start_ticks + delta_ticks).max(0)),
-                    DragKind::TrimStart => {
-                        Some((start_ticks + delta_ticks).clamp(0, end_ticks - 1))
-                    }
-                    DragKind::TrimEnd => Some((end_ticks + delta_ticks).max(start_ticks + 1)),
-                    _ => None,
-                };
-                state.snap_guide = candidate.and_then(|t| {
-                    state
-                        .snap_at(t, Some(clip_id), threshold, event.modifiers.alt)
-                        .1
-                });
                 let g = gesture_for_drag(
                     kind,
                     tool,
@@ -115,8 +102,7 @@ pub(super) fn carry(
                     clip: ClipId::from_raw(clip_id),
                     delta: delta_ticks,
                 };
-                state.trim_feedback = state.compute_trim_feedback(g, d);
-                state.hold_move(g, d);
+                state.hold_drag(g, d);
             });
             cx.notify();
         }
@@ -229,9 +215,7 @@ pub(super) fn on_left_up(
             // the lane, and travel under the threshold is a hand's jitter.
             let relaned = g.lane().is_some_and(|lane| lane.raw() != origin_track_id);
             this.state.update(cx, |state, _| {
-                state.snap_guide = None;
-                state.trim_feedback = None;
-                state.held_move = None;
+                state.end_drag();
                 if still && !relaned {
                     return;
                 }

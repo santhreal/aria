@@ -54,6 +54,8 @@ pub(crate) struct LaneGroupPaint {
     /// shell's layer does (`crate::timeline_playhead`).
     pub playhead: Option<f32>,
     pub snap_guide: Option<crate::snap::SnapCandidate>,
+    /// The edge an edge drag in flight holds.
+    pub held_edge: Option<crate::types::HeldEdge>,
     pub selected_edge: Option<SelectedEdge>,
     pub selected_gap: Option<SelectedGap>,
     pub trim_feedback: Option<TrimFeedback>,
@@ -568,7 +570,8 @@ fn paint_clip(
         }
     }
 
-    // Selected edge bracket (`3px` accent bar on the active trim edge).
+    // Selected edge bracket (`3px` bar on the active trim edge), drawn in the
+    // danger colour while a drag's room stops the edge short of the pointer.
     if let Some(edge) = data.selected_edge
         && edge.clip == clip.id
     {
@@ -576,7 +579,11 @@ fn paint_clip(
             TrimSide::In => x,
             TrimSide::Out => (x + w - 3.0).max(x),
         };
-        paint_solid(window, paint_calls, ex, card_y, 3.0, card_h, theme.warning);
+        let stopped = data.held_edge.is_some_and(|held| {
+            held.stopped && held.clip == clip.id && held.left == (edge.side == TrimSide::In)
+        });
+        let fill = if stopped { theme.danger } else { theme.warning };
+        paint_solid(window, paint_calls, ex, card_y, 3.0, card_h, fill);
     }
 
     if w >= 24.0 && x + w >= origin_x && x <= origin_x + view_w {

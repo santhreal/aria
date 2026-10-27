@@ -74,78 +74,46 @@ impl AppState {
 
     /// Trim the currently selected edit point by `delta` ticks using the active
     /// trim tool or edit mode (Roll, Ripple, or Standard trim).
+    ///
+    /// This is the edge drag the tool would send, without the magnet, so a key
+    /// stops at the same limit a drag does.
     pub fn trim_selected_edge(&mut self, delta: i64) -> Result<(), EngineError> {
-        let Some(edge) = self.selected_edge else {
-            return Ok(());
-        };
         if delta == 0 {
             return Ok(());
         }
-        let clip = ClipId::from_raw(edge.clip);
-        let Some(ui) = self.ui_clip(clip) else {
+        let Some((gesture, clip)) = self.selected_edge_gesture() else {
             return Ok(());
         };
+        let drag = crate::surfaces::timeline_gesture::Drag { clip, delta };
+        crate::surfaces::timeline_gesture::apply(self, gesture, drag)
+    }
+
+    /// The edge drag a key sends to the selected edit point, and the clip it
+    /// is on. A roll with no clip across the cut trims the edge instead.
+    pub(crate) fn selected_edge_gesture(
+        &self,
+    ) -> Option<(crate::surfaces::timeline_gesture::Gesture, ClipId)> {
+        use crate::surfaces::timeline_gesture::{Gesture, Span};
+        use crate::tool_catalog::EdgeDrag;
+        let edge = self.selected_edge?;
+        let clip = ClipId::from_raw(edge.clip);
+        let ui = self.ui_clip_ref(clip)?;
         let left = edge.side == crate::types::TrimSide::In;
-        match self.tool.edge_drag() {
-            Some(crate::tool_catalog::EdgeDrag::Roll) => {
+        let drag = match self.tool.edge_drag() {
+            Some(EdgeDrag::Roll) => {
                 let (before, after) = self.abutting(clip);
-                let me = crate::app::trim_gestures::Neighbour {
-                    clip,
-                    start: ui.timeline_start_ticks,
-                    end: ui.timeline_end_ticks,
-                };
-                let pair = if left {
-                    before.map(|prev| (prev, me))
-                } else {
-                    after.map(|next| (me, next))
-                };
-                if let Some((cut_left, cut_right)) = pair {
-                    return self.roll_cut(cut_left, cut_right, delta);
-                }
+                (if left { before } else { after }).map(|_| EdgeDrag::Roll)
             }
-            Some(crate::tool_catalog::EdgeDrag::Ripple) => {
-                let track = TrackId::from_raw(ui.track_id);
-                return self.ripple_trim(
-                    clip,
-                    track,
-                    ui.timeline_start_ticks,
-                    ui.timeline_end_ticks,
-                    left,
-                    delta,
-                );
-            }
-            Some(crate::tool_catalog::EdgeDrag::Rate) => {
-                let old_dur = ui.timeline_end_ticks - ui.timeline_start_ticks;
-                let new_dur = if left {
-                    old_dur - delta
-                } else {
-                    old_dur + delta
-                };
-                return self.rate_stretch(clip, old_dur, new_dur);
-            }
-            None => {}
+            other => other,
         }
-        if self.edit_mode == crate::types::EditMode::Ripple {
-            let track = TrackId::from_raw(ui.track_id);
-            return self.ripple_trim(
-                clip,
-                track,
-                ui.timeline_start_ticks,
-                ui.timeline_end_ticks,
-                left,
-                delta,
-            );
-        }
-        let (start, end) = if left {
-            let start = (ui.timeline_start_ticks + delta)
-                .max(0)
-                .min(ui.timeline_end_ticks - 1);
-            (start, ui.timeline_end_ticks)
-        } else {
-            let end = (ui.timeline_end_ticks + delta).max(ui.timeline_start_ticks + 1);
-            (ui.timeline_start_ticks, end)
+        .or((self.edit_mode == crate::types::EditMode::Ripple).then_some(EdgeDrag::Ripple));
+        let span = Span {
+            start: ui.timeline_start_ticks,
+            end: ui.timeline_end_ticks,
+            threshold: 0,
+            magnet: false,
         };
-        self.trim_clip(clip, start, end)
+        Some((Gesture::Edge { drag, left, span }, clip))
     }
 
     /// Detect an empty gap before a clip on `track` containing `at_tick`.
@@ -454,13 +422,15 @@ impl AppState {
     }
 
     /// Read where a held clip drag lets go, for the frame that draws it
-    /// there: a move or a ripple move sets [`Self::held_move`], any other
-    /// drag clears it. The clips the move takes are those [`Self::move_clip`]
-    /// moves, read once per drag.
+    /// there: a move or a ripple move sets [`Self::held_move`] and the magnet
+    /// it lands on, any other drag clears it. The clips the move takes are
+    /// those [`Self::move_clip`] moves, read once per drag off `project`, the
+    /// project the drag holds.
     pub(crate) fn hold_move(
         &mut self,
         gesture: crate::surfaces::timeline_gesture::Gesture,
         drag: crate::surfaces::timeline_gesture::Drag,
+        project: &aria_models::Project,
     ) {
         use crate::surfaces::timeline_gesture::{Gesture, landing};
         let (track, span, ripple) = match gesture {
@@ -478,7 +448,8 @@ impl AppState {
                 return;
             }
         };
-        let start = landing(self, &drag, &span);
+        let (start, guide) = landing(self, &drag, &span);
+        self.snap_guide = guide;
         let linked = self.linked_selection;
         if let Some(held) = &mut self.held_move
             && held.linked == linked
@@ -489,14 +460,10 @@ impl AppState {
             held.ripple = ripple;
             return;
         }
-        let companions = {
-            let engine = self.engine.lock();
-            let project = engine.project();
-            if linked {
-                project.move_companions(drag.clip)
-            } else {
-                project.group_companions(drag.clip)
-            }
+        let companions = if linked {
+            project.move_companions(drag.clip)
+        } else {
+            project.group_companions(drag.clip)
         };
         let members: std::sync::Arc<[UiClip]> = std::iter::once(drag.clip)
             .chain(companions.into_iter().filter(|id| *id != drag.clip))
@@ -542,12 +509,10 @@ impl AppState {
         start_ticks: i64,
         end_ticks: i64,
     ) -> Result<(), EngineError> {
-        let start = start_ticks.max(0);
-        let end = end_ticks.max(start + 1);
         self.snap_guide = None;
         self.apply_command(Command::Edit(self.trim_command(
             clip,
-            TimeRange::at_rate(start, end - start, self.playhead.rate),
+            TimeRange::at_rate(start_ticks, end_ticks - start_ticks, self.playhead.rate),
         )))?;
         Ok(())
     }

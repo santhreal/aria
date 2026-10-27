@@ -2,7 +2,7 @@ use crate::clip::{
     Clip, ClipSource, CropRect, split_speed_curve, validate_split_render_continuity,
 };
 use crate::error::ModelError;
-use crate::ids::ClipId;
+use crate::ids::{ClipId, TrackId};
 use crate::param::{Easing, Param};
 use crate::time::{Rational, RationalTime, TimeRange, check_same_rate, resample};
 use crate::timeline::{AudioLayout, TimeDisplay};
@@ -202,7 +202,28 @@ impl Project {
         clip_id: ClipId,
         new_timeline: TimeRange,
     ) -> Result<(), ModelError> {
-        if new_timeline.is_empty() {
+        let (track_id, new_source) = self.plan_trim(clip_id, new_timeline, true)?;
+        self.timeline_mut()
+            .clip_timeline_mut(clip_id)
+            .expect("plan_trim found the clip")
+            .trim_to(new_timeline, new_source);
+        if let Some(track) = self.timeline_mut().track_mut(track_id) {
+            track.prune_dead_transitions();
+        }
+        Ok(())
+    }
+
+    /// The lane [`Self::trim_clip`] leaves the clip on and the source window
+    /// it gives the clip for `new_timeline`, refused as `trim_clip` refuses
+    /// it, with nothing written. With `lane` false, neither a neighbor the new
+    /// range covers nor the sequence start refuses it.
+    pub(super) fn plan_trim(
+        &self,
+        clip_id: ClipId,
+        new_timeline: TimeRange,
+        lane: bool,
+    ) -> Result<(TrackId, Option<TimeRange>), ModelError> {
+        if new_timeline.is_empty() || (lane && new_timeline.start.value < 0) {
             return Err(ModelError::InvalidRange);
         }
         let track_id = self
@@ -210,28 +231,41 @@ impl Project {
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
         let clip = self.timeline().require_clip(clip_id)?;
-        let old_tl = clip.timeline;
-        let tl_rate = self.timeline().frame_rate;
-        check_same_rate(new_timeline.start.rate, tl_rate)?;
 
-        if self
-            .timeline()
-            .track(track_id)
-            .expect("clip is on a track")
-            .has_overlap(new_timeline, Some(clip_id))?
+        if lane
+            && self
+                .timeline()
+                .track(track_id)
+                .expect("clip is on a track")
+                .has_overlap(new_timeline, Some(clip_id))?
         {
             return Err(ModelError::Overlap(track_id));
         }
 
-        let new_source = match clip.content.clone() {
+        Ok((track_id, self.trim_source(clip, new_timeline)?))
+    }
+
+    /// The source window a trim of `clip` to `new_timeline` gives it, refused
+    /// as [`Self::trim_clip`] refuses a window past the take. `None` for a
+    /// generated clip, which plays no take. `clip` is read as it is, so it
+    /// may be one the caller has already edited.
+    pub fn trim_source(
+        &self,
+        clip: &Clip,
+        new_timeline: TimeRange,
+    ) -> Result<Option<TimeRange>, ModelError> {
+        let old_tl = clip.timeline;
+        let tl_rate = self.timeline().frame_rate;
+        check_same_rate(new_timeline.start.rate, tl_rate)?;
+        Ok(match &clip.content {
             ClipSource::Media { media: _, source } if clip.freeze_frame => {
                 Some(TimeRange::at_rate(source.start.value, 1, source.start.rate))
             }
             ClipSource::Media { media, source } => {
                 let media = self
                     .media
-                    .get(&media)
-                    .ok_or(ModelError::UnknownMedia(media))?;
+                    .get(media)
+                    .ok_or(ModelError::UnknownMedia(*media))?;
                 // Source ticks consumed per timeline tick scale with the
                 // clip's speed (1:1 for never-retimed clips).
                 let head_delta = clip.scale_by_speed(
@@ -285,8 +319,8 @@ impl Project {
             ClipSource::Sequence { sequence, source } => {
                 let seq = self
                     .sequences
-                    .get(&sequence)
-                    .ok_or(ModelError::UnknownSequence(sequence))?;
+                    .get(sequence)
+                    .ok_or(ModelError::UnknownSequence(*sequence))?;
                 let seq_fps = seq.timeline.frame_rate;
                 let head_delta = clip.scale_by_speed(
                     resample(
@@ -309,28 +343,7 @@ impl Project {
                 Some(TimeRange::at_rate(new_src_start, new_src_dur, seq_fps))
             }
             ClipSource::Generated(_) => None,
-        };
-
-        {
-            let mut clip = self
-                .timeline_mut()
-                .clip_timeline_mut(clip_id)
-                .expect("clip existence checked above");
-            clip.timeline = new_timeline;
-            if let (
-                Some(src),
-                ClipSource::Media { source, .. }
-                | ClipSource::Multicam { source, .. }
-                | ClipSource::Sequence { source, .. },
-            ) = (new_source, &mut clip.content)
-            {
-                *source = src;
-            }
-        }
-        if let Some(track) = self.timeline_mut().track_mut(track_id) {
-            track.prune_dead_transitions();
-        }
-        Ok(())
+        })
     }
 
     /// Slip a media clip's source window by `by` source ticks, keeping its
@@ -426,35 +439,15 @@ impl Project {
         speed: Rational,
         reversed: bool,
     ) -> Result<(), ModelError> {
-        if speed.num <= 0 || speed.den <= 0 {
-            return Err(ModelError::InvalidParam("speed must be positive".into()));
-        }
         let track_id = self
             .timeline()
             .track_of(clip_id)
             .ok_or(ModelError::UnknownClip(clip_id))?;
-        let clip = self.timeline().require_clip(clip_id)?;
-        if clip.freeze_frame {
-            return Err(ModelError::InvalidParam(
-                "freeze-frame clips cannot be retimed".into(),
-            ));
-        }
-        let Some(source) = clip.source_range() else {
-            return Err(ModelError::InvalidParam(
-                "speed requires a media-backed clip".into(),
-            ));
-        };
         let tl_rate = self.timeline().frame_rate;
-        let src_dur_tl = resample(source.duration, tl_rate).value;
-        // Faster average ⇒ less timeline. A flat ramp keeps the exact integer
-        // path (no f64 drift); any active ramp folds in its average.
-        let new_dur = crate::clip::retiming::retimed_duration(
-            src_dur_tl,
-            speed,
-            clip.speed_curve_average(),
-            clip.has_speed_curve(),
-        );
-        let new_timeline = TimeRange::at_rate(clip.timeline.start.value, new_dur, tl_rate);
+        let new_timeline = self
+            .timeline()
+            .require_clip(clip_id)?
+            .retimed(speed, tl_rate)?;
 
         if self
             .timeline()
@@ -464,17 +457,10 @@ impl Project {
         {
             return Err(ModelError::Overlap(track_id));
         }
-
-        {
-            let mut clip = self
-                .timeline_mut()
-                .clip_timeline_mut(clip_id)
-                .expect("clip existence checked above");
-            clip.speed = speed;
-            clip.reversed = reversed;
-            clip.timeline = new_timeline;
-        }
-        Ok(())
+        self.timeline_mut()
+            .clip_timeline_mut(clip_id)
+            .expect("clip existence checked above")
+            .retime(speed, reversed, tl_rate)
     }
 
     /// Set (or clear) a media clip's playback-rate ramp (CapCut speed curves,

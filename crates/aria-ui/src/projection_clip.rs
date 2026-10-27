@@ -1,8 +1,8 @@
-//! Clip: 10 helpers from [`super`].
+//! Clips and media as the timeline and the pool draw them.
 //!
-//! Split out of `projection.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! Split out of `projection.rs` to stay under the file ceiling. Each item is
+//! `pub(super)`, so the parent and its other children reach it by name;
+//! [`Placement`] is also read by the frame that draws a held drag.
 
 use super::effect::{effect_to_ui, track_tint, transition_to_ui};
 use super::lanes::{LinkFacts, MediaFact};
@@ -131,25 +131,9 @@ pub(super) fn clip_to_ui(
     fact: Option<&MediaFact>,
 ) -> UiClip {
     let transform = clip.transform.sample(0);
-    let (
-        media,
-        source_start,
-        source_end,
-        source_start_ticks,
-        source_end_ticks,
-        name,
-        kind,
-        generator,
-    ) = match &clip.content {
-        ClipSource::Media { media, source } => (
+    let (media, name, kind, generator) = match &clip.content {
+        ClipSource::Media { media, .. } => (
             Some(media_id(*media)),
-            source.start.seconds(),
-            source
-                .end()
-                .map(|t| t.seconds())
-                .unwrap_or(source.start.seconds()),
-            source.start.value,
-            source.end_tick(),
             fact.map_or_else(
                 || SharedString::from(format!("Media {}", media.raw())),
                 |fact| fact.name.clone(),
@@ -159,17 +143,10 @@ pub(super) fn clip_to_ui(
         ),
         ClipSource::Generated(generator) => {
             let (kind, name, ui_gen) = generator_view(generator);
-            (None, 0.0, 0.0, 0, 0, name, kind, Some(ui_gen))
+            (None, name, kind, Some(ui_gen))
         }
-        ClipSource::Multicam { group, source } => (
+        ClipSource::Multicam { group, .. } => (
             None,
-            source.start.seconds(),
-            source
-                .end()
-                .map(|t| t.seconds())
-                .unwrap_or(source.start.seconds()),
-            source.start.value,
-            source.end_tick(),
             project.multicam_group(*group).map_or_else(
                 || SharedString::from(format!("Multicam {}", group.raw())),
                 |group| group.name.clone().into(),
@@ -177,15 +154,8 @@ pub(super) fn clip_to_ui(
             media_clip_kind(track.kind),
             None,
         ),
-        ClipSource::Sequence { sequence, source } => (
+        ClipSource::Sequence { sequence, .. } => (
             None,
-            source.start.seconds(),
-            source
-                .end()
-                .map(|t| t.seconds())
-                .unwrap_or(source.start.seconds()),
-            source.start.value,
-            source.end_tick(),
             project
                 .sequence(*sequence)
                 .map(|s| SharedString::from(s.name.clone()))
@@ -218,13 +188,25 @@ pub(super) fn clip_to_ui(
         | ClipSource::Multicam { .. }
         | ClipSource::Sequence { .. } => None,
     };
-    let frame_rate = project.timeline().frame_rate;
-    let duration_label = crate::timecode::format_ticks(
-        (clip.timeline.end_tick() - clip.timeline.start.value).max(0),
-        frame_rate.num,
-        frame_rate.den,
-    )
-    .into();
+    let Placement {
+        source_start,
+        source_end,
+        source_start_ticks,
+        source_end_ticks,
+        timeline_start,
+        timeline_end,
+        timeline_start_ticks,
+        timeline_end_ticks,
+        duration_label,
+        reversed,
+        speed_num,
+        speed_den,
+        speed_label,
+        beat_ticks,
+        keyframe_ticks,
+        markers,
+        line,
+    } = Placement::of(clip, project.timeline().frame_rate, track.kind.is_audio());
 
     UiClip {
         id: clip_id(clip.id),
@@ -241,16 +223,12 @@ pub(super) fn clip_to_ui(
         name: clip.name.clone().map(Into::into).unwrap_or(name),
         source_start,
         source_end,
-        timeline_start: clip.timeline.start.seconds(),
-        timeline_end: clip
-            .timeline
-            .end()
-            .map(|t| t.seconds())
-            .unwrap_or(clip.timeline.start.seconds()),
+        timeline_start,
+        timeline_end,
         source_start_ticks,
         source_end_ticks,
-        timeline_start_ticks: clip.timeline.start.value,
-        timeline_end_ticks: clip.timeline.end_tick(),
+        timeline_start_ticks,
+        timeline_end_ticks,
         duration_label,
         thumbnail: None,
         color: track_tint(track.kind),
@@ -274,9 +252,9 @@ pub(super) fn clip_to_ui(
         pan: clip.pan.sample(0),
         fade_in_ticks: clip.fade_in,
         fade_out_ticks: clip.fade_out,
-        reversed: clip.reversed,
-        speed_num: clip.speed.num,
-        speed_den: clip.speed.den,
+        reversed,
+        speed_num,
+        speed_den,
         can_split: caps.allows(ClipAction::Split),
         can_reverse: caps.allows(ClipAction::Reverse),
         can_extract_audio: caps.allows(ClipAction::ExtractAudio),
@@ -381,22 +359,146 @@ pub(super) fn clip_to_ui(
             label: slot.label.clone().map(Into::into),
         }),
         text_editable: clip.text_editable,
-        keyframe_ticks: keyframe_ticks(clip),
-        beat_ticks: clip.beat_timeline_ticks(),
+        keyframe_ticks,
+        beat_ticks,
         text_effect,
         clip_type: clip
             .clip_type
             .as_deref()
             .map(|id| clip_type_to_ui(clip, id)),
         missing_plugin: missing_plugin(clip, track),
-        markers: clip_markers_to_ui(clip),
-        speed_label: super::bar::speed_label(clip),
+        markers,
+        speed_label,
         drift,
-        line: super::bar::clip_line(clip, track.kind.is_audio()),
+        line,
         offline: fact
             .filter(|fact| fact.missing)
             .map(|fact| super::bar::offline(&fact.path)),
         fx: super::bar::fx_badge(clip),
+    }
+}
+
+/// Where a card's clip sits and how it plays its take: each field of the card
+/// a trim, a move or a retime changes. The projection draws each card with
+/// it, and a held drag draws each clip its release changes with it, so a held
+/// card is drawn as the release projects it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Placement {
+    pub source_start: f64,
+    pub source_end: f64,
+    pub source_start_ticks: i64,
+    pub source_end_ticks: i64,
+    pub timeline_start: f64,
+    pub timeline_end: f64,
+    pub timeline_start_ticks: i64,
+    pub timeline_end_ticks: i64,
+    pub duration_label: SharedString,
+    pub reversed: bool,
+    pub speed_num: i32,
+    pub speed_den: i32,
+    pub speed_label: Option<SharedString>,
+    pub beat_ticks: Vec<i64>,
+    pub keyframe_ticks: Vec<i64>,
+    pub markers: Vec<UiMarker>,
+    pub line: Option<crate::types::UiClipLine>,
+}
+
+impl Placement {
+    /// `clip`'s placement in a sequence at `rate`, on a sound lane when
+    /// `audio`.
+    pub(crate) fn of(clip: &Clip, rate: aria_models::Rational, audio: bool) -> Self {
+        let seconds = |range: aria_models::TimeRange| {
+            let start = range.start.seconds();
+            (start, range.end().map_or(start, |end| end.seconds()))
+        };
+        let source = clip.source_range();
+        let (source_start, source_end) = source.map_or((0.0, 0.0), seconds);
+        let (timeline_start, timeline_end) = seconds(clip.timeline);
+        let (start, end) = (clip.timeline.start.value, clip.timeline.end_tick());
+        Self {
+            source_start,
+            source_end,
+            source_start_ticks: source.map_or(0, |source| source.start.value),
+            source_end_ticks: source.map_or(0, |source| source.end_tick()),
+            timeline_start,
+            timeline_end,
+            timeline_start_ticks: start,
+            timeline_end_ticks: end,
+            duration_label: crate::timecode::format_ticks((end - start).max(0), rate.num, rate.den)
+                .into(),
+            reversed: clip.reversed,
+            speed_num: clip.speed.num,
+            speed_den: clip.speed.den,
+            speed_label: super::bar::speed_label(clip),
+            beat_ticks: clip.beat_timeline_ticks(),
+            keyframe_ticks: keyframe_ticks(clip),
+            markers: clip_markers_to_ui(clip),
+            line: super::bar::clip_line(clip, audio),
+        }
+    }
+
+    /// The placement `card` is drawn at.
+    #[cfg(test)]
+    pub(crate) fn of_card(card: &UiClip) -> Self {
+        Self {
+            source_start: card.source_start,
+            source_end: card.source_end,
+            source_start_ticks: card.source_start_ticks,
+            source_end_ticks: card.source_end_ticks,
+            timeline_start: card.timeline_start,
+            timeline_end: card.timeline_end,
+            timeline_start_ticks: card.timeline_start_ticks,
+            timeline_end_ticks: card.timeline_end_ticks,
+            duration_label: card.duration_label.clone(),
+            reversed: card.reversed,
+            speed_num: card.speed_num,
+            speed_den: card.speed_den,
+            speed_label: card.speed_label.clone(),
+            beat_ticks: card.beat_ticks.clone(),
+            keyframe_ticks: card.keyframe_ticks.clone(),
+            markers: card.markers.clone(),
+            line: card.line.clone(),
+        }
+    }
+
+    /// Draw `card` at this placement.
+    pub(crate) fn write(self, card: &mut UiClip) {
+        let Self {
+            source_start,
+            source_end,
+            source_start_ticks,
+            source_end_ticks,
+            timeline_start,
+            timeline_end,
+            timeline_start_ticks,
+            timeline_end_ticks,
+            duration_label,
+            reversed,
+            speed_num,
+            speed_den,
+            speed_label,
+            beat_ticks,
+            keyframe_ticks,
+            markers,
+            line,
+        } = self;
+        card.source_start = source_start;
+        card.source_end = source_end;
+        card.source_start_ticks = source_start_ticks;
+        card.source_end_ticks = source_end_ticks;
+        card.timeline_start = timeline_start;
+        card.timeline_end = timeline_end;
+        card.timeline_start_ticks = timeline_start_ticks;
+        card.timeline_end_ticks = timeline_end_ticks;
+        card.duration_label = duration_label;
+        card.reversed = reversed;
+        card.speed_num = speed_num;
+        card.speed_den = speed_den;
+        card.speed_label = speed_label;
+        card.beat_ticks = beat_ticks;
+        card.keyframe_ticks = keyframe_ticks;
+        card.markers = markers;
+        card.line = line;
     }
 }
 

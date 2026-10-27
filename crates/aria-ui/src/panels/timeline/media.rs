@@ -3,6 +3,7 @@
 use gpui::Entity;
 
 use crate::app::AppState;
+use crate::types::HeldEdit;
 
 use super::{BAR_STEP, CELL_W};
 
@@ -23,15 +24,19 @@ pub(crate) fn visible_clips_slice(
     &clips[start..start + count]
 }
 
-/// Waveform bar heights per visible clip, keyed by clip id.
+/// Waveform bar heights per visible clip, keyed by clip id. A clip an edge
+/// drag or a slide in flight changes, `held`, plays the take its release
+/// leaves it.
 ///
 /// This is also where a decode is asked for: a clip is on screen, so its source
 /// is worth reading. Peaks belong to the media, so two clips cut from one file
 /// share the decode and each slices its own source window out of it.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn clip_bars(
     state: &Entity<AppState>,
     store: &crate::types::UiEditorStore,
     visible_rows: &[usize],
+    held: Option<&HeldEdit>,
     pps: f32,
     fps: f32,
     view_start: i64,
@@ -61,6 +66,10 @@ pub(super) fn clip_bars(
         .filter_map(|row| store.sequence.tracks.get(*row))
         .filter(|track| track.waveform && !track.collapsed)
         .flat_map(|track| visible_clips_slice(&track.clips, view_start, view_end).iter())
+        .map(|clip| {
+            held.and_then(|held| held.card(clip.id))
+                .map_or(clip, |card| &card.clip)
+        })
         .filter(|clip| clip.kind == crate::types::UiClipKind::Audio)
         .filter_map(|clip| {
             let clip_ticks = (clip.timeline_end_ticks - clip.timeline_start_ticks).max(1);
@@ -115,15 +124,19 @@ pub(super) fn clip_bars(
 }
 
 /// Filmstrip cells per visible media clip: the x offset inside the clip card
-/// and the image to draw there.
+/// and the image to draw there. A clip an edge drag or a slide in flight
+/// changes, `held`, draws each cell where its frame plays once the release
+/// lands, and none past its ends.
 ///
 /// At most one cell is asked for per frame, and a rendered cell is never
 /// substituted for a neighbour: a cell is drawn where it belongs or the space
 /// stays empty, because a frame drawn at the wrong tick lies about the cut.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn clip_cells(
     state: &Entity<AppState>,
     store: &crate::types::UiEditorStore,
     visible_rows: &[usize],
+    held: Option<&HeldEdit>,
     pps: f32,
     fps: f32,
     view_start: i64,
@@ -172,6 +185,17 @@ pub(super) fn clip_cells(
                 }
                 None => crate::filmstrips::request(state, cx, tick),
             }
+        }
+        if let Some(card) = held.and_then(|held| held.card(clip)) {
+            let width =
+                (card.clip.timeline_end_ticks - card.clip.timeline_start_ticks) as f32 / fps * pps;
+            cells.retain_mut(|(x, _)| match card.moved_x(*x, pps / fps) {
+                Some(moved) if (0.0..width).contains(&moved) => {
+                    *x = moved;
+                    true
+                }
+                Some(_) | None => false,
+            });
         }
         if !cells.is_empty() {
             out.insert(clip, cells);

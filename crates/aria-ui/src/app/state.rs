@@ -38,6 +38,15 @@ pub struct AppState {
     /// The clip drag in flight, while the button is down: the timeline draws
     /// its clips where the release puts them.
     pub held_move: Option<crate::types::HeldMove>,
+    /// The room of the clip edge or slide drag in flight, read once per
+    /// drag.
+    pub(crate) held_room: Option<crate::app::drag_room::HeldRoom>,
+    /// The edge drag or slide in flight, while the button is down: the
+    /// timeline draws the clips its release changes as it leaves them.
+    pub(crate) held_edit: Option<std::sync::Arc<crate::types::HeldEdit>>,
+    /// The project as the edge drag or slide in flight found it, and the
+    /// revision it was read at.
+    pub(crate) drag_project: Option<(u64, std::sync::Arc<aria_models::Project>)>,
     /// Height fraction `[0.15, 0.85]` of the lane stack given to video lanes
     /// above the A/V divider.
     pub timeline_av_split: f32,

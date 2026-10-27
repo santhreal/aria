@@ -8,16 +8,17 @@
 //! - **Roll** keeps both clips' outer edges and moves the cut between them.
 //! - **Rate stretch** keeps the source window and changes how long it plays.
 //!
-//! Each is one edit. Slide and roll issue two commands, so they run inside an
-//! engine history group: one undo puts the pair back, and a failure halfway
-//! rolls the first command back rather than leaving the timeline in a state the
-//! operator never asked for.
+//! Each is one edit. Each gesture but the slip is built as a list of steps
+//! the release sends as one undo entry: a failure halfway rolls the steps
+//! before it back rather than leaving the timeline in a state the gesture
+//! never asked for, and the frame that draws a held drag runs the same steps.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{ClipId, Rational, RationalTime, TimeRange};
+use aria_models::{ClipId, Rational};
 
 use crate::app::AppState;
+use crate::app::drag_steps::Step;
 
 /// A neighbour of the clip being dragged, in timeline ticks.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -89,49 +90,7 @@ impl AppState {
         after: Option<Neighbour>,
     ) -> Result<(), EngineError> {
         let delta = slide_room(start, end, delta, before, after);
-        if delta == 0 {
-            self.snap_guide = None;
-            return Ok(());
-        }
-        self.snap_guide = None;
-        let rate = self.playhead.rate;
-        // The first command lands before the second; a gesture left half-applied
-        // is worse than the gesture not happening.
-        self.one_step(|this| this.slide_steps(clip, start, end, delta, before, after, rate))
-    }
-
-    // The neighbour on the giving side is trimmed before the clip moves, so the
-    // move never lands on ticks another clip still holds.
-    #[allow(clippy::too_many_arguments)]
-    fn slide_steps(
-        &mut self,
-        clip: ClipId,
-        start: i64,
-        end: i64,
-        delta: i64,
-        before: Option<Neighbour>,
-        after: Option<Neighbour>,
-        rate: Rational,
-    ) -> Result<(), EngineError> {
-        if delta > 0 {
-            if let Some(next) = after {
-                self.trim_to(next.clip, next.start + delta, next.end, rate)?;
-            }
-            self.move_to(clip, start + delta, rate)?;
-            if let Some(prev) = before {
-                self.trim_to(prev.clip, prev.start, prev.end + delta, rate)?;
-            }
-        } else {
-            if let Some(prev) = before {
-                self.trim_to(prev.clip, prev.start, prev.end + delta, rate)?;
-            }
-            self.move_to(clip, start + delta, rate)?;
-            if let Some(next) = after {
-                self.trim_to(next.clip, next.start + delta, next.end, rate)?;
-            }
-        }
-        let _ = end;
-        Ok(())
+        self.run_steps(&slide_steps(clip, start, delta, before, after))
     }
 
     /// Move the cut between two abutting clips by `delta` ticks: the left clip's
@@ -142,71 +101,36 @@ impl AppState {
         right: Neighbour,
         delta: i64,
     ) -> Result<(), EngineError> {
-        let delta = roll_room(left, right, delta);
-        if delta == 0 {
-            self.snap_guide = None;
-            return Ok(());
-        }
-        self.snap_guide = None;
-        let rate = self.playhead.rate;
-        // Shrink first: growing into ticks the other clip still holds would be
-        // refused as an overlap.
-        self.one_step(|this| {
-            if delta > 0 {
-                this.trim_to(right.clip, right.start + delta, right.end, rate)
-                    .and_then(|()| this.trim_to(left.clip, left.start, left.end + delta, rate))
-            } else {
-                this.trim_to(left.clip, left.start, left.end + delta, rate)
-                    .and_then(|()| this.trim_to(right.clip, right.start + delta, right.end, rate))
-            }
-        })
+        self.run_steps(&roll_steps(left, right, roll_room(left, right, delta)))
     }
 
     /// Retime a clip so it occupies `new_duration` ticks while keeping its
-    /// source window: the speed follows from the two lengths.
+    /// source window: the speed follows from the take and the length.
     ///
     /// This is the rate-stretch gesture, and it is a speed edit rather than a
     /// trim: a trim would drop source, while this plays the same source faster
-    /// or slower. A clip that is already retimed is stretched from where it is,
-    /// not from 1x, so two drags compose the way the timeline draws them.
+    /// or slower. The edge dragged moves and the other stays.
     pub fn rate_stretch(
         &mut self,
         clip: ClipId,
-        old_duration: i64,
         new_duration: i64,
+        left: bool,
     ) -> Result<(), EngineError> {
-        let Some(ui) = self
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .find(|item| item.id == clip.raw())
-        else {
-            return Ok(());
-        };
-        let current = Rational::new(ui.speed_num.max(1), ui.speed_den.max(1));
-        let reversed = ui.reversed;
-        let Some(speed) = stretch_speed(current, old_duration, new_duration) else {
-            self.snap_guide = None;
-            return Ok(());
-        };
-        self.snap_guide = None;
-        self.apply_command(Command::Edit(EditCommand::SetClipSpeed {
-            clip,
-            speed,
-            reversed,
-        }))?;
-        Ok(())
+        let steps = self.ui_clip_ref(clip).map_or_else(Vec::new, |ui| {
+            stretch_steps(
+                clip,
+                ui.timeline_start_ticks,
+                ui.timeline_end_ticks,
+                new_duration,
+                left,
+            )
+        });
+        self.run_steps(&steps)
     }
 
     /// Trim an edge and move the rest of the lane by the same amount, so the
-    /// trim leaves no hole and needs no cleanup.
-    ///
-    /// `delta` is the signed movement of the dragged edge. The order of the two
-    /// commands follows the direction: the lane is opened before an edge grows
-    /// into it and closed after an edge shrinks away from it, because a shift
-    /// onto ticks another clip still holds is refused.
+    /// trim leaves no hole and needs no cleanup. `delta` is the signed
+    /// movement of the dragged edge.
     pub fn ripple_trim(
         &mut self,
         clip: ClipId,
@@ -216,41 +140,72 @@ impl AppState {
         left: bool,
         delta: i64,
     ) -> Result<(), EngineError> {
-        self.snap_guide = None;
+        let steps = self.ripple_steps(clip, track, start, end, left, delta);
+        self.run_steps(&steps)
+    }
+
+    /// The edits a ripple trim of `clip`'s head (`left`) or tail by `delta`
+    /// sends: the edge trimmed, and the lane the clip is on moved by the same
+    /// amount from the edge on, with every lane holding a clip linked to it
+    /// while linked selection is on. A lane is opened before an edge grows
+    /// into it and closed after an edge shrinks away from it, because a shift
+    /// onto ticks another clip still holds is refused.
+    pub(crate) fn ripple_steps(
+        &self,
+        clip: ClipId,
+        track: aria_models::TrackId,
+        start: i64,
+        end: i64,
+        left: bool,
+        delta: i64,
+    ) -> Vec<Step> {
         if delta == 0 {
-            return Ok(());
+            return Vec::new();
         }
-        let rate = self.playhead.rate;
-        let tracks = self.linked_tracks_of(clip, track);
-        self.one_step(|this| {
-            if left {
-                if delta > 0 {
-                    // The head moves right, then the clip and everything after it
-                    // slides back to where the head used to be.
-                    this.trim_to(clip, start + delta, end, rate)?;
-                    for lane in tracks {
-                        this.shift_after(lane, start + delta, -delta, rate)?;
-                    }
-                    Ok(())
-                } else {
-                    for lane in tracks {
-                        this.shift_after(lane, start, -delta, rate)?;
-                    }
-                    this.trim_to(clip, start, end - delta, rate)
-                }
-            } else if delta > 0 {
-                for lane in tracks {
-                    this.shift_after(lane, end, delta, rate)?;
-                }
-                this.trim_to(clip, start, end + delta, rate)
-            } else {
-                this.trim_to(clip, start, end + delta, rate)?;
-                for lane in tracks {
-                    this.shift_after(lane, end, delta, rate)?;
-                }
-                Ok(())
+        let lanes = self.linked_tracks_of(clip, track);
+        let shifts = |from: i64, by: i64| {
+            lanes
+                .iter()
+                .map(move |&lane| Step::Shift { lane, from, by })
+        };
+        let mut steps = Vec::with_capacity(lanes.len() + 1);
+        match (left, delta > 0) {
+            // The head moves right, then the clip and everything after it
+            // slides back to where the head was.
+            (true, true) => {
+                steps.push(Step::Trim {
+                    clip,
+                    start: start + delta,
+                    end,
+                });
+                steps.extend(shifts(start + delta, -delta));
             }
-        })
+            (true, false) => {
+                steps.extend(shifts(start, -delta));
+                steps.push(Step::Trim {
+                    clip,
+                    start,
+                    end: end - delta,
+                });
+            }
+            (false, true) => {
+                steps.extend(shifts(end, delta));
+                steps.push(Step::Trim {
+                    clip,
+                    start,
+                    end: end + delta,
+                });
+            }
+            (false, false) => {
+                steps.push(Step::Trim {
+                    clip,
+                    start,
+                    end: end + delta,
+                });
+                steps.extend(shifts(end, delta));
+            }
+        }
+        steps
     }
 
     /// Every track holding `clip` or one of its linked companions, starting with `primary`.
@@ -305,7 +260,8 @@ impl AppState {
                 left,
                 span,
             } => {
-                let delta = drag.delta;
+                // The edge the release lands, after the magnet and the room.
+                let delta = crate::surfaces::timeline_gesture::held(self, gesture, &drag)?.travel;
                 let (tool_label, detail) = match edge_drag {
                     Some(EdgeDrag::Ripple) => {
                         let new_dur = if left {
@@ -373,8 +329,8 @@ impl AppState {
                 span,
                 ..
             } => {
-                let (before, after) = self.abutting(drag.clip);
-                let actual = slide_room(span.start, span.end, drag.delta, before, after);
+                let actual = crate::surfaces::timeline_gesture::held(self, gesture, &drag)
+                    .map_or(0, |held| held.travel);
                 Some(crate::types::TrimFeedback {
                     tool_label: "Slide".into(),
                     clip_name: ui.name.clone(),
@@ -399,7 +355,7 @@ impl AppState {
                 };
                 // The tick the release sends, so the readout and the drawn
                 // card agree with the magnet.
-                let to = crate::surfaces::timeline_gesture::landing(self, &drag, &span);
+                let (to, _) = crate::surfaces::timeline_gesture::landing(self, &drag, &span);
                 let delta = to - span.start;
                 Some(crate::types::TrimFeedback {
                     tool_label: label.into(),
@@ -443,36 +399,6 @@ impl AppState {
         }
     }
 
-    fn shift_after(
-        &mut self,
-        track: aria_models::TrackId,
-        from: i64,
-        delta: i64,
-        rate: Rational,
-    ) -> Result<(), EngineError> {
-        self.apply_command(Command::Edit(EditCommand::ShiftClips {
-            track,
-            from: RationalTime::new(from.max(0), rate),
-            delta: RationalTime::new(delta, rate),
-        }))?;
-        Ok(())
-    }
-
-    fn trim_to(
-        &mut self,
-        clip: ClipId,
-        start: i64,
-        end: i64,
-        rate: Rational,
-    ) -> Result<(), EngineError> {
-        let start = start.max(0);
-        let end = end.max(start + 1);
-        self.apply_command(Command::Edit(
-            self.trim_command(clip, TimeRange::at_rate(start, end - start, rate)),
-        ))?;
-        Ok(())
-    }
-
     /// The lane a clip is on, as the store sees it. `None` once the clip is gone,
     /// which a gesture reads as "there is nothing to do here".
     pub fn track_of(&self, clip: ClipId) -> Option<aria_models::TrackId> {
@@ -483,19 +409,92 @@ impl AppState {
             .find(|track| track.clips.iter().any(|item| item.id == clip.raw()))
             .map(|track| aria_models::TrackId::from_raw(track.id))
     }
+}
 
-    fn move_to(&mut self, clip: ClipId, start: i64, rate: Rational) -> Result<(), EngineError> {
-        let Some(track) = self.track_of(clip) else {
-            return Err(EngineError::Refused(
-                "That clip is no longer on the timeline".into(),
-            ));
-        };
-        self.apply_command(Command::Edit(self.move_command(
+/// The edits a slide of `clip`, which starts at `start`, by `delta` sends:
+/// the neighbour on the giving side trimmed first, so the move never lands
+/// on ticks another clip still holds, then the clip moved, then the
+/// neighbour on the other side grown into the ticks the clip left.
+pub(crate) fn slide_steps(
+    clip: ClipId,
+    start: i64,
+    delta: i64,
+    before: Option<Neighbour>,
+    after: Option<Neighbour>,
+) -> Vec<Step> {
+    if delta == 0 {
+        return Vec::new();
+    }
+    let prev = before.map(|prev| Step::Trim {
+        clip: prev.clip,
+        start: prev.start,
+        end: prev.end + delta,
+    });
+    let next = after.map(|next| Step::Trim {
+        clip: next.clip,
+        start: next.start + delta,
+        end: next.end,
+    });
+    let (first, last) = if delta > 0 {
+        (next, prev)
+    } else {
+        (prev, next)
+    };
+    first
+        .into_iter()
+        .chain([Step::Move {
             clip,
-            track,
-            RationalTime::new(start.max(0), rate),
-        )))?;
-        Ok(())
+            start: start + delta,
+        }])
+        .chain(last)
+        .collect()
+}
+
+/// The edits a roll of the cut between `left` and `right` by `delta` sends:
+/// the clip the cut moves into shrinks first, because growing into ticks the
+/// other clip still holds is refused.
+pub(crate) fn roll_steps(left: Neighbour, right: Neighbour, delta: i64) -> Vec<Step> {
+    let grows = Step::Trim {
+        clip: left.clip,
+        start: left.start,
+        end: left.end + delta,
+    };
+    let shrinks = Step::Trim {
+        clip: right.clip,
+        start: right.start + delta,
+        end: right.end,
+    };
+    match delta.signum() {
+        0 => Vec::new(),
+        1 => vec![shrinks, grows],
+        _ => vec![grows, shrinks],
+    }
+}
+
+/// The edits a rate stretch of `clip`, on `start..end`, to `length` ticks
+/// sends. A stretch by the head (`left`) keeps where the clip ends, so it
+/// moves the clip as well: before it grows and after it shrinks, so the clip
+/// never covers ticks another clip holds.
+pub(crate) fn stretch_steps(
+    clip: ClipId,
+    start: i64,
+    end: i64,
+    length: i64,
+    left: bool,
+) -> Vec<Step> {
+    let retime = Step::Retime {
+        clip,
+        duration: length,
+    };
+    let moved = Step::Move {
+        clip,
+        start: end - length,
+    };
+    match (left, length.cmp(&(end - start))) {
+        (_, std::cmp::Ordering::Equal) => Vec::new(),
+        (false, _) => vec![retime],
+        (true, std::cmp::Ordering::Greater) => vec![moved, retime],
+        (true, std::cmp::Ordering::Less) => vec![retime, moved],
     }
 }
 

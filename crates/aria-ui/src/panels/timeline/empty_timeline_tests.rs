@@ -391,7 +391,7 @@ fn linked_video_and_audio_clips_trim_slip_speed_and_ripple_in_sync_with_single_u
     );
 
     // 3. SetClipSpeed on V1 retimes A1 too in one undo step.
-    state.rate_stretch(v1_clip, 120, 60).expect("2x speed");
+    state.rate_stretch(v1_clip, 60, false).expect("2x speed");
     assert_eq!(
         state.store.sequence.tracks[0].clips[0].timeline_end_ticks,
         60

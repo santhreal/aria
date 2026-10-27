@@ -444,58 +444,6 @@ pub struct TrimFeedback {
     pub detail_label: SharedString,
 }
 
-/// A clip drag in flight, read for the frame that draws it where its release
-/// lands.
-#[derive(Debug, Clone, PartialEq)]
-pub struct HeldMove {
-    /// The clips the release moves, the held one first, as they are drawn
-    /// before the drag. Behind a handle, so the frame that reads it copies
-    /// a refcount rather than the clips.
-    pub members: std::sync::Arc<[UiClip]>,
-    /// Whether `members` was read with linked selection on.
-    pub linked: bool,
-    /// The lane the held clip lands on.
-    pub track: u64,
-    /// The tick the held clip lands at.
-    pub start: i64,
-    /// A ripple move, which inserts at `start` on `track`: its cards stay
-    /// where they are and the insertion line is drawn there.
-    pub ripple: bool,
-}
-
-impl HeldMove {
-    /// Whether the release moves `clip` off where it is drawn.
-    pub fn takes(&self, clip: u64) -> bool {
-        !self.ripple && self.members.iter().any(|member| member.id == clip)
-    }
-
-    /// The cards the release leaves, each where it lands: the held clip on
-    /// `track` at `start`, and each companion on its own lane by the same
-    /// distance, stopped at the sequence start. None for a ripple move.
-    pub fn cards(&self, rate: Rational) -> Vec<UiClip> {
-        let Some(held) = self.members.first().filter(|_| !self.ripple) else {
-            return Vec::new();
-        };
-        let delta = self.start - held.timeline_start_ticks;
-        self.members
-            .iter()
-            .map(|member| {
-                if member.id == held.id {
-                    member.moved(self.track, delta, rate)
-                } else {
-                    let to = (member.timeline_start_ticks + delta).max(0);
-                    member.moved(member.track_id, to - member.timeline_start_ticks, rate)
-                }
-            })
-            .collect()
-    }
-
-    /// The tick a ripple move inserts at on lane `track`.
-    pub fn inserts_at(&self, track: u64) -> Option<i64> {
-        (self.ripple && self.track == track).then_some(self.start)
-    }
-}
-
 /// Per-frame virtualization and paint counters recorded by the timeline time
 /// area elements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

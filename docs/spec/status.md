@@ -170,7 +170,11 @@ by command kind with a row dropped on a key binding it there, asks before taking
 a chord another binding holds, and saves, loads, imports and exports named
 keymaps (`crates/aria-ui/src/keys/keymap_sets.rs`). Digits and the keypad `+` and `-` open the playhead timecode over
 the Timeline and the Program view, and a signed value moves the selected clips,
-trims the selected edge, or moves the playhead.
+trims the selected edge, or moves the playhead. A trim, ripple trim, roll,
+slide or rate stretch, by drag or by key, is held inside the room the model
+allows it (`Project::trim_reach`, `crates/aria-ui/src/app/drag_room.rs`): it
+stops at the end of the take, the clip beside the edge, the sequence start or
+one frame and lands there.
 
 ## Animation ([animation.md](animation.md))
 

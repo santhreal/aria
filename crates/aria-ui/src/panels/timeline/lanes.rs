@@ -107,7 +107,10 @@ pub(super) fn lane_group(
     let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h) - scroll_y;
     // A clip drag in flight draws its clips where the release puts them, and a
     // ripple move draws the line it inserts at.
-    let held = state.read(cx).held_move.clone();
+    let (held, held_edit) = {
+        let app = state.read(cx);
+        (app.held_move.clone(), app.held_edit.clone())
+    };
     let mut held_cards = held
         .as_ref()
         .map(|held| held.cards(store.sequence.frame_rate))
@@ -162,8 +165,24 @@ pub(super) fn lane_group(
             .marquee
             .filter(|_| state.read(cx).marquee_covers_row(row))
             .map(|b| b.ticks());
-        let mut clips: Vec<UiClip> =
-            visible_clips_slice(&track.clips, view_start, view_end).to_vec();
+        let mut clips: Vec<UiClip> = match held_edit.as_deref() {
+            // A shift moves clips from off the view into it, so the lane is
+            // read as far past the view as the shifts reach.
+            Some(edit) if edit.touches(track.id) => {
+                let reach = edit.reach(track.id);
+                edit.lane(
+                    track.id,
+                    visible_clips_slice(
+                        &track.clips,
+                        view_start.saturating_sub(reach),
+                        view_end.saturating_add(reach),
+                    ),
+                    (view_start, view_end),
+                    store.sequence.frame_rate,
+                )
+            }
+            Some(_) | None => visible_clips_slice(&track.clips, view_start, view_end).to_vec(),
+        };
         if let Some(held) = &held {
             clips.retain(|clip| !held.takes(clip.id));
             // Last, so each card is drawn over the clips it covers.
@@ -209,6 +228,7 @@ pub(super) fn lane_group(
         state,
         store,
         &drawn_rows,
+        held_edit.as_deref(),
         pps,
         fps,
         view_start,
@@ -219,6 +239,7 @@ pub(super) fn lane_group(
         state,
         store,
         &drawn_rows,
+        held_edit.as_deref(),
         pps,
         fps,
         view_start,
@@ -258,6 +279,7 @@ pub(super) fn lane_group(
         scroll_x,
         playhead,
         snap_guide,
+        held_edge: held_edit.as_ref().and_then(|edit| edit.edge),
         selected_edge,
         selected_gap,
         trim_feedback,

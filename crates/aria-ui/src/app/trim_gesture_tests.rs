@@ -392,7 +392,7 @@ fn a_rate_stretch_of_a_still_is_declined_by_the_model_not_by_the_ui() {
     let first = placed[0];
     let length = first.2 - first.1;
     let before = state.revision;
-    let result = state.rate_stretch(aria_models::ClipId::from_raw(first.0), length, length * 2);
+    let result = state.rate_stretch(aria_models::ClipId::from_raw(first.0), length * 2, false);
     if result.is_ok() {
         let after = clips(&state);
         assert_ne!(
@@ -411,7 +411,7 @@ fn a_rate_stretch_of_a_clip_that_is_gone_does_nothing() {
     let (mut state, placed) = pair();
     let before = state.revision;
     state
-        .rate_stretch(aria_models::ClipId::from_raw(9999), 100, 200)
+        .rate_stretch(aria_models::ClipId::from_raw(9999), 200, false)
         .expect("an unknown clip is not an error");
     assert_eq!(state.revision, before);
     assert_eq!(clips(&state), placed);

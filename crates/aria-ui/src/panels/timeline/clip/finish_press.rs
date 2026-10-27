@@ -204,7 +204,7 @@ pub(super) fn on_left_down(
                     clip: ClipId::from_raw(clip_id),
                     delta: 0,
                 };
-                state.trim_feedback = state.compute_trim_feedback(g, d);
+                state.hold_drag(g, d);
             });
             ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
                 kind: if left {

@@ -83,6 +83,91 @@ impl Clip {
         Some(retimed_duration(src_dur_tl, self.speed, average, has_curve))
     }
 
+    /// The base speed at which this clip, its source window and ramp kept,
+    /// occupies `duration` timeline ticks at `rate`: the inverse of the
+    /// length [`retimed_duration`] derives. Exact on a flat ramp; on an
+    /// active ramp, the nearest a ratio of thousandths of its average gives.
+    ///
+    /// Refused for a generated clip and for a duration under one tick.
+    pub fn speed_for(
+        &self,
+        duration: i64,
+        rate: crate::time::Rational,
+    ) -> Result<crate::time::Rational, ModelError> {
+        let source = self.retimed_source()?;
+        if duration < 1 {
+            return Err(ModelError::InvalidRange);
+        }
+        let src_dur_tl = resample(source.duration, rate).value.max(1);
+        if !self.has_speed_curve() {
+            return Ok(crate::time::Rational::from_ratio_fitted(
+                src_dur_tl, duration,
+            ));
+        }
+        // `src ÷ (speed × average)` rounds to `duration` at a speed of
+        // `src ÷ (duration × average)`.
+        let scaled = (duration as f64 * self.speed_curve_average() * 1000.0)
+            .round()
+            .max(1.0) as i64;
+        Ok(crate::time::Rational::from_ratio_fitted(
+            src_dur_tl * 1000,
+            scaled,
+        ))
+    }
+
+    /// The source window a retime keeps. Refused for a generated clip, which
+    /// has none.
+    pub(crate) fn retimed_source(&self) -> Result<TimeRange, ModelError> {
+        self.source_range()
+            .ok_or_else(|| ModelError::InvalidParam("speed requires a media-backed clip".into()))
+    }
+
+    /// Where the clip plays at `speed`: from where it starts, as long as its
+    /// source window and ramp last at that speed, at `rate`. Refused for a
+    /// speed at or below zero, a freeze frame and a generated clip.
+    pub fn retimed(
+        &self,
+        speed: crate::time::Rational,
+        rate: crate::time::Rational,
+    ) -> Result<TimeRange, ModelError> {
+        if speed.num <= 0 || speed.den <= 0 {
+            return Err(ModelError::InvalidParam("speed must be positive".into()));
+        }
+        if self.freeze_frame {
+            return Err(ModelError::InvalidParam(
+                "freeze-frame clips cannot be retimed".into(),
+            ));
+        }
+        let source = self.retimed_source()?;
+        // Faster average ⇒ less timeline. A flat ramp keeps the exact integer
+        // path (no f64 drift); any active ramp folds in its average.
+        let duration = retimed_duration(
+            resample(source.duration, rate).value,
+            speed,
+            self.speed_curve_average(),
+            self.has_speed_curve(),
+        );
+        Ok(TimeRange::at_rate(
+            self.timeline.start.value,
+            duration,
+            rate,
+        ))
+    }
+
+    /// Play the clip at `speed`, `reversed`, where [`Self::retimed`] places
+    /// it.
+    pub fn retime(
+        &mut self,
+        speed: crate::time::Rational,
+        reversed: bool,
+        rate: crate::time::Rational,
+    ) -> Result<(), ModelError> {
+        self.timeline = self.retimed(speed, rate)?;
+        self.speed = speed;
+        self.reversed = reversed;
+        Ok(())
+    }
+
     /// True iff the clip plays at anything but forward 1× — the audio mixers
     /// time-stretch retimed clips (M8 Phase 3) and the UI badges them. A
     /// non-flat speed ramp counts (M2 speed curves).
@@ -261,6 +346,21 @@ impl Clip {
             | ClipSource::Multicam { source, .. }
             | ClipSource::Sequence { source, .. } => Some(*source),
             ClipSource::Generated(_) => None,
+        }
+    }
+
+    /// Place the clip on `timeline`, playing `source` where it plays a take:
+    /// the window [`crate::Project::trim_source`] gives a trim.
+    pub fn trim_to(&mut self, timeline: TimeRange, source: Option<TimeRange>) {
+        self.timeline = timeline;
+        if let (
+            Some(window),
+            ClipSource::Media { source, .. }
+            | ClipSource::Multicam { source, .. }
+            | ClipSource::Sequence { source, .. },
+        ) = (source, &mut self.content)
+        {
+            *source = window;
         }
     }
 

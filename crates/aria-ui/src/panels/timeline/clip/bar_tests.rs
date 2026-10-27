@@ -5,9 +5,10 @@
 //! it": the line hit-tested at a height its paint did not use, a keyframe dot a
 //! press passes through to the line, a Ctrl+click on the line that keys
 //! nothing. Also pins the fills the spec names: the fx badge grey, yellow, or
-//! purple with the purple underline when both, and an offline bar red. Not
-//! covered: the pointer's cursor shape, which the test platform does not report
-//! back, and glyphs, which the test text system does not draw.
+//! purple with the purple underline when both, an offline bar red, and the
+//! bracket on a held edge red while its drag is stopped at the limit. Not
+//! covered: the pointer's cursor shape, which the test platform does not
+//! report back, and glyphs, which the test text system does not draw.
 
 use std::path::PathBuf;
 
@@ -20,8 +21,9 @@ use gpui::{
 
 use super::{BarRows, DOT, FX_H, FX_W};
 use crate::app::AppState;
+use crate::surfaces::timeline_gesture::{Drag, Gesture, Span};
 use crate::theme::Theme;
-use crate::types::ContextTarget;
+use crate::types::{ContextTarget, TrimSide};
 
 fn texture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
@@ -318,6 +320,56 @@ fn a_bar_whose_file_is_gone_is_painted_red_with_its_file_name(cx: &mut TestAppCo
     });
     assert_eq!(offline.as_ref().map(|name| name.as_ref()), Some("gone.png"));
     assert!(red(visual), "an offline bar is red whatever its label");
+}
+
+#[gpui::test]
+fn a_held_edge_stopped_at_its_limit_is_painted_red(cx: &mut TestAppContext) {
+    let (state, visual, clip) = placed(cx, "bar-held-edge", texture());
+    let lane = v1_lane(visual);
+    let (warning, danger) = visual.read(|app| {
+        let theme = Theme::of(app);
+        (
+            Background::from(theme.warning),
+            Background::from(theme.danger),
+        )
+    });
+    // The clip starts at the sequence start, so a head trim to the left is
+    // stopped there and one to the right follows the pointer.
+    for (delta, fill) in [(2, warning), (-(1 << 20), danger), (2, warning)] {
+        visual.update(|window, app| {
+            state.update(app, |s, _| {
+                let span = {
+                    let ui = s.ui_clip_ref(clip).expect("projected");
+                    Span {
+                        start: ui.timeline_start_ticks,
+                        end: ui.timeline_end_ticks,
+                        threshold: 0,
+                        magnet: false,
+                    }
+                };
+                s.select_edge(clip, TrimSide::In);
+                s.hold_drag(
+                    Gesture::Edge {
+                        drag: None,
+                        left: true,
+                        span,
+                    },
+                    Drag { clip, delta },
+                );
+            });
+            window.refresh();
+        });
+        visual.run_until_parked();
+        let brackets: Vec<Background> = painted(visual, lane)
+            .into_iter()
+            .filter(|quad| {
+                near(quad.bounds.size.width, px(3.0))
+                    && (quad.background == warning || quad.background == danger)
+            })
+            .map(|quad| quad.background)
+            .collect();
+        assert_eq!(brackets, [fill], "a head trim held at {delta}");
+    }
 }
 
 #[gpui::test]

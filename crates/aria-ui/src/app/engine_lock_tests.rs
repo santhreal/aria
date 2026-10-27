@@ -47,6 +47,12 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "builds the model's system prompt when a turn is sent, not while drawing one",
     ),
     (
+        "app/drag_room.rs",
+        "drag_room",
+        "reads the room of a trim, roll, slide or stretch about to land from a release \
+         or a key; a drag in flight reads the room it held at its press",
+    ),
+    (
         "app/duck.rs",
         "voice_timeline_spans",
         "walks the voice lane for the ducking command; nothing draws spans",

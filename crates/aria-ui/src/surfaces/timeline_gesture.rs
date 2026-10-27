@@ -21,7 +21,12 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, TrackId};
 
 use crate::app::AppState;
+use crate::app::drag_room::RoomKind;
+use crate::app::drag_steps::{Plan, Step};
+use crate::app::trim_gestures::{Neighbour, roll_steps, slide_steps, stretch_steps};
+use crate::snap::SnapCandidate;
 use crate::tool_catalog::{BodyDrag, EdgeDrag};
+use crate::types::HeldEdge;
 
 /// What the pointer took hold of, and how far it went.
 ///
@@ -148,33 +153,229 @@ impl Gesture {
             | Self::Fade { .. } => None,
         }
     }
+
+    /// What bounds the drag's travel: an edit the model refuses past a
+    /// limit. A move, a ripple move, a slip, a transition window and a fade
+    /// are held by their own edits.
+    pub(crate) fn room(&self) -> Option<RoomKind> {
+        match *self {
+            Self::Edge {
+                drag: None, left, ..
+            } => Some(RoomKind::Trim { left }),
+            Self::Edge {
+                drag: Some(EdgeDrag::Ripple),
+                left,
+                ..
+            } => Some(RoomKind::Ripple { left }),
+            Self::Edge {
+                drag: Some(EdgeDrag::Roll),
+                left,
+                ..
+            } => Some(RoomKind::Roll { left }),
+            Self::Edge {
+                drag: Some(EdgeDrag::Rate),
+                left,
+                ..
+            } => Some(RoomKind::Stretch { left }),
+            Self::Body {
+                drag: Some(BodyDrag::Slide),
+                ..
+            } => Some(RoomKind::Slide),
+            Self::Body {
+                drag: None | Some(BodyDrag::Slip),
+                ..
+            }
+            | Self::RippleBody { .. }
+            | Self::Transition { .. }
+            | Self::Fade { .. } => None,
+        }
+    }
 }
 
-/// Where `desired` lands once the magnet has had its say.
+/// Where `desired` lands once the magnet has had its say, and the magnet it
+/// lands on. A drag that has not moved stays where it is: the magnet pulls
+/// what the pointer carries, and a press carries nothing yet.
 ///
 /// The guide line the magnet draws belongs to the drag, not to the gesture: it
 /// is written while the pointer moves and every verb below drops it, so a
 /// gesture that arrives on release has nothing left to clear.
-fn snapped(state: &AppState, drag: &Drag, span: &Span, desired: i64) -> i64 {
-    let (tick, _) = state.snap_at(
+fn snapped(
+    state: &AppState,
+    drag: &Drag,
+    span: &Span,
+    desired: i64,
+) -> (i64, Option<SnapCandidate>) {
+    if drag.delta == 0 {
+        return (desired.max(0), None);
+    }
+    state.snap_at(
         desired.max(0),
         Some(drag.clip.raw()),
         span.threshold,
         !span.magnet,
-    );
-    tick
+    )
 }
 
-/// Where the dragged edge started and where the magnet puts it.
-fn edge(state: &AppState, drag: &Drag, span: &Span, left: bool) -> (i64, i64) {
-    let from = if left { span.start } else { span.end };
-    (from, snapped(state, drag, span, from + drag.delta))
+/// Where a drag a room holds lets go.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Held {
+    /// How far the release takes what the drag holds, inside the room.
+    pub travel: i64,
+    /// Whether the room holds the drag short of where the pointer and the
+    /// magnet took it.
+    pub stopped: bool,
+    /// The magnet what the drag holds lands on.
+    pub guide: Option<SnapCandidate>,
+}
+
+/// Where an edge drag or a slide lets go: the edge, or the clip's head,
+/// moved by the drag, after the magnet, held inside the room the gesture
+/// gives it. `None` for a drag no room holds. The release sends it, the
+/// readout states it and the held frame draws it.
+///
+/// The room is the floor, not the sequence start: a ripple trim grows the head
+/// of a clip at zero by pushing the lane, so its edge may pass zero.
+pub(crate) fn held(state: &AppState, gesture: Gesture, drag: &Drag) -> Option<Held> {
+    let kind = gesture.room()?;
+    let (from, (to, guide)) = match gesture {
+        Gesture::Edge { left, span, .. } => {
+            let from = if left { span.start } else { span.end };
+            let desired = from + drag.delta;
+            let to = if desired < 0 {
+                (desired, None)
+            } else {
+                snapped(state, drag, &span, desired)
+            };
+            (from, to)
+        }
+        Gesture::Body { span, .. } => (
+            span.start,
+            snapped(state, drag, &span, span.start + drag.delta),
+        ),
+        Gesture::RippleBody { .. } | Gesture::Transition { .. } | Gesture::Fade { .. } => {
+            return None;
+        }
+    };
+    let wanted = to - from;
+    let travel = state.drag_room(kind, drag.clip).hold(wanted);
+    Some(Held {
+        travel,
+        stopped: travel != wanted,
+        guide: guide.filter(|_| travel == wanted),
+    })
 }
 
 /// Where a body drag lets the clip's head go: its start moved by the drag,
-/// after the magnet. The release sends it and the held frame draws it.
-pub(crate) fn landing(state: &AppState, drag: &Drag, span: &Span) -> i64 {
+/// after the magnet, and the magnet it lands on. The release sends it and the
+/// held frame draws it.
+pub(crate) fn landing(state: &AppState, drag: &Drag, span: &Span) -> (i64, Option<SnapCandidate>) {
     snapped(state, drag, span, span.start + drag.delta)
+}
+
+/// The edits an edge drag or a slide of `clip` sends when what it holds
+/// travels `travel` ticks, in the order the release sends them. Empty for no
+/// travel, for a roll with no clip abutting the edge, and for a drag no room
+/// holds.
+pub(crate) fn steps(state: &AppState, gesture: Gesture, clip: ClipId, travel: i64) -> Vec<Step> {
+    if travel == 0 {
+        return Vec::new();
+    }
+    match gesture {
+        Gesture::Body {
+            drag: Some(BodyDrag::Slide),
+            span,
+            ..
+        } => {
+            let (before, after) = state.abutting(clip);
+            slide_steps(clip, span.start, travel, before, after)
+        }
+        Gesture::Edge {
+            drag: None,
+            left,
+            span,
+        } => vec![if left {
+            Step::Trim {
+                clip,
+                start: span.start + travel,
+                end: span.end,
+            }
+        } else {
+            Step::Trim {
+                clip,
+                start: span.start,
+                end: span.end + travel,
+            }
+        }],
+        Gesture::Edge {
+            drag: Some(EdgeDrag::Roll),
+            left,
+            span,
+        } => {
+            let (before, after) = state.abutting(clip);
+            let me = Neighbour {
+                clip,
+                start: span.start,
+                end: span.end,
+            };
+            // Only an abutting neighbour has a shared cut to roll. Without one
+            // the gesture does nothing, rather than silently trimming.
+            let pair = if left {
+                before.map(|prev| (prev, me))
+            } else {
+                after.map(|next| (me, next))
+            };
+            pair.map_or_else(Vec::new, |(cut_left, cut_right)| {
+                roll_steps(cut_left, cut_right, travel)
+            })
+        }
+        // The edge dragged moves and the other stays, so the new length is
+        // measured against the edge that did not move.
+        Gesture::Edge {
+            drag: Some(EdgeDrag::Rate),
+            left,
+            span,
+        } => {
+            let length = if left {
+                span.end - span.start - travel
+            } else {
+                span.end - span.start + travel
+            };
+            stretch_steps(clip, span.start, span.end, length, left)
+        }
+        Gesture::Edge {
+            drag: Some(EdgeDrag::Ripple),
+            left,
+            span,
+        } => state.track_of(clip).map_or_else(Vec::new, |track| {
+            state.ripple_steps(clip, track, span.start, span.end, left, travel)
+        }),
+        Gesture::Body {
+            drag: None | Some(BodyDrag::Slip),
+            ..
+        }
+        | Gesture::RippleBody { .. }
+        | Gesture::Transition { .. }
+        | Gesture::Fade { .. } => Vec::new(),
+    }
+}
+
+/// What an edge drag or a slide held at `held` sends on release, and the
+/// edge it holds.
+pub(crate) fn plan(state: &AppState, gesture: Gesture, drag: &Drag, held: Held) -> Plan {
+    Plan {
+        steps: steps(state, gesture, drag.clip, held.travel),
+        edge: match gesture {
+            Gesture::Edge { left, .. } => Some(HeldEdge {
+                clip: drag.clip.raw(),
+                left,
+                stopped: held.stopped,
+            }),
+            Gesture::Body { .. }
+            | Gesture::RippleBody { .. }
+            | Gesture::Transition { .. }
+            | Gesture::Fade { .. } => None,
+        },
+    }
 }
 
 /// Run one gesture. The magnet is applied here, so every drag that snaps snaps
@@ -186,11 +387,11 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
             track,
             span,
         } => {
-            let to = landing(state, &drag, &span);
+            let (to, _) = landing(state, &drag, &span);
             state.move_clip(drag.clip, track, to)
         }
         Gesture::RippleBody { track, span } => {
-            let to = landing(state, &drag, &span);
+            let (to, _) = landing(state, &drag, &span);
             state.ripple_move_clip(drag.clip, track, to)
         }
         // The content follows the pointer, so the source window moves the other
@@ -201,80 +402,11 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
         } => state.slip_clip(drag.clip, -drag.delta),
         Gesture::Body {
             drag: Some(BodyDrag::Slide),
-            span,
             ..
-        } => {
-            let (before, after) = state.abutting(drag.clip);
-            let to = landing(state, &drag, &span);
-            state.slide_clip(
-                drag.clip,
-                span.start,
-                span.end,
-                to - span.start,
-                before,
-                after,
-            )
         }
-        Gesture::Edge {
-            drag: None,
-            left,
-            span,
-        } => {
-            let (_, to) = edge(state, &drag, &span, left);
-            let (start, end) = if left {
-                let start = to.min(span.end - 1);
-                (start, span.end.max(start + 1))
-            } else {
-                let end = to.max(span.start + 1);
-                (span.start, end)
-            };
-            state.trim_clip(drag.clip, start, end)
-        }
-        Gesture::Edge {
-            drag: Some(EdgeDrag::Roll),
-            left,
-            span,
-        } => {
-            let (before, after) = state.abutting(drag.clip);
-            let me = crate::app::trim_gestures::Neighbour {
-                clip: drag.clip,
-                start: span.start,
-                end: span.end,
-            };
-            // Only an abutting neighbour has a shared cut to roll. Without one
-            // the gesture does nothing, rather than silently trimming.
-            let pair = if left {
-                before.map(|prev| (prev, me))
-            } else {
-                after.map(|next| (me, next))
-            };
-            let Some((cut_left, cut_right)) = pair else {
-                return Ok(());
-            };
-            let (from, to) = edge(state, &drag, &span, left);
-            state.roll_cut(cut_left, cut_right, to - from)
-        }
-        Gesture::Edge {
-            drag: Some(EdgeDrag::Rate),
-            left,
-            span,
-        } => {
-            let (_, to) = edge(state, &drag, &span, left);
-            // Dragging the head shortens from the left, so the new length is
-            // measured against the edge that did not move.
-            let new_duration = if left { span.end - to } else { to - span.start };
-            state.rate_stretch(drag.clip, span.end - span.start, new_duration)
-        }
-        Gesture::Edge {
-            drag: Some(EdgeDrag::Ripple),
-            left,
-            span,
-        } => {
-            let Some(track) = state.track_of(drag.clip) else {
-                return Ok(());
-            };
-            let (from, to) = edge(state, &drag, &span, left);
-            state.ripple_trim(drag.clip, track, span.start, span.end, left, to - from)
+        | Gesture::Edge { .. } => {
+            let travel = held(state, gesture, &drag).map_or(0, |held| held.travel);
+            state.run_steps(&steps(state, gesture, drag.clip, travel))
         }
         Gesture::Transition { right, duration } => {
             let alignment = state

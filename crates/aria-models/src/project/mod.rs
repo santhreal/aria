@@ -109,8 +109,10 @@ mod placement;
 #[path = "sequence.rs"]
 mod sequence;
 mod transitions;
+mod trim_reach;
 
 pub use link::{EnableAssignment, GroupAssignment, LinkAssignment};
+pub use trim_reach::TrimReach;
 
 #[cfg(test)]
 mod tests;

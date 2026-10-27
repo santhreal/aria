@@ -12,7 +12,8 @@
 //! same. A Shift drag, which inserts, draws the insertion line at the tick its
 //! release opens the lane at. A card drawn moved is the clip as the projection
 //! draws it at its landing, field for field, so the marks and beats drawn on a
-//! card travel with it.
+//! card travel with it. An edge drag of each tool, on each edge, inward and far
+//! outward, draws the take and its linked sound as its release leaves them.
 //!
 //! Not covered: a landing the release refuses, such as one on a lane of
 //! another kind, the transition at the moved clip's right edge, and the
@@ -29,7 +30,7 @@ use crate::app::AppState;
 use crate::app::fixtures::asset;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::theme::Theme;
-use crate::types::{EditMode, UiTrackKind};
+use crate::types::{EditMode, EditorTool, UiTrackKind};
 
 /// Every quad the last frame painted with its center inside `within`, as
 /// `(bounds, fill)` in window pixels.
@@ -446,6 +447,83 @@ fn a_shift_drag_draws_where_it_inserts(cx: &mut gpui::TestAppContext) {
         "the insertion line at {:?}, the take inserted at tick {landed} ({expected:?})",
         lines[0].left()
     );
+}
+
+#[gpui::test]
+fn a_held_edge_draws_its_clips_where_the_release_leaves_them(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = shell(cx, "edge-preview-land");
+    let (take, ..) = picture_clip(&state, visual);
+    change(visual, &state, |state| {
+        let id = ClipId::from_raw(take);
+        let lane = state.ui_clip_ref(id).expect("the take").track_id;
+        state
+            .move_clip(id, aria_models::TrackId::from_raw(lane), 12)
+            .expect("start the take after its sound");
+    });
+    let sound = link_sound(&state, visual, take);
+    let (_, start, end) = picture_clip(&state, visual);
+    let canvas = bounds(visual, "timeline-video-canvas");
+    let audio = bounds(visual, "timeline-audio-canvas");
+    let v1 = bounds(visual, "track-header-V1");
+    let tick_px = tick_px(&state, visual);
+    let rest = (
+        card(&state, visual, take, canvas),
+        card(&state, visual, sound, audio),
+    );
+    // One tool per edge drag: two tools that drag an edge the same way draw
+    // the same drag.
+    let mut tools: Vec<EditorTool> = Vec::new();
+    for tool in EditorTool::all() {
+        if tools
+            .iter()
+            .all(|seen| seen.edge_drag() != tool.edge_drag())
+        {
+            tools.push(tool);
+        }
+    }
+    let y = v1.top() + px(10.0);
+    let head = canvas.left() + px(start as f32 * tick_px + 2.0);
+    let tail = canvas.left() + px(end as f32 * tick_px - 2.0);
+    for tool in tools {
+        change(visual, &state, |state| state.tool = tool);
+        // Each edge inward by five ticks and outward past every limit.
+        for (edge, grab, travel) in [
+            ("head", head, 5.0 * tick_px),
+            ("head", head, -400.0),
+            ("tail", tail, -5.0 * tick_px),
+            ("tail", tail, 400.0),
+        ] {
+            let name = format!("{tool:?} on the {edge} by {travel}px");
+            let steps = history(&state, visual);
+            let to = point(grab + px(travel), y);
+            press(visual, point(grab, y));
+            carry(visual, to);
+            let held = (
+                card(&state, visual, take, canvas),
+                card(&state, visual, sound, audio),
+            );
+            release(visual, to);
+            assert_eq!(
+                held,
+                (
+                    card(&state, visual, take, canvas),
+                    card(&state, visual, sound, audio)
+                ),
+                "{name}: the cards the held drag drew against the cards the release left"
+            );
+            if history(&state, visual) > steps {
+                undo(visual, &state);
+            }
+            assert_eq!(
+                (
+                    card(&state, visual, take, canvas),
+                    card(&state, visual, sound, audio)
+                ),
+                rest,
+                "{name}: the cards after undo"
+            );
+        }
+    }
 }
 
 /// The canvas across the height of V2's header.

@@ -43,6 +43,9 @@ pub use clip_bar::*;
 #[path = "types_editor.rs"]
 mod editor;
 pub use editor::*;
+#[path = "types_held.rs"]
+mod held;
+pub use held::*;
 #[path = "types_pool.rs"]
 mod pool;
 pub use pool::*;

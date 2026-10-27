@@ -99,6 +99,10 @@ pub mod curve_stroke;
 pub mod decline;
 #[path = "app/dialog_primary.rs"]
 pub mod dialog_primary;
+#[path = "app/drag_room.rs"]
+pub(crate) mod drag_room;
+#[path = "app/drag_steps.rs"]
+pub(crate) mod drag_steps;
 #[path = "app/drivers.rs"]
 pub mod drivers;
 #[path = "app/drops.rs"]

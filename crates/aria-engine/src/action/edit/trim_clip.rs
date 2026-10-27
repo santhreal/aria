@@ -31,10 +31,8 @@ pub fn execute(
             let other = ctx.project.require_clip(id)?;
             let new_start = other.timeline.start.value + start_delta;
             let new_end = other.timeline.end_tick() + end_delta;
-            if new_start < 0 || new_end <= new_start {
-                rollback(ctx, inverses);
-                return Err(EngineError::from(ModelError::InvalidRange));
-            }
+            // The model refuses a companion taken before the sequence start
+            // or down to nothing.
             TimeRange::at_rate(new_start, new_end - new_start, timeline.start.rate)
         };
         match trim_one(ctx, id, target) {
