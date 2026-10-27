@@ -210,9 +210,6 @@ fn a_value_drawn_every_frame_is_kept() {
 /// wrong catalog entry compiles, and the feel of the timeline is the difference.
 #[test]
 fn every_glide_spec_is_a_catalog_spec() {
-    assert_eq!(PLAYHEAD.duration_ms, presets::MENU_OUT.duration_ms);
-    assert_eq!(PLAYHEAD.delay_ms, 0);
-    assert_eq!(PLAYHEAD.easing, Easing::EaseOut);
     assert_eq!(LANE, presets::COLLAPSE);
     assert_eq!(EDIT, presets::RESIZE);
     assert_eq!(ZOOM, presets::RESIZE);

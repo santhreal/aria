@@ -156,7 +156,7 @@ fn ruler_body(
                             return;
                         }
                         this.state
-                            .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
+                            .update(cx, |state, _| state.scrub_playhead_on_ruler(ticks));
                         crate::app::spawn_preview(this.state.clone(), cx);
                         this.redraw(crate::shell::Moved::Playhead, cx);
                     };

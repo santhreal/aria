@@ -52,7 +52,7 @@ fn scrub(
         shell.update(app, |shell, cx| {
             shell.state.update(cx, |state, _| {
                 before(state);
-                state.set_playhead(tick);
+                state.scrub_playhead_on_ruler(tick);
             });
             shell.redraw(Moved::Playhead, cx);
         })

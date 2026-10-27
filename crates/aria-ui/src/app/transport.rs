@@ -43,7 +43,18 @@ pub(crate) enum Mail {
 }
 
 impl AppState {
+    /// Move the playhead to `ticks` and bring it into the timeline's view: a
+    /// key, a menu row, a typed timecode, a jump, a scrub outside the
+    /// timeline. A playhead already on screen leaves the view where it is.
     pub fn set_playhead(&mut self, ticks: i64) {
+        self.place_playhead(ticks);
+        self.reveal_playhead();
+    }
+
+    /// Move the playhead to `ticks` and leave the view alone: playback, whose
+    /// follow setting moves the view, and the ruler, which maps its pointer
+    /// through the view it was pressed in.
+    pub(super) fn place_playhead(&mut self, ticks: i64) {
         let rate = self.playhead.rate;
         let duration = self.store.sequence.duration_ticks.max(0);
         let before = self.playhead.value;
@@ -58,7 +69,6 @@ impl AppState {
             self.still_stale = true;
         }
         self.store_mut().playhead_ticks = tick;
-        self.pointer_playhead = None;
         self.refresh_clock_text();
         self.interaction.touch();
         self.on_playback_tick_automation(tick);
@@ -75,23 +85,19 @@ impl AppState {
         }
     }
 
+    /// [`Self::set_playhead`] with an audio grain: a scrub on the Viewer's
+    /// strip or a property row's strip, or a frame step with K held.
     pub fn scrub_playhead(&mut self, ticks: i64) {
         self.set_playhead(ticks);
         self.queue_audio_scrub();
     }
 
-    /// Scrub to where a pointer is: the ruler, the Viewer's scrub strip, a
-    /// property row's strip. The timeline draws a playhead the pointer placed
-    /// at its target with no glide, so it stays under the hand; a keyed step
-    /// still eases.
-    pub fn scrub_playhead_to_pointer(&mut self, ticks: i64) {
-        self.scrub_playhead(ticks);
-        self.pointer_playhead = Some(self.playhead.value);
-    }
-
-    /// Whether the playhead stands where a pointer last put it.
-    pub(crate) fn playhead_under_pointer(&self) -> bool {
-        self.pointer_playhead == Some(self.playhead.value)
+    /// A scrub on the timeline ruler: [`Self::place_playhead`] with an audio
+    /// grain. The ruler maps its pointer through the view it was pressed in,
+    /// so the view holds still under it.
+    pub fn scrub_playhead_on_ruler(&mut self, ticks: i64) {
+        self.place_playhead(ticks);
+        self.queue_audio_scrub();
     }
 
     pub fn queue_audio_scrub(&mut self) {
@@ -683,7 +689,7 @@ impl AppState {
                 } else {
                     bound_start
                 };
-                self.set_playhead(wrap);
+                self.place_playhead(wrap);
                 self.follow_playhead();
                 self.playback_anchor_tick = wrap;
                 self.playback_started = Some(Instant::now());
@@ -698,7 +704,7 @@ impl AppState {
             } else {
                 bound_end
             };
-            self.set_playhead(end);
+            self.place_playhead(end);
             self.follow_playhead();
             self.playing = false;
             self.work_area_playback = false;
@@ -713,7 +719,7 @@ impl AppState {
             self.shuttle = ShuttleSpeed::ONE;
             return false;
         }
-        self.set_playhead(tick);
+        self.place_playhead(tick);
         self.follow_playhead();
         true
     }

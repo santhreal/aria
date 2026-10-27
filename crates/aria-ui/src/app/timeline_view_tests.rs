@@ -162,7 +162,7 @@ fn a_smooth_follow_holds_the_playhead_centred_without_a_glide() {
     let fps = state.store.sequence.frame_rate.nominal_fps();
     let width = state.timeline_viewport_px();
     for second in [30, 31, 200] {
-        state.set_playhead(fps * second);
+        state.place_playhead(fps * second);
         assert!(state.follow_playhead(), "{second}s is off center");
         let offset = playhead_px(&state) - state.scroll_x;
         assert!(
@@ -182,7 +182,7 @@ fn a_hand_scroll_holds_the_follow_until_the_playhead_leaves_the_view() {
         let mut state = ten_minutes(follow);
         let fps = state.store.sequence.frame_rate.nominal_fps();
         let width = state.timeline_viewport_px();
-        state.set_playhead(fps * 300);
+        state.place_playhead(fps * 300);
         assert!(
             state.follow_playhead(),
             "{follow:?}: five minutes off screen"
@@ -192,7 +192,7 @@ fn a_hand_scroll_holds_the_follow_until_the_playhead_leaves_the_view() {
         // where either follow would otherwise move it.
         let held = playhead_px(&state) - width * 0.97;
         state.scroll_timeline_to(held, false);
-        state.set_playhead(state.playhead.value + 1);
+        state.place_playhead(state.playhead.value + 1);
         assert!(
             !state.follow_playhead(),
             "{follow:?}: the hand scroll was undone"
@@ -200,7 +200,7 @@ fn a_hand_scroll_holds_the_follow_until_the_playhead_leaves_the_view() {
         assert_eq!(state.scroll_x, held);
 
         // Once the playhead runs out of the view, following resumes.
-        state.set_playhead(state.playhead.value + fps * 5);
+        state.place_playhead(state.playhead.value + fps * 5);
         assert!(
             state.follow_playhead(),
             "{follow:?}: the follow never resumed"

@@ -190,7 +190,7 @@ impl AppState {
                 let from = self.playhead.value;
                 let at = strip.tick_at(fraction);
                 if at != from {
-                    self.scrub_playhead_to_pointer(at);
+                    self.scrub_playhead(at);
                 }
                 StripHold::Scrub { from, at }
             }
@@ -228,7 +228,7 @@ impl AppState {
                 if tick == at {
                     return false;
                 }
-                self.scrub_playhead_to_pointer(tick);
+                self.scrub_playhead(tick);
                 self.with_prop_rows_mut(|rows| {
                     if let Some(press) = rows.strip_press.as_mut() {
                         press.hold = StripHold::Scrub { from, at: tick };

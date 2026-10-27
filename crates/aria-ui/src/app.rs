@@ -696,8 +696,8 @@ mod outline_column_tests;
 #[path = "app/panel_focus_tests.rs"]
 mod panel_focus_tests;
 #[cfg(test)]
-#[path = "app/pointer_playhead_tests.rs"]
-mod pointer_playhead_tests;
+#[path = "app/playhead_line_tests.rs"]
+mod playhead_line_tests;
 #[cfg(test)]
 #[path = "app/release_outside_tests.rs"]
 mod release_outside_tests;

@@ -321,7 +321,7 @@ pub(super) fn make(
                 Change::Playhead => {
                     shell.state.update(cx, |state, _| {
                         let to = 3 + (step as i64 * 5) % 40;
-                        state.set_playhead(to);
+                        state.scrub_playhead_on_ruler(to);
                     });
                     shell.redraw(Moved::Playhead, cx);
                 }

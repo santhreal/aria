@@ -735,8 +735,7 @@ impl Shell {
         // The timeline's playhead is painted over its body on every frame the
         // shell draws, so a move of the playhead alone replays the body.
         if active_panel == PANEL_TIMELINE {
-            let reduced = cx.reduce_motion();
-            let layer = crate::timeline_playhead::layer(self.state.read(cx), theme, reduced);
+            let layer = crate::timeline_playhead::layer(self.state.read(cx), theme);
             body_children.push(layer.into_any_element());
         }
         let menu_overlay = match self.frame_menu {

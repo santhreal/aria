@@ -1,5 +1,6 @@
 //! What a drawn frame holds that its text runs do not show: the bounds of
-//! every image and icon, and of every row that wraps its items.
+//! every image and icon, and of every row that wraps its items, and the
+//! opacity each picture was painted at.
 //!
 //! A test turns recording on, draws, and takes the record. Recording is off
 //! otherwise, and a build that is not a test records nothing and draws no
@@ -10,6 +11,11 @@
 //! the row's bounds. The runs after it in paint order are the row's own; a
 //! list's text scrolled under the row was painted before it. `is_marker`
 //! tells a marker from text.
+//!
+//! A [`picture`] adds a marker of its own: a box of the `PICTURE_MARK` color
+//! over its bounds at the picture's own opacity, which the window multiplies by
+//! every ancestor's. `painted_pictures` reads them back from the window's
+//! quads.
 
 use std::panic::Location;
 
@@ -57,6 +63,53 @@ fn mark(bounds: Bounds<Pixels>, window: &mut Window) {
             text: gpui::SharedString::default(),
         });
     }
+}
+
+/// The color of a picture's marker at full opacity. No chrome paints it.
+#[cfg(test)]
+const PICTURE_MARK: gpui::Hsla = gpui::Hsla {
+    h: 0.123,
+    s: 0.987,
+    l: 0.456,
+    a: 1.0,
+};
+
+/// Every picture the last frame painted while a test recorded: its bounds in
+/// window pixels and the opacity it was painted at. A picture painted fully
+/// transparent paints no marker, so it is absent.
+#[cfg(test)]
+pub(crate) fn painted_pictures(window: &Window) -> Vec<(Bounds<Pixels>, f32)> {
+    let scale = window.scale_factor();
+    window
+        .painted_quads()
+        .iter()
+        .filter_map(|quad| {
+            let color = quad.background.as_solid()?;
+            let marked = [
+                (color.h, PICTURE_MARK.h),
+                (color.s, PICTURE_MARK.s),
+                (color.l, PICTURE_MARK.l),
+            ]
+            .iter()
+            .all(|(painted, mark)| (painted - mark).abs() < 1e-4);
+            let b = quad.bounds;
+            marked.then(|| {
+                (
+                    Bounds::new(
+                        gpui::point(
+                            gpui::px(b.origin.x.0 / scale),
+                            gpui::px(b.origin.y.0 / scale),
+                        ),
+                        gpui::size(
+                            gpui::px(b.size.width.0 / scale),
+                            gpui::px(b.size.height.0 / scale),
+                        ),
+                    ),
+                    color.a,
+                )
+            })
+        })
+        .collect()
 }
 
 /// Whether `run` is a wrap row's marker rather than text.
@@ -118,7 +171,7 @@ impl<E: Styled> Styled for Picture<E> {
     }
 }
 
-impl<E: Element> IntoElement for Picture<E> {
+impl<E: Element + Styled> IntoElement for Picture<E> {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
@@ -126,7 +179,7 @@ impl<E: Element> IntoElement for Picture<E> {
     }
 }
 
-impl<E: Element> Element for Picture<E> {
+impl<E: Element + Styled> Element for Picture<E> {
     type RequestLayoutState = E::RequestLayoutState;
     type PrepaintState = E::PrepaintState;
 
@@ -181,5 +234,10 @@ impl<E: Element> Element for Picture<E> {
             window,
             cx,
         );
+        #[cfg(test)]
+        if RECORD.with_borrow(Option::is_some) {
+            let opacity = self.0.style().opacity.unwrap_or(1.0);
+            window.paint_quad(gpui::fill(bounds, PICTURE_MARK.opacity(opacity)));
+        }
     }
 }

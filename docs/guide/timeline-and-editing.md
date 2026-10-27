@@ -151,9 +151,17 @@ The ruler to the right labels its ticks in the sequence's time display. The
 spacing follows the zoom: labels sit as close as their width allows and never
 overlap, on whole frames that divide a second, whole seconds, minutes, or hours
 for timecode, and on round counts for frames or feet. Click or drag in the ruler
-to move the playhead; it stays under the pointer with no easing, follows the
-pointer when it leaves the ruler, and stops at the end of the sequence when the
-pointer passes it.
+to move the playhead; it stays under the pointer, follows the pointer when it
+leaves the ruler, and stops at the end of the sequence when the pointer passes
+it. A drag in the ruler leaves the view where it is.
+
+Any other move of the playhead, from a key, a Viewer button, a marker, a typed
+timecode, or a scrub strip, draws the line at the new position at once, and the
+Viewer replaces its frame with the new one, with no fade, when the new one is
+decoded.
+A playhead that lands outside the view moves the view a page to show it, with
+the playhead near the left edge. A playhead inside the view leaves the view
+where it is.
 
 Under the ticks, the work area bar spans `In` to `Out`. It draws in the accent
 color when either point is set and faint when the work area is the whole

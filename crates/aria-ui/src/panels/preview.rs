@@ -6,7 +6,6 @@ mod mini_ruler;
 mod motion_path;
 mod plugin_overlays;
 pub(crate) mod scopes;
-mod seek;
 mod text_caret;
 use crate::app::pool_preview::{self, SourceView};
 use crate::app::{AppState, spawn_preview, start_playback};
@@ -308,6 +307,9 @@ mod tabs;
 #[cfg(test)]
 #[path = "viewer_row_height_tests.rs"]
 mod viewer_row_height_tests;
+#[cfg(test)]
+#[path = "viewer_seek_tests.rs"]
+mod viewer_seek_tests;
 #[cfg(test)]
 #[path = "viewer_words_tests.rs"]
 mod viewer_words_tests;

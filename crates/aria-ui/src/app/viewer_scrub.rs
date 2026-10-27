@@ -217,7 +217,7 @@ impl AppState {
         if tick == self.playhead.value {
             return false;
         }
-        self.scrub_playhead_to_pointer(tick);
+        self.scrub_playhead(tick);
         true
     }
 }

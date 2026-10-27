@@ -207,7 +207,6 @@ impl AppState {
             clock_draft: None,
             clock_site: Default::default(),
             clock_display: gpui::SharedString::new_static("00:00:00:00"),
-            pointer_playhead: None,
             prop_rows: Default::default(),
             marquee: None,
             preview_view: Default::default(),

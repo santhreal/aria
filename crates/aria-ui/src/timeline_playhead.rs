@@ -27,7 +27,6 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::clock::ClockSite;
-use crate::motion::{MotionKey, glide};
 use crate::theme::Theme;
 use crate::transport::ticks_to_px_f;
 
@@ -111,17 +110,6 @@ pub(crate) fn layers_timecode() -> bool {
         return false;
     }
     true
-}
-
-/// Where the playhead is drawn this frame, in ticks. A playhead a pointer
-/// placed is drawn where the pointer is; a keyed step or a jump eases.
-pub(crate) fn drawn_at(app: &AppState, reduced: bool) -> f32 {
-    glide::glide(
-        MotionKey::new("playhead", ""),
-        app.store.playhead_ticks as f32,
-        glide::PLAYHEAD,
-        reduced || app.playhead_under_pointer(),
-    )
 }
 
 /// The scale and scroll the timeline body was built at.
@@ -292,12 +280,12 @@ fn same_figures(a: &str, b: &str) -> bool {
             .all(|(a, b)| a == b || (a.is_ascii_digit() && b.is_ascii_digit()))
 }
 
-/// The shell's layer over the timeline frame's body: the head and the lines
-/// at the playhead drawn this frame while [`layered`] held at the body's last
-/// build, and the timecode at rest.
-pub(crate) fn layer(app: &AppState, theme: &Theme, reduced: bool) -> impl IntoElement + use<> {
+/// The shell's layer over the timeline frame's body: the head and the lines at
+/// the playhead's tick while [`layered`] held at the body's last build, and the
+/// timecode at rest.
+pub(crate) fn layer(app: &AppState, theme: &Theme) -> impl IntoElement + use<> {
     let drawn = app.timeline_playhead.0.clone();
-    let at = drawn_at(app, reduced);
+    let at = app.store.playhead_ticks as f32;
     let clock = match app.clock_field(ClockSite::Timeline) {
         (false, clock) => Some(clock),
         (true, _) => None,

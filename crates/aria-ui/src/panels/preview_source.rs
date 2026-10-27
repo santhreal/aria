@@ -47,7 +47,6 @@ pub(super) fn frame_view(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let zoomed = state.read(cx).preview_zoomed_frame();
-    let ticks = state.read(cx).store.playhead_ticks;
     let texture = state.read(cx).preview_worker.shown_texture();
     let image = state.read(cx).last_render.clone();
     let gpu_probe = gpui::canvas(
@@ -78,14 +77,11 @@ pub(super) fn frame_view(
             .overflow_hidden()
             .relative()
             .child(gpu_probe)
-            .child(motion::fade_quick(
-                seek::frame_id("preview-frame-fade", ticks),
-                place(
-                    gpui::surface(texture).object_fit(ObjectFit::Contain),
-                    zoomed,
-                    [1.0, 1.0],
-                ),
-            ))
+            .child(crate::components::picture(place(
+                gpui::surface(texture).object_fit(ObjectFit::Contain),
+                zoomed,
+                [1.0, 1.0],
+            )))
             .into_any_element()
     } else if let Some(image) = image {
         div()
@@ -94,19 +90,13 @@ pub(super) fn frame_view(
             .overflow_hidden()
             .relative()
             .child(gpu_probe)
-            .child(motion::fade_quick(
-                // A discrete seek cross-fades; a drag-scrub and playback
-                // do not, because a fade restarted every frame never
-                // finishes and would leave the picture permanently dim.
-                seek::frame_id("preview-frame-fade", ticks),
-                crate::components::picture(place(
-                    img(image)
-                        .id("preview-frame")
-                        .object_fit(ObjectFit::Contain),
-                    zoomed,
-                    [1.0, 1.0],
-                )),
-            ))
+            .child(crate::components::picture(place(
+                img(image)
+                    .id("preview-frame")
+                    .object_fit(ObjectFit::Contain),
+                zoomed,
+                [1.0, 1.0],
+            )))
             .into_any_element()
     } else {
         let empty = if state.read(cx).last_frame.is_some() {
@@ -183,14 +173,11 @@ pub(super) fn source_stage(
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(motion::fade_quick(
-                        seek::frame_id("source-frame-fade", view.tick),
-                        crate::components::picture(
-                            img(image)
-                                .id("source-frame")
-                                .object_fit(ObjectFit::Contain)
-                                .size_full(),
-                        ),
+                    .child(crate::components::picture(
+                        img(image)
+                            .id("source-frame")
+                            .object_fit(ObjectFit::Contain)
+                            .size_full(),
                     ))
                     .on_drag(
                         crate::types::MediaDrag {

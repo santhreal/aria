@@ -11,10 +11,12 @@
 //! width zero for both the layout and the fit.
 //!
 //! The same viewport width answers a second question: whether the playhead is
-//! still on screen. Following it during playback is a scroll, not a zoom, so it
-//! lives here beside the one writer of the scroll offset.
+//! still on screen. Following it during playback, and bringing it back into
+//! view after a seek, are scrolls, not zooms, so they live here beside the one
+//! writer of the scroll offset.
 
 use super::AppState;
+use crate::timeline_display::Follow;
 use crate::transport;
 
 /// Fraction of the viewport a fitted selection leaves as margin, so a fitted
@@ -154,18 +156,12 @@ impl AppState {
     /// the Timeline Display Settings follow: a page jump near an edge, or a
     /// scroll that holds the playhead centred. A view moved by any other writer
     /// since the last follow holds still until the playhead leaves it.
-    ///
-    /// Position is computed the way the lanes draw it — ticks over the ticks
-    /// in a second, times pixels per second — so the decision is about the
-    /// pixels on screen rather than a second opinion about where the playhead is.
     pub(crate) fn follow_playhead(&mut self) -> bool {
         let width = self.timeline_viewport_px();
         if width <= 0.0 {
             return false;
         }
-        let fps = self.store.sequence.ticks_per_second();
-        let pps = transport::TIMELINE_BASE_PPS * transport::clamp_zoom(self.zoom);
-        let at = (self.playhead.value.max(0) as f32 / fps) * pps;
+        let at = self.playhead_px();
         let moved_by_hand = self
             .follow_scroll
             .is_some_and(|followed| (followed - self.scroll_x).abs() >= 0.5);
@@ -180,6 +176,32 @@ impl AppState {
         self.scroll_timeline_to(target, follow.glides());
         self.follow_scroll = Some(self.scroll_x);
         true
+    }
+
+    /// Bring the playhead into view after a seek: a playhead that landed off
+    /// screen pages the view to rest it where a page follow rests it, whatever
+    /// the follow setting, which is about playback. A playhead on screen leaves
+    /// the view where it is.
+    pub(super) fn reveal_playhead(&mut self) {
+        let width = self.timeline_viewport_px();
+        let at = self.playhead_px();
+        if width <= 0.0 || (self.scroll_x..=self.scroll_x + width).contains(&at) {
+            return;
+        }
+        if let Some(target) = Follow::Page.target(at, self.scroll_x, width) {
+            self.scroll_timeline_to(target, true);
+            self.follow_scroll = Some(self.scroll_x);
+        }
+    }
+
+    /// The playhead's offset from the start of the timeline, in pixels at the
+    /// committed zoom, computed the way the lanes draw it: ticks over the ticks
+    /// in a second, times pixels per second. A follow and a reveal decide by
+    /// the pixels on screen rather than a second opinion about the playhead.
+    fn playhead_px(&self) -> f32 {
+        let fps = self.store.sequence.ticks_per_second();
+        let pps = transport::TIMELINE_BASE_PPS * transport::clamp_zoom(self.zoom);
+        (self.playhead.value.max(0) as f32 / fps) * pps
     }
 
     /// Fit `[start, start + duration)` and scroll so `start` is at the left

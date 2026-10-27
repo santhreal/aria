@@ -145,7 +145,7 @@ pub fn render(
         .read(cx)
         .timeline_playhead
         .begin(layered, timeline_playhead::View { pps, fps, scroll_x });
-    let playhead_at = (!layered).then(|| timeline_playhead::drawn_at(state.read(cx), reduced));
+    let playhead_at = (!layered).then(|| state.read(cx).store.playhead_ticks as f32);
     let graph_h = if graph_open {
         crate::app::property_rows::GRAPH_EDITOR_H
     } else {

@@ -193,9 +193,6 @@ pub struct AppState {
     pub(crate) clock_site: crate::app::clock::ClockSite,
     /// Cached playhead timecode for the unfocused playhead field.
     pub(crate) clock_display: gpui::SharedString,
-    /// The tick a pointer last put the playhead on: the ruler, the Viewer's
-    /// scrub strip, a property row's strip. `None` once anything else moves it.
-    pub(crate) pointer_playhead: Option<i64>,
     /// Timeline property rows: reveal modes, keyframe selection and clipboard,
     /// the graph editor, and in-flight keyframe drags.
     pub(crate) prop_rows: super::property_rows::PropertyRowsState,

@@ -61,9 +61,9 @@ that hull, so the overshoot is bounded by construction. `ease_out_back` peaks
 | Spec | Source | Duration | Delay | Curve | Spent by |
 | --- | --- | --- | --- | --- | --- |
 | `FADE_IN` | `presets` | 500 ms | 0 | `ease_out_expo` | `motion::fade_in`: home cards, panel bodies |
-| `FADE_QUICK` | `presets` | 150 ms | 0 | `ease` | `motion::fade_quick`: seek badge, drop hints |
+| `FADE_QUICK` | `presets` | 150 ms | 0 | `ease` | `motion::fade_quick`: drop hints, the drag ghost, inspector tab bodies, waits, frame menus, status text |
 | `MENU_IN` | `presets` | 140 ms | 0 | `ease` | `motion::menu_in`: menus and popovers |
-| `MENU_OUT` | `presets` | 100 ms | 0 | `ease` | `plugins::overlay_host::exit_window`: every overlay leaving, and `motion::glide::PLAYHEAD` |
+| `MENU_OUT` | `presets` | 100 ms | 0 | `ease` | `plugins::overlay_host::exit_window`: every overlay leaving |
 | `DIALOG_IN` | `presets` | 180 ms | 0 | `ease` | `motion::dialog_in`: dialog surfaces; and `motion::glide::ROUTE`, the route the shell is drawing |
 | `SPLASH_OUT` | `presets` | 500 ms | 150 ms | `ease` | `motion::splash_out`: the boot mark |
 | `LOADER_WAIT` | `motion` | 320 ms | 0 | `ease_out_expo` | `motion::glide::WAIT`: the span a wait must outlast before a loader appears |
@@ -98,12 +98,12 @@ The hover store holds hover blends. `motion::hover_listener` sets a key's toggle
 notifies the cached panel body (or shell chrome beacon) that drew the key, and
 `motion::hover_blend` reads how far its fade has come.
 
-`motion::glide` holds traveling `f32` geometry (the playhead, lane heights,
-clip positions, pane widths, the timeline scroll offset, the horizontal scale, a
-clip card's selection and lock, and how far the route being drawn has arrived)
-as a target each value chases. The shell's playhead layer reads the playhead's
-glide, so while a keyed step or a jump eases the playhead, the shell chrome
-redraws on each frame and the timeline body replays.
+`motion::glide` holds traveling `f32` geometry (lane heights, clip positions,
+pane widths, the timeline scroll offset, the horizontal scale, a clip card's
+selection and lock, and how far the route being drawn has arrived) as a target
+each value chases. The timeline playhead and the Viewer's frame do not travel:
+a seek draws the line at its tick and the frame at full opacity on the frame
+the seek lands.
 
 Both stores sample one motion frame per draw. The shell, which is the window
 root, calls `motion::begin_frame` first in its render: the frame is the app's
@@ -127,8 +127,8 @@ behind.
 
 While playback runs, the shell calls `motion::hold_for_playback` after
 `motion::begin_frame`, and both stores draw every value at its target: hover
-fades, glides, and the timeline playhead show their end state, so a frame of
-playback is spent on the picture and the playhead stands on the frame shown.
+fades and glides show their end state, so a frame of playback is spent on the
+picture.
 One-shot entrances still play. The hold lifts on the first frame after playback
 stops.
 

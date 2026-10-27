@@ -1,8 +1,8 @@
 //! Eased geometry for the values the chrome would otherwise step through.
 //!
 //! [`gpui::Animation`] runs one fixed transition from the frame an element first
-//! appears, which is the wrong shape for a number that keeps moving: the
-//! playhead, a lane's height, a clip's position after a ripple.
+//! appears, which is the wrong shape for a number that keeps moving: a lane's
+//! height, a clip's position after a ripple, the timeline's scale and offset.
 //! Those chase a target instead, in the shared glide store, a
 //! [`gpui::motion::TweenStore`] sampled at the open motion frame. Every
 //! transition here runs on a catalog [`MotionSpec`].
@@ -10,15 +10,9 @@
 //! [`super::end_frame`] advances the store once per draw: it drops the keys no
 //! element read and requests the next frame while a value is still moving.
 
-use gpui::motion::{Easing, MotionSpec, presets};
+use gpui::motion::{MotionSpec, presets};
 
 use super::{MotionKey, with_frame};
-
-/// The playhead follows within one exit beat, [`presets::MENU_OUT`], on the
-/// decelerating curve: short enough that a scrub stays under the pointer, long
-/// enough that a frame step reads as movement rather than a jump.
-pub(crate) const PLAYHEAD: MotionSpec =
-    MotionSpec::new(presets::MENU_OUT.duration_ms, Easing::EaseOut);
 
 /// Lane height: a collapse, an expand, or a resize that was released.
 pub(crate) const LANE: MotionSpec = presets::COLLAPSE;

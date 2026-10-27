@@ -1,11 +1,14 @@
 //! What a view change does to the timeline's zoom and horizontal offset.
 //!
-//! Three contracts live here. The follow moves the view only when the playhead is
-//! about to leave it, so a view scrolled to on purpose survives
-//! playback that stays inside it. The offset carries how it should be drawn: the
-//! timeline eases a view the editor chose and never eases one that is moving
-//! under a hand, so every writer records which it is. And the zoom the panel
-//! draws is the zoom the state holds, written in one place and clamped there.
+//! Four contracts live here. The follow moves the view only when the playhead
+//! is about to leave it, so a view scrolled to on purpose survives playback
+//! that stays inside it. A seek that lands off screen pages the view to the
+//! playhead under every follow setting, and one that lands on screen, or a
+//! drag in the ruler, leaves the view where it is. The offset carries how it
+//! should be drawn: the timeline eases a view the editor chose and never eases
+//! one that is moving under a hand, so every writer records which it is. And
+//! the zoom the panel draws is the zoom the state holds, written in one place
+//! and clamped there.
 
 use std::sync::Arc;
 
@@ -13,6 +16,7 @@ use crate::transport;
 
 use super::AppState;
 use super::premiere_tests::with_clip;
+use crate::timeline_display::Follow;
 
 /// The width the state fits and follows against, derived from the same chrome
 /// the shell lays out with. A test that guessed a width would keep passing while
@@ -58,7 +62,7 @@ fn ten_minutes() -> AppState {
 fn the_view_follows_a_playhead_that_has_run_past_it() {
     let mut state = ten_minutes();
     let fps = state.store.sequence.frame_rate.nominal_fps();
-    state.set_playhead(fps * 300);
+    state.place_playhead(fps * 300);
 
     assert!(
         state.follow_playhead(),
@@ -85,7 +89,7 @@ fn the_view_follows_a_playhead_that_has_run_past_it() {
 fn the_view_stays_where_it_is_while_it_still_shows_the_playhead() {
     let mut state = ten_minutes();
     let fps = state.store.sequence.frame_rate.nominal_fps();
-    state.set_playhead(fps * 2);
+    state.place_playhead(fps * 2);
 
     assert!(!state.follow_playhead(), "two seconds in is on screen");
     assert_eq!(state.scroll_x, 0.0);
@@ -96,7 +100,7 @@ fn the_view_stays_where_it_is_while_it_still_shows_the_playhead() {
 fn following_backwards_stops_at_the_start_of_the_sequence() {
     let mut state = ten_minutes();
     state.scroll_timeline_to(5_000.0, false);
-    state.set_playhead(0);
+    state.place_playhead(0);
 
     assert!(
         state.follow_playhead(),
@@ -104,6 +108,105 @@ fn following_backwards_stops_at_the_start_of_the_sequence() {
     );
     assert_eq!(state.scroll_x, 0.0, "there is nothing before tick zero");
     assert_eq!(state.store.scroll_x, 0.0);
+}
+
+/// Every follow setting. A setting added later fails to compile here until
+/// what a seek does under it is decided.
+fn every_follow() -> [Follow; 2] {
+    let all = [Follow::Page, Follow::Smooth];
+    for follow in all {
+        match follow {
+            Follow::Page | Follow::Smooth => {}
+        }
+    }
+    all
+}
+
+/// The tick `px` pixels into the timeline at the state's zoom, rounded down.
+fn tick_at(state: &AppState, px: f32) -> i64 {
+    let pps = transport::TIMELINE_BASE_PPS * state.zoom;
+    (px / pps * state.store.sequence.ticks_per_second()) as i64
+}
+
+/// The writers a seek moves the playhead through: a key, a menu row, a jump or
+/// a Viewer button, and a scrub on the Viewer's strip or a property row's
+/// strip.
+const SEEKS: [(&str, fn(&mut AppState, i64)); 2] = [
+    ("a seek", AppState::set_playhead),
+    ("a strip scrub", AppState::scrub_playhead),
+];
+
+#[test]
+fn a_seek_off_screen_pages_the_view_to_it_under_every_follow() {
+    for follow in every_follow() {
+        for (entry, seek) in SEEKS {
+            let mut state = ten_minutes();
+            state.ui_settings.timeline_display.follow = follow;
+            let width = viewport(&state);
+            let fps = state.store.sequence.frame_rate.nominal_fps();
+            // The first frame past the right edge, five minutes in, then back
+            // before the left edge.
+            let ticks = [
+                ("a frame past the view", tick_at(&state, width + 1.0) + 1),
+                ("five minutes in", fps * 300),
+                ("two seconds in", fps * 2),
+            ];
+            for (what, tick) in ticks {
+                let before = state.scroll_x;
+                seek(&mut state, tick);
+                let at = playhead_px(&state);
+                assert!(
+                    state.scroll_x != before
+                        && at >= state.scroll_x
+                        && at - state.scroll_x < width * 0.5,
+                    "{follow:?}: {entry} {what} left the playhead at {at} px of a view at \
+                     {}..{}",
+                    state.scroll_x,
+                    state.scroll_x + width
+                );
+                assert!(
+                    state.scroll_eased,
+                    "{follow:?}: {entry} {what} paged without a glide"
+                );
+                assert_eq!(state.store.scroll_x, state.scroll_x);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_seek_on_screen_and_a_ruler_drag_leave_the_view_where_it_is() {
+    for follow in every_follow() {
+        let mut state = ten_minutes();
+        state.ui_settings.timeline_display.follow = follow;
+        let width = viewport(&state);
+        let fps = state.store.sequence.frame_rate.nominal_fps();
+        // The last frame in the view stands inside the margin a page follow
+        // keeps clear of, and far from the center a smooth follow holds: on
+        // screen all the same.
+        let ticks = [
+            ("two seconds in", fps * 2),
+            (
+                "to the last frame in the view",
+                tick_at(&state, width - 1.0),
+            ),
+        ];
+        for (entry, seek) in SEEKS {
+            for (what, tick) in ticks {
+                seek(&mut state, tick);
+                assert_eq!(
+                    state.scroll_x, 0.0,
+                    "{follow:?}: {entry} {what} moved the view"
+                );
+            }
+        }
+        state.scrub_playhead_on_ruler(fps * 300);
+        assert_eq!(
+            state.scroll_x, 0.0,
+            "{follow:?}: a ruler drag past the view moved it"
+        );
+        assert!(!state.scroll_eased);
+    }
 }
 
 #[test]
