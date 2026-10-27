@@ -12,8 +12,8 @@ layer's look to the masked area. The Look tab holds:
   (linear, mirror, circle, rectangle, heart, star, path) each add a mask at the
   bottom of the stack and make it the active mask. The palette's **Add Linear Mask** (`pal-mask-add-linear`) through **Add Path Mask** (`pal-mask-add-path`)
   rows do the same.
-- One header per mask: its number, its shape, and **(inverted)** when it keeps
-  the outside. Click the header to make that mask the active one. The active
+- One header per mask: its number and its shape. Click the header to make
+  that mask the active one. The active
   mask is marked with a dot and shows its rows: feather, roundness on a
   rectangle, rotation, width and height (not on a path), the two offsets,
   opacity, and expansion. The Viewer handles, the Pen, and mask tracking act on
@@ -24,7 +24,8 @@ layer's look to the masked area. The Look tab holds:
   each mask then replaces the coverage with its mode's result, mixed by its
   opacity. Expansion grows the mask outward by that many pixels, or shrinks it
   when negative, and scales with the clip.
-- Invert, Move up, Move down, and Remove on each header. Each press is one undo
+- An **Invert** switch on each header, which keeps the outside, then Move up,
+  Move down, and Remove. Each press is one undo
   step. The palette's **Invert Mask** (`pal-mask-invert`) and **Remove Mask** (`pal-mask-clear`) rows and the **Effect > Remove Mask**
   row act on the active mask; removing a mask makes the
   one above it active.
@@ -71,10 +72,10 @@ layer's look to the masked area. The Look tab holds:
   is written and Aria reports it.
 - A chroma key. The **Key color** row shows the key color, or Off, and the
   Green, Blue, and Cyan chips under it key on that color at half strength, the
-  one in force marked `•`. Adjust Strength and Shadow after. Re-keying keeps
+  one in force lit. Adjust Strength and Shadow after. Re-keying keeps
   Strength and Shadow, keyframes included. **Remove key** clears it.
 - Four layer styles: shadow, glow, outline, background. Each style's line has
-  an On/Off switch; switching one on adds it at its default and shows its knobs
+  a switch; switching one on adds it at its default and shows its knobs
   and its color row. A color row keys like a number row: with its stopwatch on,
   a swatch sets a keyframe at the playhead. **Clear styles** removes all four.
 - A `.cube` LUT. The **File** row shows the loaded file, or None. **Load
@@ -83,7 +84,7 @@ layer's look to the masked area. The Look tab holds:
   in, keyframes included.
 - In, Out, and Loop animations. Each slot's row shows the applied preset, or
   None, and the chips under it list the presets for that slot, the applied one
-  marked `•`. Speed, Intensity, and Stagger appear only when the
+  lit. Speed, Intensity, and Stagger appear only when the
   preset exposes them. A loop animation replaces the In and Out pair and vice
   versa. Text-only presets appear on text clips.
 

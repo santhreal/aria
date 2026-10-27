@@ -1,13 +1,15 @@
 //! Inspector parameter rows for the selected clip's transition.
 
+use aria_engine::EngineError;
 use aria_models::{EffectParamKind, EffectParamSpec, TransitionSpec};
-use gpui::{AnyElement, IntoElement, SharedString};
+use gpui::{AnyElement, IntoElement};
 
 use super::vec2_axes;
+use crate::app::AppState;
 use crate::app::param_units::Units;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Keys, Readout, chip_row, control_line, pick_button, swatch_row, unkeyed_row,
+    Chip, Columns, Keys, Readout, chip_row, choice_chip, swatch_row, switch_line, unkeyed_row,
 };
 use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
 use crate::theme::Theme;
@@ -31,20 +33,15 @@ pub(crate) fn transition_param_rows(
     out
 }
 
-/// A chip that writes `edit` to transition slot `slot`.
-fn transition_chip(
-    theme: &Theme,
-    key: MotionKey,
-    text: impl Into<SharedString>,
+/// The press that writes `edit` to transition slot `slot`.
+fn transition_edit(
     slot: usize,
     edit: TransitionSlotEdit,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> AnyElement {
-    pick_button(key, text, theme, cx, move |state| {
+) -> impl Fn(&mut AppState) -> Result<(), EngineError> + 'static {
+    move |state| {
         let edit = edit.clone();
         clip_pick::apply(state, Pick::TransitionParam { slot, edit })
-    })
-    .into_any_element()
+    }
 }
 
 fn push_transition_slot_rows(
@@ -112,19 +109,15 @@ fn push_transition_slot_rows(
         EffectParamKind::Bool => {
             let value = transition.boolean(slot).unwrap_or(pspec.default_bool);
             out.push(
-                control_line(
+                switch_line(
                     theme,
                     MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
                     Columns::Keyed,
-                    transition_chip(
-                        theme,
-                        MotionKey::new("tr-bool", slot),
-                        if value { "On" } else { "Off" },
-                        slot,
-                        TransitionSlotEdit::ToggleBool,
-                        cx,
-                    ),
+                    MotionKey::new("tr-bool", slot),
+                    Some(value),
+                    cx,
+                    transition_edit(slot, TransitionSlotEdit::ToggleBool),
                 )
                 .into_any_element(),
             );
@@ -137,16 +130,14 @@ fn push_transition_slot_rows(
                 .choices
                 .iter()
                 .map(|opt| {
-                    Chip::choice(opt.label.clone(), opt.id == current, |text| {
-                        transition_chip(
-                            theme,
-                            MotionKey::new("tr-choice", slot).with(opt.id.as_str()),
-                            text,
-                            slot,
-                            TransitionSlotEdit::Choice(opt.id.clone()),
-                            cx,
-                        )
-                    })
+                    choice_chip(
+                        MotionKey::new("tr-choice", slot).with(opt.id.as_str()),
+                        opt.label.clone(),
+                        opt.id == current,
+                        theme,
+                        cx,
+                        transition_edit(slot, TransitionSlotEdit::Choice(opt.id.clone())),
+                    )
                 })
                 .collect();
             let shown = pspec

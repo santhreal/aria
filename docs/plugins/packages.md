@@ -774,8 +774,9 @@ Packages are stored at `<data dir>/plugins/<id>/`.
 
 In **Settings > Plugins**, each installed package row provides:
 
-- **Enable / Disable**: toggles the package ID in `<data dir>/plugins/disabled.json`
-  and mounts or unmounts the package immediately.
+- **The switch** at the right end of the row: toggles the package ID in
+  `<data dir>/plugins/disabled.json` and mounts or unmounts the package
+  immediately.
 - **Reload**: unmounts the package, re-reads its directory on disk, and mounts
   (or defers) the updated package. Shown when files on disk changed since the
   last mount or when the package is in a failed or faulted state.

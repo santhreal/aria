@@ -10,7 +10,7 @@ use gpui::{
 
 use crate::app::animation_verbs::{KeyframeVelocityForm, VelocitySide};
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
 use crate::components::{self, ChipSize, readout};
 use crate::motion::MotionKey;
 use crate::theme::Theme;
@@ -186,24 +186,13 @@ pub fn render(
             cx.notify();
         }),
     );
-    let continuous = components::chip(
-        "keyframe-velocity-continuous",
-        if form.continuous {
-            "Continuous: On"
-        } else {
-            "Continuous: Off"
-        },
-        form.continuous,
-        ChipSize::Regular,
+    let continuous = toggle_row(
         &theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-            this.state
-                .update(cx, |state, _| state.toggle_keyframe_velocity_continuous());
-            cx.notify();
-        }),
+        "keyframe-velocity-continuous",
+        "Continuous",
+        form.continuous,
+        AppState::toggle_keyframe_velocity_continuous,
+        cx,
     );
 
     let count = form.targets.len();

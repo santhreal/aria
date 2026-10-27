@@ -10,9 +10,7 @@ use gpui::{
 };
 
 use crate::components;
-use crate::panels::inspector::blocks::widgets::{
-    Columns, ghosts_under_labels, pick_button, under_labels,
-};
+use crate::panels::inspector::blocks::widgets::{Columns, pick_button, under_labels};
 use crate::panels::sidebar::DragGhost;
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::theme::Theme;
@@ -117,14 +115,11 @@ pub fn effects_tab(
                                 .gap(px(Theme::SPACE_XS))
                                 .min_w_0()
                                 .child(
-                                    components::chip(
+                                    components::switch(
                                         crate::motion::MotionKey::new("inspector-fx-bypass", index),
-                                        "fx",
-                                        !bypass,
-                                        components::ChipSize::Compact,
+                                        Some(!bypass),
                                         theme,
                                     )
-                                    .debug_selector(move || format!("inspector-fx-bypass-{index}"))
                                     .when_some(
                                         crate::tooltip::builder("inspector-fx-bypass"),
                                         |el, tip| el.with_tip(tip),
@@ -268,7 +263,7 @@ pub fn effects_tab(
         .effect_browse_list()
         .into_iter()
         .map(|(spec, label)| {
-            ghosts_under_labels(
+            under_labels(
                 Columns::Keyed,
                 [pick_button(
                     crate::motion::MotionKey::new("fx-add", spec.id.as_str()),
@@ -290,7 +285,7 @@ pub fn effects_tab(
         .map(|(index, preset)| {
             let apply_name = preset.name.to_string();
             let drop_name = preset.name.to_string();
-            ghosts_under_labels(
+            under_labels(
                 Columns::Keyed,
                 [
                     pick_button(
@@ -326,7 +321,7 @@ pub fn effects_tab(
         .map(|(index, entry)| {
             let apply_name = entry.preset.name.clone();
             let plugin_label = entry.plugin.to_string();
-            ghosts_under_labels(
+            under_labels(
                 Columns::Keyed,
                 [div()
                     .w_full()
@@ -483,7 +478,7 @@ pub fn effects_tab(
             .children(
                 part_rows
                     .into_iter()
-                    .map(|part| ghosts_under_labels(Columns::Keyed, [part])),
+                    .map(|part| under_labels(Columns::Keyed, [part])),
             )
     });
 
@@ -513,10 +508,7 @@ pub fn effects_tab(
                 .children(plugin_presets)
                 .children(broken_presets)
                 .when_some(draft_block, |el, field| el.child(field))
-                .child(ghosts_under_labels(
-                    Columns::Keyed,
-                    [save.into_any_element()],
-                )),
+                .child(under_labels(Columns::Keyed, [save.into_any_element()])),
         )
         .child(section_label(theme, "Add"))
         .child(

@@ -3,15 +3,19 @@
 //!
 //! The rows are `AppState::plugin_rows`, built from the plugin host itself and
 //! the plugin folder, so a plugin added to either appears here with nothing to
-//! update. A plugin the shell cannot run without is listed without a toggle.
-//! An installed package also offers Reload, Uninstall and Open folder; the
-//! development package offers Reload and Open folder. A plugin that logged
-//! offers Log, which shows its lines, newest last, coloured by level, with Copy.
+//! update. A plugin that can be turned off ends its action line in a switch; a
+//! plugin the shell cannot run without has none. An installed package also
+//! offers Reload, Uninstall and Open folder; the development package offers
+//! Reload and Open folder. A plugin that logged offers Log, which shows its
+//! lines, newest last, coloured by level, with Copy.
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
 };
+
+use crate::tooltip::WithTip as _;
 
 use aria_core::count::counted;
 use aria_plugin::LogLevel;
@@ -100,6 +104,7 @@ fn format_cost_ms(ms: f32) -> String {
 /// What one of a row's buttons does.
 #[derive(Clone, Copy)]
 enum RowAction {
+    /// Turn the plugin off when it is on, and on when it is off.
     Toggle(bool),
     Reload,
     Uninstall,
@@ -164,11 +169,27 @@ pub(super) fn plugin_rows(
     ];
     for row in rows {
         elements.push(kv(theme, &row.name, describe(&row)).into_any_element());
+        let toggle = row.can_toggle.then(|| {
+            let id = row.id.clone();
+            let enabled = row.enabled;
+            components::switch(
+                ("plugin-toggle", MotionKey::new("plugin-toggle", &row.id)),
+                Some(enabled),
+                theme,
+            )
+            .when_some(crate::tooltip::builder("plugin-toggle"), |el, tip| {
+                el.with_tip(tip)
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                    this.state
+                        .update(cx, |state, _| RowAction::Toggle(enabled).run(state, &id));
+                    cx.notify();
+                }),
+            )
+        });
         let mut actions = Vec::new();
-        if row.can_toggle {
-            let label = if row.enabled { "Disable" } else { "Enable" };
-            actions.push(("plugin-toggle", label, RowAction::Toggle(row.enabled)));
-        }
         if row.installed {
             actions.push(("plugin-reload", "Reload", RowAction::Reload));
             if !row.development {
@@ -180,7 +201,7 @@ pub(super) fn plugin_rows(
             let label = if row.log_open { "Hide Log" } else { "Log" };
             actions.push(("plugin-log", label, RowAction::ToggleLog));
         }
-        if actions.is_empty() {
+        if actions.is_empty() && toggle.is_none() {
             continue;
         }
         let mut buttons = div().flex().flex_row().gap(px(Theme::SPACE_SM));
@@ -201,7 +222,16 @@ pub(super) fn plugin_rows(
                 ),
             );
         }
-        elements.push(buttons.into_any_element());
+        elements.push(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .child(buttons)
+                .children(toggle)
+                .into_any_element(),
+        );
         if row.log_open && row.log_lines > 0 {
             elements.push(log_block(theme, state, &row.id, cx));
         }

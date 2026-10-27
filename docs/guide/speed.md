@@ -6,7 +6,7 @@ The Speed tab retimes a media clip. It is absent on generated clips, which have
 nothing to retime.
 
 - The **Ramp** row shows the active preset, Custom for a hand-edited ramp, or
-  None. The chips under it list every built-in ramp, the active one marked `•`,
+  None. The chips under it list every built-in ramp, the active one lit,
   matched by the ramp's shape.
 - The graph draws the ramp. Time runs left to right across the clip; speed runs
   up, logarithmically, so 1x sits near the middle and the guide line marks it.

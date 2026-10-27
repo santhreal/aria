@@ -78,6 +78,9 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                 ),
             ))
             .child(chip_rows(theme, cx))
+            .child(switch_rows(theme, cx))
+            .child(underline_tab_rows(theme, cx))
+            .child(form_rows(theme))
             .child(disclosure_rows(theme, cx.reduce_motion()))
             .child(opener_rows(theme, cx.reduce_motion()))
             .child(menu_lead_rows(theme))
@@ -128,6 +131,140 @@ fn chip_specimen(
         theme,
         &format!("{size:?} {state}"),
         components::chip(id, label.to_string(), active, size, theme),
+    )
+}
+
+/// A switch in every state it draws: on, off, mixed with its knob in the
+/// middle for a selection that holds both, and off under the pointer, pinned.
+fn switch_rows(theme: &Theme, cx: &App) -> AnyElement {
+    pin_hover("switch", "ctl-switch-hover", cx);
+    group(
+        theme,
+        "switch(id, on, theme) — on / off / mixed / hover (pinned)",
+        shelf(vec![
+            specimen(
+                theme,
+                "on",
+                components::switch("ctl-switch-on", Some(true), theme),
+            ),
+            specimen(
+                theme,
+                "off",
+                components::switch("ctl-switch-off", Some(false), theme),
+            ),
+            specimen(
+                theme,
+                "mixed",
+                components::switch("ctl-switch-mixed", None, theme),
+            ),
+            specimen(
+                theme,
+                "hover",
+                components::switch("ctl-switch-hover", Some(false), theme),
+            ),
+        ]),
+    )
+}
+
+/// A row of underline tabs as a dock draws them: one open, one at rest, one
+/// under the pointer (pinned), and one too narrow for its label, which ends in
+/// an ellipsis.
+fn underline_tab_rows(theme: &Theme, cx: &App) -> AnyElement {
+    pin_hover("tab", "ctl-utab-hover", cx);
+    group(
+        theme,
+        "underline_tab(id, label, active, theme) — open / rest / hover (pinned) / narrow",
+        div()
+            .flex()
+            .h(px(Theme::TAB_ROW_HEIGHT))
+            .border_b_1()
+            .border_color(theme.border)
+            .child(components::underline_tab(
+                "ctl-utab-open",
+                "Effect Controls",
+                true,
+                theme,
+            ))
+            .child(components::underline_tab(
+                "ctl-utab-rest",
+                "Mixer",
+                false,
+                theme,
+            ))
+            .child(components::underline_tab(
+                "ctl-utab-hover",
+                "Metadata",
+                false,
+                theme,
+            ))
+            .child(
+                components::underline_tab("ctl-utab-narrow", "Audio Track Mixer", false, theme)
+                    .w(px(72.)),
+            ),
+    )
+}
+
+/// The parts of a panel form in a frame as narrow as a docked panel: a heading
+/// whose line ends in its reset, a row whose chips wrap onto a second line, a
+/// row holding a box, a label set beside a switch by hand, and the line a list
+/// under the form draws while it has no rows.
+fn form_rows(theme: &Theme) -> AnyElement {
+    let chip = |id: &'static str, label: &'static str, active: bool| {
+        components::chip(id, label, active, components::ChipSize::Regular, theme).into_any_element()
+    };
+    group(
+        theme,
+        "section_heading / form_row / row_label / list_empty",
+        div()
+            .w(px(260.))
+            .p(px(Theme::SPACE_SM))
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .border_1()
+            .border_color(theme.border)
+            .rounded(px(Theme::CONTROL_RADIUS))
+            .child(components::section_heading(
+                theme,
+                "Export",
+                components::icon_button("ctl-heading-reset", icons::ROTATE_CCW, theme),
+            ))
+            .child(components::form_row(
+                theme,
+                "Format",
+                [
+                    chip("ctl-form-mp4", "MP4", true),
+                    chip("ctl-form-mov", "MOV", false),
+                    chip("ctl-form-webm", "WebM", false),
+                    chip("ctl-form-gif", "GIF", false),
+                    chip("ctl-form-png", "PNG sequence", false),
+                ],
+            ))
+            .child(components::form_row(
+                theme,
+                "Name",
+                [
+                    components::text_box("ctl-form-name", "", "Untitled", false, theme)
+                        .into_any_element(),
+                ],
+            ))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(Theme::SPACE_SM))
+                    .child(components::row_label(
+                        theme,
+                        "Loop",
+                        components::FORM_LABEL_WIDTH,
+                    ))
+                    .child(components::switch("ctl-form-loop", Some(true), theme)),
+            )
+            .child(components::list_empty(
+                "gallery-presets",
+                "No presets saved.",
+                theme,
+            )),
     )
 }
 

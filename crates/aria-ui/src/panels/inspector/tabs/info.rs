@@ -11,7 +11,7 @@ use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Columns, fact_row, ghosts_under_labels, kind_label, pick_button,
+    Columns, fact_row, kind_label, pick_button, under_labels,
 };
 
 pub fn info_tab(
@@ -37,7 +37,7 @@ pub fn info_tab(
         .filter(|_| source.as_ref().is_some_and(|(_, missing)| *missing));
     let media = source.map_or_else(|| "None".into(), |(name, _)| name);
     let relink = media_id.map(|id| {
-        ghosts_under_labels(
+        under_labels(
             Columns::Free,
             [
                 pick_button("relink-media", "Relink", theme, cx, move |state| {

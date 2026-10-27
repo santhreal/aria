@@ -10,7 +10,7 @@ abutting it on the right, and on lanes that cannot hold a transition.
 - The **At cut** row shows the applied blend, or None. On a picture lane the
   chips under it list cross fade, dip to black, dip to white, the four wipes,
   and slide; on an audio lane they list the audio crossfades. The applied
-  blend is marked `•`. Picking another replaces it.
+  blend is lit. Picking another replaces it.
 - Duration sets the window length in ticks.
 - The **Alignment** row offers **Center at Cut**, **Start at Cut**, and **End at Cut**, which position the window across the cut, after the cut, or before the cut.
 - **Remove transition** clears it. The junction's context menu offers the same

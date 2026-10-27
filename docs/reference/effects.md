@@ -31,7 +31,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 - **Project panel (`Window > Project`)**: select the **Effects > Effects** chip, then click an entry to append it to the selected clip or drag it onto a clip on the timeline.
 - **Top menu bar (`Effect`)**: select a category submenu (**Blur & Sharpen**, **Color**, **Distort**, **Noise & Grain**, **Stylize**) and click an effect to append it to the selected clip.
 - **Effect Controls (`Window > Effect Controls > Effects` tab)**:
-  - Click **fx** to skip an instance during rendering without removing its parameters or keyframes; a skipped instance draws its name dimmed.
+  - Turn an instance's switch off to skip it during rendering without removing its parameters or keyframes; a skipped instance draws its name dimmed.
   - Click the up or down chevron to reorder passes in the chain, or the bin to remove the instance.
   - Drag a numeric readout horizontally or click `−` / `+` to step the value; click `◆` to insert or update a keyframe at the playhead (`◇` when no keyframe sits at the playhead).
   - Use **Save Preset** to store the clip's current effect chain to `<data dir>/effect-presets/<name>.toml`, **Apply Preset** to append a saved chain, or **Clear All** to empty the stack.

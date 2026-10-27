@@ -82,7 +82,12 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
         (1, [true, false]),
         (0, [false, false]),
     ] {
-        let selector: &'static str = format!("inspector-fx-bypass-{index}").leak();
+        let selector: &'static str = crate::components::control_selector(
+            "switch",
+            crate::motion::MotionKey::new("inspector-fx-bypass", index).into(),
+            &crate::components::Drawn::Switch,
+        )
+        .leak();
         let toggle = panel_bounds(visual, selector)
             .unwrap_or_else(|| panic!("the header of effect {index} draws no fx toggle"));
         visual.simulate_click(toggle.center(), Modifiers::none());

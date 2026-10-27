@@ -184,7 +184,7 @@ fn appearance_rows(
 }
 
 /// Playback toggles: audio scrubbing and dropped-frame logging, each drawn as a
-/// label with On and Off chips that save immediately.
+/// label and a switch that saves immediately.
 fn playback_rows(
     theme: &Theme,
     state: &Entity<AppState>,
@@ -195,7 +195,7 @@ fn playback_rows(
         (s.audio_scrubbing, s.log_dropped_frames)
     };
     vec![
-        on_off_row(
+        switch_row(
             theme,
             "settings-audio-scrubbing",
             "Audio scrubbing",
@@ -203,7 +203,7 @@ fn playback_rows(
             |settings, on| settings.audio_scrubbing = on,
             cx,
         ),
-        on_off_row(
+        switch_row(
             theme,
             "settings-log-dropped-frames",
             "Log dropped frames",
@@ -214,33 +214,32 @@ fn playback_rows(
     ]
 }
 
-/// A label and an On and an Off chip; the lit chip is `value`, and a press
-/// stores its value through `set` and saves it.
-fn on_off_row(
+/// A label and a switch, on for `value`; a press stores the other value
+/// through `set` and saves it. `id` is the switch's selector.
+fn switch_row(
     theme: &Theme,
-    id: impl Into<crate::motion::ControlId>,
+    id: &'static str,
     label: &'static str,
     value: bool,
     set: fn(&mut crate::settings::UiSettings, bool),
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let id = id.into();
-    let chips = [("On", true), ("Off", false)].map(|(shown, on)| {
-        let key = id.motion(shown);
-        components::chip(key, shown, value == on, ChipSize::Regular, theme).on_mouse_down(
+    let switch = components::switch(id, Some(value), theme)
+        .debug_selector(|| id.to_owned())
+        .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
                 this.state.update(cx, |state, cx| {
-                    set(&mut state.ui_settings, on);
+                    set(&mut state.ui_settings, !value);
                     state.persist_settings_later(cx);
+                    let shown = if value { "Off" } else { "On" };
                     state.status_message = Some(format!("{label}: {shown}"));
                 });
                 cx.notify();
             }),
-        )
-    });
-    chip_row(theme, label, chips)
+        );
+    chip_row(theme, label, [switch])
 }
 
 /// The cloud endpoint. One field, because everything else about cloud access is a

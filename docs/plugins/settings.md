@@ -33,7 +33,7 @@ ctx.register_settings(SettingsSection {
 | --- | --- | --- |
 | `Text` | Text box | The text |
 | `Secret` | Text box showing the length | The text |
-| `Toggle` | On and Off chips | `true` or `false` |
+| `Toggle` | A switch | `true` or `false` |
 | `Number { min, max, step }` | Text box; the placeholder states the range | A decimal |
 | `Choice(options)` | One chip per option | The option |
 

@@ -22,23 +22,25 @@
 //! so a picker of any kind marks the choice it shows, one at most, and none
 //! while it shows a mixed value.
 //!
-//! Also closes the class "an Inspector button stretched across its block".
+//! Also closes the class "an Inspector control stretched across its block".
 //! Reset grade, Remove key, Clear styles, the blend modes, the key colors and
 //! the matte sources each drew a line as wide as the block, starting left of
-//! every label. Every ghost button built while the Inspector's body is built
-//! is recorded, so a button added to a held tab is held to the width of its
-//! label and padding without being listed here.
+//! every label. Every ghost button, chip and switch built while the
+//! Inspector's body is built is recorded, so a control added to a held tab is
+//! held to what it draws without being listed here: a ghost button or a chip
+//! to its label and padding, a switch to its track.
 //!
-//! Also closes the class "an Inspector button off the columns". A switch's On
-//! or Off ended a ghost inset short of the numbers above it and stood its row
-//! a ghost inset taller than a number row's; the chips under a choice started
-//! their labels a ghost inset right of the labels above them; and the mask
-//! shapes, the Effects tab's lists, the curve easing presets and an insert
-//! chain's Add button started left of the label column. Every recorded ghost
-//! button on a row's line ends its label where the values end, every other
-//! starts its label on the label column or at least two ghost insets right of
-//! it, where no line's first button stands, and every line's value is no
-//! taller than a number's.
+//! Also closes the class "an Inspector control off the columns". A switch's
+//! On or Off ended a ghost inset short of the numbers above it and stood its
+//! row a ghost inset taller than a number row's; the chips under a choice
+//! started a ghost inset right of the labels above them; and the mask shapes,
+//! the Effects tab's lists, the curve easing presets and an insert chain's
+//! Add button started left of the label column. A control's frame is what
+//! stands on a column. Every recorded control on a row's line ends its frame
+//! where the values end. Every other starts its frame on or right of the
+//! leftmost column, and the first of each line of them starts on a column:
+//! the stopwatches' or the labels' in the keyed rows' columns, the labels' in
+//! the free ones. Every line's value is no taller than a number's.
 //!
 //! Also closes the class "a tab in free columns of its own". The Info tab's
 //! facts stood at the block's edges, and its template buttons a ghost inset
@@ -46,37 +48,40 @@
 //! row's padding inside them; the Speed tab's graph spanned the block. On the
 //! tabs in [`FREE`], every line's label starts where the reference line's
 //! does, every line's value ends where its value ends, the graph spans the
-//! two, and every button stands its label on that label column.
+//! two, and every control stands its frame on those columns.
 //!
-//! Also closes the class "two Inspector buttons that share a hover". The
+//! Also closes the class "two Inspector controls that share a hover". The
 //! Keyframes block built each row's navigator, diamond, Driver and Flatten,
 //! and the Replace media list each entry, under one id per kind of button, so
-//! the pointer on one lit that button on every row. Every ghost button built
-//! into one Inspector body is recorded with its id, and an id built twice
-//! fails the tab that drew it.
+//! the pointer on one lit that button on every row. Every control built into
+//! one Inspector body is recorded with its kind and id, and a kind and id
+//! built twice fails the tab that drew it.
 //!
 //! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`],
 //! a picker drawn outside a choice row, a line whose label another line in the
 //! same columns shares, of which the last drawn is read, a control not built
-//! with `components::ghost_button`, such as a chip, a note's text, and a button
-//! only drawn after a press, such as a list a button opens.
+//! with `components::ghost_button`, `components::chip` or `components::switch`,
+//! such as an icon button or a note's text, a control whose caller replaces
+//! its debug selector, and a control only drawn after a press, such as a list
+//! a button opens.
 
 use aria_models::{
     AudioInsertTarget, AudioRole, ClipParam, EffectChoiceOption, EffectCurvePoint,
     EffectGradientStop, EffectParamKind, EffectParamSpec, EffectSpec, LookParam, MaskKind,
     MatteSource, TransitionSpec,
 };
-use gpui::{Bounds, FontWeight, Pixels, SharedString, TestAppContext, VisualTestContext};
+use gpui::{Bounds, FontWeight, Pixels, TestAppContext, VisualTestContext};
 
 use super::blocks::widgets::{
-    DrawnChoice, LABEL_RESERVE, MIXED, drawn_choices, drawn_lines, picked, record_lines,
+    DrawnChoice, DrawnLine, LABEL_RESERVE, MIXED, drawn_choices, drawn_lines, picked, record_lines,
 };
 use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
 use crate::app::clip_keys::PIECEWISE_PRESETS;
 use crate::app::clip_speed::speed_presets;
 use crate::app::clip_template::SLOT_MEDIA;
-use crate::components::{GHOST_INSET, drawn_ghosts};
+use crate::components::{Drawn, DrawnControl, SWITCH_WIDTH, control_selector, drawn_controls};
+use crate::motion::{ControlId, MotionKey};
 use crate::surfaces::clip_pick::{self, Pick as ClipPick};
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
 use crate::surfaces::keyframe_rows::{self, Row};
@@ -230,112 +235,165 @@ fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
     );
 }
 
-/// Every ghost button built since the record began, once each: its debug
-/// selector and its label. No two built into one Inspector body share an id,
-/// and so a hover.
-fn recorded_ghosts(tab: &str) -> Vec<(&'static str, SharedString)> {
-    let (built, shared) = drawn_ghosts();
+/// Every control built since the record began, once each: its debug selector
+/// and what it draws. No two of one kind built into one Inspector body share
+/// an id, and so a hover.
+fn recorded_controls(tab: &str) -> Vec<(&'static str, Drawn)> {
+    let (built, shared) = drawn_controls();
     assert!(
         shared.is_empty(),
-        "{tab}: ghost buttons built with an id another button of the same Inspector body has, so the pointer on one lights both: {shared:?}"
+        "{tab}: controls built with the kind and id of another control of the same Inspector body, so the pointer on one lights both: {shared:?}"
     );
     built
         .into_iter()
-        .map(|(selector, label)| (&*selector.leak(), label))
+        .map(|DrawnControl { selector, drawn }| (&*selector.leak(), drawn))
         .collect()
 }
 
-/// Every ghost button of `ghosts` the last frame drew into the Inspector is
-/// as wide as its label and its padding, and no wider. A text element is as
-/// wide as its advance rounded up to a whole pixel, and layout rounds each
-/// edge to a device pixel. Returns the labels held.
-fn every_button_hugs_its_label(
+/// What a walk's held controls name the switch `id` by: its debug selector.
+fn switch(id: impl Into<ControlId>) -> String {
+    control_selector("switch", id.into(), &Drawn::Switch)
+}
+
+/// Every control of `controls` the last frame drew into the Inspector is as
+/// wide as what it draws and no wider: a ghost button or a chip its label and
+/// its padding, a switch its track. A text element is as wide as its advance
+/// at its size rounded up to a whole pixel, and layout rounds each edge to a
+/// device pixel. Returns the controls held: a labelled one by its label, a
+/// switch by its debug selector.
+fn every_control_hugs_what_it_draws(
     visual: &mut VisualTestContext,
     tab: &str,
-    ghosts: &[(&'static str, SharedString)],
-) -> Vec<SharedString> {
-    let (pixel, labels): (f32, Vec<f32>) = visual.update(|window, app| {
+    controls: &[(&'static str, Drawn)],
+) -> Vec<String> {
+    let (pixel, hugs): (f32, Vec<f32>) = visual.update(|window, app| {
         let font = Theme::of(app).ui_font(FontWeight::NORMAL);
-        let labels = ghosts
+        let hugs = controls
             .iter()
-            .map(|(_, label)| {
-                f32::from(
-                    app.text_system()
-                        .advance_for_text(label, &font, Theme::TEXT_UI),
-                )
+            .map(|(_, drawn)| match drawn {
+                Drawn::Labelled { label, inset, size } => {
+                    f32::from(app.text_system().advance_for_text(label, &font, *size)).ceil()
+                        + 2.0 * inset
+                }
+                Drawn::Switch => SWITCH_WIDTH,
             })
             .collect();
-        (1.0 / window.scale_factor(), labels)
+        (1.0 / window.scale_factor(), hugs)
     });
     let mut held = Vec::new();
-    for ((selector, label), text) in ghosts.iter().zip(labels) {
-        // A button built for an earlier frame, or built and not drawn, has
+    for (&(selector, ref drawn), hug) in controls.iter().zip(hugs) {
+        // A control built for an earlier frame, or built and not drawn, has
         // no bounds in the last one.
-        let Some(bounds) = visual.debug_bounds(*selector) else {
+        let Some(bounds) = visual.debug_bounds(selector) else {
             continue;
         };
-        let hug = text.ceil() + 2.0 * GHOST_INSET.0 + pixel;
-        assert!(
-            f32::from(bounds.size.width) <= hug,
-            "{tab}: the button {label:?} ({selector}) is {:?} wide, past the {hug} its label and padding take",
-            bounds.size.width
-        );
-        held.push(label.clone());
+        let width = f32::from(bounds.size.width);
+        match drawn {
+            Drawn::Labelled { label, .. } => {
+                assert!(
+                    width <= hug + pixel,
+                    "{tab}: the control {label:?} ({selector}) is {width} wide, past the {hug} its label and padding take"
+                );
+                held.push(label.to_string());
+            }
+            Drawn::Switch => {
+                assert!(
+                    (width - hug).abs() < EPS,
+                    "{tab}: the switch {selector} is {width} wide, not its track's {hug}"
+                );
+                held.push(selector.to_owned());
+            }
+        }
     }
     held
 }
 
-/// Every ghost button of `ghosts` the last frame drew stands its label on the
-/// columns of the reference row's `label` and `value` cells, where `lines`
-/// are the labels of every row. A ghost's label stands [`GHOST_INSET`] inside
-/// its frame. One on a row's line ends its label where the values end. Every
-/// other starts its label on the label column, or two insets or more right of
-/// it, past the first button of a line, and never left of it. Returns how
-/// many were drawn.
-fn every_ghost_stands_on_the_columns(
+/// The debug selectors of each of `lines`' label, value and whole line.
+fn cells(lines: &[DrawnLine]) -> Vec<(&'static str, &'static str, &'static str)> {
+    lines
+        .iter()
+        .map(|line| {
+            (
+                &*line.label.clone().leak(),
+                &*line.label.replacen("insp-label-", "insp-value-", 1).leak(),
+                &*line.line.clone().leak(),
+            )
+        })
+        .collect()
+}
+
+/// Every control of `controls` the last frame drew stands its frame on the
+/// columns. One drawn inside a row's line, where `lines` are the rows' whole
+/// lines, ends where the values end, at the reference row's `value`'s right.
+/// Every other starts on or right of the leftmost of `edges`, and the first
+/// of each line of them, the controls whose frames share height, starts on
+/// one of `edges`. Returns how many were drawn.
+fn every_control_stands_on_the_columns(
     visual: &mut VisualTestContext,
     at: &str,
-    ghosts: &[(&'static str, SharedString)],
+    controls: &[(&'static str, Drawn)],
     lines: &[Bounds<Pixels>],
-    (label, value): (Bounds<Pixels>, Bounds<Pixels>),
+    edges: &[Pixels],
+    value: Bounds<Pixels>,
 ) -> usize {
-    let (across, _) = GHOST_INSET;
-    let column = f32::from(label.left());
-    let mut drawn = 0;
-    for (selector, text) in ghosts {
-        let Some(bounds) = visual.debug_bounds(*selector) else {
+    let leftmost = edges
+        .iter()
+        .map(|edge| f32::from(*edge))
+        .fold(f32::INFINITY, f32::min);
+    let (mut drawn, mut off_lines) = (0, Vec::<(&str, Bounds<Pixels>)>::new());
+    for &(selector, _) in controls {
+        let Some(bounds) = visual.debug_bounds(selector) else {
             continue;
         };
         drawn += 1;
-        let (start, end) = (
-            f32::from(bounds.left()) + across,
-            f32::from(bounds.right()) - across,
-        );
-        if lines
-            .iter()
-            .any(|line| (middle(*line) - middle(bounds)).abs() < 1.0)
-        {
+        if lines.iter().any(|line| {
+            f32::from(bounds.top()) > f32::from(line.top()) - EPS
+                && f32::from(bounds.bottom()) < f32::from(line.bottom()) + EPS
+        }) {
             assert!(
-                (end - f32::from(value.right())).abs() < EPS,
-                "{at}: the button {text:?} ({selector}) on a row's line ends its label at {end}, not where the values end, at {:?}",
+                near(bounds.right(), value.right()),
+                "{at}: {selector} on a row's line ends its frame at {:?}, not where the values end, at {:?}",
+                bounds.right(),
                 value.right()
             );
         } else {
             assert!(
-                (start - column).abs() < EPS || start >= column + 2.0 * across,
-                "{at}: the button {text:?} ({selector}) starts its label at {start}, off the label column at {column}"
+                f32::from(bounds.left()) > leftmost - EPS,
+                "{at}: {selector} starts its frame at {:?}, left of the leftmost column at {leftmost}",
+                bounds.left()
             );
+            off_lines.push((selector, bounds));
         }
+    }
+    off_lines.sort_by(|a, b| f32::from(a.1.top()).total_cmp(&f32::from(b.1.top())));
+    let mut start = 0;
+    while start < off_lines.len() {
+        let mut bottom = f32::from(off_lines[start].1.bottom());
+        let mut end = start + 1;
+        while end < off_lines.len() && f32::from(off_lines[end].1.top()) < bottom {
+            bottom = bottom.max(f32::from(off_lines[end].1.bottom()));
+            end += 1;
+        }
+        let (selector, first) = off_lines[start..end]
+            .iter()
+            .min_by(|a, b| f32::from(a.1.left()).total_cmp(&f32::from(b.1.left())))
+            .expect("a line holds a control");
+        assert!(
+            edges.iter().any(|edge| near(first.left(), *edge)),
+            "{at}: {selector}, the first control of its line, starts its frame at {:?}, on none of the columns at {edges:?}",
+            first.left()
+        );
+        start = end;
     }
     drawn
 }
 
-/// Every label of `wanted` is among the buttons `held`.
-fn holds(tab: &str, held: &[SharedString], wanted: &[&str]) {
-    for label in wanted {
+/// Every control of `wanted` is among the controls `held`.
+fn holds(tab: &str, held: &[String], wanted: &[String]) {
+    for control in wanted {
         assert!(
-            held.iter().any(|held| &**held == *label),
-            "{tab}: no button {label:?} was held to its label among {held:?}"
+            held.contains(control),
+            "{tab}: no control {control:?} was held to what it draws among {held:?}"
         );
     }
 }
@@ -346,53 +404,50 @@ fn holds(tab: &str, held: &[SharedString], wanted: &[&str]) {
 /// columns, and at every step its label starts where the label of
 /// `reference`, a keyed row with a time area, starts and is as wide, and its
 /// value stands in that row's value column, on the label's line, no taller
-/// than the reference's number. Every button stands its label on those
+/// than the reference's number. Every control stands its frame on those
 /// columns at every step, and every step draws one or more of them. The walk
 /// ends once the reference's label gives up width, which it must reach. Every
-/// choice row drawn marks the choice it shows, and every button drawn before
-/// the walk is as wide as its label and has an id of its own.
+/// choice row drawn marks the choice it shows, and every control drawn before
+/// the walk is as wide as what it draws and has a hover of its own.
 /// Returns the debug selectors of the lines' labels, the choice rows, and the
-/// labels of the buttons held.
+/// controls held.
 fn every_line_stands_in_the_columns(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
     reference: ClipParam,
     then: impl FnOnce(&mut AppState),
-) -> (Vec<String>, Vec<DrawnChoice>, Vec<SharedString>) {
+) -> (Vec<String>, Vec<DrawnChoice>, Vec<String>) {
     record_lines();
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
-    let ghosts = recorded_ghosts(tab);
-    let held = every_button_hugs_its_label(visual, tab, &ghosts);
+    let controls = recorded_controls(tab);
+    let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let free: Vec<&str> = lines
         .iter()
-        .filter(|(_, keyed)| !keyed)
-        .map(|(label, _)| label.as_str())
+        .filter(|line| !line.keyed)
+        .map(|line| line.label.as_str())
         .collect();
     assert!(
         free.is_empty(),
         "{tab}: lines drawn outside the keyed rows' columns: {free:?}"
     );
     let leak = |text: String| -> &'static str { text.leak() };
-    let cells: Vec<(&'static str, &'static str)> = lines
-        .iter()
-        .map(|(label, _)| {
-            (
-                leak(label.clone()),
-                leak(label.replacen("insp-label-", "insp-value-", 1)),
-            )
-        })
-        .collect();
+    let cells = cells(&lines);
     let (label_of, value_of) = (
         leak(format!("insp-label-{reference:?}")),
         leak(format!("insp-value-{reference:?}")),
     );
     assert!(
-        cells.contains(&(label_of, value_of)),
+        cells
+            .iter()
+            .any(|&(label, value, _)| (label, value) == (label_of, value_of)),
         "{tab}: no line of {reference:?} among {lines:?}"
     );
-    let strip = leak(format!("insp-strip-{reference:?}"));
+    let (strip, watch) = (
+        leak(format!("insp-strip-{reference:?}")),
+        leak(format!("insp-key-{reference:?}")),
+    );
     let (mut step, mut yielded) = (0, false);
     narrow_the_inspector(&state, visual, |visual, _| {
         step += 1;
@@ -402,8 +457,9 @@ fn every_line_stands_in_the_columns(
             "{at}: {reference:?} draws no time area, so its columns are no keyed row's"
         );
         let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
+        let edges = [drawn(visual, watch, &at).left(), label.left()];
         let mut rows = Vec::with_capacity(cells.len());
-        for &(row_label, row_value) in &cells {
+        for &(row_label, row_value, whole) in &cells {
             let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
             let context = format!(
                 "{at}: {row_label} at {row:?}, its value at {cell:?}, beside {reference:?}'s label at {label:?} and value at {value:?}"
@@ -424,13 +480,14 @@ fn every_line_stands_in_the_columns(
                 f32::from(cell.size.height) < f32::from(value.size.height) + EPS,
                 "{context}: the value is taller than a number, so its row is taller than a number row"
             );
-            rows.push(row);
+            rows.push(drawn(visual, whole, &at));
         }
-        let found = every_ghost_stands_on_the_columns(visual, &at, &ghosts, &rows, (label, value));
+        let found =
+            every_control_stands_on_the_columns(visual, &at, &controls, &rows, &edges, value);
         assert!(
             found > 0,
-            "{at}: the Inspector draws none of the {} buttons recorded before the walk",
-            ghosts.len()
+            "{at}: the Inspector draws none of the {} controls recorded before the walk",
+            controls.len()
         );
         yielded = f32::from(label.size.width) < LABEL_RESERVE - 1.0;
         yielded
@@ -440,7 +497,7 @@ fn every_line_stands_in_the_columns(
         "{tab}: the walk ended before {reference:?}'s label gave up width"
     );
     (
-        lines.into_iter().map(|(label, _)| label).collect(),
+        lines.into_iter().map(|line| line.label).collect(),
         choices,
         held,
     )
@@ -451,49 +508,43 @@ fn every_line_stands_in_the_columns(
 /// narrow the Inspector a step at a time. Every line drawn into the Inspector
 /// stands in free columns, and at every step its label starts where the label
 /// of the line labelled `reference` starts and its value ends where that
-/// line's value ends. Every one of `boxes` spans the two, every button stands
-/// its label on those columns, and every step draws one or more of them.
-/// Every choice row drawn marks the choice it shows, and every button drawn
-/// before the walk is as wide as its label and has an id of its own. Returns
-/// the debug selectors of the lines' labels, the choice rows, and the labels
-/// of the buttons held.
+/// line's value ends. Every one of `boxes` spans the two, every control stands
+/// its frame on those columns, and every step draws one or more of them.
+/// Every choice row drawn marks the choice it shows, and every control drawn
+/// before the walk is as wide as what it draws and has a hover of its own.
+/// Returns the debug selectors of the lines' labels, the choice rows, and the
+/// controls held.
 fn every_line_stands_in_the_free_columns(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
     (reference, boxes): (&str, &[&'static str]),
     then: impl FnOnce(&mut AppState),
-) -> (Vec<String>, Vec<DrawnChoice>, Vec<SharedString>) {
+) -> (Vec<String>, Vec<DrawnChoice>, Vec<String>) {
     record_lines();
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
-    let ghosts = recorded_ghosts(tab);
-    let held = every_button_hugs_its_label(visual, tab, &ghosts);
+    let controls = recorded_controls(tab);
+    let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let keyed: Vec<&str> = lines
         .iter()
-        .filter(|(_, keyed)| *keyed)
-        .map(|(label, _)| label.as_str())
+        .filter(|line| line.keyed)
+        .map(|line| line.label.as_str())
         .collect();
     assert!(
         keyed.is_empty(),
         "{tab}: lines drawn in the keyed rows' columns: {keyed:?}"
     );
     let leak = |text: String| -> &'static str { text.leak() };
-    let cells: Vec<(&'static str, &'static str)> = lines
-        .iter()
-        .map(|(label, _)| {
-            (
-                leak(label.clone()),
-                leak(label.replacen("insp-label-", "insp-value-", 1)),
-            )
-        })
-        .collect();
+    let cells = cells(&lines);
     let (label_of, value_of) = (
         leak(format!("insp-label-free-{reference}")),
         leak(format!("insp-value-free-{reference}")),
     );
     assert!(
-        cells.contains(&(label_of, value_of)),
+        cells
+            .iter()
+            .any(|&(label, value, _)| (label, value) == (label_of, value_of)),
         "{tab}: no line of {reference} among {lines:?}"
     );
     let mut step = 0;
@@ -502,7 +553,7 @@ fn every_line_stands_in_the_free_columns(
         let at = format!("{tab}, step {step}");
         let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
         let mut rows = Vec::with_capacity(cells.len());
-        for &(row_label, row_value) in &cells {
+        for &(row_label, row_value, whole) in &cells {
             let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
             let context = format!(
                 "{at}: {row_label} at {row:?}, its value at {cell:?}, beside {reference}'s label at {label:?} and value at {value:?}"
@@ -515,7 +566,7 @@ fn every_line_stands_in_the_free_columns(
                 near(cell.right(), value.right()),
                 "{context}: the value does not end where the values end"
             );
-            rows.push(row);
+            rows.push(drawn(visual, whole, &at));
         }
         for &selector in boxes {
             let spans = drawn(visual, selector, &at);
@@ -526,17 +577,24 @@ fn every_line_stands_in_the_free_columns(
                 value.right()
             );
         }
-        let found = every_ghost_stands_on_the_columns(visual, &at, &ghosts, &rows, (label, value));
+        let found = every_control_stands_on_the_columns(
+            visual,
+            &at,
+            &controls,
+            &rows,
+            &[label.left()],
+            value,
+        );
         assert!(
             found > 0,
-            "{at}: the Inspector draws none of the {} buttons recorded before the walk",
-            ghosts.len()
+            "{at}: the Inspector draws none of the {} controls recorded before the walk",
+            controls.len()
         );
         false
     });
     assert!(step > 0, "{tab}: the walk drew no step");
     (
-        lines.into_iter().map(|(label, _)| label).collect(),
+        lines.into_iter().map(|line| line.label).collect(),
         choices,
         held,
     )
@@ -592,7 +650,13 @@ async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
     holds(
         "transform",
         &held,
-        &["Reset framing", "Flatten", PIECEWISE_PRESETS[0].1],
+        &[
+            "Flatten".into(),
+            PIECEWISE_PRESETS[0].1.into(),
+            switch("flip-h"),
+            switch("flip-v"),
+            switch("blur-toggle"),
+        ],
     );
 }
 
@@ -618,7 +682,17 @@ async fn every_audio_line_stands_in_the_columns(cx: &mut TestAppContext) {
         "the insert's parameter drew no line: {lines:?}"
     );
     shows_and_marks("audio", &choices, "insp-label-Role", role.label());
-    holds("audio", &held, &["Off", AudioRole::ALL[1].label()]);
+    holds(
+        "audio",
+        &held,
+        &[
+            AudioRole::ALL[1].label().into(),
+            "+ Audio effect".into(),
+            switch("inspector-reverse"),
+            switch("inspector-pitch"),
+            switch("denoise-toggle"),
+        ],
+    );
 }
 
 #[gpui::test]
@@ -685,16 +759,18 @@ async fn every_look_line_stands_in_the_columns(cx: &mut TestAppContext) {
         }
         shows_and_marks("look", &choices, "insp-label-Filter", &filter.label);
         shows_and_marks("look", &choices, "insp-label-choice transition", "Best");
+        let (style, _) = crate::app::clip_styles::STYLES[0];
         holds(
             "look",
             &held,
             &[
-                "Reset grade",
-                "Clear styles",
-                "Load .cube…",
-                "Remove transition",
-                "Remove key",
-                "Remove matte",
+                "Clear styles".into(),
+                "Load .cube…".into(),
+                "Remove transition".into(),
+                "Remove key".into(),
+                "Remove matte".into(),
+                switch(("style-toggle", style)),
+                switch("matte-invert"),
             ],
         );
     });
@@ -745,7 +821,19 @@ async fn every_effects_line_stands_in_the_columns(cx: &mut TestAppContext) {
         // A layer slot left at None shows None and marks the None chip.
         shows_and_marks("effects", &choices, "insp-label-layer effect", "None");
         shows_and_marks("effects", &choices, "insp-label-choice effect", "Best");
-        holds("effects", &held, &["Save as preset"]);
+        let boolean = EffectParamKind::ALL
+            .into_iter()
+            .position(|kind| kind == EffectParamKind::Bool)
+            .expect("a bool kind");
+        holds(
+            "effects",
+            &held,
+            &[
+                "Save as preset".into(),
+                switch(MotionKey::new("inspector-fx-bypass", 0)),
+                switch(MotionKey::new("fx-param-bool", 0).with(boolean)),
+            ],
+        );
     });
 }
 
@@ -766,12 +854,11 @@ async fn every_speed_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
         },
     );
     shows_and_marks("speed", &choices, "insp-label-free-Ramp", &preset.label);
-    let mut wanted: Vec<SharedString> = speed_presets()
+    let mut wanted: Vec<String> = speed_presets()
         .iter()
-        .map(|spec| picked(spec.label.clone(), spec.id == preset.id))
+        .map(|spec| spec.label.to_string())
         .collect();
     wanted.push("Clear ramp".into());
-    let wanted: Vec<&str> = wanted.iter().map(|label| &**label).collect();
     holds("speed", &held, &wanted);
 }
 
@@ -825,16 +912,15 @@ async fn every_info_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
             "info: no button replaces the media with {other} among {held:?}"
         );
     }
-    let marked = picked(accepts, true);
     holds(
         "info",
         &held,
         &[
-            "Relink",
-            "Clear template slot",
-            &*marked,
-            "Edit hint…",
-            "Clear hint",
+            "Relink".into(),
+            accepts.into(),
+            "Edit hint…".into(),
+            "Clear hint".into(),
+            switch("inspector-slot-toggle"),
         ],
     );
 }

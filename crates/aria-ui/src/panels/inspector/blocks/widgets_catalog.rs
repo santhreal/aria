@@ -12,7 +12,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
-use super::controls::{Starts, stacked};
+use super::controls::stacked;
 use super::keys::affordances;
 use super::{
     Columns, Keys, MIXED, Readout, Travel, Watching, color_name, color_stopwatch, line,
@@ -279,5 +279,5 @@ pub fn swatch_row(
         theme.text_muted,
         name,
     );
-    stacked(head, keyed, Theme::SPACE_XXS, Starts::Edge, swatches).into_any_element()
+    stacked(head, keyed, Theme::SPACE_XXS, swatches).into_any_element()
 }

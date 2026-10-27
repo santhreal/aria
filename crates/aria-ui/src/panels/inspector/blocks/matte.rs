@@ -16,7 +16,9 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, chip_row, label_note, param_rows, pick_button, switch_line};
+use super::widgets::{
+    Chip, Columns, chip_row, choice_chip, label_note, param_rows, pick_button, switch_line,
+};
 
 use crate::components::section_label;
 
@@ -34,16 +36,14 @@ pub fn matte_block(
         .map(|source| {
             let source = *source;
             let on = matte.map(|m| m.source) == Some(source);
-            Chip::choice(source.label(), on, |label| {
-                pick_button(
-                    ("matte-source", source.id()),
-                    label,
-                    theme,
-                    cx,
-                    move |state| inspector_pick::apply(state, Pick::Matte(source)),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                ("matte-source", source.id()),
+                source.label(),
+                on,
+                theme,
+                cx,
+                move |state| inspector_pick::apply(state, Pick::Matte(source)),
+            )
         })
         .collect();
     if matte.is_some() {
@@ -80,9 +80,11 @@ pub fn matte_block(
             this.children(param_rows(theme, "matte", state, cx))
                 .child(switch_line(
                     theme,
-                    ("matte-inv", "Invert"),
+                    MotionKey::new("insp.row", "matte-inv"),
+                    "Invert",
+                    Columns::Keyed,
                     "matte-invert",
-                    matte.invert,
+                    Some(matte.invert),
                     cx,
                     |state| inspector_pick::apply(state, Pick::ToggleMatteInvert),
                 ))

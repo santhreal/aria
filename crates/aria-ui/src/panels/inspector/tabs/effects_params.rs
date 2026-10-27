@@ -5,6 +5,7 @@
 pub(crate) mod transition;
 
 use crate::tooltip::WithTip as _;
+use aria_engine::EngineError;
 use aria_models::{
     ClipId, ClipParam, EffectCurvePoint, EffectGradientStop, EffectParamKind, EffectParamSpec,
 };
@@ -20,8 +21,8 @@ use crate::app::param_units::Units;
 use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Keys, MIXED, Readout, Stopwatch, Watching, chip_row, color_stopwatch,
-    control_line, pick_button, stepper_row, swatch_row,
+    Chip, Columns, Keys, MIXED, Readout, Stopwatch, Watching, chip_row, choice_chip,
+    color_stopwatch, pick_button, stepper_row, swatch_row, switch_line,
 };
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
 use crate::theme::Theme;
@@ -240,8 +241,21 @@ pub(crate) fn vec2_axes(kind: EffectParamKind) -> [(usize, &'static str); 2] {
     }
 }
 
-/// A chip that writes `edit` to slot `slot` of effect `index`.
-fn slot_chip(
+/// The press that writes `edit` to slot `slot` of effect `index`.
+fn slot_edit(
+    index: usize,
+    slot: usize,
+    edit: SlotEdit,
+) -> impl Fn(&mut AppState) -> Result<(), EngineError> + 'static {
+    move |state| {
+        let edit = edit.clone();
+        effects_rack::apply(state, Gesture::EditSlot { index, slot, edit })
+    }
+}
+
+/// A ghost button that writes `edit` to slot `slot` of effect `index`: a
+/// preset, or Clear.
+fn slot_button(
     theme: &Theme,
     key: MotionKey,
     text: impl Into<SharedString>,
@@ -249,11 +263,7 @@ fn slot_chip(
     edit: SlotEdit,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    pick_button(key, text, theme, cx, move |state| {
-        let edit = edit.clone();
-        effects_rack::apply(state, Gesture::EditSlot { index, slot, edit })
-    })
-    .into_any_element()
+    pick_button(key, text, theme, cx, slot_edit(index, slot, edit)).into_any_element()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -348,27 +358,17 @@ fn push_effect_slot_rows(
         }
         EffectParamKind::Bool => {
             let value = effect.boolean(slot).unwrap_or(pspec.default_bool);
-            let shown = if keys.mixed(index, slot, None) {
-                MIXED
-            } else if value {
-                "On"
-            } else {
-                "Off"
-            };
+            let on = (!keys.mixed(index, slot, None)).then_some(value);
             out.push(
-                control_line(
+                switch_line(
                     theme,
                     MotionKey::new(&pspec.name, index),
                     pspec.label.as_str(),
                     Columns::Keyed,
-                    slot_chip(
-                        theme,
-                        MotionKey::new("fx-param-bool", index).with(slot),
-                        shown,
-                        (index, slot),
-                        SlotEdit::ToggleBool,
-                        cx,
-                    ),
+                    MotionKey::new("fx-param-bool", index).with(slot),
+                    on,
+                    cx,
+                    slot_edit(index, slot, SlotEdit::ToggleBool),
                 )
                 .id(MotionKey::new("fx-param-bool-row", index)
                     .with(slot)
@@ -388,18 +388,16 @@ fn push_effect_slot_rows(
                 .choices
                 .iter()
                 .map(|opt| {
-                    Chip::choice(opt.label.clone(), opt.id == current && !mixed, |text| {
-                        slot_chip(
-                            theme,
-                            MotionKey::new("fx-choice", index)
-                                .with(slot)
-                                .with(opt.id.as_str()),
-                            text,
-                            (index, slot),
-                            SlotEdit::Choice(opt.id.clone()),
-                            cx,
-                        )
-                    })
+                    choice_chip(
+                        MotionKey::new("fx-choice", index)
+                            .with(slot)
+                            .with(opt.id.as_str()),
+                        opt.label.clone(),
+                        opt.id == current && !mixed,
+                        theme,
+                        cx,
+                        slot_edit(index, slot, SlotEdit::Choice(opt.id.clone())),
+                    )
                 })
                 .collect();
             let shown = if mixed {
@@ -544,7 +542,7 @@ fn push_effect_slot_rows(
             let chips: Vec<Chip> = presets
                 .into_iter()
                 .map(|(preset_name, pts)| {
-                    Chip::other(slot_chip(
+                    Chip::other(slot_button(
                         theme,
                         MotionKey::new("fx-curve", index)
                             .with(slot)
@@ -596,7 +594,7 @@ fn push_effect_slot_rows(
             let chips: Vec<Chip> = presets
                 .into_iter()
                 .map(|(preset_name, stops)| {
-                    Chip::other(slot_chip(
+                    Chip::other(slot_button(
                         theme,
                         MotionKey::new("fx-grad", index)
                             .with(slot)
@@ -639,7 +637,7 @@ fn push_effect_slot_rows(
                     pspec.label.as_str(),
                     Columns::Keyed,
                     shown,
-                    [Chip::other(slot_chip(
+                    [Chip::other(slot_button(
                         theme,
                         MotionKey::new("fx-text-clear", index).with(slot),
                         "Clear",
@@ -658,18 +656,16 @@ fn push_effect_slot_rows(
                 .iter()
                 .take(4)
                 .map(|family| {
-                    Chip::choice(family.clone(), family == current && !mixed, |label| {
-                        slot_chip(
-                            theme,
-                            MotionKey::new("fx-font", index)
-                                .with(slot)
-                                .with(family.as_str()),
-                            label,
-                            (index, slot),
-                            SlotEdit::Text(family.clone()),
-                            cx,
-                        )
-                    })
+                    choice_chip(
+                        MotionKey::new("fx-font", index)
+                            .with(slot)
+                            .with(family.as_str()),
+                        family.clone(),
+                        family == current && !mixed,
+                        theme,
+                        cx,
+                        slot_edit(index, slot, SlotEdit::Text(family.clone())),
+                    )
                 })
                 .collect();
             out.push(
@@ -699,39 +695,34 @@ fn push_effect_slot_rows(
                     ),
             };
             let mut chips: Vec<Chip> = Vec::with_capacity(sequence_clips.len() + 2);
-            chips.push(Chip::choice("None", current == Some(None), |label| {
-                slot_chip(
-                    theme,
-                    MotionKey::new("fx-layer-none", index).with(slot),
-                    label,
-                    (index, slot),
-                    SlotEdit::Layer(None),
-                    cx,
-                )
-            }));
+            chips.push(choice_chip(
+                MotionKey::new("fx-layer-none", index).with(slot),
+                "None",
+                current == Some(None),
+                theme,
+                cx,
+                slot_edit(index, slot, SlotEdit::Layer(None)),
+            ));
             for (target_clip, name) in sequence_clips {
                 let target = *target_clip;
                 let on = current == Some(Some(target.raw()));
-                chips.push(Chip::choice(name.clone(), on, |label| {
-                    slot_chip(
-                        theme,
-                        MotionKey::new("fx-layer", index)
-                            .with(slot)
-                            .with(target.raw()),
-                        label,
-                        (index, slot),
-                        SlotEdit::Layer(Some(target)),
-                        cx,
-                    )
-                }));
+                chips.push(choice_chip(
+                    MotionKey::new("fx-layer", index)
+                        .with(slot)
+                        .with(target.raw()),
+                    name.clone(),
+                    on,
+                    theme,
+                    cx,
+                    slot_edit(index, slot, SlotEdit::Layer(Some(target))),
+                ));
             }
             // A layer the render rejects prints the reason under the chips,
-            // its text where theirs starts.
+            // starting where they do.
             if let Some(message) = state.read(cx).effect_layer_refusal(index, slot) {
                 chips.push(Chip::other(
                     div()
                         .w_full()
-                        .px(px(components::GHOST_INSET.0))
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.danger)
                         .child(message),

@@ -5,18 +5,16 @@
 //! cannot drift from the rect the model validates. They read the rect in force
 //! under the playhead, which is where an edit lands.
 
-use gpui::{IntoElement, ParentElement, Styled, div, px};
+use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::clip_frame::{CROP_EDGES, crop_inset};
+use crate::components::{self, section_label};
+use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{
-    Columns, Readout, ghosts_under_labels, pick_button, switch_line, unkeyed_row,
-};
-
-use crate::components::section_label;
+use super::widgets::{Columns, Readout, filing, switch_line, unkeyed_row};
 
 pub fn framing_block(
     theme: &Theme,
@@ -39,7 +37,7 @@ pub fn framing_block(
             unkeyed_row(
                 theme,
                 state,
-                crate::motion::MotionKey::new("insp.row", edge),
+                MotionKey::new("insp.row", edge),
                 *label,
                 Readout::printed(format!("{percent:.0}%"), percent, 0, 1.0),
                 Columns::Keyed,
@@ -51,50 +49,57 @@ pub fn framing_block(
         .collect();
 
     let blur = clip.motion_blur;
-    let reset = pick_button("crop-clear", "Reset framing", theme, cx, |state| {
-        inspector_pick::apply(state, Pick::ClearCrop)
-    });
+    // The reset ends the Crop heading's line, as the block's own ends the
+    // Transform heading's, and puts back the mirroring under it too.
+    let reset = filing(
+        components::icon_button("crop-clear", crate::icons::ROTATE_CCW, theme)
+            .debug_selector(|| "crop-clear".into()),
+        cx,
+        |state| inspector_pick::apply(state, Pick::ClearCrop),
+    );
 
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Crop"))
+        .child(components::section_heading(theme, "Crop", reset))
         .children(crops)
         .child(section_label(theme, "Mirror"))
         .child(switch_line(
             theme,
-            ("crop-flip-h", "Horizontal"),
+            MotionKey::new("insp.row", "crop-flip-h"),
+            "Horizontal",
+            Columns::Keyed,
             "flip-h",
-            clip.flip_h,
+            Some(clip.flip_h),
             cx,
             |state| inspector_pick::apply(state, Pick::FlipHorizontal),
         ))
         .child(switch_line(
             theme,
-            ("crop-flip-v", "Vertical"),
+            MotionKey::new("insp.row", "crop-flip-v"),
+            "Vertical",
+            Columns::Keyed,
             "flip-v",
-            clip.flip_v,
+            Some(clip.flip_v),
             cx,
             |state| inspector_pick::apply(state, Pick::FlipVertical),
-        ))
-        .child(ghosts_under_labels(
-            Columns::Keyed,
-            [reset.into_any_element()],
         ))
         .child(section_label(theme, "Motion blur"))
         .child(switch_line(
             theme,
-            ("blur-on", "Enabled"),
+            MotionKey::new("insp.row", "blur-on"),
+            "Enabled",
+            Columns::Keyed,
             "blur-toggle",
-            blur.enabled,
+            Some(blur.enabled),
             cx,
             |state| inspector_pick::apply(state, Pick::ToggleMotionBlur),
         ))
         .child(unkeyed_row(
             theme,
             state,
-            crate::motion::MotionKey::new("insp.row", "blur-shutter"),
+            MotionKey::new("insp.row", "blur-shutter"),
             "Shutter",
             Readout::printed(
                 format!("{:.0}°", blur.shutter_deg),
@@ -109,7 +114,7 @@ pub fn framing_block(
         .child(unkeyed_row(
             theme,
             state,
-            crate::motion::MotionKey::new("insp.row", "blur-samples"),
+            MotionKey::new("insp.row", "blur-samples"),
             "Samples",
             Readout::number(blur.samples as f32, 0, 1.0),
             Columns::Keyed,

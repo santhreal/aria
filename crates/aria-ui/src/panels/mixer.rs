@@ -50,7 +50,9 @@ const FADER_MIN_HEIGHT: f32 = 96.0;
 const FADER_WIDTH: f32 = 28.0;
 const PAN_WIDTH: f32 = 96.0;
 const PAN_HEIGHT: f32 = 10.0;
-const STRIP_WIDTH: f32 = 124.0;
+/// A strip's width. Inside its border and padding it holds the insert chain's
+/// outlined "+ Audio effect" button whole.
+const STRIP_WIDTH: f32 = 140.0;
 
 /// Whether the mixer is the pane in front.
 pub fn visible(state: &AppState) -> bool {

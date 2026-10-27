@@ -107,7 +107,7 @@ one undo step:
 - The color wheels' drag and reset reach every clip that grades.
 - An effect added with **Add**, or dragged onto the Effects tab, lands on every
   clip on the same kind of lane; a shorter chain takes it at its end. A
-  parameter edit, **fx**, a move, the reset button, and the effect menu's
+  parameter edit, the effect's switch, a move, the reset button, and the effect menu's
   **Reset**, **Rename Effect**, **Duplicate**, **Paste Below**, and **Remove
   Effect** reach every clip holding the same effect at the same place in its
   chain. A menu opened on an effect of another clip acts on that clip alone.

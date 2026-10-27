@@ -19,9 +19,10 @@ use crate::components;
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
 
-/// A catalog feed: a Load button, then one row per card. Every line's text
-/// starts one ghost inset in, where the Load button's label and each card's
-/// name start, so a caller hangs the block to stand its text on a column.
+/// A catalog feed: a Load button, then one row per card. The button's border
+/// and the status line start on the block's edge, and the rows, which draw no
+/// frame at rest, hang one ghost inset past it, so each card's name starts
+/// there too.
 ///
 /// The feed is never fetched from inside this function. A render that started network
 /// traffic would refetch on every repaint, so loading is an explicit click.
@@ -62,7 +63,7 @@ pub(crate) fn cloud_catalog_block(
             // A feed that is fetching gets a loader; a feed that failed or
             // holds nothing states it, faded up so the answer arrives rather
             // than replacing the wait in one frame.
-            el.child(div().px(px(components::GHOST_INSET.0)).child(if loading {
+            el.child(if loading {
                 crate::pending::working(theme, &format!("cloud.feed.{}", feed.label()), line, cx)
             } else {
                 crate::pending::settled(
@@ -72,9 +73,18 @@ pub(crate) fn cloud_catalog_block(
                         .text_color(theme.text_faint)
                         .child(SharedString::from(line)),
                 )
-            }))
+            })
         })
-        .children(rows)
+        .when(!rows.is_empty(), |el| {
+            el.child(
+                div()
+                    .mx(px(-components::GHOST_INSET.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(Theme::SPACE_XS))
+                    .children(rows),
+            )
+        })
 }
 
 /// A feed that fills its panel: the cards as a list that scrolls, or, while

@@ -16,11 +16,11 @@ use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
+use gpui::InteractiveElement as _;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, chip_row, ghosts_under_labels, param_rows, pick_button};
-
-use crate::components::section_label;
+use super::widgets::{Columns, chip_row, choice_chip, filing, param_rows};
+use crate::components::{self, section_label};
 
 pub fn grade_block(
     theme: &Theme,
@@ -29,19 +29,26 @@ pub fn grade_block(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let rows = param_rows(theme, "grade", state, cx);
-    let reset = pick_button("grade-clear", "Reset grade", theme, cx, |state| {
-        inspector_pick::apply(state, Pick::ClearGrade)
-    });
+    // The reset ends the Grade heading's line, as the Transform block's ends
+    // its own.
+    let reset = filing(
+        components::icon_button("grade-clear", crate::icons::ROTATE_CCW, theme)
+            .debug_selector(|| "grade-clear".into()),
+        cx,
+        |state| inspector_pick::apply(state, Pick::ClearGrade),
+    );
     let blends: Vec<_> = BlendMode::ALL
         .iter()
         .map(|mode| {
             let mode = *mode;
-            Chip::choice(mode.label(), clip.blend_mode == mode, |label| {
-                pick_button(("grade-blend", mode.id()), label, theme, cx, move |state| {
-                    inspector_pick::apply(state, Pick::Blend(mode))
-                })
-                .into_any_element()
-            })
+            choice_chip(
+                ("grade-blend", mode.id()),
+                mode.label(),
+                clip.blend_mode == mode,
+                theme,
+                cx,
+                move |state| inspector_pick::apply(state, Pick::Blend(mode)),
+            )
         })
         .collect();
 
@@ -50,12 +57,8 @@ pub fn grade_block(
         .flex_col()
         .gap(px(Theme::SPACE_XS))
         .child(wheels::wheels_block(theme, "inspector", state, cx))
-        .child(section_label(theme, "Grade"))
+        .child(components::section_heading(theme, "Grade", reset))
         .children(rows)
-        .child(ghosts_under_labels(
-            Columns::Keyed,
-            [reset.into_any_element()],
-        ))
         .child(section_label(theme, "Blend"))
         .child(chip_row(
             theme,
@@ -82,24 +85,24 @@ fn stabilize_row(
         .iter()
         .map(|level| {
             let level = *level;
-            Chip::choice(level.label(), on == Some(level), |label| {
-                pick_button(
-                    ("stabilize-level", level.id()),
-                    label,
-                    theme,
-                    cx,
-                    move |state| inspector_pick::apply(state, Pick::Stabilize(Some(level))),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                ("stabilize-level", level.id()),
+                level.label(),
+                on == Some(level),
+                theme,
+                cx,
+                move |state| inspector_pick::apply(state, Pick::Stabilize(Some(level))),
+            )
         })
         .collect();
-    chips.push(Chip::choice("Off", on.is_none(), |label| {
-        pick_button("stabilize-off", label, theme, cx, |state| {
-            inspector_pick::apply(state, Pick::Stabilize(None))
-        })
-        .into_any_element()
-    }));
+    chips.push(choice_chip(
+        "stabilize-off",
+        "Off",
+        on.is_none(),
+        theme,
+        cx,
+        |state| inspector_pick::apply(state, Pick::Stabilize(None)),
+    ));
     chip_row(
         theme,
         MotionKey::new("insp.row", "stabilize"),

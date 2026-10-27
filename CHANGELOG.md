@@ -16,7 +16,7 @@ Notes for the latest release. For previous releases, see the
 - A tab dragged over a frame previews its drop zone after 80 ms, and a tab released outside every window opens its panel in a window of its own that docks again when dragged back.
 - The Editing workspace splits the window 55/45 between the panel row and the Timeline, Window > Workspaces > Save as New Workspace prompts for a name in the rename bar, and the Animation workspace opens the Timeline Graph Editor.
 - The main window's size, position, display, and maximized state are restored per display arrangement, and a window smaller than 1024×640 shows the Viewer above the Timeline only.
-- The **fx** toggle on each effect header in Effect Controls switches the effect off and back on, keeping its parameters and its place in the chain.
+- The switch on each effect header in Effect Controls turns the effect off and back on, keeping its parameters and its place in the chain.
 - Each effect header has a reset button and a menu with Reset, Rename Effect, Duplicate, Copy, Paste Below, Save as Preset, and Remove Effect, and Effect > Paste Effect adds the copied effect to every selected clip that draws a picture.
 - Dragging an effect header moves the effect above the effect it is dropped on, or to the end of the chain, as one undo step.
 - Plugins can add rows to the effect header menu with the `Effect Header` menu location or a `MenuTarget::Effect` context-menu handler.
@@ -35,7 +35,7 @@ Notes for the latest release. For previous releases, see the
 - The stopwatch and keyframe navigator of each timeline property row and Path row name themselves on hover.
 - Right-clicking a keyframe on a timeline property row, in the Graph Editor, or on a mask's Path row opens a context menu that checks Hold and Rove Across Time while they apply and closes on Escape or a press outside it.
 - A clip holds a stack of up to 32 masks, each with a mode (None, Add, Subtract, Intersect, Lighten, Darken, Difference), an opacity, an expansion in pixels, and an invert toggle, combined top to bottom in playback and export.
-- The Look tab lists every mask with its mode chips and Invert, Move up, Move down, and Remove buttons, and clicking a mask's header makes it the active mask that the Viewer handles, the Pen, and mask tracking edit.
+- The Look tab lists every mask with its mode chips, an **Invert** switch, and Move up, Move down, and Remove buttons, and clicking a mask's header makes it the active mask that the Viewer handles, the Pen, and mask tracking edit.
 - The palette adds a mask of any shape by name, and a Pen press off the active path starts a new path mask.
 - The `add_clip_mask`, `set_clip_mask`, `remove_clip_mask`, and `move_clip_mask` agent tools edit a clip's mask stack by index.
 - The Python API animates a mask property by the mask's index in the stack, as `mask_0_feather` or `mask_1_center`.
@@ -426,16 +426,20 @@ Notes for the latest release. For previous releases, see the
 - A solid button dims under the pointer instead of turning light.
 - The timeline's search box is as tall as the toggles in its row.
 - On the Effect Controls tabs, rows that cannot be keyed, such as the fades, Reverse, Pitch lock, the crop insets, the audio role, the duck settings and an effect's switch, choice, text, font, curve, gradient and layer slots, print their name and value in the keyed rows' columns.
-- A choice row shows the current choice in the value column and the choices on the line under it, with the one in force marked `•`, and the audio role chips mark the clip's role.
-- Reverse and Pitch lock read **On** or **Off** in the value column.
+- A choice row shows the current choice in the value column and the choices on the line under it as chips, with the one in force lit, and the audio role chips light the clip's role.
+- Every setting that is on or off is a switch: in the Inspector the mirror flips, Blur, Reverse, Pitch lock, Denoise, each layer style, mask and track matte Invert, Text Wrap, the template switches, an effect's bypass and switch slots, and a transition's switch slots; in Settings the Playback rows, a plugin's toggle settings, and each plugin's enable switch; a plugin panel's toggles; Reverse Speed and Maintain Audio Pitch in Speed/Duration; and Continuous in Keyframe Velocity.
+- An Inspector switch stands on its label's line and ends where the numbers above it end.
+- Ghost buttons draw a border, and the Inspector's chips and ghost buttons stand their frames on the label column.
+- Audio Track Mixer strips are 140 px wide, so the outlined **+ Audio effect** button stays inside its strip.
+- The Inspector's **Crop** and **Grade** headings end in a reset icon in place of the **Reset framing** and **Reset grade** buttons.
 - The Look tab lists its filters as chips under a **Filter** row instead of a Catalog section.
 - The Looks list stacked under every Inspector tab is removed, and the Look tab's **Filter** row applies the same looks.
 - The Duck card stacked under every Inspector tab while a duck could run is removed, and the Audio tab's **Duck under voice** rows set the same dip, attack, and release.
 - Volume reads `+0.0 dB`, and the value column is 76 px wide, so a timecode fits in it, and narrows only once a row's name has no width left.
 - A transition's size slot reads **w** and **h**, as an effect's does.
 - Curve and gradient slots show **N pts** and **N stops** in the value column instead of in the name.
-- The blend mode, stabilization level, chroma key color, track matte channel, LUT file, and speed ramp are choice rows, and the mirror flips, track matte invert, and each layer style are **On**/**Off** switches in the keyed rows' columns.
-- Denoise is an **On**/**Off** switch on the Audio tab instead of a section of the Look tab.
+- The blend mode, stabilization level, chroma key color, track matte channel, LUT file, and speed ramp are choice rows in the keyed rows' columns.
+- Denoise is a switch on the Audio tab instead of a section of the Look tab.
 - The easing chips in the Inspector curve editor reach every selected clip that has the property, as one undo step.
 - Labels, tooltips, status lines, and the documentation are spelled in US English (Color, center, Favorites, Minimize, normalize), and the color grading chapter of the guide is `docs/guide/color.md`.
 - A dock panel with nothing to show draws its line faint and centered in the space its content fills, as the Timeline does, and the Markers panel reads **No markers.** above **Add at playhead**.
@@ -713,7 +717,7 @@ Notes for the latest release. For previous releases, see the
 - The Export sheet's Range row names the marked span by its In and Out timecodes before it is chosen, and its Keyframes chips read `Every 15`, `Every 30`, and `Every 60`.
 - The Export sheet's `Choose…` button reads `Export As…` and its `Frames` button reads `Export Frames…`.
 - The Export sheet probes the codecs this machine writes once per process, on a thread of its own when the sheet first opens, and its Codec row states the chosen codec until the probe answers, instead of probing again on the thread that draws at every click of the Codec row.
-- Settings shows the On and Off choices of its Playback rows and the Source, Protocol, Reasoning, and Autonomy choices of its AI rows as chips with the choice in force lit, instead of filling the choice in force as a button is filled.
+- Settings shows the Source, Protocol, Reasoning, and Autonomy choices of its AI rows as chips with the choice in force lit, instead of filling the choice in force as a button is filled.
 - A Settings choice reports itself on the status line by the name the dialog prints, such as `AI protocol: Chat Completions` and `Accent: Ember`, instead of by its config key, such as `AI protocol is chat_completions`.
 - A clip's parameter, look, mask, crop and audio edits keep the cached size of the largest video on the timeline, and the timeline view reads the `Auto` canvas size from the lanes it already holds instead of walking every clip, which brings `project-10k` edit-to-visible-frame p50 on Server from 3.55 ms to 3.40 ms and an Inspector value scrub move from 6.38 ms to 6.09 ms (medians of eight paired runs).
 
@@ -724,8 +728,8 @@ Notes for the latest release. For previous releases, see the
 - Picking a key color, a matte source, a matte invert, a filter, or a layer style, reloading a LUT, mirroring the picture, and editing a crop edge or dragging a crop handle keep the keyframes on the clip's key strength and shadow, matte softness, filter and LUT amounts, style properties, and crop instead of flattening them to one value.
 - On an animated crop, the crop insets in Effect Controls and the crop handles in the Viewer read the rect under the playhead instead of the clip's first frame, and an edit sets a keyframe at the playhead.
 - A layer style's color is set from a color row with a stopwatch, keyframe navigator, and the shared swatches, which add Half black, instead of from three Black, White, and Half black buttons that flattened an animated color.
-- Inspector buttons such as **Reset grade**, **Reset framing**, **Remove key**, **Remove matte**, **Clear styles**, **Load .cube…**, **Save as preset**, **Load catalog**, and **+ Audio effect** are as wide as their label instead of spanning the block, and a block's reset button and the Track matte and Speed notes start at the label column.
-- In the Inspector, a switch's **On** or **Off** ends where the numbers above it end and its row is as tall as a number row, and the labels of choice chips, mask shapes, the Effects tab's lists and presets, the keyframe easing presets, the Cloud LUT catalog, and **+ Audio effect** start at the label column.
+- Inspector buttons such as **Remove key**, **Remove matte**, **Clear styles**, **Load .cube…**, **Save as preset**, **Load catalog**, and **+ Audio effect** are as wide as their label instead of spanning the block, and the Track matte and Speed notes start at the label column.
+- In the Inspector, a switch's row is as tall as a number row, and choice chips, mask shapes, the Effects tab's lists and presets, the keyframe easing presets, the Cloud LUT catalog, and **+ Audio effect** start at the label column.
 - On the Inspector's Info tab, **Media** prints the name of the clip's media instead of its pool number, the clip's facts, the template buttons and the Replace media list stand on the label and value columns of the free rows below them, the slot's restriction is an **Accepts** choice row with its hint on a **Hint** row, **Text editable in template** is a switch, and the Speed tab's graph starts and ends where its rows' labels and values do.
 - The Inspector's Keyframes block lists only the properties that hold a keyframe or a driver, reads **None** when there is none, and draws each row's buttons on the line under the property's name, starting on the label column.
 - The pointer on a button of the Keyframes block or the Replace media list lights that button alone instead of the same button on every other row.

@@ -17,8 +17,8 @@ pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
     crate::components::row_label(theme, label, LABEL_WIDTH)
 }
 
-/// A row of choices: `label` in the label column, then one chip per choice
-/// with the one in force lit, `SPACE_XS` apart.
+/// A row of controls: `label` in the label column, then the controls,
+/// `SPACE_XS` apart: a chip per choice with the one in force lit, or a switch.
 pub(super) fn chip_row(
     theme: &Theme,
     label: &'static str,

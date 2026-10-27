@@ -156,6 +156,8 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("sync-multicam-group", "Sync these angles from their audio"),
     // Inspector resets.
     ControlTip::named("inspector-reset", "Reset these values"),
+    ControlTip::named("crop-clear", "Reset the crop and mirroring"),
+    ControlTip::named("grade-clear", "Reset the grade"),
     ControlTip::named("inspector-wheel-reset", "Reset this color wheel"),
     // Driver source under a driven property.
     ControlTip::named("inspector-driver-whip", "Driver pick whip").detail("Click a property to read it in this driver"),
@@ -172,6 +174,9 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("insert-up", "Move this audio effect earlier"),
     ControlTip::named("insert-down", "Move this audio effect later"),
     ControlTip::named("insert-remove", "Remove this audio effect"),
+    ControlTip::named("insert-bypass", "Switch this audio effect off, or back on"),
+    // A plugin row in Settings.
+    ControlTip::named("plugin-toggle", "Turn this plugin off, or back on"),
     // The property rows in the timeline and in Effect Controls, and the Path
     // rows: a stopwatch, a keyframe navigator and a reset, each a glyph. A row
     // is drawn once per property, so the key is the control's kind, and each

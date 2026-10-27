@@ -126,9 +126,10 @@ did not mount shows the reason instead: a missing GPU, an unreadable config file
 dependency that failed first. A failed plugin does not stop the app: the rest mount
 and the capability is absent, not broken.
 
-**Disable** drops a plugin's services from the registry, and the surfaces that need
-them disappear. **Enable** mounts it again. Storage, settings, and the engine have
-no toggle: Aria cannot run without them.
+The switch at the right of a plugin's action line turns it off or on. Off drops
+the plugin's services from the registry, and the surfaces that need them
+disappear; on mounts it again. Storage, settings, and the engine have no
+switch: Aria cannot run without them.
 
 The first two rows of the section are the limits a WASM plugin runs under, each
 with **Halve** and **Double** steppers: `WASM fuel per call` (500,000,000

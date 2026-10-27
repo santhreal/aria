@@ -3,7 +3,7 @@
 ## Look and grade
 
 The Look tab's **Filter** row shows the applied filter, or None, and lists the
-filter catalog under it with the applied one marked `•`. Below it is the
+filter catalog under it as chips with the applied one lit. Below it is the
 grade:
 
 - The color wheels: Lift, Gamma and Gain. Press anywhere on a wheel to put
@@ -21,14 +21,14 @@ grade:
   brightness, saturation), the creative values (faded film, vibrance,
   sharpness, hue), the RGB curves, the hue curves, the twelve wheel values as
   numbers, the HSL secondary, and the vignette. Drag a row's value to change
-  it, or click it to type one. **Reset grade** returns every adjustment to
-  neutral.
+  it, or click it to type one. The reset icon at the right of the **Grade**
+  heading returns every adjustment to neutral.
 - A blend mode for the layer. The **Mode** row shows it, and the chips under
-  it pick another, the one in force marked `•`. Normal composites
+  it pick another, the one in force lit. Normal composites
   source-over. In a matte the pair composites with the content clip's mode,
   and each side of a transition composites with its own clip's mode.
 - Stabilize. The **Level** row shows the smoothing level, or Off, and the
-  chips under it offer the three levels and Off. The section is absent on a
+  chips under it offer the three levels and Off, the one in force lit. The section is absent on a
   clip with no motion to smooth, such as a still.
 
 **Window > Color** opens the Color panel, which lays the same grade out in

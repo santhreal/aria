@@ -5,8 +5,8 @@
 //! against the source. The shared controls are the public functions of
 //! `components.rs` that take a control id first: `components::button`,
 //! `ghost_button`, `disclosure_button`, `danger_button`, `chip`, `list_chip`,
-//! `text_box`, `field_frame` and the icon button. A call states its control
-//! id in one of four forms, read from the call's own text:
+//! `switch`, `text_box`, `field_frame` and the icon button. A call states its
+//! control id in one of four forms, read from the call's own text:
 //!
 //! - a string literal, for a control drawn once;
 //! - a tuple whose first element is a literal, `("speed-preset", id)`, for a
@@ -31,13 +31,14 @@ use super::sources::without_test_items;
 /// The shared widgets. Spelled with `concat!` so that no needle appears whole
 /// in this file: the tooltip census reads every non-test file for icon button
 /// calls without stripping comments or strings.
-const WIDGETS: [&str; 10] = [
+const WIDGETS: [&str; 11] = [
     concat!("components::", "button("),
     concat!("ghost_", "button("),
     concat!("disclosure_", "button("),
     concat!("components::", "danger_button("),
     concat!("components::", "chip("),
     concat!("list_", "chip("),
+    concat!("components::", "switch("),
     concat!("components::", "text_box("),
     concat!("components::", "field_frame("),
     concat!("icon_", "button("),
@@ -88,6 +89,10 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 0,
     },
     Forwarder {
+        name: "choice_chip",
+        arg: 0,
+    },
+    Forwarder {
         name: "pick_chip",
         arg: 1,
     },
@@ -96,7 +101,11 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 1,
     },
     Forwarder {
-        name: "on_off_row",
+        name: "switch_row",
+        arg: 1,
+    },
+    Forwarder {
+        name: "toggle_row",
         arg: 1,
     },
     Forwarder {
@@ -125,18 +134,10 @@ const FORWARDERS: &[Forwarder] = &[
     },
     Forwarder {
         name: "switch_line",
-        arg: 2,
+        arg: 4,
     },
     Forwarder {
-        name: "role_chip",
-        arg: 1,
-    },
-    Forwarder {
-        name: "slot_chip",
-        arg: 1,
-    },
-    Forwarder {
-        name: "transition_chip",
+        name: "slot_button",
         arg: 1,
     },
     Forwarder {

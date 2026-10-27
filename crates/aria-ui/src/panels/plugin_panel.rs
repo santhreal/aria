@@ -396,32 +396,24 @@ fn toggle(
     let theme = draw.theme;
     let spec = Arc::clone(draw.spec);
     let id = Arc::clone(id);
-    components::chip(
-        ("plugin-ui-toggle", draw.key.with(&*id)),
-        SharedString::from(text),
-        on,
-        ChipSize::Regular,
-        theme,
-    )
-    .flex()
-    .items_center()
-    .gap(px(Theme::SPACE_XS))
-    .child(div().w(px(6.)).h(px(6.)).rounded_full().bg(if on {
-        theme.accent
-    } else {
-        theme.border
-    }))
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            let event = PanelEvent::Toggled {
-                id: Arc::clone(&id),
-                on: !on,
-            };
-            send(this, &spec, event, cx);
-        }),
-    )
-    .into_any_element()
+    let switch = components::switch(("plugin-ui-toggle", draw.key.with(&*id)), Some(on), theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                let event = PanelEvent::Toggled {
+                    id: Arc::clone(&id),
+                    on: !on,
+                };
+                send(this, &spec, event, cx);
+            }),
+        );
+    div()
+        .flex()
+        .items_center()
+        .gap(px(Theme::SPACE_SM))
+        .child(label(theme, text).w(px(72.)))
+        .child(switch)
+        .into_any_element()
 }
 
 /// `[value, min, max, step]` as the tree holds them. `key` is the slider's

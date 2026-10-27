@@ -23,7 +23,9 @@ use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{color_rows, param_rows, pick_button, picked};
+use crate::panels::inspector::blocks::widgets::{
+    Columns, color_rows, param_rows, pick_button, picked, switch_line,
+};
 
 use crate::components::section_label;
 
@@ -45,29 +47,30 @@ pub fn text_tab(
     let active = clip.text_effect.clone();
 
     // The chips come from the model catalog, so a new preset needs no edit here.
-    // The active one is marked as every Inspector picker marks its choice, by
-    // `picked`, rather than by a color only.
-    let presets: Vec<_> = crate::catalog_text::text_effects()
-        .iter()
-        .map(|choice| {
-            let id = choice.id.as_str();
-            let on = active.as_deref() == Some(id);
-            pick_button(
-                ("text-effect", id),
-                picked(choice.label.clone(), on),
-                theme,
-                cx,
-                move |state| {
-                    if on {
-                        clip_pick::apply(state, Pick::ClearTextEffect)
-                    } else {
-                        clip_pick::apply(state, Pick::TextEffect(id.to_string()))
-                    }
-                },
-            )
-            .into_any_element()
-        })
-        .collect();
+    // The active one is lit, as every chip in force is; pressing it clears it.
+    let presets = chip_wrap(
+        crate::catalog_text::text_effects()
+            .iter()
+            .map(|choice| {
+                let id = choice.id.as_str();
+                let on = active.as_deref() == Some(id);
+                pick_chip(
+                    theme,
+                    MotionKey::new("text-effect", id),
+                    choice.label.clone(),
+                    on,
+                    move || {
+                        if on {
+                            Pick::ClearTextEffect
+                        } else {
+                            Pick::TextEffect(id.to_string())
+                        }
+                    },
+                    cx,
+                )
+            })
+            .collect(),
+    );
 
     div()
         .flex()
@@ -90,7 +93,7 @@ pub fn text_tab(
                     .child("No text"),
             )
         })
-        .child(pick_button(
+        .child(div().flex().child(pick_button(
             "text-edit",
             "Edit text…",
             theme,
@@ -99,11 +102,11 @@ pub fn text_tab(
                 state.begin_rename(RenameTarget::ClipText);
                 Ok(())
             },
-        ))
+        )))
         .children(character_controls(theme, INSPECTOR, state, cx))
         .children(paragraph_controls(theme, INSPECTOR, state, cx))
         .child(section_label(theme, "Effect"))
-        .children(presets)
+        .child(presets)
         .child(section_label(theme, "Cloud presets"))
         .child(cloud_presets(theme, state, cx))
 }
@@ -283,20 +286,22 @@ pub fn paragraph_controls(
             })
             .collect(),
     );
-    let wrap = chip_wrap(vec![pick_chip(
+    let wrap = switch_line(
         theme,
-        MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
+        MotionKey::new("insp.row", "text-wrap").with(surface),
         TextSwitch::Wrap.label(),
-        face.is_on(TextSwitch::Wrap),
-        || Pick::TextSwitch(TextSwitch::Wrap),
+        Columns::Keyed,
+        MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
+        Some(face.is_on(TextSwitch::Wrap)),
         cx,
-    )]);
+        |state| clip_pick::apply(state, Pick::TextSwitch(TextSwitch::Wrap)),
+    );
     vec![
         section_label(theme, "Alignment").into_any_element(),
         across,
         down,
         section_label(theme, "Lines").into_any_element(),
-        wrap,
+        wrap.into_any_element(),
     ]
 }
 
@@ -316,7 +321,7 @@ fn chip_wrap(chips: Vec<AnyElement>) -> AnyElement {
 fn pick_chip(
     theme: &Theme,
     key: MotionKey,
-    label: &'static str,
+    label: impl Into<SharedString>,
     active: bool,
     pick: impl Fn() -> Pick + 'static,
     cx: &mut gpui::Context<crate::shell::Shell>,

@@ -16,7 +16,7 @@ use crate::app::curve_geometry::CurvePolyline;
 use crate::app::curve_stroke::{LEVER_STROKE, curve_columns, segment_columns};
 use crate::components::{self, section_label};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{Columns, chips_under_labels, under_labels};
+use crate::panels::inspector::blocks::widgets::{Columns, under_labels};
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
 
@@ -143,17 +143,9 @@ pub fn curve_editor_block(
             .flex_col()
             .gap(px(Theme::SPACE_XS))
             .child(section_label(theme, "Graph"))
-            .child(chips_under_labels(
-                Columns::Keyed,
-                components::ChipSize::Compact,
-                param_chips,
-            ))
+            .child(under_labels(Columns::Keyed, param_chips))
             .when(!axis_chips.is_empty(), |el| {
-                el.child(chips_under_labels(
-                    Columns::Keyed,
-                    components::ChipSize::Compact,
-                    axis_chips,
-                ))
+                el.child(under_labels(Columns::Keyed, axis_chips))
             })
             .child(under_labels(
                 Columns::Keyed,

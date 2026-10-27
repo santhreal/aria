@@ -117,16 +117,12 @@ pub(crate) fn generate_panel(
         // has always been able to call had no surface: a downloaded animation is
         // placed at the playhead like any other generator.
         .child(components::section_label(theme, "Lottie animations"))
-        .child(
-            div()
-                .ml(px(-components::GHOST_INSET.0))
-                .child(super::cloud::cloud_catalog_block(
-                    theme,
-                    crate::cloud::CloudFeed::Lottie,
-                    state,
-                    cx,
-                )),
-        )
+        .child(super::cloud::cloud_catalog_block(
+            theme,
+            crate::cloud::CloudFeed::Lottie,
+            state,
+            cx,
+        ))
         .into_any_element()
 }
 

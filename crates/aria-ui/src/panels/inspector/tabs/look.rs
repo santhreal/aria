@@ -9,7 +9,9 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Chip, Columns, chip_row, param_rows, pick_button};
+use crate::panels::inspector::blocks::widgets::{
+    Chip, Columns, chip_row, choice_chip, param_rows, pick_button,
+};
 
 pub fn look_tab(
     theme: &Theme,
@@ -23,16 +25,14 @@ pub fn look_tab(
         .map(|choice| {
             let id = choice.id.to_string();
             let on = applied.as_ref() == Some(&choice.id);
-            Chip::choice(choice.label.clone(), on, |label| {
-                pick_button(
-                    MotionKey::new("look-choice", &choice.id),
-                    label,
-                    theme,
-                    cx,
-                    move |state| inspector_pick::apply(state, Pick::Filter(id.clone())),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                MotionKey::new("look-choice", &choice.id),
+                choice.label.clone(),
+                on,
+                theme,
+                cx,
+                move |state| inspector_pick::apply(state, Pick::Filter(id.clone())),
+            )
         })
         .collect();
     if applied.is_some() {

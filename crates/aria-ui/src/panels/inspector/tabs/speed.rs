@@ -33,7 +33,8 @@ use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Readout, chip_row, label_note, pick_button, under_labels, unkeyed_row,
+    Chip, Columns, Readout, chip_row, choice_chip, label_note, pick_button, under_labels,
+    unkeyed_row,
 };
 
 use crate::components::section_label;
@@ -84,13 +85,14 @@ pub fn speed_block(
         .map(|spec| {
             let id = spec.id.as_str();
             let label = SharedString::new_static(spec.label.as_str());
-            Chip::choice(label, active == Some(id), |label| {
-                pick_button(("speed-preset", id), label, theme, cx, move |state| {
-                    clip_pick::apply(state, Pick::SpeedPreset(id.to_string()))
-                })
-                .id(MotionKey::new("speed", id).element_id("speed"))
-                .into_any_element()
-            })
+            choice_chip(
+                ("speed-preset", id),
+                label,
+                active == Some(id),
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::SpeedPreset(id.to_string())),
+            )
         })
         .collect();
     if has_ramp {

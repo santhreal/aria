@@ -2,12 +2,14 @@
 //! mixer strip.
 //!
 //! Both places draw the same projected rows and press the same gestures through
-//! [`insert_rack`]. Each insert is a header (its name, a bypass chip, the
+//! [`insert_rack`]. Each insert is a header (its bypass switch, its name, the
 //! chevrons that move it, and a remove button) with its parameters as steppers under
 //! it: under every insert in the inspector, and under the open one on a strip.
 //! An insert whose effect reads a key lists the lanes that may key it.
 
 use crate::components::Wraps as _;
+use crate::tooltip::WithTip as _;
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     Stateful, Styled, div, px,
@@ -18,9 +20,7 @@ use aria_models::{AudioInsertTarget, TrackId};
 use crate::app::AppState;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{
-    Columns, Readout, chips_under_labels, ghosts_under_labels, unkeyed_row,
-};
+use crate::panels::inspector::blocks::widgets::{Columns, Readout, under_labels, unkeyed_row};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
@@ -109,7 +109,7 @@ pub fn render(
         rows.push(note(theme, "Every insert slot is in use."));
     } else {
         rows.push(
-            ghosts_under_labels(
+            under_labels(
                 columns,
                 [pressed(
                     components::ghost_button(
@@ -155,7 +155,7 @@ fn chain_key(target: AudioInsertTarget) -> MotionKey {
     }
 }
 
-/// The insert's name, bypass chip, move-earlier and move-later controls, and
+/// The insert's bypass switch, name, move-earlier and move-later controls, and
 /// remove button. On a strip the name opens and closes the parameters.
 fn header(
     theme: &Theme,
@@ -185,13 +185,14 @@ fn header(
         pressed(name, move || Gesture::Open { target, index }, cx)
     };
     let bypass = pressed(
-        components::chip(
+        components::switch(
             ("insert-bypass", key.with("bypass")),
-            if insert.bypass { "Bypassed" } else { "On" },
-            !insert.bypass,
-            ChipSize::Compact,
+            Some(!insert.bypass),
             theme,
-        ),
+        )
+        .when_some(crate::tooltip::builder("insert-bypass"), |el, tip| {
+            el.with_tip(tip)
+        }),
         move || Gesture::Bypass { target, index },
         cx,
     );
@@ -243,14 +244,22 @@ fn header(
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(theme.wash(0.04))
-        .child(name)
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .min_w_0()
+                .child(bypass)
+                .child(name),
+        )
         .child(
             div()
                 .flex()
                 .flex_row()
                 .items_center()
                 .gap(px(Theme::SPACE_XXS))
-                .child(bypass)
                 .child(up)
                 .child(down)
                 .child(remove),
@@ -362,7 +371,7 @@ fn add_list(
             .into_any_element()
         })
         .collect();
-    chips_under_labels(columns, ChipSize::Compact, chips).into_any_element()
+    under_labels(columns, chips).into_any_element()
 }
 
 fn note(theme: &Theme, text: &'static str) -> gpui::AnyElement {

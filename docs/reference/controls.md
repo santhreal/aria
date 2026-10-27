@@ -88,7 +88,7 @@ The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui
 
 ## Inspector
 
-The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing, mask, and matte buttons, animation, speed ramp, and layer style presets, audio role and ducking controls, template slot chips, clip link controls, and transition pickers.
+The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing, mask, and matte controls, animation, speed ramp, and layer style presets, audio role and ducking controls, template slot controls, clip link controls, and transition pickers. A choice is a chip, lit while it is in force; a setting that is on or off is a switch on its line.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -96,16 +96,16 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `anim-preset` (per row) | Preset name | Applies the animation preset (Fade in, Slide up, Zoom in, and the rest of the animation catalog) to the in, out, or combo slot of the selected clip; a preset with no renderer is labeled `(no renderer)`. | None |
 | `aud-role` (per row) | Music / Sound FX / Voiceover / Extracted | Tags the selected clip with the audio role. | None |
 | `aud-role-clear` | Untag | Clears the assigned audio role tag (Music, Sound FX, Voiceover, Extracted) from the selected clip. | None |
-| `blur-toggle` | On / Off | Toggles motion blur evaluation for transform animation on the selected clip. | None |
+| `blur-toggle` | Switch | Toggles motion blur evaluation for transform animation on the selected clip; drawn on the Motion blur section's Enabled line. | None |
 | `chroma-clear` | Remove key | Removes the chroma key filter from the selected clip. | None |
 | `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen color. | None |
 | `clip-type-detach` | Detach | Detaches the linked audio stream from the selected video clip onto its own track item. | None |
-| `crop-clear` | Reset framing | Resets the crop rectangle and horizontal and vertical flip flags on the selected clip to their defaults. | None |
-| `denoise-toggle` | On / Off | Runs the selected clip's audio through RNNoise noise reduction, or stops it; drawn in the Inspector Audio tab. | None |
+| `crop-clear` | Reset icon | Resets the crop rectangle and horizontal and vertical flip flags on the selected clip to their defaults; drawn at the right of the Crop heading. | None |
+| `denoise-toggle` | Switch | Runs the selected clip's audio through RNNoise noise reduction, or stops it; drawn on the Inspector Audio tab's Denoise line. | None |
 | `duck-run` | Duck under voice | Computes and applies volume keyframes that lower music or effects gain during dialogue segments. | None |
 | `duck-setting` (per row) | Dip to / Attack / Release value | Steps the duck depth, attack time, or release time to its next value. | None |
-| `flip-h` | On / Off | Toggles horizontal mirroring of the selected clip; drawn on the Mirror section's Horizontal line. | None |
-| `flip-v` | On / Off | Toggles vertical mirroring of the selected clip; drawn on the Mirror section's Vertical line. | None |
+| `flip-h` | Switch | Toggles horizontal mirroring of the selected clip; drawn on the Mirror section's Horizontal line. | None |
+| `flip-v` | Switch | Toggles vertical mirroring of the selected clip; drawn on the Mirror section's Vertical line. | None |
 | `fx-add` (per row) | Effect name | Appends the chosen effect from the inline picker to the selected clip's effect stack. | None |
 | `fx-choice` (per row) | Option label | Selects a discrete enum option for an effect parameter. | None |
 | `fx-curve` (per row) | Curve preset | Applies a named curve preset (Linear, S-Curve, Invert) to an effect curve parameter. | None |
@@ -114,9 +114,9 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `fx-group` (per row) | Parameter group | Expands or collapses a collapsible parameter group inside an applied effect. | None |
 | `fx-layer` (per row) | Layer clip | Selects another timeline clip as a secondary layer input for an effect parameter. | None |
 | `fx-layer-none` (per row) | None | Clears the secondary layer input slot on an effect parameter. | None |
-| `fx-param-bool` (per row) | On / Off | Toggles a boolean parameter on an applied clip effect. | None |
+| `fx-param-bool` (per row) | Switch | Toggles a boolean parameter on an applied clip effect; drawn on the parameter's line. | None |
 | `fx-text-clear` (per row) | Clear | Clears the text string of an effect text parameter. | None |
-| `inspector-fx-bypass` (per row) | fx | Toggles bypass for an individual effect row on the selected clip. | None |
+| `inspector-fx-bypass` (per row) | Switch | Switches an individual effect on the selected clip off, or back on; drawn before the effect's name. | None |
 | `inspector-fx-down` (per row) | Move later | Moves the effect one slot later in the clip's evaluation order. | None |
 | `inspector-fx-menu` | Effect actions | Opens the per-effect menu to rename, duplicate, copy, paste, or save the effect as a preset. | None |
 | `inspector-fx-plugin-preset` (per row) | Plugin preset | Applies a plugin-contributed effect preset to the selected clip. | None |
@@ -131,26 +131,26 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `inspector-fx-reset` | Reset effect | Resets all parameters of the effect row to their default values. | None |
 | `inspector-fx-up` (per row) | Move earlier | Moves the effect one slot earlier in the clip's evaluation order. | None |
 | `inspector-parent-whip` | Parent pick whip | Attaches the transform parenting pick whip tooltip and arms clip parenting on click or drag. | None |
-| `inspector-pitch` | On / Off | Toggles pitch preservation when the selected clip plays at a non-unit speed. | None |
+| `inspector-pitch` | Switch | Toggles pitch preservation when the selected clip plays at a non-unit speed; drawn on the Audio tab's Pitch lock line. | None |
 | `inspector-replace-media` | Media name | Repoints the selected clip at the pooled media and keeps its placement, transform, and effects; drawn under Replace media in the Info tab. | None |
 | `inspector-reset` | Reset transform | Resets position, scale, rotation, anchor, and opacity on the selected clip. | None |
-| `inspector-reverse` | On / Off | Toggles reverse playback on the selected clip. | None |
+| `inspector-reverse` | Switch | Toggles reverse playback on the selected clip; drawn on the Audio tab's Reverse line. | None |
 | `inspector-slot-hint` | Edit hint… | Opens the prompt to edit the placeholder instruction text for a template slot. | None |
 | `inspector-slot-hint-clear` | Clear hint | Clears the placeholder instruction text from a template slot. | None |
-| `inspector-slot-toggle` | Mark as template slot / Clear template slot | Marks the selected clip as a replaceable template slot or removes its slot designation. | None |
-| `inspector-text-editable` | On / Off | Toggles whether a title clip's text remains editable when packaged as a template; drawn on the Info tab's Text editable in template line. | None |
+| `inspector-slot-toggle` | Switch | Marks the selected clip as a replaceable template slot or removes its slot designation; drawn on the Info tab's Template slot line. | None |
+| `inspector-text-editable` | Switch | Toggles whether a title clip's text remains editable when packaged as a template; drawn on the Info tab's Text editable in template line. | None |
 | `look-choice` (per row) | Look name | Applies a bundled creative look grade to the selected clip. | None |
 | `look-clear` | Clear | Clears the applied creative look from the selected clip. | None |
 | `lut-clear` | Remove LUT | Removes the loaded 3D `.cube` LUT from the selected clip. | None |
 | `lut-load` | Load .cube… | Opens a file picker to load a `.cube` 3D LUT file onto the selected clip. | None |
 | `mask-down` (per row) | Move down | Moves the mask one place lower in the selected clip's mask stack. | None |
-| `mask-invert` (per row) | Invert | Inverts the mask at that place in the mask stack. | None |
+| `mask-invert` (per row) | Switch | Inverts the mask at that place in the mask stack; drawn on the mask header's Invert line. | None |
 | `mask-mode` (per row) | None / Add / Subtract / Intersect / Lighten / Darken / Difference | Sets how the mask combines with the masks above it in the stack. | None |
 | `mask-remove` (per row) | Remove | Deletes the mask from the selected clip's mask stack. | None |
 | `mask-shape` (per row) | Linear / Mirror / Circle / Rectangle / Heart / Star / Path | Adds a mask of the shape to the bottom of the selected clip's mask stack. | None |
 | `mask-up` (per row) | Move up | Moves the mask one place higher in the selected clip's mask stack. | None |
 | `matte-clear` | Remove matte | Clears the track matte assignment from the selected clip. | None |
-| `matte-invert` | On / Off | Inverts the alpha or luma channel read from the assigned matte clip; drawn on the Track matte section's Invert line. | None |
+| `matte-invert` | Switch | Inverts the alpha or luma channel read from the assigned matte clip; drawn on the Track matte section's Invert line. | None |
 | `matte-source` (per row) | Alpha / Luma | Sets whether the track matte reads the alpha or the luma of the layer above the selected clip. | None |
 | `parent-choice` (per row) | Clip name | Assigns the clicked timeline clip as the transform parent of the selected clip. | None |
 | `parent-none` | None | Detaches the selected clip from its current transform parent. | None |
@@ -158,10 +158,10 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `relink-media` | Relink | Opens the Relink Media file picker, filtered to media files, and relinks the missing media pool item to the chosen file. Drawn in the Info tab and on a missing pool item. | None |
 | `speed-clear` | Clear ramp | Removes variable speed ramp segments and returns the clip to constant speed. | None |
 | `speed-preset` (per row) | Ramp up / Ramp down / Montage / Hero / Bullet / Jump cut / Flash in / Flash out | Applies the speed ramp preset to the selected clip. | None |
-| `style-toggle` (per row) | On / Off | Adds or removes the layer style on the selected clip; drawn on the style's line (Shadow, Glow, Outline, Background). | None |
+| `style-toggle` (per row) | Switch | Adds or removes the layer style on the selected clip; drawn on the style's line (Shadow, Glow, Outline, Background). | None |
 | `styles-clear` | Clear styles | Removes drop shadow, stroke, glow, and background layer styles from the selected clip. | None |
 | `template-accepts` (per row) | Any visual / Video only / Image only / Audio only | Sets the media a template slot on the selected clip accepts when the template is filled. | None |
-| `tr-bool` (per row) | On / Off | Toggles a boolean parameter on the selected timeline transition. | None |
+| `tr-bool` (per row) | Switch | Toggles a boolean parameter on the selected timeline transition; drawn on the parameter's line. | None |
 | `tr-choice` (per row) | Option label | Selects an enum option for a parameter on the selected timeline transition. | None |
 | `transition-align` (per row) | Alignment | Sets transition placement across the cut (Center at Cut, Start at Cut, End at Cut). | None |
 | `transition-choice` (per row) | Transition kind | Selects the transition type (Cross Dissolve, Dip to Black, Wipe, Slide) on the active cut. | None |
@@ -232,7 +232,7 @@ The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert
 | --- | --- | --- | --- |
 | `insert-add` (per row) | + Audio effect | Opens or closes the audio effect picker for the track, clip, or master insert chain. | None |
 | `insert-add-effect` (per row) | Effect name | Appends the audio effect to the end of the insert chain. | None |
-| `insert-bypass` (per row) | On / Bypassed | Bypasses the audio insert effect, or puts it back in the signal path. | None |
+| `insert-bypass` (per row) | Switch | Bypasses the audio insert effect, or puts it back in the signal path; drawn before the effect's name. | None |
 | `insert-down` | Move later | Moves the audio insert effect one slot later in the track, clip, or master insert chain. | None |
 | `insert-key` (per row) | Lane name | Sets the lane whose audio keys the insert effect, such as a sidechain compressor. | None |
 | `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
@@ -265,7 +265,7 @@ The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panel
 | `text-case` (per row) | As typed / Upper / Lower / Title | Sets the letter case the selected title is drawn in. | None |
 | `text-edit` | Edit text… | Opens the text content prompt for the selected title clip. | None |
 | `text-effect` (per row) | Neon / Shadow / Outline / Glow / Retro / Chrome | Applies the text effect preset to the selected title, or removes it when it is already applied. | None |
-| `text-switch` (per row) | Bold / Italic / Underline / Kerning / Wrap / Stroke / Shadow / Card | Toggles the text style on the selected title. | None |
+| `text-switch` (per row) | Bold / Italic / Underline / Kerning / Stroke / Shadow / Card / Wrap switch | Toggles the text style on the selected title; Wrap is a switch on the Paragraph controls' Wrap line, and the others are chips lit while on. | None |
 
 ## Markers
 
@@ -289,7 +289,7 @@ The Color panel and grading blocks (`crates/aria-ui/src/panels/color_panel.rs`, 
 | `color-grade-clear` | Reset grade | Resets all color correction sections on the selected clip from the Color panel header. | None |
 | `color-section` (per row) | Section title | Expands or collapses a grading section (Basic Correction, Creative, RGB Curves, Hue Curves, Color Wheels, HSL Secondary, Vignette) in the Color panel. | None |
 | `grade-blend` (per row) | Normal / Darken / Multiply / Color Burn / Lighten / Screen / Color Dodge / Add / Overlay / Soft Light / Hard Light / Difference / Exclusion | Sets the blend mode the selected clip composites with. | None |
-| `grade-clear` | Reset grade | Resets all color grade adjustments on the selected clip from the Inspector Look tab. | None |
+| `grade-clear` | Reset icon | Resets all color grade adjustments on the selected clip; drawn at the right of the Inspector Look tab's Grade heading. | None |
 | `inspector-wheel-reset` | Reset wheel | Resets the Lift, Gamma, or Gain color wheel back to neutral. | None |
 | `stabilize-level` (per row) | Recommended / Smooth / Max smooth | Enables video stabilization on the selected clip at the smoothing level. | None |
 | `stabilize-off` | Off | Disables video stabilization on the selected clip. | None |
@@ -408,11 +408,13 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `plugin-folder` | Open Folder | Opens the installed plugins directory in the system file manager. | None |
 | `plugin-install` | Install Plugin… | Opens a file picker to install a `.ariap` plugin archive. | None |
 | `plugin-log-copy` (per row) | Copy | Copies the diagnostic log output of the selected plugin to the clipboard. | None |
-| `plugin-row-action` (per row) | Enable / Disable / Reload / Uninstall / Open Folder / Log / Hide Log | Enables, disables, reloads, or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
-| `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's toggle or choice setting. | None |
+| `plugin-row-action` (per row) | Reload / Uninstall / Open Folder / Log / Hide Log | Reloads or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
+| `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's choice setting. | None |
+| `plugin-setting-switch` (per row) | Switch | Saves `true` or `false` for a plugin's toggle setting. | None |
+| `plugin-toggle` (per row) | Switch | Enables or disables the plugin; drawn at the right end of the plugin's action line, and absent for a plugin the shell cannot run without. | None |
 | `quota-dec` | −512 MiB | Decreases the download cache quota by 512 MiB. | None |
 | `quota-inc` | +512 MiB | Increases the download cache quota by 512 MiB. | None |
-| `settings-audio-scrubbing` | Audio scrubbing: On / Off | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged. | None |
+| `settings-audio-scrubbing` | Switch | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged; drawn on the Audio scrubbing line. | None |
 | `settings-done` | Done | Closes the Settings dialog. | None |
 | `settings-field` (per row) | Field label | Edits the row's text setting: the AI provider's base URL, model, key, or key variable, the cloud base URL, the section filter, the keymap set name, or a plugin's text setting. Enter saves it and Esc leaves the saved value. | None |
 | `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row. | None |
@@ -424,7 +426,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-keymap-export` | Export… | Exports the current keyboard shortcut bindings to a `.json` keymap file. | None |
 | `settings-keymap-import` | Import… | Imports keyboard shortcut bindings from a `.json` keymap file. | None |
 | `settings-keys-reset` | Reset all | Restores every keyboard shortcut in the active set to its default chord. | None |
-| `settings-log-dropped-frames` | Log dropped frames: On / Off | Toggles writing each dropped playback frame and its cause to the log under the `aria::playback` target. | None |
+| `settings-log-dropped-frames` | Switch | Toggles writing each dropped playback frame and its cause to the log under the `aria::playback` target; drawn on the Log dropped frames line. | None |
 | `settings-workspace-forget` (per row) | Forget | Deletes the saved custom workspace layout. | None |
 | `settings-workspace-reset` | Reset | Resets the active workspace dock layout to its factory pane arrangement. | None |
 | `settings-workspace-save` | Save layout / Overwrite | Saves the current dock pane arrangement into the active workspace slot. | None |
@@ -460,7 +462,7 @@ The application window frame, dock tab bars, and status strip (`crates/aria-ui/s
 | `plugin-ui-button` (per row) | Button text | Sends a press event to the plugin that declared the panel button. | None |
 | `plugin-ui-choice` (per row) | Option text | Sends the chosen option of a panel choice control to the plugin. | None |
 | `plugin-ui-input` (per row) | Field text | Gives the plugin panel text field keyboard focus. | None |
-| `plugin-ui-toggle` (per row) | Toggle text | Sends the new state of a panel toggle control to the plugin. | None |
+| `plugin-ui-toggle` (per row) | Switch | Sends the new state of a panel toggle control to the plugin; drawn after the toggle's text. | None |
 | `status-dropped-frames` | Dropped frames | Displays the count of dropped playback frames in the status strip and resets the counter when clicked. | None |
 | `status-nest-breadcrumb` | Nest breadcrumb | Returns the timeline from an opened nested sequence to the root sequence. | None |
 
@@ -484,7 +486,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `jobs-done` | Done | Closes the background Jobs dialog. | None |
 | `keyframe-velocity-apply` | OK | Applies the incoming and outgoing speed and influence values to the selected keyframes. | None |
 | `keyframe-velocity-cancel` | Cancel | Closes the Keyframe Velocity dialog without changing keyframe tangents. | None |
-| `keyframe-velocity-continuous` | Continuous: On / Off | Toggles continuous Bézier tangent coupling between incoming and outgoing keyframe handles. | None |
+| `keyframe-velocity-continuous` | Switch | Toggles continuous Bézier tangent coupling between incoming and outgoing keyframe handles; drawn on the Continuous line. | None |
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
 | `marker-edit-field` (per row) | Name / Comment / Duration (timecode) | Edits the marker's name, comment, or duration in the Marker Edit dialog; Enter saves the marker. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
@@ -503,9 +505,9 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `speed-duration-apply` | Apply | Applies the configured playback speed percentage, duration, reverse, and pitch settings to the selected clip. | None |
 | `speed-duration-cancel` | Cancel | Closes the Speed / Duration dialog without modifying the clip. | None |
 | `speed-duration-length-step` (per row) | -24f / -5f / -1f / +1f / +5f / +24f | Steps the clip duration in the Speed / Duration dialog by the number of frames. | None |
-| `speed-duration-pitch` | Maintain Audio Pitch: On / Off | Toggles audio pitch preservation in the Speed / Duration dialog. | None |
+| `speed-duration-pitch` | Switch | Toggles audio pitch preservation in the Speed / Duration dialog; drawn on the Maintain Audio Pitch line. | None |
 | `speed-duration-preset` (per row) | 25% … 400% | Sets the speed in the Speed / Duration dialog to the preset percentage. | None |
-| `speed-duration-reverse` | Reverse Speed: On / Off | Toggles reverse playback in the Speed / Duration dialog. | None |
+| `speed-duration-reverse` | Switch | Toggles reverse playback in the Speed / Duration dialog; drawn on the Reverse Speed line. | None |
 | `speed-duration-speed-step` (per row) | -25% / -5% / -1% / +1% / +5% / +25% | Steps the speed in the Speed / Duration dialog by the percentage. | None |
 | `timeline-report-close` | Close | Closes the Timeline File dialog and drops its report. | None |
 | `unsaved-cancel` | Stay | Cancels the pending close, quit, or project switch and returns to the open project. | None |

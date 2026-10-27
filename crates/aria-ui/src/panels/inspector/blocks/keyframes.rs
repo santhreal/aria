@@ -18,7 +18,7 @@ use crate::motion::MotionKey;
 use crate::surfaces::keyframe_rows::{self, Row};
 use crate::theme::Theme;
 
-use super::widgets::{Columns, ghosts_under_labels, label_note, pick_button, picked, under_labels};
+use super::widgets::{Columns, choice_chip, label_note, pick_button, under_labels};
 
 pub fn keyframes_block(
     theme: &Theme,
@@ -46,10 +46,10 @@ pub fn keyframes_block(
 
             let easing_chips = easing_presets().iter().map(|preset| {
                 let preset_id = preset.id.as_str();
-                let selected = preset_here == Some(preset_id);
-                pick_button(
+                choice_chip(
                     ("keyframe-easing", MotionKey::new(preset_id, &id)),
-                    picked(preset.label.as_str(), selected),
+                    preset.label.as_str(),
+                    preset_here == Some(preset_id),
                     theme,
                     cx,
                     move |state| {
@@ -149,9 +149,9 @@ pub fn keyframes_block(
                             .child(name)
                             .into_any_element()],
                     ))
-                    .child(ghosts_under_labels(Columns::Keyed, controls))
+                    .child(under_labels(Columns::Keyed, controls))
                     .when(!presets.is_empty(), |el| {
-                        el.child(ghosts_under_labels(Columns::Keyed, presets))
+                        el.child(under_labels(Columns::Keyed, presets))
                     })
                     .into_any_element(),
             )

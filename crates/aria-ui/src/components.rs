@@ -83,15 +83,33 @@ pub fn button(
         .child(label.into())
 }
 
+/// A ghost button: a secondary action, such as Cancel or Measure. A border on
+/// no fill at rest, so it reads as a button beside a solid one and apart from a
+/// chip, which marks a choice with a fill. One control tall, its label
+/// [`GHOST_INSET`] inside its outer edge. Under the pointer the border and the
+/// label brighten and a wash fills it.
 pub fn ghost_button(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> Stateful<Div> {
     let (id, label) = (id.into(), label.into());
-    let button = ghost_frame(id, theme);
+    let lit = motion::hover_t(id.motion("ghost"));
+    let button = ghost_frame(id, theme)
+        .border_1()
+        .border_color(motion::mix(theme.border, theme.border_strong, lit))
+        .px(px(GHOST_INSET.0 - GHOST_BORDER))
+        .py(px(GHOST_INSET.1 - GHOST_BORDER));
     #[cfg(test)]
-    let button = match noted(id, &label) {
+    let button = match noted(
+        "ghost",
+        id,
+        Drawn::Labelled {
+            label: label.clone(),
+            inset: GHOST_INSET.0,
+            size: Theme::TEXT_UI,
+        },
+    ) {
         Some(selector) => button.debug_selector(move || selector),
         None => button,
     };
@@ -100,37 +118,62 @@ pub fn ghost_button(
 
 #[cfg(test)]
 thread_local! {
-    /// The ghost buttons built since [`record_ghosts`] while a
-    /// [`NotingGhosts`] stands.
-    static GHOSTS: std::cell::RefCell<Option<GhostRecord>> =
+    /// The controls built since [`record_controls`] while a
+    /// [`NotingControls`] stands.
+    static CONTROLS: std::cell::RefCell<Option<ControlRecord>> =
         const { std::cell::RefCell::new(None) };
-    /// Whether a [`NotingGhosts`] stands.
+    /// Whether a [`NotingControls`] stands.
     static NOTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// The ids of the ghost buttons built since the standing [`NotingGhosts`]
-    /// began.
-    static BUILT: std::cell::RefCell<std::collections::HashSet<motion::ControlId>> =
+    /// The kind and id of each control built since the standing
+    /// [`NotingControls`] began.
+    static BUILT: std::cell::RefCell<std::collections::HashSet<(&'static str, motion::ControlId)>> =
         std::cell::RefCell::new(std::collections::HashSet::new());
 }
 
-/// What [`record_ghosts`] has recorded.
+/// What [`record_controls`] has recorded.
 #[cfg(test)]
 #[derive(Default)]
-struct GhostRecord {
-    /// Each ghost button's debug selector and label.
-    built: Vec<(String, SharedString)>,
-    /// The debug selector of each ghost button built with an id that an
-    /// earlier button under the same [`NotingGhosts`] already had.
+struct ControlRecord {
+    /// Each control built.
+    built: Vec<DrawnControl>,
+    /// The debug selector of each control built with the kind and id of an
+    /// earlier control under the same [`NotingControls`].
     shared: Vec<String>,
 }
 
-/// The ghost buttons built until this drops are the ones [`drawn_ghosts`]
-/// returns, and no other surface's. Two of them built with one id share one
-/// hover, so each lights whenever the pointer is on either.
+/// What a recorded control draws in its frame.
 #[cfg(test)]
-pub(crate) struct NotingGhosts(());
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Drawn {
+    /// A ghost button or a chip: `label` at text size `size`, `inset` inside
+    /// each side of the frame.
+    Labelled {
+        label: SharedString,
+        inset: f32,
+        size: Pixels,
+    },
+    /// A [`switch`], [`SWITCH_WIDTH`] wide.
+    Switch,
+}
+
+/// A control built while a [`NotingControls`] stands: the debug selector the
+/// control draws under, and what it draws.
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DrawnControl {
+    pub selector: String,
+    pub drawn: Drawn,
+}
+
+/// The ghost buttons, chips and switches built until this drops are the ones
+/// [`drawn_controls`] returns, and no other surface's. Two of one kind built
+/// with one id share one hover, so each lights whenever the pointer is on
+/// either.
+#[cfg(test)]
+pub(crate) struct NotingControls(());
 
 #[cfg(test)]
-impl NotingGhosts {
+impl NotingControls {
     pub(crate) fn start() -> Self {
         NOTING.set(true);
         BUILT.with_borrow_mut(std::collections::HashSet::clear);
@@ -139,55 +182,68 @@ impl NotingGhosts {
 }
 
 #[cfg(test)]
-impl Drop for NotingGhosts {
+impl Drop for NotingControls {
     fn drop(&mut self) {
         NOTING.set(false);
     }
 }
 
-/// Start a fresh record of the ghost buttons built while a [`NotingGhosts`]
+/// Start a fresh record of the controls built while a [`NotingControls`]
 /// stands.
 #[cfg(test)]
-pub(crate) fn record_ghosts() {
-    GHOSTS.set(Some(GhostRecord::default()));
+pub(crate) fn record_controls() {
+    CONTROLS.set(Some(ControlRecord::default()));
 }
 
-/// Stop recording and return every ghost button built since
-/// [`record_ghosts`], once each, as its debug selector and its label, then
-/// the debug selector of each one built with an id another button under the
-/// same [`NotingGhosts`] already had.
+/// Stop recording and return every control built since [`record_controls`],
+/// once each, then the debug selector of each one built with the kind and id
+/// of another under the same [`NotingControls`].
 #[cfg(test)]
-pub(crate) fn drawn_ghosts() -> (Vec<(String, SharedString)>, Vec<String>) {
-    let GhostRecord {
+pub(crate) fn drawn_controls() -> (Vec<DrawnControl>, Vec<String>) {
+    let ControlRecord {
         mut built,
         mut shared,
-    } = GHOSTS.with_borrow_mut(|record| record.take().unwrap_or_default());
-    built.sort();
-    built.dedup();
+    } = CONTROLS.with_borrow_mut(|record| record.take().unwrap_or_default());
+    built.sort_by(|a, b| a.selector.cmp(&b.selector));
+    built.dedup_by(|a, b| a.selector == b.selector);
     shared.sort();
     shared.dedup();
     (built, shared)
 }
 
-/// The debug selector of the ghost button `id` printing `label` while a
-/// [`NotingGhosts`] stands, after recording it while a record stands. A
-/// button keeps its selector after [`drawn_ghosts`] stops the record, so a
+/// The debug selector of the `kind` of control `id` drawing `drawn` while a
+/// [`NotingControls`] stands, after recording it while a record stands. A
+/// control keeps its selector after [`drawn_controls`] stops the record, so a
 /// later frame still draws it where a test can find it.
 #[cfg(test)]
-fn noted(id: motion::ControlId, label: &SharedString) -> Option<String> {
+fn noted(kind: &'static str, id: motion::ControlId, drawn: Drawn) -> Option<String> {
     if !NOTING.get() {
         return None;
     }
-    let selector = format!("ghost-{id:?}-{label}");
-    GHOSTS.with_borrow_mut(|record| {
+    let selector = control_selector(kind, id, &drawn);
+    CONTROLS.with_borrow_mut(|record| {
         if let Some(record) = record.as_mut() {
-            if !BUILT.with_borrow_mut(|built| built.insert(id)) {
+            if !BUILT.with_borrow_mut(|built| built.insert((kind, id))) {
                 record.shared.push(selector.clone());
             }
-            record.built.push((selector.clone(), label.clone()));
+            record.built.push(DrawnControl {
+                selector: selector.clone(),
+                drawn,
+            });
         }
     });
     Some(selector)
+}
+
+/// The debug selector a `kind` of control `id` drawing `drawn` draws under
+/// while a [`NotingControls`] stands: `{kind}-{id:?}`, then `-{label}` for a
+/// labelled one.
+#[cfg(test)]
+pub(crate) fn control_selector(kind: &str, id: motion::ControlId, drawn: &Drawn) -> String {
+    match drawn {
+        Drawn::Labelled { label, .. } => format!("{kind}-{id:?}-{label}"),
+        Drawn::Switch => format!("{kind}-{id:?}"),
+    }
 }
 
 /// A [`ghost_button`] that opens and shuts the rows under it: the disclosure
@@ -213,15 +269,19 @@ pub fn disclosure_button(
         .child(label.into())
 }
 
-/// How far a [`ghost_button`]'s label stands inside its frame: across, then
-/// down. A ghost draws no frame at rest, so a layout that lines its label up
-/// with the text beside or above it hangs the frame out by this much.
+/// How far a [`ghost_button`]'s label stands inside its outer edge: across,
+/// then down. A [`disclosure_button`] draws no frame at rest, so a layout that
+/// lines its label up with the text above it hangs the frame out by this much.
 pub const GHOST_INSET: (f32, f32) = (Theme::SPACE_SM, Theme::SPACE_XS);
 
-/// The frame of a [`ghost_button`]: its padding, its wash and text color,
-/// which fade in under the pointer, and its press dim, with nothing in it.
-/// The label's line fills the frame to [`Theme::CONTROL_HEIGHT`], so a ghost
-/// stands level with a solid button, a chip and a text box beside it.
+/// The width of a [`ghost_button`]'s border, inside [`GHOST_INSET`].
+const GHOST_BORDER: f32 = 1.0;
+
+/// The frame of a [`ghost_button`] and a [`disclosure_button`]: its padding,
+/// its wash and text color, which fade in under the pointer, and its press
+/// dim, with nothing in it. The label's line fills the frame to
+/// [`Theme::CONTROL_HEIGHT`], so a ghost stands level with a solid button, a
+/// chip and a text box beside it.
 fn ghost_frame(id: motion::ControlId, theme: &Theme) -> Stateful<Div> {
     let key = id.motion("ghost");
     let lit = motion::hover_t(key);
@@ -308,7 +368,7 @@ pub fn chip(
     let key = id.motion("chip");
     let lit = motion::hover_t(key);
     let (pad_x, pad_y) = size.pad();
-    div()
+    let chip = div()
         .id(id.element("chip"))
         .flex()
         .items_center()
@@ -330,8 +390,21 @@ pub fn chip(
         .cursor(CursorStyle::PointingHand)
         // Press feedback: dim while held, since GPUI Div styles expose no scale.
         .active(move |style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(key))
-        .child(div().min_w_0().truncate().child(label))
+        .on_hover(motion::hover_listener(key));
+    #[cfg(test)]
+    let chip = match noted(
+        "chip",
+        id,
+        Drawn::Labelled {
+            label: label.clone(),
+            inset: pad_x,
+            size: size.text_size(),
+        },
+    ) {
+        Some(selector) => chip.debug_selector(move || selector),
+        None => chip,
+    };
+    chip.child(div().min_w_0().truncate().child(label))
 }
 
 /// A [`chip`] that opens a list of choices: the chosen one's name, then the
@@ -349,6 +422,69 @@ pub fn list_chip(
                 .flex_none()
                 .size(px(CHEVRON_PX)),
         )
+}
+
+/// How wide a [`switch`]'s track is.
+pub const SWITCH_WIDTH: f32 = 28.0;
+
+/// How tall a [`switch`]'s track is. The knob is a circle this tall less
+/// [`SWITCH_KNOB_INSET`] on each side.
+pub const SWITCH_HEIGHT: f32 = 16.0;
+
+/// How far a [`switch`]'s knob stands inside its track.
+pub const SWITCH_KNOB_INSET: f32 = 2.0;
+
+/// A switch: a setting that is on or off. A track with a knob, the knob at
+/// the track's right end on the accent while `on` is `Some(true)`, at its left
+/// end while `Some(false)`, and in its middle while `None`, when the selection
+/// holds both. The knob travels between ends at the state beat, and the track
+/// brightens under the pointer. Drawing only: the caller attaches the click.
+pub fn switch(id: impl Into<motion::ControlId>, on: Option<bool>, theme: &Theme) -> Stateful<Div> {
+    let id = id.into();
+    let key = id.motion("switch");
+    let lit = motion::hover_t(key);
+    let at = match on {
+        Some(true) => 1.0,
+        Some(false) => 0.0,
+        None => 0.5,
+    };
+    let travel = glide::glide(id.motion("switch-knob"), at, glide::STATE, false);
+    let fill = glide::glide(
+        id.motion("switch-fill"),
+        if on == Some(true) { 1.0 } else { 0.0 },
+        glide::STATE,
+        false,
+    );
+    let rest = motion::mix(theme.element_active, theme.border_strong, lit);
+    let knob = SWITCH_HEIGHT - 2.0 * SWITCH_KNOB_INSET;
+    let track = div()
+        .id(id.element("switch"))
+        .relative()
+        .flex_none()
+        .w(px(SWITCH_WIDTH))
+        .h(px(SWITCH_HEIGHT))
+        .rounded_full()
+        .bg(motion::mix(rest, theme.accent, fill))
+        .cursor(CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .on_hover(motion::hover_listener(key))
+        .child(
+            div()
+                .absolute()
+                .top(px(SWITCH_KNOB_INSET))
+                .left(px(
+                    SWITCH_KNOB_INSET + (SWITCH_WIDTH - SWITCH_HEIGHT) * travel
+                ))
+                .size(px(knob))
+                .rounded_full()
+                .bg(motion::mix(theme.text_muted, theme.on_accent, fill)),
+        );
+    #[cfg(test)]
+    let track = match noted("switch", id, Drawn::Switch) {
+        Some(selector) => track.debug_selector(move || selector),
+        None => track,
+    };
+    track
 }
 
 /// One tab of a tab row: muted text at rest, and full-strength text over the
@@ -690,6 +826,8 @@ pub fn icon_space() -> Div {
     div().flex_none().size(px(Theme::ICON_HIT))
 }
 
+/// A danger button: an action that discards or stops, such as Stop. A ghost's
+/// geometry, one control tall, in the danger color.
 pub fn danger_button(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,
@@ -702,8 +840,9 @@ pub fn danger_button(
     div()
         .id(id.element("danger-button"))
         .active(move |style| style.bg(pressed).opacity(0.92))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XS))
+        .px(px(GHOST_INSET.0 - GHOST_BORDER))
+        .py(px(GHOST_INSET.1 - GHOST_BORDER))
+        .line_height(px(Theme::CONTROL_HEIGHT - 2.0 * GHOST_INSET.1))
         .rounded(px(Theme::CONTROL_RADIUS))
         .border_1()
         .border_color(motion::mix(theme.danger, theme.danger_strong, lit))
@@ -773,6 +912,24 @@ pub fn section_label(theme: &Theme, title: impl Into<SharedString>) -> Div {
         .font_weight(gpui::FontWeight::MEDIUM)
         .text_color(theme.text)
         .child(title.into())
+}
+
+/// A [`section_label`] whose line ends in one `action`, such as the group's
+/// reset, over the edge the rows' value areas end on.
+pub fn section_heading(
+    theme: &Theme,
+    title: impl Into<SharedString>,
+    action: impl IntoElement,
+) -> Div {
+    div()
+        .flex()
+        .flex_row()
+        .items_center()
+        .justify_between()
+        .pt(px(Theme::SPACE_SM))
+        .pr(px(Theme::SPACE_XS))
+        .child(section_label(theme, title).pt_0())
+        .child(action)
 }
 
 /// The line a panel draws in place of content it does not have, centered on

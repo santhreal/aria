@@ -1,20 +1,18 @@
 //! A plugin's own settings section, drawn from what it declared.
 //!
 //! Text, secret and number fields are typed rows, the same row a shipped field
-//! draws with. A toggle is an On and Off pair and a choice is one chip per
-//! option; a click saves the value at once through
-//! [`AppState::set_plugin_setting`], which checks it against the field.
+//! draws with. A toggle is a switch and a choice is one chip per option; a
+//! click saves the value at once through [`AppState::set_plugin_setting`],
+//! which checks it against the field.
 
 use aria_plugin::{SettingKind, SettingSpec, SettingsSection};
-use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div, px,
-};
+use gpui::{Entity, InteractiveElement, MouseButton, MouseDownEvent, Stateful};
 
 use crate::app::AppState;
 use crate::app::settings_form::SettingsField;
-use crate::components;
+use crate::components::{self, ChipSize};
 use crate::interned::intern;
+use crate::motion::MotionKey;
 use crate::theme::Theme;
 
 /// One row per declared field, in declaration order.
@@ -38,17 +36,35 @@ fn field(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let key = intern(&spec.key);
+    let label = intern(&spec.label);
+    let current = state.read(cx).plugin_setting(key);
     match &spec.kind {
         SettingKind::Toggle => {
-            let options = [("On", "true"), ("Off", "false")];
-            options_row(theme, state, key, &spec.label, &options, cx)
+            let on = current == "true";
+            let switch = components::switch(
+                ("plugin-setting-switch", MotionKey::new(key, "switch")),
+                Some(on),
+                theme,
+            );
+            let stored = if on { "false" } else { "true" };
+            super::widgets::chip_row(theme, label, [saving(switch, key, stored, cx)])
         }
         SettingKind::Choice(choices) => {
-            let options: Vec<(&str, &str)> = choices
+            let chips: Vec<_> = choices
                 .iter()
-                .map(|choice| (choice.as_str(), choice.as_str()))
+                .map(|choice| {
+                    let choice = intern(choice);
+                    let chip = components::chip(
+                        ("plugin-setting-option", MotionKey::new(key, choice)),
+                        choice,
+                        current == choice,
+                        ChipSize::Regular,
+                        theme,
+                    );
+                    saving(chip, key, choice, cx)
+                })
                 .collect();
-            options_row(theme, state, key, &spec.label, &options, cx)
+            super::widgets::chip_row(theme, label, chips)
         }
         SettingKind::Text | SettingKind::Secret | SettingKind::Number { .. } => {
             super::ai::field_row(theme, state, SettingsField::Plugin(key), cx)
@@ -56,46 +72,24 @@ fn field(
     }
 }
 
-/// The label of the field that edits `setting`, then one chip per
-/// `(shown, stored)` option. The chip whose stored text is the current value is
-/// filled.
-fn options_row(
-    theme: &Theme,
-    state: &Entity<AppState>,
+/// `control` with a press that saves `stored` as the plugin setting
+/// `setting`, reporting a value the field rejects.
+fn saving(
+    control: Stateful<gpui::Div>,
     setting: &'static str,
-    label: &str,
-    options: &[(&str, &str)],
+    stored: &'static str,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    let current = state.read(cx).plugin_setting(setting);
-    let mut row = div()
-        .id(crate::motion::MotionKey::new("plugin-setting", setting).element_id("plugin-setting"))
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(super::widgets::row_label(theme, label));
-    for (shown, stored) in options {
-        let id = crate::motion::MotionKey::new(setting, stored);
-        let shown = SharedString::from((*shown).to_owned());
-        let chip = if current == *stored {
-            components::button(("plugin-setting-option", id), shown, theme)
-        } else {
-            components::ghost_button(("plugin-setting-option", id), shown, theme)
-        };
-        let stored = (*stored).to_owned();
-        row = row.child(chip.on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = state.set_plugin_setting(setting, &stored) {
-                        state.report_error(err);
-                    }
-                });
-                cx.notify();
-            }),
-        ));
-    }
-    row.into_any_element()
+) -> Stateful<gpui::Div> {
+    control.on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            this.state.update(cx, |state, _| {
+                if let Err(err) = state.set_plugin_setting(setting, &stored) {
+                    state.report_error(err);
+                }
+            });
+            cx.notify();
+        }),
+    )
 }

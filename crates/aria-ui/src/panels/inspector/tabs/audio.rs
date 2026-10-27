@@ -1,8 +1,8 @@
 //! Audio tab: volume, pan, fades, and the measured loudness contour.
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
+    div, px,
 };
 
 use crate::app::AppState;
@@ -17,7 +17,7 @@ use aria_models::AudioRole;
 use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Readout, chip_row, control_line, ghosts_under_labels, label_note, param_rows,
+    Chip, Columns, Readout, chip_row, choice_chip, control_line, label_note, param_rows,
     pick_button, switch_line, under_labels, unkeyed_row,
 };
 
@@ -70,30 +70,45 @@ pub fn audio_tab(
         )
         .into_any_element(),
     );
-    rows.push(switch_line(
-        theme,
-        ("aud-rev", "Reverse"),
-        "inspector-reverse",
-        clip.reversed,
-        cx,
-        |state| clip_pick::apply(state, Pick::ToggleReverse),
-    ));
-    rows.push(switch_line(
-        theme,
-        ("aud-pitch", "Pitch lock"),
-        "inspector-pitch",
-        clip.preserve_pitch,
-        cx,
-        |state| clip_pick::apply(state, Pick::TogglePitchLock),
-    ));
-    rows.push(switch_line(
-        theme,
-        ("aud-denoise", "Denoise"),
-        "denoise-toggle",
-        clip.denoise,
-        cx,
-        |state| inspector_pick::apply(state, inspector_pick::Pick::ToggleDenoise),
-    ));
+    rows.push(
+        switch_line(
+            theme,
+            MotionKey::new("insp.row", "aud-rev"),
+            "Reverse",
+            Columns::Keyed,
+            "inspector-reverse",
+            Some(clip.reversed),
+            cx,
+            |state| clip_pick::apply(state, Pick::ToggleReverse),
+        )
+        .into_any_element(),
+    );
+    rows.push(
+        switch_line(
+            theme,
+            MotionKey::new("insp.row", "aud-pitch"),
+            "Pitch lock",
+            Columns::Keyed,
+            "inspector-pitch",
+            Some(clip.preserve_pitch),
+            cx,
+            |state| clip_pick::apply(state, Pick::TogglePitchLock),
+        )
+        .into_any_element(),
+    );
+    rows.push(
+        switch_line(
+            theme,
+            MotionKey::new("insp.row", "aud-denoise"),
+            "Denoise",
+            Columns::Keyed,
+            "denoise-toggle",
+            Some(clip.denoise),
+            cx,
+            |state| inspector_pick::apply(state, inspector_pick::Pick::ToggleDenoise),
+        )
+        .into_any_element(),
+    );
     rows.push(role_row(theme, clip.audio_role, cx));
     // The clip's insert chain is drawn only where the model accepts one: a clip
     // with sound.
@@ -148,18 +163,23 @@ fn role_row(
     let mut chips: Vec<Chip> = AudioRole::ALL
         .into_iter()
         .map(|role| {
-            Chip::choice(role.label(), tagged == Some(role), |label| {
-                role_chip(theme, ("aud-role", role.id()), label, Some(role), cx)
-            })
+            choice_chip(
+                ("aud-role", role.id()),
+                role.label(),
+                tagged == Some(role),
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::Role(Some(role))),
+            )
         })
         .collect();
     if tagged.is_some() {
-        chips.push(Chip::other(role_chip(
-            theme,
+        chips.push(Chip::other(pick_button(
             "aud-role-clear",
-            "Untag".into(),
-            None,
+            "Untag",
+            theme,
             cx,
+            |state| clip_pick::apply(state, Pick::Role(None)),
         )));
     }
     chip_row(
@@ -170,20 +190,6 @@ fn role_row(
         tagged.map_or("Untagged", AudioRole::label),
         chips,
     )
-    .into_any_element()
-}
-
-/// A chip that tags the selected clip with `role`, or clears its tag.
-fn role_chip(
-    theme: &Theme,
-    id: impl Into<crate::motion::ControlId>,
-    label: SharedString,
-    role: Option<AudioRole>,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    pick_button(id, label, theme, cx, move |state| {
-        clip_pick::apply(state, Pick::Role(role))
-    })
     .into_any_element()
 }
 
@@ -251,7 +257,7 @@ fn duck_rows(
             cx.notify();
         }),
     );
-    rows.push(ghosts_under_labels(Columns::Keyed, [run.into_any_element()]).into_any_element());
+    rows.push(under_labels(Columns::Keyed, [run.into_any_element()]).into_any_element());
     if let Some(reason) = refusal {
         rows.push(label_note(Columns::Keyed, theme.warning, reason).into_any_element());
     }

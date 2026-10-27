@@ -18,8 +18,8 @@ use crate::types::{UiClip, UiClipKind};
 use gpui::prelude::FluentBuilder;
 
 use super::widgets::{
-    Chip, Columns, Readout, chip_row, control_line, fact_row, ghosts_under_labels, label_note,
-    pick_button, unkeyed_row,
+    Columns, Readout, chip_row, choice_chip, fact_row, label_note, pick_button, switch_line,
+    under_labels, unkeyed_row,
 };
 
 pub fn template_block(
@@ -49,7 +49,7 @@ pub fn template_block(
     let replace_rows: Vec<_> = pool
         .into_iter()
         .map(|(id, name)| {
-            ghosts_under_labels(
+            under_labels(
                 Columns::Free,
                 [pick_button(
                     crate::motion::MotionKey::new("inspector-replace-media", id),
@@ -68,16 +68,14 @@ pub fn template_block(
         .into_iter()
         .map(|(kind, label)| {
             let selected = slot.as_ref().is_some_and(|s| s.accepts == kind);
-            Chip::choice(label, selected, |shown| {
-                pick_button(
-                    ("template-accepts", label),
-                    shown,
-                    theme,
-                    cx,
-                    move |state| clip_pick::apply(state, Pick::SlotAccepts(kind)),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                ("template-accepts", label),
+                label,
+                selected,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::SlotAccepts(kind)),
+            )
         })
         .collect();
 
@@ -90,20 +88,15 @@ pub fn template_block(
             el.child(label_note(Columns::Free, theme.text_faint, "Replace media"))
                 .children(replace_rows)
         })
-        .child(ghosts_under_labels(
+        .child(switch_line(
+            theme,
+            crate::motion::MotionKey::new("insp.row", "inspector-slot-toggle"),
+            "Template slot",
             Columns::Free,
-            [pick_button(
-                "inspector-slot-toggle",
-                if slot.is_some() {
-                    "Clear template slot"
-                } else {
-                    "Mark as template slot"
-                },
-                theme,
-                cx,
-                |state| clip_pick::apply(state, Pick::ToggleReplaceable),
-            )
-            .into_any_element()],
+            "inspector-slot-toggle",
+            Some(slot.is_some()),
+            cx,
+            |state| clip_pick::apply(state, Pick::ToggleReplaceable),
         ))
         .when_some(slot, |el, slot| {
             let clear = slot.label.is_some().then(|| {
@@ -140,7 +133,7 @@ pub fn template_block(
                 slot.label.unwrap_or_else(|| "None".into()),
                 Columns::Free,
             ))
-            .child(ghosts_under_labels(
+            .child(under_labels(
                 Columns::Free,
                 std::iter::once(
                     pick_button("inspector-slot-hint", "Edit hint…", theme, cx, |state| {
@@ -153,18 +146,15 @@ pub fn template_block(
             ))
         })
         .when(clip.kind == UiClipKind::Text, |el| {
-            el.child(control_line(
+            el.child(switch_line(
                 theme,
                 crate::motion::MotionKey::new("insp.row", "inspector-text-editable"),
                 "Text editable in template",
                 Columns::Free,
-                pick_button(
-                    "inspector-text-editable",
-                    if clip.text_editable { "On" } else { "Off" },
-                    theme,
-                    cx,
-                    |state| clip_pick::apply(state, Pick::ToggleTextEditable),
-                ),
+                "inspector-text-editable",
+                Some(clip.text_editable),
+                cx,
+                |state| clip_pick::apply(state, Pick::ToggleTextEditable),
             ))
         })
 }

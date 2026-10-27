@@ -16,7 +16,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use super::widgets::{Chip, Columns, Readout, chip_row, pick_button, unkeyed_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, choice_chip, pick_button, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -40,16 +40,14 @@ pub fn transition_block(
         .map(|choice| {
             let id = choice.id.to_string();
             let on = applied.as_ref().is_some_and(|t| t.id == choice.id);
-            Chip::choice(choice.label.clone(), on, |label| {
-                pick_button(
-                    MotionKey::new("transition-choice", &choice.id),
-                    label,
-                    theme,
-                    cx,
-                    move |state| clip_pick::apply(state, Pick::Transition(id.clone())),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                MotionKey::new("transition-choice", &choice.id),
+                choice.label.clone(),
+                on,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::Transition(id.clone())),
+            )
         })
         .collect();
     if applied.is_some() {
@@ -68,16 +66,14 @@ pub fn transition_block(
         .into_iter()
         .map(|choice| {
             let on = applied.is_some() && alignment == choice;
-            Chip::choice(choice.label(), on, |label| {
-                pick_button(
-                    MotionKey::new("transition-align", choice.id()),
-                    label,
-                    theme,
-                    cx,
-                    move |state| clip_pick::apply(state, Pick::TransitionAlignment(choice)),
-                )
-                .into_any_element()
-            })
+            choice_chip(
+                MotionKey::new("transition-align", choice.id()),
+                choice.label(),
+                on,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::TransitionAlignment(choice)),
+            )
         })
         .collect();
     let transition_params: Vec<gpui::AnyElement> = applied

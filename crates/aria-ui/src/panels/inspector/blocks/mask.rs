@@ -1,10 +1,10 @@
 //! Mask and chroma-key blocks of the Look tab.
 //!
 //! Shape buttons come from `aria_models::mask_catalog()` and add a mask to the
-//! bottom of the clip's stack. Each mask draws a header with its mode chips and
-//! its invert, reorder and remove buttons; the active mask, the one the Viewer
-//! handles and the Pen edit, also draws its knob rows from the property catalog
-//! group `mask-<index>`. The key swatches come from
+//! bottom of the clip's stack. Each mask draws a header with its mode chips,
+//! its Invert switch, and its reorder and remove buttons; the active mask, the
+//! one the Viewer handles and the Pen edit, also draws its knob rows from the
+//! property catalog group `mask-<index>`. The key swatches come from
 //! `surfaces::inspector_pick::KEY_COLORS`. Every button files its pick through
 //! `surfaces::inspector_pick`, so this module names no property and sends no
 //! command: it cannot drift from the model, and a slider here cannot flatten
@@ -25,8 +25,8 @@ use crate::types::{UiClip, UiMask};
 use gpui::prelude::FluentBuilder;
 
 use super::widgets::{
-    Chip, Columns, chip_row, chips_under_labels, ghosts_under_labels, label_note, param_rows,
-    pick_button, picked, under_labels,
+    Chip, Columns, chip_row, choice_chip, label_note, param_rows, pick_button, picked, switch_line,
+    under_labels,
 };
 
 use crate::components::section_label;
@@ -84,12 +84,14 @@ pub fn mask_block(
         .iter()
         .map(|(id, label, rgb)| {
             let rgb = *rgb;
-            Chip::choice(*label, chroma == Some(rgb), |label| {
-                pick_button(("chroma-key-color", *id), label, theme, cx, move |state| {
-                    inspector_pick::apply(state, Pick::Chroma(rgb))
-                })
-                .into_any_element()
-            })
+            choice_chip(
+                ("chroma-key-color", *id),
+                *label,
+                chroma == Some(rgb),
+                theme,
+                cx,
+                move |state| inspector_pick::apply(state, Pick::Chroma(rgb)),
+            )
         })
         .collect();
     if chroma.is_some() {
@@ -112,7 +114,7 @@ pub fn mask_block(
         })
         .children(stack)
         .child(label_note(Columns::Keyed, theme.text_faint, "Add a mask"))
-        .child(ghosts_under_labels(Columns::Keyed, shapes))
+        .child(under_labels(Columns::Keyed, shapes))
         .child(section_label(theme, "Chroma key"))
         .child(chip_row(
             theme,
@@ -125,8 +127,9 @@ pub fn mask_block(
         .when(chroma.is_some(), |this| this.children(chroma_rows))
 }
 
-/// One mask's header: its name, its mode chips, and its invert, reorder and
-/// remove buttons. Pressing the name makes the mask the active one.
+/// One mask's header: its name, its mode chips, its Invert switch, and its
+/// reorder and remove buttons. Pressing the name makes the mask the active
+/// one.
 fn mask_header(
     theme: &Theme,
     index: u32,
@@ -140,14 +143,7 @@ fn mask_header(
         .iter()
         .find(|choice| choice.id == mask.kind.id())
         .map_or("Mask", |choice| choice.label.as_str());
-    let name = picked(
-        format!(
-            "Mask {} {shape}{}",
-            index + 1,
-            if mask.invert { " (inverted)" } else { "" }
-        ),
-        active,
-    );
+    let name = picked(format!("Mask {} {shape}", index + 1), active);
     let modes: Vec<_> = MaskMode::ALL
         .iter()
         .map(|mode| {
@@ -174,16 +170,17 @@ fn mask_header(
             .into_any_element()
         })
         .collect();
-    let mut actions = vec![
-        pick_button(
-            ("mask-invert", key.with("invert")),
-            "Invert",
-            theme,
-            cx,
-            move |state| inspector_pick::apply(state, Pick::ToggleMaskInvert(index)),
-        )
-        .into_any_element(),
-    ];
+    let invert = switch_line(
+        theme,
+        key.with("invert-line"),
+        "Invert",
+        Columns::Keyed,
+        ("mask-invert", key.with("invert")),
+        Some(mask.invert),
+        cx,
+        move |state| inspector_pick::apply(state, Pick::ToggleMaskInvert(index)),
+    );
+    let mut actions = Vec::new();
     if index > 0 {
         actions.push(
             pick_button(
@@ -247,6 +244,7 @@ fn mask_header(
                 )
                 .into_any_element()],
         ))
-        .child(chips_under_labels(Columns::Keyed, ChipSize::Compact, modes))
-        .child(ghosts_under_labels(Columns::Keyed, actions))
+        .child(under_labels(Columns::Keyed, modes))
+        .child(invert)
+        .child(under_labels(Columns::Keyed, actions))
 }

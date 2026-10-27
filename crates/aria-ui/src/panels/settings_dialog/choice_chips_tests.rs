@@ -1,16 +1,18 @@
-//! Every Settings choice is a chip that sets the choice it names, and a press
-//! reports the choice by the name the dialog prints.
+//! Every Settings choice is a chip that sets the choice it names, every
+//! Settings boolean is a switch that flips it, and a press reports the new
+//! value by the name the dialog prints.
 //!
 //! The class closed here: a choice row drawn with a solid button for the
 //! choice in force, so the choice read as an action, filled as the Done button
-//! under it is; and a press that reported the persisted key, `AI protocol is
-//! chat_completions`, for a chip that reads Chat Completions. The choices are
-//! read from each setting's own list, so a new source, protocol, reasoning
-//! mode, autonomy level or accent is pressed without an edit here.
+//! under it is; a press that reported the persisted key, `AI protocol is
+//! chat_completions`, for a chip that reads Chat Completions; and a boolean
+//! drawn as an On chip beside an Off chip, two controls for one bit. The
+//! choices are read from each setting's own list, so a new source, protocol,
+//! reasoning mode, autonomy level or accent is pressed without an edit here.
 //!
-//! Not caught: the chips' colors, which the test renderer does not raster. A
-//! chip is told from a button by the hover it lights, which is keyed by the
-//! kind of control drawn.
+//! Not caught: the controls' colors, which the test renderer does not raster.
+//! A chip is told from a button, and a switch from a chip, by the hover it
+//! lights, which is keyed by the kind of control drawn.
 
 use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary, ThemeChoice};
 use gpui::{Modifiers, TestAppContext, TextRunLayout, VisualTestContext, px, size};
@@ -56,23 +58,12 @@ fn ai_row<T: Copy + PartialEq + 'static>(
     }
 }
 
-/// The two chips of an On/Off row, the one not in force first.
-fn on_off_row(
-    out: &mut Vec<Choice>,
-    (row, id): (&'static str, &'static str),
-    now: bool,
+/// One Settings switch: the label of its row, its selector, and the setting
+/// it flips.
+struct Switch {
+    row: &'static str,
+    id: &'static str,
     read: fn(&AppState) -> bool,
-) {
-    for on in [!now, now] {
-        let shown = if on { "On" } else { "Off" };
-        out.push(Choice {
-            row: Some(row),
-            shown: shown.to_owned(),
-            chip: Some(ControlId::from(ControlId::from(id).motion(shown)).motion("chip")),
-            status: format!("{row}: {shown}"),
-            holds: Box::new(move |state| read(state) == on),
-        });
-    }
 }
 
 /// The text run of `choice` inside `card`: on the line of a run that reads
@@ -139,10 +130,6 @@ fn open_settings(cx: &mut TestAppContext) -> (gpui::Entity<AppState>, &mut Visua
 #[gpui::test]
 fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAppContext) {
     let (state, visual) = open_settings(cx);
-    let (scrubbing, logging) = visual.read(|app| {
-        let settings = &state.read(app).ui_settings;
-        (settings.audio_scrubbing, settings.log_dropped_frames)
-    });
 
     let mut choices = Vec::new();
     ai_row(
@@ -172,18 +159,6 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
         &Autonomy::ALL,
         Autonomy::label,
         |state| state.cloud_settings().ai.autonomy,
-    );
-    on_off_row(
-        &mut choices,
-        ("Audio scrubbing", "settings-audio-scrubbing"),
-        scrubbing,
-        |state| state.ui_settings.audio_scrubbing,
-    );
-    on_off_row(
-        &mut choices,
-        ("Log dropped frames", "settings-log-dropped-frames"),
-        logging,
-        |state| state.ui_settings.log_dropped_frames,
     );
     for &accent in ThemeChoice::ALL.iter().rev() {
         let shown = format!("Accent: {}", accent.label());
@@ -235,6 +210,86 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
     assert!(
         faults.is_empty(),
         "Settings choice faults:\n  {}",
+        faults.join("\n  ")
+    );
+}
+
+#[gpui::test]
+fn every_settings_switch_flips_its_setting_and_reports_it(cx: &mut TestAppContext) {
+    let (state, visual) = open_settings(cx);
+    let switches = [
+        Switch {
+            row: "Audio scrubbing",
+            id: "settings-audio-scrubbing",
+            read: |state| state.ui_settings.audio_scrubbing,
+        },
+        Switch {
+            row: "Log dropped frames",
+            id: "settings-log-dropped-frames",
+            read: |state| state.ui_settings.log_dropped_frames,
+        },
+    ];
+
+    let mut faults = Vec::new();
+    for switch in &switches {
+        let label = Choice {
+            row: None,
+            shown: switch.row.to_owned(),
+            chip: None,
+            status: String::new(),
+            holds: Box::new(|_| true),
+        };
+        // Twice, so the switch is pressed from each end.
+        for _ in 0..2 {
+            let was = visual.read(|app| (switch.read)(state.read(app)));
+            let card = visual
+                .debug_bounds("dialog-card")
+                .expect("the Settings dialog draws a card");
+            let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+            let row = locate(&runs, card, &label).bounds;
+            let Some(bounds) = visual.debug_bounds(switch.id) else {
+                faults.push(format!("{} draws no switch", switch.row));
+                break;
+            };
+            if (bounds.center().y - row.center().y).abs() >= px(1.0) || bounds.left() <= row.right()
+            {
+                faults.push(format!(
+                    "the {} switch at {bounds:?} is not on its label's line right of {row:?}",
+                    switch.row
+                ));
+            }
+            visual.simulate_mouse_move(bounds.center(), None, Modifiers::default());
+            visual.run_until_parked();
+            if !(hover_t(ControlId::from(switch.id).motion("switch")) > 0.0) {
+                faults.push(format!("{} is not drawn as a switch", switch.row));
+            }
+            visual.simulate_click(bounds.center(), Modifiers::default());
+            visual.run_until_parked();
+            let shown = if was { "Off" } else { "On" };
+            let status = format!("{}: {shown}", switch.row);
+            visual.read(|app| {
+                let state = state.read(app);
+                if (switch.read)(state) == was {
+                    faults.push(format!("pressing {} left it {was}", switch.row));
+                }
+                if state.status_message.as_deref() != Some(status.as_str()) {
+                    faults.push(format!(
+                        "pressing {} reported {:?}, not {status:?}",
+                        switch.row, state.status_message
+                    ));
+                }
+                if let Some(error) = &state.last_error {
+                    faults.push(format!("pressing {} failed: {error}", switch.row));
+                }
+                if state.dialog != DialogKind::Settings {
+                    faults.push(format!("pressing {} closed Settings", switch.row));
+                }
+            });
+        }
+    }
+    assert!(
+        faults.is_empty(),
+        "Settings switch faults:\n  {}",
         faults.join("\n  ")
     );
 }

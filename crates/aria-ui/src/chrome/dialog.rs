@@ -12,8 +12,8 @@
 //! not fit.
 
 use gpui::{
-    AnyElement, App, Div, Entity, InteractiveElement, IntoElement, ParentElement, ScrollHandle,
-    Styled, div, px,
+    AnyElement, App, Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    ParentElement, ScrollHandle, Styled, div, px,
 };
 
 use crate::app::{AppState, DialogKind};
@@ -104,6 +104,40 @@ pub fn dialog_surface(
 ) -> AnyElement {
     let exit = exit_t(OverlayWhen::Dialog(kind), state, cx);
     dialog_layer(id, title, exit, cx, body)
+}
+
+/// A dialog's line for one setting that is on or off: `label` at the left, as
+/// a dialog's section headings stand, and the switch `id`, on for `on`, at
+/// the right. A press runs `toggle`.
+pub fn toggle_row(
+    theme: &Theme,
+    id: &'static str,
+    label: &'static str,
+    on: bool,
+    toggle: fn(&mut AppState),
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Div {
+    div()
+        .flex()
+        .justify_between()
+        .items_center()
+        .child(
+            div()
+                .text_size(Theme::TEXT_TITLE)
+                .text_color(theme.text_muted)
+                .child(label),
+        )
+        .child(
+            crate::components::switch(id, Some(on), theme)
+                .debug_selector(|| id.to_owned())
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| toggle(state));
+                        cx.notify();
+                    }),
+                ),
+        )
 }
 
 /// The scrim and the frosted card for a dialog that is `exit` of the way

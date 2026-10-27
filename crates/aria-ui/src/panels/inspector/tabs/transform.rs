@@ -24,9 +24,7 @@ use crate::theme::Theme;
 use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
-use crate::panels::inspector::blocks::widgets::{Columns, chips_under_labels, param_rows};
-
-use crate::components::section_label;
+use crate::panels::inspector::blocks::widgets::{Columns, param_rows, under_labels};
 
 pub fn transform_tab(
     theme: &Theme,
@@ -54,17 +52,7 @@ pub fn transform_tab(
         .gap(px(Theme::SPACE_XS))
         // The block's reset ends its title's line, as an effect's ends its
         // header in the Effects tab, over the edge the rows' time areas end on.
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .justify_between()
-                .pt(px(Theme::SPACE_SM))
-                .pr(px(Theme::SPACE_XS))
-                .child(section_label(theme, "Transform").pt_0())
-                .child(reset),
-        )
+        .child(components::section_heading(theme, "Transform", reset))
         .children(rows)
         .children(parent_row(theme, state, cx))
         .child(crate::panels::inspector::blocks::framing::framing_block(
@@ -187,10 +175,9 @@ fn parent_row(
             .flex_col()
             .gap(px(Theme::SPACE_XS))
             .pt(px(Theme::SPACE_SM))
-            .child(section_label(theme, "Parent"))
-            .child(chips_under_labels(
+            .child(components::section_label(theme, "Parent"))
+            .child(under_labels(
                 Columns::Keyed,
-                ChipSize::Compact,
                 [div()
                     .w_full()
                     .flex()

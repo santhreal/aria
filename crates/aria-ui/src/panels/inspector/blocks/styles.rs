@@ -17,7 +17,7 @@ use crate::types::UiClip;
 use gpui::prelude::FluentBuilder;
 
 use super::widgets::{
-    Chip, Columns, chip_row, color_rows, ghosts_under_labels, param_rows, pick_button, switch_line,
+    Chip, Columns, chip_row, color_rows, param_rows, pick_button, switch_line, under_labels,
 };
 
 use crate::components::section_label;
@@ -45,9 +45,11 @@ pub fn styles_block(
                 .gap(px(Theme::SPACE_XS))
                 .child(switch_line(
                     theme,
-                    (style, *label),
+                    MotionKey::new("insp.row", style),
+                    *label,
+                    Columns::Keyed,
                     ("style-toggle", style),
-                    on,
+                    Some(on),
                     cx,
                     move |state| inspector_pick::apply(state, Pick::Style(style)),
                 ))
@@ -90,7 +92,7 @@ pub fn styles_block(
         .child(section_label(theme, "Layer styles"))
         .children(blocks)
         .when_some(clear, |this, clear| {
-            this.child(ghosts_under_labels(Columns::Keyed, [clear]))
+            this.child(under_labels(Columns::Keyed, [clear]))
         })
         .child(section_label(theme, "LUT"))
         .child(chip_row(
@@ -108,9 +110,7 @@ pub fn styles_block(
             this.children(param_rows(theme, "lut", state, cx))
         })
         .child(section_label(theme, "Cloud LUTs"))
-        // The block's lines start one ghost inset in, where its Load button's
-        // label does, so it hangs to stand them on the label column.
-        .child(ghosts_under_labels(
+        .child(under_labels(
             Columns::Keyed,
             [div()
                 .w_full()

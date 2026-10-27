@@ -71,18 +71,18 @@ proxy or a reduced preview draws the same picture.
 ## Effects
 
 The Effects tab of Effect Controls lists the effect chain in render order. Each effect
-has a header: **fx**, the effect's name, the up and down chevrons that move it
+has a header: a switch, the effect's name, the up and down chevrons that move it
 one place (the first effect has no up chevron and the last no down chevron), a
 reset button, a menu button, and a bin to remove it.
 
-- **fx** switches the effect off and back on, one undo step per press. A
+- The switch turns the effect off and back on, one undo step per press. A
   switched-off effect keeps its parameters and its place in the chain, renders
   nothing, and draws its name dimmed.
 - Drag a header onto another effect to move it above that effect, or onto the
   rest of the tab to move it to the end of the chain. The move is one undo
   step.
 - The reset button puts every parameter back at its default, in one undo step.
-  The effect keeps its name and its **fx** state.
+  The effect keeps its name and its switch state.
 - The menu button, or a right click on the header, opens the effect menu:
   - **Reset** does what the reset button does.
   - **Rename Effect** opens the name field on the effect's name. Enter keeps

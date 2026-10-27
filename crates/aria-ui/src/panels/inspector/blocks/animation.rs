@@ -15,7 +15,7 @@ use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Chip, Columns, Readout, chip_row, pick_button, unkeyed_row};
+use super::widgets::{Chip, Columns, Readout, chip_row, choice_chip, pick_button, unkeyed_row};
 
 use crate::components::section_label;
 
@@ -73,11 +73,8 @@ pub fn animation_block(
                     if on {
                         current = label.clone();
                     }
-                    Chip::choice(label, on, |label| {
-                        pick_button(("anim-preset", id), label, theme, cx, move |state| {
-                            clip_pick::apply(state, Pick::Animation(id))
-                        })
-                        .into_any_element()
+                    choice_chip(("anim-preset", id), label, on, theme, cx, move |state| {
+                        clip_pick::apply(state, Pick::Animation(id))
                     })
                 })
                 .collect();

@@ -42,8 +42,8 @@ mod keys;
 
 pub use catalog::{color_rows, param_rows, param_rows_into, swatch_row, unkeyed_row};
 pub use controls::{
-    Chip, chip_row, chips_under_labels, control_line, fact_row, ghosts_under_labels, label_note,
-    pick_button, picked, switch_line, under_labels,
+    Chip, chip_row, choice_chip, control_line, fact_row, filing, label_note, pick_button, picked,
+    switch_line, under_labels,
 };
 use keys::{Affordances, WATCH_SLOT, affordances, blanks};
 
@@ -351,13 +351,25 @@ fn cell_selector(column: Option<&Column>, label: &SharedString, cell: &str) -> S
 #[cfg(test)]
 thread_local! {
     /// The lines drawn into the Inspector since [`record_lines`].
-    static LINES: std::cell::RefCell<Option<Vec<(String, bool)>>> =
+    static LINES: std::cell::RefCell<Option<Vec<DrawnLine>>> =
         const { std::cell::RefCell::new(None) };
     /// The choice rows drawn into the Inspector since [`record_lines`].
     static CHOICES: std::cell::RefCell<Option<Vec<DrawnChoice>>> =
         const { std::cell::RefCell::new(None) };
     /// Whether the Inspector's body is being built.
     static IN_INSPECTOR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// A line drawn into the Inspector: its label's debug selector, whether it
+/// stands in the keyed rows' columns, and the debug selector of the whole
+/// line, `insp-line-{key:?}`, which no other line shares while their keys
+/// differ.
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct DrawnLine {
+    pub label: String,
+    pub keyed: bool,
+    pub line: String,
 }
 
 /// A [`chip_row`] drawn into the Inspector: its label's debug selector, the
@@ -373,10 +385,10 @@ pub(crate) struct DrawnChoice {
 
 /// The Inspector's body being built, until this drops: the lines
 /// [`record_lines`] records are the ones built meanwhile, and no other
-/// panel's, and so are the ghost buttons it notes.
+/// panel's, and so are the ghost buttons, chips and switches it notes.
 #[cfg(test)]
 pub(crate) struct BuildingInspector {
-    _ghosts: crate::components::NotingGhosts,
+    _controls: crate::components::NotingControls,
 }
 
 #[cfg(test)]
@@ -384,7 +396,7 @@ impl BuildingInspector {
     pub(crate) fn start() -> Self {
         IN_INSPECTOR.set(true);
         Self {
-            _ghosts: crate::components::NotingGhosts::start(),
+            _controls: crate::components::NotingControls::start(),
         }
     }
 }
@@ -396,20 +408,19 @@ impl Drop for BuildingInspector {
     }
 }
 
-/// Start a fresh record of the lines, the choice rows and the ghost buttons
-/// drawn into the Inspector.
+/// Start a fresh record of the lines, the choice rows and the controls drawn
+/// into the Inspector.
 #[cfg(test)]
 pub(crate) fn record_lines() {
     LINES.set(Some(Vec::new()));
     CHOICES.set(Some(Vec::new()));
-    crate::components::record_ghosts();
+    crate::components::record_controls();
 }
 
 /// Stop recording and return every line drawn into the Inspector since
-/// [`record_lines`], once each: its label's debug selector and whether it
-/// stands in the keyed rows' columns.
+/// [`record_lines`], once each.
 #[cfg(test)]
-pub(crate) fn drawn_lines() -> Vec<(String, bool)> {
+pub(crate) fn drawn_lines() -> Vec<DrawnLine> {
     let mut lines = LINES.with_borrow_mut(|lines| lines.take().unwrap_or_default());
     lines.sort();
     lines.dedup();
@@ -595,14 +606,20 @@ fn line(
     value: impl IntoElement,
 ) -> gpui::Div {
     #[cfg(test)]
-    if IN_INSPECTOR.get() {
+    let selector = IN_INSPECTOR.get().then(|| {
+        let line = format!("insp-line-{key:?}");
         LINES.with_borrow_mut(|lines| {
             if let Some(lines) = lines {
-                lines.push((cell_selector(column, &label, "label"), column.is_some()));
+                lines.push(DrawnLine {
+                    label: cell_selector(column, &label, "label"),
+                    keyed: column.is_some(),
+                    line: line.clone(),
+                });
             }
         });
-    }
-    div()
+        line
+    });
+    let drawn = div()
         .flex()
         .flex_row()
         .when(column.is_none(), |line| line.wraps())
@@ -612,7 +629,13 @@ fn line(
         .child(row_label(key, label, column, ink))
         .child(value)
         .children(controls)
-        .children(strip)
+        .children(strip);
+    #[cfg(test)]
+    let drawn = match selector {
+        Some(selector) => drawn.debug_selector(move || selector),
+        None => drawn,
+    };
+    drawn
 }
 
 /// The driver's source under a driven row: a click opens it for editing, and

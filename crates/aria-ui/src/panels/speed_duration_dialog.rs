@@ -8,7 +8,7 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
 use crate::components::{self, ChipSize};
 use crate::theme::Theme;
 
@@ -131,44 +131,21 @@ pub fn render(
                     )
             }));
 
-    let reverse_chip = components::chip(
+    let reverse = toggle_row(
+        &theme,
         "speed-duration-reverse",
-        if form.reverse {
-            "Reverse Speed: On"
-        } else {
-            "Reverse Speed: Off"
-        },
+        "Reverse Speed",
         form.reverse,
-        ChipSize::Regular,
-        &theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-            this.state
-                .update(cx, |state, _| state.toggle_speed_duration_reverse());
-            cx.notify();
-        }),
+        AppState::toggle_speed_duration_reverse,
+        cx,
     );
-
-    let pitch_chip = components::chip(
-        "speed-duration-pitch",
-        if form.preserve_pitch {
-            "Maintain Audio Pitch: On"
-        } else {
-            "Maintain Audio Pitch: Off"
-        },
-        form.preserve_pitch,
-        ChipSize::Regular,
+    let pitch = toggle_row(
         &theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-            this.state
-                .update(cx, |state, _| state.toggle_speed_duration_preserve_pitch());
-            cx.notify();
-        }),
+        "speed-duration-pitch",
+        "Maintain Audio Pitch",
+        form.preserve_pitch,
+        AppState::toggle_speed_duration_preserve_pitch,
+        cx,
     );
 
     let mut content = div()
@@ -236,9 +213,10 @@ pub fn render(
         .child(
             div()
                 .flex()
-                .gap(px(Theme::SPACE_SM))
-                .child(reverse_chip)
-                .child(pitch_chip),
+                .flex_col()
+                .gap(px(Theme::SPACE_XS))
+                .child(reverse)
+                .child(pitch),
         );
 
     if let Some(err) = form.error {
