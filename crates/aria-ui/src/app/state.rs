@@ -35,6 +35,9 @@ pub struct AppState {
     pub selected_gap: Option<crate::types::SelectedGap>,
     /// Live on-screen trim HUD feedback while a trim gesture is in flight.
     pub trim_feedback: Option<crate::types::TrimFeedback>,
+    /// The clip drag in flight, while the button is down: the timeline draws
+    /// its clips where the release puts them.
+    pub held_move: Option<crate::types::HeldMove>,
     /// Height fraction `[0.15, 0.85]` of the lane stack given to video lanes
     /// above the A/V divider.
     pub timeline_av_split: f32,

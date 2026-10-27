@@ -496,6 +496,39 @@ impl UiClip {
             aria_models::AnimationSlot::Combo => self.animation_combo.as_ref(),
         }
     }
+
+    /// This clip as the projection draws it `delta` ticks later on lane
+    /// `track` of the same kind: every field read in timeline ticks or seconds
+    /// moves with it. `rate` is the sequence's.
+    pub fn moved(&self, track: u64, delta: i64, rate: Rational) -> UiClip {
+        let seconds = |ticks: i64| aria_models::RationalTime::new(ticks, rate).seconds();
+        let mut moved = self.clone();
+        moved.track_id = track;
+        moved.timeline_start_ticks += delta;
+        moved.timeline_end_ticks += delta;
+        moved.timeline_start = seconds(moved.timeline_start_ticks);
+        moved.timeline_end = seconds(moved.timeline_end_ticks);
+        for tick in &mut moved.beat_ticks {
+            *tick += delta;
+        }
+        for marker in &mut moved.markers {
+            marker.tick += delta;
+        }
+        if let Some(line) = &mut moved.line {
+            let shift = delta as f64;
+            line.points = line
+                .points
+                .iter()
+                .map(|&(tick, value)| (tick + shift, value))
+                .collect();
+            line.keys = line
+                .keys
+                .iter()
+                .map(|&(tick, value)| (tick + delta, value))
+                .collect();
+        }
+        moved
+    }
 }
 
 /// A clip's plugin clip type, flattened for display.

@@ -80,7 +80,7 @@ pub(super) fn carry(
                 }));
             }
             let delta_px = f32::from(event.position.x) - origin_x;
-            let delta_ticks = ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64;
+            let delta_ticks = travel(kind, delta_px, pps, fps).unwrap_or(0);
             let threshold = crate::snap::threshold_ticks(pps, fps);
             let span = Span {
                 start: start_ticks,
@@ -116,6 +116,7 @@ pub(super) fn carry(
                     delta: delta_ticks,
                 };
                 state.trim_feedback = state.compute_trim_feedback(g, d);
+                state.hold_move(g, d);
             });
             cx.notify();
         }
@@ -206,16 +207,9 @@ pub(super) fn on_left_up(
             end_ticks,
         } => {
             let delta_px = f32::from(event.position.x) - origin_x;
-            let threshold_px = match kind {
-                DragKind::Move => 2.0,
-                _ => 1.0,
-            };
-            let still = delta_px.abs() < threshold_px;
-            let delta_ticks = if still {
-                0
-            } else {
-                ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64
-            };
+            let moved = travel(kind, delta_px, pps, fps);
+            let still = moved.is_none();
+            let delta_ticks = moved.unwrap_or(0);
             let span = Span {
                 start: start_ticks,
                 end: end_ticks,
@@ -237,6 +231,7 @@ pub(super) fn on_left_up(
             this.state.update(cx, |state, _| {
                 state.snap_guide = None;
                 state.trim_feedback = None;
+                state.held_move = None;
                 if still && !relaned {
                     return;
                 }
@@ -291,6 +286,18 @@ pub(super) fn on_left_up(
             cx.notify();
         }
     }
+}
+
+/// The ticks a drag has travelled, or `None` under the threshold, where travel
+/// is a hand's jitter. The held frame and the release read it alike, so a
+/// drag draws where it lands.
+fn travel(kind: DragKind, delta_px: f32, pps: f32, fps: f32) -> Option<i64> {
+    let threshold_px = match kind {
+        DragKind::Move => 2.0,
+        _ => 1.0,
+    };
+    (delta_px.abs() >= threshold_px)
+        .then(|| ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64)
 }
 
 fn gesture_for_drag(

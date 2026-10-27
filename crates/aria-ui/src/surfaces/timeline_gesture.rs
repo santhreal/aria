@@ -171,6 +171,12 @@ fn edge(state: &AppState, drag: &Drag, span: &Span, left: bool) -> (i64, i64) {
     (from, snapped(state, drag, span, from + drag.delta))
 }
 
+/// Where a body drag lets the clip's head go: its start moved by the drag,
+/// after the magnet. The release sends it and the held frame draws it.
+pub(crate) fn landing(state: &AppState, drag: &Drag, span: &Span) -> i64 {
+    snapped(state, drag, span, span.start + drag.delta)
+}
+
 /// Run one gesture. The magnet is applied here, so every drag that snaps snaps
 /// the same way.
 pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), EngineError> {
@@ -180,11 +186,11 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
             track,
             span,
         } => {
-            let to = snapped(state, &drag, &span, span.start + drag.delta);
+            let to = landing(state, &drag, &span);
             state.move_clip(drag.clip, track, to)
         }
         Gesture::RippleBody { track, span } => {
-            let to = snapped(state, &drag, &span, span.start + drag.delta);
+            let to = landing(state, &drag, &span);
             state.ripple_move_clip(drag.clip, track, to)
         }
         // The content follows the pointer, so the source window moves the other
@@ -199,7 +205,7 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
             ..
         } => {
             let (before, after) = state.abutting(drag.clip);
-            let to = snapped(state, &drag, &span, span.start + drag.delta);
+            let to = landing(state, &drag, &span);
             state.slide_clip(
                 drag.clip,
                 span.start,

@@ -453,6 +453,64 @@ impl AppState {
         }
     }
 
+    /// Read where a held clip drag lets go, for the frame that draws it
+    /// there: a move or a ripple move sets [`Self::held_move`], any other
+    /// drag clears it. The clips the move takes are those [`Self::move_clip`]
+    /// moves, read once per drag.
+    pub(crate) fn hold_move(
+        &mut self,
+        gesture: crate::surfaces::timeline_gesture::Gesture,
+        drag: crate::surfaces::timeline_gesture::Drag,
+    ) {
+        use crate::surfaces::timeline_gesture::{Gesture, landing};
+        let (track, span, ripple) = match gesture {
+            Gesture::Body {
+                drag: None,
+                track,
+                span,
+            } => (track, span, false),
+            Gesture::RippleBody { track, span } => (track, span, true),
+            Gesture::Body { drag: Some(_), .. }
+            | Gesture::Edge { .. }
+            | Gesture::Transition { .. }
+            | Gesture::Fade { .. } => {
+                self.held_move = None;
+                return;
+            }
+        };
+        let start = landing(self, &drag, &span);
+        let linked = self.linked_selection;
+        if let Some(held) = &mut self.held_move
+            && held.linked == linked
+            && held.members.first().map(|member| member.id) == Some(drag.clip.raw())
+        {
+            held.track = track.raw();
+            held.start = start;
+            held.ripple = ripple;
+            return;
+        }
+        let companions = {
+            let engine = self.engine.lock();
+            let project = engine.project();
+            if linked {
+                project.move_companions(drag.clip)
+            } else {
+                project.group_companions(drag.clip)
+            }
+        };
+        let members: std::sync::Arc<[UiClip]> = std::iter::once(drag.clip)
+            .chain(companions.into_iter().filter(|id| *id != drag.clip))
+            .filter_map(|id| self.ui_clip_ref(id).cloned())
+            .collect();
+        self.held_move = (!members.is_empty()).then(|| crate::types::HeldMove {
+            members,
+            linked,
+            track: track.raw(),
+            start,
+            ripple,
+        });
+    }
+
     /// The trim a drag gesture sends, by the same rule as
     /// [`Self::move_command`].
     pub(crate) fn trim_command(&self, clip: ClipId, timeline: TimeRange) -> EditCommand {

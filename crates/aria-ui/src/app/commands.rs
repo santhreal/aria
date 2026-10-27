@@ -351,6 +351,7 @@ impl AppState {
             selected_edge: None,
             selected_gap: None,
             trim_feedback: None,
+            held_move: None,
             timeline_av_split: 0.55,
             video_scroll_y: 0.0,
             audio_scroll_y: 0.0,

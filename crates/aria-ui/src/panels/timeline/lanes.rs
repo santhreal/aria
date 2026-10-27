@@ -20,7 +20,7 @@ use crate::drag_hint as drop_hint;
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
-use crate::types::{TimelinePaintStats, UiEditorStore};
+use crate::types::{TimelinePaintStats, UiClip, UiEditorStore};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lane_group(
@@ -105,6 +105,13 @@ pub(super) fn lane_group(
     }
     let total_content_h: f32 = sized.iter().map(|lane| lane.clip_h + lane.outline_h).sum();
     let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h) - scroll_y;
+    // A clip drag in flight draws its clips where the release puts them, and a
+    // ripple move draws the line it inserts at.
+    let held = state.read(cx).held_move.clone();
+    let mut held_cards = held
+        .as_ref()
+        .map(|held| held.cards(store.sequence.frame_rate))
+        .unwrap_or_default();
 
     for SizedLane {
         row,
@@ -155,7 +162,17 @@ pub(super) fn lane_group(
             .marquee
             .filter(|_| state.read(cx).marquee_covers_row(row))
             .map(|b| b.ticks());
-        let clips = visible_clips_slice(&track.clips, view_start, view_end).to_vec();
+        let mut clips: Vec<UiClip> =
+            visible_clips_slice(&track.clips, view_start, view_end).to_vec();
+        if let Some(held) = &held {
+            clips.retain(|clip| !held.takes(clip.id));
+            // Last, so each card is drawn over the clips it covers.
+            clips.extend(held_cards.extract_if(.., |card| {
+                card.track_id == track.id
+                    && card.timeline_end_ticks > view_start
+                    && card.timeline_start_ticks < view_end
+            }));
+        }
         visible_lanes.push(VisibleLane {
             row,
             track_id: track.id,
@@ -166,7 +183,8 @@ pub(super) fn lane_group(
             locked: track.locked,
             is_drop_row: drop_row == Some(row),
             band,
-            drop_tick: drop_hint::lane_tick(track.id),
+            drop_tick: drop_hint::lane_tick(track.id)
+                .or_else(|| held.as_ref().and_then(|held| held.inserts_at(track.id))),
             clips,
             outline_rows,
         });

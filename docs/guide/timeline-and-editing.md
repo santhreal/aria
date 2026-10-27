@@ -8,8 +8,10 @@
 - Drag a clip to move it along its lane or onto another lane of its kind. The
   clip covers what it lands on: a clip under it is trimmed back to the landing
   edges, cut in two around it, or removed, and nothing else moves. A clip
-  carried straight up or down keeps its start. Shift-drag ripples the move
-  instead. Drag a clip edge to trim. A move or trim follows the
+  carried straight up or down keeps its start. While the button is down, the
+  clip and the clips that move with it are drawn where they land, after the
+  magnet. Shift-drag ripples the move instead and draws the line it inserts
+  at. Drag a clip edge to trim. A move or trim follows the
   pointer when it leaves the lanes and lands where the button comes up. Nearby
   clips magnet at 8 px. The magnet also takes the playhead, the sequence start
   and end, the In and Out points, markers, and detected beats. While a drag is

@@ -397,12 +397,16 @@ impl AppState {
                 } else {
                     "Move"
                 };
+                // The tick the release sends, so the readout and the drawn
+                // card agree with the magnet.
+                let to = crate::surfaces::timeline_gesture::landing(self, &drag, &span);
+                let delta = to - span.start;
                 Some(crate::types::TrimFeedback {
                     tool_label: label.into(),
                     clip_name: ui.name.clone(),
-                    delta_ticks: drag.delta,
-                    delta_label: signed_tc(drag.delta).into(),
-                    detail_label: format!("At {}", tc(span.start + drag.delta)).into(),
+                    delta_ticks: delta,
+                    delta_label: signed_tc(delta).into(),
+                    detail_label: format!("At {}", tc(to)).into(),
                 })
             }
             Gesture::Transition { duration, right } => {

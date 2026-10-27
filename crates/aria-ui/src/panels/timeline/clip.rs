@@ -223,7 +223,8 @@ pub(crate) fn paint_lane_group(
                 );
             }
 
-            // Media/catalog drop insertion line on this lane.
+            // Insertion line on this lane: a media or catalog drop, or a held
+            // ripple move.
             if let Some(tick) = lane.drop_tick {
                 let dx = ticks_to_px(tick, data.fps, data.pps) - data.scroll_x;
                 if dx >= 0.0 && dx <= view_w {
