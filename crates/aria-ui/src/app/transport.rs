@@ -558,13 +558,16 @@ impl AppState {
         cx.emit(FrameReady);
     }
 
-    /// Release the textures no longer on screen from the atlas of every window.
+    /// Release the textures no longer on screen from the atlas of every window:
+    /// replaced Viewer frames and scope readings, and the filmstrip cells the
+    /// store dropped.
     ///
     /// `window` is the window being updated, when there is one: gpui holds it
     /// out of the app's window list for the length of the update, so a release
     /// that left it out would miss the window the Viewer draws in. Call it where
     /// no window is being updated, or with the one that is.
     pub(crate) fn release_retired_images(&mut self, mut window: Option<&mut Window>, cx: &mut App) {
+        self.filmstrips.retire_into(&mut self.retired_images);
         for image in self.retired_images.drain(..) {
             cx.drop_image(image, window.as_deref_mut());
         }

@@ -731,6 +731,7 @@ Notes for the latest release. For previous releases, see the
 - The window draws its first frame without waiting for the first picture to decode, which brings process spawn to the first frame drawn on a refresh with `h264-1080p60`, `hevc-2160p60` and `prores-2160p30` named on the command line on Server from a p50 between 1125.5 ms and 1200.7 ms to between 822.5 ms and 834.7 ms over four paired runs.
 - The `startup` bench times each launch to the window's first frame drawn on a refresh as well as to the mapped window, and its targets use the first frame.
 - Timeline filmstrip cells render on a renderer of their own and hold the session only to read the project, which brings a Viewer playback frame drawn after a cell on Server from a p50 between 21.3 ms and 21.5 ms to between 1.75 ms and 1.82 ms, and a cell from a p50 between 82.7 ms and 84.2 ms, all of it holding the session, to between 36.6 ms and 37.8 ms, of which 0.001 ms holds it, over three paired runs.
+- A filmstrip cell that is not rendered yet draws the last rendered cell of its clip at or before it, or else the first after it, within four cell widths, so a zoom in shows the picture the strip showed there before instead of an empty lane while the strip refills.
 
 ### Fixed
 
@@ -961,6 +962,7 @@ Notes for the latest release. For previous releases, see the
 - An `Auto` canvas sized by two video sources of equal area takes the size of the one placed lowest and earliest on the timeline instead of the one the clip store listed first.
 - `aria_last_error` reports the error of the last session open or new on the calling thread, where a session opened or created on another thread could clear or replace it before it was read.
 - Trimming an edge of a clip inward, including the trim a move or overwrite makes of a clip it lands on, keeps the source frame at the other edge, so such an edit on a take that ends at its media's end no longer fails with `Couldn't apply that edit` when the trim is not a whole number of the take's frames.
+- A filmstrip cell the timeline drops leaves the window atlas instead of staying in it until the window closes, and a full filmstrip store drops the cell farthest from the one landing instead of every cell on screen.
 
 ## [alpha-0.7.0] - 2026-07-22
 

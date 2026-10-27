@@ -381,7 +381,7 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
     });
     assert_eq!(kept(&store, &ticks), ticks, "an empty rollback");
     assert!(
-        !store.wants(72),
+        !store.wants(56),
         "an empty rollback abandoned the render in flight"
     );
 }

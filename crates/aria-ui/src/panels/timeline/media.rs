@@ -3,6 +3,7 @@
 use gpui::Entity;
 
 use crate::app::AppState;
+use crate::filmstrips::FilmstripStore;
 use crate::timeline_display::{StripCell, Thumbnails};
 use crate::types::HeldEdit;
 
@@ -125,15 +126,27 @@ pub(super) fn clip_bars(
     out
 }
 
+/// How far, in cell widths, a missing cell takes a stand-in from: a zoom in
+/// of up to four times draws every new cell from the strip it zoomed in on.
+const STAND_IN_CELLS: f32 = 4.0;
+
+/// The ticks a missing cell takes a stand-in from, at `px_per_tick`.
+fn stand_in_reach(px_per_tick: f32) -> i64 {
+    (STAND_IN_CELLS * CELL_W / px_per_tick).ceil() as i64
+}
+
 /// Filmstrip cells per visible media clip, each the part of the clip card it
 /// covers and the image drawn there. Only cells that overlap the visible ticks
 /// are built or asked for. A clip an edge drag or a slide in flight changes,
 /// `held`, draws each cell where its frame plays once the release lands, and
 /// none past its ends.
 ///
-/// At most one cell is asked for per frame, and a rendered cell is never
-/// substituted for a neighbour: a cell is drawn where it belongs or the space
-/// stays empty, because a frame drawn at the wrong tick lies about the cut.
+/// A cell not rendered yet draws the last rendered cell of the same clip at
+/// or before its tick, or else the first after it, within [`STAND_IN_CELLS`]
+/// cell widths: after a zoom in, the frame the strip showed there before.
+/// With none that near, the space stays empty. A stand-in never comes from
+/// outside the clip, so no frame is drawn across the clip's cut. The draw
+/// asks the store for every missing cell, in the order it drew them.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn clip_cells(
     state: &Entity<AppState>,
@@ -172,30 +185,19 @@ pub(super) fn clip_cells(
         .collect();
     let thumbnails = state.read(cx).ui_settings.timeline_display.thumbnails;
     let px_per_tick = pps / fps;
+    let reach = stand_in_reach(px_per_tick);
+    let filmstrips = &state.read(cx).filmstrips;
+    let mut missing = Vec::new();
     for (clip, start, end, width) in visible {
-        let mut cells = Vec::new();
-        for cell in strip_cells(
+        let shown = strip_cells(
             thumbnails,
             start,
             end,
             width,
             px_per_tick,
             (view_start, view_end),
-        ) {
-            let ready = state
-                .read(cx)
-                .filmstrips
-                .get(cell.tick)
-                .map(|ready| ready.image.clone());
-            match ready {
-                Some(image) => cells.push(FilmCell {
-                    from: cell.from,
-                    to: cell.to,
-                    image,
-                }),
-                None => crate::filmstrips::request(state, cx, cell.tick),
-            }
-        }
+        );
+        let mut cells = cell_pictures(filmstrips, shown, (start, end), reach, &mut missing);
         if let Some(card) = held.and_then(|held| held.card(clip)) {
             let width =
                 (card.clip.timeline_end_ticks - card.clip.timeline_start_ticks) as f32 / fps * pps;
@@ -217,6 +219,7 @@ pub(super) fn clip_cells(
             out.insert(clip, cells);
         }
     }
+    crate::filmstrips::ask(state, cx, missing);
     out
 }
 
@@ -241,3 +244,38 @@ pub(super) fn strip_cells(
         .into_iter()
         .filter(move |cell| cell.to > shown.0 && cell.from < shown.1)
 }
+
+/// The pictures of `cells`, the cells of the clip from `start` to `end`: each
+/// cell's own or, while it is not rendered, the last rendered cell of the clip
+/// at or before its tick, or else the first after it, no more than `reach`
+/// ticks away. Pushes the tick of every cell drawn without its own picture to
+/// `missing`.
+fn cell_pictures(
+    filmstrips: &FilmstripStore,
+    cells: impl Iterator<Item = StripCell>,
+    (start, end): (i64, i64),
+    reach: i64,
+    missing: &mut Vec<i64>,
+) -> Vec<FilmCell> {
+    cells
+        .filter_map(|cell| {
+            let picture = filmstrips.get(cell.tick).or_else(|| {
+                missing.push(cell.tick);
+                let within = (
+                    start.max(cell.tick.saturating_sub(reach)),
+                    end.min(cell.tick.saturating_add(reach).saturating_add(1)),
+                );
+                filmstrips.stand_in(cell.tick, within)
+            })?;
+            Some(FilmCell {
+                from: cell.from,
+                to: cell.to,
+                image: picture.image.clone(),
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "stand_in_tests.rs"]
+mod stand_in_tests;

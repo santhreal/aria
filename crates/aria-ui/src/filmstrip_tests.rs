@@ -3,13 +3,12 @@
 //! The class closed here is "a cell outlives the state it was rendered from":
 //! a cached thumbnail drawn after an edit shows a frame the project no longer
 //! produces, which is worse than showing nothing. The other half is bounding
-//! the work: one render in flight, and a tick that renders nothing is not
-//! retried on every frame.
+//! the work: a tick that renders nothing is not retried on every frame.
 //!
-//! The request is made from the timeline's draw, so it must never wait on the
-//! engine lock. A cell draws nothing on the session's renderer: its thread
-//! holds the engine only to take the cell's source, and decodes on the
-//! store's own renderer.
+//! Cells are asked for from the timeline's draw, so asking must never wait on
+//! the engine lock. A cell draws nothing on the session's renderer: its
+//! thread holds the engine only to take the cell's source, and decodes on one
+//! of the store's own renderers.
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -17,9 +16,7 @@ use std::time::{Duration, Instant};
 use aria_models::RationalTime;
 use gpui::AppContext as _;
 
-use super::{
-    CELL_H, CELL_MAX_W, FilmstripStore, cell_spans, cell_step, request, test_cell as cell,
-};
+use super::{CELL_H, CELL_MAX_W, FilmstripStore, ask, cell_spans, cell_step, test_cell as cell};
 
 /// Every tick a clip from `start` to `end` draws, as cell heads.
 fn heads(start: i64, end: i64, width: f32) -> Vec<i64> {
@@ -199,20 +196,6 @@ fn a_render_that_lands_late_against_an_old_revision_is_dropped() {
 }
 
 #[test]
-fn only_one_cell_renders_at_a_time() {
-    let mut store = FilmstripStore::default();
-    store.sync_revision(1);
-    assert!(store.wants(0));
-    store.start(0);
-    assert!(
-        !store.wants(24),
-        "a filmstrip never queues renders ahead of a scrub"
-    );
-    store.finish(1, 0, Some(cell()));
-    assert!(store.wants(24), "the next cell follows the first");
-}
-
-#[test]
 fn a_tick_that_renders_nothing_is_not_retried() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
@@ -228,14 +211,14 @@ fn a_tick_that_renders_nothing_is_not_retried() {
 /// How long the lock holder below keeps the engine locked at most.
 const HELD: Duration = Duration::from_secs(3);
 
-/// A cell request made while another thread holds the engine lock returns at
-/// once and marks its tick in flight. Closes the class where the timeline's
+/// Cells asked for while another thread holds the engine lock return at once
+/// and mark their tick in flight. Closes the class where the timeline's
 /// draw read the revision under the engine lock and the window stood still
 /// behind a cell decode. The holder releases after [`HELD`] whatever happens,
-/// so a request that waits ends the test red instead of hanging it. Does not
+/// so an ask that waits ends the test red instead of hanging it. Does not
 /// cover the render thread's read of the cell's source, which waits by design.
 #[test]
-fn a_cell_request_does_not_wait_on_the_engine_lock() {
+fn asking_for_cells_does_not_wait_on_the_engine_lock() {
     let cx = gpui::TestAppContext::single();
     let state = cx.update(|app| app.new(|_| crate::app::premiere_tests::with_sequence(1, 10)));
     let engine = cx.update(|app| state.read(app).engine().clone());
@@ -250,17 +233,17 @@ fn a_cell_request_does_not_wait_on_the_engine_lock() {
         .recv_timeout(HELD)
         .expect("the holder took the engine lock");
     let started = Instant::now();
-    cx.update(|app| request(&state, app, 0));
+    cx.update(|app| ask(&state, app, vec![0]));
     let waited = started.elapsed();
     drop(release_tx);
     holder.join().expect("the holder released the engine lock");
     assert!(
         waited < Duration::from_millis(500),
-        "the cell request waited {waited:?} on the engine lock"
+        "the ask waited {waited:?} on the engine lock"
     );
     assert!(
-        cx.update(|app| !state.read(app).filmstrips.wants(24)),
-        "the request did not mark its tick in flight"
+        cx.update(|app| !state.read(app).filmstrips.wants(0)),
+        "the ask did not mark its tick in flight"
     );
     // The cell task holds the state until its render lands; a task left
     // pending at the end is a leaked handle.
@@ -309,7 +292,7 @@ fn a_cell_renders_nothing_on_the_sessions_renderer() {
         .expect("the Viewer's frame");
     let viewer = stats(&engine);
 
-    cx.update(|app| request(&state, app, far));
+    cx.update(|app| ask(&state, app, vec![far]));
     cx.run_until_parked();
 
     assert_eq!(

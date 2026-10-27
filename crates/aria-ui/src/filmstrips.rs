@@ -10,14 +10,20 @@
 //! edits it reverted changed; audio-only and organizational edits keep every
 //! rendered cell. A change the store did not follow drops every cell. The
 //! session revision still rejects a render that finishes after a newer edit.
-//! Only one render is in flight at a time: a filmstrip is worth idle
-//! capacity, never a stall in front of a scrub.
 //!
-//! Cells render on a [`CellRenderer`] of their own, so a cell neither holds
-//! the engine through its decode nor moves the decoders the Viewer's frames
-//! are read from.
+//! The timeline's draw hands the store the cells it found missing, in the
+//! order it drew them, and the store renders them [`RENDERERS`] at a time,
+//! one per renderer, starting the next as each lands, so a strip fills without
+//! waiting a frame between cells. During playback one renders at a time: a
+//! filmstrip is worth idle capacity, never a frame playback drops.
+//!
+//! Cells render on [`CellRenderer`]s of their own, so a cell neither holds the
+//! engine through its decode nor moves the decoders the Viewer's frames are
+//! read from. A cell the store drops leaves the window atlas with the Viewer's
+//! replaced frames, through [`AppState::release_retired_images`], and at the
+//! latest when the next cell lands.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use aria_engine::{CellRenderer, CellSource};
@@ -36,9 +42,15 @@ pub const CELL_H: u32 = 34;
 /// thumbnail that costs more than the strip can show.
 const CELL_MAX_W: u32 = 96;
 
-/// Cells kept across all clips. A cell is a few KB; this bounds the strip's
-/// memory at a few megabytes on a project with many lanes.
-const MAX_CELLS: usize = 512;
+/// Cells rendered at once, each on a renderer with decoders of its own. A
+/// cell decodes from its GOP's key frame, so a strip fills this many times
+/// faster than one renderer fills it.
+pub const RENDERERS: usize = 4;
+
+/// Cells kept across all clips. A 16:9 cell is about 8 KB, so the store holds
+/// at most about 8 MB. A cell landing in a full store drops the cell farthest
+/// from it, which is the one farthest from the view.
+const MAX_CELLS: usize = 1024;
 
 /// Edits the store remembers for a rollback to walk back. A gesture's
 /// rollback walks back the few edits of one pointer move; a rollback that
@@ -59,21 +71,37 @@ struct Step {
     spans: Vec<(i64, i64)>,
 }
 
+/// One render in flight: the tick, the revision it renders, and the index of
+/// the renderer it holds.
+#[derive(Clone, Copy)]
+struct Flight {
+    tick: i64,
+    revision: u64,
+    renderer: usize,
+}
+
 /// Cells by the tick they were rendered at.
 #[derive(Default)]
 pub struct FilmstripStore {
     revision: u64,
-    cells: HashMap<i64, Cell>,
-    /// The tick currently being rendered, if any. One at a time.
-    in_flight: Option<i64>,
+    cells: BTreeMap<i64, Cell>,
+    /// The renders in flight, at most one per renderer. A render started
+    /// before an edit holds its renderer until it lands, and lands nothing.
+    flights: Vec<Flight>,
     /// Ticks that produced no frame, so a gap in the sequence is not retried
     /// every frame for as long as it stays on screen.
-    empty: Vec<i64>,
+    empty: BTreeSet<i64>,
+    /// The cells the timeline's last draw found missing, in the order it drew
+    /// them.
+    queue: VecDeque<i64>,
     /// The latest edits followed by span, oldest first. The newest ends at
     /// `revision`; the store forgets them all when it drops every cell.
     journal: VecDeque<Step>,
-    /// The renderer every cell is drawn on.
-    renderer: Arc<Mutex<CellRenderer>>,
+    /// The renderers cells are drawn on; `flights` holds the busy ones.
+    renderers: [Arc<Mutex<CellRenderer>>; RENDERERS],
+    /// Images of dropped cells, for the window atlas to release. Cells drop
+    /// on an edit or a landing, and both redraw the timeline without them.
+    retired: Vec<Arc<RenderImage>>,
 }
 
 impl FilmstripStore {
@@ -81,10 +109,39 @@ impl FilmstripStore {
         self.cells.get(&tick)
     }
 
-    /// Whether `tick` should be rendered now: there is no retained cell for it,
-    /// it did not already come back empty, and nothing else is in flight.
+    /// The rendered cell nearest `tick` inside `[within.0, within.1)`: the
+    /// last at or before it, or else the first after it. A cell not rendered
+    /// yet draws this one in its place, which after a zoom in is the frame
+    /// the strip showed there before.
+    pub fn stand_in(&self, tick: i64, within: (i64, i64)) -> Option<&Cell> {
+        let (from, until) = within;
+        if from >= until {
+            return None;
+        }
+        let tick = tick.clamp(from, until - 1);
+        self.cells
+            .range(from..=tick)
+            .next_back()
+            .or_else(|| self.cells.range(tick + 1..until).next())
+            .map(|(_, cell)| cell)
+    }
+
+    /// How many cells are being rendered now.
+    pub fn in_flight(&self) -> usize {
+        self.flights.len()
+    }
+
+    /// Whether `tick` should be rendered now: there is no retained cell for
+    /// it, it did not already come back empty, it is not being rendered for
+    /// this revision, and a renderer is free.
     pub fn wants(&self, tick: i64) -> bool {
-        self.in_flight.is_none() && !self.cells.contains_key(&tick) && !self.empty.contains(&tick)
+        self.flights.len() < RENDERERS
+            && !self.cells.contains_key(&tick)
+            && !self.empty.contains(&tick)
+            && !self
+                .flights
+                .iter()
+                .any(|flight| flight.tick == tick && flight.revision == self.revision)
     }
 
     /// Drop everything rendered against an older revision. The fallback for a
@@ -93,12 +150,13 @@ impl FilmstripStore {
     pub fn sync_revision(&mut self, revision: u64) {
         if self.revision != revision {
             self.revision = revision;
-            self.cells.clear();
+            let cells = std::mem::take(&mut self.cells);
+            self.retired
+                .extend(cells.into_values().map(|cell| cell.image));
             self.empty.clear();
             self.journal.clear();
-            // A render started against the old project is no longer wanted; it
-            // is dropped on arrival by the revision check.
-            self.in_flight = None;
+            // A render started against the old project lands nothing: its
+            // revision no longer matches.
         }
     }
 
@@ -172,20 +230,23 @@ impl FilmstripStore {
         (cursor == opened).then_some(spans)
     }
 
-    /// Drop the cells and empty results inside `spans`.
+    /// Drop the cells and empty results inside `spans`. A render in flight
+    /// lands nothing: the step that follows moves the revision past it.
     fn drop_spans(&mut self, spans: &[(i64, i64)]) {
         let inside = |tick: i64| {
             spans
                 .iter()
                 .any(|&(start, end)| tick >= start && tick < end)
         };
-        self.cells.retain(|tick, _| !inside(*tick));
+        let retired = &mut self.retired;
+        self.cells.retain(|tick, cell| {
+            let keep = !inside(*tick);
+            if !keep {
+                retired.push(cell.image.clone());
+            }
+            keep
+        });
         self.empty.retain(|tick| !inside(*tick));
-        // Any in-flight result describes the old revision. It is rejected by
-        // `finish`, even when its tick sits outside the dirty spans: retaining
-        // the already-rendered cell is safe; adopting work started under an
-        // unknown renderer state is not.
-        self.in_flight = None;
     }
 
     /// Move to `step.to` and remember the step for a later rollback.
@@ -197,26 +258,90 @@ impl FilmstripStore {
         self.journal.push_back(step);
     }
 
-    fn start(&mut self, tick: i64) {
-        self.in_flight = Some(tick);
+    /// Mark `tick` in flight at the store's revision on a free renderer, and
+    /// return that renderer. Call after [`Self::wants`] says yes.
+    fn start(&mut self, tick: i64) -> Arc<Mutex<CellRenderer>> {
+        let renderer = (0..RENDERERS)
+            .find(|index| !self.flights.iter().any(|flight| flight.renderer == *index))
+            .unwrap_or(0);
+        self.flights.push(Flight {
+            tick,
+            revision: self.revision,
+            renderer,
+        });
+        Arc::clone(&self.renderers[renderer])
+    }
+
+    /// The next queued tick to render and the renderer to render it on, while
+    /// fewer than `limit` cells are in flight. Ticks no longer wanted leave
+    /// the queue.
+    fn next_flight(&mut self, limit: usize) -> Option<(i64, Arc<Mutex<CellRenderer>>)> {
+        if self.flights.len() >= limit.min(RENDERERS) {
+            return None;
+        }
+        while let Some(tick) = self.queue.pop_front() {
+            if self.wants(tick) {
+                return Some((tick, self.start(tick)));
+            }
+        }
+        None
     }
 
     fn finish(&mut self, revision: u64, tick: i64, cell: Option<Cell>) {
-        if self.in_flight == Some(tick) {
-            self.in_flight = None;
+        if let Some(at) = self
+            .flights
+            .iter()
+            .position(|flight| flight.tick == tick && flight.revision == revision)
+        {
+            self.flights.swap_remove(at);
         }
         if revision != self.revision {
             return;
         }
         match cell {
             Some(cell) => {
-                if self.cells.len() >= MAX_CELLS {
-                    self.cells.clear();
+                if !self.cells.contains_key(&tick) && self.cells.len() >= MAX_CELLS {
+                    self.drop_farthest_from(tick);
                 }
-                self.cells.insert(tick, cell);
+                if let Some(replaced) = self.cells.insert(tick, cell) {
+                    self.retired.push(replaced.image);
+                }
             }
-            None => self.empty.push(tick),
+            None => {
+                self.empty.insert(tick);
+            }
         }
+    }
+
+    /// Drop the retained cell farthest from `tick`, which is the first or the
+    /// last.
+    fn drop_farthest_from(&mut self, tick: i64) {
+        let (Some((&first, _)), Some((&last, _))) =
+            (self.cells.first_key_value(), self.cells.last_key_value())
+        else {
+            return;
+        };
+        let far = if tick.abs_diff(first) >= tick.abs_diff(last) {
+            first
+        } else {
+            last
+        };
+        if let Some(cell) = self.cells.remove(&far) {
+            self.retired.push(cell.image);
+        }
+    }
+
+    /// Hand the images of dropped cells to `out`, the window atlas's release
+    /// list.
+    pub(crate) fn retire_into(&mut self, out: &mut Vec<Arc<RenderImage>>) {
+        out.append(&mut self.retired);
+    }
+
+    /// Store `cell` at `tick` as rendered at the store's revision and landed.
+    #[cfg(test)]
+    pub(crate) fn hold(&mut self, tick: i64, cell: Cell) {
+        self.start(tick);
+        self.finish(self.revision, tick, Some(cell));
     }
 }
 
@@ -270,55 +395,55 @@ pub fn cell_spans(
     out
 }
 
-/// Render one cell if the store wants it. Safe to call from a render: the tick
-/// is marked in flight before the thread starts, and nothing here takes the
-/// engine lock. The render thread holds it only to take the cell's source.
-pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
-    let wanted = state.update(cx, |state, _| {
-        // The revision the drawn timeline was projected from. An engine edit
-        // not yet projected reaches the store through `sync_from_engine`,
-        // which drops what was rendered before it.
-        let revision = state.revision;
-        state.filmstrips.sync_revision(revision);
-        if !state.filmstrips.wants(tick) {
-            return None;
-        }
-        state.filmstrips.start(tick);
-        Some((
-            revision,
-            state.engine().clone(),
-            Arc::clone(&state.filmstrips.renderer),
-            state.playhead.rate,
-        ))
+/// Render the cells at `missing`, the ticks the timeline's draw found no cell
+/// for, in the order it drew them. They replace the ones an earlier draw
+/// asked for. Safe to call from a render: nothing here takes the engine lock,
+/// and each render thread holds it only to take the cell's source.
+pub fn ask(state: &Entity<AppState>, cx: &mut App, missing: Vec<i64>) {
+    state.update(cx, |state, cx| {
+        state.filmstrips.queue = missing.into();
+        pump(state, cx);
     });
-    let Some((revision, engine, renderer, rate)) = wanted else {
-        return;
-    };
-    let state = state.clone();
-    cx.spawn(async move |cx| {
-        let at = RationalTime::new(tick, rate);
-        // Its own thread, so a codec that panics cannot take the window with it,
-        // and the wait is as long as the render: waiting on the foreground
-        // executor would hold every animation still for it, and a lane of cells
-        // asks for one after another.
-        let rendered =
-            crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
-                let source = engine.lock().cell_source();
-                render_cell(&mut renderer.lock(), &source, at)
-            })
+}
+
+/// Start queued cells on free renderers: up to [`RENDERERS`] at once, one
+/// during playback.
+fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
+    // The revision the drawn timeline was projected from. An engine edit not
+    // yet projected reaches the store through `sync_from_engine`, which drops
+    // what was rendered before it.
+    let revision = state.revision;
+    state.filmstrips.sync_revision(revision);
+    let limit = if state.playing { 1 } else { RENDERERS };
+    while let Some((tick, renderer)) = state.filmstrips.next_flight(limit) {
+        let engine = state.engine().clone();
+        let at = RationalTime::new(tick, state.playhead.rate);
+        cx.spawn(async move |this, cx| {
+            // Its own thread, so a codec that panics cannot take the window
+            // with it, and the wait is as long as the render: waiting on the
+            // foreground executor would hold every animation still for it.
+            let rendered = crate::handoff::on_a_thread(
+                cx.background_executor(),
+                "aria-filmstrip",
+                move || {
+                    let source = engine.lock().cell_source();
+                    render_cell(&mut renderer.lock(), &source, at)
+                },
+            )
             .await
             .flatten();
-        state.update(cx, |state, cx| {
-            land(
-                state,
-                revision,
-                tick,
-                rendered.map(|image| Cell { image }),
-                cx,
-            );
-        });
-    })
-    .detach();
+            let _ = this.update(cx, |state, cx| {
+                land(
+                    state,
+                    revision,
+                    tick,
+                    rendered.map(|image| Cell { image }),
+                    cx,
+                );
+            });
+        })
+        .detach();
+    }
 }
 
 /// The cell at `at`: the frame `source` plays there, fit to a cell and drawn
@@ -334,8 +459,10 @@ pub fn render_cell(
         .and_then(|frame| crate::frame::rgba_to_render(&frame))
 }
 
-/// Store the cell rendered for `tick` at `revision` and redraw the panel
-/// bodies that draw filmstrips, through [`crate::app::FilmstripChanged`].
+/// Store the cell rendered for `tick` at `revision`, start the next queued
+/// cell on the renderer it freed, release the cells the store dropped from
+/// the window atlas, and redraw the panel bodies that draw filmstrips, through
+/// [`crate::app::FilmstripChanged`]. Called where no window is being updated.
 pub(crate) fn land(
     state: &mut AppState,
     revision: u64,
@@ -344,6 +471,8 @@ pub(crate) fn land(
     cx: &mut Context<AppState>,
 ) {
     state.filmstrips.finish(revision, tick, cell);
+    pump(state, cx);
+    state.release_retired_images(None, cx);
     cx.emit(crate::app::FilmstripChanged);
 }
 
@@ -366,3 +495,7 @@ mod filmstrip_tests;
 #[cfg(test)]
 #[path = "filmstrip_rollback_tests.rs"]
 mod filmstrip_rollback_tests;
+
+#[cfg(test)]
+#[path = "filmstrip_fill_tests.rs"]
+mod filmstrip_fill_tests;

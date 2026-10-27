@@ -1,5 +1,6 @@
 //! `scrub` scenario: warm scrub (decoder open, within one GOP) and cold seek latency.
 
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use aria_compositor::GpuContext;
@@ -7,7 +8,8 @@ use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
 use aria_engine::{CellRenderer, Engine, EngineConfig};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 use aria_render::{Renderer, ResolveOverrides, SeekPolicy};
-use aria_ui::shell::Moved;
+use aria_ui::app::AppState;
+use aria_ui::shell::{Moved, Shell};
 
 use crate::fixtures::{FixtureId, ensure_fixture};
 use crate::scenarios::{BenchContext, GpuTextureSink, open_editor, timed_frame};
@@ -19,6 +21,17 @@ const MOVE_GAP: Duration = Duration::from_millis(8);
 
 /// The pointer moves one ruler scrub makes.
 const MOVES: u32 = 30;
+
+/// Zooms in by two about the middle of the lanes that follow the filmstrip's
+/// first fill.
+const REFILL_ZOOMS: u32 = 4;
+
+/// Scrolls a view along that follow the zooms.
+const REFILL_SCROLLS: u32 = 3;
+
+/// Draws a filmstrip refill may take before it counts as stuck: many more
+/// than the cells on screen.
+const REFILL_DRAWS: usize = 4_096;
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let h264 = ensure_fixture(&ctx.fixtures_dir, FixtureId::H264_1080p60)?;
@@ -217,6 +230,10 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let ruler_scrub_samples = ruler_scrub(ctx, "ruler-h264", &h264.path, 10.0, 0.1)?;
     let ruler_long_gop_samples = ruler_scrub(ctx, "ruler-long-gop", &long_gop.path, 100.0, 1.0)?;
 
+    // 4. The timeline's filmstrip filling after the view moves, over
+    // `h264-1080p60` on V1. Not part of a target.
+    let refill_samples = filmstrip_refill(ctx, &h264.path)?;
+
     let warm_series = SampleSeries::from_values("warm_scrub_ms", "ms", warm_scrub_samples);
     let warm_render_series =
         SampleSeries::from_values("warm_renderer_scrub_ms", "ms", warm_renderer_samples);
@@ -236,6 +253,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let cell_series = SampleSeries::from_values("filmstrip_cell_ms", "ms", cell_samples);
     let cell_engine_series =
         SampleSeries::from_values("filmstrip_cell_engine_ms", "ms", cell_engine_samples);
+    let refill_series = SampleSeries::from_values("filmstrip_refill_ms", "ms", refill_samples);
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -257,13 +275,15 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     ];
 
     let notes = vec![format!(
-        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, filmstrip cell p50={:.2} ms (p95={:.2} ms) of which the engine p50={:.2} ms, playback frame after a filmstrip cell p50={:.2} ms (p95={:.2} ms), with no cell p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
+        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, filmstrip cell p50={:.2} ms (p95={:.2} ms) of which the engine p50={:.2} ms, filmstrip refill after a view move p50={:.2} ms (max={:.2} ms), playback frame after a filmstrip cell p50={:.2} ms (p95={:.2} ms), with no cell p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
         warm_series.p50,
         warm_series.p95,
         warm_render_series.p50,
         cell_series.p50,
         cell_series.p95,
         cell_engine_series.p50,
+        refill_series.p50,
+        refill_series.max,
         after_cell_series.p50,
         after_cell_series.p95,
         no_cell_series.p50,
@@ -288,6 +308,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             warm_render_series,
             cell_series,
             cell_engine_series,
+            refill_series,
             after_cell_series,
             no_cell_series,
             cold_series,
@@ -373,4 +394,99 @@ fn ruler_scrub(
     drop(window);
     app.update(|cx| cx.shutdown());
     Ok(samples)
+}
+
+/// The milliseconds the timeline's filmstrip takes to fill after the view
+/// changes, over `media` in a new project of an editor window: the first fill
+/// when `media` is placed on V1 at the default zoom, then [`REFILL_ZOOMS`]
+/// zooms in by two about the middle of the lanes, each of which leaves every
+/// other cell on screen to render, then [`REFILL_SCROLLS`] scrolls a view
+/// along, each of which leaves every cell on screen to render.
+fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String> {
+    let data_dir = ctx.ensure_scratch_subdir("filmstrip-refill")?.join("data");
+    std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
+    let (mut app, state, mut window) = open_editor(&data_dir);
+    let id = app.update(|cx| {
+        state.update(cx, |s, cx| {
+            s.new_project()
+                .map_err(|err| format!("a new project failed: {err}"))?;
+            cx.notify();
+            s.import_media(media.to_path_buf())
+                .map_err(|err| format!("import {} failed: {err}", media.display()))
+        })
+    })?;
+    let mut samples = Vec::with_capacity((1 + REFILL_ZOOMS + REFILL_SCROLLS) as usize);
+    let mut placed = Ok(());
+    let first = refill(&app, &mut window, &state, |shell, _, cx| {
+        placed = shell.state.update(cx, |s, cx| {
+            cx.notify();
+            s.drop_media_on_timeline(id, None, 0)
+        });
+    });
+    placed.map_err(|err| format!("placing {} failed: {err}", media.display()))?;
+    samples.push(first?);
+    for _ in 0..REFILL_ZOOMS {
+        samples.push(refill(&app, &mut window, &state, |shell, _, cx| {
+            let (left, width) = {
+                let s = shell.state.read(cx);
+                (
+                    s.timeline_content_left().unwrap_or(0.0),
+                    s.timeline_viewport_px(),
+                )
+            };
+            shell.zoom_at(left + width / 2.0, 2.0, cx);
+        })?);
+    }
+    for _ in 0..REFILL_SCROLLS {
+        samples.push(refill(&app, &mut window, &state, |shell, _, cx| {
+            shell.state.update(cx, |s, _| {
+                let left = s.timeline_content_left().unwrap_or(0.0);
+                let ((x, w), _) = s.zoom_bar_thumb(s.scroll_x, s.zoom);
+                let at = left + x + w / 2.0;
+                s.press_zoom_bar(at);
+                s.drag_zoom_bar(at + w);
+                s.release_zoom_bar();
+            });
+            shell.redraw(Moved::View, cx);
+        })?);
+    }
+    drop(state);
+    drop(window);
+    app.update(|cx| cx.shutdown());
+    Ok(samples)
+}
+
+/// Runs `change` on the editor window's shell, with every earlier cell landed
+/// and the window drawn, and returns the milliseconds until a draw asks for no
+/// filmstrip cell: every cell on screen rendered, or found to show no frame.
+/// Each pass lands the cells in flight and draws, which asks for the next.
+/// Fails when the change asks for no cell, so a strip that is not drawn is not
+/// measured as one that fills at once, and when the strip still asks after
+/// [`REFILL_DRAWS`] draws.
+fn refill(
+    app: &gpui::TestApp,
+    window: &mut gpui::TestAppWindow<Shell>,
+    state: &gpui::Entity<AppState>,
+    change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
+) -> Result<f64, String> {
+    app.run_until_parked();
+    window.draw();
+    app.run_until_parked();
+    let (cx, handle) = (app.to_async(), window.handle());
+    let started = Instant::now();
+    cx.update(|cx| handle.update(cx, change))
+        .map_err(|err| format!("the editor window closed: {err}"))?;
+    for draw in 0..REFILL_DRAWS {
+        window.draw();
+        if app.read(|cx| state.read(cx).filmstrips.in_flight()) == 0 {
+            if draw == 0 {
+                return Err("the change asked for no filmstrip cell".to_owned());
+            }
+            return Ok(started.elapsed().as_secs_f64() * 1000.0);
+        }
+        app.run_until_parked();
+    }
+    Err(format!(
+        "the filmstrip still asked for cells after {REFILL_DRAWS} draws"
+    ))
 }
