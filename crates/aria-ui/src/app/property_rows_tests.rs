@@ -376,7 +376,6 @@ fn timeline_graph_editor_builds_value_and_speed_graphs_and_drags_handles() {
     let curve = &value_model.curves[0];
     assert_eq!(curve.keys.len(), 2);
     assert_eq!(curve.influence_handles.len(), 2);
-    assert_eq!(curve.spatial_handles.len(), 4);
 
     // Pull key 0's outgoing handle out of the key, then drag it back to
     // minimum influence and commit.

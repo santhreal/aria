@@ -369,32 +369,7 @@ fn paint_graph_canvas(
                 );
             }
 
-            // 2. Spatial tangent handles on Position in Value graph.
-            for sh in &curve.spatial_handles {
-                if sh.anchor_x < -40.0 || sh.anchor_x > vw + 40.0 {
-                    continue;
-                }
-                paint_segment(
-                    window,
-                    &mut calls,
-                    ox + sh.anchor_x,
-                    oy + sh.anchor_y,
-                    ox + sh.handle_x,
-                    oy + sh.handle_y,
-                    theme.success.opacity(0.75),
-                );
-                paint_rect(
-                    window,
-                    &mut calls,
-                    ox + sh.handle_x - 3.0,
-                    oy + sh.handle_y - 3.0,
-                    6.0,
-                    6.0,
-                    theme.success,
-                );
-            }
-
-            // 3. Incoming and outgoing temporal influence handles (0.1%..=100%).
+            // 2. Incoming and outgoing temporal influence handles (0.1%..=100%).
             for h in &curve.influence_handles {
                 if h.anchor_x < -80.0 && h.handle_x < -80.0 {
                     continue;
@@ -439,7 +414,7 @@ fn paint_graph_canvas(
                 );
             }
 
-            // 4. Keyframe nodes.
+            // 3. Keyframe nodes.
             for k in &curve.keys {
                 if k.x < -12.0 || k.x > vw + 12.0 {
                     continue;

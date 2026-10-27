@@ -39,7 +39,7 @@ use super::param_units::{Number, Units};
 
 pub use graph::{
     GraphDragTarget, GraphHandleSide, GraphInfluenceHandle, GraphKeyNode, GraphMode,
-    GraphSpatialHandle, TimelineGraphCurve, TimelineGraphModel,
+    TimelineGraphCurve, TimelineGraphModel,
 };
 
 /// Height (px) of one timeline outline group header or property row.

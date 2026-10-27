@@ -5,7 +5,7 @@ use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
     Clip, ClipId, ClipParam, Easing, MIN_TEMPORAL_INFLUENCE, ParamKind, ParamSpec, ParamValue,
-    RationalTime, SpatialTangents, TemporalEase,
+    RationalTime, TemporalEase,
 };
 use gpui::SharedString;
 
@@ -39,7 +39,7 @@ pub fn graph_axis_ys(height: f32) -> [f32; 3] {
     ]
 }
 
-/// Incoming or outgoing side of a keyframe's temporal ease or spatial tangent.
+/// Incoming or outgoing side of a keyframe's temporal ease.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GraphHandleSide {
     Incoming,
@@ -76,19 +76,6 @@ pub struct GraphInfluenceHandle {
     pub speed: f32,
 }
 
-/// One spatial tangent handle on a `Position` keyframe in the value graph.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GraphSpatialHandle {
-    pub clip: ClipId,
-    pub tick: i64,
-    pub side: GraphHandleSide,
-    pub anchor_x: f32,
-    pub anchor_y: f32,
-    pub handle_x: f32,
-    pub handle_y: f32,
-    pub tangent: [f32; 2],
-}
-
 /// One curve plotted in the timeline graph editor.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimelineGraphCurve {
@@ -98,7 +85,6 @@ pub struct TimelineGraphCurve {
     pub samples: Vec<(f32, f32)>,
     pub keys: Vec<GraphKeyNode>,
     pub influence_handles: Vec<GraphInfluenceHandle>,
-    pub spatial_handles: Vec<GraphSpatialHandle>,
 }
 
 /// Complete model prepared for one frame of the timeline graph editor.
@@ -139,17 +125,6 @@ pub enum GraphDragTarget {
         min_y: f32,
         max_y: f32,
         height: f32,
-    },
-    SpatialTangent {
-        clip: ClipId,
-        tick: i64,
-        side: GraphHandleSide,
-        origin_x: f32,
-        origin_y: f32,
-        origin_tangents: SpatialTangents,
-        current_tangents: SpatialTangents,
-        value: ParamValue,
-        easing: Easing,
     },
 }
 
@@ -336,7 +311,6 @@ impl AppState {
             let total = raw_keys.len();
             let mut keys = Vec::with_capacity(total);
             let mut influence_handles = Vec::new();
-            let mut spatial_handles = Vec::new();
 
             for (idx, (local_t, easing)) in raw_keys.iter().enumerate() {
                 let mut abs_tick = clip.param_timeline_tick(*local_t);
@@ -443,41 +417,6 @@ impl AppState {
                         speed: out_ease.speed,
                     });
                 }
-
-                if mode == GraphMode::Value
-                    && param == ClipParam::Position
-                    && let Some(tan) = clip.transform.position.tangents_at(*local_t)
-                {
-                    let tan = match &active_drag {
-                        Some(GraphDragTarget::SpatialTangent {
-                            clip: dc,
-                            tick: dt,
-                            current_tangents,
-                            ..
-                        }) if *dc == clip_id && *dt == abs_tick => *current_tangents,
-                        _ => tan,
-                    };
-                    spatial_handles.push(GraphSpatialHandle {
-                        clip: clip_id,
-                        tick: abs_tick,
-                        side: GraphHandleSide::Incoming,
-                        anchor_x: kx,
-                        anchor_y: ky,
-                        handle_x: kx + tan.in_t[0],
-                        handle_y: ky - tan.in_t[1],
-                        tangent: tan.in_t,
-                    });
-                    spatial_handles.push(GraphSpatialHandle {
-                        clip: clip_id,
-                        tick: abs_tick,
-                        side: GraphHandleSide::Outgoing,
-                        anchor_x: kx,
-                        anchor_y: ky,
-                        handle_x: kx + tan.out_t[0],
-                        handle_y: ky - tan.out_t[1],
-                        tangent: tan.out_t,
-                    });
-                }
             }
 
             curves.push(TimelineGraphCurve {
@@ -487,7 +426,6 @@ impl AppState {
                 samples,
                 keys,
                 influence_handles,
-                spatial_handles,
             });
         }
 
@@ -507,9 +445,8 @@ impl AppState {
         }
     }
 
-    /// Start dragging the influence handle, spatial tangent handle, or
-    /// keyframe node that a press at `(local_x, local_y)` lands on, as
-    /// [`graph_hit`] picks it.
+    /// Start dragging the influence handle or keyframe node that a press at
+    /// `(local_x, local_y)` lands on, as [`graph_hit`] picks it.
     pub fn begin_timeline_graph_drag(
         &mut self,
         local_x: f32,
@@ -550,37 +487,6 @@ impl AppState {
                         min_y: model.min_y,
                         max_y: model.max_y,
                         height,
-                    });
-                });
-                true
-            }
-            Some(GraphHit::Spatial(sh)) => {
-                let Some((clip_model, _)) = self.clip_and_lane_kind(sh.clip) else {
-                    return false;
-                };
-                let local_t = clip_model.param_tick(sh.tick);
-                let pt = clip_model.transform.position.sample(local_t);
-                let easing = clip_model
-                    .transform
-                    .position
-                    .easing_at(local_t)
-                    .unwrap_or(Easing::Linear);
-                let origin_tangents = clip_model
-                    .transform
-                    .position
-                    .tangents_at(local_t)
-                    .unwrap_or(SpatialTangents::ZERO);
-                self.with_prop_rows_mut(|s| {
-                    s.graph_drag = Some(GraphDragTarget::SpatialTangent {
-                        clip: sh.clip,
-                        tick: sh.tick,
-                        side: sh.side,
-                        origin_x: local_x,
-                        origin_y: local_y,
-                        origin_tangents,
-                        current_tangents: origin_tangents,
-                        value: ParamValue::Vec2(pt),
-                        easing,
                     });
                 });
                 true
@@ -677,28 +583,6 @@ impl AppState {
                     }
                     true
                 }
-                GraphDragTarget::SpatialTangent {
-                    side,
-                    origin_x,
-                    origin_y,
-                    origin_tangents,
-                    current_tangents,
-                    ..
-                } => {
-                    let dx = local_x - *origin_x;
-                    let dy = *origin_y - local_y;
-                    match side {
-                        GraphHandleSide::Incoming => {
-                            current_tangents.in_t =
-                                [origin_tangents.in_t[0] + dx, origin_tangents.in_t[1] + dy];
-                        }
-                        GraphHandleSide::Outgoing => {
-                            current_tangents.out_t =
-                                [origin_tangents.out_t[0] + dx, origin_tangents.out_t[1] + dy];
-                        }
-                    }
-                    true
-                }
             }
         })
     }
@@ -788,23 +672,6 @@ impl AppState {
                     hold,
                 }))?;
             }
-            GraphDragTarget::SpatialTangent {
-                clip,
-                tick,
-                current_tangents,
-                value,
-                easing,
-                ..
-            } => {
-                self.apply_command(Command::Edit(EditCommand::SetParamKeyframe {
-                    clip,
-                    param: ClipParam::Position,
-                    at: RationalTime::new(tick, rate),
-                    value,
-                    easing,
-                    tangents: Some(current_tangents),
-                }))?;
-            }
         }
         Ok(())
     }
@@ -818,7 +685,6 @@ const GRAPH_HIT_PX: f32 = 8.0;
 enum GraphHit {
     Key(GraphKeyNode),
     Influence(GraphInfluenceHandle),
-    Spatial(GraphSpatialHandle),
 }
 
 /// The key or handle a press at `(x, y)` lands on. A key paints over its
@@ -837,13 +703,7 @@ fn graph_hit(model: &TimelineGraphModel, x: f32, y: f32) -> Option<GraphHit> {
         .iter()
         .flat_map(|c| &c.influence_handles)
         .map(|h| (d2(h.handle_x, h.handle_y), GraphHit::Influence(*h)));
-    let spatial = model
-        .curves
-        .iter()
-        .flat_map(|c| &c.spatial_handles)
-        .map(|h| (d2(h.handle_x, h.handle_y), GraphHit::Spatial(*h)));
-    nearest(keys.clone(), KEY_HIT_PX)
-        .or_else(|| nearest(keys.chain(influence).chain(spatial), GRAPH_HIT_PX))
+    nearest(keys.clone(), KEY_HIT_PX).or_else(|| nearest(keys.chain(influence), GRAPH_HIT_PX))
 }
 
 /// The first of the nearest `hits` within `reach` pixels, given each hit's

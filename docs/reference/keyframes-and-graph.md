@@ -69,7 +69,7 @@ The timeline graph editor (`Shift+F3`, `crates/aria-ui/src/app/property_rows_gra
 | `Value` | `graph-mode-value` | Value | `yes` |
 | `Speed` | `graph-mode-speed` | Speed | `no` |
 
-Handle sides (`GraphHandleSide`) are `Incoming` and `Outgoing`. Interactive pointer drags (`GraphDragTarget`) target `Keyframe` (time and value), `Influence` (incoming or outgoing `TemporalEase` speed and influence), or `SpatialTangent` (2D motion-path cubic bezier tangent on `ClipParam::Position`).
+Handle sides (`GraphHandleSide`) are `Incoming` and `Outgoing`. Interactive pointer drags (`GraphDragTarget`) target `Keyframe` (time and value) or `Influence` (incoming or outgoing `TemporalEase` speed and influence). A press within `KEY_HIT_PX = 5.0` px of a keyframe takes the keyframe; elsewhere the nearest keyframe or influence handle within `GRAPH_HIT_PX = 8.0` px takes it, keyframes first on a tie. The spatial tangents of a `Position` keyframe are edited on the Viewer's motion path.
 
 ### On-canvas motion path (`PathParam::ALL` and `TangentSide::ALL`)
 

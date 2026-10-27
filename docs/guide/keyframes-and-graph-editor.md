@@ -171,8 +171,6 @@ highlighted.
   A press on a keyframe's icon takes the keyframe even where its handles lie
   under it, as a linear keyframe's do; a press past the icon, within 8 pixels,
   pulls out the nearest handle.
-- On Position, the Value graph also draws the spatial tangent handles that bend
-  the motion path.
 - **Easy Ease** and **Hold** apply to the selected keyframes, or to the keyframe
   under the playhead when none is selected.
 
