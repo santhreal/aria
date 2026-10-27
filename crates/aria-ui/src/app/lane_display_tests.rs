@@ -509,15 +509,17 @@ fn shift_scrolling_a_track_header_steps_its_preset_without_scrolling_the_timelin
         48
     );
 
-    // Shift+scroll over the time area still scrolls horizontally without changing track heights.
+    // Shift+scroll down over the time area scrolls one line later without
+    // changing track heights.
     let canvas_center = visual
         .debug_bounds("timeline-video-canvas")
         .expect("timeline video canvas is drawn")
         .center();
-    scroll_at(visual, canvas_center, 1.0);
-    assert!(
-        visual.read(|app| state.read(app).scroll_x) > 0.0,
-        "Shift+scroll over the time area scrolls horizontally"
+    scroll_at(visual, canvas_center, -1.0);
+    assert_eq!(
+        visual.read(|app| state.read(app).scroll_x),
+        crate::transport::WHEEL_LINE_PX,
+        "Shift+scroll down over the time area scrolls one line later"
     );
     assert_eq!(
         visual.read(|app| state.read(app).lane_display(v1).height),

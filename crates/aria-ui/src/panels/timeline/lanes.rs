@@ -409,7 +409,7 @@ pub(super) fn lane_group(
             if ctrl_or_alt || event.modifiers.shift {
                 return;
             }
-            let delta = event.delta.pixel_delta(px(24.0));
+            let delta = event.delta.pixel_delta(px(crate::transport::WHEEL_LINE_PX));
             let dx = f32::from(delta.x);
             let dy = f32::from(delta.y);
             let trackpad = matches!(event.delta, ScrollDelta::Pixels(_));

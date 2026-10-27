@@ -203,12 +203,12 @@ keyframed paths, and the second opens every Path row.
 | Input | Result |
 | --- | --- |
 | Scroll | Vertical scroll of the tracks |
-| Shift+scroll | Horizontal scroll |
-| Alt+scroll, Ctrl+scroll | Zoom around the pointer |
+| Shift+scroll, trackpad swipe | Horizontal scroll; down or a swipe left shows later time |
+| Alt+scroll, Ctrl+scroll | Zoom around the pointer; up zooms in |
 | `=` / `-` | Zoom in or out around the playhead; a playhead off screen moves to the middle of the view |
 | `\` | Fit the sequence |
 | Shift+F | Fit the selection |
-| Zoom scroll bar | Dragging the bar scrolls; dragging its ends zooms |
+| Zoom scroll bar | Dragging the bar scrolls; dragging its ends zooms; scrolling over it zooms around the playhead |
 | Middle-button drag | Pan |
 | Up / Down | Playhead to the previous or next edit on targeted tracks |
 | Shift+Up / Shift+Down | Same on all tracks |

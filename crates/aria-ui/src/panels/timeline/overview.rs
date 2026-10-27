@@ -3,10 +3,12 @@
 //! The strip draws the sequence's clips and the stretch on screen as a thumb.
 //! A press anywhere on it is held on the state ([`crate::app::zoom_bar`]),
 //! which reads the grip, scrolls, and zooms; the shell carries the drag past
-//! the bar. Clip spans are coalesced in pixel space so sequences with
-//! thousands of clips build a small, bounded number of overview segments.
-//! Under the outline column the bar holds the add-track button and the zoom
-//! readout, which fits the sequence on a click.
+//! the bar. A wheel turned over the strip zooms about the playhead; Shift or a
+//! sideways swipe scrolls the timeline as it does anywhere on it. Clip spans
+//! are coalesced in pixel space so sequences with thousands of clips build a
+//! small, bounded number of overview segments. Under the outline column the
+//! bar holds the add-track button and the zoom readout, which fits the
+//! sequence on a click.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,7 +16,7 @@ use std::sync::Arc;
 
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    ScrollWheelEvent, StatefulInteractiveElement, Styled, div, px,
 };
 
 use aria_models::TrackKind;
@@ -307,6 +309,7 @@ pub(super) fn overview(
         .child(
             div()
                 .id("sequence-overview-body")
+                .debug_selector(|| "sequence-overview-body".into())
                 .flex_1()
                 .h_full()
                 .relative()
@@ -322,6 +325,23 @@ pub(super) fn overview(
                         this.redraw(crate::shell::Moved::View, cx);
                     }),
                 )
+                .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, _, cx| {
+                    let delta = event.delta.pixel_delta(px(crate::transport::WHEEL_LINE_PX));
+                    if event.modifiers.shift || f32::from(delta.x).abs() > f32::from(delta.y).abs()
+                    {
+                        return;
+                    }
+                    cx.stop_propagation();
+                    let Some(factor) = super::wheel_zoom_factor(event) else {
+                        return;
+                    };
+                    if this
+                        .state
+                        .update(cx, |state, _| state.wheel_zoom_bar(factor))
+                    {
+                        this.redraw(crate::shell::Moved::View, cx);
+                    }
+                }))
                 .children(spans.iter().map(|&(x, w)| {
                     div()
                         .absolute()

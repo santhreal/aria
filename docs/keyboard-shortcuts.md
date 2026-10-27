@@ -275,9 +275,10 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 | Double-click clip | Rename clip (name band); otherwise open a media clip's take in a linked Source tab, open a nested sequence, or open a generated clip's property rows |
 | Right-click clip / track / preview | Context menu |
 | Click or drag ruler | Scrub playhead |
-| Shift+scroll / trackpad | Scroll timeline horizontally |
+| Shift+scroll / trackpad swipe | Scroll timeline horizontally: down or a swipe left shows later time |
 | Shift+scroll track header | Step that track's height through Mini (20 px), Small (32 px), Medium (48 px), and Large (72 px) |
-| Alt+scroll or Ctrl/Cmd+scroll | Zoom timeline around pointer |
+| Alt+scroll or Ctrl/Cmd+scroll | Zoom timeline around pointer: up zooms in, down zooms out |
+| Scroll over the zoom bar | Zoom timeline around the playhead: up zooms in, down zooms out |
 | Click media tile | Select it. Ctrl/Cmd+click toggles it in the selection; Shift+click selects the run from the last tile picked. |
 | Double-click media tile | Open it in a Source tab of the Viewer, or focus its open tab |
 | Drag media tile to a lane | Place it there through source patching |

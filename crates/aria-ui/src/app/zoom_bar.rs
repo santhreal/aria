@@ -8,7 +8,8 @@
 //! grabbed point stays under the pointer while the zoom changes, and is held
 //! here rather than on the element, so a drag keeps going when the pointer
 //! leaves the bar; the shell routes the pointer until the button comes up.
-//! Escape during the drag puts the zoom and the scroll back.
+//! Escape during the drag puts the zoom and the scroll back. A wheel turned
+//! over the bar zooms about the playhead.
 
 use super::AppState;
 use crate::transport::TIMELINE_BASE_PPS;
@@ -234,6 +235,19 @@ impl AppState {
         self.set_zoom(press.from.0, false);
         self.scroll_timeline_to(press.from.1, false);
         true
+    }
+
+    /// A wheel turned over the bar: zoom by `factor` about the playhead, as
+    /// `=` and `-` do, at once, as a wheel notch zooms anywhere on the
+    /// timeline. A turn while a press is held moves nothing. Returns whether
+    /// the view moved.
+    pub fn wheel_zoom_bar(&mut self, factor: f32) -> bool {
+        if self.zoom_bar_held() {
+            return false;
+        }
+        let before = (self.zoom, self.scroll_x);
+        self.zoom_about_playhead(factor, false);
+        (self.zoom, self.scroll_x) != before
     }
 
     /// Scroll so the view's first tick is `start`, held inside `strip`.

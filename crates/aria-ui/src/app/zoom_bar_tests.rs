@@ -8,19 +8,22 @@
 //! not stay under the pointer, a press that takes the wrong grip, a view that
 //! leaves the strip, a press that keeps moving after Escape, and a drag that
 //! stops at the bar's 24 px edge. Every grip is driven through the same press,
-//! drag and release, and the drawn test drives the bar the shell draws.
+//! drag and release, and the drawn tests drive the bar the shell draws. A wheel
+//! turned over the bar zooms about the playhead, the way it turns.
 //!
 //! Not covered: the bar's colors and the clip spans drawn on it, which a
 //! snapshot and the overview's own tests own.
 
-use gpui::{Modifiers, MouseButton, VisualTestContext, point, px};
+use gpui::{
+    Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TouchPhase, VisualTestContext, point, px,
+};
 
 use super::{MIN_THUMB_W, Strip, ZoomBarGrip};
 use crate::app::AppState;
 use crate::app::premiere_tests::with_sequence;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::interned::intern;
-use crate::transport::{TIMELINE_BASE_PPS, ZOOM_MAX, ZOOM_MIN};
+use crate::transport::{TIMELINE_BASE_PPS, WHEEL_LINE_PX, ZOOM_MAX, ZOOM_MIN, ZOOM_WHEEL_STEP};
 
 /// A sequence of `clips` two-second clips on a Timeline frame 1200 px wide,
 /// zoomed so the view shows `share` of the sequence, at its start.
@@ -512,4 +515,185 @@ fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
     visual.simulate_mouse_up(at(mid + 40.0, y), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
     assert_eq!(view(&state, visual), zoomed, "the drag ended at Escape");
+}
+
+/// The zoom, the scroll, and the playhead's pixel in the view.
+fn zoom_scroll_playhead(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+) -> (f32, f32, f32) {
+    visual.read(|app| {
+        let state = state.read(app);
+        let seconds = state.playhead.value as f32 / state.store.sequence.ticks_per_second();
+        let pixel = seconds * TIMELINE_BASE_PPS * state.zoom - state.scroll_x;
+        (state.zoom, state.scroll_x, pixel)
+    })
+}
+
+/// Turn the wheel once at `at` by `delta` with `modifiers` held.
+fn wheel(
+    visual: &mut VisualTestContext,
+    at: gpui::Point<gpui::Pixels>,
+    delta: ScrollDelta,
+    modifiers: Modifiers,
+) {
+    visual.simulate_mouse_move(at, None, modifiers);
+    visual.simulate_event(ScrollWheelEvent {
+        position: at,
+        delta,
+        modifiers,
+        touch_phase: TouchPhase::Moved,
+    });
+    visual.run_until_parked();
+}
+
+/// A wheel turned over the drawn bar zooms about the playhead at once: a notch
+/// up zooms in by one wheel step, a notch down out by one, a trackpad's pixels
+/// by the share of a notch they travel, Ctrl and a notch by one step and not
+/// twice, and the playhead keeps its pixel through each. A turn with a press
+/// held on the bar moves nothing. Shift and a notch down over the bar, and a
+/// trackpad swiped left over the lanes, scroll later by the distance turned
+/// and keep the zoom. Ctrl over the lanes zooms the same way round, about the
+/// pointer.
+///
+/// The class: a wheel over the bar that reaches nothing, a wheel that zooms
+/// out when turned up, a trackpad whose every small event zooms a whole
+/// notch, a turn the bar and the timeline under it both take, and a sideways
+/// turn that scrolls the wrong way. Not covered: pinch gestures, which gpui
+/// does not report as wheel turns.
+#[gpui::test]
+fn a_wheel_over_the_bar_zooms_about_the_playhead_the_way_it_turns(cx: &mut gpui::TestAppContext) {
+    let (state, visual, take) = shell_with_take(cx, "zoom-bar-wheel");
+    // Twenty-four takes end to end at twice the base zoom, far longer than
+    // the view, with the playhead twenty seconds in at the middle of the view.
+    change(visual, &state, |state| {
+        for _ in 1..24 {
+            let end = state.store.sequence.duration_ticks;
+            state
+                .drop_media_on_timeline(take, None, end)
+                .expect("place the take again");
+        }
+        state.set_zoom(2.0, false);
+        let per_second = state.store.sequence.ticks_per_second();
+        state.set_playhead((20.0 * per_second) as i64);
+        let middle = 20.0 * TIMELINE_BASE_PPS * 2.0 - state.timeline_viewport_px() / 2.0;
+        state.scroll_timeline_to(middle, false);
+    });
+    let bar = visual
+        .debug_bounds(intern("sequence-overview-body"))
+        .expect("the timeline draws its zoom scroll bar")
+        .center();
+    let (zoom, scroll, pixel) = zoom_scroll_playhead(&state, visual);
+    let (width, end) = visual.read(|app| {
+        let state = state.read(app);
+        let seconds =
+            state.store.sequence.duration_ticks as f32 / state.store.sequence.ticks_per_second();
+        (
+            state.timeline_viewport_px(),
+            seconds * TIMELINE_BASE_PPS * zoom,
+        )
+    });
+    assert!(scroll > 0.0, "the view starts past the sequence's start");
+    assert!(
+        scroll + 2.0 * width < end,
+        "the view ends well before the sequence: {scroll} + 2 × {width} against {end}"
+    );
+    assert!((0.0..width).contains(&pixel), "the playhead is in the view");
+
+    let lines = |notches: f32| ScrollDelta::Lines(point(0.0, notches));
+    let mut expected = zoom;
+    for (delta, modifiers, factor, turn) in [
+        (lines(1.0), Modifiers::none(), ZOOM_WHEEL_STEP, "a notch up"),
+        (
+            lines(-1.0),
+            Modifiers::none(),
+            1.0 / ZOOM_WHEEL_STEP,
+            "a notch down",
+        ),
+        (
+            ScrollDelta::Pixels(point(px(0.0), px(6.0))),
+            Modifiers::none(),
+            ZOOM_WHEEL_STEP.powf(0.25),
+            "a trackpad's six pixels up",
+        ),
+        // Once, not again about the pointer by the timeline under the bar.
+        (
+            lines(-1.0),
+            Modifiers::control(),
+            1.0 / ZOOM_WHEEL_STEP,
+            "Ctrl and a notch down",
+        ),
+    ] {
+        wheel(visual, bar, delta, modifiers);
+        expected *= factor;
+        let (zoom, _, moved) = zoom_scroll_playhead(&state, visual);
+        assert!(
+            (zoom - expected).abs() < expected * 1e-5,
+            "{turn} over the bar: zoom {zoom}, expected {expected}"
+        );
+        assert!(
+            (moved - pixel).abs() < 0.5,
+            "{turn} over the bar moved the playhead from {pixel} px to {moved} px"
+        );
+        assert!(
+            visual.read(|app| !state.read(app).zoom_eased),
+            "{turn} over the bar lands at once"
+        );
+    }
+
+    // A press held on the bar, and a turn under it.
+    visual.simulate_mouse_down(bar, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    let before = zoom_scroll_playhead(&state, visual);
+    visual.simulate_event(ScrollWheelEvent {
+        position: bar,
+        delta: lines(1.0),
+        modifiers: Modifiers::none(),
+        touch_phase: TouchPhase::Moved,
+    });
+    visual.run_until_parked();
+    assert_eq!(
+        zoom_scroll_playhead(&state, visual),
+        before,
+        "a turn with a press held on the bar"
+    );
+    visual.simulate_mouse_up(bar, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+
+    // Shift and a notch down scroll later by one line and keep the zoom, and so
+    // does a trackpad swiped left with no key held, over the lanes.
+    let (zoom, scroll, _) = zoom_scroll_playhead(&state, visual);
+    wheel(visual, bar, lines(-1.0), Modifiers::shift());
+    let (shifted, scrolled, _) = zoom_scroll_playhead(&state, visual);
+    assert_eq!(shifted, zoom, "a Shift turn over the bar keeps the zoom");
+    assert_eq!(
+        scrolled,
+        scroll + WHEEL_LINE_PX,
+        "Shift and a notch down over the bar scroll one line later"
+    );
+    let lanes = visual
+        .debug_bounds(intern("timeline-video-canvas"))
+        .expect("the timeline draws its video lanes")
+        .center();
+    wheel(
+        visual,
+        lanes,
+        ScrollDelta::Pixels(point(px(-30.0), px(0.0))),
+        Modifiers::none(),
+    );
+    let (swiped, swiped_to, _) = zoom_scroll_playhead(&state, visual);
+    assert_eq!(swiped, zoom, "a sideways swipe keeps the zoom");
+    assert_eq!(
+        swiped_to,
+        scrolled + 30.0,
+        "a trackpad swiped left over the lanes scrolls thirty pixels later"
+    );
+
+    wheel(visual, lanes, lines(1.0), Modifiers::control());
+    let (zoomed, _, _) = zoom_scroll_playhead(&state, visual);
+    assert!(
+        (zoomed - zoom * ZOOM_WHEEL_STEP).abs() < zoom * 1e-5,
+        "Ctrl and a notch up over the lanes: zoom {zoomed}, expected {}",
+        zoom * ZOOM_WHEEL_STEP
+    );
 }

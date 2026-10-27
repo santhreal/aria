@@ -19,6 +19,8 @@ pub const ZOOM_STEP: f32 = 1.15;
 /// One notch from the wheel. Finer than a key press, because a wheel delivers
 /// several notches in the time a key delivers one.
 pub const ZOOM_WHEEL_STEP: f32 = 1.1;
+/// Pixels one wheel line counts for, where the platform reports lines.
+pub const WHEEL_LINE_PX: f32 = 24.0;
 
 /// Zoom that fits `duration_ticks` into `viewport_px` at `base_pps`, at most
 /// [`ZOOM_MAX`]. A long sequence fits below [`ZOOM_MIN`].

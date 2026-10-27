@@ -190,7 +190,7 @@ pub(super) fn track_header(
                     return;
                 }
                 cx.stop_propagation();
-                let delta = event.delta.pixel_delta(px(24.0));
+                let delta = event.delta.pixel_delta(px(crate::transport::WHEEL_LINE_PX));
                 let dx = f32::from(delta.x);
                 let dy = f32::from(delta.y);
                 let motion = if dy.abs() >= dx.abs() { dy } else { dx };

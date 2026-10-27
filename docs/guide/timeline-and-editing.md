@@ -187,8 +187,10 @@ point you pressed stays under the pointer. Drag either handle to zoom with the
 other end held in place; drag the handles to the bar's two ends to show the
 whole sequence. Click outside the window to center the view there and keep
 dragging from there. A drag continues when the pointer leaves the bar, and Esc
-during the drag puts the zoom and the scroll back. At its left, **+** adds a
-video track and the zoom readout fits the sequence on a click.
+during the drag puts the zoom and the scroll back. Turn the wheel over the bar
+to zoom about the playhead, in when turned up and out when turned down;
+Shift+wheel scrolls. At its left, **+** adds a video track and the zoom readout
+fits the sequence on a click.
 
 
 ## Waveforms

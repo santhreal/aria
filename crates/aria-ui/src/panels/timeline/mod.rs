@@ -405,25 +405,33 @@ fn av_divider(
         })
 }
 
+/// The zoom factor a wheel turn asks for: [`crate::transport::ZOOM_WHEEL_STEP`]
+/// for each notch turned up or away, its inverse for each notch turned down or
+/// toward, and a trackpad's pixels as the share of a notch they travel. A turn
+/// with no vertical travel reads its horizontal travel. `None` for a turn that
+/// travels nowhere.
+pub(crate) fn wheel_zoom_factor(event: &ScrollWheelEvent) -> Option<f32> {
+    use crate::transport::{WHEEL_LINE_PX, ZOOM_WHEEL_STEP};
+    let delta = event.delta.pixel_delta(px(WHEEL_LINE_PX));
+    let (dx, dy) = (f32::from(delta.x), f32::from(delta.y));
+    let travel = if dy != 0.0 { dy } else { dx };
+    (travel != 0.0).then(|| ZOOM_WHEEL_STEP.powf(travel / WHEEL_LINE_PX))
+}
+
 fn handle_scroll(
     this: &mut crate::shell::Shell,
     event: &ScrollWheelEvent,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) {
-    let delta = event.delta.pixel_delta(px(24.0));
-    let dx = f32::from(delta.x);
-    let dy = f32::from(delta.y);
-    let zoom_mod = event.modifiers.control || event.modifiers.platform || event.modifiers.alt;
-    if zoom_mod {
-        let notches = if dy.abs() > 0.0 { -dy } else { -dx };
-        let factor = if notches > 0.0 {
-            crate::transport::ZOOM_WHEEL_STEP
-        } else {
-            1.0 / crate::transport::ZOOM_WHEEL_STEP
-        };
-        this.zoom_at(f32::from(event.position.x), factor, cx);
+    if event.modifiers.control || event.modifiers.platform || event.modifiers.alt {
+        if let Some(factor) = wheel_zoom_factor(event) {
+            this.zoom_at(f32::from(event.position.x), factor, cx);
+        }
         return;
     }
+    let delta = event.delta.pixel_delta(px(crate::transport::WHEEL_LINE_PX));
+    let dx = f32::from(delta.x);
+    let dy = f32::from(delta.y);
     let trackpad = matches!(event.delta, ScrollDelta::Pixels(_));
     let shift = event.modifiers.shift;
     let scroll_dx = if shift {
@@ -433,8 +441,10 @@ fn handle_scroll(
     } else {
         return;
     };
+    // The content moves with the wheel as in every scrolled list: a turn down
+    // or a swipe to the left shows later time.
     this.state.update(cx, |state, _| {
-        let next = state.scroll_x + scroll_dx;
+        let next = state.scroll_x - scroll_dx;
         state.scroll_timeline_to(next, false);
     });
     this.redraw(crate::shell::Moved::View, cx);

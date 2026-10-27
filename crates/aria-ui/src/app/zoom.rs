@@ -144,6 +144,12 @@ impl AppState {
     /// Zoom by `factor` about the playhead (`=` / `-`): a playhead on screen
     /// keeps its pixel, and one off screen lands in the middle of the view.
     pub fn zoom_around_playhead(&mut self, factor: f32) {
+        self.zoom_about_playhead(factor, true);
+    }
+
+    /// [`Self::zoom_around_playhead`], eased or landing at once as `eased`
+    /// sets for [`Self::set_zoom`].
+    pub(super) fn zoom_about_playhead(&mut self, factor: f32, eased: bool) {
         let width = self.timeline_viewport_px();
         let at = self.playhead_px() - self.scroll_x;
         let screen_x = if (0.0..=width).contains(&at) {
@@ -152,7 +158,7 @@ impl AppState {
             width / 2.0
         };
         let seconds = self.playhead.value.max(0) as f32 / self.store.sequence.ticks_per_second();
-        self.zoom_about(self.zoom * factor, seconds, screen_x, true);
+        self.zoom_about(self.zoom * factor, seconds, screen_x, eased);
     }
 
     /// Zoom by `factor` about window x `x`, the second under the pointer held
