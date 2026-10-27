@@ -3,7 +3,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use aria_models::{ClipId, ClipParam, TrackId};
+use aria_models::{ClipId, TrackId};
 use gpui::{
     Bounds, Context, CursorStyle, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
     MouseUpEvent, Pixels, Point, Stateful,
@@ -23,7 +23,7 @@ mod drag;
 #[path = "finish_press.rs"]
 mod press;
 
-use drag::{carry, hover, on_left_up};
+use drag::{cancel, carry, hover, on_left_up};
 use press::on_left_down;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,12 +59,8 @@ enum CanvasGesture {
     MaskPathKeyDrag {
         origin_x: f32,
     },
-    KeyframeMarquee {
-        clip: ClipId,
-        param: ClipParam,
-        origin_tick: i64,
-        additive: bool,
-    },
+    /// A band on a property row; the state holds where it began.
+    KeyBand,
     /// A clip bar's line held; the travel is measured from `origin_y`.
     Line {
         origin_y: f32,
@@ -139,6 +135,7 @@ pub(crate) fn attach_group_mouse_listeners(
                         );
                     },
                     move |this, event, cx| on_left_up(this, event, fps, pps, tool, cx),
+                    cancel,
                 ));
             }
         }),

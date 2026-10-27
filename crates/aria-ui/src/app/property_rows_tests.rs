@@ -212,6 +212,45 @@ fn keyframe_drag_snaps_and_commits_in_one_undo_step() {
     assert_eq!(marks_after_undo, vec![0, 20]);
 }
 
+/// A band on a property row selects what the press left and the keys it
+/// covers: drawn back past a key, it deselects that key, Shift held or not.
+/// Escape puts back what the press left, and the release keeps what the band
+/// covers.
+#[test]
+fn a_key_band_drawn_back_deselects_and_escape_puts_the_selection_back() {
+    let (mut state, clip) = with_clip();
+    for (tick, value) in [(2, 0.25), (6, 0.5), (12, 0.75)] {
+        state.set_playhead(tick);
+        state
+            .set_keyframe_scalar(ClipParam::Opacity, tick, value)
+            .expect("a key");
+    }
+    let selected = |state: &AppState| {
+        state
+            .selected_timeline_keyframes()
+            .iter()
+            .map(|key| key.tick)
+            .collect::<Vec<_>>()
+    };
+    // A Shift press beside the key at 12 keeps it.
+    state.select_timeline_keyframe(clip, ClipParam::Opacity, 12, false);
+    state.begin_key_band(clip, ClipParam::Opacity, 0);
+    state.drag_key_band(8);
+    assert_eq!(selected(&state), [2, 6, 12], "the band over 2 and 6");
+    state.drag_key_band(4);
+    assert_eq!(selected(&state), [2, 12], "the band drawn back past 6");
+    state.cancel_key_band();
+    assert_eq!(selected(&state), [12], "Escape");
+    state.drag_key_band(8);
+    assert_eq!(selected(&state), [12], "a move after Escape");
+
+    state.begin_key_band(clip, ClipParam::Opacity, 0);
+    state.drag_key_band(4);
+    state.release_key_band();
+    state.drag_key_band(8);
+    assert_eq!(selected(&state), [2, 12], "the release");
+}
+
 #[test]
 fn copy_paste_and_delete_keyframes_each_take_one_undo_step() {
     let (mut state, clip) = with_clip();

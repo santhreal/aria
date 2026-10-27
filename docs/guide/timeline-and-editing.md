@@ -12,7 +12,8 @@
   clip and the clips that move with it are drawn where they land, after the
   magnet. Shift-drag ripples the move instead and draws the line it inserts
   at. Drag a clip edge to trim. A move or trim follows the
-  pointer when it leaves the lanes and lands where the button comes up. Nearby
+  pointer when it leaves the lanes and lands where the button comes up; Esc
+  during the drag leaves every clip where the press found it. Nearby
   clips magnet at 8 px. The magnet also takes the playhead, the sequence start
   and end, the In and Out points, markers, and detected beats. While a drag is
   in flight the guide line states what it locked onto. Hold Alt to suspend the
@@ -161,7 +162,8 @@ overlap, on whole frames that divide a second, whole seconds, minutes, or hours
 for timecode, and on round counts for frames or feet. Click or drag in the ruler
 to move the playhead; it stays under the pointer, follows the pointer when it
 leaves the ruler, and stops at the end of the sequence when the pointer passes
-it. A drag in the ruler leaves the view where it is.
+it. Esc during the drag puts the playhead back where the press found it. A drag
+in the ruler leaves the view where it is.
 
 Any other move of the playhead, from a key, a Viewer button, a marker, a typed
 timecode, or a scrub strip, draws the line at the new position at once, and the

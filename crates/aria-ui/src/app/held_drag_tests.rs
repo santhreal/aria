@@ -9,15 +9,16 @@
 //! between the video and audio sides, a clip moved on its lane group and a key
 //! dragged on the graph are each pressed, carried off the element, and let go
 //! there. Each follows the pointer the whole way, the release writes it, and a
-//! move after the release changes nothing. Escape puts the divider back.
+//! move after the release changes nothing. Escape puts the divider back; the
+//! other drags' Escape is in `escape_drag_tests`.
 //!
 //! The zoom scroll bar's case is in `zoom_bar_tests`, the work area bar's in
 //! `work_area_tests` and the outline border's in `outline_column_tests`.
 //!
-//! Not covered: a trim, a fade, a band and a clip's line on the lane groups,
-//! which the same hold carries and no test here drives, and the drags of the
-//! Inspector. The Viewer's, the Mixer's and the track headers' are in
-//! `held_drag_panel_tests`.
+//! Not covered: a trim, a fade, a band and a clip's line on the lane groups
+//! carried off them, which the same hold carries and no test here drives, and
+//! the drags of the Inspector. The Viewer's, the Mixer's and the track
+//! headers' are in `held_drag_panel_tests`.
 
 use aria_commands::{Command, EditCommand};
 use aria_models::{ClipId, ClipParam, Easing, ParamValue, RationalTime, TrackKind};
@@ -236,15 +237,38 @@ fn a_clip_moved_off_its_lane_group_lands_where_the_button_comes_up(cx: &mut gpui
     );
 }
 
-#[gpui::test]
-fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
-    cx: &mut gpui::TestAppContext,
-) {
-    let (state, visual, _) = shell_with_take(cx, "held-graph-key");
-    let (clip, start, end) = picture_clip(&state, visual);
+/// The ticks and values of the opacity keys on `clip`.
+pub(super) fn opacity_keys(
+    state: &Entity<AppState>,
+    visual: &mut VisualTestContext,
+    clip: ClipId,
+) -> Vec<(i64, f32)> {
+    visual.read(|app| {
+        let engine = state.read(app).engine().lock();
+        engine
+            .project()
+            .clip(clip)
+            .expect("the clip is in the project")
+            .transform
+            .opacity
+            .keyframes()
+            .iter()
+            .map(|key| (key.tick, key.value))
+            .collect()
+    })
+}
+
+/// Two opacity keys on the take's picture clip, a quarter and three quarters
+/// in, drawn on the graph: the clip, where the first key is drawn, and the
+/// top of the graph's value range.
+pub(super) fn graph_key(
+    state: &Entity<AppState>,
+    visual: &mut VisualTestContext,
+) -> (ClipId, Point<Pixels>, f32) {
+    let (clip, start, end) = picture_clip(state, visual);
     let clip = ClipId::from_raw(clip);
     let (first, second) = ((end - start) / 4, (end - start) * 3 / 4);
-    change(visual, &state, |state| {
+    change(visual, state, |state| {
         let rate = state.store.sequence.frame_rate;
         for (tick, value) in [(first, 0.3), (second, 0.9)] {
             state
@@ -263,24 +287,6 @@ fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
         state.toggle_timeline_graph_editor();
         state.select_timeline_property(clip, ClipParam::Opacity, false);
     });
-    let keys = |visual: &mut VisualTestContext| {
-        visual.read(|app| {
-            let engine = state.read(app).engine().lock();
-            engine
-                .project()
-                .clip(clip)
-                .expect("the clip is in the project")
-                .transform
-                .opacity
-                .keyframes()
-                .iter()
-                .map(|key| (key.tick, key.value))
-                .collect::<Vec<_>>()
-        })
-    };
-    let before = keys(visual);
-    assert_eq!(before.len(), 2, "two keys: {before:?}");
-
     let canvas = bounds(visual, "timeline-graph-canvas");
     let (key, top) = visual.read(|app| {
         let state = state.read(app);
@@ -301,6 +307,18 @@ fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
             model.max_y,
         )
     });
+    (clip, key, top)
+}
+
+#[gpui::test]
+fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual, _) = shell_with_take(cx, "held-graph-key");
+    let (clip, key, top) = graph_key(&state, visual);
+    let before = opacity_keys(&state, visual, clip);
+    assert_eq!(before.len(), 2, "two keys: {before:?}");
+    let canvas = bounds(visual, "timeline-graph-canvas");
 
     press(visual, key);
     carry(visual, point(key.x, key.y - px(10.0)));
@@ -309,7 +327,7 @@ fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
     let above = point(key.x, canvas.top() - px(40.0));
     carry(visual, above);
     release(visual, above);
-    let after = keys(visual);
+    let after = opacity_keys(&state, visual, clip);
     assert_eq!(after.len(), 2, "two keys after the drag: {after:?}");
     assert_eq!(after[0].0, before[0].0, "a straight drag up keeps the tick");
     assert!(
@@ -320,5 +338,9 @@ fn a_graph_key_dragged_off_the_graph_is_written_where_the_button_comes_up(
     assert_eq!(after[1], before[1], "the other key");
 
     carry(visual, point(key.x, canvas.bottom()));
-    assert_eq!(keys(visual), after, "a move after the release");
+    assert_eq!(
+        opacity_keys(&state, visual, clip),
+        after,
+        "a move after the release"
+    );
 }

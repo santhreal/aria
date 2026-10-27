@@ -146,16 +146,9 @@ pub(super) fn carry(
             });
             cx.notify();
         }
-        CanvasGesture::KeyframeMarquee {
-            clip,
-            param,
-            origin_tick,
-            additive,
-        } => {
+        CanvasGesture::KeyBand => {
             let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
-            this.state.update(cx, |state, _| {
-                state.marquee_select_keyframes(clip, param, origin_tick, tick, additive);
-            });
+            this.state.update(cx, |state, _| state.drag_key_band(tick));
             cx.notify();
         }
         CanvasGesture::Line { origin_y } => {
@@ -261,7 +254,8 @@ pub(super) fn on_left_up(
             crate::app::spawn_preview(this.state.clone(), cx);
             cx.notify();
         }
-        CanvasGesture::KeyframeMarquee { .. } => {
+        CanvasGesture::KeyBand => {
+            this.state.update(cx, |state, _| state.release_key_band());
             cx.notify();
         }
         CanvasGesture::Line { .. } => {
@@ -270,6 +264,43 @@ pub(super) fn on_left_up(
             cx.notify();
         }
     }
+}
+
+/// Escape on a gesture this canvas began: drop it, putting back what its
+/// press found. A clip drag, a band and a key drag land nothing before their
+/// release, so dropping what they hold puts them back; a key band puts the
+/// selection back, and a clip's line its value.
+pub(super) fn cancel(this: &mut Shell, cx: &mut Context<Shell>) {
+    let Some(active) = ACTIVE_GESTURE.take() else {
+        return;
+    };
+    let line = this.state.update(cx, |state, _| match active {
+        CanvasGesture::Clip { .. } => {
+            state.end_drag();
+            false
+        }
+        CanvasGesture::Marquee { .. } => {
+            state.cancel_marquee();
+            false
+        }
+        CanvasGesture::KeyframeDrag { .. } => {
+            state.cancel_timeline_keyframe_drag();
+            false
+        }
+        CanvasGesture::MaskPathKeyDrag { .. } => {
+            state.cancel_mask_path_key_drag();
+            false
+        }
+        CanvasGesture::KeyBand => {
+            state.cancel_key_band();
+            false
+        }
+        CanvasGesture::Line { .. } => state.cancel_clip_line(),
+    });
+    if line {
+        crate::app::spawn_preview(this.state.clone(), cx);
+    }
+    cx.notify();
 }
 
 /// The ticks a drag has travelled, or `None` under the threshold, where travel

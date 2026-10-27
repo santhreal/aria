@@ -15,31 +15,37 @@ use crate::surfaces::ramp_gesture::{self, Gesture};
 
 type Carry = dyn Fn(&mut Shell, &MouseMoveEvent, &mut Context<Shell>);
 type Release = dyn Fn(&mut Shell, &MouseUpEvent, &mut Context<Shell>);
+type Cancel = dyn Fn(&mut Shell, &mut Context<Shell>);
 
 /// A press on an element whose drag the shell carries: every move goes to
-/// `carry` wherever the pointer is, and the release goes to `release`
-/// wherever the button comes up. The element's own handlers see the pointer
-/// only while it is over the element.
+/// `carry` wherever the pointer is, the release goes to `release` wherever
+/// the button comes up, and Escape goes to `cancel`, which puts back what the
+/// press found. The element's own handlers see the pointer only while it is
+/// over the element.
 #[derive(Clone)]
 pub(crate) struct Hold {
     carry: Rc<Carry>,
     release: Rc<Release>,
+    cancel: Rc<Cancel>,
 }
 
 impl Hold {
     pub(crate) fn new(
         carry: impl Fn(&mut Shell, &MouseMoveEvent, &mut Context<Shell>) + 'static,
         release: impl Fn(&mut Shell, &MouseUpEvent, &mut Context<Shell>) + 'static,
+        cancel: impl Fn(&mut Shell, &mut Context<Shell>) + 'static,
     ) -> Self {
         Self {
             carry: Rc::new(carry),
             release: Rc::new(release),
+            cancel: Rc::new(cancel),
         }
     }
 }
 
 impl Shell {
-    /// Carry the drag of a press on an element until the button comes up.
+    /// Carry the drag of a press on an element until the button comes up or
+    /// Escape abandons it.
     pub(crate) fn hold(&mut self, hold: Hold) {
         self.hold = Some(hold);
     }
@@ -446,15 +452,16 @@ impl Shell {
     /// Abandon the gesture in flight on Escape, putting back what its press
     /// found. `true` when there was one.
     pub(super) fn cancel_gesture(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        // A press held for an element puts back what it found. Its moves and
+        // its release after Escape reach nothing.
+        if let Some(hold) = self.hold.take() {
+            (hold.cancel)(self, cx);
+            return true;
+        }
         // A value readout's value goes back where the press found it. The
         // pointer stays down, but the gesture is over.
         if self.state.update(cx, |state, _| state.cancel_value_drag()) {
             window.unlock_pointer();
-            spawn_preview(self.state.clone(), cx);
-            return true;
-        }
-        // A clip bar's line goes back.
-        if self.state.update(cx, |state, _| state.cancel_clip_line()) {
             spawn_preview(self.state.clone(), cx);
             return true;
         }
@@ -494,11 +501,6 @@ impl Shell {
         }
         // A splitter, lane or tab goes back where its press found it.
         if self.cancel_drag(cx) {
-            return true;
-        }
-        // A rubber band leaves the selection as the band found it.
-        if self.state.read(cx).marquee.is_some() {
-            self.state.update(cx, |state, _| state.cancel_marquee());
             return true;
         }
         // An on-canvas handle drag costs nothing.

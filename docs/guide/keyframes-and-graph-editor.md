@@ -133,10 +133,12 @@ keyframes on that property.
   for Easy Ease, a half-hourglass for an ease on one side, a square for Hold,
   and a circle for a roving keyframe.
 - Click a keyframe to select it; Shift+click adds or removes it. Drag across an
-  empty part of a row to select every keyframe inside the band.
+  empty part of a row to select every keyframe inside the band; Shift-drag
+  adds them to the selection. Drawn back past a keyframe, the band deselects
+  it, and Escape during the drag puts back the selection the press left.
 - Drag a selected keyframe to move every selected keyframe in time. The drag
   snaps to the playhead and to the clip's other keyframes; hold Alt to move
-  freely. The move is one undo step.
+  freely. The move is one undo step, and Escape during the drag moves nothing.
 - Right-click a keyframe, on its row or in the graph editor, for Linear, Easy
   Ease, Easy Ease In, Easy Ease Out, Hold, Rove Across Time (on a keyframe
   between two others), Copy Keyframes, Paste Keyframes at Playhead, and Delete
@@ -165,7 +167,7 @@ highlighted.
 - **Value** plots the property's value; **Speed** plots its rate of change.
 - Drag a keyframe to change its value and time. The drag follows the pointer
   past the graph's edges, and a release above or below the graph writes the
-  top or bottom value of the graph.
+  top or bottom value of the graph. Escape during the drag writes nothing.
 - Each keyframe has incoming and outgoing influence handles labeled with their
   influence. Dragging a handle sets the ease speed and influence of that side.
   A press on a keyframe's icon takes the keyframe even where its handles lie

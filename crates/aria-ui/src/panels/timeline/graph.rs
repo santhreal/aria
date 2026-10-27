@@ -245,6 +245,11 @@ pub(super) fn render_graph_editor(
                         crate::app::spawn_preview(this.state.clone(), cx);
                         cx.notify();
                     },
+                    |this, cx| {
+                        this.state
+                            .update(cx, |state, _| state.cancel_timeline_graph_drag());
+                        cx.notify();
+                    },
                 ));
                 cx.notify();
             }),

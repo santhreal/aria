@@ -679,6 +679,9 @@ mod badge_menu_tests;
 #[path = "app/effect_header_tests.rs"]
 mod effect_header_tests;
 #[cfg(test)]
+#[path = "app/escape_drag_tests.rs"]
+mod escape_drag_tests;
+#[cfg(test)]
 #[path = "app/held_drag_panel_tests.rs"]
 mod held_drag_panel_tests;
 #[cfg(test)]

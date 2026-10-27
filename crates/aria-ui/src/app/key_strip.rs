@@ -262,10 +262,7 @@ impl AppState {
             return false;
         };
         match press.hold {
-            StripHold::Key { .. } => {
-                self.with_prop_rows_mut(|rows| rows.time_drag = None);
-                self.snap_guide = None;
-            }
+            StripHold::Key { .. } => self.cancel_timeline_keyframe_drag(),
             StripHold::Scrub { from, at } => {
                 if from != at {
                     self.scrub_playhead(from);

@@ -6,7 +6,7 @@ use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, Easing, ParamKind, ParamValue, RationalTime, TemporalEase};
 
-use super::{CopiedKeyframe, KeyframeTimeDrag, SelectedKeyframe};
+use super::{CopiedKeyframe, KeyBand, KeyframeTimeDrag, SelectedKeyframe};
 use crate::app::AppState;
 use crate::app::clip_keys::key_params_of;
 
@@ -111,6 +111,47 @@ impl AppState {
             }
             for hit in hits {
                 s.selected_keyframes.insert(hit);
+            }
+        });
+    }
+
+    /// Press a band on the row of `(clip, param)` at `tick`. The selection the
+    /// press left is the band's base.
+    pub fn begin_key_band(&mut self, clip: ClipId, param: ClipParam, tick: i64) {
+        self.with_prop_rows_mut(|s| {
+            s.key_band = Some(KeyBand {
+                clip,
+                param,
+                origin: tick,
+                base: s.selected_keyframes.clone(),
+            });
+        });
+    }
+
+    /// Carry the held band to `tick`: the selection is its base and the
+    /// keyframes the band covers, so a band drawn back deselects what it
+    /// passed.
+    pub fn drag_key_band(&mut self, tick: i64) {
+        let Some((clip, param, origin)) = self.with_prop_rows_mut(|s| {
+            let band = s.key_band.as_ref()?;
+            s.selected_keyframes.clone_from(&band.base);
+            Some((band.clip, band.param, band.origin))
+        }) else {
+            return;
+        };
+        self.marquee_select_keyframes(clip, param, origin, tick, true);
+    }
+
+    /// Let go of the held band; the selection stays.
+    pub fn release_key_band(&mut self) {
+        self.with_prop_rows_mut(|s| s.key_band = None);
+    }
+
+    /// Escape on the held band: the selection goes back to its base.
+    pub fn cancel_key_band(&mut self) {
+        self.with_prop_rows_mut(|s| {
+            if let Some(band) = s.key_band.take() {
+                s.selected_keyframes = band.base;
             }
         });
     }
@@ -263,6 +304,12 @@ impl AppState {
             }
         });
         Ok(())
+    }
+
+    /// Drop an in-flight keyframe time drag with nothing written.
+    pub fn cancel_timeline_keyframe_drag(&mut self) {
+        self.with_prop_rows_mut(|s| s.time_drag = None);
+        self.snap_guide = None;
     }
 
     /// Copy the selected timeline keyframes to the keyframe clipboard.

@@ -325,13 +325,9 @@ pub(super) fn on_left_down(
                 if !event.modifiers.shift {
                     state.clear_timeline_keyframe_selection();
                 }
+                state.begin_key_band(clip, param, tick);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::KeyframeMarquee {
-                clip,
-                param,
-                origin_tick: tick,
-                additive: event.modifiers.shift,
-            }));
+            ACTIVE_GESTURE.set(Some(CanvasGesture::KeyBand));
             cx.notify();
         }
         HitTarget::MaskPathKey { clip, mask, tick } => {

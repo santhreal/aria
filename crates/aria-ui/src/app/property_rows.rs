@@ -287,6 +287,17 @@ pub struct KeyframeTimeDrag {
     )>,
 }
 
+/// A band pressed on a property row: from `origin` on `(clip, param)`. The
+/// selection is `base`, the selection the press left, and the keyframes the
+/// band covers.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct KeyBand {
+    pub clip: ClipId,
+    pub param: ClipParam,
+    pub origin: i64,
+    pub base: BTreeSet<SelectedKeyframe>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ClipRevealMode {
     Outline {
@@ -319,6 +330,8 @@ pub(crate) struct PropertyRowsState {
     pub(crate) time_drag: Option<KeyframeTimeDrag>,
     pub(crate) graph_drag: Option<GraphDragTarget>,
     pub(crate) mask_path_drag: Option<MaskPathKeyDrag>,
+    /// A band held on a property row.
+    pub(crate) key_band: Option<KeyBand>,
     pub(crate) collapsed_effect_groups: BTreeSet<(usize, String)>,
     pub(crate) open_effect_groups: BTreeSet<(usize, String)>,
     pub(crate) layer_refusal: Option<super::clip_effect_layers::LayerRefusal>,

@@ -276,6 +276,12 @@ impl AppState {
         })
     }
 
+    /// Drop the dragged path keyframe with nothing written.
+    pub fn cancel_mask_path_key_drag(&mut self) {
+        self.with_prop_rows_mut(|s| s.mask_path_drag = None);
+        self.snap_guide = None;
+    }
+
     /// Send the mask at `index` of `clip` back with `edit` applied, when it is
     /// a path and `edit` reports a change. `edit` is handed the clip as well,
     /// to place a time on it.

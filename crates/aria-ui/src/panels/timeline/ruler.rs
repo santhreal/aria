@@ -160,10 +160,21 @@ fn ruler_body(
                         crate::app::spawn_preview(this.state.clone(), cx);
                         this.redraw(crate::shell::Moved::Playhead, cx);
                     };
+                // Escape puts the playhead back where the press found it.
+                let from = this.state.read(cx).playhead.value;
                 scrub(this, event.position.x, false, cx);
                 this.hold(crate::shell::Hold::new(
                     move |this, event, cx| scrub(this, event.position.x, true, cx),
                     |_, _, _| {},
+                    move |this, cx| {
+                        if this.state.read(cx).playhead.value == from {
+                            return;
+                        }
+                        this.state
+                            .update(cx, |state, _| state.scrub_playhead_on_ruler(from));
+                        crate::app::spawn_preview(this.state.clone(), cx);
+                        this.redraw(crate::shell::Moved::Playhead, cx);
+                    },
                 ));
             }),
         )

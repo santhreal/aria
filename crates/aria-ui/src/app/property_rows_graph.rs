@@ -587,6 +587,11 @@ impl AppState {
         })
     }
 
+    /// Drop an in-flight timeline graph editor drag with nothing written.
+    pub fn cancel_timeline_graph_drag(&mut self) {
+        self.with_prop_rows_mut(|s| s.graph_drag = None);
+    }
+
     /// Commit an in-flight timeline graph editor drag as a single undo entry.
     pub fn commit_timeline_graph_drag(&mut self) -> Result<(), EngineError> {
         let Some(drag) = self.with_prop_rows_mut(|s| s.graph_drag.take()) else {
