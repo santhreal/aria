@@ -20,12 +20,16 @@ opens the list of levels: Fit, then 10, 25, 50, 75, 100, 150, 200, 400, and
 800 per cent. At 100 per cent one pixel of the sequence covers one pixel of the
 display. `−` and `+` step to the next level below or above the zoom on screen,
 from Fit as well, and stop at either end. A zoom change holds the point at the
-center of the Viewer in place.
+center of the Viewer in place. Ctrl+scroll (Cmd+scroll on macOS) over the
+picture steps one level a notch and holds the point under the pointer in
+place: scrolling up zooms in. A trackpad steps a level for each notch's worth
+of travel.
 
 A frame larger than the Viewer can be panned: the cursor becomes an open hand,
-dragging moves the picture until its edge meets the Viewer's edge, and the drag
-keeps going when the pointer leaves the Viewer. A frame no larger than the
-Viewer stays centered.
+dragging with the left or middle button moves the picture until its edge meets
+the Viewer's edge, and the drag keeps going when the pointer leaves the
+Viewer. The pan ends when that button comes up. A middle-button drag selects
+nothing. A frame no larger than the Viewer stays centered.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same

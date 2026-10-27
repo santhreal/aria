@@ -229,7 +229,7 @@ pub fn render(
         .on_mouse_down(
             MouseButton::Middle,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                this.start_pan(f32::from(event.position.x), cx);
+                this.start_pan(f32::from(event.position.x), MouseButton::Middle, cx);
             }),
         )
         .child(measure(state))
@@ -328,7 +328,7 @@ pub fn render(
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
                 let tool = this.state.read(cx).tool;
                 if tool.pans() {
-                    this.start_pan(f32::from(event.position.x), cx);
+                    this.start_pan(f32::from(event.position.x), MouseButton::Left, cx);
                 } else if tool.zooms() {
                     let factor = if event.modifiers.alt {
                         1.0 / crate::transport::ZOOM_STEP
@@ -407,15 +407,11 @@ fn av_divider(
 
 /// The zoom factor a wheel turn asks for: [`crate::transport::ZOOM_WHEEL_STEP`]
 /// for each notch turned up or away, its inverse for each notch turned down or
-/// toward, and a trackpad's pixels as the share of a notch they travel. A turn
-/// with no vertical travel reads its horizontal travel. `None` for a turn that
-/// travels nowhere.
+/// toward, as [`crate::transport::wheel_notches`] counts them. `None` for a
+/// turn that travels nowhere.
 pub(crate) fn wheel_zoom_factor(event: &ScrollWheelEvent) -> Option<f32> {
-    use crate::transport::{WHEEL_LINE_PX, ZOOM_WHEEL_STEP};
-    let delta = event.delta.pixel_delta(px(WHEEL_LINE_PX));
-    let (dx, dy) = (f32::from(delta.x), f32::from(delta.y));
-    let travel = if dy != 0.0 { dy } else { dx };
-    (travel != 0.0).then(|| ZOOM_WHEEL_STEP.powf(travel / WHEEL_LINE_PX))
+    let notches = crate::transport::wheel_notches(event);
+    (notches != 0.0).then(|| crate::transport::ZOOM_WHEEL_STEP.powf(notches))
 }
 
 fn handle_scroll(

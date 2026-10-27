@@ -286,17 +286,18 @@ impl Shell {
             return true;
         }
         // A press held on the Viewer's picture pans a zoomed frame by the
-        // pointer's travel, on the picture or off it.
-        if let Some(from) = self.preview_pan {
-            if !held {
+        // pointer's travel, on the picture or off it, until its button comes
+        // up.
+        if let Some(pan) = self.preview_pan {
+            if event.pressed_button != Some(pan.button) {
                 self.preview_pan = None;
                 return false;
             }
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
-            self.preview_pan = Some(at);
+            self.preview_pan = Some(PreviewPan { at, ..pan });
             if self.state.read(cx).preview_pannable() {
                 self.state.update(cx, |state, _| {
-                    state.pan_preview(at[0] - from[0], at[1] - from[1])
+                    state.pan_preview(at[0] - pan.at[0], at[1] - pan.at[1])
                 });
                 cx.notify();
             }
@@ -422,7 +423,6 @@ impl Shell {
             });
             cx.notify();
         }
-        self.preview_pan = None;
         // Letting go of a fader or pan knob writes its value as one command.
         if self.state.read(cx).fader_dragging().is_some() {
             self.state.update(cx, |state, _| {
@@ -537,7 +537,7 @@ impl Shell {
             DragKind::Timeline { .. } => {
                 state.ui_settings.timeline_height = drag.start;
             }
-            DragKind::Pan => {
+            DragKind::Pan { .. } => {
                 state.scroll_timeline_to(drag.start, false);
             }
             DragKind::Lane(_) => {

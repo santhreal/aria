@@ -51,8 +51,9 @@ The control row, left to right:
 
 - Playhead timecode, scrubbable and editable. Typing `+12` moves 12 frames
   forward, `-1.00` moves one second back.
-- Magnification: Fit, 10 % to 800 %. Ctrl+scroll zooms around the pointer;
-  pressing the middle button pans; Shift+/ (`?`) fits.
+- Magnification: Fit, 10 % to 800 %. Ctrl+scroll (Cmd+scroll on macOS) zooms
+  a level a notch around the pointer; a left or middle drag pans a zoomed
+  frame; Shift+/ (`?`) fits.
 - Resolution: Full, 1/2, 1/4, 1/8, Auto. The same list sets the paused
   resolution, Full or 1/2, under its own heading. View > Playback Resolution
   and View > Paused Resolution step through the same choices. See

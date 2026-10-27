@@ -34,6 +34,15 @@ use drag::{Drag, DragKind};
 // Docked panel bodies as cached views.
 mod panel_view;
 pub use panel_view::{Moved, notify_after_draw};
+/// A press held on the Viewer's picture with the left or middle button.
+#[derive(Clone, Copy)]
+pub(crate) struct PreviewPan {
+    /// Where the pointer last sat, in window coordinates.
+    pub(crate) at: [f32; 2],
+    /// The button holding it, whose release ends the pan.
+    pub(crate) button: MouseButton,
+}
+
 pub struct Shell {
     pub state: Entity<AppState>,
     drag: Option<Drag>,
@@ -58,10 +67,12 @@ pub struct Shell {
     media_edge_drop: Option<i64>,
     /// Where a media drag last hovered over the freeform pool canvas, in canvas coordinates.
     freeform_drop: Option<(f32, f32)>,
-    /// Where the pointer of a press held on the Viewer's picture last sat, in
-    /// window coordinates, or `None` with no such press: a zoomed picture
-    /// pans by each move's travel from here.
-    pub(crate) preview_pan: Option<[f32; 2]>,
+    /// A press held on the Viewer's picture, or `None` with no such press: a
+    /// zoomed picture pans by each move's travel from where it last sat.
+    pub(crate) preview_pan: Option<PreviewPan>,
+    /// Wheel travel over the Viewer's picture, in notches, not yet taken as a
+    /// zoom level: a trackpad's pixels add up to whole levels.
+    pub(crate) viewer_wheel: f32,
     /// The window focus the platform input handler is attached to. Key routing
     /// and an IME commit have to arrive at the same place, and a platform hands
     /// text to whatever holds focus.
@@ -151,6 +162,7 @@ impl Shell {
             media_edge_drop: None,
             freeform_drop: None,
             preview_pan: None,
+            viewer_wheel: 0.0,
             focus: cx.focus_handle(),
             ime_marked: None,
             lone_alt: Default::default(),
@@ -190,6 +202,7 @@ impl Shell {
             media_edge_drop: None,
             freeform_drop: None,
             preview_pan: None,
+            viewer_wheel: 0.0,
             focus: cx.focus_handle(),
             ime_marked: None,
             lone_alt: Default::default(),
@@ -246,13 +259,36 @@ impl Shell {
         self.title = Some(title);
     }
 
-    /// The left button came up, over this window or outside it. The main
-    /// window and every floating panel window end their gestures here.
+    /// The buttons whose press can begin a drag. Each one's release ends the
+    /// drag it pressed.
+    const DRAG_BUTTONS: [MouseButton; 2] = [MouseButton::Left, MouseButton::Middle];
+
+    /// `root`, ending a press's gesture on the release of its button over this
+    /// window or outside it: the press began in this window, so its release is
+    /// this window's, and a tab let go past the edge floats.
+    fn ends_drags<E: InteractiveElement>(root: E, cx: &mut Context<Self>) -> E {
+        Self::DRAG_BUTTONS.into_iter().fold(root, |root, button| {
+            root.on_mouse_up(button, cx.listener(Self::on_release))
+                .on_mouse_up_out(button, cx.listener(Self::on_release))
+        })
+    }
+
+    /// A button came up, over this window or outside it. The main window and
+    /// every floating panel window end their gestures here: the left button's
+    /// holds, and the drag of whichever button came up.
     fn on_release(&mut self, event: &MouseUpEvent, window: &mut Window, cx: &mut Context<Self>) {
-        // A press on the bar that never travelled moves nothing.
-        self.window_move = false;
-        self.release_gestures(event, window, cx);
-        let Some(drag) = self.drag.take() else {
+        if event.button == MouseButton::Left {
+            // A press on the bar that never travelled moves nothing.
+            self.window_move = false;
+            self.release_gestures(event, window, cx);
+        }
+        if self
+            .preview_pan
+            .is_some_and(|pan| pan.button == event.button)
+        {
+            self.preview_pan = None;
+        }
+        let Some(drag) = self.drag.take_if(|drag| drag.kind.button() == event.button) else {
             return;
         };
         let hover = self.tab_hover.take();
@@ -345,7 +381,7 @@ impl Shell {
                     }
                 }
             }
-            DragKind::Pan | DragKind::AvSplit { .. } => {}
+            DragKind::Pan { .. } | DragKind::AvSplit { .. } => {}
         }
         // The frame the hand leaves is the only one that knows what
         // the gesture was worth. A throw of nothing leaves the view
@@ -407,9 +443,12 @@ impl Shell {
     pub(crate) fn take_freeform_drop(&mut self) -> Option<(f32, f32)> {
         self.freeform_drop.take()
     }
-    pub(crate) fn start_pan(&mut self, x: f32, cx: &mut Context<Self>) {
+
+    /// Begin scrolling the timeline by the pointer's travel from window x `x`,
+    /// until `button`, which pressed it, comes up.
+    pub(crate) fn start_pan(&mut self, x: f32, button: MouseButton, cx: &mut Context<Self>) {
         let start = self.state.read(cx).scroll_x;
-        self.drag = Some(Drag::new(DragKind::Pan, x, start));
+        self.drag = Some(Drag::new(DragKind::Pan { button }, x, start));
     }
 
     /// Begin resizing `track` from its lower border. `y` is where the pointer
@@ -696,11 +735,7 @@ impl Render for Shell {
             .text_color(theme.text)
             .font_family(theme.font_sans.clone())
             .text_size(Theme::TEXT_UI)
-            // A release outside the window ends a gesture as one inside it
-            // does: the press began in this window, so its release is this
-            // window's, and a tab let go past the edge floats.
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_release))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_release))
+            .map(|root| Self::ends_drags(root, cx))
             // Any key while Alt is down makes it a chord. Captured, so a key a
             // child consumes still counts.
             .capture_key_down(cx.listener(|this, _: &KeyDownEvent, _, _| this.lone_alt.spoil()))

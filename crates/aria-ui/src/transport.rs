@@ -22,6 +22,15 @@ pub const ZOOM_WHEEL_STEP: f32 = 1.1;
 /// Pixels one wheel line counts for, where the platform reports lines.
 pub const WHEEL_LINE_PX: f32 = 24.0;
 
+/// How many notches a wheel turn travels: positive up or away, negative down
+/// or toward, and a trackpad's pixels as the share of a notch they travel. A
+/// turn with no vertical travel reads its horizontal travel.
+pub fn wheel_notches(event: &gpui::ScrollWheelEvent) -> f32 {
+    let delta = event.delta.pixel_delta(gpui::px(WHEEL_LINE_PX));
+    let (dx, dy) = (f32::from(delta.x), f32::from(delta.y));
+    (if dy != 0.0 { dy } else { dx }) / WHEEL_LINE_PX
+}
+
 /// Zoom that fits `duration_ticks` into `viewport_px` at `base_pps`, at most
 /// [`ZOOM_MAX`]. A long sequence fits below [`ZOOM_MIN`].
 pub fn fit_zoom(duration_ticks: i64, fps: f32, viewport_px: f32, base_pps: f32) -> f32 {

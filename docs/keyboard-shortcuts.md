@@ -279,11 +279,14 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 | Shift+scroll track header | Step that track's height through Mini (20 px), Small (32 px), Medium (48 px), and Large (72 px) |
 | Alt+scroll or Ctrl/Cmd+scroll | Zoom timeline around pointer: up zooms in, down zooms out |
 | Scroll over the zoom bar | Zoom timeline around the playhead: up zooms in, down zooms out |
+| Middle-drag the timeline | Pan the timeline until the middle button comes up |
 | Click media tile | Select it. Ctrl/Cmd+click toggles it in the selection; Shift+click selects the run from the last tile picked. |
 | Double-click media tile | Open it in a Source tab of the Viewer, or focus its open tab |
 | Drag media tile to a lane | Place it there through source patching |
 | Click a Viewer tab | Focus Program or that Source tab. The close button or a middle click closes a Source tab. |
 | Drag from a Viewer ruler | Pull out a guide; drop it back on its ruler or off the frame to delete it |
+| Ctrl/Cmd+scroll over the Viewer | Zoom the frame one level a notch around the pointer: up zooms in, down zooms out |
+| Drag or middle-drag a zoomed Viewer frame | Pan the frame until the button comes up |
 | Click a title with the Type tool | Place the caret at the nearest character boundary |
 | Drag across a title with the Type tool | Select characters |
 | Shift+click a title with the Type tool | Extend the selection to the click |

@@ -706,6 +706,9 @@ mod move_preview_tests;
 #[path = "app/outline_column_tests.rs"]
 mod outline_column_tests;
 #[cfg(test)]
+#[path = "app/pan_release_tests.rs"]
+mod pan_release_tests;
+#[cfg(test)]
 #[path = "app/panel_focus_tests.rs"]
 mod panel_focus_tests;
 #[cfg(test)]

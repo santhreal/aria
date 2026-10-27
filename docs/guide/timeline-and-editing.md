@@ -41,7 +41,9 @@
   back the name the field opened with. Enter applies the name and Esc cancels.
 - `\` fits the timeline to the sequence, Shift+F to the selection. + / - zoom
   around the playhead, and bring a playhead that is off screen to the middle of
-  the view. Zooming out stops at the whole sequence.
+  the view. Zooming out stops at the whole sequence. Drag with the middle
+  button, or with the Hand tool, to pan the timeline; the pan ends when
+  that button comes up.
 - Right-click a clip, track, or the preview for a context menu. A row that
   switches a state draws a check mark in its lead column while the state
   holds, as a menu bar row does.

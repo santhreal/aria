@@ -11,6 +11,7 @@ use crate::app::pool_preview::{self, SourceView};
 use crate::app::{AppState, spawn_preview, start_playback};
 use crate::components::Wraps as _;
 use crate::motion;
+use crate::shell::PreviewPan;
 use crate::theme::Theme;
 use crate::timecode;
 use crate::tooltip::WithTip as _;
@@ -18,7 +19,8 @@ use crate::types::{ActivePanel, ContextTarget};
 use gpui::prelude::FluentBuilder;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ObjectFit, ParentElement,
-    StatefulInteractiveElement, Styled, StyledImage, canvas, div, img, px, relative,
+    ScrollWheelEvent, StatefulInteractiveElement, Styled, StyledImage, canvas, div, img, px,
+    relative,
 };
 pub fn render(
     state: &Entity<AppState>,
@@ -185,9 +187,11 @@ pub fn render(
 }
 
 /// The Program picture: the sequence frame with its safe guides, handles,
-/// plugin overlays, rulers, and viewer guides. A press picks the clip under
-/// the pointer and, held, pans a zoomed frame; the shell carries the pan and
-/// a held guide wherever the pointer goes (`Shell::carry_gesture`).
+/// plugin overlays, rulers, and viewer guides. A left press picks the clip
+/// under the pointer; a left or middle press held pans a zoomed frame, and
+/// the shell carries the pan and a held guide wherever the pointer goes
+/// (`Shell::carry_gesture`). Ctrl+wheel (Cmd on macOS) zooms about the
+/// pointer.
 ///
 /// The picture area stands half a handle inside the pane on every side. A
 /// fitted frame touches the picture area on two sides, and a handle on the
@@ -228,14 +232,46 @@ fn program_pane(
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
-                let point = [f32::from(event.position.x), f32::from(event.position.y)];
-                this.preview_pan = Some(point);
+                let at = [f32::from(event.position.x), f32::from(event.position.y)];
+                this.preview_pan = Some(PreviewPan {
+                    at,
+                    button: MouseButton::Left,
+                });
                 this.state.update(cx, |state, _| {
-                    state.select_layer_at(point, event.modifiers.shift);
+                    state.select_layer_at(at, event.modifiers.shift);
                 });
                 cx.notify();
             }),
         )
+        // The middle button pans and picks nothing.
+        .on_mouse_down(
+            MouseButton::Middle,
+            cx.listener(|this, event: &MouseDownEvent, _, _| {
+                this.preview_pan = Some(PreviewPan {
+                    at: [f32::from(event.position.x), f32::from(event.position.y)],
+                    button: MouseButton::Middle,
+                });
+            }),
+        )
+        // A level a notch, up or away zooming in; a trackpad's pixels add up
+        // to whole notches. A plain wheel leaves the picture alone.
+        .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, _, cx| {
+            if !event.modifiers.secondary() {
+                return;
+            }
+            cx.stop_propagation();
+            this.viewer_wheel += crate::transport::wheel_notches(event);
+            let notches = this.viewer_wheel.trunc();
+            this.viewer_wheel -= notches;
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            if notches != 0.0
+                && this
+                    .state
+                    .update(cx, |state, _| state.zoom_preview_at(notches as i32, at))
+            {
+                cx.notify();
+            }
+        }))
         // The Info panel reads the pixel under the pointer.
         .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
             let at = [f32::from(event.position.x), f32::from(event.position.y)];

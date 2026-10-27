@@ -29,7 +29,7 @@ pub(super) fn on_left_down(
     }
 
     if tool.pans() {
-        this.start_pan(origin_x, cx);
+        this.start_pan(origin_x, MouseButton::Left, cx);
         return;
     }
     if tool.zooms() {

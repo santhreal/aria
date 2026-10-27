@@ -29,7 +29,7 @@ use crate::types::{EditorTool, OverlayMode, UiTrackKind};
 
 /// Draw the shell twice: the Viewer records its picture area in paint, and
 /// the handles are placed from that record on the next frame.
-fn settle(visual: &mut VisualTestContext) {
+pub(super) fn settle(visual: &mut VisualTestContext) {
     for _ in 0..2 {
         visual.update(|window, _| window.refresh());
         visual.run_until_parked();
@@ -37,7 +37,7 @@ fn settle(visual: &mut VisualTestContext) {
 }
 
 /// A move with no button held.
-fn hover(visual: &mut VisualTestContext, at: gpui::Point<gpui::Pixels>) {
+pub(super) fn hover(visual: &mut VisualTestContext, at: gpui::Point<gpui::Pixels>) {
     visual.simulate_mouse_move(at, None, Modifiers::none());
     visual.run_until_parked();
 }

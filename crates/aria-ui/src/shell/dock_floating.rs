@@ -182,11 +182,7 @@ impl Shell {
             .id("floating-shell")
             .track_focus(&self.focus)
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            // A release outside the window ends a gesture as one inside it
-            // does: the press began in this window, so its release is this
-            // window's.
-            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_release))
-            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_release))
+            .map(|root| Self::ends_drags(root, cx))
             .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 let key = event.keystroke.key.as_str();
                 if key.eq_ignore_ascii_case("escape") {

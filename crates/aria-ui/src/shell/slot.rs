@@ -82,13 +82,27 @@ impl Shell {
         if self.carry_gesture(event, window, cx) {
             return;
         }
+        // A move without the button that pressed the drag is a release the
+        // window did not receive, and ends the drag where the pointer is.
+        if let Some(drag) = &self.drag
+            && event.pressed_button != Some(drag.kind.button())
+        {
+            let up = MouseUpEvent {
+                button: drag.kind.button(),
+                position: event.position,
+                modifiers: event.modifiers,
+                click_count: 1,
+            };
+            self.on_release(&up, window, cx);
+            return;
+        }
         // Mutable, because a pan has to remember the rate it is moving at: the
         // frame the pointer leaves is the only one that can know it, and by then
         // the positions are gone. The borrow ends before the state is touched.
         let Some(drag) = &mut self.drag else {
             return;
         };
-        if matches!(drag.kind, DragKind::Pan) {
+        if matches!(drag.kind, DragKind::Pan { .. }) {
             drag.sample(f32::from(event.position.x));
         }
         let drag = *drag;
@@ -96,7 +110,7 @@ impl Shell {
         // move the timeline's drawing and nothing else's.
         let timeline_only = matches!(
             drag.kind,
-            DragKind::Pan | DragKind::Lane(_) | DragKind::Outline | DragKind::AvSplit { .. }
+            DragKind::Pan { .. } | DragKind::Lane(_) | DragKind::Outline | DragKind::AvSplit { .. }
         );
         match drag.kind {
             DragKind::Timeline { max } => {
@@ -106,7 +120,7 @@ impl Shell {
                     state.ui_settings.timeline_height = height;
                 });
             }
-            DragKind::Pan => {
+            DragKind::Pan { .. } => {
                 let delta = f32::from(event.position.x) - drag.origin;
                 let scroll = (drag.start - delta).max(0.0);
                 self.state.update(cx, |state, _| {

@@ -14,10 +14,11 @@ pub(super) enum DragKind {
     /// size. `start` is the Timeline's drawn height when the pointer went
     /// down, and `max` the tallest it can be drawn while the Viewer keeps its
     /// minimum height.
-    Timeline {
-        max: f32,
-    },
-    Pan,
+    Timeline { max: f32 },
+    /// Scrolling the timeline by the pointer's travel, with the button that
+    /// pressed it: the middle button anywhere on the timeline, or the left
+    /// with the Hand tool.
+    Pan { button: MouseButton },
     /// Resizing one timeline lane by its lower border. The height is previewed
     /// on the state and committed as a single edit on mouse-up, so a drag over
     /// forty pixels is one undo entry rather than forty.
@@ -28,9 +29,7 @@ pub(super) enum DragKind {
     /// Moving the divider between the timeline's video and audio sides.
     /// `start` is the split when the pointer went down, and `stack_h` the
     /// height the two sides share.
-    AvSplit {
-        stack_h: f32,
-    },
+    AvSplit { stack_h: f32 },
     /// Resizing an arbitrary split in `dock_tree`.
     DockSplit {
         path: [usize; 4],
@@ -50,6 +49,23 @@ pub(super) enum DragKind {
         moved: bool,
     },
 }
+
+impl DragKind {
+    /// The button whose press began a drag of this kind, and whose release
+    /// ends it.
+    pub(super) fn button(&self) -> MouseButton {
+        match self {
+            DragKind::Pan { button } => *button,
+            DragKind::Timeline { .. }
+            | DragKind::Lane(_)
+            | DragKind::Outline
+            | DragKind::AvSplit { .. }
+            | DragKind::DockSplit { .. }
+            | DragKind::DockTab { .. } => MouseButton::Left,
+        }
+    }
+}
+
 /// Copy, so a handler can sample the live drag and then read a snapshot of it
 /// without holding a borrow of the shell across the state it has to update.
 #[derive(Clone, Copy)]
@@ -95,7 +111,7 @@ impl Drag {
     /// How far the release of this drag keeps travelling, in pixels. Zero for
     /// every kind but a pan: a splitter that was let go is where it was let go.
     pub(super) fn throw(&self, reduced: bool) -> f32 {
-        if !matches!(self.kind, DragKind::Pan) {
+        if !matches!(self.kind, DragKind::Pan { .. }) {
             return 0.0;
         }
         let age = Instant::now()

@@ -236,24 +236,69 @@ impl AppState {
     /// fit, the next level above or below the fitted frame's own zoom. Stays
     /// put past either end.
     fn step_zoom(&mut self, direction: i32) {
+        if let Some(next) = self.zoom_steps_away(direction) {
+            self.set_preview_zoom(Some(next));
+        }
+    }
+
+    /// Step the zoom `steps` levels, as [`Self::preview_zoom_in`] and
+    /// [`Self::preview_zoom_out`] do once per step, about the window point
+    /// `at`: the canvas point under it stays under it, as far as the pan
+    /// reaches. `true` when the zoom changed.
+    pub fn zoom_preview_at(&mut self, steps: i32, [x, y]: [f32; 2]) -> bool {
+        let Some(zoom) = self.zoom_steps_away(steps) else {
+            return false;
+        };
+        let Some(before) = self
+            .preview_frame()
+            .filter(|frame| frame.w > 0.0 && frame.h > 0.0)
+        else {
+            self.set_preview_zoom(Some(zoom));
+            return true;
+        };
+        // Where the pointer sits across the frame, as a fraction of its size.
+        let (u, v) = ((x - before.x) / before.w, (y - before.y) / before.h);
+        self.preview_view.zoom = Some(zoom);
+        self.preview_view.pan = (0.0, 0.0);
+        if let Some(centered) = self.preview_frame() {
+            self.preview_view.pan = (
+                x - u * centered.w - centered.x,
+                y - v * centered.h - centered.y,
+            );
+        }
+        self.clamp_preview_pan();
+        true
+    }
+
+    /// The level in [`ZOOM_STEPS`] `steps` levels past the zoom on screen,
+    /// toward larger levels for a positive `steps`: from fit, counted from the
+    /// fitted frame's own zoom. Stops at either end, and `None` when the zoom
+    /// on screen is already there.
+    fn zoom_steps_away(&self, steps: i32) -> Option<f32> {
         let current = self
             .preview_view
             .zoom
             .or_else(|| self.preview_fit_zoom())
             .unwrap_or(1.0);
-        let next = if direction > 0 {
-            ZOOM_STEPS
-                .into_iter()
-                .find(|step| *step > current * (1.0 + STEP_SLACK))
-        } else {
-            ZOOM_STEPS
-                .into_iter()
-                .rev()
-                .find(|step| *step < current * (1.0 - STEP_SLACK))
-        };
-        if let Some(next) = next {
-            self.set_preview_zoom(Some(next));
+        let mut reached = None;
+        for _ in 0..steps.unsigned_abs() {
+            let from = reached.unwrap_or(current);
+            let next = if steps > 0 {
+                ZOOM_STEPS
+                    .into_iter()
+                    .find(|step| *step > from * (1.0 + STEP_SLACK))
+            } else {
+                ZOOM_STEPS
+                    .into_iter()
+                    .rev()
+                    .find(|step| *step < from * (1.0 - STEP_SLACK))
+            };
+            match next {
+                Some(next) => reached = Some(next),
+                None => break,
+            }
         }
+        reached
     }
 }
 
