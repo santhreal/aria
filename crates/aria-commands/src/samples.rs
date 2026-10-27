@@ -518,6 +518,16 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             to_track: track(2),
             start: t(90),
         },
+        EditCommand::OverwriteMoveClip {
+            clip: clip(4),
+            to_track: track(2),
+            start: t(90),
+        },
+        EditCommand::OverwriteMoveClipUnlinked {
+            clip: clip(4),
+            to_track: track(2),
+            start: t(90),
+        },
         EditCommand::RippleMoveClip {
             clip: clip(4),
             to_track: track(2),

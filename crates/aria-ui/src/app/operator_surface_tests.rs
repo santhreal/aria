@@ -65,9 +65,10 @@ use crate::keys::bindings::SHIPPED_BINDINGS;
 /// beat run's own write, which is the surface `Set beats` names. `on the
 /// timeline` covers the clip drags: every body drag, every edge drag and both
 /// edges of a transition's window, pressed in ticks against two abutting clips
-/// with a blend at the cut. `handles on the preview` covers the canvas overlay:
-/// the move, the four scale corners, the eight crop handles and the three mask
-/// handles, each dragged press-move-release against a stated picture rectangle.
+/// with a blend at the cut, with linked selection on and off. `handles on the
+/// preview` covers the canvas overlay: the move, the four scale corners, the
+/// eight crop handles and the three mask handles, each dragged
+/// press-move-release against a stated picture rectangle.
 /// `Home screen's` covers the route's tiles, a recent card's actions and the
 /// recovery banner, pressed against a saved session so a tile runs its intent
 /// rather than parking behind the unsaved-changes prompt.

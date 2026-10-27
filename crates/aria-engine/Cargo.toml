@@ -121,6 +121,10 @@ name = "overwrite"
 path = "tests/overwrite.rs"
 
 [[test]]
+name = "overwrite_move"
+path = "tests/overwrite_move.rs"
+
+[[test]]
 name = "preview"
 path = "tests/preview.rs"
 

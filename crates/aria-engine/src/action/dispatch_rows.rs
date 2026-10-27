@@ -63,6 +63,8 @@ edit_ops! { ctx;
     TrimClipUnlinked { clip, timeline } => updated(clip, edit::trim_clip::trim_one(ctx, clip, timeline)?),
     MoveClip { clip, to_track, start } => updated(clip, edit::move_clip::execute(ctx, clip, to_track, start)?),
     MoveClipUnlinked { clip, to_track, start } => updated(clip, edit::move_clip::execute_unlinked(ctx, clip, to_track, start)?),
+    OverwriteMoveClip { clip, to_track, start } => updated(clip, edit::overwrite_move::execute(ctx, clip, to_track, start)?),
+    OverwriteMoveClipUnlinked { clip, to_track, start } => updated(clip, edit::overwrite_move::execute_unlinked(ctx, clip, to_track, start)?),
     RippleMoveClip { clip, to_track, start } => updated(clip, edit::ripple_move::execute(ctx, clip, to_track, start)?),
 
     // Audio.

@@ -199,17 +199,22 @@ pub(super) fn on_left_up(
         CanvasGesture::Clip {
             kind,
             clip_id,
+            origin_track_id,
             target_track_id,
             origin_x,
             start_ticks,
             end_ticks,
-            ..
         } => {
             let delta_px = f32::from(event.position.x) - origin_x;
-            let delta_ticks = ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64;
             let threshold_px = match kind {
                 DragKind::Move => 2.0,
                 _ => 1.0,
+            };
+            let still = delta_px.abs() < threshold_px;
+            let delta_ticks = if still {
+                0
+            } else {
+                ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64
             };
             let span = Span {
                 start: start_ticks,
@@ -217,21 +222,24 @@ pub(super) fn on_left_up(
                 threshold: crate::snap::threshold_ticks(pps, fps),
                 magnet: !event.modifiers.alt,
             };
+            let g = gesture_for_drag(
+                kind,
+                tool,
+                event.modifiers.control,
+                event.modifiers.shift,
+                event.modifiers.alt,
+                target_track_id,
+                span,
+            );
+            // A move carried to another lane lands there with no travel along
+            // the lane, and travel under the threshold is a hand's jitter.
+            let relaned = g.lane().is_some_and(|lane| lane.raw() != origin_track_id);
             this.state.update(cx, |state, _| {
                 state.snap_guide = None;
                 state.trim_feedback = None;
-                if delta_px.abs() < threshold_px {
+                if still && !relaned {
                     return;
                 }
-                let g = gesture_for_drag(
-                    kind,
-                    tool,
-                    event.modifiers.control,
-                    event.modifiers.shift,
-                    event.modifiers.alt,
-                    target_track_id,
-                    span,
-                );
                 let d = Drag {
                     clip: ClipId::from_raw(clip_id),
                     delta: delta_ticks,

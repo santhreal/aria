@@ -266,7 +266,7 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 | Alt+click clip | Select the clicked clip only, ignoring its links |
 | Shift+click clip | Add to selection |
 | Ctrl/Cmd+click clip | Toggle clip in selection |
-| Drag clip body | Move (snaps on release) |
+| Drag clip body | Move along the lane or onto another lane of its kind, covering what it lands on (snaps on release) |
 | Shift+drag clip body | Ripple-move: close the hole, open the drop |
 | Click or drag clip edge | Select edge (`Ctrl+Left` / `Ctrl+Right` trims) or drag to trim with live delta feedback |
 | Click empty lane gap | Select the gap (`Delete` / `Backspace` ripple-deletes it) |

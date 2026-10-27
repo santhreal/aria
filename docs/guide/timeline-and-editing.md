@@ -5,7 +5,11 @@
 - Space plays and pauses.
 - Ctrl+K splits the selected clip at the playhead; Ctrl+Shift+K splits every
   track.
-- Drag a clip to move it. Drag a clip edge to trim. A move or trim follows the
+- Drag a clip to move it along its lane or onto another lane of its kind. The
+  clip covers what it lands on: a clip under it is trimmed back to the landing
+  edges, cut in two around it, or removed, and nothing else moves. A clip
+  carried straight up or down keeps its start. Shift-drag ripples the move
+  instead. Drag a clip edge to trim. A move or trim follows the
   pointer when it leaves the lanes and lands where the button comes up. Nearby
   clips magnet at 8 px. The magnet also takes the playhead, the sequence start
   and end, the In and Out points, markers, and detected beats. While a drag is

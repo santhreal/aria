@@ -58,7 +58,7 @@ pub(super) fn release(visual: &mut VisualTestContext, at: Point<Pixels>) {
 }
 
 /// Pixels per tick of the drawn timeline.
-fn tick_px(state: &Entity<AppState>, visual: &mut VisualTestContext) -> f32 {
+pub(super) fn tick_px(state: &Entity<AppState>, visual: &mut VisualTestContext) -> f32 {
     visual.read(|app| {
         let state = state.read(app);
         TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second()
@@ -66,7 +66,10 @@ fn tick_px(state: &Entity<AppState>, visual: &mut VisualTestContext) -> f32 {
 }
 
 /// The take's picture clip: its id, start and end.
-fn picture_clip(state: &Entity<AppState>, visual: &mut VisualTestContext) -> (u64, i64, i64) {
+pub(super) fn picture_clip(
+    state: &Entity<AppState>,
+    visual: &mut VisualTestContext,
+) -> (u64, i64, i64) {
     visual.read(|app| {
         let clip = state
             .read(app)

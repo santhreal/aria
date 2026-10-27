@@ -20,6 +20,7 @@ pub mod move_track;
 pub mod multicam;
 pub mod nested_sequence;
 pub mod overwrite;
+pub mod overwrite_move;
 pub mod paste_attributes;
 pub mod paste_retimed;
 pub mod remove_attributes;

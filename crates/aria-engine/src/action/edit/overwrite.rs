@@ -223,7 +223,8 @@ pub(crate) fn clear(
 }
 
 /// Revert applied steps, newest first, so a refused overwrite leaves no trace.
-fn rollback(ctx: &mut ApplyContext<'_>, inverses: Vec<Box<dyn EditAction>>) {
+/// Shared with the overwrite move, which records the same kind of steps.
+pub(crate) fn rollback(ctx: &mut ApplyContext<'_>, inverses: Vec<Box<dyn EditAction>>) {
     for inverse in inverses.into_iter().rev() {
         if inverse.apply(ctx).is_err() {
             tracing::error!("overwrite rollback failed; the lane may hold a partial edit");

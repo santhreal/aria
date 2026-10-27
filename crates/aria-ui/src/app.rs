@@ -690,6 +690,9 @@ mod menu_dialog_tests;
 #[path = "app/menu_press_tests.rs"]
 mod menu_press_tests;
 #[cfg(test)]
+#[path = "app/move_drop_tests.rs"]
+mod move_drop_tests;
+#[cfg(test)]
 #[path = "app/outline_column_tests.rs"]
 mod outline_column_tests;
 #[cfg(test)]

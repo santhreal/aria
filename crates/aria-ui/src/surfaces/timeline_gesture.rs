@@ -130,6 +130,24 @@ impl Gesture {
             Self::Fade { left: false, .. } => "a fade-out handle dragged on a clip card",
         }
     }
+
+    /// The lane the drag carries its clip to: a move's or a ripple move's. A
+    /// slip and a slide keep the clip on the lane it started on.
+    pub fn lane(&self) -> Option<TrackId> {
+        match *self {
+            Self::Body {
+                drag: None, track, ..
+            }
+            | Self::RippleBody { track, .. } => Some(track),
+            Self::Body {
+                drag: Some(BodyDrag::Slip | BodyDrag::Slide),
+                ..
+            }
+            | Self::Edge { .. }
+            | Self::Transition { .. }
+            | Self::Fade { .. } => None,
+        }
+    }
 }
 
 /// Where `desired` lands once the magnet has had its say.

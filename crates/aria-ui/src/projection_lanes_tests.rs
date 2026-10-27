@@ -120,6 +120,8 @@ const REACH: &[(&str, Reach, Reach)] = &[
     ("SetMulticamSync", Refused, Refused),
     ("MoveClip", Lanes, Lanes),
     ("MoveClipUnlinked", Lanes, Lanes),
+    ("OverwriteMoveClip", Lanes, Lanes),
+    ("OverwriteMoveClipUnlinked", Lanes, Lanes),
     ("RippleMoveClip", Every, Every),
     ("RemoveClip", Lanes, Lanes),
     ("RemoveTrack", Lanes, Lanes),

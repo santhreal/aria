@@ -401,23 +401,37 @@ impl AppState {
         self.rebuild_store();
     }
 
+    /// The move a clip drag drops: it covers what it lands on, by the rule of
+    /// an overwrite edit. With linked selection off its linked companions stay
+    /// where they are.
     pub fn move_clip(
         &mut self,
         clip: ClipId,
-        track: TrackId,
+        to_track: TrackId,
         start: i64,
     ) -> Result<(), EngineError> {
         self.snap_guide = None;
-        self.apply_command(Command::Edit(self.move_command(
-            clip,
-            track,
-            RationalTime::new(start.max(0), self.playhead.rate),
-        )))?;
+        let start = RationalTime::new(start.max(0), self.playhead.rate);
+        let command = if self.linked_selection {
+            EditCommand::OverwriteMoveClip {
+                clip,
+                to_track,
+                start,
+            }
+        } else {
+            EditCommand::OverwriteMoveClipUnlinked {
+                clip,
+                to_track,
+                start,
+            }
+        };
+        self.apply_command(Command::Edit(command))?;
         Ok(())
     }
 
-    /// The move a drag gesture sends: one that includes the clip's linked
-    /// companions, or with linked selection off one that leaves them.
+    /// The move a step chord, a typed offset or a slide sends: one that refuses
+    /// to land on another clip. It includes the clip's linked companions, or
+    /// with linked selection off it leaves them.
     pub(crate) fn move_command(
         &self,
         clip: ClipId,

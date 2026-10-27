@@ -510,6 +510,21 @@ pub enum EditCommand {
         to_track: TrackId,
         start: RationalTime,
     },
+    /// Move a clip to `to_track` starting at `start`, covering what it lands
+    /// on by the rule of [`Self::OverwriteClip`]. Linked companions take the
+    /// same time delta on their own lanes and cover what they land on there.
+    OverwriteMoveClip {
+        clip: ClipId,
+        to_track: TrackId,
+        start: RationalTime,
+    },
+    /// [`Self::OverwriteMoveClip`] with linked selection off: linked
+    /// companions stay where they are, grouped ones take the same time delta.
+    OverwriteMoveClipUnlinked {
+        clip: ClipId,
+        to_track: TrackId,
+        start: RationalTime,
+    },
     /// Move a clip to `to_track` starting at `start`, closing the hole it left
     /// and opening one at the drop. Same-track drops past the clip's old end are
     /// measured on the closed timeline.

@@ -201,7 +201,7 @@ fn rows(j: &Junction) -> Vec<Row> {
             },
             clip: j.subject,
             delta: STEP,
-            writes: "Move clip",
+            writes: "Overwrite move clip",
         },
         Row {
             gesture: Gesture::Body {
@@ -329,17 +329,24 @@ fn press(state: &mut AppState, row: &Row) {
 }
 
 /// Every command a drag on the timeline asked for.
+///
+/// Each row is pressed with linked selection on and off: the toggle selects
+/// whether a move carries the clip's linked companions, which is a different
+/// command.
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
     let mut out = BTreeSet::new();
     // The count comes off a state that is dropped before the loop starts: a
     // census holding two projects open at once holds two compositor devices.
     let count = rows(&junction()).len();
     for index in 0..count {
-        let mut dressed = junction();
-        let row = rows(&dressed).swap_remove(index);
-        let watch = Watch::on(&dressed.state);
-        press(&mut dressed.state, &row);
-        out.extend(watch.take());
+        for linked in [true, false] {
+            let mut dressed = junction();
+            dressed.state.linked_selection = linked;
+            let row = rows(&dressed).swap_remove(index);
+            let watch = Watch::on(&dressed.state);
+            press(&mut dressed.state, &row);
+            out.extend(watch.take());
+        }
     }
     out
 }
@@ -553,7 +560,7 @@ fn the_magnet_takes_a_drag_that_lands_near_the_cut() {
             },
             clip: held.subject,
             delta: STEP,
-            writes: "Move clip",
+            writes: "Overwrite move clip",
         },
     );
     assert_eq!(
@@ -577,6 +584,8 @@ fn the_census_reaches_every_command_these_drags_claim() {
     let sent = dispatched();
     for label in [
         "Move clip",
+        "Overwrite move clip",
+        "Overwrite move clip without links",
         "Slip clip",
         "Trim clip",
         "Set speed",
