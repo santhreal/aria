@@ -421,6 +421,7 @@ Notes for the latest release. For previous releases, see the
 - The Captions tab lays out Language, Output, Split and Threads as a labeled form, lights an **Auto** threads chip while the decoder uses its per-core default, shows **Transcribe** and **Commit** as buttons, and shows an **Open Settings** button that opens the Transcription section while no model is installed.
 - The Analysis tab lays out Detect, Loudness, Show and Confidence as a labeled form, prints the loudness peak beside **Measure**, puts **Refresh** at the end of the status line, and lists Previous, Next and the edits on one line on the panel's text edge.
 - A detector's button and **Measure** on the Analysis tab are solid only while a clip is selected and they hold no result.
+- The Stock tab states its hint, route, loading, failure and empty result under its search form on the column's edge instead of centered in the panel below it.
 - The Effects tab's tree and the media pool's folder rows use the panel's text size, with top-level folders in medium weight instead of bold.
 - A solid button dims under the pointer instead of turning light.
 - The timeline's search box is as tall as the toggles in its row.

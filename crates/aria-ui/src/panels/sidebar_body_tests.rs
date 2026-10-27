@@ -5,18 +5,21 @@
 //! a hint line that was blank at rest and a Search button drawn as bare text,
 //! so the button stood four rows under the box it submits; the box was 20 px
 //! tall over 26 px chips; the tab row's labels stood 4 px left of the group
-//! row's; and "Not loaded" sat over an empty panel. Every catalog row carried
-//! its own two-line caption, so forty transitions repeated one sentence forty
-//! times; the rows stood 8 px inside the column; and a list taller than the
-//! panel ran off its bottom. The classes closed here:
+//! row's; "Not loaded" sat over an empty panel; and its status line stood
+//! centered in the blank half of the panel under the form. Every catalog row
+//! carried its own two-line caption, so forty transitions repeated one
+//! sentence forty times; the rows stood 8 px inside the column; and a list
+//! taller than the panel ran off its bottom. The classes closed here:
 //!
 //! - over every group that lists tabs, at both group paddings: a tab label
 //!   that does not start on the group labels' edge;
 //! - in Stock: a line drawn between the header and the query box, an action
 //!   that does not stand beside the box at its height, and kind chips that do
 //!   not start on the box's edge one row under it;
-//! - in Stock and SFX at rest: anything drawn in the body but the form and one
-//!   centered empty state that fills the rest of the panel;
+//! - in Stock at rest: anything drawn in the body but the form and one status
+//!   line one inset under it, on the column's edge;
+//! - in SFX at rest: anything drawn in the body but one centered empty state
+//!   that fills the rest of the panel;
 //! - over every tab that lists entries: a usage line drawn in a row, a line
 //!   off the column's edge, and a list that does not end on the panel's bottom
 //!   inset. Every tab is placed in [`LISTS`] or [`OTHER_LAYOUTS`], so a new tab
@@ -187,7 +190,9 @@ fn every_tab_label_starts_on_the_group_labels_edge(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn the_stock_tab_stands_search_beside_its_box_and_fills_the_rest(cx: &mut TestAppContext) {
+fn the_stock_tab_stands_search_beside_its_box_and_its_status_under_the_form(
+    cx: &mut TestAppContext,
+) {
     cx.executor().allow_parking();
     let (state, visual) = drawn_shell(cx, "sidebar-stock");
     open(&state, visual, SidebarTab::Stock);
@@ -239,12 +244,10 @@ fn the_stock_tab_stands_search_beside_its_box_and_fills_the_rest(cx: &mut TestAp
             );
     assert!(
         near(empty.top(), chips_bottom + px(Theme::SPACE_MD))
-            && near(empty.bottom(), panel.bottom() - px(Theme::SPACE_MD)),
-        "the empty state {empty:?} does not fill the panel {panel:?} under the chips"
-    );
-    assert!(
-        near(line.center().x, empty.center().x),
-        "the empty state's line {line:?} is not centered in {empty:?}"
+            && near(line.top(), empty.top())
+            && near(line.left(), field.left()),
+        "the status line {line:?} does not stand one inset under the chips on the \
+         box's edge {field:?}"
     );
 
     let mut placed = chips;

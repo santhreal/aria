@@ -321,7 +321,6 @@ pub(super) fn cloud_grid(
         };
         let note = div()
             .max_w_full()
-            .text_center()
             .text_size(Theme::TEXT_UI)
             .text_color(theme.text_faint)
             .child(route)

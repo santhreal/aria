@@ -804,6 +804,28 @@ pub fn empty_state(id: &'static str, text: impl Into<SharedString>, theme: &Them
         )
 }
 
+/// The line a list under a form draws in place of rows it does not have,
+/// where its first row would stand: on the column's edge, under the form, as
+/// a status line under a panel's controls is. An action the line offers is
+/// added below it with `.child`. Drawn as `empty-state-{id}`, with its line as
+/// `empty-state-{id}-line`, as an [`empty_state`] is.
+pub fn list_empty(id: &'static str, text: impl Into<SharedString>, theme: &Theme) -> Div {
+    div()
+        .debug_selector(move || format!("empty-state-{id}"))
+        .flex()
+        .flex_col()
+        .items_start()
+        .gap(px(Theme::SPACE_SM))
+        .child(
+            div()
+                .debug_selector(move || format!("empty-state-{id}-line"))
+                .max_w_full()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child(text.into()),
+        )
+}
+
 pub fn slider_row(
     theme: &Theme,
     label: impl Into<SharedString>,

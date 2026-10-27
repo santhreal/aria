@@ -84,7 +84,6 @@ states why on it:
 | the file there has a different frame size / duration / audio | The name matched, the file is another source |
 | could not read the file there | The file exists and did not open |
 
-
 ## Stock and sound effects
 
 The Project panel's **Library** group holds the **Stock**, **SFX**, and
@@ -95,9 +94,10 @@ press Enter or click **Search** beside the box. Escape leaves the box. The
 **Video**, **Photo**, and **Audio** chips under the box choose what to search
 for; switching chips clears the results, which answered the previous kind.
 
-Before the first search the panel states the route. With a Pexels or Pixabay key
-set in Settings, the query goes straight to that provider and Aria's servers never
-receive it. With no key, the query goes through Aria's anonymous search endpoint.
+Before the first search, the lines under the chips state the route. With a
+Pexels or Pixabay key set in Settings, the query goes straight to that provider
+and Aria's servers never receive it. With no key, the query goes through Aria's
+anonymous search endpoint.
 
 SFX lists the sound-effect catalog. Click **Load catalog** to fetch it.
 

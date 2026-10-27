@@ -78,7 +78,10 @@ pub(crate) fn cloud_catalog_block(
 }
 
 /// A feed that fills its panel: the cards as a list that scrolls, or, while
-/// there are none, one line centered in the space the cards fill.
+/// there are none, one line in place of them. A search feed's list stands
+/// under its search form, so the line stands where the first card would, on
+/// the column's edge; a catalog's list is its whole tab, so the line is
+/// centered in it.
 ///
 /// `idle` is the line before the first fetch. `action` is the control under
 /// the line before the first fetch and after a failed one, the click that
@@ -94,6 +97,14 @@ pub(crate) fn cloud_feed_list(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let id = feed.label();
+    let search = feed.is_search();
+    let empty = |text: SharedString| {
+        if search {
+            components::list_empty(id, text, theme)
+        } else {
+            components::empty_state(id, text, theme)
+        }
+    };
     match state.read(cx).feed(feed) {
         FeedState::Ready(cards) if !cards.is_empty() => crate::edge_fade::scroll_y(
             div()
@@ -112,27 +123,24 @@ pub(crate) fn cloud_feed_list(
                 ),
         )
         .into_any_element(),
-        FeedState::Loading => div()
-            .flex_1()
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(crate::pending::working(
-                theme,
-                &format!("cloud.feed.{id}"),
-                "Loading…",
-                cx,
-            ))
-            .into_any_element(),
-        FeedState::Idle => components::empty_state(id, idle, theme)
-            .children(action)
-            .into_any_element(),
-        FeedState::Failed(err) => components::empty_state(id, err, theme)
-            .children(action)
-            .into_any_element(),
-        FeedState::Ready(_) => {
-            components::empty_state(id, "Nothing found", theme).into_any_element()
+        FeedState::Loading => {
+            let working =
+                crate::pending::working(theme, &format!("cloud.feed.{id}"), "Loading…", cx);
+            if search {
+                div().child(working)
+            } else {
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(working)
+            }
+            .into_any_element()
         }
+        FeedState::Idle => empty(idle.into()).children(action).into_any_element(),
+        FeedState::Failed(err) => empty(err.into()).children(action).into_any_element(),
+        FeedState::Ready(_) => empty("Nothing found".into()).into_any_element(),
     }
 }
 
