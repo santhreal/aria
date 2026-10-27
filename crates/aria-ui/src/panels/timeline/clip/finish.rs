@@ -14,7 +14,7 @@ use super::bar::BarRows;
 use super::hit::{HitTarget, cursor_for, hit_test};
 use crate::app::clip_line::LinePress;
 use crate::panels::timeline::px_to_ticks;
-use crate::shell::Shell;
+use crate::shell::{Hold, Shell};
 use crate::surfaces::timeline_gesture::{self as gesture, Drag, Gesture, Span};
 use crate::types::{ContextTarget, EditorTool, RenameTarget, TrimSide};
 
@@ -23,7 +23,7 @@ mod drag;
 #[path = "finish_press.rs"]
 mod press;
 
-use drag::{on_left_up, on_move};
+use drag::{carry, hover, on_left_up};
 use press::on_left_down;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,6 +119,28 @@ pub(crate) fn attach_group_mouse_listeners(
                 tool,
                 cx,
             );
+            // The shell carries the gesture the press began, so a clip, a
+            // trim or a band follows the pointer off this lane group and the
+            // release lands wherever the button comes up.
+            if ACTIVE_GESTURE.get().is_some() {
+                let (bounds, lanes) = (bounds_down.clone(), lanes_down.clone());
+                this.hold(Hold::new(
+                    move |this, event, cx| {
+                        carry(
+                            this,
+                            event,
+                            bounds.get(),
+                            &lanes,
+                            fps,
+                            pps,
+                            scroll_x,
+                            tool,
+                            cx,
+                        );
+                    },
+                    move |this, event, cx| on_left_up(this, event, fps, pps, tool, cx),
+                ));
+            }
         }),
     )
     .on_mouse_down(
@@ -140,7 +162,7 @@ pub(crate) fn attach_group_mouse_listeners(
         }),
     )
     .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-        on_move(
+        hover(
             this,
             event,
             bounds_move.get(),
@@ -156,17 +178,16 @@ pub(crate) fn attach_group_mouse_listeners(
         MouseButton::Left,
         cx.listener(move |this, event: &MouseUpEvent, _, cx| {
             // A Parent pick whip dragged out of the inspector lands on the clip
-            // it is released over. A gesture this canvas started ends first.
+            // it is released over. A gesture this canvas began ends at the
+            // shell's release.
             if ACTIVE_GESTURE.get().is_none() {
                 let (local_x, local_y) = local_coords(event.position, bounds_up.get());
                 if let Some(HitTarget::ClipBody { clip_id, .. }) =
                     hit_test(&lanes_up, local_x, local_y, fps, pps, scroll_x)
-                    && land_parent_whip(this, clip_id, event.modifiers.shift, cx)
                 {
-                    return;
+                    land_parent_whip(this, clip_id, event.modifiers.shift, cx);
                 }
             }
-            on_left_up(this, event, fps, pps, tool, cx);
         }),
     )
 }

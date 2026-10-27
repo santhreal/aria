@@ -27,12 +27,10 @@ mod empty_timeline_tests;
 #[path = "offscreen_tests.rs"]
 mod offscreen_tests;
 
-use std::cell::Cell;
-
 use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, ScrollDelta, ScrollWheelEvent, Styled, div, px,
+    ParentElement, ScrollDelta, ScrollWheelEvent, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -44,10 +42,6 @@ use crate::types::ActivePanel;
 use lanes::lane_group;
 use overview::overview;
 use ruler::ruler;
-
-thread_local! {
-    static AV_DIVIDER_DRAG: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
-}
 
 /// Height of the timeline header: two 24 px rows over the outline column, and
 /// over the time area the ruler's ticks, the work area bar under them, and the
@@ -232,26 +226,6 @@ pub fn render(
         .on_scroll_wheel(cx.listener(move |this, event: &ScrollWheelEvent, _, cx| {
             handle_scroll(this, event, cx);
         }))
-        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-            let Some((origin_y, start_split)) = AV_DIVIDER_DRAG.get() else {
-                return;
-            };
-            if !event.dragging() {
-                AV_DIVIDER_DRAG.set(None);
-                return;
-            }
-            let dy = f32::from(event.position.y) - origin_y;
-            let next = start_split + dy / stack_h.max(80.0);
-            this.state
-                .update(cx, |state, _| state.set_timeline_av_split(next));
-            cx.notify();
-        }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|_, _: &MouseUpEvent, _, _| {
-                AV_DIVIDER_DRAG.set(None);
-            }),
-        )
         .on_mouse_down(
             MouseButton::Middle,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
@@ -293,7 +267,12 @@ pub fn render(
                             el.child(sides::empty_label(&theme, false))
                         }),
                 )
-                .child(av_divider(&theme, outline, !one_sided, cx))
+                .child(av_divider(
+                    &theme,
+                    outline,
+                    (!one_sided).then_some(stack_h),
+                    cx,
+                ))
                 .child(
                     sides::frame(audio_viewport_h)
                         .child(audio_group)
@@ -336,8 +315,6 @@ pub fn render(
         .child(overview(
             &theme,
             &store,
-            pps,
-            fps,
             scroll_x,
             visible_width,
             add_name,
@@ -387,23 +364,24 @@ fn outline_edge(outline: f32, cx: &mut gpui::Context<crate::shell::Shell>) -> im
         )
 }
 
-/// The bar between the video and audio sides. It drags the split while both
-/// sides have lanes; with one side empty there is no split and it is a rule.
-/// Its fill is its edge: the lane above ends in its own rule, and a second
-/// one here would double it.
+/// The bar between the video and audio sides. While both sides have lanes it
+/// drags the split of `stack_h`, the height the sides share; with one side
+/// empty there is no split and it is a rule. Its fill is its edge: the lane
+/// above ends in its own rule, and a second one here would double it.
 fn av_divider(
     theme: &Theme,
     outline: f32,
-    draggable: bool,
+    stack_h: Option<f32>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     div()
         .id("timeline-av-divider")
+        .debug_selector(|| "timeline-av-divider".into())
         .w_full()
         .h(px(AV_DIVIDER_H))
         .flex_none()
         .bg(theme.surface_raised)
-        .when(draggable, |el| el.cursor(CursorStyle::ResizeUpDown))
+        .when(stack_h.is_some(), |el| el.cursor(CursorStyle::ResizeUpDown))
         .flex()
         .items_center()
         // The bar is 6 px high, too short for a label; the rule marks the
@@ -415,13 +393,13 @@ fn av_divider(
                 .border_r_1()
                 .border_color(theme.border),
         )
-        .when(draggable, |el| {
+        .when_some(stack_h, |el, stack_h| {
             el.on_mouse_down(
                 MouseButton::Left,
-                cx.listener(|this, event: &MouseDownEvent, _, cx| {
+                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                     cx.stop_propagation();
                     let split = this.state.read(cx).timeline_av_split;
-                    AV_DIVIDER_DRAG.set(Some((f32::from(event.position.y), split)));
+                    this.start_av_split(f32::from(event.position.y), split, stack_h);
                 }),
             )
         })

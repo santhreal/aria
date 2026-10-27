@@ -5,8 +5,10 @@ use aria_core::count::counted;
 
 use super::*;
 
+/// The pointer over the canvas: the cursor and the edge modifiers its target
+/// asks for.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn on_move(
+pub(super) fn hover(
     this: &mut Shell,
     event: &MouseMoveEvent,
     bounds: Bounds<Pixels>,
@@ -31,19 +33,26 @@ pub(super) fn on_move(
     if HOVER_CURSOR.replace(cursor) != cursor {
         cx.notify();
     }
+}
+
+/// The pointer anywhere with the button held on a gesture this canvas began.
+/// `bounds`, `lanes` and the view are the canvas's as the press found them.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn carry(
+    this: &mut Shell,
+    event: &MouseMoveEvent,
+    bounds: Bounds<Pixels>,
+    lanes: &[VisibleLane],
+    fps: f32,
+    pps: f32,
+    scroll_x: f32,
+    tool: EditorTool,
+    cx: &mut Context<Shell>,
+) {
     let Some(active) = ACTIVE_GESTURE.get() else {
         return;
     };
-    if !event.dragging() {
-        ACTIVE_GESTURE.set(None);
-        // The button came up where this canvas did not see it.
-        if matches!(active, CanvasGesture::Line { .. }) {
-            this.state.update(cx, |state, _| state.release_clip_line());
-            cx.notify();
-        }
-        return;
-    }
-
+    let (local_x, local_y) = local_coords(event.position, bounds);
     match active {
         CanvasGesture::Clip {
             kind,

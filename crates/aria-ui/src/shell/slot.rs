@@ -92,6 +92,12 @@ impl Shell {
             drag.sample(f32::from(event.position.x));
         }
         let drag = *drag;
+        // A pan, a lane's border, the outline's border and the A/V divider
+        // move the timeline's drawing and nothing else's.
+        let timeline_only = matches!(
+            drag.kind,
+            DragKind::Pan | DragKind::Lane(_) | DragKind::Outline | DragKind::AvSplit { .. }
+        );
         match drag.kind {
             DragKind::Timeline { max } => {
                 let delta = f32::from(event.position.y) - drag.origin;
@@ -117,6 +123,14 @@ impl Shell {
                 let delta = f32::from(event.position.x) - drag.origin;
                 self.state.update(cx, |state, _| {
                     state.set_outline_width(drag.start + delta);
+                });
+            }
+            DragKind::AvSplit { stack_h } => {
+                let delta = f32::from(event.position.y) - drag.origin;
+                self.state.update(cx, |state, _| {
+                    // The video side is drawn `stack_h * split` tall, so a
+                    // move of the pointer moves the divider by as much.
+                    state.set_timeline_av_split(drag.start + delta / stack_h.max(1.0));
                 });
             }
             DragKind::DockSplit {
@@ -215,7 +229,11 @@ impl Shell {
                 }
             }
         }
-        cx.notify();
+        if timeline_only {
+            self.redraw(Moved::View, cx);
+        } else {
+            cx.notify();
+        }
     }
 
     pub(super) fn on_key(

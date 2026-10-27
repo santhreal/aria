@@ -6,10 +6,42 @@
 //! element it started on, a release anywhere writes it, and Escape puts back
 //! what the press found.
 
+use std::rc::Rc;
+
 use super::*;
 use crate::surfaces::ramp_gesture::{self, Gesture};
 
+type Carry = dyn Fn(&mut Shell, &MouseMoveEvent, &mut Context<Shell>);
+type Release = dyn Fn(&mut Shell, &MouseUpEvent, &mut Context<Shell>);
+
+/// A press on an element whose drag the shell carries: every move goes to
+/// `carry` wherever the pointer is, and the release goes to `release`
+/// wherever the button comes up. The element's own handlers see the pointer
+/// only while it is over the element.
+#[derive(Clone)]
+pub(crate) struct Hold {
+    carry: Rc<Carry>,
+    release: Rc<Release>,
+}
+
+impl Hold {
+    pub(crate) fn new(
+        carry: impl Fn(&mut Shell, &MouseMoveEvent, &mut Context<Shell>) + 'static,
+        release: impl Fn(&mut Shell, &MouseUpEvent, &mut Context<Shell>) + 'static,
+    ) -> Self {
+        Self {
+            carry: Rc::new(carry),
+            release: Rc::new(release),
+        }
+    }
+}
+
 impl Shell {
+    /// Carry the drag of a press on an element until the button comes up.
+    pub(crate) fn hold(&mut self, hold: Hold) {
+        self.hold = Some(hold);
+    }
+
     /// Carry the gesture the held button makes to the pointer of `event`.
     /// A move with the button up is a release the window did not receive,
     /// and ends the gesture. `true` when a gesture took the move.
@@ -20,6 +52,23 @@ impl Shell {
         cx: &mut Context<Self>,
     ) -> bool {
         let held = event.pressed_button == Some(MouseButton::Left);
+        // A press held for an element: its drag, or its release when the
+        // button came up where no window saw it.
+        if let Some(hold) = self.hold.clone() {
+            if held {
+                (hold.carry)(self, event, cx);
+            } else {
+                self.hold = None;
+                let up = MouseUpEvent {
+                    button: MouseButton::Left,
+                    position: event.position,
+                    modifiers: event.modifiers,
+                    click_count: 1,
+                };
+                (hold.release)(self, &up, cx);
+            }
+            return true;
+        }
         // A press on the Viewer's playhead field or mini ruler is held on the
         // state, so the drag keeps going off the field or the strip.
         if self.state.read(cx).viewer_scrub.press().is_some() {
@@ -57,6 +106,20 @@ impl Shell {
             };
             if moved {
                 cx.notify();
+            }
+            return true;
+        }
+        // A press on the zoom scroll bar, likewise: a scroll or a zoom keeps
+        // going after the pointer leaves the bar.
+        if self.state.read(cx).zoom_bar_held() {
+            let x = f32::from(event.position.x);
+            let moved = if held {
+                self.state.update(cx, |state, _| state.drag_zoom_bar(x))
+            } else {
+                self.state.update(cx, |state, _| state.release_zoom_bar())
+            };
+            if moved {
+                self.redraw(Moved::View, cx);
             }
             return true;
         }
@@ -186,6 +249,9 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let Some(hold) = self.hold.take() {
+            (hold.release)(self, event, cx);
+        }
         // Letting go of a value readout closes its undo step or opens it as
         // text, and gives the pointer back; the picture already shows the
         // value.
@@ -202,6 +268,10 @@ impl Shell {
         }
         // Letting go of the work area bar ends its move.
         if self.state.update(cx, |state, _| state.release_work_area()) {
+            cx.notify();
+        }
+        // Letting go of the zoom scroll bar ends its scroll or zoom.
+        if self.state.update(cx, |state, _| state.release_zoom_bar()) {
             cx.notify();
         }
         if self
@@ -260,6 +330,15 @@ impl Shell {
             .state
             .update(cx, |state, _| state.cancel_work_area_drag())
         {
+            return true;
+        }
+        // The zoom and the scroll go back where the press on the zoom scroll
+        // bar found them.
+        if self
+            .state
+            .update(cx, |state, _| state.cancel_zoom_bar_drag())
+        {
+            self.redraw(Moved::View, cx);
             return true;
         }
         // The tab in front goes back on the frame a press on a playhead field
@@ -331,6 +410,9 @@ impl Shell {
             }
             DragKind::Outline => {
                 state.set_outline_width(drag.start);
+            }
+            DragKind::AvSplit { .. } => {
+                state.set_timeline_av_split(drag.start);
             }
             DragKind::DockSplit {
                 path,

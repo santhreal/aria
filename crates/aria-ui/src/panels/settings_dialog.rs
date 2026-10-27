@@ -34,7 +34,7 @@ use crate::app::settings_form::SettingsField;
 use crate::app::{AppState, DialogKind};
 use crate::appearance::{self, AppearanceMode};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
-use crate::components::{self, ChipSize};
+use crate::components;
 use crate::theme::Theme;
 
 use widgets::{chip_row, group_divider, kv, section};

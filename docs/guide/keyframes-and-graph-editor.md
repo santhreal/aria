@@ -163,8 +163,14 @@ and otherwise the clip's first open row. The rows of the drawn properties are
 highlighted.
 
 - **Value** plots the property's value; **Speed** plots its rate of change.
+- Drag a keyframe to change its value and time. The drag follows the pointer
+  past the graph's edges, and a release above or below the graph writes the
+  top or bottom value of the graph.
 - Each keyframe has incoming and outgoing influence handles labeled with their
   influence. Dragging a handle sets the ease speed and influence of that side.
+  A press on a keyframe's icon takes the keyframe even where its handles lie
+  under it, as a linear keyframe's do; a press past the icon, within 8 pixels,
+  pulls out the nearest handle.
 - On Position, the Value graph also draws the spatial tangent handles that bend
   the motion path.
 - **Easy Ease** and **Hold** apply to the selected keyframes, or to the keyframe

@@ -243,6 +243,7 @@ impl AppState {
             mark_in: None,
             mark_out: None,
             work_area_press: None,
+            zoom_bar_press: None,
             export_options: Default::default(),
             codec_probe_pending: false,
             speed_duration: Default::default(),

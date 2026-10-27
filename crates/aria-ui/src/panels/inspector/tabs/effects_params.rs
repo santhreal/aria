@@ -11,7 +11,7 @@ use aria_models::{
 };
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div, px,
+    SharedString, Styled, div,
 };
 
 use crate::app::AppState;

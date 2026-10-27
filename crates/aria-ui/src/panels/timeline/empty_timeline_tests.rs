@@ -408,7 +408,7 @@ fn linked_video_and_audio_clips_trim_slip_speed_and_ripple_in_sync_with_single_u
 }
 
 #[test]
-fn zoom_around_playhead_and_zoom_bar_handles_update_zoom_and_scroll() {
+fn zoom_around_playhead_keeps_the_playhead_on_its_pixel() {
     let mut state = empty_state("timeline-zoom-bar");
     let media = state.import_media(fixture()).expect("import");
     state
@@ -429,18 +429,6 @@ fn zoom_around_playhead_and_zoom_bar_handles_update_zoom_and_scroll() {
         (after_screen_x - before_screen_x).abs() < 0.5,
         "zoom_around_playhead keeps the playhead at the same screen pixel"
     );
-
-    // Dragging the right zoom handle to 0.25 narrows the visible fraction (zooms in).
-    let zoom_before = state.zoom;
-    state.zoom_bar_drag_handle(false, -0.2);
-    assert!(
-        state.zoom > zoom_before,
-        "dragging the right zoom bar handle inward zooms in"
-    );
-
-    // Panning via zoom_bar_pan moves scroll_x proportionally.
-    state.zoom_bar_pan(0.5);
-    assert!(state.scroll_x > 0.0);
 }
 
 #[test]

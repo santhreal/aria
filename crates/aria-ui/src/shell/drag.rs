@@ -25,6 +25,12 @@ pub(super) enum DragKind {
     /// Resizing the timeline's outline column by its right border. `start` is
     /// the width when the pointer went down.
     Outline,
+    /// Moving the divider between the timeline's video and audio sides.
+    /// `start` is the split when the pointer went down, and `stack_h` the
+    /// height the two sides share.
+    AvSplit {
+        stack_h: f32,
+    },
     /// Resizing an arbitrary split in `dock_tree`.
     DockSplit {
         path: [usize; 4],

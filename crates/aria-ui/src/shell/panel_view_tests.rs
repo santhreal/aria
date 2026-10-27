@@ -312,7 +312,8 @@ pub(super) fn make(
             match change {
                 Change::View => {
                     shell.state.update(cx, |state, _| {
-                        state.zoom_bar_pan(if step.is_multiple_of(2) { 0.02 } else { -0.01 });
+                        let by = if step.is_multiple_of(2) { 24.0 } else { -12.0 };
+                        state.scroll_timeline_to(state.scroll_x + by, false);
                         state.video_scroll_y = (step % 3) as f32 * 8.0;
                     });
                     shell.redraw(Moved::View, cx);

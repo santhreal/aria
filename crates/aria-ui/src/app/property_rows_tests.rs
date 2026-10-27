@@ -1,9 +1,10 @@
 //! Contract tests for timeline property rows, reveal chords, keyframe gestures,
 //! temporal ease / roving commands, and the timeline graph editor.
 
+use aria_commands::{Command, EditCommand};
 use aria_models::{
     ClipParam, EASY_EASE_INFLUENCE, Easing, MIN_TEMPORAL_INFLUENCE, ParamValue, RationalTime,
-    SpatialTangents,
+    SpatialTangents, TemporalEase,
 };
 
 use super::{GraphMode, KeyframeIconShape, PropertyGroup, RevealAction, TimelineOutlineRow};
@@ -377,8 +378,26 @@ fn timeline_graph_editor_builds_value_and_speed_graphs_and_drags_handles() {
     assert_eq!(curve.influence_handles.len(), 2);
     assert_eq!(curve.spatial_handles.len(), 4);
 
-    // Drag the outgoing influence handle of key 0 to minimum influence and commit.
-    let h0 = curve.influence_handles[0];
+    // Pull key 0's outgoing handle out of the key, then drag it back to
+    // minimum influence and commit.
+    state
+        .apply_command(Command::Edit(EditCommand::SetKeyframeEase {
+            clip,
+            param: ClipParam::Position,
+            at: RationalTime::new(0, rate),
+            in_ease: None,
+            out_ease: Some(TemporalEase::EASY_EASE),
+            hold: false,
+        }))
+        .expect("ease k0");
+    let h0 = state
+        .build_timeline_graph_model(24.0, 120.0, 0.0, 160.0)
+        .curves[0]
+        .influence_handles[0];
+    assert!(
+        (h0.influence - EASY_EASE_INFLUENCE).abs() < 1e-4,
+        "the pulled handle: {h0:?}"
+    );
     assert!(state.begin_timeline_graph_drag(h0.handle_x, h0.handle_y, 24.0, 120.0, 0.0, 160.0,));
     assert!(state.update_timeline_graph_drag(
         h0.anchor_x + 0.01,
@@ -401,4 +420,111 @@ fn timeline_graph_editor_builds_value_and_speed_graphs_and_drags_handles() {
     let speed_model = state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
     assert_eq!(speed_model.mode, GraphMode::Speed);
     assert!(!speed_model.curves[0].samples.is_empty());
+}
+
+/// A press in the graph editor takes what is drawn on top under it. A key
+/// paints over its influence handles, so a press on a key's icon moves the
+/// key even where its handles collapse under it, as a linear key's do. A
+/// press past the icon takes the nearest key or handle in reach, which pulls a
+/// collapsed handle out of its key. The class closed: a press on a linear key
+/// taking a handle drawn under it, so the key could not be moved on the graph.
+/// Not covered: spatial tangent handles, which sit within a pixel of their key.
+#[test]
+fn a_graph_press_takes_the_key_on_its_icon_and_the_nearest_handle_past_it() {
+    let (mut state, clip) = with_clip();
+    let rate = state.store.sequence.frame_rate;
+    for (tick, value) in [(0, 0.2), (20, 0.8)] {
+        state
+            .apply_command(Command::Edit(EditCommand::SetParamKeyframe {
+                clip,
+                param: ClipParam::Opacity,
+                at: RationalTime::new(tick, rate),
+                value: ParamValue::Scalar(value),
+                easing: Easing::Linear,
+                tangents: None,
+            }))
+            .expect("the key is set");
+    }
+    state.toggle_timeline_graph_editor();
+    state.select_timeline_property(clip, ClipParam::Opacity, false);
+    let graph = |state: &AppState| state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
+    let keys = |state: &AppState| {
+        state
+            .engine()
+            .lock()
+            .project()
+            .clip(clip)
+            .expect("the clip is in the project")
+            .transform
+            .opacity
+            .keyframes()
+            .iter()
+            .map(|key| (key.tick, key.value))
+            .collect::<Vec<_>>()
+    };
+    let out_influence = |state: &AppState| {
+        state
+            .keyframe_easing_at(ClipParam::Opacity, 0)
+            .and_then(Easing::out_ease)
+            .map(|ease| ease.influence)
+    };
+    let drag = |state: &mut AppState, from: (f32, f32), to: (f32, f32)| {
+        assert!(
+            state.begin_timeline_graph_drag(from.0, from.1, 24.0, 120.0, 0.0, 160.0),
+            "a press at {from:?} lands on the graph"
+        );
+        state.update_timeline_graph_drag(to.0, to.1, 24.0, 120.0, 0.0, 160.0);
+        state
+            .commit_timeline_graph_drag()
+            .expect("the drag commits");
+    };
+
+    let model = graph(&state);
+    let key = model.curves[0].keys[0];
+    let handle = model.curves[0].influence_handles[0];
+    let key_d = 1.0f32;
+    let handle_d = (key.x + key_d - handle.handle_x).hypot(key.y - handle.handle_y);
+    assert!(
+        handle_d < key_d,
+        "the outgoing handle collapses under the linear key, nearer the press than the key: {handle:?}"
+    );
+
+    // On the key's icon: the key moves up, its ease stays.
+    let before = keys(&state);
+    let ease = out_influence(&state);
+    drag(
+        &mut state,
+        (key.x + key_d, key.y),
+        (key.x + key_d, key.y - 30.0),
+    );
+    let moved = keys(&state);
+    assert_eq!(moved[0].0, before[0].0, "a press on the key keeps its tick");
+    assert!(
+        moved[0].1 > before[0].1 + 0.05,
+        "a press on the key's icon moves the key: {before:?} -> {moved:?}"
+    );
+    assert_eq!(moved[1], before[1], "the other key");
+    assert_eq!(out_influence(&state), ease, "the key's ease");
+
+    // Past the icon, nearer the collapsed handle than the key: the handle
+    // pulls out to half the segment, and the keys stay.
+    let model = graph(&state);
+    let key = model.curves[0].keys[0];
+    let handle = model.curves[0].influence_handles[0];
+    let past = 7.0f32;
+    assert!(
+        (key.x + past - handle.handle_x).hypot(key.y - handle.handle_y) < past,
+        "the handle is nearer the press than the key: {handle:?}"
+    );
+    drag(
+        &mut state,
+        (key.x + past, key.y),
+        (key.x + handle.segment_px_w * 0.5, key.y),
+    );
+    let influence = out_influence(&state).expect("the pulled handle sets an outgoing ease");
+    assert!(
+        (influence - 0.5).abs() < 1e-3,
+        "the handle pulled to half the segment: {influence}"
+    );
+    assert_eq!(keys(&state), moved, "pulling a handle moves no key");
 }

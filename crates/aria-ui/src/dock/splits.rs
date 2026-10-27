@@ -3,7 +3,7 @@
 use super::nodes::{
     find_split_weights_by_signature, first_frame_id, node_at_path, node_at_path_mut, node_has_frame,
 };
-use super::{Axis, DOCK_GUTTER, DockTree, FrameId, MIN_WEIGHT, Node};
+use super::{DOCK_GUTTER, DockTree, FrameId, MIN_WEIGHT, Node};
 
 impl DockTree {
     /// The length of the dock area along an axis of a window `window` px long:
@@ -82,7 +82,7 @@ impl DockTree {
     /// `saved` (the workspace's saved [`DockTree`]).
     ///
     /// Looks up `split_path` in `saved` first; if the tree topology shifted,
-    /// matches a split on the same [`Axis`] in `saved` whose children share the
+    /// matches a split on the same [`Axis`](super::Axis) in `saved` whose children share the
     /// same leading [`FrameId`]s. Falls back to equal weights (`1.0 / len`) only
     /// when `saved` has no matching split (such as an ad-hoc split created by
     /// dragging a tab to a drop zone).
@@ -107,7 +107,7 @@ impl DockTree {
     }
 
     /// Give every split the weights of the split in `shipped` that
-    /// [`Self::restore_split_from`] matches it with: one on the same [`Axis`]
+    /// [`Self::restore_split_from`] matches it with: one on the same [`Axis`](super::Axis)
     /// whose children start with the same [`FrameId`]s. A split `shipped` has
     /// no match for keeps its weights.
     pub fn adopt_weights(&mut self, shipped: &DockTree) {

@@ -5,12 +5,12 @@
 - Space plays and pauses.
 - Ctrl+K splits the selected clip at the playhead; Ctrl+Shift+K splits every
   track.
-- Drag a clip to move it. Drag a clip edge to trim. Nearby clips magnet
-  at 8 px. The magnet also takes the playhead, the sequence start and end, the
-  In and Out points, markers, and detected beats. While a drag is in flight the
-  guide line states what it locked onto. Hold Alt to suspend the magnet for
-  that one drag; the Timeline
-  header's magnet stays on.
+- Drag a clip to move it. Drag a clip edge to trim. A move or trim follows the
+  pointer when it leaves the lanes and lands where the button comes up. Nearby
+  clips magnet at 8 px. The magnet also takes the playhead, the sequence start
+  and end, the In and Out points, markers, and detected beats. While a drag is
+  in flight the guide line states what it locked onto. Hold Alt to suspend the
+  magnet for that one drag; the Timeline header's magnet stays on.
 - Drag on empty timeline space to rubber-band: every unlocked clip the band
   touches is selected, in either direction, across every lane between the two
   corners. A press with no drag clears the selection. Esc abandons the band and
@@ -151,8 +151,9 @@ The ruler to the right labels its ticks in the sequence's time display. The
 spacing follows the zoom: labels sit as close as their width allows and never
 overlap, on whole frames that divide a second, whole seconds, minutes, or hours
 for timecode, and on round counts for frames or feet. Click or drag in the ruler
-to move the playhead; it stays under the pointer with no easing, and stops at
-the end of the sequence when the pointer passes it.
+to move the playhead; it stays under the pointer with no easing, follows the
+pointer when it leaves the ruler, and stops at the end of the sequence when the
+pointer passes it.
 
 Under the ticks, the work area bar spans `In` to `Out`. It draws in the accent
 color when either point is set and faint when the work area is the whole
@@ -162,10 +163,13 @@ stops one frame short of the other, and the bar stops at the sequence ends. Esc
 during the drag puts both points back. The render bar runs along the bottom of
 the ruler (see [Render files](viewer.md#render-files)).
 
-The zoom bar along the bottom of the timeline maps the whole sequence. Drag the
-window to scroll, drag either of its handles to zoom, and click outside the
-window to center the view there. At its left, **+** adds a video track and the
-zoom readout fits the sequence on a click.
+The zoom bar along the bottom of the timeline maps the whole sequence, and past
+its end the view when the view reaches further. Drag the window to scroll; the
+point you pressed stays under the pointer. Drag either handle to zoom with the
+other end held in place. Click outside the window to center the view there and
+keep dragging from there. A drag continues when the pointer leaves the bar, and
+Esc during the drag puts the zoom and the scroll back. At its left, **+** adds a
+video track and the zoom readout fits the sequence on a click.
 
 
 ## Waveforms

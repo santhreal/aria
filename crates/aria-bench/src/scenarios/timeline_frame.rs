@@ -31,18 +31,30 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     // Each step below changes what the matching pointer listener changes and
     // redraws the way that listener does: `Shell::redraw` with what moved.
 
-    // 1. Scroll 30 frames across horizontal and vertical lanes on project-10k.
+    // 1. Scroll 30 frames across horizontal and vertical lanes on project-10k:
+    // the zoom scroll bar's thumb, held at its middle, dragged 2.5 % of the
+    // strip each frame.
     let mut scroll_samples = Vec::with_capacity(30);
+    let mut grab = None;
     for step in 0..30usize {
         scroll_samples.push(timed_frame(&app, &mut window, |shell, _, cx| {
             shell.state.update(cx, |s, _| {
-                s.zoom_bar_pan(0.025);
+                let left = s.timeline_content_left().unwrap_or(0.0);
+                let at = *grab.get_or_insert_with(|| {
+                    let ((x, w), _) = s.zoom_bar_thumb(s.scroll_x, s.zoom);
+                    let at = left + x + w / 2.0;
+                    s.press_zoom_bar(at);
+                    at
+                });
+                let travel = (step + 1) as f32 * 0.025 * s.timeline_viewport_px();
+                s.drag_zoom_bar(at + travel);
                 s.video_scroll_y = ((step % 15) as f32) * 24.0;
                 s.audio_scroll_y = ((step % 15) as f32) * 24.0;
             });
             shell.redraw(Moved::View, cx);
         }));
     }
+    let _ = app.update(|cx| state.update(cx, |s, _| s.release_zoom_bar()));
 
     // 2. Zoom 30 frames on project-10k: ctrl+wheel notches under a pointer a
     // third of the way into the lanes.

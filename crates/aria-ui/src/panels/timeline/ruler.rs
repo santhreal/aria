@@ -2,14 +2,12 @@
 //! area bar under it, the render bar along the bottom, the playhead's head
 //! (`crate::timeline_playhead`), and the snap guide across all three.
 
-use std::cell::Cell;
-
 use gpui::motion::presets;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     Bounds, CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled,
-    TextAlign, TextRun, canvas, div, fill, point, px, size,
+    ParentElement, SharedString, StatefulInteractiveElement, Styled, TextAlign, TextRun, canvas,
+    div, fill, point, px, size,
 };
 
 use aria_models::{Rational, TimeDisplay};
@@ -35,13 +33,6 @@ const WORK_AREA_H: f32 = 8.0;
 const WORK_AREA_GRIP_W: f32 = 4.0;
 /// How deep the ruler fades at an edge with content past it.
 pub(super) const RULER_FADE: f32 = Theme::SPACE_LG;
-
-thread_local! {
-    /// Whether the left button went down on the ruler. Only that press
-    /// scrubs: a drag that started on the work area bar, a marker, or a clip
-    /// and crosses the ruler leaves the playhead where it is.
-    static RULER_SCRUB: Cell<bool> = const { Cell::new(false) };
-}
 
 /// The magnet's confirmation, as a 0..1 breath.
 pub(super) fn snap_glow(cx: &mut gpui::Context<crate::shell::Shell>) -> f32 {
@@ -144,46 +135,38 @@ fn ruler_body(
         .h_full()
         .relative()
         .overflow_hidden()
+        // Only a press on the ruler scrubs: a drag that began on the work
+        // area bar, a marker, or a clip and crosses the ruler leaves the
+        // playhead where it is. The shell carries the scrub past the ruler.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                let Some(left) = this.state.read(cx).timeline_content_left() else {
-                    return;
-                };
-                RULER_SCRUB.set(true);
-                let ticks = super::pointer_ticks(event.position.x, left, scroll_x, fps, pps);
-                this.state
-                    .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
-                crate::app::spawn_preview(this.state.clone(), cx);
-                this.redraw(crate::shell::Moved::Playhead, cx);
+                // The playhead to the frame under window `x`; a move that
+                // stays on the playhead's frame scrubs nothing.
+                let scrub =
+                    move |this: &mut crate::shell::Shell,
+                          x: gpui::Pixels,
+                          moved: bool,
+                          cx: &mut gpui::Context<crate::shell::Shell>| {
+                        let Some(left) = this.state.read(cx).timeline_content_left() else {
+                            return;
+                        };
+                        let ticks = super::pointer_ticks(x, left, scroll_x, fps, pps);
+                        if moved && this.state.read(cx).playhead.value == ticks {
+                            return;
+                        }
+                        this.state
+                            .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
+                        crate::app::spawn_preview(this.state.clone(), cx);
+                        this.redraw(crate::shell::Moved::Playhead, cx);
+                    };
+                scrub(this, event.position.x, false, cx);
+                this.hold(crate::shell::Hold::new(
+                    move |this, event, cx| scrub(this, event.position.x, true, cx),
+                    |_, _, _| {},
+                ));
             }),
         )
-        .on_mouse_up(MouseButton::Left, |_: &MouseUpEvent, _, _| {
-            RULER_SCRUB.set(false);
-        })
-        .on_mouse_up_out(MouseButton::Left, |_: &MouseUpEvent, _, _| {
-            RULER_SCRUB.set(false);
-        })
-        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-            if event.pressed_button != Some(MouseButton::Left) {
-                RULER_SCRUB.set(false);
-                return;
-            }
-            if !RULER_SCRUB.get() {
-                return;
-            }
-            let Some(left) = this.state.read(cx).timeline_content_left() else {
-                return;
-            };
-            let ticks = super::pointer_ticks(event.position.x, left, scroll_x, fps, pps);
-            if this.state.read(cx).playhead.value == ticks {
-                return;
-            }
-            this.state
-                .update(cx, |state, _| state.scrub_playhead_to_pointer(ticks));
-            crate::app::spawn_preview(this.state.clone(), cx);
-            this.redraw(crate::shell::Moved::Playhead, cx);
-        }))
         .child(ruler_ticks(theme, time, pps / fps.max(1.0), scroll_x))
         .children({
             let (visible, beats) = {

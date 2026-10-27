@@ -293,6 +293,8 @@ pub mod viewer_tabs;
 pub mod work_area;
 #[path = "app/zoom.rs"]
 mod zoom;
+#[path = "app/zoom_bar.rs"]
+pub mod zoom_bar;
 
 pub use edits::{MarkerEditField, MarkerEditForm};
 pub(crate) use error_copy::{describe_engine_error, describe_export_refusal};
@@ -672,6 +674,9 @@ mod badge_menu_tests;
 #[cfg(test)]
 #[path = "app/effect_header_tests.rs"]
 mod effect_header_tests;
+#[cfg(test)]
+#[path = "app/held_drag_tests.rs"]
+mod held_drag_tests;
 #[cfg(test)]
 #[path = "app/key_strip_tests.rs"]
 mod key_strip_tests;

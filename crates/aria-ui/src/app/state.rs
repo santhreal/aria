@@ -314,6 +314,8 @@ pub struct AppState {
     pub mark_out: Option<i64>,
     /// A press on the timeline's work area bar, until it is released.
     pub(crate) work_area_press: Option<crate::app::work_area::WorkAreaPress>,
+    /// A press on the timeline's zoom scroll bar, until it is released.
+    pub(crate) zoom_bar_press: Option<crate::app::zoom_bar::ZoomBarPress>,
     /// The export sheet's own choices: resolution, rate, keyframes, audio, and
     /// whether to render only the marked range. Not part of the project.
     pub export_options: crate::app::export_options::ExportOptions,

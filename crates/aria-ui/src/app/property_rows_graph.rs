@@ -13,6 +13,7 @@ use super::{KeyframeIconShape, SelectedKeyframe};
 use crate::app::AppState;
 use crate::app::clip_keys::key_params_of;
 use crate::app::curve_geometry::{CurveBounds, build_curve_polyline, sample_param_scalar};
+use crate::app::key_strip::KEY_HIT_PX;
 
 /// Which graph the timeline graph editor draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -506,8 +507,9 @@ impl AppState {
         }
     }
 
-    /// Start dragging an influence handle, spatial tangent handle, or keyframe
-    /// node inside the timeline graph editor.
+    /// Start dragging the influence handle, spatial tangent handle, or
+    /// keyframe node that a press at `(local_x, local_y)` lands on, as
+    /// [`graph_hit`] picks it.
     pub fn begin_timeline_graph_drag(
         &mut self,
         local_x: f32,
@@ -518,111 +520,97 @@ impl AppState {
         height: f32,
     ) -> bool {
         let model = self.build_timeline_graph_model(fps, pps, scroll_x, height);
-        let hit_r2 = 64.0f32;
-
-        for curve in &model.curves {
-            for h in &curve.influence_handles {
-                let dx = local_x - h.handle_x;
-                let dy = local_y - h.handle_y;
-                if dx * dx + dy * dy <= hit_r2 {
-                    let Some((clip_model, audio_lane)) = self.clip_and_lane_kind(h.clip) else {
-                        continue;
-                    };
-                    let local_t = clip_model.param_tick(h.tick);
-                    let rows = key_params_of(&clip_model, audio_lane);
-                    let row = rows.iter().find(|r| r.param() == h.param);
-                    let easing = row
-                        .and_then(|r| r.spec.easing_at(&clip_model, local_t))
-                        .unwrap_or(Easing::Linear);
-                    let (in_ease, out_ease) = row
-                        .and_then(|r| r.spec.temporal_ease_at(&clip_model, local_t))
-                        .unwrap_or((TemporalEase::EASY_EASE, TemporalEase::EASY_EASE));
-                    self.with_prop_rows_mut(|s| {
-                        s.graph_drag = Some(GraphDragTarget::Influence {
-                            clip: h.clip,
-                            param: h.param,
-                            tick: h.tick,
-                            side: h.side,
-                            anchor_x: h.anchor_x,
-                            anchor_y: h.anchor_y,
-                            segment_px_w: h.segment_px_w,
-                            in_ease,
-                            out_ease,
-                            hold: easing.is_hold(),
-                            min_y: model.min_y,
-                            max_y: model.max_y,
-                            height,
-                        });
+        match graph_hit(&model, local_x, local_y) {
+            None => false,
+            Some(GraphHit::Influence(h)) => {
+                let Some((clip_model, audio_lane)) = self.clip_and_lane_kind(h.clip) else {
+                    return false;
+                };
+                let local_t = clip_model.param_tick(h.tick);
+                let rows = key_params_of(&clip_model, audio_lane);
+                let row = rows.iter().find(|r| r.param() == h.param);
+                let easing = row
+                    .and_then(|r| r.spec.easing_at(&clip_model, local_t))
+                    .unwrap_or(Easing::Linear);
+                let (in_ease, out_ease) = row
+                    .and_then(|r| r.spec.temporal_ease_at(&clip_model, local_t))
+                    .unwrap_or((TemporalEase::EASY_EASE, TemporalEase::EASY_EASE));
+                self.with_prop_rows_mut(|s| {
+                    s.graph_drag = Some(GraphDragTarget::Influence {
+                        clip: h.clip,
+                        param: h.param,
+                        tick: h.tick,
+                        side: h.side,
+                        anchor_x: h.anchor_x,
+                        anchor_y: h.anchor_y,
+                        segment_px_w: h.segment_px_w,
+                        in_ease,
+                        out_ease,
+                        hold: easing.is_hold(),
+                        min_y: model.min_y,
+                        max_y: model.max_y,
+                        height,
                     });
-                    return true;
-                }
+                });
+                true
             }
-            for sh in &curve.spatial_handles {
-                let dx = local_x - sh.handle_x;
-                let dy = local_y - sh.handle_y;
-                if dx * dx + dy * dy <= hit_r2 {
-                    let Some((clip_model, _)) = self.clip_and_lane_kind(sh.clip) else {
-                        continue;
-                    };
-                    let local_t = clip_model.param_tick(sh.tick);
-                    let pt = clip_model.transform.position.sample(local_t);
-                    let easing = clip_model
-                        .transform
-                        .position
-                        .easing_at(local_t)
-                        .unwrap_or(Easing::Linear);
-                    let origin_tangents = clip_model
-                        .transform
-                        .position
-                        .tangents_at(local_t)
-                        .unwrap_or(SpatialTangents::ZERO);
-                    self.with_prop_rows_mut(|s| {
-                        s.graph_drag = Some(GraphDragTarget::SpatialTangent {
-                            clip: sh.clip,
-                            tick: sh.tick,
-                            side: sh.side,
-                            origin_x: local_x,
-                            origin_y: local_y,
-                            origin_tangents,
-                            current_tangents: origin_tangents,
-                            value: ParamValue::Vec2(pt),
-                            easing,
-                        });
+            Some(GraphHit::Spatial(sh)) => {
+                let Some((clip_model, _)) = self.clip_and_lane_kind(sh.clip) else {
+                    return false;
+                };
+                let local_t = clip_model.param_tick(sh.tick);
+                let pt = clip_model.transform.position.sample(local_t);
+                let easing = clip_model
+                    .transform
+                    .position
+                    .easing_at(local_t)
+                    .unwrap_or(Easing::Linear);
+                let origin_tangents = clip_model
+                    .transform
+                    .position
+                    .tangents_at(local_t)
+                    .unwrap_or(SpatialTangents::ZERO);
+                self.with_prop_rows_mut(|s| {
+                    s.graph_drag = Some(GraphDragTarget::SpatialTangent {
+                        clip: sh.clip,
+                        tick: sh.tick,
+                        side: sh.side,
+                        origin_x: local_x,
+                        origin_y: local_y,
+                        origin_tangents,
+                        current_tangents: origin_tangents,
+                        value: ParamValue::Vec2(pt),
+                        easing,
                     });
-                    return true;
-                }
+                });
+                true
             }
-            for node in &curve.keys {
-                let dx = local_x - node.x;
-                let dy = local_y - node.y;
-                if dx * dx + dy * dy <= hit_r2 {
-                    self.select_timeline_keyframe(node.clip, node.param, node.tick, false);
-                    let easing = self
-                        .clip_and_lane_kind(node.clip)
-                        .and_then(|(c, a)| {
-                            let local = c.param_tick(node.tick);
-                            key_params_of(&c, a)
-                                .iter()
-                                .find(|r| r.param() == node.param)
-                                .and_then(|r| r.spec.easing_at(&c, local))
-                        })
-                        .unwrap_or(Easing::Linear);
-                    self.with_prop_rows_mut(|s| {
-                        s.graph_drag = Some(GraphDragTarget::Keyframe {
-                            clip: node.clip,
-                            param: node.param,
-                            origin_tick: node.tick,
-                            origin_value: node.value,
-                            current_tick: node.tick,
-                            current_value: node.value,
-                            easing,
-                        });
+            Some(GraphHit::Key(node)) => {
+                self.select_timeline_keyframe(node.clip, node.param, node.tick, false);
+                let easing = self
+                    .clip_and_lane_kind(node.clip)
+                    .and_then(|(c, a)| {
+                        let local = c.param_tick(node.tick);
+                        key_params_of(&c, a)
+                            .iter()
+                            .find(|r| r.param() == node.param)
+                            .and_then(|r| r.spec.easing_at(&c, local))
+                    })
+                    .unwrap_or(Easing::Linear);
+                self.with_prop_rows_mut(|s| {
+                    s.graph_drag = Some(GraphDragTarget::Keyframe {
+                        clip: node.clip,
+                        param: node.param,
+                        origin_tick: node.tick,
+                        origin_value: node.value,
+                        current_tick: node.tick,
+                        current_value: node.value,
+                        easing,
                     });
-                    return true;
-                }
+                });
+                true
             }
         }
-        false
     }
 
     /// Update an in-flight timeline graph editor drag.
@@ -820,6 +808,50 @@ impl AppState {
         }
         Ok(())
     }
+}
+
+/// Reach, in pixels, of a press on a graph editor key or handle.
+const GRAPH_HIT_PX: f32 = 8.0;
+
+/// The key or handle a press in the graph editor lands on.
+#[derive(Debug, Clone, Copy)]
+enum GraphHit {
+    Key(GraphKeyNode),
+    Influence(GraphInfluenceHandle),
+    Spatial(GraphSpatialHandle),
+}
+
+/// The key or handle a press at `(x, y)` lands on. A key paints over its
+/// handles, so a press within [`KEY_HIT_PX`] of a key takes the key even when
+/// a collapsed handle lies under it. Elsewhere the nearest key or handle
+/// within [`GRAPH_HIT_PX`] wins, keys first on a tie.
+fn graph_hit(model: &TimelineGraphModel, x: f32, y: f32) -> Option<GraphHit> {
+    let d2 = |hx: f32, hy: f32| (x - hx).powi(2) + (y - hy).powi(2);
+    let keys = model
+        .curves
+        .iter()
+        .flat_map(|c| &c.keys)
+        .map(|k| (d2(k.x, k.y), GraphHit::Key(*k)));
+    let influence = model
+        .curves
+        .iter()
+        .flat_map(|c| &c.influence_handles)
+        .map(|h| (d2(h.handle_x, h.handle_y), GraphHit::Influence(*h)));
+    let spatial = model
+        .curves
+        .iter()
+        .flat_map(|c| &c.spatial_handles)
+        .map(|h| (d2(h.handle_x, h.handle_y), GraphHit::Spatial(*h)));
+    nearest(keys.clone(), KEY_HIT_PX)
+        .or_else(|| nearest(keys.chain(influence).chain(spatial), GRAPH_HIT_PX))
+}
+
+/// The first of the nearest `hits` within `reach` pixels, given each hit's
+/// squared distance.
+fn nearest(hits: impl Iterator<Item = (f32, GraphHit)>, reach: f32) -> Option<GraphHit> {
+    hits.filter(|(d2, _)| *d2 <= reach * reach)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, hit)| hit)
 }
 
 fn sample_speed_at(

@@ -145,52 +145,6 @@ impl AppState {
         }
     }
 
-    /// Pan the timeline via the zoom scroll bar thumb by `delta_fraction` of
-    /// the sequence's navigable pixel span.
-    pub fn zoom_bar_pan(&mut self, delta_fraction: f32) {
-        let fps = self.store.sequence.ticks_per_second();
-        let pps = transport::TIMELINE_BASE_PPS * self.zoom;
-        let total_ticks = self.store.sequence.duration_ticks.max((fps * 10.0) as i64);
-        let view_w = self.timeline_viewport_px().max(1.0);
-        let full_px = ((total_ticks as f32 / fps) * pps).max(view_w);
-        let next =
-            (self.scroll_x + delta_fraction * full_px).clamp(0.0, (full_px - view_w).max(0.0));
-        self.scroll_timeline_to(next, false);
-    }
-
-    /// Drag the left or right handle of the zoom scroll bar by `delta_fraction`
-    /// of the bar's width, zooming in or out while keeping the opposite edge
-    /// of the visible window anchored.
-    pub fn zoom_bar_drag_handle(&mut self, left_handle: bool, delta_fraction: f32) {
-        if delta_fraction.abs() < 1e-5 {
-            return;
-        }
-        let fps = self.store.sequence.ticks_per_second();
-        let old_pps = transport::TIMELINE_BASE_PPS * self.zoom;
-        let total_ticks = self.store.sequence.duration_ticks.max((fps * 10.0) as i64);
-        let view_w = self.timeline_viewport_px().max(1.0);
-        let full_px = ((total_ticks as f32 / fps) * old_pps).max(view_w);
-        let old_span_frac = (view_w / full_px).clamp(0.02, 1.0);
-        let new_span_frac = if left_handle {
-            (old_span_frac - delta_fraction).clamp(0.02, 1.0)
-        } else {
-            (old_span_frac + delta_fraction).clamp(0.02, 1.0)
-        };
-        let ratio = old_span_frac / new_span_frac;
-        let right_edge_sec = (self.scroll_x + view_w) / old_pps.max(1.0);
-        let left_edge_sec = self.scroll_x / old_pps.max(1.0);
-        let new_zoom = transport::clamp_zoom(self.zoom * ratio);
-        let new_pps = transport::TIMELINE_BASE_PPS * new_zoom;
-        self.set_zoom(new_zoom, false);
-        if left_handle {
-            let new_scroll = (right_edge_sec * new_pps - view_w).max(0.0);
-            self.scroll_timeline_to(new_scroll, false);
-        } else {
-            let new_scroll = (left_edge_sec * new_pps).max(0.0);
-            self.scroll_timeline_to(new_scroll, false);
-        }
-    }
-
     /// Keep the playhead on screen while it moves, reporting whether the view
     /// followed it.
     ///

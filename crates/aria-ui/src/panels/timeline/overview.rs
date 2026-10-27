@@ -1,19 +1,20 @@
 //! Sequence overview and zoom scroll bar along the bottom of the timeline.
 //!
-//! Dragging the viewport window scrolls the sequence; dragging its left or
-//! right handle zooms the timeline in or out; clicking outside the window
-//! centers the viewport on the clicked tick. Clip spans are coalesced in pixel
-//! space so sequences with thousands of clips build a small, bounded number of
-//! overview segments. Under the outline column the bar holds the add-track
-//! button and the zoom readout, which fits the sequence on a click.
+//! The strip draws the sequence's clips and the stretch on screen as a thumb.
+//! A press anywhere on it is held on the state ([`crate::app::zoom_bar`]),
+//! which reads the grip, scrolls, and zooms; the shell carries the drag past
+//! the bar. Clip spans are coalesced in pixel space so sequences with
+//! thousands of clips build a small, bounded number of overview segments.
+//! Under the outline column the bar holds the add-track button and the zoom
+//! readout, which fits the sequence on a click.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, div, px,
+    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    StatefulInteractiveElement, Styled, div, px,
 };
 
 use aria_models::TrackKind;
@@ -25,23 +26,13 @@ use crate::tooltip::WithTip as _;
 use crate::types::UiEditorStore;
 use gpui::prelude::FluentBuilder;
 
-use super::ticks_to_px;
-
 /// Height of the footer: one 24 px control row plus the 1 px rule above it.
 pub(super) const OVERVIEW_H: f32 = Theme::ICON_HIT + 1.0;
 /// Inset of a footer control's label inside its hit box: the control steps
 /// out by this much so its glyph stands on the column's edge, as the header's
 /// timecode does.
 const CONTROL_INSET: f32 = Theme::SPACE_XS;
-const HANDLE_W: f32 = 6.0;
 const MAX_OVERVIEW_SPANS: usize = 64;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum OverviewDrag {
-    Pan,
-    LeftHandle,
-    RightHandle,
-}
 
 struct TrackSpanCache {
     clips: std::sync::Weak<Vec<crate::types::UiClip>>,
@@ -50,7 +41,6 @@ struct TrackSpanCache {
 }
 
 thread_local! {
-    static OVERVIEW_DRAG: Cell<Option<OverviewDrag>> = const { Cell::new(None) };
     static SPANS: RefCell<Option<(SpanKey, Rc<[(f32, f32)]>)>> = const { RefCell::new(None) };
     static TRACK_MASKS: RefCell<std::collections::HashMap<u64, TrackSpanCache>> =
         RefCell::new(std::collections::HashMap::new());
@@ -110,35 +100,12 @@ fn overview_spans(
     })
 }
 
-/// Tick under `x` on a strip that maps `[0, duration]` onto `[0, width]`.
-pub(super) fn tick_at(x: f32, width: f32, duration: i64) -> i64 {
-    if width <= 0.0 || duration <= 0 {
-        return 0;
-    }
-    let tick = ((x / width) * duration as f32).floor() as i64;
-    tick.clamp(0, duration)
-}
-
-/// Pixel of `tick` on the same strip.
+/// Pixel of `tick` on a strip that maps `[0, duration]` onto `[0, width]`.
 pub(super) fn x_at(tick: i64, duration: i64, width: f32) -> f32 {
     if duration <= 0 {
         return 0.0;
     }
     (tick as f32 / duration as f32) * width
-}
-
-/// Scroll offset that puts `tick` in the middle of the timeline body.
-pub(super) fn scroll_to_center(tick: i64, fps: f32, pps: f32, view_w: f32) -> f32 {
-    (ticks_to_px(tick, fps, pps) - view_w * 0.5).max(0.0)
-}
-
-/// Pixel window of the zoomed timeline on a strip that maps the whole cut.
-pub(super) fn window_on_strip(scroll_x: f32, full_px: f32, view_w: f32) -> (f32, f32) {
-    let strip = view_w.max(1.0);
-    let full = full_px.max(1.0);
-    let x = (scroll_x / full) * strip;
-    let w = ((view_w / full) * strip).clamp(12.0, strip.max(12.0));
-    (x.clamp(0.0, (strip - w).max(0.0)), w)
 }
 
 /// The `[start, end]` tick intervals that `clips` cover, merged where they
@@ -244,8 +211,6 @@ pub(super) fn coalesce_overview_spans(
 pub(super) fn overview(
     theme: &Theme,
     store: &Arc<UiEditorStore>,
-    pps: f32,
-    fps: f32,
     scroll_x: f32,
     view_w: f32,
     add_name: String,
@@ -256,8 +221,8 @@ pub(super) fn overview(
     let outline = state.read(cx).outline_drawn_width();
     let duration = store.sequence.duration_ticks;
     let spans = overview_spans(store, state.read(cx).projections, duration, view_w);
-    let full_px = ticks_to_px(duration, fps, pps).max(1.0);
-    let (window_x, window_w) = window_on_strip(scroll_x, full_px, view_w);
+    let ((window_x, window_w), clip_share) = state.read(cx).zoom_bar_thumb(scroll_x, zoom);
+    let grip_w = crate::app::zoom_bar::zoom_bar_grip_w(window_w);
     let accent = theme.accent;
     let raised = theme.surface_raised;
     let wash = theme.wash(0.35);
@@ -346,60 +311,24 @@ pub(super) fn overview(
                 .h_full()
                 .relative()
                 .overflow_hidden()
+                // The state reads the grip from where the press lands; the
+                // shell carries the drag from here, past the bar's edges.
                 .on_mouse_down(
                     MouseButton::Left,
-                    cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                    cx.listener(|this, event: &MouseDownEvent, _, cx| {
                         cx.stop_propagation();
-                        let Some(left) = this.state.read(cx).timeline_content_left() else {
-                            return;
-                        };
-                        let view_w = this.state.read(cx).timeline_viewport_px();
-                        let x = f32::from(event.position.x) - left;
-                        if x < 0.0 {
-                            return;
-                        }
-                        OVERVIEW_DRAG.set(Some(OverviewDrag::Pan));
-                        let tick = tick_at(x, view_w, duration);
-                        let to = scroll_to_center(tick, fps, pps, view_w);
-                        this.state.update(cx, |state, _| {
-                            state.scroll_timeline_to(to, true);
-                        });
+                        let x = f32::from(event.position.x);
+                        this.state.update(cx, |state, _| state.press_zoom_bar(x));
                         this.redraw(crate::shell::Moved::View, cx);
-                    }),
-                )
-                .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-                    let Some(mode) = OVERVIEW_DRAG.get() else {
-                        return;
-                    };
-                    if !event.dragging() {
-                        OVERVIEW_DRAG.set(None);
-                        return;
-                    }
-                    let Some(left) = this.state.read(cx).timeline_content_left() else {
-                        return;
-                    };
-                    let view_w = this.state.read(cx).timeline_viewport_px().max(1.0);
-                    let norm = ((f32::from(event.position.x) - left) / view_w).clamp(0.0, 1.0);
-                    this.state.update(cx, |state, _| match mode {
-                        OverviewDrag::Pan => state.zoom_bar_pan(norm),
-                        OverviewDrag::LeftHandle => state.zoom_bar_drag_handle(true, norm),
-                        OverviewDrag::RightHandle => state.zoom_bar_drag_handle(false, norm),
-                    });
-                    this.redraw(crate::shell::Moved::View, cx);
-                }))
-                .on_mouse_up(
-                    MouseButton::Left,
-                    cx.listener(|_, _: &MouseUpEvent, _, _| {
-                        OVERVIEW_DRAG.set(None);
                     }),
                 )
                 .children(spans.iter().map(|&(x, w)| {
                     div()
                         .absolute()
-                        .left(px(x))
+                        .left(px(x * clip_share))
                         .top(px(2.0))
                         .h(px(OVERVIEW_H - 4.0))
-                        .w(px(w))
+                        .w(px((w * clip_share).max(1.0)))
                         .bg(raised)
                 }))
                 .child(
@@ -414,13 +343,6 @@ pub(super) fn overview(
                         .border_color(accent)
                         .bg(wash)
                         .cursor(CursorStyle::OpenHand)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|_, _: &MouseDownEvent, _, cx| {
-                                cx.stop_propagation();
-                                OVERVIEW_DRAG.set(Some(OverviewDrag::Pan));
-                            }),
-                        )
                         .child(
                             div()
                                 .id("sequence-overview-handle-left")
@@ -428,16 +350,9 @@ pub(super) fn overview(
                                 .left_0()
                                 .top_0()
                                 .bottom_0()
-                                .w(px(HANDLE_W))
+                                .w(px(grip_w))
                                 .bg(accent)
-                                .cursor(CursorStyle::ResizeLeftRight)
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|_, _: &MouseDownEvent, _, cx| {
-                                        cx.stop_propagation();
-                                        OVERVIEW_DRAG.set(Some(OverviewDrag::LeftHandle));
-                                    }),
-                                ),
+                                .cursor(CursorStyle::ResizeLeftRight),
                         )
                         .child(
                             div()
@@ -446,16 +361,9 @@ pub(super) fn overview(
                                 .right_0()
                                 .top_0()
                                 .bottom_0()
-                                .w(px(HANDLE_W))
+                                .w(px(grip_w))
                                 .bg(accent)
-                                .cursor(CursorStyle::ResizeLeftRight)
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|_, _: &MouseDownEvent, _, cx| {
-                                        cx.stop_propagation();
-                                        OVERVIEW_DRAG.set(Some(OverviewDrag::RightHandle));
-                                    }),
-                                ),
+                                .cursor(CursorStyle::ResizeLeftRight),
                         ),
                 ),
         )
@@ -464,40 +372,6 @@ pub(super) fn overview(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_click_halfway_along_a_minute_lands_on_the_midpoint() {
-        assert_eq!(tick_at(100.0, 200.0, 1800), 900);
-    }
-
-    #[test]
-    fn a_click_past_the_end_clamps() {
-        assert_eq!(tick_at(400.0, 200.0, 1800), 1800);
-        assert_eq!(tick_at(-8.0, 200.0, 1800), 0);
-    }
-
-    #[test]
-    fn an_empty_or_sizeless_strip_stays_at_zero() {
-        assert_eq!(tick_at(10.0, 200.0, 0), 0);
-        assert_eq!(tick_at(10.0, 0.0, 1800), 0);
-    }
-
-    #[test]
-    fn scroll_centering_puts_the_tick_in_the_middle() {
-        let mid = scroll_to_center(50, 24.0, 50.0, 200.0);
-        assert!((mid - (ticks_to_px(50, 24.0, 50.0) - 100.0)).abs() < 0.01);
-        assert_eq!(scroll_to_center(0, 24.0, 50.0, 200.0), 0.0);
-    }
-
-    #[test]
-    fn the_viewport_window_is_half_the_strip_when_zoomed_two_to_one() {
-        let (x, w) = window_on_strip(0.0, 400.0, 200.0);
-        assert!((x - 0.0).abs() < 0.01);
-        assert!((w - 100.0).abs() < 0.01);
-        let (x, w) = window_on_strip(200.0, 400.0, 200.0);
-        assert!((x - 100.0).abs() < 0.01);
-        assert!((w - 100.0).abs() < 0.01);
-    }
 
     /// WHY: `coalesce_overview_spans` previously walked every clip on every
     /// track whenever `projections` advanced. This test closes that class by

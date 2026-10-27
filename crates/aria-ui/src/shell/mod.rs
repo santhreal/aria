@@ -37,6 +37,8 @@ pub use panel_view::{Moved, notify_after_draw};
 pub struct Shell {
     pub state: Entity<AppState>,
     drag: Option<Drag>,
+    /// A press on an element whose drag this shell carries past the element.
+    hold: Option<gesture::Hold>,
     /// The preview audio stream, which the main window's shell pumps. A
     /// floating window's shell has none: a second system on the one handle
     /// would never start a stream, and dropping it would clear the clock the
@@ -140,6 +142,7 @@ impl Shell {
         Self {
             state,
             drag: None,
+            hold: None,
             audio,
             splash: Splash::Covering(Instant::now()),
             catalog_drop: None,
@@ -178,6 +181,7 @@ impl Shell {
         Self {
             state,
             drag: None,
+            hold: None,
             audio: None,
             splash: Splash::Done,
             catalog_drop: None,
@@ -340,7 +344,7 @@ impl Shell {
                     }
                 }
             }
-            DragKind::Pan => {}
+            DragKind::Pan | DragKind::AvSplit { .. } => {}
         }
         // The frame the hand leaves is the only one that knows what
         // the gesture was worth. A throw of nothing leaves the view
@@ -418,6 +422,13 @@ impl Shell {
     /// is where the pointer went down and `width` the column's width then.
     pub(crate) fn start_outline_resize(&mut self, x: f32, width: f32) {
         self.drag = Some(Drag::new(DragKind::Outline, x, width));
+    }
+
+    /// Begin moving the divider between the timeline's video and audio sides.
+    /// `y` is where the pointer went down, `split` the split then, and
+    /// `stack_h` the height the two sides share.
+    pub(crate) fn start_av_split(&mut self, y: f32, split: f32, stack_h: f32) {
+        self.drag = Some(Drag::new(DragKind::AvSplit { stack_h }, y, split));
     }
 
     /// Zoom by `factor`, keeping the second under the pointer where it is. `x`
@@ -783,6 +794,7 @@ fn motion_driver() -> impl IntoElement {
 // Further methods live in sibling files; inherent methods keep their paths.
 pub mod dock_view;
 mod gesture;
+pub(crate) use gesture::Hold;
 mod slot;
 /// How often the status line is checked for expiry. Coarse on purpose: the
 /// strip is a receipt, so a fraction of a second either side of four is not

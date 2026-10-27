@@ -14,8 +14,8 @@ use std::rc::Rc;
 
 use gpui::{
     App, Bounds, ContentMask, Corners, Edges, Entity, HitboxBehavior, InteractiveElement,
-    IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels,
-    SharedString, Styled, Window, canvas, div, point, px, quad, size,
+    IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels, SharedString, Styled, Window,
+    canvas, div, point, px, quad, size,
 };
 
 use crate::app::AppState;
@@ -23,7 +23,7 @@ use crate::app::property_rows::graph::graph_axis_ys;
 use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode};
 use crate::components::{self, ChipSize};
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
-use crate::shell::Shell;
+use crate::shell::{Hold, Shell};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::transport::ticks_to_px_f;
@@ -32,10 +32,6 @@ use gpui::prelude::FluentBuilder;
 
 use super::header::HEADER_ROW_H;
 use super::property_rows::{paint_rect, paint_segment};
-
-thread_local! {
-    static GRAPH_DRAG_ACTIVE: Cell<bool> = const { Cell::new(false) };
-}
 
 /// Width of the value axis gutter on the header column's right edge. The name
 /// row ends where it starts.
@@ -192,7 +188,6 @@ pub(super) fn render_graph_editor(
     let canvas_bounds = Rc::new(Cell::new(Bounds::default()));
     let bounds_prepaint = canvas_bounds.clone();
     let bounds_down = canvas_bounds.clone();
-    let bounds_move = canvas_bounds.clone();
     let bounds_right = canvas_bounds;
     let paint_theme = theme.clone();
     let paint_model = model;
@@ -205,6 +200,9 @@ pub(super) fn render_graph_editor(
         .relative()
         .overflow_hidden()
         .bg(theme.bg)
+        // The shell carries a drag the press began, so a key or a handle
+        // follows the pointer off the graph and the release writes it
+        // wherever the button comes up.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -214,39 +212,40 @@ pub(super) fn render_graph_editor(
                 let started = this.state.update(cx, |state, _| {
                     state.begin_timeline_graph_drag(lx, ly, fps, pps, scroll_x, GRAPH_EDITOR_H)
                 });
-                if started {
-                    cx.stop_propagation();
-                    GRAPH_DRAG_ACTIVE.set(true);
-                    cx.notify();
-                }
-            }),
-        )
-        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-            if !GRAPH_DRAG_ACTIVE.get() || !event.dragging() {
-                return;
-            }
-            let b = bounds_move.get();
-            let lx = f32::from(event.position.x - b.origin.x);
-            let ly = f32::from(event.position.y - b.origin.y);
-            let changed = this.state.update(cx, |state, _| {
-                state.update_timeline_graph_drag(lx, ly, fps, pps, scroll_x, GRAPH_EDITOR_H)
-            });
-            if changed {
-                cx.notify();
-            }
-        }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseUpEvent, _, cx| {
-                if !GRAPH_DRAG_ACTIVE.replace(false) {
+                if !started {
                     return;
                 }
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = state.commit_timeline_graph_drag() {
-                        state.report_error(&err);
-                    }
-                });
-                crate::app::spawn_preview(this.state.clone(), cx);
+                cx.stop_propagation();
+                let bounds = bounds_down.clone();
+                this.hold(Hold::new(
+                    move |this, event, cx| {
+                        let b = bounds.get();
+                        let lx = f32::from(event.position.x - b.origin.x);
+                        let ly = f32::from(event.position.y - b.origin.y);
+                        let changed = this.state.update(cx, |state, _| {
+                            state.update_timeline_graph_drag(
+                                lx,
+                                ly,
+                                fps,
+                                pps,
+                                scroll_x,
+                                GRAPH_EDITOR_H,
+                            )
+                        });
+                        if changed {
+                            cx.notify();
+                        }
+                    },
+                    |this, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = state.commit_timeline_graph_drag() {
+                                state.report_error(&err);
+                            }
+                        });
+                        crate::app::spawn_preview(this.state.clone(), cx);
+                        cx.notify();
+                    },
+                ));
                 cx.notify();
             }),
         )
