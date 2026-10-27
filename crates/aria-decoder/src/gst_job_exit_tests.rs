@@ -1,19 +1,26 @@
 //! A started [`OnceJob`] returns at its next step once stopped, and a process
-//! that ends through `exit` waits for the step the job is in.
+//! that ends through `exit` waits for the step the job is in before any exit
+//! handler runs.
 //!
 //! WHY: the decode device warm-up thread loaded a GStreamer plugin while a
 //! test binary that had printed `ok` ran its libraries' destructors, and the
 //! load aborted the process in GObject's type registration (`cannot register
-//! existing fundamental type 'gchar'`). The class is "a detached job thread
-//! inside a library call when the process ends". The child below starts a job
-//! whose one step outlasts its test and lets libtest end the process; the
-//! parent asserts the step finished and the job returned at the stop before
-//! the child ended. The in-process tests bound the stop and hold that a
-//! stopped job never starts. They do not check that the warm-up or the codec
-//! probe tests [`OnceJob::stopping`] between its steps, and do not cover a
-//! process ended through `_exit` ([`crate::exit_process`]), which runs no exit
-//! handler.
+//! existing fundamental type 'gchar'`). Then the CUDA driver, loaded inside the
+//! warm-up's step, registered exit handlers after the job's own, and they ran
+//! first and tore the driver down under `cuCtxCreate` (`pthread_mutex_lock`
+//! assertion, SIGABRT). The class is "a detached job thread inside a library
+//! call when the process ends". The children below start a job whose one step
+//! outlasts its test and let libtest end the process; one step registers an
+//! exit handler of its own, as a library loaded there does. The parents assert
+//! the step finished before the child ended, before that handler ran, and that
+//! the job returned at the stop. The in-process tests bound the stop and hold
+//! that a stopped job never starts. They do not check that the warm-up or the
+//! codec probe tests [`OnceJob::stopping`] between its steps, do not cover an
+//! `exit` called on a thread other than the main thread while a library's exit
+//! handler is registered inside a step, and do not cover a process ended
+//! through `_exit` ([`crate::exit_process`]), which runs no exit handler.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -77,6 +84,75 @@ fn an_exit_waits_for_the_step_in_progress_and_stops_the_job() {
     assert!(
         ran.stdout.contains(STOPPED) && !ran.stdout.contains(RAN_ON),
         "the job did not return at the stop\n{}",
+        ran.transcript()
+    );
+}
+
+/// Whether the library child's job is inside its step.
+static IN_STEP: AtomicBool = AtomicBool::new(false);
+
+/// Printed by the exit handler the library child's step registers when it
+/// runs while the step is in progress.
+const TORN_DOWN_UNDER: &str = "a library's exit handler ran inside the step";
+
+/// Printed by that handler when it runs once the step has ended.
+const TORN_DOWN_AFTER: &str = "a library's exit handler ran after the step";
+
+/// The exit handler of a library the library child's step loads.
+extern "C" fn library_teardown() {
+    if IN_STEP.load(Ordering::Acquire) {
+        println!("{TORN_DOWN_UNDER}");
+    } else {
+        println!("{TORN_DOWN_AFTER}");
+    }
+}
+
+#[test]
+#[ignore = "child process of a_library_loaded_inside_a_step_is_torn_down_after_the_step"]
+fn library_child() {
+    static JOB: OnceJob = OnceJob::new();
+    let (entered, entering) = mpsc::channel::<i32>();
+    let started = JOB.start("aria-test-exit-library", move || {
+        IN_STEP.store(true, Ordering::Release);
+        #[allow(unsafe_code)]
+        // SAFETY: registers a handler with the C exit path, as a library
+        // loaded in this step does; `library_teardown` takes no arguments,
+        // does not unwind, and reads only a static.
+        let registered = unsafe { libc::atexit(library_teardown) };
+        let _ = entered.send(registered);
+        std::thread::sleep(STEP);
+        IN_STEP.store(false, Ordering::Release);
+        println!("{STEP_DONE}");
+    });
+    assert!(started, "the job did not start");
+    let registered = entering
+        .recv_timeout(BOUND)
+        .expect("the job enters its step");
+    assert_eq!(registered, 0, "the step's exit handler did not register");
+}
+
+#[test]
+fn a_library_loaded_inside_a_step_is_torn_down_after_the_step() {
+    let ran = crate::test_child::run("gst_job::exit_tests::library_child", BOUND);
+    let status = ran.status.unwrap_or_else(|| {
+        panic!(
+            "the child did not end within {BOUND:?}\n{}",
+            ran.transcript()
+        )
+    });
+    assert!(
+        status.success(),
+        "the child ended with {status}\n{}",
+        ran.transcript()
+    );
+    assert!(
+        ran.stdout.contains(STEP_DONE),
+        "the child ended inside its job's step\n{}",
+        ran.transcript()
+    );
+    assert!(
+        ran.stdout.contains(TORN_DOWN_AFTER) && !ran.stdout.contains(TORN_DOWN_UNDER),
+        "a library loaded inside the step was torn down before the step ended\n{}",
         ran.transcript()
     );
 }

@@ -1,11 +1,13 @@
 //! Jobs that run at most once per process, on a thread of their own, and that
-//! a process ending through `exit` stops before its libraries' destructors run.
+//! a process ending through `exit` stops before its libraries' exit handlers
+//! and destructors run.
 //!
 //! A GStreamer plugin loaded while the C library runs those destructors aborts
 //! the process in GObject's type registration (`cannot register existing
-//! fundamental type 'gchar'`). Work that may load a plugin on a thread of its
-//! own runs as a [`OnceJob`]: the decode device warm-up, and the encoder's codec
-//! probe in `aria-encoder`.
+//! fundamental type 'gchar'`), and a CUDA context still being created when the
+//! CUDA driver's exit handlers run aborts it in `pthread_mutex_lock`. Work that
+//! may load a plugin on a thread of its own runs as a [`OnceJob`]: the decode
+//! device warm-up, and the encoder's codec probe in `aria-encoder`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, PoisonError};
@@ -28,9 +30,8 @@ pub(crate) enum Stage {
 /// be waited for or stopped.
 ///
 /// A started job is stopped when the process ends through `exit`, the path a
-/// return from `main` and every test binary take: an exit handler calls
-/// [`OnceJob::stop`] before the C library runs the destructors of the
-/// process's libraries, and waits for the step in progress. The job checks
+/// return from `main` and every test binary take, and the step in progress is
+/// waited for before any exit handler runs. The job checks
 /// [`OnceJob::stopping`] between its steps and returns once it holds.
 /// [`crate::exit_process`] ends the process through `_exit`, which runs no exit
 /// handler and does not wait.
@@ -153,13 +154,51 @@ fn stop_at_exit(job: &'static OnceJob) {
 }
 
 /// Stop every started [`OnceJob`], waiting up to [`EXIT_WAIT`] for each. Runs
-/// in `exit`, before the C library runs library destructors.
+/// once the process ends through `exit`: first as the main thread's
+/// [`MainExit`] drops, and again as an exit handler, for an `exit` called on
+/// another thread, which finds no job left once the first has run.
 extern "C" fn stop_started() {
     let started = std::mem::take(&mut *STARTED.lock().unwrap_or_else(PoisonError::into_inner));
     for job in started {
         job.stop(EXIT_WAIT);
     }
 }
+
+/// Stops every started job as the main thread ends the process.
+///
+/// Exit handlers run in the reverse of the order they were registered in, so
+/// a handler a library registers while a job's step loads it runs before the
+/// one [`stop_at_exit`] registered, and tears the library down under the step:
+/// the CUDA driver's, registered while the decode device warm-up loads its
+/// plugin. `exit` drops the exiting thread's thread locals before it runs any
+/// exit handler, and the main thread is the one that calls it when `main`
+/// returns, so this thread local, armed on the main thread before `main`
+/// starts, waits for the step before any library is torn down.
+struct MainExit;
+
+impl Drop for MainExit {
+    fn drop(&mut self) {
+        stop_started();
+    }
+}
+
+thread_local! {
+    static MAIN_EXIT: MainExit = const { MainExit };
+}
+
+/// Arms [`MainExit`]. Runs on the main thread before `main`, from the
+/// executable's initializer list.
+extern "C" fn arm_main_exit() {
+    MAIN_EXIT.with(|_| {});
+}
+
+#[allow(unsafe_code)]
+#[used]
+// SAFETY: `.init_array` holds the functions the loader calls on the main
+// thread before `main`; `arm_main_exit` takes no arguments, does not unwind,
+// and only registers a thread local's destructor.
+#[unsafe(link_section = ".init_array")]
+static ARM_MAIN_EXIT: extern "C" fn() = arm_main_exit;
 
 #[cfg(test)]
 mod tests {
