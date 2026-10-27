@@ -151,9 +151,7 @@ fn ten_minutes(follow: Follow) -> AppState {
 /// Where the playhead sits in pixels, the way the follow places it.
 fn playhead_px(state: &AppState) -> f32 {
     let fps = state.store.sequence.ticks_per_second();
-    (state.playhead.value.max(0) as f32 / fps)
-        * crate::transport::TIMELINE_BASE_PPS
-        * crate::transport::clamp_zoom(state.zoom)
+    (state.playhead.value.max(0) as f32 / fps) * crate::transport::TIMELINE_BASE_PPS * state.zoom
 }
 
 #[test]

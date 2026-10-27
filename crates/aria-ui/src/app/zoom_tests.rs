@@ -1,14 +1,15 @@
 //! What a view change does to the timeline's zoom and horizontal offset.
 //!
-//! Four contracts live here. The follow moves the view only when the playhead
+//! Five contracts live here. The follow moves the view only when the playhead
 //! is about to leave it, so a view scrolled to on purpose survives playback
 //! that stays inside it. A seek that lands off screen pages the view to the
 //! playhead under every follow setting, and one that lands on screen, or a
 //! drag in the ruler, leaves the view where it is. The offset carries how it
 //! should be drawn: the timeline eases a view the editor chose and never eases
-//! one that is moving under a hand, so every writer records which it is. And
-//! the zoom the panel draws is the zoom the state holds, written in one place
-//! and clamped there.
+//! one that is moving under a hand, so every writer records which it is. The
+//! zoom the panel draws is the zoom the state holds, written in one place and
+//! clamped there. And every way to zoom out ends on the whole sequence, however
+//! long it is.
 
 use std::sync::Arc;
 
@@ -239,7 +240,7 @@ fn a_scale_the_editor_chose_is_eased_and_one_a_pointer_anchored_is_not() {
 
     let anchored = state.zoom * transport::ZOOM_WHEEL_STEP;
     state.set_zoom(anchored, false);
-    assert_eq!(state.zoom, transport::clamp_zoom(anchored));
+    assert_eq!(state.zoom, anchored);
     assert_eq!(
         state.store.zoom, state.zoom,
         "the panel draws the same scale"
@@ -321,16 +322,20 @@ fn the_state_measures_the_body_the_panel_draws() {
 #[test]
 fn the_zoom_the_panel_draws_is_the_zoom_the_state_holds() {
     let mut state = ten_minutes();
-    for target in [0.0, 0.05, 0.5, 1.0, 12.0, 400.0] {
+    let floor = state.zoom_floor();
+    assert!(
+        floor < transport::ZOOM_MIN,
+        "ten minutes are longer than the fixed floor frames"
+    );
+    for target in [0.0, 0.001, 0.05, 0.5, 1.0, 12.0, 400.0] {
         state.set_zoom(target, false);
         assert_eq!(state.zoom, state.store.zoom, "the panel draws a stale zoom");
-        assert!(state.zoom >= transport::ZOOM_MIN);
-        assert!(state.zoom <= transport::ZOOM_MAX);
+        assert_eq!(state.zoom, target.clamp(floor, transport::ZOOM_MAX));
     }
     state.set_zoom(f32::MAX, false);
     assert_eq!(state.zoom, transport::ZOOM_MAX);
     state.set_zoom(-1.0, false);
-    assert_eq!(state.zoom, transport::ZOOM_MIN);
+    assert_eq!(state.zoom, floor);
 }
 
 /// The projection is shared with the panels, not copied for each of them.
@@ -404,4 +409,266 @@ fn a_fit_frames_thirty_seconds_at_every_offered_rate() {
             state.zoom
         );
     }
+}
+
+/// Sequence lengths a zoom out has to reach, in seconds: shorter than the view
+/// at zoom 1, a few views, longer than the fixed floor frames, and a feature.
+const LENGTHS: [i64; 4] = [3, 30, 600, 10_800];
+
+/// A sequence `seconds` long on a Timeline frame 1200 px wide at zoom 1, with
+/// the playhead three quarters in and a tenth of the way into the view, so a
+/// zoom that held its pixel would scroll the sequence's start away.
+fn lasting(seconds: i64) -> AppState {
+    let mut state = ten_minutes();
+    state.record_timeline_frame([100.0, 300.0, 1200.0, 240.0]);
+    let fps = state.store.sequence.frame_rate.nominal_fps();
+    state.store_mut().sequence.duration_ticks = fps * seconds;
+    state.place_playhead(fps * seconds * 3 / 4);
+    let width = state.timeline_viewport_px();
+    state.scroll_timeline_to(playhead_px(&state) - width / 10.0, false);
+    state
+}
+
+/// The first and last second the view shows.
+fn view_seconds(state: &AppState) -> (f32, f32) {
+    let pps = transport::TIMELINE_BASE_PPS * state.zoom;
+    (
+        state.scroll_x / pps,
+        (state.scroll_x + state.timeline_viewport_px()) / pps,
+    )
+}
+
+fn press_minus(state: &mut AppState) {
+    for _ in 0..200 {
+        state.zoom_around_playhead(1.0 / transport::ZOOM_STEP);
+    }
+}
+
+fn wheel_out(state: &mut AppState) {
+    let left = state
+        .timeline_content_left()
+        .expect("the timeline is drawn");
+    for _ in 0..300 {
+        state.zoom_at_pointer(left + 400.0, 1.0 / transport::ZOOM_WHEEL_STEP);
+    }
+}
+
+/// The zoom bar's right end dragged past the bar's right edge, then its left
+/// end past the left edge.
+fn drag_bar_ends_out(state: &mut AppState) {
+    let left = state
+        .timeline_content_left()
+        .expect("the timeline is drawn");
+    let width = state.timeline_viewport_px();
+    let ((x, w), _) = state.zoom_bar_thumb(state.scroll_x, state.zoom);
+    state.press_zoom_bar(left + x + w - 1.0);
+    state.drag_zoom_bar(left + width * 3.0);
+    state.release_zoom_bar();
+    let ((x, _), _) = state.zoom_bar_thumb(state.scroll_x, state.zoom);
+    state.press_zoom_bar(left + x + 1.0);
+    state.drag_zoom_bar(left - width * 2.0);
+    state.release_zoom_bar();
+}
+
+/// Each way to zoom out, driven as far as it goes, and whether it ends at the
+/// floor. The zoom bar ends on the strip it draws, which is the sequence or
+/// the view, whichever reaches further. A way added later is a row here.
+const ZOOM_OUTS: [(&str, bool, fn(&mut AppState)); 3] = [
+    ("the - key", true, press_minus),
+    ("the wheel", true, wheel_out),
+    ("the zoom bar's two ends", false, drag_bar_ends_out),
+];
+
+/// Every way to zoom out ends on the whole sequence, at every length.
+///
+/// The class: a floor fixed in pixels per second, below which a sequence
+/// longer than the view at that floor could not be seen whole by any zoom; a
+/// zoom out that held a pixel and so scrolled the sequence's start out of a
+/// view with room past its end; and a zoom bar end that stopped short of the
+/// strip's end when it was pressed inside a thumb drawn wider than the view.
+/// The keys and the wheel stop at the floor: the whole sequence, or the fixed
+/// floor's view when that is wider. Not covered: how the scale eases on the
+/// way, which the glide store owns.
+#[test]
+fn every_zoom_out_ends_on_the_whole_sequence_at_every_length() {
+    for seconds in LENGTHS {
+        for (way, to_floor, zoom_out) in ZOOM_OUTS {
+            let mut state = lasting(seconds);
+            zoom_out(&mut state);
+            let (first, last) = view_seconds(&state);
+            let frame = 1.0 / state.store.sequence.ticks_per_second();
+            let length = seconds as f32;
+            assert!(
+                first < frame && last > length - frame,
+                "{way} on {seconds} s ended on {first}..{last} s at zoom {}",
+                state.zoom
+            );
+            assert_eq!(state.store.zoom, state.zoom, "{way} on {seconds} s");
+            if to_floor {
+                let widest = state.timeline_viewport_px()
+                    / (transport::TIMELINE_BASE_PPS * transport::ZOOM_MIN);
+                let want = length.max(widest);
+                assert!(
+                    (last - want).abs() < frame,
+                    "{way} on {seconds} s stopped on {last} s, the floor shows {want} s"
+                );
+            }
+        }
+    }
+}
+
+/// A fit frames the whole sequence, first frame to last, at every length.
+#[test]
+fn a_fit_frames_the_whole_sequence_at_every_length() {
+    for seconds in LENGTHS {
+        let mut state = lasting(seconds);
+        state.zoom_fit_sequence();
+        let (first, last) = view_seconds(&state);
+        let frame = 1.0 / state.store.sequence.ticks_per_second();
+        assert!(
+            first.abs() < frame && (last - seconds as f32).abs() < frame,
+            "a fit of {seconds} s shows {first}..{last} s"
+        );
+    }
+}
+
+/// `=` and `-` bring a playhead that is off screen to the middle of the view,
+/// from past either edge, and from the first frame with the view scrolled
+/// away. The class: a keyed zoom about the view's left edge, which left the
+/// playhead off screen at the new scale.
+#[test]
+fn a_keyed_zoom_centers_a_playhead_off_screen() {
+    for factor in [transport::ZOOM_STEP, 1.0 / transport::ZOOM_STEP] {
+        let mut state = ten_minutes();
+        let width = viewport(&state);
+        let fps = state.store.sequence.frame_rate.nominal_fps();
+        state.place_playhead(fps * 300);
+        // The view at the start, and the view two widths past the playhead.
+        let places = [
+            ("past the right edge", None),
+            ("past the left edge", Some(width * 2.0)),
+        ];
+        for (place, past) in places {
+            let scroll = past.map_or(0.0, |past| playhead_px(&state) + past);
+            state.scroll_timeline_to(scroll, false);
+            state.zoom_around_playhead(factor);
+            let at = playhead_px(&state) - state.scroll_x;
+            assert!(
+                (at - width / 2.0).abs() < 0.5,
+                "x{factor}: a playhead {place} landed at {at} px of {width}"
+            );
+            assert!(state.scroll_eased, "x{factor}: a keyed zoom travels");
+        }
+        state.place_playhead(0);
+        state.zoom_around_playhead(factor);
+        assert_eq!(
+            state.scroll_x, 0.0,
+            "x{factor}: the first frame with the view scrolled away"
+        );
+    }
+}
+
+/// A wheel notch holds the second under the pointer, in and out, inside ten
+/// minutes of sequence and past the end of three seconds of it, and does
+/// nothing before the timeline is drawn.
+#[test]
+fn a_wheel_notch_holds_the_second_under_the_pointer() {
+    let pointer = 400.0;
+    let second =
+        |state: &AppState| (state.scroll_x + pointer) / (transport::TIMELINE_BASE_PPS * state.zoom);
+    for (seconds, place) in [(600, "inside the sequence"), (3, "past its end")] {
+        let mut state = lasting(seconds);
+        let left = state
+            .timeline_content_left()
+            .expect("the timeline is drawn");
+        for factor in [transport::ZOOM_WHEEL_STEP, 1.0 / transport::ZOOM_WHEEL_STEP] {
+            let (before, zoom) = (second(&state), state.zoom);
+            assert!(state.zoom_at_pointer(left + pointer, factor));
+            assert!(
+                (state.zoom - zoom * factor).abs() < 1e-6,
+                "x{factor} {place}: a notch is one step"
+            );
+            let after = second(&state);
+            assert!(
+                (after - before).abs() < 1e-3,
+                "x{factor} {place}: {before} s under the pointer moved to {after} s"
+            );
+            assert!(
+                !state.zoom_eased && !state.scroll_eased,
+                "x{factor} {place}"
+            );
+        }
+    }
+
+    let mut undrawn = ten_minutes();
+    assert!(!undrawn.zoom_at_pointer(500.0, 2.0));
+    assert_eq!(undrawn.zoom, 1.0, "a notch before the timeline is drawn");
+}
+
+/// Each View menu row that draws a key's chord leaves the view and the playhead
+/// where the key leaves them. The rows are read off the menu and the keys off
+/// the shipped table at run time, so a keyed row added later is held to it.
+///
+/// The class: a row that draws `=` and runs a different zoom from `=`, as Zoom
+/// In and Zoom Out did, scaling about the view's left edge with the playhead
+/// off screen. Not covered: the rows of other menus, and state other than the
+/// view and the playhead.
+#[gpui::test]
+fn a_view_menu_row_moves_the_view_the_way_its_key_does(cx: &mut gpui::TestAppContext) {
+    use crate::chrome::menu_items::items_of;
+    use crate::keys::KeyBody;
+    use crate::keys::bindings::SHIPPED_BINDINGS;
+    use crate::types::AppMenu;
+    use gpui::AppContext;
+
+    // The playhead three quarters into ten minutes, with the view at the start.
+    let off_screen = || {
+        let mut state = lasting(600);
+        state.scroll_timeline_to(0.0, false);
+        state
+    };
+    let view = |state: &AppState| {
+        (
+            state.zoom,
+            state.scroll_x,
+            state.playhead.value,
+            state.zoom_eased,
+            state.scroll_eased,
+        )
+    };
+    let rows: Vec<_> = items_of(AppMenu::View, &off_screen())
+        .into_iter()
+        .filter_map(|row| {
+            let binding = SHIPPED_BINDINGS
+                .iter()
+                .find(|binding| Some(binding.id) == row.key)?;
+            match binding.run {
+                KeyBody::Plain(run) => Some((row, run)),
+                KeyBody::Windowed(_) | KeyBody::Command(_) => None,
+            }
+        })
+        .collect();
+    let ids: Vec<_> = rows.iter().map(|(row, _)| row.id).collect();
+    for id in ["seq-in", "seq-out", "seq-fit"] {
+        assert!(ids.contains(&id), "{id} is not a keyed View row: {ids:?}");
+    }
+    for (row, run) in rows {
+        let menu = cx.update(|app| app.new(|_| off_screen()));
+        let from_menu = cx.update(|app| {
+            menu.update(app, |state, cx| {
+                (row.run)(row.id, state, cx);
+                view(state)
+            })
+        });
+        let mut keyed = off_screen();
+        run(&mut keyed);
+        assert_eq!(
+            from_menu,
+            view(&keyed),
+            "{} left the view elsewhere than {:?}",
+            row.id,
+            row.key
+        );
+    }
+    cx.run_until_parked();
 }

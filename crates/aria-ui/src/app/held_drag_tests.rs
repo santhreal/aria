@@ -27,7 +27,7 @@ use crate::app::AppState;
 use crate::app::property_rows::GRAPH_EDITOR_H;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::interned::intern;
-use crate::transport::{TIMELINE_BASE_PPS, clamp_zoom};
+use crate::transport::TIMELINE_BASE_PPS;
 use crate::types::UiTrackKind;
 
 /// The bounds the last frame drew under `selector`.
@@ -61,7 +61,7 @@ pub(super) fn release(visual: &mut VisualTestContext, at: Point<Pixels>) {
 fn tick_px(state: &Entity<AppState>, visual: &mut VisualTestContext) -> f32 {
     visual.read(|app| {
         let state = state.read(app);
-        TIMELINE_BASE_PPS * clamp_zoom(state.zoom) / state.store.sequence.ticks_per_second()
+        TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second()
     })
 }
 

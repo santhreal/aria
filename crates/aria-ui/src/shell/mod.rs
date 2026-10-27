@@ -433,21 +433,15 @@ impl Shell {
     }
 
     /// Zoom by `factor`, keeping the second under the pointer where it is. `x`
-    /// is the pointer in window coordinates, so it is measured against where the
-    /// timeline's content starts rather than against the header width alone —
-    /// the media rail is to the left of both, and it resizes.
+    /// is the pointer in window coordinates (see
+    /// [`AppState::zoom_at_pointer`]).
     pub fn zoom_at(&mut self, x: f32, factor: f32, cx: &mut Context<Self>) {
-        let Some(left) = self.state.read(cx).timeline_content_left() else {
-            return;
-        };
-        self.state.update(cx, |state, _| {
-            let pointer = (x - left).max(0.0);
-            let (zoom, scroll) =
-                crate::transport::zoom_keep_pointer(state.zoom, state.scroll_x, pointer, factor);
-            state.set_zoom(zoom, false);
-            state.scroll_timeline_to(scroll, false);
-        });
-        self.redraw(Moved::View, cx);
+        if self
+            .state
+            .update(cx, |state, _| state.zoom_at_pointer(x, factor))
+        {
+            self.redraw(Moved::View, cx);
+        }
     }
 }
 /// One stage of the editor arriving, drawn at the route value `arrived`.

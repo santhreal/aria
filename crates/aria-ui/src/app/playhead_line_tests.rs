@@ -61,8 +61,7 @@ fn every_move_draws_the_playhead_at_its_tick_on_the_frame_it_lands(cx: &mut gpui
     let (tick_px, duration, scroll) = visual.read(|app| {
         let state = state.read(app);
         (
-            transport::TIMELINE_BASE_PPS * transport::clamp_zoom(state.zoom)
-                / state.store.sequence.ticks_per_second(),
+            transport::TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second(),
             state.store.sequence.duration_ticks,
             state.scroll_x,
         )
@@ -155,8 +154,7 @@ fn a_ruler_drag_past_the_view_leaves_it_and_a_step_from_there_pages_it(
     let (tick_px, duration) = visual.read(|app| {
         let state = state.read(app);
         (
-            transport::TIMELINE_BASE_PPS * transport::clamp_zoom(state.zoom)
-                / state.store.sequence.ticks_per_second(),
+            transport::TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second(),
             state.store.sequence.duration_ticks,
         )
     });

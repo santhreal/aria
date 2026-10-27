@@ -11,7 +11,7 @@
 //! Escape during the drag puts the zoom and the scroll back.
 
 use super::AppState;
-use crate::transport::{TIMELINE_BASE_PPS, clamp_zoom};
+use crate::transport::TIMELINE_BASE_PPS;
 
 /// Width of the grip at each end of a thumb wide enough for three grips, in
 /// pixels.
@@ -52,10 +52,9 @@ struct Strip {
 }
 
 impl Strip {
-    /// The tick under window `x`, held to the strip.
+    /// The tick under window `x`, on the strip's scale past its ends too.
     fn tick_at(self, x: f32) -> f64 {
-        let fraction = ((x - self.left) / self.width).clamp(0.0, 1.0);
-        f64::from(fraction) * self.span
+        f64::from((x - self.left) / self.width) * self.span
     }
 
     /// The strip pixel of `tick`.
@@ -196,13 +195,16 @@ impl AppState {
             return false;
         };
         let before = (self.zoom, self.scroll_x);
-        let tick = press.strip.tick_at(x) - press.grab;
+        // The grabbed point stays under the pointer, so a grip pressed inside
+        // a thumb drawn wider than the view reaches the strip's end once the
+        // pointer passes it by as much.
+        let tick = (press.strip.tick_at(x) - press.grab).clamp(0.0, press.strip.span);
         let fps = f64::from(self.store.sequence.ticks_per_second());
         let view_w = f64::from(self.timeline_viewport_px());
-        // The zoom that shows `ticks` across the view.
-        let zoom_for = |ticks: f64| {
-            clamp_zoom((view_w * fps / (ticks.max(1.0) * f64::from(TIMELINE_BASE_PPS))) as f32)
-        };
+        // The zoom that shows `ticks` across the view; `set_zoom` holds it to
+        // the range the timeline draws.
+        let zoom_for =
+            |ticks: f64| (view_w * fps / (ticks.max(1.0) * f64::from(TIMELINE_BASE_PPS))) as f32;
         match press.grip {
             ZoomBarGrip::Thumb => self.scroll_view_to(tick, press.strip),
             ZoomBarGrip::End => {

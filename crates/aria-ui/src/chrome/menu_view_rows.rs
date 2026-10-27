@@ -19,11 +19,11 @@ const CANVAS_HANDLES: &str = "Canvas Handles";
 
 static VIEW_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-in", "Zoom In", |_, s, _| {
-        s.set_zoom(s.zoom * crate::transport::ZOOM_STEP, true);
+        s.zoom_around_playhead(crate::transport::ZOOM_STEP);
     })
     .key("key-zoom-in"),
     MenuItem::new("seq-out", "Zoom Out", |_, s, _| {
-        s.set_zoom(s.zoom / crate::transport::ZOOM_STEP, true);
+        s.zoom_around_playhead(1.0 / crate::transport::ZOOM_STEP);
     })
     .key("key-zoom-out"),
     MenuItem::new("seq-fit", "Fit", |_, s, _| s.zoom_fit_sequence()).key("key-fit"),

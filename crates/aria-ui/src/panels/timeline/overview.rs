@@ -301,7 +301,7 @@ pub(super) fn overview(
                                 cx.notify();
                             }),
                         )
-                        .child(format!("{:.0}%", zoom * 100.0)),
+                        .child(zoom_label(zoom)),
                 ),
         )
         .child(
@@ -369,6 +369,15 @@ pub(super) fn overview(
         )
 }
 
+/// The zoom readout: a whole percentage from 10% up, and two significant digits
+/// below it, so the fit of a long sequence does not read as 0%.
+fn zoom_label(zoom: f32) -> String {
+    let percent = zoom * 100.0;
+    let magnitude = percent.log10().floor() as i32;
+    let decimals = 1_i32.saturating_sub(magnitude).clamp(0, 6) as usize;
+    format!("{percent:.decimals$}%")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,5 +425,32 @@ mod tests {
             "expected only the 15 clips on the modified lane to be scanned, got {}",
             overview_clip_probes()
         );
+    }
+
+    /// The readout states every zoom the timeline draws as a number that is
+    /// not zero, down to the fit of a day-long sequence. The class: a whole
+    /// percentage, which read 0% for any zoom under half a percent.
+    #[test]
+    fn the_zoom_readout_never_reads_zero() {
+        for (zoom, label) in [
+            (crate::transport::ZOOM_MAX, "1600%"),
+            (1.0, "100%"),
+            (crate::transport::ZOOM_MIN, "10%"),
+            (0.05, "5.0%"),
+            (0.0013, "0.13%"),
+        ] {
+            assert_eq!(zoom_label(zoom), label, "zoom {zoom}");
+        }
+        // A day of sequence across a 1000 px view.
+        let mut zoom = crate::transport::ZOOM_MAX;
+        while zoom > 1000.0 / (86_400.0 * crate::transport::TIMELINE_BASE_PPS) {
+            let label = zoom_label(zoom);
+            let read: f32 = label.trim_end_matches('%').parse().expect("a number");
+            assert!(
+                read > 0.0 && (read - zoom * 100.0).abs() <= zoom * 100.0 * 0.05,
+                "zoom {zoom} reads {label}"
+            );
+            zoom /= crate::transport::ZOOM_WHEEL_STEP;
+        }
     }
 }

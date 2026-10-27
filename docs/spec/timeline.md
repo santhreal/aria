@@ -205,13 +205,18 @@ keyframed paths, and the second opens every Path row.
 | Scroll | Vertical scroll of the tracks |
 | Shift+scroll | Horizontal scroll |
 | Alt+scroll, Ctrl+scroll | Zoom around the pointer |
-| `=` / `-` | Zoom in or out around the playhead |
+| `=` / `-` | Zoom in or out around the playhead; a playhead off screen moves to the middle of the view |
 | `\` | Fit the sequence |
 | Shift+F | Fit the selection |
 | Zoom scroll bar | Dragging the bar scrolls; dragging its ends zooms |
 | Middle-button drag | Pan |
 | Up / Down | Playhead to the previous or next edit on targeted tracks |
 | Shift+Up / Shift+Down | Same on all tracks |
+
+Zooming out stops where the whole sequence fills the view, or at a tenth of the
+base scale when the sequence is shorter than that view. A zoom around a point
+inside the sequence does not scroll the sequence's start out of a view that has
+room past its end: the point moves right instead, and stays on screen.
 
 During playback the view follows the playhead by pages (Premiere's page scroll)
 or smoothly, per the timeline display setting. A scroll by hand during

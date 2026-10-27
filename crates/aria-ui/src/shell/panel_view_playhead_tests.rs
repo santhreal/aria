@@ -105,7 +105,7 @@ fn view(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext) -> (f32,
     visual.read(|app| {
         let state = state.read(app);
         (
-            crate::transport::TIMELINE_BASE_PPS * crate::transport::clamp_zoom(state.zoom),
+            crate::transport::TIMELINE_BASE_PPS * state.zoom,
             state.store.sequence.ticks_per_second(),
             state.scroll_x,
             state.timeline_viewport_px(),

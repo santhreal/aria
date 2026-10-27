@@ -174,7 +174,7 @@ Pointer gestures on keyframes are in [animation.md](animation.md#keyframes).
 
 | Key | Result |
 | --- | --- |
-| `=` / `-` | Zoom in / out around the playhead |
+| `=` / `-` | Zoom in / out around the playhead; a playhead off screen moves to the middle of the view |
 | `\` | Fit the sequence |
 | Shift+F | Fit the selection |
 | Ctrl+= / Ctrl+- | Taller / shorter tracks |

@@ -10,8 +10,9 @@
 //! read from `ui_settings` here instead of being passed in: a collapsed pane is
 //! width zero for both the layout and the fit.
 //!
-//! The same viewport width answers a second question: whether the playhead is
-//! still on screen. Following it during playback, and bringing it back into
+//! The same viewport width answers two more questions: how far out the zoom
+//! goes, which is never short of the whole sequence, and whether the playhead
+//! is still on screen. Following it during playback, and bringing it back into
 //! view after a seek, are scrolls, not zooms, so they live here beside the one
 //! writer of the scroll offset.
 
@@ -112,39 +113,80 @@ impl AppState {
     /// Two copies exist: the state's, which every verb and the fit read, and the
     /// projection's, which the panel draws from. A caller that wrote one and
     /// forgot the other left the timeline drawing at a zoom nothing else agreed
-    /// with, which is why the clamp lives here too — a key press, a menu row, a
-    /// wheel notch, and a fit all arrive through this.
+    /// with, which is why the clamp to [`Self::zoom_floor`] and
+    /// [`transport::ZOOM_MAX`] lives here too: a key press, a menu row, a wheel
+    /// notch, the zoom bar and a fit all arrive through this.
     ///
     /// `eased` is the same decision [`Self::scroll_timeline_to`] takes: a
     /// pointer-anchored wheel notch has to land at the scale the pointer was
     /// anchored to, so it is not eased. A keyed step, a menu row, and a fit are
     /// the editor changing the scale, and they travel there.
     pub(crate) fn set_zoom(&mut self, zoom: f32, eased: bool) {
-        let zoom = transport::clamp_zoom(zoom);
+        let zoom = zoom.clamp(self.zoom_floor(), transport::ZOOM_MAX);
         self.zoom = zoom;
         self.store_mut().zoom = zoom;
         self.zoom_eased = eased;
     }
 
-    /// Zoom by `factor` anchored around the playhead (`=` / `-`).
-    ///
-    /// When the playhead is inside the visible viewport, its pixel offset from
-    /// the left edge of the viewport stays fixed across the scale change.
+    /// The narrowest zoom: [`transport::ZOOM_MIN`], or the zoom that fits the
+    /// whole sequence in the view when that is narrower, so zooming out always
+    /// ends on all of it.
+    pub(crate) fn zoom_floor(&self) -> f32 {
+        transport::fit_zoom(
+            self.store.sequence.duration_ticks,
+            self.store.sequence.ticks_per_second(),
+            self.timeline_viewport_px(),
+            transport::TIMELINE_BASE_PPS,
+        )
+        .min(transport::ZOOM_MIN)
+    }
+
+    /// Zoom by `factor` about the playhead (`=` / `-`): a playhead on screen
+    /// keeps its pixel, and one off screen lands in the middle of the view.
     pub fn zoom_around_playhead(&mut self, factor: f32) {
-        let old_zoom = self.zoom;
-        let new_zoom = transport::clamp_zoom(old_zoom * factor);
+        let width = self.timeline_viewport_px();
+        let at = self.playhead_px() - self.scroll_x;
+        let screen_x = if (0.0..=width).contains(&at) {
+            at
+        } else {
+            width / 2.0
+        };
+        let seconds = self.playhead.value.max(0) as f32 / self.store.sequence.ticks_per_second();
+        self.zoom_about(self.zoom * factor, seconds, screen_x, true);
+    }
+
+    /// Zoom by `factor` about window x `x`, the second under the pointer held
+    /// under it: a wheel notch, or a click with the Zoom tool. Not eased, so
+    /// the frame it lands on is drawn at the scale the pointer anchored.
+    /// Returns false, and does nothing, before the timeline is drawn.
+    pub(crate) fn zoom_at_pointer(&mut self, x: f32, factor: f32) -> bool {
+        let Some(left) = self.timeline_content_left() else {
+            return false;
+        };
+        let pointer = (x - left).max(0.0);
+        let seconds = (self.scroll_x + pointer) / (transport::TIMELINE_BASE_PPS * self.zoom);
+        self.zoom_about(self.zoom * factor, seconds, pointer, false);
+        true
+    }
+
+    /// Zoom to `zoom` with the timeline second `seconds` drawn `screen_x`
+    /// pixels into the view. A second inside the sequence moves right of
+    /// `screen_x` when holding it there would scroll the sequence's start away
+    /// with empty view past its end, so a zoom out at the floor shows the whole
+    /// sequence from its first frame. A second past the end holds its pixel.
+    fn zoom_about(&mut self, zoom: f32, seconds: f32, screen_x: f32, eased: bool) {
+        self.set_zoom(zoom, eased);
+        let pps = transport::TIMELINE_BASE_PPS * self.zoom;
         let fps = self.store.sequence.ticks_per_second();
-        let old_pps = transport::TIMELINE_BASE_PPS * old_zoom;
-        let new_pps = transport::TIMELINE_BASE_PPS * new_zoom;
-        let playhead_sec = self.playhead.value.max(0) as f32 / fps;
-        let old_px = playhead_sec * old_pps;
-        let new_px = playhead_sec * new_pps;
-        let view_w = self.timeline_viewport_px();
-        let screen_x = old_px - self.scroll_x;
-        self.set_zoom(new_zoom, true);
-        if self.playhead.value > 0 && screen_x >= 0.0 && screen_x <= view_w {
-            self.scroll_timeline_to((new_px - screen_x).max(0.0), true);
-        }
+        let end = self.store.sequence.duration_ticks.max(0) as f32 / fps * pps;
+        let at = seconds * pps;
+        let held = at - screen_x;
+        let scroll = if at <= end {
+            held.min(end - self.timeline_viewport_px())
+        } else {
+            held
+        };
+        self.scroll_timeline_to(scroll, eased);
     }
 
     /// Keep the playhead on screen while it moves, reporting whether the view
@@ -200,7 +242,7 @@ impl AppState {
     /// the pixels on screen rather than a second opinion about the playhead.
     fn playhead_px(&self) -> f32 {
         let fps = self.store.sequence.ticks_per_second();
-        let pps = transport::TIMELINE_BASE_PPS * transport::clamp_zoom(self.zoom);
+        let pps = transport::TIMELINE_BASE_PPS * self.zoom;
         (self.playhead.value.max(0) as f32 / fps) * pps
     }
 

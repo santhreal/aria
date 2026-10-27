@@ -242,7 +242,7 @@ clock stops the other, and focusing another tab stops the source.
 
 | Shortcut | Action |
 | --- | --- |
-| = or + / - | Zoom in / out around the playhead |
+| = or + / - | Zoom in / out around the playhead; a playhead off screen moves to the middle of the view |
 | \ | Fit the sequence |
 | Shift+F or Shift+Z | Fit the selection |
 | Ctrl+= / Ctrl+- | Every track taller / shorter by one step |

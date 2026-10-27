@@ -32,7 +32,9 @@
   and an arrow key keeps it and moves the caret to that end. Shift with an
   arrow, Home, or End selects; Ctrl with an arrow moves by word; Ctrl+Z puts
   back the name the field opened with. Enter applies the name and Esc cancels.
-- `\` fits the timeline to the sequence, Shift+F to the selection. + / - zoom.
+- `\` fits the timeline to the sequence, Shift+F to the selection. + / - zoom
+  around the playhead, and bring a playhead that is off screen to the middle of
+  the view. Zooming out stops at the whole sequence.
 - Right-click a clip, track, or the preview for a context menu. A row that
   switches a state draws a check mark in its lead column while the state
   holds, as a menu bar row does.
@@ -174,9 +176,10 @@ the ruler (see [Render files](viewer.md#render-files)).
 The zoom bar along the bottom of the timeline maps the whole sequence, and past
 its end the view when the view reaches further. Drag the window to scroll; the
 point you pressed stays under the pointer. Drag either handle to zoom with the
-other end held in place. Click outside the window to center the view there and
-keep dragging from there. A drag continues when the pointer leaves the bar, and
-Esc during the drag puts the zoom and the scroll back. At its left, **+** adds a
+other end held in place; drag the handles to the bar's two ends to show the
+whole sequence. Click outside the window to center the view there and keep
+dragging from there. A drag continues when the pointer leaves the bar, and Esc
+during the drag puts the zoom and the scroll back. At its left, **+** adds a
 video track and the zoom readout fits the sequence on a click.
 
 
