@@ -8,7 +8,7 @@
 //! Under the outline column the bar holds the add-track button and the zoom
 //! readout, which fits the sequence on a click.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -48,7 +48,7 @@ thread_local! {
 
 #[cfg(test)]
 thread_local! {
-    static OVERVIEW_CLIP_PROBES: Cell<usize> = const { Cell::new(0) };
+    static OVERVIEW_CLIP_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ fn reset_overview_clip_probes() {
 
 #[cfg(test)]
 fn overview_clip_probes() -> usize {
-    OVERVIEW_CLIP_PROBES.with(Cell::get)
+    OVERVIEW_CLIP_PROBES.with(std::cell::Cell::get)
 }
 
 /// What the coalesced overview spans are a function of. Clip times are written
