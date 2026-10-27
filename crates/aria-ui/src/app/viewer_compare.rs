@@ -10,7 +10,9 @@
 //!
 //! A frame or a still is rendered off the UI thread. A reference replaced
 //! before its picture arrives drops the late picture, so the picture drawn is
-//! always the one the last row asked for.
+//! always the one the last row asked for. A picture the comparison lets go of
+//! is released from the window atlas when the next picture lands, or at the
+//! next release after the comparison stops.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -69,6 +71,8 @@ pub struct ViewerCompare {
     stage: Option<[f32; 4]>,
     /// The divider is held.
     dragging: bool,
+    /// Pictures let go of, for the window atlas to release.
+    retired: Vec<Arc<RenderImage>>,
 }
 
 impl Default for ViewerCompare {
@@ -81,6 +85,7 @@ impl Default for ViewerCompare {
             generation: 0,
             stage: None,
             dragging: false,
+            retired: Vec::new(),
         }
     }
 }
@@ -128,7 +133,7 @@ impl ViewerCompare {
     fn begin(&mut self, reference: Reference) -> u64 {
         self.generation += 1;
         self.reference = Some(reference);
-        self.picture = None;
+        self.let_go();
         self.dragging = false;
         self.generation
     }
@@ -137,10 +142,20 @@ impl ViewerCompare {
     /// the current reference's and was kept.
     fn land(&mut self, generation: u64, picture: Arc<RenderImage>) -> bool {
         let current = generation == self.generation && self.reference.is_some();
-        if current {
-            self.picture = Some(picture);
+        if current && let Some(replaced) = self.picture.replace(picture) {
+            self.retired.push(replaced);
         }
         current
+    }
+
+    /// Drop the held picture.
+    fn let_go(&mut self) {
+        self.retired.extend(self.picture.take());
+    }
+
+    /// Hand the pictures let go of to `out`, the window atlas's release list.
+    pub(crate) fn retire_into(&mut self, out: &mut Vec<Arc<RenderImage>>) {
+        out.append(&mut self.retired);
     }
 }
 
@@ -237,7 +252,7 @@ impl AppState {
         let compare = &mut self.viewer_compare;
         compare.generation += 1;
         compare.reference = None;
-        compare.picture = None;
+        compare.let_go();
         compare.dragging = false;
     }
 
@@ -296,6 +311,7 @@ impl AppState {
                     }
                     Err(_) => {}
                 }
+                state.release_retired_images(None, cx);
                 cx.notify();
             });
         })

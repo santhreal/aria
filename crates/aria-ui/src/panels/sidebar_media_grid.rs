@@ -412,7 +412,8 @@ fn plate(
 }
 
 /// A tile's picture: the first frame of the source, or the frame under the
-/// pointer while the row is being scrubbed.
+/// pointer while the row is being scrubbed. While that frame renders the tile
+/// draws the frame it holds last before it, or else first after it.
 ///
 /// The pointer position is turned into a source tick against the rectangle this
 /// element was last painted in, which a mouse move does not carry — hence the
@@ -428,7 +429,7 @@ pub(super) fn thumbnail(
 ) -> gpui::Stateful<gpui::Div> {
     let tick = state.read(cx).pool_tile_tick(media);
     pool_preview::request_thumb(state, cx, media, tick);
-    let image = state.read(cx).pool_preview.get(media, tick).cloned();
+    let image = state.read(cx).pool_preview.picture(media, tick).cloned();
     let measure = {
         let state = state.clone();
         canvas(

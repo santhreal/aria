@@ -6,7 +6,9 @@
 //! reference keeps the frame it was taken at while the playhead moves; a still
 //! that cannot be read stops the comparison and reports why; and the divider
 //! follows the pointer across the stage it is drawn on, clamped to it, along
-//! the axis the layout splits.
+//! the axis the layout splits. And a second class: a reference picture let go
+//! of stayed in the window atlas for the life of the window. Every path that
+//! lets one go hands it to the atlas release.
 //!
 //! The drawn cases drive the shell's own pointer routing: a press on the
 //! divider, moves anywhere in the window, and the release.
@@ -303,4 +305,69 @@ fn the_drawn_divider_follows_a_drag_in_every_layout(cx: &mut TestAppContext) {
             "{layout:?}: the reference's share did not follow the divider: {before:?} then {after:?}"
         );
     }
+}
+
+/// Every path that lets a picture go: a new reference, a stop, and a picture
+/// landing over one held. A late picture was never held and is not counted.
+#[test]
+fn every_picture_the_comparison_lets_go_of_goes_to_the_atlas_release() {
+    let (mut state, _) = with_clip();
+    let at = state.playhead;
+    let compare = &mut state.viewer_compare;
+    let mut given = Vec::new();
+    let mut released = Vec::new();
+    let mut keep = |compare: &mut super::ViewerCompare, generation: u64| {
+        let picture = one_pixel();
+        assert!(compare.land(generation, std::sync::Arc::clone(&picture)));
+        given.push(picture);
+    };
+    let still = compare.begin(Reference::Still { path: texture() });
+    keep(compare, still);
+    keep(compare, still);
+    let frame = compare.begin(Reference::Frame { at });
+    assert!(!compare.land(still, one_pixel()), "a late picture was kept");
+    keep(compare, frame);
+    state.stop_comparing();
+    state.viewer_compare.retire_into(&mut released);
+    crate::test_support::atlas::held_or_released_once(
+        state.viewer_compare.picture(),
+        &released,
+        &given,
+        "a new reference, a stop, and a landing over a held picture",
+    );
+    assert_eq!(released.len(), 3);
+}
+
+/// WHY: a reference picture the comparison let go of stayed in the window
+/// atlas until the window closed, so each new reference added one. A still
+/// drawn in the Viewer and then replaced is gone from the atlas once the
+/// picture replacing it has landed.
+#[gpui::test]
+async fn a_picture_the_comparison_lets_go_of_leaves_the_window_atlas(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "viewer-compare-atlas");
+    let compare = |visual: &mut VisualTestContext| {
+        visual.update(|window, app| {
+            state.update(app, |state, cx| {
+                state.compare_with_still(texture(), cx);
+                cx.notify();
+            });
+            window.refresh();
+        });
+        visual.run_until_parked();
+        visual
+            .read(|app| state.read(app).viewer_compare.picture().cloned())
+            .expect("the still arrived")
+    };
+    let drawn = compare(visual);
+    assert!(
+        visual.update(|window, _| window.has_image_atlas_entry(&drawn)),
+        "the Viewer drew the still"
+    );
+    let next = compare(visual);
+    assert!(!std::sync::Arc::ptr_eq(&drawn, &next));
+    assert!(
+        !visual.update(|window, _| window.has_image_atlas_entry(&drawn)),
+        "the replaced still stayed in the window atlas"
+    );
 }

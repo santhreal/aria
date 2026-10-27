@@ -205,9 +205,8 @@ impl AppState {
         let Some(evicted) = self.sync_plugin_panels() else {
             return;
         };
-        for image in evicted {
-            cx.drop_image(image, None);
-        }
+        self.retired_images.extend(evicted);
+        self.release_retired_images(None, cx);
         cx.notify();
     }
 

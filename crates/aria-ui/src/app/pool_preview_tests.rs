@@ -80,5 +80,7 @@ fn spans(state: &AppState) -> Vec<(i64, i64)> {
 // one place. Only `#[test]` fns moved.
 #[path = "pool_preview_tests_monitor.rs"]
 mod pool_preview_tests_monitor;
+#[path = "pool_preview_tests_pictures.rs"]
+mod pool_preview_tests_pictures;
 #[path = "pool_preview_tests_source.rs"]
 mod pool_preview_tests_source;

@@ -12,7 +12,6 @@
 //!
 //! Not covered: the order the renders finish in, which the threads decide.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -22,6 +21,7 @@ use aria_plugin::Reverted;
 use gpui::{AppContext as _, RenderImage, TestAppContext};
 
 use super::{FilmstripStore, MAX_CELLS, RENDERERS, ask, land, test_cell as cell};
+use crate::test_support::atlas::held_or_released_once;
 use crate::test_support::drawn_shell;
 
 /// Ticks `n` cells apart on an 8-tick grid.
@@ -156,22 +156,12 @@ fn accounted(
     step: &str,
 ) {
     store.retire_into(released);
-    let mut seen: HashMap<*const RenderImage, usize> = HashMap::new();
-    for image in store
-        .cells
-        .values()
-        .map(|cell| &cell.image)
-        .chain(released.iter())
-    {
-        *seen.entry(Arc::as_ptr(image)).or_default() += 1;
-    }
-    for (index, image) in given.iter().enumerate() {
-        assert_eq!(
-            seen.get(&Arc::as_ptr(image)).copied().unwrap_or(0),
-            1,
-            "{step}: picture {index} is not held or released exactly once"
-        );
-    }
+    held_or_released_once(
+        store.cells.values().map(|cell| &cell.image),
+        released,
+        given,
+        step,
+    );
 }
 
 /// Every path that takes a cell out of the store: a landing in a full store,

@@ -143,8 +143,12 @@ saved with the project; which folder is open is not.
 Each pool row holds a picture of its source. Move the pointer across that
 picture to scrub the file: the left edge is its first frame and the right edge
 its last. Nothing is placed and nothing is edited; a still shows its one frame.
-A row shows a glyph until its first frame is decoded, and an audio-only file has
-no picture.
+While the frame under the pointer decodes, the row shows the decoded frame of
+the file last before it, or else the first after it. A row shows a glyph until
+its first frame is decoded, and an audio-only file has no picture. Past 256
+decoded pictures, the pool drops one picture of the file holding the most: of
+the file being scrubbed, the one farthest from the pointer; of any other, its
+last.
 
 Double-click a pool item, or press `Space` with the pool focused, to open it in a
 Source tab of the Viewer. While a Source tab is open, the tab row above the

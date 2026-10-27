@@ -12,7 +12,9 @@
 //! relink or a proxy cannot leave a stale picture on screen and an edit on the
 //! timeline cannot throw away pictures it did not change. One render is in
 //! flight at a time per surface: a scrub across forty tiles must not queue forty
-//! decodes.
+//! decodes. A tile scrubbed to a tick not rendered yet draws the picture of the
+//! same source held nearest before it, and every picture the store drops is
+//! released from the window atlas when the next render lands.
 //!
 //! Renders are asked for from the render pass, the way filmstrip cells are. The
 //! monitor's tick moves on hover as well as on a keypress, so there is no single
@@ -23,7 +25,7 @@ use aria_engine::EngineError;
 use aria_models::MediaId;
 use aria_storage::CacheId;
 use gpui::{App, Entity, RenderImage};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 /// Thumbnail size on a pool tile. A 16:9 source fills it exactly; anything else
@@ -34,8 +36,8 @@ pub const THUMB_H: u32 = 68;
 /// smaller than this, and `Contain` does the rest.
 const SOURCE_MAX_W: u32 = 1280;
 const SOURCE_MAX_H: u32 = 720;
-/// Thumbnails kept across all sources. A thumbnail is a few KB, so this bounds
-/// the pool's picture memory at a few megabytes.
+/// Thumbnails kept across all sources. A thumbnail is about 32 KB, so this
+/// bounds the pool's picture memory at about 8 MB.
 const MAX_THUMBS: usize = 256;
 /// Rendered pool pictures, valid for one session revision.
 ///
@@ -52,7 +54,8 @@ pub struct PoolPreviewStore {
     /// picture on screen, one at a time, through the same engine the preview
     /// needs.
     stamps: HashMap<u64, u64>,
-    thumbs: HashMap<(u64, i64), Arc<RenderImage>>,
+    /// Ordered by source, then tick, so a source's pictures are one range.
+    thumbs: BTreeMap<(u64, i64), Arc<RenderImage>>,
     /// The one thumbnail being rendered, if any.
     in_flight: Option<(u64, i64)>,
     /// Requests that produced no frame, so a source that cannot be decoded is
@@ -66,10 +69,30 @@ pub struct PoolPreviewStore {
     /// pixels. A pointer position means nothing without it, and a mouse move
     /// carries no element bounds.
     rects: HashMap<u64, (f32, f32)>,
+    /// Pictures the store dropped, for the window atlas to release. A
+    /// picture drops on a landing or a change of source, and a landing
+    /// releases them.
+    retired: Vec<Arc<RenderImage>>,
 }
 impl PoolPreviewStore {
-    pub fn get(&self, media: u64, tick: i64) -> Option<&Arc<RenderImage>> {
-        self.thumbs.get(&(media, tick))
+    /// The picture a tile draws at `tick`: the one rendered there, else the
+    /// last held picture of `media` before it, else the first after it. A
+    /// scrub across a tile shows a held frame beside the pointer while the
+    /// one under it renders, instead of a glyph.
+    pub fn picture(&self, media: u64, tick: i64) -> Option<&Arc<RenderImage>> {
+        self.thumbs
+            .range((media, i64::MIN)..=(media, tick))
+            .next_back()
+            .or_else(|| self.held(media).next())
+            .map(|(_, image)| image)
+    }
+
+    /// The pictures held for `media`, in tick order.
+    fn held(
+        &self,
+        media: u64,
+    ) -> std::collections::btree_map::Range<'_, (u64, i64), Arc<RenderImage>> {
+        self.thumbs.range((media, i64::MIN)..=(media, i64::MAX))
     }
 
     /// Record where `media`'s picture is painted. Layout, not content: this
@@ -139,14 +162,19 @@ impl PoolPreviewStore {
             return;
         }
         self.stamps.insert(media, stamp);
-        self.thumbs.retain(|(held, _), _| *held != media);
+        self.retired.extend(
+            self.thumbs
+                .extract_if((media, i64::MIN)..=(media, i64::MAX), |_, _| true)
+                .map(|(_, image)| image),
+        );
         self.empty.retain(|(held, _)| *held != media);
         if self
             .source
             .as_ref()
             .is_some_and(|((held, _), _)| *held == media)
+            && let Some((_, image)) = self.source.take()
         {
-            self.source = None;
+            self.retired.push(image);
         }
         self.source_empty.retain(|(held, _)| *held != media);
         // A render already in flight for this entry is of the old source. It is
@@ -169,13 +197,56 @@ impl PoolPreviewStore {
         }
         match image {
             Some(image) => {
-                if self.thumbs.len() >= MAX_THUMBS {
-                    self.thumbs.clear();
+                if self.thumbs.len() >= MAX_THUMBS && !self.thumbs.contains_key(&key) {
+                    self.drop_one_for(media, tick);
                 }
-                self.thumbs.insert(key, image);
+                if let Some(replaced) = self.thumbs.insert(key, image) {
+                    self.retired.push(replaced);
+                }
             }
             None => self.empty.push(key),
         }
+    }
+
+    /// Make room for `media`'s picture at `tick` by dropping one picture of
+    /// the source holding the most, `media` on a tie: the one farthest from
+    /// `tick` when that source is `media`, else its last. A long scrub across
+    /// one tile drops that tile's own frames, farthest from the pointer first.
+    fn drop_one_for(&mut self, media: u64, tick: i64) {
+        let mut most = (self.held(media).count(), media);
+        let mut run = (0usize, None);
+        for &(source, _) in self.thumbs.keys() {
+            run = match run {
+                (count, Some(held)) if held == source => (count + 1, Some(source)),
+                _ => (1, Some(source)),
+            };
+            if run.0 > most.0 {
+                most = (run.0, source);
+            }
+        }
+        let (_, source) = most;
+        let mut held = self.held(source);
+        let victim = if source == media {
+            let first = held.next().map(|(key, _)| *key);
+            let last = held.next_back().map(|(key, _)| *key).or(first);
+            match (first, last) {
+                (Some(first), Some(last)) if tick.abs_diff(first.1) < tick.abs_diff(last.1) => {
+                    Some(last)
+                }
+                (first, _) => first,
+            }
+        } else {
+            held.next_back().map(|(key, _)| *key)
+        };
+        if let Some(image) = victim.and_then(|key| self.thumbs.remove(&key)) {
+            self.retired.push(image);
+        }
+    }
+
+    /// Hand the pictures the store dropped to `out`, the window atlas's
+    /// release list.
+    pub(crate) fn retire_into(&mut self, out: &mut Vec<Arc<RenderImage>>) {
+        out.append(&mut self.retired);
     }
 
     fn start_source(&mut self, media: u64, tick: i64) {
@@ -197,7 +268,11 @@ impl PoolPreviewStore {
             return;
         }
         match image {
-            Some(image) => self.source = Some((key, image)),
+            Some(image) => {
+                if let Some((_, replaced)) = self.source.replace((key, image)) {
+                    self.retired.push(replaced);
+                }
+            }
             None => self.source_empty.push(key),
         }
     }

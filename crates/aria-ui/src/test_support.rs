@@ -319,6 +319,9 @@ mod dependency_direction;
 mod shell_draw;
 
 #[cfg(test)]
+pub(crate) mod atlas;
+
+#[cfg(test)]
 mod deferred_docs;
 
 #[cfg(test)]
