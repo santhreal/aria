@@ -7,8 +7,8 @@
 //! picture area during paint, and the handles are placed from that record.
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, ParentElement, StatefulInteractiveElement, Styled, canvas, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    StatefulInteractiveElement, Styled, canvas, div, px,
 };
 
 use crate::app::AppState;
@@ -25,20 +25,6 @@ use gpui::prelude::FluentBuilder;
 /// Handle hit size in pixels. Big enough to grab, small enough not to hide the
 /// frame under it. The Program pane keeps half of it clear around the picture.
 pub(super) const HANDLE: f32 = 12.0;
-
-/// One step of a drag, reported rather than swallowed.
-///
-/// Every handle below hands its step to the registry: what a corner edits is one
-/// table there, not a closure here, and a refusal on release reaches the
-/// operator instead of the floor.
-pub(super) fn step(state: &mut AppState, step: Step) {
-    if matches!(step, Step::Grab(..)) {
-        state.active_panel = crate::types::ActivePanel::Preview;
-    }
-    if let Err(err) = overlay_gesture::apply(state, step) {
-        state.report_error(&err);
-    }
-}
 
 /// Records the picture area every paint, so a pointer position can be turned into
 /// layer fractions. Draws nothing.
@@ -132,7 +118,6 @@ pub(super) fn overlay(
     let path_mask = read
         .active_ui_mask()
         .is_some_and(|mask| mask.kind == aria_models::MaskKind::Path);
-    let dragging = read.overlay_dragging();
     // The picture under the Type tool takes a caret, and under the Pen a
     // vertex; with any other tool it moves.
     let move_cursor = if read.tool.types() {
@@ -179,8 +164,9 @@ pub(super) fn overlay(
                                 return;
                             }
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
-                            this.state
-                                .update(cx, |state, _| step(state, Step::Grab(Gesture::Move, at)));
+                            this.state.update(cx, |state, _| {
+                                overlay_gesture::run(state, Step::Grab(Gesture::Move, at))
+                            });
                             cx.notify();
                         }),
                     ),
@@ -195,7 +181,7 @@ pub(super) fn overlay(
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
-                            step(state, Step::Grab(Gesture::Scale(handle), at))
+                            overlay_gesture::run(state, Step::Grab(Gesture::Scale(handle), at))
                         });
                         cx.notify();
                     }),
@@ -214,7 +200,7 @@ pub(super) fn overlay(
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
-                            step(state, Step::Grab(Gesture::TypeHandle(index), at))
+                            overlay_gesture::run(state, Step::Grab(Gesture::TypeHandle(index), at))
                         });
                         cx.notify();
                     }),
@@ -245,7 +231,7 @@ pub(super) fn overlay(
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
-                            step(state, Step::Grab(Gesture::Crop(handle), at))
+                            overlay_gesture::run(state, Step::Grab(Gesture::Crop(handle), at))
                         });
                         cx.notify();
                     }),
@@ -281,7 +267,7 @@ pub(super) fn overlay(
                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
                             this.state.update(cx, |state, _| {
-                                step(state, Step::Grab(Gesture::Mask(handle), at))
+                                overlay_gesture::run(state, Step::Grab(Gesture::Mask(handle), at))
                             });
                             cx.notify();
                         }),
@@ -291,28 +277,9 @@ pub(super) fn overlay(
         }
     }
 
-    // Pointer routing lives on the whole picture area rather than on each handle:
-    // a drag that runs off a 12-pixel dot must keep tracking, and the geometry
-    // clamps it to the layer anyway.
-    let root = root
-        .when(dragging, |el| {
-            el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    step(
-                        state,
-                        Step::Carry([f32::from(event.position.x), f32::from(event.position.y)]),
-                    );
-                });
-                cx.notify();
-            }))
-        })
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                this.state.update(cx, |state, _| step(state, Step::Release));
-                cx.notify();
-            }),
-        );
+    // A drag the press began is carried and released by the shell
+    // (`Shell::carry_gesture`), so it follows the pointer off the picture and
+    // ends wherever the button comes up.
     Some(root.into_any_element())
 }
 

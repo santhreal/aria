@@ -29,8 +29,10 @@ Right-click a track header for the rest:
   20, 32, 48, and 72 pixels. The lane's current height draws a check mark; a
   lane at any other height draws none.
 
-Drag a track header onto another header to move that lane to the row you release
-over. The target row is marked while the pointer is over it, Escape abandons the
+Drag a track header onto another header to move that lane to that header's
+row. The row is marked while the pointer is over its header, and the release
+drops the lane on the marked row wherever the pointer is; over the lane's own
+header no row is marked and the release moves nothing. Escape abandons the
 drag, and a drop is one edit. The main track stays at the bottom of the stack.
 
 Drag a lane's lower border to resize it, or Shift+scroll over its header to step

@@ -16,7 +16,8 @@
 //!
 //! Not covered: a trim, a fade, a band and a clip's line on the lane groups,
 //! which the same hold carries and no test here drives, and the drags of the
-//! Inspector and the Viewer.
+//! Inspector. The Viewer's, the Mixer's and the track headers' are in
+//! `held_drag_panel_tests`.
 
 use aria_commands::{Command, EditCommand};
 use aria_models::{ClipId, ClipParam, Easing, ParamValue, RationalTime, TrackKind};
@@ -31,27 +32,27 @@ use crate::types::UiTrackKind;
 
 /// The bounds the last frame drew under `selector`.
 #[track_caller]
-fn bounds(visual: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
+pub(super) fn bounds(visual: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
     visual.update(|window, _| window.refresh());
     visual.run_until_parked();
     visual
         .debug_bounds(intern(selector))
-        .unwrap_or_else(|| panic!("the timeline draws no {selector}"))
+        .unwrap_or_else(|| panic!("the shell draws no {selector}"))
 }
 
-fn press(visual: &mut VisualTestContext, at: Point<Pixels>) {
+pub(super) fn press(visual: &mut VisualTestContext, at: Point<Pixels>) {
     visual.simulate_mouse_move(at, None, Modifiers::none());
     visual.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
 }
 
 /// A move with the left button held.
-fn carry(visual: &mut VisualTestContext, to: Point<Pixels>) {
+pub(super) fn carry(visual: &mut VisualTestContext, to: Point<Pixels>) {
     visual.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
 }
 
-fn release(visual: &mut VisualTestContext, at: Point<Pixels>) {
+pub(super) fn release(visual: &mut VisualTestContext, at: Point<Pixels>) {
     visual.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
 }

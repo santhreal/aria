@@ -28,8 +28,7 @@ use std::rc::Rc;
 use crate::components::Wraps as _;
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled,
-    canvas, div, px, relative,
+    ParentElement, SharedString, StatefulInteractiveElement, Styled, canvas, div, px, relative,
 };
 
 use crate::app::AppState;
@@ -783,9 +782,10 @@ fn meter(theme: &Theme, raw_id: u64, audible: bool, level: [f32; 2]) -> gpui::An
 /// painted and a press takes the length last painted as the travel. A drag
 /// across the whole track so moves the value across its whole range.
 ///
-/// A press grabs the value, a move rides it, a release writes one command.
-/// The travel is relative to the grab, so the value never jumps to wherever
-/// the pointer happened to land.
+/// A press grabs the value, and the shell (`Shell::carry_gesture`) rides it
+/// wherever the pointer goes and writes one command at the release. The
+/// travel is relative to the grab, so the value never jumps to wherever the
+/// pointer happened to land.
 fn drag_track(
     theme: &Theme,
     (name, raw_id): (&'static str, u64),
@@ -860,42 +860,6 @@ fn drag_track(
                     }
                 });
                 cx.notify();
-            }),
-        )
-        .on_mouse_move(cx.listener(move |this, event: &MouseMoveEvent, _, cx| {
-            let at = if horizontal {
-                f32::from(event.position.x)
-            } else {
-                f32::from(event.position.y)
-            };
-            let moved = this.state.update(cx, |state, _| {
-                match mixer_strip::apply(state, Gesture::RideFader { at }) {
-                    Ok(moved) => moved,
-                    Err(err) => {
-                        state.report_error(&err);
-                        false
-                    }
-                }
-            });
-            if moved {
-                cx.notify();
-            }
-        }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                let wrote = this.state.update(cx, |state, _| {
-                    match mixer_strip::apply(state, Gesture::ReleaseFader) {
-                        Ok(wrote) => wrote,
-                        Err(err) => {
-                            state.report_error(&err);
-                            false
-                        }
-                    }
-                });
-                if wrote {
-                    cx.notify();
-                }
             }),
         )
         .into_any_element()

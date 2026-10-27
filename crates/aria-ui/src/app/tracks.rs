@@ -49,14 +49,18 @@ impl AppState {
         changed
     }
 
-    /// Drop the dragged lane on `row`. One reorder, one undo entry; a drop on the
-    /// lane's own row writes nothing.
-    pub fn drop_track_on_row(&mut self, row: usize) -> Result<(), EngineError> {
+    /// Let go of a header drag, wherever the button comes up: the dragged lane
+    /// drops on the row the indicator marks, one reorder and one undo entry,
+    /// and with no row marked the drag ends and writes nothing. `true` when a
+    /// drag was in flight.
+    pub fn release_track_drag(&mut self) -> Result<bool, EngineError> {
         let Some(dragged) = self.track_drag.take() else {
-            return Ok(());
+            return Ok(false);
         };
-        self.track_drop_row = None;
-        self.move_track_to_row(TrackId::from_raw(dragged), row)
+        if let Some(row) = self.track_drop_row.take() {
+            self.move_track_to_row(TrackId::from_raw(dragged), row)?;
+        }
+        Ok(true)
     }
 
     /// Abandon a header drag at no cost.

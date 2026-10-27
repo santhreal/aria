@@ -365,11 +365,12 @@ fn the_panel_files_every_gesture_through_the_registry() {
     .expect("the mixer panel is readable");
     let filed = source.matches("mixer_strip::apply").count();
     assert_eq!(
-        filed, 9,
-        "the mixer draws nine gesture sites and files {filed} of them through \
+        filed, 7,
+        "the mixer draws seven gesture sites and files {filed} of them through \
          the registry: the bus button, mute, solo, automation mode, the output \
-         chip, the send chip, and the fader/pan press, move and release. A \
-         control that calls `AppState` directly is one the census cannot press"
+         chip, the send chip, and the fader/pan press, whose ride and release \
+         the shell files (`Shell::carry_gesture`). A control that calls \
+         `AppState` directly is one the census cannot press"
     );
 }
 

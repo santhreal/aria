@@ -2,18 +2,17 @@
 //!
 //! Both come from [`AppState::drawn_text_caret`] in window pixels, so the caret
 //! sits on the boundary the renderer laid the glyphs out at. The press that
-//! places the caret is the picture's own (`AppState::select_layer_at`); this
-//! layer carries the drag that selects and the release that ends it.
+//! places the caret is the picture's own (`AppState::select_layer_at`); the
+//! shell carries the drag that selects and ends it at the release
+//! (`Shell::carry_gesture`), wherever the pointer goes.
 
 use gpui::{
-    ContentMask, Entity, InteractiveElement, IntoElement, MouseButton, MouseMoveEvent,
-    MouseUpEvent, ParentElement, PathBuilder, Styled, canvas, div, point, px,
+    ContentMask, Entity, IntoElement, ParentElement, PathBuilder, Styled, canvas, div, point, px,
 };
 
 use crate::app::AppState;
 use crate::app::clip_text::text_caret::DrawnTextCaret;
 use crate::theme::Theme;
-use gpui::prelude::FluentBuilder;
 
 /// The caret's stroke, in pixels.
 const CARET: f32 = 1.5;
@@ -61,48 +60,18 @@ pub(super) fn overlay(
 ) -> Option<gpui::AnyElement> {
     let read = state.read(cx);
     let drawn = read.drawn_text_caret()?;
-    let dragging = read.text_dragging();
     let (selection, caret) = (theme.selection, theme.caret);
-    let root = div()
-        .absolute()
-        .size_full()
-        .child(
-            canvas(
-                |_, _, _| (),
-                move |bounds, (), window, _| {
-                    window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
-                        paint(&drawn, selection, caret, window);
-                    });
-                },
-            )
-            .absolute()
-            .size_full(),
+    let root = div().absolute().size_full().child(
+        canvas(
+            |_, _, _| (),
+            move |bounds, (), window, _| {
+                window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
+                    paint(&drawn, selection, caret, window);
+                });
+            },
         )
-        // The drag is carried here and nowhere else: the picture under this
-        // layer would pan a zoomed frame with the same move.
-        .when(dragging, |el| {
-            el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                cx.stop_propagation();
-                let at = [f32::from(event.position.x), f32::from(event.position.y)];
-                if this.state.update(cx, |state, _| state.drag_text_caret(at)) {
-                    cx.notify();
-                }
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, _| state.end_text_drag());
-                    cx.notify();
-                }),
-            )
-            .on_mouse_up_out(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                    this.state.update(cx, |state, _| state.end_text_drag());
-                    cx.notify();
-                }),
-            )
-        });
+        .absolute()
+        .size_full(),
+    );
     Some(root.into_any_element())
 }

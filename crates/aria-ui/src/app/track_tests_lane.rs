@@ -214,9 +214,9 @@ fn ripple_insert_at_the_playhead_pushes_downstream_clips() {
     );
 }
 /// The class closed below is "a lane can only be reordered from a menu". A header
-/// drag names its own drop row, so the rules are: the indicator only appears where
-/// the drop would change the stack, a drop is one edit, and abandoning it costs
-/// nothing.
+/// drag marks its drop row, so the rules are: the indicator only appears where
+/// the drop would change the stack, the release drops on the marked row as one
+/// edit wherever it lands, and abandoning the drag costs nothing.
 #[test]
 fn dragging_a_header_onto_another_row_reorders_the_stack_once() {
     let (mut state, top, middle, main) = with_two_video_lanes();
@@ -243,7 +243,7 @@ fn dragging_a_header_onto_another_row_reorders_the_stack_once() {
     );
 
     let before = state.engine().lock().revision();
-    state.drop_track_on_row(0).expect("drop");
+    assert!(state.release_track_drag().expect("the drop"));
     assert_eq!(rows(&state), vec![middle, top, main]);
     assert_eq!(
         state.engine().lock().revision(),
@@ -262,9 +262,11 @@ fn an_abandoned_or_empty_header_drag_costs_nothing() {
     let order = rows(&state);
     let before = state.engine().lock().revision();
 
-    // A drop on the lane's own row writes nothing.
+    // A release with the lane's own row under the pointer writes nothing.
     state.begin_track_drag(TrackId::from_raw(middle));
-    state.drop_track_on_row(1).expect("same row");
+    assert!(!state.hover_track_drop(1));
+    assert!(state.release_track_drag().expect("same row"));
+    assert!(!state.track_dragging());
     assert_eq!(rows(&state), order);
     assert_eq!(state.engine().lock().revision(), before);
 
@@ -276,9 +278,9 @@ fn an_abandoned_or_empty_header_drag_costs_nothing() {
     assert_eq!(state.track_drop_row, None);
     assert_eq!(rows(&state), order);
 
-    // With no drag in flight every hover and drop is inert.
+    // With no drag in flight every hover and release is inert.
     assert!(!state.hover_track_drop(0));
-    state.drop_track_on_row(0).expect("inert");
+    assert!(!state.release_track_drag().expect("inert"));
     assert_eq!(rows(&state), order);
 
     // An unknown lane cannot start one.
@@ -288,7 +290,8 @@ fn an_abandoned_or_empty_header_drag_costs_nothing() {
     // The main lane is pinned to the bottom of the stack, so a drop that would
     // raise it leaves the order alone whatever the engine records.
     state.begin_track_drag(TrackId::from_raw(main));
-    state.drop_track_on_row(0).expect("pinned");
+    assert!(state.hover_track_drop(0));
+    assert!(state.release_track_drag().expect("pinned"));
     assert_eq!(rows(&state), order, "the main lane left the bottom");
 }
 #[test]

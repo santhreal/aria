@@ -20,8 +20,9 @@ clicking it returns to fit. The buttons walk a fixed ladder: 25, 50, 75, 100,
 150, 200, 400 per cent, and stop at either end.
 
 Above 100 per cent the frame can be panned: the cursor becomes an open hand and
-dragging moves the picture. Returning to fit, or zooming back to 100 per cent or
-below, re-centers it.
+dragging moves the picture, and the drag keeps going when the pointer leaves
+the Viewer. Returning to fit, or zooming back to 100 per cent or below,
+re-centers it.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same
@@ -174,7 +175,8 @@ crop corner and a scale corner sit on the same pixel when the crop is full.
 In Transform mode, dragging the picture moves it and dragging a corner scales it.
 A corner scale is uniform: both axes keep their ratio. Use the Transform tab rows
 for a per-axis scale. The scale stops at 0.02 and at 20. Releasing without moving
-writes nothing.
+writes nothing. A drag on the picture or on any handle follows the pointer off
+the Viewer, and the release writes it wherever the button comes up.
 
 In Crop mode, the preview draws crop handles on the selected clip: one dot per edge and one per
 corner. Drag a dot to move that edge; a corner moves both of its edges. While you

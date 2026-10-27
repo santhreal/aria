@@ -198,9 +198,9 @@ pub fn render(
 }
 
 /// The Program picture: the sequence frame with its safe guides, handles,
-/// plugin overlays, rulers, and viewer guides. A press anchors a pan and picks
-/// the clip under the pointer; a held guide follows the pointer and drops on
-/// release.
+/// plugin overlays, rulers, and viewer guides. A press picks the clip under
+/// the pointer and, held, pans a zoomed frame; the shell carries the pan and
+/// a held guide wherever the pointer goes (`Shell::carry_gesture`).
 ///
 /// The picture area stands half a handle inside the pane on every side. A
 /// fitted frame touches the picture area on two sides, and a handle on the
@@ -233,60 +233,36 @@ fn program_pane(
                 cx.notify();
             }),
         )
-        // One press does two things, and they do not conflict: it anchors a
-        // pan, and it picks the clip under the pointer. A miss leaves the
+        // One press does two things, and they do not conflict: it holds a pan,
+        // and it picks the clip under the pointer. A miss leaves the
         // selection alone — a click on the letterbox while nudging a title
         // should not throw the title's selection away.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
                 let point = [f32::from(event.position.x), f32::from(event.position.y)];
-                this.preview_pan_anchor = (point[0], point[1]);
+                this.preview_pan = Some(point);
                 this.state.update(cx, |state, _| {
                     state.select_layer_at(point, event.modifiers.shift);
                 });
                 cx.notify();
             }),
         )
-        // A held guide follows the pointer. Otherwise a zoomed frame is
-        // dragged by the pointer: the delta is applied straight to the pan,
-        // and a fitted view ignores it. A drag of a handle moves the handle,
-        // not the frame under it.
+        // The Info panel reads the pixel under the pointer.
         .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
-            // The Info panel reads the pixel under the pointer.
             if this
                 .state
                 .update(cx, |state, _| state.point_viewer(Some(at)))
             {
                 cx.notify();
             }
-            if this.state.read(cx).viewer_guides.dragging.is_some() {
-                this.state.update(cx, |state, _| state.drag_guide(at));
-                cx.notify();
-                return;
-            }
-            let read = this.state.read(cx);
-            if !event.dragging()
-                || !read.preview_view.pannable()
-                || read.overlay_dragging()
-                || read.plugin_overlays.grab.is_some()
-            {
-                return;
-            }
-            let dx = at[0] - this.preview_pan_anchor.0;
-            let dy = at[1] - this.preview_pan_anchor.1;
-            this.preview_pan_anchor = (at[0], at[1]);
-            this.state.update(cx, |state, _| state.pan_preview(dx, dy));
-            cx.notify();
         }))
         .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
             if !*hovered && this.state.update(cx, |state, _| state.point_viewer(None)) {
                 cx.notify();
             }
         }))
-        .on_mouse_up(MouseButton::Left, cx.listener(drop_guide))
-        .on_mouse_up_out(MouseButton::Left, cx.listener(drop_guide))
         .child(
             div()
                 .relative()
@@ -307,28 +283,6 @@ fn program_pane(
                 .children(plugin_overlays::overlay(state, theme, cx))
                 .children(rulers::rulers_and_guides(state, theme, cx)),
         )
-}
-
-/// Release a held guide where the pointer came up: over its ruler or off the
-/// frame it is deleted, anywhere else it stays.
-fn drop_guide(
-    this: &mut crate::shell::Shell,
-    event: &gpui::MouseUpEvent,
-    _: &mut gpui::Window,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) {
-    let at = [f32::from(event.position.x), f32::from(event.position.y)];
-    let held = this.state.update(cx, |state, _| {
-        let held = state.viewer_guides.dragging.is_some();
-        if held {
-            state.drag_guide(at);
-            state.release_guide(at);
-        }
-        held
-    });
-    if held {
-        cx.notify();
-    }
 }
 
 /// One group of the Viewer's control row. A group keeps its controls on one

@@ -58,9 +58,10 @@ pub struct Shell {
     media_edge_drop: Option<i64>,
     /// Where a media drag last hovered over the freeform pool canvas, in canvas coordinates.
     freeform_drop: Option<(f32, f32)>,
-    /// Where a preview pan drag last sat, in window coordinates: deltas
-    /// are what the pan wants, and GPUI hands out absolute positions.
-    pub(crate) preview_pan_anchor: (f32, f32),
+    /// Where the pointer of a press held on the Viewer's picture last sat, in
+    /// window coordinates, or `None` with no such press: a zoomed picture
+    /// pans by each move's travel from here.
+    pub(crate) preview_pan: Option<[f32; 2]>,
     /// The window focus the platform input handler is attached to. Key routing
     /// and an IME commit have to arrive at the same place, and a platform hands
     /// text to whatever holds focus.
@@ -149,7 +150,7 @@ impl Shell {
             media_drop: None,
             media_edge_drop: None,
             freeform_drop: None,
-            preview_pan_anchor: (0.0, 0.0),
+            preview_pan: None,
             focus: cx.focus_handle(),
             ime_marked: None,
             lone_alt: Default::default(),
@@ -188,7 +189,7 @@ impl Shell {
             media_drop: None,
             media_edge_drop: None,
             freeform_drop: None,
-            preview_pan_anchor: (0.0, 0.0),
+            preview_pan: None,
             focus: cx.focus_handle(),
             ime_marked: None,
             lone_alt: Default::default(),

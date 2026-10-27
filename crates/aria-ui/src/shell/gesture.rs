@@ -9,6 +9,8 @@
 use std::rc::Rc;
 
 use super::*;
+use crate::surfaces::mixer_strip;
+use crate::surfaces::overlay_gesture::{self, Step};
 use crate::surfaces::ramp_gesture::{self, Gesture};
 
 type Carry = dyn Fn(&mut Shell, &MouseMoveEvent, &mut Context<Shell>);
@@ -238,6 +240,92 @@ impl Shell {
             }
             return true;
         }
+        // A grabbed handle, motion path point or mask vertex on the Viewer's
+        // picture, likewise: the drag keeps going off the picture.
+        if self.state.read(cx).overlay_dragging() {
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            let step = if held { Step::Carry(at) } else { Step::Release };
+            self.state
+                .update(cx, |state, _| overlay_gesture::run(state, step));
+            cx.notify();
+            return true;
+        }
+        // The Type tool's held caret, likewise: the selection follows the
+        // pointer off the title.
+        if self.state.read(cx).text_dragging() {
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            let changed = self.state.update(cx, |state, _| {
+                if held {
+                    state.drag_text_caret(at)
+                } else {
+                    state.end_text_drag();
+                    true
+                }
+            });
+            if changed {
+                cx.notify();
+            }
+            return true;
+        }
+        // A guide pulled from a Viewer ruler, likewise.
+        if self.state.read(cx).viewer_guides.dragging.is_some() {
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            self.state.update(cx, |state, _| {
+                state.drag_guide(at);
+                if !held {
+                    state.release_guide(at);
+                }
+            });
+            cx.notify();
+            return true;
+        }
+        // A press held on the Viewer's picture pans a zoomed frame by the
+        // pointer's travel, on the picture or off it.
+        if let Some(from) = self.preview_pan {
+            if !held {
+                self.preview_pan = None;
+                return false;
+            }
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            self.preview_pan = Some(at);
+            if self.state.read(cx).preview_view.pannable() {
+                self.state.update(cx, |state, _| {
+                    state.pan_preview(at[0] - from[0], at[1] - from[1])
+                });
+                cx.notify();
+            }
+            return true;
+        }
+        // A grabbed fader or pan knob, likewise: the value rides the pointer
+        // off the strip.
+        if let Some(drag) = self.state.read(cx).fader_dragging() {
+            let gesture = if held {
+                let at = if drag.target.is_pan() {
+                    event.position.x
+                } else {
+                    event.position.y
+                };
+                mixer_strip::Gesture::RideFader { at: f32::from(at) }
+            } else {
+                mixer_strip::Gesture::ReleaseFader
+            };
+            let changed = self.state.update(cx, |state, _| {
+                mixer_strip::apply(state, gesture).unwrap_or_else(|err| {
+                    state.report_error(&err);
+                    false
+                })
+            });
+            if changed {
+                cx.notify();
+            }
+            return true;
+        }
+        // A track header held to reorder the lanes: the header under the
+        // pointer marks the drop row, and a move with the button up is the
+        // release.
+        if !held && self.state.read(cx).track_dragging() {
+            self.release_track_drag(cx);
+        }
         false
     }
 
@@ -306,6 +394,51 @@ impl Shell {
             .state
             .update(cx, |state, _| state.release_overlay_handle(at))
         {
+            cx.notify();
+        }
+        // Letting go of a handle, motion path point or mask vertex on the
+        // Viewer writes its drag as one undo step.
+        if self.state.read(cx).overlay_dragging() {
+            self.state
+                .update(cx, |state, _| overlay_gesture::run(state, Step::Release));
+            cx.notify();
+        }
+        if self.state.read(cx).text_dragging() {
+            self.state.update(cx, |state, _| state.end_text_drag());
+            cx.notify();
+        }
+        // A guide let go over its ruler or off the frame is deleted; anywhere
+        // else it stays.
+        if self.state.read(cx).viewer_guides.dragging.is_some() {
+            self.state.update(cx, |state, _| {
+                state.drag_guide(at);
+                state.release_guide(at);
+            });
+            cx.notify();
+        }
+        self.preview_pan = None;
+        // Letting go of a fader or pan knob writes its value as one command.
+        if self.state.read(cx).fader_dragging().is_some() {
+            self.state.update(cx, |state, _| {
+                if let Err(err) = mixer_strip::apply(state, mixer_strip::Gesture::ReleaseFader) {
+                    state.report_error(&err);
+                }
+            });
+            cx.notify();
+        }
+        self.release_track_drag(cx);
+    }
+
+    /// Let go of a held track header: the lane drops on the row the drag
+    /// marks, wherever the button came up.
+    fn release_track_drag(&mut self, cx: &mut Context<Self>) {
+        let released = self.state.update(cx, |state, _| {
+            state.release_track_drag().unwrap_or_else(|err| {
+                state.report_error(&err);
+                true
+            })
+        });
+        if released {
             cx.notify();
         }
     }

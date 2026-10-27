@@ -31,7 +31,7 @@ use aria_engine::EngineError;
 use crate::app::AppState;
 use crate::app::canvas_overlay::motion_path::{PathKey, TangentSide};
 use crate::app::canvas_overlay::{CropHandle, MaskHandle, TransformHandle};
-use crate::types::OverlayMode;
+use crate::types::{ActivePanel, OverlayMode};
 
 /// One draggable thing on the picture.
 ///
@@ -166,4 +166,16 @@ pub fn apply(state: &mut AppState, step: Step) -> Result<(), EngineError> {
         Step::Release => return state.end_overlay_drag(),
     }
     Ok(())
+}
+
+/// Run one step of a drag on the picture, as the panel's presses and the
+/// shell's carry and release do. A press makes the Viewer the active panel,
+/// and a refusal is reported on the status line.
+pub fn run(state: &mut AppState, step: Step) {
+    if matches!(step, Step::Grab(..)) {
+        state.active_panel = ActivePanel::Preview;
+    }
+    if let Err(err) = apply(state, step) {
+        state.report_error(&err);
+    }
 }

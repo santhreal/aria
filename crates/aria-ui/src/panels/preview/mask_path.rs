@@ -10,19 +10,17 @@ use std::sync::Arc;
 
 use gpui::{
     ContentMask, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, PathBuilder, StatefulInteractiveElement, Styled,
-    canvas, div, point, px,
+    MouseMoveEvent, ParentElement, PathBuilder, StatefulInteractiveElement, Styled, canvas, div,
+    point, px,
 };
 
 use crate::app::AppState;
 use crate::app::canvas_overlay::motion_path::TangentSide;
 use crate::app::mask_path::{DrawnMaskPath, DrawnVertex};
 use crate::motion::MotionKey;
-use crate::surfaces::overlay_gesture::{Gesture, Step};
+use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
-
-use super::handles::step;
 
 /// A vertex square's side, in pixels.
 const VERTEX: f32 = 8.0;
@@ -107,7 +105,7 @@ pub(super) fn overlay(
                 }
                 cx.stop_propagation();
                 this.state.update(cx, |state, _| {
-                    step(state, Step::Grab(Gesture::MaskPathPen, at))
+                    overlay_gesture::run(state, Step::Grab(Gesture::MaskPathPen, at))
                 });
                 cx.notify();
             }),
@@ -141,7 +139,10 @@ pub(super) fn overlay(
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
-                            step(state, Step::Grab(Gesture::MaskTangent(index, side), at))
+                            overlay_gesture::run(
+                                state,
+                                Step::Grab(Gesture::MaskTangent(index, side), at),
+                            )
                         });
                         cx.notify();
                     }),
@@ -166,54 +167,26 @@ pub(super) fn overlay(
                         event.modifiers.secondary(),
                         event.modifiers.alt,
                     );
-                    this.state
-                        .update(cx, |state, _| step(state, Step::Grab(gesture, at)));
+                    this.state.update(cx, |state, _| {
+                        overlay_gesture::run(state, Step::Grab(gesture, at))
+                    });
                     cx.notify();
                 }),
             ));
         }
     }
 
-    // A mask path drag is carried here and nowhere else: this layer is above
-    // the handles, which route a drag of their own, and a move taken twice
-    // would be drafted twice. A release off the picture still ends the drag.
-    let root = root
-        .when(holding, |el| {
-            el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, _| {
-                    step(
-                        state,
-                        Step::Carry([f32::from(event.position.x), f32::from(event.position.y)]),
-                    );
-                });
+    // A held vertex or tangent is carried and released by the shell
+    // (`Shell::carry_gesture`). Between the clicks that draw, the rubber band
+    // follows the pointer over the picture.
+    let root = root.when(drawing && !holding, |el| {
+        el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
+            let at = [f32::from(event.position.x), f32::from(event.position.y)];
+            if this.state.update(cx, |state, _| state.hover_mask_path(at)) {
                 cx.notify();
-            }))
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, _| step(state, Step::Release));
-                    cx.notify();
-                }),
-            )
-            .on_mouse_up_out(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                    this.state.update(cx, |state, _| step(state, Step::Release));
-                    cx.notify();
-                }),
-            )
-        })
-        // The rubber band follows the pointer between the clicks that draw.
-        .when(drawing && !holding, |el| {
-            el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                let at = [f32::from(event.position.x), f32::from(event.position.y)];
-                if this.state.update(cx, |state, _| state.hover_mask_path(at)) {
-                    cx.notify();
-                }
-            }))
-        });
+            }
+        }))
+    });
     Some(root.into_any_element())
 }
 

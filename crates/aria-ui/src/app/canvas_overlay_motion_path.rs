@@ -429,14 +429,6 @@ impl AppState {
         self.own_path(key.param)?.keys.get(key.index).copied()
     }
 
-    /// Whether the drag in flight holds a motion path keyframe or tangent.
-    pub fn path_dragging(&self) -> bool {
-        matches!(
-            self.overlay_drag,
-            Some(OverlayDrag::PathKey { .. } | OverlayDrag::PathTangent { .. })
-        )
-    }
-
     /// The keyframe a path drag holds, with the value and tangents it is
     /// building.
     fn path_draft(&self) -> Option<(PathKey, [f32; 2], Option<SpatialTangents>)> {

@@ -10,19 +10,16 @@ use std::sync::Arc;
 
 use gpui::{
     Bounds, ContentMask, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ParentElement, PathBuilder, StatefulInteractiveElement, Styled,
-    canvas, div, fill, point, px, size,
+    ParentElement, PathBuilder, StatefulInteractiveElement, Styled, canvas, div, fill, point, px,
+    size,
 };
 
 use crate::app::AppState;
 use crate::app::canvas_overlay::motion_path::{DrawnPath, PathKey, PathParam, TangentSide};
 use crate::motion::MotionKey;
-use crate::surfaces::overlay_gesture::{Gesture, Step};
+use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;
 use crate::types::OverlayMode;
-use gpui::prelude::FluentBuilder;
-
-use super::handles::step;
 
 /// A keyframe square's side, in pixels.
 const KEY: f32 = 9.0;
@@ -55,7 +52,6 @@ pub(super) fn overlay(
         return None;
     }
     let frame = read.overlay_frame;
-    let dragging = read.path_dragging();
 
     let painted = Arc::clone(&paths);
     let (position, anchor) = (
@@ -119,8 +115,9 @@ pub(super) fn overlay(
                     return;
                 }
                 cx.stop_propagation();
-                this.state
-                    .update(cx, |state, _| step(state, Step::Grab(Gesture::PathAdd, at)));
+                this.state.update(cx, |state, _| {
+                    overlay_gesture::run(state, Step::Grab(Gesture::PathAdd, at))
+                });
                 cx.notify();
             }),
         );
@@ -141,7 +138,10 @@ pub(super) fn overlay(
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
-                            step(state, Step::Grab(Gesture::PathTangent(key, side), at))
+                            overlay_gesture::run(
+                                state,
+                                Step::Grab(Gesture::PathTangent(key, side), at),
+                            )
                         });
                         cx.notify();
                     }),
@@ -163,37 +163,17 @@ pub(super) fn overlay(
                     } else {
                         Gesture::PathKey(key)
                     };
-                    this.state
-                        .update(cx, |state, _| step(state, Step::Grab(gesture, at)));
+                    this.state.update(cx, |state, _| {
+                        overlay_gesture::run(state, Step::Grab(gesture, at))
+                    });
                     cx.notify();
                 }),
             ));
         }
     }
 
-    // A path drag is carried here and nowhere else: this layer is above the
-    // handles, which route a drag of their own, and a move taken twice would be
-    // drafted twice.
-    let root = root.when(dragging, |el| {
-        el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-            cx.stop_propagation();
-            this.state.update(cx, |state, _| {
-                step(
-                    state,
-                    Step::Carry([f32::from(event.position.x), f32::from(event.position.y)]),
-                );
-            });
-            cx.notify();
-        }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseUpEvent, _, cx| {
-                cx.stop_propagation();
-                this.state.update(cx, |state, _| step(state, Step::Release));
-                cx.notify();
-            }),
-        )
-    });
+    // A path drag is carried and released by the shell
+    // (`Shell::carry_gesture`), so it follows the pointer off the picture.
     Some(root.into_any_element())
 }
 

@@ -158,6 +158,8 @@ pub(super) fn track_header(
                 });
             }),
         )
+        // The header under a held drag marks the drop row; the shell drops the
+        // lane there at the release, wherever the button comes up.
         .on_mouse_move(cx.listener(move |this, _: &gpui::MouseMoveEvent, _, cx| {
             let changed = this
                 .state
@@ -166,21 +168,6 @@ pub(super) fn track_header(
                 cx.notify();
             }
         }))
-        .on_mouse_up(
-            MouseButton::Left,
-            cx.listener(move |this, _: &gpui::MouseUpEvent, _, cx| {
-                let dragging = this.state.read(cx).track_dragging();
-                if !dragging {
-                    return;
-                }
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = state.drop_track_on_row(row) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
         .on_mouse_down(
             MouseButton::Right,
             cx.listener(move |this, event: &MouseDownEvent, _, cx| {
