@@ -65,6 +65,22 @@ enum CanvasGesture {
     Line {
         origin_y: f32,
     },
+    /// A press on a clip bar's line away from its keyframe dots, before the
+    /// pointer has left the click slop. The line runs through the clip's
+    /// body, so the first travel past the slop selects the gesture: across
+    /// the lane it holds the line, along the lane it moves the clip.
+    LineOrMove {
+        clip_id: u64,
+        track_id: u64,
+        origin_x: f32,
+        origin_y: f32,
+        /// The timeline tick the press landed on.
+        tick: i64,
+        /// Pixels the line travels on the bar.
+        band: f32,
+        start_ticks: i64,
+        end_ticks: i64,
+    },
 }
 
 thread_local! {

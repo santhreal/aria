@@ -3,8 +3,10 @@
 use gpui::Entity;
 
 use crate::app::AppState;
+use crate::timeline_display::{StripCell, Thumbnails};
 use crate::types::HeldEdit;
 
+use super::clip::FilmCell;
 use super::{BAR_STEP, CELL_W};
 
 /// Slice of `clips` intersecting `[view_start, view_end)` in $O(\log N)$ time.
@@ -123,10 +125,11 @@ pub(super) fn clip_bars(
     out
 }
 
-/// Filmstrip cells per visible media clip: the x offset inside the clip card
-/// and the image to draw there. A clip an edge drag or a slide in flight
-/// changes, `held`, draws each cell where its frame plays once the release
-/// lands, and none past its ends.
+/// Filmstrip cells per visible media clip, each the part of the clip card it
+/// covers and the image drawn there. Only cells that overlap the visible ticks
+/// are built or asked for. A clip an edge drag or a slide in flight changes,
+/// `held`, draws each cell where its frame plays once the release lands, and
+/// none past its ends.
 ///
 /// At most one cell is asked for per frame, and a rendered cell is never
 /// substituted for a neighbour: a cell is drawn where it belongs or the space
@@ -142,7 +145,7 @@ pub(super) fn clip_cells(
     view_start: i64,
     view_end: i64,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> std::collections::HashMap<u64, Vec<(f32, std::sync::Arc<gpui::RenderImage>)>> {
+) -> std::collections::HashMap<u64, Vec<FilmCell>> {
     let mut out = std::collections::HashMap::new();
     #[cfg(test)]
     super::lanes::built::media_rows(visible_rows);
@@ -168,33 +171,46 @@ pub(super) fn clip_cells(
         .take(32)
         .collect();
     let thumbnails = state.read(cx).ui_settings.timeline_display.thumbnails;
+    let px_per_tick = pps / fps;
     for (clip, start, end, width) in visible {
-        let ticks = thumbnails.cells(start, end, width, CELL_W, pps / fps, || {
-            crate::filmstrips::cell_ticks(start, end, width, CELL_W)
-        });
         let mut cells = Vec::new();
-        for (tick, x) in ticks {
+        for cell in strip_cells(
+            thumbnails,
+            start,
+            end,
+            width,
+            px_per_tick,
+            (view_start, view_end),
+        ) {
             let ready = state
                 .read(cx)
                 .filmstrips
-                .get(tick)
-                .map(|cell| cell.image.clone());
+                .get(cell.tick)
+                .map(|ready| ready.image.clone());
             match ready {
-                Some(image) => {
-                    cells.push((x, image));
-                }
-                None => crate::filmstrips::request(state, cx, tick),
+                Some(image) => cells.push(FilmCell {
+                    from: cell.from,
+                    to: cell.to,
+                    image,
+                }),
+                None => crate::filmstrips::request(state, cx, cell.tick),
             }
         }
         if let Some(card) = held.and_then(|held| held.card(clip)) {
             let width =
                 (card.clip.timeline_end_ticks - card.clip.timeline_start_ticks) as f32 / fps * pps;
-            cells.retain_mut(|(x, _)| match card.moved_x(*x, pps / fps) {
-                Some(moved) if (0.0..width).contains(&moved) => {
-                    *x = moved;
-                    true
+            cells.retain_mut(|cell| {
+                let ends = (
+                    card.moved_x(cell.from, px_per_tick),
+                    card.moved_x(cell.to, px_per_tick),
+                );
+                match ends {
+                    (Some(head), Some(tail)) if (0.0..width).contains(&head.min(tail)) => {
+                        (cell.from, cell.to) = (head.min(tail), head.max(tail));
+                        true
+                    }
+                    _ => false,
                 }
-                Some(_) | None => false,
             });
         }
         if !cells.is_empty() {
@@ -202,4 +218,26 @@ pub(super) fn clip_cells(
         }
     }
     out
+}
+
+/// The cells of a clip from `start` to `end`, `width` pixels wide, that
+/// overlap the visible ticks `view`, in pixels from the clip's head.
+pub(super) fn strip_cells(
+    thumbnails: Thumbnails,
+    start: i64,
+    end: i64,
+    width: f32,
+    px_per_tick: f32,
+    view: (i64, i64),
+) -> impl Iterator<Item = StripCell> {
+    let shown = (
+        (view.0 - start) as f32 * px_per_tick,
+        (view.1 - start) as f32 * px_per_tick,
+    );
+    thumbnails
+        .cells(start, end, width, CELL_W, px_per_tick, || {
+            crate::filmstrips::cell_spans(start, end, width, CELL_W, view)
+        })
+        .into_iter()
+        .filter(move |cell| cell.to > shown.0 && cell.from < shown.1)
 }

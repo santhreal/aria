@@ -128,7 +128,7 @@ audio clips the volume line.
 | Name strip | Clip name, then the speed when it is not 100 % (`120%`, `-100%` reversed), then badges. |
 | fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
 | Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default. Generators: their name and a solid swatch. |
-| Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line changes the volume; Ctrl+click adds a keyframe. |
+| Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line up or down changes the volume, and a drag from it along the lane moves the clip; Ctrl+click adds a keyframe. |
 | Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. |
 | Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. |
 | Offline | Red fill with "Media Offline" and the file name. |

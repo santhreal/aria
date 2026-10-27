@@ -75,11 +75,13 @@ impl Thumbnails {
         }
     }
 
-    /// The cells of one clip as `(sequence tick, x offset in the clip)`.
+    /// The cells of one clip `width` pixels wide, left to right.
     ///
-    /// `continuous` is the tick list a continuous strip draws (one per cell
-    /// step, from [`crate::filmstrips::cell_ticks`]); the head and tail forms
-    /// ignore it. A clip narrower than two cells shows its head only.
+    /// `continuous` is the `[tick, until)` spans a continuous strip draws, from
+    /// [`crate::filmstrips::cell_spans`]; the head and tail forms ignore it.
+    /// Neighboring continuous cells share an edge computed once, so they meet
+    /// without a seam. A head or tail cell is one cell wide. A clip narrower
+    /// than two cells shows its head only.
     pub fn cells(
         self,
         start: i64,
@@ -87,20 +89,45 @@ impl Thumbnails {
         width: f32,
         cell_w: f32,
         px_per_tick: f32,
-        continuous: impl FnOnce() -> Vec<i64>,
-    ) -> Vec<(i64, f32)> {
+        continuous: impl FnOnce() -> Vec<(i64, i64)>,
+    ) -> Vec<StripCell> {
+        let head = StripCell {
+            tick: start,
+            from: 0.0,
+            to: cell_w.min(width),
+        };
+        let x = |tick: i64| (tick - start) as f32 * px_per_tick;
         match self {
-            Self::Head => vec![(start, 0.0)],
-            Self::HeadAndTail if end - start >= 2 && width >= 2.0 * cell_w => {
-                vec![(start, 0.0), (end - 1, width - cell_w)]
-            }
-            Self::HeadAndTail => vec![(start, 0.0)],
+            Self::Head => vec![head],
+            Self::HeadAndTail if end - start >= 2 && width >= 2.0 * cell_w => vec![
+                head,
+                StripCell {
+                    tick: end - 1,
+                    from: width - cell_w,
+                    to: width,
+                },
+            ],
+            Self::HeadAndTail => vec![head],
             Self::Continuous => continuous()
                 .into_iter()
-                .map(|tick| (tick, (tick - start) as f32 * px_per_tick))
+                .map(|(tick, until)| StripCell {
+                    tick,
+                    from: x(tick),
+                    to: x(until),
+                })
                 .collect(),
         }
     }
+}
+
+/// One cell of a clip's content strip: the sequence tick whose frame it
+/// shows, and the part of the clip it stands for, `[from, to)` in pixels from
+/// the clip's head.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StripCell {
+    pub tick: i64,
+    pub from: f32,
+    pub to: f32,
 }
 
 impl WaveformScale {
@@ -178,23 +205,35 @@ mod tests {
 
     #[test]
     fn head_and_tail_place_the_last_frame_against_the_right_edge() {
-        let continuous = || vec![0, 10, 20];
+        let cell = |tick, from, to| StripCell { tick, from, to };
+        let continuous = || vec![(0, 10), (10, 20)];
         assert_eq!(
             Thumbnails::Head.cells(100, 200, 400.0, 40.0, 4.0, continuous),
-            vec![(100, 0.0)]
+            vec![cell(100, 0.0, 40.0)]
         );
         assert_eq!(
             Thumbnails::HeadAndTail.cells(100, 200, 400.0, 40.0, 4.0, continuous),
-            vec![(100, 0.0), (199, 360.0)]
+            vec![cell(100, 0.0, 40.0), cell(199, 360.0, 400.0)]
         );
         assert_eq!(
             Thumbnails::HeadAndTail.cells(100, 110, 60.0, 40.0, 6.0, continuous),
-            vec![(100, 0.0)],
+            vec![cell(100, 0.0, 40.0)],
             "too narrow for two cells: the head alone"
         );
         assert_eq!(
-            Thumbnails::Continuous.cells(100, 200, 400.0, 40.0, 4.0, || vec![100, 110, 120]),
-            vec![(100, 0.0), (110, 40.0), (120, 80.0)]
+            Thumbnails::Head.cells(100, 105, 30.0, 40.0, 6.0, continuous),
+            vec![cell(100, 0.0, 30.0)],
+            "a head cell spans no more than its clip"
+        );
+        assert_eq!(
+            Thumbnails::Continuous.cells(100, 200, 400.0, 40.0, 4.0, || {
+                vec![(100, 110), (110, 120), (120, 200)]
+            }),
+            vec![
+                cell(100, 0.0, 40.0),
+                cell(110, 40.0, 80.0),
+                cell(120, 80.0, 400.0)
+            ]
         );
     }
 

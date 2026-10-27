@@ -491,6 +491,96 @@ pub(crate) fn paint_generator(
     });
 }
 
+/// One copy of a filmstrip cell's picture, in pixels from the bar's left
+/// edge: the picture's left edge, a full cell wide, and the part of it shown,
+/// `[from, to)`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Tile {
+    pub image: f32,
+    pub from: f32,
+    pub to: f32,
+}
+
+/// The tiles of a cell standing for `[from, to)` of a bar `bar_w` wide,
+/// inside the visible range `view`, all in pixels from the bar's left edge.
+/// The picture keeps its width and is cropped where the cell, the bar, or the
+/// view ends; a cell wider than its picture repeats the picture across itself
+/// and draws nothing outside it. Each tile ends where the next one starts.
+pub(crate) fn film_tiles(
+    from: f32,
+    to: f32,
+    bar_w: f32,
+    view: (f32, f32),
+) -> impl Iterator<Item = Tile> {
+    let cell_w = crate::panels::timeline::CELL_W;
+    let lo = from.max(view.0).max(0.0);
+    let hi = to.min(bar_w).min(view.1);
+    let image = move |copy: u32| from + copy as f32 * cell_w;
+    let first = ((lo - from) / cell_w).floor() as u32;
+    let mut last = first;
+    if hi > lo {
+        last = (((hi - from) / cell_w).ceil() as u32).max(first + 1);
+        // A quotient rounded past a whole number would add a copy that
+        // starts where the cell ends.
+        if last > first + 1 && image(last - 1) >= hi {
+            last -= 1;
+        }
+    }
+    (first..last).map(move |copy| Tile {
+        image: image(copy),
+        from: if copy == first { lo } else { image(copy) },
+        to: if copy + 1 == last {
+            hi
+        } else {
+            image(copy + 1)
+        },
+    })
+}
+
+/// Paint the filmstrip `cells` of a bar spanning `[x, x + w)`, `top` to
+/// `top + height`, inside the visible range `view`, dimmed for a disabled
+/// clip.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn paint_filmstrip(
+    window: &mut Window,
+    paint_calls: &mut usize,
+    theme: &Theme,
+    cells: &[super::FilmCell],
+    x: f32,
+    w: f32,
+    view: (f32, f32),
+    top: f32,
+    height: f32,
+    enabled: bool,
+) {
+    let cell_w = crate::panels::timeline::CELL_W;
+    for cell in cells {
+        for tile in film_tiles(cell.from, cell.to, w, (view.0 - x, view.1 - x)) {
+            let shown = rect(x + tile.from, top, tile.to - tile.from, height);
+            let _ = window.paint_image(
+                shown,
+                rect(x + tile.image, top, cell_w, height),
+                Corners::default(),
+                cell.image.clone(),
+                0,
+                false,
+            );
+            *paint_calls += 1;
+            if !enabled {
+                super::paint_solid(
+                    window,
+                    paint_calls,
+                    x + tile.from,
+                    top,
+                    tile.to - tile.from,
+                    height,
+                    theme.bg.opacity(0.6),
+                );
+            }
+        }
+    }
+}
+
 /// Paint the bar of a transition spanning `[x0, x1)` over a cut, `top` to
 /// `top + height`, with its name.
 #[allow(clippy::too_many_arguments)]
@@ -635,3 +725,7 @@ pub(crate) fn paint_line(
 #[cfg(test)]
 #[path = "bar_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "strip_cover_tests.rs"]
+mod strip_cover_tests;

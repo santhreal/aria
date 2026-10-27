@@ -41,6 +41,11 @@ const MAX_OVERVIEW_SPANS: usize = 64;
 const CLIP_BAND_H: f32 = 4.0;
 /// Top of the thumb, and of the track it rides, in the control row.
 const THUMB_TOP: f32 = (Theme::ICON_HIT - HANDLE_W) / 2.0;
+/// The wash of the zoom bar's thumb at rest, under the pointer, and held.
+const THUMB_WASH: [f32; 3] = [0.22, 0.28, 0.34];
+/// The wash of the band the sequence's clips are drawn as: a hint under the
+/// thumb, lighter than the track and darker than the thumb at rest.
+const BAND_WASH: f32 = 0.08;
 
 struct TrackSpanCache {
     clips: std::sync::Weak<Vec<crate::types::UiClip>>,
@@ -233,12 +238,13 @@ pub(super) fn overview(
     let held = state.read(cx).zoom_bar_grip();
     let knob_d = zoom_bar_grip_w(window_w);
     let thumb_key = motion::MotionKey::new("zoom-bar-thumb", "");
+    let [rest, hover, held_wash] = THUMB_WASH.map(|alpha| theme.wash(alpha));
     let thumb_fill = if held == Some(ZoomBarGrip::Thumb) {
-        theme.wash(0.26)
+        held_wash
     } else {
-        motion::hover_blend(thumb_key, theme.wash(0.14), theme.wash(0.2))
+        motion::hover_blend(thumb_key, rest, hover)
     };
-    let band = theme.text_faint;
+    let band = theme.wash(BAND_WASH);
     let border = theme.border;
     let fit_key = motion::MotionKey::new("timeline-zoom-fit", "");
 

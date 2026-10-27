@@ -5,7 +5,8 @@
 - Audio clips show a rectified waveform, logarithmic by default; the timeline
   display settings switch to linear or hide waveforms.
 - The volume line on a clip sets clip volume in dB. Ctrl+click adds a keyframe;
-  dragging a segment between two keyframes moves both.
+  dragging a segment between two keyframes moves both. A drag from the line
+  along the lane moves the clip instead.
 - Ctrl+drag on a clip edge adjusts the fade length when the clip has fade
   handles; a fade draws as a shaded ramp at the clip's head or tail.
 - `]` / `[` on a selected audio clip raises or lowers its gain by 1 dB

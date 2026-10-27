@@ -15,8 +15,8 @@ use std::path::PathBuf;
 use aria_commands::{Command, EditCommand};
 use aria_models::{ClipId, ClipParam, MarkerColor, Param, ParamValue};
 use gpui::{
-    Background, Bounds, Entity, Modifiers, MouseButton, Pixels, Point, TestAppContext,
-    VisualTestContext, point, px, size,
+    Background, Bounds, Entity, Modifiers, MouseButton, MouseDownEvent, Pixels, Point,
+    TestAppContext, VisualTestContext, point, px, size,
 };
 
 use super::{BarRows, DOT, FX_H, FX_W};
@@ -141,6 +141,35 @@ fn near(a: Pixels, b: Pixels) -> bool {
     (f32::from(a) - f32::from(b)).abs() <= 0.5
 }
 
+/// The one line the bar on `lane` paints: a hairline narrower than the lane,
+/// whose own rules span all of it.
+fn line_of(visual: &mut VisualTestContext, lane: Bounds<Pixels>) -> Bounds<Pixels> {
+    let lines: Vec<Painted> = painted(visual, lane)
+        .into_iter()
+        .filter(|quad| {
+            quad.bounds.size.height <= px(1.01)
+                && quad.bounds.size.width >= px(20.0)
+                && quad.bounds.size.width < lane.size.width - px(1.0)
+        })
+        .collect();
+    assert_eq!(lines.len(), 1, "one line on one bar: {lines:?}");
+    lines[0].bounds
+}
+
+/// The timeline tick `clip` starts on.
+fn start_of(visual: &mut VisualTestContext, state: &Entity<AppState>, clip: ClipId) -> i64 {
+    visual.read(|app| {
+        let engine = state.read(app).engine().lock();
+        engine
+            .project()
+            .clip(clip)
+            .expect("the clip is in the project")
+            .timeline
+            .start
+            .value
+    })
+}
+
 #[gpui::test]
 fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAppContext) {
     let (state, visual, clip) = placed(cx, "bar-line", texture());
@@ -153,21 +182,7 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
 
     // An unanimated line is one hairline across the bar, at the top of the
     // scale for Opacity at 100 %.
-    // The bar's line is a hairline narrower than the lane; the lane's own
-    // rules span all of it.
-    let line_of = |visual: &mut VisualTestContext| {
-        let lines: Vec<Painted> = painted(visual, lane)
-            .into_iter()
-            .filter(|quad| {
-                quad.bounds.size.height <= px(1.01)
-                    && quad.bounds.size.width >= px(20.0)
-                    && quad.bounds.size.width < lane.size.width - px(1.0)
-            })
-            .collect();
-        assert_eq!(lines.len(), 1, "one line on one bar: {lines:?}");
-        lines[0].bounds
-    };
-    let line = line_of(visual);
+    let line = line_of(visual, lane);
     assert!(near(line.center().y, lane.top() + px(rows.line_top)));
 
     // Half the band down halves it.
@@ -188,7 +203,7 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
 
     // The line repaints where the drag left it, and a Ctrl+click there keys
     // the value it draws.
-    let line = line_of(visual);
+    let line = line_of(visual, lane);
     assert!(near(line.center().y, lane.top() + px(rows.line_y(0.5))));
     let key_at = point(line.left() + px(40.0), line.center().y);
     visual.simulate_mouse_move(key_at, None, Modifiers::none());
@@ -217,6 +232,133 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
         (keys[0].value - 0.75).abs() < 1e-3,
         "key after the drag: {}",
         keys[0].value
+    );
+
+    // A press on the dot holds the key whichever way the pointer goes: a drag
+    // along the lane from where the dot now sits leaves the clip in place.
+    let dot = point(dot.x, lane.top() + px(rows.line_y(0.75)));
+    drag(visual, dot, point(dot.x + px(120.0), dot.y));
+    assert_eq!(
+        start_of(visual, &state, clip),
+        0,
+        "a drag from a key dot moved the clip"
+    );
+    let keys = opacity(visual, &state, clip).keyframes().to_vec();
+    assert_eq!(keys.len(), 1);
+    assert!((keys[0].value - 0.75).abs() < 1e-3);
+}
+
+/// The line runs through the middle of a clip's body, where a hand grabs a clip
+/// to move it. A press there reads the first travel past the click slop: along
+/// the lane it moves the clip, across the lane it moves the line, and under the
+/// slop it moves nothing; a double-click there opens the clip as one anywhere
+/// on its body does. Before, the press held the line whichever way the pointer
+/// went, so a clip dragged by its middle stayed put and its line moved by the
+/// hand's jitter instead. Not covered: a press on a keyframe dot, which holds
+/// the key whichever way it goes and is pinned by the test above, and a line
+/// the press can no longer hold, whose clip or value went away mid-press.
+#[gpui::test]
+fn a_press_on_the_line_moves_the_clip_along_the_lane_and_the_line_across_it(
+    cx: &mut TestAppContext,
+) {
+    let (state, visual, clip) = placed(cx, "bar-line-axis", texture());
+    let lane = v1_lane(visual);
+    let rows = BarRows::of(f32::from(lane.size.height));
+    let slop = crate::app::value_scrub::CLICK_SLOP_PX;
+    let full = |visual: &mut VisualTestContext| {
+        opacity(visual, &state, clip)
+            .constant()
+            .expect("the line stays flat")
+    };
+
+    // Travel inside the slop, either way, is a click: it selects the clip and
+    // moves nothing.
+    visual.update(|window, app| {
+        state.update(app, |state, _| state.clear_selection());
+        window.refresh();
+    });
+    visual.run_until_parked();
+    let selected = |visual: &mut VisualTestContext| {
+        visual.read(|app| state.read(app).selection.contains(&clip))
+    };
+    assert!(!selected(visual), "the clip starts deselected");
+    let line = line_of(visual, lane);
+    let at = point(line.left() + px(30.0), line.center().y);
+    for (dx, dy) in [
+        (slop - 1.0, 0.0),
+        (0.0, slop - 1.0),
+        (1.0 - slop, 1.0 - slop),
+    ] {
+        drag(visual, at, point(at.x + px(dx), at.y + px(dy)));
+        assert_eq!(
+            start_of(visual, &state, clip),
+            0,
+            "({dx}, {dy}) moved the clip"
+        );
+        assert_eq!(full(visual), 1.0, "({dx}, {dy}) moved the line");
+    }
+    assert!(selected(visual), "a click on the line selects its clip");
+
+    // Off its dots the line is the clip's body: a double-click there opens
+    // the clip's take in a Source tab linked to it, and moves nothing.
+    visual.simulate_event(MouseDownEvent {
+        position: at,
+        modifiers: Modifiers::none(),
+        button: MouseButton::Left,
+        click_count: 2,
+        first_mouse: false,
+    });
+    visual.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    let linked = visual.read(|app| state.read(app).sources.focused().and_then(|view| view.clip));
+    assert_eq!(
+        linked,
+        Some(clip.raw()),
+        "a double-click on the line opens the clip"
+    );
+    assert_eq!(full(visual), 1.0, "the double-click moved the line");
+
+    // Across the lane with a hand's sideways jitter: the line, not the clip.
+    drag(
+        visual,
+        at,
+        point(at.x + px(slop), at.y + px(rows.band() / 2.0)),
+    );
+    assert!(
+        (full(visual) - 0.5).abs() < 1e-3,
+        "opacity after the drag down"
+    );
+    assert_eq!(
+        start_of(visual, &state, clip),
+        0,
+        "a drag across the lane moved the clip"
+    );
+
+    // Along the lane with a downward jitter, from the line where it now is:
+    // the clip, and the line rides along unchanged.
+    let line = line_of(visual, lane);
+    let at = point(line.left() + px(30.0), line.center().y);
+    let (pps, fps) = visual.read(|app| {
+        let s = state.read(app);
+        (
+            crate::transport::TIMELINE_BASE_PPS * s.zoom,
+            s.store.sequence.ticks_per_second(),
+        )
+    });
+    let along = 120.0;
+    drag(visual, at, point(at.x + px(along), at.y + px(slop)));
+    assert_eq!(
+        start_of(visual, &state, clip),
+        (along / pps * fps).round() as i64,
+        "a drag along the lane from the line moves the clip by the pointer's travel"
+    );
+    assert!(
+        (full(visual) - 0.5).abs() < 1e-3,
+        "the move left the line where it was"
+    );
+    assert!(
+        visual.read(|app| !state.read(app).clip_line_held()),
+        "a move holds no line"
     );
 }
 

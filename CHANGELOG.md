@@ -733,6 +733,9 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A timeline filmstrip covers its clip end to end at every zoom, with no gap between cells, before the first cell of a clip that starts between cells, or between frames zoomed wider than a cell; its last cell is cropped at the clip's end instead of squeezed, and only cells on screen are rendered.
+- A drag that starts on a timeline clip's opacity or volume line moves the clip when it travels along the lane and moves the line when it travels across it, instead of holding the line and leaving the clip in place; a double-click on the line opens the clip as a body double-click does.
+- The timeline zoom bar draws its thumb lighter than the band of clips under it, and lighter still while held, instead of drawing the band brighter than the thumb.
 - The frame after In or Out is set or cleared no longer waits for the Viewer's picture to finish decoding.
 - Dragging the timeline zoom bar's window keeps the pressed point under the pointer, dragging a handle zooms with the other end held in place, a click beside the window centers the view there, the drag continues when the pointer leaves the bar, and Escape puts the zoom and the scroll back.
 - A ruler scrub, a clip move or trim, the divider between the video and audio lanes, and a Graph Editor keyframe drag follow the pointer when it leaves the element they started on and end where the button comes up, instead of stopping at the element's edge and staying held.

@@ -44,12 +44,15 @@ pub(crate) enum HitTarget {
         in_name_band: bool,
     },
     /// The line a clip bar draws, or one of its keyframe dots. `tick` is the
-    /// timeline tick under the pointer.
+    /// timeline tick under the pointer, and `start_ticks` and `end_ticks` the
+    /// clip's span, which a drag along the lane moves.
     ClipLine {
         clip_id: u64,
         track_id: u64,
         key: Option<i64>,
         tick: i64,
+        start_ticks: i64,
+        end_ticks: i64,
     },
     EmptyLane {
         track_id: u64,
@@ -234,6 +237,8 @@ pub(crate) fn hit_test(
                         LineHit::Line => None,
                     },
                     tick,
+                    start_ticks: clip.timeline_start_ticks,
+                    end_ticks: clip.timeline_end_ticks,
                 });
             }
         }

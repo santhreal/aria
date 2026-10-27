@@ -212,40 +212,52 @@ impl FilmstripStore {
     }
 }
 
-/// Ticks between filmstrip cells at a given zoom, rounded to a power of two.
+/// Ticks between filmstrip cells at a given zoom: the largest power of two no
+/// longer than one cell, so neighboring cells abut or overlap and the strip
+/// leaves no gap, while no more than two cells are asked for per cell width.
 ///
 /// A step derived from one clip's own span would put every clip on a different
 /// grid, so nothing would ever be shared and a split would double the renders.
-/// Rounding to a power of two also means a small zoom change reuses the cells
-/// already rendered instead of asking for a whole new set.
+/// A power of two also means a small zoom change reuses the cells already
+/// rendered instead of asking for a whole new set. The step is never under one
+/// tick: where one frame is wider than a cell, its cell spans the frame.
 pub fn cell_step(span_ticks: i64, width_px: f32, cell_w: f32) -> i64 {
     if span_ticks <= 0 || width_px <= 0.0 || cell_w <= 0.0 {
         return 0;
     }
     let per_cell = (span_ticks as f64 / f64::from(width_px) * f64::from(cell_w)).max(1.0);
-    let exponent = per_cell.log2().round().max(0.0) as u32;
+    let exponent = per_cell.log2().floor() as u32;
     1i64 << exponent.min(30)
 }
 
-/// The ticks a clip's filmstrip is built from: the cells of the global grid
-/// that fall inside the clip, so two clips cut from one region share them.
-pub fn cell_ticks(start_ticks: i64, end_ticks: i64, width_px: f32, cell_w: f32) -> Vec<i64> {
-    let span = end_ticks - start_ticks;
-    let step = cell_step(span, width_px, cell_w);
-    if step == 0 {
+/// The cells a clip's filmstrip is built from, as `[tick, until)` spans: the
+/// clip's first tick up to the global grid, then the cells of the grid inside
+/// the clip, so two clips cut from one region share every cell but their
+/// heads. The spans cover the clip end to end; only those that overlap the
+/// visible ticks `view` are returned, so a long clip asks for the cells on
+/// screen and no others.
+pub fn cell_spans(
+    start_ticks: i64,
+    end_ticks: i64,
+    width_px: f32,
+    cell_w: f32,
+    view: (i64, i64),
+) -> Vec<(i64, i64)> {
+    let step = cell_step(end_ticks - start_ticks, width_px, cell_w);
+    let (from, to) = (view.0.max(start_ticks), view.1.min(end_ticks));
+    if step == 0 || from >= to {
         return Vec::new();
     }
+    let grid = |tick: i64| tick - tick.rem_euclid(step);
     let mut out = Vec::new();
-    let mut tick = start_ticks - start_ticks.rem_euclid(step);
-    if tick < start_ticks {
-        tick += step;
+    let mut tick = grid(from);
+    if tick <= start_ticks {
+        tick = grid(start_ticks) + step;
+        out.push((start_ticks, tick.min(end_ticks)));
     }
-    while tick < end_ticks {
-        out.push(tick);
+    while tick < to {
+        out.push((tick, (tick + step).min(end_ticks)));
         tick += step;
-    }
-    if out.is_empty() {
-        out.push(start_ticks);
     }
     out
 }
@@ -278,11 +290,7 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
         // asks for one after another.
         let rendered =
             crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
-                engine
-                    .lock()
-                    .get_frame_fit(at, CELL_MAX_W, CELL_H)
-                    .ok()
-                    .and_then(|frame| crate::frame::rgba_to_render(&frame))
+                render_cell(&mut engine.lock(), at)
             })
             .await
             .flatten();
@@ -297,6 +305,15 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, tick: i64) {
         });
     })
     .detach();
+}
+
+/// The cell at `at`: the frame that plays there, fit to a cell. `None` where
+/// nothing plays or the render fails.
+pub fn render_cell(engine: &mut aria_engine::Engine, at: RationalTime) -> Option<Arc<RenderImage>> {
+    engine
+        .get_frame_fit(at, CELL_MAX_W, CELL_H)
+        .ok()
+        .and_then(|frame| crate::frame::rgba_to_render(&frame))
 }
 
 /// Store the cell rendered for `tick` at `revision` and redraw the panel

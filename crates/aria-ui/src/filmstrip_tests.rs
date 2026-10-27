@@ -16,26 +16,37 @@ use std::time::{Duration, Instant};
 
 use gpui::AppContext as _;
 
-use super::{FilmstripStore, cell_step, cell_ticks, request, test_cell as cell};
+use super::{FilmstripStore, cell_spans, cell_step, request, test_cell as cell};
+
+/// Every tick a clip from `start` to `end` draws, as cell heads.
+fn heads(start: i64, end: i64, width: f32) -> Vec<i64> {
+    cell_spans(start, end, width, 60.0, (start, end))
+        .into_iter()
+        .map(|(tick, _)| tick)
+        .collect()
+}
 
 #[test]
 fn cells_sit_on_one_grid_so_neighbours_share_them() {
-    // 600px of clip over 240 ticks is 24 ticks per 60px cell, rounded to 32.
+    // 600px of clip over 240 ticks is 24 ticks per 60px cell, rounded down
+    // to 16 so a cell is never wider than its picture.
     let step = cell_step(240, 600.0, 60.0);
-    assert_eq!(step, 32, "the step is a power of two near the ask");
+    assert_eq!(step, 16, "the step is the power of two under the ask");
 
-    let a = cell_ticks(0, 240, 600.0, 60.0);
+    let a = heads(0, 240, 600.0);
     assert!(
         a.iter().all(|tick| tick % step == 0),
         "every cell is on the grid: {a:?}"
     );
 
-    // A clip starting mid-step lands on the same grid, so a cell a neighbour
-    // already rendered is reused rather than rendered again.
-    let b = cell_ticks(12, 252, 600.0, 60.0);
+    // A clip starting mid-step opens on its own first frame, then lands on
+    // the same grid, so a cell a neighbour already rendered is reused rather
+    // than rendered again.
+    let b = heads(12, 252, 600.0);
+    assert_eq!(b[0], 12, "the head cell is the clip's first frame: {b:?}");
     assert!(
-        b.iter().all(|tick| tick % step == 0),
-        "an off-grid start still snaps: {b:?}"
+        b[1..].iter().all(|tick| tick % step == 0),
+        "an off-grid start still snaps after its head: {b:?}"
     );
     assert!(
         b.contains(&32) && a.contains(&32),
@@ -45,11 +56,11 @@ fn cells_sit_on_one_grid_so_neighbours_share_them() {
 
 #[test]
 fn the_step_only_changes_at_a_power_of_two_boundary() {
-    // 450px over 240 ticks is exactly 32 ticks per cell — the middle of a band,
+    // 300px over 240 ticks is 48 ticks per cell, the middle of the 32 band,
     // so a zoom nudge either way keeps the cells already rendered.
-    let base = cell_step(240, 450.0, 60.0);
+    let base = cell_step(240, 300.0, 60.0);
     assert_eq!(base, 32);
-    for width in [340.0, 400.0, 450.0, 500.0, 630.0] {
+    for width in [230.0, 260.0, 300.0, 380.0, 440.0] {
         assert_eq!(
             cell_step(240, width, 60.0),
             base,
@@ -71,15 +82,46 @@ fn the_step_only_changes_at_a_power_of_two_boundary() {
 }
 
 #[test]
+fn a_long_clip_builds_the_cells_on_screen_and_no_others() {
+    // An hour at 30 fps drawn 20px a tick is 3 ticks per cell, a step of 2:
+    // 54000 cells, of which a 600 tick view shows 300.
+    let (start, end) = (0, 108_000);
+    let width = 108_000.0 * 20.0;
+    let spans = cell_spans(start, end, width, 60.0, (50_000, 50_600));
+    assert_eq!(
+        spans.len(),
+        300,
+        "{} cells for a 600 tick view",
+        spans.len()
+    );
+    assert_eq!(spans[0], (50_000, 50_002));
+    assert_eq!(spans[299], (50_598, 50_600));
+    // A view that opens mid-cell starts at the cell it opens in, and one that
+    // ends mid-cell keeps the cell it ends in.
+    let spans = cell_spans(start, end, width, 60.0, (50_001, 50_003));
+    assert_eq!(spans, vec![(50_000, 50_002), (50_002, 50_004)]);
+    // 195 ticks over 1950px is 6 ticks per cell, a step of 4. A view that
+    // opens inside an off-grid clip's head cell starts with the head.
+    assert_eq!(
+        cell_spans(5, 200, 1950.0, 60.0, (6, 9)),
+        vec![(5, 8), (8, 12)]
+    );
+}
+
+#[test]
 fn a_degenerate_span_asks_for_no_work() {
     assert_eq!(cell_step(0, 600.0, 60.0), 0);
-    assert!(cell_ticks(0, 0, 600.0, 60.0).is_empty());
-    assert!(cell_ticks(100, 50, 600.0, 60.0).is_empty());
-    assert!(cell_ticks(0, 240, 0.0, 60.0).is_empty());
+    assert!(heads(0, 0, 600.0).is_empty());
+    assert!(heads(100, 50, 600.0).is_empty());
+    assert!(heads(0, 240, 0.0).is_empty());
+    assert!(
+        cell_spans(0, 240, 600.0, 60.0, (300, 400)).is_empty(),
+        "a clip off screen asks for nothing"
+    );
     assert_eq!(
-        cell_ticks(0, 5, 10.0, 60.0).len(),
-        1,
-        "a clip narrower than one cell still shows one frame"
+        cell_spans(0, 5, 10.0, 60.0, (0, 5)),
+        vec![(0, 5)],
+        "a clip narrower than one cell still shows one frame across itself"
     );
 }
 

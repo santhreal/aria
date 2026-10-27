@@ -60,8 +60,17 @@ pub(crate) struct LaneGroupPaint {
     pub selected_gap: Option<SelectedGap>,
     pub trim_feedback: Option<TrimFeedback>,
     pub waves: Arc<std::collections::HashMap<u64, Vec<f32>>>,
-    pub strips: Arc<std::collections::HashMap<u64, Vec<(f32, Arc<RenderImage>)>>>,
+    pub strips: Arc<std::collections::HashMap<u64, Vec<FilmCell>>>,
     pub reduced: bool,
+}
+
+/// One filmstrip cell ready to draw: the part of its clip card it covers,
+/// `[from, to)` in pixels from the card's left edge, and its picture.
+#[derive(Clone)]
+pub(crate) struct FilmCell {
+    pub from: f32,
+    pub to: f32,
+    pub image: Arc<RenderImage>,
 }
 
 /// Where each clip's fx badge was painted in the last frame, in window
@@ -409,37 +418,18 @@ fn paint_clip(
         );
     } else if let Some(cells) = filmstrip {
         let strip_h = FILM_H.min(content_h);
-        let strip_y = content_bottom - strip_h;
-        for (cell_x, image) in cells {
-            let cx_px = x + *cell_x;
-            if cx_px + 60.0 < origin_x || cx_px > origin_x + view_w {
-                continue;
-            }
-            let img_bounds = Bounds {
-                origin: point(px(cx_px), px(strip_y)),
-                size: size(px(60.0f32.min(x + w - cx_px)), px(strip_h)),
-            };
-            let _ = window.paint_image(
-                img_bounds,
-                img_bounds,
-                Corners::default(),
-                image.clone(),
-                0,
-                false,
-            );
-            *paint_calls += 1;
-            if !clip.enabled {
-                paint_solid(
-                    window,
-                    paint_calls,
-                    cx_px,
-                    strip_y,
-                    60.0f32.min(x + w - cx_px),
-                    strip_h,
-                    theme.bg.opacity(0.6),
-                );
-            }
-        }
+        bar::paint_filmstrip(
+            window,
+            paint_calls,
+            theme,
+            cells,
+            x,
+            w,
+            (origin_x, origin_x + view_w),
+            content_bottom - strip_h,
+            strip_h,
+            clip.enabled,
+        );
     } else if let Some(generator) = &clip.generator {
         bar::paint_generator(
             window,

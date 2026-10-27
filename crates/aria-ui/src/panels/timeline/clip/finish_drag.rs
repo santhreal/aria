@@ -3,6 +3,8 @@
 
 use aria_core::count::counted;
 
+use crate::app::value_scrub::CLICK_SLOP_PX;
+
 use super::*;
 
 /// The pointer over the canvas: the cursor and the edge modifiers its target
@@ -170,6 +172,42 @@ pub(super) fn carry(
                 cx.notify();
             }
         }
+        CanvasGesture::LineOrMove {
+            clip_id,
+            track_id,
+            origin_x,
+            origin_y,
+            tick,
+            band,
+            start_ticks,
+            end_ticks,
+        } => {
+            let dx = f32::from(event.position.x) - origin_x;
+            let dy = f32::from(event.position.y) - origin_y;
+            if dx.abs().max(dy.abs()) < CLICK_SLOP_PX {
+                return;
+            }
+            // A line the press cannot hold, its clip or its value gone since
+            // the press, leaves the clip to move whichever way the pointer went.
+            let line = dy.abs() >= dx.abs()
+                && this.state.update(cx, |state, _| {
+                    state.press_clip_line(ClipId::from_raw(clip_id), LinePress::Line(tick), band)
+                });
+            ACTIVE_GESTURE.set(Some(if line {
+                CanvasGesture::Line { origin_y }
+            } else {
+                CanvasGesture::Clip {
+                    kind: DragKind::Move,
+                    clip_id,
+                    origin_track_id: track_id,
+                    target_track_id: track_id,
+                    origin_x,
+                    start_ticks,
+                    end_ticks,
+                }
+            }));
+            carry(this, event, bounds, lanes, fps, pps, scroll_x, tool, cx);
+        }
     }
 }
 
@@ -272,6 +310,8 @@ pub(super) fn on_left_up(
             crate::app::spawn_preview(this.state.clone(), cx);
             cx.notify();
         }
+        // The press selected the clip, and nothing travelled.
+        CanvasGesture::LineOrMove { .. } => {}
     }
 }
 
@@ -305,6 +345,7 @@ pub(super) fn cancel(this: &mut Shell, cx: &mut Context<Shell>) {
             false
         }
         CanvasGesture::Line { .. } => state.cancel_clip_line(),
+        CanvasGesture::LineOrMove { .. } => false,
     });
     if line {
         crate::app::spawn_preview(this.state.clone(), cx);

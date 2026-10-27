@@ -12,7 +12,9 @@
   carried straight up or down keeps its start. While the button is down, the
   clip and the clips that move with it are drawn where they land, after the
   magnet. Shift-drag ripples the move instead and draws the line it inserts
-  at. Drag a clip edge to trim. A move or trim follows the
+  at. A drag that starts on the clip's volume or opacity line moves the line
+  when it travels further across the lane than along it, and moves the clip
+  otherwise. Drag a clip edge to trim. A move or trim follows the
   pointer when it leaves the lanes and lands where the button comes up; Esc
   during the drag leaves every clip where the press found it. Nearby
   clips magnet at 8 px. The magnet also takes the playhead, the sequence start
@@ -224,6 +226,11 @@ changes nothing. A locked clip draws no handles.
 A media clip draws a filmstrip along the bottom of its card. Each cell is a
 rendered frame of the sequence at that point, so the strip shows the picture
 with its transform, grade, and effects applied rather than the raw file.
+
+The cells cover the clip end to end at every zoom. The first cell is the
+clip's first frame, and each picture keeps its width and is cropped where the
+next cell starts or the clip ends. Where one frame is wider than a cell, its
+picture repeats across the frame. Only cells on screen are rendered.
 
 Cells render one at a time in the background. A picture edit invalidates cells
 inside its changed timeline spans; audio, labels, lane display settings, and

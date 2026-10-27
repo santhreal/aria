@@ -266,6 +266,8 @@ pub(super) fn on_left_down(
             track_id,
             key,
             tick,
+            start_ticks,
+            end_ticks,
         } => {
             cx.stop_propagation();
             let clip = ClipId::from_raw(clip_id);
@@ -279,23 +281,43 @@ pub(super) fn on_left_down(
                 cx.notify();
                 return;
             }
+            // Off its dots the line is part of the clip's body, so a double
+            // click there opens the clip as one anywhere else on it does.
+            if key.is_none() && event.click_count >= 2 {
+                this.state
+                    .update(cx, |state, _| state.double_click_clip(clip_id));
+                cx.notify();
+                return;
+            }
             let band = lanes
                 .iter()
                 .find(|lane| lane.track_id == track_id)
                 .map_or(0.0, |lane| {
                     BarRows::of((lane.clip_y_bottom - lane.y_top).max(1.0)).band()
                 });
-            let at = key.map_or(LinePress::Line(tick), LinePress::Key);
-            let held = this.state.update(cx, |state, _| {
+            let origin_y = f32::from(event.position.y);
+            let gesture = this.state.update(cx, |state, _| {
                 if !state.selection.contains(&clip) {
                     state.select_clip_linked(clip, !event.modifiers.alt);
                 }
-                state.press_clip_line(clip, at, band)
+                match key {
+                    Some(key) => state
+                        .press_clip_line(clip, LinePress::Key(key), band)
+                        .then_some(CanvasGesture::Line { origin_y }),
+                    None => Some(CanvasGesture::LineOrMove {
+                        clip_id,
+                        track_id,
+                        origin_x,
+                        origin_y,
+                        tick,
+                        band,
+                        start_ticks,
+                        end_ticks,
+                    }),
+                }
             });
-            if held {
-                ACTIVE_GESTURE.set(Some(CanvasGesture::Line {
-                    origin_y: f32::from(event.position.y),
-                }));
+            if gesture.is_some() {
+                ACTIVE_GESTURE.set(gesture);
             }
             cx.notify();
         }

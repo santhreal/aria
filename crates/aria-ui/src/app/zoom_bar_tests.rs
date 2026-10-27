@@ -11,10 +11,10 @@
 //! drag and release, and the drawn tests drive the bar the shell draws: the
 //! thumb is drawn over the view and each knob over the grip a press on it
 //! takes. A wheel turned over the bar zooms about the playhead, the way it
-//! turns.
+//! turns. The painted thumb stands further from the track than the clip band.
 //!
-//! Not covered: the bar's colors and the clip band drawn on it, which a
-//! snapshot and the overview's own tests own.
+//! Not covered: the knobs' colors, and the spans of the clip band, which the
+//! overview's own tests own.
 
 use gpui::{
     Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TouchPhase, VisualTestContext, point, px,
@@ -643,6 +643,106 @@ fn each_drawn_knob_takes_the_grip_of_its_end(cx: &mut gpui::TestAppContext) {
             }
         }
     }
+}
+
+/// The thumb is the control on the bar and the clip band a hint under it, so
+/// the painted thumb stands further from the track than the band does, and
+/// further still while a press holds it. The class: a band painted brighter
+/// than the thumb, which made the bar read as a lit pipe with the thumb lost
+/// on it. Not covered: the thumb under the pointer, the knobs, and the light
+/// appearance.
+#[gpui::test]
+fn the_painted_thumb_stands_further_from_the_track_than_the_clip_band(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual, take) = shell_with_take(cx, "zoom-bar-inks");
+    a_third_of_five_takes(&state, visual, take, |_| 0.0);
+    let body = visual
+        .debug_bounds(intern("sequence-overview-body"))
+        .expect("the bar draws its body");
+    let window = visual
+        .debug_bounds(intern("sequence-overview-window"))
+        .expect("the bar draws its thumb");
+    let surface = visual.read(|app| crate::theme::Theme::of(app).surface);
+    // The bar's quads in paint order: the track, the clip band, the thumb.
+    let inks = |visual: &mut VisualTestContext| {
+        visual.update(|drawn, _| {
+            let scale = drawn.scale_factor();
+            drawn
+                .painted_quads()
+                .iter()
+                .filter_map(|quad| {
+                    let b = quad.bounds;
+                    let (x, y) = (b.origin.x.0 / scale, b.origin.y.0 / scale);
+                    let (w, h) = (b.size.width.0 / scale, b.size.height.0 / scale);
+                    if !body.contains(&point(px(x + w / 2.0), px(y + h / 2.0))) {
+                        return None;
+                    }
+                    Some((x, w, h, quad.background.as_solid()?))
+                })
+                .collect::<Vec<_>>()
+        })
+    };
+    let lum = |color: gpui::Hsla, under: [f32; 3]| {
+        let rgb = color.to_rgb();
+        let over = |top: f32, base: f32| top * rgb.a + base * (1.0 - rgb.a);
+        let out = [
+            over(rgb.r, under[0]),
+            over(rgb.g, under[1]),
+            over(rgb.b, under[2]),
+        ];
+        (out, 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2])
+    };
+    let departures = |visual: &mut VisualTestContext| {
+        let quads = inks(visual);
+        let tall = |h: f32| (h - HANDLE_W).abs() < 0.5;
+        let track = quads
+            .iter()
+            .find(|(_, w, h, _)| tall(*h) && (w - f32::from(body.size.width)).abs() < 1.0)
+            .expect("the bar paints its track across the body")
+            .3;
+        let band = quads
+            .iter()
+            .find(|(_, _, h, _)| *h < HANDLE_W / 2.0)
+            .expect("the bar paints the take as a band")
+            .3;
+        let thumb = quads
+            .iter()
+            .rev()
+            .find(|(x, w, h, _)| {
+                tall(*h)
+                    && (x - f32::from(window.left())).abs() < 0.5
+                    && (w - f32::from(window.size.width)).abs() < 0.5
+            })
+            .expect("the bar paints the thumb over the view")
+            .3;
+        let base = surface.to_rgb();
+        let (under, track_lum) = lum(track, [base.r, base.g, base.b]);
+        let from_track = |ink| (lum(ink, under).1 - track_lum).abs();
+        (from_track(band), from_track(thumb))
+    };
+
+    let (band, rest) = departures(visual);
+    assert!(band > 0.0, "the band is painted apart from the track");
+    assert!(
+        rest > band,
+        "the thumb at rest stands {rest} from the track, the band {band}"
+    );
+
+    let mid = point(window.center().x, body.center().y);
+    visual.simulate_mouse_down(mid, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    assert_eq!(
+        visual.read(|app| grip(state.read(app))),
+        Some(ZoomBarGrip::Thumb)
+    );
+    let (_, held) = departures(visual);
+    visual.simulate_mouse_up(mid, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    assert!(
+        held > rest,
+        "the held thumb stands {held} from the track, {rest} at rest"
+    );
 }
 
 /// The zoom, the scroll, and the playhead's pixel in the view.
