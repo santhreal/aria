@@ -733,6 +733,7 @@ Notes for the latest release. For previous releases, see the
 - Timeline filmstrip cells render on a renderer of their own and hold the session only to read the project, which brings a Viewer playback frame drawn after a cell on Server from a p50 between 21.3 ms and 21.5 ms to between 1.75 ms and 1.82 ms, and a cell from a p50 between 82.7 ms and 84.2 ms, all of it holding the session, to between 36.6 ms and 37.8 ms, of which 0.001 ms holds it, over three paired runs.
 - A filmstrip cell that is not rendered yet draws the last rendered cell of its clip at or before it, or else the first after it, within four cell widths, so a zoom in shows the picture the strip showed there before instead of an empty lane while the strip refills.
 - A pool row scrubbed to a frame not decoded yet shows the decoded frame of its file last before it, or else the first after it, instead of a glyph between frames.
+- Timeline filmstrip cells render one at a time, each the first missing cell at or after the one rendered last, instead of four at a time on renderers that each rolled over every frame between their cells, which brings the filmstrip refill over a clip's first fill, four zooms and three scrolls on Server from a p50 between 857.9 ms and 862.8 ms to between 220.6 ms and 249.8 ms, and the first fill from between 1008.9 ms and 1018.5 ms to between 936.3 ms and 950.0 ms, over five paired runs.
 
 ### Fixed
 

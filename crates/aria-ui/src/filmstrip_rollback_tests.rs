@@ -380,8 +380,9 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
         left: 4,
     });
     assert_eq!(kept(&store, &ticks), ticks, "an empty rollback");
+    store.finish(4, 56, Some(cell()));
     assert!(
-        !store.wants(56),
+        store.get(56).is_some(),
         "an empty rollback abandoned the render in flight"
     );
 }

@@ -1,16 +1,19 @@
 //! How a filmstrip fills, and what its cells hold while it does.
 //!
-//! Closes three classes. A strip that fills one cell at a time and waits a
-//! frame between cells: the store renders up to [`RENDERERS`] cells at once,
-//! each on a renderer of its own, and starts the next queued cell as each
-//! lands, one at a time during playback. A full store that dropped every
-//! cell to make room for one, which blanked every strip on screen: it drops
-//! the cell farthest from the one landing. And a dropped cell that stayed in
-//! the window atlas for the life of the window: every path that takes a cell
-//! out of the store hands its picture to the atlas release, and the window
-//! no longer holds it once the release ran.
+//! Closes four classes. A strip that fills one cell at a time and waits a
+//! frame between cells: a landing starts the next queued cell. A fill that
+//! decodes a frame more than once, because adjacent cells went to different
+//! renderers or because each run of cells seeked to a sync frame of its own:
+//! one renderer renders the first cell at or after the one it started last,
+//! then wraps to the first. A full store that dropped every cell to make room
+//! for one, which blanked every strip on screen: it drops the cell farthest
+//! from the one landing. And a dropped cell that stayed in the window atlas
+//! for the life of the window: every path that takes a cell out of the store
+//! hands its picture to the atlas release, and the window no longer holds it
+//! once the release ran.
 //!
-//! Not covered: the order the renders finish in, which the threads decide.
+//! Not covered: the frames a real decoder decodes, which the fill test
+//! models, and the thread a render starts on.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,7 +23,7 @@ use aria_models::{ClipId, ClipParam, ParamValue};
 use aria_plugin::Reverted;
 use gpui::{AppContext as _, RenderImage, TestAppContext};
 
-use super::{FilmstripStore, MAX_CELLS, RENDERERS, ask, land, test_cell as cell};
+use super::{FilmstripStore, MAX_CELLS, ask, land, test_cell as cell};
 use crate::test_support::atlas::held_or_released_once;
 use crate::test_support::drawn_shell;
 
@@ -29,32 +32,54 @@ fn tick(n: usize) -> i64 {
     i64::try_from(n * 8).expect("a small tick")
 }
 
+/// The store started at `tick`: it is in flight, and nothing else starts
+/// until it lands.
+fn started(store: &mut FilmstripStore, tick: i64, why: &str) {
+    assert_eq!(store.next_flight(), Some(tick), "{why}");
+    assert_eq!(
+        store.next_flight(),
+        None,
+        "two cells in flight on one renderer"
+    );
+}
+
 #[test]
-fn no_more_cells_render_at_once_than_there_are_renderers() {
+fn the_next_cell_is_the_first_at_or_after_the_last_one_started() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
-    store.queue = (0..RENDERERS + 2).map(tick).collect();
-    let mut started = Vec::new();
-    while let Some(flight) = store.next_flight(RENDERERS) {
-        started.push(flight);
-    }
-    assert_eq!(started.len(), RENDERERS, "cells in flight at once");
-    for (index, (_, renderer)) in started.iter().enumerate() {
-        assert!(
-            started[index + 1..]
-                .iter()
-                .all(|(_, other)| !Arc::ptr_eq(renderer, other)),
-            "two cells in flight on one renderer"
-        );
-    }
-    store.finish(1, started[1].0, Some(cell()));
-    let (next, renderer) = store
-        .next_flight(RENDERERS)
-        .expect("the freed renderer takes the next queued cell");
-    assert_eq!(next, tick(RENDERERS), "the queue's order");
-    assert!(
-        Arc::ptr_eq(&renderer, &started[1].1),
-        "the next cell went to a renderer that was busy"
+    store.queue = (0..6).map(tick).collect();
+    started(
+        &mut store,
+        tick(0),
+        "a cold renderer starts at the first cell",
+    );
+    store.finish(1, tick(0), Some(cell()));
+    started(
+        &mut store,
+        tick(1),
+        "the renderer left the cell after its own",
+    );
+
+    // A zoom out queues cells on both sides of where the decoders stand.
+    store.queue = vec![-16, -8, tick(3), tick(4)];
+    store.finish(1, tick(1), Some(cell()));
+    started(&mut store, tick(3), "the decoders rolled back");
+    store.finish(1, tick(3), Some(cell()));
+    started(&mut store, tick(4), "the decoders skipped a cell ahead");
+    store.finish(1, tick(4), Some(cell()));
+    started(&mut store, -16, "the strip did not wrap to its first cell");
+    store.finish(1, -16, None);
+    started(&mut store, -8, "an empty landing stopped the walk");
+
+    // An edit while a cell renders: the cell lands nothing, and the renderer
+    // starts it again, where its decoders stand.
+    store.sync_revision(2);
+    store.queue = vec![-16, -8, tick(4)];
+    store.finish(1, -8, Some(cell()));
+    started(
+        &mut store,
+        -8,
+        "the renderer left the cell that landed nothing",
     );
 }
 
@@ -63,61 +88,140 @@ fn sequence(cx: &TestAppContext) -> gpui::Entity<crate::app::AppState> {
     cx.update(|app| app.new(|_| crate::app::premiere_tests::with_sequence(1, 10)))
 }
 
-fn in_flight(cx: &TestAppContext, state: &gpui::Entity<crate::app::AppState>) -> Vec<i64> {
-    cx.update(|app| {
-        let mut ticks: Vec<i64> = state
-            .read(app)
-            .filmstrips
-            .flights
-            .iter()
-            .map(|flight| flight.tick)
-            .collect();
-        ticks.sort_unstable();
-        ticks
-    })
-}
-
-#[test]
-fn playback_renders_one_cell_at_a_time() {
-    let cx = TestAppContext::single();
-    let state = sequence(&cx);
-    let asked: Vec<i64> = (0..RENDERERS + 2).map(tick).collect();
-    cx.update(|app| state.update(app, |state, _| state.playing = true));
-    cx.update(|app| ask(&state, app, asked.clone()));
-    assert_eq!(
-        in_flight(&cx, &state),
-        [0],
-        "a filmstrip took a second renderer during playback"
-    );
-    cx.update(|app| state.update(app, |state, _| state.playing = false));
-    cx.update(|app| ask(&state, app, asked.clone()));
-    assert_eq!(
-        in_flight(&cx, &state),
-        asked[..RENDERERS],
-        "a paused filmstrip left renderers idle"
-    );
-    cx.run_until_parked();
+fn in_flight(cx: &TestAppContext, state: &gpui::Entity<crate::app::AppState>) -> Option<i64> {
+    cx.update(|app| state.read(app).filmstrips.flight.map(|flight| flight.tick))
 }
 
 #[test]
 fn a_landing_starts_the_next_queued_cell_without_a_draw() {
     let cx = TestAppContext::single();
     let state = sequence(&cx);
-    let asked: Vec<i64> = (0..=RENDERERS).map(tick).collect();
-    cx.update(|app| ask(&state, app, asked.clone()));
-    assert_eq!(in_flight(&cx, &state), asked[..RENDERERS]);
+    cx.update(|app| ask(&state, app, (0..3).map(tick).collect()));
+    assert_eq!(in_flight(&cx, &state), Some(tick(0)));
     cx.update(|app| {
         state.update(app, |state, cx| {
             let revision = state.revision;
-            land(state, revision, asked[0], Some(cell()), cx);
+            land(state, revision, tick(0), Some(cell()), cx);
         })
     });
     assert_eq!(
         in_flight(&cx, &state),
-        asked[1..],
+        Some(tick(1)),
         "the landing left the next queued cell waiting for a draw"
     );
     cx.run_until_parked();
+}
+
+/// The draw asks lane by lane, so a tick comes twice and out of order; the
+/// renderer still starts at the first.
+#[test]
+fn the_order_cells_are_drawn_in_does_not_change_the_walk() {
+    let cx = TestAppContext::single();
+    let ticks: Vec<i64> = (0..6).map(tick).collect();
+    let drawn: Vec<i64> = ticks.iter().rev().chain(&ticks).copied().collect();
+    let (in_order, as_drawn) = (sequence(&cx), sequence(&cx));
+    cx.update(|app| ask(&in_order, app, ticks.clone()));
+    cx.update(|app| ask(&as_drawn, app, drawn));
+    assert_eq!(in_flight(&cx, &in_order), Some(tick(0)));
+    assert_eq!(
+        in_flight(&cx, &as_drawn),
+        Some(tick(0)),
+        "the order the cells were drawn in changed the walk"
+    );
+    let queue = |state: &gpui::Entity<crate::app::AppState>| {
+        cx.update(|app| state.read(app).filmstrips.queue.clone())
+    };
+    assert_eq!(queue(&as_drawn), queue(&in_order), "a tick queued twice");
+    cx.run_until_parked();
+}
+
+/// Ticks between sync frames in the modeled source.
+const GOP: i64 = 60;
+
+/// Frames a renderer decodes to render the cell at `tick` after the one at
+/// `from`: the frames it rolls forward over, or the frames from the sync
+/// frame at or before `tick` through `tick`, whichever are fewer.
+fn decoded(from: Option<i64>, tick: i64) -> i64 {
+    let seek = tick.rem_euclid(GOP) + 1;
+    match from {
+        Some(from) if from < tick => seek.min(tick - from),
+        _ => seek,
+    }
+}
+
+/// A store filled again and again, and where its renderer's decoders stand.
+struct Filling {
+    store: FilmstripStore,
+    at: Option<i64>,
+}
+
+/// Fill `queued`, ascending cells `filling` holds none of, through its store,
+/// landing each cell before the next starts. The frames decoded in all.
+fn filled(filling: &mut Filling, queued: &[i64]) -> i64 {
+    let Filling { store, at } = filling;
+    store.queue = queued.to_vec();
+    let mut rendered = Vec::new();
+    let mut frames = 0;
+    while let Some(tick) = store.next_flight() {
+        frames += decoded(*at, tick);
+        *at = Some(tick);
+        rendered.push(tick);
+        assert!(rendered.len() <= queued.len(), "a cell rendered twice");
+        store.finish(1, tick, Some(cell()));
+    }
+    rendered.sort_unstable();
+    assert_eq!(rendered, queued, "a queued cell was never rendered");
+    frames
+}
+
+/// The frames a cold renderer decodes walking `queued` left to right.
+fn walked(queued: &[i64]) -> i64 {
+    let mut from = None;
+    queued
+        .iter()
+        .map(|&tick| {
+            let frames = decoded(from, tick);
+            from = Some(tick);
+            frames
+        })
+        .sum()
+}
+
+/// WHY: the store dealt adjacent cells to four renderers, so each renderer
+/// rolled forward over every frame between its cells, and then dealt runs of
+/// cells, so each run seeked to a sync frame of its own; a refill after a
+/// zoom decoded four times the frames and took four times as long. A fill
+/// decodes no more frames than a cold renderer walking the strip left to
+/// right: a clip's first fill, and the refill after a zoom out, whose new
+/// cells lie on both sides of where the decoders stand.
+///
+/// Not covered: a real decoder, modeled here as one that rolls forward or
+/// seeks to the sync frame, whichever decodes fewer frames.
+#[test]
+fn a_fill_decodes_no_frame_a_walk_along_the_strip_does_not() {
+    for (cells, step) in [(64, 8), (48, 8), (32, 8), (24, 16)] {
+        let span = cells * step;
+        let placed: Vec<i64> = (0..cells).map(|n| n * step).collect();
+        // A zoom out by two about the middle: the view doubles and the grid
+        // coarsens, so the cells inside the placed ones are held.
+        let coarse = usize::try_from(2 * step).expect("a small step");
+        let zoomed: Vec<i64> = (-span / 2..span + span / 2)
+            .step_by(coarse)
+            .filter(|&tick| !(0..span).contains(&tick))
+            .collect();
+        let mut filling = Filling {
+            store: FilmstripStore::default(),
+            at: None,
+        };
+        filling.store.sync_revision(1);
+        for (when, queued) in [("placed", placed), ("zoomed out", zoomed)] {
+            let (frames, walk) = (filled(&mut filling, &queued), walked(&queued));
+            assert!(
+                frames <= walk,
+                "{cells} cells {step} ticks apart, {when}: decoded {frames} frames, a walk {walk}"
+            );
+        }
+    }
 }
 
 #[test]

@@ -232,10 +232,13 @@ clip's first frame, and each picture keeps its width and is cropped where the
 next cell starts or the clip ends. Where one frame is wider than a cell, its
 picture repeats across the frame. Only cells on screen are rendered.
 
-Cells render in the background on renderers of their own, four at a time and
-one at a time during playback, so the Viewer never waits for a cell. A
-picture edit invalidates cells inside its changed timeline spans; audio,
-labels, lane display settings, and other picture-neutral edits retain them.
+Cells render in the background, one at a time on a renderer of their own, so
+the Viewer never waits for a cell. The next cell is the first missing cell at
+or after the one rendered last, so the renderer decodes forward from one cell
+to the next and decodes no frame twice; after the last, it wraps to the first
+missing cell. A picture edit invalidates cells inside its changed timeline
+spans; audio, labels, lane display settings, and other picture-neutral edits
+retain them.
 Each move of a value scrub, a clip line drag, or a color wheel drag replaces
 the edit of the move before it, and invalidates only the cells inside the
 spans of both edits; Escape invalidates only the cells inside the spans the

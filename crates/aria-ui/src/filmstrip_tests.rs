@@ -7,8 +7,8 @@
 //!
 //! Cells are asked for from the timeline's draw, so asking must never wait on
 //! the engine lock. A cell draws nothing on the session's renderer: its
-//! thread holds the engine only to take the cell's source, and decodes on one
-//! of the store's own renderers.
+//! thread holds the engine only to take the cell's source, and decodes on the
+//! store's own renderer.
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -241,9 +241,10 @@ fn asking_for_cells_does_not_wait_on_the_engine_lock() {
         waited < Duration::from_millis(500),
         "the ask waited {waited:?} on the engine lock"
     );
-    assert!(
-        cx.update(|app| !state.read(app).filmstrips.wants(0)),
-        "the ask did not mark its tick in flight"
+    assert_eq!(
+        cx.update(|app| state.read(app).filmstrips.flight.map(|flight| flight.tick)),
+        Some(0),
+        "the ask did not start its tick"
     );
     // The cell task holds the state until its render lands; a task left
     // pending at the end is a leaked handle.
