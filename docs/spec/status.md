@@ -289,3 +289,16 @@ come from earlier builds:
 | `audio-load` | 32 tracks $\times$ 4 shipped effects at $48\text{ kHz}$, 256-sample blocks: 0 underruns in $60\text{ s}$ | 11,250 blocks ($5.333\text{ ms}$ budget): block p50 $0.64\text{ ms}$, p95 $0.82\text{ ms}$, p99 $0.84\text{ ms}$, max $2.51\text{ ms}$, 0 underruns in $60\text{ s}$ | Pass |
 | `memory` | Idle with `project-10k` open (frame cache excluded) $\le 500\text{ MB}$ RSS | Isolated `VmRSS` $244.4\text{ MiB}$, $244.1\text{ MiB}$ and $244.5\text{ MiB}$ over three runs ($+53.9\text{ MiB}$, $+53.9\text{ MiB}$ and $+53.7\text{ MiB}$ over empty `AppState` at $190.4\text{ MiB}$, $190.3\text{ MiB}$ and $190.8\text{ MiB}$ with the decode warm-up finished; $+0.7\text{ MiB}$, $+0.7\text{ MiB}$ and $+0.8\text{ MiB}$ across 1,000 undo steps) | Pass |
 | `plugin-cost` | Host call $\le 1\ \mu\text{s}$ native / $\le 5\ \mu\text{s}$ WASM; WASM activation $\le 50\text{ ms}$; plugin WGSL within $5\%$ of shipped effect | Native host call p50 $0.06\ \mu\text{s}$; WASM host call p50 $0.84\ \mu\text{s}$; WASM activation p50 $0.16\text{ ms}$; 4-pass 1080p vignette plugin WGSL vs shipped effect overhead $0.0\%$ | Pass |
+
+On X11 each window draws at the refresh rate of the monitor that shows the
+largest part of it. Measured on the Desktop (RTX 5090, GNOME on Xorg, a
+$240\text{ Hz}$ and a $60\text{ Hz}$ monitor, window on the $60\text{ Hz}$
+monitor) over the first $20\text{ s}$ after a launch that opens four media
+files, in three paired runs: frame draw and present p50 between
+$2.33\text{ ms}$ and $2.79\text{ ms}$ (p95 $4.31\text{ ms}$ to $5.35\text{ ms}$),
+from between $13.27\text{ ms}$ and $16.04\text{ ms}$ (p95 $16.73\text{ ms}$ to
+$16.93\text{ ms}$) in runs that drew every window at the first monitor's rate;
+frames that waited $12\text{ ms}$ to $18\text{ ms}$ for the display between 0
+and 2 per run, from between 123 and 133; UI thread time in frames between
+$329.9\text{ ms}$ and $513.2\text{ ms}$, from between $2038.7\text{ ms}$ and
+$2205.9\text{ ms}$.
