@@ -8,7 +8,8 @@
 //! chat_completions`, for a chip that reads Chat Completions; and a boolean
 //! drawn as an On chip beside an Off chip, two controls for one bit. The
 //! choices are read from each setting's own list, so a new source, protocol,
-//! reasoning mode, autonomy level or accent is pressed without an edit here.
+//! reasoning mode, autonomy level, zoom bar knob hold or accent is pressed
+//! without an edit here.
 //!
 //! Not caught: the controls' colors, which the test renderer does not raster.
 //! A chip is told from a button, and a switch from a chip, by the hover it
@@ -21,6 +22,7 @@ use crate::app::{AppState, DialogKind};
 use crate::motion::{ControlId, MotionKey, hover_t};
 use crate::settings::MIN_WINDOW_WIDTH;
 use crate::test_support::drawn_shell;
+use crate::timeline_display::ZoomBarKnobs;
 
 /// One choice to press.
 struct Choice {
@@ -37,9 +39,9 @@ struct Choice {
     holds: Box<dyn Fn(&AppState) -> bool>,
 }
 
-/// Every choice of one AI chip row, last first, so each press changes the
-/// value from the one before it.
-fn ai_row<T: Copy + PartialEq + 'static>(
+/// Every choice of one chip row, last first, so each press changes the value
+/// from the one before it.
+fn chip_choices<T: Copy + PartialEq + 'static>(
     out: &mut Vec<Choice>,
     (row, prefix, status): (&'static str, &'static str, &'static str),
     all: &[T],
@@ -132,33 +134,40 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
     let (state, visual) = open_settings(cx);
 
     let mut choices = Vec::new();
-    ai_row(
+    chip_choices(
         &mut choices,
         ("Source", "ai-source", "AI source"),
         &AiSource::ALL,
         AiSource::label,
         |state| state.cloud_settings().ai.source,
     );
-    ai_row(
+    chip_choices(
         &mut choices,
         ("Protocol", "ai-protocol", "AI protocol"),
         &AiApiProtocol::ALL,
         AiApiProtocol::label,
         |state| state.cloud_settings().ai.api_protocol,
     );
-    ai_row(
+    chip_choices(
         &mut choices,
         ("Reasoning", "ai-reasoning", "AI reasoning"),
         &ReasoningSummary::ALL,
         ReasoningSummary::label,
         |state| state.cloud_settings().ai.reasoning_summary,
     );
-    ai_row(
+    chip_choices(
         &mut choices,
         ("Autonomy", "ai-autonomy", "AI autonomy"),
         &Autonomy::ALL,
         Autonomy::label,
         |state| state.cloud_settings().ai.autonomy,
+    );
+    chip_choices(
+        &mut choices,
+        ("Zoom bar knobs", "settings-zoom-knobs", "Zoom bar knobs"),
+        &ZoomBarKnobs::ALL,
+        ZoomBarKnobs::label,
+        |state| state.ui_settings.zoom_bar_knobs,
     );
     for &accent in ThemeChoice::ALL.iter().rev() {
         let shown = format!("Accent: {}", accent.label());

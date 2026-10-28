@@ -5,13 +5,15 @@
 //! read as a step from the last move rather than as a place, a thumb drawn on
 //! one mapping and dragged on another, a strip that rescales under a held
 //! press, a strip padded past the sequence and the view, an end that does
-//! not stay under the pointer, a press that takes the wrong grip, a view that
-//! leaves the strip, a press that keeps moving after Escape, and a drag that
-//! stops at the bar's 24 px edge. Every grip is driven through the same press,
-//! drag and release, and the drawn tests drive the bar the shell draws: the
-//! thumb is drawn over the view and each knob over the grip a press on it
-//! takes. A wheel turned over the bar zooms about the playhead, the way it
-//! turns. The painted thumb stands further from the track than the clip band.
+//! not stay under the pointer, a knob that holds still what its setting does
+//! not set, a press that takes the wrong grip, a view that leaves the strip,
+//! a press that keeps moving after Escape, and a drag that stops at the bar's
+//! 24 px edge. Every grip is driven through the same press, drag and
+//! release, at each knob setting, and the drawn tests drive the bar the shell
+//! draws: the thumb is drawn over the view and each knob over the grip a
+//! press on it takes. A wheel turned over the bar zooms about the playhead,
+//! the way it turns. The painted thumb stands further from the track than the
+//! clip band.
 //!
 //! Not covered: the knobs' colors, and the spans of the clip band, which the
 //! overview's own tests own.
@@ -25,6 +27,7 @@ use crate::app::AppState;
 use crate::app::premiere_tests::with_sequence;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::interned::intern;
+use crate::timeline_display::ZoomBarKnobs;
 use crate::transport::{TIMELINE_BASE_PPS, WHEEL_LINE_PX, ZOOM_MAX, ZOOM_MIN, ZOOM_WHEEL_STEP};
 
 /// A sequence of `clips` two-second clips on a Timeline frame 1200 px wide,
@@ -76,6 +79,11 @@ fn thumb(state: &AppState) -> (f32, f32) {
 
 fn grip(state: &AppState) -> Option<ZoomBarGrip> {
     state.zoom_bar_grip()
+}
+
+/// The playhead's pixel in the view.
+fn playhead_pixel(state: &AppState) -> f64 {
+    state.playhead.value as f64 / state.ticks_per_px() - f64::from(state.scroll_x)
 }
 
 #[track_caller]
@@ -262,63 +270,165 @@ fn the_thumb_stops_at_the_strip_ends() {
     );
 }
 
+/// A knob drag at each setting, with the playhead inside the view, before it
+/// and past it: the dragged end follows the pointer, and what holds still is
+/// read from the setting here rather than from the code under test. The
+/// playhead's pixel holds under [`ZoomBarKnobs::Playhead`] while the
+/// playhead is inside the view; the view's other end holds otherwise.
+///
+/// The class: a knob that holds what its setting does not set, a knob that
+/// leaves the pointer to keep the playhead, and a playhead outside the view
+/// that the knob still holds, which throws the view off the bar on the first
+/// move. Not covered: a playhead on the view's last tick, which no tick
+/// reaches at a float zoom; the first tick is pressed below.
 #[test]
-fn each_end_zooms_with_the_other_end_held_and_moves_with_the_pointer() {
-    for share in [0.25, 0.5] {
-        // (grip, the pressed end's travel)
-        for (end, dx) in [
-            (ZoomBarGrip::End, -80.0),
-            (ZoomBarGrip::End, 60.0),
-            (ZoomBarGrip::Start, 80.0),
-            (ZoomBarGrip::Start, -60.0),
-        ] {
-            let mut state = showing(60, share);
-            state.scroll_timeline_to(600.0, false);
-            let (start, stop) = state.view_ticks();
-            let (x0, x1) = thumb(&state);
-            // A press a pixel inside the end moves the end, not the pixel.
-            let (edge, from, held) = match end {
-                ZoomBarGrip::End => (x1, x1 - 1.0, start),
-                _ => (x0, x0 + 1.0, stop),
-            };
-            state.press_zoom_bar(from);
-            assert_eq!(grip(&state), Some(end), "a press at {from}");
-            let at = from + dx;
-            // Twice, so a move read as a step from the last one shows.
-            for _ in 0..2 {
-                state.drag_zoom_bar(at);
-                let (first, last) = state.view_ticks();
-                let what = format!("{end:?} by {dx} at {share}");
-                let (kept, pressed, drawn) = match end {
-                    ZoomBarGrip::End => (first, last, thumb(&state).1),
-                    _ => (last, first, thumb(&state).0),
-                };
-                near(kept, held, &format!("{what}: the other end"));
-                let moved_to = edge + dx;
-                near(
-                    pressed,
-                    tick(&state, moved_to),
-                    &format!("{what}: the pressed end"),
-                );
-                near(
-                    f64::from(drawn),
-                    f64::from(moved_to),
-                    &format!("{what}: the drawn end"),
-                );
+fn each_end_moves_with_the_pointer_and_holds_what_the_setting_sets() {
+    for knobs in ZoomBarKnobs::ALL {
+        // The playhead as a share of the view: inside, then before and past it.
+        for at in [0.3, 0.7, -0.2, 1.2] {
+            for share in [0.25, 0.5] {
+                // (grip, the pressed end's travel)
+                for (end, dx) in [
+                    (ZoomBarGrip::End, -40.0),
+                    (ZoomBarGrip::End, 60.0),
+                    (ZoomBarGrip::Start, 40.0),
+                    (ZoomBarGrip::Start, -60.0),
+                ] {
+                    let mut state = showing(60, share);
+                    state.ui_settings.zoom_bar_knobs = knobs;
+                    state.scroll_timeline_to(600.0, false);
+                    let (start, stop) = state.view_ticks();
+                    state.place_playhead((start + at * (stop - start)).round() as i64);
+                    let holds_playhead = match knobs {
+                        ZoomBarKnobs::Playhead => at > 0.0 && at < 1.0,
+                        ZoomBarKnobs::OtherEnd => false,
+                    };
+                    let pixel = playhead_pixel(&state);
+                    let (x0, x1) = thumb(&state);
+                    // A press a pixel inside the end moves the end, not the pixel.
+                    let (edge, from, other) = match end {
+                        ZoomBarGrip::End => (x1, x1 - 1.0, start),
+                        _ => (x0, x0 + 1.0, stop),
+                    };
+                    state.press_zoom_bar(from);
+                    assert_eq!(grip(&state), Some(end), "a press at {from}");
+                    let to = from + dx;
+                    // Twice, so a move read as a step from the last one shows.
+                    for _ in 0..2 {
+                        state.drag_zoom_bar(to);
+                        let (first, last) = state.view_ticks();
+                        let what =
+                            format!("{knobs:?}, playhead at {at}: {end:?} by {dx} at {share}");
+                        let (kept, pressed, drawn) = match end {
+                            ZoomBarGrip::End => (first, last, thumb(&state).1),
+                            _ => (last, first, thumb(&state).0),
+                        };
+                        if holds_playhead {
+                            near(
+                                playhead_pixel(&state),
+                                pixel,
+                                &format!("{what}: the playhead"),
+                            );
+                        } else {
+                            near(kept, other, &format!("{what}: the other end"));
+                        }
+                        let moved_to = edge + dx;
+                        near(
+                            pressed,
+                            tick(&state, moved_to),
+                            &format!("{what}: the pressed end"),
+                        );
+                        near(
+                            f64::from(drawn),
+                            f64::from(moved_to),
+                            &format!("{what}: the drawn end"),
+                        );
+                    }
+                }
             }
         }
     }
+}
 
-    // An end pulled onto the other stops at the closest zoom, the other end
-    // still held.
+/// A playhead on the view's first tick is not inside the view, so the start
+/// knob holds the view's last tick rather than a playhead at no share of the
+/// view, which no width puts the start knob under the pointer for.
+#[test]
+fn a_playhead_on_the_views_first_tick_holds_the_other_end() {
     let mut state = showing(60, 0.25);
-    state.scroll_timeline_to(600.0, false);
-    let (start, _) = state.view_ticks();
-    let (x0, x1) = thumb(&state);
-    state.press_zoom_bar(x1 - 1.0);
-    state.drag_zoom_bar(x0 + 1.0);
-    assert_eq!(state.zoom, ZOOM_MAX, "the closest zoom");
-    near(state.view_ticks().0, start, "the held end");
+    state.place_playhead(0);
+    let (start, stop) = state.view_ticks();
+    assert_eq!(start, 0.0, "the view starts on the playhead");
+    let (x0, _) = thumb(&state);
+    state.press_zoom_bar(x0 + 1.0);
+    assert_eq!(grip(&state), Some(ZoomBarGrip::Start));
+    state.drag_zoom_bar(x0 + 41.0);
+    let (first, last) = state.view_ticks();
+    near(last, stop, "the other end");
+    near(first, tick(&state, x0 + 40.0), "the pressed end");
+}
+
+/// Under [`ZoomBarKnobs::Playhead`], a drag that would take the far end off
+/// the strip stops it at the strip's end and keeps the dragged end under the
+/// pointer; a drag onto or past the playhead stops at the closest zoom with
+/// the playhead's pixel held. Under [`ZoomBarKnobs::OtherEnd`], an end pulled
+/// onto the other stops at the closest zoom, the other end still held.
+///
+/// The class: a held playhead that scrolls the view before the sequence's
+/// start, which the scroll clamp then shifts out from under the pointer, a
+/// view held past the strip's end, which the thumb cannot draw, and a drag
+/// past the pivot that zooms out instead of in.
+#[test]
+fn a_knob_stops_the_far_end_at_the_strip_and_the_near_end_at_the_closest_zoom() {
+    let duration = with_sequence(1, 60).store.sequence.duration_ticks as f64;
+    // (grip, the playhead as a share of the view, the pressed end's travel,
+    // where the far end stops)
+    for (end, at, dx, far) in [
+        (ZoomBarGrip::End, 0.9, 200.0, 0.0),
+        (ZoomBarGrip::Start, 0.1, -100.0, duration),
+    ] {
+        let mut state = showing(60, 0.25);
+        state.ui_settings.zoom_bar_knobs = ZoomBarKnobs::Playhead;
+        state.scroll_timeline_to(600.0, false);
+        let (start, stop) = state.view_ticks();
+        state.place_playhead((start + at * (stop - start)).round() as i64);
+        let (x0, x1) = thumb(&state);
+        let (edge, from) = match end {
+            ZoomBarGrip::End => (x1, x1 - 1.0),
+            _ => (x0, x0 + 1.0),
+        };
+        state.press_zoom_bar(from);
+        state.drag_zoom_bar(from + dx);
+        let (first, last) = state.view_ticks();
+        let (kept, pressed) = match end {
+            ZoomBarGrip::End => (first, last),
+            _ => (last, first),
+        };
+        let what = format!("{end:?} by {dx}");
+        near(kept, far, &format!("{what}: the far end"));
+        near(
+            pressed,
+            tick(&state, edge + dx),
+            &format!("{what}: the pressed end"),
+        );
+    }
+
+    for knobs in ZoomBarKnobs::ALL {
+        let mut state = showing(60, 0.25);
+        state.ui_settings.zoom_bar_knobs = knobs;
+        state.scroll_timeline_to(600.0, false);
+        let (start, stop) = state.view_ticks();
+        state.place_playhead(((start + stop) / 2.0).round() as i64);
+        let pixel = playhead_pixel(&state);
+        let (x0, x1) = thumb(&state);
+        state.press_zoom_bar(x1 - 1.0);
+        state.drag_zoom_bar(x0 + 1.0);
+        assert_eq!(state.zoom, ZOOM_MAX, "{knobs:?}: the closest zoom");
+        match knobs {
+            ZoomBarKnobs::Playhead => near(playhead_pixel(&state), pixel, "the playhead"),
+            ZoomBarKnobs::OtherEnd => near(state.view_ticks().0, start, "the held end"),
+        }
+    }
 }
 
 #[test]
@@ -348,9 +458,14 @@ fn a_press_beside_the_thumb_centers_the_view_there_and_scrolls_from_it() {
 
 #[test]
 fn escape_puts_the_zoom_and_scroll_back_and_ends_the_press() {
-    for end in [ZoomBarGrip::Thumb, ZoomBarGrip::Start, ZoomBarGrip::End] {
+    for (knobs, end) in ZoomBarKnobs::ALL.into_iter().flat_map(|knobs| {
+        [ZoomBarGrip::Thumb, ZoomBarGrip::Start, ZoomBarGrip::End].map(|end| (knobs, end))
+    }) {
         let mut state = showing(60, 0.25);
+        state.ui_settings.zoom_bar_knobs = knobs;
         state.scroll_timeline_to(600.0, false);
+        let (start, stop) = state.view_ticks();
+        state.place_playhead(((start + stop) / 2.0).round() as i64);
         let view = (state.zoom, state.scroll_x);
         let (x0, x1) = thumb(&state);
         let at = match end {
@@ -359,13 +474,14 @@ fn escape_puts_the_zoom_and_scroll_back_and_ends_the_press() {
             ZoomBarGrip::End => x1 - 1.0,
         };
         state.press_zoom_bar(at);
-        assert!(state.drag_zoom_bar(at + 50.0), "{end:?} moved the view");
-        assert!(state.cancel_zoom_bar_drag(), "{end:?} cancelled");
-        assert_eq!((state.zoom, state.scroll_x), view, "{end:?} put back");
+        let what = format!("{knobs:?} {end:?}");
+        assert!(state.drag_zoom_bar(at + 50.0), "{what} moved the view");
+        assert!(state.cancel_zoom_bar_drag(), "{what} cancelled");
+        assert_eq!((state.zoom, state.scroll_x), view, "{what} put back");
         assert!(!state.zoom_bar_held());
         assert!(
             !state.drag_zoom_bar(at + 90.0),
-            "{end:?} still moved after Escape"
+            "{what} still moved after Escape"
         );
         assert!(
             !state.cancel_zoom_bar_drag(),
@@ -504,7 +620,11 @@ fn the_drawn_bar_scrolls_and_zooms_past_its_edges_and_escape_puts_the_view_back(
         "the drag ended at the release"
     );
 
-    // The right end zooms with the left end held, past the bar too.
+    // Holding the other end, the right end zooms with the left end held,
+    // past the bar too.
+    change(visual, &state, |state| {
+        state.ui_settings.zoom_bar_knobs = ZoomBarKnobs::OtherEnd;
+    });
     let (start, end) = scrolled;
     let grab = x_of(end) - 1.0;
     visual.simulate_mouse_down(at(grab, y), MouseButton::Left, Modifiers::none());

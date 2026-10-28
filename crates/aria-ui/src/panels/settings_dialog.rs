@@ -1,4 +1,4 @@
-//! Settings dialog: Appearance, Playback, Provider keys, Storage, Transcription, Cloud, Plugins, Keys, Workspaces, Canvas.
+//! Settings dialog: Appearance, Playback, Timeline, Provider keys, Storage, Transcription, Cloud, Plugins, Keys, Workspaces, Canvas.
 //!
 //! The dialog is a list of sections, each generated from a table rather than written
 //! out row by row, so a new provider, model, timeout, cache, or theme appears without
@@ -37,7 +37,7 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
-use widgets::{chip_row, group_divider, kv, section};
+use widgets::{chip_row, choice_row, group_divider, kv, section};
 
 pub fn render(
     state: &Entity<AppState>,
@@ -65,6 +65,7 @@ pub fn render(
     }
     push_visible!("Appearance", appearance_rows(&theme, state, mode, cx));
     push_visible!("Playback", playback_rows(&theme, state, cx));
+    push_visible!("Timeline", timeline_rows(&theme, state, cx));
     push_visible!("AI", ai::ai_rows(&theme, state, cx));
     push_visible!("Provider keys", providers::provider_rows(&theme, state, cx));
     push_visible!("Storage", storage::storage_rows(&theme, state, cx));
@@ -212,6 +213,28 @@ fn playback_rows(
             cx,
         ),
     ]
+}
+
+/// What a drag on a knob of the timeline's zoom bar holds still.
+fn timeline_rows(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<gpui::AnyElement> {
+    let knobs = state.read(cx).ui_settings.zoom_bar_knobs;
+    vec![choice_row(
+        theme,
+        "settings-zoom-knobs",
+        "Zoom bar knobs",
+        &crate::timeline_display::ZoomBarKnobs::ALL,
+        crate::timeline_display::ZoomBarKnobs::label,
+        knobs,
+        cx,
+        |state, knobs, cx| {
+            state.set_zoom_bar_knobs(knobs, cx);
+            Ok(())
+        },
+    )]
 }
 
 /// A label and a switch, on for `value`; a press stores the other value

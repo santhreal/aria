@@ -189,14 +189,20 @@ the ruler (see [Render files](viewer.md#render-files)).
 The zoom bar along the bottom of the timeline maps the whole sequence, and past
 its end the view when the view reaches further. The clips draw as a thin band,
 and the view as a thumb with a round knob at each end. Drag the thumb to
-scroll; the point you pressed stays under the pointer. Drag either knob to zoom
-with the other end held in place; drag the knobs to the bar's two ends to show
-the whole sequence. Click outside the thumb to center the view there and keep
-dragging from there. A drag continues when the pointer leaves the bar, and Esc
-during the drag puts the zoom and the scroll back. Turn the wheel over the bar
-to zoom about the playhead, in when turned up and out when turned down;
-Shift+wheel scrolls. At its left, **+** adds a video track and the zoom readout
-fits the sequence on a click.
+scroll; the point you pressed stays under the pointer. Drag either knob to
+zoom; the knob stays under the pointer. **Zoom bar knobs**, in the Timeline
+section of Settings, sets what holds still while it moves (see
+[Finding a setting](settings-and-storage.md#finding-a-setting)). **Hold
+Playhead**, the default, keeps the playhead at its place in the view while the
+playhead is inside the view, and the other end of the view moves to match.
+**Hold Other End**, or a playhead outside the view, keeps the other end in
+place. An end that would move off the bar stops at the bar's end. Drag the
+knobs to the bar's two ends to show the whole sequence. Click outside the
+thumb to center the view there and keep dragging from there. A drag continues
+when the pointer leaves the bar, and Esc during the drag puts the zoom and the
+scroll back. Turn the wheel over the bar to zoom about the playhead, in when
+turned up and out when turned down; Shift+wheel scrolls. At its left, **+**
+adds a video track and the zoom readout fits the sequence on a click.
 
 
 ## Waveforms

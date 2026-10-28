@@ -384,7 +384,7 @@ The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders a chip
 
 ## Settings
 
-The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/aria-ui/src/panels/settings_dialog/*.rs`) renders preferences controls across AI providers, playback, cache directories, keyboard shortcut sets, workspace layouts, plugins and their settings and WASM limits, storage quotas, and local transcription models.
+The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/aria-ui/src/panels/settings_dialog/*.rs`) renders preferences controls across AI providers, playback, the timeline zoom bar, cache directories, keyboard shortcut sets, workspace layouts, plugins and their settings and WASM limits, storage quotas, and local transcription models.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -428,6 +428,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-workspace-forget` (per row) | Forget | Deletes the saved custom workspace layout. | None |
 | `settings-workspace-reset` | Reset | Resets the active workspace dock layout to its factory pane arrangement. | None |
 | `settings-workspace-save` | Save layout / Overwrite | Saves the current dock pane arrangement into the active workspace slot. | None |
+| `settings-zoom-knobs` (per row) | Hold Playhead / Hold Other End | Sets what a drag on a knob of the timeline's zoom bar holds still: the playhead's pixel while the playhead is inside the view, or the view's other end; drawn on the Zoom bar knobs line. | None |
 | `storage-clear` | Clear cache | Clears downloaded cloud and stock media assets from the download cache. | None |
 | `storage-relocate` | Move storage… | Opens the Move Storage folder picker and moves the root storage directory to the chosen folder. | None |
 | `timeout-dec` (per row) | Halve | Halves the execution timeout in seconds for the selected transcription step. | None |

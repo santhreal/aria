@@ -1,7 +1,12 @@
 //! The shapes every settings section is built from.
 
-use gpui::{Div, IntoElement, ParentElement, SharedString, Stateful, Styled, div, px};
+use gpui::{
+    Div, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Stateful, Styled, div, px,
+};
 
+use crate::app::AppState;
+use crate::components::{self, ChipSize};
 use crate::theme::Theme;
 
 /// How wide the label column every Settings row starts with is, so the
@@ -39,6 +44,37 @@ pub(super) fn chip_row(
                 .children(chips),
         )
         .into_any_element()
+}
+
+/// One row of mutually exclusive chips, the one in force lit. A press runs
+/// `apply` with the chip's choice and reports its error on the error line.
+/// `prefix` is the chips' control id.
+pub(super) fn choice_row<T: Copy + PartialEq + 'static>(
+    theme: &Theme,
+    prefix: &'static str,
+    label: &'static str,
+    choices: &[T],
+    name_of: fn(T) -> &'static str,
+    current: T,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+    apply: fn(&mut AppState, T, &mut gpui::Context<AppState>) -> Result<(), String>,
+) -> gpui::AnyElement {
+    let chips = choices.iter().map(|&choice| {
+        let name = name_of(choice);
+        let id = crate::motion::MotionKey::new(prefix, name);
+        components::chip(id, name, choice == current, ChipSize::Regular, theme).on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, cx| {
+                    if let Err(err) = apply(state, choice, cx) {
+                        state.report_error(err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+    });
+    chip_row(theme, label, chips)
 }
 
 /// One titled group of rows.

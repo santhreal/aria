@@ -1,16 +1,18 @@
 //! The Timeline Display Settings: thumbnails, waveform scale, playhead
-//! follow, and the outline column's width.
+//! follow, what a zoom bar knob holds still, and the outline column's width.
 //!
 //! Each choice is a view preference saved with the UI settings, not an edit,
 //! so none of them enters the undo history. The View menu rows and the
-//! timeline header's display button call these setters; the timeline reads
+//! timeline header's display button call these setters, and Settings >
+//! Timeline calls the zoom bar's; the timeline reads
 //! [`crate::timeline_display::TimelineDisplay`] when it draws and when the
-//! transport follows the playhead. The display buttons open their View
-//! submenu, this one or the Viewer's, through [`AppState::toggle_display_menu`].
+//! transport follows the playhead, and the zoom bar reads its knobs' setting
+//! when a knob is pressed. The display buttons open their View submenu, this
+//! one or the Viewer's, through [`AppState::toggle_display_menu`].
 
 use super::AppState;
 use crate::chrome::menu_items::{DropEntry, drop_entries};
-use crate::timeline_display::{Follow, Thumbnails, WaveformScale};
+use crate::timeline_display::{Follow, Thumbnails, WaveformScale, ZoomBarKnobs};
 use crate::types::AppMenu;
 
 impl AppState {
@@ -76,6 +78,14 @@ impl AppState {
         // The next follow measures from wherever the view is now.
         self.follow_scroll = None;
         self.status_message = Some(format!("Timeline follow: {}", follow.label()));
+        self.persist_settings_later(cx);
+        cx.notify();
+    }
+
+    /// Hold `knobs` still while a knob of the zoom bar is dragged.
+    pub fn set_zoom_bar_knobs(&mut self, knobs: ZoomBarKnobs, cx: &mut gpui::Context<Self>) {
+        self.ui_settings.zoom_bar_knobs = knobs;
+        self.status_message = Some(format!("Zoom bar knobs: {}", knobs.label()));
         self.persist_settings_later(cx);
         cx.notify();
     }

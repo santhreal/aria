@@ -28,7 +28,7 @@ use crate::settings::{
 };
 use crate::surfaces::settings_pick::RATES;
 use crate::test_support::doc_tables::{parse_table_rows, read_doc, section_slice, strip_ticks};
-use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale};
+use crate::timeline_display::{Follow, Thumbnails, TimelineDisplay, WaveformScale, ZoomBarKnobs};
 use crate::types::PoolView;
 
 /// Closes the class where a `config.toml` key, `[schema]` version,
@@ -295,6 +295,7 @@ fn settings_doc_matches_registries() {
                 waveform: td_waveform,
                 follow,
             },
+        zoom_bar_knobs,
         waveform,
         ref favorite_effects,
         ref window_placements,
@@ -342,6 +343,7 @@ fn settings_doc_matches_registries() {
             waveform: td_waveform,
             follow,
         },
+        zoom_bar_knobs,
         waveform,
         favorite_effects: Vec::new(),
         window_placements: BTreeMap::from([("primary".into(), WindowPlacement::default())]),
@@ -450,6 +452,10 @@ fn settings_doc_matches_registries() {
         serde_json::to_string(&follow).unwrap()
     );
     assert_eq!(
+        ui_defaults["zoomBarKnobs"],
+        serde_json::to_string(&zoom_bar_knobs).unwrap()
+    );
+    assert_eq!(
         ui_defaults["waveform"],
         serde_json::to_string(&waveform).unwrap()
     );
@@ -514,6 +520,13 @@ fn settings_doc_matches_registries() {
         assert!(
             ui_ranges["timelineDisplay.follow"].contains(&s),
             "missing timelineDisplay.follow {s}"
+        );
+    }
+    for v in ZoomBarKnobs::ALL {
+        let s = serde_json::to_string(&v).unwrap();
+        assert!(
+            ui_ranges["zoomBarKnobs"].contains(&s),
+            "missing zoomBarKnobs {s}"
         );
     }
 

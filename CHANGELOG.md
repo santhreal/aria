@@ -9,6 +9,7 @@ Notes for the latest release. For previous releases, see the
 ### Added
 
 - `EffectParamKind::ALL` lists every effect slot kind in declaration order.
+- **Settings > Timeline > Zoom bar knobs** sets what a drag on a knob of the timeline zoom bar holds in place: the playhead's pixel while the playhead is in view, the default, or the view's other end.
 - Editor panels are arranged in a dock tree of splits and tabbed frames with 24 px tab rows, draggable splitters, tab reordering, five drop zones for docking a dragged tab, floating panel windows, and frame maximize.
 - Each workspace keeps its dock arrangement, Window > Workspaces > Reset to Saved Layout restores it, named workspaces are stored as JSON files under `<data dir>/workspaces/` with import and export, an Effects workspace is added, and plugin workspaces can include a dock tree.
 - `` ` `` maximizes or restores the focused frame, Ctrl+Tab and Ctrl+Shift+Tab focus the next and previous frame, and Ctrl+W closes the focused panel tab, or the sequence tab when the Timeline has focus.

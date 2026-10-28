@@ -19,44 +19,15 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::settings_form::SettingsField;
-use crate::components::{self, ChipSize};
+use crate::components;
 use crate::theme::Theme;
 
-use super::widgets::{chip_row, kv, row_label};
+use super::widgets::{choice_row, kv, row_label};
 
 // Beside this file rather than in a directory: the module tree is still
 // `settings_dialog::ai::models`.
 #[path = "ai_models.rs"]
 mod models;
-
-/// One row of mutually exclusive chips, the one in force lit.
-fn choice_row<T: Copy + PartialEq + 'static>(
-    theme: &Theme,
-    prefix: &'static str,
-    label: &'static str,
-    choices: &[T],
-    name_of: fn(T) -> &'static str,
-    current: T,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-    apply: fn(&mut AppState, T) -> Result<(), String>,
-) -> gpui::AnyElement {
-    let chips = choices.iter().map(|&choice| {
-        let name = name_of(choice);
-        let id = crate::motion::MotionKey::new(prefix, name);
-        components::chip(id, name, choice == current, ChipSize::Regular, theme).on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = apply(state, choice) {
-                        state.report_error(err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-    });
-    chip_row(theme, label, chips)
-}
 
 /// One typed value. Clicking focuses it; the shell routes the keys, Enter saves, Esc
 /// leaves the saved value alone. A secret shows its length, never its text. A
@@ -135,7 +106,7 @@ pub(super) fn ai_rows(
             AiSource::label,
             config.ai.source,
             cx,
-            AppState::set_ai_source,
+            |state, source, _| state.set_ai_source(source),
         ),
         field_row(theme, state, SettingsField::AiBaseUrl, cx),
         field_row(theme, state, SettingsField::AiModel, cx),
@@ -149,7 +120,7 @@ pub(super) fn ai_rows(
             AiApiProtocol::label,
             config.ai.api_protocol,
             cx,
-            AppState::set_ai_protocol,
+            |state, protocol, _| state.set_ai_protocol(protocol),
         ),
         choice_row(
             theme,
@@ -159,7 +130,7 @@ pub(super) fn ai_rows(
             ReasoningSummary::label,
             config.ai.reasoning_summary,
             cx,
-            AppState::set_reasoning_summary,
+            |state, summary, _| state.set_reasoning_summary(summary),
         ),
         choice_row(
             theme,
@@ -169,7 +140,7 @@ pub(super) fn ai_rows(
             Autonomy::label,
             config.ai.autonomy,
             cx,
-            AppState::set_autonomy,
+            |state, autonomy, _| state.set_autonomy(autonomy),
         ),
         kv(theme, "Status", status).into_any_element(),
         kv(theme, "Agent files", agent_label.clone()).into_any_element(),

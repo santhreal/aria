@@ -109,6 +109,9 @@ pub struct UiSettings {
     /// Timeline Display Settings: thumbnails, waveform scale, and how the view
     /// follows the playhead.
     pub timeline_display: crate::timeline_display::TimelineDisplay,
+    /// What a drag on a knob of the timeline's zoom bar holds still: the
+    /// view's other end, or the playhead while it is inside the view.
+    pub zoom_bar_knobs: crate::timeline_display::ZoomBarKnobs,
     /// What the scopes' waveform monitor shows: luma, or an RGB or YCbCr
     /// parade.
     pub waveform: crate::scopes::WaveformMode,
@@ -202,6 +205,7 @@ impl Default for UiSettings {
             transparency_grid: false,
             audio_scrubbing: true,
             timeline_display: crate::timeline_display::TimelineDisplay::default(),
+            zoom_bar_knobs: crate::timeline_display::ZoomBarKnobs::default(),
             waveform: crate::scopes::WaveformMode::default(),
             favorite_effects: Vec::new(),
             window_placements: BTreeMap::new(),
@@ -553,6 +557,33 @@ mod tests {
             let text = serde_json::to_string(&settings).expect("serialize");
             assert!(
                 text.contains(&format!("\"waveform\":\"{spelled}\"")),
+                "{text}"
+            );
+            let back: UiSettings = serde_json::from_str(&text).expect("deserialize");
+            assert_eq!(back, settings);
+        }
+    }
+
+    #[test]
+    fn the_zoom_bar_knobs_default_to_the_playhead_for_older_files_and_round_trip() {
+        use crate::timeline_display::ZoomBarKnobs;
+        let older = r#"{"sidebarWidth":300.0}"#;
+        let parsed: UiSettings = serde_json::from_str(older).expect("older settings file");
+        assert_eq!(parsed.zoom_bar_knobs, ZoomBarKnobs::Playhead);
+
+        for knobs in ZoomBarKnobs::ALL {
+            // The saved spelling is a file format: a new choice names its own.
+            let spelled = match knobs {
+                ZoomBarKnobs::OtherEnd => "other_end",
+                ZoomBarKnobs::Playhead => "playhead",
+            };
+            let settings = UiSettings {
+                zoom_bar_knobs: knobs,
+                ..UiSettings::default()
+            };
+            let text = serde_json::to_string(&settings).expect("serialize");
+            assert!(
+                text.contains(&format!("\"zoomBarKnobs\":\"{spelled}\"")),
                 "{text}"
             );
             let back: UiSettings = serde_json::from_str(&text).expect("deserialize");

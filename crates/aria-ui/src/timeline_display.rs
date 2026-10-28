@@ -1,7 +1,8 @@
 //! Timeline Display Settings: how a clip's content strip draws video
-//! thumbnails and audio waveforms, and how the view follows the playhead
-//! during playback. A preference about the app, so it is stored in
-//! [`crate::settings::UiSettings`] and survives a restart.
+//! thumbnails and audio waveforms, how the view follows the playhead during
+//! playback, and what a drag on a zoom bar knob holds still. A preference
+//! about the app, so it is stored in [`crate::settings::UiSettings`] and
+//! survives a restart.
 
 use serde::{Deserialize, Serialize};
 
@@ -42,6 +43,19 @@ pub enum Follow {
     Page,
     /// The view scrolls with the playhead held at its centre.
     Smooth,
+}
+
+/// What a drag on a knob of the timeline's zoom bar holds still while the
+/// dragged end follows the pointer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZoomBarKnobs {
+    /// The playhead's pixel while the playhead is inside the view; the
+    /// view's other end while it is not.
+    #[default]
+    Playhead,
+    /// The view's other end.
+    OtherEnd,
 }
 
 /// The three display settings together.
@@ -189,6 +203,19 @@ impl Follow {
     /// follow moves every frame and a glide would trail the playhead.
     pub fn glides(self) -> bool {
         matches!(self, Self::Page)
+    }
+}
+
+impl ZoomBarKnobs {
+    /// Every choice, in the order Settings lists them.
+    pub const ALL: [Self; 2] = [Self::Playhead, Self::OtherEnd];
+
+    /// The Settings label of this choice.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Playhead => "Hold Playhead",
+            Self::OtherEnd => "Hold Other End",
+        }
     }
 }
 

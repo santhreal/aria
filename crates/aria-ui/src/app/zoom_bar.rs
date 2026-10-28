@@ -2,16 +2,19 @@
 //! strip, with the stretch on screen as a thumb a pointer moves and resizes.
 //!
 //! A press on the thumb scrolls the timeline, a press on either end of the
-//! thumb zooms with the other end held in place, and a press on the strip
+//! thumb zooms with that end following the pointer, and a press on the strip
 //! beside the thumb centers the view on the pressed tick and scrolls from
-//! there. The press keeps the strip's mapping from pointer to tick, so the
-//! grabbed point stays under the pointer while the zoom changes, and is held
-//! here rather than on the element, so a drag keeps going when the pointer
-//! leaves the bar; the shell routes the pointer until the button comes up.
-//! Escape during the drag puts the zoom and the scroll back. A wheel turned
-//! over the bar zooms about the playhead.
+//! there. A knob's zoom holds still what [`ZoomBarKnobs`] sets: the view's
+//! other end, or the playhead's pixel while the playhead is inside the view.
+//! The press keeps the strip's mapping from pointer to tick, so the grabbed
+//! point stays under the pointer while the zoom changes, and is held here
+//! rather than on the element, so a drag keeps going when the pointer leaves
+//! the bar; the shell routes the pointer until the button comes up. Escape
+//! during the drag puts the zoom and the scroll back. A wheel turned over the
+//! bar zooms about the playhead.
 
 use super::AppState;
+use crate::timeline_display::ZoomBarKnobs;
 use crate::transport::TIMELINE_BASE_PPS;
 
 /// Diameter of the round knob at each end of the thumb, and the height of the
@@ -76,9 +79,10 @@ pub struct ZoomBarPress {
     /// [`ZoomBarGrip::End`]. A press a few pixels off an end moves that end
     /// from where it is, not from the pointer.
     grab: f64,
-    /// The end the grip holds still: the view's last tick for
-    /// [`ZoomBarGrip::Start`], its first for the others.
-    held: f64,
+    /// The tick a knob's zoom holds still and its share of the view's width
+    /// from the view's left edge, from [`AppState::knob_pivot`]. The thumb
+    /// does not read it.
+    pivot: (f64, f64),
     /// The zoom and the scroll when the press landed.
     from: (f32, f32),
 }
@@ -176,13 +180,32 @@ impl AppState {
             grip,
             strip,
             grab: strip.tick_at(x) - moved,
-            held: if grip == ZoomBarGrip::Start {
-                end
-            } else {
-                start
-            },
+            pivot: self.knob_pivot(grip, start, end),
             from,
         });
+    }
+
+    /// What a drag on `grip` holds still in the view `start..end`: a tick and
+    /// its share of the view's width from the left. The playhead under
+    /// [`ZoomBarKnobs::Playhead`] while it is strictly inside the view;
+    /// otherwise the view's other end, its last tick for
+    /// [`ZoomBarGrip::Start`] and its first for the others. The share is
+    /// never 1 for [`ZoomBarGrip::End`] and never 0 for
+    /// [`ZoomBarGrip::Start`], so [`knob_view`] divides by neither.
+    fn knob_pivot(&self, grip: ZoomBarGrip, start: f64, end: f64) -> (f64, f64) {
+        let playhead = self.playhead.value as f64;
+        let share = (playhead - start) / (end - start);
+        let playhead_held = match self.ui_settings.zoom_bar_knobs {
+            ZoomBarKnobs::OtherEnd => false,
+            ZoomBarKnobs::Playhead => share > 0.0 && share < 1.0,
+        };
+        if playhead_held {
+            (playhead, share)
+        } else if grip == ZoomBarGrip::Start {
+            (end, 1.0)
+        } else {
+            (start, 0.0)
+        }
     }
 
     /// Whether a press on the zoom scroll bar is held.
@@ -215,14 +238,11 @@ impl AppState {
             |ticks: f64| (view_w * fps / (ticks.max(1.0) * f64::from(TIMELINE_BASE_PPS))) as f32;
         match press.grip {
             ZoomBarGrip::Thumb => self.scroll_view_to(tick, press.strip),
-            ZoomBarGrip::End => {
-                self.set_zoom(zoom_for(tick - press.held), false);
-                self.scroll_timeline_to((press.held / self.ticks_per_px()) as f32, false);
-            }
-            ZoomBarGrip::Start => {
-                self.set_zoom(zoom_for(press.held - tick), false);
-                let end_px = press.held / self.ticks_per_px();
-                self.scroll_timeline_to((end_px - view_w) as f32, false);
+            grip @ (ZoomBarGrip::End | ZoomBarGrip::Start) => {
+                let (held, share, ticks) = knob_view(grip, tick, press.pivot, press.strip.span);
+                self.set_zoom(zoom_for(ticks), false);
+                let held_px = held / self.ticks_per_px();
+                self.scroll_timeline_to((held_px - share * view_w) as f32, false);
             }
         }
         (self.zoom, self.scroll_x) != before
@@ -262,6 +282,37 @@ impl AppState {
         let (first, last) = self.view_ticks();
         let start = start.clamp(0.0, (strip.span - (last - first)).max(0.0));
         self.scroll_timeline_to((start / self.ticks_per_px()) as f32, false);
+    }
+}
+
+/// The view a knob dragged to `tick` asks for: the tick it holds still, that
+/// tick's share of the view's width from the left, and the view's width in
+/// ticks. The dragged end lands on `tick` with the pivot `(held, share)` at
+/// its share. When that puts the far end off the strip, before its first tick
+/// or past `span`, the far end stops at the strip's end and is held instead,
+/// so the view stays on the strip and the dragged end on the pointer. A width
+/// under one tick is the dragged end pulled onto or past the pivot, which
+/// `zoom_for` reads as the closest zoom.
+fn knob_view(
+    grip: ZoomBarGrip,
+    tick: f64,
+    (held, share): (f64, f64),
+    span: f64,
+) -> (f64, f64, f64) {
+    if grip == ZoomBarGrip::End {
+        let ticks = (tick - held) / (1.0 - share);
+        if held - share * ticks < 0.0 {
+            (0.0, 0.0, tick)
+        } else {
+            (held, share, ticks)
+        }
+    } else {
+        let ticks = (held - tick) / share;
+        if held + (1.0 - share) * ticks > span {
+            (span, 1.0, span - tick)
+        } else {
+            (held, share, ticks)
+        }
     }
 }
 

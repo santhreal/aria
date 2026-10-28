@@ -576,6 +576,11 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "settings_doc_matches_registries",
         ),
         (
+            "ZoomBarKnobs",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
             "ThemeChoice",
             "docs/reference/settings.md",
             "settings_doc_matches_registries",

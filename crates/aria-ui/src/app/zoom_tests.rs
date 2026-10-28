@@ -479,28 +479,34 @@ const ZOOM_OUTS: [(&str, bool, fn(&mut AppState)); 3] = [
     ("the zoom bar's two ends", false, drag_bar_ends_out),
 ];
 
-/// Every way to zoom out ends on the whole sequence, at every length.
+/// Every way to zoom out ends on the whole sequence, at every length and at
+/// each zoom bar knob setting.
 ///
 /// The class: a floor fixed in pixels per second, below which a sequence
 /// longer than the view at that floor could not be seen whole by any zoom; a
 /// zoom out that held a pixel and so scrolled the sequence's start out of a
-/// view with room past its end; and a zoom bar end that stopped short of the
-/// strip's end when it was pressed inside a thumb drawn wider than the view.
-/// The keys and the wheel stop at the floor: the whole sequence, or the fixed
-/// floor's view when that is wider. Not covered: how the scale eases on the
-/// way, which the glide store owns.
+/// view with room past its end; a zoom bar end that stopped short of the
+/// strip's end when it was pressed inside a thumb drawn wider than the view;
+/// and a knob holding the playhead that stopped the far end short of the
+/// strip's. The keys and the wheel stop at the floor: the whole sequence, or
+/// the fixed floor's view when that is wider. Not covered: how the scale
+/// eases on the way, which the glide store owns.
 #[test]
 fn every_zoom_out_ends_on_the_whole_sequence_at_every_length() {
     for seconds in LENGTHS {
-        for (way, to_floor, zoom_out) in ZOOM_OUTS {
+        for ((way, to_floor, zoom_out), knobs) in ZOOM_OUTS
+            .into_iter()
+            .flat_map(|way| crate::timeline_display::ZoomBarKnobs::ALL.map(|knobs| (way, knobs)))
+        {
             let mut state = lasting(seconds);
+            state.ui_settings.zoom_bar_knobs = knobs;
             zoom_out(&mut state);
             let (first, last) = view_seconds(&state);
             let frame = 1.0 / state.store.sequence.ticks_per_second();
             let length = seconds as f32;
             assert!(
                 first < frame && last > length - frame,
-                "{way} on {seconds} s ended on {first}..{last} s at zoom {}",
+                "{way} holding {knobs:?} on {seconds} s ended on {first}..{last} s at zoom {}",
                 state.zoom
             );
             assert_eq!(state.store.zoom, state.zoom, "{way} on {seconds} s");
