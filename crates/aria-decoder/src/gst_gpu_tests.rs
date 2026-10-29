@@ -106,12 +106,19 @@ fn two_tiled_sources_both_log() {
 /// attempt before it opens, within a few state polls. Covers the stop on a real
 /// file and its bound; the probe itself is covered in
 /// `gst_dmabuf_watch_tests`. A host whose decoder offers DMABuf is not stopped.
+/// The first attempt loads the decoder's plugin and keeps its device context,
+/// which a process does once (about 1.5 s for the CUDA plugin, longer while
+/// another test loads plugins), so only the second is timed.
 #[test]
 fn a_dmabuf_attempt_stops_once_its_decoder_has_no_dmabuf_output() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4");
     gst::init().expect("GStreamer initializes");
     let uri = path_uri(&fixture).expect("fixture uri");
+    let warming = Arc::new(DmabufWatch::default());
+    if let Ok(opened) = try_open(&uri, true, Some(&warming), gst::ClockTime::ZERO) {
+        let _ = opened.pipeline.set_state(gst::State::Null);
+    }
     let watch = Arc::new(DmabufWatch::default());
     let started = Instant::now();
     let result = try_open(&uri, true, Some(&watch), gst::ClockTime::ZERO);
