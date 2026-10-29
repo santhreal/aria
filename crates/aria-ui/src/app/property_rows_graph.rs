@@ -446,7 +446,7 @@ impl AppState {
     }
 
     /// Start dragging the influence handle or keyframe node that a press at
-    /// `(local_x, local_y)` lands on, as [`graph_hit`] picks it.
+    /// `(local_x, local_y)` lands on, as `graph_hit` picks it.
     pub fn begin_timeline_graph_drag(
         &mut self,
         local_x: f32,

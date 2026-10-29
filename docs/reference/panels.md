@@ -44,7 +44,7 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 | `aria.dialog.export` | `Dialog(Export)` | Export settings sheet (`Ctrl+M` or **File > Export > Media…**) for scale, frame rate, codec, bitrate, keyframe interval, audio toggle, range, and destination path. |
 | `aria.dialog.settings` | `Dialog(Settings)` | Application and project settings dialog (`Ctrl+,` or **Edit > Preferences…**). |
 | `aria.dialog.palette` | `Dialog(Palette)` | Searchable command palette (`Ctrl+Shift+P` or **Window > Command Palette**). |
-| `aria.dialog.jobs` | `Dialog(Jobs)` | Modal jobs board (`Jobs` in the command palette) showing active and completed background jobs. |
+| `aria.dialog.jobs` | `Dialog(Jobs)` | Modal jobs board, opened when an export starts, showing active and completed background jobs. |
 | `aria.dialog.unsaved` | `Dialog(UnsavedChanges)` | Confirmation prompt (**Save**, **Discard**, **Stay**) shown before New, Open, Close, or Quit replaces a dirty project. |
 | `aria.dialog.install-plugin` | `Dialog(InstallPlugin)` | Permission and tier confirmation prompt shown before unpacking an `.ariaplugin` archive. |
 | `aria.dialog.project-report` | `Dialog(ProjectReport)` | Project-wide counts (sources, folders, lanes, clips, markers, content end, transitions, soloed lane kinds) and one row per clip question with the number of clips that answer it; clicking a row selects the next such clip (**Window > Project Report**). |

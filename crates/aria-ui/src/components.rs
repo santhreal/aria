@@ -14,6 +14,8 @@ use crate::theme::Theme;
 
 pub mod drawn;
 pub use drawn::{Picture, Wraps, picture};
+#[cfg(test)]
+pub(crate) mod noted;
 
 /// A disclosure chevron, sized to sit beside 12px row text.
 const CHEVRON_PX: f32 = 12.;
@@ -101,149 +103,17 @@ pub fn ghost_button(
         .px(px(GHOST_INSET.0 - GHOST_BORDER))
         .py(px(GHOST_INSET.1 - GHOST_BORDER));
     #[cfg(test)]
-    let button = match noted(
+    let button = noted::note(
+        button,
         "ghost",
         id,
-        Drawn::Labelled {
+        noted::Drawn::Labelled {
             label: label.clone(),
             inset: GHOST_INSET.0,
             size: Theme::TEXT_UI,
         },
-    ) {
-        Some(selector) => button.debug_selector(move || selector),
-        None => button,
-    };
+    );
     button.child(label)
-}
-
-#[cfg(test)]
-thread_local! {
-    /// The controls built since [`record_controls`] while a
-    /// [`NotingControls`] stands.
-    static CONTROLS: std::cell::RefCell<Option<ControlRecord>> =
-        const { std::cell::RefCell::new(None) };
-    /// Whether a [`NotingControls`] stands.
-    static NOTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// The kind and id of each control built since the standing
-    /// [`NotingControls`] began.
-    static BUILT: std::cell::RefCell<std::collections::HashSet<(&'static str, motion::ControlId)>> =
-        std::cell::RefCell::new(std::collections::HashSet::new());
-}
-
-/// What [`record_controls`] has recorded.
-#[cfg(test)]
-#[derive(Default)]
-struct ControlRecord {
-    /// Each control built.
-    built: Vec<DrawnControl>,
-    /// The debug selector of each control built with the kind and id of an
-    /// earlier control under the same [`NotingControls`].
-    shared: Vec<String>,
-}
-
-/// What a recorded control draws in its frame.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Drawn {
-    /// A ghost button or a chip: `label` at text size `size`, `inset` inside
-    /// each side of the frame.
-    Labelled {
-        label: SharedString,
-        inset: f32,
-        size: Pixels,
-    },
-    /// A [`switch`], [`SWITCH_WIDTH`] wide.
-    Switch,
-}
-
-/// A control built while a [`NotingControls`] stands: the debug selector the
-/// control draws under, and what it draws.
-#[cfg(test)]
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DrawnControl {
-    pub selector: String,
-    pub drawn: Drawn,
-}
-
-/// The ghost buttons, chips and switches built until this drops are the ones
-/// [`drawn_controls`] returns, and no other surface's. Two of one kind built
-/// with one id share one hover, so each lights whenever the pointer is on
-/// either.
-#[cfg(test)]
-pub(crate) struct NotingControls(());
-
-#[cfg(test)]
-impl NotingControls {
-    pub(crate) fn start() -> Self {
-        NOTING.set(true);
-        BUILT.with_borrow_mut(std::collections::HashSet::clear);
-        Self(())
-    }
-}
-
-#[cfg(test)]
-impl Drop for NotingControls {
-    fn drop(&mut self) {
-        NOTING.set(false);
-    }
-}
-
-/// Start a fresh record of the controls built while a [`NotingControls`]
-/// stands.
-#[cfg(test)]
-pub(crate) fn record_controls() {
-    CONTROLS.set(Some(ControlRecord::default()));
-}
-
-/// Stop recording and return every control built since [`record_controls`],
-/// once each, then the debug selector of each one built with the kind and id
-/// of another under the same [`NotingControls`].
-#[cfg(test)]
-pub(crate) fn drawn_controls() -> (Vec<DrawnControl>, Vec<String>) {
-    let ControlRecord {
-        mut built,
-        mut shared,
-    } = CONTROLS.with_borrow_mut(|record| record.take().unwrap_or_default());
-    built.sort_by(|a, b| a.selector.cmp(&b.selector));
-    built.dedup_by(|a, b| a.selector == b.selector);
-    shared.sort();
-    shared.dedup();
-    (built, shared)
-}
-
-/// The debug selector of the `kind` of control `id` drawing `drawn` while a
-/// [`NotingControls`] stands, after recording it while a record stands. A
-/// control keeps its selector after [`drawn_controls`] stops the record, so a
-/// later frame still draws it where a test can find it.
-#[cfg(test)]
-fn noted(kind: &'static str, id: motion::ControlId, drawn: Drawn) -> Option<String> {
-    if !NOTING.get() {
-        return None;
-    }
-    let selector = control_selector(kind, id, &drawn);
-    CONTROLS.with_borrow_mut(|record| {
-        if let Some(record) = record.as_mut() {
-            if !BUILT.with_borrow_mut(|built| built.insert((kind, id))) {
-                record.shared.push(selector.clone());
-            }
-            record.built.push(DrawnControl {
-                selector: selector.clone(),
-                drawn,
-            });
-        }
-    });
-    Some(selector)
-}
-
-/// The debug selector a `kind` of control `id` drawing `drawn` draws under
-/// while a [`NotingControls`] stands: `{kind}-{id:?}`, then `-{label}` for a
-/// labelled one.
-#[cfg(test)]
-pub(crate) fn control_selector(kind: &str, id: motion::ControlId, drawn: &Drawn) -> String {
-    match drawn {
-        Drawn::Labelled { label, .. } => format!("{kind}-{id:?}-{label}"),
-        Drawn::Switch => format!("{kind}-{id:?}"),
-    }
 }
 
 /// A [`ghost_button`] that opens and shuts the rows under it: the disclosure
@@ -404,18 +274,16 @@ fn chip_frame(
         .active(move |style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key));
     #[cfg(test)]
-    let chip = match noted(
+    let chip = noted::note(
+        chip,
         "chip",
         id,
-        Drawn::Labelled {
+        noted::Drawn::Labelled {
             label: label.clone(),
             inset: pad_x,
             size: size.text_size(),
         },
-    ) {
-        Some(selector) => chip.debug_selector(move || selector),
-        None => chip,
-    };
+    );
     chip
 }
 
@@ -521,10 +389,7 @@ pub fn switch(id: impl Into<motion::ControlId>, on: Option<bool>, theme: &Theme)
                 .bg(motion::mix(theme.text_muted, theme.on_accent, fill)),
         );
     #[cfg(test)]
-    let track = match noted("switch", id, Drawn::Switch) {
-        Some(selector) => track.debug_selector(move || selector),
-        None => track,
-    };
+    let track = noted::note(track, "switch", id, noted::Drawn::Switch);
     track
 }
 
@@ -1038,48 +903,6 @@ pub fn list_empty(id: &'static str, text: impl Into<SharedString>, theme: &Theme
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(text.into()),
-        )
-}
-
-pub fn slider_row(
-    theme: &Theme,
-    label: impl Into<SharedString>,
-    value: f32,
-    display: impl Into<SharedString>,
-) -> impl IntoElement {
-    let label = label.into();
-    div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .w(px(72.))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(label),
-        )
-        .child(
-            div()
-                .flex_1()
-                .h(px(4.))
-                .rounded_full()
-                .bg(theme.border)
-                .child(
-                    div()
-                        .h_full()
-                        .w(px((value.clamp(0.0, 1.0) * 160.0).max(2.0)))
-                        .rounded_full()
-                        .bg(theme.text_muted),
-                ),
-        )
-        .child(
-            div()
-                .w(px(48.))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(display.into()),
         )
 }
 

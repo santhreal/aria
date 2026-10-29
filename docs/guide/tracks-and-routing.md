@@ -29,6 +29,11 @@ Right-click a track header for the rest:
   20, 32, 48, and 72 pixels. The lane's current height draws a check mark; a
   lane at any other height draws none.
 
+The palette's **Move Track Up** (`pal-track-up`), **Move Track Down**
+(`pal-track-down`), **Solo Track** (`pal-track-solo`), **Open One-Second Gap at
+Playhead** (`pal-track-open-gap`), and **Close One-Second Gap at Playhead**
+(`pal-track-close-gap`) rows act on the track that holds the selected clip.
+
 Drag a track header onto another header to move that lane to that header's
 row. The row is marked while the pointer is over its header, and the release
 drops the lane on the marked row wherever the pointer is; over the lane's own
@@ -135,8 +140,7 @@ Both flags are set on every new lane, and both are stored with the sequence.
 
 ## Nested sequences
 
-A nest is a stretch of timeline that plays as one clip. **Clip > Nest…**,
-or **Nest Selection into a Sequence** (`pal-nest-selection`) in the palette, takes the
+A nest is a stretch of timeline that plays as one clip. **Clip > Nest…** takes the
 selected clips, moves them onto a sequence of their own, and leaves a single
 clip in their place on the lane the first of them came from.
 
@@ -171,8 +175,8 @@ timeline is already open are each refused with what is missing.
 Nest a sequence of clips into a single compound clip, edit inside the nest, and return to the parent sequence:
 
 1. Click [`add-track`](../reference/controls.md#timeline) at the bottom-left of the timeline (or choose **Sequence > Add Tracks > Video Track**) and arrange the clips to group across `V1` and `V2`. The timeline shows the layered clips in the composite.
-2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…** or run **Nest Selection into a Sequence** (`pal-nest-selection`) in the Command Palette. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-colored nested sequence clip.
-3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence** (or run **Open the Selected Nested Sequence** (`pal-nest-open`)). The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
+2. Drag a marquee across the clips to group (or press <kbd>Ctrl+A</kbd> (`key-select-all`) / choose **Edit > Select All**), then choose **Clip > Nest…**. Aria moves the selected clips into a new sequence and replaces them on the parent timeline with a single Tan-colored nested sequence clip.
+3. Select the nested sequence clip and choose **Sequence > Nested Sequence > Open Nested Sequence**. The timeline switches to the nested sequence's own tracks and ruler, and the status bar shows the nest breadcrumb [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome).
 4. Trim or reorder the clips inside the nested sequence, then click [`status-nest-breadcrumb`](../reference/controls.md#window--dock-chrome) in the status bar or choose **Sequence > Nested Sequence > Leave Nested Sequence** (or press <kbd>Ctrl+W</kbd> (`key-pane-close`) with the Timeline focused). The parent timeline returns to view and the Viewer composites the updated nested sequence as one clip.
 
 ## Reference

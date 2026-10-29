@@ -132,6 +132,9 @@ does and does not belong there. Read the relevant one before adding code.
   [`.cursor/rules/perf.mdc`](.cursor/rules/perf.mdc).
 - **Comments explain intent, not mechanics.** Skip comments that narrate
   what the code does; document non-obvious trade-offs and constraints.
+- **A Rust source file is at most 1000 lines.** Split a longer one into
+  modules of one concern each. `test_support::file_length` fails on a `.rs`
+  file under `crates`, `apps`, `examples` or `fuzz` that is longer.
 - **Text the editor shows** is spelled in US English: `Color`, `center`,
   `Favorites`, `normalize`. Commands, menus, dialog titles and context menu
   rows use Title Case; other labels and buttons use sentence case.

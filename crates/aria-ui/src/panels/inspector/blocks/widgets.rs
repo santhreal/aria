@@ -388,7 +388,7 @@ pub(crate) struct DrawnChoice {
 /// panel's, and so are the ghost buttons, chips and switches it notes.
 #[cfg(test)]
 pub(crate) struct BuildingInspector {
-    _controls: crate::components::NotingControls,
+    _controls: crate::components::noted::NotingControls,
 }
 
 #[cfg(test)]
@@ -396,7 +396,7 @@ impl BuildingInspector {
     pub(crate) fn start() -> Self {
         IN_INSPECTOR.set(true);
         Self {
-            _controls: crate::components::NotingControls::start(),
+            _controls: crate::components::noted::NotingControls::start(),
         }
     }
 }
@@ -414,7 +414,7 @@ impl Drop for BuildingInspector {
 pub(crate) fn record_lines() {
     LINES.set(Some(Vec::new()));
     CHOICES.set(Some(Vec::new()));
-    crate::components::record_controls();
+    crate::components::noted::record_controls();
 }
 
 /// Stop recording and return every line drawn into the Inspector since

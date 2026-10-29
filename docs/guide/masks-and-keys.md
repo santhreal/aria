@@ -26,8 +26,8 @@ layer's look to the masked area. The Look tab holds:
   when negative, and scales with the clip.
 - An **Invert** switch on each header, which keeps the outside, then Move up,
   Move down, and Remove. Each press is one undo
-  step. The palette's **Invert Mask** (`pal-mask-invert`) and **Remove Mask** (`pal-mask-clear`) rows and the **Effect > Remove Mask**
-  row act on the active mask; removing a mask makes the
+  step. The palette's **Invert Mask** (`pal-mask-invert`) row and the
+  **Effect > Remove Mask** row act on the active mask; removing a mask makes the
   one above it active.
 - Mask handles on the preview for the active mask: a dot at the center moves the
   mask, one on its right edge resizes it, and one above it rotates it. The

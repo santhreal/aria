@@ -55,17 +55,6 @@ pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                     components::text_box("ctl-field", "", "Clip name", false, theme),
                 ),
             ]))
-            .child(group(
-                theme,
-                "slider_row(theme, label, value, display)",
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(Theme::SPACE_XS))
-                    .child(components::slider_row(theme, "Opacity", 0.0, "0%"))
-                    .child(components::slider_row(theme, "Scale", 0.65, "65%"))
-                    .child(components::slider_row(theme, "Volume", 1.0, "100%")),
-            ))
             .child(readout_rows(theme))
             .child(empty_state_rows(theme))
             .child(typed_rows(theme))

@@ -33,82 +33,10 @@ macro_rules! add_mask_row {
 /// Rows that act on the selected clip, its lane, or a marker.
 pub(super) const CLIP_ROWS: &[CommandEntry] = &[
     CommandEntry {
-        id: "pal-extract-audio",
-        label: "Extract Audio",
-        run: |state| {
-            if let Err(err) = state.extract_selected_audio() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-freeze",
-        label: "Freeze Frame",
-        run: |state| {
-            if let Err(err) = state.freeze_selected_frame() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-link",
-        label: "Link Clips",
-        run: |state| {
-            if let Err(err) = state.link_selected() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-unlink",
-        label: "Unlink Clips",
-        run: |state| {
-            if let Err(err) = state.unlink_selected() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-flip-h",
-        label: "Flip Horizontal",
-        run: |state| {
-            if let Err(err) = state.toggle_selected_flip_h() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-flip-v",
-        label: "Flip Vertical",
-        run: |state| {
-            if let Err(err) = state.toggle_selected_flip_v() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-crop-reset",
-        label: "Reset Framing",
-        run: |state| {
-            if let Err(err) = state.clear_selected_crop() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
         id: "pal-motion-blur",
         label: "Toggle Motion Blur",
         run: |state| {
             if let Err(err) = state.toggle_selected_motion_blur() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-grade-reset",
-        label: "Reset Grade",
-        run: |state| {
-            if let Err(err) = state.clear_selected_adjustments() {
                 state.report_error(&err);
             }
         },
@@ -140,15 +68,6 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
             }
         },
     },
-    CommandEntry {
-        id: "pal-mask-clear",
-        label: "Remove Mask",
-        run: |state| {
-            if let Err(err) = state.clear_selected_mask() {
-                state.report_error(&err);
-            }
-        },
-    },
     add_mask_row!("pal-mask-add-linear", "Add Linear Mask", Linear),
     add_mask_row!("pal-mask-add-mirror", "Add Mirror Mask", Mirror),
     add_mask_row!("pal-mask-add-circle", "Add Circle Mask", Circle),
@@ -161,60 +80,6 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         label: "Key Green Screen",
         run: |state| {
             if let Err(err) = state.set_selected_chroma_color([0, 177, 64]) {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-chroma-clear",
-        label: "Remove Chroma Key",
-        run: |state| {
-            if let Err(err) = state.clear_selected_chroma() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-matte-luma",
-        label: "Track Matte from Luma Above",
-        run: |state| {
-            if let Err(err) = state.set_selected_matte_source(aria_models::MatteSource::Luma) {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-matte-alpha",
-        label: "Track Matte from Alpha Above",
-        run: |state| {
-            if let Err(err) = state.set_selected_matte_source(aria_models::MatteSource::Alpha) {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-matte-clear",
-        label: "Remove Track Matte",
-        run: |state| {
-            if let Err(err) = state.clear_selected_matte() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-transition-crossfade",
-        label: "Add Cross Fade at Cut",
-        run: |state| {
-            if let Err(err) = state.set_selected_transition("crossfade") {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-transition-clear",
-        label: "Remove Transition at Cut",
-        run: |state| {
-            if let Err(err) = state.clear_selected_transition() {
                 state.report_error(&err);
             }
         },
@@ -347,81 +212,6 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
                 }
             }
         },
-    },
-    CommandEntry {
-        id: "pal-save-template",
-        label: "Save as Template",
-        run: |state| state.pick_and_save_template(),
-    },
-    CommandEntry {
-        id: "pal-use-template",
-        label: "Use Template",
-        run: |state| state.pick_and_apply_template(),
-    },
-    CommandEntry {
-        id: "pal-marker-remove",
-        label: "Delete Marker at Playhead",
-        run: |state| {
-            if let Err(err) = state.remove_marker_at_playhead() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-marker-next",
-        label: "Next Marker",
-        run: |state| state.go_to_next_marker(),
-    },
-    CommandEntry {
-        id: "pal-marker-prev",
-        label: "Previous Marker",
-        run: |state| state.go_to_prev_marker(),
-    },
-    CommandEntry {
-        id: "pal-clip-enable",
-        label: "Enable",
-        run: |state| {
-            if let Err(err) = state.toggle_enabled_selected() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-group",
-        label: "Group",
-        run: |state| {
-            if let Err(err) = state.group_selected() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-ungroup",
-        label: "Ungroup",
-        run: |state| {
-            if let Err(err) = state.ungroup_selected() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-speed-duration",
-        label: "Speed/Duration…",
-        run: |state| state.open_speed_duration(),
-    },
-    CommandEntry {
-        id: "pal-time-remap",
-        label: "Time Remapping",
-        run: |state| {
-            if let Err(err) = state.toggle_time_remap() {
-                state.report_error(&err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-audio-gain",
-        label: "Audio Gain…",
-        run: |state| state.open_audio_gain(),
     },
 ];
 

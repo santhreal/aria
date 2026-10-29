@@ -396,18 +396,18 @@ fn the_builtin_mount_order_is_the_declared_order() {
 /// it was declared in.
 #[test]
 fn the_palette_runs_a_registered_command_from_its_query() {
+    use crate::types::SidebarTab;
     let mut state = state();
-    // Home refuses every dialog but Settings, and a fresh state starts there.
     state.new_project().expect("a project to edit");
-    assert_eq!(state.dialog, crate::app::DialogKind::None);
-    state.palette_query = "Jobs".into();
+    assert_ne!(state.sidebar_tab, SidebarTab::Captions);
+    state.palette_query = "Captions".into();
     assert!(
         state.run_palette_highlight().is_none(),
         "a registered command runs without the entity context"
     );
     assert_eq!(
-        state.dialog,
-        crate::app::DialogKind::Jobs,
+        state.sidebar_tab,
+        SidebarTab::Captions,
         "the palette did not reach the registered command"
     );
 }
@@ -422,9 +422,10 @@ fn with_no_command_host_the_palette_offers_nothing() {
     )
     .expect("state");
     state.new_project().expect("a project to edit");
-    state.palette_query = "Jobs".into();
+    let tab = state.sidebar_tab;
+    state.palette_query = "Captions".into();
     assert!(state.run_palette_highlight().is_none());
-    assert_eq!(state.dialog, crate::app::DialogKind::None);
+    assert_eq!(state.sidebar_tab, tab);
 }
 
 /// The viewer and Home are slots several entries share, so the predicate is what

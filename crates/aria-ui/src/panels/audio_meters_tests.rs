@@ -8,11 +8,17 @@
 //! thin bars stood at the frame's left under a clip light that ran the whole
 //! width. The class: a meter drawn for one frame width only.
 //!
+//! A third class: the marks at 0 and -60 dBFS are centered on the bars' ends,
+//! and the half of each past them stood 1 px into the clip light above and
+//! the channel names below.
+//!
 //! Checked in the launch layout's frame, which is also the panel's minimum
 //! width, and in the Audio workspace's: the clip light inside the frame and
 //! its label across the light, every scale mark across the scale column, which
-//! ends before the first bar, and the bars sharing the width beside the scale
-//! out to the panel's padding, with the clip light over the scale and both.
+//! ends before the first bar, between the clip light and the channel names,
+//! and centered on the level it names, and the bars sharing the width beside
+//! the scale out to the panel's padding, with the clip light over the scale and
+//! both.
 //!
 //! Not covered: real Inter advances, for which the test text system sets every
 //! character 0.6 em wide; and the 48 px floor that a window too narrow for the
@@ -100,7 +106,9 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
             light.left(),
             light.right()
         );
-        for (_, text) in MARKS {
+        let names = drawn("L")
+            .unwrap_or_else(|| panic!("{layout}: no channel name `L` drawn in the frame"));
+        for (dbfs, text) in MARKS {
             let mark = drawn(text).unwrap_or_else(|| {
                 panic!("{layout}: no mark `{text}` drawn in the frame {frame:?}")
             });
@@ -111,6 +119,23 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
                 mark.right(),
                 scale.left(),
                 scale.right()
+            );
+            assert!(
+                mark.top() >= light.bottom() - px(EPS) && mark.bottom() <= names.top() + px(EPS),
+                "{layout}: the mark `{text}` runs {:?}..{:?} down, into the clip light ending \
+                 at {:?} or the channel names starting at {:?}",
+                mark.top(),
+                mark.bottom(),
+                light.bottom(),
+                names.top()
+            );
+            // Each mark stands beside the level it names on the bars.
+            let level = left.bottom() - left.size.height * super::mark_fraction(dbfs);
+            assert!(
+                at(mark.center().y, level),
+                "{layout}: the mark `{text}` is centered at {:?}, its level on the bars at \
+                 {level:?}",
+                mark.center().y
             );
         }
 

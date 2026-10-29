@@ -106,21 +106,151 @@ fn a_menu_row_the_commands_already_name_is_offered_once() {
     }
 }
 
+/// With nothing typed the palette reads like the menu bar: its rows open with
+/// the menu rows in menu order, and every command follows the last of them.
+/// A catalog that lists the commands first opens on whichever command
+/// registered first, with the File menu's rows hundreds of rows down.
+#[test]
+fn an_empty_query_lists_the_menu_rows_first_in_menu_order() {
+    let mut state = state();
+    state.open_dialog(DialogKind::Palette);
+    let hits = state.palette_hits();
+    let is_menu = |action: &Offered| match action {
+        Offered::Menu(..) => true,
+        Offered::Command(_)
+        | Offered::Windowed(_)
+        | Offered::Generator(_)
+        | Offered::ClipType { .. }
+        | Offered::Plugin(_) => false,
+    };
+    let leading: Vec<(AppMenu, &str)> = hits
+        .iter()
+        .map_while(|offer| match offer.action {
+            Offered::Menu(menu, id) => Some((menu, id)),
+            Offered::Command(_)
+            | Offered::Windowed(_)
+            | Offered::Generator(_)
+            | Offered::ClipType { .. }
+            | Offered::Plugin(_) => None,
+        })
+        .collect();
+    assert!(
+        !leading.is_empty(),
+        "the first row, {}, is not a menu row",
+        hits[0].label
+    );
+    if let Some(late) = hits[leading.len()..]
+        .iter()
+        .find(|offer| is_menu(&offer.action))
+    {
+        panic!("the menu row {} is listed after a command", late.label);
+    }
+    let host = crate::chrome::menu_host::host_of(&state.ctx).expect("the ui plugin mounts menus");
+    let drawn: Vec<(AppMenu, &str)> = AppMenu::ALL
+        .into_iter()
+        .flat_map(|menu| {
+            host.items(menu, &state)
+                .iter()
+                .map(move |item| (menu, item.id))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let mut rest = drawn.iter();
+    for (menu, id) in &leading {
+        assert!(
+            rest.any(|row| row == &(*menu, *id)),
+            "{} {id} is out of menu order",
+            menu.label()
+        );
+    }
+}
+
+/// The job commands that share a label with an Analyze menu row and run a
+/// different pipeline. The command starts the detector that fills the Analysis
+/// tab; the menu row runs the registered analyzer of the same name. The palette
+/// offers the command and folds the menu row under it.
+const DETECTOR_LABEL_SHARED: &[&str] = &["pal-detect-beats", "pal-detect-silence", "pal-loudness"];
+
+/// A command never repeats a menu row by name. The palette already offers
+/// every menu row, so a command under a menu row's label is a second row for
+/// one action, and the catalog folds the menu's row under it.
+///
+/// Walks what mounting registered, the command host and the plugin commands,
+/// so a command a shipped plugin adds is covered with the compiled tables.
+/// Matched on the label, case aside, bare and captioned. A command that repeats
+/// a menu row's action under another label is not caught here.
+#[test]
+fn no_shipped_command_repeats_a_menu_row_by_name() {
+    let state = state();
+    let rows = menu_rows(&state);
+    let shares = |label: &str| {
+        rows.iter()
+            .find(|(_, bare, captioned)| {
+                label.eq_ignore_ascii_case(bare) || label.eq_ignore_ascii_case(captioned)
+            })
+            .map(|(menu, bare, _)| format!("{} > {bare}", menu.label()))
+    };
+    let host = crate::commands::host::host_of(&state.ctx).expect("the ui plugin mounts commands");
+    let commands: Vec<(String, String)> = host
+        .all()
+        .into_iter()
+        .map(|command| (command.id.to_owned(), command.label.to_owned()))
+        .chain(
+            state
+                .ctx
+                .commands()
+                .into_iter()
+                .map(|spec| (spec.id.clone(), spec.title.clone())),
+        )
+        .collect();
+    let shipped =
+        crate::commands::BUILTIN_COMMANDS.len() + crate::commands::BUILTIN_JOB_COMMANDS.len();
+    assert!(
+        commands.len() >= shipped,
+        "mounting registered {} commands, fewer than the {shipped} shipped",
+        commands.len()
+    );
+    let mut wrong = Vec::new();
+    let mut shared = Vec::new();
+    for (id, label) in &commands {
+        match (shares(label), DETECTOR_LABEL_SHARED.contains(&id.as_str())) {
+            (Some(row), false) => wrong.push(format!("{id} ({label}) repeats {row}")),
+            (Some(_), true) => shared.push(id.as_str()),
+            (None, _) => {}
+        }
+    }
+    for id in DETECTOR_LABEL_SHARED {
+        if !shared.contains(id) {
+            wrong.push(format!(
+                "{id} is listed as sharing a menu label and does not"
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
 #[test]
 fn a_command_outranks_the_menu_row_that_shares_its_label() {
     let mut state = state();
     state.open_dialog(DialogKind::Palette);
-    let jobs = state
-        .palette_catalog()
+    let commands = crate::commands::host::host_of(&state.ctx).expect("command host");
+    commands.add(crate::commands::host::CommandEntry {
+        id: "palette-outrank-probe",
+        label: "Jobs",
+        run: noop_command,
+    });
+    let catalog = state.palette_catalog();
+    let jobs: Vec<_> = catalog
         .iter()
-        .find(|&offer| offer.label == "Jobs")
-        .cloned()
-        .expect("Jobs is offered");
+        .filter(|&offer| offer.label == "Jobs")
+        .collect();
+    assert_eq!(jobs.len(), 1, "Jobs is offered once");
+    assert_eq!(jobs[0].id, "palette-outrank-probe");
     assert!(
-        matches!(jobs.action, Offered::Command(_)),
+        matches!(jobs[0].action, Offered::Command(_)),
         "a row that can run without the entity context must be the one offered"
     );
-    assert!(jobs.source.is_none(), "a command names no menu");
+    assert!(jobs[0].source.is_none(), "a command names no menu");
 }
 
 #[test]
@@ -153,16 +283,19 @@ fn the_query_narrows_and_ranks_the_hits() {
     let mut state = state();
     state.open_dialog(DialogKind::Palette);
     let all = state.palette_hits().len();
-    for ch in "settings".chars() {
+    for ch in "mark".chars() {
         state.palette_push(ch);
     }
     let hits = state.palette_hits();
     assert!(hits.len() < all, "a query must narrow the offer");
-    assert_eq!(
-        hits.first().map(|offer| offer.label.as_str()),
-        Some("Settings"),
-        "the row that starts with the query comes first, got {:?}",
-        hits.iter().map(|o| o.label.as_str()).collect::<Vec<_>>()
+    let labels: Vec<&str> = hits.iter().map(|offer| offer.label.as_str()).collect();
+    let leads = |label: &&str| label.to_lowercase().starts_with("mark");
+    let last_lead = labels.iter().rposition(leads);
+    let first_other = labels.iter().position(|label| !leads(label));
+    assert!(
+        matches!((last_lead, first_other), (Some(lead), Some(other)) if lead < other),
+        "every row that starts with the query comes before the rows that only contain it: \
+         {labels:?}"
     );
 }
 
@@ -223,18 +356,54 @@ fn a_shorter_hit_list_cannot_leave_the_highlight_past_the_end() {
     assert_eq!(state.palette_highlight(), Some(count - 1));
 }
 
+fn probe_first(state: &mut crate::app::AppState) {
+    state.status_message = Some("first".into());
+}
+
+fn probe_second(state: &mut crate::app::AppState) {
+    state.status_message = Some("second".into());
+}
+
 #[test]
 fn enter_runs_the_highlighted_row_not_the_first() {
     let mut state = state();
     state.open_dialog(DialogKind::Palette);
-    for ch in "jobs".chars() {
+    let commands = crate::commands::host::host_of(&state.ctx).expect("command host");
+    let rows: [(
+        &'static str,
+        &'static str,
+        crate::commands::host::CommandRun,
+    ); 2] = [
+        (
+            "palette-enter-first",
+            "Palette enter probe one",
+            probe_first,
+        ),
+        (
+            "palette-enter-second",
+            "Palette enter probe two",
+            probe_second,
+        ),
+    ];
+    for (id, label, run) in rows {
+        commands.add(crate::commands::host::CommandEntry { id, label, run });
+    }
+    for ch in "palette enter probe".chars() {
         state.palette_push(ch);
     }
     let hits = state.palette_hits();
-    assert!(!hits.is_empty());
-    assert_eq!(hits[0].label, "Jobs");
+    let labels: Vec<&str> = hits.iter().map(|offer| offer.label.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["Palette enter probe one", "Palette enter probe two"]
+    );
+    state.palette_move(1);
     assert!(state.run_palette_highlight().is_none());
-    assert_eq!(state.dialog, DialogKind::Jobs, "Enter ran the highlight");
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("second"),
+        "Enter ran the first row, not the highlight"
+    );
 }
 
 #[test]

@@ -192,6 +192,16 @@ highlighted.
 - **Reveal Modified Properties** opens every property row of the selected clip
   whose value differs from its default, as the second Alt+U does.
 
+The palette writes a keyframe on the selected clip at the playhead, holding the
+value the property has there, one property per row: **Keyframe Opacity at
+Playhead** (`pal-key-opacity`), **Keyframe Position at Playhead**
+(`pal-key-position`), **Keyframe Scale at Playhead** (`pal-key-scale`),
+**Keyframe Rotation at Playhead** (`pal-key-rotation`), **Keyframe Anchor Point
+at Playhead** (`pal-key-anchor-point`), **Keyframe Crop at Playhead**
+(`pal-key-crop`), **Keyframe Volume at Playhead** (`pal-key-volume`), and
+**Keyframe Pan at Playhead** (`pal-key-pan`). **Remove Opacity Keyframe at
+Playhead** (`pal-key-remove`) deletes the opacity keyframe there.
+
 Each edit is one undo step.
 
 **Edit > Remove Attributes…** lists the attribute groups the selected clips

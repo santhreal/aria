@@ -152,11 +152,6 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
             }
         },
     },
-    WindowedEntry {
-        id: "pal-updates",
-        label: "Check for Updates",
-        run: AppState::check_for_updates,
-    },
 ];
 
 /// The job groups. A second table like [`GROUPS`], for the same reason: a lane

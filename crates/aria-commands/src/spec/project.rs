@@ -6,9 +6,9 @@ macro_rules! project_edit_rows {
         $next! {
             $($accum)*
             addresses nothing {
-                AddTrack { label: "Add track", reach: operator("the palette's adjustment-layer and mixer-bus rows, and the Sequence menu"), junctions: keeps, lock: guarded,
+                AddTrack { label: "Add track", reach: operator("the palette's mixer-bus row, and the Sequence menu's track and adjustment-layer rows"), junctions: keeps, lock: guarded,
                     undo: restores("the stack by removing the lane it created"), },
-                AddMarker { label: "Add marker", reach: operator("the palette's Add Marker row, the marker chord, and the markers panel"), junctions: keeps, lock: guarded,
+                AddMarker { label: "Add marker", reach: operator("the Markers menu's Add Marker row, the marker chord, and the markers panel"), junctions: keeps, lock: guarded,
                     undo: restores("the ruler by removing the marker"), },
                 RemoveMarker { label: "Remove marker", reach: operator("the markers panel's delete button"), junctions: keeps, lock: guarded,
                     undo: restores("the marker with its own id, position, name, color and note"), },
@@ -16,7 +16,7 @@ macro_rules! project_edit_rows {
                     undo: restores("the marker's previous position, name, color and note"), },
                 SetProjectName { label: "Rename project", reach: operator("the rename bar, opened from the title in the window bar"), junctions: keeps, lock: guarded,
                     undo: restores("the project's previous name"), },
-                SetCanvas { label: "Set canvas", reach: operator("the settings dialog's canvas pickers: the aspect rows and the delivery sizes, plus the palette's reset-background row"), junctions: keeps, lock: guarded,
+                SetCanvas { label: "Set canvas", reach: operator("the settings dialog's canvas pickers: the aspect rows and the delivery sizes, plus the Sequence menu's Reset Canvas Background row"), junctions: keeps, lock: guarded,
                     undo: restores("the previous aspect, background and explicit size"), },
                 SetSequenceRate { label: "Set sequence frame rate", reach: operator("the settings dialog's frame-rate picker"), junctions: keeps, lock: guarded,
                     undo: restores("the previous sequence frame rate and clip placements"), },
@@ -74,7 +74,7 @@ macro_rules! project_command_rows {
             },
             Save {
                 label: "Save project",
-                reach: operator("the palette's Save row, the save chord, and the File menu"),
+                reach: operator("the File menu's Save row and the save chord"),
                 undo: no_undo("writing a file changes no session state, so there is nothing to step back over"),
             },
             Open {

@@ -56,6 +56,8 @@ project saved before import times were recorded has none and sorts last. Neither
 the filter nor the order is saved with the project. A search that hides every
 item shows **Nothing matches the search.** in place of the pool, and an empty
 pool shows **Import files or drag from your file manager.**
+**Clear Pool Filter** (`pal-media-filter-clear`) in the palette empties the
+search box.
 
 The view buttons set the pool layout; in a narrow Project frame one button cycles the four. **Tiles** puts each
 item on its own row with its picture on the left and its name and facts beside
@@ -126,6 +128,8 @@ items. While a folder is open, a breadcrumb above them shows the open path
   Esc leaves the field without renaming. An empty name is refused.
 - Click a folder to open it. Double-click it to rename it. Click a crumb to go
   back out; `Pool` is the root.
+- **Leave Bin** (`pal-bin-up`) in the palette opens the parent of the open
+  folder.
 - **Rename** and **Delete bin** act on the open folder. Deleting one moves its
   media and its folders up to its parent, so nothing leaves the pool. Both are
   undoable, and undoing a deletion puts the folder back with what it held.

@@ -12,12 +12,13 @@
 //! the crate that owns the commands, which cannot see a palette row, so the two
 //! meet here.
 //!
-//! What this does not catch, stated plainly:
+//! What this does not catch:
 //!
 //! - Windowed rows (`BUILTIN_JOB_COMMANDS`) need the entity context and are not
 //!   driven here. They start jobs rather than edits, so they produce no history
 //!   label to measure.
-//! - Menu items take a `gpui::Context` and cannot run in a plain unit test.
+//! - Menu rows, which the palette also offers, take a `gpui::Context`;
+//!   `menu_reach_tests` drives them.
 //! - A row is run once, against one clip, with the playhead inside it. A row
 //!   that needs a marked range, a second selected clip, a cut under the
 //!   playhead, or a filled clipboard is declared `NoEdit` for that reason, not
@@ -25,9 +26,6 @@
 //! - A row that prompts for a path is driven with a supplied answer,
 //!   not with a dialog: see `PICK_ROWS` and the tests under it. What a native
 //!   dialog itself does is not observed here.
-
-#[path = "reach_tests_g1.rs"]
-mod reach_tests_g1;
 
 use aria_commands::{Reach, every_edit_command, every_project_command};
 use std::collections::BTreeSet;
@@ -53,17 +51,8 @@ use Kind::{Edits, NoEdit};
 /// row fails the suite until someone classifies it.
 const ROWS: &[(&str, Kind)] = &[
     // Sends a command against one selected clip with the playhead inside it.
-    ("pal-split", Edits),
-    ("pal-delete", Edits),
-    ("pal-ripple-delete", Edits),
     ("pal-bin-new", Edits),
-    ("pal-marker", Edits),
-    ("pal-adjustment-layer", Edits),
-    ("pal-flip-h", Edits),
-    ("pal-flip-v", Edits),
-    ("pal-crop-reset", Edits),
     ("pal-motion-blur", Edits),
-    ("pal-grade-reset", Edits),
     ("pal-denoise", Edits),
     ("pal-pitch-lock", Edits),
     ("pal-mask-add-linear", Edits),
@@ -74,10 +63,6 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-mask-add-star", Edits),
     ("pal-mask-add-path", Edits),
     ("pal-chroma-green", Edits),
-    ("pal-chroma-clear", Edits),
-    ("pal-matte-luma", Edits),
-    ("pal-matte-alpha", Edits),
-    ("pal-matte-clear", Edits),
     ("pal-slot-toggle", Edits),
     ("pal-key-opacity", Edits),
     ("pal-key-position", Edits),
@@ -85,97 +70,35 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-track-solo", Edits),
     ("pal-track-open-gap", Edits),
     ("pal-track-close-gap", Edits),
-    ("pal-clip-enable", Edits),
-    ("pal-time-remap", Edits),
-    // Moves the view, opens a route or a dialog, or writes to disk. Undo and
-    // redo belong here too: they move the history pointer rather than adding
-    // to it.
+    // Each keyframe row pins a property the fixture clip has: it is a media
+    // clip, so the audio envelopes answer too.
+    ("pal-key-anchor-point", Edits),
+    ("pal-key-rotation", Edits),
+    ("pal-key-crop", Edits),
+    ("pal-key-volume", Edits),
+    ("pal-key-pan", Edits),
+    // Moves the playhead or the view, switches a sidebar tab, or opens a
+    // prompt.
     ("pal-play", NoEdit),
-    ("pal-undo", NoEdit),
-    ("pal-redo", NoEdit),
-    ("pal-save", NoEdit),
-    ("pal-open", NoEdit),
-    ("pal-new", NoEdit),
-    ("pal-export", NoEdit),
-    ("pal-export-frame", NoEdit),
-    ("pal-settings", NoEdit),
-    ("pal-jobs", NoEdit),
-    ("pal-history", NoEdit),
-    ("pal-preview-fullscreen", NoEdit),
-    ("pal-preview-title-safe", NoEdit),
-    ("pal-preview-action-safe", NoEdit),
-    ("pal-preview-grid", NoEdit),
-    ("pal-preview-scopes", NoEdit),
-    ("pal-preview-fit", NoEdit),
-    ("pal-preview-actual", NoEdit),
     ("pal-handles", NoEdit),
     ("pal-bin-up", NoEdit),
     ("pal-captions", NoEdit),
     ("pal-analysis", NoEdit),
     ("pal-next-moment", NoEdit),
     ("pal-previous-moment", NoEdit),
-    ("pal-fit", NoEdit),
-    ("pal-fit-selection", NoEdit),
-    ("pal-mark-in", NoEdit),
-    ("pal-mark-out", NoEdit),
-    ("pal-marker-next", NoEdit),
-    ("pal-marker-prev", NoEdit),
     ("pal-shift-selection", NoEdit),
-    ("pal-speed-duration", NoEdit),
-    ("pal-audio-gain", NoEdit),
     // Inert against the fixture rather than broken: it holds one silent 1x1
-    // still on one track, with no cut under the playhead, nothing on the
-    // clipboard, no marker, no mask, and no keyframe to remove. A row here is
-    // a row this harness cannot reach, which is why the covered set is a floor
-    // and not a lock.
-    ("pal-paste-insert", NoEdit),
-    ("pal-paste-attributes", NoEdit),
-    ("pal-extract-audio", NoEdit),
-    ("pal-freeze", NoEdit),
-    ("pal-link", NoEdit),
-    ("pal-unlink", NoEdit),
-    ("pal-group", NoEdit),
-    ("pal-ungroup", NoEdit),
+    // still on one track, so there is no mask to invert, no title to make
+    // editable, no keyframe to remove, and no other lane. A row here is a row
+    // this harness cannot reach, which is why the covered set is a floor and
+    // not a lock.
     ("pal-mask-invert", NoEdit),
-    ("pal-mask-clear", NoEdit),
-    ("pal-transition-crossfade", NoEdit),
-    ("pal-transition-clear", NoEdit),
     ("pal-text-editable", NoEdit),
     ("pal-key-remove", NoEdit),
     ("pal-track-up", NoEdit),
     ("pal-track-down", NoEdit),
     ("pal-track-duck", NoEdit),
-    ("pal-marker-remove", NoEdit),
-    // Prompts for a path. With no answer supplied the row prompts and
-    // stops, which is why it writes nothing here; each is driven with an answer
-    // by a test at the foot of this file.
-    ("pal-relink", NoEdit),
-    ("pal-save-template", NoEdit),
-    ("pal-use-template", NoEdit),
-    // Rows added to close a measured reach hole. Each keyframe row pins a
-    // property the fixture clip carries — it is a media clip, so the audio
-    // envelopes answer too — and the lane shift opens a hole at tick 0.
-    ("pal-key-anchor-point", Edits),
-    ("pal-key-rotation", Edits),
-    ("pal-key-crop", Edits),
-    ("pal-key-volume", Edits),
-    ("pal-key-pan", Edits),
-    ("pal-lane-shift-later", Edits),
-    // The rest are inert against this fixture rather than broken: it has no
-    // marker, no effect on the clip, nothing selected in the pool, a default
-    // canvas background, an empty pool filter, and its only clip starts at tick
-    // 0 — so shifting the lane earlier would push it below zero and the engine
-    // refuses instead of recording an edit. The duck rows tune the next duck and
-    // send no command at all.
-    ("pal-lane-shift-earlier", NoEdit),
-    ("pal-ripple-insert", NoEdit),
-    ("pal-marker-snap", NoEdit),
-    ("pal-effect-reset", NoEdit),
-    ("pal-canvas-background", NoEdit),
     ("pal-media-filter-clear", NoEdit),
-    ("pal-duck-amount", NoEdit),
-    ("pal-duck-attack", NoEdit),
-    ("pal-duck-release", NoEdit),
     // The fixture's clip is a still, not a title, so both font steps are inert
     // here for the same reason the picker is hidden off a title; nothing in the
     // fixture is proxied, so the clear row reports that and writes nothing; and
@@ -185,10 +108,6 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-font-prev", NoEdit),
     ("pal-proxy-clear-all", NoEdit),
     ("pal-proxy-create-all", NoEdit),
-    // Both refuse against the fixture and say why: its project has never been
-    // saved, so a render has no home beside it, and its clip is not a render.
-    ("pal-bake-clip", NoEdit),
-    ("pal-bake-restore", NoEdit),
     // Project, pool, and session measurements. Every one reports, navigates,
     // or asks for a path; the duplicate-onto-a-lane row is inert here because
     // the fixture project has one track, so no other lane accepts the clip.
@@ -218,13 +137,11 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-media-target", NoEdit),
     ("pal-media-import-still", NoEdit),
     ("pal-media-lottie", NoEdit),
-    // Render: RelinkMedia is declared not-undoable in aria-engine, and the
-    // other two write a file or a status line.
+    // Render: the LUT pack and the cost row write files or a status line, and
+    // RelinkMedia, which the reload rows send, is declared not-undoable in
+    // aria-engine.
     ("pal-look-install", NoEdit),
     ("pal-render-cost", NoEdit),
-    ("pal-render-in-to-out", NoEdit),
-    ("pal-render-selection", NoEdit),
-    ("pal-delete-render-files", NoEdit),
     ("pal-media-reload", NoEdit),
     ("pal-media-reload-all", NoEdit),
     // Text and models: a font preflight, an ink report, and a digest sweep.
@@ -232,18 +149,7 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-font-check", NoEdit),
     ("pal-title-ink", NoEdit),
     ("pal-models-verify", NoEdit),
-    // Nested sequences. Nesting works on whatever is selected, so it edits from
-    // the fixture. The other three need a nest to point at and the fixture has
-    // none, so under this harness they refuse and write nothing; what they do
-    // when there *is* one is driven in `app::nested::tests`.
-    ("pal-new-sequence", Edits),
-    ("pal-nest-selection", Edits),
-    ("pal-nest-open", NoEdit),
-    ("pal-nest-leave", NoEdit),
-    ("pal-nest-place", NoEdit),
-    // Mixer: opening the pane writes nothing; adding a bus is an Add track
-    // edit, which is the whole point of the row.
-    ("pal-mixer-open", NoEdit),
+    // Mixer: adding a bus is an Add track edit.
     ("pal-mixer-add-bus", Edits),
 ];
 
@@ -260,7 +166,7 @@ fn kind_of(id: &str) -> Option<Kind> {
 /// Each `with_clip()` constructs an `AppState` and a headless `Renderer`
 /// (`~240 ms` wall and `66` Lavapipe threads per call). Recording per-row
 /// history labels and path-picker requests during the single `CENSUS` pass
-/// avoids repeating two additional `150`-row passes in
+/// avoids two more passes over every row in
 /// `every_row_does_what_it_says` and
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
 fn driven(row: &crate::commands::host::CommandEntry) -> (Vec<String>, Vec<&'static str>, bool) {
@@ -364,24 +270,17 @@ fn the_commands_the_palette_sends_only_grow() {
     // A shrink means a row stopped sending what it used to send. Growth is fine:
     // the list is a floor, not a lock.
     const FLOOR: &[&str] = &[
-        "Add generated clip",
-        "Add marker",
         "Add mask",
         "Add track",
-        "Crop",
-        "Grade",
         "Mark replaceable",
         "New bin",
-        "Ripple delete",
         "Set chroma key",
         "Set denoise",
         "Set keyframe",
         "Set motion blur",
         "Set pitch lock",
-        "Set track matte",
         "Shift clips",
         "Solo track",
-        "Split clip",
     ];
     let labels = measured();
     let gone: Vec<_> = FLOOR
@@ -443,18 +342,15 @@ fn an_internal_command_carries_its_reason_into_the_editor() {
     }
 }
 
-/// Every palette row that prompts for a path, each driven below with a
-/// supplied answer. The list is checked against the live table at run time by
+/// Every palette row that prompts for a path. The list is checked against the
+/// live table at run time by
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
 const PICK_ROWS: &[&str] = &[
-    "pal-relink",
-    "pal-save-template",
-    "pal-use-template",
-    "pal-export-frame",
+    // Driven below.
+    "pal-cloud-checksum",
     // Driven in `project_reach_tests.rs`, which supplies an answer to each.
     "pal-project-reveal-media",
     "pal-project-describe-template",
-    "pal-cloud-checksum",
     "pal-media-import-still",
     "pal-media-lottie",
     // Driven in `text_reach_tests.rs`, which supplies a font and a non-font.
@@ -502,14 +398,6 @@ fn the_checksum_row_hashes_the_file_it_was_given() {
     );
 }
 
-/// A scratch dir of this name's own.
-///
-/// The name goes in the prefix rather than under a shared dir: claiming a scratch
-/// dir empties it, and the rows below hold several live at once.
-fn scratch(name: &str) -> std::path::PathBuf {
-    crate::scratch_pool::scratch(&format!("reach-pick-{name}"))
-}
-
 fn run_row(id: &str, state: &mut AppState) {
     let row = BUILTIN_COMMANDS
         .iter()
@@ -540,54 +428,4 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
         undeclared.is_empty(),
         "these rows ask for a path and no test answers one: {undeclared:?}"
     );
-}
-
-#[test]
-fn saving_a_template_writes_the_bundle_the_operator_named() {
-    let (mut state, _) = with_clip();
-    let path = scratch("save").join("row.ariat");
-    let _ = std::fs::remove_file(&path);
-    state.supply_pick(Answer::file(path.clone()));
-
-    run_row("pal-save-template", &mut state);
-
-    assert_eq!(state.picks_asked(), 1, "the row did not ask for a path");
-    assert!(
-        path.exists(),
-        "the bundle was not written to the picked path"
-    );
-}
-
-/// A path typed with no extension still names a PNG: the job writes
-/// `still.png`, not an extensionless file no viewer opens.
-#[test]
-fn exporting_a_frame_to_a_bare_name_writes_a_png() {
-    let (mut state, _) = with_clip();
-    state.supply_pick(Answer::file(scratch("frame").join("still")));
-
-    run_row("pal-export-frame", &mut state);
-
-    assert_eq!(state.picks_asked(), 1, "the row did not ask for a path");
-    let labels: Vec<String> = state
-        .jobs
-        .snapshot()
-        .into_iter()
-        .map(|job| job.label)
-        .collect();
-    assert!(
-        labels
-            .iter()
-            .any(|label| label == "Exporting frame to still.png"),
-        "the job does not write still.png: {labels:?}"
-    );
-}
-
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
 }

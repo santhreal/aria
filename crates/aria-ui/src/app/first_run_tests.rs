@@ -606,19 +606,14 @@ fn shuttle_from_stop_keeps_requested_speed() {
 
 #[test]
 fn palette_query_filters_relink_and_clears_on_close() {
-    let dir = scratch();
-    let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    state.new_project().unwrap();
+    let mut state = super::palette_tests::state();
     state.open_dialog(DialogKind::Palette);
     state.palette_query = "relink".into();
-    let labels: Vec<&str> = crate::commands::BUILTIN_COMMANDS
-        .iter()
-        .map(|cmd| cmd.label)
-        .collect();
-    let hits = crate::popover::filter_indices(&state.palette_query, &labels);
+    let hits = state.palette_hits();
+    let labels: Vec<&str> = hits.iter().map(|offer| offer.label.as_str()).collect();
     assert!(
-        hits.iter().any(|i| labels[*i] == "Relink All"),
-        "typed Relink must hit Relink All, got {hits:?}"
+        labels.contains(&"Relink All…"),
+        "typed Relink must hit File > Relink All…, got {labels:?}"
     );
     state.open_dialog(DialogKind::None);
     assert!(state.palette_query.is_empty());

@@ -331,20 +331,16 @@ fn window_jobs_toggles_the_docked_board() {
     );
 }
 
+/// The Window menu has the board, and the palette offers it by name as it offers
+/// every menu row: `palette_tests::every_menu_row_is_offered_by_name`.
 #[test]
-fn the_board_is_reachable_from_the_window_menu_and_the_palette() {
+fn the_board_is_reachable_from_the_window_menu() {
     let (state, _clip) = with_clip();
     assert!(
         crate::chrome::labels_for(crate::types::AppMenu::Window, &state)
             .iter()
             .any(|label| label.contains("Jobs")),
         "Window menu lost the jobs board"
-    );
-    assert!(
-        crate::commands::BUILTIN_COMMANDS
-            .iter()
-            .any(|command| command.id == "pal-jobs"),
-        "palette lost the jobs board"
     );
 }
 

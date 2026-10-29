@@ -50,9 +50,11 @@ pub struct AppState {
     /// Height fraction `[0.15, 0.85]` of the lane stack given to video lanes
     /// above the A/V divider.
     pub timeline_av_split: f32,
-    /// Vertical scroll offset (px) of the video lane group above the divider.
+    /// Vertical scroll (px) of the video lane group up from the A/V divider:
+    /// at 0, V1 stands on the divider.
     pub video_scroll_y: f32,
-    /// Vertical scroll offset (px) of the audio lane group below the divider.
+    /// Vertical scroll (px) of the audio lane group down from the A/V divider:
+    /// at 0, A1 hangs from the divider.
     pub audio_scroll_y: f32,
     /// Virtualization and paint counters from the most recent timeline frame.
     pub timeline_paint_stats: crate::types::TimelinePaintStats,

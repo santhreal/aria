@@ -76,6 +76,34 @@ fn export_frame_starts_a_job_for_the_chosen_file() {
         );
     });
 }
+/// A path typed with no extension still names a PNG: the job writes
+/// `still.png`, not an extensionless file no viewer opens.
+#[test]
+fn export_frame_to_a_bare_name_writes_a_png() {
+    let (mut state, _) = with_clip();
+    state.supply_pick(Answer::file(own_scratch("export-frame-bare").join("still")));
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+
+    run_row(&entity, &cx, AppMenu::File, "file-export-frame");
+
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(state.picks_asked(), 1, "the row did not ask for a path");
+        let labels: Vec<String> = state
+            .jobs
+            .snapshot()
+            .into_iter()
+            .map(|job| job.label)
+            .collect();
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "Exporting frame to still.png"),
+            "the job does not write still.png: {labels:?}"
+        );
+    });
+}
 #[test]
 fn import_adds_the_files_the_operator_chose() {
     let (state, staged) = Answered::Import.state();

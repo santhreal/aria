@@ -2,7 +2,7 @@
 
 ## History
 
-**Window > History**, **History** (`pal-history`) in the command palette, or <kbd>Ctrl+Shift+H</kbd> (`key-history`) brings
+**Window > History** or <kbd>Ctrl+Shift+H</kbd> (`key-history`) brings
 the History panel forward. It lists every step this session took, oldest first,
 starting with **Project opened**.
 
@@ -22,8 +22,8 @@ does.
 ## Jobs
 
 **Window > Jobs** docks the Jobs panel, which lists background work: exports,
-cloud downloads, transcription, and analysis. **Jobs** (`pal-jobs`) in the command palette
-opens the same list as a dialog. While work runs, the center of the status bar
+cloud downloads, transcription, and analysis. Starting an export opens the same
+list as a dialog. While work runs, the center of the status bar
 shows the first running job, its progress, and how many others are running;
 click it to bring the Jobs panel forward.
 
@@ -55,9 +55,9 @@ the containing folder in the file manager.
 
 Step back to an earlier edit in the History panel and manage a background render on the Jobs board:
 
-1. Press <kbd>Ctrl+Shift+H</kbd> (`key-history`) or choose **Window > History** (or run **History** (`pal-history`) in the Command Palette). The History panel opens in the right dock frame listing every edit step from **Project opened** to the row marked **current**.
+1. Press <kbd>Ctrl+Shift+H</kbd> (`key-history`) or choose **Window > History**. The History panel opens in the right dock frame listing every edit step from **Project opened** to the row marked **current**.
 2. Click an earlier row in the History list to jump the sequence back to that step without pressing <kbd>Ctrl+Z</kbd> (`key-undo`) repeatedly, or click a dimmed row below **current** to redo forward to it. The timeline and Viewer update immediately to the chosen undo state.
-3. Choose **Window > Jobs** or run **Jobs** (`pal-jobs`) in the Command Palette while an export, proxy, analysis, or transcription job is running. The Jobs list displays each job's state, progress bar, and elapsed time.
+3. Choose **Window > Jobs** while an export, proxy, analysis, or transcription job is running. The Jobs list displays each job's state, progress bar, and elapsed time.
 4. Click [`job-stop`](../reference/controls.md#modal-dialogs) beside an in-flight job before its publication boundary to cancel it and discard partial output, or click [`job-reveal`](../reference/controls.md#modal-dialogs) on a completed job row (and [`jobs-done`](../reference/controls.md#modal-dialogs) to close the modal Jobs dialog). The file manager opens the folder containing the finished output file.
 
 ## Reference

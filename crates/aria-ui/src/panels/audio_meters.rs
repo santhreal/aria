@@ -75,11 +75,15 @@ pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyEle
         .bg(theme.surface)
         .child(clip_light(&theme, reading.clipped, cx))
         .child(
+            // The marks at 0 and -60 dBFS are centered on the bars' ends, so half
+            // of each stands past them: the row keeps that half clear of the
+            // clip light above and the channel names below.
             div()
                 .flex()
                 .flex_row()
                 .flex_1()
                 .min_h(px(40.))
+                .py(MARK_TEXT / 2.0)
                 .gap(px(Theme::SPACE_XS))
                 .child(scale(&theme))
                 .children(bars),

@@ -79,9 +79,9 @@ and Pitch Shifter so lanes stay in time.
 
 Route dialogue through a submix bus, insert an audio effect chain, and normalize clip peaks:
 
-1. Select the dialogue clips on `A1` and press <kbd>G</kbd> (`key-audio-gain`) or choose **Clip > Audio Gain…** (or run **Audio Gain…** (`pal-audio-gain`) in the Command Palette). The Audio Gain dialog opens and reports the measured peak in dBFS across the selection.
+1. Select the dialogue clips on `A1` and press <kbd>G</kbd> (`key-audio-gain`) or choose **Clip > Audio Gain…**. The Audio Gain dialog opens and reports the measured peak in dBFS across the selection.
 2. Choose **Normalize Max Peak to**, set the target level, and click [`audio-gain-apply`](../reference/controls.md#modal-dialogs). The clip waveforms on `A1` scale to the normalized level in one undo step.
-3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer** (or run **Mixer: Open the Mixer** (`pal-mixer-open`)), then click **+ Submix bus** or run **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
+3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer**, then click **+ Submix bus** or run **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
 4. On the `A1` strip, click the `Bus 1` chip under **Out** to route `A1` into `Bus 1`, then add **Parametric EQ** and **Compressor** under **Inserts** on `Bus 1` and reorder them with [`insert-up`](../reference/controls.md#audio-mixer) or [`insert-down`](../reference/controls.md#audio-mixer) (or remove an insert with [`insert-remove`](../reference/controls.md#audio-mixer)). Press <kbd>Shift+9</kbd> (`key-pane-audio-meters`) or choose **Window > Audio Meters** to watch the summed peak levels in the Audio Meters panel and [`preview-meter`](../reference/controls.md#audio-meters) during playback.
 
 ## Reference

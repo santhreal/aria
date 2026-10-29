@@ -183,18 +183,14 @@ fn an_adjustment_lane_is_never_mistaken_for_a_sticker_lane() {
     assert_eq!(sticker_bars, 0, "the bar landed on the sticker lane");
 }
 
+/// The Sequence menu has the row, and the palette offers it by name as it offers
+/// every menu row: `palette_tests::every_menu_row_is_offered_by_name`.
 #[test]
-fn the_menu_and_the_palette_both_reach_it() {
+fn the_sequence_menu_reaches_it() {
     let (state, _) = with_clip();
     let labels = crate::chrome::labels_for(crate::types::AppMenu::Sequence, &state);
     assert!(
         labels.contains(&"Add Adjustment Layer"),
         "the Sequence menu has no adjustment layer row: {labels:?}"
-    );
-    assert!(
-        crate::commands::BUILTIN_COMMANDS
-            .iter()
-            .any(|command| command.id == "pal-adjustment-layer"),
-        "the palette has no way to add an adjustment layer"
     );
 }

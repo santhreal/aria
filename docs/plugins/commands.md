@@ -109,8 +109,9 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 ```
 
 An id that already exists is replaced, which is how built-in code overrides a
-shipped command. The palette lists `CommandHost` rows first, then plugin
-commands, then menu rows, each id once.
+shipped command. The palette lists the menu rows in menu order first, then
+`CommandHost` rows, then plugin commands, each id once. A menu row whose label
+a command uses is offered as the command.
 
 A command that starts work needs the entity context, which `AppState` does not
 have. Register that kind with `add_windowed`:

@@ -92,7 +92,7 @@ impl AppState {
         self.queue_audio_scrub();
     }
 
-    /// A scrub on the timeline ruler: [`Self::place_playhead`] with an audio
+    /// A scrub on the timeline ruler: `Self::place_playhead` with an audio
     /// grain. The ruler maps its pointer through the view it was pressed in,
     /// so the view holds still under it.
     pub fn scrub_playhead_on_ruler(&mut self, ticks: i64) {

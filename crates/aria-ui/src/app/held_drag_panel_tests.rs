@@ -377,7 +377,7 @@ fn a_track_header_let_go_off_the_headers_drops_on_the_marked_row(cx: &mut gpui::
         !visual.read(|app| state.read(app).track_dragging()),
         "the release off the headers ends the drag"
     );
-    let mut swapped = before.clone();
+    let mut swapped = before;
     swapped.swap(0, 1);
     assert_eq!(
         rows(visual),

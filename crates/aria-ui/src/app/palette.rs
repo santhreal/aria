@@ -5,12 +5,15 @@
 //! unreachable by name. The offer is derived here instead, from the registries
 //! that already exist:
 //!
-//! 1. every command in [`CommandHost`](crate::commands::host::CommandHost),
-//! 2. every command a plugin registered on the context, by its title,
-//! 3. every item the [`MenuHost`](crate::chrome::menu_host::MenuHost) would draw
-//!    in any menu, whose label the commands did not already offer,
+//! 1. every item the [`MenuHost`](crate::chrome::menu_host::MenuHost) would draw
+//!    in any menu, in menu order, whose label no command below offers,
+//! 2. every command in [`CommandHost`](crate::commands::host::CommandHost),
+//! 3. every command a plugin registered on the context, by its title,
 //! 4. every generator in the model's effect catalog and every plugin clip type,
 //!    which are data read at run time and so cannot be compiled rows at all.
+//!
+//! With an empty query the rows read like the menu bar, File first, and the
+//! commands no menu holds follow.
 //!
 //! An effect is offered by the Effect menu row that applies it, under its
 //! category: the Effect menu lists the whole catalog, so a second row named by
@@ -142,12 +145,6 @@ pub(crate) struct PaletteCache {
 }
 
 impl AppState {
-    /// Every row on offer, before filtering: commands in registration order, then
-    /// the menu rows the commands did not already name.
-    ///
-    /// The registries are state-dependent, so this is what the palette could
-    /// offer *now*. A menu that hides an item because no project is open does not
-    /// offer it by name either.
     /// A digest of the session state the shipped menus build rows from, other
     /// than the two flags `PaletteKey` holds itself.
     fn menu_fingerprint(&self) -> u64 {
@@ -165,6 +162,14 @@ impl AppState {
         hasher.finish()
     }
 
+    /// Every row on offer, before filtering: the menu rows in menu order, then
+    /// the commands in registration order, then the plugin commands, clip
+    /// types and generators. A menu row a command names is offered once, as
+    /// the command.
+    ///
+    /// The registries are state-dependent, so this is what the palette could
+    /// offer *now*. A menu that hides an item because no project is open does
+    /// not offer it by name either.
     pub fn palette_catalog(&self) -> std::sync::Arc<[PaletteOffer]> {
         let effects = aria_models::effect_catalog();
         let clip_types = aria_models::clip_type_catalog();
@@ -192,10 +197,12 @@ impl AppState {
             }
         }
 
-        let mut offers: Vec<PaletteOffer> = Vec::new();
+        // Commands are collected first, so a menu row a command already names
+        // is folded under the command, and listed after the menu rows.
+        let mut commands_offered: Vec<PaletteOffer> = Vec::new();
         if let Some(host) = commands {
             for entry in host.all() {
-                offers.push(PaletteOffer {
+                commands_offered.push(PaletteOffer {
                     id: SharedString::new_static(entry.id),
                     label: SharedString::new_static(entry.label),
                     source: None,
@@ -207,23 +214,27 @@ impl AppState {
             }
         }
         for spec in self.ctx.commands() {
-            if offers.iter().any(|offer| offer.id == spec.id.as_str()) {
+            if commands_offered
+                .iter()
+                .any(|offer| offer.id == spec.id.as_str())
+            {
                 continue;
             }
-            offers.push(PaletteOffer {
+            commands_offered.push(PaletteOffer {
                 id: SharedString::from(spec.id.as_str()),
                 label: SharedString::from(spec.title.as_str()),
                 source: None,
                 action: Offered::Plugin(spec),
             });
         }
+        let mut offers: Vec<PaletteOffer> = Vec::new();
         if let Some(menus) = menus {
             for menu in AppMenu::ALL {
                 for item in menus.items(menu, self).iter().copied() {
                     let label = offered_label(&item);
                     // Case aside: "Add cross fade at cut" and "Add Cross Fade at
                     // Cut" are one row on screen.
-                    let known = offers.iter().any(|offer| {
+                    let known = commands_offered.iter().chain(&offers).any(|offer| {
                         offer.label.eq_ignore_ascii_case(item.label)
                             || offer.label.eq_ignore_ascii_case(&label)
                             || offer.id == item.id
@@ -240,6 +251,7 @@ impl AppState {
                 }
             }
         }
+        offers.append(&mut commands_offered);
         for spec in &clip_types {
             let (id, label) = (spec.id.as_str(), spec.label.as_str());
             if offers

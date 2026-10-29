@@ -82,10 +82,10 @@ async fn the_drawn_fx_toggle_switches_its_own_effect_and_undo_takes_it_back(
         (1, [true, false]),
         (0, [false, false]),
     ] {
-        let selector: &'static str = crate::components::control_selector(
+        let selector: &'static str = crate::components::noted::control_selector(
             "switch",
             crate::motion::MotionKey::new("inspector-fx-bypass", index).into(),
-            &crate::components::Drawn::Switch,
+            &crate::components::noted::Drawn::Switch,
         )
         .leak();
         let toggle = panel_bounds(visual, selector)

@@ -472,8 +472,7 @@ impl Shell {
     }
 
     /// Zoom by `factor`, keeping the second under the pointer where it is. `x`
-    /// is the pointer in window coordinates (see
-    /// [`AppState::zoom_at_pointer`]).
+    /// is the pointer in window coordinates (see `AppState::zoom_at_pointer`).
     pub fn zoom_at(&mut self, x: f32, factor: f32, cx: &mut Context<Self>) {
         if self
             .state

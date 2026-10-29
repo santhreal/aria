@@ -181,10 +181,9 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         },
     )
     .when(guards::selection),
-    // Rows whose bodies live in `crate::commands::reach`, which the palette rows
-    // call too, so the bar and the palette cannot drift into doing two
-    // different things. The labels match the palette's, which is what makes
-    // the palette offer each row once instead of twice.
+    // Rows whose bodies live in `crate::commands::reach`, which the lane-shift
+    // chords call too, so a row and its chord cannot drift into doing two
+    // different things.
     MenuItem::new(
         "seq-lane-shift-later",
         "Shift Lane One Second Later",

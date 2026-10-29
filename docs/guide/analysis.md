@@ -16,6 +16,9 @@ progress, and can be cancelled. A run fails before it starts, by name, when
 nothing is selected, the clip is generated, the media is offline, or an audio
 detector is run on media with no audio track. 10-bit video is rejected for
 shot detection rather than reported as having no cuts.
+The palette's **Detect Shots** (`pal-detect-shots`), **Detect Silence**
+(`pal-detect-silence`), and **Detect Beats** (`pal-detect-beats`) rows start the
+same runs as the **Detect** buttons.
 
 A beat run also writes its grid onto the clip it ran on, as one undo entry. The
 grid is stored in source ticks, so it rides trims, splits, and speed changes: a
@@ -28,8 +31,9 @@ detector and the **Confidence** chips set a floor, both without re-reading the i
 **Refresh** re-reads the index, which is how a run that finished while the tab
 was showing another clip appears without re-detecting anything.
 **Previous** and **Next** move the playhead between the visible rows and stop at
-the ends. Stored beats also draw as hairlines on the ruler and act as snap
-magnets; they are not clickable.
+the ends; the palette's **Previous Detected Moment** (`pal-previous-moment`) and
+**Next Detected Moment** (`pal-next-moment`) rows do the same. Stored beats also
+draw as hairlines on the ruler and act as snap magnets; they are not clickable.
 
 Two rows turn a detection into an edit:
 
@@ -41,7 +45,8 @@ Two rows turn a detection into an edit:
 **Measure** in the **Loudness** row measures the clip's loudness contour, prints
 the peak level beside the button with a clipping flag, and draws the contour in
 the Effect Controls panel's Audio tab, one column per window. The contour is
-measured on demand, not per frame.
+measured on demand, not per frame. **Measure Loudness** (`pal-loudness`) in the
+palette does the same.
 
 Results are keyed on the media file, identified by its path, length, and
 modification time rather than a digest of its bytes: hashing a multi-gigabyte file
@@ -92,7 +97,7 @@ returns to is the top of whatever is on the clip now.
 
 Detect silence and beats, then duck music under a voiceover track:
 
-1. Select a dialogue clip on `A1`, run **Analysis** (`pal-analysis`) in the Command Palette to open the Project panel's **Analysis** tab, and press <kbd>Shift+Alt+Q</kbd> (`key-detect-silence`) or choose **Sequence > Analyze > Detect Silence** (or run **Detect Silence** (`pal-detect-silence`)). The background job detects silent spans below `-50 dBFS` and lists them with timecodes; click [`analysis-prev`](../reference/controls.md#project-panel) and [`analysis-next`](../reference/controls.md#project-panel) to step the playhead through the detected moments, or click [`analysis-cut-silence`](../reference/controls.md#project-panel) to ripple-delete silent pauses.
+1. Select a dialogue clip on `A1`, run **Analysis** (`pal-analysis`) in the Command Palette to open the Project panel's **Analysis** tab, and press <kbd>Shift+Alt+Q</kbd> (`key-detect-silence`) or run **Detect Silence** (`pal-detect-silence`) in the Command Palette. The background job detects silent spans below `-50 dBFS` and lists them with timecodes; click [`analysis-prev`](../reference/controls.md#project-panel) and [`analysis-next`](../reference/controls.md#project-panel) to step the playhead through the detected moments, or click [`analysis-cut-silence`](../reference/controls.md#project-panel) to ripple-delete silent pauses.
 2. Select a music clip on `A2` and press <kbd>Shift+Alt+B</kbd> (`key-detect-beats`) or choose **Clip > Analyze > Detect Beats** (or click [`analysis-loudness`](../reference/controls.md#project-panel) / choose **Sequence > Analyze > Measure Loudness** to inspect its loudness contour). Beat hairlines appear along the timeline ruler as snap targets.
 3. Right-click the `A1` voiceover track header and choose **Duck Source**, or select `A1` and run **Toggle Track as Duck Source** (`pal-track-duck`) in the Command Palette. The `A1` track header marks `A1` as the duck source.
 4. Select the music clip on `A2`, adjust the dip depth with **Sequence > Ducking > Cycle Duck Amount** (or press <kbd>Alt+D</kbd> (`key-duck-amount`)), and click [`duck-run`](../reference/controls.md#inspector) in the Effect Controls **Audio** tab (or press <kbd>Shift+Alt+D</kbd> (`key-duck-apply`) / run **Duck Under Voice** (`pal-duck`)). Aria measures the voice spans on `A1` and writes volume keyframes on the `A2` music clip, dipping the music line on the timeline wherever speech is present.

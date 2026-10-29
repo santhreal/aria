@@ -212,17 +212,12 @@ fn the_strip_is_not_an_edit() {
     assert_eq!(state.history_depth(), depth, "viewing is not editing");
 }
 
-/// The strip is reached from the palette and View, and the Scopes panel from
-/// Window, where every dock panel has its row.
+/// The strip is reached from View and the Scopes panel from Window, where every
+/// dock panel has its row. The palette offers both by name as it offers every
+/// menu row: `palette_tests::every_menu_row_is_offered_by_name`.
 #[test]
-fn the_palette_and_the_menus_reach_the_strip_and_the_panel() {
+fn the_menus_reach_the_strip_and_the_panel() {
     let (state, _) = with_clip();
-    assert!(
-        crate::commands::BUILTIN_COMMANDS
-            .iter()
-            .any(|command| command.id == "pal-preview-scopes"),
-        "the palette has no way to open the scope strip"
-    );
     let view = crate::chrome::labels_for(crate::types::AppMenu::View, &state);
     assert!(
         view.contains(&"Scope Strip"),

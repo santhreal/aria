@@ -23,7 +23,7 @@
 //! Cells render on a [`CellRenderer`] of their own, so a cell neither holds the
 //! engine through its decode nor moves the decoders the Viewer's frames are
 //! read from. A cell the store drops leaves the window atlas with the Viewer's
-//! replaced frames, through [`AppState::release_retired_images`], and at the
+//! replaced frames, through `AppState::release_retired_images`, and at the
 //! latest when the next cell lands.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};

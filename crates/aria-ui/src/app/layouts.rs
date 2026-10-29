@@ -403,7 +403,7 @@ impl AppState {
 
     /// Drag a splitter at `split_path` between `index` and `index + 1` by
     /// `delta_px` pixels in a window `window_px` long along the split's axis,
-    /// against [`Self::split_span_px`], so a nested split moves 1:1 with the
+    /// against `Self::split_span_px`, so a nested split moves 1:1 with the
     /// pointer.
     pub fn drag_split_by_pixels(
         &mut self,

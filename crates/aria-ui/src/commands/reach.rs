@@ -7,10 +7,11 @@
 //! crate's registries, so a row here is not a convenience — before it, that verb
 //! had no operator path at all.
 //!
-//! The action bodies are functions rather than closures inside the table because
-//! the Sequence menu offers the same actions: `chrome::menu_sequence`
-//! calls these, so a palette row and a menu row cannot drift into doing two
-//! different things. One owner per action.
+//! The action bodies below the helpers are functions because the menu bar and
+//! the key bindings run them: the File, Clip, Effect, Markers and Sequence
+//! menus and `keys::bindings_reach` call these, so a menu row and a chord
+//! cannot drift into doing two different things. A menu row is the palette's
+//! row for its action, so no row here repeats one.
 //!
 //! The keyframe rows are the fail-by-default half. `ClipParam::class` declares
 //! which parameters the animatable-property catalog addresses directly, and
@@ -133,7 +134,7 @@ pub(crate) fn cycle_font(state: &mut AppState, forward: bool) {
     }
 }
 
-/// New Sequence, from the File menu, the palette, and Ctrl+N.
+/// New Sequence, from the File menu and Ctrl+N.
 pub(crate) fn new_sequence(state: &mut AppState) {
     if let Err(err) = state.new_sequence() {
         state.report_error(&err);
@@ -141,7 +142,7 @@ pub(crate) fn new_sequence(state: &mut AppState) {
 }
 
 /// Nest, open, leave, place. Four actions over one report path so a refusal
-/// reads the same whether it came from the palette or the Sequence menu.
+/// reads the same from the Clip menu, the Sequence menu and the palette.
 pub(crate) fn nest_selection(state: &mut AppState) {
     if let Err(err) = state.nest_selection_named_in_order() {
         state.report_error(&err);
@@ -194,53 +195,7 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
         label: "Keyframe Pan at Playhead",
         run: |state| keyframe(state, ClipParam::Pan),
     },
-    // --- ducking: the dip was reachable, its shape was not ------------------
-    CommandEntry {
-        id: "pal-duck-amount",
-        label: "Cycle Duck Amount",
-        run: |state| state.cycle_duck_amount(),
-    },
-    CommandEntry {
-        id: "pal-duck-attack",
-        label: "Cycle Duck Attack",
-        run: |state| state.cycle_duck_attack(),
-    },
-    CommandEntry {
-        id: "pal-duck-release",
-        label: "Cycle Duck Release",
-        run: |state| state.cycle_duck_release(),
-    },
-    // --- lanes, markers, pool, canvas ---------------------------------------
-    CommandEntry {
-        id: "pal-lane-shift-later",
-        label: "Shift Lane One Second Later",
-        run: |state| shift_lane(state, true),
-    },
-    CommandEntry {
-        id: "pal-lane-shift-earlier",
-        label: "Shift Lane One Second Earlier",
-        run: |state| shift_lane(state, false),
-    },
-    CommandEntry {
-        id: "pal-ripple-insert",
-        label: "Insert Pool Selection at Playhead",
-        run: ripple_insert,
-    },
-    CommandEntry {
-        id: "pal-marker-snap",
-        label: "Move Nearest Marker to Playhead",
-        run: snap_marker,
-    },
-    CommandEntry {
-        id: "pal-effect-reset",
-        label: "Reset Effect Parameters",
-        run: reset_effects,
-    },
-    CommandEntry {
-        id: "pal-canvas-background",
-        label: "Reset Canvas Background",
-        run: reset_canvas_background,
-    },
+    // --- pool, titles -------------------------------------------------------
     CommandEntry {
         id: "pal-media-filter-clear",
         label: "Clear Pool Filter",
@@ -265,50 +220,5 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
         id: "pal-proxy-create-all",
         label: "Proxy Every Pool Item",
         run: |state| state.proxy_whole_pool(),
-    },
-    // --- render and replace -------------------------------------------------
-    CommandEntry {
-        id: "pal-bake-clip",
-        label: "Render and Replace",
-        run: |state| {
-            if let Err(err) = state.render_and_replace() {
-                state.status_message = Some(err);
-            }
-        },
-    },
-    CommandEntry {
-        id: "pal-bake-restore",
-        label: "Restore Unrendered",
-        run: |state| {
-            if let Err(err) = state.restore_unrendered() {
-                state.status_message = Some(err);
-            }
-        },
-    },
-    // --- nested sequences: three operator commands with no surface ----------
-    CommandEntry {
-        id: "pal-new-sequence",
-        label: "New Sequence",
-        run: new_sequence,
-    },
-    CommandEntry {
-        id: "pal-nest-selection",
-        label: "Nest Selection into a Sequence",
-        run: nest_selection,
-    },
-    CommandEntry {
-        id: "pal-nest-open",
-        label: "Open the Selected Nested Sequence",
-        run: open_selected_nest,
-    },
-    CommandEntry {
-        id: "pal-nest-leave",
-        label: "Leave the Open Nested Sequence",
-        run: leave_sequence,
-    },
-    CommandEntry {
-        id: "pal-nest-place",
-        label: "Place the Selected Nest at the Playhead",
-        run: place_selected_nest,
     },
 ];

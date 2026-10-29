@@ -409,6 +409,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- The Command Palette no longer lists 76 commands that repeated a menu bar row, runs each menu bar row by its menu label, and with nothing typed lists the menu bar rows first, in menu bar order, then the commands no menu holds.
 - Text boxes, solid buttons, ghost buttons and chips are 24 px high, the height of an icon control's hit box, so a form label and every control in its row stand on one center line; compact chips are 20 px high.
 - Inactive chips and tabs of every size show muted text; faint text marks only a disabled control.
 - The Project panel lists the open group's tabs as underlined tabs whose labels start on the group labels' edge, and the Viewer tabs share the same tab.
@@ -738,6 +739,9 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- A video side with more tracks than it holds opens with V1 on the A/V divider instead of the top track at the side's top, and a wheel up over it shows the tracks above V1.
+- A lane side's scroll kept from before a track was removed or shortened no longer lifts its tracks off the A/V divider, and the first wheel step moves them.
+- The 0 and -60 dBFS marks of the Audio Meters no longer run into the clip light and the channel names.
 - A timeline filmstrip covers its clip end to end at every zoom, with no gap between cells, before the first cell of a clip that starts between cells, or between frames zoomed wider than a cell; its last cell is cropped at the clip's end instead of squeezed, and only cells on screen are rendered.
 - A drag that starts on a timeline clip's opacity or volume line moves the clip when it travels along the lane and moves the line when it travels across it, instead of holding the line and leaving the clip in place; a double-click on the line opens the clip as a body double-click does.
 - The timeline zoom bar draws its thumb lighter than the band of clips under it, and lighter still while held, instead of drawing the band brighter than the thumb.

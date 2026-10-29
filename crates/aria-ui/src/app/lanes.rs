@@ -129,14 +129,16 @@ impl AppState {
         self.timeline_av_split = ratio.clamp(0.15, 0.85);
     }
 
-    /// Scroll the video lane group vertically, clamped to `[0.0, max_scroll]`.
+    /// Scroll the video lane group `delta_y` px further up from the A/V
+    /// divider, toward its top lane, clamped to `[0.0, max_scroll]`.
     pub fn scroll_video_lanes(&mut self, delta_y: f32, max_scroll: f32) {
-        self.video_scroll_y = (self.video_scroll_y + delta_y).clamp(0.0, max_scroll.max(0.0));
+        self.video_scroll_y = scrolled(self.video_scroll_y, delta_y, max_scroll);
     }
 
-    /// Scroll the audio lane group vertically, clamped to `[0.0, max_scroll]`.
+    /// Scroll the audio lane group `delta_y` px further down from the A/V
+    /// divider, toward its last lane, clamped to `[0.0, max_scroll]`.
     pub fn scroll_audio_lanes(&mut self, delta_y: f32, max_scroll: f32) {
-        self.audio_scroll_y = (self.audio_scroll_y + delta_y).clamp(0.0, max_scroll.max(0.0));
+        self.audio_scroll_y = scrolled(self.audio_scroll_y, delta_y, max_scroll);
     }
 
     /// Number of visual lanes seated above the A/V divider.
@@ -160,6 +162,15 @@ impl AppState {
     pub fn lane_badge_at(&self, row: usize) -> String {
         lane_badge(&self.store.sequence.tracks, row)
     }
+}
+
+/// A lane side's scroll moved by `delta`, within `[0.0, max_scroll]`. A scroll
+/// past `max_scroll`, kept from before a lane was removed or shortened, is
+/// brought within it before `delta` applies, so the first wheel step moves the
+/// lanes.
+fn scrolled(scroll: f32, delta: f32, max_scroll: f32) -> f32 {
+    let max_scroll = max_scroll.max(0.0);
+    (scroll.min(max_scroll) + delta).clamp(0.0, max_scroll)
 }
 
 /// Compute the ordinal badge (`V1`, `V2`, ..., `A1`, `A2`, ...) for `tracks[row]`.

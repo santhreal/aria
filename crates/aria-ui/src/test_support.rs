@@ -316,6 +316,9 @@ mod threads;
 mod dependency_direction;
 
 #[cfg(test)]
+mod file_length;
+
+#[cfg(test)]
 mod shell_draw;
 
 #[cfg(test)]

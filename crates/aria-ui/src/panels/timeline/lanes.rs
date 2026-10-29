@@ -104,7 +104,7 @@ pub(super) fn lane_group(
         });
     }
     let total_content_h: f32 = sized.iter().map(|lane| lane.clip_h + lane.outline_h).sum();
-    let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h) - scroll_y;
+    let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h, scroll_y);
     // A clip drag in flight draws its clips where the release puts them, and a
     // ripple move draws the line it inserts at.
     let (held, held_edit) = {
@@ -418,12 +418,14 @@ pub(super) fn lane_group(
             }
             if dy.abs() > 0.01 {
                 cx.stop_propagation();
+                // A wheel down lifts both sides' lanes: the audio side's scroll
+                // counts down from the divider and the video side's up from it.
                 this.state.update(cx, |state, _| {
                     let max_scroll = (total_content_h - group_viewport_h).max(0.0);
                     if is_audio {
                         state.scroll_audio_lanes(-dy, max_scroll);
                     } else {
-                        state.scroll_video_lanes(-dy, max_scroll);
+                        state.scroll_video_lanes(dy, max_scroll);
                     }
                 });
                 this.redraw(crate::shell::Moved::View, cx);
@@ -454,16 +456,20 @@ struct SizedLane {
 }
 
 /// Where a group's first lane starts in a viewport `viewport_h` tall whose
-/// lanes take `content_h`, before scrolling.
+/// lanes take `content_h`, scrolled `scroll` away from the A/V divider.
 ///
-/// Audio lanes hang from the A/V divider at the top of their side. Video lanes
-/// number upward from V1 on the divider, so lanes shorter than their side stand
-/// at its bottom and the empty space is above the top lane.
-fn first_lane_top(is_audio: bool, viewport_h: f32, content_h: f32) -> f32 {
+/// Both sides rest on the divider. Audio lanes hang from it at the top of their
+/// side. Video lanes number upward from V1 on it, so lanes shorter than their
+/// side stand at its bottom with the empty space above the top lane, and lanes
+/// taller than it draw V1 on the divider until a scroll lifts the side toward
+/// its top lane. A scroll past the lanes' overflow, kept from before a lane was
+/// removed or shortened, draws as the farthest scroll the lanes have.
+fn first_lane_top(is_audio: bool, viewport_h: f32, content_h: f32, scroll: f32) -> f32 {
+    let scroll = scroll.clamp(0.0, (content_h - viewport_h).max(0.0));
     if is_audio {
-        0.0
+        -scroll
     } else {
-        (viewport_h - content_h).max(0.0)
+        viewport_h - content_h + scroll
     }
 }
 
