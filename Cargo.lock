@@ -1710,7 +1710,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "gpui_util",
  "indexmap 2.14.0",
@@ -2478,7 +2478,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3405,7 +3405,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -3475,7 +3475,7 @@ dependencies = [
 [[package]]
 name = "gpui_apple"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "block",
@@ -3498,7 +3498,7 @@ dependencies = [
 [[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -3544,7 +3544,7 @@ dependencies = [
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -3590,7 +3590,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -3601,7 +3601,7 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",
@@ -3617,7 +3617,7 @@ dependencies = [
 [[package]]
 name = "gpui_shared_string"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "schemars",
  "serde",
@@ -3627,7 +3627,7 @@ dependencies = [
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "log",
@@ -3637,7 +3637,7 @@ dependencies = [
 [[package]]
 name = "gpui_web"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",
@@ -3661,7 +3661,7 @@ dependencies = [
 [[package]]
 name = "gpui_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3687,7 +3687,7 @@ dependencies = [
 [[package]]
 name = "gpui_windows"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "accesskit",
  "accesskit_windows",
@@ -4099,7 +4099,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -4825,7 +4825,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "anyhow",
  "bindgen 0.71.1",
@@ -4903,7 +4903,7 @@ dependencies = [
 [[package]]
 name = "motion"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 
 [[package]]
 name = "moxcms"
@@ -5851,7 +5851,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 [[package]]
 name = "perf"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "collections",
  "serde",
@@ -6531,7 +6531,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "derive_refineable",
 ]
@@ -6846,7 +6846,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "async-task",
  "backtrace",
@@ -7318,7 +7318,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "heapless",
  "log",
@@ -8077,7 +8077,7 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 [[package]]
 name = "util_macros"
 version = "0.1.0"
-source = "git+https://github.com/santhreal/santh-gpui?rev=89e2018ede4f03d7e8e44cceada665512a1ed722#89e2018ede4f03d7e8e44cceada665512a1ed722"
+source = "git+https://github.com/santhreal/santh-gpui?rev=823e18ee9d3370b20fb9c8cc8b047db0730d19f8#823e18ee9d3370b20fb9c8cc8b047db0730d19f8"
 dependencies = [
  "perf",
  "quote",

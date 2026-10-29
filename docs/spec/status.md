@@ -302,3 +302,19 @@ frames that waited $12\text{ ms}$ to $18\text{ ms}$ for the display between 0
 and 2 per run, from between 123 and 133; UI thread time in frames between
 $329.9\text{ ms}$ and $513.2\text{ ms}$, from between $2038.7\text{ ms}$ and
 $2205.9\text{ ms}$.
+
+Under a compositor on X11 a window presents with Immediate when the surface
+offers no Mailbox mode, and sets `_NET_WM_BYPASS_COMPOSITOR` to 2 so the
+compositor keeps compositing it and still removes tearing. Measured on the
+Desktop (RTX 5090, GNOME on Xorg, the NVIDIA surface offering Fifo, FifoRelaxed
+and Immediate, window on the $240\text{ Hz}$ monitor) over the first
+$20\text{ s}$ after a launch that opens four media files, in three paired
+runs: frame draw and present p50 between $1.84\text{ ms}$ and $1.87\text{ ms}$
+(p95 $2.97\text{ ms}$ to $4.00\text{ ms}$), from between $13.03\text{ ms}$ and
+$15.66\text{ ms}$ (p95 $15.44\text{ ms}$ to $16.94\text{ ms}$) in runs that
+presented with Fifo, which the compositor released at $60\text{ Hz}$; frames
+that waited $12\text{ ms}$ to $18\text{ ms}$ for the display between 1 and 3
+per run, from between 120 and 129; frames drawn between 477 and 491, from
+between 142 and 156. A window that draws continuously presents at
+$239\text{ fps}$ with acquire p50 $0.009\text{ ms}$, from $60\text{ fps}$ with
+acquire p50 $13.7\text{ ms}$ to $14.5\text{ ms}$.
