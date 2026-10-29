@@ -460,6 +460,24 @@ impl AppState {
         }
     }
 
+    /// The picture lanes the mixer draws no strip for: no clip on them holds
+    /// its sound in the picture. A picture lane is in the mix to play such
+    /// sound, so while every clip's sound sits on an audio lane its strip is a
+    /// fader for silence. The lane keeps its place in the mix, and its strip
+    /// returns with the first clip that holds sound.
+    pub fn soundless_picture_lanes(&self) -> Vec<u64> {
+        self.store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| {
+                lane.kind == crate::types::UiTrackKind::Video
+                    && !lane.clips.iter().any(|clip| clip.can_extract_audio)
+            })
+            .map(|lane| lane.id)
+            .collect()
+    }
+
     /// The projected strip for `track`, when it is in the mix.
     fn strip_of(&self, track: TrackId) -> Option<&MixerStrip> {
         self.facts

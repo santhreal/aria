@@ -5,7 +5,11 @@
 <kbd>Shift+6</kbd> (`key-mixer`), or **Window > Audio Track Mixer**, shows the Audio Track Mixer in place
 of the Viewer. It holds one strip per lane that has sound, plus one per submix
 bus, drawn in the order the mixdown folds them: a bus sits after everything that
-feeds it. The Master strip comes last and holds the master's **Inserts**.
+feeds it. The Master strip comes last and holds the master's **Inserts**. An
+audio lane always has a strip. A picture lane has one while a clip on it holds
+its sound in the picture; a lane whose clips' sound is on an audio lane, or
+whose clips have none, has no strip until such a clip lands on it. With no
+strip to draw, the mixer shows a line in place of the Master strip.
 
 Each strip holds:
 

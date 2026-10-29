@@ -1,5 +1,6 @@
-//! The audio mixer: one strip per lane and per bus, in the order the mix folds
-//! them.
+//! The audio mixer: one strip per lane that holds sound and per bus, in the
+//! order the mix folds them. A picture lane whose clips hold no sound in the
+//! picture draws no strip ([`AppState::soundless_picture_lanes`]).
 //!
 //! Everything a lane has in the mix is on its strip and nowhere else: its
 //! insert chain, the fader, where the lane goes, and which buses get a copy of
@@ -63,6 +64,7 @@ pub(crate) fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let theme = Theme::of(cx);
+    let soundless = state.read(cx).soundless_picture_lanes();
     let body = match state.read(cx).mixer_strips() {
         // A cyclic routing graph is the one thing this panel cannot draw, and
         // the model names the lane in the sentence. Shown as the refusal it is
@@ -76,15 +78,18 @@ pub(crate) fn render(
                 .child(refusal)
                 .into_any_element()
         }
-        Ok(strips) if strips.is_empty() => crate::components::empty_state(
-            "mixer",
-            "No audio lanes yet. Add one, or add a submix bus, to mix.",
-            &theme,
-        )
-        .into_any_element(),
+        Ok(strips) if strips.iter().all(|strip| soundless.contains(&strip.track)) => {
+            crate::components::empty_state(
+                "mixer",
+                "No audio lanes yet. Add one, or add a submix bus, to mix.",
+                &theme,
+            )
+            .into_any_element()
+        }
         Ok(strips) => {
             let mut drawn: Vec<Strip> = strips
                 .iter()
+                .filter(|strip| !soundless.contains(&strip.track))
                 .map(|strip| channel(state, &theme, strip, cx))
                 .collect();
             drawn.push(master(state, &theme, cx));
@@ -915,3 +920,7 @@ fn chip(
         )
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "mixer_tests.rs"]
+mod tests;

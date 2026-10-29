@@ -185,11 +185,12 @@ Anything not listed here is not in the build.
   Reduction, Reverb, Delay, Pitch Shifter, four channel tools, and a Loudness
   Normalizer. Parameters take keyframes, the mixer compensates each effect's
   latency, and a plugin adds effects of its own.
-- A mixer, one strip per lane and per submix bus, on Shift+6. Each strip has
-  the lane's fader in decibels, the bus or master it outputs to, and a chip per
-  bus that cycles the send off, post-fader, and pre-fader. Strips are drawn in
-  the order the mixdown folds them, so a bus sits after everything feeding it,
-  and a lane whose signal never arrives at the master is marked.
+- A mixer, one strip per lane that has sound and per submix bus, on Shift+6.
+  Each strip has the lane's fader in decibels, the bus or master it outputs to,
+  and a chip per bus that cycles the send off, post-fader, and pre-fader.
+  Strips are drawn in the order the mixdown folds them, so a bus sits after
+  everything feeding it, and a lane whose signal never arrives at the master is
+  marked.
 - A peak meter beside every fader, in the mixer and on the Viewer's control
   row. A strip's bars read that lane's own level after its own fader, so a bus
   reads what everything routed into it sums to. A lane the mix is not carrying reads

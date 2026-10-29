@@ -24,10 +24,11 @@ The meters run during playback, scrubbing, and from the Source tab.
 
 ## Audio Track Mixer
 
-One strip per audio track and the master: pan, fader in dB, mute, solo, record
-arm reserved for a later version, effect inserts (five per strip), sends, and
-the output selector. Fader and pan changes during playback write keyframes when
-the strip's automation mode is Write or Touch, and are read back in Read mode.
+One strip per lane that has sound, per submix bus, and the master: pan, fader
+in dB, mute, solo, record arm reserved for a later version, effect inserts
+(five per strip), sends, and the output selector. Fader and pan changes during
+playback write keyframes when the strip's automation mode is Write or Touch, and
+are read back in Read mode.
 
 ## Audio effects
 

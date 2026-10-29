@@ -84,8 +84,9 @@ fn the_audio_workspace_shows_every_mixer_strip_whole_in_the_opening_window(
 }
 
 /// The Audio workspace at `width` x `height` with an audio lane and a submix
-/// bus added, so the strips are a video lane, an audio lane, a bus and the
-/// master, whose heads hold different rows.
+/// bus added, so the strips are an audio lane, a bus and the master, whose
+/// heads hold different rows. The new project's video lane holds no sound and
+/// draws no strip.
 fn audio_workspace(
     cx: &mut TestAppContext,
     width: f32,
@@ -119,13 +120,21 @@ fn strip_part(visual: &mut VisualTestContext, part: &str, id: u64, win: &str) ->
         .unwrap_or_else(|| panic!("at {win} the mixer drew no `{selector}`"))
 }
 
-/// Every strip's raw id, the master's `0` last, as the mixer draws them.
+/// Every strip's raw id, the master's `0` last, as the mixer draws them: a
+/// picture lane that holds no sound draws none.
 fn strip_ids(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext) -> Vec<u64> {
     let mut ids: Vec<u64> = visual.read(|app| {
+        let state = state.read(app);
+        let soundless = state.soundless_picture_lanes();
         state
-            .read(app)
             .mixer_strips()
-            .map(|strips| strips.iter().map(|strip| strip.track).collect())
+            .map(|strips| {
+                strips
+                    .iter()
+                    .map(|strip| strip.track)
+                    .filter(|track| !soundless.contains(track))
+                    .collect()
+            })
             .unwrap_or_else(|refusal| panic!("the mixer refused to draw: {refusal}"))
     });
     ids.push(0);

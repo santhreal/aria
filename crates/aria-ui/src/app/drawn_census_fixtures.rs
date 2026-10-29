@@ -42,6 +42,16 @@ pub(super) fn with_video() -> (AppState, ClipId) {
     )
     .expect("state");
     state.new_project().expect("project");
+    let picture = TrackId::from_raw(state.store.sequence.tracks[0].id);
+    let clip = video_in_picture(&mut state, picture);
+    state.select_clip(clip);
+    (state, clip)
+}
+
+/// Import the video fixture and place it at the start of `lane`, its sound
+/// held inside the picture clip, as [`with_video`] does; the placed clip.
+/// `pub(crate)` for the drawn tests, which dress the state a window holds.
+pub(crate) fn video_in_picture(state: &mut AppState, lane: TrackId) -> ClipId {
     let media = state
         .import_media(asset("fixture-640x360-24fps-3s-av.mp4"))
         .expect("import the video fixture");
@@ -52,7 +62,6 @@ pub(super) fn with_video() -> (AppState, ClipId) {
         .media(media)
         .map(|item| item.full_range())
         .expect("the video fixture is in the pool");
-    let picture = TrackId::from_raw(state.store.sequence.tracks[0].id);
     let outcome = state
         .apply_command(Command::Edit(EditCommand::SourceEdit {
             media,
@@ -60,15 +69,14 @@ pub(super) fn with_video() -> (AppState, ClipId) {
             at: RationalTime::new(0, state.playhead.rate),
             fill: None,
             ripple: false,
-            track: Some(picture),
+            track: Some(lane),
             sound: SoundPlacement::InPicture,
         }))
         .expect("place the video fixture");
     let ApplyOutcome::Edited(EditOutcome::Created(clip)) = outcome else {
         panic!("placing the video fixture produced {outcome:?}, not a clip");
     };
-    state.select_clip(clip);
-    (state, clip)
+    clip
 }
 
 /// A project holding the audio fixture, selected: the clip lands on an audio

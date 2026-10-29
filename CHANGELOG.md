@@ -411,6 +411,7 @@ Notes for the latest release. For previous releases, see the
 
 - Placing a source with sound in a sequence with no audio lane creates an audio lane and lands the sound there as a clip linked to the picture, and the new lane and the edit are one undo step named Source edit.
 - `aria new` places each file's sound on `A1` as a clip linked to its picture on `V1`, and its summary counts files.
+- The Audio Track Mixer draws no strip for a picture lane while none of its clips holds sound in the picture, so a sound placed on a linked audio lane has one strip and the new project's empty Main lane has none.
 - The Command Palette no longer lists 76 commands that repeated a menu bar row, runs each menu bar row by its menu label, and with nothing typed lists the menu bar rows first, in menu bar order, then the commands no menu holds.
 - The Transform tab's Parent row names each clip it offers by its lane badge and name, as in `V2 Interview`, so clips cut from one file on different lanes read apart.
 - Text boxes, solid buttons, ghost buttons and chips are 24 px high, the height of an icon control's hit box, so a form label and every control in its row stand on one center line; compact chips are 20 px high.
