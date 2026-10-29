@@ -410,6 +410,7 @@ Notes for the latest release. For previous releases, see the
 ### Changed
 
 - The Command Palette no longer lists 76 commands that repeated a menu bar row, runs each menu bar row by its menu label, and with nothing typed lists the menu bar rows first, in menu bar order, then the commands no menu holds.
+- The Transform tab's Parent row names each clip it offers by its lane badge and name, as in `V2 Interview`, so clips cut from one file on different lanes read apart.
 - Text boxes, solid buttons, ghost buttons and chips are 24 px high, the height of an icon control's hit box, so a form label and every control in its row stand on one center line; compact chips are 20 px high.
 - Inactive chips and tabs of every size show muted text; faint text marks only a disabled control.
 - The Project panel lists the open group's tabs as underlined tabs whose labels start on the group labels' edge, and the Viewer tabs share the same tab.

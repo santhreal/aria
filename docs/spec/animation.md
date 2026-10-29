@@ -98,7 +98,8 @@ Pen tool adds a keyframe at that point.
 
 The Transform group has a Parent row. It shows the parent in the value column,
 and on the line under it None, a chip for each clip the model accepts as the
-parent, and the pick whip, a link icon lit while armed. Dragging the pick whip
+parent, and the pick whip, a link icon lit while armed. A parent is named by
+its lane badge and clip name, as in `V2 Interview`. Dragging the pick whip
 onto another clip, clicking it and then a clip, or choosing a clip's chip makes
 this clip's transform relative to the parent's. The parent must overlap the
 child in time; outside the overlap the child uses its own transform. Parenting

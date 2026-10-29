@@ -9,7 +9,8 @@
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{TrackDisplay, TrackId};
+use aria_models::{ClipId, TrackDisplay, TrackId};
+use gpui::SharedString;
 
 use super::AppState;
 
@@ -161,6 +162,17 @@ impl AppState {
     /// the divider (`A1`, `A2`, `A3`, ...).
     pub fn lane_badge_at(&self, row: usize) -> String {
         lane_badge(&self.store.sequence.tracks, row)
+    }
+
+    /// `clip`'s lane badge and name, as in `V3 hevc-2160p60`. Clips cut from
+    /// one file read the same by name; on different lanes the badge tells them
+    /// apart. `None` when no lane holds `clip`.
+    pub fn clip_lane_label(&self, clip: ClipId) -> Option<SharedString> {
+        let tracks = &self.store.sequence.tracks;
+        tracks.iter().enumerate().find_map(|(row, track)| {
+            let ui = track.clips.iter().find(|ui| ui.id == clip.raw())?;
+            Some(format!("{} {}", lane_badge(tracks, row), ui.name).into())
+        })
     }
 }
 

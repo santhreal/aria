@@ -1,6 +1,8 @@
 //! Inspector: properties for the selected clip.
 
 pub mod blocks;
+#[cfg(test)]
+mod choice_rows_tests;
 mod clip_type;
 #[cfg(test)]
 mod columns_tests;

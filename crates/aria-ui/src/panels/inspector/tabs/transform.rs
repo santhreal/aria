@@ -88,10 +88,8 @@ fn parent_row(
     let choices = app.selected_parent_choices()?;
     let current = choices.current;
     let name_of = |clip: ClipId| -> SharedString {
-        app.ui_clip_ref(clip).map_or_else(
-            || SharedString::new_static("Missing clip"),
-            |ui| ui.name.clone(),
-        )
+        app.clip_lane_label(clip)
+            .unwrap_or_else(|| SharedString::new_static("Missing clip"))
     };
     let stale = current.filter(|clip| !choices.eligible.contains(clip));
     let parents: Vec<ParentChip> = stale

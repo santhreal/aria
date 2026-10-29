@@ -14,13 +14,8 @@
 //! build here until it is given a slot. A tab added to the Inspector fails
 //! [`every_tab_is_held_to_the_columns_or_named_as_not`] until it is placed.
 //! The Look tab is drawn with every layer style in `clip_styles::STYLES` on,
-//! and each style's catalog colors must draw a line.
-//!
-//! Also closes the class "a choice row whose mark disagrees with its value".
-//! An effect's layer slot left at None showed None and marked no chip. Every
-//! choice row records the choice its value column shows and each chip's mark,
-//! so a picker of any kind marks the choice it shows, one at most, and none
-//! while it shows a mixed value.
+//! and each style's catalog colors must draw a line. Every choice row drawn
+//! is held to `choice_rows_tests`.
 //!
 //! Also closes the class "an Inspector control stretched across its block".
 //! Reset grade, Remove key, Clear styles, the blend modes, the key colors and
@@ -58,22 +53,24 @@
 //! built twice fails the tab that drew it.
 //!
 //! Not covered: a row drawn without the row widgets, the tabs in [`NOT_HELD`],
-//! a picker drawn outside a choice row, a line whose label another line in the
-//! same columns shares, of which the last drawn is read, a control not built
-//! with `components::ghost_button`, `components::chip` or `components::switch`,
-//! such as an icon button or a note's text, a control whose caller replaces
-//! its debug selector, and a control only drawn after a press, such as a list
-//! a button opens.
+//! a line whose label another line in the same columns shares, of which the
+//! last drawn is read, a control not built with `components::ghost_button`,
+//! `components::chip` or `components::switch`, such as an icon button or a
+//! note's text, a control whose caller replaces its debug selector, and a
+//! control only drawn after a press, such as a list a button opens.
 
 use aria_models::{
     AudioInsertTarget, AudioRole, ClipParam, EffectChoiceOption, EffectCurvePoint,
     EffectGradientStop, EffectParamKind, EffectParamSpec, EffectSpec, LookParam, MaskKind,
-    MatteSource, TransitionSpec,
+    MatteSource, MediaId, TrackId, TrackKind, TransitionSpec,
 };
 use gpui::{Bounds, FontWeight, Pixels, TestAppContext, VisualTestContext};
 
 use super::blocks::widgets::{
-    DrawnChoice, DrawnLine, LABEL_RESERVE, MIXED, drawn_choices, drawn_lines, picked, record_lines,
+    DrawnChoice, DrawnLine, LABEL_RESERVE, drawn_choices, drawn_lines, record_lines,
+};
+use super::choice_rows_tests::{
+    every_choice_marks_what_it_shows, no_two_choices_read_alike, shows_and_marks,
 };
 use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
@@ -191,49 +188,6 @@ fn drawn(visual: &mut VisualTestContext, selector: &'static str, at: &str) -> Bo
     visual
         .debug_bounds(selector)
         .unwrap_or_else(|| panic!("{at}: the Inspector draws no {selector}"))
-}
-
-/// Every choice row marks, of its chips, the one its value column shows and
-/// no other, and marks none while it shows a mixed value.
-fn every_choice_marks_what_it_shows(tab: &str, choices: &[DrawnChoice]) {
-    for choice in choices {
-        let marked: Vec<&str> = choice
-            .chips
-            .iter()
-            .filter(|(_, on)| *on)
-            .map(|(label, _)| &**label)
-            .collect();
-        let shown: Vec<&str> = choice
-            .chips
-            .iter()
-            .filter(|(label, _)| &*choice.current != MIXED && *label == choice.current)
-            .map(|(label, _)| &**label)
-            .collect();
-        assert!(
-            marked == shown && marked.len() <= 1,
-            "{tab}: {} shows {:?} and marks {marked:?} of {:?}",
-            choice.row,
-            choice.current,
-            choice.chips
-        );
-    }
-}
-
-/// The choice row whose label's debug selector is `row` shows `shown` and
-/// marks the chip of that name.
-fn shows_and_marks(tab: &str, choices: &[DrawnChoice], row: &str, shown: &str) {
-    let choice = choices
-        .iter()
-        .find(|choice| choice.row == row)
-        .unwrap_or_else(|| panic!("{tab}: no choice row {row} among {choices:?}"));
-    assert!(
-        &*choice.current == shown
-            && choice
-                .chips
-                .iter()
-                .any(|(label, on)| *on && &**label == shown),
-        "{tab}: {row} does not show and mark {shown:?}: {choice:?}"
-    );
 }
 
 /// Every control built since the record began, once each: its debug selector
@@ -422,6 +376,7 @@ fn every_line_stands_in_the_columns(
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
+    no_two_choices_read_alike(tab, &choices);
     let controls = recorded_controls(tab);
     let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let free: Vec<&str> = lines
@@ -525,6 +480,7 @@ fn every_line_stands_in_the_free_columns(
     let (state, visual) = drawn_with(cx, &format!("columns-{tab}"), media, tab, then);
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
+    no_two_choices_read_alike(tab, &choices);
     let controls = recorded_controls(tab);
     let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let keyed: Vec<&str> = lines
@@ -602,12 +558,6 @@ fn every_line_stands_in_the_free_columns(
 }
 
 #[test]
-fn a_choice_in_force_is_marked_and_no_other() {
-    assert_eq!(&*picked("Best", true), "• Best");
-    assert_eq!(&*picked("Best", false), "Best");
-}
-
-#[test]
 fn every_tab_is_held_to_the_columns_or_named_as_not() {
     let mut shipped: Vec<&str> = super::host_of()
         .tabs()
@@ -629,13 +579,48 @@ fn every_tab_is_held_to_the_columns_or_named_as_not() {
 
 #[gpui::test]
 async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
-    // Two properties keyed at the playhead, so the keyframes block draws two
-    // rows, each with its navigator and easing presets.
+    // Two clips of the selected clip's file on the lanes above it, so the
+    // Parent row offers two clips of one name. Two properties keyed at the
+    // playhead, so the keyframes block draws two rows, each with its navigator
+    // and easing presets.
     let (_, choices, held) = every_line_stands_in_the_columns(
         cx,
         ("texture.png", "transform"),
         ClipParam::Opacity,
         |state| {
+            let lower = state
+                .selected_clip()
+                .expect("the fixture's clip is selected");
+            let media = state
+                .ui_clip_ref(lower)
+                .and_then(|clip| clip.media_id)
+                .map(MediaId::from_raw)
+                .expect("the fixture's clip plays its file");
+            // Overwrite: a ripple drop opens a hole on every sync-locked lane,
+            // which would push the selected clip past the ones above it.
+            let mode = std::mem::replace(&mut state.edit_mode, crate::types::EditMode::Overwrite);
+            for name in ["V2", "V3"] {
+                state
+                    .add_track(TrackKind::Video, name)
+                    .expect("a lane above the fixture's");
+                state.sync_from_engine();
+                let lane = state
+                    .store
+                    .sequence
+                    .tracks
+                    .iter()
+                    .find(|lane| {
+                        matches!(lane.kind, crate::types::UiTrackKind::Video)
+                            && lane.clips.is_empty()
+                    })
+                    .map(|lane| TrackId::from_raw(lane.id))
+                    .expect("the new lane is projected");
+                state
+                    .drop_media_on_timeline(media, Some(lane), 0)
+                    .expect("a clip of the fixture's file on the lane");
+            }
+            state.edit_mode = mode;
+            state.select_clip(lower);
             for param in [ClipParam::Opacity, ClipParam::Rotation] {
                 keyframe_rows::apply(
                     state,
@@ -648,8 +633,18 @@ async fn every_transform_line_stands_in_the_columns(cx: &mut TestAppContext) {
             }
         },
     );
-    // A clip with no parent shows None and marks the None chip.
+    // A clip with no parent shows None and marks the None chip, beside the two
+    // clips above it.
     shows_and_marks("transform", &choices, "insp-label-Parent", "None");
+    let parent = choices
+        .iter()
+        .find(|choice| choice.row == "insp-label-Parent")
+        .expect("the Transform tab draws the Parent row");
+    assert_eq!(
+        parent.chips.len(),
+        3,
+        "the Parent row offers None and the two clips above: {parent:?}"
+    );
     holds(
         "transform",
         &held,
