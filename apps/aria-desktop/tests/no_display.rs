@@ -50,7 +50,7 @@ const CASES: &[Case] = &[
     Case {
         name: "x-absent",
         env: &[("DISPLAY", ABSENT_X)],
-        reason: "cannot connect to the X server at DISPLAY",
+        reason: "cannot connect to the X server at DISPLAY=:9973",
     },
     Case {
         name: "wayland-absent",
@@ -58,7 +58,7 @@ const CASES: &[Case] = &[
             ("WAYLAND_DISPLAY", "aria-absent-wayland"),
             ("XDG_RUNTIME_DIR", "/nonexistent-aria-runtime-dir"),
         ],
-        reason: "cannot connect to the Wayland compositor at WAYLAND_DISPLAY",
+        reason: "cannot connect to the Wayland compositor at WAYLAND_DISPLAY=aria-absent-wayland",
     },
 ];
 
