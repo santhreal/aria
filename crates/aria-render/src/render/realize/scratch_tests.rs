@@ -520,7 +520,7 @@ fn scene_is_nv12_passthrough_accepts_only_unmodified_full_canvas_bt709_cpu_nv12(
             pixels: Pixels::Frame(Shown {
                 key: super::super::look_ahead::DecoderKey { media, clip: None },
                 source_time: RationalTime::new(0, Rational::FPS_60),
-                policy: SeekPolicy::Exact,
+                exact: true,
                 frame,
             }),
             placement: LayerPlacement::full_canvas(&CompositorConfig::new(1920, 1080)),

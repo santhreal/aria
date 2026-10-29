@@ -127,7 +127,7 @@ mod test_child;
     allow(dead_code)
 )]
 mod seek;
-pub use seek::{frame_at_nearest_rolling, frame_at_rolling};
+pub use seek::{frame_at_nearest_rolling, frame_at_rolling, frame_covers};
 
 /// Per-decoder cost model behind the roll windows of [`frame_at_rolling`]
 /// and [`frame_at_nearest_rolling`].

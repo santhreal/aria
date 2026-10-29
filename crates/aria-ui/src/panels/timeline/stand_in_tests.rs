@@ -6,13 +6,15 @@
 //! the refill took. Each now draws the picture the strip showed at its left
 //! edge before the zoom, and asks for its own. The other half is the bound:
 //! a stand-in never comes from outside its clip, so no frame is drawn across
-//! the clip's cut, and never from farther than [`stand_in_reach`]. Not
+//! the clip's cut, and never from farther than [`stand_in_reach`]. Every
+//! draw checks what it asks for: each cell without its exact frame, a
+//! snapped one included, and, as empty, each cell it drew no picture in. Not
 //! covered: the paint, which the test platform does not record.
 
 use std::sync::Arc;
 
 use super::{FilmCell, cell_pictures, stand_in_reach, strip_cells};
-use crate::filmstrips::{FilmstripStore, test_cell};
+use crate::filmstrips::{Cell, FilmstripStore, test_cell};
 use crate::timeline_display::{StripCell, Thumbnails};
 
 /// The cells a continuous strip shows of `clip` at `px_per_tick`, the whole
@@ -41,15 +43,16 @@ fn draw(
     // A cell's left edge is unique in a strip, so a picture is matched back to
     // its cell by where it is drawn.
     let heads: Vec<(f32, i64)> = cells.iter().map(|cell| (cell.from, cell.tick)).collect();
-    let mut missing = Vec::new();
+    let (mut missing, mut blank) = (Vec::new(), Vec::new());
     let pictures = cell_pictures(
         store,
         cells.into_iter(),
         clip,
         stand_in_reach(px_per_tick),
         &mut missing,
+        &mut blank,
     );
-    let drawn = pictures
+    let drawn: Vec<(i64, Arc<gpui::RenderImage>)> = pictures
         .into_iter()
         .map(|picture: FilmCell| {
             let (_, tick) = heads
@@ -59,14 +62,23 @@ fn draw(
             (*tick, picture.image)
         })
         .collect();
-    let unrendered: Vec<i64> = heads
+    let inexact: Vec<i64> = heads
         .iter()
         .map(|(_, tick)| *tick)
-        .filter(|tick| store.get(*tick).is_none())
+        .filter(|tick| store.get(*tick).is_none_or(|cell| cell.snapped))
         .collect();
     assert_eq!(
-        missing, unrendered,
-        "the draw asks for every cell without its own picture, in draw order"
+        missing, inexact,
+        "the draw asks for every cell without its exact frame, in draw order"
+    );
+    let empty: Vec<i64> = heads
+        .iter()
+        .map(|(_, tick)| *tick)
+        .filter(|tick| drawn.iter().all(|(drawn, _)| drawn != tick))
+        .collect();
+    assert_eq!(
+        blank, empty,
+        "the draw names every cell it drew empty, and no other, in draw order"
     );
     (drawn, missing)
 }
@@ -159,4 +171,36 @@ fn a_stand_in_comes_from_no_farther_than_the_reach() {
     let store = holding([32]);
     let (drawn, _) = draw(&store, clip, 1.0);
     assert_eq!(drawn.first().map(|(tick, _)| *tick), Some(0));
+}
+
+/// WHY: a snapped cell shows the sync frame before its tick. Drawn as a
+/// missing cell it would draw a neighbor in its place, and left out of the
+/// asks it would show the wrong frame for as long as it stays on screen. A
+/// snapped cell draws its own picture and is asked for again.
+#[test]
+fn a_snapped_cell_draws_itself_and_is_asked_for_again() {
+    let clip = (0, 480);
+    let shown = strip(clip, 1.0);
+    let snapped: Vec<i64> = shown.iter().map(|cell| cell.tick).step_by(2).collect();
+    let mut store = FilmstripStore::default();
+    for cell in &shown {
+        let held = Cell {
+            snapped: snapped.contains(&cell.tick),
+            ..test_cell()
+        };
+        store.hold(cell.tick, held);
+    }
+    let (drawn, missing) = draw(&store, clip, 1.0);
+    assert_eq!(
+        missing, snapped,
+        "the draw did not ask for the snapped cells"
+    );
+    assert_eq!(drawn.len(), shown.len(), "a cell drew nothing");
+    for (tick, picture) in drawn {
+        let own = &store.get(tick).expect("held").image;
+        assert!(
+            Arc::ptr_eq(&picture, own),
+            "the cell at tick {tick} drew another cell's picture"
+        );
+    }
 }

@@ -113,6 +113,15 @@ impl RealizeScratch {
     }
 }
 
+/// What pass one decoded for a frame: the milliseconds spent in media decode,
+/// and the media frames that are the sync frame before their source time
+/// rather than the frame at it.
+#[derive(Default)]
+struct DecodeTally {
+    ms: f64,
+    snapped: u32,
+}
+
 /// Fixed-capacity stack buffer with transparent `Vec` spill for per-frame
 /// realization tables, avoiding heap allocation on typical timelines while
 /// supporting arbitrary layer counts.
@@ -307,8 +316,10 @@ impl Renderer {
             self.text_memo.clear();
         }
         let mut nests = Nests::new(scene);
-        let decode_ms =
-            self.realize_scene_layers(project, scene, policy, &cancel, &mut nests, scratch)?;
+        let DecodeTally {
+            ms: decode_ms,
+            snapped: snapped_frames,
+        } = self.realize_scene_layers(project, scene, policy, &cancel, &mut nests, scratch)?;
         self.retire_decoders();
         if matches!(
             output,
@@ -329,6 +340,7 @@ impl Renderer {
                 submitted_at: Instant::now(),
                 effect_passes: 0,
                 effect_pass_bind_groups: 0,
+                snapped_frames,
                 layers: 1,
                 width: scene.width,
                 height: scene.height,
@@ -607,6 +619,7 @@ impl Renderer {
             submitted_at,
             effect_passes: passes.passes,
             effect_pass_bind_groups: passes.created,
+            snapped_frames,
             layers: compositor_layers.len(),
             width: scene.width,
             height: scene.height,
@@ -689,6 +702,7 @@ impl Renderer {
             composite_ms,
             effect_passes: pending.effect_passes,
             effect_pass_bind_groups: pending.effect_pass_bind_groups,
+            snapped_frames: pending.snapped_frames,
         };
         let total_ms = pending.decode_ms + pending.raster_ms + composite_ms;
         if total_ms > SLOW_FRAME_LOG_MS {

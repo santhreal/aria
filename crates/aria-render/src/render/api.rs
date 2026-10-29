@@ -350,11 +350,14 @@ impl Renderer {
             max_width,
             max_height,
             ResolveOverrides::default(),
+            SeekPolicy::Exact,
         )
     }
 
     /// [`render_frame_fit`](Self::render_frame_fit) with live-preview
-    /// [`ResolveOverrides`] applied.
+    /// [`ResolveOverrides`] applied, decoding under `policy`.
+    /// [`last_frame_stats`](Self::last_frame_stats) then counts the media
+    /// frames a [`SeekPolicy::NearestSync`] render snapped.
     pub fn render_frame_fit_with(
         &mut self,
         project: &Project,
@@ -362,16 +365,11 @@ impl Renderer {
         max_width: u32,
         max_height: u32,
         overrides: ResolveOverrides<'_>,
+        policy: SeekPolicy,
     ) -> Result<RgbaImage, RenderError> {
         let mut sink = ImageSink::default();
         self.render_frame_fit_into_with(
-            project,
-            t,
-            max_width,
-            max_height,
-            overrides,
-            SeekPolicy::Exact,
-            &mut sink,
+            project, t, max_width, max_height, overrides, policy, &mut sink,
         )?;
         Ok(sink
             .into_image()
@@ -700,6 +698,7 @@ impl Renderer {
                 submitted_at,
                 effect_passes: 0,
                 effect_pass_bind_groups: 0,
+                snapped_frames: 0,
                 layers: 1,
                 width,
                 height,
@@ -718,6 +717,7 @@ impl Renderer {
                 submitted_at,
                 effect_passes: 0,
                 effect_pass_bind_groups: 0,
+                snapped_frames: 0,
                 layers: 1,
                 width,
                 height,
@@ -752,6 +752,7 @@ impl Renderer {
             submitted_at,
             effect_passes: 0,
             effect_pass_bind_groups: 0,
+            snapped_frames: 0,
             layers: 1,
             width,
             height,

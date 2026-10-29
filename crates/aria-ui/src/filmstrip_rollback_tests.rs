@@ -80,7 +80,7 @@ fn pictures() -> Pictures {
 /// timeline's draw does.
 fn land(state: &mut AppState, tick: i64) {
     let revision = state.revision;
-    state.filmstrips.start(tick);
+    state.filmstrips.start(tick, aria_engine::SeekPolicy::Exact);
     state.filmstrips.finish(revision, tick, Some(cell()));
     assert!(
         state.filmstrips.get(tick).is_some(),
@@ -279,7 +279,7 @@ fn store_with(ticks: &[i64]) -> FilmstripStore {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
     for &tick in ticks {
-        store.start(tick);
+        store.start(tick, aria_engine::SeekPolicy::Exact);
         store.finish(4, tick, Some(cell()));
     }
     store
@@ -315,7 +315,7 @@ fn a_savepoint_and_its_group_revert_what_each_one_spanned() {
     // A savepoint opens at 5, edits around 40, and rolls back to 7.
     store.advance(5, 6, vec![(32, 48)]);
     for tick in [24, 40] {
-        store.start(tick);
+        store.start(tick, aria_engine::SeekPolicy::Exact);
         store.finish(6, tick, Some(cell()));
     }
     store.revert(Reverted {
@@ -332,7 +332,7 @@ fn a_savepoint_and_its_group_revert_what_each_one_spanned() {
         left: 9,
     });
     assert_eq!(kept(&store, &ticks), [8, 72], "the group");
-    store.start(40);
+    store.start(40, aria_engine::SeekPolicy::Exact);
     store.finish(9, 40, Some(cell()));
     assert!(
         store.get(40).is_some(),
@@ -349,7 +349,7 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
     store.advance(4, 5, vec![(16, 32)]);
     store.sync_revision(6);
     for &tick in &ticks {
-        store.start(tick);
+        store.start(tick, aria_engine::SeekPolicy::Exact);
         store.finish(6, tick, Some(cell()));
     }
     store.advance(6, 7, vec![(32, 48)]);
@@ -373,7 +373,7 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
     // A rollback that reverted nothing keeps everything, the render in
     // flight included.
     let mut store = store_with(&ticks);
-    store.start(56);
+    store.start(56, aria_engine::SeekPolicy::Exact);
     store.revert(Reverted {
         opened: 4,
         found: 4,

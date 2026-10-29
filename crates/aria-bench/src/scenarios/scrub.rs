@@ -8,7 +8,7 @@ use aria_decoder::{OutputMode, open_video_decoder, open_video_decoder_at};
 use aria_engine::{CellRenderer, Engine, EngineConfig};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 use aria_render::{Renderer, ResolveOverrides, SeekPolicy};
-use aria_ui::app::AppState;
+use aria_ui::app::{AppState, FilmstripChanged};
 use aria_ui::shell::{Moved, Shell};
 
 use crate::fixtures::{FixtureId, ensure_fixture};
@@ -159,7 +159,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         let t0 = Instant::now();
         let source = engine.cell_source();
         cell_engine_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
-        std::hint::black_box(aria_ui::filmstrips::render_cell(&mut cells, &source, cell));
+        std::hint::black_box(aria_ui::filmstrips::render_cell(
+            &mut cells,
+            &source,
+            cell,
+            SeekPolicy::Exact,
+        ));
         drop(source);
         cell_samples.push(t0.elapsed().as_secs_f64() * 1000.0);
         after_cell_samples.push(play(&mut engine, tick)?);
@@ -231,8 +236,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let ruler_long_gop_samples = ruler_scrub(ctx, "ruler-long-gop", &long_gop.path, 100.0, 1.0)?;
 
     // 4. The timeline's filmstrip filling after the view moves, over
-    // `h264-1080p60` on V1. Not part of a target.
-    let refill_samples = filmstrip_refill(ctx, &h264.path)?;
+    // `h264-1080p60` on V1, then over `hevc-2160p60`, whose cells each decode
+    // a 4K frame: until no cell on screen is drawn empty, and until every
+    // cell shows its exact frame. Not part of a target.
+    let (cover_samples, refill_samples) = filmstrip_refill(ctx, "filmstrip-refill", &h264.path)?;
+    let (cover_hevc_samples, refill_hevc_samples) =
+        filmstrip_refill(ctx, "filmstrip-refill-hevc", &hevc.path)?;
 
     let warm_series = SampleSeries::from_values("warm_scrub_ms", "ms", warm_scrub_samples);
     let warm_render_series =
@@ -253,7 +262,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let cell_series = SampleSeries::from_values("filmstrip_cell_ms", "ms", cell_samples);
     let cell_engine_series =
         SampleSeries::from_values("filmstrip_cell_engine_ms", "ms", cell_engine_samples);
+    let cover_series = SampleSeries::from_values("filmstrip_cover_ms", "ms", cover_samples);
+    let cover_hevc_series =
+        SampleSeries::from_values("filmstrip_cover_hevc_ms", "ms", cover_hevc_samples);
     let refill_series = SampleSeries::from_values("filmstrip_refill_ms", "ms", refill_samples);
+    let refill_hevc_series =
+        SampleSeries::from_values("filmstrip_refill_hevc_ms", "ms", refill_hevc_samples);
 
     let targets = vec![
         TargetEvaluation::measured(
@@ -275,15 +289,21 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     ];
 
     let notes = vec![format!(
-        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, filmstrip cell p50={:.2} ms (p95={:.2} ms) of which the engine p50={:.2} ms, filmstrip refill after a view move p50={:.2} ms (max={:.2} ms), playback frame after a filmstrip cell p50={:.2} ms (p95={:.2} ms), with no cell p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
+        "warm decoder scrub p50={:.2} ms (p95={:.2} ms), warm renderer scrub p50={:.2} ms, filmstrip cell p50={:.2} ms (p95={:.2} ms) of which the engine p50={:.2} ms, filmstrip after a view move covered p50={:.2} ms (max={:.2} ms) and refilled p50={:.2} ms (max={:.2} ms), over hevc-2160p60 covered p50={:.2} ms (max={:.2} ms) and refilled p50={:.2} ms (max={:.2} ms), playback frame after a filmstrip cell p50={:.2} ms (p95={:.2} ms), with no cell p50={:.2} ms, cold seek p50={:.2} ms (p95={:.2} ms), long-gop exact seek p50={:.2} ms, editor ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms), long-gop ruler scrub move p50={:.2} ms (p95={:.2} ms, max={:.2} ms)",
         warm_series.p50,
         warm_series.p95,
         warm_render_series.p50,
         cell_series.p50,
         cell_series.p95,
         cell_engine_series.p50,
+        cover_series.p50,
+        cover_series.max,
         refill_series.p50,
         refill_series.max,
+        cover_hevc_series.p50,
+        cover_hevc_series.max,
+        refill_hevc_series.p50,
+        refill_hevc_series.max,
         after_cell_series.p50,
         after_cell_series.p95,
         no_cell_series.p50,
@@ -308,7 +328,10 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             warm_render_series,
             cell_series,
             cell_engine_series,
+            cover_series,
             refill_series,
+            cover_hevc_series,
+            refill_hevc_series,
             after_cell_series,
             no_cell_series,
             cold_series,
@@ -396,14 +419,20 @@ fn ruler_scrub(
     Ok(samples)
 }
 
-/// The milliseconds the timeline's filmstrip takes to fill after the view
-/// changes, over `media` in a new project of an editor window: the first fill
-/// when `media` is placed on V1 at the default zoom, then [`REFILL_ZOOMS`]
-/// zooms in by two about the middle of the lanes, each of which leaves every
-/// other cell on screen to render, then [`REFILL_SCROLLS`] scrolls a view
-/// along, each of which leaves every cell on screen to render.
-fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String> {
-    let data_dir = ctx.ensure_scratch_subdir("filmstrip-refill")?.join("data");
+/// The milliseconds the timeline's filmstrip takes to cover and to fill after
+/// the view changes, as [`refill`] measures them, over `media` in a new
+/// project of an editor window whose profile is in the scratch directory
+/// `scratch`: the first fill when `media` is placed on V1 at the default zoom,
+/// then [`REFILL_ZOOMS`] zooms in by two about the middle of the lanes, each
+/// of which leaves every other cell on screen to render, then
+/// [`REFILL_SCROLLS`] scrolls a view along, each of which leaves every cell on
+/// screen to render.
+fn filmstrip_refill(
+    ctx: &BenchContext,
+    scratch: &str,
+    media: &Path,
+) -> Result<(Vec<f64>, Vec<f64>), String> {
+    let data_dir = ctx.ensure_scratch_subdir(scratch)?.join("data");
     std::fs::create_dir_all(&data_dir).map_err(|err| format!("mkdir failed: {err}"))?;
     let (mut app, state, mut window) = open_editor(&data_dir);
     let id = app.update(|cx| {
@@ -415,7 +444,12 @@ fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String
                 .map_err(|err| format!("import {} failed: {err}", media.display()))
         })
     })?;
-    let mut samples = Vec::with_capacity((1 + REFILL_ZOOMS + REFILL_SCROLLS) as usize);
+    let changes = (1 + REFILL_ZOOMS + REFILL_SCROLLS) as usize;
+    let (mut covered, mut filled) = (Vec::with_capacity(changes), Vec::with_capacity(changes));
+    let mut push = |(cover, fill): (f64, f64)| {
+        covered.push(cover);
+        filled.push(fill);
+    };
     let mut placed = Ok(());
     let first = refill(&app, &mut window, &state, |shell, _, cx| {
         placed = shell.state.update(cx, |s, cx| {
@@ -424,9 +458,9 @@ fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String
         });
     });
     placed.map_err(|err| format!("placing {} failed: {err}", media.display()))?;
-    samples.push(first?);
+    push(first?);
     for _ in 0..REFILL_ZOOMS {
-        samples.push(refill(&app, &mut window, &state, |shell, _, cx| {
+        push(refill(&app, &mut window, &state, |shell, _, cx| {
             let (left, width) = {
                 let s = shell.state.read(cx);
                 (
@@ -438,7 +472,7 @@ fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String
         })?);
     }
     for _ in 0..REFILL_SCROLLS {
-        samples.push(refill(&app, &mut window, &state, |shell, _, cx| {
+        push(refill(&app, &mut window, &state, |shell, _, cx| {
             shell.state.update(cx, |s, _| {
                 let left = s.timeline_content_left().unwrap_or(0.0);
                 let ((x, w), _) = s.zoom_bar_thumb(s.scroll_x, s.zoom);
@@ -453,36 +487,59 @@ fn filmstrip_refill(ctx: &BenchContext, media: &Path) -> Result<Vec<f64>, String
     drop(state);
     drop(window);
     app.update(|cx| cx.shutdown());
-    Ok(samples)
+    Ok((covered, filled))
 }
 
 /// Runs `change` on the editor window's shell, with every earlier cell landed
-/// and the window drawn, and returns the milliseconds until a draw asks for no
-/// filmstrip cell: every cell on screen rendered, or found to show no frame.
-/// Each pass lands the cells in flight and draws, which asks for the next.
-/// Fails when the change asks for no cell, so a strip that is not drawn is not
-/// measured as one that fills at once, and when the strip still asks after
-/// [`REFILL_DRAWS`] draws.
+/// and the window drawn, and returns the milliseconds until no filmstrip cell
+/// on screen is blank, and until a draw asks for no filmstrip cell: every
+/// cell on screen shows its exact frame, or was found to show no frame. The
+/// strip is covered at the first draw that draws no cell empty, or at the
+/// first landing that leaves none of the cells the last draw drew empty: a
+/// landing starts the next cell with no draw between, so one wait can cover
+/// the strip and fill it. Each pass draws, which asks for every cell drawn
+/// without its exact frame, and waits for the cells it asked for to land.
+/// Fails when the change asks for no cell, so a strip that is not drawn is
+/// not measured as one that fills at once, and when the strip still asks
+/// after [`REFILL_DRAWS`] draws.
 fn refill(
     app: &gpui::TestApp,
     window: &mut gpui::TestAppWindow<Shell>,
     state: &gpui::Entity<AppState>,
     change: impl FnOnce(&mut Shell, &mut gpui::Window, &mut gpui::Context<Shell>),
-) -> Result<f64, String> {
+) -> Result<(f64, f64), String> {
     app.run_until_parked();
     window.draw();
     app.run_until_parked();
     let (cx, handle) = (app.to_async(), window.handle());
     let started = Instant::now();
+    let since = move || started.elapsed().as_secs_f64() * 1000.0;
+    let covered = std::rc::Rc::new(std::cell::Cell::new(None));
+    let _landings = cx.update(|cx| {
+        let covered = covered.clone();
+        cx.subscribe(state, move |state, _: &FilmstripChanged, cx| {
+            if covered.get().is_none() && state.read(cx).filmstrips.blanks() == 0 {
+                covered.set(Some(since()));
+            }
+        })
+    });
     cx.update(|cx| handle.update(cx, change))
         .map_err(|err| format!("the editor window closed: {err}"))?;
     for draw in 0..REFILL_DRAWS {
         window.draw();
-        if app.read(|cx| state.read(cx).filmstrips.in_flight()) == 0 {
+        let (blanks, in_flight) = app.read(|cx| {
+            let filmstrips = &state.read(cx).filmstrips;
+            (filmstrips.blanks(), filmstrips.in_flight())
+        });
+        let elapsed = since();
+        if covered.get().is_none() && blanks == 0 {
+            covered.set(Some(elapsed));
+        }
+        if in_flight == 0 {
             if draw == 0 {
                 return Err("the change asked for no filmstrip cell".to_owned());
             }
-            return Ok(started.elapsed().as_secs_f64() * 1000.0);
+            return Ok((covered.get().unwrap_or(elapsed), elapsed));
         }
         app.run_until_parked();
     }

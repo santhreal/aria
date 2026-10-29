@@ -82,6 +82,9 @@ pub fn covered(stats: &FrameStats) -> f64 {
         // Counts, not durations: read by the Info panel, summed nowhere.
         effect_passes: _,
         effect_pass_bind_groups: _,
+        // A count, not a duration: `CellRenderer::render_fit` reads it to
+        // mark a filmstrip cell snapped, summed nowhere.
+        snapped_frames: _,
     } = stats;
     SHIPPED.iter().map(|stage| (stage.read)(stats)).sum()
 }
@@ -104,6 +107,7 @@ mod tests {
             // into the frame cost would read as 24 ms of work nobody did.
             effect_passes: 24,
             effect_pass_bind_groups: 2,
+            snapped_frames: 1,
         };
         assert_eq!(covered(&stats), stats.total_ms());
         assert_eq!(covered(&FrameStats::default()), 0.0);
@@ -120,6 +124,7 @@ mod tests {
             composite_ms: 11.0,
             effect_passes: 24,
             effect_pass_bind_groups: 2,
+            snapped_frames: 1,
         };
         let scaled: f64 = SHIPPED
             .iter()

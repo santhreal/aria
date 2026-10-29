@@ -22,7 +22,7 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 use super::super::effects::{blend_mode, layer_effects, layer_styles, shape_mask};
 use super::super::look_ahead::{DecoderKey, Shown};
 use super::super::{Renderer, SeekPolicy};
-use super::text;
+use super::{DecodeTally, text};
 
 /// An owned, decoded or rasterized scene layer kept alive while the compositor
 /// borrows it.
@@ -203,7 +203,7 @@ impl Renderer {
         policy: SeekPolicy,
         side: bool,
         nests: &mut Nests<'s>,
-        decode_ms: &mut f64,
+        decoded: &mut DecodeTally,
     ) -> Result<Option<Leaf>, RenderError> {
         let canvas = [scene.width as f32, scene.height as f32];
         let place = |size: [f32; 2]| LayerPlacement {
@@ -242,7 +242,8 @@ impl Renderer {
                 let decode_started = std::time::Instant::now();
                 let key = DecoderKey::of(*media, layer);
                 let shown = self.decode(project, key, *source_time, policy)?;
-                *decode_ms += decode_started.elapsed().as_secs_f64() * 1000.0;
+                decoded.ms += decode_started.elapsed().as_secs_f64() * 1000.0;
+                decoded.snapped += u32::from(!shown.exact);
                 (Pixels::Frame(shown), fixed())
             }
             LayerSource::Still { media } => {
@@ -367,9 +368,9 @@ impl Renderer {
         layer: &'s SceneLayer,
         policy: SeekPolicy,
         nests: &mut Nests<'s>,
-        decode_ms: &mut f64,
+        decoded: &mut DecodeTally,
     ) -> Result<Box<Leaf>, RenderError> {
-        let leaf = self.realize_leaf(project, scene, layer, policy, true, nests, decode_ms)?;
+        let leaf = self.realize_leaf(project, scene, layer, policy, true, nests, decoded)?;
         Ok(Box::new(leaf.unwrap_or_else(|| Leaf {
             pixels: Pixels::Solid([0, 0, 0, 0]),
             placement: LayerPlacement {

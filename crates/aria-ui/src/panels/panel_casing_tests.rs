@@ -233,6 +233,7 @@ fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
         composite_ms: 1.5,
         effect_passes: 2,
         effect_pass_bind_groups: 2,
+        snapped_frames: 0,
     };
     clips
 }

@@ -159,6 +159,7 @@ fn every_panel_keeps_its_text_inside_a_side_frame_down_to_its_minimum_width(
                         composite_ms: 1234.56,
                         effect_passes: 1234,
                         effect_pass_bind_groups: 1234,
+                        snapped_frames: 0,
                     }
                 } else {
                     aria_render::FrameStats::default()

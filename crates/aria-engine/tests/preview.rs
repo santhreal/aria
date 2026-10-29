@@ -532,3 +532,48 @@ fn preview_transparency_clears_the_background_only_in_the_viewer_entries() {
     engine.set_preview_transparency(false);
     assert_eq!(fit(&mut engine).pixels, opaque.pixels);
 }
+
+/// WHY: a filmstrip cell rendered under `SeekPolicy::NearestSync` draws the
+/// sync frame before its time until the exact frame replaces it, and the
+/// timeline asks for the exact frame only of a cell marked snapped. A cell
+/// snapped between sync frames but marked exact kept the wrong frame on
+/// screen; one that landed on its sync frame but was marked snapped rendered
+/// twice. Not covered: a snap that rolls forward onto its time.
+#[test]
+fn a_cell_is_marked_snapped_only_when_it_shows_a_frame_before_its_time() {
+    use aria_engine::CellRenderer;
+    use aria_render::SeekPolicy;
+
+    let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
+    if aria_decoder::open_video_decoder(&fixture, aria_decoder::OutputMode::Cpu).is_err() {
+        return;
+    }
+    let (_dir, mut engine) = temp_engine();
+    let media = import_asset(&mut engine, &fixture);
+    let track = common::add_track(&mut engine, TrackKind::Video, "V1");
+    common::add_media_clip(&mut engine, track, media, tr(0, 72), rt(0));
+    let source = engine.cell_source();
+    let mut cells = CellRenderer::default();
+    // The fixture's sync frames are 12 frames apart. The first snap finds no
+    // decoder and each later one lands behind the last frame decoded, so
+    // every snap seeks rather than rolls forward.
+    for (tick, policy, snapped) in [
+        (30, SeekPolicy::NearestSync, true),
+        (24, SeekPolicy::NearestSync, false),
+        (17, SeekPolicy::Exact, false),
+        (5, SeekPolicy::NearestSync, true),
+    ] {
+        let frame = cells
+            .render_fit(&source, rt(tick), 160, 90, policy)
+            .unwrap_or_else(|error| panic!("the cell at {tick} under {policy:?}: {error}"));
+        assert_eq!(
+            frame.snapped, snapped,
+            "the cell at {tick} under {policy:?} was marked wrongly"
+        );
+        assert!(
+            frame.image.pixels.iter().any(|&byte| byte != 0),
+            "the cell at {tick} drew nothing"
+        );
+    }
+}

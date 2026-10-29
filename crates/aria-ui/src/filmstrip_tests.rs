@@ -9,6 +9,9 @@
 //! the engine lock. A cell draws nothing on the session's renderer: its
 //! thread holds the engine only to take the cell's source, and decodes on the
 //! store's own renderer.
+//!
+//! A cell rendered from its sync frame keeps that mark from the render to the
+//! store, so it is rendered again exactly and only then.
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -129,7 +132,7 @@ fn a_degenerate_span_asks_for_no_work() {
 fn an_edit_drops_every_cell_rendered_before_it() {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
-    store.start(24);
+    store.start(24, aria_engine::SeekPolicy::Exact);
     store.finish(4, 24, Some(cell()));
     assert!(store.get(24).is_some());
 
@@ -146,7 +149,7 @@ fn a_picture_edit_invalidates_only_cells_inside_its_tick_spans() {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
     for tick in [8, 24, 40] {
-        store.start(tick);
+        store.start(tick, aria_engine::SeekPolicy::Exact);
         store.finish(4, tick, Some(cell()));
     }
 
@@ -168,9 +171,9 @@ fn a_picture_edit_invalidates_only_cells_inside_its_tick_spans() {
 fn an_audio_only_edit_keeps_every_cell_but_rejects_old_in_flight_work() {
     let mut store = FilmstripStore::default();
     store.sync_revision(7);
-    store.start(8);
+    store.start(8, aria_engine::SeekPolicy::Exact);
     store.finish(7, 8, Some(cell()));
-    store.start(24);
+    store.start(24, aria_engine::SeekPolicy::Exact);
 
     store.advance(7, 8, Vec::new());
     store.finish(7, 24, Some(cell()));
@@ -186,7 +189,7 @@ fn an_audio_only_edit_keeps_every_cell_but_rejects_old_in_flight_work() {
 fn a_render_that_lands_late_against_an_old_revision_is_dropped() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
-    store.start(48);
+    store.start(48, aria_engine::SeekPolicy::Exact);
     store.sync_revision(2);
     store.finish(1, 48, Some(cell()));
     assert!(
@@ -199,7 +202,7 @@ fn a_render_that_lands_late_against_an_old_revision_is_dropped() {
 fn a_tick_that_renders_nothing_is_not_retried() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
-    store.start(96);
+    store.start(96, aria_engine::SeekPolicy::Exact);
     store.finish(1, 96, None);
     assert!(
         !store.wants(96),
@@ -233,7 +236,7 @@ fn asking_for_cells_does_not_wait_on_the_engine_lock() {
         .recv_timeout(HELD)
         .expect("the holder took the engine lock");
     let started = Instant::now();
-    cx.update(|app| ask(&state, app, vec![0]));
+    cx.update(|app| ask(&state, app, vec![0], Vec::new()));
     let waited = started.elapsed();
     drop(release_tx);
     holder.join().expect("the holder released the engine lock");
@@ -293,7 +296,7 @@ fn a_cell_renders_nothing_on_the_sessions_renderer() {
         .expect("the Viewer's frame");
     let viewer = stats(&engine);
 
-    cx.update(|app| ask(&state, app, vec![far]));
+    cx.update(|app| ask(&state, app, vec![far], Vec::new()));
     cx.run_until_parked();
 
     assert_eq!(
@@ -319,5 +322,70 @@ fn a_cell_renders_nothing_on_the_sessions_renderer() {
     assert!(
         landed.as_bytes(0) == drawn.as_bytes(0),
         "the cell differs from the frame the session draws at its tick"
+    );
+}
+
+/// WHY: a cell drawn with no picture renders first from the sync frame at or
+/// before its tick, and only a cell marked snapped is rendered again. A mark
+/// lost between the render and the store left a cell on its sync frame's
+/// picture for good; a mark set on a cell that drew its own frame rendered it
+/// twice. Through the store's own renders: a blank cell between sync frames
+/// lands snapped with its sync frame's picture and, asked for again, lands
+/// the frame the session draws at its tick; a blank cell on a sync frame
+/// lands exact at once. Not covered: a snap that rolls forward onto its tick.
+#[test]
+fn a_blank_cell_lands_its_sync_frame_then_its_own() {
+    let cx = gpui::TestAppContext::single();
+    let state = cx.update(|app| {
+        app.new(|_| {
+            crate::app::premiere_tests::with_media(crate::app::fixtures::asset(
+                "fixture-640x360-24fps-3s.mp4",
+            ))
+            .0
+        })
+    });
+    let (engine, rate) = cx.update(|app| {
+        let state = state.read(app);
+        (state.engine().clone(), state.playhead.rate)
+    });
+    let session = |tick: i64| {
+        let frame = engine
+            .lock()
+            .get_frame_fit(RationalTime::new(tick, rate), CELL_MAX_W, CELL_H)
+            .unwrap_or_else(|error| panic!("the session's frame at {tick}: {error}"));
+        crate::frame::rgba_to_render(&frame).expect("a drawable frame")
+    };
+    let held = |tick: i64| {
+        cx.update(|app| state.read(app).filmstrips.get(tick).cloned())
+            .unwrap_or_else(|| panic!("no cell landed at {tick}"))
+    };
+    // The fixture's sync frames are 12 frames apart. The cell between them
+    // snaps first, on a renderer that has decoded nothing, so it seeks.
+    let (between, sync, on) = (18, 12, 24);
+    cx.update(|app| ask(&state, app, Vec::new(), vec![on, between]));
+    cx.run_until_parked();
+    let snapped = held(between);
+    assert!(snapped.snapped, "the cell between sync frames landed exact");
+    assert!(
+        snapped.image.as_bytes(0) == session(sync).as_bytes(0),
+        "the snapped cell does not show its sync frame"
+    );
+    let landed_on = held(on);
+    assert!(
+        !landed_on.snapped,
+        "the cell on a sync frame landed snapped"
+    );
+    assert!(
+        landed_on.image.as_bytes(0) == session(on).as_bytes(0),
+        "the cell on a sync frame does not show its own frame"
+    );
+
+    cx.update(|app| ask(&state, app, vec![between], Vec::new()));
+    cx.run_until_parked();
+    let exact = held(between);
+    assert!(!exact.snapped, "the cell asked for again stayed snapped");
+    assert!(
+        exact.image.as_bytes(0) == session(between).as_bytes(0),
+        "the cell asked for again does not show the frame at its tick"
     );
 }

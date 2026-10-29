@@ -23,7 +23,7 @@ use crate::error::EngineError;
 mod cells;
 mod source_frame;
 
-pub use cells::{CellRenderer, CellSource};
+pub use cells::{CellFrame, CellRenderer, CellSource};
 
 /// Session configuration for [`Engine`].
 #[derive(Debug, Clone)]
@@ -814,6 +814,7 @@ impl Engine {
             max_width,
             max_height,
             overrides,
+            aria_render::SeekPolicy::Exact,
         )?)
     }
 

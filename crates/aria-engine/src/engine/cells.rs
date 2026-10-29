@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use aria_compositor::GpuContext;
 use aria_models::{Project, RationalTime};
-use aria_render::{MediaSources, Renderer, RgbaImage};
+use aria_render::{MediaSources, Renderer, ResolveOverrides, RgbaImage, SeekPolicy};
 
 use super::Engine;
 use crate::error::EngineError;
@@ -37,6 +37,16 @@ impl Engine {
     }
 }
 
+/// One frame a [`CellRenderer`] rendered.
+#[derive(Debug)]
+pub struct CellFrame {
+    pub image: RgbaImage,
+    /// A media layer shows the sync frame before its source time rather than
+    /// the frame at it: the render decoded under [`SeekPolicy::NearestSync`]
+    /// and snapped.
+    pub snapped: bool,
+}
+
 /// A renderer of sequence frames with decoders of its own, on the session's
 /// GPU device. The first frame builds it.
 #[derive(Debug, Default)]
@@ -46,18 +56,31 @@ pub struct CellRenderer {
 
 impl CellRenderer {
     /// The frame `source`'s project plays at `at`, fit within
-    /// `max_width`×`max_height` (aspect kept, never upscaled).
+    /// `max_width`×`max_height` (aspect kept, never upscaled), its media
+    /// decoded under `policy`.
     pub fn render_fit(
         &mut self,
         source: &CellSource,
         at: RationalTime,
         max_width: u32,
         max_height: u32,
-    ) -> Result<RgbaImage, EngineError> {
+        policy: SeekPolicy,
+    ) -> Result<CellFrame, EngineError> {
         let renderer = self
             .renderer
             .get_or_insert_with(|| Renderer::with_gpu(source.gpu.share()));
         renderer.adopt_media_sources(&source.media);
-        Ok(renderer.render_frame_fit(&source.project, at, max_width, max_height)?)
+        let image = renderer.render_frame_fit_with(
+            &source.project,
+            at,
+            max_width,
+            max_height,
+            ResolveOverrides::default(),
+            policy,
+        )?;
+        Ok(CellFrame {
+            image,
+            snapped: renderer.last_frame_stats().snapped_frames > 0,
+        })
     }
 }

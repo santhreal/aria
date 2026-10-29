@@ -11,14 +11,24 @@
 //! rendered cell. A change the store did not follow drops every cell. The
 //! session revision still rejects a render that finishes after a newer edit.
 //!
-//! The timeline's draw hands the store the cells it found missing, and the
-//! store renders them one at a time, starting the next as one lands, so a
-//! strip fills without waiting a frame between cells. The next cell is the
-//! first at or after the one started last, so the renderer's decoders roll
-//! forward from one cell to the next and decode no frame twice; after the
-//! last, the strip wraps to its first missing cell. More renderers do not fill
-//! a strip faster: their decoders share the host's decode capacity, and each
-//! seeks to a sync frame of its own.
+//! The timeline's draw hands the store the cells it drew without their exact
+//! frame, once for all its lane groups, and the store renders them one at a
+//! time, starting the next as one lands, so a strip fills without waiting a
+//! frame between cells. The next cell is the first at or after the one
+//! started last, so the renderer's decoders roll forward from one cell to the
+//! next and decode no frame twice; after the last, the strip wraps to its
+//! first cell still owed. More renderers do not fill a strip faster: their
+//! decoders share the host's decode capacity, and each seeks to a sync frame
+//! of its own.
+//!
+//! A cell the draw finds blank, with neither a picture of its own nor a
+//! stand-in, renders first snapped: its media decodes the sync frame at or
+//! before the cell's tick, one seek and one decode, where the exact frame
+//! costs every frame from that sync frame on. Every blank cell snaps before
+//! any cell renders exactly, so an empty strip fills at one decode per cell.
+//! A snapped cell draws until the exact frame replaces it, and the draw asks
+//! for it again as it asks for a missing cell. A snap that lands on the frame
+//! at the tick is stored as exact.
 //!
 //! Cells render on a [`CellRenderer`] of their own, so a cell neither holds the
 //! engine through its decode nor moves the decoders the Viewer's frames are
@@ -29,7 +39,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
-use aria_engine::{CellRenderer, CellSource};
+use aria_engine::{CellRenderer, CellSource, SeekPolicy};
 use aria_models::RationalTime;
 use aria_plugin::Reverted;
 use gpui::{App, Context, Entity, RenderImage};
@@ -59,6 +69,9 @@ const JOURNAL: usize = 64;
 #[derive(Clone)]
 pub struct Cell {
     pub image: Arc<RenderImage>,
+    /// The picture is the sync frame at or before the cell's tick, drawn until
+    /// the exact frame lands.
+    pub snapped: bool,
 }
 
 /// One edit the store followed: the revision moved from `from` to `to`, and
@@ -87,15 +100,20 @@ pub struct FilmstripStore {
     /// Ticks that produced no frame, so a gap in the sequence is not retried
     /// every frame for as long as it stays on screen.
     empty: BTreeSet<i64>,
-    /// The cells the timeline's last draw found missing, in tick order.
+    /// The cells the timeline's last draw drew without their exact frame, in
+    /// tick order.
     queue: Vec<i64>,
+    /// The cells of `queue` the last draw drew with no picture at all, in tick
+    /// order. They render snapped before any cell renders exactly.
+    blank: Vec<i64>,
     /// The latest edits followed by span, oldest first. The newest ends at
     /// `revision`; the store forgets them all when it drops every cell.
     journal: VecDeque<Step>,
     /// The renderer cells are drawn on.
     renderer: Arc<Mutex<CellRenderer>>,
-    /// The tick of the cell started last, which is where the renderer's
-    /// decoders stand.
+    /// The tick of the cell started last exactly, which is where the
+    /// renderer's decoders stand. `None` after a snap, which leaves them at a
+    /// sync frame rather than at a cell.
     at: Option<i64>,
     /// Images of dropped cells, for the window atlas to release. Cells drop
     /// on an edit or a landing, and both redraw the timeline without them.
@@ -129,9 +147,21 @@ impl FilmstripStore {
         usize::from(self.flight.is_some())
     }
 
-    /// Whether `tick` should be rendered: there is no retained cell for it,
-    /// and it did not already come back empty.
+    /// How many cells the timeline's last draw drew with no picture, less
+    /// those landed since.
+    pub fn blanks(&self) -> usize {
+        self.blank.len()
+    }
+
+    /// Whether `tick` should be rendered exactly: there is no retained cell
+    /// for it or only a snapped one, and it did not already come back empty.
     fn wants(&self, tick: i64) -> bool {
+        !self.empty.contains(&tick) && self.cells.get(&tick).is_none_or(|cell| cell.snapped)
+    }
+
+    /// Whether `tick` should be rendered snapped: there is no retained cell
+    /// for it, and it did not already come back empty.
+    fn wants_snap(&self, tick: i64) -> bool {
         !self.cells.contains_key(&tick) && !self.empty.contains(&tick)
     }
 
@@ -249,31 +279,43 @@ impl FilmstripStore {
         self.journal.push_back(step);
     }
 
-    /// Mark `tick` in flight at the store's revision.
-    fn start(&mut self, tick: i64) {
+    /// Mark `tick` in flight at the store's revision, rendered under `policy`.
+    fn start(&mut self, tick: i64, policy: SeekPolicy) {
         self.flight = Some(Flight {
             tick,
             revision: self.revision,
         });
-        self.at = Some(tick);
+        self.at = (policy == SeekPolicy::Exact).then_some(tick);
     }
 
-    /// The next queued tick to render, marked in flight, while the renderer is
-    /// free: the first at or after the one started last, else the first.
-    /// Ticks no longer wanted leave the queue.
-    fn next_flight(&mut self) -> Option<i64> {
+    /// The next tick to render and how, marked in flight, while the renderer
+    /// is free: the first blank cell snapped while one is left, else the first
+    /// queued cell at or after the one started last, or else the first,
+    /// exactly. A snap costs one decode wherever the decoders stand, so blank
+    /// cells snap left to right, and the exact walk after them starts again
+    /// at the first cell. Ticks no longer wanted leave their list.
+    fn next_flight(&mut self) -> Option<(i64, SeekPolicy)> {
         if self.flight.is_some() {
             return None;
         }
+        let mut blank = std::mem::take(&mut self.blank);
+        blank.retain(|&tick| self.wants_snap(tick));
+        self.blank = blank;
         let mut queue = std::mem::take(&mut self.queue);
         queue.retain(|&tick| self.wants(tick));
         self.queue = queue;
-        let ahead = self
-            .at
-            .map_or(0, |at| self.queue.partition_point(|&tick| tick < at));
-        let tick = *self.queue.get(ahead).or_else(|| self.queue.first())?;
-        self.start(tick);
-        Some(tick)
+        let (tick, policy) = match self.blank.first() {
+            Some(&tick) => (tick, SeekPolicy::NearestSync),
+            None => {
+                let ahead = self
+                    .at
+                    .map_or(0, |at| self.queue.partition_point(|&tick| tick < at));
+                let tick = *self.queue.get(ahead).or_else(|| self.queue.first())?;
+                (tick, SeekPolicy::Exact)
+            }
+        };
+        self.start(tick, policy);
+        Some((tick, policy))
     }
 
     fn finish(&mut self, revision: u64, tick: i64, cell: Option<Cell>) {
@@ -328,8 +370,15 @@ impl FilmstripStore {
     /// Store `cell` at `tick` as rendered at the store's revision and landed.
     #[cfg(test)]
     pub(crate) fn hold(&mut self, tick: i64, cell: Cell) {
-        self.start(tick);
+        self.start(tick, SeekPolicy::Exact);
         self.finish(self.revision, tick, Some(cell));
+    }
+
+    /// The cells the store was asked for and has not landed, and the ones of
+    /// them asked for snapped.
+    #[cfg(test)]
+    pub(crate) fn asked(&self) -> (&[i64], &[i64]) {
+        (&self.queue, &self.blank)
     }
 }
 
@@ -383,15 +432,19 @@ pub fn cell_spans(
     out
 }
 
-/// Render the cells at `missing`, the ticks the timeline's draw found no cell
-/// for. They replace the ones an earlier draw asked for. Safe to call from a
-/// render: nothing here takes the engine lock, and each render thread holds
-/// it only to take the cell's source.
-pub fn ask(state: &Entity<AppState>, cx: &mut App, mut missing: Vec<i64>) {
-    missing.sort_unstable();
-    missing.dedup();
+/// Render the cells at `missing`, the ticks the timeline's draw drew without
+/// their exact frame, snapping first the ones of them at `blank`, the ticks it
+/// drew with no picture at all. They replace the ones an earlier draw asked
+/// for. Safe to call from a render: nothing here takes the engine lock, and
+/// each render thread holds it only to take the cell's source.
+pub fn ask(state: &Entity<AppState>, cx: &mut App, mut missing: Vec<i64>, mut blank: Vec<i64>) {
+    for ticks in [&mut missing, &mut blank] {
+        ticks.sort_unstable();
+        ticks.dedup();
+    }
     state.update(cx, |state, cx| {
         state.filmstrips.queue = missing;
+        state.filmstrips.blank = blank;
         pump(state, cx);
     });
 }
@@ -403,7 +456,7 @@ fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     // what was rendered before it.
     let revision = state.revision;
     state.filmstrips.sync_revision(revision);
-    let Some(tick) = state.filmstrips.next_flight() else {
+    let Some((tick, policy)) = state.filmstrips.next_flight() else {
         return;
     };
     let engine = state.engine().clone();
@@ -416,34 +469,33 @@ fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     let rendering =
         crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
             let source = engine.lock().cell_source();
-            render_cell(&mut renderer.lock(), &source, at)
+            render_cell(&mut renderer.lock(), &source, at, policy)
         });
     cx.spawn(async move |this, cx| {
         let rendered = rendering.await.flatten();
         let _ = this.update(cx, |state, cx| {
-            land(
-                state,
-                revision,
-                tick,
-                rendered.map(|image| Cell { image }),
-                cx,
-            );
+            land(state, revision, tick, rendered, cx);
         });
     })
     .detach();
 }
 
-/// The cell at `at`: the frame `source` plays there, fit to a cell and drawn
-/// on `renderer`. `None` where nothing plays or the render fails.
+/// The cell at `at`: the frame `source` plays there, its media decoded under
+/// `policy`, fit to a cell and drawn on `renderer`. `None` where nothing plays
+/// or the render fails.
 pub fn render_cell(
     renderer: &mut CellRenderer,
     source: &CellSource,
     at: RationalTime,
-) -> Option<Arc<RenderImage>> {
-    renderer
-        .render_fit(source, at, CELL_MAX_W, CELL_H)
-        .ok()
-        .and_then(|frame| crate::frame::rgba_to_render(&frame))
+    policy: SeekPolicy,
+) -> Option<Cell> {
+    let frame = renderer
+        .render_fit(source, at, CELL_MAX_W, CELL_H, policy)
+        .ok()?;
+    Some(Cell {
+        image: crate::frame::rgba_to_render(&frame.image)?,
+        snapped: frame.snapped,
+    })
 }
 
 /// Store the cell rendered for `tick` at `revision`, start the next queued
@@ -472,6 +524,7 @@ pub(crate) fn test_cell() -> Cell {
         image: Arc::new(RenderImage::new(smallvec::SmallVec::from_const([
             image::Frame::new(buffer),
         ]))),
+        snapped: false,
     }
 }
 

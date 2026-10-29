@@ -154,14 +154,12 @@ pub(crate) fn is_frame_before(
     }
 }
 
-/// Whether the decoded frame at `frame_pts` satisfies a request for `target`:
-/// at/after it, or before it by no more than the truncation slack (see the
-/// module docs).
-pub(crate) fn frame_covers(
-    frame_pts: RationalTime,
-    target: RationalTime,
-    frame_rate: Rational,
-) -> bool {
+/// Whether the decoded frame at `frame_pts` satisfies a request for `target`
+/// on a source of `frame_rate`: at/after it, or before it by no more than the
+/// one-tick truncation slack of backends whose clocks are integer ticks. A
+/// frame [`frame_at_nearest_rolling`] returns is the frame at `target` when
+/// this holds, and the sync frame before it otherwise.
+pub fn frame_covers(frame_pts: RationalTime, target: RationalTime, frame_rate: Rational) -> bool {
     if frame_pts.compare(target) != Ordering::Less {
         return true;
     }

@@ -20,7 +20,7 @@ pub use aria_commands::{Command, EditCommand, EditOutcome, ProjectCommand};
 pub use aria_models::BakeMedium;
 pub use aria_render::{FrameKey, FrameStats, RenderFiles, SeekPolicy};
 pub use bake::{BakePass, bake_project};
-pub use engine::{CellRenderer, CellSource, Engine, EngineConfig, HistoryEntry};
+pub use engine::{CellFrame, CellRenderer, CellSource, Engine, EngineConfig, HistoryEntry};
 pub use error::EngineError;
 pub use frame_stats_catalog::{FrameStageSpec, frame_stages};
 // The one reading of "what does this file state about itself": relink verifies

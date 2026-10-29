@@ -15,8 +15,8 @@ use super::*;
 impl Renderer {
     /// Realize every layer of `scene` and of every nest it shows into
     /// `scratch`: the realized layers, the draw index of each in its level's
-    /// scene, and the range of each level. Returns the milliseconds spent in
-    /// media decode.
+    /// scene, and the range of each level. Returns what the media decodes
+    /// took and drew.
     ///
     /// `cancel` is checked before each layer. A layer is the unit because it is
     /// the unit of decode: abandoning a frame between two layers gives back the
@@ -30,11 +30,11 @@ impl Renderer {
         cancel: &Cancel,
         nests: &mut Nests<'s>,
         scratch: &mut RealizeScratch,
-    ) -> Result<f64, RenderError> {
+    ) -> Result<DecodeTally, RenderError> {
         self.preload_scene_luts(scene);
         // Decode time accumulated across media layers: on weak machines this
         // is where whole-frame seconds hide, so the stage log splits it out.
-        let mut decode_ms = 0.0f64;
+        let mut decoded = DecodeTally::default();
         let mut level = Some(scene);
         let mut next_nest = 0;
         while let Some(level_scene) = level {
@@ -46,13 +46,13 @@ impl Renderer {
                 cancel,
                 nests,
                 scratch,
-                &mut decode_ms,
+                &mut decoded,
             )?;
             scratch.levels.push(start..scratch.realized.len());
             level = nests.scenes.get(next_nest).copied();
             next_nest += 1;
         }
-        Ok(decode_ms)
+        Ok(decoded)
     }
 
     /// Realize the layers of one level's `scene` onto the end of `scratch`.
@@ -65,7 +65,7 @@ impl Renderer {
         cancel: &Cancel,
         nests: &mut Nests<'s>,
         scratch: &mut RealizeScratch,
-        decode_ms: &mut f64,
+        decoded: &mut DecodeTally,
     ) -> Result<(), RenderError> {
         let drawn = scene.references.len() + scene.layers.len();
         scratch.realized.reserve(drawn);
@@ -97,9 +97,9 @@ impl Renderer {
                     progress,
                 } => Realized::Transition {
                     outgoing: self
-                        .realize_side(project, scene, outgoing, policy, nests, decode_ms)?,
+                        .realize_side(project, scene, outgoing, policy, nests, decoded)?,
                     incoming: self
-                        .realize_side(project, scene, incoming, policy, nests, decode_ms)?,
+                        .realize_side(project, scene, incoming, policy, nests, decoded)?,
                     transition_id: transition_id.clone(),
                     progress: *progress,
                 },
@@ -110,19 +110,19 @@ impl Renderer {
                     softness,
                 } => Realized::Matte {
                     content: self
-                        .realize_side(project, scene, &layers[0], policy, nests, decode_ms)?,
+                        .realize_side(project, scene, &layers[0], policy, nests, decoded)?,
                     stencil: self
-                        .realize_side(project, scene, &layers[1], policy, nests, decode_ms)?,
+                        .realize_side(project, scene, &layers[1], policy, nests, decoded)?,
                     read: *read,
                     invert: *invert,
                     softness: *softness,
                 },
-                _ => match self
-                    .realize_leaf(project, scene, layer, policy, false, nests, decode_ms)?
-                {
-                    Some(leaf) => Realized::Layer(leaf),
-                    None => continue,
-                },
+                _ => {
+                    match self.realize_leaf(project, scene, layer, policy, false, nests, decoded)? {
+                        Some(leaf) => Realized::Layer(leaf),
+                        None => continue,
+                    }
+                }
             };
             scratch.realized.push(item);
             scratch.scene_indices.push(scene_idx);

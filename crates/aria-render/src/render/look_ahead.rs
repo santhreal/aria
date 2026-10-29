@@ -79,16 +79,17 @@ impl DecoderKey {
 pub(super) struct Shown {
     pub(super) key: DecoderKey,
     pub(super) source_time: RationalTime,
-    pub(super) policy: SeekPolicy,
+    /// The frame is the one at `source_time`, rather than the sync frame
+    /// before it that a [`SeekPolicy::NearestSync`] request snapped to.
+    pub(super) exact: bool,
     pub(super) frame: VideoFrame,
 }
 
 impl Shown {
     /// Whether this frame answers a request for `source_time` under `policy`:
-    /// an exact frame answers either policy, a snapped one only a snap.
+    /// the frame at it answers either policy, a snapped one only a snap.
     fn serves(&self, source_time: RationalTime, policy: SeekPolicy) -> bool {
-        self.source_time == source_time
-            && (self.policy == policy || self.policy == SeekPolicy::Exact)
+        self.source_time == source_time && (self.exact || policy == SeekPolicy::NearestSync)
     }
 }
 
@@ -128,7 +129,7 @@ fn clone_shown(shown: &Shown) -> Option<Shown> {
     Some(Shown {
         key: shown.key,
         source_time: shown.source_time,
-        policy: shown.policy,
+        exact: shown.exact,
         frame: clone_cpu_frame(&shown.frame)?,
     })
 }
@@ -388,10 +389,14 @@ impl Renderer {
             media: key.media,
             time: source_time,
         })?;
+        // A snap that rolled forward, or whose sync frame is the target, drew
+        // the frame at the target: it answers an exact request too.
+        let exact = policy == SeekPolicy::Exact
+            || aria_decoder::frame_covers(frame.pts, source_time, decoder.info().frame_rate);
         let shown = Shown {
             key,
             source_time,
-            policy,
+            exact,
             frame,
         };
         if share_in_scene

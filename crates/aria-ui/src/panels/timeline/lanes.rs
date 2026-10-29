@@ -42,6 +42,7 @@ pub(super) fn lane_group(
     playhead: Option<f32>,
     snap_guide: Option<crate::snap::SnapCandidate>,
     reduced: bool,
+    owed: &mut super::media::Owed,
     cx: &mut gpui::Context<Shell>,
 ) -> impl IntoElement + use<> {
     let (outline_w, has_expanded_clips, layer) = {
@@ -244,6 +245,7 @@ pub(super) fn lane_group(
         fps,
         view_start,
         view_end,
+        owed,
         cx,
     ));
     let (selected_edge, selected_gap, trim_feedback, tool) = {
@@ -516,6 +518,7 @@ pub(super) mod built {
         static LANES: RefCell<Vec<Lane>> = const { RefCell::new(Vec::new()) };
         static MEDIA_ROWS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
         static CANVASES: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+        static OWED: RefCell<(Vec<i64>, Vec<i64>)> = const { RefCell::new((Vec::new(), Vec::new())) };
     }
 
     pub(in crate::panels::timeline) fn lanes(lanes: &[VisibleLane], viewport_h: f32, view: View) {
@@ -545,6 +548,21 @@ pub(super) mod built {
     /// Records the width a lane group's canvas was laid out at.
     pub(in crate::panels::timeline) fn canvas(width: f32) {
         CANVASES.with_borrow_mut(|laid| laid.push(width));
+    }
+
+    /// Records the filmstrip cells a lane group drew without their exact
+    /// frame, and the ones of them it drew with no picture.
+    pub(in crate::panels::timeline) fn owed(missing: &[i64], blank: &[i64]) {
+        OWED.with_borrow_mut(|(owed, empty)| {
+            owed.extend_from_slice(missing);
+            empty.extend_from_slice(blank);
+        });
+    }
+
+    /// The filmstrip cells lane groups drew without their exact frame, and
+    /// the ones of them they drew with no picture, since the last call.
+    pub(crate) fn take_owed() -> (Vec<i64>, Vec<i64>) {
+        OWED.with_borrow_mut(std::mem::take)
     }
 
     /// The widths lane group canvases were laid out at since the last call.

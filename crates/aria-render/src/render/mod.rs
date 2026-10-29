@@ -67,6 +67,11 @@ pub struct FrameStats {
     /// Bind groups those passes needed built, rather than reusing one already
     /// describing that exact pass. Zero on a repeated frame.
     pub effect_pass_bind_groups: u32,
+    /// Media frames drawn from the sync frame before their source time
+    /// rather than the frame at it, which only a
+    /// [`SeekPolicy::NearestSync`] render draws. Zero means every media layer
+    /// shows its exact frame.
+    pub snapped_frames: u32,
 }
 
 impl FrameStats {
@@ -130,6 +135,7 @@ pub(crate) struct PendingFrame {
     submitted_at: std::time::Instant,
     effect_passes: u32,
     effect_pass_bind_groups: u32,
+    snapped_frames: u32,
     layers: usize,
     width: u32,
     height: u32,

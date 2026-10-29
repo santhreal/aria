@@ -26,6 +26,8 @@ mod empty_timeline_tests;
 #[cfg(test)]
 #[path = "offscreen_tests.rs"]
 mod offscreen_tests;
+#[cfg(test)]
+mod strip_ask_tests;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -170,6 +172,7 @@ pub fn render(
     let video_viewport_h = video_side.viewport(stack_h);
     let audio_viewport_h = audio_side.viewport(stack_h);
 
+    let mut owed = media::Owed::default();
     let video_group = lane_group(
         &theme,
         state,
@@ -189,6 +192,7 @@ pub fn render(
         playhead_at,
         snap_guide,
         reduced,
+        &mut owed,
         cx,
     );
     let audio_group = lane_group(
@@ -210,8 +214,10 @@ pub fn render(
         playhead_at,
         snap_guide,
         reduced,
+        &mut owed,
         cx,
     );
+    owed.ask(state, cx);
 
     let one_sided = video_side.is_empty() || audio_side.is_empty();
 

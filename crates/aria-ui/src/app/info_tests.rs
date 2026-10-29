@@ -528,6 +528,7 @@ fn measured(passes: u32, built: u32) -> aria_render::FrameStats {
         composite_ms: 4.0,
         effect_passes: passes,
         effect_pass_bind_groups: built,
+        snapped_frames: 0,
     }
 }
 

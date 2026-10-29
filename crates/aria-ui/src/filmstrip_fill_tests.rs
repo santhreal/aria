@@ -1,14 +1,19 @@
 //! How a filmstrip fills, and what its cells hold while it does.
 //!
-//! Closes four classes. A strip that fills one cell at a time and waits a
-//! frame between cells: a landing starts the next queued cell. A fill that
-//! decodes a frame more than once, because adjacent cells went to different
-//! renderers or because each run of cells seeked to a sync frame of its own:
-//! one renderer renders the first cell at or after the one it started last,
-//! then wraps to the first. A full store that dropped every cell to make room
-//! for one, which blanked every strip on screen: it drops the cell farthest
-//! from the one landing. And a dropped cell that stayed in the window atlas
-//! for the life of the window: every path that takes a cell out of the store
+//! Closes five classes. A strip that fills one cell at a time and waits a
+//! frame between cells: a landing starts the next queued cell, and the
+//! timeline's draw asks once for all its lane groups, as
+//! `panels::timeline::strip_ask_tests` checks. A fill that decodes a frame
+//! more than once, because adjacent cells went to different renderers or
+//! because each run of cells seeked to a sync frame of its own: one renderer
+//! renders the first cell at or after the one it started last, then wraps to
+//! the first. A strip with nothing on it that stays empty through the whole
+//! exact walk, which on a long-GOP source decodes every frame from each
+//! cell's sync frame on: every blank cell snaps to its sync frame first, at
+//! one decode each. A full store that dropped every cell to make room for
+//! one, which blanked every strip on screen: it drops the cell farthest from
+//! the one landing. And a dropped cell that stayed in the window atlas for
+//! the life of the window: every path that takes a cell out of the store
 //! hands its picture to the atlas release, and the window no longer holds it
 //! once the release ran.
 //!
@@ -19,11 +24,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use aria_commands::{Command, EditCommand};
+use aria_engine::SeekPolicy;
 use aria_models::{ClipId, ClipParam, ParamValue};
 use aria_plugin::Reverted;
 use gpui::{AppContext as _, RenderImage, TestAppContext};
 
-use super::{FilmstripStore, MAX_CELLS, ask, land, test_cell as cell};
+use super::{Cell, FilmstripStore, MAX_CELLS, ask, land, test_cell as cell};
 use crate::test_support::atlas::held_or_released_once;
 use crate::test_support::drawn_shell;
 
@@ -32,10 +38,14 @@ fn tick(n: usize) -> i64 {
     i64::try_from(n * 8).expect("a small tick")
 }
 
-/// The store started at `tick`: it is in flight, and nothing else starts
-/// until it lands.
+/// The store started at `tick`, rendering it exactly: it is in flight, and
+/// nothing else starts until it lands.
 fn started(store: &mut FilmstripStore, tick: i64, why: &str) {
-    assert_eq!(store.next_flight(), Some(tick), "{why}");
+    assert_eq!(
+        store.next_flight(),
+        Some((tick, SeekPolicy::Exact)),
+        "{why}"
+    );
     assert_eq!(
         store.next_flight(),
         None,
@@ -96,7 +106,7 @@ fn in_flight(cx: &TestAppContext, state: &gpui::Entity<crate::app::AppState>) ->
 fn a_landing_starts_the_next_queued_cell_without_a_draw() {
     let cx = TestAppContext::single();
     let state = sequence(&cx);
-    cx.update(|app| ask(&state, app, (0..3).map(tick).collect()));
+    cx.update(|app| ask(&state, app, (0..3).map(tick).collect(), Vec::new()));
     assert_eq!(in_flight(&cx, &state), Some(tick(0)));
     cx.update(|app| {
         state.update(app, |state, cx| {
@@ -120,8 +130,8 @@ fn the_order_cells_are_drawn_in_does_not_change_the_walk() {
     let ticks: Vec<i64> = (0..6).map(tick).collect();
     let drawn: Vec<i64> = ticks.iter().rev().chain(&ticks).copied().collect();
     let (in_order, as_drawn) = (sequence(&cx), sequence(&cx));
-    cx.update(|app| ask(&in_order, app, ticks.clone()));
-    cx.update(|app| ask(&as_drawn, app, drawn));
+    cx.update(|app| ask(&in_order, app, ticks.clone(), Vec::new()));
+    cx.update(|app| ask(&as_drawn, app, drawn, Vec::new()));
     assert_eq!(in_flight(&cx, &in_order), Some(tick(0)));
     assert_eq!(
         in_flight(&cx, &as_drawn),
@@ -132,6 +142,27 @@ fn the_order_cells_are_drawn_in_does_not_change_the_walk() {
         cx.update(|app| state.read(app).filmstrips.queue.clone())
     };
     assert_eq!(queue(&as_drawn), queue(&in_order), "a tick queued twice");
+    cx.run_until_parked();
+}
+
+/// The draw names the cells it drew empty, in any order; the renderer snaps
+/// the first of them before it renders the first cell the draw asked for.
+#[test]
+fn a_draw_with_empty_cells_snaps_the_first_of_them_first() {
+    let cx = TestAppContext::single();
+    let state = sequence(&cx);
+    let blank = vec![tick(3), tick(2), tick(3)];
+    cx.update(|app| ask(&state, app, (0..4).map(tick).collect(), blank));
+    assert_eq!(
+        in_flight(&cx, &state),
+        Some(tick(2)),
+        "the renderer did not start at the first cell drawn empty"
+    );
+    assert_eq!(
+        cx.update(|app| state.read(app).filmstrips.blanks()),
+        2,
+        "the draw's empty cells were not each kept once"
+    );
     cx.run_until_parked();
 }
 
@@ -155,23 +186,67 @@ struct Filling {
     at: Option<i64>,
 }
 
-/// Fill `queued`, ascending cells `filling` holds none of, through its store,
-/// landing each cell before the next starts. The frames decoded in all.
-fn filled(filling: &mut Filling, queued: &[i64]) -> i64 {
+/// The cells of `queued` a fill renders exactly: all but the ones at `blank`
+/// on a sync frame, whose snap lands the exact frame.
+fn owed(queued: &[i64], blank: &[i64]) -> Vec<i64> {
+    queued
+        .iter()
+        .copied()
+        .filter(|tick| !blank.contains(tick) || tick.rem_euclid(GOP) != 0)
+        .collect()
+}
+
+/// Fill `queued`, ascending cells `filling` holds none of or only a snapped
+/// one, through its store, with the ones at `blank` drawn empty, landing each
+/// cell before the next starts. The frames decoded rendering exactly.
+///
+/// A snap decodes the sync frame at or before its tick and leaves the
+/// decoders there; a snap whose tick is that sync frame lands its exact frame.
+fn filled(filling: &mut Filling, queued: &[i64], blank: &[i64]) -> i64 {
     let Filling { store, at } = filling;
     store.queue = queued.to_vec();
-    let mut rendered = Vec::new();
-    let mut frames = 0;
-    while let Some(tick) = store.next_flight() {
-        frames += decoded(*at, tick);
-        *at = Some(tick);
-        rendered.push(tick);
-        assert!(rendered.len() <= queued.len(), "a cell rendered twice");
-        store.finish(1, tick, Some(cell()));
+    store.blank = blank.to_vec();
+    let (mut snapped, mut rendered) = (Vec::new(), Vec::new());
+    let mut exact = 0;
+    while let Some((tick, policy)) = store.next_flight() {
+        let sync = tick - tick.rem_euclid(GOP);
+        match policy {
+            SeekPolicy::NearestSync => {
+                assert!(
+                    rendered.is_empty(),
+                    "the blank cell at {tick} snapped after a cell rendered exactly"
+                );
+                *at = Some(sync);
+                snapped.push(tick);
+                let landed = Cell {
+                    snapped: sync != tick,
+                    ..cell()
+                };
+                store.finish(1, tick, Some(landed));
+            }
+            SeekPolicy::Exact => {
+                exact += decoded(*at, tick);
+                *at = Some(tick);
+                rendered.push(tick);
+                store.finish(1, tick, Some(cell()));
+            }
+        }
+        assert!(
+            snapped.len() <= blank.len() && rendered.len() <= queued.len(),
+            "a cell rendered twice"
+        );
     }
+    assert_eq!(
+        snapped, blank,
+        "the blank cells did not snap, left to right"
+    );
     rendered.sort_unstable();
-    assert_eq!(rendered, queued, "a queued cell was never rendered");
-    frames
+    assert_eq!(
+        rendered,
+        owed(queued, blank),
+        "a cell without its exact frame was never rendered exactly, or one with it was again"
+    );
+    exact
 }
 
 /// The frames a cold renderer decodes walking `queued` left to right.
@@ -190,35 +265,49 @@ fn walked(queued: &[i64]) -> i64 {
 /// WHY: the store dealt adjacent cells to four renderers, so each renderer
 /// rolled forward over every frame between its cells, and then dealt runs of
 /// cells, so each run seeked to a sync frame of its own; a refill after a
-/// zoom decoded four times the frames and took four times as long. A fill
-/// decodes no more frames than a cold renderer walking the strip left to
-/// right: a clip's first fill, and the refill after a zoom out, whose new
-/// cells lie on both sides of where the decoders stand.
+/// zoom decoded four times the frames and took four times as long. And a
+/// strip with nothing on it stayed empty until each cell's exact frame
+/// decoded, every frame from its sync frame on, so a 4K long-GOP strip showed
+/// nothing for seconds. A fill snaps every blank cell before it renders any
+/// cell exactly, at one decode each, and then decodes no more frames than a
+/// cold renderer walking the strip left to right: a clip's first fill, whose
+/// cells are all blank, the refill after a zoom out, whose new cells lie on
+/// both sides of where the decoders stand, and the refill after a zoom in,
+/// whose new cells draw stand-ins and snap none.
 ///
-/// Not covered: a real decoder, modeled here as one that rolls forward or
-/// seeks to the sync frame, whichever decodes fewer frames.
+/// Not covered: a real decoder, modeled here as one that snaps at one decode
+/// and renders exactly by rolling forward or seeking to the sync frame,
+/// whichever decodes fewer frames.
 #[test]
-fn a_fill_decodes_no_frame_a_walk_along_the_strip_does_not() {
+fn a_fill_snaps_blank_cells_then_decodes_no_frame_a_walk_does_not() {
     for (cells, step) in [(64, 8), (48, 8), (32, 8), (24, 16)] {
         let span = cells * step;
         let placed: Vec<i64> = (0..cells).map(|n| n * step).collect();
         // A zoom out by two about the middle: the view doubles and the grid
         // coarsens, so the cells inside the placed ones are held.
         let coarse = usize::try_from(2 * step).expect("a small step");
-        let zoomed: Vec<i64> = (-span / 2..span + span / 2)
+        let zoomed_out: Vec<i64> = (-span / 2..span + span / 2)
             .step_by(coarse)
             .filter(|&tick| !(0..span).contains(&tick))
             .collect();
+        // A zoom in by two: the finer grid's new cells sit between held ones.
+        let fine = usize::try_from(step).expect("a small step");
+        let zoomed_in: Vec<i64> = (step / 2..span).step_by(fine).collect();
         let mut filling = Filling {
             store: FilmstripStore::default(),
             at: None,
         };
         filling.store.sync_revision(1);
-        for (when, queued) in [("placed", placed), ("zoomed out", zoomed)] {
-            let (frames, walk) = (filled(&mut filling, &queued), walked(&queued));
+        for (when, queued, blank) in [
+            ("placed", placed.clone(), placed),
+            ("zoomed out", zoomed_out.clone(), zoomed_out),
+            ("zoomed in", zoomed_in, Vec::new()),
+        ] {
+            let exact = filled(&mut filling, &queued, &blank);
+            let walk = walked(&owed(&queued, &blank));
             assert!(
-                frames <= walk,
-                "{cells} cells {step} ticks apart, {when}: decoded {frames} frames, a walk {walk}"
+                exact <= walk,
+                "{cells} cells {step} ticks apart, {when}: decoded {exact} frames exactly, a walk {walk}"
             );
         }
     }

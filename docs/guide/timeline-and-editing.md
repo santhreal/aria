@@ -239,22 +239,26 @@ next cell starts or the clip ends. Where one frame is wider than a cell, its
 picture repeats across the frame. Only cells on screen are rendered.
 
 Cells render in the background, one at a time on a renderer of their own, so
-the Viewer never waits for a cell. The next cell is the first missing cell at
-or after the one rendered last, so the renderer decodes forward from one cell
-to the next and decodes no frame twice; after the last, it wraps to the first
-missing cell. A picture edit invalidates cells inside its changed timeline
-spans; audio, labels, lane display settings, and other picture-neutral edits
-retain them.
+the Viewer never waits for a cell. A cell with no picture to draw renders
+first from the sync frame at or before its point, one decode per cell, and
+every such cell renders before any cell renders its exact frame. The exact
+frame then replaces it. The next exact cell is the first cell without its
+exact frame at or after the one rendered last, so the renderer decodes
+forward from one cell to the next and decodes no frame twice; after the
+last, it wraps to the first. A picture edit invalidates cells inside its
+changed timeline spans; audio, labels, lane display settings, and other
+picture-neutral edits retain them.
 Each move of a value scrub, a clip line drag, or a color wheel drag replaces
 the edit of the move before it, and invalidates only the cells inside the
 spans of both edits; Escape invalidates only the cells inside the spans the
 drag changed. Undo, redo, and edits from the assistant or a plugin invalidate
 every cell. Work started before an edit is rejected when it finishes.
 
-A cell that is not ready draws the last ready cell of the same clip at or
-before it, or else the first after it, within four cell widths. After a zoom
-in, that is the picture the strip showed there before. A cell never draws a
-frame of another clip; with no ready cell that near, its space stays empty.
+A cell with no picture of its own draws the last picture of the same clip at
+or before it, or else the first after it, within four cell widths. After a
+zoom in, that is the picture the strip showed there before. A cell never
+draws a frame of another clip; with no picture that near, its space stays
+empty until its sync frame renders.
 The timeline keeps up to 1,024 cells and drops the one farthest from a new
 cell to make room.
 

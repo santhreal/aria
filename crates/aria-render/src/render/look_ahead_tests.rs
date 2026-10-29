@@ -483,6 +483,82 @@ fn a_repeat_render_takes_the_shown_frame_back_without_decoding() {
     );
 }
 
+/// WHY: a filmstrip cell rendered under [`SeekPolicy::NearestSync`] draws
+/// until its exact frame replaces it, so a render counts the media frames
+/// that are the sync frame before their time. Counting none for a snap that
+/// fell between sync frames left the cell snapped forever; counting one for a
+/// snap on a sync frame rendered the cell twice. A snap that drew the frame
+/// at its time also answers the next exact request with no decode. Not
+/// covered: a snap that rolls forward onto its time, which
+/// [`aria_decoder::frame_covers`] decides as it decides a seek.
+#[test]
+fn a_render_counts_the_frames_a_snap_drew_before_their_time() {
+    let (project, media, a, _) = fixture_project();
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        return;
+    };
+    let key = DecoderKey {
+        media,
+        clip: Some(a),
+    };
+    let calls = Arc::new(AtomicUsize::new(0));
+    let inner = aria_decoder::open_video_decoder(&fixture(), aria_decoder::OutputMode::Cpu)
+        .unwrap_or_else(|error| panic!("fixture: {error}"));
+    let decoder = AheadDecoder::new(Box::new(Counting {
+        inner,
+        calls: Arc::clone(&calls),
+    }));
+    renderer
+        .decoders
+        .insert(key, DecoderSlot::new(Some(decoder), None, 0));
+    let settled = |renderer: &Renderer| {
+        if let Some(decoder) = &renderer.decoders[&key].decoder {
+            decoder.idle();
+        }
+        calls.load(Ordering::SeqCst)
+    };
+    let rendered = |renderer: &mut Renderer, tick, policy| {
+        let mut sink = aria_compositor::ImageSink::default();
+        renderer
+            .render_frame_fit_into_with(
+                &project,
+                RationalTime::new(tick, FPS_30),
+                160,
+                90,
+                crate::resolve::ResolveOverrides::default(),
+                policy,
+                &mut sink,
+            )
+            .unwrap_or_else(|error| panic!("render {tick} under {policy:?}: {error}"));
+        renderer.last_frame_stats().snapped_frames
+    };
+
+    // The fixture's sync frames are 0, 30 and 60. The first snap finds the
+    // decoder at no frame and each later one lands behind it, so every snap
+    // seeks rather than rolls forward.
+    for (tick, policy, snapped) in [
+        (5, SeekPolicy::NearestSync, 1),
+        (5, SeekPolicy::Exact, 0),
+        (0, SeekPolicy::NearestSync, 0),
+        (25, SeekPolicy::Exact, 0),
+        (10, SeekPolicy::NearestSync, 1),
+    ] {
+        assert_eq!(
+            rendered(&mut renderer, tick, policy),
+            snapped,
+            "the render at {tick} under {policy:?} counted the wrong snapped frames"
+        );
+    }
+    rendered(&mut renderer, 0, SeekPolicy::NearestSync);
+    let decoded = settled(&renderer);
+    rendered(&mut renderer, 0, SeekPolicy::Exact);
+    assert_eq!(
+        settled(&renderer),
+        decoded,
+        "a snap that drew the frame at its time did not answer an exact request"
+    );
+}
+
 fn av_fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4")
@@ -746,7 +822,7 @@ fn shown_frames_return_and_take_their_planes_through_the_plane_pool() {
             clip: None,
         },
         source_time: RationalTime::new(0, FPS_30),
-        policy: SeekPolicy::Exact,
+        exact: true,
         frame: cpu_frame(vec![0xa7; DROPPED]),
     });
     let taken = aria_decoder::take_plane_vec(DROPPED);

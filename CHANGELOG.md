@@ -737,6 +737,7 @@ Notes for the latest release. For previous releases, see the
 - A filmstrip cell that is not rendered yet draws the last rendered cell of its clip at or before it, or else the first after it, within four cell widths, so a zoom in shows the picture the strip showed there before instead of an empty lane while the strip refills.
 - A pool row scrubbed to a frame not decoded yet shows the decoded frame of its file last before it, or else the first after it, instead of a glyph between frames.
 - Timeline filmstrip cells render one at a time, each the first missing cell at or after the one rendered last, instead of four at a time on renderers that each rolled over every frame between their cells, which brings the filmstrip refill over a clip's first fill, four zooms and three scrolls on Server from a p50 between 857.9 ms and 862.8 ms to between 220.6 ms and 249.8 ms, and the first fill from between 1008.9 ms and 1018.5 ms to between 936.3 ms and 950.0 ms, over five paired runs.
+- A timeline filmstrip cell with no picture to draw renders first from the sync frame at or before it, and every such cell does so before any cell renders its exact frame, which brings the time until a clip's first fill draws no empty cell on Server from between 818.9 ms and 872.9 ms to between 133.3 ms and 139.9 ms over `h264-1080p60`, and from between 7675.7 ms and 9099.4 ms to between 717.3 ms and 760.2 ms over `hevc-2160p60`, over three paired runs, while every cell shows its exact frame after between 962.8 ms and 1029.1 ms and between 8722.3 ms and 9398.9 ms, from between 912.0 ms and 971.8 ms and between 8539.8 ms and 10333.1 ms.
 
 ### Fixed
 
@@ -973,6 +974,7 @@ Notes for the latest release. For previous releases, see the
 - `aria_last_error` reports the error of the last session open or new on the calling thread, where a session opened or created on another thread could clear or replace it before it was read.
 - Trimming an edge of a clip inward, including the trim a move or overwrite makes of a clip it lands on, keeps the source frame at the other edge, so such an edit on a take that ends at its media's end no longer fails with `Couldn't apply that edit` when the trim is not a whole number of the take's frames.
 - A filmstrip cell the timeline drops leaves the window atlas instead of staying in it until the window closes, and a full filmstrip store drops the cell farthest from the one landing instead of every cell on screen.
+- A timeline filmstrip renders its next cell as soon as one lands instead of waiting for the window's next frame.
 - A pool picture or Viewer comparison reference the editor drops leaves the window atlas instead of staying in it until the window closes, and a full pool drops one picture of the file holding the most instead of every picture.
 
 ## [alpha-0.7.0] - 2026-07-22
