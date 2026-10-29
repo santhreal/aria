@@ -160,7 +160,10 @@ impl<'a> TargetPass<'a> {
             // SAFETY: `push_draw` resets the batch whenever an overwriting draw
             // is pushed, so `inline[0]` is the first draw of `pass` and writes
             // every pixel of `self.view` with blending disabled.
-            unsafe { color_pass::begin_overwrite(encoder, self.view) }
+            #[allow(unsafe_code)]
+            unsafe {
+                color_pass::begin_overwrite(encoder, self.view)
+            }
         } else {
             let load = match clear {
                 Some(color) => wgpu::LoadOp::Clear(color),

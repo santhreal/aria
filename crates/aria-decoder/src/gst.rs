@@ -162,7 +162,18 @@ pub struct GstDecoder {
 
 // SAFETY: pipeline and sink are owned by one decode worker. `VideoDecoder: Send`
 // without `Sync`.
+#[allow(unsafe_code)]
 unsafe impl Send for GstDecoder {}
+
+impl std::fmt::Debug for GstDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GstDecoder")
+            .field("info", &self.info)
+            .field("mode", &self.mode)
+            .field("settled", &self.settled)
+            .finish_non_exhaustive()
+    }
+}
 
 impl GstDecoder {
     pub fn open(path: &Path, mode: OutputMode) -> Result<Self, DecodeError> {

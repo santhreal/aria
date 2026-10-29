@@ -166,6 +166,7 @@ fn render_file_frame_rgba(path: &Path, max_width: u32, max_height: u32) -> Optio
 
 /// An RGBA8 image handed across the C ABI. `data` points at `len`
 /// (`= width * height * 4`) bytes; `data` is null when rendering failed.
+#[derive(Debug)]
 #[repr(C)]
 pub struct AriaImage {
     pub data: *mut u8,
@@ -207,6 +208,8 @@ impl AriaImage {
 /// # Safety
 /// The returned buffer is owned by the callee until passed back to
 /// [`aria_image_free`]; do not free it any other way.
+// SAFETY: `aria_render_demo` is a unique C ABI export symbol of `aria-mobile`.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn aria_render_demo(width: u32, height: u32) -> AriaImage {
     match render_demo_rgba(width, height) {
@@ -224,6 +227,7 @@ pub extern "C" fn aria_render_demo(width: u32, height: u32) -> AriaImage {
 /// # Safety
 /// `path_utf8` must point to `path_len` initialized bytes (no NUL terminator
 /// required). The returned buffer is owned by the callee until freed.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn aria_render_file_frame(
     path_utf8: *const u8,
@@ -251,6 +255,7 @@ pub unsafe extern "C" fn aria_render_file_frame(
 /// # Safety
 /// `img` must be a value previously returned by [`aria_render_demo`] and not
 /// already freed; `data`/`len` must not have been modified.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn aria_image_free(img: AriaImage) {
     if img.data.is_null() || img.len == 0 {

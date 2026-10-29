@@ -9,7 +9,7 @@ use crate::error::EngineError;
 // duration-edit unconditionally — mirroring the clip-snapshot shape used by
 // the effect edits.
 
-pub fn add_transition(
+pub(crate) fn add_transition(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     transition_id: &str,
@@ -19,7 +19,7 @@ pub fn add_transition(
     Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
 }
 
-pub fn remove_transition(
+pub(crate) fn remove_transition(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -28,7 +28,7 @@ pub fn remove_transition(
     Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
 }
 
-pub fn set_transition(
+pub(crate) fn set_transition(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     duration: i64,
@@ -38,7 +38,7 @@ pub fn set_transition(
     Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
 }
 
-pub fn set_transition_alignment(
+pub(crate) fn set_transition_alignment(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     alignment: TransitionAlignment,
@@ -48,7 +48,7 @@ pub fn set_transition_alignment(
     Ok(Box::new(RestoreTransitionsAction { snapshot: before }))
 }
 
-pub fn set_transition_state(
+pub(crate) fn set_transition_state(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     transition: Transition,

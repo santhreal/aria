@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 /// The requested operation.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Verb {
+pub(crate) enum Verb {
     /// Composite a demo scene on a headless GPU.
     Demo,
     /// Assemble a project file from a list of media.
@@ -35,7 +35,7 @@ impl Verb {
     ///
     /// One table, so a verb that parses is a verb the tests check for
     /// documentation and the parser finds without a second `match` to forget.
-    pub const ALL: [Verb; 7] = [
+    pub(crate) const ALL: [Verb; 7] = [
         Verb::Demo,
         Verb::New,
         Verb::Frame,
@@ -46,7 +46,7 @@ impl Verb {
     ];
 
     /// The verb spelled as it is typed.
-    pub fn key(self) -> &'static str {
+    pub(crate) fn key(self) -> &'static str {
         match self {
             Verb::Demo => "demo",
             Verb::New => "new",
@@ -60,7 +60,7 @@ impl Verb {
 
     /// Flags accepted by this verb on the top-level command line (`Plugin`
     /// dispatches to [`crate::plugin::Subcommand::flags`]).
-    pub fn flags(self) -> &'static [&'static str] {
+    pub(crate) fn flags(self) -> &'static [&'static str] {
         match self {
             Verb::Demo => crate::demo::FLAGS,
             Verb::New => crate::new::FLAGS,
@@ -79,7 +79,7 @@ impl Verb {
 
 /// A parsed command line: one verb, its positional arguments, and its flags.
 #[derive(Debug)]
-pub struct Args {
+pub(crate) struct Args {
     pub verb: Verb,
     pub positional: Vec<String>,
     flags: BTreeMap<String, Option<String>>,
@@ -87,7 +87,7 @@ pub struct Args {
 
 /// What the parser can refuse.
 #[derive(Debug, PartialEq)]
-pub enum ArgsError {
+pub(crate) enum ArgsError {
     /// No verb at all: print the usage block on stdout, exit 0.
     NoVerb,
     /// `--help` anywhere: same block, exit 0.
@@ -98,7 +98,7 @@ pub enum ArgsError {
 
 impl Args {
     /// Parse `argv` without the program name.
-    pub fn parse<I, S>(argv: I) -> Result<Args, ArgsError>
+    pub(crate) fn parse<I, S>(argv: I) -> Result<Args, ArgsError>
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
@@ -147,7 +147,7 @@ impl Args {
     }
 
     /// The positional argument at `index`, or a usage error naming `what`.
-    pub fn required_path(&self, index: usize, what: &str) -> Result<PathBuf, ArgsError> {
+    pub(crate) fn required_path(&self, index: usize, what: &str) -> Result<PathBuf, ArgsError> {
         self.positional
             .get(index)
             .map(PathBuf::from)
@@ -155,12 +155,12 @@ impl Args {
     }
 
     /// Whether a valueless flag was given.
-    pub fn present(&self, name: &str) -> bool {
+    pub(crate) fn present(&self, name: &str) -> bool {
         self.flags.contains_key(name)
     }
 
     /// A flag's raw value, or `None` when the flag was not given.
-    pub fn value(&self, name: &str) -> Result<Option<&str>, ArgsError> {
+    pub(crate) fn value(&self, name: &str) -> Result<Option<&str>, ArgsError> {
         match self.flags.get(name) {
             None => Ok(None),
             Some(None) => Err(ArgsError::Usage(format!("--{name} needs a value"))),
@@ -169,7 +169,7 @@ impl Args {
     }
 
     /// A flag parsed as `f64`.
-    pub fn seconds(&self, name: &str) -> Result<Option<f64>, ArgsError> {
+    pub(crate) fn seconds(&self, name: &str) -> Result<Option<f64>, ArgsError> {
         match self.value(name)? {
             None => Ok(None),
             Some(raw) => raw
@@ -184,7 +184,7 @@ impl Args {
     }
 
     /// A flag parsed as `u32`.
-    pub fn number(&self, name: &str) -> Result<Option<u32>, ArgsError> {
+    pub(crate) fn number(&self, name: &str) -> Result<Option<u32>, ArgsError> {
         match self.value(name)? {
             None => Ok(None),
             Some(raw) => raw.parse::<u32>().map(Some).map_err(|_| {
@@ -194,7 +194,7 @@ impl Args {
     }
 
     /// A `WIDTHxHEIGHT` flag.
-    pub fn size(&self, name: &str) -> Result<Option<(u32, u32)>, ArgsError> {
+    pub(crate) fn size(&self, name: &str) -> Result<Option<(u32, u32)>, ArgsError> {
         let Some(raw) = self.value(name)? else {
             return Ok(None);
         };
@@ -212,7 +212,7 @@ impl Args {
     ///
     /// The check is the difference between `aria export --frames 10` writing the
     /// whole timeline and telling the caller the flag does not exist.
-    pub fn reject_unknown(&self, known: &[&str]) -> Result<(), ArgsError> {
+    pub(crate) fn reject_unknown(&self, known: &[&str]) -> Result<(), ArgsError> {
         for name in self.flags.keys() {
             if !known.contains(&name.as_str()) {
                 return Err(ArgsError::Usage(format!(
@@ -226,7 +226,7 @@ impl Args {
 }
 
 /// The usage block, printed for no arguments, `--help`, and every usage error.
-pub const USAGE: &str = "\
+pub(crate) const USAGE: &str = "\
 aria — the Aria editor's command line
 
 USAGE

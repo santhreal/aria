@@ -87,7 +87,7 @@ impl After {
 /// a headless test, and the ones that start work need the entity context to
 /// spawn a task and hand the result back. A binding says which it is, so a key
 /// for a job is one row rather than a signature every row pays for.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum KeyBody {
     Plain(fn(&mut AppState)),
     Windowed(crate::commands::host::WindowedRun),
@@ -97,7 +97,7 @@ pub enum KeyBody {
 }
 
 /// One contributed binding.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Binding {
     pub id: &'static str,
     pub chord: Chord,
@@ -173,7 +173,7 @@ pub struct KeyConflict {
 }
 
 /// One line of the rebinding surface.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct BindingRow {
     pub binding: Binding,
     /// The chord bound now, or nothing when the binding was cleared.
@@ -239,6 +239,19 @@ pub struct KeyHost {
     /// The plugin context's command revision at the last sync, plus one: zero
     /// is a host that has not synced.
     plugin_revision: AtomicU64,
+}
+
+impl std::fmt::Debug for KeyHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KeyHost")
+            .field(
+                "plugin_revision",
+                &self
+                    .plugin_revision
+                    .load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .finish_non_exhaustive()
+    }
 }
 
 impl Service for KeyHost {}
@@ -380,6 +393,7 @@ pub fn host_of(ctx: &PluginContext) -> Option<std::sync::Arc<KeyHost>> {
 /// without this it could only read the shipped table and would keep naming a
 /// chord that has since been rebound. One instance either way: the `Arc` the
 /// plugin mount registered.
+#[derive(Debug)]
 pub struct MountedKeys(std::sync::Arc<KeyHost>);
 
 impl gpui::Global for MountedKeys {}

@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// `resolution` is refused here rather than clamped: a delivery size the
 /// operator typed is either the one they meant or a mistake worth naming, and
 /// every later stage (preview, export, compositor) then trusts the stored size.
-pub fn set_canvas(
+pub(crate) fn set_canvas(
     ctx: &mut ApplyContext<'_>,
     aspect: CanvasAspect,
     background: [u8; 3],

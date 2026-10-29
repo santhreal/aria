@@ -6,7 +6,7 @@ use crate::error::EngineError;
 /// Swap every track's transition set back to a captured snapshot. Used both as
 /// the direct inverse of transition edits and, compounded with a structural
 /// edit's inverse, to restore junctions pruned when an edit broke an abutment.
-pub struct RestoreTransitionsAction {
+pub(crate) struct RestoreTransitionsAction {
     pub snapshot: Vec<(TrackId, Vec<Transition>)>,
 }
 

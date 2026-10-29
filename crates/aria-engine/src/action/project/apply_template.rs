@@ -17,7 +17,7 @@ use crate::import::import_media;
 /// document has no undo past), but the result is a *new unsaved* project, so
 /// the project path resets. Sample media whose files are missing is tolerated
 /// (matches `Load`); the UI relinks or fills those slots.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     path: PathBuf,
     picks: Vec<TemplatePick>,

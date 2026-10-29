@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// neither the project path nor the dirty baseline moves. A project with no
 /// replaceable slots is allowed — text-only templates (editable titles over a
 /// locked look) are a real CapCut category.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     path: PathBuf,
     meta: TemplateMeta,

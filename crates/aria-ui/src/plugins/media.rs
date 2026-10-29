@@ -13,6 +13,7 @@ use aria_plugin::{
 
 use super::{has_extension, register_dyn};
 
+#[derive(Debug)]
 pub struct DecoderPlugin;
 
 struct NativeDecoder;
@@ -56,6 +57,7 @@ impl Plugin for DecoderPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct EncoderPlugin;
 
 struct NativeEncoder;

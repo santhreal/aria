@@ -26,7 +26,7 @@ use crate::types::RenameTarget;
 
 /// Longest accepted name. Long enough for a real label, short enough that a
 /// held key cannot grow the draft without bound.
-pub const RENAME_MAX_LEN: usize = 64;
+pub(super) const RENAME_MAX_LEN: usize = 64;
 
 /// The caret and selection in the rename draft, in characters.
 ///

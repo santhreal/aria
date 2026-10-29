@@ -602,3 +602,14 @@ pub struct AppState {
     /// The colour wheel a press holds, and the Color panel's open sections.
     pub(crate) grade_controls: crate::app::grade_controls::GradeControls,
 }
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("project_path", &self.project_path)
+            .field("revision", &self.revision)
+            .field("playhead", &self.playhead)
+            .field("playing", &self.playing)
+            .finish_non_exhaustive()
+    }
+}

@@ -94,6 +94,7 @@ fn work(jobs: &Mutex<Receiver<Job>>) {
     #[cfg(target_os = "windows")]
     // SAFETY: joins this thread to the MTA with no reserved pointer; a thread
     // already in an apartment reports the conflict, which changes nothing.
+    #[allow(unsafe_code)]
     unsafe {
         let _ = windows::Win32::System::Com::CoInitializeEx(
             None,

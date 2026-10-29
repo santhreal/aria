@@ -7,12 +7,12 @@ use crate::error::EngineError;
 /// (`Project::link_plan` / `unlink_plan`); this adds only the inverse capture,
 /// so the group a script forms and the group a command forms are the same
 /// group. The inverse oscillates like any snapshot swap.
-pub struct SetClipLinksAction {
+pub(crate) struct SetClipLinksAction {
     pub links: Vec<LinkAssignment>,
 }
 
 /// Put `clips` into one freshly allocated link group.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -26,7 +26,7 @@ pub fn execute(
 }
 
 /// Dissolve every link group touched by `clips`.
-pub fn unlink(
+pub(crate) fn unlink(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -45,12 +45,12 @@ impl EditAction for SetClipLinksAction {
 }
 
 /// The undoable unit for clip groups (`Clip` > `Group` / `Ungroup`).
-pub struct SetClipGroupsAction {
+pub(crate) struct SetClipGroupsAction {
     pub groups: Vec<GroupAssignment>,
 }
 
 /// Put `clips` (2+ clips) into one freshly allocated clip group.
-pub fn group(
+pub(crate) fn group(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -64,7 +64,7 @@ pub fn group(
 }
 
 /// Dissolve every clip group touched by `clips`.
-pub fn ungroup(
+pub(crate) fn ungroup(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -83,12 +83,12 @@ impl EditAction for SetClipGroupsAction {
 }
 
 /// The undoable unit for enabling or disabling a set of clips (`Clip` > `Enable`).
-pub struct SetClipsEnabledAction {
+pub(crate) struct SetClipsEnabledAction {
     pub plan: Vec<EnableAssignment>,
 }
 
 /// Set `enabled` on `clips` as one undo step.
-pub fn set_enabled(
+pub(crate) fn set_enabled(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
     enabled: bool,

@@ -4,7 +4,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Swap a clip back to a captured snapshot (trim undo/redo).
-pub struct RestoreClipAction {
+pub(crate) struct RestoreClipAction {
     pub clip: Clip,
 }
 

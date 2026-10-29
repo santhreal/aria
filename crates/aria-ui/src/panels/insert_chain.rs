@@ -26,6 +26,7 @@ use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
 
 /// One chain to draw.
+#[derive(Debug)]
 pub struct Chain<'a> {
     pub target: AudioInsertTarget,
     pub inserts: &'a [UiInsert],

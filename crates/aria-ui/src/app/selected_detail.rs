@@ -42,7 +42,7 @@ use crate::app::clip_parent::ParentChoices;
 /// re-projection field for field: a value sampled at the playhead that the scrub
 /// path forgot to re-take shows up as a difference rather than as a stale
 /// number nobody can see.
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct SelectedDetail {
     /// The clip as the model holds it: params, keyframes, content, extent.
     pub model: Clip,

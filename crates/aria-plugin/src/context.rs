@@ -46,6 +46,14 @@ pub struct PluginContext {
     scope: Option<Arc<PluginManifest>>,
 }
 
+impl std::fmt::Debug for PluginContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginContext")
+            .field("scope", &self.scope.as_ref().map(|m| m.id.as_ref()))
+            .finish_non_exhaustive()
+    }
+}
+
 /// A context that does not keep its registries alive, for a service the
 /// context itself holds: [`upgrade`](Self::upgrade) yields the host's context
 /// while any other clone is alive.

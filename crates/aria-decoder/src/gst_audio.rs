@@ -31,7 +31,19 @@ pub struct GstAudioReader {
 }
 
 // SAFETY: pipeline and sink are owned by one export/decode worker.
+#[allow(unsafe_code)]
 unsafe impl Send for GstAudioReader {}
+
+impl std::fmt::Debug for GstAudioReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GstAudioReader")
+            .field("out_rate", &self.out_rate)
+            .field("channels", &self.channels)
+            .field("position", &self.position)
+            .field("eos", &self.eos)
+            .finish_non_exhaustive()
+    }
+}
 
 impl GstAudioReader {
     pub fn open(path: &Path, out_rate: u32, channels: u16) -> Result<Self, DecodeError> {

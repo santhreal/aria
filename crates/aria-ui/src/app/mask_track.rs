@@ -44,14 +44,14 @@ use super::AppState;
 /// footage sits well above this, a featureless or occluded patch below it. Held
 /// here as one number because it is the pass's honesty threshold, not a taste
 /// knob.
-pub const CONFIDENCE_FLOOR: f32 = 0.5;
+pub(crate) const CONFIDENCE_FLOOR: f32 = 0.5;
 
 /// How far, in pixels, a feature may move between two frames and still be found.
 ///
 /// Bounds the search: the cost is `(2r + 1)^2` correlations per frame, and a
 /// window wide enough for any motion is also wide enough to lock onto the wrong
 /// thing.
-pub const SEARCH_RADIUS: i32 = 24;
+pub(crate) const SEARCH_RADIUS: i32 = 24;
 
 /// What a tracking pass did.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -93,7 +93,7 @@ pub trait MaskFrames {
 }
 
 /// The synchronous source: the session's own preview renderer.
-pub struct EngineFrames<'a> {
+pub(crate) struct EngineFrames<'a> {
     engine: &'a std::sync::Arc<parking_lot::Mutex<aria_engine::Engine>>,
 }
 
@@ -133,7 +133,7 @@ impl MaskFrames for RenderedFrames {
 /// thread and the keyframes are written by the window, and a walk that could
 /// name the engine would be a walk somebody could run on the wrong thread.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MaskWalk {
+pub(crate) struct MaskWalk {
     /// The tick the mask sits at now, and the first keyframe written.
     pub start: RationalTime,
     /// Ticks forward from `start`, at the timeline rate.
@@ -204,7 +204,7 @@ impl MaskTarget {
 /// `cancel` is asked once per frame and `progress` is told `(done, total)` per
 /// accepted frame, so a job draws a determinate bar and stops mid-pass without
 /// this function knowing what a job is.
-pub fn walk_mask(
+pub(crate) fn walk_mask(
     frames: &mut dyn MaskFrames,
     walk: &MaskWalk,
     cancel: &dyn Fn() -> bool,

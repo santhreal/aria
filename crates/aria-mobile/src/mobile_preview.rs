@@ -3,6 +3,9 @@
 //! Declared from `lib.rs` with `#[path]`; `use super::*` reaches the crate
 //! root's imports and private helpers, so the move changed no name resolution.
 //! The `#[unsafe(no_mangle)]` exports below are unaffected by module privacy.
+//! The module exports `#[unsafe(no_mangle)]` C ABI functions that box, borrow, and free raw preview handles and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 
@@ -27,6 +30,15 @@ pub struct AriaPreview {
     project: Project,
     fps: Rational,
     duration_frames: i64,
+}
+
+impl std::fmt::Debug for AriaPreview {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AriaPreview")
+            .field("fps", &self.fps)
+            .field("duration_frames", &self.duration_frames)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AriaPreview {

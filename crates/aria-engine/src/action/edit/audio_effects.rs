@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// back at its index with its values, which a per-field inverse could not
 /// promise once a later insert had moved.
 #[derive(Debug, Clone)]
-pub enum InsertEdit {
+pub(crate) enum InsertEdit {
     Add {
         effect_id: String,
     },
@@ -37,12 +37,12 @@ pub enum InsertEdit {
 }
 
 /// The undoable unit for an insert chain: the whole chain as it was.
-pub struct SetAudioInsertsAction {
+pub(crate) struct SetAudioInsertsAction {
     target: AudioInsertTarget,
     inserts: Vec<AudioEffectInstance>,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     target: AudioInsertTarget,
     edit: InsertEdit,

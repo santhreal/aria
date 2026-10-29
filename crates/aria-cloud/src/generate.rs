@@ -187,7 +187,7 @@ impl GenerationProvider for FalGenerationProvider {
                     error: Some(error_msg),
                 })
             }
-            "IN_QUEUE" | "IN_PROGRESS" => Ok(running),
+            // `IN_QUEUE`, `IN_PROGRESS`, and any status fal.ai adds later.
             _ => Ok(running),
         }
     }

@@ -25,7 +25,7 @@ pub type CommandRun = fn(&mut AppState);
 pub type WindowedRun = fn(&mut AppState, &mut gpui::Context<AppState>);
 
 /// One contributed command that runs against the state alone.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct CommandEntry {
     /// Element id, also the identity the registry de-duplicates on.
     pub id: &'static str,
@@ -35,7 +35,7 @@ pub struct CommandEntry {
 }
 
 /// One contributed command that needs the entity context.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct WindowedEntry {
     pub id: &'static str,
     pub label: &'static str,
@@ -43,14 +43,14 @@ pub struct WindowedEntry {
 }
 
 /// How a registered command is invoked.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum CommandBody {
     Plain(CommandRun),
     Windowed(WindowedRun),
 }
 
 /// One registered command, whichever kind it is.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Registered {
     pub id: &'static str,
     pub label: &'static str,
@@ -62,6 +62,14 @@ pub struct Registered {
 pub struct CommandHost {
     entries: RwLock<Vec<Registered>>,
     revision: AtomicU64,
+}
+
+impl std::fmt::Debug for CommandHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandHost")
+            .field("revision", &self.revision.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
 }
 
 impl Service for CommandHost {}

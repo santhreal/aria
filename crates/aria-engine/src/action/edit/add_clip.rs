@@ -4,7 +4,7 @@ use crate::action::edit::remove_clip::RemoveClipAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     media: MediaId,

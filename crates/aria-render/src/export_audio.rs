@@ -963,7 +963,7 @@ mod inserts;
 
 #[path = "export_audio_xfade.rs"]
 mod xfade;
-pub use xfade::Crossfade;
+pub(crate) use xfade::Crossfade;
 
 // The mix run ahead of an export's frame loop, on a thread of its own.
 #[path = "export_audio_feed.rs"]

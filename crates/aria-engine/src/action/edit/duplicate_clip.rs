@@ -5,7 +5,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Deep-copy one clip to an explicit destination and return its undo action.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,

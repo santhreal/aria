@@ -57,7 +57,7 @@ pub(super) struct GlyphInstanceGpu {
 }
 
 impl GlyphInstanceGpu {
-    pub const LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
+    pub(super) const LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
         array_stride: std::mem::size_of::<GlyphInstanceGpu>() as wgpu::BufferAddress,
         step_mode: wgpu::VertexStepMode::Instance,
         attributes: &[

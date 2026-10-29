@@ -12,7 +12,7 @@ use crate::args::Args;
 use crate::fail::Failure;
 use crate::project;
 
-pub const FLAGS: &[&str] = &["clips"];
+pub(crate) const FLAGS: &[&str] = &["clips"];
 pub(crate) const LANE_FLAGS: [&str; 8] = [
     "disabled",
     "muted",
@@ -24,7 +24,7 @@ pub(crate) const LANE_FLAGS: [&str; 8] = [
     "no sync lock",
 ];
 
-pub fn run(args: &Args) -> Result<(), Failure> {
+pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a project file")?;
     let project = project::load(&path)?;
     let timeline = project.timeline();

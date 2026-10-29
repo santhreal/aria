@@ -25,6 +25,7 @@ use super::AppState;
 
 /// The pool rows one tab draws, and the size of the set they were filtered out
 /// of.
+#[derive(Debug)]
 pub struct PoolRows {
     /// The projection these rows index into. Held so the rows outlive the read
     /// that produced them.

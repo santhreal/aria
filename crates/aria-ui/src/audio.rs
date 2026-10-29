@@ -164,6 +164,15 @@ pub struct AudioHandle {
     inner: Arc<Shared>,
 }
 
+impl std::fmt::Debug for AudioHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioHandle")
+            .field("playing", &self.inner.playing.load(Ordering::Relaxed))
+            .field("tick", &self.inner.tick.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
+}
+
 impl AudioHandle {
     pub fn new() -> Self {
         Self {
@@ -328,6 +337,16 @@ pub struct AudioSystem {
     scrub_slot: Option<Arc<Mutex<Option<(i64, i32, i32)>>>>,
     last_generation: u64,
     last_scrub_generation: u64,
+}
+
+impl std::fmt::Debug for AudioSystem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioSystem")
+            .field("handle", &self.handle)
+            .field("active", &self.stream.is_some())
+            .field("last_generation", &self.last_generation)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AudioSystem {

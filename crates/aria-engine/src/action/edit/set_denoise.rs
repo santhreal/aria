@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// The model validates media backing; the flag changes no duration, so there is
 /// no neighbor check. The inverse is a full-clip restore, like the pitch and
 /// audio edits.
-pub fn set_denoise(
+pub(crate) fn set_denoise(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     denoise: bool,

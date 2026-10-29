@@ -13,7 +13,7 @@ use crate::types::{EditorTool, PenVariant};
 
 /// Hold duration (ms) that distinguishes a temporary tool hold (or a tool-strip
 /// press-and-hold that opens the variants popover) from a tap (`docs/spec/layout.md`).
-pub const TOOL_HOLD_MS: u64 = 300;
+pub(crate) const TOOL_HOLD_MS: u64 = 300;
 
 /// One selectable entry in a tool button's variants popover (`docs/spec/layout.md`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

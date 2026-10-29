@@ -19,6 +19,7 @@ use crate::app::AppState;
 ///
 /// `None` for a folder is the pool root, which is a real destination: it is how
 /// something comes back out of a folder.
+#[derive(Debug)]
 pub enum Dropped {
     /// A source, onto a folder.
     MediaOnBin { media: u64, bin: Option<u64> },

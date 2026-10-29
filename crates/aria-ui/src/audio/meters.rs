@@ -12,6 +12,7 @@ use aria_models::TrackId;
 /// a reading cannot be attributed to a lane the mix does not carry. A lane with
 /// no slot reads silence, which is what a strip for a lane outside the mix
 /// draws.
+#[derive(Debug)]
 pub struct LaneMeters {
     lanes: Vec<(TrackId, [AtomicU32; 2])>,
 }

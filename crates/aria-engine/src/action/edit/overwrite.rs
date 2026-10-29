@@ -15,7 +15,7 @@ use crate::error::EngineError;
 /// Atomic: every step runs through the primitive actions, and a rejected step
 /// reverts the ones already applied before the error propagates. The inverse is
 /// one history entry that puts the covered material back.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     media: MediaId,
@@ -90,7 +90,7 @@ pub(crate) fn cover_plan(
 }
 
 /// An atomic action for undoing a straddle clear.
-pub struct StraddleClearAction {
+pub(crate) struct StraddleClearAction {
     pub track: TrackId,
     pub original: Clip,
     pub head_clip: Clip,
@@ -115,7 +115,7 @@ impl EditAction for StraddleClearAction {
     }
 }
 
-pub struct ReapplyStraddleAction {
+pub(crate) struct ReapplyStraddleAction {
     pub track: TrackId,
     pub original: Clip,
     pub head_clip: Clip,

@@ -11,6 +11,7 @@ thread_local! {
 // SAFETY: Forwards every allocation, deallocation, and reallocation directly
 // to `std::alloc::System` with identical layout and pointer arguments, only
 // incrementing a thread-local counter on successful heap allocations.
+#[allow(unsafe_code)]
 unsafe impl GlobalAlloc for CountingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let ptr = unsafe { System.alloc(layout) };

@@ -359,7 +359,7 @@ pub(crate) mod import;
 
 /// A codec name, or an honest statement that the platform did not report one.
 /// A guess from the file extension would name the container, not the codec.
-pub fn codec_label(codec: Option<&str>) -> String {
+pub(crate) fn codec_label(codec: Option<&str>) -> String {
     match codec {
         Some(name) if !name.trim().is_empty() => name.trim().to_string(),
         _ => "Unknown".to_string(),
@@ -374,7 +374,7 @@ pub fn codec_label(codec: Option<&str>) -> String {
 /// decodes while every number above it still describes the original, so a row
 /// that did not name it would be a row where "1920×1080" and the picture on
 /// screen disagree about what is being played.
-pub fn media_caption(item: &crate::types::UiMediaItem) -> String {
+pub(crate) fn media_caption(item: &crate::types::UiMediaItem) -> String {
     use std::fmt::Write as _;
 
     if item.missing {

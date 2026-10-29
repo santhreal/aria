@@ -33,6 +33,7 @@ impl ReplacePipeline {
     /// `pipeline` has blending disabled and writes every color channel, its
     /// vertex shader covers the target with vertices `0..6`, and its fragment
     /// shader never discards.
+    #[allow(unsafe_code)]
     pub(crate) unsafe fn new(pipeline: wgpu::RenderPipeline) -> Self {
         Self(pipeline)
     }
@@ -98,6 +99,7 @@ pub(crate) fn begin<'e>(
 ///
 /// The first draw of the pass writes every pixel of `view` with blending
 /// disabled. The target's contents are undefined until that draw runs.
+#[allow(unsafe_code)]
 pub(crate) unsafe fn begin_overwrite<'e>(
     encoder: &'e mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
@@ -140,6 +142,7 @@ pub(crate) fn replace_quad(
 ) {
     // SAFETY: the pass's one draw is a `ReplacePipeline` quad, which writes
     // every pixel of `view` without blending.
+    #[allow(unsafe_code)]
     let mut pass = unsafe { begin_overwrite(encoder, view) };
     draw_quad_in(&mut pass, &pipeline.0, bind_group);
 }

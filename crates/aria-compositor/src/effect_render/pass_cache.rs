@@ -170,7 +170,7 @@ pub(crate) struct PassCache {
 }
 
 impl PassCache {
-    pub fn new(queue: wgpu::Queue) -> Self {
+    pub(crate) fn new(queue: wgpu::Queue) -> Self {
         Self {
             table: RefCell::new(Table {
                 entries: Vec::new(),
@@ -240,7 +240,7 @@ impl PassCache {
 
     /// Start a frame: the counts report this frame only, the entries carry over
     /// unless they have gone [`MAX_IDLE_FRAMES`] undrawn.
-    pub fn begin_frame(&self) {
+    pub(crate) fn begin_frame(&self) {
         let mut table = self.table.borrow_mut();
         table.frame += 1;
         table.retire();
@@ -257,7 +257,7 @@ impl PassCache {
     }
 
     /// What the passes since [`begin_frame`](Self::begin_frame) cost.
-    pub fn stats(&self) -> PassStats {
+    pub(crate) fn stats(&self) -> PassStats {
         let table = self.table.borrow();
         PassStats {
             entries: table.entries.len() as u32,
@@ -268,7 +268,7 @@ impl PassCache {
     /// Draw every pass with its own bind group. Diagnostic only: it exists so
     /// the batching measurement can report both numbers from one run. The
     /// table and its eviction count describe one another, so both reset.
-    pub fn set_reuse(&self, reuse: bool) {
+    pub(crate) fn set_reuse(&self, reuse: bool) {
         let mut table = self.table.borrow_mut();
         table.reuse = reuse;
         table.entries.clear();

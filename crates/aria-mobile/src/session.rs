@@ -11,6 +11,9 @@
 //! of a failed open or new is recorded per thread: call [`aria_last_error`]
 //! on the thread that received the null handle, before an `await` or another
 //! open or new on that thread.
+//! The module exports `#[unsafe(no_mangle)]` C ABI functions that box, borrow, and free raw session handles and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::cell::Cell;
 use std::ffi::c_char;
@@ -27,6 +30,7 @@ use crate::wire::{err_response, ok_response, protocol_err_response, str_arg, to_
 
 /// An editing session: the engine plus nothing else (kept as a struct so the
 /// FFI surface can grow session-scoped state without re-plumbing handles).
+#[derive(Debug)]
 pub struct AriaSession {
     engine: Engine,
 }

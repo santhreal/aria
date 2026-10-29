@@ -73,7 +73,7 @@ fn main() {
 
 /// Everything a section needs to know about the gallery's own state. Copied into
 /// each section rather than borrowed, so a section can still take `cx` mutably.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct GalleryState {
     /// Bumped by the Replay button. Spliced into every entry-animation element
     /// id, because gpui runs an animation once per id.
@@ -84,6 +84,7 @@ pub struct GalleryState {
     pub show_splash: bool,
 }
 
+#[derive(Debug)]
 pub struct Gallery {
     pub state: GalleryState,
     /// Owned so the nav row can jump to a section by index.

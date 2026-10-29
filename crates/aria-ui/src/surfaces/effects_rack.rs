@@ -41,6 +41,7 @@ pub enum SlotEdit {
 }
 
 /// One gesture on the effect chain.
+#[derive(Debug)]
 pub enum Gesture {
     /// Append an effect from the browse list.
     Add(String),

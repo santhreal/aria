@@ -18,6 +18,7 @@ use super::register_dyn;
 /// No `Default`: the root is the session's profile and only the caller knows it,
 /// so a host that omitted it would have written into the real profile
 /// directory. See [`crate::plugins::builtin`].
+#[derive(Debug)]
 pub struct StoragePlugin {
     pub root: PathBuf,
 }
@@ -67,6 +68,7 @@ impl Plugin for StoragePlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct SettingsPlugin {
     pub path: PathBuf,
 }

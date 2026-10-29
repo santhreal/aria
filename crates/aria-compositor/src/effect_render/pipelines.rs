@@ -92,7 +92,7 @@ impl std::ops::Deref for PassRegistry {
 pub(super) const EFFECT_BINDINGS: usize = 3;
 
 impl SharedPassPipelines {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("aria.effect.sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -578,7 +578,10 @@ fn build_effect_pipeline(
     // SAFETY: blending is off and every channel is written below, and every
     // caller in this file passes a full-screen `vs` and an `fs` that never
     // discards.
-    unsafe { ReplacePipeline::new(pipeline) }
+    #[allow(unsafe_code)]
+    unsafe {
+        ReplacePipeline::new(pipeline)
+    }
 }
 
 /// A full-screen pipeline of `source` (`vs` and `fs` entry points) that

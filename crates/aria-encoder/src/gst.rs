@@ -63,6 +63,7 @@ pub struct GstEncoder {
 /// # Safety
 /// The pipeline and AppSrcs are used from a single export worker. The encoder
 /// is not shared across threads.
+#[allow(unsafe_code)]
 unsafe impl Send for GstEncoder {}
 
 impl std::fmt::Debug for GstEncoder {

@@ -11,7 +11,7 @@ use gpui::{
     Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TouchPhase, VisualTestContext, point, px,
 };
 
-use super::{grip, near, thumb, tick, x_of};
+use super::{grip, near, thumb};
 use crate::app::AppState;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::app::zoom_bar::{HANDLE_W, ZoomBarGrip};

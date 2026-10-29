@@ -4,7 +4,8 @@ mod dispatch;
 pub(crate) mod edit;
 pub(crate) mod project;
 
-pub use dispatch::{ApplyOutcome, dispatch};
+pub use dispatch::ApplyOutcome;
+pub(crate) use dispatch::dispatch;
 
 use std::borrow::Cow;
 
@@ -13,14 +14,14 @@ use aria_models::Project;
 use crate::error::EngineError;
 
 /// Session surface passed to every command handler.
-pub struct ApplyContext<'a> {
+pub(crate) struct ApplyContext<'a> {
     pub project: &'a mut Project,
     pub project_path: &'a mut Option<std::path::PathBuf>,
     pub history: &'a mut History,
 }
 
 /// A runtime edit action. Consuming `apply` runs the edit and returns its inverse.
-pub trait EditAction: Send {
+pub(crate) trait EditAction: Send {
     fn apply(
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
@@ -74,7 +75,7 @@ impl EditAction for CompoundAction {
 ///
 /// The label travels with the action rather than in a parallel list, so a
 /// history surface cannot show a name that belongs to a different entry.
-pub struct HistoryStep {
+pub(crate) struct HistoryStep {
     pub label: Cow<'static, str>,
     pub action: Box<dyn EditAction>,
 }
@@ -88,7 +89,7 @@ pub struct HistoryStep {
 /// untouched, so an abandoned group (see `Engine::rollback_group`) leaves
 /// history exactly as it was.
 #[derive(Default)]
-pub struct History {
+pub(crate) struct History {
     undo: Vec<HistoryStep>,
     redo: Vec<HistoryStep>,
     limit: usize,
@@ -98,7 +99,7 @@ pub struct History {
 }
 
 impl History {
-    pub fn new(limit: usize) -> Self {
+    pub(crate) fn new(limit: usize) -> Self {
         Self {
             undo: Vec::new(),
             redo: Vec::new(),
@@ -115,7 +116,7 @@ impl History {
     ///
     /// A committed group or a merge changes the list without changing the
     /// project, so a project revision does not stand in for this.
-    pub fn generation(&self) -> u64 {
+    pub(crate) fn generation(&self) -> u64 {
         self.generation
     }
 
@@ -123,33 +124,33 @@ impl History {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    pub fn can_undo(&self) -> bool {
+    pub(crate) fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }
 
-    pub fn can_redo(&self) -> bool {
+    pub(crate) fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
 
-    pub fn in_group(&self) -> bool {
+    pub(crate) fn in_group(&self) -> bool {
         self.pending.is_some()
     }
 
     /// Applied labels, oldest first, borrowed from their history steps.
-    pub fn undo_labels(&self) -> impl DoubleEndedIterator<Item = &str> + ExactSizeIterator {
+    pub(crate) fn undo_labels(&self) -> impl DoubleEndedIterator<Item = &str> + ExactSizeIterator {
         self.undo.iter().map(|step| step.label.as_ref())
     }
 
     /// Undone labels, oldest first, borrowed from their history steps.
     ///
     /// The redo stack is ordered newest-last, so this reverses it.
-    pub fn redo_labels(&self) -> impl DoubleEndedIterator<Item = &str> + ExactSizeIterator {
+    pub(crate) fn redo_labels(&self) -> impl DoubleEndedIterator<Item = &str> + ExactSizeIterator {
         self.redo.iter().rev().map(|step| step.label.as_ref())
     }
 
     /// Start collecting recorded inverses into a single compound entry.
     /// Groups don't nest; a stray second begin keeps the open group.
-    pub fn begin_group(&mut self) {
+    pub(crate) fn begin_group(&mut self) {
         debug_assert!(self.pending.is_none(), "history group already open");
         if self.pending.is_none() {
             self.pending = Some(Vec::new());
@@ -162,7 +163,7 @@ impl History {
     /// The entry is named after the gesture's first command, with the count of
     /// the rest: one gesture reads as one line, and `Move clip +2` says the
     /// undo covers more than the name alone.
-    pub fn commit_group(&mut self) {
+    pub(crate) fn commit_group(&mut self) {
         debug_assert!(self.pending.is_some(), "no history group open");
         let Some(mut steps) = self.pending.take() else {
             return;
@@ -189,7 +190,7 @@ impl History {
 
     /// Detach the open group's collected inverses without recording them
     /// (for rollback: the caller applies them in reverse order).
-    pub fn take_group(&mut self) -> Vec<Box<dyn EditAction>> {
+    pub(crate) fn take_group(&mut self) -> Vec<Box<dyn EditAction>> {
         debug_assert!(self.pending.is_some(), "no history group open");
         self.pending
             .take()
@@ -200,14 +201,14 @@ impl History {
     }
 
     /// Steps collected by the open group so far; zero with none open.
-    pub fn group_len(&self) -> usize {
+    pub(crate) fn group_len(&self) -> usize {
         self.pending.as_ref().map_or(0, Vec::len)
     }
 
     /// Detach the open group's steps after the first `mark`, leaving the group
     /// open with the earlier ones (for a savepoint rollback: the caller applies
     /// them in reverse order).
-    pub fn take_group_from(&mut self, mark: usize) -> Vec<Box<dyn EditAction>> {
+    pub(crate) fn take_group_from(&mut self, mark: usize) -> Vec<Box<dyn EditAction>> {
         let Some(pending) = self.pending.as_mut() else {
             return Vec::new();
         };
@@ -219,7 +220,7 @@ impl History {
 
     /// Close the open group and record it as one undo entry named `label`,
     /// whatever its commands are called. No-op when the group is empty.
-    pub fn commit_group_as(&mut self, label: Cow<'static, str>) {
+    pub(crate) fn commit_group_as(&mut self, label: Cow<'static, str>) {
         debug_assert!(self.pending.is_some(), "no history group open");
         let Some(mut steps) = self.pending.take() else {
             return;
@@ -234,7 +235,7 @@ impl History {
         self.record_step(HistoryStep { label, action });
     }
 
-    pub fn record_do(&mut self, label: &'static str, inverse: Box<dyn EditAction>) {
+    pub(crate) fn record_do(&mut self, label: &'static str, inverse: Box<dyn EditAction>) {
         self.record_step(HistoryStep {
             label: Cow::Borrowed(label),
             action: inverse,
@@ -256,7 +257,7 @@ impl History {
         self.advance();
     }
 
-    pub fn pop_undo(&mut self) -> Option<HistoryStep> {
+    pub(crate) fn pop_undo(&mut self) -> Option<HistoryStep> {
         let step = self.undo.pop();
         if step.is_some() {
             self.advance();
@@ -264,7 +265,7 @@ impl History {
         step
     }
 
-    pub fn push_redo(&mut self, step: HistoryStep) {
+    pub(crate) fn push_redo(&mut self, step: HistoryStep) {
         if self.redo.len() >= self.limit {
             self.redo.remove(0);
         }
@@ -272,7 +273,7 @@ impl History {
         self.advance();
     }
 
-    pub fn pop_redo(&mut self) -> Option<HistoryStep> {
+    pub(crate) fn pop_redo(&mut self) -> Option<HistoryStep> {
         let step = self.redo.pop();
         if step.is_some() {
             self.advance();
@@ -280,7 +281,7 @@ impl History {
         step
     }
 
-    pub fn push_undo(&mut self, step: HistoryStep) {
+    pub(crate) fn push_undo(&mut self, step: HistoryStep) {
         if self.undo.len() >= self.limit {
             self.undo.remove(0);
         }
@@ -289,7 +290,7 @@ impl History {
     }
     /// Merge the two newest undo steps into one compound step keeping the
     /// earlier step's label.
-    pub fn coalesce_top_two(&mut self) {
+    pub(crate) fn coalesce_top_two(&mut self) {
         let grouped = self.pending.is_some();
         let stack = self.pending.as_mut().unwrap_or(&mut self.undo);
         if stack.len() < 2 {
@@ -309,7 +310,7 @@ impl History {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         let listed = !self.undo.is_empty() || !self.redo.is_empty();
         self.undo.clear();
         self.redo.clear();

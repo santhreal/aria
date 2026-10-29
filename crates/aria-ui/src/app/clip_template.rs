@@ -19,7 +19,7 @@ use super::AppState;
 
 /// Every slot restriction, with its label, in one place so a picker and a test
 /// read the same list.
-pub const SLOT_MEDIA: [(SlotMedia, &str); 4] = [
+pub(crate) const SLOT_MEDIA: [(SlotMedia, &str); 4] = [
     (SlotMedia::Any, "Any visual"),
     (SlotMedia::VideoOnly, "Video only"),
     (SlotMedia::ImageOnly, "Image only"),
@@ -27,7 +27,7 @@ pub const SLOT_MEDIA: [(SlotMedia, &str); 4] = [
 ];
 
 /// The label of one restriction.
-pub fn slot_media_label(accepts: SlotMedia) -> &'static str {
+pub(crate) fn slot_media_label(accepts: SlotMedia) -> &'static str {
     SLOT_MEDIA
         .iter()
         .find(|(kind, _)| *kind == accepts)

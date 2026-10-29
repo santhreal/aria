@@ -8,10 +8,10 @@ use crate::args::Args;
 use crate::fail::Failure;
 use crate::project;
 
-pub const FLAGS: &[&str] = &["at", "fit"];
+pub(crate) const FLAGS: &[&str] = &["at", "fit"];
 pub(crate) const DEFAULT_OUT: &str = "aria-frame.png";
 
-pub fn run(args: &Args) -> Result<(), Failure> {
+pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a project file")?;
     let out = args
         .positional

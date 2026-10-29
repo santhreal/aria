@@ -261,6 +261,7 @@ fn provider_key_resolution_prefers_the_named_environment_variable() {
     const VAR: &str = "ARIA_TEST_PROVIDER_KEY_RESOLUTION";
     let with_env = |value: Option<&str>| {
         // SAFETY: the name is unique to this test, so no other test observes it.
+        #[allow(unsafe_code)]
         unsafe {
             match value {
                 Some(v) => std::env::set_var(VAR, v),

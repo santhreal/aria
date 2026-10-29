@@ -6,7 +6,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the sequence audio channel layout; the inverse restores the prior layout.
-pub fn set_audio_layout(
+pub(crate) fn set_audio_layout(
     ctx: &mut ApplyContext<'_>,
     layout: AudioLayout,
 ) -> Result<Box<dyn EditAction>, EngineError> {

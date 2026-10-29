@@ -4,6 +4,9 @@
 //! Declared from `android.rs` with `#[path]`; `use super::*` reaches that
 //! module's imports and its Java marshalling helpers, so the move changed no
 //! name resolution. `#[unsafe(no_mangle)]` exports ignore module privacy.
+//! The module exports `#[unsafe(no_mangle)]` JNI entry points that forward raw handles to the C ABI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 
@@ -13,7 +16,7 @@ use super::*;
 /// start a background export. Zero size/fps keeps the project's native value.
 /// Returns the job handle (`0` on failure).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportStart<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportStart<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     session: jlong,
@@ -40,7 +43,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportStar
 
 /// `AriaNative.exportProgress(job)`: fraction written, 0.0–1.0.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportProgress<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportProgress<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     job: jlong,
@@ -51,7 +56,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportProg
 
 /// `AriaNative.exportFinished(job)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFinished<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFinished<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     job: jlong,
@@ -62,7 +69,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFini
 
 /// `AriaNative.exportCancel(job)`: stop after the frame in flight.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportCancel<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportCancel<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     job: jlong,
@@ -73,7 +82,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportCanc
 
 /// `AriaNative.exportJoin(job)`: block until finished; the JSON verdict.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportJoin<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportJoin<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     job: jlong,
@@ -86,7 +95,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportJoin
 
 /// `AriaNative.exportFree(job)`: release the job (joins if needed).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFree<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFree<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     job: jlong,
@@ -100,7 +109,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_exportFree
 /// `AriaNative.thumbnailerOpen(path)`: a filmstrip thumbnailer for one
 /// media file. Returns the handle (`0` on failure).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerOpen<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerOpen<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     path: JString<'local>,
@@ -113,7 +124,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnaile
 
 /// `AriaNative.thumbnailerDurationSeconds(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerDurationSeconds<
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerDurationSeconds<
     'local,
 >(
     _env: JNIEnv<'local>,
@@ -127,7 +138,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnaile
 /// `AriaNative.thumbnailerThumb(handle, seconds, maxWidth, maxHeight)`:
 /// the frame nearest `seconds` as `[width, height, argb…]`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerThumb<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerThumb<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -149,7 +162,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnaile
 
 /// `AriaNative.thumbnailerClose(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerClose<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnailerClose<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -162,7 +177,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_thumbnaile
 
 /// `AriaNative.audioRate()`: sample rate of every read block (Hz).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRate<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRate<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> jint {
@@ -171,7 +186,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRate<
 
 /// `AriaNative.audioChannels()`: interleaved channel count.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioChannels<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioChannels<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> jint {
@@ -182,7 +199,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioChann
 /// pull reader over the current timeline. Returns the handle (`0` when the
 /// timeline has no audible clips).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionAudioOpen<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionAudioOpen<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     session: jlong,
@@ -197,7 +216,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionAud
 /// frames written; `0` at the end of the timeline, `-1` after a decode
 /// failure (sticky).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRead<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRead<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -239,7 +258,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioRead<
 
 /// `AriaNative.audioClose(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioClose<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_audioClose<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,

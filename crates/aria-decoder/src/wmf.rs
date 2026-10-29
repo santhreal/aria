@@ -73,6 +73,9 @@
 //!
 //! Media Foundation timestamps are in **100-nanosecond units** (`hns`), so every
 //! frame's PTS rate — and [`SourceInfo::time_base`] — is [`HNS_PER_SEC`].
+//! The module calls Media Foundation and Direct3D 11 through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use core::slice;
 use std::path::Path;
@@ -168,6 +171,16 @@ pub struct WmfDecoder {
 // objects may legally travel between MTA worker threads, and we never share
 // `&self` across threads, which satisfies `VideoDecoder: Send` without `Sync`.
 unsafe impl Send for WmfDecoder {}
+
+impl std::fmt::Debug for WmfDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WmfDecoder")
+            .field("info", &self.info)
+            .field("mode", &self.mode)
+            .field("eos", &self.eos)
+            .finish_non_exhaustive()
+    }
+}
 
 impl WmfDecoder {
     /// Open `path` and probe its first video track.

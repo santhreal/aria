@@ -90,7 +90,7 @@ pub(super) struct Fixture {
 }
 
 impl Fixture {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut project = Project::new("tool-registry", R24);
         let media = project.add_media(MediaSource::new(
             "/tmp/aria-tool-registry.mp4",
@@ -229,30 +229,30 @@ impl Fixture {
 
     /// The model's view of a fixture clip, for expectations that start from
     /// the clip's current state (transform, crop, adjustments, motion blur).
-    pub fn clip_state(&self, raw: u64) -> &aria_models::Clip {
+    pub(super) fn clip_state(&self, raw: u64) -> &aria_models::Clip {
         self.project
             .clip(aria_models::ClipId::from_raw(raw))
             .expect("fixture clip")
     }
 
-    pub fn clip_id(&self, raw: u64) -> aria_models::ClipId {
+    pub(super) fn clip_id(&self, raw: u64) -> aria_models::ClipId {
         aria_models::ClipId::from_raw(raw)
     }
 
-    pub fn track_id(&self, raw: u64) -> aria_models::TrackId {
+    pub(super) fn track_id(&self, raw: u64) -> aria_models::TrackId {
         aria_models::TrackId::from_raw(raw)
     }
 
-    pub fn marker_id(&self, raw: u64) -> aria_models::MarkerId {
+    pub(super) fn marker_id(&self, raw: u64) -> aria_models::MarkerId {
         aria_models::MarkerId::from_raw(raw)
     }
 
-    pub fn media_id(&self, raw: u64) -> aria_models::MediaId {
+    pub(super) fn media_id(&self, raw: u64) -> aria_models::MediaId {
         aria_models::MediaId::from_raw(raw)
     }
 
     /// A timeline position in whole frames at the fixture rate.
-    pub fn at(&self, seconds: f64) -> RationalTime {
+    pub(super) fn at(&self, seconds: f64) -> RationalTime {
         RationalTime::new((seconds * 24.0).round() as i64, R24)
     }
 }

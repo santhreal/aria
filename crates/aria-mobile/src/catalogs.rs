@@ -91,6 +91,8 @@ fn catalogs_value() -> Value {
 
 /// All preset catalogs as JSON (see [`catalogs_json`]). Static data — callable
 /// any time, no session needed. Free with `aria_string_free`.
+// SAFETY: `aria_catalogs` is a unique C ABI export symbol of `aria-mobile`.
+#[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "C" fn aria_catalogs() -> *mut c_char {
     to_c_string(catalogs_json())

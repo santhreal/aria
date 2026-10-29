@@ -19,6 +19,9 @@
 //! being free-threaded. Device creation failing (VM without a GPU, RDP
 //! session, driver trouble) simply yields `None` and callers stay on the
 //! software path.
+//! The module calls Direct3D 11 and Media Foundation device-manager APIs through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::sync::OnceLock;
 

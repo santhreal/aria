@@ -139,7 +139,7 @@ fn side_tick(project: &Project, side: &SceneLayer, tick: RationalTime) -> Ration
 /// keeps the layer's anchor at the sample's position, so the realized bitmap
 /// of a text or path layer, and a mask stencil sized apart from its layer,
 /// both follow the layer.
-pub fn blur_placements(layer: &SceneLayer, size: [f32; 2]) -> Vec<LayerPlacement> {
+pub(crate) fn blur_placements(layer: &SceneLayer, size: [f32; 2]) -> Vec<LayerPlacement> {
     let (SizeSpec::Fixed(base) | SizeSpec::BitmapScaled(base)) = layer.size;
     if base[0] <= 0.0 || base[1] <= 0.0 {
         return Vec::new();

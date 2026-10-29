@@ -20,6 +20,9 @@
 //! permanent decoder failure. The wait is bounded by
 //! [`SLOT_ACQUIRE_TIMEOUT`](crate::wmf_slot::SLOT_ACQUIRE_TIMEOUT); past it a
 //! frame held past its queue is reported instead of blocking decode forever.
+//! The module calls Direct3D 11, DXGI, and Win32 handle APIs through COM and FFI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};

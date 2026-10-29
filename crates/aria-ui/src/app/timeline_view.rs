@@ -109,11 +109,11 @@ impl AppState {
 }
 
 /// The time area a narrow Timeline keeps beside the outline column.
-pub const OUTLINE_TIME_MIN: f32 = 160.0;
+pub(crate) const OUTLINE_TIME_MIN: f32 = 160.0;
 
 /// The drawn outline width for the `setting` in a Timeline frame `panel_w` px
 /// wide, or the setting before the frame is measured.
-pub fn drawn_outline(setting: f32, panel_w: Option<f32>) -> f32 {
+pub(crate) fn drawn_outline(setting: f32, panel_w: Option<f32>) -> f32 {
     let room = panel_w.map_or(setting, |w| w - OUTLINE_TIME_MIN);
     setting.min(room).max(crate::settings::OUTLINE_MIN)
 }

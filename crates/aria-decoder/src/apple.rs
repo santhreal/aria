@@ -75,6 +75,11 @@
 //! `Failed` reader can never vend again) and clears the roll-forward anchor,
 //! so the next `frame_at` re-seeks on a healthy reader instead of re-reading
 //! the corpse forever.
+//!
+//! The module calls AVFoundation, CoreMedia, and CoreVideo through Objective-C
+//! and C FFI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use core::cmp::Ordering;
 use std::path::Path;
@@ -167,6 +172,14 @@ pub struct AvfDecoder {
 // We never share `&self` across threads, satisfying the `VideoDecoder: Send`
 // requirement without needing `Sync`.
 unsafe impl Send for AvfDecoder {}
+
+impl std::fmt::Debug for AvfDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AvfDecoder")
+            .field("started", &self.started)
+            .finish_non_exhaustive()
+    }
+}
 
 /// Parks a retained CoreVideo buffer in a [`GpuSurface`]'s `keep_alive` so the
 /// decoder's IOSurface outlives the renderer's reads. The raw handle in the

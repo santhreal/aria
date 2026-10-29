@@ -33,7 +33,7 @@ const CRUMBS_MIN: f32 = 96.0;
 /// that act on it on one row; then the folders inside the open one. Nothing at
 /// the pool root with no folders, so the column holds no empty row and no gap
 /// for one.
-pub fn strip(
+pub(crate) fn strip(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
@@ -146,7 +146,7 @@ pub fn strip(
 }
 
 /// The folder buttons the pool's footer draws: each offered row with an icon.
-pub fn footer_buttons(
+pub(crate) fn footer_buttons(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,

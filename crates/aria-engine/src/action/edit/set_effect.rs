@@ -8,7 +8,7 @@ use crate::error::EngineError;
 // full-clip snapshot restore, since the chain is small and a snapshot rolls
 // back add / remove / reorder / param-edit unconditionally.
 
-pub fn add_effect(
+pub(crate) fn add_effect(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     effect_id: &str,
@@ -18,7 +18,7 @@ pub fn add_effect(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn remove_effect(
+pub(crate) fn remove_effect(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: usize,
@@ -28,7 +28,7 @@ pub fn remove_effect(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn move_effect(
+pub(crate) fn move_effect(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     from_index: usize,
@@ -39,7 +39,7 @@ pub fn move_effect(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn set_effect_param(
+pub(crate) fn set_effect_param(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: usize,
@@ -51,7 +51,7 @@ pub fn set_effect_param(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn set_effect_instance(
+pub(crate) fn set_effect_instance(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: usize,
@@ -62,7 +62,7 @@ pub fn set_effect_instance(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn set_effect_bypass(
+pub(crate) fn set_effect_bypass(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: usize,
@@ -73,7 +73,7 @@ pub fn set_effect_bypass(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn apply_preset(
+pub(crate) fn apply_preset(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     preset: &Preset,

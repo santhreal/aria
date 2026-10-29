@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// inverse. A whole-clip restore is the right inverse here for the same reason
 /// it is for the audio and pitch edits: the edit rewrites most of the clip, and
 /// the clip it rewrote is small enough to keep.
-pub fn bake_clip(
+pub(crate) fn bake_clip(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     media: MediaId,
@@ -25,7 +25,7 @@ pub fn bake_clip(
 }
 
 /// Put back what a bake replaced.
-pub fn restore_baked_clip(
+pub(crate) fn restore_baked_clip(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
 ) -> Result<Box<dyn EditAction>, EngineError> {

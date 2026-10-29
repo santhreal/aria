@@ -29,7 +29,7 @@ const PEAKS_PER_SECOND: f64 = 40.0;
 const MAX_PEAKS: usize = 400_000;
 
 /// One decoded source's peaks, and the rate they were decoded at.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Waveform {
     /// Peak amplitude in `0.0..=1.0`, one per `1 / per_second` of source audio.
     pub peaks: Arc<Vec<f32>>,
@@ -37,7 +37,7 @@ pub struct Waveform {
 }
 
 /// Every source's peaks, plus what is in flight and what refused to decode.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct WaveformStore {
     ready: HashMap<u64, Waveform>,
     pending: HashSet<u64>,

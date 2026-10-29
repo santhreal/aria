@@ -11,7 +11,7 @@ use crate::error::EngineError;
 /// speed positivity, media backing, and neighbor overlap. The inverse is a
 /// full-clip restore — speed, reversed, and the re-derived timeline range all
 /// roll back in one shot, like the transform and param edits.
-pub fn set_speed(
+pub(crate) fn set_speed(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     speed: Rational,

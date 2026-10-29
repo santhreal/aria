@@ -11,6 +11,9 @@
 //! [`aria_export_progress`] / [`aria_export_finished`] (optionally
 //! [`aria_export_cancel`]) → [`aria_export_join`] for the JSON verdict →
 //! [`aria_export_free`].
+//! The module exports `#[unsafe(no_mangle)]` C ABI functions that box, borrow, and free raw handle pointers and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::ffi::c_char;
 use std::path::PathBuf;
@@ -39,6 +42,22 @@ pub struct AriaExportJob {
     thread: Mutex<Option<JoinHandle<Result<u64, RenderError>>>>,
     /// Cached verdict so `join` is idempotent after the first call.
     verdict: Mutex<Option<String>>,
+}
+
+impl std::fmt::Debug for AriaExportJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AriaExportJob")
+            .field(
+                "frames_done",
+                &self.shared.frames_done.load(Ordering::Relaxed),
+            )
+            .field(
+                "frames_total",
+                &self.shared.frames_total.load(Ordering::Relaxed),
+            )
+            .field("finished", &self.shared.finished.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
 }
 
 fn verdict_json(result: &Result<u64, RenderError>) -> String {

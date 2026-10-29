@@ -48,6 +48,7 @@ pub mod timeline_gesture;
 mod census_tests;
 
 /// What a control draws, lit and unlit.
+#[derive(Debug)]
 pub enum Glyph {
     /// One icon lit, another unlit.
     Icons { on: &'static str, off: &'static str },

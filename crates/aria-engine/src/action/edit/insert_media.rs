@@ -4,7 +4,7 @@ use crate::action::edit::remove_media::RemoveMediaAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub struct InsertMediaAction {
+pub(crate) struct InsertMediaAction {
     pub media: MediaSource,
 }
 

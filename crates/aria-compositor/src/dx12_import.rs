@@ -37,7 +37,9 @@
 //! `wgpu::hal::dx12::Device::texture_from_raw` is the exact type it expects
 //! (cargo unifies the two into one crate instance) — the same trick
 //! `metal_import` documents for the `metal` crate.
+//! The module calls Direct3D 12 and Win32 handle APIs through COM and `wgpu-hal` raw-texture import and is `unsafe` throughout.
 
+#![allow(unsafe_code)]
 use rustc_hash::FxHashMap;
 use std::sync::Mutex;
 

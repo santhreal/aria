@@ -93,6 +93,14 @@ pub struct RenderHost {
     renderer: Mutex<Option<Renderer>>,
 }
 
+impl std::fmt::Debug for RenderHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RenderHost")
+            .field("gpu", &self.gpu)
+            .finish_non_exhaustive()
+    }
+}
+
 impl RenderHost {
     /// A host that renders on `gpu`. Builds no pipeline until the first frame.
     pub fn new(gpu: GpuContext) -> Self {

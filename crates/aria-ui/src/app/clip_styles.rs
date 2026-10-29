@@ -16,7 +16,7 @@ use super::picker::{Ask, FileSpec};
 use crate::types::{UiLut, UiStyles};
 
 /// The four layer styles, in inspector order.
-pub const STYLES: &[(&str, &str)] = &[
+pub(crate) const STYLES: &[(&str, &str)] = &[
     ("shadow", "Shadow"),
     ("glow", "Glow"),
     ("outline", "Outline"),
@@ -24,7 +24,7 @@ pub const STYLES: &[(&str, &str)] = &[
 ];
 
 /// Whether one style block is present.
-pub fn style_enabled(styles: &UiStyles, id: &str) -> bool {
+pub(crate) fn style_enabled(styles: &UiStyles, id: &str) -> bool {
     match id {
         "shadow" => styles.shadow.is_some(),
         "glow" => styles.glow.is_some(),

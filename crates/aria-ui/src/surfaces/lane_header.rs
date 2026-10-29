@@ -13,6 +13,7 @@ use crate::types::UiTrack;
 /// or it is not in the product. The refusal branch belongs to the builder rather
 /// than to each row, so seven controls cannot disagree about whether a refused
 /// edit is reported.
+#[derive(Debug)]
 pub struct LaneToggle {
     /// Element id prefix; the lane's own id is appended per row.
     pub id: &'static str,
@@ -71,7 +72,7 @@ impl LaneToggle {
 /// press, so a toggle acts on the drawn state. Small and `Copy` on
 /// purpose: there is one of these per toggle per lane per frame, and a press must
 /// not cost a copy of the lane's name.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct LaneFlags {
     pub id: u64,
     pub muted: bool,

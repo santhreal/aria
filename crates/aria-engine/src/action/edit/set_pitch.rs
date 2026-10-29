@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// switch, M8 Phase 3). The model validates media backing; the flag changes
 /// no duration, so there is no neighbor check. The inverse is a full-clip
 /// restore, like the speed and param edits.
-pub fn set_pitch(
+pub(crate) fn set_pitch(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     preserve_pitch: bool,

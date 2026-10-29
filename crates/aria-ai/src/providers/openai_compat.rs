@@ -44,6 +44,15 @@ pub struct OpenAiCompatProvider {
     probe_timeout: Duration,
 }
 
+impl std::fmt::Debug for OpenAiCompatProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAiCompatProvider")
+            .field("base_url", &self.base_url)
+            .field("model", &self.model)
+            .finish_non_exhaustive()
+    }
+}
+
 impl OpenAiCompatProvider {
     pub fn new(base_url: &str, model: &str, api_key: Option<String>) -> Self {
         Self::with_extras(base_url, model, api_key, OpenAiCompatExtras::default())

@@ -3,11 +3,11 @@ use aria_models::{ModelError, RemovedTrack, Track, TrackId, TrackKind};
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub struct RemoveTrackAction {
+pub(crate) struct RemoveTrackAction {
     pub track_id: TrackId,
 }
 
-pub struct InsertTrackAction {
+pub(crate) struct InsertTrackAction {
     /// What the removal took out: the lane, and the routes other lanes had
     /// pointing at it. Both go back, so one undo restores the mix as well as
     /// the lane.
@@ -18,7 +18,7 @@ pub struct InsertTrackAction {
 impl InsertTrackAction {
     /// Insert a lane that was never on the timeline: nothing was routed into it,
     /// so there is nothing to put back with it.
-    pub fn fresh(track: Track, order_index: usize) -> Self {
+    pub(crate) fn fresh(track: Track, order_index: usize) -> Self {
         Self {
             removed: RemovedTrack {
                 track,
@@ -29,7 +29,7 @@ impl InsertTrackAction {
     }
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     kind: TrackKind,
     name: impl Into<String>,

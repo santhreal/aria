@@ -5,7 +5,7 @@ use aria_models::TrackId;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub fn set_track_name(
+pub(crate) fn set_track_name(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     name: String,

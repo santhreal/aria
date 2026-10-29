@@ -52,10 +52,12 @@ pub enum ReasoningSummary {
 /// Runtime protocol dispatcher used by desktop settings. Keeping this wrapper
 /// outside either transport prevents Responses-only state from changing the
 /// broadly-compatible Chat Completions implementation.
+#[derive(Debug)]
 pub struct OpenAiProvider {
     inner: OpenAiProviderInner,
 }
 
+#[derive(Debug)]
 enum OpenAiProviderInner {
     Chat(OpenAiCompatProvider),
     Responses(OpenAiResponsesProvider),

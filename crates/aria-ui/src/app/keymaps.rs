@@ -39,6 +39,7 @@ impl KeyForm {
 }
 
 /// The Keys section's rows under the Settings filter.
+#[derive(Debug)]
 pub struct KeyListing {
     /// Each listed binding with what it is called, in registration order.
     pub rows: Vec<(BindingRow, String)>,

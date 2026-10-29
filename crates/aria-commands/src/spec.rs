@@ -98,7 +98,21 @@ pub struct EditSpec {
     targets: fn(&EditCommand) -> EditTargets,
 }
 
+impl std::fmt::Debug for EditSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EditSpec")
+            .field("id", &self.id)
+            .field("label", &self.label)
+            .field("reach", &self.reach)
+            .field("structural", &self.structural)
+            .field("ignores_track_lock", &self.ignores_track_lock)
+            .field("inverse", &self.inverse)
+            .finish_non_exhaustive()
+    }
+}
+
 /// One project-level action.
+#[derive(Debug, Clone, Copy)]
 pub struct ProjectSpec {
     /// The variant name, which is also its wire tag.
     pub id: &'static str,

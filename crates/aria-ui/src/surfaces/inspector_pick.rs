@@ -35,7 +35,7 @@ pub const KEY_COLORS: &[(&str, &str, [u8; 3])] = &[
 ];
 
 /// One pick in a picture block.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Pick {
     /// A chip in the filter catalog.
     Filter(String),

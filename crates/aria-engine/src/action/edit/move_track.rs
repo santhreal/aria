@@ -5,7 +5,7 @@ use aria_models::{ModelError, TrackId};
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     index: usize,
@@ -24,7 +24,7 @@ pub fn execute(
     }))
 }
 
-pub struct MoveTrackAction {
+pub(crate) struct MoveTrackAction {
     pub track_id: TrackId,
     pub from_index: usize,
     pub to_index: usize,

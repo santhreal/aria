@@ -32,6 +32,7 @@ use crate::plugins::panel_host::{
 use crate::shell::Shell;
 use crate::types::{ActivePanel, UiRoute};
 
+#[derive(Debug)]
 pub struct UiPlugin;
 
 /// The shipped panels, registered against the slots the shell resolves.

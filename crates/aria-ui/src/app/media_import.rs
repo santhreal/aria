@@ -10,13 +10,13 @@ use super::*;
 use crate::app::picker::{Ask, FileSpec};
 
 /// The extensions the platform decoders read, offered by every import dialog.
-pub const MEDIA_IMPORT_EXTENSIONS: &[&str] = &[
+pub(crate) const MEDIA_IMPORT_EXTENSIONS: &[&str] = &[
     "mp4", "mov", "mkv", "webm", "wav", "mp3", "png", "jpg", "jpeg", "webp",
 ];
 
 /// The extensions an import dialog offers and a drop claim accepts:
 /// [`MEDIA_IMPORT_EXTENSIONS`], then every extension a decoder plugin claims.
-pub fn media_import_extensions() -> Vec<String> {
+pub(crate) fn media_import_extensions() -> Vec<String> {
     let mut all: Vec<String> = MEDIA_IMPORT_EXTENSIONS
         .iter()
         .map(|ext| (*ext).to_owned())

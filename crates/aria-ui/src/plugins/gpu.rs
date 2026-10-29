@@ -22,6 +22,7 @@ use parking_lot::Mutex;
 
 use super::{has_extension, register_dyn};
 
+#[derive(Debug)]
 pub struct CompositorPlugin;
 
 struct CompositorHost;
@@ -94,6 +95,7 @@ impl OneShot {
     }
 }
 
+#[derive(Debug)]
 pub struct EffectPlugin;
 
 struct EffectCatalog(OneShot);
@@ -240,6 +242,7 @@ fn read_cube(path: &Path) -> io::Result<String> {
     Ok(text)
 }
 
+#[derive(Debug)]
 pub struct TransitionPlugin;
 
 struct TransitionCatalog(OneShot);

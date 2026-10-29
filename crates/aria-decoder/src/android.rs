@@ -38,6 +38,9 @@
 //!
 //! MediaExtractor/MediaCodec timestamps are **microseconds**, so every frame's
 //! PTS rate — and [`SourceInfo::time_base`] — is [`US_PER_SEC`].
+//! The module calls the Android NDK `AMediaExtractor`, `AMediaCodec`, and `AMediaFormat` C APIs and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use core::ffi::c_char;
 use core::ptr;

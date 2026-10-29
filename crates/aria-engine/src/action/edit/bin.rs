@@ -14,7 +14,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Create a folder. The inverse deletes it.
-pub fn create_bin(
+pub(crate) fn create_bin(
     ctx: &mut ApplyContext<'_>,
     name: String,
     parent: Option<BinId>,
@@ -24,7 +24,7 @@ pub fn create_bin(
 }
 
 /// Rename a folder. The inverse restores the prior name.
-pub fn rename_bin(
+pub(crate) fn rename_bin(
     ctx: &mut ApplyContext<'_>,
     bin: BinId,
     name: String,
@@ -40,7 +40,7 @@ pub fn rename_bin(
 }
 
 /// Move a folder. The inverse puts it back under its previous parent.
-pub fn move_bin(
+pub(crate) fn move_bin(
     ctx: &mut ApplyContext<'_>,
     bin: BinId,
     parent: Option<BinId>,
@@ -59,7 +59,7 @@ pub fn move_bin(
 
 /// Delete a folder, promoting what was inside it. The inverse restores the
 /// folder and re-files exactly what it held.
-pub fn remove_bin(
+pub(crate) fn remove_bin(
     ctx: &mut ApplyContext<'_>,
     bin: BinId,
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -84,7 +84,7 @@ pub fn remove_bin(
 }
 
 /// File a source in a folder. The inverse puts it back where it was.
-pub fn move_media_to_bin(
+pub(crate) fn move_media_to_bin(
     ctx: &mut ApplyContext<'_>,
     media: MediaId,
     bin: Option<BinId>,
@@ -94,7 +94,7 @@ pub fn move_media_to_bin(
 }
 
 /// Create a subclip in the pool from a range of parent media. The inverse removes it.
-pub fn create_subclip(
+pub(crate) fn create_subclip(
     ctx: &mut ApplyContext<'_>,
     parent: MediaId,
     name: String,
@@ -161,7 +161,7 @@ impl EditAction for MoveMediaToBinAction {
 }
 
 /// Place a pool item at `(x, y)` in `bin` (or at the pool root with `None`).
-pub fn set_pool_item_position(
+pub(crate) fn set_pool_item_position(
     ctx: &mut ApplyContext<'_>,
     media: MediaId,
     bin: Option<BinId>,

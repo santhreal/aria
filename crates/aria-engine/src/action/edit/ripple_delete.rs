@@ -4,16 +4,16 @@ use crate::action::edit::shift_clips;
 use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
 
-pub struct RippleDeleteSingleAction {
+pub(crate) struct RippleDeleteSingleAction {
     pub clip: ClipId,
 }
 
-pub struct RestoreRippleAction {
+pub(crate) struct RestoreRippleAction {
     pub track: TrackId,
     pub clip: Clip,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
 ) -> Result<Box<dyn EditAction>, EngineError> {

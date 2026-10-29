@@ -18,6 +18,7 @@ use crate::motion;
 use crate::theme::Theme;
 
 /// How a readout prints when its field is closed.
+#[derive(Debug)]
 pub struct Look {
     pub size: gpui::Pixels,
     /// The colour the number is printed in.

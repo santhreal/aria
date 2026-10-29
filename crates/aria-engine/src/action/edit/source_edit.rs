@@ -22,7 +22,7 @@ use crate::error::EngineError;
 /// Atomic: one `CompoundAction` inverse, and a refused step reverts the ones
 /// already applied before the error propagates.
 #[allow(clippy::too_many_arguments)]
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     media: MediaId,
     source: TimeRange,

@@ -8,14 +8,14 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Action that undoes the creation of a nested sequence from a selection of clips.
-pub struct UndoCreateNestedSequenceAction {
+pub(crate) struct UndoCreateNestedSequenceAction {
     pub sequence_id: SequenceId,
     pub nested_clip_id: ClipId,
     pub original_clips: Vec<(TrackId, Clip)>,
 }
 
 /// Action that redoes the creation of a nested sequence from a selection of clips.
-pub struct RedoCreateNestedSequenceAction {
+pub(crate) struct RedoCreateNestedSequenceAction {
     pub sequence: Sequence,
     pub nested_clip: Clip,
     pub track_id: TrackId,
@@ -93,7 +93,7 @@ impl EditAction for RedoCreateNestedSequenceAction {
 }
 
 /// Create a nested sequence from a selection of clips on the active timeline.
-pub fn create_nested_sequence(
+pub(crate) fn create_nested_sequence(
     ctx: &mut ApplyContext<'_>,
     name: String,
     clips: &[ClipId],
@@ -194,7 +194,7 @@ pub fn create_nested_sequence(
 }
 
 /// Place a secondary sequence on a track of the active timeline.
-pub fn place_nested_sequence(
+pub(crate) fn place_nested_sequence(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     sequence: SequenceId,
@@ -208,7 +208,7 @@ pub fn place_nested_sequence(
 }
 
 /// Action to switch active sequence in undo/redo.
-pub struct OpenSequenceAction {
+pub(crate) struct OpenSequenceAction {
     pub previous: Option<SequenceId>,
 }
 
@@ -224,7 +224,7 @@ impl EditAction for OpenSequenceAction {
 }
 
 /// Open a sequence for editing (`None` ⇔ main root timeline).
-pub fn open_sequence(
+pub(crate) fn open_sequence(
     ctx: &mut ApplyContext<'_>,
     sequence: Option<SequenceId>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
@@ -235,14 +235,14 @@ pub fn open_sequence(
 
 /// Undo of [`create_sequence`]: removes the created sequence and reopens the
 /// sequence that was open before it.
-pub struct UndoCreateSequenceAction {
+pub(crate) struct UndoCreateSequenceAction {
     pub sequence_id: SequenceId,
     pub previous: Option<SequenceId>,
 }
 
 /// Redo of [`create_sequence`]: puts the removed sequence back under its own
 /// id and opens it again.
-pub struct RedoCreateSequenceAction {
+pub(crate) struct RedoCreateSequenceAction {
     pub sequence: Sequence,
     pub previous: Option<SequenceId>,
 }
@@ -284,7 +284,7 @@ impl EditAction for RedoCreateSequenceAction {
 /// layout, and starts with one video lane (`V1`) and one audio lane (`A1`), so
 /// media dropped on it lands without a lane being added first. A blank name
 /// becomes `Sequence`.
-pub fn create_sequence(
+pub(crate) fn create_sequence(
     ctx: &mut ApplyContext<'_>,
     name: String,
 ) -> Result<Box<dyn EditAction>, EngineError> {

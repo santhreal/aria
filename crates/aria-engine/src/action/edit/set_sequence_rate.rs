@@ -7,7 +7,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the sequence frame rate; the inverse restores the prior timeline snapshot.
-pub fn set_sequence_rate(
+pub(crate) fn set_sequence_rate(
     ctx: &mut ApplyContext<'_>,
     frame_rate: Rational,
 ) -> Result<Box<dyn EditAction>, EngineError> {

@@ -14,7 +14,7 @@ use crate::app::AppState;
 ///
 /// One row of swatches serves both surfaces because a label means the same thing
 /// on either: the write differs, the palette does not.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum LabelTarget {
     Selection,
     Media(u64),

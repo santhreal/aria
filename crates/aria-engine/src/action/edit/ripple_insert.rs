@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// step. Atomic — if the placement is rejected, the shift is reverted before
 /// the error propagates. The inverse removes the clip and closes the hole
 /// again.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     media: MediaId,

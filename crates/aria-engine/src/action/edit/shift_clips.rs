@@ -6,13 +6,13 @@ use crate::error::EngineError;
 /// Ripple primitive: shift every clip on `track` with start ≥ `from` by
 /// `delta` ticks. Self-inverse with negated delta; when nothing shifted, the
 /// inverse re-selects the same (empty) set, so it stays a no-op.
-pub struct ShiftClipsAction {
+pub(crate) struct ShiftClipsAction {
     pub track: TrackId,
     pub from: RationalTime,
     pub delta: RationalTime,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     from: RationalTime,
@@ -58,7 +58,7 @@ impl EditAction for ShiftClipsAction {
 /// Inverses are pushed onto `inverses` in the order applied, so a caller
 /// reverts them newest-first. A refused lane leaves the earlier ones applied
 /// and on `inverses` for exactly that.
-pub fn open_for_insert(
+pub(crate) fn open_for_insert(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     from: RationalTime,
@@ -71,7 +71,7 @@ pub fn open_for_insert(
 /// [`open_for_insert`] for an edit that lands on several lanes at once, such
 /// as a source edit placing picture and sound: every lane in `lanes` shifts,
 /// and so does every other sync-locked lane, each exactly once.
-pub fn open_lanes_for_insert(
+pub(crate) fn open_lanes_for_insert(
     ctx: &mut ApplyContext<'_>,
     lanes: &[TrackId],
     from: RationalTime,
@@ -116,7 +116,7 @@ pub fn open_lanes_for_insert(
 /// removals are done, so the first clip that moves lands at or after `from`,
 /// which is at or after the end of the last clip left behind and never below
 /// tick 0.
-pub fn close_for_ripple_delete(
+pub(crate) fn close_for_ripple_delete(
     ctx: &mut ApplyContext<'_>,
     excluded: &[TrackId],
     from: RationalTime,

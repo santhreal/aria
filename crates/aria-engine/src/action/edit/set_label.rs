@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// every clip kind, since a label is an editorial grouping, not a property of
 /// the content, and changes no duration, so there is no neighbour check. The
 /// inverse is a full-clip restore, like the other flag edits.
-pub fn set_label(
+pub(crate) fn set_label(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     label: Option<LabelColor>,

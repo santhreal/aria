@@ -2,6 +2,8 @@
 //! back through the public FFI. Exercises the real platform decoder, the
 //! compositor's frame path, and the C-ABI marshalling/ownership.
 
+#![allow(unsafe_code)]
+
 use std::path::Path;
 
 use aria_compositor::GpuContext;

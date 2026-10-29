@@ -11,7 +11,7 @@ use crate::error::EngineError;
 /// or names a language no plugin registers, is attached: it is reported and
 /// skipped at render until it compiles, so a project opened without a
 /// language plugin keeps its drivers. The inverse is a full-clip restore.
-pub fn set_driver(
+pub(crate) fn set_driver(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,

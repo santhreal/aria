@@ -135,12 +135,18 @@ mod tests {
         assert!(err.contains("unset"), "{err}");
 
         // SAFETY: single-threaded test; restored immediately after.
-        unsafe { std::env::set_var("ARIA_TEST_KEY_PRESENT", "sk-from-env") };
+        #[allow(unsafe_code)]
+        unsafe {
+            std::env::set_var("ARIA_TEST_KEY_PRESENT", "sk-from-env")
+        };
         assert_eq!(
             resolve_api_key(Some("ignored"), Some("ARIA_TEST_KEY_PRESENT")),
             Ok(Some("sk-from-env".into()))
         );
-        unsafe { std::env::remove_var("ARIA_TEST_KEY_PRESENT") };
+        #[allow(unsafe_code)]
+        unsafe {
+            std::env::remove_var("ARIA_TEST_KEY_PRESENT")
+        };
     }
 
     #[test]

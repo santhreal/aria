@@ -19,6 +19,10 @@
 //!
 //! We declare the three CoreVideo entry points directly — they are plain C
 //! functions whose handle arguments are just pointers at the ABI level.
+//! The module calls CoreVideo, CoreFoundation, and Metal FFI and is `unsafe`
+//! throughout.
+
+#![allow(unsafe_code)]
 
 use std::ffi::c_void;
 use std::ptr;

@@ -11,6 +11,10 @@
 //! normalized by drawing into an RGBA8 `CGBitmapContext`. CoreGraphics only
 //! draws premultiplied, and the compositor premultiplies on upload, so the
 //! buffer is un-premultiplied before returning (a no-op for opaque photos).
+//! The module calls ImageIO, CoreGraphics, and CoreFoundation C APIs and is
+//! `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::ffi::c_void;
 use std::path::Path;
@@ -39,7 +43,7 @@ use crate::image::{ImageInfo, MAX_DECODE_DIMENSION};
 
 /// Read display dimensions from the image's properties (no pixel decode).
 /// EXIF orientations 5–8 rotate by 90°, so width/height swap.
-pub fn probe(path: &Path) -> Result<ImageInfo, DecodeError> {
+pub(crate) fn probe(path: &Path) -> Result<ImageInfo, DecodeError> {
     let source = open_source(path)?;
     // Metadata read only — don't leave a decoded frame in ImageIO's cache.
     let no: &CFType = CFBoolean::new(false).as_ref();
@@ -68,7 +72,7 @@ pub fn probe(path: &Path) -> Result<ImageInfo, DecodeError> {
 
 /// Decode the first frame to straight-alpha RGBA8, oriented upright, longest
 /// side capped at [`MAX_DECODE_DIMENSION`].
-pub fn decode(path: &Path) -> Result<RgbaImage, DecodeError> {
+pub(crate) fn decode(path: &Path) -> Result<RgbaImage, DecodeError> {
     let source = open_source(path)?;
     decode_frame(
         &source,
@@ -79,7 +83,7 @@ pub fn decode(path: &Path) -> Result<RgbaImage, DecodeError> {
 }
 
 /// [`decode`] for in-memory encoded bytes (embedded assets).
-pub fn decode_bytes(bytes: &[u8]) -> Result<RgbaImage, DecodeError> {
+pub(crate) fn decode_bytes(bytes: &[u8]) -> Result<RgbaImage, DecodeError> {
     let source = open_source_bytes(bytes)?;
     decode_frame(&source, 0, MAX_DECODE_DIMENSION, "embedded image")
 }
@@ -87,7 +91,7 @@ pub fn decode_bytes(bytes: &[u8]) -> Result<RgbaImage, DecodeError> {
 /// Decode every frame of an animated image (GIF / APNG / animated WebP) from
 /// in-memory bytes, with per-frame delays from the container's properties.
 /// A static image yields one frame.
-pub fn decode_animation_bytes(bytes: &[u8]) -> Result<Vec<AnimationFrame>, DecodeError> {
+pub(crate) fn decode_animation_bytes(bytes: &[u8]) -> Result<Vec<AnimationFrame>, DecodeError> {
     let source = open_source_bytes(bytes)?;
     let count = unsafe { source.count() }.clamp(1, MAX_ANIMATION_FRAMES);
     let mut frames = Vec::with_capacity(count);

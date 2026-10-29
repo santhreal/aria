@@ -2,6 +2,8 @@
 //! session snapshot, pull PCM blocks, and check gain/edges — the same calls
 //! the Swift feeder task makes.
 
+#![allow(unsafe_code)]
+
 use std::ffi::CStr;
 use std::io::Write;
 use std::os::raw::c_char;

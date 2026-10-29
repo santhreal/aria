@@ -101,17 +101,15 @@ impl YuvMatrix {
 pub(crate) enum ChannelOrder {
     /// `R, G, B, A` — what the compositor reads back.
     Rgba,
-    /// `B, G, R, A` — what some platform surfaces hand over.
+    /// `B, G, R, A` — what some platform surfaces hand over. The Windows
+    /// encoder takes RGBA frames alone.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     Bgra,
 }
 
 /// The conversion matrix for an [`EncoderConfig`](aria_core::EncoderConfig)
 /// color tag. Explicit BT.601 and BT.2020 requests retain their matrices.
 /// BT.709, identity, and unspecified tags use the SDR BT.709 conversion.
-#[cfg_attr(
-    not(any(target_os = "windows", target_os = "android", target_os = "linux")),
-    allow(dead_code)
-)]
 pub(crate) fn matrix_for(color: &aria_core::ColorSpace) -> YuvMatrix {
     match color.matrix {
         aria_core::MatrixCoefficients::Bt601 => YuvMatrix::Bt601,
@@ -125,10 +123,6 @@ pub(crate) fn matrix_for(color: &aria_core::ColorSpace) -> YuvMatrix {
 /// Bytes one 4:2:0 frame occupies: `w*h + 2*(w/2)*(h/2)`, with `width` and
 /// `height` rounded down to even for the chroma grid. I420 and NV12 are the
 /// same size — only the chroma layout differs.
-#[cfg_attr(
-    not(any(target_os = "windows", target_os = "android", target_os = "linux")),
-    allow(dead_code)
-)]
 pub(crate) const fn yuv420_len(width: u32, height: u32) -> usize {
     let w = (width & !1) as usize;
     let h = (height & !1) as usize;

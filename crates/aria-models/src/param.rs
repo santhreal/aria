@@ -41,12 +41,12 @@ pub use presets::{
 };
 
 /// A zero constant parameter `Param::Constant(0.0)`. Used as serde default.
-pub fn default_zero_param() -> Param<f32> {
+pub(crate) fn default_zero_param() -> Param<f32> {
     Param::Constant(0.0)
 }
 
 /// Returns true iff `p` is a constant parameter with value 0.0. Used for serde `skip_serializing_if`.
-pub fn is_zero_param(p: &Param<f32>) -> bool {
+pub(crate) fn is_zero_param(p: &Param<f32>) -> bool {
     p.constant() == Some(0.0)
 }
 

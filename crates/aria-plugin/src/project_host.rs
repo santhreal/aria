@@ -67,6 +67,7 @@ impl fmt::Display for Origin {
 
 /// A command that was applied and can no longer be rolled back by the group
 /// it was part of. Posted after the outermost group commits.
+#[derive(Debug, Clone)]
 pub struct CommandApplied {
     pub command: Command,
     pub outcome: ApplyOutcome,
@@ -331,6 +332,12 @@ pub struct ProjectHost {
     events: Arc<EventBus>,
     sequence: Mutex<Sequence>,
     released: Condvar,
+}
+
+impl fmt::Debug for ProjectHost {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProjectHost").finish_non_exhaustive()
+    }
 }
 
 /// One hold on the project by this thread, for a single command. Released on
@@ -831,6 +838,15 @@ pub struct EditGroup {
     _thread: PhantomData<*const ()>,
 }
 
+impl fmt::Debug for EditGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EditGroup")
+            .field("open", &self.open)
+            .field("opened_revision", &self.marks.revision)
+            .finish_non_exhaustive()
+    }
+}
+
 impl EditGroup {
     /// Commit, naming the undo step after its first command. Returns the engine
     /// revision.
@@ -870,6 +886,7 @@ impl Drop for EditGroup {
 
 /// An open transaction, handed to the body of
 /// [`ProjectHost::transact_with`].
+#[derive(Debug)]
 pub struct Transaction<'a> {
     host: &'a ProjectHost,
     origin: Origin,

@@ -118,5 +118,8 @@ pub(super) fn build_blend_pipeline(
     // SAFETY: blending is off and every channel is written, and
     // `blend_composite.wgsl`, the one shader a `BlendShader` holds, draws the
     // full-screen quad from vertices `0..6` and never discards.
-    unsafe { ReplacePipeline::new(pipeline) }
+    #[allow(unsafe_code)]
+    unsafe {
+        ReplacePipeline::new(pipeline)
+    }
 }

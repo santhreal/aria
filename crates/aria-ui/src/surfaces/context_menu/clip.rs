@@ -12,7 +12,7 @@ use crate::types::{ActivePanel, RenameTarget};
 use super::{MenuItem, MenuRow, always};
 
 /// The clip facts a row reads, gathered once when the menu opens.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct ClipMenu {
     /// The clip under the pointer.
     pub clip: u64,

@@ -7,7 +7,7 @@ use crate::error::EngineError;
 /// clip. The produced inverse redoes the split **without allocating a new id**
 /// (see [`ReapplySplitAction`]) so deeper redo entries that reference the tail
 /// id keep resolving.
-pub struct MergeSplitAction {
+pub(crate) struct MergeSplitAction {
     pub left_id: ClipId,
     /// The original clip as it was before the split, restored on undo.
     pub restored: Clip,
@@ -17,7 +17,7 @@ pub struct MergeSplitAction {
 /// Redo of a split: reproduce the post-split state verbatim by shrinking the
 /// left half back down and re-inserting the captured tail under its original
 /// id. Oscillates with [`MergeSplitAction`].
-pub struct ReapplySplitAction {
+pub(crate) struct ReapplySplitAction {
     pub left_id: ClipId,
     /// The left half as it looked immediately after the split.
     pub left_after: Clip,
@@ -28,7 +28,7 @@ pub struct ReapplySplitAction {
     pub right_id: ClipId,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     at: RationalTime,

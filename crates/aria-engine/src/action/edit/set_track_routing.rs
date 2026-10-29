@@ -9,7 +9,7 @@ use crate::error::EngineError;
 /// positional, not a field write: the caller names the gesture, and the action
 /// below turns any of them into the same inverse.
 #[derive(Debug, Clone)]
-pub enum RouteEdit {
+pub(crate) enum RouteEdit {
     /// Move the lane's fader, as linear gain.
     Gain(f32),
     /// Move the lane's stereo pan (`-1.0..=1.0`).
@@ -47,7 +47,7 @@ pub enum RouteEdit {
 /// oscillates like `SetTrackFlagsAction`. A send therefore comes back at the
 /// index and level it had, which a per-field inverse could not promise once a
 /// later send had been dropped.
-pub struct SetTrackRoutingAction {
+pub(crate) struct SetTrackRoutingAction {
     track: TrackId,
     gain: f32,
     pan: f32,
@@ -58,7 +58,7 @@ pub struct SetTrackRoutingAction {
     sends: Vec<AudioSend>,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     edit: RouteEdit,
@@ -137,7 +137,7 @@ impl EditAction for SetTrackRoutingAction {
         Ok(inverse)
     }
 }
-pub struct SetMasterMixAction {
+pub(crate) struct SetMasterMixAction {
     gain: f32,
     pan: f32,
     muted: bool,
@@ -146,7 +146,7 @@ pub struct SetMasterMixAction {
     pan_envelope: Param<f32>,
 }
 
-pub fn execute_master(
+pub(crate) fn execute_master(
     ctx: &mut ApplyContext<'_>,
     gain: f32,
     pan: f32,

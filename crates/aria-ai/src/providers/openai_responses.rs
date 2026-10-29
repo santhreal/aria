@@ -38,6 +38,15 @@ pub struct OpenAiResponsesProvider {
     probe_timeout: Duration,
 }
 
+impl std::fmt::Debug for OpenAiResponsesProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAiResponsesProvider")
+            .field("base_url", &self.base_url)
+            .field("model", &self.model)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Clone)]
 struct ReplayState {
     /// Messages through the user prompt and persisted text history. Items after

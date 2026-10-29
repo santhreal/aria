@@ -7,7 +7,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the sequence's time display; the inverse restores the prior one.
-pub fn set_time_display(
+pub(crate) fn set_time_display(
     ctx: &mut ApplyContext<'_>,
     display: TimeDisplay,
 ) -> Result<Box<dyn EditAction>, EngineError> {

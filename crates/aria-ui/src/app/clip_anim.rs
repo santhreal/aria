@@ -17,7 +17,8 @@ use super::AppState;
 use crate::types::UiAnimation;
 
 /// The three slots, in inspector order.
-pub const SLOTS: [AnimationSlot; 3] = [AnimationSlot::In, AnimationSlot::Out, AnimationSlot::Combo];
+pub(crate) const SLOTS: [AnimationSlot; 3] =
+    [AnimationSlot::In, AnimationSlot::Out, AnimationSlot::Combo];
 
 /// One offerable animation preset: what to apply, what to call it, and whether
 /// this build has a renderer for it.
@@ -39,7 +40,7 @@ type AnimKnob = (
     fn(&aria_models::AnimationKnobs) -> bool,
 );
 
-pub const ANIM_KNOBS: &[AnimKnob] = &[
+pub(crate) const ANIM_KNOBS: &[AnimKnob] = &[
     (
         "anim-speed",
         "Speed",
@@ -67,7 +68,7 @@ pub const ANIM_KNOBS: &[AnimKnob] = &[
 ];
 
 /// Read one animation knob by id.
-pub fn anim_knob(animation: &UiAnimation, id: &str) -> f32 {
+pub(crate) fn anim_knob(animation: &UiAnimation, id: &str) -> f32 {
     ANIM_KNOBS
         .iter()
         .find(|(knob, ..)| *knob == id)
@@ -76,7 +77,7 @@ pub fn anim_knob(animation: &UiAnimation, id: &str) -> f32 {
 }
 
 /// Whether the preset behind `animation` exposes the knob named by `id`.
-pub fn anim_knob_available(animation: &UiAnimation, id: &str) -> bool {
+pub(crate) fn anim_knob_available(animation: &UiAnimation, id: &str) -> bool {
     let Some(spec) = animation_spec(&animation.id) else {
         return false;
     };

@@ -28,6 +28,14 @@ pub struct MenuHost {
     revision: AtomicU64,
 }
 
+impl std::fmt::Debug for MenuHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MenuHost")
+            .field("revision", &self.revision.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
+}
+
 impl Service for MenuHost {}
 
 impl MenuHost {

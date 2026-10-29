@@ -9,7 +9,7 @@ use crate::error::EngineError;
 /// `SetTrack*` command writes exactly one of these, and the call site should
 /// name which one.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct FlagPatch {
+pub(crate) struct FlagPatch {
     pub enabled: Option<bool>,
     pub muted: Option<bool>,
     pub solo: Option<bool>,
@@ -20,49 +20,49 @@ pub struct FlagPatch {
 }
 
 impl FlagPatch {
-    pub fn enabled(enabled: bool) -> Self {
+    pub(crate) fn enabled(enabled: bool) -> Self {
         Self {
             enabled: Some(enabled),
             ..Self::default()
         }
     }
 
-    pub fn muted(muted: bool) -> Self {
+    pub(crate) fn muted(muted: bool) -> Self {
         Self {
             muted: Some(muted),
             ..Self::default()
         }
     }
 
-    pub fn solo(solo: bool) -> Self {
+    pub(crate) fn solo(solo: bool) -> Self {
         Self {
             solo: Some(solo),
             ..Self::default()
         }
     }
 
-    pub fn locked(locked: bool) -> Self {
+    pub(crate) fn locked(locked: bool) -> Self {
         Self {
             locked: Some(locked),
             ..Self::default()
         }
     }
 
-    pub fn duck_source(duck_source: bool) -> Self {
+    pub(crate) fn duck_source(duck_source: bool) -> Self {
         Self {
             duck_source: Some(duck_source),
             ..Self::default()
         }
     }
 
-    pub fn targeted(targeted: bool) -> Self {
+    pub(crate) fn targeted(targeted: bool) -> Self {
         Self {
             targeted: Some(targeted),
             ..Self::default()
         }
     }
 
-    pub fn sync_lock(sync_lock: bool) -> Self {
+    pub(crate) fn sync_lock(sync_lock: bool) -> Self {
         Self {
             sync_lock: Some(sync_lock),
             ..Self::default()
@@ -76,7 +76,7 @@ impl FlagPatch {
 /// Each `SetTrack*` command changes exactly one flag; the action snapshots all
 /// of the *previous* values so its inverse is a plain swap that oscillates
 /// like trim's `RestoreClip`.
-pub struct SetTrackFlagsAction {
+pub(crate) struct SetTrackFlagsAction {
     pub track: TrackId,
     pub enabled: bool,
     pub muted: bool,
@@ -87,7 +87,7 @@ pub struct SetTrackFlagsAction {
     pub sync_lock: bool,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     patch: FlagPatch,

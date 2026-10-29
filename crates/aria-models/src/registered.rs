@@ -89,6 +89,7 @@ impl<T> IntoIterator for Catalog<T> {
 }
 
 /// An owning iterator over one catalog snapshot.
+#[derive(Debug)]
 pub struct CatalogIter<T> {
     entries: Arc<[Arc<T>]>,
     next: usize,

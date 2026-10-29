@@ -5,6 +5,9 @@
 //! Declared from `android.rs` with `#[path]`; `use super::*` reaches that
 //! module's private items and its own imports, so the move changed no name
 //! resolution.
+//! The module calls the Android NDK `AMediaExtractor`, `AMediaCodec`, and `AMediaFormat` C APIs and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 
@@ -30,6 +33,16 @@ pub struct MediaCodecDecoder {
     last_pts: Option<RationalTime>,
     /// Observed seek/decode costs driving the adaptive roll window.
     seek_stats: crate::seek_cost::SeekStats,
+}
+
+impl std::fmt::Debug for MediaCodecDecoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MediaCodecDecoder")
+            .field("info", &self.info)
+            .field("input_done", &self.input_done)
+            .field("eos", &self.eos)
+            .finish_non_exhaustive()
+    }
 }
 
 // SAFETY: `MediaCodecDecoder` exclusively owns its native `AMediaExtractor` and `AMediaCodec`

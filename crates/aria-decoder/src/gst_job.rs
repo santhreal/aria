@@ -41,6 +41,14 @@ pub struct OnceJob {
     stopping: AtomicBool,
 }
 
+impl std::fmt::Debug for OnceJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnceJob")
+            .field("stopping", &self.stopping.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
+}
+
 impl OnceJob {
     /// A job that has not started.
     pub const fn new() -> Self {

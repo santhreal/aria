@@ -32,6 +32,14 @@ pub struct DownloadCache {
     activity_changed: Condvar,
 }
 
+impl std::fmt::Debug for DownloadCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DownloadCache")
+            .field("quota_bytes", &self.quota_bytes.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
+}
+
 /// Exact accounting for an explicit download-cache clear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DownloadCacheClear {
@@ -86,6 +94,7 @@ where
 /// Keep the lease alive while reading, downloading, verifying, or promoting
 /// the path. Drop it before calling [`DownloadCache::enforce_quota`] or
 /// [`DownloadCache::clear`].
+#[derive(Debug)]
 pub struct DownloadCacheLease<'a> {
     cache: &'a DownloadCache,
     path: PathBuf,

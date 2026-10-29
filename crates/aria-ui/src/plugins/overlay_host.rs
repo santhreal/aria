@@ -36,6 +36,7 @@ pub enum OverlayWhen {
 }
 
 /// One contributed overlay.
+#[derive(Debug)]
 pub struct OverlayEntry {
     pub id: &'static str,
     pub when: OverlayWhen,
@@ -47,6 +48,12 @@ pub struct OverlayEntry {
 pub struct OverlayHost {
     entries: RwLock<Vec<OverlayEntry>>,
     presence: RwLock<Vec<Presence>>,
+}
+
+impl std::fmt::Debug for OverlayHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OverlayHost").finish_non_exhaustive()
+    }
 }
 
 /// One condition the shell is currently drawing, and whether it has gone false.

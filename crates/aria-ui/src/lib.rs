@@ -138,6 +138,15 @@ pub struct UiConfig {
     pub open_paths: Vec<PathBuf>,
 }
 
+impl std::fmt::Debug for UiConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UiConfig")
+            .field("data_dir", &self.data_dir)
+            .field("open_paths", &self.open_paths)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Run the headed app on the default data directory, opening nothing, and end
 /// the process when it quits.
 pub fn run_app(ctx: PluginContext) -> ! {

@@ -30,7 +30,7 @@ use gpui::SharedString;
 
 /// The multi-keyframe easing presets, with a label each. These expand one
 /// segment into several keyframes rather than shaping a single curve.
-pub const PIECEWISE_PRESETS: [(PiecewiseEasingPreset, &str); 3] = [
+pub(crate) const PIECEWISE_PRESETS: [(PiecewiseEasingPreset, &str); 3] = [
     (PiecewiseEasingPreset::BounceOut, "Bounce out"),
     (PiecewiseEasingPreset::ElasticOut, "Elastic out"),
     (PiecewiseEasingPreset::BackOut, "Back out"),
@@ -514,7 +514,7 @@ impl AppState {
 }
 
 /// The named bezier presets, for a picker.
-pub fn easing_presets() -> &'static [EasingPreset] {
+pub(crate) fn easing_presets() -> &'static [EasingPreset] {
     &aria_models::EASING_PRESETS
 }
 

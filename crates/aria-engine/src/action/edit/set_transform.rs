@@ -10,7 +10,7 @@ use crate::error::EngineError;
 ///
 /// `at: Some(playhead)` writes keyframes on already-animated properties
 /// instead of flattening them (M2 compose semantics).
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     transform: ClipTransform,

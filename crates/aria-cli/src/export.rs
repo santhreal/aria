@@ -16,11 +16,11 @@ use crate::args::Args;
 use crate::fail::Failure;
 use crate::project;
 
-pub const FLAGS: &[&str] = &[
+pub(crate) const FLAGS: &[&str] = &[
     "at", "to", "size", "fps", "codec", "bitrate", "no-audio", "quiet",
 ];
 
-pub fn run(args: &Args) -> Result<(), Failure> {
+pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let source = args.required_path(0, "a project file")?;
     let out = args.required_path(1, "an output file")?;
     let at = args.seconds("at")?;

@@ -10,6 +10,7 @@ const SCRUB_HOLDOFF: Duration = Duration::from_millis(500);
 
 /// Shared interaction state. Clone the [`Arc`] into every worker that
 /// should yield to the preview.
+#[derive(Debug)]
 pub struct InteractionGate {
     last_touch_ms: AtomicU64,
     playing: AtomicBool,

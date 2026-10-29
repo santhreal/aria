@@ -22,9 +22,9 @@ use super::AppState;
 #[path = "clip_text_range.rs"]
 mod range;
 #[path = "text_caret.rs"]
-pub mod text_caret;
+pub(crate) mod text_caret;
 #[path = "tool_hold.rs"]
-pub mod tool_hold;
+pub(crate) mod tool_hold;
 
 /// One on/off property of a title's type, drawn as a chip in the Character and
 /// Paragraph panels and the inspector's Text tab.

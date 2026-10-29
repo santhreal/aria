@@ -45,8 +45,14 @@ mod gst;
 #[cfg(target_os = "linux")]
 pub use gst::GstEncoder;
 
-// RGBA→YUV conversion lives outside the platform cfgs so it's unit-testable
-// on any host; the Android (I420) and Windows (NV12) backends consume it.
+// RGBA→YUV conversion for the Android (I420), Windows (NV12), and GStreamer
+// (NV12) backends. Tests compile it on every host.
+#[cfg(any(
+    target_os = "windows",
+    target_os = "android",
+    target_os = "linux",
+    test
+))]
 mod yuv;
 
 // RGBA↔BGRA swizzle lives outside the platform cfgs so it is unit-testable and

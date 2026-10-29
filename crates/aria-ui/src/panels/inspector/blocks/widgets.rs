@@ -87,7 +87,7 @@ pub const VALUE_MIN: f32 = 76.0;
 const VALUE_YIELD: f32 = LABEL_YIELD / 1000.0;
 
 /// What a row's value is doing, beyond the number it prints.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Travel {
     /// The value itself. The row eases toward this, so it can tell a value
     /// that is still arriving from one that has settled.
@@ -107,6 +107,7 @@ pub const MIXED: &str = "—";
 
 /// A row's number: what it prints, its value in the units it prints, what one
 /// unit of drag moves it by, and how it is typed.
+#[derive(Debug)]
 pub struct Readout {
     pub text: String,
     pub value: f32,
@@ -174,7 +175,7 @@ impl Readout {
 /// The keyframe affordances of a row, and what the property's curve looks like
 /// now: the stopwatch left of the label, and the navigator, the reset button
 /// and the time area right of the value.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Stopwatch {
     pub param: ClipParam,
     /// Whether the property carries any keyframes at all, which is what the
@@ -202,6 +203,7 @@ pub struct Stopwatch {
 /// What a surface reads off the state once a frame to draw the stopwatches of
 /// its catalog rows: the driver draft open on the selected clip, and whether
 /// its pick whip waits.
+#[derive(Debug)]
 pub struct Watching {
     draft: Option<DriverDraft>,
     picking: bool,
@@ -268,7 +270,7 @@ pub fn color_stopwatch(row: &ColorRow, strip: Option<KeyStrip>) -> Stopwatch {
 }
 
 /// A property's driver as its row shows it.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DriverLine {
     /// The driver's source, or the draft while it is edited.
     pub source: SharedString,
@@ -281,7 +283,7 @@ pub struct DriverLine {
 }
 
 /// The columns a row that cannot be keyed is drawn in.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Columns {
     /// The keyed rows' columns, on an Effect Controls tab: a blank where their
     /// stopwatch stands, the label and the value in theirs, and a blank where
@@ -304,6 +306,7 @@ impl Columns {
 }
 
 /// A row's keyframe affordances, or the columns of a row that has none.
+#[derive(Debug)]
 pub enum Keys {
     Watch(Stopwatch),
     Unkeyed(Columns),

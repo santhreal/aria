@@ -6,7 +6,7 @@ use crate::error::EngineError;
 
 /// Trim `clip` to `timeline`. Linked companions take the same start and end
 /// deltas on their own lanes as one history entry.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     timeline: TimeRange,

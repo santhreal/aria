@@ -68,7 +68,7 @@ const BACK_OUT: &[Waypoint] = &[
 ];
 
 /// The shipped presets, in the order a picker offers them.
-pub const SHIPPED: &[PiecewisePresetSpec] = &[
+pub(super) const SHIPPED: &[PiecewisePresetSpec] = &[
     PiecewisePresetSpec {
         preset: PiecewiseEasingPreset::BounceOut,
         id: "bounce_out",

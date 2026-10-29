@@ -9,7 +9,7 @@ use crate::error::EngineError;
 
 /// Add a sequence marker at `at`. An omitted color cycles the fixed palette by
 /// the current marker count, so consecutive unstyled markers stay distinct.
-pub fn add(
+pub(crate) fn add(
     ctx: &mut ApplyContext<'_>,
     at: RationalTime,
     name: String,
@@ -22,7 +22,7 @@ pub fn add(
 }
 
 /// Add a clip marker on `clip` at `at` (in clip source time).
-pub fn add_on_clip(
+pub(crate) fn add_on_clip(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     at: RationalTime,
@@ -37,7 +37,7 @@ pub fn add_on_clip(
 
 /// Move / rename / recolor / re-annotate a marker (preserving its existing
 /// duration and kind); the inverse restores its prior state.
-pub fn set(
+pub(crate) fn set(
     ctx: &mut ApplyContext<'_>,
     marker: MarkerId,
     at: RationalTime,
@@ -57,7 +57,7 @@ pub fn set(
 /// Update all fields (`at`, `duration`, `name`, `color`, `comment`, `kind`) of
 /// a sequence or clip marker as a single undoable step.
 #[allow(clippy::too_many_arguments)]
-pub fn edit(
+pub(crate) fn edit(
     ctx: &mut ApplyContext<'_>,
     marker: MarkerId,
     at: RationalTime,
@@ -78,7 +78,7 @@ pub fn edit(
 
 /// Remove a marker (sequence or clip); applying returns the restore (same id
 /// and owning clip, if any) as the inverse.
-pub struct RemoveMarkerAction {
+pub(crate) struct RemoveMarkerAction {
     pub marker: MarkerId,
 }
 

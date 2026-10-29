@@ -131,6 +131,7 @@ pub struct Exposure {
 }
 
 /// The Media Support dialog's state.
+#[derive(Debug)]
 pub struct MediaReachForm {
     /// The last report built, or `None` before one was asked for.
     pub report: Option<MediaReport>,

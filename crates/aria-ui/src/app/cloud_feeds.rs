@@ -40,7 +40,7 @@ pub struct ProviderStatus {
 }
 
 /// The load state of every cloud feed.
-pub type Feeds = BTreeMap<CloudFeed, FeedState>;
+pub(crate) type Feeds = BTreeMap<CloudFeed, FeedState>;
 
 /// Where catalog ETags and downloaded assets live under the storage root.
 const CATALOG_DIR: &str = "catalogs";

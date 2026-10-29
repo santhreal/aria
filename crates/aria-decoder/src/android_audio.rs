@@ -4,6 +4,9 @@
 //! Declared from `android.rs` with `#[path]`; `use super::*` reaches that
 //! module's private items and its own imports, so the move changed no name
 //! resolution.
+//! The module calls the Android NDK `AMediaExtractor` and `AMediaCodec` C APIs and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 
@@ -34,6 +37,18 @@ pub struct MediaCodecAudioReader {
     src_frames: i64,
     /// Output-frame position of the next [`read`](Self::read).
     position: Option<i64>,
+}
+
+impl std::fmt::Debug for MediaCodecAudioReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MediaCodecAudioReader")
+            .field("out_rate", &self.out_rate)
+            .field("channels", &self.channels)
+            .field("src_rate", &self.src_rate)
+            .field("src_frames", &self.src_frames)
+            .field("position", &self.position)
+            .finish_non_exhaustive()
+    }
 }
 
 // SAFETY: `MediaCodecAudioReader` contains only owned Rust heap buffers (`Vec<f32>`)

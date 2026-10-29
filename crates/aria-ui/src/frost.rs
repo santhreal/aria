@@ -30,6 +30,15 @@ pub struct Frosted {
     child: AnyElement,
 }
 
+impl std::fmt::Debug for Frosted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Frosted")
+            .field("corner_radius", &self.corner_radius)
+            .field("blur_radius", &self.blur_radius)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Element for Frosted {
     type RequestLayoutState = ();
     type PrepaintState = ();
@@ -107,6 +116,12 @@ pub fn layered(child: impl IntoElement) -> Layered {
 
 pub struct Layered {
     child: AnyElement,
+}
+
+impl std::fmt::Debug for Layered {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Layered").finish_non_exhaustive()
+    }
 }
 
 impl Element for Layered {

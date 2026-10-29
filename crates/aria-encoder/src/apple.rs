@@ -6,6 +6,10 @@
 //! VideoToolbox's preferred input), appended to an
 //! `AVAssetWriterInputPixelBufferAdaptor` at its presentation time, and the
 //! writer encodes + muxes to the output `.mp4`.
+//! The module calls AVFoundation, CoreMedia, and CoreVideo through Objective-C
+//! and C FFI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -80,6 +84,16 @@ struct WriterReadiness {
 // time — the export worker the engine parks this encoder on. We never share
 // `&self` across threads, satisfying `VideoEncoder: Send` without `Sync`.
 unsafe impl Send for AvfEncoder {}
+
+impl std::fmt::Debug for AvfEncoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AvfEncoder")
+            .field("size", &self.size)
+            .field("started", &self.started)
+            .field("finished", &self.finished)
+            .finish_non_exhaustive()
+    }
+}
 
 impl AvfEncoder {
     /// Create an mp4 writer at `path` for `config`'s size and frame rate.

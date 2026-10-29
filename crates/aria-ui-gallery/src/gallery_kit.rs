@@ -12,7 +12,7 @@ use gpui::{AnyElement, App, Hsla, IntoElement, ParentElement, Styled, div, px};
 ///
 /// The nav row and the scroll container index the same list, so a jump target
 /// cannot drift from the section it names.
-pub const SECTIONS: [&str; 8] = [
+pub(crate) const SECTIONS: [&str; 8] = [
     "Controls",
     "States",
     "Motion",
@@ -24,7 +24,12 @@ pub const SECTIONS: [&str; 8] = [
 ];
 
 /// A titled panel. `note` is the one line that says what the section proves.
-pub fn section(theme: &Theme, title: &str, note: &str, body: impl IntoElement) -> AnyElement {
+pub(crate) fn section(
+    theme: &Theme,
+    title: &str,
+    note: &str,
+    body: impl IntoElement,
+) -> AnyElement {
     div()
         .flex()
         .flex_col()
@@ -66,7 +71,7 @@ pub fn section(theme: &Theme, title: &str, note: &str, body: impl IntoElement) -
 
 /// One specimen with its state name underneath. The name is the whole point:
 /// a control drawn without it proves nothing a screenshot could not fake.
-pub fn specimen(theme: &Theme, label: &str, body: impl IntoElement) -> AnyElement {
+pub(crate) fn specimen(theme: &Theme, label: &str, body: impl IntoElement) -> AnyElement {
     div()
         .flex()
         .flex_col()
@@ -96,7 +101,7 @@ pub fn specimen(theme: &Theme, label: &str, body: impl IntoElement) -> AnyElemen
 }
 
 /// A wrapping specimen shelf.
-pub fn shelf(children: Vec<AnyElement>) -> AnyElement {
+pub(crate) fn shelf(children: Vec<AnyElement>) -> AnyElement {
     div()
         .flex()
         .flex_row()
@@ -108,7 +113,7 @@ pub fn shelf(children: Vec<AnyElement>) -> AnyElement {
 }
 
 /// A titled sub-group inside a section.
-pub fn group(theme: &Theme, title: &str, body: impl IntoElement) -> AnyElement {
+pub(crate) fn group(theme: &Theme, title: &str, body: impl IntoElement) -> AnyElement {
     div()
         .flex()
         .flex_col()
@@ -124,7 +129,7 @@ pub fn group(theme: &Theme, title: &str, body: impl IntoElement) -> AnyElement {
         .into_any_element()
 }
 
-pub fn caption(theme: &Theme, text: impl Into<String>) -> AnyElement {
+pub(crate) fn caption(theme: &Theme, text: impl Into<String>) -> AnyElement {
     div()
         .text_size(px(10.))
         .text_color(theme.text_dim)
@@ -132,7 +137,7 @@ pub fn caption(theme: &Theme, text: impl Into<String>) -> AnyElement {
         .into_any_element()
 }
 
-pub fn swatch(theme: &Theme, label: &str, color: Hsla) -> AnyElement {
+pub(crate) fn swatch(theme: &Theme, label: &str, color: Hsla) -> AnyElement {
     div()
         .flex()
         .flex_col()
@@ -158,7 +163,7 @@ pub fn swatch(theme: &Theme, label: &str, color: Hsla) -> AnyElement {
 
 /// A 0..1 readout: the bar and the number, so a curve can be compared against
 /// the value it produced this frame.
-pub fn meter(theme: &Theme, label: &str, t: f32) -> AnyElement {
+pub(crate) fn meter(theme: &Theme, label: &str, t: f32) -> AnyElement {
     div()
         .flex()
         .flex_row()
@@ -204,7 +209,7 @@ pub fn meter(theme: &Theme, label: &str, t: f32) -> AnyElement {
 /// specimen pins the same fade the real control drives. The toggle is set under
 /// reduced motion, so the fade lands on the first frame rather than restarting
 /// every frame.
-pub fn pin_hover(kind: &str, id: &str, cx: &App) {
+pub(crate) fn pin_hover(kind: &str, id: &str, cx: &App) {
     motion::set_hover(
         motion::MotionKey::new(kind, id),
         true,
@@ -215,7 +220,7 @@ pub fn pin_hover(kind: &str, id: &str, cx: &App) {
 
 /// A checkerboard of theme tokens. A blur over a flat fill is invisible, so
 /// every frost specimen sits on one of these.
-pub fn backdrop(theme: &Theme) -> AnyElement {
+pub(crate) fn backdrop(theme: &Theme) -> AnyElement {
     let tints = [
         theme.track_video,
         theme.track_audio,

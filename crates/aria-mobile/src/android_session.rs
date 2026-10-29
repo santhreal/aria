@@ -4,6 +4,9 @@
 //! Declared from `android.rs` with `#[path]`; `use super::*` reaches that
 //! module's imports and its Java marshalling helpers, so the move changed no
 //! name resolution. `#[unsafe(no_mangle)]` exports ignore module privacy.
+//! The module exports `#[unsafe(no_mangle)]` JNI entry points that forward raw handles to the C ABI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 
@@ -11,7 +14,7 @@ use super::*;
 
 /// `AriaNative.catalogs()`: every preset vocabulary as one JSON document.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_catalogs<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_catalogs<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> jstring {
@@ -24,7 +27,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_catalogs<'
 /// `AriaNative.sessionNew(fpsNum, fpsDen)`: a fresh project session.
 /// Returns the handle as a `jlong` (`0` on failure).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionNew<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionNew<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     fps_num: jint,
@@ -36,7 +39,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionNew
 
 /// `AriaNative.sessionOpen(path)`: open a `.aria` project file.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionOpen<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionOpen<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     path: JString<'local>,
@@ -49,7 +52,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionOpe
 
 /// `AriaNative.sessionClose(handle)`: release a session.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionClose<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionClose<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -63,7 +68,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionClo
 /// `AriaNative.sessionApply(handle, json)`: one wire command; the JSON
 /// response envelope comes back.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionApply<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionApply<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -78,7 +85,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionApp
 
 /// `AriaNative.sessionIntent(handle, json)`: one gesture intent.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionIntent<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionIntent<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -94,7 +103,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionInt
 /// `AriaNative.sessionUiState(handle)`: the lane-stack JSON (null for a
 /// null handle).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUiState<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUiState<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -107,7 +118,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUiS
 
 /// `AriaNative.sessionUndo(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUndo<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUndo<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -118,7 +129,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionUnd
 
 /// `AriaNative.sessionRedo(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRedo<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRedo<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -129,7 +140,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRed
 
 /// `AriaNative.sessionCanUndo(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCanUndo<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCanUndo<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -140,7 +153,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCan
 
 /// `AriaNative.sessionCanRedo(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCanRedo<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCanRedo<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -151,7 +166,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCan
 
 /// `AriaNative.sessionRevision(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRevision<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRevision<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -162,7 +179,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRev
 
 /// `AriaNative.sessionIsDirty(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionIsDirty<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionIsDirty<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -173,7 +192,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionIsD
 
 /// `AriaNative.sessionBeginGroup(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionBeginGroup<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionBeginGroup<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -184,7 +205,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionBeg
 
 /// `AriaNative.sessionCommitGroup(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCommitGroup<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCommitGroup<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -195,7 +218,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionCom
 
 /// `AriaNative.sessionRollbackGroup(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRollbackGroup<
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRollbackGroup<
     'local,
 >(
     _env: JNIEnv<'local>,
@@ -208,7 +231,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRol
 
 /// `AriaNative.sessionDurationSeconds(handle)`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionDurationSeconds<
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionDurationSeconds<
     'local,
 >(
     _env: JNIEnv<'local>,
@@ -223,7 +246,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionDur
 /// the timeline frame nearest `seconds` as `[width, height, argb…]`. Empty
 /// array on failure.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRenderFit<'local>(
+pub(super) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_sessionRenderFit<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,

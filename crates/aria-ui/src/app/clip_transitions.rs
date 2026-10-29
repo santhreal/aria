@@ -21,21 +21,21 @@ use crate::types::UiSlots as _;
 /// The smallest and largest transition window the UI will send, in ticks. The
 /// model clamps to at least one tick; the upper bound keeps a drag from opening a
 /// window longer than either side of the cut can plausibly cover.
-pub const MIN_TRANSITION_TICKS: i64 = 2;
-pub const MAX_TRANSITION_TICKS: i64 = 600;
+pub(crate) const MIN_TRANSITION_TICKS: i64 = 2;
+pub(crate) const MAX_TRANSITION_TICKS: i64 = 600;
 
 /// The step one nudge of the duration control takes, in ticks.
-pub const TRANSITION_STEP_TICKS: i64 = 6;
+pub(crate) const TRANSITION_STEP_TICKS: i64 = 6;
 
 /// Every picture transition the model can render, shipped and registered, for
 /// a catalog list.
-pub fn transition_choices() -> Catalog<TransitionSpec> {
+pub(crate) fn transition_choices() -> Catalog<TransitionSpec> {
     transition_catalog()
 }
 
 /// The id Ctrl+T (picture) or Ctrl+Shift+T (audio) applies, or `None` when no
 /// picture transition is registered.
-pub fn default_transition(media: TransitionMedia) -> Option<String> {
+pub(crate) fn default_transition(media: TransitionMedia) -> Option<String> {
     match media {
         TransitionMedia::Picture => transition_catalog().first().map(|spec| spec.id.clone()),
         TransitionMedia::Audio => Some(AudioTransition::DEFAULT.id().to_owned()),
@@ -49,7 +49,7 @@ pub fn default_transition(media: TransitionMedia) -> Option<String> {
 /// end-aligned wedge is anchored at the cut on one side, so the dragged edge
 /// changes the window 1:1. A drag past the bounds stalls at them rather than
 /// being refused.
-pub fn transition_ticks_after_drag(
+pub(crate) fn transition_ticks_after_drag(
     current: i64,
     delta_ticks: i64,
     right_edge: bool,

@@ -176,6 +176,14 @@ pub struct EventBus {
     main: Arc<MainLane>,
 }
 
+impl std::fmt::Debug for EventBus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EventBus")
+            .field("next_id", &self.next_id.load(Ordering::Relaxed))
+            .finish_non_exhaustive()
+    }
+}
+
 impl EventBus {
     pub fn new() -> Self {
         Self {

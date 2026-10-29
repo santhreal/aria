@@ -74,6 +74,14 @@ pub struct Cell {
     pub snapped: bool,
 }
 
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cell")
+            .field("snapped", &self.snapped)
+            .finish_non_exhaustive()
+    }
+}
+
 /// One edit the store followed: the revision moved from `from` to `to`, and
 /// the picture changed only inside `spans`.
 struct Step {
@@ -118,6 +126,16 @@ pub struct FilmstripStore {
     /// Images of dropped cells, for the window atlas to release. Cells drop
     /// on an edit or a landing, and both redraw the timeline without them.
     retired: Vec<Arc<RenderImage>>,
+}
+
+impl std::fmt::Debug for FilmstripStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FilmstripStore")
+            .field("revision", &self.revision)
+            .field("cells", &self.cells.len())
+            .field("at", &self.at)
+            .finish_non_exhaustive()
+    }
 }
 
 impl FilmstripStore {

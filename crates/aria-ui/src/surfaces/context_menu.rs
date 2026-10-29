@@ -47,6 +47,7 @@ mod track;
 /// check mark while that state holds, as a toggle row on the menu bar does. All
 /// three read the facts gathered when the menu opened, so a row never re-reads
 /// the session while the menu is on screen.
+#[derive(Debug)]
 pub struct MenuRow<F> {
     /// Element id, which the row builder also uses as its hover key.
     pub id: &'static str,
@@ -70,6 +71,7 @@ impl<F> MenuRow<F> {
 }
 
 /// One entry in a menu: a command row, or a block the panel owns.
+#[derive(Debug)]
 pub enum MenuItem<F> {
     /// A row that acts on the project or the session. The census presses these.
     Row(MenuRow<F>),

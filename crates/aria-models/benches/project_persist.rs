@@ -38,6 +38,10 @@ static ALLOC_BYTES: AtomicUsize = AtomicUsize::new(0);
 static DEALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
 static DEALLOC_BYTES: AtomicUsize = AtomicUsize::new(0);
 
+// SAFETY: Forwards every allocation, deallocation, and reallocation directly
+// to `std::alloc::System` with identical layout and pointer arguments, only
+// updating atomic counters.
+#[allow(unsafe_code)]
 unsafe impl GlobalAlloc for CountingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);

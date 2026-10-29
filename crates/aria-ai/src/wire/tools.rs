@@ -100,6 +100,7 @@ pub fn describe_project_spec() -> ToolSpec {
 }
 
 /// One domain of the edit vocabulary.
+#[derive(Debug, Clone, Copy)]
 pub struct ToolGroup {
     /// The group name, which matches the module containing its descriptions and cases.
     pub name: &'static str,

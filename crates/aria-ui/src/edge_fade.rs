@@ -41,6 +41,16 @@ pub struct EdgeFaded {
     child: AnyElement,
 }
 
+impl std::fmt::Debug for EdgeFaded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EdgeFaded")
+            .field("band", &self.band)
+            .field("left", &self.left)
+            .field("right", &self.right)
+            .finish_non_exhaustive()
+    }
+}
+
 impl EdgeFaded {
     /// Content continues past the left edge.
     pub fn fade_left(mut self, continues: bool) -> Self {
@@ -83,6 +93,15 @@ pub struct ScrollFrame {
     axis: Axis,
     /// The caller's handle, and once laid out the handle the frame scrolls by.
     handle: Option<ScrollHandle>,
+}
+
+impl std::fmt::Debug for ScrollFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScrollFrame")
+            .field("id", &self.id)
+            .field("axis", &self.axis)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ScrollFrame {

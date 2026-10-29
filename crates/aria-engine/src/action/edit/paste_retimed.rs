@@ -8,7 +8,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Deep-copy one clip to an explicit destination retimed to a target duration or speed.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,

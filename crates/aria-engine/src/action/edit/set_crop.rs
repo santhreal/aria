@@ -4,7 +4,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Restore only the crop and flip framing of a clip.
-pub struct RestoreCropAction {
+pub(crate) struct RestoreCropAction {
     pub clip: ClipId,
     pub crop: Param<CropRect>,
     pub flip_h: bool,
@@ -43,7 +43,7 @@ impl EditAction for RestoreCropAction {
 /// rect and the visual-track requirement.
 ///
 /// `at: Some(playhead)` keyframes an already-animated crop (M2 compose).
-pub fn set_crop(
+pub(crate) fn set_crop(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     crop: CropRect,

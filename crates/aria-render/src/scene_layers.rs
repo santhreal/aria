@@ -245,7 +245,7 @@ pub struct LayerSourceSpec {
 }
 
 /// The shipped layer topologies, in declaration order.
-pub const SHIPPED: &[LayerSourceSpec] = &[
+pub(crate) const SHIPPED: &[LayerSourceSpec] = &[
     LayerSourceSpec {
         id: "media",
         paints: true,
@@ -432,12 +432,12 @@ const fn index_of(source: &LayerSource) -> usize {
 /// suite red.
 /// No production reader enumerates the table; the sweeps that do are suites.
 #[cfg(test)]
-pub const fn layer_source_specs() -> &'static [LayerSourceSpec] {
+pub(crate) const fn layer_source_specs() -> &'static [LayerSourceSpec] {
     SHIPPED
 }
 
 /// The row describing `source`.
-pub const fn layer_source_spec(source: &LayerSource) -> &'static LayerSourceSpec {
+pub(crate) const fn layer_source_spec(source: &LayerSource) -> &'static LayerSourceSpec {
     &SHIPPED[index_of(source)]
 }
 
@@ -445,14 +445,14 @@ pub const fn layer_source_spec(source: &LayerSource) -> &'static LayerSourceSpec
 /// table needs; production already holds the `LayerSource` and asks
 /// [`layer_source_spec`].
 #[cfg(test)]
-pub fn layer_source_by_id(id: &str) -> Option<&'static LayerSourceSpec> {
+pub(crate) fn layer_source_by_id(id: &str) -> Option<&'static LayerSourceSpec> {
     SHIPPED.iter().find(|spec| spec.id == id)
 }
 
 #[path = "scene_layers_raster.rs"]
 mod raster;
 
-pub use raster::CpuRaster;
+pub(crate) use raster::CpuRaster;
 
 #[path = "scene_layers_census.rs"]
 mod census;

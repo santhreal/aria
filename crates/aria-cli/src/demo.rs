@@ -11,7 +11,7 @@ use aria_compositor::{
 };
 use aria_text::{TextRenderer, TextStyle};
 
-pub const FLAGS: &[&str] = &[];
+pub(crate) const FLAGS: &[&str] = &[];
 pub(crate) const DEFAULT_OUT: &str = "aria-demo.png";
 pub(crate) const WIDTH: u32 = 1920;
 pub(crate) const HEIGHT: u32 = 1080;
@@ -19,7 +19,7 @@ const BACKGROUND_COLOR: [u8; 4] = [20, 20, 30, 255];
 const TEXT_COLOR: [u8; 4] = [255, 255, 255, 255];
 const TEXT_SIZE: f32 = 240.0;
 
-pub fn run(out: Option<PathBuf>) -> Result<(), String> {
+pub(crate) fn run(out: Option<PathBuf>) -> Result<(), String> {
     let out_path = out.unwrap_or_else(|| PathBuf::from(DEFAULT_OUT));
 
     let gpu = GpuContext::new_headless_blocking().map_err(|err| err.to_string())?;
@@ -70,7 +70,7 @@ pub fn run(out: Option<PathBuf>) -> Result<(), String> {
 }
 
 /// Write a straight-alpha [`RgbaImage`] to an 8-bit RGBA PNG.
-pub fn write_png(image: &RgbaImage, path: &Path) -> Result<(), String> {
+pub(crate) fn write_png(image: &RgbaImage, path: &Path) -> Result<(), String> {
     let bytes = aria_render::encode_png(image).map_err(|err| err.to_string())?;
     std::fs::write(path, bytes).map_err(|err| format!("{}: {err}", path.display()))
 }

@@ -39,7 +39,7 @@ use crate::commands::host::{CommandBody, CommandRun, WindowedRun, host_of};
 use crate::types::AppMenu;
 
 /// How an offered row is invoked.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Offered {
     /// A registered command. Runs against the state alone.
     Command(CommandRun),
@@ -94,7 +94,7 @@ impl PartialEq for Pending {
 }
 
 /// One row the palette can offer.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PaletteOffer {
     /// Element id, and the identity the offer de-duplicates on.
     pub id: SharedString,

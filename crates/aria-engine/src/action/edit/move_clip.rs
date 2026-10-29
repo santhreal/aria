@@ -3,7 +3,7 @@ use aria_models::{ClipId, ModelError, RationalTime, TrackId};
 use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
 
-pub struct MoveClipAction {
+pub(crate) struct MoveClipAction {
     pub clip: ClipId,
     pub to_track: TrackId,
     pub start: RationalTime,
@@ -11,7 +11,7 @@ pub struct MoveClipAction {
 
 /// Move `clip` to `to_track` at `start`. Linked and grouped companions take
 /// the same time delta and stay on their lanes, as one history entry.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,
@@ -23,7 +23,7 @@ pub fn execute(
 
 /// Move `clip` to `to_track` at `start` without its links: clips grouped with
 /// it take the same time delta, linked clips stay where they are.
-pub fn execute_unlinked(
+pub(crate) fn execute_unlinked(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,

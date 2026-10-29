@@ -429,14 +429,19 @@ fn create_unique_backup(destination: &Path, fs: &impl PersistenceFs) -> io::Resu
     ))
 }
 
+/// Create the directory `path`, readable and writable by its owner alone on
+/// Unix (mode `0700`).
+#[cfg(unix)]
 fn create_private_dir(path: &Path) -> io::Result<()> {
-    let mut builder = std::fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        builder.mode(0o700);
-    }
-    builder.create(path)
+    use std::os::unix::fs::DirBuilderExt;
+    std::fs::DirBuilder::new().mode(0o700).create(path)
+}
+
+/// Create the directory `path`. Windows directories inherit their parent's
+/// access control list.
+#[cfg(not(unix))]
+fn create_private_dir(path: &Path) -> io::Result<()> {
+    std::fs::DirBuilder::new().create(path)
 }
 
 fn install_temp_with_ops(

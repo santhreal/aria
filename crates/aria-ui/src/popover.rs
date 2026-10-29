@@ -9,6 +9,7 @@ use gpui::motion::presets;
 
 pub use crate::types::Loadable;
 
+#[derive(Debug)]
 pub struct Popup<T> {
     inner: Option<(T, Option<std::time::Instant>)>,
     pressed_while_open: bool,

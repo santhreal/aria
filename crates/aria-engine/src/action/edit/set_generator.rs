@@ -7,7 +7,7 @@ use crate::error::EngineError;
 /// Replace a generated clip's content (title text, shape color, …). The
 /// inverse is a full-clip restore, so it oscillates like trim's
 /// `RestoreClipAction`.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     generator: Generator,

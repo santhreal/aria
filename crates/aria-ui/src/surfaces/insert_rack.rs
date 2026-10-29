@@ -12,6 +12,7 @@ use aria_models::{AudioInsertTarget, TrackId};
 use crate::app::AppState;
 
 /// One gesture on an insert chain.
+#[derive(Debug)]
 pub enum Gesture {
     /// Show or hide the chain's Add list.
     TogglePicker(AudioInsertTarget),

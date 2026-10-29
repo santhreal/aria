@@ -59,7 +59,7 @@ const ICONS: [&str; 32] = [
 /// without a row here shows up as unlisted.
 const RASTER: [&str; 1] = [icons::BRAND_MARK];
 
-pub fn icons_section(theme: &Theme) -> AnyElement {
+pub(crate) fn icons_section(theme: &Theme) -> AnyElement {
     let listed = icons::Assets.list("icon/").unwrap_or_default();
     let unlisted: Vec<String> = listed
         .iter()
@@ -166,7 +166,7 @@ fn stem(path: &'static str) -> &'static str {
     }
 }
 
-pub fn typography(theme: &Theme) -> AnyElement {
+pub(crate) fn typography(theme: &Theme) -> AnyElement {
     section(
         theme,
         "Typography",
@@ -304,7 +304,7 @@ fn ink(theme: &Theme, label: &str, color: gpui::Hsla) -> AnyElement {
 
 /// Every colour token on the theme, so a palette change is reviewable in one
 /// place rather than hunted through panels.
-pub fn theme_tokens(theme: &Theme) -> AnyElement {
+pub(crate) fn theme_tokens(theme: &Theme) -> AnyElement {
     section(
         theme,
         "Theme",

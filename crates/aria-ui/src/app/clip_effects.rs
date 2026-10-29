@@ -20,7 +20,7 @@ use crate::types::UiSlots as _;
 
 /// Colors worth one click on a color property. A full picker is a separate
 /// concern; these are the hues a key, a tint, a border, or a shadow is set to.
-pub const PARAM_COLORS: [(&str, &str, [u8; 4]); 9] = [
+pub(crate) const PARAM_COLORS: [(&str, &str, [u8; 4]); 9] = [
     ("black", "Black", [0, 0, 0, 255]),
     ("white", "White", [255, 255, 255, 255]),
     ("half-black", "Half black", [0, 0, 0, 128]),
@@ -39,6 +39,7 @@ pub const PARAM_COLORS: [(&str, &str, [u8; 4]); 9] = [
 /// Holds the spec rather than a copy of its rows, so listing slots allocates
 /// nothing.
 #[cfg(test)]
+#[derive(Debug)]
 pub struct ParamSlots {
     spec: Option<Arc<EffectSpec>>,
     kind: EffectParamKind,
@@ -81,6 +82,7 @@ impl<'a> IntoIterator for &'a ParamSlots {
 }
 
 #[cfg(test)]
+#[derive(Debug)]
 pub struct ParamSlotIter<'a> {
     params: std::iter::Enumerate<std::slice::Iter<'a, EffectParamSpec>>,
     kind: EffectParamKind,
@@ -105,17 +107,17 @@ fn params_of_kind(effect_id: &str, kind: EffectParamKind) -> ParamSlots {
 }
 
 #[cfg(test)]
-pub fn scalar_params(effect_id: &str) -> ParamSlots {
+pub(crate) fn scalar_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Scalar)
 }
 
 #[cfg(test)]
-pub fn color_params(effect_id: &str) -> ParamSlots {
+pub(crate) fn color_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Color)
 }
 
 #[cfg(test)]
-pub fn vec2_params(effect_id: &str) -> ParamSlots {
+pub(crate) fn vec2_params(effect_id: &str) -> ParamSlots {
     params_of_kind(effect_id, EffectParamKind::Vec2)
 }
 

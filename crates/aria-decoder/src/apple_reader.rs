@@ -4,6 +4,10 @@
 //!
 //! Declared from `apple.rs` with `#[path]`; `use super::*` reaches that module's
 //! private items and its own imports, so the move changed no name resolution.
+//! The module calls AVFoundation and Foundation through Objective-C FFI and is
+//! `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 

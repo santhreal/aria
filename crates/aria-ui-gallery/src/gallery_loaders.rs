@@ -15,7 +15,7 @@ use gpui::{
 use crate::gallery_kit::{backdrop, caption, group, section, shelf, specimen};
 use crate::{Gallery, GalleryState};
 
-pub fn loaders_section(
+pub(crate) fn loaders_section(
     theme: &Theme,
     state: GalleryState,
     view: EntityId,
@@ -246,7 +246,11 @@ fn splash(
     )
 }
 
-pub fn surfaces(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
+pub(crate) fn surfaces(
+    theme: &Theme,
+    state: GalleryState,
+    cx: &mut Context<Gallery>,
+) -> AnyElement {
     let glassy = theme.is_glass();
     section(
         theme,

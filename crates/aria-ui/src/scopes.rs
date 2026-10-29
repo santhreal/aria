@@ -142,6 +142,7 @@ pub(crate) const fn channel_colour(channel: WaveformChannel) -> [u8; 3] {
 }
 
 /// The three scopes as textures, in the order they are shown.
+#[derive(Debug)]
 pub struct ScopeImages {
     /// Luma per horizontal position.
     pub waveform: RgbaImage,

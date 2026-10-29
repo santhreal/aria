@@ -15,7 +15,7 @@ use crate::error::EngineError;
 ///
 /// The model normalises `beats` (sorted, deduped, clamped to the clip's source
 /// window), so a detector may hand over raw candidates in any order.
-pub fn set(
+pub(crate) fn set(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     beats: Vec<i64>,
@@ -32,7 +32,10 @@ pub fn set(
 /// An already-empty grid still produces an inverse. At the command layer that
 /// makes `ClearBeats` one deterministic, reversible history step whose
 /// undo/redo both leave the empty grid unchanged.
-pub fn clear(ctx: &mut ApplyContext<'_>, clip: ClipId) -> Result<Box<dyn EditAction>, EngineError> {
+pub(crate) fn clear(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+) -> Result<Box<dyn EditAction>, EngineError> {
     set(ctx, clip, Vec::new())
 }
 

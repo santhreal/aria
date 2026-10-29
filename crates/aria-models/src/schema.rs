@@ -68,7 +68,7 @@ impl ProjectSchema {
     }
 }
 
-pub fn serialize<S>(schema: &ProjectSchema, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn serialize<S>(schema: &ProjectSchema, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -76,7 +76,7 @@ where
 }
 
 /// Accept a full schema object or a legacy bare version integer.
-pub fn deserialize<'de, D>(deserializer: D) -> Result<ProjectSchema, D::Error>
+pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<ProjectSchema, D::Error>
 where
     D: Deserializer<'de>,
 {

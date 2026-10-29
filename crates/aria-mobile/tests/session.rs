@@ -5,6 +5,8 @@
 //! so these tests double as contract tests for the response envelopes the
 //! shells parse.
 
+#![allow(unsafe_code)]
+
 use std::ffi::CStr;
 use std::os::raw::c_char;
 

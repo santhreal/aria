@@ -8,7 +8,7 @@
 use crate::args::ArgsError;
 
 #[derive(Debug, PartialEq)]
-pub enum Failure {
+pub(crate) enum Failure {
     /// The command line was wrong.
     Usage(String),
     /// The command ran and could not finish.
@@ -19,7 +19,7 @@ pub enum Failure {
 
 impl Failure {
     /// The process exit code for this failure.
-    pub fn code(&self) -> i32 {
+    pub(crate) fn code(&self) -> i32 {
         match self {
             Failure::Usage(_) => 2,
             Failure::Failed(_) => 1,
@@ -28,7 +28,7 @@ impl Failure {
     }
 
     /// The one-line reason, as printed on stderr.
-    pub fn message(&self) -> &str {
+    pub(crate) fn message(&self) -> &str {
         match self {
             Failure::Usage(message) | Failure::Failed(message) | Failure::Exit { message, .. } => {
                 message

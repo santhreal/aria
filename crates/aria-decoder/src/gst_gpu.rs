@@ -38,6 +38,8 @@ use crate::gst_dmabuf_watch::{DmabufWatch, dmabuf_cause, watch_video_decoders};
 use crate::gst_key_snap::{KeySnap, snap_video_to_keyframes};
 use crate::gst_start::{StartHold, seek_held};
 
+// SAFETY: GStreamer's `gstallocators-1.0` C library exports these functions with matching signatures.
+#[allow(unsafe_code)]
 #[link(name = "gstallocators-1.0")]
 unsafe extern "C" {
     fn gst_is_dmabuf_memory(mem: *mut gst::ffi::GstMemory) -> glib::ffi::gboolean;
@@ -603,6 +605,8 @@ fn dmabuf_fd(mem: *mut gst::ffi::GstMemory) -> Option<i32> {
     if mem.is_null() {
         return None;
     }
+    // SAFETY: `mem` is non-null and points to a valid `GstMemory` from a mapped `GstBuffer`.
+    #[allow(unsafe_code)]
     unsafe {
         if gst_is_dmabuf_memory(mem) != glib::ffi::GTRUE {
             return None;
@@ -620,7 +624,9 @@ struct DmaKeepAlive {
 
 // SAFETY: GstSample is refcounted and the fd numbers are integers; the
 // decoder worker is the only mutator of the pipeline.
+#[allow(unsafe_code)]
 unsafe impl Send for DmaKeepAlive {}
+#[allow(unsafe_code)]
 unsafe impl Sync for DmaKeepAlive {}
 
 /// CPU NV12 extraction used by the fallback path and by unit tests.

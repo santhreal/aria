@@ -30,9 +30,14 @@ pub(crate) struct OffscreenPool {
 }
 
 impl OffscreenPool {
-    pub const DEFAULT_SLOTS: usize = 2;
+    pub(crate) const DEFAULT_SLOTS: usize = 2;
 
-    pub fn ensure(device: &wgpu::Device, queue: wgpu::Queue, width: u32, height: u32) -> Self {
+    pub(crate) fn ensure(
+        device: &wgpu::Device,
+        queue: wgpu::Queue,
+        width: u32,
+        height: u32,
+    ) -> Self {
         let mut pool = Self {
             width,
             height,
@@ -46,7 +51,7 @@ impl OffscreenPool {
     }
 
     /// Ensure the pool holds at least `required` canvas-sized offscreen slots.
-    pub fn ensure_slots(&mut self, device: &wgpu::Device, required: usize) {
+    pub(crate) fn ensure_slots(&mut self, device: &wgpu::Device, required: usize) {
         while self.textures.len() < required {
             let label = format!("aria.offscreen.{}", self.textures.len());
             let (texture, view) = self.create_texture(device, &label);
@@ -57,7 +62,7 @@ impl OffscreenPool {
 
     /// Ensure the pool holds the two side textures a transition or matte
     /// draws its sides into.
-    pub fn ensure_sides(&mut self, device: &wgpu::Device) {
+    pub(crate) fn ensure_sides(&mut self, device: &wgpu::Device) {
         if self.sides.is_none() {
             self.sides = Some([
                 self.create_texture(device, "aria.offscreen.side.0"),
@@ -94,15 +99,15 @@ impl OffscreenPool {
 
     /// Current number of offscreen slots in the pool.
     #[inline]
-    pub fn slots(&self) -> usize {
+    pub(crate) fn slots(&self) -> usize {
         self.views.len()
     }
 
-    pub fn view(&self, index: usize) -> &wgpu::TextureView {
+    pub(crate) fn view(&self, index: usize) -> &wgpu::TextureView {
         &self.views[index]
     }
 
-    pub fn texture(&self, index: usize) -> &wgpu::Texture {
+    pub(crate) fn texture(&self, index: usize) -> &wgpu::Texture {
         &self.textures[index]
     }
 
@@ -111,18 +116,18 @@ impl OffscreenPool {
     /// # Panics
     ///
     /// When [`ensure_sides`](Self::ensure_sides) has not run on this pool.
-    pub fn side(&self, index: usize) -> (&wgpu::Texture, &wgpu::TextureView) {
+    pub(crate) fn side(&self, index: usize) -> (&wgpu::Texture, &wgpu::TextureView) {
         let (texture, view) = &self.sides.as_ref().expect("side textures ensured")[index];
         (texture, view)
     }
 
     /// Pool slot holding `view`, if it is one of this pool's views.
-    pub fn index_of(&self, view: &wgpu::TextureView) -> Option<usize> {
+    pub(crate) fn index_of(&self, view: &wgpu::TextureView) -> Option<usize> {
         self.views.iter().position(|v| std::ptr::eq(v, view))
     }
 
     /// The reuse table for passes reading this pool's slots.
-    pub fn passes(&self) -> &PassCache {
+    pub(crate) fn passes(&self) -> &PassCache {
         &self.passes
     }
 }

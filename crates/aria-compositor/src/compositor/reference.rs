@@ -42,7 +42,10 @@ impl Compositor {
         let mut pass = if built.pipeline.overwrites_target() {
             // SAFETY: the pass's only draw is `built`, whose pipeline writes
             // every pixel of the target with blending disabled.
-            unsafe { color_pass::begin_overwrite(encoder, view) }
+            #[allow(unsafe_code)]
+            unsafe {
+                color_pass::begin_overwrite(encoder, view)
+            }
         } else {
             let load = match clear {
                 Some(color) => wgpu::LoadOp::Clear(color),

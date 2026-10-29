@@ -103,7 +103,7 @@ impl fmt::Display for Rgba8FrameError {
 impl Error for Rgba8FrameError {}
 
 /// A validated borrowed view of one row-strided RGBA8 frame.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rgba8Frame<'a> {
     bytes: &'a [u8],
     width: usize,

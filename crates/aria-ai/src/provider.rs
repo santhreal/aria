@@ -154,6 +154,7 @@ pub struct ChatTurn {
 }
 
 /// Everything a provider needs for one completion.
+#[derive(Debug, Clone, Copy)]
 pub struct ChatRequest<'a> {
     pub messages: &'a [Message],
     pub tools: &'a [ToolSpec],

@@ -110,6 +110,16 @@ pub struct Shell {
     /// The timeline projection count the panel bodies were last redrawn for.
     drawn_projections: u64,
 }
+
+impl std::fmt::Debug for Shell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shell")
+            .field("state", &self.state.entity_id())
+            .field("drawn_projections", &self.drawn_projections)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Shell {
     pub fn new(state: Entity<AppState>, cx: &mut Context<Self>) -> Self {
         let audio = Some(crate::audio::AudioSystem::new(state.read(cx).audio.clone()));

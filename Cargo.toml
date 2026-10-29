@@ -71,9 +71,9 @@ manual_let_else = "warn"
 match_same_arms = "warn"
 
 [workspace.lints.rust]
-unsafe_code = "warn"
-unreachable_pub = "warn"
-missing_debug_implementations = "warn"
+unsafe_code = "deny"
+unreachable_pub = "deny"
+missing_debug_implementations = "deny"
 
 [workspace.dependencies]
 thiserror = "2"

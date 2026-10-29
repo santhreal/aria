@@ -31,7 +31,7 @@ pub type RowBlocked = fn(&str, &AppState) -> Option<&'static str>;
 /// Whether a toggle row draws its check mark.
 pub type RowChecked = fn(&str, &AppState) -> bool;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct MenuItem {
     pub id: &'static str,
     pub label: &'static str,

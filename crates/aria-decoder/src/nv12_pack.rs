@@ -5,6 +5,9 @@
 //! writes `NV12` planes from the pool in [`crate::plane_pool`] in one pass,
 //! with an AVX2 path where the CPU has it and a scalar path otherwise. 10-bit
 //! samples keep their 8 high bits.
+//! The module uses `x86`/`x86_64` AVX2 SIMD intrinsics and unaligned vector loads/stores and is `unsafe` in its SIMD paths.
+
+#![allow(unsafe_code)]
 
 use aria_core::{DecodeError, Plane};
 

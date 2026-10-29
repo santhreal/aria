@@ -19,7 +19,7 @@ fn hover_demo_key() -> motion::MotionKey {
     motion::MotionKey::new("gallery", "hover-demo")
 }
 
-pub fn motion_section(
+pub(crate) fn motion_section(
     theme: &Theme,
     state: GalleryState,
     view: EntityId,

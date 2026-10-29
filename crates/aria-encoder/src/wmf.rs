@@ -12,6 +12,9 @@
 //! Mirrors the decoder's Media Foundation patterns (`aria-decoder`'s
 //! `wmf.rs`): one-time `MFStartup`, per-thread MTA `CoInitializeEx`, and
 //! `windows` crate COM ergonomics.
+//! The module calls Media Foundation sink-writer APIs through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::path::Path;
 use std::sync::Once;
@@ -89,6 +92,16 @@ pub struct WmfEncoder {
 // may legally travel between MTA worker threads, and we never share `&self`
 // across threads, which satisfies `VideoEncoder: Send` without `Sync`.
 unsafe impl Send for WmfEncoder {}
+
+impl std::fmt::Debug for WmfEncoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WmfEncoder")
+            .field("size", &self.size)
+            .field("frame_rate", &self.frame_rate)
+            .field("finished", &self.finished)
+            .finish_non_exhaustive()
+    }
+}
 
 impl WmfEncoder {
     /// Create an mp4 sink writer at `path` for `config`'s size and frame

@@ -4,7 +4,7 @@ use crate::action::edit::insert_clip::InsertClipAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub struct RemoveClipAction {
+pub(crate) struct RemoveClipAction {
     pub clip: ClipId,
 }
 

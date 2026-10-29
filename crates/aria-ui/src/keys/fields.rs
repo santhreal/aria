@@ -17,7 +17,7 @@ use crate::app::settings_form::SettingsField;
 ///
 /// `submit` takes the state's own context because a field's Enter can start
 /// work (a search, a transcription, a generation), not only change state.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct TextField {
     pub id: &'static str,
     pub focused: fn(&AppState) -> bool,
@@ -49,7 +49,7 @@ pub struct TextField {
 
 /// The caret of a box that has one: the title typed into in the Viewer, and
 /// the rename bar.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Caret {
     /// Whether a key in the box changes the Viewer's picture, so the Viewer
     /// renders a new frame after each one: a title typed into in the Viewer

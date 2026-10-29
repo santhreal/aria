@@ -2,6 +2,8 @@
 //! commands through the wire, and the speed-preset / audio-role intents —
 //! ending in the `ui_state` fields the panels read back.
 
+#![allow(unsafe_code)]
+
 use std::ffi::CStr;
 use std::io::Write;
 use std::os::raw::c_char;

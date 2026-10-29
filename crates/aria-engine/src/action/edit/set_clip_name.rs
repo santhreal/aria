@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// name is an editorial label, not a property of the content, and
 /// changes no duration, so there is no neighbour check. The inverse is a
 /// full-clip restore, like the other flag edits.
-pub fn set_clip_name(
+pub(crate) fn set_clip_name(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     name: Option<String>,
@@ -25,7 +25,7 @@ pub fn set_clip_name(
 /// Set (or clear) the clip type a clip is. Accepted on every clip kind, and
 /// changes no duration or picture: the type's generator is an ordinary effect
 /// in the chain. The inverse is a full-clip restore.
-pub fn set_clip_type(
+pub(crate) fn set_clip_type(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     clip_type: Option<String>,
@@ -41,7 +41,7 @@ pub fn set_clip_type(
 
 /// Set (or clear) the property a clip's bar draws as its line. Changes no
 /// duration, picture, or sound. The inverse is a full-clip restore.
-pub fn set_clip_line_param(
+pub(crate) fn set_clip_line_param(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: Option<aria_models::ClipParam>,

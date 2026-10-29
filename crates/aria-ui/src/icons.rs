@@ -30,6 +30,7 @@ macro_rules! icon_assets {
         const REGISTRY: &[(&str, &str)] = &[$((stringify!($const_name), $file)),+];
 
         /// Serves the embedded icons to gpui's SVG renderer.
+        #[derive(Debug)]
         pub struct Assets;
 
         impl AssetSource for Assets {
@@ -235,6 +236,12 @@ pub fn icon(path: &'static str) -> Icon {
 /// that sets the text colour for its label and hover state, so [`Icon`] reads
 /// that inherited colour at paint time when the icon sets none.
 pub struct Icon(Svg);
+
+impl std::fmt::Debug for Icon {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Icon").finish_non_exhaustive()
+    }
+}
 
 impl Icon {
     /// Rotate or scale the glyph when painted. Layout and hit testing keep the

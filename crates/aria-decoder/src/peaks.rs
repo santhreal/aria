@@ -39,7 +39,7 @@ fn cancellation_requested(cancelled: &(impl Fn() -> bool + ?Sized)) -> bool {
 /// Decode the whole audio stream of `path` and return `buckets` peak
 /// amplitudes in `0.0..=1.0`, evenly spread across the stream's duration,
 /// with cancellation support.
-pub fn audio_peaks_with_cancel(
+pub(crate) fn audio_peaks_with_cancel(
     path: &Path,
     buckets: usize,
     cancelled: impl Fn() -> bool,
@@ -63,7 +63,7 @@ pub fn audio_peaks(path: &Path, buckets: usize) -> Result<Vec<f32>, DecodeError>
 /// Decode the whole audio stream of `path` into peaks at (approximately)
 /// `per_second` peaks per second of audio, capped at `max_peaks` entries,
 /// with cancellation support.
-pub fn audio_peaks_per_second_with_cancel(
+pub(crate) fn audio_peaks_per_second_with_cancel(
     path: &Path,
     per_second: f64,
     max_peaks: usize,

@@ -25,7 +25,7 @@ struct ExtractPlan {
 /// The full plan is validated and snapshotted before the first project
 /// mutation. Internal actions are then applied directly so the command records
 /// exactly one compound inverse even when it also creates an audio lane.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: Option<TrackId>,

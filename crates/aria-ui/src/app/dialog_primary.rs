@@ -16,6 +16,7 @@
 use super::{AppState, DialogKind};
 
 /// What Enter means to one dialog.
+#[derive(Debug)]
 pub enum Primary {
     /// Enter commits the dialog by running this.
     ///

@@ -17,7 +17,7 @@ use crate::args::Args;
 use crate::fail::Failure;
 use crate::project::clock;
 
-pub const FLAGS: &[&str] = &["fps"];
+pub(crate) const FLAGS: &[&str] = &["fps"];
 
 /// Frame rates a `--fps` value may name, in the order a picker would offer them.
 ///
@@ -34,7 +34,7 @@ pub(crate) const RATES: [(&str, Rational); 7] = [
     ("60", Rational::new(60, 1)),
 ];
 
-pub fn run(args: &Args) -> Result<(), Failure> {
+pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let out = args.required_path(0, "an output project file")?;
     let media: Vec<PathBuf> = args.positional[1..].iter().map(PathBuf::from).collect();
     let rate = rate_from(args)?;

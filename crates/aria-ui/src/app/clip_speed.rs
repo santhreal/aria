@@ -34,7 +34,7 @@ pub struct RampDrag {
 
 /// The three points a preset-free ramp is seeded with: start, middle, end. A
 /// hand-built ramp starts here and grows by adding points on the graph.
-pub const RAMP_POINTS: [(&str, &str, i64); 3] = [
+pub(crate) const RAMP_POINTS: [(&str, &str, i64); 3] = [
     ("ramp-in", "Start", 0),
     ("ramp-mid", "Middle", SPEED_CURVE_SCALE / 2),
     ("ramp-out", "End", SPEED_CURVE_SCALE),
@@ -42,25 +42,25 @@ pub const RAMP_POINTS: [(&str, &str, i64); 3] = [
 
 /// Fewest points a ramp can hold: a curve needs two to have a shape, so removing
 /// the second-to-last point is refused rather than collapsing the ramp silently.
-pub const RAMP_MIN_POINTS: usize = 2;
+pub(crate) const RAMP_MIN_POINTS: usize = 2;
 
 /// How close, in normalized ticks, a click has to land to grab an existing point
 /// rather than add one. Scaled from the graph being roughly 240px wide.
-pub const RAMP_GRAB_TICKS: i64 = 24;
+pub(crate) const RAMP_GRAB_TICKS: i64 = 24;
 
 /// Every built-in ramp, for a preset row.
-pub fn speed_presets() -> &'static [SpeedPresetSpec] {
+pub(crate) fn speed_presets() -> &'static [SpeedPresetSpec] {
     speed_preset_catalog()
 }
 
 /// A graph x fraction as a normalized curve tick.
-pub fn ramp_frac_to_tick(frac: f32) -> i64 {
+pub(crate) fn ramp_frac_to_tick(frac: f32) -> i64 {
     let clamped = frac.clamp(0.0, 1.0);
     (clamped * SPEED_CURVE_SCALE as f32).round() as i64
 }
 
 /// A normalized curve tick as a graph x fraction.
-pub fn ramp_tick_to_frac(tick: i64) -> f32 {
+pub(crate) fn ramp_tick_to_frac(tick: i64) -> f32 {
     tick.clamp(0, SPEED_CURVE_SCALE) as f32 / SPEED_CURVE_SCALE as f32
 }
 
@@ -69,14 +69,14 @@ pub fn ramp_tick_to_frac(tick: i64) -> f32 {
 /// Logarithmic, because the bounds span 0.05× to 100× and a linear axis would put
 /// every useful speed in the bottom two percent of the graph. 1× sits where
 /// `log(1)` falls between the bounds.
-pub fn ramp_value_to_frac(value: f32) -> f32 {
+pub(crate) fn ramp_value_to_frac(value: f32) -> f32 {
     let lo = MIN_SPEED.ln();
     let hi = MAX_SPEED.ln();
     ((value.clamp(MIN_SPEED, MAX_SPEED).ln() - lo) / (hi - lo)).clamp(0.0, 1.0)
 }
 
 /// A graph y fraction as a speed multiplier. Inverse of [`ramp_value_to_frac`].
-pub fn ramp_frac_to_value(frac: f32) -> f32 {
+pub(crate) fn ramp_frac_to_value(frac: f32) -> f32 {
     let lo = MIN_SPEED.ln();
     let hi = MAX_SPEED.ln();
     (lo + frac.clamp(0.0, 1.0) * (hi - lo))
@@ -88,7 +88,7 @@ pub fn ramp_frac_to_value(frac: f32) -> f32 {
 ///
 /// Nearest wins, so two points closer together than the tolerance are still both
 /// reachable from their own side.
-pub fn ramp_point_at(points: &[(i64, f32)], tick: i64) -> Option<i64> {
+pub(crate) fn ramp_point_at(points: &[(i64, f32)], tick: i64) -> Option<i64> {
     points
         .iter()
         .map(|(point, _)| *point)

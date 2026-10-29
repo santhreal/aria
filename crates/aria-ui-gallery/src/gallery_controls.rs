@@ -19,7 +19,7 @@ use crate::{Gallery, GalleryState, NO_FIELD};
 /// whichever motion mode the header switch is in, because "reduced" is a state
 /// it has to survive rather than a state it skips, and the pinned hovers are set
 /// at the frame's instant.
-pub fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
+pub(crate) fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
     section(
         theme,
         "Controls",
@@ -567,7 +567,7 @@ fn icon_space_rows(theme: &Theme) -> AnyElement {
 /// The state matrix. Hover states are pinned open through the same
 /// `{kind}:{id}` fade key the component builds, so the state is reviewable
 /// without a pointer.
-pub fn states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
+pub(crate) fn states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
     section(
         theme,
         "States",

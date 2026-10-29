@@ -58,6 +58,18 @@ pub struct LottieAnimation {
     duration: f64,
 }
 
+impl std::fmt::Debug for LottieAnimation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LottieAnimation")
+            .field("render_width", &self.render_width)
+            .field("render_height", &self.render_height)
+            .field("frame_count", &self.frame_count)
+            .field("sample_fps", &self.sample_fps)
+            .field("duration", &self.duration)
+            .finish_non_exhaustive()
+    }
+}
+
 impl LottieAnimation {
     /// Parse a Lottie JSON document from a string.
     pub fn parse(source: &str) -> Result<Self, DecodeError> {

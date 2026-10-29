@@ -20,7 +20,7 @@ use super::AppState;
 ///
 /// Data rather than four hand-written rows: the inspector generates one stepper
 /// per entry, so the panel cannot drift from the rect.
-pub const CROP_EDGES: &[(&str, &str, fn(&CropRect) -> f32, fn(&mut CropRect, f32))] = &[
+pub(crate) const CROP_EDGES: &[(&str, &str, fn(&CropRect) -> f32, fn(&mut CropRect, f32))] = &[
     (
         "crop-left",
         "Left",
@@ -61,7 +61,7 @@ pub const CROP_EDGES: &[(&str, &str, fn(&CropRect) -> f32, fn(&mut CropRect, f32
 
 /// Read one crop inset by id. Left and top are the kept region's origin; right
 /// and bottom are measured from the far edge, which is how a crop control reads.
-pub fn crop_inset(crop: &CropRect, id: &str) -> f32 {
+pub(crate) fn crop_inset(crop: &CropRect, id: &str) -> f32 {
     CROP_EDGES
         .iter()
         .find(|(edge, ..)| *edge == id)

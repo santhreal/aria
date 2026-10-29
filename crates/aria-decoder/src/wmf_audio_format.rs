@@ -8,6 +8,9 @@
 //!
 //! `use super::*` carries the parent's `windows` imports and `SampleFormat`, so
 //! neither the import block nor the enum is duplicated.
+//! The module calls Media Foundation media-type and attribute APIs through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 

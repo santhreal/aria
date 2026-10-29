@@ -31,7 +31,7 @@ const PRESETS_DIR: &str = "presets";
 const LEGACY_PRESETS_FILE: &str = "effects.json";
 
 /// Maximum length of a preset name typed in the inspector's draft field.
-pub const PRESET_NAME_MAX_LEN: usize = 48;
+pub(crate) const PRESET_NAME_MAX_LEN: usize = 48;
 
 /// A `.ariapreset` file in `<data dir>/presets/` that failed to load.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,17 +96,17 @@ struct LegacyEffectPreset {
 }
 
 /// Directory where user `.ariapreset` files are stored under `data_dir`.
-pub fn presets_dir(data_dir: &Path) -> PathBuf {
+pub(crate) fn presets_dir(data_dir: &Path) -> PathBuf {
     data_dir.join(PRESETS_DIR)
 }
 
 /// Legacy `presets/effects.json` path under `data_dir`.
-pub fn legacy_effect_presets_path(data_dir: &Path) -> PathBuf {
+pub(crate) fn legacy_effect_presets_path(data_dir: &Path) -> PathBuf {
     presets_dir(data_dir).join(LEGACY_PRESETS_FILE)
 }
 
 /// Whether `path` has the `.ariapreset` extension (case-insensitive).
-pub fn is_preset_path(path: &Path) -> bool {
+pub(crate) fn is_preset_path(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case(PRESET_FILE_EXTENSION))
@@ -218,7 +218,7 @@ fn migrate_legacy_effects_json(data_dir: &Path) {
 }
 
 /// Load user presets and any broken `.ariapreset` files from `<data_dir>/presets/`.
-pub fn load_presets(data_dir: &Path) -> (Vec<Preset>, Vec<BrokenPreset>) {
+pub(crate) fn load_presets(data_dir: &Path) -> (Vec<Preset>, Vec<BrokenPreset>) {
     migrate_legacy_effects_json(data_dir);
 
     let dir = presets_dir(data_dir);

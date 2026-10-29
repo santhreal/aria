@@ -9,7 +9,7 @@ use crate::error::EngineError;
 /// the curve's average, and checks neighbor overlap. The inverse is a
 /// full-clip restore — the curve and the re-derived timeline range roll back
 /// in one shot, like the constant-speed and param edits.
-pub fn set_speed_curve(
+pub(crate) fn set_speed_curve(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     curve: Option<Param<f32>>,

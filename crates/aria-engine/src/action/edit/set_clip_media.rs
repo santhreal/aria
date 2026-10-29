@@ -9,7 +9,7 @@ use crate::error::EngineError;
 /// source window, and the track's content kind. The inverse is a full-clip
 /// restore, so the previous content (media or windowing) rolls back in one
 /// shot.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     media: MediaId,

@@ -20,7 +20,7 @@ use crate::error::EngineError;
 ///
 /// Atomic: one `CompoundAction` inverse, and a refused step reverts the ones
 /// already applied before the error propagates.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     media: MediaId,

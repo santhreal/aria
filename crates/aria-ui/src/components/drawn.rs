@@ -165,6 +165,12 @@ pub fn picture<E: Element + Styled>(image: E) -> Picture<E> {
 /// An image element that records its bounds as [`Drawn::Image`].
 pub struct Picture<E>(E);
 
+impl<E> std::fmt::Debug for Picture<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Picture").finish_non_exhaustive()
+    }
+}
+
 impl<E: Styled> Styled for Picture<E> {
     fn style(&mut self) -> &mut StyleRefinement {
         self.0.style()

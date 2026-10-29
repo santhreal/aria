@@ -9,7 +9,7 @@ use crate::error::EngineError;
 
 /// The look block a [`LookParam`] is stored in.
 #[derive(Debug, Clone, PartialEq)]
-pub enum LookState {
+pub(crate) enum LookState {
     Filter(Option<Filter>),
     Lut(Option<Lut>),
     Adjust(ColorAdjustments),
@@ -42,7 +42,7 @@ impl LookState {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ParamState {
+pub(crate) enum ParamState {
     Position(Param<[f32; 2]>),
     AnchorPoint(Param<[f32; 2]>),
     Scale(Param<Scale2>),
@@ -65,7 +65,7 @@ pub enum ParamState {
 }
 
 impl ParamState {
-    pub fn capture(clip: &Clip, param: ClipParam) -> Result<Self, ModelError> {
+    pub(crate) fn capture(clip: &Clip, param: ClipParam) -> Result<Self, ModelError> {
         match param {
             ClipParam::Position => Ok(ParamState::Position(clip.transform.position.clone())),
             ClipParam::AnchorPoint => {
@@ -109,7 +109,11 @@ impl ParamState {
         }
     }
 
-    pub fn restore(self, clip: &mut Clip, param: ClipParam) -> Result<ParamState, ModelError> {
+    pub(crate) fn restore(
+        self,
+        clip: &mut Clip,
+        param: ClipParam,
+    ) -> Result<ParamState, ModelError> {
         let current = ParamState::capture(clip, param)?;
         match (self, param) {
             (ParamState::Position(p), ClipParam::Position) => {
@@ -172,7 +176,7 @@ impl ParamState {
     }
 }
 
-pub struct RestoreParamAction {
+pub(crate) struct RestoreParamAction {
     pub clip: ClipId,
     pub param: ClipParam,
     pub state: ParamState,
@@ -197,7 +201,7 @@ impl EditAction for RestoreParamAction {
     }
 }
 
-pub fn set_keyframe(
+pub(crate) fn set_keyframe(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,
@@ -217,7 +221,7 @@ pub fn set_keyframe(
     }))
 }
 
-pub fn remove_keyframe(
+pub(crate) fn remove_keyframe(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,
@@ -233,7 +237,7 @@ pub fn remove_keyframe(
     }))
 }
 
-pub fn set_constant(
+pub(crate) fn set_constant(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,
@@ -249,7 +253,7 @@ pub fn set_constant(
     }))
 }
 
-pub fn apply_easing_preset(
+pub(crate) fn apply_easing_preset(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,
@@ -266,7 +270,7 @@ pub fn apply_easing_preset(
     }))
 }
 
-pub fn set_keyframe_ease(
+pub(crate) fn set_keyframe_ease(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,
@@ -286,7 +290,7 @@ pub fn set_keyframe_ease(
     }))
 }
 
-pub fn set_keyframe_roving(
+pub(crate) fn set_keyframe_roving(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     param: ClipParam,

@@ -21,7 +21,7 @@ use super::AppState;
 use super::picker::{Ask, FileSpec};
 
 /// The directory holding downloaded assets, under the storage root.
-pub const DOWNLOADS_DIR: &str = "downloads";
+pub(crate) const DOWNLOADS_DIR: &str = "downloads";
 
 const MIB: u64 = 1024 * 1024;
 
@@ -267,7 +267,7 @@ fn describe_switch_error(err: DownloadCacheSwitchError<std::io::Error>) -> Strin
 
 /// Bytes in display units. Kept here because the dialog and the status
 /// line must agree on the unit.
-pub fn format_bytes(bytes: u64) -> String {
+pub(crate) fn format_bytes(bytes: u64) -> String {
     const GIB: u64 = 1024 * MIB;
     const KIB: u64 = 1024;
     if bytes >= GIB {

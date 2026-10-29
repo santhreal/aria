@@ -13,12 +13,12 @@ use crate::args::Args;
 use crate::fail::Failure;
 use crate::project::clock;
 
-pub const FLAGS: &[&str] = &["beats", "silence", "loudness", "shots", "limit"];
+pub(crate) const FLAGS: &[&str] = &["beats", "silence", "loudness", "shots", "limit"];
 
 /// Rows one detector prints before the rest are summarized.
 pub(crate) const DEFAULT_LIMIT: usize = 40;
 
-pub fn run(args: &Args) -> Result<(), Failure> {
+pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a media file")?;
     if !path.exists() {
         return Err(Failure::Failed(format!("{}: no such file", path.display())));

@@ -18,7 +18,7 @@ use aria_models::{ClipParam, PiecewiseEasingPreset, TemporalEase};
 use crate::app::AppState;
 
 /// One press on one property's keyframe row.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Row {
     /// Take a keyframe at the playhead, or remove the one the row was drawn
     /// with. `keyed` is what the row showed, not what is there now: a press

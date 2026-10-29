@@ -11,7 +11,7 @@ use crate::types::RenameTarget;
 use super::{MenuItem, MenuRow, always};
 
 /// The lane facts a track menu row reads.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct TrackMenu {
     pub track: u64,
     pub muted: bool,

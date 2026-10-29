@@ -10,7 +10,7 @@ use crate::error::EngineError;
 /// The inverse restores the whole clip rather than slipping back by `-by`: a
 /// slip clamps at the ends of the take, so the opposite slip is not always the
 /// same distance.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     by: i64,

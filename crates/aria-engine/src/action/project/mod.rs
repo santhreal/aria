@@ -12,14 +12,14 @@ use aria_models::Project;
 use crate::action::ApplyContext;
 use crate::error::EngineError;
 
-pub mod apply_template;
-pub mod import;
-pub mod load;
-pub mod open;
-pub mod relink;
-pub mod save;
-pub mod save_template;
-pub mod set_media_label;
+pub(crate) mod apply_template;
+pub(crate) mod import;
+pub(crate) mod load;
+pub(crate) mod open;
+pub(crate) mod relink;
+pub(crate) mod save;
+pub(crate) mod save_template;
+pub(crate) mod set_media_label;
 
 /// Replace the session project from a `.aria` file. With `strict`, every
 /// referenced media path must exist on disk (Open); otherwise missing media is

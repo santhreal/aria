@@ -34,6 +34,7 @@ impl AppearanceMode {
     pub const ALL: [Self; 3] = [Self::System, Self::Light, Self::Dark];
 }
 
+#[derive(Debug)]
 pub struct AppearanceState {
     pub mode: AppearanceMode,
     pub system: Appearance,

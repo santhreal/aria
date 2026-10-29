@@ -23,7 +23,7 @@ use crate::error::EngineError;
 /// `set_clip_animation`. Carrying all three means the value written back is a
 /// state the model already accepted.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct AnimationSlots {
+pub(crate) struct AnimationSlots {
     pub entrance: Option<AnimationRef>,
     pub exit: Option<AnimationRef>,
     pub combo: Option<AnimationRef>,
@@ -46,7 +46,7 @@ impl AnimationSlots {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LookProperty {
+pub(crate) enum LookProperty {
     BlendMode(BlendMode),
     MotionBlur(MotionBlur),
     LayerStyles(LayerStyles),
@@ -60,7 +60,7 @@ pub enum LookProperty {
     AudioRole(Option<AudioRole>),
 }
 
-pub struct RestoreLookPropertyAction {
+pub(crate) struct RestoreLookPropertyAction {
     pub clip: ClipId,
     pub property: LookProperty,
 }
@@ -119,7 +119,7 @@ impl EditAction for RestoreLookPropertyAction {
     }
 }
 
-pub fn set_blend_mode(
+pub(crate) fn set_blend_mode(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     mode: BlendMode,
@@ -133,7 +133,7 @@ pub fn set_blend_mode(
     }))
 }
 
-pub fn set_motion_blur(
+pub(crate) fn set_motion_blur(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     motion_blur: MotionBlur,
@@ -147,7 +147,7 @@ pub fn set_motion_blur(
     }))
 }
 
-pub fn set_layer_styles(
+pub(crate) fn set_layer_styles(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     styles: LayerStyles,
@@ -161,7 +161,7 @@ pub fn set_layer_styles(
     }))
 }
 
-pub fn set_chroma(
+pub(crate) fn set_chroma(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     chroma: Option<ChromaKey>,
@@ -175,7 +175,7 @@ pub fn set_chroma(
     }))
 }
 
-pub fn set_matte(
+pub(crate) fn set_matte(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     matte: Option<TrackMatte>,
@@ -189,7 +189,7 @@ pub fn set_matte(
     }))
 }
 
-pub fn set_stabilize(
+pub(crate) fn set_stabilize(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     stabilize: Option<StabilizeLevel>,
@@ -203,7 +203,7 @@ pub fn set_stabilize(
     }))
 }
 
-pub fn set_filter(
+pub(crate) fn set_filter(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     filter: Option<Filter>,
@@ -217,7 +217,7 @@ pub fn set_filter(
     }))
 }
 
-pub fn set_lut(
+pub(crate) fn set_lut(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     lut: Option<Lut>,
@@ -231,7 +231,7 @@ pub fn set_lut(
     }))
 }
 
-pub fn set_adjustments(
+pub(crate) fn set_adjustments(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     adjust: ColorAdjustments,
@@ -245,7 +245,7 @@ pub fn set_adjustments(
     }))
 }
 
-pub fn set_animation(
+pub(crate) fn set_animation(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     slot: AnimationSlot,
@@ -259,7 +259,7 @@ pub fn set_animation(
     }))
 }
 
-pub fn set_audio_role(
+pub(crate) fn set_audio_role(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     role: Option<AudioRole>,

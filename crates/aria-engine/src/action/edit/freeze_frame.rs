@@ -25,7 +25,7 @@ struct FreezePlan {
 /// first mutation. The internal link-clear, optional split, ripple shift, and
 /// insertion actions then contribute one compound inverse. If any action
 /// fails, already-applied actions are rolled back immediately.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     at: RationalTime,

@@ -9,7 +9,7 @@ use crate::app::AppState;
 use super::{MenuItem, MenuRow};
 
 /// The pool-row facts a menu row reads.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PoolMenu {
     pub media: u64,
     /// A clip still references the item, so the model would refuse to drop it.

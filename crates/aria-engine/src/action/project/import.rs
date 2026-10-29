@@ -10,7 +10,7 @@ use crate::import::import_media;
 /// Probe `path` and add it to the media pool, returning the new [`MediaId`] and
 /// the inverse that removes it. Re-importing a file already in the pool is a
 /// no-op: the existing id is returned with no inverse.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     path: &Path,
 ) -> Result<(MediaId, Option<Box<dyn EditAction>>), EngineError> {

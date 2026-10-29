@@ -146,7 +146,7 @@ pub enum ApplyOutcome {
 /// command recorded one.
 type Dispatched = (ApplyOutcome, Option<Box<dyn EditAction>>);
 
-pub fn dispatch(
+pub(crate) fn dispatch(
     command: Command,
     ctx: &mut ApplyContext<'_>,
 ) -> Result<(ApplyOutcome, Option<Box<dyn EditAction>>), EngineError> {

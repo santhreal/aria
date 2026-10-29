@@ -91,7 +91,7 @@ impl std::fmt::Debug for PluginScopeTexture {
 
 /// What a measurement repaints, kept between frames so a repaint reuses its
 /// buffers.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ScopeBuffers {
     /// The built-in scopes' bitmaps.
     pub builtin: ScopeImages,

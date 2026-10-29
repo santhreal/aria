@@ -30,7 +30,7 @@ pub struct FrameStageSpec {
 }
 
 /// The stages, in pipeline order.
-pub const SHIPPED: &[FrameStageSpec] = &[
+pub(crate) const SHIPPED: &[FrameStageSpec] = &[
     FrameStageSpec {
         id: "decode",
         label: "Decode",
@@ -74,7 +74,7 @@ pub const fn frame_stages() -> &'static [FrameStageSpec] {
 /// [`FrameStats::total_ms`] reports independently — the test below holds the two
 /// against each other.
 #[cfg(test)]
-pub fn covered(stats: &FrameStats) -> f64 {
+pub(crate) fn covered(stats: &FrameStats) -> f64 {
     let FrameStats {
         decode_ms: _,
         raster_ms: _,

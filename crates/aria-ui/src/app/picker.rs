@@ -36,6 +36,7 @@ use super::AppState;
 pub use aria_dialog::FileSpec;
 
 /// What one pick prompts for.
+#[derive(Debug)]
 pub enum Ask {
     /// One file that already exists.
     OpenFile(FileSpec),
@@ -156,6 +157,15 @@ pub struct Picks {
     /// How many picks have been asked for, so a test can tell "asked and not
     /// answered" from "never asked".
     asked: usize,
+}
+
+impl std::fmt::Debug for Picks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Picks")
+            .field("to_window", &self.to_window)
+            .field("asked", &self.asked)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for Picks {

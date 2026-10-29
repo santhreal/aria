@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// the canvas at `at` or snapping it to the parent as `keep` selects. The
 /// transform rewrite is the renderer's ([`aria_render::reparented`]), so the
 /// place kept is the place drawn. The inverse is a full-clip restore.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     parent: Option<ClipId>,

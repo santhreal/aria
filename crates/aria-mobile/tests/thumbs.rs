@@ -1,5 +1,7 @@
 //! Thumbnailer FFI: filmstrip frames for video files and stills.
 
+#![allow(unsafe_code)]
+
 use aria_compositor::GpuContext;
 use aria_mobile::thumbs::{
     aria_thumbnailer_close, aria_thumbnailer_duration_seconds, aria_thumbnailer_open,

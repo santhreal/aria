@@ -261,6 +261,12 @@ pub struct Chip {
     pick: Option<(SharedString, bool)>,
 }
 
+impl std::fmt::Debug for Chip {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Chip").finish_non_exhaustive()
+    }
+}
+
 impl Chip {
     /// The `element` that picks the choice `label`, in force while `on`: a
     /// chip whose press the caller adds, such as one that reads the modifiers.

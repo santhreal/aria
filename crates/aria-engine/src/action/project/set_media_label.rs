@@ -8,12 +8,12 @@ use aria_models::{LabelColor, MediaId, ModelError};
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub struct SetMediaLabelAction {
+pub(crate) struct SetMediaLabelAction {
     pub media: MediaId,
     pub label: Option<LabelColor>,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     media: MediaId,
     label: Option<LabelColor>,

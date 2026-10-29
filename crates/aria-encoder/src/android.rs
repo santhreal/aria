@@ -14,10 +14,12 @@
 //! Device-untestable on the macOS host: validated via
 //! `cargo check --target aarch64-linux-android` (same constraint as the
 //! decoder's CPU path).
+//! The module calls the Android NDK `AMediaCodec`, `AMediaMuxer`, and `AMediaFormat` C APIs and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use core::ptr;
 use core::slice;
-use std::ffi::CString;
 use std::fs::File;
 use std::os::fd::AsRawFd;
 use std::path::Path;
@@ -33,10 +35,9 @@ use ndk_sys::{
     AMediaCodec_dequeueInputBuffer, AMediaCodec_dequeueOutputBuffer, AMediaCodec_getInputBuffer,
     AMediaCodec_getOutputBuffer, AMediaCodec_getOutputFormat, AMediaCodec_queueInputBuffer,
     AMediaCodec_releaseOutputBuffer, AMediaCodec_start, AMediaCodec_stop, AMediaCodecBufferInfo,
-    AMediaFormat, AMediaFormat_delete, AMediaFormat_new, AMediaFormat_setFloat,
-    AMediaFormat_setInt32, AMediaFormat_setString, AMediaMuxer, AMediaMuxer_addTrack,
-    AMediaMuxer_delete, AMediaMuxer_new, AMediaMuxer_start, AMediaMuxer_stop,
-    AMediaMuxer_writeSampleData, OutputFormat, media_status_t,
+    AMediaFormat_delete, AMediaFormat_new, AMediaFormat_setFloat, AMediaFormat_setInt32,
+    AMediaFormat_setString, AMediaMuxer, AMediaMuxer_addTrack, AMediaMuxer_delete, AMediaMuxer_new,
+    AMediaMuxer_start, AMediaMuxer_stop, AMediaMuxer_writeSampleData, OutputFormat, media_status_t,
 };
 
 use aria_core::{
@@ -103,6 +104,16 @@ pub struct MediaCodecEncoder {
     /// (twice, for a BGRA source).
     i420: Vec<u8>,
     finished: bool,
+}
+
+impl std::fmt::Debug for MediaCodecEncoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MediaCodecEncoder")
+            .field("size", &self.size)
+            .field("muxer_started", &self.muxer_started)
+            .field("finished", &self.finished)
+            .finish_non_exhaustive()
+    }
 }
 
 // SAFETY: native handles are owned and touched by a single export worker thread;
@@ -677,16 +688,6 @@ fn open_audio_encoder(audio: AudioEncoderConfig) -> Result<*mut AMediaCodec, Enc
         return Err(EncodeError::Start("audio AMediaCodec_start failed".into()));
     }
     Ok(codec)
-}
-
-/// Set a string key on a format from a Rust `&str`.
-///
-/// # Safety
-/// `format` and `key` must be valid.
-unsafe fn set_string(format: *mut AMediaFormat, key: *const core::ffi::c_char, value: &str) {
-    if let Ok(c) = CString::new(value) {
-        unsafe { AMediaFormat_setString(format, key, c.as_ptr()) };
-    }
 }
 
 /// Convert a [`RationalTime`] to microsecond ticks, clamped to non-negative i64.

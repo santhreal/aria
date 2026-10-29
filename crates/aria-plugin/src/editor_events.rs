@@ -18,6 +18,7 @@ use crate::events::{Event, EventBus, WaterfallEvent};
 
 /// A project became the session: opened, loaded, filled from a template, or
 /// started new. Follows the [`ProjectClosed`] for the session it replaced.
+#[derive(Debug, Clone)]
 pub struct ProjectOpened {
     /// The file the session mirrors; `None` for a new or template-filled
     /// project.
@@ -26,33 +27,39 @@ pub struct ProjectOpened {
 }
 
 /// The session is about to be replaced by the [`ProjectOpened`] that follows.
+#[derive(Debug, Clone)]
 pub struct ProjectClosed {
     /// The file the replaced session mirrored; `None` if it was never saved.
     pub path: Option<PathBuf>,
 }
 
 /// The project was written to `path`.
+#[derive(Debug, Clone)]
 pub struct ProjectSaved {
     pub path: PathBuf,
 }
 
 /// The clip selection changed. Holds the whole selection, in selection order.
+#[derive(Debug, Clone)]
 pub struct SelectionChanged {
     pub clips: Vec<ClipId>,
 }
 
 /// The playhead moved. Posted at most once per drawn frame.
+#[derive(Debug, Clone, Copy)]
 pub struct PlayheadMoved {
     pub at: RationalTime,
 }
 
 /// The sequence In or Out point was set or cleared.
+#[derive(Debug, Clone, Copy)]
 pub struct InOutChanged {
     pub mark_in: Option<RationalTime>,
     pub mark_out: Option<RationalTime>,
 }
 
 /// Playback started, or its speed changed while playing.
+#[derive(Debug, Clone, Copy)]
 pub struct PlaybackStarted {
     pub at: RationalTime,
     /// A multiple of real time; negative plays backwards.
@@ -60,18 +67,21 @@ pub struct PlaybackStarted {
 }
 
 /// Playback stopped.
+#[derive(Debug, Clone, Copy)]
 pub struct PlaybackStopped {
     pub at: RationalTime,
 }
 
 /// A file was added to the media pool. Posted once the undo step that added it
 /// can no longer roll back.
+#[derive(Debug, Clone)]
 pub struct MediaImported {
     pub media: MediaId,
     pub path: PathBuf,
 }
 
 /// A media pool item now reads `path`.
+#[derive(Debug, Clone)]
 pub struct MediaRelinked {
     pub media: MediaId,
     pub path: PathBuf,
@@ -79,6 +89,7 @@ pub struct MediaRelinked {
 
 /// A media file the project uses is not on disk. Posted when the editor first
 /// shows it as missing.
+#[derive(Debug, Clone)]
 pub struct MediaOffline {
     pub media: MediaId,
     pub path: PathBuf,
@@ -102,6 +113,7 @@ pub enum RenderKind {
 }
 
 /// A render job ended.
+#[derive(Debug, Clone)]
 pub struct RenderFinished {
     pub kind: RenderKind,
     /// The file or folder the render wrote to.
@@ -110,17 +122,20 @@ pub struct RenderFinished {
 }
 
 /// An export started writing `path`.
+#[derive(Debug, Clone)]
 pub struct ExportStarted {
     pub path: PathBuf,
 }
 
 /// An export that started has ended.
+#[derive(Debug, Clone)]
 pub struct ExportFinished {
     pub path: PathBuf,
     pub result: RenderResult,
 }
 
 /// A background job was queued, started, or reported progress.
+#[derive(Debug, Clone)]
 pub struct JobProgress {
     pub job: u64,
     pub label: String,
@@ -138,6 +153,7 @@ pub enum JobOutcome {
 }
 
 /// A background job ended.
+#[derive(Debug, Clone)]
 pub struct JobFinished {
     pub job: u64,
     pub label: String,
@@ -147,11 +163,13 @@ pub struct JobFinished {
 }
 
 /// A plugin finished mounting.
+#[derive(Debug, Clone)]
 pub struct PluginActivated {
     pub id: std::borrow::Cow<'static, str>,
 }
 
 /// A plugin was unmounted; its handlers and services are gone.
+#[derive(Debug, Clone)]
 pub struct PluginDeactivated {
     pub id: std::borrow::Cow<'static, str>,
 }
@@ -227,6 +245,12 @@ impl ViewFrame<'_> {
 #[derive(Default)]
 pub struct EditorView {
     state: RwLock<Option<ViewState>>,
+}
+
+impl std::fmt::Debug for EditorView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EditorView").finish_non_exhaustive()
+    }
 }
 
 impl EditorView {
@@ -329,11 +353,20 @@ pub struct MenuEntry {
     pub run: Arc<dyn Fn() + Send + Sync>,
 }
 
+impl std::fmt::Debug for MenuEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MenuEntry")
+            .field("label", &self.label)
+            .finish_non_exhaustive()
+    }
+}
+
 /// A context menu is opening. Each handler may add rows; they are drawn after
 /// the editor's own, in mount order.
 ///
 /// Handlers run on the UI thread while the menu opens, so a handler reads
 /// `project` and returns; the work belongs in the row's `run`.
+#[derive(Debug, Clone)]
 pub struct ContextMenuRequested {
     pub target: MenuTarget,
     /// The project the menu was opened over.

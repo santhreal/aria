@@ -15,6 +15,7 @@ use aria_plugin::{
 use aria_render::Renderer;
 use parking_lot::Mutex;
 
+#[derive(Debug)]
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
@@ -53,6 +54,7 @@ impl Plugin for RenderPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct EnginePlugin;
 
 /// Refuse an edit that would change a locked lane.

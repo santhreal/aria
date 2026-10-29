@@ -15,6 +15,7 @@ use aria_transcription::ModelManager;
 
 use aria_storage::StorageLayout;
 
+#[derive(Debug)]
 pub struct CloudPlugin {
     pub base_url: String,
 }
@@ -58,6 +59,7 @@ impl Plugin for CloudPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct AnalysisPlugin;
 
 /// The detector settings every analysis run uses.
@@ -96,6 +98,7 @@ impl Plugin for AnalysisPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct JobsPlugin;
 
 impl Plugin for JobsPlugin {
@@ -151,7 +154,7 @@ pub(crate) fn announce_jobs(manager: &JobManager, bus: &Arc<EventBus>) {
 /// `root` empty means "wherever storage put this profile", which is what the
 /// shipped app asks for; an absolute path overrides it, for a host that keeps
 /// models on another volume.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TranscriptionPlugin {
     pub root: PathBuf,
 }
@@ -195,12 +198,14 @@ impl Plugin for TranscriptionPlugin {
     }
 }
 
+#[derive(Debug)]
 pub struct AiPlugin;
 
 /// The assistant's guardrails, owned by the plugin that provides the assistant.
 ///
 /// Settings reads these, so the caps a run is held to are the caps shown, rather
 /// than a copy of the defaults written next to the display.
+#[derive(Debug)]
 pub struct AiHost {
     config: AgentConfig,
 }

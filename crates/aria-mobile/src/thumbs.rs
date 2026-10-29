@@ -8,6 +8,9 @@
 //!
 //! Same non-concurrency rule as the session: calls on one handle must be
 //! serialized, but different handles are independent.
+//! The module exports `#[unsafe(no_mangle)]` C ABI functions that box, borrow, and free raw thumbnailer handles and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::sync::Mutex;
 
@@ -62,6 +65,7 @@ impl Drop for PooledRenderer {
 
 /// A thumbnail source for one media file. Free with
 /// [`aria_thumbnailer_close`].
+#[derive(Debug)]
 pub struct AriaThumbnailer {
     /// A single-clip project spanning the whole file — thumbnails are just
     /// fit-rendered frames of it, riding the same resolve/render path as the

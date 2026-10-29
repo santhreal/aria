@@ -15,7 +15,7 @@ use crate::Map;
 /// while `n` stays small.
 const INLINE_SELECT_LIMIT: usize = 8;
 
-pub fn serialize<K, V, S>(map: &Map<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn serialize<K, V, S>(map: &Map<K, V>, serializer: S) -> Result<S::Ok, S::Error>
 where
     K: Serialize + Ord,
     V: Serialize,
@@ -53,7 +53,7 @@ where
     serializer.collect_seq(sorted)
 }
 
-pub fn deserialize<'de, K, V, D>(deserializer: D) -> Result<Map<K, V>, D::Error>
+pub(crate) fn deserialize<'de, K, V, D>(deserializer: D) -> Result<Map<K, V>, D::Error>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,

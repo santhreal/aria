@@ -230,6 +230,7 @@ const MAX_W: f32 = 280.0;
 
 /// The hover card itself: the name with the chord beside it, and the detail,
 /// if any, on a line under them.
+#[derive(Debug)]
 pub struct Tip {
     name: gpui::SharedString,
     chord: Option<String>,

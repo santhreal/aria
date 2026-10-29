@@ -2,6 +2,9 @@
 //!
 //! Declared from `lib.rs` with `#[path]` behind the same `target_os` gate, so
 //! the `super::` imports below still name the crate root.
+//! The module exports `#[unsafe(no_mangle)]` JNI entry points and dereferences opaque session handles and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::path::Path;
 
@@ -62,7 +65,7 @@ fn rgba_to_argb_array(env: &JNIEnv, image: &RgbaImage) -> jintArray {
 /// `com.scytheralpha.aria_android.AriaNative.renderDemo(width, height)`.
 /// Returns `width * height` ARGB_8888 pixels, or an empty array on failure.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderDemo<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderDemo<'local>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     width: jint,
@@ -79,7 +82,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderDemo
 /// composite the first frame of the video at `path`, scaled to fit, as
 /// ARGB_8888 pixels. Empty array on failure.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderFileFrame<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderFileFrame<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     path: JString<'local>,
@@ -104,7 +109,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_renderFile
 /// a handle as a `jlong` (`0` on failure) — pass it to the other
 /// `preview*` calls and free it with `previewClose`.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpenDemo<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpenDemo<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> jlong {
@@ -118,7 +125,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpe
 /// `AriaNative.previewOpenVideo(path)`: open a video scrub session.
 /// Returns a handle as a `jlong` (`0` on failure).
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpenVideo<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpenVideo<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     path: JString<'local>,
@@ -136,7 +145,7 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewOpe
 
 /// `AriaNative.previewDurationSeconds(handle)`: total scrub length.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewDurationSeconds<
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewDurationSeconds<
     'local,
 >(
     _env: JNIEnv<'local>,
@@ -154,7 +163,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewDur
 /// `AriaNative.previewRender(handle, seconds)`: the frame at `seconds` as
 /// `[width, height, argb…]`. Empty array on failure.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewRender<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewRender<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -174,7 +185,9 @@ pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewRen
 
 /// `AriaNative.previewClose(handle)`: release a preview handle.
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewClose<'local>(
+pub(crate) extern "system" fn Java_com_scytheralpha_aria_1android_AriaNative_previewClose<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,

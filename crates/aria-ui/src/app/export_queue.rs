@@ -398,6 +398,12 @@ pub struct ExportQueue {
     shared: Arc<SharedQueue>,
 }
 
+impl std::fmt::Debug for ExportQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExportQueue").finish_non_exhaustive()
+    }
+}
+
 impl ExportQueue {
     /// Create a new queue backed by `job_manager` and `runner`, posting
     /// `ExportStarted` and `ExportFinished` on `events`.

@@ -10,14 +10,14 @@ use aria_core::{Rational, RationalTime};
 use aria_models::Project;
 
 /// Read a `.aria` file.
-pub fn load(path: &Path) -> Result<Project, String> {
+pub(crate) fn load(path: &Path) -> Result<Project, String> {
     Project::load_from_file(path).map_err(|err| format!("{}: {err}", path.display()))
 }
 
 /// Print every driver that failed while `project` rendered. A failed driver's
 /// property takes its keyframed value, so without this a frame drawn with the
 /// keyframed value reads as the driven one.
-pub fn warn_driver_faults(project: &Project) {
+pub(crate) fn warn_driver_faults(project: &Project) {
     for fault in aria_render::driver_faults() {
         eprintln!(
             "aria: warning: the driver on {} failed and its keyframed value was used: {}",
@@ -32,17 +32,17 @@ pub fn warn_driver_faults(project: &Project) {
 /// Rounds rather than truncates: `--at 1.0` on a 24 fps timeline must land on
 /// frame 24, and floating-point seconds arriving as `0.999999` would truncate
 /// to 23 — one frame before the instant the caller asked for.
-pub fn tick_for_seconds(seconds: f64, rate: Rational) -> i64 {
+pub(crate) fn tick_for_seconds(seconds: f64, rate: Rational) -> i64 {
     (seconds * f64::from(rate.num) / f64::from(rate.den)).round() as i64
 }
 
 /// `seconds` as a [`RationalTime`] on `rate`, clamped at zero.
-pub fn time_for_seconds(seconds: f64, rate: Rational) -> RationalTime {
+pub(crate) fn time_for_seconds(seconds: f64, rate: Rational) -> RationalTime {
     RationalTime::new(tick_for_seconds(seconds.max(0.0), rate), rate)
 }
 
 /// `seconds` formatted as `H:MM:SS.mmm`.
-pub fn clock(seconds: f64) -> String {
+pub(crate) fn clock(seconds: f64) -> String {
     let seconds = seconds.max(0.0);
     let whole = seconds as u64;
     let millis = ((seconds - whole as f64) * 1000.0).round() as u64;

@@ -14,6 +14,7 @@ use gpui::motion::{Easing, MotionSpec, presets};
 use super::{CARET_BLINK, FLING, LOADER_WAIT};
 
 /// One spec, and the claims made about it.
+#[derive(Debug)]
 pub struct SpecRow {
     /// The const, as it is written in `presets` or in `motion.rs`.
     pub name: &'static str,

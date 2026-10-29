@@ -19,7 +19,7 @@ struct Member {
 /// Lift a clip, close the hole it left, open a hole at the drop, and place it
 /// there. Linked companions take the same time delta and stay on their lanes.
 /// One history entry; undo is the inverses in reverse.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,

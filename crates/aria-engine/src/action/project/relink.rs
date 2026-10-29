@@ -20,7 +20,11 @@ use crate::import::import_media;
 /// Relinking to a shorter file can leave clips with source windows past the new
 /// end — tolerated the same way missing media is: the model stores it, decode
 /// degrades, the next trim re-validates.
-pub fn execute(ctx: &mut ApplyContext<'_>, media: MediaId, path: &Path) -> Result<(), EngineError> {
+pub(crate) fn execute(
+    ctx: &mut ApplyContext<'_>,
+    media: MediaId,
+    path: &Path,
+) -> Result<(), EngineError> {
     if ctx.project.media(media).is_none() {
         return Err(EngineError::Model(ModelError::UnknownMedia(media)));
     }

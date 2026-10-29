@@ -11,7 +11,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Create a new multicam group in the project. The inverse removes it.
-pub fn create_group(
+pub(crate) fn create_group(
     ctx: &mut ApplyContext<'_>,
     name: String,
     angles: Vec<MulticamAngle>,
@@ -21,7 +21,7 @@ pub fn create_group(
 }
 
 /// Place a multicam clip on a track. The inverse removes the clip.
-pub fn add_multicam_clip(
+pub(crate) fn add_multicam_clip(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     group: MulticamGroupId,
@@ -34,7 +34,7 @@ pub fn add_multicam_clip(
 
 /// Switch the active angle of a multicam group at a given tick.
 /// The inverse restores the previous cuts configuration of the group.
-pub fn switch_angle(
+pub(crate) fn switch_angle(
     ctx: &mut ApplyContext<'_>,
     group_id: MulticamGroupId,
     at: i64,
@@ -57,7 +57,7 @@ pub fn switch_angle(
 
 /// Move one angle on the group's common clock.
 /// The inverse puts back the offset this call replaced.
-pub fn set_angle_offset(
+pub(crate) fn set_angle_offset(
     ctx: &mut ApplyContext<'_>,
     group_id: MulticamGroupId,
     angle: usize,

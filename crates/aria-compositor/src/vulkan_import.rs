@@ -19,6 +19,9 @@
 //!
 //! `ash` 0.38 is the same line wgpu-hal 29 links, so `vk::Image` /
 //! `vk::DeviceMemory` unify across the import seam.
+//! The module calls Vulkan external-memory FFI and `wgpu-hal` raw-texture import and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::fs::File;
 use std::hash::Hash;

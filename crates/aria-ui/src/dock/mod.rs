@@ -106,8 +106,8 @@ pub fn default_frame_for(panel: PanelId) -> DefaultFrame {
         PANEL_PROJECT | PANEL_INSPECTOR | PANEL_MARKERS | PANEL_SCOPES => DefaultFrame::Left,
         PANEL_VIEWER | PANEL_MIXER | PANEL_ASSISTANT => DefaultFrame::Center,
         PANEL_TIMELINE | PANEL_AUDIO_METERS | "aria.panel.audio-meters" => DefaultFrame::Bottom,
-        PANEL_COLOR | PANEL_INFO | PANEL_EFFECTS | PANEL_ALIGN | PANEL_CHARACTER
-        | PANEL_PARAGRAPH | PANEL_JOBS | PANEL_HISTORY => DefaultFrame::Right,
+        // Color, Info, Effects & Presets, Align, Character, Paragraph, Jobs,
+        // History, and every plugin panel.
         _ => DefaultFrame::Right,
     }
 }

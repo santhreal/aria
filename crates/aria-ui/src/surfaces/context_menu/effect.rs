@@ -16,7 +16,7 @@ use crate::types::RenameTarget;
 use super::{MenuItem, MenuRow, always};
 
 /// The effect facts a row reads, gathered once when the menu opens.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct EffectMenu {
     /// The clip whose chain holds the effect.
     pub clip: u64,

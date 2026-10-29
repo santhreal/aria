@@ -3,6 +3,9 @@
 //!
 //! Declared from `wmf.rs` with `#[path]`; `use super::*` reaches that module's
 //! private items and its own imports, so the move changed no name resolution.
+//! The module calls Media Foundation source-reader and media-type APIs through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use super::*;
 

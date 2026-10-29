@@ -19,6 +19,12 @@ pub struct ScriptedProvider {
     tools: Mutex<Vec<Vec<String>>>,
 }
 
+impl std::fmt::Debug for ScriptedProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScriptedProvider").finish_non_exhaustive()
+    }
+}
+
 impl ScriptedProvider {
     pub fn new(turns: Vec<ChatTurn>) -> Self {
         Self {

@@ -22,6 +22,9 @@
 //! as a `position()` ahead of the seek target (the mixers pad the lead with
 //! silence). Timestamp gaps inside the stream render as silence, keeping A/V
 //! sync rather than compacting time.
+//! The module calls Media Foundation through COM and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::path::Path;
 
@@ -95,6 +98,17 @@ pub struct WmfAudioReader {
 // in the MTA (see `open`), so the COM objects may legally travel between
 // worker threads; `&self` is never shared across threads.
 unsafe impl Send for WmfAudioReader {}
+
+impl std::fmt::Debug for WmfAudioReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WmfAudioReader")
+            .field("out_rate", &self.out_rate)
+            .field("out_channels", &self.out_channels)
+            .field("src_rate", &self.src_rate)
+            .field("eos", &self.eos)
+            .finish_non_exhaustive()
+    }
+}
 
 impl WmfAudioReader {
     /// Open the first audio track of `path`, decoding to interleaved `f32` at

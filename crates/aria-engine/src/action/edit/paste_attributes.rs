@@ -10,7 +10,7 @@ use crate::error::EngineError;
 ///
 /// Every validation and mutation occurs under one engine command. The inverse is
 /// one full target snapshot, so undo cannot expose a half-pasted look.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     source: ClipId,
     target: ClipId,

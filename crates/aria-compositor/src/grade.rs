@@ -174,6 +174,25 @@ impl ColorGrade {
         }
     }
 }
+
+// The uniform's lanes carry every slot, the last row's included, and no whole
+// lane is left unused. A layout that breaks this fails the build here instead
+// of packing a row past the uniform's end.
+const _: () = {
+    assert!(
+        ColorGrade::LANES * 4 >= ColorGrade::SLOTS,
+        "the lanes cannot carry every slot"
+    );
+    assert!(
+        (ColorGrade::LANES - 1) * 4 < ColorGrade::SLOTS,
+        "the uniform carries a whole lane no slot uses"
+    );
+    assert!(
+        ColorGrade::slot_of(ColorGrade::FIELDS.len() - 1) < ColorGrade::LANES * 4,
+        "the last row has no lane"
+    );
+};
+
 impl ColorGrade {
     /// Hold a positive strength to the compositor's unit interval.
     pub fn clamp_unit(value: f32) -> f32 {
@@ -470,24 +489,6 @@ mod grade_lane_census {
             1.0,
             "the enabled flag was overwritten by a row"
         );
-    }
-
-    #[test]
-    fn the_lanes_hold_every_slot_and_no_more() {
-        let slots = ColorGrade::FIELDS.len() + 1;
-        assert_eq!(slots, ColorGrade::SLOTS);
-        assert!(
-            ColorGrade::LANES * 4 >= ColorGrade::SLOTS,
-            "{} lanes cannot carry {} slots",
-            ColorGrade::LANES,
-            ColorGrade::SLOTS
-        );
-        assert!(
-            (ColorGrade::LANES - 1) * 4 < ColorGrade::SLOTS,
-            "the uniform carries a whole lane no slot uses"
-        );
-        let last = ColorGrade::slot_of(ColorGrade::FIELDS.len() - 1);
-        assert!(last < ColorGrade::LANES * 4, "the last row has no lane");
     }
 
     #[test]

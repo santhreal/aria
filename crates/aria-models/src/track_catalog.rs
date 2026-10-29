@@ -191,7 +191,7 @@ impl BakeMedium {
 }
 
 /// The shipped lane kinds, in declaration order.
-pub const SHIPPED: &[TrackKindSpec] = &[
+pub(crate) const SHIPPED: &[TrackKindSpec] = &[
     TrackKindSpec {
         kind: TrackKind::Video,
         id: "video",

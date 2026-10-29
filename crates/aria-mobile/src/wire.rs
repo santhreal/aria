@@ -10,6 +10,9 @@
 //! {"ok": <payload>, "revision": 41}
 //! {"err": {"kind": "model", "message": "clip 7 not found"}}
 //! ```
+//! The module converts raw `(ptr, len)` byte slices and `CString` pointers across the C ABI and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::ffi::{CString, c_char};
 

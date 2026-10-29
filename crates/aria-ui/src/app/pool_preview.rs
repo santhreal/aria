@@ -74,6 +74,16 @@ pub struct PoolPreviewStore {
     /// releases them.
     retired: Vec<Arc<RenderImage>>,
 }
+
+impl std::fmt::Debug for PoolPreviewStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PoolPreviewStore")
+            .field("thumbs", &self.thumbs.len())
+            .field("in_flight", &self.in_flight)
+            .field("source_in_flight", &self.source_in_flight)
+            .finish_non_exhaustive()
+    }
+}
 impl PoolPreviewStore {
     /// The picture a tile draws at `tick`: the one rendered there, else the
     /// last held picture of `media` before it, else the first after it. A

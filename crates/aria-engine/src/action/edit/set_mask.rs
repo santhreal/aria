@@ -8,7 +8,7 @@ use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-pub fn add_mask(
+pub(crate) fn add_mask(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     mask: Mask,
@@ -18,7 +18,7 @@ pub fn add_mask(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn set_mask(
+pub(crate) fn set_mask(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: u32,
@@ -29,7 +29,7 @@ pub fn set_mask(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn remove_mask(
+pub(crate) fn remove_mask(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     index: u32,
@@ -39,7 +39,7 @@ pub fn remove_mask(
     Ok(Box::new(RestoreClipAction { clip: before }))
 }
 
-pub fn move_mask(
+pub(crate) fn move_mask(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     from_index: u32,

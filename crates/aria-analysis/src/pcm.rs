@@ -43,7 +43,7 @@ pub struct BeatEvent {
 /// A validated borrowed view of finite, interleaved `f32` PCM.
 ///
 /// Construction performs one validation scan but does not copy the samples.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct InterleavedPcm<'a> {
     samples: &'a [f32],
     sample_rate: u32,

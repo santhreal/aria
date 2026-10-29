@@ -1,6 +1,8 @@
 //! Interactive preview scrub path through the C ABI: open a session, query its
 //! duration, render at several times, and confirm scrubbing moves the picture.
 
+#![allow(unsafe_code)]
+
 use aria_compositor::GpuContext;
 use aria_mobile::{
     aria_image_free, aria_preview_close, aria_preview_duration_seconds, aria_preview_open_demo,

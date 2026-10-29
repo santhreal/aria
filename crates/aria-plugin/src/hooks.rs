@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 /// instead of locking the engine: the host emits this event with the engine
 /// locked, so the project a handler sees cannot change before the command
 /// lands, and locking the engine from a handler would deadlock.
+#[derive(Debug, Clone)]
 pub struct CommandProposed {
     pub command: Command,
     /// The project the command applies to.

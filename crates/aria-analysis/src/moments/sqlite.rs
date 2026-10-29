@@ -201,6 +201,15 @@ pub struct MomentsIndex {
     connection: Mutex<Connection>,
 }
 
+impl std::fmt::Debug for MomentsIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MomentsIndex")
+            .field("path", &self.path)
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
 impl MomentsIndex {
     /// Opens or creates an index at an explicit database path.
     ///

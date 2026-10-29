@@ -27,7 +27,6 @@ pub mod render;
 pub mod session;
 pub mod text;
 
-use crate::app::AppState;
 use crate::app::analysis::AnalysisKind;
 use crate::app::palette::Pending;
 use crate::app::{DialogKind, spawn_preview, start_playback};
@@ -51,7 +50,7 @@ use self::text::TEXT_ROWS;
 /// a row that starts playback from the keyboard starts it from the mouse too.
 /// `index` addresses the current hits; `None` means the highlighted row.
 ///
-/// Running the row is [`AppState`]'s job, not the registry's: the state resolves
+/// Running the row is [`AppState`](crate::app::AppState)'s job, not the registry's: the state resolves
 /// the row, invokes it, and hands back only the work that needs a window. The
 /// clock is asked for unconditionally afterwards because it is a no-op unless
 /// the row left the transport playing, which is cheaper than a list of the row

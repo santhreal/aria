@@ -18,7 +18,7 @@ struct Landing {
 /// Move `clip` to `to_track` at `start`, covering what it lands on. Linked and
 /// grouped companions take the same time delta on their own lanes and cover
 /// what they land on there. One history entry.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,
@@ -30,7 +30,7 @@ pub fn execute(
 
 /// [`execute`] without links: clips grouped with `clip` take the same time
 /// delta, linked clips stay where they are.
-pub fn execute_unlinked(
+pub(crate) fn execute_unlinked(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     to_track: TrackId,

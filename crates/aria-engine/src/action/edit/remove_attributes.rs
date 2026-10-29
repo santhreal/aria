@@ -11,7 +11,7 @@ use crate::error::EngineError;
 /// The inverse is one full snapshot of the clip, so undo brings back every
 /// group and the duration a cleared ramp re-derived. A refusal restores the
 /// snapshot, so a half-removed set is never left behind.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     attributes: &[ClipAttribute],

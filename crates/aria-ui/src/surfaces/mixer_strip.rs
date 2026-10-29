@@ -21,6 +21,7 @@ use crate::app::AppState;
 use crate::app::mixer::FaderTarget;
 
 /// One gesture on the mixer.
+#[derive(Debug)]
 pub enum Gesture {
     /// Point a lane at a bus, or back at the master.
     PointOutput {

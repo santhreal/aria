@@ -11,7 +11,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Mark (or unmark) a media clip as a user-replaceable template slot.
-pub fn set_replaceable(
+pub(crate) fn set_replaceable(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     replaceable: Option<Replaceable>,
@@ -26,7 +26,7 @@ pub fn set_replaceable(
 }
 
 /// Mark a text clip's wording as user-editable in template use.
-pub fn set_text_editable(
+pub(crate) fn set_text_editable(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     editable: bool,

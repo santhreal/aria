@@ -102,7 +102,7 @@ fn offset_label(offset: i64) -> String {
 
 /// The pool action that makes a multicam group from the selected items. The
 /// pool's footer draws it beside the folder button.
-pub fn create_button(
+pub(crate) fn create_button(
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
@@ -122,7 +122,7 @@ pub fn create_button(
 
 /// The pool's multicam groups, each with its angle count and angle switch
 /// buttons, or `None` while the project has none.
-pub fn multicam_section(
+pub(crate) fn multicam_section(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,

@@ -8,6 +8,9 @@
 //! independent.
 //!
 //! Class: `com.scytheralpha.aria_android.AriaNative`.
+//! The module exports JNI entry points and marshals raw C/JNI pointers and handles and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use jni::JNIEnv;
 use jni::objects::{JClass, JFloatArray, JString};

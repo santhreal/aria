@@ -165,6 +165,15 @@ pub struct Engine {
     previews: LivePreviews,
 }
 
+impl std::fmt::Debug for Engine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Engine")
+            .field("revision", &self.revision)
+            .field("saved_revision", &self.saved_revision)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Engine {
     /// Build an engine with a fresh, empty project and a headless renderer.
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {

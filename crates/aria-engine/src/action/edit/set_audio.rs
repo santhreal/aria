@@ -4,7 +4,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Restore only the audio mix properties (volume, fade_in, fade_out) of a clip.
-pub struct RestoreAudioAction {
+pub(crate) struct RestoreAudioAction {
     pub clip: ClipId,
     pub volume: Param<f32>,
     pub fade_in: i64,
@@ -43,7 +43,7 @@ impl EditAction for RestoreAudioAction {
 /// for the basic flat-level slider (overwrites the gain, flattening an M8
 /// envelope) or `None` to keep the gain and change only the fades. The model
 /// validates the gain range, media backing, and fade durations.
-pub fn set_audio(
+pub(crate) fn set_audio(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,
     volume: Option<f32>,

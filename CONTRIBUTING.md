@@ -173,14 +173,20 @@ one giant change.
 3. Run the same checks CI runs, and make sure they pass:
 
    ```bash
-   cargo fmt --all
-   cargo clippy --workspace --all-targets -- -D warnings
-   cargo build --workspace --all-targets
-   cargo test --workspace
+   cargo fmt --all --check
+   cargo clippy --workspace --all-targets --locked
+   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+   cargo build --workspace --all-targets --locked
+   cargo test --workspace --locked
    ```
 
-   CI enforces clippy with `-D warnings`, a workspace build, and the test
-   suite. Running `cargo fmt` keeps formatting consistent.
+   The lint levels in `[workspace.lints]` of the root `Cargo.toml` set which
+   findings fail the build: a `deny` lint is an error in every build on every
+   platform, and a `warn` lint is advisory. `unsafe_code`, `unreachable_pub`
+   and `missing_debug_implementations` are `deny`. An FFI or raw-memory module
+   states `#![allow(unsafe_code)]` under its module docs; an isolated unsafe
+   item or block states `#[allow(unsafe_code)]` with a `// SAFETY:` comment.
+   Rustdoc warnings fail the documentation build.
 4. Add or update tests. Engine and model changes should cover invariants and
    behavior; for undoable edits, test both the forward edit and its inverse.
    Run a single crate's tests with `cargo test -p <crate>`.

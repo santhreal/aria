@@ -14,6 +14,7 @@ use aria_engine::EngineError;
 use crate::app::AppState;
 
 /// One button in the folder strip.
+#[derive(Debug)]
 pub struct BinAction {
     /// Element id. Stable, because the strip draws at most one of each.
     pub id: &'static str,
@@ -32,7 +33,7 @@ pub struct BinAction {
 /// Read once through [`BinStrip::of`] by both the panel and the census, so the
 /// two cannot disagree about which folder a button was drawn for. `Copy`: a press
 /// carries it into a closure and must not cost a copy of the tree.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct BinStrip {
     /// The open folder, or `None` at the pool root.
     pub open: Option<u64>,

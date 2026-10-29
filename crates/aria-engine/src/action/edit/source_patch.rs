@@ -4,7 +4,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Restores one source channel's patch on the open sequence.
-pub struct SetSourcePatchAction {
+pub(crate) struct SetSourcePatchAction {
     pub channel: SourceChannel,
     pub patch: Patch,
 }
@@ -20,7 +20,7 @@ impl EditAction for SetSourcePatchAction {
 
 /// Patch `channel` of the open sequence to `patch`. The inverse restores the
 /// channel's previous patch.
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     channel: SourceChannel,
     patch: Patch,

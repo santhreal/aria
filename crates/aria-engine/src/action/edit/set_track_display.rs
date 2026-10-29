@@ -9,12 +9,12 @@ use crate::error::EngineError;
 /// One gesture changes one option, so the action snapshots the whole previous
 /// [`TrackDisplay`] and its inverse is a plain swap. Height is clamped here, at
 /// the one place that writes it, so a drag can ask for any pixel value.
-pub struct SetTrackDisplayAction {
+pub(crate) struct SetTrackDisplayAction {
     pub track: TrackId,
     pub display: TrackDisplay,
 }
 
-pub fn execute(
+pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     track: TrackId,
     height: Option<u32>,

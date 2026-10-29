@@ -13,6 +13,9 @@
 //! Handle lifecycle: [`aria_session_audio_open`] → [`aria_audio_read`]
 //! from one thread at a time → [`aria_audio_close`]. Readers are
 //! independent of each other and of the session after open.
+//! The module exports `#[unsafe(no_mangle)]` C ABI functions that box, borrow, and free raw pointers and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use aria_render::{EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer};
 
@@ -28,6 +31,16 @@ pub struct AriaAudioReader {
     end: i64,
     /// A decode failure is sticky: every later read reports it too.
     failed: bool,
+}
+
+impl std::fmt::Debug for AriaAudioReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AriaAudioReader")
+            .field("position", &self.position)
+            .field("end", &self.end)
+            .field("failed", &self.failed)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Sample rate of every [`aria_audio_read`] block, in Hz.

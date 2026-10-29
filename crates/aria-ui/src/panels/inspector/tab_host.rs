@@ -27,6 +27,7 @@ pub type TabBody = fn(
 ) -> AnyElement;
 
 /// One tab.
+#[derive(Debug)]
 pub struct TabEntry {
     /// Stable identity, and what `AppState::inspector_tab` holds.
     pub id: SharedString,
@@ -39,6 +40,7 @@ pub struct TabEntry {
 }
 
 /// The tabs the inspector draws, in strip order.
+#[derive(Debug)]
 pub struct TabHost {
     tabs: Vec<TabEntry>,
 }

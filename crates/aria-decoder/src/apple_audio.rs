@@ -11,6 +11,10 @@
 //! module docs for why leaked in-flight readers eventually poison every
 //! decoder in the process. Buffer pulls run inside an autorelease pool for the
 //! same reason as the video path (plain Rust worker threads have none).
+//! The module calls AVFoundation and CoreMedia through Objective-C and C FFI
+//! and is `unsafe` throughout.
+
+#![allow(unsafe_code)]
 
 use std::path::Path;
 use std::ptr::NonNull;
@@ -69,6 +73,18 @@ pub struct AvfAudioReader {
 // time — the export/mix worker this reader is parked on. We never share `&self`
 // across threads, satisfying `AudioReader: Send` without `Sync`.
 unsafe impl Send for AvfAudioReader {}
+
+impl std::fmt::Debug for AvfAudioReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AvfAudioReader")
+            .field("out_rate", &self.out_rate)
+            .field("channels", &self.channels)
+            .field("started", &self.started)
+            .field("position", &self.position)
+            .field("eos", &self.eos)
+            .finish_non_exhaustive()
+    }
+}
 
 impl AvfAudioReader {
     /// Open the first audio track of `path`, decoding to interleaved `f32` at

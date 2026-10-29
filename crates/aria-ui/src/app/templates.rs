@@ -18,7 +18,7 @@ use super::AppState;
 use super::picker::{Ask, FileSpec};
 
 /// The bundle extension, shared by the save and open dialogs.
-pub const TEMPLATE_EXTENSION: &str = "ariat";
+pub(crate) const TEMPLATE_EXTENSION: &str = "ariat";
 
 impl AppState {
     /// How many visual fill slots the current project carries. This mirrors

@@ -4,7 +4,7 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the project's display name; the inverse restores the prior name.
-pub fn set_project_name(
+pub(crate) fn set_project_name(
     ctx: &mut ApplyContext<'_>,
     name: String,
 ) -> Result<Box<dyn EditAction>, EngineError> {

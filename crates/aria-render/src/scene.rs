@@ -13,7 +13,7 @@ use aria_core::Rational;
 use aria_models::{AnimationSlot, BlendMode, ClipId, MaskKind};
 use aria_text::{TextAlign, TextStyle, TextVerticalAlign};
 
-pub use crate::scene_layers::{CpuRaster, layer_source_spec};
+pub(crate) use crate::scene_layers::{CpuRaster, layer_source_spec};
 
 /// The rest of the topology registry, read by the conformance suite rather than
 /// by the renderer.
@@ -24,7 +24,7 @@ pub use crate::scene_layers::{CpuRaster, layer_source_spec};
 /// the registry without claiming a production reader it does not have — a row
 /// that gains one moves up a line.
 #[cfg(test)]
-pub use crate::scene_layers::{Nested, layer_source_specs};
+pub(crate) use crate::scene_layers::{Nested, layer_source_specs};
 
 /// Sampled per-character text animation attached to a [`LayerSource::Text`].
 ///
@@ -44,14 +44,14 @@ pub struct TextAnimation {
     pub stagger: f32,
 }
 
-pub use aria_core::RationalTime;
+pub(crate) use aria_core::RationalTime;
 
 /// One sampled GPU effect pass attached to a clip at resolve time.
 ///
 /// The compositor defines this owned row. Scene resolution interns the
 /// descriptor id and stores the flattened parameters once, so frame rendering
 /// borrows the scene slice directly.
-pub use aria_compositor::PassInstance as ResolvedPass;
+pub(crate) use aria_compositor::PassInstance as ResolvedPass;
 
 /// A canvas plus the ordered layer stack to composite for one timeline instant.
 #[derive(Debug, Clone, PartialEq)]

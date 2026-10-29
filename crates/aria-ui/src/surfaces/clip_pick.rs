@@ -60,6 +60,7 @@ pub enum TransitionSlotEdit {
 
 /// One pick in an audio, animation, speed, template, text or
 /// transition block, or in the Parent row.
+#[derive(Debug)]
 pub enum Pick {
     /// Play the clip backwards.
     ToggleReverse,
