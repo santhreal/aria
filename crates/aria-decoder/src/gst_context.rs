@@ -235,8 +235,11 @@ fn warm_device(launch: &str) -> Result<(), String> {
     share(&pipeline);
     let changed = pipeline
         .set_state(gst::State::Paused)
-        .map_err(|err| err.to_string())
-        .and_then(|_| pipeline.state(DEVICE_WAIT).0.map_err(|err| err.to_string()));
+        .and_then(|_| pipeline.state(DEVICE_WAIT).0)
+        .map_err(|err| {
+            crate::gst::posted_error(&pipeline)
+                .map_or_else(|| err.to_string(), |posted| posted.to_string())
+        });
     let _ = pipeline.set_state(gst::State::Null);
     match changed {
         Ok(gst::StateChangeSuccess::Async) => {

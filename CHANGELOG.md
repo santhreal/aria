@@ -976,6 +976,7 @@ Notes for the latest release. For previous releases, see the
 - A filmstrip cell the timeline drops leaves the window atlas instead of staying in it until the window closes, and a full filmstrip store drops the cell farthest from the one landing instead of every cell on screen.
 - A timeline filmstrip renders its next cell as soon as one lands instead of waiting for the window's next frame.
 - A pool picture or Viewer comparison reference the editor drops leaves the window atlas instead of staying in it until the window closes, and a full pool drops one picture of the file holding the most instead of every picture.
+- Opening, probing, or reading the sound of a file GStreamer cannot read, or of a directory, fails with the error GStreamer reported for it instead of `Element failed to change its state` or a message that states no cause.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -33,7 +33,7 @@ use gstreamer_video as gst_video;
 use gstreamer_video::prelude::VideoFrameExt;
 
 use crate::OutputMode;
-use crate::gst::{PipelineGuard, bus_error, bus_or, gst_err, path_uri};
+use crate::gst::{PipelineGuard, bus_error, bus_or, failed_change_or, gst_err, path_uri};
 use crate::gst_dmabuf_watch::{DmabufWatch, dmabuf_cause, watch_video_decoders};
 use crate::gst_key_snap::{KeySnap, snap_video_to_keyframes};
 use crate::gst_start::{StartHold, seek_held};
@@ -373,7 +373,7 @@ fn try_open(
         }
         None => gst::ClockTime::ZERO,
     };
-    changed.map_err(|e| gst_err(DecodeError::Open, e))?;
+    changed.map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;
     // One clean retry: `Async` after the wait means the pipeline was still
     // prerolling when it expired — on a host busy with other work (a full test
     // run, a cold codec plugin), not necessarily a broken file. A real defect
@@ -392,17 +392,15 @@ fn try_open(
     if stopped() {
         return Err(DecodeError::Open(STOPPED.into()));
     }
-    if !matches!(
-        state_res,
-        Ok(gst::StateChangeSuccess::Success) | Ok(gst::StateChangeSuccess::NoPreroll)
-    ) {
-        let err = bus_or(
-            &pipeline,
-            DecodeError::Open(
-                "GStreamer could not open this file. Install codec plugins (gstreamer1.0-plugins-good, -bad, -libav) or pick another file.".into(),
-            ),
-        );
-        return Err(err);
+    let open_failed = || {
+        DecodeError::Open(
+            "GStreamer could not open this file. Install codec plugins (gstreamer1.0-plugins-good, -bad, -libav) or pick another file.".into(),
+        )
+    };
+    match state_res {
+        Ok(gst::StateChangeSuccess::Success | gst::StateChangeSuccess::NoPreroll) => {}
+        Ok(_) => return Err(bus_or(&pipeline, open_failed())),
+        Err(_) => return Err(failed_change_or(&pipeline, open_failed())),
     }
 
     let (mut info, preroll) = match crate::gst::probe_sink(&sink) {
@@ -420,7 +418,7 @@ fn try_open(
     info.duration = crate::gst::stream_duration(&pipeline);
     pipeline
         .set_state(gst::State::Playing)
-        .map_err(|e| gst_err(DecodeError::Open, e))?;
+        .map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;
 
     Ok(OpenedPipeline {
         pipeline: pipeline.take(),

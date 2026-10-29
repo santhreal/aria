@@ -17,7 +17,7 @@ use gstreamer as gst;
 use gstreamer::prelude::*;
 
 use crate::OutputMode;
-use crate::gst::{PipelineGuard, bus_or, ensure_init, gst_err, path_uri};
+use crate::gst::{PipelineGuard, bus_or, ensure_init, failed_change_or, gst_err, path_uri};
 use crate::probe::{MediaProbe, Tracks};
 
 /// How long the pass may take to reach every stream before the probe fails.
@@ -54,7 +54,7 @@ pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
 
     pipeline
         .set_state(gst::State::Paused)
-        .map_err(|e| bus_or(&pipeline, gst_err(DecodeError::Open, e)))?;
+        .map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;
     match pipeline.state(PROBE_WAIT).0 {
         Ok(gst::StateChangeSuccess::Success | gst::StateChangeSuccess::NoPreroll) => {}
         Ok(_) => {
@@ -66,7 +66,7 @@ pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
                 )),
             ));
         }
-        Err(e) => return Err(bus_or(&pipeline, gst_err(DecodeError::Open, e))),
+        Err(e) => return Err(failed_change_or(&pipeline, gst_err(DecodeError::Open, e))),
     }
     let duration = crate::gst::stream_duration(&pipeline);
     let exposed = std::mem::take(&mut *exposed.lock().unwrap_or_else(PoisonError::into_inner));

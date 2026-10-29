@@ -505,14 +505,25 @@ pub(crate) fn stream_time_ns(sample: &gst::Sample, buffer: &gst::BufferRef) -> O
     pts.checked_sub(start)?.checked_add(time)
 }
 
+/// How long a failed state change waits for the error GStreamer posts with
+/// it. A bin fails its pending state change on a child's error before it
+/// forwards the error to the pipeline's bus, so the caller the failure wakes
+/// can read the bus before the error is on it.
+const POSTED_WAIT: Duration = Duration::from_millis(500);
+
+/// The decode error for `err`, an error GStreamer posted.
+fn posted(err: &glib::Error) -> DecodeError {
+    DecodeError::Decode(format!(
+        "GStreamer: {err}. Install missing plugins or pick another file."
+    ))
+}
+
+/// The first error `pipeline` posted that is on its bus now.
 pub(crate) fn bus_error(pipeline: &gst::Pipeline) -> Option<DecodeError> {
     let bus = pipeline.bus()?;
     while let Some(msg) = bus.pop() {
         if let gst::MessageView::Error(err) = msg.view() {
-            return Some(DecodeError::Decode(format!(
-                "GStreamer: {}. Install missing plugins or pick another file.",
-                err.error()
-            )));
+            return Some(posted(&err.error()));
         }
     }
     None
@@ -520,6 +531,27 @@ pub(crate) fn bus_error(pipeline: &gst::Pipeline) -> Option<DecodeError> {
 
 pub(crate) fn bus_or(pipeline: &gst::Pipeline, fallback: DecodeError) -> DecodeError {
     bus_error(pipeline).unwrap_or(fallback)
+}
+
+/// The error `pipeline` posted for a state change that failed, waiting until
+/// [`POSTED_WAIT`] has passed for it to reach the bus. Read it before the
+/// pipeline returns to `NULL`, which flushes the bus.
+pub(crate) fn posted_error(pipeline: &gst::Pipeline) -> Option<glib::Error> {
+    let bus = pipeline.bus()?;
+    let deadline = std::time::Instant::now() + POSTED_WAIT;
+    loop {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        let msg = bus.timed_pop(gst::ClockTime::from_nseconds(left.as_nanos() as u64))?;
+        if let gst::MessageView::Error(err) = msg.view() {
+            return Some(err.error());
+        }
+    }
+}
+
+/// The error for `pipeline`'s failed state change: the error GStreamer posted
+/// for it ([`posted_error`]), else `fallback`.
+pub(crate) fn failed_change_or(pipeline: &gst::Pipeline, fallback: DecodeError) -> DecodeError {
+    posted_error(pipeline).map_or(fallback, |err| posted(&err))
 }
 
 /// The duration `pipeline`'s demuxer states, in nanoseconds. Ask once the
@@ -582,6 +614,8 @@ pub(crate) struct PipelineGuard {
 
 impl PipelineGuard {
     pub(crate) fn new(pipeline: gst::Pipeline) -> Self {
+        #[cfg(test)]
+        hold_errors(&pipeline);
         Self {
             pipeline,
             armed: true,
@@ -617,6 +651,23 @@ impl Drop for PipelineGuard {
 std::thread_local! {
     static ABORTED_DROPS: std::cell::RefCell<Vec<(gst::State, Vec<(String, gst::State)>)>> =
         const { std::cell::RefCell::new(Vec::new()) };
+    /// How long each error a guarded pipeline posts is held before it reaches
+    /// the bus, when set: the late error [`POSTED_WAIT`] waits for, made
+    /// certain.
+    static HELD_ERRORS: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// Hold each error `pipeline` posts for [`HELD_ERRORS`] before it reaches the
+/// bus. The `sync-message` signal runs where the error is posted, after a bin
+/// has failed its pending state change on it and before the bus queues it,
+/// and beside the bus's sync handler, which [`crate::gst_context::share`] sets.
+#[cfg(test)]
+fn hold_errors(pipeline: &gst::Pipeline) {
+    let (Some(hold), Some(bus)) = (HELD_ERRORS.with(std::cell::Cell::get), pipeline.bus()) else {
+        return;
+    };
+    bus.enable_sync_message_emission();
+    bus.connect_sync_message(Some("error"), move |_, _| std::thread::sleep(hold));
 }
 
 #[cfg(test)]
@@ -678,6 +729,89 @@ mod tests {
                 "aborted open #{idx} dropped child elements outside Null: {non_null_children:?}"
             );
         }
+    }
+
+    /// WHY: a bin fails its pending state change on a child's error before it
+    /// forwards the error to the pipeline's bus, so an open woken by the
+    /// failure that read the bus without waiting found it empty and failed
+    /// with `Element failed to change its state`, the error GStreamer posted
+    /// for the file dropped; and the decoder and the audio reader read no bus
+    /// at all when the state change itself failed. A text file fails while the
+    /// pipeline prerolls, on a streaming thread; a directory fails `filesrc` in
+    /// the state change itself. Every error here is held before it reaches the
+    /// bus, so each open is woken first on every run. Covers every GStreamer
+    /// open path through [`PipelineGuard`] (`GstDecoder::open` in `Gpu` and
+    /// `Cpu` modes, `GstAudioReader::open`, and the stream probe). Does not
+    /// cover the device warm-up, which builds its pipeline outside the guard
+    /// and only logs the error, or a failed change to `PLAYING` after a
+    /// decoder prerolled.
+    #[test]
+    fn a_failed_open_states_the_error_posted_after_its_state_change_failed() {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let text = dir.path().join("notes.mp4");
+        std::fs::write(&text, "these are notes, not a movie\n".repeat(64)).expect("write");
+        let folder = dir.path().join("folder.mp4");
+        std::fs::create_dir(&folder).expect("make the directory");
+        HELD_ERRORS.with(|held| held.set(Some(Duration::from_millis(150))));
+        let mut errors = Vec::new();
+        for (input, path) in [("text file", &text), ("directory", &folder)] {
+            errors.extend([
+                (input, "Gpu", GstDecoder::open(path, OutputMode::Gpu).err()),
+                (input, "Cpu", GstDecoder::open(path, OutputMode::Cpu).err()),
+                (
+                    input,
+                    "audio",
+                    crate::gst_audio::GstAudioReader::open(path, 48_000, 2).err(),
+                ),
+                (input, "probe", crate::gst_probe::probe(path).err()),
+            ]);
+        }
+        HELD_ERRORS.with(|held| held.set(None));
+        for (input, open, err) in errors {
+            let err = err.unwrap_or_else(|| panic!("the {open} open read a {input} as media"));
+            assert!(
+                err.to_string().contains("GStreamer: "),
+                "the {open} open of a {input} does not state the error GStreamer posted: {err}"
+            );
+        }
+    }
+
+    /// WHY: a failed state change waits for its error only until
+    /// [`POSTED_WAIT`] has passed, however many other messages reach the bus
+    /// while it waits: a wait restarted by each message ran for as long as
+    /// they kept arriving. Does not cover how soon a posted error is read.
+    #[test]
+    fn a_failed_state_change_waits_no_longer_than_its_bound_for_an_error() {
+        ensure_init().expect("GStreamer initializes");
+        let pipeline = gst::Pipeline::new();
+        let bus = pipeline.bus().expect("a pipeline has a bus");
+        let ticking = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let started = std::time::Instant::now();
+        let ticker = std::thread::spawn({
+            let ticking = std::sync::Arc::clone(&ticking);
+            move || {
+                while ticking.load(std::sync::atomic::Ordering::Relaxed)
+                    && started.elapsed() < Duration::from_secs(3)
+                {
+                    let tick = gst::message::Application::new(gst::Structure::new_empty("tick"));
+                    let _ = bus.post(tick);
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            }
+        });
+        let err = failed_change_or(&pipeline, DecodeError::Open("no error posted".into()));
+        let waited = started.elapsed();
+        ticking.store(false, std::sync::atomic::Ordering::Relaxed);
+        ticker.join().expect("the ticker ends");
+        assert_eq!(
+            err.to_string(),
+            DecodeError::Open("no error posted".into()).to_string()
+        );
+        assert!(
+            waited >= POSTED_WAIT.saturating_sub(Duration::from_millis(20))
+                && waited < POSTED_WAIT + Duration::from_millis(400),
+            "a failed state change waited {waited:?} for its error, not {POSTED_WAIT:?}"
+        );
     }
 
     /// WHY: `GstDecoder::open` prerolls the pipeline at stream start (0 s),

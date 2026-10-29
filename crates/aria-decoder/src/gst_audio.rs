@@ -12,7 +12,9 @@ use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
 use gstreamer_audio as gst_audio;
 
-use crate::gst::{NS_PER_SEC, PipelineGuard, ensure_init, gst_err, path_uri};
+use crate::gst::{
+    NS_PER_SEC, PipelineGuard, bus_or, ensure_init, failed_change_or, gst_err, path_uri,
+};
 use crate::pending::{PendingSamples, PendingSource, read_frames};
 
 const PULL_TIMEOUT: Duration = Duration::from_secs(8);
@@ -74,15 +76,16 @@ impl GstAudioReader {
 
         pipeline
             .set_state(gst::State::Playing)
-            .map_err(|e| gst_err(DecodeError::Open, e))?;
-        let (state_res, ..) = pipeline.state(gst::ClockTime::from_seconds(8));
-        if !matches!(
-            state_res,
-            Ok(gst::StateChangeSuccess::Success) | Ok(gst::StateChangeSuccess::NoPreroll)
-        ) {
-            return Err(DecodeError::Open(
+            .map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;
+        let not_opened = || {
+            DecodeError::Open(
                 "GStreamer could not open an audio track. Install codec plugins or pick another file.".into(),
-            ));
+            )
+        };
+        match pipeline.state(gst::ClockTime::from_seconds(8)).0 {
+            Ok(gst::StateChangeSuccess::Success | gst::StateChangeSuccess::NoPreroll) => {}
+            Ok(_) => return Err(bus_or(&pipeline, not_opened())),
+            Err(_) => return Err(failed_change_or(&pipeline, not_opened())),
         }
 
         Ok(Self {
