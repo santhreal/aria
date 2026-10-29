@@ -296,3 +296,10 @@ imports a media or timeline file on launch, matching a file drop on the window.
 | `ARIA_PLUGIN_DEV` | Plugin package directory loaded for development over any installed plugin with the same id and reloaded when its files change |
 | `ARIA_MOTION_SCALE` | Startup duration multiplier for UI transitions (`MotionPolicy::parse_duration_scale`) |
 | `RUST_LOG` | `tracing_subscriber::EnvFilter` directive string (`warn` default with `info` on Aria crates) |
+
+`aria-desktop` exits with status 1 and prints the reason and the fix to
+standard error when it cannot start: the profile directory is unusable, the
+session cannot open a GPU device, no display server accepts the connection, or
+the window does not open. On Linux the display server is the Wayland compositor
+at `WAYLAND_DISPLAY`, else the X server at `DISPLAY`; with neither set, or with
+`ZED_HEADLESS` set, the editor does not start.

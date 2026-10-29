@@ -11,7 +11,6 @@ publish = false
 [dependencies]
 aria-ui = { path = "../aria-ui" }
 gpui = { workspace = true }
-gpui_platform = { workspace = true }
 
 [lints]
 workspace = true

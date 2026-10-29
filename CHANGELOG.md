@@ -739,6 +739,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- `aria-desktop` started with no display server that accepts the connection, or with a window that does not open, prints the reason and the fix to standard error and exits with status 1, instead of running without a window or panicking.
 - A video side with more tracks than it holds opens with V1 on the A/V divider instead of the top track at the side's top, and a wheel up over it shows the tracks above V1.
 - A lane side's scroll kept from before a track was removed or shortened no longer lifts its tracks off the A/V divider, and the first wheel step moves them.
 - The 0 and -60 dBFS marks of the Audio Meters no longer run into the clip light and the channel names.

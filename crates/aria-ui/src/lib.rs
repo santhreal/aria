@@ -97,6 +97,39 @@ pub fn register_fonts(cx: &App) {
     }
 }
 
+/// The application on the display server the environment sets, with the
+/// shipped assets. Without a display server that accepts the connection, it
+/// prints the reason and the fix to stderr and exits with status 1: the
+/// editor never runs without a window.
+pub fn windowed_application() -> gpui::Application {
+    match gpui_platform::windowed_application() {
+        Ok(app) => app.with_assets(icons::Assets),
+        Err(reason) => exit_without_window(
+            &reason,
+            "Run aria in a graphical session: WAYLAND_DISPLAY or DISPLAY set to \
+             a display server that is running, and ZED_HEADLESS unset.",
+        ),
+    }
+}
+
+/// The display server accepted the connection and the window still did not
+/// open: print `reason` and the fix to stderr and exit with status 1.
+pub fn window_failed(reason: impl std::fmt::Display) -> ! {
+    exit_without_window(
+        &reason,
+        "The window draws through Vulkan or OpenGL; check that the graphics \
+         driver provides one of them.",
+    )
+}
+
+fn exit_without_window(reason: &dyn std::fmt::Display, fix: &str) -> ! {
+    let reason = format!("{reason:#}");
+    tracing::error!(error = %reason, "aria cannot open its window");
+    eprintln!("aria cannot open its window: {reason}");
+    eprintln!("{fix}");
+    aria_decoder::exit_process(1);
+}
+
 /// Everything the headed binary passes in.
 pub struct UiConfig {
     pub data_dir: PathBuf,
@@ -159,7 +192,7 @@ pub fn run_app_with(config: UiConfig) -> ! {
     // resolved against the working directory), so the settings the first frame
     // reads come from the directory the session is actually using.
     let data_dir = state.data_dir.clone();
-    let app = gpui_platform::application().with_assets(icons::Assets);
+    let app = windowed_application();
     app.run(move |cx: &mut App| {
         register_fonts(cx);
         let saved = settings::UiSettings::load(&data_dir);
@@ -263,6 +296,6 @@ fn open_main_window(state: app::AppState, cx: &mut App) {
             cx.new(|cx| shell::Shell::new(state, cx))
         },
     )
-    .expect("failed to open window");
+    .unwrap_or_else(|reason| window_failed(reason));
     appearance::reapply_window_background(cx);
 }

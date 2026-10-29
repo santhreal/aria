@@ -27,7 +27,6 @@ mod gallery_motion;
 
 use aria_ui::appearance::{self, AppearanceMode};
 use aria_ui::components;
-use aria_ui::icons;
 use aria_ui::motion;
 use aria_ui::settings;
 use aria_ui::theme::Theme;
@@ -44,10 +43,11 @@ use gallery_kit::SECTIONS;
 pub const NO_FIELD: usize = usize::MAX;
 
 fn main() {
-    // Icons are SVG assets served through `aria_ui::icons::Assets`. Without this
-    // the icon controls lay out and paint nothing, which reads as a missing
-    // glyph rather than a missing asset source.
-    let app = gpui_platform::application().with_assets(icons::Assets);
+    // Icons are SVG assets served through `aria_ui::icons::Assets`, which
+    // `windowed_application` installs. Without them the icon controls lay out
+    // and paint nothing, which reads as a missing glyph rather than a missing
+    // asset source.
+    let app = aria_ui::windowed_application();
     app.run(|cx: &mut App| {
         aria_ui::register_fonts(cx);
         appearance::init(
@@ -66,7 +66,7 @@ fn main() {
             },
             |_, cx| cx.new(|_cx| Gallery::new()),
         )
-        .expect("open gallery window");
+        .unwrap_or_else(|reason| aria_ui::window_failed(reason));
         cx.activate(true);
     });
 }
