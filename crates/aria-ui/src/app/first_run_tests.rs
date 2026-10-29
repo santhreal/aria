@@ -81,14 +81,7 @@ fn import_fixture_then_place_clip() {
     state
         .drop_media_on_timeline(media, None, 0)
         .expect("place clip");
-    let clips: usize = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum();
-    assert_eq!(clips, 1);
+    assert_eq!(state.store.sequence.clip_count(), 1);
     state.save_project().unwrap();
     assert!(state.project_path.as_ref().unwrap().exists());
 }
@@ -206,7 +199,9 @@ fn a_drop_lands_in_free_space_and_moves_nothing() {
     };
     for mode in [EditMode::Ripple, EditMode::Overwrite] {
         // A picture with sound and a sound, dropped together into a project
-        // with no audio lane: each starts at the playhead on its own lane.
+        // with no audio lane: the picture and its sound start at the playhead
+        // on the video lane and a new audio lane, and the sound file follows
+        // the picture's sound on that lane.
         let mut state = fresh(mode);
         state
             .import_dropped_paths(vec![
@@ -214,17 +209,18 @@ fn a_drop_lands_in_free_space_and_moves_nothing() {
                 fixture_at("fixture-sine-48k-2s.wav"),
             ])
             .expect("drop a picture and a sound");
-        for (kind, what) in [(Video, "picture"), (Audio, "sound")] {
-            let starts: Vec<Vec<i64>> = spans_of(&state, kind)
-                .iter()
-                .map(|lane| lane.iter().map(|span| span.0).collect())
-                .collect();
-            assert_eq!(
-                starts,
-                vec![vec![0]],
-                "{mode:?}: the {what} of a picture and a sound dropped together"
-            );
-        }
+        let (pictures, sounds) = (spans_of(&state, Video), spans_of(&state, Audio));
+        let shot = pictures.first().and_then(|lane| lane.first()).copied();
+        let tone = sounds.first().and_then(|lane| lane.get(1)).copied();
+        let (Some(shot), Some(tone)) = (shot, tone) else {
+            panic!("{mode:?}: the drop placed {pictures:?} and {sounds:?}");
+        };
+        assert_eq!(shot.0, 0, "{mode:?}: the drop starts at the playhead");
+        assert_eq!(
+            (pictures, sounds),
+            (vec![vec![shot]], vec![vec![shot, (shot.1, tone.1)]]),
+            "{mode:?}: a picture with sound and a sound dropped together"
+        );
 
         // A take longer than the gap at the playhead lands after the clip
         // past the gap, and both clips stay where they were.

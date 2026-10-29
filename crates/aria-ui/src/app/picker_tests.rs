@@ -51,16 +51,6 @@ fn report(state: &mut super::AppState, answer: Answer) {
     });
 }
 
-fn clip_count(state: &super::AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
-
 #[test]
 fn an_unanswered_pick_returns_instead_of_waiting_for_one() {
     // The defect itself: this used to block until a person answered a native
@@ -208,7 +198,11 @@ fn a_two_slot_template_asks_once_per_slot_and_fills_both() {
         state.project_path.is_none(),
         "an applied template must not inherit a project path"
     );
-    assert_eq!(clip_count(&state), 2, "the filled template did not land");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        2,
+        "the filled template did not land"
+    );
 }
 
 #[test]
@@ -226,7 +220,7 @@ fn cancelling_a_slot_applies_the_template_unfilled() {
         "a cancelled slot must still open the template"
     );
     assert_eq!(
-        clip_count(&state),
+        state.store.sequence.clip_count(),
         1,
         "the template's own media did not land"
     );

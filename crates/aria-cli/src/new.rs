@@ -1,15 +1,17 @@
 //! `aria new` — build a project file from a list of media, end to end.
 //!
 //! The assembly a rough cut starts from: import each file, lay it after the
-//! previous one, save. It runs through the engine rather than writing JSON, so a
-//! project written here obeys every invariant the editor enforces — lane kinds,
-//! no overlaps, a probed pool — and opens in the editor with no repair.
+//! previous one, save. Each file is one `Source edit`, so its picture lands on
+//! `V1` and its sound on `A1`, linked, as a drop in the editor places them. It
+//! runs through the engine rather than writing JSON, so a project written here
+//! obeys every invariant the editor enforces — lane kinds, no overlaps, a
+//! probed pool — and opens in the editor with no repair.
 
 use std::path::PathBuf;
 
-use aria_commands::{Command, EditCommand, ProjectCommand};
+use aria_commands::{Command, EditCommand, ProjectCommand, SoundPlacement, SourceChannel};
 use aria_core::count::counted;
-use aria_core::{Rational, RationalTime, TimeRange, resample};
+use aria_core::{Rational, RationalTime, resample};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{TrackId, TrackKind};
 
@@ -78,40 +80,63 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
             .project()
             .media(media)
             .ok_or_else(|| format!("{}: imported but absent from the pool", path.display()))?;
-        let source = TimeRange::at_rate(0, entry.duration.value, entry.frame_rate);
+        let source = entry.full_range();
         let length = resample(entry.duration, rate).value.max(1);
-        // A file with no picture is audio: it belongs on an audio lane, and
-        // putting it on V1 would place a clip that composites nothing.
-        let kind = if entry.width == 0 || entry.height == 0 {
-            TrackKind::Audio
+        let channels = (
+            entry.has_channel(SourceChannel::Video),
+            entry.has_channel(SourceChannel::Audio),
+        );
+        let track = if channels.0 {
+            Some(lane_for(&mut engine, TrackKind::Video)?)
         } else {
-            TrackKind::Video
+            None
         };
-        // Which cursor the clip advances is the lane's own `is_audio` column,
-        // not a list of kinds kept here.
-        let cursor = if kind.is_audio() {
-            &mut audio_cursor
+        let sound = if channels.1 {
+            SoundPlacement::Lane(lane_for(&mut engine, TrackKind::Audio)?)
         } else {
-            &mut video_cursor
+            SoundPlacement::Off
         };
-        let start = RationalTime::new(*cursor, rate);
-        let track = lane_for(&mut engine, kind)?;
+        // The file starts where every lane it lands on is free.
+        let at = match channels {
+            (true, true) => video_cursor.max(audio_cursor),
+            (true, false) => video_cursor,
+            (false, true) => audio_cursor,
+            (false, false) => {
+                return Err(Failure::Failed(format!(
+                    "{}: the file has no picture and no sound",
+                    path.display()
+                )));
+            }
+        };
+        let start = RationalTime::new(at, rate);
         engine
-            .apply(Command::Edit(EditCommand::AddClip {
-                track,
+            .apply(Command::Edit(EditCommand::SourceEdit {
                 media,
                 source,
-                start,
+                at: start,
+                fill: None,
+                ripple: false,
+                track,
+                sound,
             }))
             .map_err(|err| err.to_string())?;
-        *cursor += length;
+        if channels.0 {
+            video_cursor = at + length;
+        }
+        if channels.1 {
+            audio_cursor = at + length;
+        }
         println!(
-            "placed {} at {} on {:?}",
+            "placed {} at {} on {}",
             path.file_name()
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_else(|| path.display().to_string()),
             clock(start.seconds()),
-            kind
+            match channels {
+                (true, true) => "V1 and A1",
+                (true, false) => "V1",
+                _ => "A1",
+            }
         );
     }
 
@@ -125,7 +150,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         clock(duration.seconds()),
         rate.num,
         rate.den,
-        counted(media.len(), "clip", "clips")
+        counted(media.len(), "file", "files")
     );
     Ok(())
 }
@@ -251,5 +276,67 @@ mod tests {
             clip.timeline.duration,
             RationalTime::new(180, Rational::new(60, 1))
         );
+    }
+
+    /// WHY: `aria new` placed a file with sound as one clip on `V1` with the
+    /// sound inside it, where a drop in the editor lands the sound on `A1`
+    /// linked to the picture, so the same files assembled two ways read as two
+    /// different cuts. Each file now lands as one `Source edit` on every lane
+    /// it has a channel for, starting where all of them are free.
+    #[test]
+    fn a_file_with_sound_lands_as_linked_picture_and_sound() {
+        let fixture = |name: &str| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures")
+                .join(name)
+        };
+        let (shot, tone) = (
+            fixture("fixture-640x360-24fps-3s-av.mp4"),
+            fixture("fixture-sine-48k-2s.wav"),
+        );
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let out = dir.path().join("linked.aria");
+        let args = Args::parse([
+            "new",
+            out.to_str().expect("utf-8 path"),
+            shot.to_str().expect("utf-8 path"),
+            tone.to_str().expect("utf-8 path"),
+        ])
+        .expect("arguments parse");
+        if let Err(err) = run(&args) {
+            panic!("aria new failed: {}", err.message());
+        }
+        let project = aria_models::Project::load_from_file(&out).expect("the project loads");
+        let lanes: Vec<(String, Vec<(i64, i64)>)> = project
+            .timeline()
+            .tracks_ordered()
+            .map(|track| {
+                let spans = track
+                    .clips_ordered()
+                    .map(|clip| {
+                        let start = clip.timeline.start.value;
+                        (start, start + clip.timeline.duration.value)
+                    })
+                    .collect();
+                (track.name.clone(), spans)
+            })
+            .collect();
+        // `tracks_ordered` runs bottom to top: the audio lane, then the video.
+        assert_eq!(
+            lanes,
+            vec![
+                ("A1".to_string(), vec![(0, 48), (48, 96)]),
+                ("V1".to_string(), vec![(0, 48)]),
+            ],
+            "the shot's picture and sound share 0..48 and the tone follows on A1"
+        );
+        let links: Vec<_> = project
+            .timeline()
+            .tracks_ordered()
+            .filter_map(|track| track.clips_ordered().next())
+            .map(|clip| clip.link)
+            .collect();
+        assert!(links[0].is_some(), "the shot's sound is linked");
+        assert_eq!(links[0], links[1], "the picture and its sound share a link");
     }
 }

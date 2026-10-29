@@ -86,15 +86,6 @@ fn clip_bounds(state: &AppState, clip: ClipId) -> (i64, i64) {
         .expect("clip still present");
     (ui.timeline_start_ticks, ui.timeline_end_ticks)
 }
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
 
 // The cases live in sibling files, declared here so the fixtures above stay in
 // one place. Only `#[test]` fns moved.

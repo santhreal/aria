@@ -585,15 +585,6 @@ pub(super) fn own_scratch(name: &str) -> std::path::PathBuf {
     let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     scratch(&format!("{name}-{n}"))
 }
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
 /// The fixture state with its edits saved, so the unsaved-changes prompt does
 /// not stand between the row and the pick.
 fn saved() -> AppState {

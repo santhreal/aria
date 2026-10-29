@@ -13,9 +13,9 @@ fn extract_audio_is_refused_when_the_clip_has_no_audio() {
     // The fixture is a still image, so capability decides. Whatever the answer,
     // the UI's gate and the command's gate must agree.
     let allowed = state.selected_can_extract_audio();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     state.extract_selected_audio().expect("extract or refuse");
-    let after = clip_count(&state);
+    let after = state.store.sequence.clip_count();
     if allowed {
         assert_eq!(after, before + 1, "an allowed extract must add a clip");
     } else {
@@ -35,7 +35,7 @@ fn freeze_frame_is_gated_on_the_engine_capability() {
     let mid = start + (end - start) / 2;
     state.set_playhead(mid);
     let allowed = state.selected_can_freeze_frame();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     let duration_before = state.store.sequence.duration_ticks;
     state
         .freeze_selected_frame()
@@ -47,7 +47,7 @@ fn freeze_frame_is_gated_on_the_engine_capability() {
         );
     } else {
         assert_eq!(
-            clip_count(&state),
+            state.store.sequence.clip_count(),
             before,
             "a refused freeze must leave the timeline untouched"
         );

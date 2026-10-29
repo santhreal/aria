@@ -131,14 +131,11 @@ fn applying_a_template_replaces_the_session_and_opens_the_editor() {
         .apply_template(path, Vec::new())
         .expect("apply template");
 
-    let clips: usize = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum();
-    assert_eq!(clips, 1, "the template's clip did not land");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        1,
+        "the template's clip did not land"
+    );
     assert_eq!(state.route, crate::types::UiRoute::Editor);
     assert_eq!(
         state.playhead.value, 0,

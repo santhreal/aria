@@ -26,16 +26,6 @@ fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
 
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
-
 fn paths(names: &[&str]) -> Vec<PathBuf> {
     names.iter().map(PathBuf::from).collect()
 }
@@ -96,7 +86,7 @@ fn an_import_is_listed_survives_a_restart_and_clears() {
         pooled + 1,
         "the import reached the pool"
     );
-    let placed = clip_count(&state);
+    let placed = state.store.sequence.clip_count();
     let listed = picked.display().to_string();
     let rows = recent_rows(&state);
     assert_eq!(rows.len(), 2, "{rows:?}");
@@ -115,7 +105,7 @@ fn an_import_is_listed_survives_a_restart_and_clears() {
     let placed_after = cx.update(|app| {
         entity.update(app, |state: &mut AppState, cx| {
             (run.run)(run.id, state, cx);
-            clip_count(state)
+            state.store.sequence.clip_count()
         })
     });
     assert_eq!(

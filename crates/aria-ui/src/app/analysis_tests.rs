@@ -16,16 +16,6 @@ use super::premiere_tests::with_clip;
 
 const R24: Rational = Rational::new(24, 1);
 
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
-
 /// Seconds land on the frame that is showing, never the next one, and an absurd or
 /// negative input is clamped instead of wrapping into a negative tick.
 #[test]
@@ -231,15 +221,15 @@ fn detected_moments_drive_splits_and_ripple_deletes() {
         ],
     );
     state.refresh_moments().expect("read");
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     state.split_at_shots().expect("split");
     assert_eq!(
-        clip_count(&state),
+        state.store.sequence.clip_count(),
         before + 1,
         "a boundary outside the clip was cut anyway"
     );
     assert!(state.undo(), "the split left no undo entry");
-    assert_eq!(clip_count(&state), before);
+    assert_eq!(state.store.sequence.clip_count(), before);
 
     // A silent span in the middle is removed and the gap closes.
     state.select_clip(clip);

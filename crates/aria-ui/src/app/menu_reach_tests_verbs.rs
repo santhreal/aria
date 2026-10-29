@@ -39,7 +39,7 @@ fn no_row_is_drawn_disabled_over_the_state_it_edits() {
 fn revert_drops_the_edits_made_since_the_save() {
     let mut state = saved();
     let path = state.project_path.clone();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     assert_eq!(
         row(AppMenu::File, &state, "file-revert").blocked_by(&state),
         Some("There are no changes since the last save")
@@ -50,7 +50,7 @@ fn revert_drops_the_edits_made_since_the_save() {
     let mid = ui.timeline_start_ticks + (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2;
     state.set_playhead(mid);
     state.split_at_playhead().expect("an unsaved edit");
-    assert_eq!(clip_count(&state), before + 1);
+    assert_eq!(state.store.sequence.clip_count(), before + 1);
     assert_eq!(
         row(AppMenu::File, &state, "file-revert").blocked_by(&state),
         None
@@ -62,7 +62,11 @@ fn revert_drops_the_edits_made_since_the_save() {
 
     cx.update(|app| {
         let state = entity.read(app);
-        assert_eq!(clip_count(state), before, "the split survived the revert");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            before,
+            "the split survived the revert"
+        );
         assert!(!state.store.is_dirty);
         assert_eq!(state.project_path, path);
         assert_eq!(state.picks_asked(), 0, "Revert asks for no file");
@@ -74,7 +78,7 @@ fn revert_drops_the_edits_made_since_the_save() {
 #[test]
 fn revert_on_a_project_never_saved_is_disabled_and_inert() {
     let (state, _) = with_clip();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     assert_eq!(
         row(AppMenu::File, &state, "file-revert").blocked_by(&state),
         Some("The project has never been saved")
@@ -86,7 +90,7 @@ fn revert_on_a_project_never_saved_is_disabled_and_inert() {
 
     cx.update(|app| {
         let state = entity.read(app);
-        assert_eq!(clip_count(state), before);
+        assert_eq!(state.store.sequence.clip_count(), before);
         assert!(state.project_path.is_none());
     });
 }
@@ -125,7 +129,11 @@ fn open_recent_lists_each_remembered_project_and_opens_the_one_chosen() {
     cx.update(|app| {
         let state = entity.read(app);
         assert_eq!(state.project_path.as_deref(), Some(other.as_path()));
-        assert_eq!(clip_count(state), 2, "the other project's two clips");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            2,
+            "the other project's two clips"
+        );
         assert_eq!(state.picks_asked(), 0, "Open Recent asks for no file");
     });
 }

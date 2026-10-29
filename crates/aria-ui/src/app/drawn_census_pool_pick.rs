@@ -302,7 +302,9 @@ fn insert_and_overwrite_place_the_pool_selection_with_no_source_tab() {
     // The click's old placement, now a key: the selection in pick order, end to
     // end from the playhead, through the mode the key names and not the
     // sequence's edit mode.
-    // Each item is one Source edit through the patching, as a drop is.
+    // Each item is one Source edit through the patching, as a drop is. The
+    // sequence has no audio lane, so the item with sound adds A1 first, inside
+    // the same step.
     let label = "Source edit";
     for mode in [EditMode::Ripple, EditMode::Overwrite] {
         let mut pool = stocked();
@@ -327,7 +329,7 @@ fn insert_and_overwrite_place_the_pool_selection_with_no_source_tab() {
         );
         assert_eq!(
             watch.take(),
-            vec![label, label],
+            vec!["Add track", label, label],
             "{mode:?} sent the wrong commands"
         );
         let placed: Vec<(i64, i64)> = spans(&pool.state)

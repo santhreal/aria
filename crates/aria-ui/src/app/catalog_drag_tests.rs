@@ -93,20 +93,10 @@ fn seed(state: &mut AppState, drag: &CatalogDrag) {
     );
 }
 
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
-
 #[test]
 fn a_sticker_lands_on_the_lane_and_tick_it_was_dropped_at() {
     let (mut state, _) = with_clip();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     let drag = &payloads()[0];
 
     // A tick well past the existing clip, so placement cannot be confused with the
@@ -116,7 +106,11 @@ fn a_sticker_lands_on_the_lane_and_tick_it_was_dropped_at() {
         .drop_catalog_on_track(drag, None, at)
         .expect("place the sticker");
 
-    assert_eq!(clip_count(&state), before + 1, "no sticker was placed");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        before + 1,
+        "no sticker was placed"
+    );
     let placed = state
         .store
         .sequence
@@ -185,7 +179,7 @@ fn a_generator_drop_with_no_generator_behind_the_id_is_refused_and_places_nothin
     ];
     for id in ids {
         let (mut state, _) = with_clip();
-        let before = clip_count(&state);
+        let before = state.store.sequence.clip_count();
         let drag = CatalogDrag {
             kind: CatalogDragKind::Generator,
             id: id.clone().into(),
@@ -198,14 +192,18 @@ fn a_generator_drop_with_no_generator_behind_the_id_is_refused_and_places_nothin
             err.to_string().contains(&format!("no generator `{id}`")),
             "{id}: {err}"
         );
-        assert_eq!(clip_count(&state), before, "{id} placed a clip");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            before,
+            "{id} placed a clip"
+        );
     }
 }
 
 #[test]
 fn a_clip_type_drop_with_no_type_behind_the_id_is_refused_and_places_nothing() {
     let (mut state, _) = with_clip();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     let drag = payloads()
         .into_iter()
         .find(|drag| drag.kind == CatalogDragKind::ClipType)
@@ -218,7 +216,7 @@ fn a_clip_type_drop_with_no_type_behind_the_id_is_refused_and_places_nothing() {
             .contains("no clip type `test.unregistered_clip_type`"),
         "{err}"
     );
-    assert_eq!(clip_count(&state), before);
+    assert_eq!(state.store.sequence.clip_count(), before);
 }
 
 #[test]
@@ -303,7 +301,7 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
     for drag in payloads() {
         let (mut state, _) = with_clip();
         let target = state.selected_clip().expect("clip");
-        let before = clip_count(&state);
+        let before = state.store.sequence.clip_count();
 
         if drag.targets_a_clip() {
             // A preset has nothing to change on empty lane space, and must not invent
@@ -312,7 +310,7 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
                 .drop_catalog_on_track(&drag, None, 2_000)
                 .expect("inert");
             assert_eq!(
-                clip_count(&state),
+                state.store.sequence.clip_count(),
                 before,
                 "{:?} placed a clip on empty lane space",
                 drag.kind
@@ -320,7 +318,7 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
         } else {
             state.drop_catalog_on_clip(&drag, target).expect("inert");
             assert_eq!(
-                clip_count(&state),
+                state.store.sequence.clip_count(),
                 before,
                 "{:?} placed a clip when dropped onto one",
                 drag.kind
@@ -448,7 +446,7 @@ fn every_payload_dropped_on_effect_controls_lands_on_the_selection_or_is_refused
         let target = state.selected_clip().expect("clip");
         seed(&mut state, &drag);
         let untouched = landed(&state);
-        let before = clip_count(&state);
+        let before = state.store.sequence.clip_count();
         let result = state.drop_catalog_on_effect_controls(&drag, None);
         match drag.kind {
             CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {
@@ -458,7 +456,12 @@ fn every_payload_dropped_on_effect_controls_lands_on_the_selection_or_is_refused
                     "{:?}: {err}",
                     drag.kind
                 );
-                assert_eq!(clip_count(&state), before, "{:?} placed a clip", drag.kind);
+                assert_eq!(
+                    state.store.sequence.clip_count(),
+                    before,
+                    "{:?} placed a clip",
+                    drag.kind
+                );
                 assert_eq!(
                     landed(&state),
                     untouched,

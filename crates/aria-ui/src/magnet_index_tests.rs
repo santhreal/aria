@@ -17,12 +17,7 @@ fn playhead() -> RationalTime {
 #[test]
 fn the_magnet_index_holds_every_magnet_the_projection_carries() {
     let store = project_to_ui(&workload::standard(), playhead(), &[]);
-    let clips: usize = store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum();
+    let clips = store.sequence.clip_count();
     let beats: usize = store
         .sequence
         .tracks

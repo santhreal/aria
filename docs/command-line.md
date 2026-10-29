@@ -37,10 +37,11 @@ aria new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
 | --- | --- | --- |
 | `--fps <RATE>` | `24` | Sequence frame rate: `23.976`, `24`, `25`, `29.97`, `30`, `50`, or `60` |
 
-Import each media file and place it after the previous clip: files with picture
-on `V1`, audio-only files on `A1`. Assembly runs through `Engine::apply`, so the
-saved project satisfies every timeline invariant and opens in the editor without
-repair.
+Import each media file and place it after the previous one: the picture on
+`V1` and the sound on `A1`, linked, as a drop in the editor places them. Each
+file starts where every lane it lands on is free. Assembly runs through
+`Engine::apply`, so the saved project satisfies every timeline invariant and
+opens in the editor without repair.
 
 `--fps` selects an exact rational rate (`23.976` is `24000/1001` and `29.97` is
 `30000/1001`). Any rate outside the list is rejected with exit code `2`.

@@ -21,16 +21,6 @@ fn labels(state: &AppState) -> Vec<(String, bool)> {
         .collect()
 }
 
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
-}
-
 /// A clip, then a split, then a marker: three named steps in order.
 ///
 /// A marker rather than a second clip edit, because a duplicate at the split
@@ -68,12 +58,12 @@ fn every_applied_command_appears_in_order_with_its_own_name() {
 fn jumping_back_leaves_the_steps_listed_as_undone() {
     let (mut state, _) = three_steps();
     let full = state.history_depth();
-    let clips_before = clip_count(&state);
+    let clips_before = state.store.sequence.clip_count();
 
     assert!(state.history_jump(full - 2), "two steps back is reachable");
     assert_eq!(state.history_depth(), full - 2);
     assert!(
-        clip_count(&state) < clips_before,
+        state.store.sequence.clip_count() < clips_before,
         "the split is gone from the timeline"
     );
     let applied: Vec<bool> = labels(&state).into_iter().map(|(_, a)| a).collect();
@@ -84,7 +74,7 @@ fn jumping_back_leaves_the_steps_listed_as_undone() {
     );
 
     assert!(state.history_jump(full), "and forward again");
-    assert_eq!(clip_count(&state), clips_before);
+    assert_eq!(state.store.sequence.clip_count(), clips_before);
     assert!(labels(&state).iter().all(|(_, applied)| *applied));
 }
 

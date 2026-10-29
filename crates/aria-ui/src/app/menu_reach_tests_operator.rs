@@ -145,7 +145,11 @@ fn save_as_template_writes_the_bundle_the_operator_named() {
 #[test]
 fn use_template_replaces_the_session_with_the_chosen_bundle() {
     let (state, _) = Answered::UseTemplate.state();
-    assert_eq!(clip_count(&state), 0, "the dressing left the session full");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        0,
+        "the dressing left the session full"
+    );
     let cx = gpui::TestAppContext::single();
     let entity = entity_of(state, &cx);
 
@@ -154,7 +158,11 @@ fn use_template_replaces_the_session_with_the_chosen_bundle() {
     cx.update(|app| {
         let state = entity.read(app);
         assert_eq!(state.picks_asked(), 1);
-        assert_eq!(clip_count(state), 1, "the template did not land");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            1,
+            "the template did not land"
+        );
         assert_eq!(state.route, crate::types::UiRoute::Editor);
     });
 }
@@ -184,7 +192,11 @@ fn relink_all_repairs_the_media_from_the_chosen_folder() {
 #[test]
 fn import_timeline_reads_the_chosen_file_as_one_step() {
     let (state, path) = Answered::ImportTimeline.state();
-    assert_eq!(clip_count(&state), 0, "the dressing left the session full");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        0,
+        "the dressing left the session full"
+    );
     let cx = gpui::TestAppContext::single();
     let entity = entity_of(state, &cx);
 
@@ -195,7 +207,11 @@ fn import_timeline_reads_the_chosen_file_as_one_step() {
         let state = entity.read(app);
         assert_eq!(state.picks_asked(), 1);
         assert_eq!(state.last_error, None);
-        assert_eq!(clip_count(state), 1, "the timeline did not land");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            1,
+            "the timeline did not land"
+        );
         // A plugin's transaction is named after the plugin that ran it.
         assert_eq!(
             state.next_undo_label().as_deref(),
@@ -231,7 +247,11 @@ fn import_reads_a_chosen_timeline_file_into_the_timeline_not_the_pool() {
     cx.update(|app| {
         let state = entity.read(app);
         assert_eq!(state.last_error, None);
-        assert_eq!(clip_count(state), 1, "the timeline file did not land");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            1,
+            "the timeline file did not land"
+        );
         assert!(
             state
                 .store

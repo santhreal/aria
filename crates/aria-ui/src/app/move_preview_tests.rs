@@ -27,10 +27,9 @@ use gpui::{
 
 use super::held_drag_tests::{bounds, carry, picture_clip, press, release, tick_px};
 use crate::app::AppState;
-use crate::app::fixtures::asset;
 use crate::app::viewer_row_tests::{change, shell_with_take};
 use crate::theme::Theme;
-use crate::types::{EditMode, EditorTool, UiTrackKind};
+use crate::types::{EditorTool, UiTrackKind};
 
 /// Every quad the last frame painted with its center inside `within`, as
 /// `(bounds, fill)` in window pixels.
@@ -141,21 +140,11 @@ fn shell<'a>(
     (state, visual)
 }
 
-/// A sound placed under the take at the sequence start and linked to `take`,
-/// so a move of the take moves it too. Its id. Placed by overwrite: a ripple
-/// placement opens a hole on every sync-locked lane and pushes the take.
+/// The take's own sound, which its drop placed on A1 linked to it, moved to
+/// the sequence start so it starts before the take, and linked again, so a
+/// move of the take moves it too. Its id.
 fn link_sound(state: &Entity<AppState>, visual: &mut VisualTestContext, take: u64) -> u64 {
-    change(visual, state, |state| {
-        let media = state
-            .import_media(asset("fixture-sine-48k-2s.wav"))
-            .expect("import the sound");
-        state.edit_mode = EditMode::Overwrite;
-        state
-            .drop_media_on_timeline(media, None, 0)
-            .expect("place the sound");
-        state.edit_mode = EditMode::default();
-    });
-    let sound = visual.read(|app| {
+    let (sound, lane) = visual.read(|app| {
         state
             .read(app)
             .store
@@ -164,12 +153,24 @@ fn link_sound(state: &Entity<AppState>, visual: &mut VisualTestContext, take: u6
             .iter()
             .filter(|lane| lane.kind == UiTrackKind::Audio)
             .flat_map(|lane| lane.clips.iter())
-            .map(|clip| clip.id)
+            .map(|clip| (clip.id, clip.track_id))
             .next()
-            .expect("the sound is placed")
+            .expect("the take's sound is placed")
     });
     change(visual, state, |state| {
-        state.selection = vec![ClipId::from_raw(take), ClipId::from_raw(sound)];
+        let pair = vec![ClipId::from_raw(take), ClipId::from_raw(sound)];
+        state.selection = pair.clone();
+        state
+            .unlink_selected()
+            .expect("unlink the sound from the take");
+        state
+            .move_clip(
+                ClipId::from_raw(sound),
+                aria_models::TrackId::from_raw(lane),
+                0,
+            )
+            .expect("start the sound at the sequence start");
+        state.selection = pair;
         state.sync_from_engine();
         state.link_selected().expect("link the sound to the take");
         state.sync_from_engine();

@@ -1,11 +1,11 @@
 //! Where a dropped shot's picture and sound land.
 //!
 //! The class these close: a drop places a source through the same patching as
-//! a Source tab's edits, so a shot with sound lands as linked picture and sound
-//! when the sequence has an audio lane, keeps its sound in the picture when it
-//! has none, puts the channel of the lane under the pointer on that lane, and
-//! leaves out a channel patched off. A drag from the Source tab drops its
-//! marked range, covering unless Ctrl is held.
+//! a Source tab's edits, so a shot with sound lands as linked picture and
+//! sound, on a new audio lane when the sequence has none, with that lane and
+//! the clips one undo step; puts the channel of the lane under the pointer on
+//! that lane; and leaves out a channel patched off. A drag from the Source tab
+//! drops its marked range, covering unless Ctrl is held.
 //!
 //! Not covered: the pointer-to-lane hit test and the drag ghost, which need a
 //! window. Lane resolution on `Auto` is asserted in `source_patch_tests`.
@@ -18,15 +18,30 @@ use crate::app::AppState;
 use crate::scratch_pool::scratch;
 use crate::types::{ActivePanel, UiClip};
 
+/// The 24 fps shot with sound.
+fn shot() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4")
+}
+
 /// A new sequence (one video lane) with the 24 fps shot with sound in the pool.
 fn state() -> (AppState, MediaId, TrackId) {
     let mut state = AppState::new(PluginContext::new(), scratch("sourcedrop")).expect("state");
     state.new_project().expect("project");
-    let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
-    let media = state.import_media(shot).expect("import the shot");
+    let media = state.import_media(shot()).expect("import the shot");
     let picture = TrackId::from_raw(state.store.sequence.tracks[0].id);
     (state, media, picture)
+}
+
+/// Open `media` in a Source tab with source ticks 12..23 marked.
+fn open_marked(state: &mut AppState, media: MediaId) {
+    state.select_pool_item(media.raw());
+    state.active_panel = ActivePanel::Media;
+    assert!(state.toggle_source_monitor(), "the monitor opens");
+    state.hover_pool_item(media.raw(), 12);
+    state.set_source_in();
+    state.hover_pool_item(media.raw(), 23);
+    state.set_source_out();
 }
 
 fn clips(state: &AppState, lane: TrackId) -> Vec<&UiClip> {
@@ -51,28 +66,92 @@ fn spans(state: &AppState, lane: TrackId) -> Vec<(i64, i64)> {
     spans
 }
 
-fn audio_lanes(state: &AppState) -> usize {
+/// The audio lanes, top first.
+fn audio_lanes(state: &AppState) -> Vec<TrackId> {
     state
         .store
         .sequence
         .tracks
         .iter()
         .filter(|lane| lane.channel == Some(SourceChannel::Audio))
-        .count()
+        .map(|lane| TrackId::from_raw(lane.id))
+        .collect()
 }
 
+/// Every way a source reaches the timeline, from a sequence with no audio
+/// lane: the sound lands on a new audio lane, linked to the picture, and one
+/// Undo, named for the edit, takes the clips and the lane back together.
+///
+/// Closes the class where a placement kept the sound inside the picture when
+/// the sequence had no audio lane, and where a placement added the lane it
+/// needed as an undo step of its own, so Undo took the clips back and left an
+/// empty lane. The Source tab's Insert and Overwrite buttons are asserted the
+/// same way in the monitor census. Not covered: a patch that names a lane,
+/// which `a_channel_patched_off_is_left_out_of_a_drop` and the monitor census
+/// assert.
 #[test]
-fn with_no_audio_lane_the_sound_stays_in_the_picture() {
-    let (mut state, media, picture) = state();
-    state
-        .drop_media_on_timeline(media, Some(picture), 0)
-        .expect("drop");
+fn every_placement_adds_the_sound_lane_in_its_own_undo_step() {
+    type Place = fn(&mut AppState, MediaId, TrackId);
+    let entries: [(&str, Place); 4] = [
+        ("a pool item dropped on a lane", |state, media, picture| {
+            state
+                .drop_media_on_timeline(media, Some(picture), 0)
+                .expect("drop");
+        }),
+        ("a Source tab dragged to a lane", |state, media, picture| {
+            open_marked(state, media);
+            state
+                .drop_source_on_timeline(Some(picture), 0, false)
+                .expect("drag");
+        }),
+        ("Overwrite on selected pool items", |state, media, _| {
+            state.select_pool_item(media.raw());
+            state
+                .place_pool_selection(crate::types::EditMode::Overwrite)
+                .expect("overwrite");
+        }),
+        ("a file dropped from the desktop", |state, _, _| {
+            state.import_dropped_paths(vec![shot()]).expect("file drop");
+        }),
+    ];
+    for (what, place) in entries {
+        let (mut state, media, picture) = state();
+        assert!(audio_lanes(&state).is_empty(), "{what}: a new sequence");
+        place(&mut state, media, picture);
 
-    let placed = clips(&state, picture);
-    assert_eq!(placed.len(), 1);
-    assert_eq!(placed[0].volume, 1.0, "the picture plays its sound");
-    assert_eq!(placed[0].linked_to, None);
-    assert_eq!(audio_lanes(&state), 0, "a drop grows no audio lane");
+        let lanes = audio_lanes(&state);
+        assert_eq!(lanes.len(), 1, "{what} creates one audio lane");
+        let (shown, heard) = (clips(&state, picture), clips(&state, lanes[0]));
+        assert_eq!((shown.len(), heard.len()), (1, 1), "{what}");
+        assert!(
+            shown[0].linked_to.is_some(),
+            "{what}: picture and sound link"
+        );
+        assert_eq!(shown[0].linked_to, heard[0].linked_to, "{what}");
+        assert_eq!(
+            (shown[0].timeline_start_ticks, shown[0].timeline_end_ticks),
+            (heard[0].timeline_start_ticks, heard[0].timeline_end_ticks),
+            "{what}: the sound spans the picture"
+        );
+        assert_eq!(
+            state
+                .history_entries()
+                .last()
+                .map(|step| step.label.clone()),
+            Some("Source edit".to_string()),
+            "{what}: the undo step is named for the edit"
+        );
+
+        assert!(state.undo(), "{what}: Undo");
+        assert!(
+            clips(&state, picture).is_empty(),
+            "{what}: Undo keeps a clip"
+        );
+        assert!(
+            audio_lanes(&state).is_empty(),
+            "{what}: Undo keeps the lane the edit added"
+        );
+    }
 }
 
 #[test]
@@ -149,13 +228,7 @@ fn a_channel_patched_off_is_left_out_of_a_drop() {
 #[test]
 fn a_source_drag_drops_the_marked_range_and_covers_unless_insert() {
     let (mut state, media, picture) = state();
-    state.select_pool_item(media.raw());
-    state.active_panel = ActivePanel::Media;
-    assert!(state.toggle_source_monitor(), "the monitor opens");
-    state.hover_pool_item(media.raw(), 12);
-    state.set_source_in();
-    state.hover_pool_item(media.raw(), 23);
-    state.set_source_out();
+    open_marked(&mut state, media);
 
     state
         .drop_source_on_timeline(Some(picture), 24, false)

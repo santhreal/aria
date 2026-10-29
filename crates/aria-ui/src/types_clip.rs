@@ -845,6 +845,11 @@ impl UiSequence {
         (self.frame_rate.as_f64() as f32).max(1.0)
     }
 
+    /// Clips on every lane of the sequence.
+    pub fn clip_count(&self) -> usize {
+        self.tracks.iter().map(|lane| lane.clips.len()).sum()
+    }
+
     /// The lane a Source tab's `channel` lands on: its patched lane while that
     /// is still on the sequence, otherwise the topmost targeted lane of the
     /// channel's kind, otherwise the topmost lane of that kind. `None` when the

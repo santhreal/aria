@@ -99,23 +99,33 @@ pub(super) fn frame_view(
             )))
             .into_any_element()
     } else {
-        let empty = if state.read(cx).last_frame.is_some() {
-            (
-                "viewer-unshown",
-                "Couldn't convert this frame for display. Try scrubbing again.",
-            )
-        } else {
-            (
-                "viewer",
-                "Import media, then click a tile to place it on the timeline.",
-            )
-        };
-        div()
-            .flex()
-            .size_full()
-            .child(gpu_probe)
-            .child(crate::components::empty_state(empty.0, empty.1, theme))
-            .into_any_element()
+        let stage = div().flex().size_full().child(gpu_probe);
+        match program_line(state.read(cx)) {
+            Some((id, line)) => stage
+                .child(crate::components::empty_state(id, line, theme))
+                .into_any_element(),
+            None => stage.into_any_element(),
+        }
+    }
+}
+
+/// The line the Program stage draws while it has no picture: why the frame it
+/// holds is not shown, or in a sequence with no clip, the way to a first one.
+/// `None` while the first frame of a sequence with clips renders, which an
+/// instruction to import media would misdescribe.
+fn program_line(state: &AppState) -> Option<(&'static str, &'static str)> {
+    if state.last_frame.is_some() {
+        Some((
+            "viewer-unshown",
+            "Couldn't convert this frame for display. Try scrubbing again.",
+        ))
+    } else if state.store.sequence.clip_count() == 0 {
+        Some((
+            "viewer",
+            "Import media, then click a tile to place it on the timeline.",
+        ))
+    } else {
+        None
     }
 }
 
@@ -433,4 +443,43 @@ pub(super) fn safe_box(theme: &Theme, percent: f32) -> impl IntoElement {
         .bottom(inset)
         .border_1()
         .border_color(theme.border_strong)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use aria_core::RgbaImage;
+    use aria_plugin::PluginContext;
+
+    use super::program_line;
+    use crate::app::AppState;
+
+    /// WHY: the Program stage told the editor to import media and place a
+    /// tile whenever no frame had arrived, including while a sequence full of
+    /// clips rendered its first frame. Each state the stage can be in without
+    /// a picture draws its own line, or none.
+    #[test]
+    fn the_program_stage_offers_an_import_only_to_an_empty_sequence() {
+        let mut empty = AppState::new(
+            PluginContext::new(),
+            crate::scratch_pool::scratch("program-line"),
+        )
+        .expect("state");
+        empty.new_project().expect("project");
+        assert_eq!(program_line(&empty).map(|line| line.0), Some("viewer"));
+
+        let (mut placed, _) = crate::app::premiere_tests::with_clip();
+        assert_eq!(
+            program_line(&placed),
+            None,
+            "a sequence with a clip is rendering its first frame"
+        );
+
+        placed.last_frame = Some(Arc::new(RgbaImage::new(1, 1, vec![0; 4])));
+        assert_eq!(
+            program_line(&placed).map(|line| line.0),
+            Some("viewer-unshown")
+        );
+    }
 }

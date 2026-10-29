@@ -4,7 +4,7 @@
 
 use aria_commands::{Command, EditCommand, Patch, SoundPlacement, SourceChannel};
 use aria_engine::EngineError;
-use aria_models::{MediaId, RationalTime, TimeRange, TrackId, TrackKind};
+use aria_models::{MediaId, RationalTime, TimeRange, TrackId};
 
 use super::AppState;
 use crate::surfaces::lane_header::LaneFlags;
@@ -37,21 +37,28 @@ impl AppState {
         Ok(())
     }
 
-    /// Place `placement` through source patching: one `Source edit`, one
-    /// undo step. `Ok(false)` when every channel the source has is patched
-    /// off, with the status line naming the fix.
+    /// Place `placement` through source patching as one `Source edit` undo
+    /// step, the lanes it needs created inside it. `Ok(false)` when every
+    /// channel the source has is patched off, with the status line naming the
+    /// fix.
     pub(crate) fn place_source(&mut self, placement: SourcePlacement) -> Result<bool, EngineError> {
-        let Some(lanes) = self.source_lanes(placement.media, placement.aimed)? else {
-            return Ok(false);
-        };
-        self.place_source_on(placement, lanes)?;
-        Ok(true)
+        self.one_step_named(
+            |label: &Option<&'static str>| *label,
+            |state| {
+                let Some(lanes) = state.source_lanes(placement.media, placement.aimed)? else {
+                    return Ok(None);
+                };
+                state.place_source_on(placement, lanes).map(Some)
+            },
+        )
+        .map(|label| label.is_some())
     }
 
     /// The lanes a source edit of `media` lands on: `aimed` for the channel of
-    /// its kind, the patching for the other. `Ok(None)` when `media` is not in
-    /// the pool, or when every channel it has is patched off, with the status
-    /// line naming the fix.
+    /// its kind, the patching for the other, and a new lane for a channel the
+    /// sequence has no lane of. `Ok(None)` when `media` is not in the pool, or
+    /// when every channel it has is patched off, with the status line naming
+    /// the fix.
     pub(crate) fn source_lanes(
         &mut self,
         media: MediaId,
@@ -79,12 +86,14 @@ impl AppState {
         let picture = match (has.0, aimed_at(SourceChannel::Video)) {
             (false, _) => None,
             (true, Some(lane)) => Some(lane),
-            (true, None) => self.patched_picture_lane()?,
+            (true, None) => self.patched_or_new_lane(SourceChannel::Video)?,
         };
         let sound = match (has.1, aimed_at(SourceChannel::Audio)) {
             (false, _) => SoundPlacement::Off,
             (true, Some(lane)) => SoundPlacement::Lane(lane),
-            (true, None) => self.patched_sound(picture.is_some())?,
+            (true, None) => self
+                .patched_or_new_lane(SourceChannel::Audio)?
+                .map_or(SoundPlacement::Off, SoundPlacement::Lane),
         };
         if picture.is_none() && sound.lane().is_none() {
             self.status_message =
@@ -95,12 +104,14 @@ impl AppState {
     }
 
     /// Place `placement` on `lanes`, resolved by [`Self::source_lanes`], as one
-    /// `Source edit`. `placement.aimed` is not read again.
+    /// `Source edit`. `placement.aimed` is not read again. Returns the edit's
+    /// history label, which names the undo step of a gesture that also adds
+    /// the lanes it lands on.
     pub(crate) fn place_source_on(
         &mut self,
         placement: SourcePlacement,
         lanes: SourceLanes,
-    ) -> Result<(), EngineError> {
+    ) -> Result<&'static str, EngineError> {
         let SourcePlacement {
             media,
             source,
@@ -109,7 +120,7 @@ impl AppState {
             ripple,
             aimed: _,
         } = placement;
-        self.apply_command(Command::Edit(EditCommand::SourceEdit {
+        let edit = EditCommand::SourceEdit {
             media,
             source,
             at,
@@ -117,8 +128,10 @@ impl AppState {
             ripple,
             track: lanes.picture,
             sound: lanes.sound,
-        }))?;
-        Ok(())
+        };
+        let label = edit.label();
+        self.apply_command(Command::Edit(edit))?;
+        Ok(label)
     }
 
     /// Drop the open Source tab's marked range at `tick`: on `aimed` for the
@@ -171,32 +184,20 @@ impl AppState {
         ))
     }
 
-    /// The lane the picture lands on: the lane its header draws lit, or a new
-    /// video lane when the sequence has none. `None` when it is patched off.
-    fn patched_picture_lane(&mut self) -> Result<Option<TrackId>, EngineError> {
-        if self.store.sequence.source_patching.video == Patch::Off {
+    /// The lane `channel` lands on: the lane its header draws lit, or a new
+    /// lane of its kind when the sequence has none. `None` when it is patched
+    /// off.
+    fn patched_or_new_lane(
+        &mut self,
+        channel: SourceChannel,
+    ) -> Result<Option<TrackId>, EngineError> {
+        if self.store.sequence.source_patching.get(channel) == Patch::Off {
             return Ok(None);
         }
-        match self.store.sequence.patched_lane(SourceChannel::Video) {
+        match self.store.sequence.patched_lane(channel) {
             Some(id) => Ok(Some(TrackId::from_raw(id))),
-            None => self.ensure_kind_track(TrackKind::Video).map(Some),
+            None => self.ensure_kind_track(channel.lane_kind()).map(Some),
         }
-    }
-
-    /// Where the sound goes: the lane its header draws lit; with no audio lane
-    /// in the sequence, inside the picture when one is placed and on a new
-    /// audio lane when none is.
-    fn patched_sound(&mut self, with_picture: bool) -> Result<SoundPlacement, EngineError> {
-        if self.store.sequence.source_patching.audio == Patch::Off {
-            return Ok(SoundPlacement::Off);
-        }
-        Ok(
-            match self.store.sequence.patched_lane(SourceChannel::Audio) {
-                Some(id) => SoundPlacement::Lane(TrackId::from_raw(id)),
-                None if with_picture => SoundPlacement::InPicture,
-                None => SoundPlacement::Lane(self.ensure_kind_track(TrackKind::Audio)?),
-            },
-        )
     }
 }
 

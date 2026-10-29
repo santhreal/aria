@@ -106,16 +106,16 @@ dragged.
 
 Source patching picks which lanes a source's picture and sound land on: Insert
 and Overwrite from a Source tab or for the selected pool items, a drag from a
-Source tab, and a media drop. Each video and audio lane header has a source indicator, V or A. The lit
-one is where that channel lands; click a dark one to move the channel there, and
-click the lit one to leave the channel out. A channel nobody patched goes to the
-topmost targeted lane of its kind, else the kind's first lane, and a video lane
-is created if the sequence has none. The sound lands as a clip of its own on the
-patched audio lane, linked to the picture, so the two move and trim together.
-With no audio lane in the sequence, the sound stays in the picture clip. A
-picture placed with its sound patched off is silent. A drop aims at the lane
-under the pointer: that lane takes the channel of its kind, whatever the patch,
-and the other channel follows the patching.
+Source tab, and a media drop. Each video and audio lane header has a source
+indicator, V or A. The lit one is where that channel lands; click a dark one to
+move the channel there, and click the lit one to leave the channel out. A
+channel nobody patched goes to the topmost targeted lane of its kind, else the
+kind's first lane, and a lane of its kind is created if the sequence has none.
+The sound lands as a clip of its own on the patched audio lane, linked to the
+picture, so the two move and trim together. The edit and any lane it creates
+are one undo step. A picture placed with its sound patched off is silent. A
+drop aims at the lane under the pointer: that lane takes the channel of its
+kind, whatever the patch, and the other channel follows the patching.
 
 Sync lock sets which other lanes follow a ripple edit. A lane with sync lock
 set moves by the same amount as the lane being edited, so picture and sound stay

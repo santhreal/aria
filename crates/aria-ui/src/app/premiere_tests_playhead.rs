@@ -108,11 +108,11 @@ fn trim_to_playhead_never_collapses_a_clip() {
 fn trim_and_delete_are_inert_with_no_selection() {
     let (mut state, _) = with_clip();
     state.clear_selection();
-    let before = clip_count(&state);
+    let before = state.store.sequence.clip_count();
     state.trim_selected_to_playhead(true).expect("inert trim");
     state.trim_selected_to_playhead(false).expect("inert trim");
     state.clear_selected().expect("inert delete");
-    assert_eq!(clip_count(&state), before);
+    assert_eq!(state.store.sequence.clip_count(), before);
 }
 /// Three abutting clips of the fixture, in timeline order.
 fn three_in_a_row() -> (AppState, [ClipId; 3]) {
@@ -171,7 +171,11 @@ fn clear_leaves_the_gap_and_ripple_delete_closes_it_in_every_mode() {
         let middle_at = start_of(&state, middle);
         state.select_clip(first);
         state.clear_selected().expect("clear the first clip");
-        assert_eq!(clip_count(&state), 2, "{mode:?}: Clear removed the clip");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            2,
+            "{mode:?}: Clear removed the clip"
+        );
         assert_eq!(
             start_of(&state, middle),
             middle_at,
@@ -189,7 +193,11 @@ fn clear_leaves_the_gap_and_ripple_delete_closes_it_in_every_mode() {
         state
             .ripple_delete_selected()
             .expect("ripple delete both ends");
-        assert_eq!(clip_count(&state), 1, "{mode:?}: both selected clips go");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            1,
+            "{mode:?}: both selected clips go"
+        );
         assert_eq!(
             start_of(&state, middle),
             0,
@@ -200,7 +208,11 @@ fn clear_leaves_the_gap_and_ripple_delete_closes_it_in_every_mode() {
             state.undo(),
             "{mode:?}: the ripple delete is one undo entry"
         );
-        assert_eq!(clip_count(&state), 3, "{mode:?}: one undo restores both");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            3,
+            "{mode:?}: one undo restores both"
+        );
     }
 }
 #[test]

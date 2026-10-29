@@ -8,10 +8,13 @@
 
 use std::path::PathBuf;
 
-use aria_commands::{Command, EditCommand};
+use aria_commands::{Command, EditCommand, EditOutcome, SoundPlacement};
+use aria_engine::ApplyOutcome;
 use aria_models::{
     ClipId, ClipParam, Easing, MediaId, ParamValue, RationalTime, SpatialTangents, TimeRange,
+    TrackId,
 };
+use aria_plugin::PluginContext;
 
 use crate::app::AppState;
 use crate::app::mask_path::tests::masked_path;
@@ -26,11 +29,46 @@ pub(crate) fn asset(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// A project holding the video fixture, selected: a clip with a picture and
-/// sound, so a freeze frame has a frame to take and an audio extraction has
-/// something to detach.
+/// A project holding the video fixture, selected, its sound held inside the
+/// picture clip the way a plugin's edit or an older project places it: a clip
+/// with a picture and sound, so a freeze frame has a frame to take and an
+/// audio extraction has something to detach. A drop puts the sound on a lane
+/// of its own instead.
 pub(super) fn with_video() -> (AppState, ClipId) {
-    with_media(asset("fixture-640x360-24fps-3s-av.mp4"))
+    crate::test_support::catalogs::assert_catalogs_only_grew();
+    let mut state = AppState::new(
+        PluginContext::new(),
+        crate::scratch_pool::scratch("census-video"),
+    )
+    .expect("state");
+    state.new_project().expect("project");
+    let media = state
+        .import_media(asset("fixture-640x360-24fps-3s-av.mp4"))
+        .expect("import the video fixture");
+    let source = state
+        .engine
+        .lock()
+        .project()
+        .media(media)
+        .map(|item| item.full_range())
+        .expect("the video fixture is in the pool");
+    let picture = TrackId::from_raw(state.store.sequence.tracks[0].id);
+    let outcome = state
+        .apply_command(Command::Edit(EditCommand::SourceEdit {
+            media,
+            source,
+            at: RationalTime::new(0, state.playhead.rate),
+            fill: None,
+            ripple: false,
+            track: Some(picture),
+            sound: SoundPlacement::InPicture,
+        }))
+        .expect("place the video fixture");
+    let ApplyOutcome::Edited(EditOutcome::Created(clip)) = outcome else {
+        panic!("placing the video fixture produced {outcome:?}, not a clip");
+    };
+    state.select_clip(clip);
+    (state, clip)
 }
 
 /// A project holding the audio fixture, selected: the clip lands on an audio

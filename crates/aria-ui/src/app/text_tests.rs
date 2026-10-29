@@ -327,20 +327,15 @@ fn every_bundled_sticker_places_a_clip_that_the_model_accepts() {
 
     for spec in catalog {
         let (mut state, _) = with_clip();
-        let before = clip_count(&state);
+        let before = state.store.sequence.clip_count();
         state
             .add_generated(aria_models::Generator::sticker(&spec.id))
             .unwrap_or_else(|err| panic!("{}: {err:?}", spec.id));
-        assert_eq!(clip_count(&state), before + 1, "{} placed no clip", spec.id);
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            before + 1,
+            "{} placed no clip",
+            spec.id
+        );
     }
-}
-
-fn clip_count(state: &AppState) -> usize {
-    state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .map(|track| track.clips.len())
-        .sum()
 }

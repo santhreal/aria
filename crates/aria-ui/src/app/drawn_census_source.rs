@@ -212,6 +212,7 @@ fn an_edit_row_sends_the_edit_the_table_names() {
         };
         let (mut state, _) = dress.state();
         let what = pick.what();
+        let steps = state.history_depth();
         let sent = edits_sent(&mut state, *pick);
         let (sent_ripple, sent_fill, track, sound) = source_edit(&sent);
         assert_eq!(
@@ -220,18 +221,22 @@ fn an_edit_row_sends_the_edit_the_table_names() {
             "{what} against {dress:?} sent {sent:?}"
         );
         // The picture lands on the lane its header draws lit. The fixture's
-        // sequence has no audio lane, so the shot's sound stays in the picture
-        // rather than growing a lane nobody asked for.
+        // sequence has no audio lane, so the sound lands on a new one, linked
+        // to the picture, and the new lane is part of the edit's undo step.
         let sequence = &state.store.sequence;
         assert!(track.is_some(), "{what} placed the picture");
         assert_eq!(track, sequence.patched_lane(SourceChannel::Video), "{what}");
-        assert_eq!(sound, SoundPlacement::InPicture, "{what}");
-        assert!(
-            sequence
-                .tracks
-                .iter()
-                .all(|lane| lane.channel != Some(SourceChannel::Audio)),
-            "{what} added an audio lane"
+        let sound_lane = sequence.patched_lane(SourceChannel::Audio);
+        assert!(sound_lane.is_some(), "{what} added no audio lane");
+        assert_eq!(sound.lane().map(|id| id.raw()), sound_lane, "{what}");
+        let history = state.history_entries();
+        assert_eq!(
+            (
+                state.history_depth(),
+                history.last().map(|step| step.label.as_str())
+            ),
+            (steps + 1, Some("Source edit")),
+            "{what} is one undo step named for the edit"
         );
     }
 }

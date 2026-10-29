@@ -36,8 +36,7 @@ fn project_to_ui_preserves_track_and_clip_counts() {
     let (project, _, _, _) = sample_project();
     let store = project_to_ui(&project, RationalTime::new(0, Rational::FPS_24), &[]);
     assert_eq!(store.sequence.tracks.len(), 2);
-    let clip_count: usize = store.sequence.tracks.iter().map(|t| t.clips.len()).sum();
-    assert_eq!(clip_count, 3);
+    assert_eq!(store.sequence.clip_count(), 3);
     assert_eq!(store.project_name, "Demo");
     assert_eq!(store.sequence.duration_ticks, 96);
     assert_eq!(store.media.len(), 1);

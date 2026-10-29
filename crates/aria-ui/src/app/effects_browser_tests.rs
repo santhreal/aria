@@ -579,22 +579,13 @@ fn applying_an_entry_edits_the_selection() {
     assert_eq!(ClipId::from_raw(ui.id), clip);
     assert!(ui.effects.iter().any(|effect| effect.id == "vignette"));
 
-    let clips = |state: &AppState| {
-        state
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .map(|track| track.clips.len())
-            .sum::<usize>()
-    };
-    let before = clips(&state);
+    let before = state.store.sequence.clip_count();
     assert!(
         state
             .apply_effects_entry(EntryKind::Generator, "test.unregistered_generator")
             .is_err()
     );
-    assert_eq!(clips(&state), before);
+    assert_eq!(state.store.sequence.clip_count(), before);
 
     let (mut sound, _) = with_media(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

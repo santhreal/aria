@@ -109,7 +109,7 @@ fn opening_a_project_asks_for_one_and_loads_what_was_chosen() {
     // The dressing writes a second project of two clips and answers with it, so
     // the load is visible in the clip count. The same dressing the census drives.
     let (state, path) = Answered::Open.state();
-    assert_eq!(clip_count(&state), 1);
+    assert_eq!(state.store.sequence.clip_count(), 1);
     let cx = gpui::TestAppContext::single();
     let entity = entity_of(state, &cx);
 
@@ -119,7 +119,11 @@ fn opening_a_project_asks_for_one_and_loads_what_was_chosen() {
         let state = entity.read(app);
         assert_eq!(state.picks_asked(), 1, "the row did not ask for a project");
         assert_eq!(state.project_path.as_deref(), Some(path.as_path()));
-        assert_eq!(clip_count(state), 2, "the chosen project did not load");
+        assert_eq!(
+            state.store.sequence.clip_count(),
+            2,
+            "the chosen project did not load"
+        );
     });
 }
 #[test]

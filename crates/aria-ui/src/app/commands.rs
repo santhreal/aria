@@ -416,7 +416,7 @@ impl AppState {
         &mut self,
         body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
-        self.grouped(None, body)
+        self.one_step_named(|_| None, body)
     }
 
     /// [`Self::one_step`], with the undo step named `label` rather than after
@@ -427,16 +427,20 @@ impl AppState {
         label: &'static str,
         body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
-        self.grouped(Some(label), body)
+        self.one_step_named(|_| Some(label), body)
     }
 
-    fn grouped<T>(
+    /// [`Self::one_step`], with the undo step named by `name` from what `body`
+    /// returned, and after its first command when `name` returns `None`: a
+    /// placement that adds the lane its sound lands on is one `Source edit`,
+    /// not an `Add track`.
+    pub(crate) fn one_step_named<T>(
         &mut self,
-        label: Option<&'static str>,
+        name: impl FnOnce(&T) -> Option<&'static str>,
         body: impl FnOnce(&mut Self) -> Result<T, EngineError>,
     ) -> Result<T, EngineError> {
         let result = self.edit_group(body).map(|(group, value)| {
-            match label {
+            match name(&value) {
                 Some(label) => group.commit_as(label),
                 None => group.commit(),
             };

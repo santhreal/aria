@@ -81,8 +81,15 @@ impl AppState {
                 video.push(media);
             }
         }
-        self.place_chain(TrackKind::Video, &video)?;
-        self.place_chain(TrackKind::Audio, &audio)?;
+        // Every placement and every lane it needs is one undo step, named
+        // after the first edit: one drop, one `Source edit`.
+        self.one_step_named(
+            |label: &Option<&'static str>| *label,
+            |state| {
+                let pictures = state.place_chain(TrackKind::Video, &video)?;
+                Ok(pictures.or(state.place_chain(TrackKind::Audio, &audio)?))
+            },
+        )?;
         Ok(())
     }
 
@@ -246,18 +253,19 @@ impl AppState {
     /// `kind`. Each lands at the first tick from where the one before it ends
     /// that leaves its whole span free on every lane it places a clip on, so
     /// nothing already on the timeline moves or is covered, in either edit
-    /// mode.
+    /// mode. Returns the history label of the first edit it applied.
     pub(super) fn place_chain(
         &mut self,
         kind: TrackKind,
         items: &[MediaId],
-    ) -> Result<(), EngineError> {
+    ) -> Result<Option<&'static str>, EngineError> {
         if items.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         let track = self.ensure_kind_track(kind)?;
         let rate = self.playhead.rate;
         let mut cursor = self.playhead.value;
+        let mut first = None;
         for &media in items {
             let Some(source) = self
                 .engine
@@ -277,7 +285,7 @@ impl AppState {
                 lanes.lanes().flat_map(|lane| self.spans_on(lane)).collect();
             taken.sort_unstable();
             let at = crate::os_drop::plan_sequential_starts(&taken, cursor, &[span])[0];
-            self.place_source_on(
+            let label = self.place_source_on(
                 crate::app::source_patch::SourcePlacement {
                     media,
                     source,
@@ -288,8 +296,9 @@ impl AppState {
                 },
                 lanes,
             )?;
+            first.get_or_insert(label);
             cursor = at + span;
         }
-        Ok(())
+        Ok(first)
     }
 }
