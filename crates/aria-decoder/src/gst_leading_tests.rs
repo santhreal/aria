@@ -12,9 +12,10 @@
 //! 64 s before its target on a leading frame (returned as it is), and GPU
 //! frames.
 
+use parking_lot::Mutex;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
 
 use super::*;
 
@@ -77,7 +78,7 @@ fn conceal_leading_frames(decoder: &GstDecoder) -> Arc<AtomicU32> {
                     | gst::PadProbeType::EVENT_DOWNSTREAM
                     | gst::PadProbeType::EVENT_FLUSH,
                 move |_, info| {
-                    let mut fed = fed.lock().unwrap_or_else(PoisonError::into_inner);
+                    let mut fed = fed.lock();
                     match &info.data {
                         Some(gst::PadProbeData::Event(event))
                             if event.type_() == gst::EventType::FlushStop =>
@@ -100,7 +101,7 @@ fn conceal_leading_frames(decoder: &GstDecoder) -> Arc<AtomicU32> {
             .static_pad("src")
             .expect("video decoder src pad")
             .add_probe(gst::PadProbeType::BUFFER, move |_, info| {
-                let key = *fed.lock().unwrap_or_else(PoisonError::into_inner);
+                let key = *fed.lock();
                 if let Some(gst::PadProbeData::Buffer(buffer)) = &mut info.data
                     && let (Some(pts), Some(key)) = (buffer.pts(), key)
                     && pts < key

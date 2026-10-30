@@ -1,9 +1,9 @@
 //! SQLite persistence for validated media moments.
 
+use parking_lot::Mutex;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use rusqlite::ffi::ErrorCode;
@@ -311,12 +311,12 @@ impl MomentsIndex {
     ///
     /// # Errors
     ///
-    /// Returns a typed lock, SQLite, constraint, or mutex error.
+    /// Returns a typed lock, SQLite, or constraint error.
     pub fn replace_batch(&self, batch: &MomentReplacementBatch) -> Result<(), MomentsIndexError> {
         let key = batch.key();
         let content_key = key.content_key();
         let analyzer_version = i64::from(key.analyzer_version().get());
-        let mut connection = self.lock_connection()?;
+        let mut connection = self.connection.lock();
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(map_sqlite_error)?;
@@ -375,10 +375,10 @@ impl MomentsIndex {
     ///
     /// # Errors
     ///
-    /// Returns a typed SQLite or mutex error.
+    /// Returns a typed SQLite error.
     pub fn batch_exists(&self, key: &MomentBatchKey) -> Result<bool, MomentsIndexError> {
         let content_key = key.content_key();
-        let connection = self.lock_connection()?;
+        let connection = self.connection.lock();
         connection
             .query_row(
                 "
@@ -406,10 +406,10 @@ impl MomentsIndex {
     ///
     /// # Errors
     ///
-    /// Returns a typed SQLite or mutex error.
+    /// Returns a typed SQLite error.
     pub fn delete_batch(&self, key: &MomentBatchKey) -> Result<bool, MomentsIndexError> {
         let content_key = key.content_key();
-        let connection = self.lock_connection()?;
+        let connection = self.connection.lock();
         let deleted = connection
             .execute(
                 "
@@ -432,7 +432,7 @@ impl MomentsIndex {
     ///
     /// # Errors
     ///
-    /// Returns a typed SQLite, corrupt-row, or mutex error.
+    /// Returns a typed SQLite or corrupt-row error.
     pub fn query(&self, query: &MomentQuery) -> Result<MomentsQueryResult, MomentsIndexError> {
         self.query_with_limit(query, self.config.default_query_limit)
     }
@@ -445,7 +445,7 @@ impl MomentsIndex {
     /// # Errors
     ///
     /// Returns [`MomentsIndexError::InvalidQueryLimit`] for zero or a value
-    /// above this index's configured maximum. SQLite, corrupt-row, and mutex
+    /// above this index's configured maximum. SQLite and corrupt-row
     /// failures are also returned.
     pub fn query_with_limit(
         &self,
@@ -478,7 +478,7 @@ impl MomentsIndex {
         let kind = query.kind().map(MomentKind::as_str);
         let minimum_confidence = f64::from(query.minimum_confidence().get());
 
-        let connection = self.lock_connection()?;
+        let connection = self.connection.lock();
         let mut statement = connection
             .prepare_cached(QUERY_MOMENTS_SQL)
             .map_err(map_sqlite_error)?;
@@ -504,11 +504,5 @@ impl MomentsIndex {
             records.pop();
         }
         Ok(MomentsQueryResult { records, truncated })
-    }
-
-    fn lock_connection(&self) -> Result<MutexGuard<'_, Connection>, MomentsIndexError> {
-        self.connection
-            .lock()
-            .map_err(|_| MomentsIndexError::MutexPoisoned)
     }
 }

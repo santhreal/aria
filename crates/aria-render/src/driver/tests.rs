@@ -159,9 +159,9 @@ impl DriverProgram for Program {
     }
 }
 
-fn serial() -> std::sync::MutexGuard<'static, ()> {
+fn serial() -> parking_lot::MutexGuard<'static, ()> {
     LazyLock::force(&REGISTERED);
-    SERIAL.lock().unwrap_or_else(PoisonError::into_inner)
+    SERIAL.lock()
 }
 
 fn code(source: &str) -> Option<DriverCode> {

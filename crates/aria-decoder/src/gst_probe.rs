@@ -9,8 +9,9 @@
 //! device warm-up ([`crate::gst_context::warm_up`]) loading it on its own
 //! thread. Read at the caps, a video file probes in about 2 ms.
 
+use parking_lot::Mutex;
 use std::path::Path;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 
 use aria_core::{DecodeError, SourceInfo, VideoDecoder};
 use gstreamer as gst;
@@ -69,7 +70,7 @@ pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
         Err(e) => return Err(failed_change_or(&pipeline, gst_err(DecodeError::Open, e))),
     }
     let duration = crate::gst::stream_duration(&pipeline);
-    let exposed = std::mem::take(&mut *exposed.lock().unwrap_or_else(PoisonError::into_inner));
+    let exposed = std::mem::take(&mut *exposed.lock());
     drop(pipeline);
 
     let audio_codec = exposed.audio.as_deref().and_then(codec_description);
@@ -110,7 +111,7 @@ fn take_stream(exposed: &Mutex<Exposed>, src: &gst::Element, pad: &gst::Pad) {
     let Some(caps) = pad.current_caps() else {
         return;
     };
-    let mut exposed = exposed.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut exposed = exposed.lock();
     let slot = match caps.structure(0).map(|stream| stream.name()) {
         Some(name) if name.starts_with("video/") => &mut exposed.video,
         Some(name) if name.starts_with("audio/") => &mut exposed.audio,

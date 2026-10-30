@@ -17,7 +17,9 @@
 //! effect. A bad file must not leave the app with no transitions.
 
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex, OnceLock};
+use std::sync::{LazyLock, OnceLock};
+
+use parking_lot::Mutex;
 
 use serde::Deserialize;
 
@@ -61,7 +63,7 @@ pub fn root() -> Option<&'static Path> {
 /// Every catalog read so far and where it came from. Call [`preload`] first for
 /// the complete set.
 pub fn status() -> Vec<CatalogStatus> {
-    STATUS.lock().expect("catalog status").clone()
+    STATUS.lock().clone()
 }
 
 /// Overrides that were refused, and why. Empty on a clean startup.
@@ -89,7 +91,7 @@ pub fn preload() {
 }
 
 fn record(status: CatalogStatus) {
-    STATUS.lock().expect("catalog status").push(status);
+    STATUS.lock().push(status);
 }
 
 /// Add a reason to the catalog named `name`, after it was read.
@@ -101,7 +103,7 @@ fn record(status: CatalogStatus) {
 /// never read is ignored, which is what a unit test constructing entries by
 /// hand wants.
 pub(crate) fn amend(name: &str, reason: String) {
-    let mut status = STATUS.lock().expect("catalog status");
+    let mut status = STATUS.lock();
     if let Some(entry) = status.iter_mut().rev().find(|entry| entry.name == name) {
         match &mut entry.problem {
             Some(existing) => {

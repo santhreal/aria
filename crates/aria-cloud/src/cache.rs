@@ -10,11 +10,11 @@
 //! Settings surfaces a "clear download cache" action backed by
 //! [`DownloadCache::clear`].
 
+use parking_lot::{Condvar, Mutex, RwLock};
 use std::collections::HashSet;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use crate::error::CloudError;
@@ -126,7 +126,7 @@ struct MaintenanceGuard<'a> {
 
 impl Drop for MaintenanceGuard<'_> {
     fn drop(&mut self) {
-        let mut activity = lock_activity(&self.cache.activity);
+        let mut activity = self.cache.activity.lock();
         activity.maintenance = false;
         self.cache.activity_changed.notify_all();
     }
@@ -149,7 +149,7 @@ impl DownloadCache {
     /// A switch that follows this call does not alter the returned path.
     #[must_use]
     pub fn root(&self) -> PathBuf {
-        read_root(&self.root).clone()
+        self.root.read().clone()
     }
 
     /// Exclusively migrate the cache to a new root and publish it on success.
@@ -184,7 +184,7 @@ impl DownloadCache {
         }
 
         let destination = destination.as_ref();
-        let mut root = write_root(&self.root);
+        let mut root = self.root.write();
         if !destination.is_absolute() {
             return Err(DownloadCacheSwitchError::RelativeDestination);
         }
@@ -206,7 +206,7 @@ impl DownloadCache {
         // Root readers are excluded before this lock is acquired, and every
         // protected-path writer takes the root lock first. Holding both locks
         // makes the remap and root publication one observable transition.
-        let mut protected = write_protected(&self.protected_paths);
+        let mut protected = self.protected_paths.write();
         let remapped = protected
             .iter()
             .map(|path| {
@@ -259,21 +259,21 @@ impl DownloadCache {
     /// cache root itself, and paths containing traversal components fail
     /// closed.
     pub fn protect_path(&self, path: &Path) -> Result<(), CloudError> {
-        let root = read_root(&self.root);
+        let root = self.root.read();
         let path = contained_cache_path(root.as_path(), path)?;
         if let Ok(metadata) = std::fs::symlink_metadata(&path)
             && !metadata.file_type().is_file()
         {
             return Err(invalid_cache_path());
         }
-        write_protected(&self.protected_paths).insert(path);
+        self.protected_paths.write().insert(path);
         Ok(())
     }
 
     /// Number of project-referenced cache paths currently protected.
     #[must_use]
     pub fn protected_path_count(&self) -> usize {
-        read_protected(&self.protected_paths).len()
+        self.protected_paths.read().len()
     }
 
     /// Fail closed while project references have not been fully inventoried.
@@ -316,7 +316,7 @@ impl DownloadCache {
     /// should land. Creates parent directories.
     pub fn path_for(&self, key: &str) -> Result<PathBuf, CloudError> {
         let key = validated_key(key)?;
-        let root = read_root(&self.root);
+        let root = self.root.read();
         ensure_cache_root(root.as_path())?;
         let parent = key.parent().unwrap_or_else(|| Path::new(""));
         ensure_safe_subdirectories(root.as_path(), parent)?;
@@ -328,7 +328,7 @@ impl DownloadCache {
     /// Whether `key` is already downloaded (touches it for LRU).
     pub fn hit(&self, key: &str) -> Option<PathBuf> {
         let key = validated_key(key).ok()?;
-        let root = read_root(&self.root);
+        let root = self.root.read();
         if !safe_existing_root(root.as_path()) {
             return None;
         }
@@ -353,7 +353,7 @@ impl DownloadCache {
 
     /// Total bytes currently cached.
     pub fn size_bytes(&self) -> u64 {
-        let root = read_root(&self.root);
+        let root = self.root.read();
         saturating_total_bytes(
             walk_files(root.as_path())
                 .into_iter()
@@ -377,8 +377,8 @@ impl DownloadCache {
             return;
         }
         let quota_bytes = self.quota_bytes();
-        let root = read_root(&self.root);
-        let protected = read_protected(&self.protected_paths).clone();
+        let root = self.root.read();
+        let protected = self.protected_paths.read().clone();
         let mut files: Vec<(PathBuf, u64, SystemTime)> = walk_files(root.as_path())
             .into_iter()
             .filter(|path| !protected.contains(path))
@@ -415,7 +415,7 @@ impl DownloadCache {
         if self.destructive_operations_blocked() {
             return Err(cache_inventory_incomplete());
         }
-        let root = read_root(&self.root);
+        let root = self.root.read();
         if safe_root_entries(root.as_path())?.is_none() {
             return Ok(DownloadCacheClear {
                 removed_bytes: 0,
@@ -423,7 +423,7 @@ impl DownloadCache {
                 retained_protected_files: 0,
             });
         }
-        let protected = read_protected(&self.protected_paths).clone();
+        let protected = self.protected_paths.read().clone();
         let (files, mut directories) = walk_tree(root.as_path());
         let mut removed_bytes = 0_u64;
         let mut removed_files = 0_u64;
@@ -458,12 +458,9 @@ impl DownloadCache {
     }
 
     fn begin_access(&self) -> Result<(), CloudError> {
-        let mut activity = lock_activity(&self.activity);
+        let mut activity = self.activity.lock();
         while activity.maintenance {
-            activity = self
-                .activity_changed
-                .wait(activity)
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            self.activity_changed.wait(&mut activity);
         }
         activity.active_leases = activity
             .active_leases
@@ -473,7 +470,7 @@ impl DownloadCache {
     }
 
     fn finish_access(&self) {
-        let mut activity = lock_activity(&self.activity);
+        let mut activity = self.activity.lock();
         activity.active_leases = activity.active_leases.saturating_sub(1);
         if activity.active_leases == 0 {
             self.activity_changed.notify_all();
@@ -482,16 +479,12 @@ impl DownloadCache {
 
     fn begin_maintenance(&self, timeout: Duration) -> Result<MaintenanceGuard<'_>, CloudError> {
         let deadline = Instant::now() + timeout;
-        let mut activity = lock_activity(&self.activity);
+        let mut activity = self.activity.lock();
         while activity.maintenance || activity.active_leases != 0 {
             let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
                 return Err(cache_busy());
             };
-            let (next, result) = self
-                .activity_changed
-                .wait_timeout(activity, remaining)
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            activity = next;
+            let result = self.activity_changed.wait_for(&mut activity, remaining);
             if result.timed_out() && (activity.maintenance || activity.active_leases != 0) {
                 return Err(cache_busy());
             }
@@ -534,37 +527,6 @@ fn contained_cache_path(root: &Path, path: &Path) -> Result<PathBuf, CloudError>
         return Err(invalid_cache_path());
     }
     Ok(root.join(relative))
-}
-
-fn read_root(root: &RwLock<PathBuf>) -> std::sync::RwLockReadGuard<'_, PathBuf> {
-    root.read().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn write_root(root: &RwLock<PathBuf>) -> std::sync::RwLockWriteGuard<'_, PathBuf> {
-    root.write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn read_protected(
-    protected: &RwLock<HashSet<PathBuf>>,
-) -> std::sync::RwLockReadGuard<'_, HashSet<PathBuf>> {
-    protected
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn write_protected(
-    protected: &RwLock<HashSet<PathBuf>>,
-) -> std::sync::RwLockWriteGuard<'_, HashSet<PathBuf>> {
-    protected
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn lock_activity(activity: &Mutex<CacheActivity>) -> std::sync::MutexGuard<'_, CacheActivity> {
-    activity
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn cache_activity_exhausted() -> CloudError {

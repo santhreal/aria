@@ -20,6 +20,7 @@ aria-shapes = { path = "../aria-shapes" }
 half = { workspace = true }
 image = { version = "0.25", default-features = false }
 naga = { workspace = true }
+parking_lot = { workspace = true }
 rustc-hash = { workspace = true }
 sha2 = "0.10"
 wgpu = { workspace = true }

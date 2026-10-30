@@ -60,7 +60,9 @@
 
 use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
-use std::sync::{Condvar, LazyLock, Mutex, MutexGuard};
+use std::sync::LazyLock;
+
+use parking_lot::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// The fixed name every pool directory starts with.
@@ -129,7 +131,7 @@ impl Pool {
     /// window restarts every time any holder returns a slot, so waiting behind a
     /// busy pool is unbounded in time and bounded in stalling.
     fn lease(&self) -> Lease<'_> {
-        let mut free = self.free();
+        let mut free = self.free.lock();
         let mut stall = Stall::new(free.released);
         loop {
             // A slot free in this process can still be held by another suite
@@ -150,11 +152,7 @@ impl Pool {
             } else {
                 self.wait
             };
-            free = self
-                .ready
-                .wait_timeout(free, wait)
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .0;
+            self.ready.wait_for(&mut free, wait);
             stall.observe(free.released);
             assert!(
                 !stall.stalled(self.wait) || !free.slots.is_empty(),
@@ -164,15 +162,6 @@ impl Pool {
                 self.slots
             );
         }
-    }
-
-    /// The free list, readable through a poisoned lock: a slot returned by a
-    /// panicking thread is still a free slot, and refusing to hand it out would
-    /// turn one failed test into a failed suite.
-    fn free(&self) -> MutexGuard<'_, Free> {
-        self.free
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Lock slot `index` against every other process, or `None` while another
@@ -244,7 +233,7 @@ impl Drop for Lease<'_> {
     fn drop(&mut self) {
         // A test that panicked still returns its slot: the unwind runs this,
         // and the next thread gets a directory it will empty on the way in.
-        let mut free = self.pool.free();
+        let mut free = self.pool.free.lock();
         free.slots.push(self.index);
         // The return is the pool's proof of life, so it is counted where it
         // happens: a waiter reads the count rather than the clock.

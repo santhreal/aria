@@ -54,11 +54,12 @@
 
 mod admission;
 
+use parking_lot::Mutex;
 use std::any::Any;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// How many finished (Done / Failed / Cancelled) jobs the registry keeps.
@@ -528,7 +529,7 @@ impl JobManager {
         let cancel = Arc::new(AtomicBool::new(false));
 
         let (id, snapshot, subscribers) = {
-            let mut inner = self.shared.inner.lock().expect("job registry lock");
+            let mut inner = self.shared.inner.lock();
             // Allocated under the lock so `jobs` stays sorted by id for
             // `index_of`'s binary search when threads spawn concurrently.
             let id = JobId(self.shared.next_id.fetch_add(1, Ordering::Relaxed));
@@ -577,7 +578,7 @@ impl JobManager {
     /// (`cancel_requested`), and to subscribers in the eventual terminal
     /// event.
     pub fn cancel(&self, id: JobId) -> bool {
-        let mut inner = self.shared.inner.lock().expect("job registry lock");
+        let mut inner = self.shared.inner.lock();
         let Some(index) = inner.index_of(id) else {
             return false;
         };
@@ -592,7 +593,7 @@ impl JobManager {
     }
 
     pub fn get(&self, id: JobId) -> Option<JobSnapshot> {
-        let inner = self.shared.inner.lock().expect("job registry lock");
+        let inner = self.shared.inner.lock();
         inner
             .index_of(id)
             .map(|index| inner.jobs[index].snap.clone())
@@ -601,7 +602,7 @@ impl JobManager {
     /// All known jobs, newest first (running and finished alike; finished
     /// jobs are pruned beyond [`KEEP_FINISHED`]).
     pub fn snapshot(&self) -> Vec<JobSnapshot> {
-        let inner = self.shared.inner.lock().expect("job registry lock");
+        let inner = self.shared.inner.lock();
         inner
             .jobs
             .iter()
@@ -622,7 +623,7 @@ impl JobManager {
     /// inline. To catch up on pre-existing jobs, subscribe first, then render
     /// one [`snapshot`](Self::snapshot).
     pub fn subscribe(&self, subscriber: impl Fn(JobSnapshot) + Send + Sync + 'static) {
-        let mut inner = self.shared.inner.lock().expect("job registry lock");
+        let mut inner = self.shared.inner.lock();
         inner.subscribers.push(Arc::new(subscriber));
     }
 }
@@ -677,7 +678,7 @@ impl Shared {
     /// then publish the boundary snapshot after dropping the guard.
     fn try_begin_commit(&self, id: JobId) -> bool {
         let (snapshot, subscribers) = {
-            let mut inner = self.inner.lock().expect("job registry lock");
+            let mut inner = self.inner.lock();
             let Some(index) = inner.index_of(id) else {
                 // A context should only call this while its job is registered,
                 // but missing/terminal must fail closed: never publish without
@@ -718,7 +719,7 @@ impl Shared {
     /// survives its own prune.
     fn update(&self, id: JobId, mutate: impl FnOnce(&mut Job)) {
         let (snapshot, subscribers) = {
-            let mut inner = self.inner.lock().expect("job registry lock");
+            let mut inner = self.inner.lock();
             let Some(index) = inner.index_of(id) else {
                 return;
             };

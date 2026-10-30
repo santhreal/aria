@@ -19,6 +19,7 @@ aria-decoder = { path = "../aria-decoder" }
 aria-encoder = { path = "../aria-encoder" }
 aria-shapes = { path = "../aria-shapes" }
 aria-text = { path = "../aria-text" }
+parking_lot = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 png = "0.17"
@@ -37,7 +38,6 @@ aria-models = { path = "../aria-models" }
 # The zero-copy parity test inspects the adapter backend to skip on non-Metal
 # (software) hosts where the Apple import path doesn't apply.
 wgpu = { workspace = true }
-parking_lot = { workspace = true }
 # The steady-frame allocation test brings up a device of its own.
 pollster = { workspace = true }
 

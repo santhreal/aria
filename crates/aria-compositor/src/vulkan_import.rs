@@ -23,11 +23,11 @@
 
 #![allow(unsafe_code)]
 
+use parking_lot::Mutex;
 use std::fs::File;
 use std::hash::Hash;
 use std::os::fd::{BorrowedFd, FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::fs::MetadataExt;
-use std::sync::Mutex;
 
 use ash::vk;
 use ash::vk::Handle;
@@ -235,11 +235,7 @@ impl VulkanSurfaceImporter {
         }
 
         let key = SurfaceKey::new(&payload, coded)?;
-        let mut textures = self.textures.lock().map_err(|_| {
-            CompositorError::RequestDevice(
-                "Vulkan import cache lock was poisoned; recreate the renderer".into(),
-            )
-        })?;
+        let mut textures = self.textures.lock();
         let texture = textures
             .get_or_try_insert_with(key, || self.create_cached_texture(gpu, &payload, cw, ch))?;
         Ok(texture.planes())

@@ -4,7 +4,9 @@ use std::collections::{BTreeMap, VecDeque};
 use std::error::Error;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::Arc;
+
+use parking_lot::{Condvar, Mutex};
 
 use crate::cache_registry::{CacheId, CacheKind, cache_descriptors};
 use crate::error::StorageError;
@@ -271,9 +273,8 @@ impl Drop for StorageLayoutLease<'_> {
 /// stale worker results from replacing newer configuration. The initial
 /// generation is zero and each successful write increments it exactly once.
 ///
-/// Lock poisoning is recovered internally. Write operations prepare a
-/// complete replacement before committing it, so an unwinding update leaves
-/// the prior layout and generation valid.
+/// Write operations prepare a complete replacement before committing it, so an
+/// unwinding update leaves the prior layout and generation valid.
 #[derive(Debug, Clone)]
 pub struct SharedStorageLayout {
     inner: Arc<SharedStorageLayoutInner>,
@@ -377,7 +378,7 @@ impl SharedStorageLayout {
         replacement: StorageLayout,
     ) -> Result<u64, SharedStorageLayoutError> {
         let _write_guard = self.acquire_write();
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         let next_generation = checked_next_generation(&state, expected_generation)?;
         state.layout = replacement;
         state.generation = next_generation;
@@ -402,7 +403,7 @@ impl SharedStorageLayout {
     {
         let _write_guard = self.acquire_write();
         let (old_layout, next_generation) = {
-            let state = self.lock_state();
+            let state = self.inner.state.lock();
             let next_generation = checked_next_generation(&state, expected_generation)
                 .map_err(SharedStorageLayoutTransitionError::Layout)?;
             (state.layout.clone(), next_generation)
@@ -410,7 +411,7 @@ impl SharedStorageLayout {
         transition(&old_layout, &replacement)
             .map_err(SharedStorageLayoutTransitionError::Transition)?;
         {
-            let mut state = self.lock_state();
+            let mut state = self.inner.state.lock();
             state.layout = replacement;
             state.generation = next_generation;
         }
@@ -425,8 +426,8 @@ impl SharedStorageLayout {
     /// validity. The callback is responsible for handling their errors.
     ///
     /// A stale or exhausted generation refuses the update without invoking the
-    /// callback. If the callback panics, the panic propagates, no state is
-    /// committed, and subsequent operations recover the poisoned lock.
+    /// callback. If the callback panics, the panic propagates and no state is
+    /// committed.
     pub fn update<F>(
         &self,
         expected_generation: u64,
@@ -437,13 +438,13 @@ impl SharedStorageLayout {
     {
         let _write_guard = self.acquire_write();
         let (mut replacement, next_generation) = {
-            let state = self.lock_state();
+            let state = self.inner.state.lock();
             let next_generation = checked_next_generation(&state, expected_generation)?;
             (state.layout.clone(), next_generation)
         };
         update(&mut replacement);
         {
-            let mut state = self.lock_state();
+            let mut state = self.inner.state.lock();
             state.layout = replacement;
             state.generation = next_generation;
         }
@@ -471,25 +472,14 @@ impl SharedStorageLayout {
         Self::from_generation(layout, generation)
     }
 
-    fn lock_state(&self) -> MutexGuard<'_, SharedStorageLayoutState> {
-        match self.inner.state.lock() {
-            Ok(state) => state,
-            Err(poisoned) => {
-                let state = poisoned.into_inner();
-                self.inner.state.clear_poison();
-                state
-            }
-        }
-    }
-
     /// Point-in-time copy. Does not increment `active_readers` or wait for writers.
     fn observe(&self) -> (StorageLayout, u64) {
-        let state = self.lock_state();
+        let state = self.inner.state.lock();
         (state.layout.clone(), state.generation)
     }
 
     fn acquire_read(&self) -> (StorageLayout, u64) {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         if state.queue.is_empty() && !state.writer_active {
             state.active_readers += 1;
             return (state.layout.clone(), state.generation);
@@ -571,15 +561,12 @@ impl SharedStorageLayout {
                 wait_guard.entered = true;
                 return (state.layout.clone(), state.generation);
             }
-            state = self.inner.condvar.wait(state).unwrap_or_else(|poisoned| {
-                self.inner.state.clear_poison();
-                poisoned.into_inner()
-            });
+            self.inner.condvar.wait(&mut state);
         }
     }
 
     fn cancel_waiting_reader(&self, batch_id: u64) {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         if let Some(pos) = state.queue.iter().position(|b| b.id == batch_id)
             && let BatchKind::Readers { remaining_to_enter } = &mut state.queue[pos].kind
         {
@@ -592,7 +579,7 @@ impl SharedStorageLayout {
     }
 
     fn release_read(&self) {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         state.active_readers = state
             .active_readers
             .checked_sub(1)
@@ -603,7 +590,7 @@ impl SharedStorageLayout {
     }
 
     fn acquire_write(&self) -> WriteGuard<'_> {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         if state.queue.is_empty() && !state.writer_active && state.active_readers == 0 {
             state.writer_active = true;
             return WriteGuard { shared: self };
@@ -647,15 +634,12 @@ impl SharedStorageLayout {
                 wait_guard.entered = true;
                 return WriteGuard { shared: self };
             }
-            state = self.inner.condvar.wait(state).unwrap_or_else(|poisoned| {
-                self.inner.state.clear_poison();
-                poisoned.into_inner()
-            });
+            self.inner.condvar.wait(&mut state);
         }
     }
 
     fn cancel_waiting_writer(&self, batch_id: u64) {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         if let Some(pos) = state.queue.iter().position(|b| b.id == batch_id) {
             state.queue.remove(pos);
             self.inner.condvar.notify_all();
@@ -663,7 +647,7 @@ impl SharedStorageLayout {
     }
 
     fn release_write(&self) {
-        let mut state = self.lock_state();
+        let mut state = self.inner.state.lock();
         state.writer_active = false;
         self.inner.condvar.notify_all();
     }

@@ -15,10 +15,10 @@
 
 #![allow(unsafe_code)]
 
+use parking_lot::Mutex;
 use std::ffi::c_char;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::JoinHandle;
 
@@ -251,14 +251,9 @@ pub unsafe extern "C" fn aria_export_join(handle: *const AriaExportJob) -> *mut 
     let Some(job) = (unsafe { job(handle) }) else {
         return std::ptr::null_mut();
     };
-    let mut verdict = job.verdict.lock().expect("export verdict lock");
+    let mut verdict = job.verdict.lock();
     if verdict.is_none() {
-        let joined = job
-            .thread
-            .lock()
-            .expect("export thread lock")
-            .take()
-            .map(|t| t.join());
+        let joined = job.thread.lock().take().map(|t| t.join());
         let result = match joined {
             Some(Ok(result)) => result,
             Some(Err(_)) => Err(RenderError::Unsupported("export thread panicked".into())),
@@ -284,7 +279,7 @@ pub unsafe extern "C" fn aria_export_free(handle: *mut AriaExportJob) {
     }
     // SAFETY: came from Box::into_raw, freed exactly once.
     let job = unsafe { Box::from_raw(handle) };
-    if let Some(thread) = job.thread.lock().expect("export thread lock").take() {
+    if let Some(thread) = job.thread.lock().take() {
         let _ = thread.join();
     }
 }

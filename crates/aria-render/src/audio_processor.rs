@@ -16,9 +16,11 @@
 //! the rest of the mix stays aligned.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, PoisonError, RwLock};
 use std::time::Duration;
+
+use parking_lot::RwLock;
 
 /// One instance of an audio effect, processing a stream in blocks.
 pub trait AudioProcessor: Send {
@@ -279,10 +281,7 @@ pub struct ProcessorRegistration {
 
 impl Drop for ProcessorRegistration {
     fn drop(&mut self) {
-        PROCESSORS
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .retain(|entry| entry.token != self.token);
+        PROCESSORS.write().retain(|entry| entry.token != self.token);
     }
 }
 
@@ -313,7 +312,7 @@ pub fn register_audio_processor_with_cost(
     if crate::audio_fx::shipped(&id).is_some() {
         return Err(format!("{id} is a shipped audio effect"));
     }
-    let mut processors = PROCESSORS.write().unwrap_or_else(PoisonError::into_inner);
+    let mut processors = PROCESSORS.write();
     if processors.iter().any(|entry| entry.id == id) {
         return Err(format!("an audio processor is already registered as {id}"));
     }
@@ -331,11 +330,7 @@ pub fn register_audio_processor_with_cost(
 /// Whether a plugin registered a processor as `id`. A shipped processor is
 /// not registered.
 pub fn audio_processor_registered(id: &str) -> bool {
-    PROCESSORS
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .iter()
-        .any(|entry| entry.id == id)
+    PROCESSORS.read().iter().any(|entry| entry.id == id)
 }
 
 /// A created processor, or the fault its factory raised, with its fault and
@@ -354,7 +349,7 @@ type Created = (
 /// fault, for the caller to report.
 pub(crate) fn create_processor(id: &str, sample_rate: u32) -> Option<Created> {
     let registered = {
-        let processors = PROCESSORS.read().unwrap_or_else(PoisonError::into_inner);
+        let processors = PROCESSORS.read();
         processors.iter().find(|entry| entry.id == id).map(|entry| {
             (
                 Arc::clone(&entry.factory),

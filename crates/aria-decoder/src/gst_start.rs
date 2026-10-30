@@ -17,7 +17,8 @@
 //! held, and a seek the demuxer rejects each release the hold unseeked, and the
 //! pipeline prerolls at stream start.
 
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use parking_lot::{Condvar, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gstreamer as gst;
@@ -69,12 +70,8 @@ impl StartHold {
         hold
     }
 
-    fn lock(&self) -> MutexGuard<'_, Held> {
-        self.held.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
     fn block(self: &Arc<Self>, pad: gst::Pad) {
-        if self.lock().released {
+        if self.held.lock().released {
             return;
         }
         let hold = Arc::downgrade(self);
@@ -88,7 +85,7 @@ impl StartHold {
         ) else {
             return;
         };
-        let mut held = self.lock();
+        let mut held = self.held.lock();
         if held.released {
             drop(held);
             pad.remove_probe(id);
@@ -100,7 +97,7 @@ impl StartHold {
     /// A buffer reached held `pad`: keep it blocked until the hold is
     /// released.
     fn reach(&self, pad: &gst::Pad) -> gst::PadProbeReturn {
-        let mut held = self.lock();
+        let mut held = self.held.lock();
         if held.released {
             // `release` removes this probe once it takes the lock back.
             return gst::PadProbeReturn::Pass;
@@ -118,14 +115,11 @@ impl StartHold {
         let deadline = Instant::now() + within;
         loop {
             {
-                let held = self.lock();
+                let mut held = self.held.lock();
                 if let Some(pad) = &held.reached {
                     return Some(pad.clone());
                 }
-                let (held, _) = self
-                    .reached
-                    .wait_timeout(held, POLL)
-                    .unwrap_or_else(PoisonError::into_inner);
+                self.reached.wait_for(&mut held, POLL);
                 if let Some(pad) = &held.reached {
                     return Some(pad.clone());
                 }
@@ -139,7 +133,7 @@ impl StartHold {
     /// Unblock every held decoder. A decoder plugged afterwards is not held.
     pub(crate) fn release(&self) {
         let blocks = {
-            let mut held = self.lock();
+            let mut held = self.held.lock();
             held.released = true;
             std::mem::take(&mut held.blocks)
         };

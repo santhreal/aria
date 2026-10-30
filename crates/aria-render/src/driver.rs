@@ -22,10 +22,11 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, PoisonError, RwLock};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use aria_models::{ClipId, ClipParam, DriverCode, ParamValue};
+use parking_lot::{Mutex, RwLock};
 
 mod frame;
 
@@ -162,10 +163,7 @@ pub struct DriverLanguageRegistration {
 
 impl Drop for DriverLanguageRegistration {
     fn drop(&mut self) {
-        LANGUAGES
-            .write()
-            .unwrap_or_else(PoisonError::into_inner)
-            .retain(|entry| entry.token != self.token);
+        LANGUAGES.write().retain(|entry| entry.token != self.token);
         LANGUAGES_REVISION.fetch_add(1, Ordering::AcqRel);
     }
 }
@@ -186,7 +184,7 @@ pub fn register_driver_language(
     DriverCode::new(id.clone(), "")
         .validate()
         .map_err(|err| err.to_string())?;
-    let mut languages = LANGUAGES.write().unwrap_or_else(PoisonError::into_inner);
+    let mut languages = LANGUAGES.write();
     let token = NEXT_TOKEN.fetch_add(1, Ordering::Relaxed);
     languages.push(Language {
         id,
@@ -200,7 +198,7 @@ pub fn register_driver_language(
 /// The ids of every registered driver language, once each, in the order they
 /// were first registered.
 pub fn driver_languages() -> Vec<String> {
-    let languages = LANGUAGES.read().unwrap_or_else(PoisonError::into_inner);
+    let languages = LANGUAGES.read();
     let mut ids: Vec<String> = Vec::with_capacity(languages.len());
     for entry in languages.iter() {
         if !ids.contains(&entry.id) {
@@ -213,7 +211,6 @@ pub fn driver_languages() -> Vec<String> {
 fn language(id: &str) -> Option<Arc<dyn DriverLanguage>> {
     LANGUAGES
         .read()
-        .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .rev()
         .find(|entry| entry.id == id)
@@ -254,10 +251,7 @@ const PROGRAM_CACHE: usize = 512;
 /// the current set of languages.
 pub fn compile_driver(code: &DriverCode) -> Result<Arc<dyn DriverProgram>, String> {
     let revision = LANGUAGES_REVISION.load(Ordering::Acquire);
-    if let Some((at, compiled)) = PROGRAMS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(code)
+    if let Some((at, compiled)) = PROGRAMS.lock().get(code)
         && *at == revision
     {
         return compiled.clone();
@@ -279,7 +273,7 @@ pub fn compile_driver(code: &DriverCode) -> Result<Arc<dyn DriverProgram>, Strin
             ))
         }),
     };
-    let mut programs = PROGRAMS.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut programs = PROGRAMS.lock();
     if programs.len() >= PROGRAM_CACHE {
         programs.clear();
     }
@@ -318,23 +312,18 @@ fn code_hash(code: &DriverCode) -> u64 {
 /// The last failure of the driver on `param` of `clip`, if its last
 /// evaluation failed.
 pub fn driver_fault(clip: ClipId, param: ClipParam) -> Option<DriverFault> {
-    FAULTS
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(&(clip, param))
-        .map(|fault| DriverFault {
-            clip,
-            param,
-            message: fault.message.clone(),
-            stopped: fault.stopped,
-        })
+    FAULTS.read().get(&(clip, param)).map(|fault| DriverFault {
+        clip,
+        param,
+        message: fault.message.clone(),
+        stopped: fault.stopped,
+    })
 }
 
 /// Every driver whose last evaluation failed.
 pub fn driver_faults() -> Vec<DriverFault> {
     FAULTS
         .read()
-        .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .map(|(&(clip, param), fault)| DriverFault {
             clip,
@@ -355,7 +344,6 @@ fn record_fault(clip: ClipId, param: ClipParam, code: &DriverCode, message: Stri
     let key = (clip, param);
     if FAULTS
         .read()
-        .unwrap_or_else(PoisonError::into_inner)
         .get(&key)
         .is_some_and(|held| held.message == message && held.code == hash && held.stopped == stopped)
     {
@@ -364,35 +352,23 @@ fn record_fault(clip: ClipId, param: ClipParam, code: &DriverCode, message: Stri
     if stopped {
         tracing::warn!(%message, "driver stopped");
     }
-    FAULTS
-        .write()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(
-            key,
-            Fault {
-                message,
-                code: hash,
-                stopped,
-            },
-        );
+    FAULTS.write().insert(
+        key,
+        Fault {
+            message,
+            code: hash,
+            stopped,
+        },
+    );
     FAULTS_REVISION.fetch_add(1, Ordering::AcqRel);
 }
 
 fn clear_fault(clip: ClipId, param: ClipParam) {
     let key = (clip, param);
-    if !FAULTS
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .contains_key(&key)
-    {
+    if !FAULTS.read().contains_key(&key) {
         return;
     }
-    if FAULTS
-        .write()
-        .unwrap_or_else(PoisonError::into_inner)
-        .remove(&key)
-        .is_some()
-    {
+    if FAULTS.write().remove(&key).is_some() {
         FAULTS_REVISION.fetch_add(1, Ordering::AcqRel);
     }
 }
@@ -401,7 +377,6 @@ fn clear_fault(clip: ClipId, param: ClipParam) {
 fn is_stopped(clip: ClipId, param: ClipParam, code: &DriverCode) -> bool {
     FAULTS
         .read()
-        .unwrap_or_else(PoisonError::into_inner)
         .get(&(clip, param))
         .is_some_and(|fault| fault.stopped && fault.code == code_hash(code))
 }

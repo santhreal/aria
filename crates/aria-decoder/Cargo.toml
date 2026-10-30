@@ -9,6 +9,7 @@ description = "Platform-native video decoding behind the aria-core VideoDecoder 
 
 [dependencies]
 aria-core = { path = "../aria-core" }
+parking_lot = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 # Portable still-image decode (PNG/JPEG), pure Rust. Compiled on every

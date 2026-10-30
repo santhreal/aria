@@ -11,6 +11,7 @@ repository.workspace = true
 cap-std = "4"
 aria-analysis = { path = "../aria-analysis" }
 aria-cloud = { path = "../aria-cloud" }
+parking_lot.workspace = true
 same-file = "1"
 sha2 = "0.10"
 thiserror.workspace = true

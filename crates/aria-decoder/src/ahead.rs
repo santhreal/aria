@@ -23,9 +23,10 @@
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, LazyLock};
 
 use aria_core::{DecodeError, Rational, RationalTime, SourceInfo, VideoDecoder, VideoFrame};
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 #[path = "ahead_state.rs"]
 mod state;
@@ -102,7 +103,7 @@ fn work(jobs: &Mutex<Receiver<Job>>) {
         );
     }
     loop {
-        let job = jobs.lock().unwrap_or_else(PoisonError::into_inner).recv();
+        let job = jobs.lock().recv();
         let Ok(job) = job else {
             return;
         };
@@ -303,7 +304,7 @@ impl AheadDecoder {
     pub fn idle(&self) {
         let mut state = self.shared.lock();
         while state.queued {
-            state = self.shared.wait(state);
+            self.shared.wait(&mut state);
         }
     }
 
@@ -335,7 +336,7 @@ impl AheadDecoder {
             if state.want.is_none() && stop_fill(&state) {
                 state.stop = true;
             }
-            state = self.shared.wait(state);
+            self.shared.wait(&mut state);
         }
     }
 

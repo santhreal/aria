@@ -7,10 +7,11 @@
 //! importer, and analysis job opens media through the same functions.
 
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, PoisonError, RwLock};
 
 use aria_core::{AudioReader, DecodeError, VideoDecoder};
+use parking_lot::RwLock;
 
 use crate::probe::MediaProbe;
 
@@ -64,7 +65,6 @@ impl Drop for ExternalDecoderHandle {
     fn drop(&mut self) {
         CLAIMANTS
             .write()
-            .unwrap_or_else(PoisonError::into_inner)
             .retain(|claimant| claimant.serial != self.serial);
     }
 }
@@ -89,7 +89,7 @@ pub fn register_external_decoder(
         priority,
         decoder,
     });
-    let mut claimants = CLAIMANTS.write().unwrap_or_else(PoisonError::into_inner);
+    let mut claimants = CLAIMANTS.write();
     // Sorted by descending priority, then serial: a new entry goes after every
     // entry of its priority.
     let at = claimants.partition_point(|other| other.priority >= priority);
@@ -100,7 +100,7 @@ pub fn register_external_decoder(
 /// The lowercase extensions every registered decoder claims, sorted and
 /// without duplicates.
 pub fn external_decoder_extensions() -> Vec<String> {
-    let claimants = CLAIMANTS.read().unwrap_or_else(PoisonError::into_inner);
+    let claimants = CLAIMANTS.read();
     let mut out: Vec<String> = claimants
         .iter()
         .flat_map(|claimant| claimant.extensions.iter().cloned())
@@ -121,7 +121,6 @@ fn claimants(path: &Path) -> Vec<Arc<Claimant>> {
     };
     CLAIMANTS
         .read()
-        .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .filter(|claimant| claimant.extensions.contains(&ext))
         .cloned()

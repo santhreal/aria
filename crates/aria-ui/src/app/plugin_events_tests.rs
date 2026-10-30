@@ -19,7 +19,7 @@
 //! plugin rows. Both need a window.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aria_core::RationalTime;
@@ -30,6 +30,7 @@ use aria_plugin::{
     JobProgress, MediaOffline, MenuTarget, PlayheadMoved, Registration, RenderFinished, RenderKind,
     RenderResult, SelectionChanged,
 };
+use parking_lot::Mutex;
 
 use super::AppState;
 use super::premiere_tests::with_clip;
@@ -464,7 +465,6 @@ fn a_menu_collects_plugin_rows_in_mount_order_for_its_target() {
         let seen = Arc::clone(&seen);
         bus.waterfall::<ContextMenuRequested, _>(move |request| {
             seen.lock()
-                .expect("seen")
                 .push((request.target.clone(), Arc::clone(&request.project)));
             request.add("First", || {});
         })
@@ -476,7 +476,7 @@ fn a_menu_collects_plugin_rows_in_mount_order_for_its_target() {
     for (target, expected) in every_target() {
         state.open_context(target.clone(), 10.0, 10.0);
         assert_eq!(row_labels(&state), ["First", "Second"], "{target:?}");
-        let (read, project) = seen.lock().expect("seen").pop().expect("the handler ran");
+        let (read, project) = seen.lock().pop().expect("the handler ran");
         assert_eq!(read, expected);
         assert!(
             Arc::ptr_eq(&project, &state.host.snapshot()),

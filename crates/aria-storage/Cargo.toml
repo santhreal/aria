@@ -11,6 +11,9 @@ repository.workspace = true
 # standalone binaries. Autodiscovery would compile each sibling on its own.
 autotests = false
 
+[dependencies]
+parking_lot.workspace = true
+
 [lints]
 workspace = true
 

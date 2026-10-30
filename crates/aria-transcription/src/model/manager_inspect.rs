@@ -19,7 +19,7 @@ impl ModelManager {
         };
         let physical_path = snapshot.physical_model_path(spec);
         let lock = model_lock(&physical_path);
-        let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = lock.lock();
         snapshot.verify_mapping()?;
         self.inspect_path(spec, &snapshot)
     }
@@ -46,7 +46,7 @@ impl ModelManager {
         };
         let physical_path = snapshot.physical_model_path(spec);
         let lock = model_lock(&physical_path);
-        let _guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = lock.lock();
         snapshot.verify_mapping()?;
         self.remove_from_snapshot(spec, &snapshot)
     }

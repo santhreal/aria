@@ -39,7 +39,7 @@ impl Shared {
     /// otherwise hold it until a running job leaves.
     pub(crate) fn admit(self: &Arc<Self>, job: Waiting) {
         {
-            let mut queue = self.waiting.lock().expect("admission lock");
+            let mut queue = self.waiting.lock();
             let free = queue.is_empty()
                 && self
                     .concurrency_limit
@@ -63,7 +63,7 @@ impl Shared {
             let job = match next.take() {
                 Some(job) => job,
                 None => {
-                    let mut queue = self.waiting.lock().expect("admission lock");
+                    let mut queue = self.waiting.lock();
                     match queue.pop_front() {
                         Some(job) => job,
                         None => {

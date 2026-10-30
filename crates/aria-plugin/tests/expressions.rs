@@ -9,7 +9,9 @@
 //! language rewrites the error it is handed. The language itself is tested in
 //! `src/expressions/tests.rs`.
 
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, LazyLock};
+
+use parking_lot::{Mutex, MutexGuard};
 
 use aria_models::{
     ClipId, ClipParam, DriverCode, MediaSource, ParamValue, Project, Rational, RationalTime,
@@ -32,7 +34,7 @@ static SERIAL: Mutex<()> = Mutex::new(());
 
 fn serial() -> MutexGuard<'static, ()> {
     LazyLock::force(&REGISTERED);
-    SERIAL.lock().unwrap_or_else(PoisonError::into_inner)
+    SERIAL.lock()
 }
 
 /// A clip on V1 and a clip named "Logo" on V2, both on frames 0..48.

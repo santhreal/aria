@@ -2,11 +2,11 @@
 
 #![allow(unsafe_code)]
 
+use parking_lot::Mutex;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::backtrace::Backtrace;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Mutex, PoisonError};
 
 static NEXT_THREAD_TAG: AtomicU64 = AtomicU64::new(1);
 static TRACKED_THREAD_TAG: AtomicU64 = AtomicU64::new(0);
@@ -57,7 +57,7 @@ fn record_if_tracked(bytes: usize) {
 #[cold]
 fn capture_site(limit: usize) {
     CAPTURING.with(|cell| cell.set(true));
-    let mut sites = SITES.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut sites = SITES.lock();
     if sites.len() < limit {
         sites.push(Backtrace::force_capture());
     }
@@ -136,7 +136,7 @@ pub fn measure_thread_allocs<T>(work: impl FnOnce() -> T) -> (T, AllocStats) {
         allocations: TRACKED_ALLOC_COUNT.load(Ordering::Relaxed),
         bytes: TRACKED_ALLOC_BYTES.load(Ordering::Relaxed),
     };
-    let sites = std::mem::take(&mut *SITES.lock().unwrap_or_else(PoisonError::into_inner));
+    let sites = std::mem::take(&mut *SITES.lock());
     for (index, site) in sites.iter().enumerate() {
         eprintln!("=== allocation site {index}\n{site}");
     }

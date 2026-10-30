@@ -186,6 +186,9 @@ one giant change.
    and `missing_debug_implementations` are `deny`. An FFI or raw-memory module
    states `#![allow(unsafe_code)]` under its module docs; an isolated unsafe
    item or block states `#[allow(unsafe_code)]` with a `// SAFETY:` comment.
+   The clippy lint `disallowed_types` is `deny`, and `clippy.toml` lists
+   `std::sync::Mutex`, `std::sync::RwLock` and `std::sync::Condvar`: use the
+   `parking_lot` types, which do not poison.
    Rustdoc warnings fail the documentation build.
 4. Add or update tests. Engine and model changes should cover invariants and
    behavior; for undoable edits, test both the forward edit and its inverse.

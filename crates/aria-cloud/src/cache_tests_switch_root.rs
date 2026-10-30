@@ -168,7 +168,7 @@ fn switch_root_moves_cache_and_atomically_remaps_protected_paths() {
     assert!(moved_protected.exists());
     assert!(moved_disposable.exists());
     assert_eq!(
-        &*read_protected(&cache.protected_paths),
+        &*cache.protected_paths.read(),
         &HashSet::from([moved_protected.clone()])
     );
 
@@ -190,7 +190,7 @@ fn switch_root_closure_failure_rolls_back_all_memory_state() {
     let cache = DownloadCache::new(old_root.clone(), 1_000);
     let protected = write(&cache, "stock/project.mp4", 8);
     cache.protect_path(&protected).unwrap();
-    let protected_before = read_protected(&cache.protected_paths).clone();
+    let protected_before = cache.protected_paths.read().clone();
 
     let result = cache.switch_root(&new_root, |old, new| {
         assert_eq!(old, old_root);
@@ -205,7 +205,7 @@ fn switch_root_closure_failure_rolls_back_all_memory_state() {
             if error.kind() == io::ErrorKind::Other
     ));
     assert_eq!(cache.root(), old_root);
-    assert_eq!(&*read_protected(&cache.protected_paths), &protected_before);
+    assert_eq!(&*cache.protected_paths.read(), &protected_before);
     assert_eq!(
         cache.path_for("stock/after-failure.bin").unwrap(),
         old_root.join("stock/after-failure.bin")
@@ -390,27 +390,6 @@ fn concurrent_root_readers_observe_only_complete_old_or_new_paths() {
         reader.join().unwrap();
     }
     assert_eq!(observed.load(Ordering::Acquire), 0b11);
-}
-
-#[test]
-fn root_snapshots_and_switches_recover_from_lock_poisoning() {
-    let dir = tempfile::tempdir().unwrap();
-    let old_root = dir.path().join("old-cache");
-    let new_root = dir.path().join("new-cache");
-    std::fs::create_dir(&old_root).unwrap();
-    let cache = DownloadCache::new(old_root.clone(), 1_000);
-
-    let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _root = cache.root.write().unwrap();
-        panic!("poison root lock");
-    }));
-    assert!(poisoned.is_err());
-    assert_eq!(cache.root(), old_root);
-
-    cache
-        .switch_root(&new_root, |old, new| std::fs::rename(old, new))
-        .unwrap();
-    assert_eq!(cache.root(), new_root);
 }
 
 #[test]

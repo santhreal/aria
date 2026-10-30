@@ -14,7 +14,9 @@
 //! instances of a removed entry; they resolve to no spec, which is also what an
 //! effect from a plugin that is not installed resolves to.
 
-use std::sync::{Arc, LazyLock, PoisonError, RwLock};
+use std::sync::{Arc, LazyLock};
+
+use parking_lot::RwLock;
 
 use crate::audio_effects::{AudioEffectSpec, check_audio_effect};
 use crate::clip_types::{ClipTypeSpec, check_clip_type};
@@ -265,16 +267,12 @@ static AUDIO_EFFECTS: LazyLock<RwLock<Live<AudioEffectSpec>>> = LazyLock::new(||
 static CLIP_TYPES: LazyLock<RwLock<Live<ClipTypeSpec>>> =
     LazyLock::new(|| RwLock::new(Live::new(&[])));
 
-// A writer holds the lock only to push, remove, or rebuild a snapshot, none of
-// which leaves the table half-written, so a poisoned lock still holds a whole
-// table.
-
 fn read<T: Entry, R>(live: &RwLock<Live<T>>, f: impl FnOnce(&Live<T>) -> R) -> R {
-    f(&live.read().unwrap_or_else(PoisonError::into_inner))
+    f(&live.read())
 }
 
 fn write<T: Entry, R>(live: &RwLock<Live<T>>, f: impl FnOnce(&mut Live<T>) -> R) -> R {
-    f(&mut live.write().unwrap_or_else(PoisonError::into_inner))
+    f(&mut live.write())
 }
 
 pub(crate) fn effect_catalog() -> Catalog<EffectSpec> {

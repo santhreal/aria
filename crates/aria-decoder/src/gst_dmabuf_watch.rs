@@ -10,11 +10,12 @@
 //! reach `READY` gets no caps and is not marked, so `decodebin` can still plug
 //! the next one.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
+use parking_lot::Mutex;
 
 pub(crate) const DMABUF_MEMORY: &str = "memory:DMABuf";
 
@@ -46,7 +47,6 @@ impl DmabufWatch {
     pub(crate) fn decoders(&self) -> Vec<(String, gst::Caps)> {
         self.plugged
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
             .iter()
             .map(|factory| (factory.name().to_string(), src_caps(factory)))
             .collect()
@@ -71,11 +71,7 @@ pub(crate) fn watch_video_decoders(
         if starve_non_dmabuf && !offers_dmabuf(&src_caps(&factory)) {
             starve(element, &watch);
         }
-        watch
-            .plugged
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(factory);
+        watch.plugged.lock().push(factory);
     });
 }
 

@@ -20,7 +20,7 @@
 //! runs the destructors of the process's libraries: the warm-up is a
 //! [`OnceJob`].
 
-use std::sync::{Mutex, PoisonError};
+use parking_lot::Mutex;
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -33,7 +33,7 @@ static KEPT: Mutex<Vec<gst::Context>> = Mutex::new(Vec::new());
 /// Set every kept context on `pipeline`, and keep any new context type one of
 /// its elements creates. Call before the first state change.
 pub(crate) fn share(pipeline: &gst::Pipeline) {
-    for context in KEPT.lock().unwrap_or_else(PoisonError::into_inner).iter() {
+    for context in KEPT.lock().iter() {
         pipeline.set_context(context);
     }
     if let Some(bus) = pipeline.bus() {
@@ -54,7 +54,7 @@ fn keep(context: gst::Context) -> bool {
 
 /// Keep `context` in `store` unless one of its type is already there.
 fn keep_in(store: &Mutex<Vec<gst::Context>>, context: gst::Context) -> bool {
-    let mut kept = store.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut kept = store.lock();
     if kept
         .iter()
         .any(|held| held.context_type() == context.context_type())
@@ -82,7 +82,7 @@ pub fn open_on_kept_contexts(element: &gst::Element) -> bool {
 
 /// [`open_on_kept_contexts`] over the contexts in `store`.
 fn open_on(element: &gst::Element, store: &Mutex<Vec<gst::Context>>) -> bool {
-    let kept: Vec<gst::Context> = store.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    let kept: Vec<gst::Context> = store.lock().clone();
     for context in &kept {
         element.set_context(context);
     }
@@ -254,7 +254,6 @@ fn warm_device(launch: &str) -> Result<(), String> {
 #[cfg(test)]
 pub(crate) fn kept_types() -> Vec<String> {
     KEPT.lock()
-        .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .map(|context| context.context_type().to_owned())
         .collect()
@@ -361,7 +360,6 @@ mod tests {
         );
         let kept: Vec<String> = store
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
             .iter()
             .map(|c| format!("{} {}", c.context_type(), c.is_persistent()))
             .collect();
@@ -399,7 +397,7 @@ mod tests {
         if !opened {
             return;
         }
-        let kept = store.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let kept = store.lock().clone();
         assert!(!held.is_empty(), "{name} opened on no context");
         assert_eq!(
             kept.iter().map(|c| c.context_type()).collect::<Vec<_>>(),

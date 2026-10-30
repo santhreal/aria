@@ -109,11 +109,8 @@ impl GpuContext {
     /// second one, which is also what the driver loader needs (see
     /// `new_instance`).
     pub fn new_headless_blocking() -> Result<Self, CompositorError> {
-        static SHARED: std::sync::Mutex<Option<GpuContext>> = std::sync::Mutex::new(None);
-        // A poisoned lock holds a device that is either absent or perfectly
-        // usable: the panic that poisoned it happened in the caller's own
-        // bring-up, not in the handle.
-        let mut shared = SHARED.lock().unwrap_or_else(|held| held.into_inner());
+        static SHARED: parking_lot::Mutex<Option<GpuContext>> = parking_lot::Mutex::new(None);
+        let mut shared = SHARED.lock();
         if let Some(gpu) = shared.as_ref() {
             return Ok(gpu.share());
         }
@@ -184,13 +181,8 @@ impl GpuContext {
 /// a second thread using a shared instance fails with `BadAccess` instead of
 /// falling back.
 fn new_instance(backends: wgpu::Backends) -> wgpu::Instance {
-    // Read through a poisoned lock: a caller that panicked while holding it left
-    // no state behind, and refusing afterwards would turn one failed render into
-    // every later render failing.
-    static CREATING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _one_at_a_time = CREATING
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    static CREATING: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+    let _one_at_a_time = CREATING.lock();
     wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends,
         ..wgpu::InstanceDescriptor::new_without_display_handle()

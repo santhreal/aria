@@ -10,8 +10,8 @@
 //! oldest first. A take matches a returned buffer of the same length, most
 //! recently returned first, so one stream's buffers serve its next frames.
 
+use parking_lot::Mutex;
 use std::collections::VecDeque;
-use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use aria_core::{FrameData, VideoFrame};
 
@@ -75,16 +75,12 @@ impl PlanePool {
     }
 }
 
-fn pool() -> MutexGuard<'static, PlanePool> {
-    POOL.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
 /// A plane buffer of length `len`: a returned buffer of that length when the
 /// pool holds one, else a new zeroed buffer. The contents of a returned
 /// buffer are unspecified, so the caller writes every byte before reading.
 pub fn take_plane_vec(len: usize) -> Vec<u8> {
     let pooled = if PlanePool::keeps(len) {
-        pool().take(len)
+        POOL.lock().take(len)
     } else {
         None
     };
@@ -104,7 +100,7 @@ pub(crate) fn recycle_plane_vec(buf: Vec<u8>) {
     if !PlanePool::keeps(buf.capacity()) {
         return;
     }
-    let evicted = pool().put(buf);
+    let evicted = POOL.lock().put(buf);
     drop(evicted);
 }
 

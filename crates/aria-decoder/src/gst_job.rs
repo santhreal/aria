@@ -9,8 +9,8 @@
 //! may load a plugin on a thread of its own runs as a [`OnceJob`]: the decode
 //! device warm-up, and the encoder's codec probe in `aria-encoder`.
 
+use parking_lot::{Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 /// How long a process ending through `exit` waits for each started job to
@@ -63,7 +63,7 @@ impl OnceJob {
     /// before. Returns whether this call started it.
     pub fn start(&'static self, name: &str, job: impl FnOnce() + Send + 'static) -> bool {
         {
-            let mut stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut stage = self.stage.lock();
             if *stage != Stage::Idle || self.stopping() {
                 return false;
             }
@@ -85,17 +85,15 @@ impl OnceJob {
     }
 
     fn finish(&self) {
-        *self.stage.lock().unwrap_or_else(PoisonError::into_inner) = Stage::Finished;
+        *self.stage.lock() = Stage::Finished;
         self.finished.notify_all();
     }
 
     /// Block until a started job finishes; return at once when none runs.
     pub fn wait(&self) {
-        let stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-        let _finished = self
-            .finished
-            .wait_while(stage, |stage| *stage == Stage::Running)
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut stage = self.stage.lock();
+        self.finished
+            .wait_while(&mut stage, |stage| *stage == Stage::Running);
     }
 
     /// Whether [`OnceJob::stop`] was called. The job returns at its next step
@@ -109,17 +107,16 @@ impl OnceJob {
     /// job runs.
     pub fn stop(&self, bound: Duration) -> bool {
         self.stopping.store(true, Ordering::Release);
-        let stage = self.stage.lock().unwrap_or_else(PoisonError::into_inner);
-        let (stage, _) = self
+        let mut stage = self.stage.lock();
+        let _ = self
             .finished
-            .wait_timeout_while(stage, bound, |stage| *stage == Stage::Running)
-            .unwrap_or_else(PoisonError::into_inner);
+            .wait_while_for(&mut stage, |stage| *stage == Stage::Running, bound);
         *stage != Stage::Running
     }
 
     #[cfg(test)]
     pub(crate) fn stage(&self) -> Stage {
-        *self.stage.lock().unwrap_or_else(PoisonError::into_inner)
+        *self.stage.lock()
     }
 }
 
@@ -144,10 +141,7 @@ static STARTED: Mutex<Vec<&'static OnceJob>> = Mutex::new(Vec::new());
 /// Stop `job` when the process ends through `exit`.
 fn stop_at_exit(job: &'static OnceJob) {
     static REGISTERED: std::sync::Once = std::sync::Once::new();
-    STARTED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .push(job);
+    STARTED.lock().push(job);
     REGISTERED.call_once(|| {
         #[allow(unsafe_code)]
         // SAFETY: registers a handler with the C exit path; `stop_started`
@@ -166,7 +160,7 @@ fn stop_at_exit(job: &'static OnceJob) {
 /// [`MainExit`] drops, and again as an exit handler, for an `exit` called on
 /// another thread, which finds no job left once the first has run.
 extern "C" fn stop_started() {
-    let started = std::mem::take(&mut *STARTED.lock().unwrap_or_else(PoisonError::into_inner));
+    let started = std::mem::take(&mut *STARTED.lock());
     for job in started {
         job.stop(EXIT_WAIT);
     }

@@ -16,9 +16,10 @@ use aria_analysis::{
     vectorscope_cell,
 };
 use aria_core::RgbaImage;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
 
 /// Edge length of the drawn vectorscope, and the height of the waveform.
 pub const SCOPE_PX: u32 = 192;
@@ -262,9 +263,7 @@ fn cell_pixel(cell: usize, size: usize) -> u32 {
 /// each primary and secondary at 75 % and 100 %. A size is rendered once, then
 /// each frame copies the offsets into the reused canvas.
 fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
-    let mut cached = VECTORSCOPE_GRATICULES
-        .lock()
-        .expect("vectorscope graticule cache");
+    let mut cached = VECTORSCOPE_GRATICULES.lock();
     Arc::clone(cached.entry(size).or_insert_with(|| {
         let centre = cell_pixel(size / 2, size);
         let mut pixels = Vec::with_capacity(SCOPE_PX as usize * 3 + 360 + 12 * 32);

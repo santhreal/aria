@@ -49,10 +49,7 @@ impl Counts {
     }
 
     pub(crate) fn threads(&self) -> Vec<String> {
-        self.threads
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.threads.lock().clone()
     }
 }
 
@@ -189,11 +186,7 @@ impl VideoDecoder for Mock {
             Some(_) | None => {}
         }
         let name = std::thread::current().name().unwrap_or("").to_owned();
-        self.counts
-            .threads
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(name);
+        self.counts.threads.lock().push(name);
         let pts = rt(self.cursor);
         self.cursor += 1;
         self.last_pts = Some(pts);

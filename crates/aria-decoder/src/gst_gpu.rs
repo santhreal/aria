@@ -551,8 +551,8 @@ fn sample_to_dmabuf(sample: &gst::Sample) -> Option<DmaBufSurface> {
     Some(surface)
 }
 
-static REPORTED_MODIFIERS: std::sync::Mutex<Option<std::collections::HashSet<String>>> =
-    std::sync::Mutex::new(None);
+static REPORTED_MODIFIERS: parking_lot::Mutex<Option<std::collections::HashSet<String>>> =
+    parking_lot::Mutex::new(None);
 
 /// Vendor of a DRM format modifier, from its top byte.
 ///
@@ -579,7 +579,7 @@ fn modifier_vendor(modifier: u64) -> String {
 /// modifier the pipeline negotiated. Returns whether this call was the one that
 /// reported.
 pub(crate) fn report_tiled_fallback_for_source(surface: &DmaBufSurface, source_id: &str) -> bool {
-    let mut guard = REPORTED_MODIFIERS.lock().unwrap_or_else(|p| p.into_inner());
+    let mut guard = REPORTED_MODIFIERS.lock();
     let set = guard.get_or_insert_with(std::collections::HashSet::new);
     let key = format!("{}:{}", source_id, surface.modifier);
     if !set.insert(key) {

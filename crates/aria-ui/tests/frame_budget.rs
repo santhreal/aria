@@ -26,7 +26,7 @@
 //! being loaded, which happens once and is not a frame. The magnet index's
 //! contents are checked in the library's `magnet_index_tests`.
 
-use std::sync::{Mutex, PoisonError};
+use parking_lot::Mutex;
 use std::time::{Duration, Instant};
 
 use aria_models::{Project, Rational, RationalTime};
@@ -76,7 +76,7 @@ const SNAP_QUERY_BUDGET: Duration = Duration::from_millis(10);
 
 #[test]
 fn projection_stays_within_the_frame_budget() {
-    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _clock = CLOCK.lock();
     let project = workload::standard();
     let cost = project_cost(&project);
     assert!(
@@ -87,7 +87,7 @@ fn projection_stays_within_the_frame_budget() {
 
 #[test]
 fn building_the_magnet_index_stays_within_the_frame_budget() {
-    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _clock = CLOCK.lock();
     let store = project_to_ui(&workload::standard(), playhead(), &[]);
     let cost = fastest(5, || index_for(&store));
     assert!(
@@ -98,7 +98,7 @@ fn building_the_magnet_index_stays_within_the_frame_budget() {
 
 #[test]
 fn a_drags_worth_of_magnet_queries_stays_within_the_frame_budget() {
-    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _clock = CLOCK.lock();
     let store = project_to_ui(&workload::standard(), playhead(), &[]);
     let index = index_for(&store);
     let threshold = threshold_ticks(40.0, 24.0);
@@ -164,7 +164,7 @@ fn equal_work(rounds: usize, whole: &Project, split: &[Project]) -> (f64, Durati
 /// budget above is measured as well.
 #[test]
 fn projection_cost_follows_the_clip_count() {
-    let _clock = CLOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let _clock = CLOCK.lock();
     // A lane is a video/audio pair, so 32 lanes of 60 is 3840 clips, and each
     // of the eight pieces carries an eighth of them.
     let split: Vec<Project> = (0..8).map(|_| workload::sequence(4, 60)).collect();

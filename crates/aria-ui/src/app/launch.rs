@@ -17,9 +17,9 @@
 //! opened, and [`open_folder`] returns `Ok` because refusing would make the
 //! shipped status line depend on whether launching is enabled.
 
+use parking_lot::Mutex;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, PoisonError};
 
 /// Whether this process may start another application.
 static ENABLED: AtomicBool = AtomicBool::new(false);
@@ -57,7 +57,7 @@ pub fn file_manager() -> &'static str {
 /// The error is the spawn's, phrased with the program that failed, so a machine
 /// without a file manager says so instead of reporting a missing folder.
 pub fn open_folder(folder: &Path) -> Result<(), String> {
-    *LAST.lock().unwrap_or_else(PoisonError::into_inner) = Some(folder.to_path_buf());
+    *LAST.lock() = Some(folder.to_path_buf());
     if !desktop_launch_allowed() {
         return Ok(());
     }
@@ -71,16 +71,13 @@ pub fn open_folder(folder: &Path) -> Result<(), String> {
 
 /// The folder the last reveal asked for, if any.
 pub fn last_folder_asked_for() -> Option<PathBuf> {
-    LAST.lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .as_deref()
-        .map(Path::to_path_buf)
+    LAST.lock().as_deref().map(Path::to_path_buf)
 }
 
 /// Forget the last request, so a test can assert that the next call is the one
 /// it drove rather than a leftover from an earlier case.
 pub fn forget_last_folder() {
-    *LAST.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    *LAST.lock() = None;
 }
 
 #[cfg(test)]

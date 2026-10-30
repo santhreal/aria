@@ -25,11 +25,12 @@
 //! drops those frames (RASL) and outputs only the leading frames that decode
 //! (RADL), so for these codecs no time is reported.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
 
 use gstreamer as gst;
 use gstreamer::prelude::*;
+use parking_lot::Mutex;
 
 /// Slack for comparing buffer and segment times, which `qtdemux` derives
 /// from one sample table but rounds separately.
@@ -97,7 +98,7 @@ impl Default for KeySnap {
 impl KeySnap {
     /// Record that a key-unit seek to `target` is about to be sent.
     pub(crate) fn arm(&self, target: gst::ClockTime) {
-        let mut state = self.lock();
+        let mut state = self.state.lock();
         state.target = Some(target);
         state.phase = Phase::AwaitFlush;
         state.key = None;
@@ -116,21 +117,17 @@ impl KeySnap {
         if self.leading_decodes.load(Ordering::Acquire) {
             return None;
         }
-        self.lock().key
+        self.state.lock().key
     }
 
     #[cfg(test)]
     pub(crate) fn first_fed(&self) -> Option<gst::ClockTime> {
-        self.lock().first_fed
-    }
-
-    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+        self.state.lock().first_fed
     }
 
     /// Whether `buffer` reaches the decoder.
     fn admit(&self, buffer: &gst::BufferRef) -> bool {
-        let mut state = self.lock();
+        let mut state = self.state.lock();
         let key = !buffer.flags().contains(gst::BufferFlags::DELTA_UNIT);
         let pts = buffer.pts();
         let deciding = matches!(state.phase, Phase::Fresh { .. } | Phase::Skipping { .. });
@@ -193,7 +190,7 @@ impl KeySnap {
                 .store(leading_decodes, Ordering::Release);
             return;
         }
-        let mut state = self.lock();
+        let mut state = self.state.lock();
         match event.view() {
             gst::EventView::FlushStop(_) if state.target.is_some() => {
                 state.phase = Phase::AwaitSegment;

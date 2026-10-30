@@ -38,7 +38,7 @@ struct OtherService;
 struct Consumer {
     manifest: PluginManifest,
     /// What the plugin observed while mounting: whether each service resolved.
-    saw: std::sync::Mutex<Vec<(&'static str, bool)>>,
+    saw: parking_lot::Mutex<Vec<(&'static str, bool)>>,
 }
 
 impl Plugin for Consumer {
@@ -47,7 +47,7 @@ impl Plugin for Consumer {
     }
 
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
-        let mut saw = self.saw.lock().expect("saw");
+        let mut saw = self.saw.lock();
         saw.push(("TestService", ctx.try_get::<TestService>().is_some()));
         saw.push(("OtherService", ctx.has::<OtherService>()));
         Ok(())
@@ -57,7 +57,7 @@ impl Plugin for Consumer {
 fn consumer(uses: &'static [&'static str]) -> Consumer {
     Consumer {
         manifest: PluginManifest::new("test.consumer", "Consumer", "0.1.0", &[], uses),
-        saw: std::sync::Mutex::new(Vec::new()),
+        saw: parking_lot::Mutex::new(Vec::new()),
     }
 }
 
@@ -71,7 +71,7 @@ fn a_plugin_reads_only_the_services_it_declares() {
 
     let plugin = consumer(&["TestService"]);
     ctx.mount(&plugin).expect("mounts");
-    let saw = plugin.saw.lock().expect("saw").clone();
+    let saw = plugin.saw.lock().clone();
     assert_eq!(saw, vec![("TestService", true), ("OtherService", false)]);
 
     // The host's own context is unscoped, so the registry itself is unchanged.
@@ -177,7 +177,7 @@ fn panicking_plugin_resets_pending_and_records_failure() {
     assert_eq!(failures[0].id, "test.panic");
     assert!(failures[0].reason.contains("intentional mount panic"));
 
-    // Next mount must succeed and not be poisoned by pending
+    // Next mount must succeed after the failed one
     let good = consumer(&[]);
     assert!(ctx.mount(&good).is_ok());
 }
@@ -200,21 +200,17 @@ fn unmount_prunes_denials_and_failures() {
 #[test]
 fn mounting_and_unmounting_announce_the_plugin() {
     let ctx = PluginContext::new();
-    let seen: std::sync::Arc<std::sync::Mutex<Vec<(&str, String)>>> = Default::default();
+    let seen: std::sync::Arc<parking_lot::Mutex<Vec<(&str, String)>>> = Default::default();
     let _activated = {
         let seen = std::sync::Arc::clone(&seen);
         ctx.on_event::<PluginActivated, _>(move |e| {
-            seen.lock()
-                .expect("seen")
-                .push(("activated", e.id.to_string()));
+            seen.lock().push(("activated", e.id.to_string()));
         })
     };
     let _deactivated = {
         let seen = std::sync::Arc::clone(&seen);
         ctx.on_event::<PluginDeactivated, _>(move |e| {
-            seen.lock()
-                .expect("seen")
-                .push(("deactivated", e.id.to_string()));
+            seen.lock().push(("deactivated", e.id.to_string()));
         })
     };
 
@@ -228,7 +224,7 @@ fn mounting_and_unmounting_announce_the_plugin() {
 
     assert!(ctx.events().flush(std::time::Duration::from_secs(10)));
     assert_eq!(
-        *seen.lock().expect("seen"),
+        *seen.lock(),
         [
             ("activated", "test.consumer".to_owned()),
             ("deactivated", "test.consumer".to_owned())

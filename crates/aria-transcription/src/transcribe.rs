@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock};
+
+use parking_lot::{Condvar, Mutex};
 use std::time::Duration;
 
 use thiserror::Error;
@@ -55,7 +57,7 @@ impl ThreadBudget {
         C: CancellationCheck + ?Sized,
     {
         let requested = requested.clamp(1, self.capacity);
-        let mut available = self.available.lock().unwrap_or_else(|p| p.into_inner());
+        let mut available = self.available.lock();
         loop {
             if cancellation_requested(cancellation) {
                 return Err(TranscriptionError::Cancelled);
@@ -68,11 +70,7 @@ impl ThreadBudget {
                     threads,
                 });
             }
-            let (next, _) = self
-                .changed
-                .wait_timeout(available, THREAD_BUDGET_WAIT)
-                .unwrap_or_else(|p| p.into_inner());
-            available = next;
+            self.changed.wait_for(&mut available, THREAD_BUDGET_WAIT);
         }
     }
 }
@@ -84,11 +82,7 @@ struct ThreadLease<'a> {
 
 impl Drop for ThreadLease<'_> {
     fn drop(&mut self) {
-        let mut available = self
-            .budget
-            .available
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
+        let mut available = self.budget.available.lock();
         *available = available
             .saturating_add(self.threads)
             .min(self.budget.capacity);
@@ -579,10 +573,7 @@ mod tests {
         let third = budget.acquire(6, &NeverCancel).expect("returned permits");
         assert_eq!(third.threads, 6);
         drop((second, third));
-        assert_eq!(
-            *budget.available.lock().unwrap_or_else(|p| p.into_inner()),
-            budget.capacity
-        );
+        assert_eq!(*budget.available.lock(), budget.capacity);
     }
 
     /// WHY: a queued transcription must terminate within the condition-variable

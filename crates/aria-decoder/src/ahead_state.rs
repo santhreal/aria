@@ -1,8 +1,8 @@
 //! State machine and backward frame store for [`AheadDecoder`](super::AheadDecoder).
 
 use core::cmp::Ordering;
+use parking_lot::{Condvar, Mutex, MutexGuard};
 use std::collections::VecDeque;
-use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 
 use aria_core::{DecodeError, FrameData, Rational, RationalTime, VideoDecoder, VideoFrame};
 
@@ -488,13 +488,11 @@ pub(super) struct Shared {
 
 impl Shared {
     pub(super) fn lock(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+        self.state.lock()
     }
 
-    pub(super) fn wait<'a>(&self, state: MutexGuard<'a, State>) -> MutexGuard<'a, State> {
-        self.changed
-            .wait(state)
-            .unwrap_or_else(PoisonError::into_inner)
+    pub(super) fn wait(&self, state: &mut MutexGuard<'_, State>) {
+        self.changed.wait(state);
     }
 
     pub(super) fn wait_for_ahead(&self, mut state: MutexGuard<'_, State>, min_frames: usize) {
@@ -508,7 +506,7 @@ impl Shared {
             && !state.closed
             && !state.broken
         {
-            state = self.wait(state);
+            self.wait(&mut state);
         }
     }
 
@@ -523,7 +521,7 @@ impl Shared {
             && !state.closed
             && !state.broken
         {
-            state = self.wait(state);
+            self.wait(&mut state);
         }
     }
 }

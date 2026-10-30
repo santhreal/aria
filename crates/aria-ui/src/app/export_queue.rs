@@ -20,7 +20,7 @@
 //!   `Failed`, unblocking subsequent queue entries.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aria_core::count::counted;
@@ -28,6 +28,7 @@ use aria_jobs::{JobCompletion, JobId, JobManager};
 use aria_models::Project;
 use aria_plugin::{EventBus, ExportFinished, ExportStarted, PluginContext, RenderResult};
 use aria_render::ExportSettings;
+use parking_lot::Mutex;
 
 use super::jobs::{CommitGuard, file_label};
 
@@ -214,9 +215,9 @@ impl SharedQueue {
         state: ExportEntryState,
         error: Option<String>,
     ) {
-        let announcing = self.announcing.lock().expect("announce lock");
+        let announcing = self.announcing.lock();
         let finished = {
-            let mut inner = self.inner.lock().expect("queue lock");
+            let mut inner = self.inner.lock();
             let finished = inner
                 .entries
                 .iter_mut()
@@ -255,9 +256,9 @@ impl SharedQueue {
     }
 
     fn pump_internal(self: &Arc<Self>) {
-        let announcing = self.announcing.lock().expect("announce lock");
+        let announcing = self.announcing.lock();
         let to_spawn = {
-            let mut inner = self.inner.lock().expect("queue lock");
+            let mut inner = self.inner.lock();
             if let Some(running_id) = inner.running_id {
                 let still_running = inner
                     .entries
@@ -304,7 +305,7 @@ impl SharedQueue {
         self.events.post(ExportStarted { path: dest.clone() });
         drop(announcing);
         let runner = {
-            let r = self.runner.lock().expect("runner lock");
+            let r = self.runner.lock();
             Arc::clone(&*r)
         };
         let plugins = self.plugins.clone();
@@ -344,7 +345,7 @@ impl SharedQueue {
                 result
             });
 
-        let mut inner = self.inner.lock().expect("queue lock");
+        let mut inner = self.inner.lock();
         if let Some(entry) = inner.entries.iter_mut().find(|e| e.id == entry_id) {
             entry.job_id = Some(job_id);
             if entry.cancel_requested {
@@ -462,7 +463,7 @@ impl ExportQueue {
 
     /// Replace the export runner (useful for tests and scripted doubles).
     pub fn set_runner(&self, runner: ExportRunner) {
-        let mut r = self.shared.runner.lock().expect("runner lock");
+        let mut r = self.shared.runner.lock();
         *r = runner;
     }
 
@@ -480,7 +481,7 @@ impl ExportQueue {
         plugin_encoder: Option<String>,
     ) -> u64 {
         let id = {
-            let mut inner = self.shared.inner.lock().expect("queue lock");
+            let mut inner = self.shared.inner.lock();
             let id = inner.next_id;
             inner.next_id += 1;
             let label = format!("Exporting {}", file_label(&dest));
@@ -514,7 +515,7 @@ impl ExportQueue {
     pub fn cancel(&self, id: u64) -> bool {
         let job_to_cancel: Option<JobId>;
         {
-            let mut inner = self.shared.inner.lock().expect("queue lock");
+            let mut inner = self.shared.inner.lock();
             let Some(pos) = inner.entries.iter().position(|e| e.id == id) else {
                 return false;
             };
@@ -544,7 +545,7 @@ impl ExportQueue {
 
     /// Point-in-time view of all queue entries, in queue order.
     pub fn snapshot(&self) -> Vec<ExportQueueSnapshot> {
-        let inner = self.shared.inner.lock().expect("queue lock");
+        let inner = self.shared.inner.lock();
         inner
             .entries
             .iter()
@@ -588,13 +589,13 @@ impl ExportQueue {
 
     /// True when the queue has no active or pending jobs.
     pub fn is_idle(&self) -> bool {
-        let inner = self.shared.inner.lock().expect("queue lock");
+        let inner = self.shared.inner.lock();
         !inner.entries.iter().any(|e| !e.state.is_terminal())
     }
 
     /// Number of jobs currently queued or running.
     pub fn active_count(&self) -> usize {
-        let inner = self.shared.inner.lock().expect("queue lock");
+        let inner = self.shared.inner.lock();
         inner
             .entries
             .iter()

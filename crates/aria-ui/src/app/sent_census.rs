@@ -10,7 +10,9 @@
 //! including the ones that are refused. That is the right signal for "does a
 //! control exist that asks for this": the ask is the command, not its outcome.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use aria_plugin::{CommandProposed, Registration};
 
@@ -33,15 +35,13 @@ impl Watch {
         let reg = state
             .ctx
             .on_waterfall::<CommandProposed, _>(move |proposed| {
-                sink.lock()
-                    .expect("the recorder outlives every dispatch")
-                    .push(proposed.command.label());
+                sink.lock().push(proposed.command.label());
             });
         Self { seen, _reg: reg }
     }
 
     /// Take what has been sent so far, emptying the record.
     pub(super) fn take(&self) -> Vec<&'static str> {
-        std::mem::take(&mut *self.seen.lock().expect("the recorder is not poisoned"))
+        std::mem::take(&mut *self.seen.lock())
     }
 }

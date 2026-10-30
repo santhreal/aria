@@ -19,7 +19,9 @@
 //! alone cannot see.
 
 use std::collections::BTreeSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 use aria_commands::{Command, EditCommand, Patch, SoundPlacement, SourceChannel};
 use aria_plugin::CommandProposed;
@@ -131,14 +133,12 @@ fn edits_sent(state: &mut AppState, pick: Pick) -> Vec<EditCommand> {
         .ctx
         .on_waterfall::<CommandProposed, _>(move |proposed| {
             if let Command::Edit(edit) = &proposed.command {
-                sink.lock()
-                    .expect("the recorder is not poisoned")
-                    .push(edit.clone());
+                sink.lock().push(edit.clone());
             }
         });
     press(state, pick);
     drop(registration);
-    std::mem::take(&mut *seen.lock().expect("the recorder is not poisoned"))
+    std::mem::take(&mut *seen.lock())
 }
 
 /// The one `Source edit` among `sent`, as `(ripple, fill, track, sound)`.

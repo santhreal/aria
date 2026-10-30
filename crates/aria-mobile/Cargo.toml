@@ -22,6 +22,7 @@ aria-engine = { path = "../aria-engine" }
 aria-models = { path = "../aria-models" }
 aria-render = { path = "../aria-render" }
 log = "0.4"
+parking_lot.workspace = true
 png = "0.17"
 serde.workspace = true
 serde_json.workspace = true

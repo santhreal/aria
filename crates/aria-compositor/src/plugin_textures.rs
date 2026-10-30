@@ -11,9 +11,10 @@
 //! and effects already registered keep drawing with the image they were given.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, PoisonError, RwLock};
+use std::sync::{Arc, LazyLock};
 
 use aria_core::RgbaImage;
+use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 
 /// Largest side of a plugin texture, in pixels.
@@ -75,11 +76,7 @@ static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
 
 /// The texture registered under `id`, or `None`.
 pub fn plugin_texture(id: &str) -> Option<Arc<PluginTexture>> {
-    TEXTURES
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(id)
-        .cloned()
+    TEXTURES.read().get(id).cloned()
 }
 
 /// A registered texture. Dropping it removes the id.
@@ -97,7 +94,7 @@ impl TextureRegistration {
 
 impl Drop for TextureRegistration {
     fn drop(&mut self) {
-        let mut table = TEXTURES.write().unwrap_or_else(PoisonError::into_inner);
+        let mut table = TEXTURES.write();
         if table
             .get(self.texture.id())
             .is_some_and(|held| held.serial == self.texture.serial)
@@ -160,7 +157,7 @@ pub fn register_texture(
         }
     }
     let digest = digest(width, height, &premultiplied);
-    let mut table = TEXTURES.write().unwrap_or_else(PoisonError::into_inner);
+    let mut table = TEXTURES.write();
     if table.contains_key(&id) {
         return Err(refuse("already registered".into()));
     }

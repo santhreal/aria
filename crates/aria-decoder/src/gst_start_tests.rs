@@ -69,9 +69,7 @@ fn decoded_times(bin: &gst::Bin) -> Arc<Mutex<Vec<gst::ClockTime>>> {
             if let Some(gst::PadProbeData::Buffer(buffer)) = &info.data
                 && let Some(pts) = buffer.pts()
             {
-                seen.lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .push(pts);
+                seen.lock().push(pts);
             }
             gst::PadProbeReturn::Ok
         });
@@ -148,13 +146,7 @@ fn a_held_pipeline_prerolls_only_once_released() {
     let (held, ..) = pipeline.state(gst::ClockTime::from_mseconds(300));
     assert_eq!(held, Ok(gst::StateChangeSuccess::Async));
     assert_eq!(preroll_pts(&sink), None, "a held pipeline prerolled");
-    assert!(
-        decoded
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .is_empty(),
-        "a held decoder decoded a frame"
-    );
+    assert!(decoded.lock().is_empty(), "a held decoder decoded a frame");
 
     hold.release();
     let (released, ..) = pipeline.state(gst::ClockTime::from_seconds(PREROLL.as_secs()));
@@ -173,10 +165,7 @@ fn a_held_seek_decodes_nothing_before_the_sync_sample() {
         let (prerolled, ..) = pipeline.state(gst::ClockTime::from_seconds(PREROLL.as_secs()));
         assert_eq!(prerolled, Ok(gst::StateChangeSuccess::Success));
         assert_eq!(preroll_pts(&sink), Some(ms(key)));
-        let decoded = decoded
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
+        let decoded = decoded.lock().clone();
         assert_eq!(
             decoded.first(),
             Some(&ms(key)),

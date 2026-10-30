@@ -24,8 +24,9 @@
 
 #![allow(unsafe_code)]
 
+use parking_lot::{Condvar, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
 use std::time::Instant;
 
 use windows::Win32::Foundation::{CloseHandle, GENERIC_ALL, HANDLE};
@@ -147,7 +148,7 @@ impl SharedNv12Pool {
     ) -> Result<PooledFrame, DecodeError> {
         let (slot_index, slot_id, slot_handle, texture) = {
             let deadline = Instant::now() + SLOT_ACQUIRE_TIMEOUT;
-            let mut slots = self.slots.lock().expect("pool lock");
+            let mut slots = self.slots.lock();
             let index = loop {
                 let free = slots.iter().position(|slot| !slot.busy);
                 let expired = Instant::now() >= deadline;
@@ -159,11 +160,7 @@ impl SharedNv12Pool {
                         break slots.len() - 1;
                     }
                     SlotChoice::Wait => {
-                        let (next, _) = self
-                            .slot_released
-                            .wait_timeout(slots, SLOT_WAIT)
-                            .expect("pool lock");
-                        slots = next;
+                        self.slot_released.wait_for(&mut slots, SLOT_WAIT);
                     }
                     SlotChoice::Exhausted => {
                         return Err(DecodeError::Decode(format!(
@@ -259,7 +256,7 @@ impl SharedNv12Pool {
 
     fn release(&self, slot_index: usize) {
         let released = {
-            let mut slots = self.slots.lock().expect("pool lock");
+            let mut slots = self.slots.lock();
             slots.get_mut(slot_index).is_some_and(|slot| {
                 slot.busy = false;
                 true

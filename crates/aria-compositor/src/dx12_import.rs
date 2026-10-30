@@ -40,8 +40,8 @@
 //! The module calls Direct3D 12 and Win32 handle APIs through COM and `wgpu-hal` raw-texture import and is `unsafe` throughout.
 
 #![allow(unsafe_code)]
+use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use std::sync::Mutex;
 
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Graphics::Direct3D12::{ID3D12Device, ID3D12Fence, ID3D12Resource};
@@ -160,7 +160,7 @@ impl Dx12SurfaceImporter {
 
         self.wait_for_frame(&payload)?;
 
-        let mut textures = self.textures.lock().expect("texture cache lock");
+        let mut textures = self.textures.lock();
         let entry = match textures.entry(payload.texture_id) {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
@@ -186,7 +186,7 @@ impl Dx12SurfaceImporter {
     /// the GPU. Almost always a no-op read of the fence's completed value.
     fn wait_for_frame(&self, payload: &D3d11SharedSurface) -> Result<(), CompositorError> {
         let fence = {
-            let mut fences = self.fences.lock().expect("fence cache lock");
+            let mut fences = self.fences.lock();
             if fences.len() > MAX_CACHED_FENCES {
                 fences.clear();
             }

@@ -28,12 +28,13 @@
 
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, PoisonError, RwLock};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use aria_models::{
     EffectBounds, EffectParamKind, EffectParamSpec, EffectSpec, GraphPass, TransitionSpec,
 };
+use parking_lot::{Mutex, RwLock};
 use rustc_hash::FxHashMap;
 
 use crate::cpu_effect::{
@@ -252,10 +253,7 @@ impl RegisteredPass {
 
     /// The device or panic error that kept the pass from drawing, if one did.
     pub fn failure(&self) -> Option<String> {
-        self.failure
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.failure.lock().clone()
     }
 
     pub(crate) fn serial(&self) -> u64 {
@@ -271,7 +269,7 @@ impl RegisteredPass {
     }
 
     pub(crate) fn record_failure(&self, message: String) {
-        *self.failure.lock().unwrap_or_else(PoisonError::into_inner) = Some(message);
+        *self.failure.lock() = Some(message);
     }
 
     /// Run the CPU callback on `input` and `output`. Returns `true` when
@@ -380,11 +378,7 @@ static TRANSITIONS: LazyLock<Table> = LazyLock::new(Table::default);
 static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
 
 fn lookup(table: &Table, id: &str) -> Option<Arc<RegisteredPass>> {
-    table
-        .read()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get(id)
-        .cloned()
+    table.read().get(id).cloned()
 }
 
 /// The registered effect `id`, or `None`.
@@ -452,11 +446,7 @@ impl PassRegistration {
 impl Drop for PassRegistration {
     fn drop(&mut self) {
         self.pass.removed.store(true, Ordering::Release);
-        let mut table = self
-            .kind
-            .table()
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut table = self.kind.table().write();
         if table
             .get(self.pass.id())
             .is_some_and(|held| held.serial == self.pass.serial)
@@ -717,10 +707,7 @@ fn insert(
         removed: AtomicBool::new(false),
         failure: Mutex::new(None),
     });
-    kind.table()
-        .write()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(id, Arc::clone(&pass));
+    kind.table().write().insert(id, Arc::clone(&pass));
     PassRegistration {
         pass,
         kind,

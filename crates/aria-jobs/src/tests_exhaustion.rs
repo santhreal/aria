@@ -7,7 +7,7 @@
 //! through `spawn`, the one admission path. It does not cover a job that never
 //! finishes: the jobs waiting behind it wait with it.
 
-use std::sync::Condvar;
+use parking_lot::Condvar;
 use std::sync::atomic::AtomicUsize;
 use std::time::Instant;
 
@@ -81,7 +81,7 @@ fn assert_slots_freed(manager: &JobManager) {
         );
         std::thread::sleep(Duration::from_millis(1));
     }
-    assert!(manager.shared.waiting.lock().unwrap().is_empty());
+    assert!(manager.shared.waiting.lock().is_empty());
 }
 
 /// A gate jobs wait on until a test opens it.
@@ -93,16 +93,15 @@ struct Gate {
 
 impl Gate {
     fn pass(&self) {
-        let open = self.open.lock().unwrap();
-        let (_open, timeout) = self
+        let mut open = self.open.lock();
+        let timeout = self
             .changed
-            .wait_timeout_while(open, SETTLE, |open| !*open)
-            .unwrap();
+            .wait_while_for(&mut open, |open| !*open, SETTLE);
         assert!(!timeout.timed_out(), "the gate never opened");
     }
 
     fn open(&self) {
-        *self.open.lock().unwrap() = true;
+        *self.open.lock() = true;
         self.changed.notify_all();
     }
 }
@@ -219,7 +218,7 @@ fn waiting_jobs_start_in_spawn_order() {
         .map(|i| {
             let order = Arc::clone(&order);
             watched.manager.spawn(format!("ordered-{i}"), move |_| {
-                order.lock().unwrap().push(i);
+                order.lock().push(i);
                 Ok(String::new())
             })
         })
@@ -227,7 +226,7 @@ fn waiting_jobs_start_in_spawn_order() {
     gate.open();
     watched.settle(&ids);
     watched.settle(&[holder]);
-    assert_eq!(*order.lock().unwrap(), [0, 1, 2, 3, 4]);
+    assert_eq!(*order.lock(), [0, 1, 2, 3, 4]);
 }
 
 #[test]

@@ -241,20 +241,20 @@ fn the_project_format_is_the_host_s_and_no_plugin_set_changes_it() {
 #[test]
 fn the_first_plugin_to_claim_a_path_wins_and_the_rest_are_not_asked() {
     let ctx = PluginContext::new();
-    let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let asked = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
     let first = std::sync::Arc::clone(&asked);
     let second = std::sync::Arc::clone(&asked);
     let third = std::sync::Arc::clone(&asked);
     let _a = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
-        first.lock().unwrap().push("a");
+        first.lock().push("a");
         None
     });
     let _b = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
-        second.lock().unwrap().push("b");
+        second.lock().push("b");
         Some(DropAction::ApplyLut)
     });
     let _c = ctx.on_serial::<ResolveDropped, DropAction, _>(move |_| {
-        third.lock().unwrap().push("c");
+        third.lock().push("c");
         Some(DropAction::InstallSkill)
     });
 
@@ -263,7 +263,7 @@ fn the_first_plugin_to_claim_a_path_wins_and_the_rest_are_not_asked() {
         .serial::<ResolveDropped, DropAction>(&ResolveDropped::path(PathBuf::from("anything")));
     assert_eq!(claimed, Some(DropAction::ApplyLut));
     assert_eq!(
-        asked.lock().unwrap().as_slice(),
+        asked.lock().as_slice(),
         &["a", "b"],
         "handlers are asked in registration order and stop at the first claim"
     );
@@ -303,17 +303,17 @@ fn the_first_plugin_to_claim_a_path_wins_and_the_rest_are_not_asked() {
 #[test]
 fn the_first_refusal_wins_and_the_rest_of_the_chain_does_not_run() {
     let ctx = PluginContext::new();
-    let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let asked = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
     let first = std::sync::Arc::clone(&asked);
     let second = std::sync::Arc::clone(&asked);
     let third = std::sync::Arc::clone(&asked);
-    let _a = ctx.on_waterfall::<CommandProposed, _>(move |_| first.lock().unwrap().push("a"));
+    let _a = ctx.on_waterfall::<CommandProposed, _>(move |_| first.lock().push("a"));
     let _b = ctx.on_waterfall::<CommandProposed, _>(move |proposed| {
-        second.lock().unwrap().push("b");
+        second.lock().push("b");
         proposed.refuse("b said no");
     });
     let _c = ctx.on_waterfall::<CommandProposed, _>(move |proposed| {
-        third.lock().unwrap().push("c");
+        third.lock().push("c");
         proposed.refuse("c said no");
     });
 
@@ -324,7 +324,7 @@ fn the_first_refusal_wins_and_the_rest_of_the_chain_does_not_run() {
     ctx.events().emit_waterfall(&mut proposed);
     assert_eq!(proposed.veto.as_deref(), Some("b said no"));
     assert_eq!(
-        asked.lock().unwrap().as_slice(),
+        asked.lock().as_slice(),
         &["a", "b"],
         "handlers run in registration order and stop at the refusal"
     );

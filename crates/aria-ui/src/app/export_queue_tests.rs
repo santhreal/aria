@@ -27,14 +27,15 @@
 //! which is covered by `aria-render`.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use aria_jobs::{JobCompletion, JobManager};
 use aria_models::{Project, Rational};
 use aria_plugin::{EventBus, ExportFinished, ExportStarted, Registration, RenderResult};
 use aria_render::ExportSettings;
+use parking_lot::Mutex;
 
 use super::export_queue::{ExportEntryState, ExportQueue, ExportRunner};
 use super::jobs::file_label;
@@ -127,7 +128,7 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
     let runner: ExportRunner = Arc::new(move |context, _project, dest, _settings| {
         let name = file_label(dest);
         {
-            let mut log = order_clone.lock().expect("lock");
+            let mut log = order_clone.lock();
             log.push(format!("start:{name}"));
         }
         for frame in 1..=10 {
@@ -138,7 +139,7 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
             std::thread::sleep(Duration::from_millis(2));
         }
         {
-            let mut log = order_clone.lock().expect("lock");
+            let mut log = order_clone.lock();
             log.push(format!("end:{name}"));
         }
         let _ = context.try_begin_commit();
@@ -168,7 +169,7 @@ fn two_enqueued_jobs_run_in_order_and_both_report_done() {
     assert!(e1.terminal);
     assert!(e2.terminal);
 
-    let log = order.lock().expect("lock").to_vec();
+    let log = order.lock().to_vec();
     assert_eq!(
         log,
         vec![

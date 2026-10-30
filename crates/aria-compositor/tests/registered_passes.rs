@@ -707,8 +707,8 @@ fn cpu_effect_returning_err_passes_frame_through_and_reports_fault() {
     let mut comp = Compositor::new(&gpu);
     let should_fail = Arc::new(AtomicBool::new(true));
     let flag = Arc::clone(&should_fail);
-    let faults: Arc<std::sync::Mutex<Vec<EffectFault>>> =
-        Arc::new(std::sync::Mutex::new(Vec::new()));
+    let faults: Arc<parking_lot::Mutex<Vec<EffectFault>>> =
+        Arc::new(parking_lot::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&faults);
 
     let _fx = register_effect_with_fault_sink(
@@ -738,7 +738,7 @@ fn cpu_effect_returning_err_passes_frame_through_and_reports_fault() {
             },
         ),
         Some(Arc::new(move |fault: &EffectFault| {
-            recorded.lock().expect("faults").push(fault.clone());
+            recorded.lock().push(fault.clone());
         })),
     )
     .expect("registers fallible cpu effect");
@@ -751,7 +751,7 @@ fn cpu_effect_returning_err_passes_frame_through_and_reports_fault() {
     );
     assert_px(&passthrough, 32, 8, [200, 100, 50, 255], 0);
     assert_eq!(
-        *faults.lock().expect("faults"),
+        *faults.lock(),
         vec![EffectFault {
             effect_id: "test.cpu.fallible".into(),
             kind: EffectFaultKind::Failed("transient decode hiccup".into()),
@@ -773,8 +773,8 @@ fn cpu_effect_returning_err_passes_frame_through_and_reports_fault() {
 fn cpu_effect_panic_is_caught_records_failure_and_keeps_chain_rendering() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
-    let faults: Arc<std::sync::Mutex<Vec<EffectFault>>> =
-        Arc::new(std::sync::Mutex::new(Vec::new()));
+    let faults: Arc<parking_lot::Mutex<Vec<EffectFault>>> =
+        Arc::new(parking_lot::Mutex::new(Vec::new()));
     let recorded = Arc::clone(&faults);
 
     let fx = register_effect_with_fault_sink(
@@ -797,7 +797,7 @@ fn cpu_effect_panic_is_caught_records_failure_and_keeps_chain_rendering() {
             },
         ),
         Some(Arc::new(move |fault: &EffectFault| {
-            recorded.lock().expect("faults").push(fault.clone());
+            recorded.lock().push(fault.clone());
         })),
     )
     .expect("registers panicking cpu effect");
@@ -816,7 +816,7 @@ fn cpu_effect_panic_is_caught_records_failure_and_keeps_chain_rendering() {
         Some("panic: out of bounds in cpu effect")
     );
     assert_eq!(
-        *faults.lock().expect("faults"),
+        *faults.lock(),
         vec![EffectFault {
             effect_id: "test.cpu.panics".into(),
             kind: EffectFaultKind::Panicked("out of bounds in cpu effect".into()),

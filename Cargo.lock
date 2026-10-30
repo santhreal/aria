@@ -302,6 +302,7 @@ dependencies = [
 name = "aria-analysis"
 version = "0.7.0-alpha.0"
 dependencies = [
+ "parking_lot",
  "rusqlite",
  "tempfile",
 ]
@@ -355,6 +356,7 @@ dependencies = [
 name = "aria-cloud"
 version = "0.7.0-alpha.0"
 dependencies = [
+ "parking_lot",
  "serde",
  "serde_json",
  "tempfile",
@@ -391,6 +393,7 @@ dependencies = [
  "naga",
  "objc2 0.6.4",
  "objc2-metal 0.3.2",
+ "parking_lot",
  "pollster 0.4.0",
  "rustc-hash 2.1.2",
  "sha2",
@@ -433,6 +436,7 @@ dependencies = [
  "objc2-core-video",
  "objc2-foundation 0.3.2",
  "objc2-image-io",
+ "parking_lot",
  "peniko",
  "png 0.17.16",
  "rustix",
@@ -535,6 +539,9 @@ dependencies = [
 [[package]]
 name = "aria-jobs"
 version = "0.7.0-alpha.0"
+dependencies = [
+ "parking_lot",
+]
 
 [[package]]
 name = "aria-mobile"
@@ -550,6 +557,7 @@ dependencies = [
  "aria-render",
  "jni",
  "log",
+ "parking_lot",
  "png 0.17.16",
  "serde",
  "serde_json",
@@ -562,6 +570,7 @@ version = "0.7.0-alpha.0"
 dependencies = [
  "aria-core",
  "criterion",
+ "parking_lot",
  "rustc-hash 2.1.2",
  "serde",
  "serde_json",
@@ -695,6 +704,9 @@ dependencies = [
 [[package]]
 name = "aria-storage"
 version = "0.7.0-alpha.0"
+dependencies = [
+ "parking_lot",
+]
 
 [[package]]
 name = "aria-text"
@@ -712,6 +724,7 @@ dependencies = [
  "aria-analysis",
  "aria-cloud",
  "cap-std",
+ "parking_lot",
  "same-file",
  "serde_json",
  "sha2",

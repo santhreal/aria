@@ -396,13 +396,14 @@ mod lottie_cache_tests {
 #[cfg(test)]
 mod lut_loading_tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
+    use parking_lot::Mutex;
+    use std::sync::LazyLock;
     use std::thread::ThreadId;
 
     static LOADER_THREAD: LazyLock<Mutex<Option<ThreadId>>> = LazyLock::new(|| Mutex::new(None));
 
     fn record_loader_thread(_: &str) -> CubeLutLoad {
-        *LOADER_THREAD.lock().expect("loader thread record") = Some(std::thread::current().id());
+        *LOADER_THREAD.lock() = Some(std::thread::current().id());
         CubeLutLoad::Failed
     }
 
@@ -414,10 +415,7 @@ mod lut_loading_tests {
             .expect("loader result");
         assert!(matches!(result, CubeLutLoad::Failed));
         assert_ne!(
-            LOADER_THREAD
-                .lock()
-                .expect("loader thread record")
-                .expect("loader ran"),
+            LOADER_THREAD.lock().expect("loader ran"),
             realization_thread
         );
     }

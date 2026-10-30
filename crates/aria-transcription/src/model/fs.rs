@@ -3,7 +3,9 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, TryLockError, Weak};
+use std::sync::{Arc, OnceLock, Weak};
+
+use parking_lot::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use super::catalog::{ModelIntegrityError, ModelManagerError, ModelSpec};
@@ -273,16 +275,11 @@ pub(super) fn lock_model_with_cancellation<'a>(
     loop {
         check_cancelled(cancelled)?;
         match lock.try_lock() {
-            Ok(guard) => {
+            Some(guard) => {
                 check_cancelled(cancelled)?;
                 return Ok(guard);
             }
-            Err(TryLockError::Poisoned(poisoned)) => {
-                let guard = poisoned.into_inner();
-                check_cancelled(cancelled)?;
-                return Ok(guard);
-            }
-            Err(TryLockError::WouldBlock) => {
+            None => {
                 std::thread::yield_now();
                 std::thread::sleep(MODEL_LOCK_RETRY_DELAY);
             }
@@ -292,9 +289,7 @@ pub(super) fn lock_model_with_cancellation<'a>(
 
 pub(super) fn model_lock(path: &Path) -> Arc<Mutex<()>> {
     let locks = MODEL_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut locks = locks
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut locks = locks.lock();
     locks.retain(|_, lock| lock.strong_count() > 0);
     if let Some(lock) = locks.get(path).and_then(Weak::upgrade) {
         return lock;
