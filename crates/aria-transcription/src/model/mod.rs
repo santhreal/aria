@@ -2,8 +2,8 @@
 
 mod catalog;
 mod download;
-// File is `fs.rs` per the split layout; module name avoids shadowing `std::fs`
-// for unit tests that resolve filesystem helpers via `use super::*`.
+// File is `fs.rs` per the split layout; the module is named `filesystem` so it
+// never shadows `std::fs` in a module that imports both.
 #[path = "fs.rs"]
 mod filesystem;
 mod manager;
@@ -16,34 +16,3 @@ pub use catalog::{
 };
 pub use download::{DownloadReader, HttpDownloader, ModelDownloader};
 pub use manager::ModelManager;
-
-// Keep private helpers and the std items former `model.rs` imported in the
-// `model` namespace so unit tests (`use super::*`) keep compiling after the split.
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::fs;
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::io::{self, Read, Write};
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::path::{Path, PathBuf};
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::sync::Arc;
-#[cfg(test)]
-#[allow(unused_imports)]
-use std::time::Duration;
-
-#[cfg(test)]
-#[allow(unused_imports)]
-use catalog::*;
-#[cfg(test)]
-#[allow(unused_imports)]
-use download::*;
-#[cfg(test)]
-#[allow(unused_imports)]
-use filesystem::*;
-#[cfg(test)]
-#[allow(unused_imports)]
-use manager::*;

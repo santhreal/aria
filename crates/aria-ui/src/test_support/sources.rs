@@ -108,7 +108,7 @@ pub(crate) fn production_sources() -> Vec<(String, String)> {
 
 /// Each line of `text`, as `str::lines` splits it, with comments and the
 /// contents of string and character literals replaced by spaces.
-fn code_lines(text: &str) -> Vec<String> {
+pub(crate) fn code_lines(text: &str) -> Vec<String> {
     lex(text, None)
 }
 

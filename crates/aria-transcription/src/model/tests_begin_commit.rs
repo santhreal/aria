@@ -1,6 +1,7 @@
 //! `begin_commit` cases.
 
 use super::*;
+use crate::model::filesystem::{never_cancelled, validate_spec};
 
 #[test]
 fn catalog_has_verified_base_en_constants() {

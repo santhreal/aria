@@ -50,6 +50,10 @@ fn remove_deletes_only_the_known_regular_file() {
 #[cfg(windows)]
 #[test]
 fn windows_reparse_attribute_helper_rejects_all_reparse_points() {
+    use crate::model::filesystem::{
+        WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT, windows_attributes_are_reparse_point,
+    };
+
     assert!(windows_attributes_are_reparse_point(
         WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
     ));

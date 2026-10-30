@@ -319,6 +319,9 @@ mod dependency_direction;
 mod file_length;
 
 #[cfg(test)]
+mod import_suppressions;
+
+#[cfg(test)]
 mod shell_draw;
 
 #[cfg(test)]

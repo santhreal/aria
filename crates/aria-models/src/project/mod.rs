@@ -1,35 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 use crate::Map;
-// Imports kept for submodule/tests visibility via `use super::*` (and core impl).
-#[allow(unused_imports)]
-use crate::clip::{
-    Clip, ClipParam, ClipSource, ClipTransform, CropRect, Generator, ParamValue, Replaceable,
-    SlotMedia, look_animation_combo_period_ticks, look_animation_window_ticks, split_speed_curve,
-};
-#[allow(unused_imports)]
-use crate::effects::EffectInstance;
-#[allow(unused_imports)]
+use crate::clip::Clip;
 use crate::error::ModelError;
 use crate::ids::{BinId, ClipId, MediaId, ProjectId, TrackId};
-#[allow(unused_imports)]
-use crate::look::{
-    AnimationRef, AnimationSlot, AudioRole, ChromaKey, ColorAdjustments, Filter, Lut, Mask,
-    StabilizeLevel, animation_spec,
-};
 use crate::media::{MediaKind, MediaSource};
 use crate::metadata::ProjectMetadata;
-#[allow(unused_imports)]
-use crate::param::{Easing, Param};
 use crate::schema::ProjectSchema;
-#[allow(unused_imports)]
-use crate::time::{
-    Rational, RationalTime, TimeRange, check_same_rate, resample, time_add, time_sub,
-};
+use crate::time::Rational;
 use crate::timeline::Timeline;
 use crate::track::{Track, TrackKind};
-#[allow(unused_imports)]
-use crate::transition::Transition;
 
 /// Top-level container: a media pool plus exactly one [`Timeline`].
 ///

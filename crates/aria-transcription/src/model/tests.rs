@@ -3,9 +3,11 @@
 //! The cases live in sibling files, one per area, declared at the bottom. This
 //! file holds only the shared fixtures; a child sees them through `use super::*`.
 
-use std::io::Cursor;
+use std::fs;
+use std::io::{self, Cursor, Read};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Barrier, mpsc};
+use std::sync::{Arc, Barrier, mpsc};
 use std::thread;
 use std::time::Instant;
 

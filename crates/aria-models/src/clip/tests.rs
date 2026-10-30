@@ -5,6 +5,7 @@
 //! fixture builders. A child sees them through `use super::*`.
 
 use super::*;
+use crate::param::{Easing, Keyframe};
 use crate::time::Rational;
 
 const R24: Rational = Rational::FPS_24;

@@ -6,10 +6,6 @@ use crate::ids::{ClipId, GroupId, LinkId, MediaId, MulticamGroupId, SequenceId};
 use crate::param::Param;
 use crate::param_walk::ParamWalk;
 use crate::time::{Rational, RationalTime, TimeRange, check_same_rate};
-// Kept in scope for `clip/tests` (`use super::*`); not referenced by mod.rs itself.
-#[cfg(test)]
-#[allow(unused_imports)]
-use crate::param::{Easing, Keyframe};
 
 mod attributes;
 mod bake;

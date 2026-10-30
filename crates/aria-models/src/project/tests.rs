@@ -5,6 +5,17 @@
 //! fixture builders. A child sees them through `use super::*`.
 
 use super::*;
+use crate::clip::{
+    ClipParam, ClipSource, ClipTransform, CropRect, Generator, ParamValue, Replaceable, SlotMedia,
+    split_speed_curve,
+};
+use crate::effects::EffectInstance;
+use crate::look::{
+    AnimationRef, AnimationSlot, AudioRole, BlendMode, ChromaKey, ColorAdjustments, Filter,
+    LayerShadow, LayerStyles, Lut, Mask, MaskKind, MotionBlur, StabilizeLevel,
+};
+use crate::param::{Easing, Param};
+use crate::time::{RationalTime, TimeRange};
 
 const R24: Rational = Rational::FPS_24;
 const R30: Rational = Rational::FPS_30;
@@ -75,8 +86,6 @@ fn packed_track() -> (Project, MediaId, TrackId, [ClipId; 3]) {
 }
 
 // --- Phase I look properties --------------------------------------------
-
-use crate::look::{BlendMode, LayerShadow, LayerStyles, MaskKind, MotionBlur};
 
 #[path = "tests_style_params.rs"]
 mod style_params;

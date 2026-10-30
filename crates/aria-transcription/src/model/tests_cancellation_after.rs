@@ -1,6 +1,9 @@
 //! `cancellation_after` cases.
 
+use std::time::Duration;
+
 use super::*;
+use crate::model::filesystem::{model_lock, never_cancelled};
 
 #[test]
 fn cancellation_after_begin_commit_cannot_reclassify_success() {
