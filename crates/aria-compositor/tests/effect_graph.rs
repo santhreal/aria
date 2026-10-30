@@ -7,8 +7,9 @@
 //! Catches: a compute pass that is not dispatched or whose result is not
 //! copied into the frame, an output size the runtime ignores, a pass reading
 //! the wrong input, a texture binding that reads nothing, a layer input that
-//! does not read the referenced clip, a cycle that registers, and a pipeline
-//! rebuilt every frame. Graph planning without a device is in the
+//! does not read the referenced clip, a cycle that registers, a pipeline
+//! rebuilt every frame, and a pass that discards showing an earlier frame
+//! (`effect_graph_discard.rs`). Graph planning without a device is in the
 //! `aria_models::effect_graph` tests.
 
 use aria_compositor::{
@@ -496,3 +497,6 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
         );
     }
 }
+
+#[path = "effect_graph_discard.rs"]
+mod discard;

@@ -311,7 +311,9 @@ and stores its result with `textureStore(output_tex, ...)`; Aria dispatches it
 over the pass's output in workgroup-sized tiles. A pass declares no bindings of
 its own. Line numbers in a refusal are lines of the plugin's source.
 
-Textures hold premultiplied RGBA, and a pass writes premultiplied RGBA.
+Textures hold premultiplied RGBA, and a pass writes premultiplied RGBA. A
+fragment pass replaces its target without blending; a pixel its `fs`
+discards, and a texel a compute pass does not store, is transparent black.
 
 Effect bindings, group 0:
 
@@ -412,7 +414,9 @@ Transition bindings, group 0:
 | `params` | `array<f32>` | Flattened transition parameter storage. |
 
 Each parameter declared in `TransitionSpec::params` gets a `param_<name>()`
-accessor with the same return type as an effect parameter.
+accessor with the same return type as an effect parameter. A transition
+writes its frame like a fragment pass: a pixel its `fs` discards is
+transparent black.
 
 Transition shader example (`shaders/flash-cut.wgsl`, with scalar parameter
 `softness`):

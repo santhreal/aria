@@ -3,8 +3,8 @@
 use aria_models::PassStage;
 
 use super::super::RT_FORMAT;
-use super::super::pipelines::PREMULT_OVER;
 use super::{BuiltPass, PassPipeline};
+use crate::color_pass::ReplacePipeline;
 use crate::registered_graph::CompiledPass;
 use crate::registered_passes::RegisteredPass;
 use std::sync::Arc;
@@ -96,33 +96,42 @@ pub(super) fn build(device: &wgpu::Device, pass: &RegisteredPass) -> Option<Arc<
                 workgroup,
             }
         } else {
-            PassPipeline::Render(
-                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(&label),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &module,
-                        entry_point: Some("vs"),
-                        buffers: &[],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    },
-                    primitive: wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
-                    fragment: Some(wgpu::FragmentState {
-                        module: &module,
-                        entry_point: Some("fs"),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: RT_FORMAT,
-                            blend: Some(PREMULT_OVER),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    }),
-                    multiview_mask: None,
-                    cache: None,
+            let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(&label),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("vs"),
+                    buffers: &[],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some("fs"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: RT_FORMAT,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
                 }),
-            )
+                multiview_mask: None,
+                cache: None,
+            });
+            if compiled.discards {
+                PassPipeline::Cleared(pipeline)
+            } else {
+                // SAFETY: blending is off and every channel is written above,
+                // `vs` is the host prelude's, which covers the target with
+                // vertices `0..6`, and `check_composed` found no `discard` in
+                // the module.
+                #[allow(unsafe_code)]
+                let pipeline = unsafe { ReplacePipeline::new(pipeline) };
+                PassPipeline::Replace(pipeline)
+            }
         };
         let invalid = pollster::block_on(validation.pop());
         let failed = pollster::block_on(internal.pop());

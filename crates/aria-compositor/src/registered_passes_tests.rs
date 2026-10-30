@@ -7,8 +7,9 @@
 //! `tests/registered_passes.rs`.
 //!
 //! Covers the line a refusal reports, refusals inside the prelude, every
-//! interface rule, the accessor component layout, and the limits on passes,
-//! floats and parameter names. Does not prove a shader the device rejects.
+//! interface rule, the accessor component layout, the limits on passes,
+//! floats and parameter names, and which passes can `discard`. Does not prove
+//! a shader the device rejects.
 
 use super::*;
 use crate::registered_graph::graph_prelude;
@@ -45,7 +46,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 }
 ";
 
-fn check_effect(source: &str, params: &[EffectParamSpec]) -> Result<String, Refusal> {
+fn check_effect(source: &str, params: &[EffectParamSpec]) -> Result<Composed, Refusal> {
     check_pass(
         source,
         &graph_prelude(params, &[], Entry::Fragment),
@@ -62,7 +63,7 @@ fn refusal(source: &str) -> String {
 #[test]
 fn a_passthrough_effect_and_transition_validate() {
     let composed = check_effect(PASSTHROUGH, &[]).expect("passthrough validates");
-    assert!(composed.starts_with(PASSTHROUGH));
+    assert!(composed.source.starts_with(PASSTHROUGH));
     let transition = "@fragment
 fn fs(@location(0) uv: vec2<f32>, @builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let a = textureSample(outgoing_tex, aria_sampler, uv);
@@ -374,4 +375,91 @@ fn a_refused_transition_is_not_registered() {
     .expect_err("wrong return type");
     assert_eq!(error.pass, Some(0));
     assert!(registered_transition("test.lib.badtransition").is_none());
+}
+
+/// An effect pass whose `fs` runs `statement` and returns through a helper
+/// that runs `in_helper`.
+fn pass_running(in_helper: &str, statement: &str) -> String {
+    format!(
+        "fn helper(c: vec4<f32>) -> vec4<f32> {{
+    {in_helper}
+    return c;
+}}
+
+@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {{
+    var c = textureSample(input_tex, aria_sampler, in.uv);
+    {statement}
+    return helper(c);
+}}
+"
+    )
+}
+
+/// A pass marked as unable to `discard` is drawn over a target that is never
+/// cleared, so a `discard` the scan misses shows an earlier frame. Each
+/// statement that holds a block is a place the scan must look.
+#[test]
+fn a_discard_in_any_block_or_helper_marks_the_pass() {
+    let discards = |source: &str| {
+        check_effect(source, &[])
+            .unwrap_or_else(|(_, message)| panic!("{message}\n{source}"))
+            .discards
+    };
+    for (place, in_helper, statement) in [
+        ("fs", "", "discard;"),
+        ("if", "", "if c.a < 0.1 { discard; }"),
+        (
+            "else",
+            "",
+            "if c.a < 0.1 { c = c * 0.5; } else { discard; }",
+        ),
+        (
+            "switch",
+            "",
+            "switch u32(c.a * 4.0) { case 1u: { discard; } default: {} }",
+        ),
+        (
+            "loop",
+            "",
+            "for (var i = 0; i < 2; i++) { if c.a < 0.1 { discard; } }",
+        ),
+        (
+            "continuing",
+            "",
+            "loop { if c.a > 2.0 { break; } continuing { if c.a < 0.1 { discard; } break if true; } }",
+        ),
+        ("block", "", "{ { discard; } }"),
+        ("helper", "if c.a < 0.1 { discard; }", ""),
+    ] {
+        assert!(
+            discards(&pass_running(in_helper, statement)),
+            "a discard in {place} is not found"
+        );
+    }
+    let flow = "if c.a < 0.1 { c = c * 0.5; } else { c = c * 2.0; }
+    switch u32(c.a * 4.0) { case 1u: { c = c.bgra; } default: {} }
+    for (var i = 0; i < 2; i++) { c = c * 0.9; }
+    loop { if c.a > 2.0 { break; } continuing { c = c * 0.5; break if true; } }
+    { c = c.abgr; }";
+    assert!(
+        !discards(&pass_running("if c.a < 0.1 { return c * 0.5; }", flow)),
+        "control flow without a discard marks the pass"
+    );
+
+    let transition = |statement: &str| {
+        let source = format!(
+            "@fragment
+fn fs(in: VsOut) -> @location(0) vec4<f32> {{
+    {statement}
+    return textureSample(incoming_tex, aria_sampler, in.uv);
+}}
+"
+        );
+        check_pass(&source, &transition_prelude(&[]), Kind::Transition)
+            .unwrap_or_else(|(_, message)| panic!("{message}\n{source}"))
+            .discards
+    };
+    assert!(transition("if in.uv.x < aria.progress { discard; }"));
+    assert!(!transition(""));
 }

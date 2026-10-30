@@ -67,17 +67,22 @@ pub(crate) struct CompiledPass {
     pub(crate) output: OutputSize,
     /// The plugin's WGSL followed by the host prelude.
     pub(crate) source: String,
+    /// `fs` can `discard`, so the target is cleared before the draw. When
+    /// `false`, `fs` writes every pixel and the target is neither loaded nor
+    /// cleared. Always `false` for a compute pass.
+    pub(crate) discards: bool,
 }
 
 impl CompiledPass {
     /// A transition pass: one fragment pass binding the transition prelude.
-    pub(crate) fn transition(source: String) -> Self {
+    pub(crate) fn transition(composed: Composed) -> Self {
         Self {
             name: "transition".into(),
             stage: PassStage::Fragment,
             inputs: Box::new([]),
             output: OutputSize::Same,
-            source,
+            source: composed.source,
+            discards: composed.discards,
         }
     }
 
@@ -162,7 +167,7 @@ pub(crate) fn compile_effect(
         if matches!(entry, Entry::Compute(_)) {
             host.push("output_tex");
         }
-        let source = check_composed(&pass.source, &prelude, &host, entry).map_err(
+        let composed = check_composed(&pass.source, &prelude, &host, entry).map_err(
             |(location, message)| {
                 let message = if pass.name.is_empty() {
                     message
@@ -179,7 +184,8 @@ pub(crate) fn compile_effect(
                 stage: pass.stage,
                 inputs: bound.into_boxed_slice(),
                 output: pass.output,
-                source,
+                source: composed.source,
+                discards: composed.discards,
             },
         ));
     }
@@ -394,14 +400,23 @@ fn write_param_accessors(out: &mut String, params: &[EffectParamSpec]) {
 /// A refusal: one-based line and column in the plugin source, and the reason.
 pub(crate) type Refusal = (Option<(u32, u32)>, String);
 
+/// A pass that passed every check.
+#[derive(Debug)]
+pub(crate) struct Composed {
+    /// The plugin's WGSL followed by the host prelude.
+    pub(crate) source: String,
+    /// A function of the module, `fs` or one it may call, can `discard`.
+    pub(crate) discards: bool,
+}
+
 /// Compose `source` with `prelude` and check it against `entry` and the
-/// globals in `host`, returning the composed WGSL.
+/// globals in `host`.
 pub(crate) fn check_composed(
     source: &str,
     prelude: &str,
     host: &[&str],
     entry: Entry,
-) -> Result<String, Refusal> {
+) -> Result<Composed, Refusal> {
     let composed = format!("{source}\n{prelude}");
     let source_lines = u32::try_from(source.lines().count()).unwrap_or(u32::MAX);
     let place = |location: Option<naga::SourceLocation>, message: String| -> Refusal {
@@ -422,7 +437,57 @@ pub(crate) fn check_composed(
     .validate(&module)
     .map_err(|error| place(error.location(&composed), error_chain(&error)))?;
     check_interface(&module, host, entry).map_err(|message| (None, message))?;
-    Ok(composed)
+    Ok(Composed {
+        discards: matches!(entry, Entry::Fragment) && can_discard(&module),
+        source: composed,
+    })
+}
+
+/// Whether a function or entry point of `module` holds a `discard`, at any
+/// depth of its blocks. Every function counts, called or not.
+fn can_discard(module: &naga::Module) -> bool {
+    module
+        .functions
+        .iter()
+        .map(|(_, function)| function)
+        .chain(module.entry_points.iter().map(|entry| &entry.function))
+        .any(|function| block_discards(&function.body))
+}
+
+fn block_discards(block: &naga::Block) -> bool {
+    block.iter().any(|statement| match statement {
+        naga::Statement::Kill => true,
+        naga::Statement::Block(inner) => block_discards(inner),
+        naga::Statement::If { accept, reject, .. } => {
+            block_discards(accept) || block_discards(reject)
+        }
+        naga::Statement::Switch { cases, .. } => {
+            cases.iter().any(|case| block_discards(&case.body))
+        }
+        naga::Statement::Loop {
+            body, continuing, ..
+        } => block_discards(body) || block_discards(continuing),
+        // Listed rather than matched by `_`, so a statement a newer naga adds
+        // fails to compile here until it is classified.
+        naga::Statement::Emit(_)
+        | naga::Statement::Break
+        | naga::Statement::Continue
+        | naga::Statement::Return { .. }
+        | naga::Statement::ControlBarrier(_)
+        | naga::Statement::MemoryBarrier(_)
+        | naga::Statement::Store { .. }
+        | naga::Statement::ImageStore { .. }
+        | naga::Statement::Atomic { .. }
+        | naga::Statement::ImageAtomic { .. }
+        | naga::Statement::WorkGroupUniformLoad { .. }
+        | naga::Statement::Call { .. }
+        | naga::Statement::RayQuery { .. }
+        | naga::Statement::RayPipelineFunction(_)
+        | naga::Statement::SubgroupBallot { .. }
+        | naga::Statement::SubgroupGather { .. }
+        | naga::Statement::SubgroupCollectiveOperation { .. }
+        | naga::Statement::CooperativeStore { .. } => false,
+    })
 }
 
 /// The error and every cause beneath it, joined.

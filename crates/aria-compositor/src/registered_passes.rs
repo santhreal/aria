@@ -42,7 +42,7 @@ use crate::cpu_effect::{
     EffectFaultKind, EffectFaultSink, EffectParams, EffectRender, RegisteredParam,
 };
 use crate::registered_graph::{
-    CompiledInput, CompiledPass, Entry, Refusal, check_composed, compile_effect, digest,
+    CompiledInput, CompiledPass, Composed, Entry, Refusal, check_composed, compile_effect, digest,
     transition_prelude,
 };
 
@@ -618,7 +618,7 @@ pub fn register_transition_with_sinks(
         });
     }
     let prelude = transition_prelude(&spec.params);
-    let source =
+    let composed =
         check_pass(&shader, &prelude, Kind::Transition).map_err(|(location, message)| {
             RegisterError {
                 id: spec.id.clone(),
@@ -639,7 +639,7 @@ pub fn register_transition_with_sinks(
         Kind::Transition,
         id,
         flags,
-        PassBackend::Shader(Box::new([CompiledPass::transition(source)])),
+        PassBackend::Shader(Box::new([CompiledPass::transition(composed)])),
         on_fault,
         on_cost,
         catalog,
@@ -729,9 +729,8 @@ pub(crate) fn param_vec4s(float_count: usize) -> usize {
     float_count.div_ceil(4).max(1)
 }
 
-/// Compose `source` with `prelude` and check it as a fragment pass of `kind`,
-/// returning the composed WGSL.
-fn check_pass(source: &str, prelude: &str, kind: Kind) -> Result<String, Refusal> {
+/// Compose `source` with `prelude` and check it as a fragment pass of `kind`.
+fn check_pass(source: &str, prelude: &str, kind: Kind) -> Result<Composed, Refusal> {
     check_composed(source, prelude, &kind.host_bindings(), Entry::Fragment)
 }
 

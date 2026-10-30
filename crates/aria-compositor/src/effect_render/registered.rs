@@ -13,6 +13,10 @@
 //! a fragment pass draws into it, a compute pass writes its own target, which
 //! is then copied into the slot, so the canvas-sized pool never needs storage
 //! usage.
+//!
+//! A fragment pass draws without blending. One whose shader can `discard`
+//! clears its target first, so a discarded pixel is transparent; any other
+//! writes every pixel and neither loads nor clears its target.
 
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
@@ -68,7 +72,11 @@ struct BuiltPass {
 }
 
 enum PassPipeline {
-    Render(wgpu::RenderPipeline),
+    /// A fragment pass whose shader cannot `discard`.
+    Replace(color_pass::ReplacePipeline),
+    /// A fragment pass whose shader can `discard`, drawn over a cleared
+    /// target.
+    Cleared(wgpu::RenderPipeline),
     Compute {
         pipeline: wgpu::ComputePipeline,
         workgroup: [u32; 2],
@@ -263,7 +271,10 @@ fn encode(
 ) {
     let bind_group = cache.bind_group(device, &built.layout, "aria.registered.bg", bounds);
     match &built.pipeline {
-        PassPipeline::Render(pipeline) => {
+        PassPipeline::Replace(pipeline) => {
+            color_pass::replace_quad(encoder, output, pipeline, &bind_group);
+        }
+        PassPipeline::Cleared(pipeline) => {
             color_pass::draw_quad(encoder, output, color_pass::CLEAR, pipeline, &bind_group);
         }
         PassPipeline::Compute {

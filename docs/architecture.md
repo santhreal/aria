@@ -471,8 +471,10 @@ rejects it with a diagnostic message. `LayerSource::kind()` returns one of the
   with blending off in a render pass that neither clears nor loads the target.
   Every built-in effect, transition, matte, mask stack, color grade, LUT and
   blend-mode pass draws its offscreen target the same way through a
-  `ReplacePipeline`, which is built only from compositor shaders that write
-  every pixel of the target. A plugin pass draws blended over a cleared target.
+  `ReplacePipeline`, which is built only from shaders that write every pixel
+  of the target. A plugin fragment pass or transition is one such shader when
+  naga finds no `discard` in its module at registration; one with a `discard`
+  draws with blending off over a cleared target.
 - Consecutive draws onto one target, whether direct layers, offscreen effect
   and style blits, or blend composites, are encoded in one render pass
   (`TargetPass`, `crates/aria-compositor/src/compositor/draw_layer.rs`). The
