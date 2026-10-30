@@ -1,8 +1,8 @@
-//! `Shell` slot: 4 methods moved out of `shell.rs`.
+//! [`Shell`] panel slot and overlay rendering, and window-level pointer and
+//! keyboard event handlers.
 //!
-//! A pure move to stay under the file ceiling. Inherent methods keep their
-//! paths wherever they are written, because a method belongs to the type and
-//! not to the file, so no caller changes.
+//! Inherent `impl Shell` methods; `shell.rs` and its sibling modules call them
+//! as `self.method()`.
 
 use super::*;
 

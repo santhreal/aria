@@ -1,6 +1,6 @@
-//! `render_frame` tests covering composites. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `render_frame` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `render_frame` tests covering composites. A `#[path]` child of the
+//! `render_frame` test binary; the tests reach their fixtures through
+//! `super::*`.
 
 use super::*;
 

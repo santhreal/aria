@@ -1,6 +1,6 @@
-//! `engine_roundtrip` tests covering groups and rejections. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `engine_roundtrip` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `engine_roundtrip` tests covering groups and rejections. A `#[path]` child
+//! of the `engine_roundtrip` test binary; the tests reach their fixtures
+//! through `super::*`.
 
 use super::*;
 

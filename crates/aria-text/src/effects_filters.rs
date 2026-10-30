@@ -1,8 +1,7 @@
 //! The pixel kernels an effect is built from: dilation, blur, rounded card.
 //!
-//! A pure move out of `effects.rs` to stay under the file ceiling. These take
-//! and return raw alpha or RGBA buffers and know nothing about a text style;
-//! the passes that decide when to run them stay with the paint.
+//! These functions take and return raw alpha or RGBA buffers independent of
+//! `TextStyle`; the paint passes in `effects.rs` select when to call them.
 
 use super::*;
 

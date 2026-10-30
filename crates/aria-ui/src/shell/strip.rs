@@ -1,7 +1,7 @@
 //! The status bar and the session tickers.
 //!
-//! Split out of `shell.rs` to stay under the file ceiling. Each item is
-//! `pub(super)` so the parent and its other children can reach it by name.
+//! Items are `pub(super)` so `shell.rs` and its sibling modules call them by
+//! name.
 
 use super::*;
 use crate::theme::Theme;

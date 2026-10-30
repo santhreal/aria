@@ -1,8 +1,7 @@
-//! `AppState` agent: 14 methods moved out of `assistant.rs`.
+//! Assistant prompt turns on [`AppState`]: context and skill assembly, prompt
+//! dispatch and cancellation, host tool execution, and streaming beat folding.
 //!
-//! A pure move to stay under the file ceiling. Inherent methods keep their
-//! paths wherever they are written, because a method belongs to the type and
-//! not to the file, so no caller changes.
+//! Inherent `impl AppState` methods; callers invoke them as `state.method()`.
 
 use super::*;
 use aria_core::count::counted;

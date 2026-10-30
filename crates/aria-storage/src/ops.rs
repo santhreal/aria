@@ -513,9 +513,8 @@ fn ensure_destination_absent(path: &Path) -> Result<(), StorageError> {
         Err(error) => Err(io_error("inspect relocation destination", error)),
     }
 }
-// The path primitives and the platform-specific edges live beside this file.
-// A pure move; the module tree is unchanged, so `crate::ops::normalize_absolute`
-// still names the same function.
+// Path primitives and platform-specific file operations are defined in
+// `ops_paths.rs` and re-exported here as needed.
 #[path = "ops_paths.rs"]
 mod paths;
 

@@ -1,9 +1,8 @@
 //! Media: the pool as the panel lists it, and what the pool has on the picked
 //! item.
 //!
-//! Split out of `sidebar.rs` to stay under the file ceiling; the wall of cards
-//! it draws lives in `sidebar_media_grid.rs` for the same reason. Each item is
-//! `pub(super)` so the parent and its other children can reach it by name.
+//! The card grid is defined in `sidebar_media_grid.rs`. Items are `pub(super)`
+//! so `sidebar.rs` and its sibling modules call them by name.
 
 use aria_core::count::counted;
 

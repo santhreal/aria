@@ -1,7 +1,5 @@
 //! One clip → one placed [`SceneLayer`]: sampled transform, crop, look, mask,
 //! chroma key, styles, and the classified pixel source behind it.
-//!
-//! Moved out of `resolve.rs` to stay under the file ceiling; nothing changed.
 
 use super::nest::{resolve_nest, uv_in_frame};
 use super::*;

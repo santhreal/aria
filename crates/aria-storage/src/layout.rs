@@ -675,9 +675,8 @@ fn checked_next_generation(
         .ok_or(SharedStorageLayoutError::GenerationExhausted)
 }
 
-// The error types live beside this file, declared here. A pure move: the
-// module tree is unchanged, so `crate::layout::SharedStorageLayoutError` still
-// names the same type.
+// The error types are defined in `layout_errors.rs` and re-exported under
+// `crate::layout`.
 #[path = "layout_errors.rs"]
 mod errors;
 

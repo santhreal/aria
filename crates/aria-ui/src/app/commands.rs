@@ -1,8 +1,7 @@
-//! `AppState` commands: 14 methods moved out of `app.rs`.
+//! [`AppState`] construction, command application, undo/redo history, clip
+//! selection, and timeline snap indexing.
 //!
-//! A pure move to stay under the file ceiling. These are inherent methods, so
-//! they keep their existing paths — a method belongs to the type, not to the
-//! file it is written in. No caller changes.
+//! Inherent `impl AppState` methods; callers invoke them as `state.method()`.
 
 use super::*;
 

@@ -1,8 +1,7 @@
 //! The ruler and the canvas: what a marker is, and what shape the frame is.
 //!
-//! Moved out of [`crate::timeline`] unchanged. None of it reads a [`Timeline`]:
-//! a marker is a labelled tick and a canvas is a size, so the sequence file is
-//! left holding only the sequence.
+//! None of the types here read a [`Timeline`]: a marker is a labelled tick and
+//! a canvas is a frame size and background.
 //!
 //! [`Timeline`]: crate::timeline::Timeline
 

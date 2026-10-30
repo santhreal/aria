@@ -1,8 +1,7 @@
 //! The menu drop: a title in the bar, and the panel it opens.
 //!
-//! Moved out of `chrome.rs` so the bar's frame and the drop are separate files.
-//! What a drop contains is decided by [`super::menu_host`] — this file only draws
-//! it, animates it in and out, and fades the titles and rows under the pointer.
+//! [`super::menu_host`] builds the menu contents; this module draws the popup,
+//! animates it in and out, and blends title and row hover states.
 
 use crate::tooltip::WithTip as _;
 use std::cell::RefCell;

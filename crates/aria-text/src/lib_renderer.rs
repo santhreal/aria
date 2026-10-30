@@ -1,9 +1,8 @@
 //! Every [`TextRenderer`] method: font loading, shaping, and rasterizing.
 //!
-//! A pure move out of `lib.rs` to stay under the file ceiling. Inherent methods
-//! belong to the type rather than to the file, so no caller changes and the
-//! private memo keys, ink boxes and glyph writer stay where they were — this is
-//! a child of the module that defines them and reaches them by name.
+//! Inherent `impl TextRenderer` methods. As a child module of `lib.rs`, this
+//! file accesses the parent module's private memo keys, ink boxes, and glyph
+//! writer through `use super::*`.
 
 use super::*;
 

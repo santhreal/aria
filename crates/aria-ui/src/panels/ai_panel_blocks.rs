@@ -1,7 +1,7 @@
 //! Two blocks of the assistant panel: the permission card and the skill list.
 //!
-//! Split out of [`super`] to keep that file readable. Pure move — both functions
-//! are unchanged, and both are still only called from the panel that owns them.
+//! Both functions are `pub(super)` and are called from the parent `ai_panel`
+//! module.
 
 use aria_core::count::counted;
 

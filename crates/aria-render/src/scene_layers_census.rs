@@ -1,8 +1,7 @@
 //! One representative value of every layer topology.
 //!
-//! Split out of the table only for the file-size ceiling; the rows in
-//! [`super::SHIPPED`] point straight at these, and a topology without one
-//! cannot fill in its `census` column.
+//! Each row in [`super::SHIPPED`] references one of these constructors for its
+//! `census` column.
 
 use aria_core::{Rational, RationalTime};
 use aria_models::{BlendMode, MatteSource, MediaId};

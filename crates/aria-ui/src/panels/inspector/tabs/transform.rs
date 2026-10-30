@@ -1,11 +1,9 @@
 //! Transform tab: position, scale, rotation, anchor, opacity, and the Parent
 //! row.
 //!
-//! Every row comes from the property catalog, so the block keeps no list of the
-//! properties it owns and every one of them is written the keyframe-aware way. A
-//! hand-listed block wrote the whole transform on each nudge, which replaced an
-//! animated property with the constant the pointer left it at, and it silently
-//! lacked the anchor point the catalog has always carried.
+//! Every row comes from the property catalog, so the block keeps no list of
+//! the properties it holds, and a nudge writes the one property it moves
+//! through the keyframe-aware path.
 
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,

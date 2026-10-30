@@ -1,6 +1,5 @@
-//! `agent_eval` tests covering caps and rollback. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `agent_eval` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `agent_eval` tests covering caps and rollback. A `#[path]` child of the
+//! `agent_eval` test binary; the tests reach their fixtures through `super::*`.
 
 use super::*;
 

@@ -1,7 +1,7 @@
 //! The rows a clip's own menu draws, and the junction menu beside it.
 //!
-//! Split out of the parent by size: the tables are the bulk of the menu, and a
-//! target's facts belong beside the rows that read them.
+//! Defines [`ClipMenu`] alongside the clip and transition row tables that read
+//! it.
 
 use aria_engine::EngineError;
 use aria_models::{ClipId, ParentKeep, TransitionAlignment};

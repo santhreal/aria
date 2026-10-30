@@ -1,8 +1,8 @@
-//! `AppState` overlay: 14 methods moved out of `canvas_overlay.rs`.
+//! Viewer canvas overlay geometry and handle drags on [`AppState`]: transform,
+//! crop, and mask drag state, guide snapping, and parent-frame coordinate
+//! mapping.
 //!
-//! A pure move to stay under the file ceiling. Inherent methods keep their
-//! paths wherever they are written, because a method belongs to the type and
-//! not to the file, so no caller changes.
+//! Inherent `impl AppState` methods; callers invoke them as `state.method()`.
 
 use super::*;
 

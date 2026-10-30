@@ -1,9 +1,8 @@
 //! Path primitives and the platform edges of a relocation.
 //!
-//! A pure move out of `ops.rs` to stay under the file ceiling: path
-//! normalization, overlap, physical-root resolution, and the per-platform
-//! symlink and non-directory removal. Nothing here walks a tree or reports a
-//! cancellation; those stay with the operations that own them.
+//! Path normalization, overlap checks, physical-root resolution, and
+//! per-platform symlink and non-directory removal. Tree traversal and
+//! cancellation reporting are in `ops.rs`.
 
 use super::*;
 

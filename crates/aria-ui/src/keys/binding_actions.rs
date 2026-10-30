@@ -1,8 +1,7 @@
 //! What a shipped key binding does, when the answer is more than one call.
 //!
-//! Moved out of [`super::bindings`] with the row tables: two row files call these
-//! and the table file holds neither, so one action has one owner and no row
-//! reimplements a neighbour's behaviour.
+//! Multi-step action handlers shared by the key-binding row tables in this
+//! module tree.
 
 use crate::app::DialogKind;
 

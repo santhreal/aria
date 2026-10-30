@@ -1,8 +1,7 @@
 //! Moving through what a detector found: the filters and the two seeks.
 //!
-//! A pure move. The private helpers are `pub(super)` here because that is
-//! exactly the visibility they had when they lived in the parent: readable
-//! from `analysis.rs` and from its children, and nowhere else.
+//! Helpers are `pub(super)` so `analysis.rs` and its sibling modules call them
+//! by name.
 
 use super::*;
 

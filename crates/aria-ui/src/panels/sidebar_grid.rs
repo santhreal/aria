@@ -1,8 +1,7 @@
 //! The sidebar's header and bodies: the group chips and the tab row, the
 //! entry lists of the catalog tabs, the Stock form, and the cloud cards.
 //!
-//! Split out of `sidebar.rs` to stay under the file ceiling. The items the
-//! parent draws are `pub(super)`.
+//! Items called by `sidebar.rs` are `pub(super)`.
 
 use super::*;
 use crate::panels::inspector::blocks::widgets::picked;

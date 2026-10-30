@@ -1,9 +1,7 @@
-//! Draft: 7 of the cases in [`super`].
+//! Audio extraction and draft edit tests.
 //!
-//! Split out of `premiere_tests.rs` to stay under the file ceiling. A pure
-//! move: only `#[test]` fns live here. Every fixture and helper stays in the
-//! parent, reached through `use super::*`, so no two children of this parent
-//! reference each other.
+//! Only `#[test]` functions are defined here. The tests reach the fixtures and
+//! helpers in `premiere_tests.rs` through `use super::*`.
 
 use super::*;
 

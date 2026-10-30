@@ -1,6 +1,5 @@
-//! `moments` tests covering query and order. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `moments` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `moments` tests covering query and order. A `#[path]` child of the `moments`
+//! test binary; the tests reach their fixtures through `super::*`.
 
 use super::*;
 

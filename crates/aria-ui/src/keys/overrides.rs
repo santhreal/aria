@@ -1,12 +1,11 @@
 //! Rebinding: the chords set in place of the shipped ones.
 //!
-//! Split out of [`super`] to stay under the file ceiling. A pure addition to
-//! [`KeyHost`], written here because the registry file holds the shapes and this
-//! one holds the one rule that matters: an override beats the shipped chord for
-//! every reader, dispatch included.
+//! Inherent [`KeyHost`] methods for inspecting, setting, and resetting chord
+//! overrides. An override takes precedence over the shipped chord for every
+//! reader, including dispatch.
 //!
-//! Both locks are taken in one order everywhere — overrides, then bindings — so
-//! two threads rebinding and dispatching cannot wait on each other.
+//! Both locks are acquired in a fixed order (`overrides`, then `bindings`) so
+//! concurrent rebind and dispatch calls cannot deadlock.
 
 use super::{Binding, BindingRow, Chord, KeyConflict, KeyHost, KeyOverrideError};
 

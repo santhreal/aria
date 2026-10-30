@@ -1,15 +1,8 @@
 //! The [`AppState`] struct: every field of the running editor.
 //!
-//! Moved out of `app.rs` to stay under the file ceiling. The definition is
-//! unchanged except that the seven fields that were private to `app` are now
-//! `pub(super)` — the same visibility by a different spelling. Private-to-`app`
-//! already meant visible in `app` and every descendant, which is exactly what
-//! `pub(super)` from this child grants, so no field is reachable from anywhere
-//! it was not reachable before.
-//!
-//! Behaviour lives in the siblings `edits.rs`, `selection.rs` and
-//! `engine_sync.rs`. Methods keep their paths there because a method hangs off
-//! the type, not the module.
+//! Internal fields are `pub(super)` so `app` and its child modules can access
+//! them directly. Inherent `impl AppState` methods are defined across the
+//! sibling modules under `app/`.
 
 use super::*;
 

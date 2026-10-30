@@ -1,8 +1,7 @@
 //! Clips and media as the timeline and the pool draw them.
 //!
-//! Split out of `projection.rs` to stay under the file ceiling. Each item is
-//! `pub(super)`, so the parent and its other children reach it by name;
-//! [`Placement`] is also read by the frame that draws a held drag.
+//! Items are `pub(super)` so `projection.rs` and its sibling modules call them
+//! by name; [`Placement`] is also read when drawing an in-flight drag.
 
 use super::effect::{effect_to_ui, track_tint, transition_to_ui};
 use super::lanes::{LinkFacts, MediaFact};

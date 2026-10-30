@@ -1,8 +1,7 @@
 //! One detector run, and the projections that turn stored records into rows.
 //!
-//! A pure move of the free functions that sat below the `impl`. `run_analysis`
-//! and `measure_contour` are `pub(super)`: private to this module tree, as
-//! before, and reached from the parent and its siblings through it.
+//! `run_analysis` and `measure_contour` are `pub(super)` so `analysis.rs` and
+//! its sibling modules call them by name.
 
 use super::*;
 

@@ -237,9 +237,6 @@ impl AppState {
 }
 
 /// Start the request, poll it to a terminal state, then download the result.
-///
-/// Split out of the closure so the control flow — including the deadline — reads as one
-/// piece rather than as nesting inside a job spawn.
 fn run_generation(
     context: &aria_jobs::JobContext,
     key: &str,

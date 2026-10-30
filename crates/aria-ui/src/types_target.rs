@@ -1,8 +1,6 @@
 //! Context and rename targets: what a menu or rename gesture points at.
 //!
-//! Moved out of `types.rs` to stay under the file ceiling. Each type travels
-//! with its own `impl` blocks, and `types.rs` re-exports this module with
-//! `pub use`, so every existing `crate::types::Name` path still resolves.
+//! Re-exported from `types.rs` with `pub use` under `crate::types`.
 
 use super::*;
 use aria_models::ClipParam;

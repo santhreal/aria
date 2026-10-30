@@ -14,9 +14,8 @@
 //! sticker and transition sets are data files a host can replace: a hardcoded id
 //! would test this checkout instead of the contract.
 //!
-//! The property gestures and the importing gestures' refusals live in the
-//! sibling `intents_prop_tests.rs`, split at the file ceiling; the fixtures and
-//! readers below are shared with it.
+//! The property gestures and the importing gestures' refusals are in the
+//! sibling `intents_prop_tests.rs`, which shares the fixtures and readers below.
 //!
 //! Not covered: the happy path of the three intents that import a path
 //! (`InsertMain`, `AddPip`, `ReplaceMedia`). That needs a real encoder to build

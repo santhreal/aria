@@ -2,10 +2,8 @@
 //! interpolating inside a decoded window, mapping output frames back to source
 //! offsets, and the exact tick↔sample conversion the whole export loop shares.
 //!
-//! Moved out of `export_audio.rs` to stay under the file ceiling; nothing here
-//! changed. `pan_channel_gains` stayed behind because it is the only reader of
-//! the parent's pan constants, and splitting it from them would have moved the
-//! constants too.
+//! `pan_channel_gains` is defined in `export_audio.rs` alongside the pan
+//! constants.
 
 // Routed through the parent rather than re-imported from the crates: the parent
 // still names every one of these, and one import list for the module pair is

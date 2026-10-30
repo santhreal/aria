@@ -1,14 +1,13 @@
-//! Media Foundation audio format negotiation and the sample arithmetic.
+//! Media Foundation audio format negotiation and sample arithmetic.
 //!
-//! Split out of [`super`] to stay under the file ceiling. A pure move: the two
-//! halves divide along the line that was already there — the reader in the
-//! parent owns COM objects and stream state, everything here is stateless. The
-//! six entry points the reader calls are `pub(super)`; the three media-type
-//! builders are private because only negotiation uses them.
+//! The reader in the parent module holds COM objects and stream state; the
+//! functions in this module are stateless. The six entry points called by the
+//! reader are `pub(super)`, and the three media-type builders are private to
+//! negotiation.
 //!
-//! `use super::*` carries the parent's `windows` imports and `SampleFormat`, so
-//! neither the import block nor the enum is duplicated.
-//! The module calls Media Foundation media-type and attribute APIs through COM and is `unsafe` throughout.
+//! `use super::*` imports the parent module's `windows` bindings and
+//! `SampleFormat`. This module calls Media Foundation media-type and attribute
+//! APIs through COM and is `unsafe` throughout.
 
 #![allow(unsafe_code)]
 

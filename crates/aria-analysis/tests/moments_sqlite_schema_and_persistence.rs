@@ -1,6 +1,6 @@
-//! `moments_sqlite` tests covering schema and persistence. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `moments_sqlite` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `moments_sqlite` tests covering schema and persistence. A `#[path]` child of
+//! the `moments_sqlite` test binary; the tests reach their fixtures through
+//! `super::*`.
 
 use super::*;
 

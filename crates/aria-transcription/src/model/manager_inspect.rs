@@ -1,9 +1,8 @@
 //! Reading what is on disk: status, verification, removal, and root capture.
 //!
-//! Split out of `manager.rs` so the installer and the inspector are separate
-//! files rather than one 986-line one. Nothing here downloads: every function
-//! answers a question about the model directory as it stands, under the same
-//! pinned-root discipline the installer uses.
+//! Nothing in this module downloads: every function inspects or removes entries
+//! in the existing model directory under the same pinned-root checks the
+//! installer uses.
 
 use super::manager_root::verify_model_file_unchanged;
 use super::*;

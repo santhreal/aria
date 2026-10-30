@@ -1,7 +1,7 @@
-//! Tokens: 13 public items moved out of `theme.rs`.
+//! Selected-surface washes and shadows, OKLCH/RGB/HSL color conversion, and
+//! WCAG contrast ratios.
 //!
-//! A pure move to stay under the file ceiling. `theme.rs`
-//! re-exports this module with `pub use`, so every existing path resolves.
+//! Re-exported from `theme.rs` with `pub use`.
 
 use super::*;
 

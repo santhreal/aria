@@ -1,8 +1,8 @@
 //! One case per property gesture, and the refusal every importing gesture owes.
 //!
-//! Split out of `intents_gesture_tests.rs` at the file ceiling; the fixtures and
-//! readers live there and are reached through `use super::gesture_tests::*`, so
-//! both halves build the same two-second project.
+//! The fixtures and readers are defined in `intents_gesture_tests.rs` and
+//! imported through `use super::gesture_tests::*`, so both modules build the
+//! same two-second project.
 //!
 //! The census that makes a new [`Intent`] variant fail by default reads this
 //! file too — see `every_intent_variant_has_a_case` in the sibling.

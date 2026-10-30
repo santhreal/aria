@@ -1,6 +1,6 @@
-//! `inverse_edits` tests covering params and keyframes 1. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `inverse_edits` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `inverse_edits` tests covering params and keyframes (part 1). A `#[path]`
+//! child of the `inverse_edits` test binary; the tests reach their fixtures
+//! through `super::*`.
 
 use super::*;
 

@@ -389,9 +389,8 @@ fn require_main_clip(project: &Project, clip: ClipId) -> Result<(TrackId, Clip),
 #[path = "intents_tests.rs"]
 mod tests;
 
-// The gesture cases: one file per family, split at the file ceiling. The
-// fixtures live in `gesture_tests` and the property half reaches them through
-// `use super::gesture_tests::*`.
+// Gesture tests are grouped one file per family. The fixtures are defined in
+// `gesture_tests`; `prop_tests` reaches them through `use super::gesture_tests::*`.
 #[cfg(test)]
 #[path = "intents_edit_tests.rs"]
 mod edit_tests;

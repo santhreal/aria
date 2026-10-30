@@ -2,10 +2,9 @@
 //! Export. Snapping, linked selection and the timeline display settings are
 //! the Timeline header's (`panels/timeline/header.rs`), drawn there only.
 //!
-//! Moved out of `chrome.rs` so the bar's frame and the strip's contents are
-//! separate files. Every control here fades between its rest and hover colours
-//! through [`crate::motion::hover_blend`], keyed by the element id, so the strip
-//! never flips a colour under the pointer.
+//! Every control here fades between its rest and hover colours through
+//! [`crate::motion::hover_blend`], keyed by the element id, so the strip never
+//! flips a colour under the pointer.
 
 use gpui::{
     AnyElement, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,

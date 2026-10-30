@@ -1,8 +1,6 @@
 //! Sampling a clip's authored blocks at the tick on screen: layer styles,
 //! per-character look animations, effect parameters, the crop/mirror UV rect,
 //! and the contain-fit scale every placement is built from.
-//!
-//! Moved out of `resolve.rs` to stay under the file ceiling; nothing changed.
 
 use super::*;
 use aria_models::StoredParams as _;

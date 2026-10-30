@@ -44,9 +44,6 @@ mod generator;
 mod matte;
 mod nest;
 mod reference;
-// Two more pure moves out of this file: the matte fold and the per-tick
-// samplers. Both start `use super::*`, so the imports above still own what the
-// resolver names.
 mod sample;
 mod shape;
 

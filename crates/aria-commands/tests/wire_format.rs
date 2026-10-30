@@ -62,10 +62,9 @@ fn edit_variant_name(cmd: &EditCommand) -> &'static str {
     cmd.spec().id
 }
 
-// The tests themselves, beside this file: goldens are long and the whole set
-// crosses the file ceiling. Every child reads the helpers above through
-// `use super::*`, and `Cargo.toml` names only this file as the test target, so a
-// child is a module here rather than a test binary of its own.
+// Each child module reads the helpers above through `use super::*`. `Cargo.toml`
+// lists only this file as the test target, so each child is a module here rather
+// than a standalone test binary.
 #[path = "wire_format_goldens.rs"]
 mod goldens;
 #[path = "wire_format_outcomes.rs"]

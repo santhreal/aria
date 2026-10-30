@@ -1,7 +1,6 @@
 //! Loudness: measuring a clip's contour, and reading the result.
 //!
-//! A pure move: the same `impl AppState` methods, under the same names, so
-//! every call site keeps its path.
+//! Inherent `impl AppState` methods; callers invoke them as `state.method()`.
 
 use aria_core::count::counted;
 

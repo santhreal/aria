@@ -1,8 +1,8 @@
 //! The two error types a shared-layout write can produce.
 //!
-//! A pure move out of `layout.rs` to stay under the file ceiling. Neither type
-//! carries a path: a rejected write reports generation numbers only, so an
-//! error that reaches a log or a support report cannot leak a storage location.
+//! Neither type holds a path: a rejected write reports generation numbers only,
+//! so an error that reaches a log or a support report cannot leak a storage
+//! location.
 
 use super::*;
 

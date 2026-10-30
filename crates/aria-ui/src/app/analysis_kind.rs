@@ -1,7 +1,7 @@
 //! The analysis axis: one detector per row, and the shapes the panel draws.
 //!
-//! A pure move out of `analysis.rs` to stay under the file ceiling. Each type
-//! travels with its own `impl`, so nothing here reaches back into the parent except through `use super::*`.
+//! Each type and its `impl` blocks are defined here and import parent module
+//! items through `use super::*`.
 
 use super::*;
 

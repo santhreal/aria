@@ -1,9 +1,9 @@
 //! The pinned model root, and the checks that keep it pinned.
 //!
-//! [`RootSnapshot`] captures the configured directory once — its canonical
-//! path, a capability handle, and the file identity of the directory itself —
+//! [`RootSnapshot`] captures the configured directory once (its canonical
+//! path, a capability handle, and the file identity of the directory itself),
 //! and every operation revalidates that mapping before it reports success or
-//! touches a name. Split out of `manager.rs`; the discipline is unchanged.
+//! modifies a path.
 
 use super::*;
 

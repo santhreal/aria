@@ -1,9 +1,8 @@
 //! The clip card's chased states: selection and lock.
 //!
-//! Split out of [`super`] so the card's builder chain stays one screen and so
-//! the rule these two share has one place to live: a state a clip can leave
-//! again is a chased value, never a one-shot. A one-shot cannot be retargeted,
-//! and both of these change mid-gesture: a marquee sweeping a lane changes
+//! A state a clip can leave again is a chased value, never a one-shot. A
+//! one-shot cannot be retargeted, and both of these change mid-gesture: a
+//! marquee sweeping a lane changes
 //! selection on consecutive frames, and Lock is a menu row that can be hit
 //! twice. Queued one-shots would show that as a flicker; a chased value shows
 //! it as a reversal from wherever the fade had got to.
@@ -12,7 +11,7 @@
 //! whatever the card already shows: fading the alpha leaves the fill and the
 //! filmstrip underneath untouched.
 //!
-//! The elements those values drive live here too. A card's chrome is what its
+//! The elements those values drive are defined here too. A card's chrome is what its
 //! state means, and splitting the two would let the fade and the thing it fades
 //! drift apart.
 

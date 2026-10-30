@@ -1,7 +1,6 @@
 //! Transcript rows: the empty state and one line of the conversation.
 //!
-//! Split out of `ai_panel.rs` to stay under the file ceiling. A pure move; both
-//! items are `pub(super)` so the parent reaches them by name.
+//! Both functions are `pub(super)` so `ai_panel.rs` calls them by name.
 
 use super::*;
 

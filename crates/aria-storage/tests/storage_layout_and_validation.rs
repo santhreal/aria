@@ -1,6 +1,5 @@
-//! `storage` tests covering layout and validation. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `storage` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `storage` tests covering layout and validation. A `#[path]` child of the
+//! `storage` test binary; the tests reach their fixtures through `super::*`.
 
 use super::*;
 

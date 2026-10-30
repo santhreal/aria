@@ -1,8 +1,8 @@
-//! Render: 1 helpers from [`super`].
+//! Background frame decoding and poster caching for media pool tiles and the
+//! source monitor.
 //!
-//! Split out of `pool_preview.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! `render_into` is `pub(super)` so `pool_preview.rs` and its sibling modules
+//! call it by name.
 
 use super::*;
 

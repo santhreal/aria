@@ -399,9 +399,6 @@ impl AppState {
 }
 
 /// Decode the clip's audio, then transcribe it.
-///
-/// Split out of the job closure so the whole flow — decode window, cancellation, and
-/// projection — reads as one piece.
 fn run_transcription(
     context: &aria_jobs::JobContext,
     request: &TranscribeRequest,

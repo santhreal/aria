@@ -1,9 +1,7 @@
-//! Effect: 9 of the cases in [`super`].
+//! Catalog effect parameter and lifecycle tests.
 //!
-//! Split out of `effect_tests.rs` to stay under the file ceiling. A pure
-//! move: only `#[test]` fns live here. Every fixture and helper stays in the
-//! parent, reached through `use super::*`, so no two children of this parent
-//! reference each other.
+//! Only `#[test]` functions are defined here. The tests reach the fixtures and
+//! helpers in `effect_tests.rs` through `use super::*`.
 
 use super::*;
 

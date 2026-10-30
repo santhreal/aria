@@ -1,8 +1,7 @@
-//! `AppState` source: 10 methods moved out of `pool_preview.rs`.
+//! Media pool tile hover scrubbing, source monitor open and mark In/Out
+//! controls, and pool-to-timeline placement on [`AppState`].
 //!
-//! A pure move to stay under the file ceiling. Inherent methods keep their
-//! paths wherever they are written, because a method belongs to the type and
-//! not to the file, so no caller changes.
+//! Inherent `impl AppState` methods; callers invoke them as `state.method()`.
 
 use super::*;
 

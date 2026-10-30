@@ -1,7 +1,6 @@
 //! Stroke, shadow, underline and background-card cases.
 //!
-//! A pure move out of `effects.rs`; the module reaches its fixtures through
-//! `use super::*` exactly as it did inline.
+//! The tests reach the `effects.rs` items and fixtures through `use super::*`.
 
 use super::*;
 use crate::style::{TextBackground, TextRun, TextShadow, TextStroke};

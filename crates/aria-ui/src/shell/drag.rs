@@ -1,8 +1,8 @@
 //! What a drag is: which edge is moving, where it started, and what letting go
 //! of it is worth.
 //!
-//! Split out of `shell.rs` as a pure move, so the chrome file holds the window
-//! and this one holds the gesture.
+//! `shell.rs` holds the window layout; this module holds the drag gesture state
+//! and pointer handlers.
 
 use gpui::motion::fling;
 

@@ -1,6 +1,6 @@
-//! `agent_eval` tests covering keyframes and effects 1. Split out as a pure move to stay
-//! under the 500-line ceiling; a `#[path]` child of the `agent_eval` test binary, so
-//! `use super::*` reaches its private fixtures unchanged.
+//! `agent_eval` tests covering keyframes and effects (part 1). A `#[path]`
+//! child of the `agent_eval` test binary; the tests reach their fixtures
+//! through `super::*`.
 
 use super::*;
 

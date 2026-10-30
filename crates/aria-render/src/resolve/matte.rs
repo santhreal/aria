@@ -1,7 +1,5 @@
 //! Track mattes: reading a clip's matte settings at the tick on screen, and
 //! folding each matted layer's neighbour above into a single matte wrapper.
-//!
-//! Moved out of `resolve.rs` to stay under the file ceiling; nothing changed.
 
 use super::*;
 

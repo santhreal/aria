@@ -1,9 +1,7 @@
-//! Turn: 27 of the cases in [`super`].
+//! Assistant turn execution and precheck tests.
 //!
-//! Split out of `assistant_tests.rs` to stay under the file ceiling. A pure
-//! move: only `#[test]` fns live here. Every fixture and helper stays in the
-//! parent, reached through `use super::*`, so no two children of this parent
-//! reference each other.
+//! Only `#[test]` functions are defined here. The tests reach the fixtures and
+//! helpers in `assistant_tests.rs` through `use super::*`.
 
 use aria_core::count::counted;
 

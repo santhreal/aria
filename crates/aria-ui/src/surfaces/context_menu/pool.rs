@@ -1,6 +1,5 @@
-//! The rows a pool row's menu draws.
-//!
-//! Split out of the parent by size.
+//! Media-pool context menu rows (`POOL_ITEMS`) and the [`PoolMenu`] state they
+//! read.
 
 use aria_models::MediaId;
 

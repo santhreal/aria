@@ -1,9 +1,7 @@
 //! The boot cover: what it is doing, when it stops, and what draws it.
 //!
-//! Split out of `shell.rs` when that file reached its ceiling. The shell holds
-//! the field and draws what this decides; every decision about the cover is
-//! here, and the decision itself is a pure function so it can be asserted
-//! without a window.
+//! [`Shell`] holds the [`Splash`] field and renders what this module computes.
+//! Transition logic is a pure function so tests can assert it without a window.
 
 use super::*;
 

@@ -636,9 +636,8 @@ impl FrameSink for ExportFrameSink {
     }
 }
 
-// The PNG sink and the two PNG boundaries, moved to a sibling to stay under the
-// file ceiling. Re-exported so `crate::export::PngSequenceEncoder` and
-// `crate::export::decode_png` still name them.
+// The PNG sink and PNG encode/decode functions are defined in `export_png.rs`
+// and re-exported here under `crate::export`.
 #[path = "export_png.rs"]
 mod png_sink;
 pub use png_sink::{PngSequenceEncoder, decode_png, encode_png, export_frame_png};

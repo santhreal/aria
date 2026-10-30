@@ -1,7 +1,5 @@
-//! Tests for [`super`].
-//!
-//! Moved out of `projection.rs` to stay under the file ceiling. The
-//! module is unchanged; only its location moved.
+//! Tests for [`super::project_to_ui`] and timeline projection.
+
 use aria_models::{
     ClipId, ClipParam, MediaSource, ParamValue, Project, Rational, RationalTime, TimeRange,
     TrackKind,

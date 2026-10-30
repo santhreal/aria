@@ -1,16 +1,8 @@
 //! Which CPU rasterizer a layer topology's bitmap comes from.
 //!
-//! Split out of the table for the file-size ceiling, and kept as its own type
-//! rather than a `bool` because the sizing path in `render::api` needs more than
-//! "yes, a bitmap": it needs to know *which* rasterizer to ask. That question
-//! used to be answered by a `match` over [`LayerSource`] with a `_ => return
-//! None` arm, so a twelfth topology that rasterized on the CPU inherited
-//! "unsizeable" in silence.
-//!
-//! Now it is a column. A row names its rasterizer, the sizing path matches on
-//! the column (three variants, exhaustive), and pulling the payload out of the
-//! one variant that carries it is the only place a single-variant pattern
-//! appears — a new topology has no answer to give there, and does not need one.
+//! Each `ShippedLayer` row declares a [`CpuRaster`] value in its `cpu_raster`
+//! column. The sizing path in `render::api` matches exhaustively on the three
+//! variants to select the rasterizer for a topology's payload.
 
 /// Which CPU rasterizer produces a topology's bitmap.
 ///

@@ -1,7 +1,7 @@
 //! The rows a lane header's menu draws.
 //!
-//! Split out of the parent by size. A lane height is a row here rather than a
-//! branch in the panel, so a fourth height is a fourth row.
+//! Each lane height preset is a row entry in `TRACK_ITEMS` rather than a
+//! branch in the timeline panel.
 
 use aria_models::{TrackDisplay, TrackId, TrackKind};
 

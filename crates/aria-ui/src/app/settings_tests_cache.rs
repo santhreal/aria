@@ -1,9 +1,7 @@
-//! Cache: 9 of the cases in [`super`].
+//! Storage cache row and eviction tests.
 //!
-//! Split out of `settings_tests.rs` to stay under the file ceiling. A pure
-//! move: only `#[test]` fns live here. Every fixture and helper stays in the
-//! parent, reached through `use super::*`, so no two children of this parent
-//! reference each other.
+//! Only `#[test]` functions are defined here. The tests reach the fixtures and
+//! helpers in `settings_tests.rs` through `use super::*`.
 
 #[path = "settings_tests_cache_g1.rs"]
 mod settings_tests_cache_g1;

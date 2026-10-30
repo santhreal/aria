@@ -1,7 +1,7 @@
 //! The rows a recent-project row's menu draws.
 //!
-//! Split out of the parent by size. Two rows copy the path they were drawn for,
-//! because they hand it to a dialog that answers after the click is over.
+//! Two rows clone the project path because they pass it to a file dialog that
+//! completes asynchronously after the click handler returns.
 
 use std::path::PathBuf;
 

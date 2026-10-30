@@ -1,7 +1,6 @@
 //! Shaping, rasterizing and memoization cases.
 //!
-//! A pure move out of `lib.rs`; the module reaches its fixtures through
-//! `use super::*` exactly as it did inline.
+//! The tests reach the `lib.rs` items and fixtures through `use super::*`.
 
 use super::*;
 

@@ -1,7 +1,5 @@
-//! Tests for the RGBA/BGRA → 4:2:0 conversion.
-//!
-//! Split out of `yuv.rs` as a `#[path]` sibling so both files stay well under
-//! the module size ceiling.
+//! Tests for the RGBA/BGRA → 4:2:0 conversion. The tests reach `yuv.rs` items
+//! through `super::*`.
 
 use super::*;
 

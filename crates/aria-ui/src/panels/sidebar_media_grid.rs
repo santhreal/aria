@@ -1,8 +1,7 @@
 //! The pool grid: the wall of cards, one card, and a card's picture.
 //!
-//! Split out of `sidebar_media.rs` to stay under the file ceiling. A pure move.
-//! Each item is `pub(super)` so the parent and its other children can reach it
-//! by name; nothing else changed.
+//! Items are `pub(super)` so `sidebar_media.rs` and its sibling modules call
+//! them by name.
 
 use super::*;
 use crate::app::pool_rows::PoolRows;

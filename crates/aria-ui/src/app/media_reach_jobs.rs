@@ -1,14 +1,12 @@
 //! The two media-support verbs that decode a whole file.
 //!
-//! Split from the parent to stay under the file ceiling, and split along the
-//! line that matters: everything here goes to the job board, because a whole-file
-//! decode or a whole-stream read must not happen on the thread that draws. The
-//! completion detail is the answer, so the jobs panel is the surface — no
-//! channel back into the state, and nothing to hold between frames.
+//! Both operations run on the job board so a whole-file decode or whole-stream
+//! read does not block the UI thread. The completion detail is reported in the
+//! jobs panel with no channel back into [`AppState`].
 //!
-//! The refusals stay synchronous. A file over the verify cap, a source with no
-//! audio, or no selection at all is answered on the status strip before a job is
-//! ever started, so the board never carries an entry that could not have run.
+//! Refusals are synchronous: a file over the verify cap, a source with no
+//! audio, or an empty selection reports on the status strip before a job is
+//! spawned.
 
 use aria_core::count::counted;
 

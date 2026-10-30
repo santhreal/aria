@@ -1,7 +1,5 @@
-//! Tests for [`super`].
-//!
-//! Moved out of `theme.rs` to stay under the file ceiling. The
-//! module is unchanged; only its location moved.
+//! Tests for [`super::Theme`] color conversion, contrast ratios, and palettes.
+
 use super::*;
 
 fn srgb_u8(c: [f32; 3]) -> [u8; 3] {

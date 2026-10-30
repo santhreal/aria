@@ -47,9 +47,8 @@ impl Clip {
 
     /// Whether this clip's content is something a render can stand in for.
     ///
-    /// Split out of [`Clip::baked`] because the render happens first: whoever
-    /// is about to spend minutes encoding a file asks this before encoding it,
-    /// and there is one answer rather than two.
+    /// Called by [`Clip::baked`] and by callers before starting an encode so
+    /// pre-render validation and [`Clip::baked`] share one check.
     pub fn bakeable(&self) -> Result<(), ModelError> {
         if self.bake.is_some() {
             return Err(ModelError::InvalidParam(
