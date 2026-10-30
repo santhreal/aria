@@ -503,17 +503,10 @@ pub(crate) fn draw_layer_to_offscreen(
     }
 }
 
-/// Returns `true` when the effect chain is empty or all passes are no-ops.
+/// Whether any pass in the chain does work, so the layer draws through an
+/// offscreen target. An empty chain, or one of no-ops only, does not.
 pub(crate) fn effects_need_offscreen(effects: &[PassInstance]) -> bool {
-    !effects.is_empty() && effects.iter().any(|e| !e.is_noop())
-}
-
-#[allow(dead_code)]
-pub(crate) fn check_dimensions(width: u32, height: u32) -> Result<(), CompositorError> {
-    if width == 0 || height == 0 {
-        return Err(CompositorError::InvalidDimensions { width, height });
-    }
-    Ok(())
+    effects.iter().any(|e| !e.is_noop())
 }
 
 #[cfg(test)]

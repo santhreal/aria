@@ -23,16 +23,8 @@ macro_rules! ui_track_kinds {
 
         impl UiTrackKind {
             pub fn from_model(kind: aria_models::TrackKind) -> Self {
-                let ui = match kind {
+                match kind {
                     $($($model)|+ => Self::$ui,)+
-                };
-                ui.census();
-                ui
-            }
-
-            const fn census(self) {
-                match self {
-                    $(Self::$ui => {},)+
                 }
             }
         }
@@ -66,15 +58,6 @@ macro_rules! ui_clip_kinds {
             pub const ALL: [UiClipKind; ui_clip_kinds!(@count $($kind),+)] = [
                 $(UiClipKind::$kind,)+
             ];
-
-            /// An exhaustive production match. A variant inserted outside this
-            /// registry is therefore a compile error, not an omitted UI kind.
-            #[allow(dead_code)]
-            pub(crate) const fn census(self) {
-                match self {
-                    $(Self::$kind => {},)+
-                }
-            }
         }
     };
     (@count $($kind:ident),+) => {

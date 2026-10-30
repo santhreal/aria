@@ -6,22 +6,7 @@ use aria_models::{
 };
 use gpui::SharedString;
 use std::path::PathBuf;
-#[cfg(test)]
-mod clip_kind_tests {
-    use super::UiClipKind;
 
-    /// `ALL` and the exhaustive census come from one registry row per kind.
-    #[test]
-    fn the_kind_census_covers_every_variant() {
-        assert!(
-            !UiClipKind::ALL.is_empty(),
-            "the UI clip-kind registry is empty"
-        );
-        for kind in UiClipKind::ALL {
-            kind.census();
-        }
-    }
-}
 pub fn clip_id(id: ClipId) -> u64 {
     id.raw()
 }

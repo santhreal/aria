@@ -38,20 +38,6 @@ impl Media {
         &self.project
     }
 
-    /// Mutable borrow of the parent project. Kept next to `with_project_ref`
-    /// so a future mutating Media method does not grow a second lock path.
-    #[allow(dead_code)]
-    pub(crate) fn with_project<F, R>(&self, py: Python, f: F) -> PyResult<R>
-    where
-        F: FnOnce(&mut Project) -> PyResult<R>,
-    {
-        let mut project = self.project.bind(py).borrow_mut();
-        if project.model().media(self.id).is_none() {
-            return Err(AriaError::new_err("stale media handle"));
-        }
-        f(&mut project)
-    }
-
     pub(crate) fn with_project_ref<F, R>(&self, py: Python, f: F) -> PyResult<R>
     where
         F: FnOnce(&Project) -> PyResult<R>,

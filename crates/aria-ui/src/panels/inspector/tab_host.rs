@@ -279,9 +279,9 @@ mod tests {
     }
 
     /// Every clip kind must have somewhere to go. A kind with no applicable tab
-    /// draws an empty inspector, which is the defect this asserts against, and a
-    /// new `UiClipKind` variant fails `UiClipKind::ALL`'s exhaustive census
-    /// before it reaches here.
+    /// draws an empty inspector, which is the defect this asserts against.
+    /// `UiClipKind::ALL` is generated from the list that declares the enum, so
+    /// a new variant is in it without an edit here.
     #[test]
     fn every_clip_kind_has_a_tab_and_resolution_is_total() {
         let host = host_of();

@@ -333,18 +333,14 @@ fn add_audio_branch(
     mux: &gst::Element,
     audio: AudioEncoderConfig,
 ) -> Result<gst_app::AppSrc, EncodeError> {
-    if gst::ElementFactory::find("avenc_aac").is_none()
-        && gst::ElementFactory::find("voaacenc").is_none()
-        && gst::ElementFactory::find("fdkaacenc").is_none()
-    {
+    let Some(aac_name) = ["fdkaacenc", "voaacenc", "avenc_aac"]
+        .into_iter()
+        .find(|n| gst::ElementFactory::find(n).is_some())
+    else {
         return Err(EncodeError::unsupported(
             "no AAC encoder plugin found. Install gstreamer1.0-libav or gstreamer1.0-plugins-bad.",
         ));
-    }
-    let aac_name = ["fdkaacenc", "voaacenc", "avenc_aac"]
-        .into_iter()
-        .find(|n| gst::ElementFactory::find(n).is_some())
-        .expect("checked above");
+    };
 
     let src = gst_app::AppSrc::builder()
         .format(gst::Format::Time)
