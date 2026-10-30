@@ -981,6 +981,9 @@ Notes for the latest release. For previous releases, see the
 - A timeline filmstrip renders its next cell as soon as one lands instead of waiting for the window's next frame.
 - A pool picture or Viewer comparison reference the editor drops leaves the window atlas instead of staying in it until the window closes, and a full pool drops one picture of the file holding the most instead of every picture.
 - Opening, probing, or reading the sound of a file GStreamer cannot read, or of a directory, fails with the error GStreamer reported for it instead of `Element failed to change its state` or a message that states no cause.
+- A Chat Completions stream that sends a tool call `index` of 64 or more ends the turn with a protocol error that states the index, instead of allocating a call list as long as the index.
+- A Responses stream whose `response.output_item.added` or `response.output_item.done` event holds an item that is not a JSON object ends the turn with a protocol error that states the event, instead of panicking when an argument event reaches that item.
+- A cloud catalog fetch answered with `304 Not Modified` while no cached copy exists fails with a protocol error that states the 304, instead of panicking.
 
 ## [alpha-0.7.0] - 2026-07-22
 

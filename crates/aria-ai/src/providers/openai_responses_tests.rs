@@ -552,6 +552,40 @@ fn malformed_events_arguments_and_missing_terminal_are_errors() {
     }
 }
 
+/// An output item that is not a JSON object is a protocol error naming the
+/// event, where the argument events that write into it used to panic.
+///
+/// The class closed here is a panic on a provider's value of the wrong JSON
+/// kind. Cases cover both events that carry an item, both argument events that
+/// write into one, and every JSON kind that is not an object. Not covered: an
+/// object of the wrong shape, which `parse_function_calls` reads with lookups
+/// that cannot panic.
+#[test]
+fn an_output_item_that_is_not_an_object_is_a_protocol_error() {
+    let cancel = AtomicBool::new(false);
+    for item_event in ["response.output_item.added", "response.output_item.done"] {
+        for arguments_event in [
+            r#"{"type":"response.function_call_arguments.delta","output_index":0,"delta":"{}"}"#,
+            r#"{"type":"response.function_call_arguments.done","output_index":0,"arguments":"{}"}"#,
+        ] {
+            for item in ["null", "true", "5", "\"call\"", "[]"] {
+                let fixture = format!(
+                    "data: {{\"type\":\"{item_event}\",\"output_index\":0,\"item\":{item}}}\n\
+                     data: {arguments_event}\n\
+                     data: {{\"type\":\"response.completed\",\"response\":{{\"output\":[]}}}}\n"
+                );
+                let error = consume_responses_sse(fixture.as_bytes(), &cancel, &mut |_| {})
+                    .expect_err("an item that is not an object is refused");
+                assert!(
+                    matches!(&error, ProviderError::Protocol(m) if m.contains(item_event)),
+                    "{item_event} with item {item} then {arguments_event}: \
+                     expected a protocol error naming the event, got {error:?}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn cancellation_and_incomplete_responses_are_distinct() {
     let cancel = AtomicBool::new(true);

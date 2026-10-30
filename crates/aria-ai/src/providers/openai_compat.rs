@@ -423,10 +423,13 @@ struct PartialCall {
     arguments: String,
 }
 
-/// Parse an OpenAI-style SSE stream into one completed turn, forwarding
-/// text deltas as they arrive. Factored over `Read` so fixtures can drive
-/// it in tests.
+/// The longest SSE line a stream may send, in bytes.
 pub const MAX_SSE_LINE_BYTES: usize = 1024 * 1024;
+
+/// The most tool calls one streamed turn may carry. A fragment's `index` sizes
+/// the call list, so an index at or past this is a protocol error rather than
+/// an allocation of a length the provider picks.
+const MAX_STREAM_TOOL_CALLS: usize = 64;
 
 pub(crate) fn read_line_bounded(
     reader: &mut impl BufRead,
@@ -476,6 +479,9 @@ pub(crate) fn read_line_bounded(
     Ok(Some(buf.len()))
 }
 
+/// Parse an OpenAI-style SSE stream into one completed turn, forwarding
+/// text deltas as they arrive. Factored over `Read` so fixtures can drive
+/// it in tests.
 pub(crate) fn consume_sse(
     reader: impl Read,
     cancel: &AtomicBool,
@@ -521,7 +527,16 @@ pub(crate) fn consume_sse(
         }
         if let Some(fragments) = delta["tool_calls"].as_array() {
             for fragment in fragments {
-                let index = fragment["index"].as_u64().unwrap_or(0) as usize;
+                let raw_index = fragment["index"].as_u64().unwrap_or(0);
+                let Some(index) = usize::try_from(raw_index)
+                    .ok()
+                    .filter(|&index| index < MAX_STREAM_TOOL_CALLS)
+                else {
+                    return Err(ProviderError::Protocol(format!(
+                        "tool call index {raw_index} is past the limit of \
+                         {MAX_STREAM_TOOL_CALLS} calls in one turn"
+                    )));
+                };
                 if calls.len() <= index {
                     calls.resize_with(index + 1, PartialCall::default);
                 }

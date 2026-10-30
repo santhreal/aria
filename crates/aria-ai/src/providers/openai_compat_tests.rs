@@ -168,6 +168,51 @@ fn malformed_chunks_and_arguments_are_protocol_errors() {
     }
 }
 
+/// A tool call `index` at or past the cap is a protocol error naming the
+/// index, where it used to size the call list.
+///
+/// The class closed here is an allocation, or an overflow on `index + 1`, of a
+/// size the provider picks. Cases cover the last index accepted, the first
+/// refused, an index a 32-bit `usize` cannot hold, and the largest `u64`. Not
+/// covered: how many fragments one call accumulates, which the line cap and
+/// the read timeout bound.
+#[test]
+fn a_tool_call_index_past_the_cap_is_a_protocol_error() {
+    let stream = |index: u64| {
+        let chunk = serde_json::json!({ "choices": [{ "delta": { "tool_calls": [{
+            "index": index,
+            "id": "call",
+            "function": { "name": "remove_clip", "arguments": "{}" },
+        }] } }] });
+        format!("data: {chunk}\ndata: [DONE]\n")
+    };
+    let cancel = AtomicBool::new(false);
+
+    let last = MAX_STREAM_TOOL_CALLS as u64 - 1;
+    let turn = consume_sse(stream(last).as_bytes(), &cancel, &mut |_| {})
+        .expect("the last index under the cap is accepted");
+    assert_eq!(
+        turn.tool_calls.last().map(|call| call.name.as_str()),
+        Some("remove_clip")
+    );
+
+    for index in [
+        MAX_STREAM_TOOL_CALLS as u64,
+        u64::from(u32::MAX) + 1,
+        u64::MAX,
+    ] {
+        let err = consume_sse(stream(index).as_bytes(), &cancel, &mut |_| {})
+            .expect_err("an index past the cap is refused");
+        assert!(
+            matches!(&err, ProviderError::Protocol(m) if m.contains(&index.to_string())),
+            "index {index}: expected a protocol error naming the index, got {err:?}"
+        );
+    }
+
+    // The shipped cap is the one this test reasons about.
+    assert_eq!(MAX_STREAM_TOOL_CALLS, 64);
+}
+
 #[test]
 fn request_body_includes_tools_and_messages() {
     let provider = OpenAiCompatProvider::new("http://localhost:11434/v1/", "qwen3", None);

@@ -17,7 +17,7 @@ enum ResponsesEvent {
     #[serde(rename = "response.output_item.added")]
     OutputItemAdded {
         output_index: usize,
-        item: serde_json::Value,
+        item: OutputItem,
     },
     #[serde(rename = "response.function_call_arguments.delta")]
     FunctionCallArgumentsDelta { output_index: usize, delta: String },
@@ -29,7 +29,7 @@ enum ResponsesEvent {
     #[serde(rename = "response.output_item.done")]
     OutputItemDone {
         output_index: usize,
-        item: serde_json::Value,
+        item: OutputItem,
     },
     #[serde(rename = "response.completed")]
     Completed { response: ResponseEnvelope },
@@ -42,6 +42,11 @@ enum ResponsesEvent {
     #[serde(other)]
     Other,
 }
+
+/// One entry of a response's `output`. Typed as an object so an item of any
+/// other JSON kind is refused where the event is parsed, and every later write
+/// into it is a map insert that cannot fail.
+type OutputItem = serde_json::Map<String, serde_json::Value>;
 
 #[derive(Debug, Default, Deserialize)]
 struct ResponseEnvelope {
@@ -79,7 +84,7 @@ pub(super) fn consume_responses_sse(
 ) -> Result<ParsedResponse, ProviderError> {
     let mut streamed_text = String::new();
     let mut streamed_reasoning = String::new();
-    let mut output_items = BTreeMap::<usize, serde_json::Value>::new();
+    let mut output_items = BTreeMap::<usize, OutputItem>::new();
     let mut terminal = None;
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -179,7 +184,10 @@ pub(super) fn consume_responses_sse(
     };
 
     let output = if envelope.output.is_empty() {
-        output_items.into_values().collect()
+        output_items
+            .into_values()
+            .map(serde_json::Value::Object)
+            .collect()
     } else {
         envelope.output
     };
@@ -224,39 +232,38 @@ pub(super) fn consume_responses_sse(
 }
 
 fn append_function_arguments(
-    items: &mut BTreeMap<usize, serde_json::Value>,
+    items: &mut BTreeMap<usize, OutputItem>,
     output_index: usize,
     delta: &str,
 ) {
-    let item = items.entry(output_index).or_insert_with(|| {
-        serde_json::json!({
-            "type": "function_call",
-            "arguments": "",
-        })
-    });
-    let arguments = item
-        .as_object_mut()
-        .expect("internally-created output item is an object")
+    let arguments = function_call_item(items, output_index)
         .entry("arguments")
         .or_insert_with(|| serde_json::Value::String(String::new()));
-    let combined = arguments
-        .as_str()
-        .map(|current| format!("{current}{delta}"))
-        .unwrap_or_else(|| delta.to_string());
-    *arguments = serde_json::Value::String(combined);
+    match arguments {
+        serde_json::Value::String(current) => current.push_str(delta),
+        other => *other = serde_json::Value::String(delta.to_owned()),
+    }
 }
 
 fn set_function_arguments(
-    items: &mut BTreeMap<usize, serde_json::Value>,
+    items: &mut BTreeMap<usize, OutputItem>,
     output_index: usize,
     arguments: String,
 ) {
-    let item = items.entry(output_index).or_insert_with(|| {
-        serde_json::json!({
-            "type": "function_call",
-        })
-    });
-    item["arguments"] = arguments.into();
+    function_call_item(items, output_index).insert("arguments".to_owned(), arguments.into());
+}
+
+/// The item at `output_index`, created as a function call when an argument
+/// event arrives before the item that carries it.
+fn function_call_item(
+    items: &mut BTreeMap<usize, OutputItem>,
+    output_index: usize,
+) -> &mut OutputItem {
+    items.entry(output_index).or_insert_with(|| {
+        let mut item = OutputItem::new();
+        item.insert("type".to_owned(), "function_call".into());
+        item
+    })
 }
 
 fn output_text(output: &[serde_json::Value]) -> String {

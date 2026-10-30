@@ -126,7 +126,13 @@ impl CloudClient {
 
         match request.call() {
             Ok(response) if response.status() == 304 => {
-                let (_, body) = cached.expect("304 implies a cached ETag was sent");
+                // `If-None-Match` goes out only with a cached ETag, but a
+                // server or a proxy can answer 304 to any request.
+                let Some((_, body)) = cached else {
+                    return Err(CloudError::Protocol(format!(
+                        "{url}: 304 Not Modified with no cached copy of {cache_name}"
+                    )));
+                };
                 serde_json::from_str(&body)
                     .map_err(|e| CloudError::Protocol(format!("{url}: stale cache: {e}")))
             }
@@ -235,6 +241,39 @@ mod tests {
         match client.templates() {
             Err(CloudError::Network(_)) => {}
             other => panic!("expected Network error, got {other:?}"),
+        }
+    }
+
+    /// A 304 with no cached copy to serve is a protocol error naming the 304.
+    ///
+    /// The class closed here is a panic on a status the server picks. Cases
+    /// cover a client with no cache directory and one whose cache holds no
+    /// copy of the catalog. Not covered: a 304 that names an ETag other than
+    /// the cached one, which serves the cached copy.
+    #[test]
+    fn not_modified_without_a_cached_copy_is_a_protocol_error() {
+        use std::io::{Read as _, Write as _};
+        use std::net::TcpListener;
+
+        let dir = tempfile::tempdir().unwrap();
+        for cache_dir in [None, Some(dir.path().to_path_buf())] {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+            let port = listener.local_addr().unwrap().port();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().expect("the client connects");
+                let mut request = [0u8; 4096];
+                let _ = stream.read(&mut request);
+                let _ = stream.write_all(b"HTTP/1.1 304 Not Modified\r\nContent-Length: 0\r\n\r\n");
+                let _ = stream.flush();
+            });
+            let client = CloudClient::new(&format!("http://127.0.0.1:{port}"), cache_dir.clone());
+            match client.templates() {
+                Err(CloudError::Protocol(message)) => {
+                    assert!(message.contains("304"), "{message}");
+                }
+                other => panic!("cache {cache_dir:?}: expected a protocol error, got {other:?}"),
+            }
+            server.join().unwrap();
         }
     }
 }
