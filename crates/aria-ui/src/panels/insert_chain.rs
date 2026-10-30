@@ -15,12 +15,14 @@ use gpui::{
     Stateful, Styled, div, px,
 };
 
-use aria_models::{AudioInsertTarget, TrackId};
+use aria_models::{AudioInsertTarget, ParamRange, TrackId};
 
 use crate::app::AppState;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
-use crate::panels::inspector::blocks::widgets::{Columns, Readout, under_labels, unkeyed_row};
+use crate::panels::inspector::blocks::widgets::{
+    Columns, Keys, Readout, Travel, stepper_row, under_labels,
+};
 use crate::surfaces::insert_rack::{self, Gesture};
 use crate::theme::Theme;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
@@ -75,13 +77,17 @@ pub fn render(
         }
         for (slot, param) in insert.params.iter().enumerate() {
             rows.push(
-                unkeyed_row(
+                stepper_row(
                     theme,
                     state,
                     at.key.with("param").with(slot),
                     param.label.clone(),
                     Readout::printed(reading(param), param.value, digits(param), unit(param)),
-                    columns,
+                    Some(Travel::along(
+                        param.value,
+                        &ParamRange::between(param.min, param.max),
+                    )),
+                    Keys::Unkeyed(columns),
                     move |state, by| {
                         insert_rack::apply(
                             state,

@@ -1387,13 +1387,13 @@ Value kind of a visual effect or transition parameter.
 
 ### enum `effect-param-display`
 
-Inspector control presentation for a scalar parameter.
+How the inspector prints a number parameter. A number row draws a value track between the parameter's bounds whatever its display.
 
 | Case | Description |
 | --- | --- |
-| `slider` | A horizontal scrub slider. |
-| `angle-dial` | A rotary dial in degrees. |
-| `percentage` | The value formatted as a percentage. |
+| `slider` | The value and its unit. |
+| `angle-dial` | The value in degrees, to a tenth. |
+| `percentage` | The stored fraction as a whole percent. |
 
 ### record `effect-choice-option`
 

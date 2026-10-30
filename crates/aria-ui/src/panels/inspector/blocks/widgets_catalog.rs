@@ -20,9 +20,9 @@ use super::{
 };
 
 /// A number row that cannot be keyed, whose caller has the write and no
-/// range: crop insets, fades, motion blur, transition and insert parameters,
-/// ramp points, animation knobs. `columns` stands it in the keyed rows' columns
-/// on an Effect Controls tab.
+/// declared range: crop insets, fades, motion blur, transition durations, ramp
+/// points, animation knobs, a template's fill order. `columns` stands it in the
+/// keyed rows' columns on an Effect Controls tab.
 #[allow(clippy::too_many_arguments)]
 pub fn unkeyed_row(
     theme: &Theme,
@@ -49,15 +49,15 @@ pub fn unkeyed_row(
 
 /// Every stepper row of one property group, generated from the catalog.
 ///
-/// A block states which group it draws and gets its rows; it keeps no list of
-/// the properties it owns, and it does not decide how an edit is written. That
-/// is what `AppState::nudge_shared_param_in` is for, and it is the reason a
-/// slider here no longer erases the keyframes of the block it belongs to.
+/// A block states which group it draws and receives its rows; it keeps no list
+/// of the properties in the group, and the write is
+/// `AppState::nudge_shared_param_in`'s, which keys an animated property rather
+/// than erasing its keyframes.
 ///
-/// It is also why the whole catalog animates at once: the range, the keyframe
-/// state and the value all arrive on the row, so [`stepper_row`] draws a track
-/// and a stopwatch for every property the catalog holds without any group
-/// opting in, and a property added to the catalog arrives animated.
+/// The range, the keyframe state and the value all arrive on the row, so
+/// [`stepper_row`] draws a track and a stopwatch for every property the
+/// catalog holds without any group opting in, and a property added to the
+/// catalog arrives animated.
 ///
 /// Every row is printed, dragged and typed in the units
 /// [`crate::app::param_units`] declares for its property: an opacity in
@@ -145,14 +145,7 @@ fn catalog_rows(
         let units = Units::of(param, &row.range);
         let scale = units.number.scale;
         let travel = match scale {
-            Scale::Linear(_) => Some(Travel {
-                value: row.value,
-                step: row.step(),
-                range: match (row.range.min, row.range.max) {
-                    (Some(min), Some(max)) => Some((min, max)),
-                    _ => None,
-                },
-            }),
+            Scale::Linear(_) => Some(Travel::along(row.value, &row.range)),
             Scale::Gain => None,
         };
         let element = stepper_row(

@@ -1,5 +1,7 @@
-//! Inspector parameter rows for effect instances (v2 parameter kinds, collapsible
-//! groups, visibility conditions, display hints, soft ranges, units, and tooltips).
+//! Inspector parameter rows for effect instances: every parameter kind,
+//! collapsible groups, visibility conditions, display hints, soft ranges,
+//! units, and tooltips. A number slot draws a value track between the bounds
+//! the effect declares.
 
 #[path = "effects_params_transition.rs"]
 pub(crate) mod transition;
@@ -21,7 +23,7 @@ use crate::app::param_units::Units;
 use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Keys, MIXED, Readout, Stopwatch, Watching, chip_row, choice_chip,
+    Chip, Columns, Keys, MIXED, Readout, Stopwatch, Travel, Watching, chip_row, choice_chip,
     color_stopwatch, pick_button, stepper_row, swatch_row, switch_line,
 };
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
@@ -307,7 +309,7 @@ fn push_effect_slot_rows(
                         MotionKey::new(&pspec.name, index),
                         pspec.label.as_str(),
                         readout,
-                        None,
+                        Some(Travel::along(value, &pspec.range())),
                         keys_of(keyed),
                         move |state, by| {
                             let by = scale.stored_delta(value, by);
@@ -339,7 +341,7 @@ fn push_effect_slot_rows(
                         pspec.label.as_str(),
                         Readout::of(Units::of_effect(pspec), value as f32)
                             .dashed(keys.mixed(index, slot, None)),
-                        None,
+                        Some(Travel::along(value as f32, &pspec.range())),
                         keys_of(keyed),
                         move |state, by| {
                             effects_rack::apply(
@@ -450,6 +452,7 @@ fn push_effect_slot_rows(
         EffectParamKind::Vec2 | EffectParamKind::Size => {
             let value = effect.vec2(slot).unwrap_or(pspec.default_vec2);
             let units = Units::of_effect(pspec);
+            let range = pspec.range();
             for (axis, name) in vec2_axes(pspec.kind) {
                 let keyed = keys.number(index, slot, Some(axis as u8));
                 let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
@@ -460,7 +463,7 @@ fn push_effect_slot_rows(
                         MotionKey::new(&pspec.name, index).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::of(units, shown).dashed(keys.mixed(index, slot, Some(axis as u8))),
-                        None,
+                        Some(Travel::along(shown, &range)),
                         keys_of(keyed),
                         move |state, by| {
                             effects_rack::apply(
@@ -482,6 +485,7 @@ fn push_effect_slot_rows(
         EffectParamKind::Point3 => {
             let value = effect.point3(slot).unwrap_or(pspec.default_vec3);
             let units = Units::of_effect(pspec);
+            let range = pspec.range();
             for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
                 let keyed = keys.number(index, slot, Some(axis as u8));
                 let shown = keyed.as_ref().map_or(value[axis], |(value, _)| *value);
@@ -492,7 +496,7 @@ fn push_effect_slot_rows(
                         MotionKey::new(&pspec.name, index).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::of(units, shown).dashed(keys.mixed(index, slot, Some(axis as u8))),
-                        None,
+                        Some(Travel::along(shown, &range)),
                         keys_of(keyed),
                         move |state, by| {
                             effects_rack::apply(

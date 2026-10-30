@@ -19,8 +19,9 @@ use aria_compositor::{
     f16_to_f32, f32_to_f16, pass_id, registered_effect, renders_effect, renders_transition,
 };
 use aria_models::{
-    ClipId, ClipParam, DriverCode, EffectInstance, EffectParamKind as HostParamKind, ParamValue,
-    clip_type_spec, effect_spec, transition_spec,
+    ClipId, ClipParam, DriverCode, EffectChoiceOption as HostChoice, EffectInstance,
+    EffectParamKind as HostParamKind, EffectParamSpec as HostParamSpec, ParamValue, clip_type_spec,
+    effect_spec, transition_spec,
 };
 use aria_plugin::external::{from_table, host_table};
 use aria_plugin::package::{MANIFEST_FILE, Package};
@@ -30,9 +31,10 @@ use aria_render::compile_driver;
 use aria_sdk::{
     Analyzer as SdkAnalyzer, AnalyzerMarker, AnalyzerResult, AnalyzerRun, AnalyzerScope,
     AnalyzerSpec, ClipTypeSpec, CpuEffect, CpuFrameIn, CpuFrameOut, DriverLanguage,
-    DriverLanguageSpec, DriverVars, EffectParamKind as SdkParamKind, EffectParamSpec, EffectSpec,
-    Host, MarkerColor, ParamValue as SdkParamValue, Plugin as SdkPlugin, PluginRuntime, PresetSpec,
-    TransitionSpec, WorkspaceFocus, WorkspacePanes, WorkspaceSpec,
+    DriverLanguageSpec, DriverVars, EffectChoiceOption, EffectParamKind as SdkParamKind,
+    EffectParamSpec, EffectSpec, Host, MarkerColor, ParamValue as SdkParamValue,
+    Plugin as SdkPlugin, PluginRuntime, PresetSpec, TransitionSpec, WorkspaceFocus, WorkspacePanes,
+    WorkspaceSpec,
 };
 use parking_lot::Mutex;
 use tempfile::TempDir;
@@ -795,6 +797,74 @@ fn sdk_and_host_count_the_same_floats_for_every_parameter_kind() {
             sdk_kind.flattened_floats(),
             host_kind.shader_floats(),
             "`{name}` occupies a different float count in the SDK and on the host"
+        );
+    }
+}
+
+/// WHY: a native plugin's parameters reach the host as the JSON of
+/// `aria_sdk::EffectParamSpec`, which states every key, so a key the plugin
+/// leaves unset reaches the host as the SDK's default, not the host's. The
+/// SDK's `max` defaulted to `0.0` where the host's and the manifest
+/// reference's is `1.0`, so a number left at it held every value at its
+/// minimum, and the empty `default_choice`, which the SDK documents as the
+/// first option, reached the host as an option no choice has. A parameter of
+/// every kind, enumerated through serde, is left at the SDK's defaults, sent
+/// as the native ABI sends it, and read on the host with the range, default
+/// value and default option of the host's own default parameter of that kind.
+/// The SDK reads the JSON of a parameter that states only its name, label,
+/// kind and options as the same parameter, so its JSON defaults and its
+/// `Default` agree. Not caught: a default both sides share that the manifest
+/// reference states otherwise, and an unset key none of the three reads.
+#[test]
+fn an_sdk_parameter_left_at_its_defaults_reads_as_the_host_default() {
+    for (name, kind) in serde_variants::<SdkParamKind>() {
+        let sdk = EffectParamSpec {
+            name: "p".into(),
+            label: "P".into(),
+            kind,
+            choices: vec![
+                EffectChoiceOption::new("fast", "Fast"),
+                EffectChoiceOption::new("best", "Best"),
+            ],
+            ..EffectParamSpec::default()
+        };
+        let sent = serde_json::to_string(&sdk).expect("serialize the SDK parameter");
+        let bare = serde_json::json!({
+            "name": "p",
+            "label": "P",
+            "kind": name,
+            "choices": sdk.choices,
+        });
+        assert_eq!(
+            serde_json::from_value::<EffectParamSpec>(bare)
+                .unwrap_or_else(|err| panic!("the SDK reads no bare `{name}` parameter: {err}")),
+            sdk,
+            "a `{name}` parameter that states no other key reads otherwise than the SDK's default"
+        );
+        let read: HostParamSpec = serde_json::from_str(&sent)
+            .unwrap_or_else(|err| panic!("the host reads no `{name}` parameter: {err}"));
+        let own = HostParamSpec {
+            name: "p".into(),
+            label: "P".into(),
+            kind: read.kind,
+            choices: vec![
+                HostChoice::new("fast", "Fast"),
+                HostChoice::new("best", "Best"),
+            ],
+            ..HostParamSpec::default()
+        };
+        assert_eq!(
+            (
+                read.range(),
+                read.default_param_value(),
+                read.default_choice_id()
+            ),
+            (
+                own.range(),
+                own.default_param_value(),
+                own.default_choice_id()
+            ),
+            "a `{name}` parameter left at the SDK's defaults reads differently on the host"
         );
     }
 }

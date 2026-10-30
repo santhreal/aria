@@ -147,17 +147,18 @@ impl EffectParamKind {
     }
 }
 
-/// UI control display hint for a numeric parameter.
+/// How the inspector prints a number parameter. A number row draws a value
+/// track between the parameter's bounds whatever its display.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EffectParamDisplay {
-    /// Standard horizontal scrub/slider.
+    /// The value and its unit.
     #[default]
     Slider,
-    /// Rotary angle dial (`deg`).
+    /// The value in degrees, to a tenth.
     #[serde(alias = "angle", alias = "dial")]
     AngleDial,
-    /// Percentage readout (`0..1` or `0..100` formatted as `%`).
+    /// The stored fraction (`0..1`) as a whole percent.
     #[serde(alias = "percent")]
     Percentage,
 }
@@ -272,8 +273,9 @@ pub struct EffectParamSpec {
     /// Minimum allowed value (`Scalar`, `Vec2`, `Point3`, `Size`, `Angle`).
     #[serde(default)]
     pub min: f32,
-    /// Maximum allowed value (`Scalar`, `Vec2`, `Point3`, `Size`, `Angle`).
-    #[serde(default)]
+    /// Maximum allowed value (`Scalar`, `Vec2`, `Point3`, `Size`, `Angle`);
+    /// `1.0` where a manifest omits it.
+    #[serde(default = "default_max")]
     pub max: f32,
     /// Optional soft minimum for UI scrubbing before clamping to `min`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -284,7 +286,7 @@ pub struct EffectParamSpec {
     /// Optional unit suffix (e.g. `"px"`, `"deg"`, `"%"`, `"s"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
-    /// Optional control display mode (`slider`, `angle_dial`, `percentage`).
+    /// How the inspector prints the value (`slider`, `angle_dial`, `percentage`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display: Option<EffectParamDisplay>,
     /// Default value for [`EffectParamKind::Int`].
@@ -349,7 +351,7 @@ impl Default for EffectParamSpec {
             kind: EffectParamKind::Scalar,
             default: 0.0,
             min: 0.0,
-            max: 1.0,
+            max: DEFAULT_MAX,
             soft_min: None,
             soft_max: None,
             unit: None,
@@ -372,6 +374,14 @@ impl Default for EffectParamSpec {
             tooltip: None,
         }
     }
+}
+
+/// The `max` of a parameter that declares none: the top of a unit range.
+const DEFAULT_MAX: f32 = 1.0;
+
+/// [`DEFAULT_MAX`], for a manifest that omits `max`.
+fn default_max() -> f32 {
+    DEFAULT_MAX
 }
 
 /// Unit suffix marking an effect parameter measured in canvas pixels.
@@ -733,10 +743,12 @@ impl EffectParamSpec {
         })
     }
 
-    /// Default choice id for [`EffectParamKind::Choice`].
+    /// Default choice id for [`EffectParamKind::Choice`]: the declared default
+    /// when one of [`Self::choices`] has that id, else the first option.
     pub fn default_choice_id(&self) -> Option<&str> {
         self.default_choice
             .as_deref()
+            .filter(|id| self.choice_index(id).is_some())
             .or_else(|| self.choices.first().map(|c| c.id.as_str()))
     }
 

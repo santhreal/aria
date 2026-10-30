@@ -764,6 +764,10 @@ Notes for the latest release. For previous releases, see the
 - The 0 and -60 dBFS marks of the Audio Meters no longer run into the clip light and the channel names.
 - The Viewer's peak strip and the Audio Track Mixer's bars draw a level on the -60 dBFS to 0 dBFS scale the Audio Meters panel draws instead of on a linear one, so -18 dBFS fills seven tenths of every meter instead of an eighth of some, and the master strip falls at the panel's rate instead of jumping with each block.
 - The value track under a property in Effect Controls spans the label and the value columns instead of the whole row, so it no longer runs under the keyframe navigator and the time area.
+- The number parameters of an effect, a transition and an audio insert draw a value track between their declared bounds in Effect Controls and on a mixer strip, as the property rows do, instead of a bare number.
+- A plugin manifest parameter that omits `max`, and a native plugin's `EffectParamSpec` that leaves it at its default, read a maximum of `1.0`, as the manifest reference states, instead of `0.0`, which held every value at the minimum.
+- A choice parameter whose `default_choice` no option has, such as the empty default a native plugin sends, starts on its first option instead of on no option.
+- The plugin manifest and WIT references state what each `display` value prints instead of a rotary dial no row draws.
 - A timeline filmstrip covers its clip end to end at every zoom, with no gap between cells, before the first cell of a clip that starts between cells, or between frames zoomed wider than a cell; its last cell is cropped at the clip's end instead of squeezed, and only cells on screen are rendered.
 - A drag that starts on a timeline clip's opacity or volume line moves the clip when it travels along the lane and moves the line when it travels across it, instead of holding the line and leaving the clip in place; a double-click on the line opens the clip as a body double-click does.
 - The timeline zoom bar draws its thumb lighter than the band of clips under it, and lighter still while held, instead of drawing the band brighter than the thumb.

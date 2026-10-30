@@ -1,16 +1,13 @@
 //! Shared inspector rows and labels, used by more than one tab.
 //!
-//! Every numeric control in the inspector is the same row — a label and a
-//! scrubbable value (`panels::value_readout`) — so it is drawn once, here. That is
-//! what makes the motion a property of "a row" rather than of the fifteen
-//! places that draw one: the catalog's properties, the transform's six, and
-//! every effect knob all animate because [`stepper_row`] does.
+//! Every numeric control in the inspector is the same row, a label and a
+//! scrubbable value (`panels::value_readout`), drawn once, here. Every
+//! property, catalog or effect slot, animates because [`stepper_row`] does.
 //!
-//! A row drawn from the property catalog gets the whole treatment, because the
-//! catalog supplies the two things the rest cannot: a range, so there is a
-//! track for the value to travel along, and a [`ClipParam`], so there is
-//! something for a keyframe to be written against. A row whose caller has
-//! neither still fades under the pointer and reads the same.
+//! A row whose property declares both bounds draws a track for the value to
+//! travel along, and a row with a [`ClipParam`] draws the stopwatch and the
+//! time area a keyframe is written against. A row with neither still fades
+//! under the pointer and reads the same.
 
 use crate::app::AppState;
 use crate::app::clip_params::{ColorRow, ParamRow};
@@ -25,7 +22,7 @@ use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 use crate::types::UiClipKind;
 use aria_engine::EngineError;
-use aria_models::ClipParam;
+use aria_models::{ClipParam, ParamRange};
 use gpui::motion::presets;
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -109,6 +106,26 @@ pub struct Travel {
     /// drawn against these and the fill follows the same eased value the
     /// readout does, so the bar and the number can never disagree.
     pub range: Option<(f32, f32)>,
+}
+
+impl Travel {
+    /// `value` moving within `range`.
+    ///
+    /// A bounded property's nudge is a twentieth of its span, a stepper's
+    /// useful granularity whatever the units are. An open-ended property's is
+    /// one, a pixel-ish unit, which is what open-ended properties here are:
+    /// blur, radius, padding, offset.
+    pub fn along(value: f32, range: &ParamRange) -> Self {
+        let step = match range.span() {
+            Some(span) if span > 0.0 => span / 20.0,
+            _ => 1.0,
+        };
+        Self {
+            value,
+            step,
+            range: range.bounds(),
+        }
+    }
 }
 
 /// What a row prints where the selected clips read differently.
@@ -740,8 +757,10 @@ fn value_track(
     column: Option<&Column>,
     label: &SharedString,
 ) -> gpui::AnyElement {
-    let track =
-        track(theme, fill, hovered).debug_selector(|| cell_selector(column, label, "track"));
+    let track = track(theme, fill, hovered, || {
+        cell_selector(column, label, "fill")
+    })
+    .debug_selector(|| cell_selector(column, label, "track"));
     if column.is_none() {
         return track.w_full().into_any_element();
     }
@@ -769,10 +788,16 @@ fn value_track(
 }
 
 /// A rail, the part of it the value covers, and the thumb where the two meet.
+/// `fill_selector` is the covered part's debug selector.
 ///
 /// `hovered` brightens all three together rather than only the thumb, because
 /// a lit thumb on a dim rail reads as a different control.
-fn track(theme: &Theme, fill: f32, hovered: f32) -> gpui::Div {
+fn track(
+    theme: &Theme,
+    fill: f32,
+    hovered: f32,
+    fill_selector: impl FnOnce() -> String,
+) -> gpui::Div {
     let rail = motion::mix(theme.border, theme.border_strong, hovered);
     let lit = motion::mix(theme.accent, theme.accent_strong, hovered);
     let mid = (THUMB - TRACK_H) / 2.0;
@@ -795,7 +820,8 @@ fn track(theme: &Theme, fill: f32, hovered: f32) -> gpui::Div {
                 .w(relative(fill))
                 .h(px(TRACK_H))
                 .rounded(px(TRACK_H / 2.0))
-                .bg(lit),
+                .bg(lit)
+                .debug_selector(fill_selector),
         )
         .child(
             div()

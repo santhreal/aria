@@ -95,14 +95,13 @@ use crate::theme::Theme;
 pub(super) const EPS: f32 = 0.51;
 
 /// The id of the effect and of the transition with a slot of every kind.
-const EVERY_KIND: &str = "test.ui.every_kind";
+pub(super) const EVERY_KIND: &str = "test.ui.every_kind";
 
 /// The tabs held to the keyed rows' columns here.
 const HELD: [&str; 4] = ["transform", "look", "effects", "audio"];
 
-/// The tabs of [`HELD`] whose rows draw no value track: an effect's number
-/// slots draw none.
-const UNTRACKED: [&str; 1] = ["effects"];
+/// The tabs of [`HELD`] whose rows draw no value track.
+const UNTRACKED: [&str; 0] = [];
 
 /// The tabs whose rows draw no time area, held to free columns here.
 const FREE: [&str; 2] = ["speed", "info"];
@@ -160,7 +159,7 @@ fn slot_spec(kind: EffectParamKind, holder: &str) -> EffectParamSpec {
 }
 
 /// A slot of every kind, in declaration order, labelled for their `holder`.
-fn every_kind(holder: &str) -> Vec<EffectParamSpec> {
+pub(super) fn every_kind(holder: &str) -> Vec<EffectParamSpec> {
     EffectParamKind::ALL
         .into_iter()
         .map(|kind| slot_spec(kind, holder))

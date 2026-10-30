@@ -9,7 +9,8 @@ use crate::app::AppState;
 use crate::app::param_units::Units;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
-    Chip, Columns, Keys, Readout, chip_row, choice_chip, swatch_row, switch_line, unkeyed_row,
+    Chip, Columns, Keys, Readout, Travel, chip_row, choice_chip, stepper_row, swatch_row,
+    switch_line,
 };
 use crate::surfaces::clip_pick::{self, Pick, TransitionSlotEdit};
 use crate::theme::Theme;
@@ -59,13 +60,14 @@ fn push_transition_slot_rows(
             let units = Units::of_effect(pspec);
             let scale = units.number.scale;
             out.push(
-                unkeyed_row(
+                stepper_row(
                     theme,
                     state,
                     MotionKey::new("tr-param", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
                     Readout::of(units, value),
-                    Columns::Keyed,
+                    Some(Travel::along(value, &pspec.range())),
+                    Keys::Unkeyed(Columns::Keyed),
                     move |state, by| {
                         clip_pick::apply(
                             state,
@@ -85,13 +87,14 @@ fn push_transition_slot_rows(
         EffectParamKind::Int => {
             let value = transition.int(slot).unwrap_or(pspec.default_int as i32);
             out.push(
-                unkeyed_row(
+                stepper_row(
                     theme,
                     state,
                     MotionKey::new("tr-param-int", slot).with(pspec.name.as_str()),
                     pspec.label.as_str(),
                     Readout::of(Units::of_effect(pspec), value as f32),
-                    Columns::Keyed,
+                    Some(Travel::along(value as f32, &pspec.range())),
+                    Keys::Unkeyed(Columns::Keyed),
                     move |state, by| {
                         clip_pick::apply(
                             state,
@@ -182,15 +185,17 @@ fn push_transition_slot_rows(
         EffectParamKind::Vec2 | EffectParamKind::Size => {
             let value = transition.vec2(slot).unwrap_or(pspec.default_vec2);
             let units = Units::of_effect(pspec);
+            let range = pspec.range();
             for (axis, name) in vec2_axes(pspec.kind) {
                 out.push(
-                    unkeyed_row(
+                    stepper_row(
                         theme,
                         state,
                         MotionKey::new("tr-vec2", slot).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::of(units, value[axis]),
-                        Columns::Keyed,
+                        Some(Travel::along(value[axis], &range)),
+                        Keys::Unkeyed(Columns::Keyed),
                         move |state, by| {
                             clip_pick::apply(
                                 state,
@@ -209,15 +214,17 @@ fn push_transition_slot_rows(
         EffectParamKind::Point3 => {
             let value = transition.point3(slot).unwrap_or(pspec.default_vec3);
             let units = Units::of_effect(pspec);
+            let range = pspec.range();
             for (axis, name) in [(0usize, "x"), (1usize, "y"), (2usize, "z")] {
                 out.push(
-                    unkeyed_row(
+                    stepper_row(
                         theme,
                         state,
                         MotionKey::new("tr-pt3", slot).with(name),
                         &format!("{} {name}", pspec.label),
                         Readout::of(units, value[axis]),
-                        Columns::Keyed,
+                        Some(Travel::along(value[axis], &range)),
+                        Keys::Unkeyed(Columns::Keyed),
                         move |state, by| {
                             clip_pick::apply(
                                 state,

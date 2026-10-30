@@ -403,3 +403,30 @@ fn all_15_param_kinds_roundtrip_on_effect_and_transition_and_respect_visibility(
             .sum::<usize>()
     );
 }
+
+/// A manifest parameter reads every key it omits as `EffectParamSpec::default`
+/// holds it, and its range is the `0.0` to `1.0` the manifest reference
+/// documents.
+///
+/// Closes the class "a manifest default that differs from the model's":
+/// `max` read `0.0` when parsed and `1.0` when built in code, so a manifest
+/// scalar that omitted it held every value at its minimum. A parameter that
+/// names only itself is compared whole, so a field added with a serde default
+/// other than its `Default` fails here. Not covered: a default that serde and
+/// `Default` share and the reference states otherwise, apart from the range.
+#[test]
+fn a_manifest_parameter_reads_every_omitted_key_as_the_default_spec() {
+    let parsed: EffectParamSpec =
+        toml::from_str("name = \"amount\"\nlabel = \"Amount\"").expect("parses");
+    let built = EffectParamSpec {
+        name: "amount".into(),
+        label: "Amount".into(),
+        ..EffectParamSpec::default()
+    };
+    assert_eq!(parsed, built);
+    assert_eq!(
+        (parsed.min, parsed.max),
+        (0.0, 1.0),
+        "the manifest reference documents a range of 0.0 to 1.0"
+    );
+}

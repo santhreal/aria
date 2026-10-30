@@ -71,16 +71,17 @@ impl EffectParamKind {
     }
 }
 
-/// Inspector control presentation for a scalar parameter.
+/// How the inspector prints a number parameter. A number row draws a value
+/// track between the parameter's bounds whatever its display.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EffectParamDisplay {
-    /// A horizontal scrub slider.
+    /// The value and its unit.
     #[default]
     Slider,
-    /// A rotary dial in degrees.
+    /// The value in degrees, to a tenth.
     AngleDial,
-    /// The value formatted as a percentage.
+    /// The stored fraction as a whole percent.
     Percentage,
 }
 
@@ -216,7 +217,7 @@ impl EffectGroupSpec {
 }
 
 /// One parameter of a visual effect, generator, or transition.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EffectParamSpec {
     /// Parameter key: unique within the effect and a WGSL identifier. A shader
     /// reads it through `param_<name>()`.
@@ -232,8 +233,9 @@ pub struct EffectParamSpec {
     /// Lowest value of `Scalar`, `Vec2`, `Point3`, `Size`, and `Angle`.
     #[serde(default)]
     pub min: f32,
-    /// Highest value of the kinds `min` bounds. Not below `min`.
-    #[serde(default)]
+    /// Highest value of the kinds `min` bounds. Not below `min`. `1.0` when
+    /// unset.
+    #[serde(default = "default_max")]
     pub max: f32,
     /// Default for `Color`: RGBA `[r, g, b, a]` in `0..=255`.
     #[serde(default)]
@@ -241,7 +243,7 @@ pub struct EffectParamSpec {
     /// Default for `Vec2` and `Size`.
     #[serde(default)]
     pub default_vec2: [f32; 2],
-    /// The control a `Scalar` row draws.
+    /// How a `Scalar` row prints its value.
     #[serde(default)]
     pub display: EffectParamDisplay,
     /// Lower end of the scrub range before values clamp to `min`, or `None`.
@@ -293,6 +295,47 @@ pub struct EffectParamSpec {
     /// Default for `Text`, `Font`, and `File`.
     #[serde(default)]
     pub default_text: String,
+}
+
+impl Default for EffectParamSpec {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            label: String::new(),
+            kind: EffectParamKind::default(),
+            default: 0.0,
+            min: 0.0,
+            max: DEFAULT_MAX,
+            default_color: [0; 4],
+            default_vec2: [0.0; 2],
+            display: EffectParamDisplay::default(),
+            soft_min: None,
+            soft_max: None,
+            unit: None,
+            tooltip: None,
+            group: None,
+            visible_when: None,
+            choices: Vec::new(),
+            default_int: 0,
+            int_min: 0,
+            int_max: 0,
+            default_bool: false,
+            default_choice: String::new(),
+            default_vec3: [0.0; 3],
+            default_curve: Vec::new(),
+            default_gradient: Vec::new(),
+            default_text: String::new(),
+        }
+    }
+}
+
+/// The `max` of a parameter that sets none: the top of a unit range, as on the
+/// host.
+const DEFAULT_MAX: f32 = 1.0;
+
+/// [`DEFAULT_MAX`], for a parameter whose JSON omits `max`.
+fn default_max() -> f32 {
+    DEFAULT_MAX
 }
 
 impl EffectParamSpec {
@@ -459,7 +502,6 @@ impl EffectParamSpec {
             name: name.into(),
             label: label.into(),
             kind: EffectParamKind::Color,
-            max: 1.0,
             default_color,
             ..Default::default()
         }

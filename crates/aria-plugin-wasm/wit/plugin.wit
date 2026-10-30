@@ -772,13 +772,14 @@ world plugin {
         layer,
     }
 
-    /// Inspector control presentation for a scalar parameter.
+    /// How the inspector prints a number parameter. A number row draws a value
+    /// track between the parameter's bounds whatever its display.
     enum effect-param-display {
-        /// A horizontal scrub slider.
+        /// The value and its unit.
         slider,
-        /// A rotary dial in degrees.
+        /// The value in degrees, to a tenth.
         angle-dial,
-        /// The value formatted as a percentage.
+        /// The stored fraction as a whole percent.
         percentage,
     }
 

@@ -42,12 +42,14 @@ impl ParamRange {
         value
     }
 
+    /// The two bounds, when both are declared.
+    pub fn bounds(&self) -> Option<(f32, f32)> {
+        self.min.zip(self.max)
+    }
+
     /// The distance between the bounds, when both are declared. A stepper with a
     /// span can size its own step; one without needs the caller's.
     pub fn span(&self) -> Option<f32> {
-        match (self.min, self.max) {
-            (Some(min), Some(max)) => Some(max - min),
-            _ => None,
-        }
+        self.bounds().map(|(min, max)| max - min)
     }
 }

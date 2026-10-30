@@ -1,27 +1,22 @@
 //! Effect instance parameters as catalog rows.
 //!
-//! An effect's parameters are already animatable: `ClipParam::Effect { effect,
-//! param }` addresses a slot on one of the clip's effects, and the keyframe
-//! commands write to the effect instance's own typed param maps. What was
-//! missing is the catalog side. [`super::clip_param_catalog`] is a static list
-//! of the properties every clip declares, and an effect's parameters are neither
-//! static nor per-clip-uniform: they exist once per effect on the clip, in the
-//! order the effect declares them.
+//! `ClipParam::Effect { effect, param }` addresses a slot on one of the clip's
+//! effects, and the keyframe commands write to the effect instance's own typed
+//! param maps. [`super::clip_param_catalog`] lists the properties every clip
+//! declares; an effect's parameters exist once per effect on the clip, in the
+//! order the effect declares them, so their rows are built per clip. Every
+//! surface that enumerates properties, the keyframe strip, the inspector's
+//! keyframe block and the projected clip band, calls [`clip_params_for`] and
+//! receives the shipped rows the clip can reach plus one row per effect
+//! parameter, in effect order.
 //!
-//! So the rows are built per clip. Every surface that enumerates properties —
-//! the keyframe strip, the inspector's keyframe block, the projected clip band —
-//! calls [`clip_params_for`] and gets the shipped rows the clip can reach plus
-//! one row per effect parameter, in effect order.
+//! A plugin contributes effects through `EffectService`, and its parameters
+//! return through `effect_spec`, so they reach the strip by the same route as a
+//! shipped effect's.
 //!
-//! This is also the plugin story. A plugin contributes effects through
-//! `EffectService`; its parameters come back through `effect_spec`, so they
-//! reach the strip by the same route as a shipped effect's, and no second
-//! property mechanism exists to keep in step.
-//!
-//! An unset parameter is the interesting case: the model stores nothing until
-//! someone writes a value, and the catalog default is the value the renderer
-//! uses meanwhile. Such a row reports that default and reports no keyframes, so
-//! a first keyframe pins what is already on screen rather than snapping to zero.
+//! The model stores nothing for a parameter until a value is written, and the
+//! renderer uses the catalog default meanwhile. Such a row reports that default
+//! and no keyframes, so a first keyframe pins what is already on screen.
 
 use crate::clip::{Clip, ClipParam, ParamValue};
 use crate::effects::{EffectInstance, EffectParamKind, EffectParamSpec, EffectSpec};
@@ -99,13 +94,16 @@ fn kind_of(kind: EffectParamKind) -> Option<ParamKind> {
     }
 }
 
-/// The range a write is validated against. A colour is validated component-wise
-/// by its own type, so it declares none.
-fn range_of(pspec: &EffectParamSpec) -> ParamRange {
-    match pspec.kind {
-        EffectParamKind::Color => ParamRange::ANY,
-        EffectParamKind::Int => ParamRange::between(pspec.int_min as f32, pspec.int_max as f32),
-        _ => ParamRange::between(pspec.min, pspec.max),
+impl EffectParamSpec {
+    /// The range a write to this parameter is held to: the integer bounds of
+    /// an integer, the float bounds of any other number. A colour is held
+    /// component-wise by its own type, so it declares none.
+    pub fn range(&self) -> ParamRange {
+        match self.kind {
+            EffectParamKind::Color => ParamRange::ANY,
+            EffectParamKind::Int => ParamRange::between(self.int_min as f32, self.int_max as f32),
+            _ => ParamRange::between(self.min, self.max),
+        }
     }
 }
 
@@ -115,7 +113,7 @@ pub(crate) fn effect_range(clip: &Clip, effect: u32, param: u32) -> ParamRange {
     clip.effects
         .get(effect as usize)
         .and_then(|instance| crate::effect_spec(&instance.effect_id))
-        .and_then(|spec| spec.param_at(param as usize).map(range_of))
+        .and_then(|spec| spec.param_at(param as usize).map(EffectParamSpec::range))
         .unwrap_or(ParamRange::ANY)
 }
 
@@ -135,7 +133,7 @@ fn row(index: u32, spec: &EffectSpec, slot: u32, pspec: &EffectParamSpec) -> Opt
         },
         kind,
         scope: ParamScope::Visual,
-        range: range_of(pspec),
+        range: pspec.range(),
         route: Route::Effect {
             effect: index,
             param: slot,
@@ -305,7 +303,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("slot {slot} is missing"));
             assert_eq!(row.id.as_ref(), format!("effect-0-{}", pspec.name));
             assert_eq!(row.kind, kind_of(pspec.kind).expect("keyframeable kind"));
-            assert_eq!(row.range, range_of(pspec));
+            assert_eq!(row.range, pspec.range());
         }
     }
 

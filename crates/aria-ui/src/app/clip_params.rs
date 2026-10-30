@@ -90,13 +90,6 @@ pub struct ColorRow {
     pub mixed: bool,
 }
 
-impl ParamRow {
-    /// The amount one nudge moves this row; see [`param_step`].
-    pub fn step(&self) -> f32 {
-        param_step(&self.range)
-    }
-}
-
 /// Whether `spec` holds something other than its reset value at clip-local
 /// `local`. `shown` is what the row reads there; a driven property reads its
 /// driver's result, so its own value is sampled off the clip instead.
@@ -116,19 +109,6 @@ fn off_default(
         Some(shown)
     };
     held != Some(default)
-}
-
-/// The amount one nudge moves a property bounded by `range`.
-///
-/// A bounded property divides its span into twenty steps, which is a stepper's
-/// useful granularity whatever the units are. An open-ended property steps by
-/// one, because the row has no scale to derive from and a pixel-ish unit is
-/// what open-ended properties here are (blur, radius, padding, offset).
-pub(crate) fn param_step(range: &aria_models::ParamRange) -> f32 {
-    match range.span() {
-        Some(span) if span > 0.0 => span / 20.0,
-        _ => 1.0,
-    }
 }
 
 impl AppState {

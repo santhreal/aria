@@ -203,9 +203,16 @@ fn a_choice_falls_back_to_its_default_then_its_first_option() {
         ..EffectParamSpec::default()
     };
     assert_eq!(empty.choice_or_default(Some("x")), None);
-    let built = EffectParamSpec::choice("m", "M", options, "c");
+    let built = EffectParamSpec::choice("m", "M", options.clone(), "c");
     assert_eq!((built.default, built.min, built.max), (2.0, 0.0, 2.0));
     assert_eq!(built.choice_or_default(Some("gone")), Some("c"));
+    // A declared default no option has, such as the empty id a native plugin
+    // sends for "the first option", reads as the first option.
+    for unlisted in ["", "gone"] {
+        let declared = EffectParamSpec::choice("m", "M", options.clone(), unlisted);
+        assert_eq!(declared.default_choice_id(), Some("a"), "{unlisted:?}");
+        assert_eq!(declared.choice_or_default(None), Some("a"), "{unlisted:?}");
+    }
 }
 
 #[test]
