@@ -1,16 +1,12 @@
-//! Peak: 1 helpers from [`super`].
-//!
-//! Split out of `preview.rs` to stay under the file ceiling. A pure
-//! move. Each item is `pub(super)` so the parent and its other children can
-//! reach it by name; nothing else changed.
+//! The Viewer's peak strip: a bar per output channel, in the control row.
 
 use super::*;
+use crate::app::meter::meter_fraction;
 
-/// Two peak bars and a clip light, for the transport row.
-///
-/// Full scale is the width of the strip, so a bar that reaches the end is at 0
-/// dBFS, so reading it needs no arithmetic while mixing. Clicking
-/// the strip acknowledges a clip.
+/// Two peak bars on the meter scale the Audio Meters panel draws: the left end
+/// of a bar is -60 dBFS and the right end 0 dBFS. Both bars draw red from the
+/// first full-scale block until a click on the strip, or on the Audio Meters
+/// clip light, clears the clip.
 pub(super) fn peak_meter(
     state: &Entity<AppState>,
     theme: &Theme,
@@ -21,13 +17,15 @@ pub(super) fn peak_meter(
     let bar = |level: f32, id: &'static str| {
         div()
             .id(id)
+            .debug_selector(move || id.to_owned())
             .w(px(WIDTH))
             .h(px(3.))
             .rounded(px(1.))
             .bg(theme.wash(0.12))
             .child(
                 div()
-                    .w(px((WIDTH * level.clamp(0.0, 1.0)).round()))
+                    .debug_selector(move || format!("{id}-fill"))
+                    .w(px((WIDTH * meter_fraction(level)).round()))
                     .h_full()
                     .rounded(px(1.))
                     .bg(if reading.clipped {

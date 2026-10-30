@@ -63,7 +63,8 @@
   turns linked selection on or off. On, a click selects a clip with the clips
   linked to it, and a move or a trim moves them together. Off, a click, a move, a
   nudge, and an edge trim apply to the one clip; grouped clips still move
-  together.
+  together. A linked clip's card reads `[V]` after its name when it plays
+  picture and `[A]` when it plays sound.
 - **Clip > Audio Gain…** opens Audio Gain for the selected audio-bearing clips.
   It reports the measured peak in dBFS across the selection and offers four
   modes: **Set Gain to** sets clip volume in dB (`-60` to `+12` dB), **Adjust

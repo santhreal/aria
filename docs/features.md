@@ -194,8 +194,9 @@ Anything not listed here is not in the build.
 - A peak meter beside every fader, in the mixer and on the Viewer's control
   row. A strip's bars read that lane's own level after its own fader, so a bus
   reads what everything routed into it sums to. A lane the mix is not carrying reads
-  silence. Full scale is the top of the fader's travel, and a bar that reaches it
-  turns red.
+  silence. The master strip and the Viewer's bars read the program mix the
+  Audio Meters panel reads. Every meter draws on one scale, from -60 dBFS at
+  its foot to 0 dBFS at its head, and a mixer bar that reaches 0 dBFS turns red.
 - Submix buses: add one from the mixer or the palette, route lanes and other
   buses into it, and mix it with one fader. A level outside 0 to +12 dB, a route
   that would loop, and a second send to the same bus are rejected by name rather

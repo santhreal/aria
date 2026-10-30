@@ -26,6 +26,7 @@
 
 use gpui::{Bounds, Pixels, TestAppContext, point, px, size};
 
+use crate::app::meter::dbfs_fraction;
 use crate::dock::PANEL_AUDIO_METERS;
 use crate::test_support::{bounds_inside, drawn_shell};
 use crate::theme::Theme;
@@ -130,7 +131,7 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
                 names.top()
             );
             // Each mark stands beside the level it names on the bars.
-            let level = left.bottom() - left.size.height * super::mark_fraction(dbfs);
+            let level = left.bottom() - left.size.height * dbfs_fraction(dbfs);
             assert!(
                 at(mark.center().y, level),
                 "{layout}: the mark `{text}` is centered at {:?}, its level on the bars at \

@@ -94,12 +94,6 @@ impl AppState {
         self.mixer_automation.clear();
     }
 
-    /// The master strip's peak level and clip indicator from the audio output.
-    pub fn master_meter(&self) -> ([f32; 2], bool) {
-        let levels = self.audio.levels();
-        (levels.peak, levels.clipped)
-    }
-
     /// Toggle mute on a track strip (`Some(track)`) or the master strip (`None`).
     pub fn toggle_strip_mute(&mut self, track: Option<TrackId>) -> Result<(), EngineError> {
         let command = match track {

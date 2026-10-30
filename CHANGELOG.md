@@ -754,6 +754,7 @@ Notes for the latest release. For previous releases, see the
 - Clips, pool rows and label swatches draw a label at 50 % of its saturation.
 - The Viewer's zoom list states its disclosure glyph beside the choice instead of past the widest choice's room.
 - The focused frame's outline is the accent at 55 % strength.
+- A linked clip's card shows `[V]` after its name on picture and `[A]` on sound instead of `[L]` on both.
 
 ### Fixed
 
@@ -761,6 +762,8 @@ Notes for the latest release. For previous releases, see the
 - A video side with more tracks than it holds opens with V1 on the A/V divider instead of the top track at the side's top, and a wheel up over it shows the tracks above V1.
 - A lane side's scroll kept from before a track was removed or shortened no longer lifts its tracks off the A/V divider, and the first wheel step moves them.
 - The 0 and -60 dBFS marks of the Audio Meters no longer run into the clip light and the channel names.
+- The Viewer's peak strip and the Audio Track Mixer's bars draw a level on the -60 dBFS to 0 dBFS scale the Audio Meters panel draws instead of on a linear one, so -18 dBFS fills seven tenths of every meter instead of an eighth of some, and the master strip falls at the panel's rate instead of jumping with each block.
+- The value track under a property in Effect Controls spans the label and the value columns instead of the whole row, so it no longer runs under the keyframe navigator and the time area.
 - A timeline filmstrip covers its clip end to end at every zoom, with no gap between cells, before the first cell of a clip that starts between cells, or between frames zoomed wider than a cell; its last cell is cropped at the clip's end instead of squeezed, and only cells on screen are rendered.
 - A drag that starts on a timeline clip's opacity or volume line moves the clip when it travels along the lane and moves the line when it travels across it, instead of holding the line and leaving the clip in place; a double-click on the line opens the clip as a body double-click does.
 - The timeline zoom bar draws its thumb lighter than the band of clips under it, and lighter still while held, instead of drawing the band brighter than the thumb.

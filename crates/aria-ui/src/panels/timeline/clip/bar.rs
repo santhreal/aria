@@ -12,7 +12,7 @@ use gpui::{
 use crate::panels::timeline::ticks_to_px;
 use crate::theme::Theme;
 use crate::transport::ticks_to_px_f;
-use crate::types::{UiClip, UiClipLine, UiFxBadge, UiGenerator, UiTransition};
+use crate::types::{UiClip, UiClipKind, UiClipLine, UiFxBadge, UiGenerator, UiTransition};
 
 /// Height of the name strip at the top of every bar.
 pub(crate) const NAME_STRIP: f32 = 14.0;
@@ -321,12 +321,11 @@ pub(crate) fn paint_name_strip(
             .speed_label
             .clone()
             .map(|text| shape(window, text, NAME_PX, ink, theme));
-        let tags = match (clip.linked_to.is_some(), clip.grouped_to.is_some()) {
-            (false, false) => None,
-            (true, false) => Some("[L]"),
-            (false, true) => Some("[G]"),
-            (true, true) => Some("[L] [G]"),
-        }
+        let tags = name_tags(
+            clip.kind,
+            clip.linked_to.is_some(),
+            clip.grouped_to.is_some(),
+        )
         .map(|tags| shape(window, SharedString::new_static(tags), NAME_PX, ink, theme));
         let drift_fill = theme.danger;
         let drift = clip.drift.map(|frames| {
@@ -402,6 +401,24 @@ pub(crate) fn paint_name_strip(
         }
     });
     hits
+}
+
+/// The tags after a clip's name. A clip linked to another is tagged `[A]`
+/// when it plays sound and `[V]` when it plays picture, so a linked pair
+/// reads which half is which; a grouped clip is tagged `[G]`.
+pub(super) fn name_tags(kind: UiClipKind, linked: bool, grouped: bool) -> Option<&'static str> {
+    let sound = match kind {
+        UiClipKind::Audio => true,
+        UiClipKind::Media | UiClipKind::Text | UiClipKind::Shape | UiClipKind::Generator => false,
+    };
+    match (linked, sound, grouped) {
+        (false, _, false) => None,
+        (false, _, true) => Some("[G]"),
+        (true, false, false) => Some("[V]"),
+        (true, true, false) => Some("[A]"),
+        (true, false, true) => Some("[V] [G]"),
+        (true, true, true) => Some("[A] [G]"),
+    }
 }
 
 /// Paint the "Media Offline" notice and the file name in the content strip

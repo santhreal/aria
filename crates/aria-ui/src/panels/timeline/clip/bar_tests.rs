@@ -13,17 +13,19 @@
 use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand};
-use aria_models::{ClipId, ClipParam, MarkerColor, Param, ParamValue};
+use aria_models::{ClipId, ClipParam, MarkerColor, Param, ParamValue, TrackId};
+use aria_plugin::PluginContext;
 use gpui::{
     Background, Bounds, Entity, Modifiers, MouseButton, MouseDownEvent, Pixels, Point,
     TestAppContext, VisualTestContext, point, px, size,
 };
 
-use super::{BarRows, DOT, FX_H, FX_W};
+use super::{BarRows, DOT, FX_H, FX_W, name_tags};
 use crate::app::AppState;
+use crate::scratch_pool::scratch;
 use crate::surfaces::timeline_gesture::{Drag, Gesture, Span};
 use crate::theme::Theme;
-use crate::types::{ContextTarget, TrimSide};
+use crate::types::{ContextTarget, TrimSide, UiClipKind};
 
 fn texture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
@@ -580,4 +582,67 @@ fn a_press_on_the_fx_badge_opens_its_menu_and_nothing_else(cx: &mut TestAppConte
             "{button:?}: the press moved the clip"
         );
     }
+}
+
+/// A linked clip is tagged with the half of the pair it plays: sound `[A]`,
+/// any other kind `[V]`, and a grouped clip adds `[G]`. A shot with sound
+/// dropped on the timeline projects its picture as `[V]` and its sound as
+/// `[A]`.
+///
+/// Closes the class where every linked clip read `[L]`, so the two halves of
+/// a pair read alike. Not covered: the glyphs, which the test text system
+/// does not draw.
+#[test]
+fn a_linked_clip_is_tagged_with_the_half_of_the_pair_it_plays() {
+    for kind in UiClipKind::ALL {
+        let half = if kind == UiClipKind::Audio {
+            "[A]"
+        } else {
+            "[V]"
+        };
+        let half_grouped = format!("{half} [G]");
+        for (linked, grouped, want) in [
+            (false, false, None),
+            (false, true, Some("[G]")),
+            (true, false, Some(half)),
+            (true, true, Some(half_grouped.as_str())),
+        ] {
+            assert_eq!(
+                name_tags(kind, linked, grouped),
+                want,
+                "{kind:?}, linked {linked}, grouped {grouped}"
+            );
+        }
+    }
+
+    let mut state = AppState::new(PluginContext::new(), scratch("bar-tags")).expect("state");
+    state.new_project().expect("project");
+    let shot = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let media = state.import_media(shot).expect("import the shot");
+    let picture = state.store.sequence.tracks[0].id;
+    state
+        .drop_media_on_timeline(media, Some(TrackId::from_raw(picture)), 0)
+        .expect("drop");
+    let mut tags: Vec<(bool, Option<&str>)> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| {
+            lane.clips
+                .iter()
+                .map(move |clip| (lane.id == picture, clip))
+        })
+        .map(|(on_picture, clip)| {
+            let tags = name_tags(
+                clip.kind,
+                clip.linked_to.is_some(),
+                clip.grouped_to.is_some(),
+            );
+            (on_picture, tags)
+        })
+        .collect();
+    tags.sort_unstable();
+    assert_eq!(tags, vec![(false, Some("[A]")), (true, Some("[V]"))]);
 }

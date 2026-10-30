@@ -33,6 +33,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
+use crate::app::meter::meter_fraction;
 use crate::app::mixer::{
     FaderTarget, MixerStrip, gain_label, gain_to_frac, pan_label, pan_to_frac,
 };
@@ -697,7 +698,7 @@ fn master_fader(
 ) -> gpui::AnyElement {
     let target = FaderTarget::Master;
     let gain = state.read(cx).fader_value(target, chain.gain);
-    let (level, _) = state.read(cx).master_meter();
+    let level = state.read(cx).meter().peaks;
     fader_and_meter(theme, 0, target, gain, !chain.muted, level, cx)
 }
 
@@ -744,23 +745,28 @@ fn fader_and_meter(
         .into_any_element()
 }
 
+/// A strip's two peak bars on the meter scale the Audio Meters panel draws:
+/// the foot of a bar is -60 dBFS and its head 0 dBFS. A bar at full scale
+/// draws red.
 fn meter(theme: &Theme, raw_id: u64, audible: bool, level: [f32; 2]) -> gpui::AnyElement {
     let bar = |peak: f32, side: &'static str| {
         div()
             .id(motion::MotionKey::new("mixer-meter", side)
                 .with(raw_id)
                 .element_id("mixer-meter"))
+            .debug_selector(move || format!("mixer-meter-{raw_id}-{side}"))
             .relative()
             .w(px(4.))
             .rounded(px(1.))
             .bg(theme.wash(0.12))
             .child(
                 div()
+                    .debug_selector(move || format!("mixer-meter-{raw_id}-{side}-fill"))
                     .absolute()
                     .bottom_0()
                     .left_0()
                     .w_full()
-                    .h(relative(peak.clamp(0.0, 1.0)))
+                    .h(relative(meter_fraction(peak)))
                     .rounded(px(1.))
                     .bg(if peak >= 1.0 {
                         theme.danger

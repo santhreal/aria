@@ -24,7 +24,7 @@ const FALL_PER_SECOND: f32 = 2.0;
 /// How long the peak-hold line stays at a peak before it follows the bar down.
 pub const PEAK_HOLD_SECONDS: f32 = 1.5;
 
-/// The bottom of the Audio Meters scale, in dBFS. The top is 0 dBFS.
+/// The bottom of the meter scale, in dBFS. The top is 0 dBFS.
 pub const METER_FLOOR_DBFS: f32 = -60.0;
 
 /// Reading the meter draws, per channel `[left, right]`, in full scale.
@@ -60,12 +60,18 @@ impl MeterReading {
     }
 }
 
-/// Where `level`, in full scale, sits on the Audio Meters scale: `0.0` at
-/// [`METER_FLOOR_DBFS`] and below, `1.0` at 0 dBFS and above.
+/// Where `dbfs` sits on the meter scale: `0.0` at [`METER_FLOOR_DBFS`] and
+/// below, `1.0` at 0 dBFS and above.
+pub fn dbfs_fraction(dbfs: f32) -> f32 {
+    ((dbfs - METER_FLOOR_DBFS) / -METER_FLOOR_DBFS).clamp(0.0, 1.0)
+}
+
+/// Where `level`, in full scale, sits on the meter scale: `0.0` at
+/// [`METER_FLOOR_DBFS`] and below, `1.0` at 0 dBFS and above. The Audio
+/// Meters panel, the Viewer's peak strip and every Audio Track Mixer strip
+/// draw their bars at this fraction of their length.
 pub fn meter_fraction(level: f32) -> f32 {
-    aria_analysis::db_from_linear(level).map_or(0.0, |db| {
-        ((db - METER_FLOOR_DBFS) / -METER_FLOOR_DBFS).clamp(0.0, 1.0)
-    })
+    aria_analysis::db_from_linear(level).map_or(0.0, dbfs_fraction)
 }
 
 /// The hold line and its age after `elapsed` seconds with the bar at `bar`.

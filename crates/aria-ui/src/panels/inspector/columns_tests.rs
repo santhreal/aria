@@ -45,6 +45,12 @@
 //! does, every line's value ends where its value ends, the graph spans the
 //! two, and every control stands its frame on those columns.
 //!
+//! Also closes the class "a value track off the columns". A keyed row's track
+//! spanned the whole row, from left of the stopwatch across the time area,
+//! under the keyframes. Every line's track, where its row draws one, spans
+//! the label and the value columns at every step, and each tab held to the
+//! keyed rows' columns draws one or more unless [`UNTRACKED`] lists it.
+//!
 //! Also closes the class "two Inspector controls that share a hover". The
 //! Keyframes block built each row's navigator, diamond, Driver and Flatten,
 //! and the Replace media list each entry, under one id per kind of button, so
@@ -93,6 +99,10 @@ const EVERY_KIND: &str = "test.ui.every_kind";
 
 /// The tabs held to the keyed rows' columns here.
 const HELD: [&str; 4] = ["transform", "look", "effects", "audio"];
+
+/// The tabs of [`HELD`] whose rows draw no value track: an effect's number
+/// slots draw none.
+const UNTRACKED: [&str; 1] = ["effects"];
 
 /// The tabs whose rows draw no time area, held to free columns here.
 const FREE: [&str; 2] = ["speed", "info"];
@@ -263,8 +273,9 @@ fn every_control_hugs_what_it_draws(
     held
 }
 
-/// The debug selectors of each of `lines`' label, value and whole line.
-fn cells(lines: &[DrawnLine]) -> Vec<(&'static str, &'static str, &'static str)> {
+/// The debug selectors of each of `lines`' label, value, whole line and value
+/// track.
+fn cells(lines: &[DrawnLine]) -> Vec<(&'static str, &'static str, &'static str, &'static str)> {
     lines
         .iter()
         .map(|line| {
@@ -272,6 +283,7 @@ fn cells(lines: &[DrawnLine]) -> Vec<(&'static str, &'static str, &'static str)>
                 &*line.label.clone().leak(),
                 &*line.label.replacen("insp-label-", "insp-value-", 1).leak(),
                 &*line.line.clone().leak(),
+                &*line.label.replacen("insp-label-", "insp-track-", 1).leak(),
             )
         })
         .collect()
@@ -397,14 +409,14 @@ fn every_line_stands_in_the_columns(
     assert!(
         cells
             .iter()
-            .any(|&(label, value, _)| (label, value) == (label_of, value_of)),
+            .any(|&(label, value, _, _)| (label, value) == (label_of, value_of)),
         "{tab}: no line of {reference:?} among {lines:?}"
     );
     let (strip, watch) = (
         leak(format!("insp-strip-{reference:?}")),
         leak(format!("insp-key-{reference:?}")),
     );
-    let (mut step, mut yielded) = (0, false);
+    let (mut step, mut yielded, mut tracks) = (0, false, 0);
     narrow_the_inspector(&state, visual, |visual, _| {
         step += 1;
         let at = format!("{tab}, step {step}");
@@ -415,7 +427,7 @@ fn every_line_stands_in_the_columns(
         let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
         let edges = [drawn(visual, watch, &at).left(), label.left()];
         let mut rows = Vec::with_capacity(cells.len());
-        for &(row_label, row_value, whole) in &cells {
+        for &(row_label, row_value, whole, row_track) in &cells {
             let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
             let context = format!(
                 "{at}: {row_label} at {row:?}, its value at {cell:?}, beside {reference:?}'s label at {label:?} and value at {value:?}"
@@ -436,6 +448,15 @@ fn every_line_stands_in_the_columns(
                 f32::from(cell.size.height) < f32::from(value.size.height) + EPS,
                 "{context}: the value is taller than a number, so its row is taller than a number row"
             );
+            // A row's value track spans its label and value columns and
+            // leaves the time area clear.
+            if let Some(track) = visual.debug_bounds(row_track) {
+                assert!(
+                    near(track.left(), label.left()) && near(track.right(), value.right()),
+                    "{context}: the value track at {track:?} spans more or less than the label and value columns"
+                );
+                tracks += 1;
+            }
             rows.push(drawn(visual, whole, &at));
         }
         let found =
@@ -451,6 +472,12 @@ fn every_line_stands_in_the_columns(
     assert!(
         yielded,
         "{tab}: the walk ended before {reference:?}'s label gave up width"
+    );
+    assert_eq!(
+        tracks > 0,
+        !UNTRACKED.contains(&tab),
+        "{tab}: {tracks} value tracks drawn, and the tab is {}in UNTRACKED",
+        if UNTRACKED.contains(&tab) { "" } else { "not " }
     );
     (
         lines.into_iter().map(|line| line.label).collect(),
@@ -501,7 +528,7 @@ fn every_line_stands_in_the_free_columns(
     assert!(
         cells
             .iter()
-            .any(|&(label, value, _)| (label, value) == (label_of, value_of)),
+            .any(|&(label, value, _, _)| (label, value) == (label_of, value_of)),
         "{tab}: no line of {reference} among {lines:?}"
     );
     let mut step = 0;
@@ -510,7 +537,7 @@ fn every_line_stands_in_the_free_columns(
         let at = format!("{tab}, step {step}");
         let (label, value) = (drawn(visual, label_of, &at), drawn(visual, value_of, &at));
         let mut rows = Vec::with_capacity(cells.len());
-        for &(row_label, row_value, whole) in &cells {
+        for &(row_label, row_value, whole, row_track) in &cells {
             let (row, cell) = (drawn(visual, row_label, &at), drawn(visual, row_value, &at));
             let context = format!(
                 "{at}: {row_label} at {row:?}, its value at {cell:?}, beside {reference}'s label at {label:?} and value at {value:?}"
@@ -523,6 +550,12 @@ fn every_line_stands_in_the_free_columns(
                 near(cell.right(), value.right()),
                 "{context}: the value does not end where the values end"
             );
+            if let Some(track) = visual.debug_bounds(row_track) {
+                assert!(
+                    near(track.left(), label.left()) && near(track.right(), value.right()),
+                    "{context}: the value track at {track:?} spans more or less than the label and value columns"
+                );
+            }
             rows.push(drawn(visual, whole, &at));
         }
         for &selector in boxes {

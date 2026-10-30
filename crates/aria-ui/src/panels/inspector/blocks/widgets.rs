@@ -86,6 +86,15 @@ pub const VALUE_MIN: f32 = 76.0;
 /// to less than 1 by that fraction of the overflow only.
 const VALUE_YIELD: f32 = LABEL_YIELD / 1000.0;
 
+/// The room the label and the value columns hold together on a keyed row,
+/// with the gap between them: the basis of the value track under the line.
+const SPAN: f32 = LABEL_RESERVE + Theme::SPACE_XS + VALUE_MIN;
+
+/// The value track's flex shrink factor under a keyed line. Its factor times
+/// its basis is the label's and the value column's together, so the track
+/// narrows by what the two narrow by and ends where the value ends.
+const SPAN_YIELD: f32 = (LABEL_YIELD * LABEL_RESERVE + VALUE_YIELD * VALUE_MIN) / SPAN;
+
 /// What a row's value is doing, beyond the number it prints.
 #[derive(Debug, Clone, Copy)]
 pub struct Travel {
@@ -535,6 +544,7 @@ pub fn stepper_row(
             },
             cx,
         ));
+    let track = fill.map(|fill| value_track(theme, fill, hovered, column.as_ref(), &label));
     let head = line(
         key,
         label,
@@ -564,8 +574,8 @@ pub fn stepper_row(
                 .border_color(theme.accent)
         })
         .child(head);
-    if let Some(fill) = fill {
-        row = row.child(track(theme, fill, hovered));
+    if let Some(track) = track {
+        row = row.child(track);
     }
     if let Some((line, param)) = driver_line {
         row = row.child(driver_source(theme, key, param, line, cx));
@@ -718,18 +728,56 @@ fn driver_source(
         .children(whip)
 }
 
-/// Where the value sits in its range: a rail, the part of it the value covers,
-/// and the thumb where the two meet.
+/// Where the value sits in its range, under the row's line. On a row in the
+/// keyed rows' columns, `column` is set and the track spans the label and the
+/// value columns, between blanks where the stopwatch, the keyframe navigator
+/// and the time area stand, so it leaves the time area clear. On a free row
+/// it spans the row.
+fn value_track(
+    theme: &Theme,
+    fill: f32,
+    hovered: f32,
+    column: Option<&Column>,
+    label: &SharedString,
+) -> gpui::AnyElement {
+    let track =
+        track(theme, fill, hovered).debug_selector(|| cell_selector(column, label, "track"));
+    if column.is_none() {
+        return track.w_full().into_any_element();
+    }
+    let Affordances {
+        dot,
+        controls,
+        strip,
+    } = blanks(Columns::Keyed);
+    div()
+        .flex()
+        .flex_row()
+        .h(px(THUMB))
+        .gap(px(Theme::SPACE_XS))
+        .children(dot)
+        .child(
+            track
+                .flex_basis(px(SPAN))
+                .flex_grow(1.0)
+                .flex_shrink(SPAN_YIELD)
+                .min_w_0(),
+        )
+        .children(controls)
+        .children(strip)
+        .into_any_element()
+}
+
+/// A rail, the part of it the value covers, and the thumb where the two meet.
 ///
 /// `hovered` brightens all three together rather than only the thumb, because
 /// a lit thumb on a dim rail reads as a different control.
-fn track(theme: &Theme, fill: f32, hovered: f32) -> impl IntoElement {
+fn track(theme: &Theme, fill: f32, hovered: f32) -> gpui::Div {
     let rail = motion::mix(theme.border, theme.border_strong, hovered);
     let lit = motion::mix(theme.accent, theme.accent_strong, hovered);
     let mid = (THUMB - TRACK_H) / 2.0;
     div()
         .relative()
-        .w_full()
         .h(px(THUMB))
         .child(
             div()

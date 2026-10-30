@@ -20,7 +20,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
-use crate::app::meter::{METER_FLOOR_DBFS, MeterReading, meter_fraction};
+use crate::app::meter::{METER_FLOOR_DBFS, MeterReading, dbfs_fraction, meter_fraction};
 use crate::motion;
 use crate::shell::Shell;
 use crate::theme::Theme;
@@ -44,11 +44,6 @@ const CHANNELS: [&str; 2] = ["L", "R"];
 /// Wide enough for the widest mark, `-60`, at [`MARK_TEXT`].
 const SCALE_WIDTH: f32 = 20.0;
 const MARK_TEXT: gpui::Pixels = Theme::TEXT_SMALL;
-
-/// Where a scale mark sits on the bar, from the bottom.
-fn mark_fraction(dbfs: f32) -> f32 {
-    ((dbfs - METER_FLOOR_DBFS) / -METER_FLOOR_DBFS).clamp(0.0, 1.0)
-}
 
 pub fn render(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     let theme = Theme::of(cx);
@@ -148,7 +143,7 @@ fn scale(theme: &Theme) -> impl IntoElement {
             div()
                 .absolute()
                 .right_0()
-                .bottom(relative(mark_fraction(dbfs)))
+                .bottom(relative(dbfs_fraction(dbfs)))
                 .mb(-MARK_TEXT / 2.0)
                 .h(MARK_TEXT)
                 .text_size(MARK_TEXT)
@@ -178,13 +173,14 @@ fn bar(theme: &Theme, reading: &MeterReading, side: usize) -> impl IntoElement {
                 .absolute()
                 .left_0()
                 .right_0()
-                .bottom(relative(mark_fraction(dbfs)))
+                .bottom(relative(dbfs_fraction(dbfs)))
                 .h(px(1.))
                 .bg(theme.wash(0.06))
         }))
         .child(fill(rms).left_0().right_0().bg(theme.waveform_rms))
         .child(
             fill(peak)
+                .debug_selector(move || format!("audio-meter-peak-{side}"))
                 .left(relative(0.25))
                 .right(relative(0.25))
                 .bg(theme.waveform_peak),
@@ -209,3 +205,7 @@ fn bar(theme: &Theme, reading: &MeterReading, side: usize) -> impl IntoElement {
 #[cfg(test)]
 #[path = "audio_meters_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "meter_scale_tests.rs"]
+mod scale_tests;

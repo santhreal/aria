@@ -128,8 +128,9 @@ and turns its span back to yellow or red until rendered again.
 ### Output meter
 
 Two bars at the right of the control row show the peak level of what the
-device is playing, left above right. A full bar is 0 dBFS. The bars turn red and
-stay red once a sample reaches full scale; click them to clear that. The meter
+device is playing, left above right, on the Audio Meters scale: an empty bar
+is -60 dBFS or below and a full bar is 0 dBFS. The bars turn red and stay red
+once a sample reaches full scale; click them to clear that. The meter
 shows output, not the selected clip, so soloing or muting a track is visible in
 it. Stopping playback drops the bars to silence.
 
