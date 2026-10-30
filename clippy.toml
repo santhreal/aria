@@ -3,3 +3,7 @@ disallowed-types = [
     { path = "std::sync::RwLock", reason = "use parking_lot::RwLock; it cannot poison" },
     { path = "std::sync::Condvar", reason = "use parking_lot::Condvar; it cannot poison" },
 ]
+# `unwrap_used` and `expect_used` report production code only. A test states
+# its expectation with `expect`; a panic there is a failed test.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

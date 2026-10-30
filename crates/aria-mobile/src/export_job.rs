@@ -251,8 +251,8 @@ pub unsafe extern "C" fn aria_export_join(handle: *const AriaExportJob) -> *mut 
     let Some(job) = (unsafe { job(handle) }) else {
         return std::ptr::null_mut();
     };
-    let mut verdict = job.verdict.lock();
-    if verdict.is_none() {
+    let mut cached = job.verdict.lock();
+    let verdict = cached.get_or_insert_with(|| {
         let joined = job.thread.lock().take().map(|t| t.join());
         let result = match joined {
             Some(Ok(result)) => result,
@@ -261,9 +261,9 @@ pub unsafe extern "C" fn aria_export_join(handle: *const AriaExportJob) -> *mut 
                 "export job already joined".into(), // unreachable: verdict caches the first join
             )),
         };
-        *verdict = Some(verdict_json(&result));
-    }
-    to_c_string(verdict.clone().expect("verdict just set"))
+        verdict_json(&result)
+    });
+    to_c_string(verdict.clone())
 }
 
 /// Release a job handle. Joins the thread first if nobody has, so dropping a

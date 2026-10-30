@@ -33,10 +33,10 @@ pub struct TextField {
     /// Up/Down: walk this box's own history of submitted values, `-1` toward
     /// older and `1` toward newer.
     ///
-    /// `None` for a box with no history, and then the arrows fall through to
-    /// whatever they mean outside a text box. A box that recalls is not a
-    /// special case in the shell for the same reason the other four keys are
-    /// not: the shell routes the key, the row decides what it means.
+    /// `None` for a box with no history, and then the arrows do nothing while
+    /// the box holds focus. A box that recalls is not a special case in the
+    /// shell for the same reason the other four keys are not: the shell routes
+    /// the key, and the row's function sets what it does.
     pub history: Option<fn(&mut AppState, i32)>,
     /// Tab and Shift+Tab (`true`): move to the next or previous box of the
     /// same kind. `None` for a box that has no neighbours, and then Tab is

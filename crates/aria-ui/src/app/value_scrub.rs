@@ -397,7 +397,7 @@ impl AppState {
     /// Enter: write the typed value and close the field. Text that states no
     /// value keeps the field open and reports why.
     pub fn commit_value_entry(&mut self) -> bool {
-        let Some(entry) = self.value_scrubs.entry.as_ref() else {
+        let Some(entry) = self.value_scrubs.entry.take() else {
             return false;
         };
         let Some(typed) = entry.target.kind.parse(&entry.draft) else {
@@ -408,10 +408,10 @@ impl AppState {
                     entry.draft
                 ),
             };
+            self.value_scrubs.entry = Some(entry);
             self.report_error(message);
             return false;
         };
-        let entry = self.value_scrubs.entry.take().expect("checked above");
         let delta = typed - entry.target.value;
         if delta == 0.0 {
             return true;

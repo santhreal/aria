@@ -31,8 +31,6 @@ pub fn render(
         .find(crate::dock::PANEL_PROJECT)
         .and_then(|id| state.read(cx).dock_frame_rect(id))
         .map(|[_, _, w, _]| w);
-    // The pool's rows, read once for the two tabs that draw them.
-    let rows = tab.shows_pool().then(|| state.read(cx).pool_rows(tab));
     div()
         .id("sidebar")
         .debug_selector(|| "sidebar".into())
@@ -189,8 +187,8 @@ pub fn render(
                     SidebarTab::Captions => super::captions::captions_panel(&theme, state, cx),
                     SidebarTab::Analysis => super::analysis::analysis_panel(&theme, state, cx),
                     SidebarTab::Media | SidebarTab::Audio => {
-                        let rows = rows.as_ref().expect("the pool tabs read their rows above");
-                        bin(&theme, state, tab, rows, cx)
+                        let rows = state.read(cx).pool_rows(tab);
+                        bin(&theme, state, tab, &rows, cx)
                     }
                 }),
         )

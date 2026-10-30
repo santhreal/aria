@@ -369,16 +369,14 @@ impl Shell {
                     self.state.update(cx, |state, cx| (field.submit)(state, cx));
                     true
                 }
-                crate::popover::MenuKey::Up if field.history.is_some() => {
-                    let walk = field.history.expect("checked");
+                crate::popover::MenuKey::Up => field.history.is_some_and(|walk| {
                     self.state.update(cx, |state, _| walk(state, -1));
                     true
-                }
-                crate::popover::MenuKey::Down if field.history.is_some() => {
-                    let walk = field.history.expect("checked");
+                }),
+                crate::popover::MenuKey::Down => field.history.is_some_and(|walk| {
                     self.state.update(cx, |state, _| walk(state, 1));
                     true
-                }
+                }),
                 // Printable text is not handled here: the key-down propagates,
                 // and the platform commits its `key_char` through the input
                 // handler in `text_input.rs`, case and layout intact. Taking the

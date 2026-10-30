@@ -108,7 +108,7 @@ fn a_commit_at_the_limit_keeps_the_length_and_advances_the_generation() {
 
 #[test]
 fn what_a_reader_cannot_see_leaves_the_generation_alone() {
-    let ops: [(&str, Op); 5] = [
+    let ops: [(&str, Op); 6] = [
         ("record inside an open group", |h| {
             h.begin_group();
             h.record_step(named("g"));
@@ -122,6 +122,10 @@ fn what_a_reader_cannot_see_leaves_the_generation_alone() {
         ("commit an empty group", |h| {
             h.begin_group();
             h.commit_group();
+        }),
+        ("commit an empty named group", |h| {
+            h.begin_group();
+            h.commit_group_as(Cow::Borrowed("Named"));
         }),
         ("roll back a group", |h| {
             h.begin_group();

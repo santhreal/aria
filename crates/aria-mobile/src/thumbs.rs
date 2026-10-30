@@ -2,8 +2,9 @@
 //!
 //! Clip filmstrips and picker cells want many small frames from one media
 //! file, and they must not contend with the editor session for its renderer.
-//! A `AriaThumbnailer` owns a private renderer (its own GPU queue + decoder
-//! cache) bound to a single media file, so the shell can run it from any
+//! An `AriaThumbnailer` is bound to a single media file and renders through a
+//! process-wide pool of private renderers (each with its own GPU queue and
+//! decoder cache), apart from the session's, so the shell can run it from any
 //! worker queue: thumbnails decode while the session keeps scrubbing.
 //!
 //! Same non-concurrency rule as the session: calls on one handle must be
@@ -23,44 +24,23 @@ use crate::wire::str_arg;
 static RENDERER_POOL: Mutex<Vec<Renderer>> = Mutex::new(Vec::new());
 const MAX_POOLED_RENDERERS: usize = 4;
 
-struct PooledRenderer(Option<Renderer>);
-
-impl PooledRenderer {
-    fn acquire() -> Option<Self> {
-        let pooled = RENDERER_POOL.lock().pop();
-        let renderer = match pooled {
-            Some(r) => r,
-            None => {
-                let gpu = aria_compositor::GpuContext::new_headless_blocking().ok()?;
-                Renderer::with_gpu(gpu)
-            }
-        };
-        Some(Self(Some(renderer)))
+/// Run `f` on a pooled renderer, then return the renderer to the pool. `None`
+/// when the pool is empty and no headless GPU is available.
+///
+/// A panic in `f` drops the renderer instead of pooling it; a panic aborts at
+/// the C ABI boundary regardless.
+fn with_pooled_renderer<R>(f: impl FnOnce(&mut Renderer) -> R) -> Option<R> {
+    let pooled = RENDERER_POOL.lock().pop();
+    let mut renderer = match pooled {
+        Some(renderer) => renderer,
+        None => Renderer::with_gpu(aria_compositor::GpuContext::new_headless_blocking().ok()?),
+    };
+    let out = f(&mut renderer);
+    let mut pool = RENDERER_POOL.lock();
+    if pool.len() < MAX_POOLED_RENDERERS {
+        pool.push(renderer);
     }
-}
-
-impl std::ops::Deref for PooledRenderer {
-    type Target = Renderer;
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref().unwrap()
-    }
-}
-
-impl std::ops::DerefMut for PooledRenderer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut().unwrap()
-    }
-}
-
-impl Drop for PooledRenderer {
-    fn drop(&mut self) {
-        if let Some(renderer) = self.0.take() {
-            let mut pool = RENDERER_POOL.lock();
-            if pool.len() < MAX_POOLED_RENDERERS {
-                pool.push(renderer);
-            }
-        }
-    }
+    Some(out)
 }
 
 /// A thumbnail source for one media file. Free with
@@ -112,7 +92,8 @@ impl AriaThumbnailer {
             log::error!("thumbnailer: add_clip failed: {e}");
             return None;
         }
-        if aria_compositor::GpuContext::new_headless_blocking().is_err() {
+        // The probe leaves its renderer pooled for the first thumbnail.
+        if with_pooled_renderer(|_| ()).is_none() {
             log::error!("thumbnailer: GPU context unavailable");
             return None;
         }
@@ -126,13 +107,15 @@ impl AriaThumbnailer {
     fn thumb(&mut self, seconds: f64, max_width: u32, max_height: u32) -> Option<AriaImage> {
         let max_frame = (self.duration_frames - 1).max(0);
         let frame = crate::intents::frame_tick(seconds, self.frame_rate).clamp(0, max_frame);
-        let mut renderer = PooledRenderer::acquire()?;
-        match renderer.render_frame_fit(
-            &self.project,
-            RationalTime::new(frame, self.frame_rate),
-            max_width,
-            max_height,
-        ) {
+        let rendered = with_pooled_renderer(|renderer| {
+            renderer.render_frame_fit(
+                &self.project,
+                RationalTime::new(frame, self.frame_rate),
+                max_width,
+                max_height,
+            )
+        })?;
+        match rendered {
             Ok(image) => Some(AriaImage::from_rgba(image)),
             Err(e) => {
                 log::error!("thumbnailer: render at frame {frame} failed: {e}");

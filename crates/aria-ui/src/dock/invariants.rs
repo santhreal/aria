@@ -290,10 +290,10 @@ fn normalize_node(
                     other => flat.push((w, other)),
                 }
             }
-            match flat.len() {
-                0 => None,
-                1 => Some(flat.pop().expect("one child").1),
-                _ => {
+            match <[(f32, Node); 1]>::try_from(flat) {
+                Ok([(_, only)]) => Some(only),
+                Err(flat) if flat.is_empty() => None,
+                Err(mut flat) => {
                     let sum: f32 = flat.iter().map(|(w, _)| *w).sum();
                     if sum > 0.0 {
                         for (w, _) in &mut flat {

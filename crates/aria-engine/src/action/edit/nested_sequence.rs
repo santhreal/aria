@@ -98,30 +98,26 @@ pub(crate) fn create_nested_sequence(
     name: String,
     clips: &[ClipId],
 ) -> Result<(ClipId, Box<dyn EditAction>), EngineError> {
-    if clips.is_empty() {
+    let Some(&first) = clips.first() else {
         return Err(EngineError::Model(ModelError::InvalidParam(
             "cannot create a nested sequence from an empty clip selection".into(),
         )));
-    }
+    };
 
     let tl = ctx.project.timeline();
+    let first_track_id = tl.track_of(first).ok_or(ModelError::UnknownClip(first))?;
     let mut min_start = i64::MAX;
     let mut max_end = i64::MIN;
     let mut original_clips = Vec::with_capacity(clips.len());
-    let mut first_track_id = None;
 
     for &id in clips {
         let clip = tl.require_clip(id)?;
         let trk_id = tl.track_of(id).ok_or(ModelError::UnknownClip(id))?;
-        if first_track_id.is_none() {
-            first_track_id = Some(trk_id);
-        }
         min_start = min_start.min(clip.timeline.start.value);
         max_end = max_end.max(clip.timeline.end_tick());
         original_clips.push((trk_id, Clip::clone(clip)));
     }
 
-    let first_track_id = first_track_id.expect("non-empty clips");
     let tl_rate = ctx.project.timeline().frame_rate;
     let duration = max_end - min_start;
     if duration <= 0 {

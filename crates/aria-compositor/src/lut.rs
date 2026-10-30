@@ -65,12 +65,11 @@ impl CubeLut {
 
         for (idx, raw) in text.lines().enumerate() {
             let line_no = idx + 1;
-            let line = raw.trim();
-            if line.is_empty() || line.starts_with('#') {
+            let mut tokens = raw.split_whitespace();
+            // A blank line has no token; a comment's first token starts with `#`.
+            let Some(head) = tokens.next().filter(|head| !head.starts_with('#')) else {
                 continue;
-            }
-            let mut tokens = line.split_whitespace();
-            let head = tokens.next().expect("non-empty line has a token");
+            };
             match head {
                 "TITLE" => {}
                 "LUT_3D_SIZE" => {

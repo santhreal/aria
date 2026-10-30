@@ -61,10 +61,9 @@ pub(crate) fn execute(
         return Err(err);
     }
 
-    if inverses.len() == 1 {
-        Ok(inverses.pop().unwrap())
-    } else {
-        Ok(Box::new(CompoundAction { actions: inverses }))
+    match <[Box<dyn EditAction>; 1]>::try_from(inverses) {
+        Ok([only]) => Ok(only),
+        Err(inverses) => Ok(Box::new(CompoundAction { actions: inverses })),
     }
 }
 

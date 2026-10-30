@@ -165,27 +165,25 @@ impl History {
     /// undo covers more than the name alone.
     pub(crate) fn commit_group(&mut self) {
         debug_assert!(self.pending.is_some(), "no history group open");
-        let Some(mut steps) = self.pending.take() else {
+        let Some(steps) = self.pending.take() else {
             return;
         };
-        match steps.len() {
-            0 => {}
-            1 => {
-                let step = steps.pop().expect("len checked");
-                self.record_step(step);
-            }
-            n => {
-                let label = steps
-                    .first()
-                    .map(|step| format!("{} +{}", step.label, n - 1))
-                    .unwrap_or_else(|| "Edit".to_string());
-                let actions = steps.into_iter().map(|step| step.action).collect();
-                self.record_step(HistoryStep {
+        let step = match <[HistoryStep; 1]>::try_from(steps) {
+            Ok([step]) => step,
+            Err(steps) => {
+                let Some(first) = steps.first() else {
+                    return;
+                };
+                let label = format!("{} +{}", first.label, steps.len() - 1);
+                HistoryStep {
                     label: Cow::Owned(label),
-                    action: Box::new(CompoundAction { actions }),
-                });
+                    action: Box::new(CompoundAction {
+                        actions: steps.into_iter().map(|step| step.action).collect(),
+                    }),
+                }
             }
-        }
+        };
+        self.record_step(step);
     }
 
     /// Detach the open group's collected inverses without recording them
@@ -222,13 +220,13 @@ impl History {
     /// whatever its commands are called. No-op when the group is empty.
     pub(crate) fn commit_group_as(&mut self, label: Cow<'static, str>) {
         debug_assert!(self.pending.is_some(), "no history group open");
-        let Some(mut steps) = self.pending.take() else {
+        let Some(steps) = self.pending.take() else {
             return;
         };
-        let action: Box<dyn EditAction> = match steps.len() {
-            0 => return,
-            1 => steps.pop().expect("len checked").action,
-            _ => Box::new(CompoundAction {
+        let action: Box<dyn EditAction> = match <[HistoryStep; 1]>::try_from(steps) {
+            Ok([step]) => step.action,
+            Err(steps) if steps.is_empty() => return,
+            Err(steps) => Box::new(CompoundAction {
                 actions: steps.into_iter().map(|step| step.action).collect(),
             }),
         };
