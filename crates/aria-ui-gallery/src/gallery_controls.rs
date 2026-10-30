@@ -728,7 +728,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
         .collect();
     group(
         theme,
-        "text_box(id, value, placeholder, focused, theme)",
+        "text_box(id, value, placeholder, focused, theme) / field_frame / figures_at_rest",
         div()
             .flex()
             .flex_col()
@@ -787,6 +787,26 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                     "frame only (timecode)",
                     components::field_frame("st-field-frame", false, theme)
                         .child(div().child("00:00:12:05")),
+                ),
+                specimen(
+                    theme,
+                    "figures at rest",
+                    components::figures_at_rest(
+                        components::field_frame("st-figures-rest", false, theme),
+                        0.0,
+                        theme,
+                    )
+                    .child(div().child("00:00:12:05")),
+                ),
+                specimen(
+                    theme,
+                    "figures under the pointer",
+                    components::figures_at_rest(
+                        components::field_frame("st-figures-lit", false, theme),
+                        1.0,
+                        theme,
+                    )
+                    .child(div().child("00:00:12:05")),
                 ),
             ])),
     )

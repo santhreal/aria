@@ -10,7 +10,7 @@ Every interactive button, chip, icon button, and text field in the Aria shell is
 
 ## Tool Strip
 
-The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/aria-ui/src/tool_catalog.rs`) renders one icon button per editing tool plus the timeline drop-mode toggle.
+The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/aria-ui/src/tool_catalog.rs`) renders one icon button per editing tool, the timeline drop-mode toggle, and one tab per workspace.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -28,6 +28,7 @@ The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/ari
 | `tool-track-forward` | Track Select Forward | Selects every clip on the targeted track or all unlocked tracks from the clicked frame forward. | `A` |
 | `tool-type` | Type | Creates a new title clip or enters inline text editing in the Viewer. | `T` |
 | `tool-zoom` | Zoom | Zooms the Timeline horizontally in on click or out on Alt-click around the clicked position. | `Z` |
+| `workspace-tab` (per row) | Workspace name | Arranges the editor as the workspace states (Editing, Animation, Color, Audio, Effects, a plugin workspace, or the saved custom layout) and underlines its tab. | None |
 
 ## Viewer & Source Monitor
 

@@ -39,6 +39,10 @@ fn text_contrast_is_paired_across_appearances() {
         ("text", d.text, l.text),
         ("text_muted", d.text_muted, l.text_muted),
         ("text_faint", d.text_faint, l.text_faint),
+        ("track_video", d.track_video, l.track_video),
+        ("track_audio", d.track_audio, l.track_audio),
+        ("track_text", d.track_text, l.track_text),
+        ("track_generator", d.track_generator, l.track_generator),
     ] {
         let dr = contrast_ratio(dark_fg, d.bg);
         let lr = contrast_ratio(light_fg, l.bg);
@@ -49,12 +53,16 @@ fn text_contrast_is_paired_across_appearances() {
     }
 }
 
+/// Text tokens reach WCAG AA on every surface text is drawn on. A track tint
+/// is the ink of a track header's badge label, so it is held to body text's
+/// 4.5:1; a light tint as light as the dark one read at 2.2:1.
 #[test]
 fn wcag_contrast_conformance_for_text_on_surfaces() {
     for (name, theme) in [("dark", Theme::dark()), ("light", Theme::light())] {
         for (surf_name, surface) in [
             ("bg", theme.bg),
             ("surface", theme.surface),
+            ("surface_header", theme.surface_header),
             ("surface_raised", theme.surface_raised),
             ("surface_card", theme.surface_card),
             ("surface_dialog", theme.surface_dialog),
@@ -70,6 +78,19 @@ fn wcag_contrast_conformance_for_text_on_surfaces() {
                 muted_ratio >= 3.0,
                 "{name} theme text_muted on {surf_name} contrast {muted_ratio:.2}:1 fails WCAG AA large (>= 3.0:1)"
             );
+
+            for (tint_name, tint) in [
+                ("track_video", theme.track_video),
+                ("track_audio", theme.track_audio),
+                ("track_text", theme.track_text),
+                ("track_generator", theme.track_generator),
+            ] {
+                let tint_ratio = contrast_ratio(tint, surface);
+                assert!(
+                    tint_ratio >= 4.5,
+                    "{name} theme {tint_name} on {surf_name} contrast {tint_ratio:.2}:1 fails WCAG AA (>= 4.5:1)"
+                );
+            }
         }
 
         let solid_ratio = contrast_ratio(theme.on_solid, theme.solid);
@@ -435,15 +456,15 @@ fn every_label_fill_carries_readable_ink() {
 fn dark_surfaces_hold_the_values_the_look_chapter_states() {
     let d = Theme::dark();
     for (token, color, hex) in [
-        ("bg", d.bg, 0x141414),
-        ("surface", d.surface, 0x1c1c1c),
-        ("surface_header", d.surface_header, 0x232323),
-        ("surface_raised", d.surface_raised, 0x2a2a2a),
-        ("surface_overlay", d.surface_overlay, 0x2e2e2e),
-        ("border", d.border, 0x0e0e0e),
-        ("text", d.text, 0xd6d6d6),
-        ("text_muted", d.text_muted, 0x9a9a9a),
-        ("text_faint", d.text_faint, 0x6b6b6b),
+        ("bg", d.bg, 0x0e0e10),
+        ("surface", d.surface, 0x161618),
+        ("surface_header", d.surface_header, 0x19191b),
+        ("surface_raised", d.surface_raised, 0x232326),
+        ("surface_overlay", d.surface_overlay, 0x202023),
+        ("border", d.border, 0x050506),
+        ("text", d.text, 0xd8d8db),
+        ("text_muted", d.text_muted, 0x9e9ea4),
+        ("text_faint", d.text_faint, 0x67676d),
         ("value", d.value, 0x5aa8ff),
     ] {
         let rgba = gpui::Rgba::from(color);

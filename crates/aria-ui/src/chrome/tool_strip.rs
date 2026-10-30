@@ -108,19 +108,11 @@ fn spec_tool_btn(
     let id = spec.id;
     let item = spec.tool;
     let has_variants = item.has_variants();
-    let key = motion::MotionKey::new("icon", id);
     crate::components::icon_button(spec.id, spec.icon, theme)
         .size(px(Theme::ICON_HIT_LARGE))
         .debug_selector(move || id.into())
         .relative()
-        .when(on, |el| {
-            el.bg(motion::hover_blend(
-                key,
-                theme.glass_selected_bg(),
-                theme.element_active,
-            ))
-            .text_color(theme.accent)
-        })
+        .when(on, |el| el.text_color(theme.accent))
         .when(has_variants, |el| {
             el.child(
                 div()
@@ -393,28 +385,10 @@ fn workspace_switcher(
         .into_iter()
         .map(|row| (row.id, row.name, row.active))
         .collect();
-    let mut pills = Vec::with_capacity(rows.len());
+    let mut tabs = Vec::with_capacity(rows.len());
     for (ws_id, name, active) in rows {
-        let key = motion::MotionKey::new("ws-pill", ws_id);
-        pills.push(
-            div()
-                .id(key.element_id("pill"))
-                .px(px(6.0))
-                .py(px(2.0))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(Theme::TEXT_UI)
-                .cursor(CursorStyle::PointingHand)
-                .bg(if active {
-                    theme.element_active
-                } else {
-                    motion::hover_blend(key, theme.wash(0.0), theme.element_hover)
-                })
-                .text_color(if active {
-                    theme.accent
-                } else {
-                    motion::hover_blend(key, theme.text_muted, theme.text)
-                })
-                .on_hover(motion::hover_listener(key))
+        tabs.push(
+            crate::components::underline_tab(("workspace-tab", ws_id), name, active, theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -423,24 +397,20 @@ fn workspace_switcher(
                         });
                     }),
                 )
-                .child(name)
                 .into_any_element(),
         );
     }
+    // A row of tabs on the bar itself, as a dock's tab row is, with no frame
+    // around it: the open workspace stands in full text over the accent
+    // underline on the bar's bottom edge.
     div()
         .id("workspace-switcher")
         .debug_selector(|| "workspace-switcher".into())
+        .h_full()
         .flex()
         .flex_row()
         .items_center()
-        .gap(px(2.0))
-        .px(px(2.0))
-        .py(px(2.0))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(theme.surface)
-        .border_1()
-        .border_color(theme.border)
-        .children(pills)
+        .children(tabs)
 }
 
 fn rule(theme: &Theme) -> impl IntoElement {

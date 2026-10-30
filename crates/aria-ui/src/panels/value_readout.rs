@@ -99,7 +99,10 @@ pub fn readout(
 
     if let Some((draft, all)) = draft {
         let body = div()
-            .when(all, |el| el.bg(theme.accent.opacity(0.35)).rounded(px(2.)))
+            .when(all, |el| {
+                el.bg(theme.accent.opacity(0.35))
+                    .rounded(px(Theme::CONTROL_RADIUS))
+            })
             .child(draft);
         return div()
             .id(key.element_id("value-field"))

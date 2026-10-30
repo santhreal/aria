@@ -30,7 +30,13 @@ pub(super) fn clip_type_row(
                 .flex()
                 .items_center()
                 .gap(px(Theme::SPACE_SM))
-                .child(div().flex_none().size(px(10.)).rounded(px(2.)).bg(swatch))
+                .child(
+                    div()
+                        .flex_none()
+                        .size(px(10.))
+                        .rounded(px(Theme::CONTROL_RADIUS))
+                        .bg(swatch),
+                )
                 .children(clip_type.icon.map(|path| {
                     crate::icons::icon(path)
                         .size(px(14.))

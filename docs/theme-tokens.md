@@ -11,24 +11,24 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
-| `bg` | `#141414` | `#ebebeb` | Viewer pasteboard, timeline track area |
-| `surface` | `#1c1c1c` | `#e3e3e3` | Panel bodies |
-| `surface_header` | `#232323` | `#dcdcdc` | Tab rows, track headers, property name column |
-| `surface_raised` | `#2a2a2a` | `#d5d5d5` | Inputs, buttons at rest |
-| `surface_raised_hover` | `#333333` | `#cccccc` | A raised control under the pointer |
-| `surface_card` | `#181818` | `#e7e7e7` | Cards and tooltips |
-| `surface_dialog` | `#262626` | `#d9d9d9` | Dialogs |
-| `surface_overlay` | `#2e2e2e` | `#d1d1d1` | Menus, popovers |
-| `element_hover` | ink 0.11 | ink 0.06 | The plate a control fades to under the pointer |
-| `element_active` | ink 0.16 | ink 0.10 | The plate a control shows while it is pressed, and a selected tool |
-| `input_bg` | white 3 % | `#ffffff` | Text input fill |
+| `bg` | `#0e0e10` | `#ebebeb` | Viewer pasteboard, timeline track area, the gaps between docked frames |
+| `surface` | `#161618` | `#e3e3e3` | Panel bodies |
+| `surface_header` | `#19191b` | `#dcdcdc` | Tab rows, track headers, property name column |
+| `surface_raised` | `#232326` | `#d5d5d5` | Solid plates: a card, a key cap |
+| `surface_raised_hover` | `#2b2b2e` | `#cccccc` | A raised plate under the pointer |
+| `surface_card` | `#131315` | `#e7e7e7` | Cards and tooltips |
+| `surface_dialog` | `#1c1c1f` | `#d9d9d9` | Dialogs |
+| `surface_overlay` | `#202023` | `#d1d1d1` | Menus, popovers |
+| `element_hover` | ink 0.08 | ink 0.06 | The wash a control fades to under the pointer |
+| `element_active` | ink 0.13 | ink 0.10 | The wash a control shows while it is pressed |
+| `input_bg` | black 32 % | `#ffffff` | Text box fill, recessed into the surface under it |
 | `solid` | `neutral(0.922)` | `neutral(0.205)` | High-contrast primary button fill |
 
 ## Lines
 
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
-| `border` | `#0e0e0e` | `#f1f1f1` | Splitters and frame edges |
+| `border` | `#050506` | `#f1f1f1` | Splitters and frame edges |
 | `border_strong` | white 14 % | black 17 % | Control outlines |
 | `hairline` | white 6 % | black 6 % | Row separators |
 
@@ -36,10 +36,10 @@ Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 
 | Token | Dark | Light | Contrast target |
 | --- | --- | --- | --- |
-| `text` | `#d6d6d6` | `#262626` | Body text |
-| `text_muted` | `#9a9a9a` | `#525252` | Labels, column headers |
-| `text_faint` | `#6b6b6b` | `#7d7d7d` | Disabled, hints |
-| `text_dim` | `#989898` | `neutral(0.50)` | Context rather than content: file paths |
+| `text` | `#d8d8db` | `#262626` | Body text |
+| `text_muted` | `#9e9ea4` | `#525252` | Labels, column headers, a control at rest |
+| `text_faint` | `#67676d` | `#7d7d7d` | Disabled, hints |
+| `text_dim` | `#97979d` | `neutral(0.50)` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The caret in a text box, solid, and in the rename bar, blinking |
 | `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label color on `solid` |
@@ -112,14 +112,15 @@ hue between 232 and 335 degrees (HSL).
 
 ## Editor tokens
 
-Track tints are chroma 0.03 and paint the kind badge in a track header.
+Track tints are chroma 0.03 and color the badge label in a track header. Each
+reaches 4.5:1 against every surface in its appearance.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `track_video` | oklch 0.65 / 0.03 / 250 | Video track badge |
-| `track_audio` | oklch 0.65 / 0.03 / 140 | Audio and submix track badge |
-| `track_text` | oklch 0.65 / 0.03 / 60 | Text track badge |
-| `track_generator` | oklch 0.65 / 0.03 / 0 | Generator and adjustment track badge |
+| `track_video` | oklch 0.65 / 0.03 / 250 dark, 0.45 / 0.03 / 250 light | Video track badge |
+| `track_audio` | oklch 0.65 / 0.03 / 140 dark, 0.45 / 0.03 / 140 light | Audio and submix track badge |
+| `track_text` | oklch 0.65 / 0.03 / 60 dark, 0.45 / 0.03 / 60 light | Text track badge |
+| `track_generator` | oklch 0.65 / 0.03 / 0 dark, 0.45 / 0.03 / 0 light | Generator and adjustment track badge |
 | `playhead` | accent family | 1 px playhead |
 | `snap_guide` | `warning` | 1 px magnet line |
 | `waveform_peak` | `text_muted` @ 0.6 | Waveform peaks |
@@ -204,8 +205,12 @@ starting with `.`) or registers them from code with
 ## Layout constants
 
 `HEADER_HEIGHT = 44`, `TITLEBAR_HEIGHT = 38`, `STATUS_STRIP_HEIGHT = 22`,
-`BUBBLE_RADIUS = 16`, `PANEL_RADIUS = 10`, `CONTROL_RADIUS = 6`,
+`PANEL_RADIUS = 4`, `CONTROL_RADIUS = 2`,
 `SPACE_XS = 4`, `SPACE_SM = 8`, `SPACE_MD = 12`, `SPACE_LG = 16`.
+
+A menu, a popover, a dialog and a card take `PANEL_RADIUS`. A button, a
+field, a tab, a chip, a toggle, a bar and a clip take `CONTROL_RADIUS`. A dot
+and a handle are circles.
 
 A region that scrolls fades each edge its content continues past across
 `SCROLL_FADE = 24` px (`crates/aria-ui/src/edge_fade.rs`). An edge with nothing

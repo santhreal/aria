@@ -135,7 +135,7 @@ fn draft_line(draft: &str, anchor: usize, caret: usize, theme: &Theme, blink: f3
     let selected = (low < high).then(|| {
         run(low..high)
             .debug_selector(|| "rename-selection".into())
-            .rounded(px(2.0))
+            .rounded(px(Theme::CONTROL_RADIUS))
             .bg(theme.selection)
     });
     let line = div()

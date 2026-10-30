@@ -742,6 +742,16 @@ Notes for the latest release. For previous releases, see the
 - Timeline filmstrip cells render one at a time, each the first missing cell at or after the one rendered last, instead of four at a time on renderers that each rolled over every frame between their cells, which brings the filmstrip refill over a clip's first fill, four zooms and three scrolls on Server from a p50 between 857.9 ms and 862.8 ms to between 220.6 ms and 249.8 ms, and the first fill from between 1008.9 ms and 1018.5 ms to between 936.3 ms and 950.0 ms, over five paired runs.
 - A timeline filmstrip cell with no picture to draw renders first from the sync frame at or before it, and every such cell does so before any cell renders its exact frame, which brings the time until a clip's first fill draws no empty cell on Server from between 818.9 ms and 872.9 ms to between 133.3 ms and 139.9 ms over `h264-1080p60`, and from between 7675.7 ms and 9099.4 ms to between 717.3 ms and 760.2 ms over `hevc-2160p60`, over three paired runs, while every cell shows its exact frame after between 962.8 ms and 1029.1 ms and between 8722.3 ms and 9398.9 ms, from between 912.0 ms and 971.8 ms and between 8539.8 ms and 10333.1 ms.
 - A held clip drag redraws the Timeline alone instead of every panel, every tab row and the editor bar on each move, which brings one `project-10k` clip drag move and the frame it draws on Server from a p50 of 3.16 ms and 2.99 ms to 1.85 ms and 1.91 ms over two paired runs.
+- Buttons, fields, tabs, chips, toggles, clips and the timeline zoom bar round their corners by 2 px instead of 4 px to 6 px or half their height, and menus, popovers, dialogs and cards by 4 px instead of 10 px; the zoom bar's knobs and the window's caption buttons are square.
+- The dark appearance draws on a near-black ramp with a faint cool cast (`bg` `#0e0e10`, panels `#161618`, text `#d8d8db`) instead of the `#141414` to `#2e2e2e` grays.
+- Icon controls draw no plate: an armed tool, a toggle that is on and a lit track toggle draw an accent glyph, and Play draws a full-strength glyph instead of a solid plate.
+- Text boxes are recessed into the surface with no border until the pointer arrives, and the Viewer's playhead clock is figures in the playhead color at rest, as the Timeline's is.
+- The workspace switcher is a tab row on the tool bar, the open workspace underlined in the accent, instead of a framed row of pills.
+- A track header draws its badge as text and states a name equal to the badge once, instead of `V1 > V1`.
+- The light appearance draws track tints at oklch lightness 0.45 instead of 0.65, and a track badge drawn in one reads at 5:1 or more against its header.
+- Clips, pool rows and label swatches draw a label at 50 % of its saturation.
+- The Viewer's zoom list states its disclosure glyph beside the choice instead of past the widest choice's room.
+- The focused frame's outline is the accent at 55 % strength.
 
 ### Fixed
 

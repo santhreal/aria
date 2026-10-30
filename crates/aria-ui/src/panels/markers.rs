@@ -131,7 +131,7 @@ fn filter_bar(
                 .id(id)
                 .w(px(14.))
                 .h(px(14.))
-                .rounded(px(3.))
+                .rounded(px(Theme::CONTROL_RADIUS))
                 .border_1()
                 .border_color(if is_active {
                     theme.accent
@@ -344,7 +344,7 @@ fn swatch(
         .id(gpui::ElementId::named_usize("marker-color", id as usize))
         .w(px(10.))
         .h(px(10.))
-        .rounded(px(2.))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .bg(theme.marker(marker.color))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))

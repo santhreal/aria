@@ -23,8 +23,8 @@
 //! markers, the display settings, and the Graph Editor.
 
 use gpui::{
-    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    Pixels, SharedString, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels,
+    SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -97,15 +97,7 @@ pub(super) fn header_controls(
         .text_color(theme.playhead)
         // At rest the timecode is figures, not a box: the frame and the fill
         // fade in under the pointer and hold with the caret.
-        .when(!tc_open, |el| {
-            el.bg(motion::mix(
-                theme.wash(0.0),
-                theme.surface_raised_hover,
-                lit,
-            ))
-            .border_color(motion::mix(theme.wash(0.0), theme.border_strong, lit))
-            .cursor(CursorStyle::ResizeLeftRight)
-        })
+        .when(!tc_open, |el| components::figures_at_rest(el, lit, theme))
         .when_some(crate::tooltip::builder("timeline-tc"), |el, tip| {
             el.with_tip(tip)
         })

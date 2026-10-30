@@ -234,7 +234,7 @@ fn cap_element(
         .w(width)
         .h(px(CAP_HEIGHT))
         .flex_none()
-        .rounded(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .overflow_hidden();
     match cap.kind {
         CapKind::Gap => base.into_any_element(),

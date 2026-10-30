@@ -108,7 +108,7 @@ pub fn render(
                         div()
                             .w(px(10.))
                             .h(px(10.))
-                            .rounded(px(2.))
+                            .rounded(px(Theme::CONTROL_RADIUS))
                             .bg(theme.marker(color)),
                     )
                     .child(

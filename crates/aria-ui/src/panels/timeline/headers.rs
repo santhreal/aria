@@ -40,15 +40,15 @@ const LANE_HEADER_GROUP: &str = "lane-header";
 /// Hit box of every control in a lane header.
 pub(super) const LANE_CONTROL: f32 = Theme::ICON_HIT_ROW;
 
-/// A lane header's side padding, the gap between its parts, and its badge's
-/// side padding.
+/// A lane header's side padding and the gap between its parts.
 const LANE_INSET: f32 = Theme::SPACE_XS;
 
 /// Left edge of the first text a lane header draws, the badge's label:
-/// the header's padding, the patch slot, the gap after it, and the badge's own
-/// padding. A property row's content starts on this edge, so the outline
-/// under a lane reads in the lane's text column.
-pub(super) const LANE_TEXT_EDGE: f32 = LANE_INSET + LANE_CONTROL + LANE_INSET + LANE_INSET;
+/// the header's padding, the patch slot, and the gap after it. The badge has
+/// no plate, so its label starts on its own edge. A property row's content
+/// starts on this edge, so the outline under a lane reads in the lane's text
+/// column.
+pub(super) const LANE_TEXT_EDGE: f32 = LANE_INSET + LANE_CONTROL + LANE_INSET;
 
 /// A lane's header: its source patch, its badge and name, its toggles, and the
 /// grab surface that reorders the stack. `twirl` is the lane's first clip and
@@ -125,6 +125,13 @@ pub(super) fn track_header(
         lead.push(slot().into_any_element());
     }
     let debug_badge = badge.clone();
+    // A lane named for its badge, as a new one is ("V1"), states the name
+    // once: the name's room stays, so a double click there still renames it.
+    let name = if *name == *badge {
+        gpui::SharedString::default()
+    } else {
+        name
+    };
     div()
         .id(gpui::ElementId::named_usize(
             "track-header",
@@ -216,13 +223,11 @@ pub(super) fn track_header(
                 .debug_selector(move || format!("track-badge-{track_id}"))
                 .flex_none()
                 .h(px(Theme::ICON_SIZE))
-                .px(px(LANE_INSET))
                 .flex()
                 .items_center()
-                .rounded(px(Theme::SPACE_XXS))
-                .bg(badge_color.opacity(0.22))
-                .text_size(Theme::TEXT_SMALL)
-                .text_color(theme.text)
+                .text_size(Theme::TEXT_UI)
+                .font_weight(gpui::FontWeight::MEDIUM)
+                .text_color(badge_color)
                 .child(badge),
         )
         .child(
@@ -334,7 +339,7 @@ pub(super) fn track_toggle(
         .id(id.element("toggle"))
         .flex_none()
         .size(px(LANE_CONTROL))
-        .rounded(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .flex()
         .items_center()
         .justify_center()

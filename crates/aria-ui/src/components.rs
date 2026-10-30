@@ -301,8 +301,10 @@ pub fn list_chip(
 }
 
 /// A [`list_chip`] held at the width of `widest`, the longest choice it can
-/// state, so the controls beside it stay put as its choice changes. Figures
-/// are tabular, so one run of figures is as wide as any other of its length.
+/// state, so the controls beside it stay put as its choice changes. The
+/// disclosure glyph follows the label, and the room a shorter choice leaves
+/// stands after the glyph. Figures are tabular, so one run of figures is as
+/// wide as any other of its length.
 pub fn sized_list_chip(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,
@@ -311,19 +313,25 @@ pub fn sized_list_chip(
     theme: &Theme,
 ) -> Stateful<Div> {
     let label: SharedString = label.into();
+    let line = |text: SharedString| {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_XXS))
+            .child(text)
+            .child(chevron_down())
+    };
     chip_frame(id, &label, open, ChipSize::Compact, theme)
         .font_features(crate::theme::tabular_figures())
-        .gap(px(Theme::SPACE_XXS))
         .child(
             // The hidden second line is laid out and never drawn: it sets the
             // column's width and adds no height.
             div()
                 .flex()
                 .flex_col()
-                .child(label)
-                .child(div().h_0().invisible().child(widest)),
+                .child(line(label))
+                .child(line(widest.into()).h_0().invisible()),
         )
-        .child(chevron_down())
 }
 
 /// The disclosure glyph a [`list_chip`] ends with.
@@ -372,7 +380,7 @@ pub fn switch(id: impl Into<motion::ControlId>, on: Option<bool>, theme: &Theme)
         .flex_none()
         .w(px(SWITCH_WIDTH))
         .h(px(SWITCH_HEIGHT))
-        .rounded_full()
+        .rounded(px(Theme::CONTROL_RADIUS))
         .bg(motion::mix(rest, theme.accent, fill))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
@@ -385,7 +393,7 @@ pub fn switch(id: impl Into<motion::ControlId>, on: Option<bool>, theme: &Theme)
                     SWITCH_KNOB_INSET + (SWITCH_WIDTH - SWITCH_HEIGHT) * travel
                 ))
                 .size(px(knob))
-                .rounded_full()
+                .rounded(px(Theme::CONTROL_RADIUS))
                 .bg(motion::mix(theme.text_muted, theme.on_accent, fill)),
         );
     #[cfg(test)]
@@ -613,9 +621,12 @@ pub fn caret_mark(size: Pixels, opacity: f32, theme: &Theme) -> Div {
         )
 }
 
-/// The frame of a [`text_box`]: its border, fill, padding and hover fade,
-/// with no text. A field whose text is painted elsewhere, such as the
-/// timeline timecode at rest, is this frame around a box of the text's size.
+/// The frame of a [`text_box`]: its fill, border, padding and hover fade,
+/// with no text. The fill is recessed into the surface under it and the border
+/// is clear at rest, fading to an outline under the pointer and to the accent
+/// while the box holds focus. A field whose text is painted elsewhere, such as
+/// the timeline timecode at rest, is this frame around a box of the text's
+/// size.
 pub fn field_frame(
     id: impl Into<motion::ControlId>,
     focused: bool,
@@ -629,7 +640,7 @@ pub fn field_frame(
     let border = if focused {
         theme.accent
     } else {
-        motion::mix(theme.border, theme.border_strong, lit)
+        motion::mix(theme.border_strong.opacity(0.0), theme.border_strong, lit)
     };
     div()
         .id(id.element("field"))
@@ -639,16 +650,23 @@ pub fn field_frame(
         .flex()
         .items_center()
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::mix(
-            theme.surface_raised,
-            theme.surface_raised_hover,
-            lit,
-        ))
+        .bg(theme.input_bg)
         .border_1()
         .border_color(border)
         .cursor(CursorStyle::IBeam)
         .text_size(Theme::TEXT_UI)
         .on_hover(motion::hover_listener(key))
+}
+
+/// A [`field_frame`] that reads as figures at rest: no fill and no border
+/// until the pointer arrives, when both fade in at `lit`, as a scrub cursor
+/// shows the figures drag. The playhead clocks draw this while they are not
+/// open for typing.
+pub fn figures_at_rest(field: Stateful<Div>, lit: f32, theme: &Theme) -> Stateful<Div> {
+    field
+        .bg(motion::mix(theme.wash(0.0), theme.element_hover, lit))
+        .border_color(motion::mix(theme.wash(0.0), theme.border_strong, lit))
+        .cursor(CursorStyle::ResizeLeftRight)
 }
 
 /// How an icon control identifies itself: the element id it takes this frame,
@@ -713,7 +731,7 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
         .active(move |style| style.bg(pressed).opacity(0.92))
         .flex_none()
         .size(px(Theme::ICON_HIT))
-        .rounded(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .flex()
         .items_center()
         .justify_center()
@@ -726,20 +744,15 @@ pub fn icon_button(id: impl IconId, path: &'static str, theme: &Theme) -> Statef
 }
 
 /// An [`icon_button`] that reads lit while `on`: a toggle, or a mode such as a
-/// pick whip that waits for the next click. The caller adds the press.
+/// pick whip that waits for the next click. Lit, the glyph is drawn in the
+/// accent on no plate, as an armed tool and a lit track toggle are; the
+/// pointer's wash is the same as at rest. The caller adds the press.
 pub fn lit_icon(id: impl IconId, path: &'static str, on: bool, theme: &Theme) -> Stateful<Div> {
     let element = id.element_id();
-    // The key `icon_button` fades on. It holds the element's hover listener,
-    // and an element takes one, so the lit look reads that fade rather than
-    // starting another.
-    let key = motion::MotionKey::new("icon", &element);
-    let (lit, pressed, text) = (theme.glass_selected_bg(), theme.element_active, theme.text);
+    let accent = theme.accent;
     icon_button(id, path, theme)
         .debug_selector(move || element.to_string())
-        .when(on, |el| {
-            el.bg(motion::hover_blend(key, lit, pressed))
-                .text_color(text)
-        })
+        .when(on, |el| el.text_color(accent))
 }
 
 /// The room of an [`icon_button`] with nothing in it, for a row of icon

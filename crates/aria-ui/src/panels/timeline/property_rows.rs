@@ -50,7 +50,7 @@ pub(super) fn track_outline_twirl_button(
         .debug_selector(move || format!("track-prop-twirl-{track_id}"))
         .flex_none()
         .size(px(super::headers::LANE_CONTROL))
-        .rounded(px(Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .flex()
         .items_center()
         .justify_center()

@@ -13,16 +13,16 @@ tokens and each family's values.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `bg` | `#141414` | Viewer pasteboard, timeline track area |
-| `surface` | `#1c1c1c` | Panel bodies |
-| `surface_header` | `#232323` | Tab rows, track headers, property name column |
-| `surface_raised` | `#2a2a2a` | Inputs, buttons at rest |
-| `surface_overlay` | `#2e2e2e` | Menus, popovers, tooltips |
-| `border` | `#0e0e0e` | Splitters and frame edges |
+| `bg` | `#0e0e10` | Viewer pasteboard, timeline track area, the gaps between docked frames |
+| `surface` | `#161618` | Panel bodies |
+| `surface_header` | `#19191b` | Tab rows, track headers, property name column |
+| `surface_raised` | `#232326` | Solid plates: a card, a key cap |
+| `surface_overlay` | `#202023` | Menus, popovers, tooltips |
+| `border` | `#050506` | Splitters and frame edges |
 | `hairline` | `#ffffff` at 6 % | Row separators |
-| `text` | `#d6d6d6` | Body text |
-| `text_muted` | `#9a9a9a` | Labels, column headers |
-| `text_faint` | `#6b6b6b` | Disabled, hints |
+| `text` | `#d8d8db` | Body text |
+| `text_muted` | `#9e9ea4` | Labels, column headers, a control at rest |
+| `text_faint` | `#67676d` | Disabled, hints |
 | `value` | `#5aa8ff` | Editable numbers (scrubbable values) |
 | `accent` | Blue: oklch 0.71 0.15 253 (`#57a5fc`) | Playhead, focus outline, selection, active tool |
 
@@ -33,7 +33,8 @@ Clip colors come from the label set (Violet, Iris, Caribbean, Lavender,
 Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green, Brown,
 Yellow), each with a fill and a selected fill. Video clips default to Teal,
 audio clips to Forest, generators to Mango, nested sequences to Tan,
-adjustment clips to Yellow.
+adjustment clips to Yellow. A clip, a pool row and a label swatch draw a
+label's fill at 50 % of its saturation and its own lightness.
 
 ## Density
 
@@ -49,6 +50,7 @@ adjustment clips to Yellow.
 | Text boxes and solid buttons | 24 px high |
 | Spacing grid | 4 px; 2 px for icon-to-text gaps |
 | Panel inset | 12 px |
+| Corner radius | 2 px on a control, a bar and a clip; 4 px on a menu, a popover, a dialog and a card; a dot and a handle are circles |
 
 A row of ghost buttons, chips or clickable rows steps out by its controls'
 side padding, so the first label stands on the text edge of the column that
@@ -86,10 +88,21 @@ tooltip stays hidden until the pointer leaves the control. A tooltip that
 states more than a name sets it on a dimmed line under the name, and wraps at
 280 px.
 
-A track header toggle that is on is drawn in the accent color, with no plate;
-a Timeline header toggle lights as an armed tool in the tool bar does. A selected row in a list of choices holds the selected
-fill and shadow. A control that is shown only under the pointer keeps its
-place while hidden, so nothing moves when the pointer arrives.
+An icon control draws no plate at rest: its glyph stands in muted text on the
+surface, and a wash fades in under the pointer. A toggle that is on, an armed
+tool in the tool bar and a lit track header toggle draw the glyph in the
+accent color, with no plate. Play draws its glyph in full text color. A
+selected row in a list of choices holds the selected fill and shadow. A
+control that is shown only under the pointer keeps its place while hidden, so
+nothing moves when the pointer arrives.
+
+A text box is recessed into the surface under it, with no border until the
+pointer arrives; while it holds focus its border is the accent. The playhead
+clocks in the Viewer and the Timeline are figures in the playhead color at
+rest, and take the box's look under the pointer and while open for typing.
+The workspace switcher is a tab row on the tool bar: the open workspace stands
+in full text over the accent underline. The focused frame is outlined in the
+accent at 55 % strength.
 
 A choice from a short set is a row of chips. The chip in force has a faint
 wash and full-strength text; the others have muted text on no plate. A solid

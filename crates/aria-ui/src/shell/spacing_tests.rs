@@ -25,6 +25,8 @@
 //!   picture's edge drawn as half a dot. A control cut at an edge that a
 //!   scroll frame fades, because its content continues past it, is scrolled
 //!   out of view rather than cut.
+//! - A look invariant: a soft control or a plated icon control, in
+//!   [`look`].
 //!
 //! Exempt: what the canvases that draw the edit paint, the lanes and the graph
 //! editor's curves. A clip, a keyframe and a waveform stand where the edit puts
@@ -848,3 +850,6 @@ fn no_round_control_is_cut_by_its_clip(cx: &mut TestAppContext) {
     assert!(rounds > 0, "the walk drew no round control");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[path = "look_tests.rs"]
+mod look;

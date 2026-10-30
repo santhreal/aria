@@ -25,7 +25,7 @@ fn swatch(preview: &Theme) -> impl IntoElement {
         [preview.bg, preview.surface_raised, preview.accent].map(move |color| {
             div()
                 .size(px(12.))
-                .rounded(px(3.))
+                .rounded(px(Theme::CONTROL_RADIUS))
                 .bg(color)
                 .border_1()
                 .border_color(border)

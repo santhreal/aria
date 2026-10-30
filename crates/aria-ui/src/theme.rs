@@ -94,6 +94,10 @@ pub fn set_current_appearance(appearance: Appearance) {
     });
 }
 pub const INK_FILL_SCALE: f32 = 1.0;
+/// The share of a label's saturation a clip, a pool row and a swatch draw.
+/// Lightness stays the label's own: the palette sits where both inks are
+/// near 4.5:1, and a darker fill drops some hues below WCAG AA.
+pub const LABEL_SATURATION: f32 = 0.5;
 pub const INK_HAIRLINE_SCALE: f32 = 1.35;
 /// Git history intentionally softens lane saturation so the graph remains
 /// colorful without competing with content. Syntax and track tints use the
@@ -168,9 +172,12 @@ impl Theme {
     pub const TITLEBAR_HEIGHT: f32 = 38.0;
     pub const TITLEBAR_TOP_PAD: f32 = 2.0;
     pub const STATUS_STRIP_HEIGHT: f32 = 22.0;
-    pub const BUBBLE_RADIUS: f32 = 16.0;
-    pub const PANEL_RADIUS: f32 = 10.0;
-    pub const CONTROL_RADIUS: f32 = 6.0;
+    /// Corner radius of a surface that stands over the editor: a menu, a
+    /// popover, a dialog, a card.
+    pub const PANEL_RADIUS: f32 = 4.0;
+    /// Corner radius of a control: a button, a field, a tab, a chip, a toggle,
+    /// a clip. A dot or a handle drawn as a circle is round instead.
+    pub const CONTROL_RADIUS: f32 = 2.0;
     pub const SPACE_XXS: f32 = 2.0;
     pub const SPACE_XS: f32 = 4.0;
     pub const SPACE_SM: f32 = 8.0;
@@ -278,30 +285,34 @@ impl Theme {
     }
 
     pub fn dark() -> Self {
-        let text = grey(0xd6);
-        let text_muted = grey(0x9a);
-        let text_faint = grey(0x6b);
+        // A near-black ramp with a faint cool cast, a few levels apart, so the
+        // chrome reads as one material and the picture and the clips carry
+        // the color.
+        let hex = |value: u32| -> Hsla { gpui::rgb(value).into() };
+        let text = hex(0xd8d8db);
+        let text_muted = hex(0x9e9ea4);
+        let text_faint = hex(0x67676d);
         let accent = accent::accent_tokens(aria_settings::ThemeChoice::default(), Appearance::Dark);
         let warning = oklch(0.828, 0.189, 84.429);
         let danger = oklch(0.704, 0.191, 22.216);
         Self {
             appearance: Appearance::Dark,
-            bg: grey(0x14),
-            surface: grey(0x1c),
-            surface_header: grey(0x23),
-            surface_raised: grey(0x2a),
-            surface_card: grey(0x18),
-            surface_dialog: grey(0x26),
-            surface_overlay: grey(0x2e),
-            element_hover: hsla(0.0, 0.0, 0.92, 0.11),
-            element_active: hsla(0.0, 0.0, 0.92, 0.16),
-            border: grey(0x0e),
+            bg: hex(0x0e0e10),
+            surface: hex(0x161618),
+            surface_header: hex(0x19191b),
+            surface_raised: hex(0x232326),
+            surface_card: hex(0x131315),
+            surface_dialog: hex(0x1c1c1f),
+            surface_overlay: hex(0x202023),
+            element_hover: hsla(0.0, 0.0, 0.92, 0.08),
+            element_active: hsla(0.0, 0.0, 0.92, 0.13),
+            border: hex(0x050506),
             border_strong: hsla(0.0, 0.0, 1.0, 0.14),
             hairline: hsla(0.0, 0.0, 1.0, 0.06),
             text,
             text_muted,
             text_faint,
-            text_dim: grey(0x98),
+            text_dim: hex(0x97979d),
             value: gpui::rgb(0x5aa8ff).into(),
             solid: neutral(0.922),
             on_solid: grey(0x0e),
@@ -315,9 +326,9 @@ impl Theme {
             success: oklch(0.765, 0.177, 163.223),
             busy: oklch(0.718, 0.202, 349.761),
             success_muted: oklch(0.845, 0.143, 164.978),
-            surface_raised_hover: grey(0x33),
+            surface_raised_hover: hex(0x2b2b2e),
             band: band_for(Appearance::Dark),
-            input_bg: hsla(0.0, 0.0, 1.0, 0.03),
+            input_bg: hsla(0.0, 0.0, 0.0, 0.32),
             selection: accent.selection,
             cursor: hsla(0.0, 0.0, 1.0, 0.35),
             caret: accent.caret,
@@ -389,10 +400,12 @@ impl Theme {
             font_mono: system_mono().into(),
             font_sans_fallback: system_sans().into(),
             font_mono_fallback: system_mono().into(),
-            track_video: oklch(0.65, 0.03, 250.0),
-            track_audio: oklch(0.65, 0.03, 140.0),
-            track_text: oklch(0.65, 0.03, 60.0),
-            track_generator: oklch(0.65, 0.03, 0.0),
+            // Darker than the dark appearance's, so a track badge drawn in its
+            // tint reads against a light surface as it does against a dark one.
+            track_video: oklch(0.45, 0.03, 250.0),
+            track_audio: oklch(0.45, 0.03, 140.0),
+            track_text: oklch(0.45, 0.03, 60.0),
+            track_generator: oklch(0.45, 0.03, 0.0),
             playhead: accent.playhead,
             snap_guide: warning,
             waveform_peak: text_muted.opacity(0.6),
@@ -492,14 +505,17 @@ impl Theme {
     /// clip with that label draws.
     ///
     /// The same in both appearances: a label is a chosen colour, and a clip
-    /// keeps it when the appearance changes.
+    /// keeps it when the appearance changes. Drawn at [`LABEL_SATURATION`] of
+    /// the label's saturation, so a lane of clips reads as a hue beside the
+    /// picture rather than as a second picture.
     pub fn label(&self, label: aria_models::LabelColor, selected: bool) -> Hsla {
         let [r, g, b] = if selected {
             label.selected_rgb()
         } else {
             label.rgb()
         };
-        gpui::rgb(u32::from_be_bytes([0, r, g, b])).into()
+        let fill: Hsla = gpui::rgb(u32::from_be_bytes([0, r, g, b])).into();
+        hsla(fill.h, fill.s * LABEL_SATURATION, fill.l, 1.0)
     }
 
     /// The text and glyph colour drawn on a `label` fill. See [`Theme::ink_on`].

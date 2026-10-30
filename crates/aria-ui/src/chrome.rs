@@ -367,7 +367,7 @@ fn caption_btn(
         .id(id)
         .w(px(12.))
         .h(px(12.))
-        .rounded_full()
+        .rounded(px(Theme::CONTROL_RADIUS))
         .flex()
         .items_center()
         .justify_center()

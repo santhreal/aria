@@ -142,7 +142,7 @@ fn paint_strip(bounds: Bounds<Pixels>, strip: &KeyStrip, ink: Ink, window: &mut 
     let width = f32::from(bounds.size.width);
     let height = f32::from(bounds.size.height);
     let middle = top + height * 0.5;
-    window.paint_quad(fill(bounds, ink.card).corner_radii(px(Theme::SPACE_XXS)));
+    window.paint_quad(fill(bounds, ink.card).corner_radii(px(Theme::CONTROL_RADIUS)));
     window.paint_quad(fill(
         Bounds {
             origin: point(px(left), px(middle - 0.5)),

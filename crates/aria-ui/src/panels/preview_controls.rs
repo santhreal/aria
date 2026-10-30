@@ -12,15 +12,11 @@ pub(super) fn transport_btn(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    // The solid fill overwrites the base style `icon_button` set, so its fade
-    // has to be read back and re-applied rather than silently dropped.
-    let key = motion::MotionKey::new("icon", id);
+    // Play draws no plate: its glyph stands at full strength among the muted
+    // jumps and steps beside it, and lights the same wash under the pointer.
     crate::components::icon_button(id, path, &theme)
         .debug_selector(move || id.to_string())
-        .bg(motion::hover_blend(key, theme.solid, theme.accent_strong))
-        // The glyph travels with the fill under it: neutral on the solid plate,
-        // accent-safe once the plate is accent.
-        .text_color(motion::hover_blend(key, theme.on_solid, theme.on_accent))
+        .text_color(theme.text)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, window, cx| {
@@ -123,7 +119,9 @@ pub(super) fn clock_field(
     let (focused, text) = state
         .read(cx)
         .clock_field(crate::app::clock::ClockSite::Viewer);
-    // The row's controls are one height, so the field is an icon button's.
+    let lit = motion::hover_t(motion::ControlId::from("playhead-tc").motion("field"));
+    // The row's controls are one height, so the field is an icon button's. At
+    // rest it is figures in the playhead's color, as the timeline's clock is.
     crate::components::text_box("playhead-tc", text, "00:00:00:00", focused, theme)
         .h(px(Theme::ICON_HIT))
         .text_size(Theme::TEXT_UI)
@@ -132,7 +130,9 @@ pub(super) fn clock_field(
         .when_some(crate::tooltip::builder("playhead-tc"), |el, tip| {
             el.with_tip(tip)
         })
-        .when(!focused, |el| el.cursor(gpui::CursorStyle::ResizeLeftRight))
+        .when(!focused, |el| {
+            crate::components::figures_at_rest(el, lit, theme).text_color(theme.playhead)
+        })
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {

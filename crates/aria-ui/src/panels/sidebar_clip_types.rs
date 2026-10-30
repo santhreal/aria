@@ -40,7 +40,7 @@ fn clip_type_row(
             div()
                 .flex_none()
                 .size(px(10.))
-                .rounded(px(2.))
+                .rounded(px(Theme::CONTROL_RADIUS))
                 .bg(theme.label(aria_models::LabelColor::from(row.colour), false)),
         )
         .children(

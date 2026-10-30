@@ -188,7 +188,7 @@ the ruler (see [Render files](viewer.md#render-files)).
 
 The zoom bar along the bottom of the timeline maps the whole sequence, and past
 its end the view when the view reaches further. The clips draw as a thin band,
-and the view as a thumb with a round knob at each end. Drag the thumb to
+and the view as a thumb with a square knob at each end. Drag the thumb to
 scroll; the point you pressed stays under the pointer. Drag either knob to
 zoom; the knob stays under the pointer. **Zoom bar knobs**, in the Timeline
 section of Settings, sets what holds still while it moves (see

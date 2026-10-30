@@ -277,7 +277,7 @@ pub(crate) fn paint_name_strip(
         let badge_x = (right - badge_w).max(strip.left);
         window.paint_quad(quad(
             rect(badge_x, top + 1.0, badge_w, NAME_STRIP - 2.0),
-            Corners::all(px(3.0)),
+            Corners::all(px(Theme::CONTROL_RADIUS)),
             theme.warning.opacity(0.22),
             Edges::all(px(1.0)),
             theme.warning,
@@ -467,7 +467,7 @@ pub(crate) fn paint_generator(
             let fill: Hsla = gpui::rgba(u32::from_be_bytes([r, g, b, a])).into();
             window.paint_quad(quad(
                 rect(x, top + (room - side) * 0.5, side, side),
-                Corners::all(px(2.0)),
+                Corners::all(px(Theme::CONTROL_RADIUS)),
                 fill.opacity(ink.a),
                 Edges::all(px(1.0)),
                 ink.opacity(0.5 * ink.a),
@@ -599,7 +599,7 @@ pub(crate) fn paint_transition(
     let bounds = rect(x0, top, w, height);
     window.paint_quad(quad(
         bounds,
-        Corners::all(px(3.0)),
+        Corners::all(px(Theme::CONTROL_RADIUS)),
         theme.surface_raised.opacity(0.92),
         Edges::all(px(1.0)),
         theme.accent,

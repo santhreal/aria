@@ -296,7 +296,7 @@ pub(super) fn overview(
                         .px(px(CONTROL_INSET))
                         .flex()
                         .items_center()
-                        .rounded(px(Theme::SPACE_XS))
+                        .rounded(px(Theme::CONTROL_RADIUS))
                         .text_size(Theme::TEXT_SMALL)
                         .text_color(motion::hover_blend(fit_key, theme.text_muted, theme.text))
                         .bg(motion::hover_blend(
@@ -368,7 +368,7 @@ pub(super) fn overview(
                         .right_0()
                         .top(px(THUMB_TOP))
                         .h(px(HANDLE_W))
-                        .rounded(px(HANDLE_W / 2.0))
+                        .rounded(px(Theme::CONTROL_RADIUS))
                         .bg(theme.hairline),
                 )
                 .children(spans.iter().map(|&(x, w)| {
@@ -378,7 +378,7 @@ pub(super) fn overview(
                         .top(px((Theme::ICON_HIT - CLIP_BAND_H) / 2.0))
                         .h(px(CLIP_BAND_H))
                         .w(px((w * clip_share).max(1.0)))
-                        .rounded(px(CLIP_BAND_H / 2.0))
+                        .rounded(px(Theme::CONTROL_RADIUS))
                         .bg(band)
                 }))
                 .child(
@@ -390,7 +390,7 @@ pub(super) fn overview(
                         .top(px(THUMB_TOP))
                         .h(px(HANDLE_W))
                         .w(px(window_w))
-                        .rounded(px(HANDLE_W / 2.0))
+                        .rounded(px(Theme::CONTROL_RADIUS))
                         .bg(thumb_fill)
                         .on_hover(motion::hover_listener(thumb_key))
                         .cursor(CursorStyle::OpenHand)
@@ -418,7 +418,7 @@ pub(super) fn overview(
         )
 }
 
-/// The round knob `d` pixels across at the `end` of the zoom bar's thumb:
+/// The square knob `d` pixels across at the `end` of the zoom bar's thumb:
 /// muted at rest, lit under the pointer, and in the accent while a press holds
 /// it.
 fn knob(
@@ -443,7 +443,7 @@ fn knob(
         .absolute()
         .top(px((HANDLE_W - d) / 2.0))
         .size(px(d))
-        .rounded(px(d / 2.0))
+        .rounded(px(Theme::CONTROL_RADIUS))
         .bg(ink)
         .on_hover(motion::hover_listener(key))
         .cursor(CursorStyle::ResizeLeftRight)

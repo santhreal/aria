@@ -187,7 +187,7 @@ fn handle_mark(
             .border_1()
             .border_color(theme.on_solid),
         HandleLook::Square => hit
-            .rounded(px(2.0))
+            .rounded(px(Theme::CONTROL_RADIUS))
             .bg(color)
             .border_1()
             .border_color(theme.on_solid),

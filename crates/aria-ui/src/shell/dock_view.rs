@@ -37,6 +37,9 @@ mod tab_fit;
 
 const SPLITTER_LINE_PX: f32 = 1.0;
 
+/// The strength of the accent outline around the focused frame.
+const FOCUS_OUTLINE_ALPHA: f32 = 0.55;
+
 /// A dock tab's close: its box and its glyph.
 const DOCK_TAB_CLOSE: f32 = 16.0;
 const DOCK_TAB_CLOSE_GLYPH: f32 = 12.0;
@@ -761,7 +764,13 @@ impl Shell {
             .overflow_hidden()
             .bg(theme.bg)
             .border_1()
-            .border_color(if focused { theme.accent } else { theme.border })
+            // The focused frame is outlined, as an editor's active panel is, at
+            // a strength that marks it without boxing the picture in.
+            .border_color(if focused {
+                theme.accent.opacity(FOCUS_OUTLINE_ALPHA)
+            } else {
+                theme.border
+            })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, window, cx| {
