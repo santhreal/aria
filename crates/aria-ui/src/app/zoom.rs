@@ -78,6 +78,20 @@ impl AppState {
         self.timeline_frame.map(|[x, _, _, _]| x + outline)
     }
 
+    /// The window rectangle `[x, y, width, height]` of the video lane group's
+    /// time area, or the audio group's when `audio`, as the timeline last drew
+    /// it. `None` before the timeline has been drawn.
+    pub fn timeline_lane_area(&self, audio: bool) -> Option<[f32; 4]> {
+        self.timeline_playhead.lane_area(audio).map(|bounds| {
+            [
+                f32::from(bounds.origin.x),
+                f32::from(bounds.origin.y),
+                f32::from(bounds.size.width),
+                f32::from(bounds.size.height),
+            ]
+        })
+    }
+
     /// Move the timeline's horizontal scroll, and record whether the drawn
     /// offset should ease its way there.
     ///

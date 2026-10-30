@@ -85,15 +85,48 @@ enum CanvasGesture {
 
 thread_local! {
     static ACTIVE_GESTURE: Cell<Option<CanvasGesture>> = const { Cell::new(None) };
-    /// The cursor the hovered target asked for at the last pointer move. The
-    /// canvas sets the cursor while it paints, so a change repaints it.
-    static HOVER_CURSOR: Cell<CursorStyle> = const { Cell::new(CursorStyle::Arrow) };
+    /// The cursor of what the last press on a lane group landed on. The lanes
+    /// set it while the gesture that press began is held, so a card carried
+    /// over another clip's edge keeps the cursor it was picked up with.
+    static PRESS_CURSOR: Cell<CursorStyle> = const { Cell::new(CursorStyle::Arrow) };
+    /// The cursor each lane group's canvas set at its last paint, video then
+    /// audio, or `None` for a paint with the pointer elsewhere. A cached
+    /// Timeline replays that paint, so a hover redraws the Timeline when the
+    /// pointer's target calls for another cursor.
+    static PAINTED_CURSOR: [Cell<Option<CursorStyle>>; 2] =
+        const { [Cell::new(None), Cell::new(None)] };
 }
 
-/// Attach left/right mouse-down, mouse-move, and mouse-up handlers to a
-/// lane-group container `div`.
+/// The cursor the lanes set for the pointer at `at` over `hit`: the press's
+/// while a gesture a lane group began is held, and otherwise what a press
+/// there does. `badges` are the fx badges the lanes last painted.
+pub(crate) fn lanes_cursor(
+    at: Point<Pixels>,
+    badges: &[(u64, Bounds<Pixels>)],
+    hit: Option<HitTarget>,
+    tool: EditorTool,
+) -> CursorStyle {
+    if ACTIVE_GESTURE.get().is_some() {
+        PRESS_CURSOR.get()
+    } else if badges.iter().any(|(_, badge)| badge.contains(&at)) {
+        CursorStyle::PointingHand
+    } else {
+        cursor_for(tool, hit)
+    }
+}
+
+/// Records the cursor the audio or video lane group's canvas set in the paint
+/// in progress, `None` when the pointer was elsewhere.
+pub(crate) fn painted_cursor(is_audio: bool, cursor: Option<CursorStyle>) {
+    PAINTED_CURSOR.with(|painted| painted[usize::from(is_audio)].set(cursor));
+}
+
+/// Attach left/right mouse-down, mouse-move, and mouse-up handlers to the
+/// audio or video lane-group container `div`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn attach_group_mouse_listeners(
     el: Stateful<gpui::Div>,
+    is_audio: bool,
     canvas_bounds: Rc<Cell<Bounds<Pixels>>>,
     badges: super::FxBadges,
     visible_lanes: Rc<Vec<VisibleLane>>,
@@ -108,11 +141,12 @@ pub(crate) fn attach_group_mouse_listeners(
     let badges_down = badges.clone();
     let bounds_right = canvas_bounds.clone();
     let lanes_right = visible_lanes.clone();
-    let badges_right = badges;
+    let badges_right = badges.clone();
     let bounds_up = canvas_bounds.clone();
     let lanes_up = visible_lanes.clone();
     let bounds_move = canvas_bounds;
     let lanes_move = visible_lanes;
+    let badges_move = badges;
 
     el.on_mouse_down(
         MouseButton::Left,
@@ -179,7 +213,9 @@ pub(crate) fn attach_group_mouse_listeners(
             this,
             event,
             bounds_move.get(),
+            &badges_move.borrow(),
             &lanes_move,
+            is_audio,
             fps,
             pps,
             scroll_x,

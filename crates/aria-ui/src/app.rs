@@ -313,8 +313,9 @@ pub(crate) use view_events::ContextPluginRow;
 #[derive(Clone, Debug)]
 pub struct StoreChanged;
 
-/// Raised when a new preview frame is on screen, or a scope or probe reading
-/// of the one on screen arrives. Each window redraws the panel bodies that
+/// Raised when a new preview frame is on screen, a Source tab moves to
+/// another frame of its take or receives one, or a scope or probe reading of
+/// the frame on screen arrives. Each window redraws the panel bodies that
 /// draw the frame or its readings.
 #[derive(Clone, Debug)]
 pub struct FrameReady;

@@ -741,6 +741,7 @@ Notes for the latest release. For previous releases, see the
 - A pool row scrubbed to a frame not decoded yet shows the decoded frame of its file last before it, or else the first after it, instead of a glyph between frames.
 - Timeline filmstrip cells render one at a time, each the first missing cell at or after the one rendered last, instead of four at a time on renderers that each rolled over every frame between their cells, which brings the filmstrip refill over a clip's first fill, four zooms and three scrolls on Server from a p50 between 857.9 ms and 862.8 ms to between 220.6 ms and 249.8 ms, and the first fill from between 1008.9 ms and 1018.5 ms to between 936.3 ms and 950.0 ms, over five paired runs.
 - A timeline filmstrip cell with no picture to draw renders first from the sync frame at or before it, and every such cell does so before any cell renders its exact frame, which brings the time until a clip's first fill draws no empty cell on Server from between 818.9 ms and 872.9 ms to between 133.3 ms and 139.9 ms over `h264-1080p60`, and from between 7675.7 ms and 9099.4 ms to between 717.3 ms and 760.2 ms over `hevc-2160p60`, over three paired runs, while every cell shows its exact frame after between 962.8 ms and 1029.1 ms and between 8722.3 ms and 9398.9 ms, from between 912.0 ms and 971.8 ms and between 8539.8 ms and 10333.1 ms.
+- A held clip drag redraws the Timeline alone instead of every panel, every tab row and the editor bar on each move, which brings one `project-10k` clip drag move and the frame it draws on Server from a p50 of 3.16 ms and 2.99 ms to 1.85 ms and 1.91 ms over two paired runs.
 
 ### Fixed
 
@@ -984,6 +985,12 @@ Notes for the latest release. For previous releases, see the
 - A Chat Completions stream that sends a tool call `index` of 64 or more ends the turn with a protocol error that states the index, instead of allocating a call list as long as the index.
 - A Responses stream whose `response.output_item.added` or `response.output_item.done` event holds an item that is not a JSON object ends the turn with a protocol error that states the event, instead of panicking when an argument event reaches that item.
 - A cloud catalog fetch answered with `304 Not Modified` while no cached copy exists fails with a protocol error that states the 304, instead of panicking.
+- A clip drag keeps the cursor and tool of its press until the button is released, instead of showing the resize cursor over each clip edge it crosses and switching to the Ripple tool when Ctrl is pressed over an edge.
+- A press on a clip's line carried sideways into a move shows the move cursor instead of the line's up-down cursor.
+- A hover onto a timeline target that calls for another cursor redraws the Timeline alone instead of every panel, and the video and audio lanes each keep the cursor they painted, so a hover over one no longer leaves the other showing a stale cursor.
+- A pointer move over the Viewer while the Info panel is shown, the Pen's rubber band, and a lane dragged across the track headers redraw the panels that draw what moved instead of every panel on each pixel or row.
+- A drag on the Viewer's mini ruler or playhead field, a pan of a zoomed frame, and a guide pulled from a Viewer ruler redraw the panels that draw what moved instead of every panel, every tab row and the editor bar on each move.
+- A Source tab's take scrubbed from its mini ruler or its pool tile, and each frame of the take that arrives, redraw the panels that draw the take instead of every panel, every tab row and the editor bar, and a scrub on a Source tab's mini ruler no longer renders the sequence frame again on each move.
 
 ## [alpha-0.7.0] - 2026-07-22
 

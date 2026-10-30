@@ -1,5 +1,6 @@
 //! `timeline-frame` scenario: `project-10k` scroll, zoom, and drag UI frame build latency,
-//! with the window chrome, playback vsyncs, and an Inspector value scrub measured beside it.
+//! with the window chrome, playback vsyncs, an Inspector value scrub, and a clip drag
+//! measured beside it.
 
 use std::rc::Rc;
 
@@ -8,8 +9,9 @@ use aria_ui::app::AppState;
 use aria_ui::app::value_scrub::{CLICK_SLOP_PX, ScrubTarget, ValueKind};
 use aria_ui::motion::MotionKey;
 use aria_ui::shell::Moved;
+use aria_ui::transport::TIMELINE_BASE_PPS;
 use aria_ui::types::UiTrackKind;
-use gpui::{Modifiers, MouseButton, MouseMoveEvent, MouseUpEvent, point, px};
+use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, point, px};
 
 use crate::fixtures::{FixtureId, ensure_fixture};
 use crate::scenarios::{BenchContext, open_editor, open_marked_project, timed_frame, timed_input};
@@ -18,6 +20,10 @@ use crate::{Comparison, SampleSeries, ScenarioId, ScenarioReport, TargetEvaluati
 /// The time between two playback vsyncs: longer than one tick of a 24 fps
 /// sequence played at 2x (20.8 ms), so each vsync moves the playhead.
 const PLAYBACK_GAP: std::time::Duration = std::time::Duration::from_millis(25);
+
+/// The width V1's first card on project-10k is zoomed to before the clip drag:
+/// a press three quarters along it is clear of its edge handles.
+const CLIP_MOVE_CARD_PX: f32 = 160.0;
 
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let fixture = ensure_fixture(&ctx.fixtures_dir, FixtureId::Project10k)?;
@@ -201,6 +207,94 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
 
     let paint_stats = app.update(|cx| state.read(cx).timeline_paint_stats);
 
+    // 7. A clip drag on project-10k: the view zoomed out to the floor, which
+    // draws the sequence from its first frame, then in about that frame until
+    // V1's first card is `CLIP_MOVE_CARD_PX` wide; the card pressed three
+    // quarters along, and each sample one move of the held button 4 px right,
+    // taken by the timeline canvas's own pointer listener as a real move is.
+    // Not part of the target.
+    let first_card = |s: &AppState| {
+        let (_, v1) = s
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .enumerate()
+            .find(|&(row, _)| s.lane_badge_at(row) == "V1")?;
+        let clip = v1.clips.first()?;
+        let ticks_px = TIMELINE_BASE_PPS * s.zoom / s.store.sequence.ticks_per_second();
+        let start = clip.timeline_start_ticks as f32 * ticks_px - s.scroll_x;
+        let width = (clip.timeline_end_ticks - clip.timeline_start_ticks) as f32 * ticks_px;
+        Some((start, width, v1.height))
+    };
+    window.update(|shell, _, cx| {
+        let left = shell.state.read(cx).timeline_content_left().unwrap_or(0.0);
+        // A factor of zero lands on the floor.
+        shell.zoom_at(left, 0.0, cx);
+        if let Some((_, width, _)) = first_card(shell.state.read(cx)) {
+            shell.zoom_at(left, CLIP_MOVE_CARD_PX / width, cx);
+        }
+        shell.state.update(cx, |s, _| s.video_scroll_y = 0.0);
+        shell.redraw(Moved::View, cx);
+    });
+    app.run_until_parked();
+    window.draw();
+    let grab = app.update(|cx| {
+        let s = state.read(cx);
+        let [x, y, width, height] = s.timeline_lane_area(false)?;
+        let (start, card_w, lane_h) = first_card(s)?;
+        let grab_x = x + start + 0.75 * card_w;
+        // V1 stands on the divider, at the foot of the video lanes; a drag
+        // carries the pointer 132 px right of the press.
+        (card_w >= CLIP_MOVE_CARD_PX - 1.0 && grab_x > x && grab_x + 140.0 < x + width)
+            .then(|| point(px(grab_x), px(y + height - lane_h / 2.0)))
+    });
+    let Some(grab) = grab else {
+        return Err(format!(
+            "project-10k shows no V1 card {CLIP_MOVE_CARD_PX} px wide at the sequence start to press"
+        ));
+    };
+    window.simulate_event(MouseMoveEvent {
+        position: grab,
+        delta: point(px(0.0), px(0.0)),
+        modifiers: Modifiers::default(),
+        pressed_button: None,
+    });
+    window.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: grab,
+        modifiers: Modifiers::default(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    let carried = |to: f32, by: f32| MouseMoveEvent {
+        position: point(grab.x + px(to), grab.y),
+        delta: point(px(by), px(0.0)),
+        modifiers: Modifiers::default(),
+        pressed_button: Some(MouseButton::Left),
+    };
+    // The first move passes the click slop and opens the drag.
+    timed_input(&app, &mut window, carried(12.0, 12.0));
+    if app.update(|cx| state.read(cx).held_move.is_none()) {
+        return Err(format!(
+            "a press at {grab:?} and a 12 px move held no clip move: the press missed V1's first card"
+        ));
+    }
+    let mut clip_move_samples = Vec::with_capacity(30);
+    let mut to = 12.0;
+    for _ in 0..30 {
+        to += 4.0;
+        clip_move_samples.push(timed_input(&app, &mut window, carried(to, 4.0)));
+    }
+    // Escape drops the held move, so the release edits nothing.
+    window.simulate_keystroke("escape");
+    window.simulate_event(MouseUpEvent {
+        position: carried(to, 0.0).position,
+        button: MouseButton::Left,
+        modifiers: Modifiers::default(),
+        click_count: 1,
+    });
+
     drop(state);
     drop(window);
     app.update(|cx| cx.shutdown());
@@ -218,6 +312,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     let chrome_series = SampleSeries::from_values("chrome_frame_ms", "ms", chrome_samples);
     let playback_series = SampleSeries::from_values("playback_vsync_ms", "ms", playback_samples);
     let scrub_series = SampleSeries::from_values("inspector_scrub_frame_ms", "ms", scrub_samples);
+    let clip_move_series = SampleSeries::from_values("clip_move_frame_ms", "ms", clip_move_samples);
 
     let targets = vec![TargetEvaluation::measured(
         "ui_frame_build_ms",
@@ -229,7 +324,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     )];
 
     let notes = vec![format!(
-        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms, playback vsync p50={:.2} ms (p95={:.2} ms; {} presented, {} dropped), Inspector value scrub p50={:.2} ms (p95={:.2} ms); TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
+        "project-10k GPUI Shell frame, one update and the draw it causes: scroll p50={:.2} ms, zoom p50={:.2} ms, drag p50={:.2} ms, overall p95={:.2} ms, chrome alone p50={:.2} ms, playback vsync p50={:.2} ms (p95={:.2} ms; {} presented, {} dropped), Inspector value scrub p50={:.2} ms (p95={:.2} ms), clip drag p50={:.2} ms (p95={:.2} ms); TimelinePaintStats: total_lanes={}, visible_lanes={}, total_clips={}, visible_clips={}, canvas_elements={}, paint_calls={}",
         scroll_series.p50,
         zoom_series.p50,
         drag_series.p50,
@@ -241,6 +336,8 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         playback.dropped.total(),
         scrub_series.p50,
         scrub_series.p95,
+        clip_move_series.p50,
+        clip_move_series.p95,
         paint_stats.total_lanes,
         paint_stats.visible_lanes,
         paint_stats.total_clips,
@@ -262,6 +359,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             chrome_series,
             playback_series,
             scrub_series,
+            clip_move_series,
         ],
         notes,
     ))

@@ -25,9 +25,10 @@ impl AppState {
     }
 
     /// The pointer moved over the tile of `media` to `tick`, or off every tile
-    /// with `None`. A moved monitor redraws every window in full; a tile alone
-    /// raises [`crate::app::PoolTileChanged`], which redraws only the bodies
-    /// that draw tiles.
+    /// with `None`. A tile raises [`crate::app::PoolTileChanged`], which
+    /// redraws only the bodies that draw tiles, and a moved monitor raises
+    /// [`crate::app::FrameReady`] too, which redraws the bodies that draw the
+    /// Viewer's frame.
     pub fn hover_pool_tile(&mut self, hover: Option<(u64, i64)>, cx: &mut gpui::Context<AppState>) {
         let monitor = match hover {
             Some((media, tick)) => self.hover_pool_item(media, tick),
@@ -36,10 +37,9 @@ impl AppState {
                 false
             }
         };
+        cx.emit(crate::app::PoolTileChanged);
         if monitor {
-            cx.notify();
-        } else {
-            cx.emit(crate::app::PoolTileChanged);
+            cx.emit(crate::app::FrameReady);
         }
     }
 

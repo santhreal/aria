@@ -272,19 +272,20 @@ fn program_pane(
                 cx.notify();
             }
         }))
-        // The Info panel reads the pixel under the pointer.
+        // The Info panel reads the pixel under the pointer, through the route
+        // a probe reading from the preview worker takes.
         .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
             if this
                 .state
                 .update(cx, |state, _| state.point_viewer(Some(at)))
             {
-                cx.notify();
+                this.redraw(crate::shell::Moved::Frame, cx);
             }
         }))
         .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
             if !*hovered && this.state.update(cx, |state, _| state.point_viewer(None)) {
-                cx.notify();
+                this.redraw(crate::shell::Moved::Frame, cx);
             }
         }))
         .child(
@@ -299,7 +300,7 @@ fn program_pane(
                 .child(frame_view(state, theme, cx))
                 .children(compare::wipe(state, theme, cx))
                 .children(guides(view, theme))
-                .child(handles::measure(state))
+                .child(handles::measure(state, cx.entity().downgrade()))
                 .children(handles::overlay(state, theme, cx))
                 .children(motion_path::overlay(state, theme, cx))
                 .children(mask_path::overlay(state, theme, cx))

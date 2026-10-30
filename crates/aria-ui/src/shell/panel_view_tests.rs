@@ -7,22 +7,24 @@
 //! [`CHANGES`] is made through the route the app makes it: a narrow
 //! [`Shell::redraw`] for a moved view or playhead, the pool tile route for a
 //! tile hover, the filmstrip route for a landed cell, the frame route for a
-//! landed Viewer frame or scope reading, a state notification for the rest.
+//! landed Viewer frame or scope reading, the timeline canvas's pointer
+//! listener for a held clip drag, a state notification for the rest.
 //! The frame drawn then must equal the frame drawn after a refresh, which
 //! builds every body anew. Every panel must also draw differently after at
 //! least one change, so a panel added to the registry whose drawing no change
 //! here reaches fails until a change it draws is added to [`CHANGES`].
 //!
-//! A frame is compared by its quads (bounds, clip, colours, corners, borders)
-//! and its text runs (text, bounds, size). Not caught: a stale image or path,
-//! and a panel that draws a change only through an image.
+//! A frame is compared by its quads (bounds, clip, colours, corners, borders),
+//! its text runs (text, bounds, size) and its images (bounds, clip, the atlas
+//! tile sampled, opacity). Not caught: a stale path.
 
-use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext};
+use gpui::{Bounds, Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px};
 
 use crate::app::AppState;
 use crate::dock::{DockTree, FrameId, PANEL_PROJECT, PANEL_TIMELINE, PANEL_VIEWER, PanelId, Zone};
 use crate::shell::{Moved, Shell};
 use crate::test_support::{drawn_shell, wait_out_splash};
+use crate::transport::TIMELINE_BASE_PPS;
 
 use super::{builds, unmoved};
 
@@ -45,27 +47,28 @@ pub(super) fn left_alone(
 pub(super) struct Drawing {
     quads: Vec<(Bounds<Pixels>, String)>,
     runs: Vec<(Bounds<Pixels>, String)>,
+    images: Vec<(Bounds<Pixels>, String)>,
 }
 
 impl Drawing {
-    /// The part of the frame whose origin lies in `rect`.
-    fn inside(&self, rect: Bounds<Pixels>) -> (Vec<&String>, Vec<&String>) {
-        let within = |bounds: &Bounds<Pixels>| rect.contains(&bounds.origin);
-        (
-            self.quads
+    /// The part of the frame whose origin lies in `rect`: its quads, its text
+    /// runs and its images.
+    fn inside(&self, rect: Bounds<Pixels>) -> [Vec<&String>; 3] {
+        fn within(drawn: &[(Bounds<Pixels>, String)], rect: Bounds<Pixels>) -> Vec<&String> {
+            drawn
                 .iter()
-                .filter(|(b, _)| within(b))
-                .map(|(_, q)| q)
-                .collect(),
-            self.runs
-                .iter()
-                .filter(|(b, _)| within(b))
-                .map(|(_, r)| r)
-                .collect(),
-        )
+                .filter(|(bounds, _)| rect.contains(&bounds.origin))
+                .map(|(_, what)| what)
+                .collect()
+        }
+        [
+            within(&self.quads, rect),
+            within(&self.runs, rect),
+            within(&self.images, rect),
+        ]
     }
 
-    /// Up to eight quads or runs drawn in one frame and not the other.
+    /// Up to eight quads, runs or images drawn in one frame and not the other.
     pub(super) fn differences(&self, full: &Drawing) -> String {
         let only = |a: &[(Bounds<Pixels>, String)], b: &[(Bounds<Pixels>, String)], tag: &str| {
             a.iter()
@@ -77,6 +80,8 @@ impl Drawing {
         lines.extend(only(&full.quads, &self.quads, "full quad"));
         lines.extend(only(&self.runs, &full.runs, "cached text"));
         lines.extend(only(&full.runs, &self.runs, "full text"));
+        lines.extend(only(&self.images, &full.images, "cached image"));
+        lines.extend(only(&full.images, &self.images, "full image"));
         lines.truncate(8);
         lines.join("\n")
     }
@@ -85,21 +90,22 @@ impl Drawing {
 pub(super) fn drawing(visual: &mut VisualTestContext) -> Drawing {
     visual.update(|window, _| {
         let scale = window.scale_factor();
+        let logical = |b: Bounds<gpui::ScaledPixels>| {
+            Bounds::new(
+                gpui::point(
+                    gpui::px(b.origin.x.0 / scale),
+                    gpui::px(b.origin.y.0 / scale),
+                ),
+                gpui::size(
+                    gpui::px(b.size.width.0 / scale),
+                    gpui::px(b.size.height.0 / scale),
+                ),
+            )
+        };
         let mut quads: Vec<(Bounds<Pixels>, String)> = window
             .painted_quads()
             .iter()
             .map(|quad| {
-                let b = quad.bounds;
-                let logical = Bounds::new(
-                    gpui::point(
-                        gpui::px(b.origin.x.0 / scale),
-                        gpui::px(b.origin.y.0 / scale),
-                    ),
-                    gpui::size(
-                        gpui::px(b.size.width.0 / scale),
-                        gpui::px(b.size.height.0 / scale),
-                    ),
-                );
                 let text = format!(
                     "{:?} {:?} {:?} {:?} {:?} {:?}",
                     quad.bounds,
@@ -109,7 +115,7 @@ pub(super) fn drawing(visual: &mut VisualTestContext) -> Drawing {
                     quad.corner_radii,
                     quad.border_widths
                 );
-                (logical, text)
+                (logical(quad.bounds), text)
             })
             .collect();
         quads.sort_by(|a, b| a.1.cmp(&b.1));
@@ -124,7 +130,27 @@ pub(super) fn drawing(visual: &mut VisualTestContext) -> Drawing {
             })
             .collect();
         runs.sort_by(|a, b| a.1.cmp(&b.1));
-        Drawing { quads, runs }
+        let mut images: Vec<(Bounds<Pixels>, String)> = window
+            .painted_images()
+            .iter()
+            .map(|image| {
+                let text = format!(
+                    "{:?} {:?} {:?} {:?} {:?}",
+                    image.bounds,
+                    image.content_mask,
+                    image.tile.texture_id,
+                    image.tile.tile_id,
+                    image.opacity
+                );
+                (logical(image.bounds), text)
+            })
+            .collect();
+        images.sort_by(|a, b| a.1.cmp(&b.1));
+        Drawing {
+            quads,
+            runs,
+            images,
+        }
     })
 }
 
@@ -172,9 +198,16 @@ pub(super) enum Change {
     Filmstrip,
     /// The frame at the playhead rendered again and landing in the Viewer.
     Frame,
+    /// The pointer, no button held, onto the still's card: onto its left edge
+    /// handle on an odd step and onto its middle on an even one, so the cursor
+    /// the lanes set changes at each step.
+    Pointer,
+    /// The still's card carried 7 px further by a held clip drag, the drag
+    /// opened by a press on the card when none is held.
+    Drag,
 }
 
-const CHANGES: [Change; 20] = [
+const CHANGES: [Change; 22] = [
     Change::View,
     Change::Playhead,
     Change::Select,
@@ -195,7 +228,36 @@ const CHANGES: [Change; 20] = [
     Change::MonitorScrub,
     Change::Filmstrip,
     Change::Frame,
+    Change::Pointer,
+    Change::Drag,
 ];
+
+/// The change that moves only `moved`, after making what it needs first, so
+/// that the change made next with `step` is all a count after it sees: a
+/// held drag's press redraws in full, and a pointer arriving on the lanes
+/// leaves what it was over.
+pub(super) fn moving(
+    visual: &mut VisualTestContext,
+    shell: &gpui::Entity<Shell>,
+    moved: Moved,
+    step: usize,
+) -> Change {
+    let change = match moved {
+        Moved::View => Change::View,
+        Moved::Playhead => Change::Playhead,
+        Moved::PoolHover => Change::PoolHover,
+        Moved::Filmstrip => Change::Filmstrip,
+        Moved::Frame => Change::Frame,
+        Moved::Pointer => Change::Pointer,
+        Moved::Drag => Change::Drag,
+    };
+    match moved {
+        Moved::Pointer => make(visual, shell, change, step + 1),
+        Moved::Drag => make(visual, shell, change, step),
+        Moved::View | Moved::Playhead | Moved::PoolHover | Moved::Filmstrip | Moved::Frame => {}
+    }
+    change
+}
 
 pub(super) fn shell_of(visual: &mut VisualTestContext) -> gpui::Entity<Shell> {
     visual.update(|window, _| {
@@ -285,6 +347,11 @@ pub(super) fn make(
     change: Change,
     step: usize,
 ) {
+    match change {
+        Change::Pointer => return hover_still(visual, shell, step),
+        Change::Drag => return carry_still(visual, shell),
+        _ => {}
+    }
     if let Change::MonitorScrub = change {
         // The monitor opens on the still first and is drawn in full, so the
         // comparison sees what the hover alone moved.
@@ -457,10 +524,121 @@ pub(super) fn make(
                     );
                 }),
                 Change::Frame => crate::app::spawn_preview(shell.state.clone(), cx),
+                Change::Pointer | Change::Drag => {
+                    unreachable!("`make` moves the pointer before this update")
+                }
             }
         })
     });
     visual.run_until_parked();
+}
+
+/// Carries the still's card 7 px right with the left button held, through the
+/// timeline canvas's own pointer listener, holding a move first with
+/// [`hold_still`].
+fn carry_still(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>) {
+    hold_still(visual, shell);
+    carry_by(visual, 7.0, Modifiers::none());
+}
+
+/// Holds a move of the still's card. With no drag held it presses the middle
+/// of the part of the card the lanes show, clear of its edge handles in a
+/// Timeline docked narrow, and moves 12 px, past the click slop, which opens
+/// the drag.
+pub(super) fn hold_still(visual: &mut VisualTestContext, shell: &gpui::Entity<Shell>) {
+    let held = |visual: &mut VisualTestContext| {
+        visual.read(|app| shell.read(app).state.read(app).held_move.is_some())
+    };
+    if !held(visual) {
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+        let (canvas, card) = still_card(visual, shell);
+        let lane = visual
+            .debug_bounds("track-header-V1")
+            .expect("the timeline draws V1's header");
+        let shown = (
+            card.0.max(f32::from(canvas.left())),
+            card.1.min(f32::from(canvas.right())),
+        );
+        let grab = point(px((shown.0 + shown.1) / 2.0), lane.center().y);
+        visual.simulate_mouse_move(grab, None, Modifiers::none());
+        visual.simulate_mouse_down(grab, MouseButton::Left, Modifiers::none());
+        visual.run_until_parked();
+        visual.simulate_mouse_move(
+            point(grab.x + px(12.0), grab.y),
+            MouseButton::Left,
+            Modifiers::none(),
+        );
+        visual.run_until_parked();
+        assert!(
+            held(visual),
+            "a press at {grab:?} on the still's card, drawn across {card:?} in the lanes at \
+             {canvas:?}, under V1's header at {lane:?}, and a 12 px move hold a move; \
+             selected {:?}",
+            visual.read(|app| shell.read(app).state.read(app).selected_clip())
+        );
+    }
+}
+
+/// Moves the pointer `dx` px along the lanes with the left button and
+/// `modifiers` held.
+pub(super) fn carry_by(visual: &mut VisualTestContext, dx: f32, modifiers: Modifiers) {
+    let at = visual.update(|window, _| window.mouse_position());
+    visual.simulate_mouse_move(point(at.x + px(dx), at.y), MouseButton::Left, modifiers);
+    visual.run_until_parked();
+}
+
+/// Moves the pointer, no button held, onto the still's card on V1: 3 px into
+/// its left edge handle on an odd `step`, and onto the middle of the part of
+/// the card the lanes show on an even one.
+pub(super) fn hover_still(
+    visual: &mut VisualTestContext,
+    shell: &gpui::Entity<Shell>,
+    step: usize,
+) {
+    let (canvas, card) = still_card(visual, shell);
+    let lane = visual
+        .debug_bounds("track-header-V1")
+        .expect("the timeline draws V1's header");
+    let x = if step.is_multiple_of(2) {
+        (card.0.max(f32::from(canvas.left())) + card.1.min(f32::from(canvas.right()))) / 2.0
+    } else {
+        card.0 + 3.0
+    };
+    visual.simulate_mouse_move(point(px(x), lane.center().y), None, Modifiers::none());
+    visual.run_until_parked();
+}
+
+/// The video lanes' window bounds, and the window x span of the still's card
+/// on them as the state places it.
+pub(super) fn still_card(
+    visual: &mut VisualTestContext,
+    shell: &gpui::Entity<Shell>,
+) -> (Bounds<Pixels>, (f32, f32)) {
+    let canvas = visual
+        .debug_bounds("timeline-video-canvas")
+        .expect("the timeline draws its video lanes");
+    let card = visual.read(|app| {
+        let state = shell.read(app).state.read(app);
+        // The still is the first clip of the lane badged V1; a title placed
+        // by an earlier change stands on a lane of its own.
+        let clip = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .enumerate()
+            .find(|&(row, _)| state.lane_badge_at(row) == "V1")
+            .and_then(|(_, track)| track.clips.first())
+            .expect("the still is on V1");
+        let tick_px = TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second();
+        let left = f32::from(canvas.origin.x) - state.scroll_x;
+        (
+            left + clip.timeline_start_ticks as f32 * tick_px,
+            left + clip.timeline_end_ticks as f32 * tick_px,
+        )
+    });
+    (canvas, card)
 }
 
 /// A shell over a project with a still on its timeline, the boot cover gone
@@ -599,19 +777,9 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         "the launch layout docks no panel a view change leaves alone"
     );
     for moved in Moved::ALL {
+        let change = moving(visual, &shell, moved, 1);
         builds::take();
-        make(
-            visual,
-            &shell,
-            match moved {
-                Moved::View => Change::View,
-                Moved::Playhead => Change::Playhead,
-                Moved::PoolHover => Change::PoolHover,
-                Moved::Filmstrip => Change::Filmstrip,
-                Moved::Frame => Change::Frame,
-            },
-            1,
-        );
+        make(visual, &shell, change, 1);
         let mut built = builds::take();
         built.sort_unstable();
         built.dedup();
@@ -627,7 +795,7 @@ fn a_view_change_builds_only_the_bodies_that_draw_the_view(cx: &mut TestAppConte
         // the timeline body it replays, since no state in `INLINE_WHEN` holds
         // over a still on the timeline.
         let drawn_in = match moved {
-            Moved::View | Moved::Filmstrip => Some(PANEL_TIMELINE),
+            Moved::View | Moved::Filmstrip | Moved::Pointer | Moved::Drag => Some(PANEL_TIMELINE),
             Moved::Playhead => None,
             Moved::PoolHover => Some(PANEL_PROJECT),
             Moved::Frame => Some(PANEL_VIEWER),

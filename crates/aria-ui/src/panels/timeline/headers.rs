@@ -159,13 +159,14 @@ pub(super) fn track_header(
             }),
         )
         // The header under a held drag marks the drop row; the shell drops the
-        // lane there at the release, wherever the button comes up.
+        // lane there at the release, wherever the button comes up. The row is
+        // drawn by the Timeline alone.
         .on_mouse_move(cx.listener(move |this, _: &gpui::MouseMoveEvent, _, cx| {
             let changed = this
                 .state
                 .update(cx, |state, _| state.hover_track_drop(row));
             if changed {
-                cx.notify();
+                this.redraw(crate::shell::Moved::Drag, cx);
             }
         }))
         .on_mouse_down(

@@ -92,11 +92,13 @@ pub(super) fn render_into(
         let rendered = rendered.await.flatten();
         state.update(cx, |state, cx| {
             if monitor {
+                // The monitor's frame is drawn by the bodies that draw the
+                // Viewer's frame; every other body replays.
                 state
                     .pool_preview
                     .finish_source(stamp, media, tick, rendered);
                 state.release_retired_images(None, cx);
-                cx.notify();
+                cx.emit(crate::app::FrameReady);
             } else {
                 // A tile picture is drawn by the bodies that draw tiles; every
                 // other body replays.

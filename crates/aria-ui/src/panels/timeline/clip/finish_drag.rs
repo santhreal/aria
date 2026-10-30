@@ -7,20 +7,28 @@ use crate::app::value_scrub::CLICK_SLOP_PX;
 
 use super::*;
 
-/// The pointer over the canvas: the cursor and the edge modifiers its target
-/// asks for.
+/// The pointer over the audio or video canvas with no gesture held: the edge
+/// modifiers its target asks for, and the cursor the lanes set for it.
+///
+/// A held gesture is carried by the shell's hold and keeps its press's
+/// cursor, so a move under it leaves both alone.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn hover(
     this: &mut Shell,
     event: &MouseMoveEvent,
     bounds: Bounds<Pixels>,
+    badges: &[(u64, Bounds<Pixels>)],
     lanes: &[VisibleLane],
+    is_audio: bool,
     fps: f32,
     pps: f32,
     scroll_x: f32,
     tool: EditorTool,
     cx: &mut Context<Shell>,
 ) {
+    if ACTIVE_GESTURE.get().is_some() {
+        return;
+    }
     let (local_x, local_y) = local_coords(event.position, bounds);
     let hit = hit_test(lanes, local_x, local_y, fps, pps, scroll_x);
     let over_edge = matches!(hit, Some(HitTarget::ClipEdge { .. }));
@@ -28,12 +36,15 @@ pub(super) fn hover(
     let edge_changed = this.state.update(cx, |state, _| {
         state.update_edge_modifiers(over_edge, ctrl, event.modifiers.alt)
     });
+    // A new tool is drawn by the tool strip as well as the lanes, and
+    // `tool` is the one the lanes were drawn under.
     if edge_changed {
         cx.notify();
+        return;
     }
-    let cursor = cursor_for(tool, hit);
-    if HOVER_CURSOR.replace(cursor) != cursor {
-        cx.notify();
+    let cursor = lanes_cursor(event.position, badges, hit, tool);
+    if PAINTED_CURSOR.with(|painted| painted[usize::from(is_audio)].get()) != Some(cursor) {
+        this.redraw(crate::shell::Moved::Pointer, cx);
     }
 }
 
@@ -115,7 +126,9 @@ pub(super) fn carry(
                 };
                 state.hold_drag(g, d);
             });
-            cx.notify();
+            // The held drag lands nothing in the project, so only the panels
+            // that draw it are built again.
+            this.redraw(crate::shell::Moved::Drag, cx);
         }
         CanvasGesture::Marquee {
             origin_x,
@@ -196,6 +209,18 @@ pub(super) fn carry(
             ACTIVE_GESTURE.set(Some(if line {
                 CanvasGesture::Line { origin_y }
             } else {
+                // The press now holds the clip by its body.
+                PRESS_CURSOR.set(cursor_for(
+                    tool,
+                    Some(HitTarget::ClipBody {
+                        clip_id,
+                        track_id,
+                        start_ticks,
+                        end_ticks,
+                        locked: false,
+                        in_name_band: false,
+                    }),
+                ));
                 CanvasGesture::Clip {
                     kind: DragKind::Move,
                     clip_id,

@@ -105,8 +105,8 @@ pollster = "0.4"
 half = { version = "2.7", default-features = false }
 # GPUI from santhreal/santh-gpui, the framework shared with iris and Veyyon.
 # License: Apache-2.0; text in LICENSES/zed-Apache-2.0.txt.
-gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "823e18ee9d3370b20fb9c8cc8b047db0730d19f8" }
-gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "823e18ee9d3370b20fb9c8cc8b047db0730d19f8", features = [
+gpui = { git = "https://github.com/santhreal/santh-gpui", rev = "44229e7798ea6fb381236e1c9d0f8c1caf9106e7" }
+gpui_platform = { git = "https://github.com/santhreal/santh-gpui", rev = "44229e7798ea6fb381236e1c9d0f8c1caf9106e7", features = [
     "wayland",
     "x11",
     "font-kit",

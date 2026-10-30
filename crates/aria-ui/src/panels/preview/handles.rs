@@ -8,7 +8,7 @@
 
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, canvas, div, px,
+    StatefulInteractiveElement, Styled, WeakEntity, canvas, div, px,
 };
 
 use crate::app::AppState;
@@ -29,10 +29,14 @@ pub(super) const HANDLE: f32 = 12.0;
 /// Records the picture area every paint, so a pointer position can be turned into
 /// layer fractions. Draws nothing.
 ///
-/// The repaint is requested only when the rectangle actually moved: a resize or a
-/// transform change has to move the handles, and anything else would be a repaint
-/// loop.
-pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
+/// The repaint is requested only when the rectangle actually moved: a resize, a
+/// pan or a transform change has to move the handles, and anything else would be
+/// a repaint loop. It redraws what draws the Viewer's picture in `shell`'s
+/// window, which holds every reader of the record.
+pub(super) fn measure(
+    state: &Entity<AppState>,
+    shell: WeakEntity<crate::shell::Shell>,
+) -> impl IntoElement {
     let state = state.clone();
     canvas(
         move |bounds, window, cx| {
@@ -48,7 +52,7 @@ pub(super) fn measure(state: &Entity<AppState>) -> impl IntoElement {
                 state.record_overlay_frame(rect)
             });
             if moved {
-                crate::shell::notify_after_draw(&state, cx);
+                crate::shell::redraw_after_draw(shell, crate::shell::Moved::Frame, cx);
             }
         },
         |_, _, _, _| {},

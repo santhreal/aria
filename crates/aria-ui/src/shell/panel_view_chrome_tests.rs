@@ -26,7 +26,7 @@ use crate::dock::Frame;
 use crate::shell::Moved;
 
 use super::builds::{self, Part};
-use super::tests::{Change, Drawing, drawing, make, opened, shell_of};
+use super::tests::{Change, Drawing, drawing, make, moving, opened, shell_of};
 
 /// The frames the layout docks, as the state holds them.
 fn docked(state: &Entity<AppState>, visual: &mut VisualTestContext) -> Vec<Frame> {
@@ -288,14 +288,8 @@ fn a_state_change_builds_every_part_and_a_narrow_change_none(cx: &mut TestAppCon
     assert_eq!(parts_built(), every, "the parts a state change built");
 
     for moved in Moved::ALL {
+        let change = moving(visual, &shell, moved, 2);
         builds::take_parts();
-        let change = match moved {
-            Moved::View => Change::View,
-            Moved::Playhead => Change::Playhead,
-            Moved::PoolHover => Change::PoolHover,
-            Moved::Filmstrip => Change::Filmstrip,
-            Moved::Frame => Change::Frame,
-        };
         make(visual, &shell, change, 2);
         assert_eq!(
             parts_built(),

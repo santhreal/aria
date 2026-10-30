@@ -178,12 +178,12 @@ pub(super) fn overlay(
 
     // A held vertex or tangent is carried and released by the shell
     // (`Shell::carry_gesture`). Between the clicks that draw, the rubber band
-    // follows the pointer over the picture.
+    // follows the pointer over the picture, which the Viewer draws.
     let root = root.when(drawing && !holding, |el| {
         el.on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
             let at = [f32::from(event.position.x), f32::from(event.position.y)];
             if this.state.update(cx, |state, _| state.hover_mask_path(at)) {
-                cx.notify();
+                this.redraw(crate::shell::Moved::Frame, cx);
             }
         }))
     });

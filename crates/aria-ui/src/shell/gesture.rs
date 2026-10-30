@@ -85,6 +85,10 @@ impl Shell {
                 let dx = f32::from(event.delta.x);
                 let x = f32::from(event.position.x);
                 let mods = event.modifiers;
+                let (take, scroll) = {
+                    let state = state.read(cx);
+                    (state.viewer_drag_moves_take(), state.scroll_x)
+                };
                 let moved = state.update(cx, |state, _| {
                     state.drag_viewer(dx, x, mods.shift, mods.control || mods.platform)
                 });
@@ -94,8 +98,19 @@ impl Shell {
                     window.lock_pointer();
                 }
                 if moved {
-                    spawn_preview(self.state.clone(), cx);
-                    cx.notify();
+                    // A Source tab's take is the frame the Viewer and its pool
+                    // tile show, and the Viewer's draw asks for that frame.
+                    // The playhead pages the timeline when it leaves the view.
+                    if take {
+                        self.redraw(Moved::PoolHover, cx);
+                        self.redraw(Moved::Frame, cx);
+                    } else {
+                        spawn_preview(self.state.clone(), cx);
+                        if self.state.read(cx).scroll_x != scroll {
+                            self.redraw(Moved::View, cx);
+                        }
+                        self.redraw(Moved::Playhead, cx);
+                    }
                 }
             } else if state.update(cx, |state, _| state.release_viewer()) {
                 window.unlock_pointer();
@@ -282,7 +297,11 @@ impl Shell {
                     state.release_guide(at);
                 }
             });
-            cx.notify();
+            if held {
+                self.redraw(Moved::Frame, cx);
+            } else {
+                cx.notify();
+            }
             return true;
         }
         // A press held on the Viewer's picture pans a zoomed frame by the
@@ -299,7 +318,7 @@ impl Shell {
                 self.state.update(cx, |state, _| {
                     state.pan_preview(at[0] - pan.at[0], at[1] - pan.at[1])
                 });
-                cx.notify();
+                self.redraw(Moved::Frame, cx);
             }
             return true;
         }

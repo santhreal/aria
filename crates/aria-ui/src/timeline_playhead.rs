@@ -239,6 +239,13 @@ impl Layer {
         self.0.borrow_mut().lanes[usize::from(audio)] = Some(Slot::at(bounds, window));
     }
 
+    /// The window bounds of a lane group's time area as the last build of the
+    /// body recorded them: the video group's, or the audio group's when
+    /// `audio`.
+    pub(crate) fn lane_area(&self, audio: bool) -> Option<Bounds<Pixels>> {
+        self.0.borrow().lanes[usize::from(audio)].map(|slot| slot.bounds)
+    }
+
     /// The timecode at rest: laid out at the size of `text` and invisible,
     /// with a box over it that records its bounds, mask and text style for the
     /// layer to paint the current timecode in.

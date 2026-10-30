@@ -13,8 +13,10 @@
 //! its inputs, such as the Audio Meters and the Effects panel, is skipped
 //! while the stamp is unchanged and the editor has arrived. Two paths are
 //! narrow: [`Shell::redraw`], for a change that moves only the timeline view,
-//! the playhead, or the pool tile under the pointer, redraws the chrome the
-//! shell draws itself and the bodies whose drawing reads what moved, and
+//! the playhead, the pool tile under the pointer, what the Viewer shows or
+//! reads under the pointer, the cursor the timeline's lanes set, or a held
+//! drag on the timeline, redraws the chrome the shell draws itself and the
+//! bodies whose drawing reads what moved, and
 //! [`Shell::redraw_chrome`], for a change to chrome alone, redraws the chrome.
 //! The rest replay their last drawing. The timeline's playhead is painted by
 //! the shell over the timeline body (`crate::timeline_playhead`), so
@@ -51,6 +53,10 @@ mod idle_tests;
 mod hover_tests;
 
 #[cfg(test)]
+#[path = "panel_view_pointer_tests.rs"]
+mod pointer_tests;
+
+#[cfg(test)]
 #[path = "panel_view_chrome_tests.rs"]
 mod chrome_tests;
 
@@ -74,23 +80,38 @@ pub enum Moved {
     /// The playhead, scrubbed or moved by a playback vsync
     /// ([`crate::app::PlayheadMoved`]).
     Playhead,
-    /// A media tile's scrub position, or a tile picture arriving
+    /// A media tile's scrub position, from the tile or from the mini ruler of
+    /// its Source tab, or a tile picture arriving
     /// ([`crate::app::PoolTileChanged`]).
     PoolHover,
     /// A timeline filmstrip cell arriving ([`crate::app::FilmstripChanged`]).
     Filmstrip,
-    /// A Viewer frame, or a scope or probe reading of the one on screen,
-    /// arriving from the preview worker ([`crate::app::FrameReady`]).
+    /// What the Viewer shows: a frame, or a scope or probe reading of the one
+    /// on screen, arriving from the preview worker
+    /// ([`crate::app::FrameReady`]); the take of a Source tab scrubbed on its
+    /// mini ruler; the pixel the Info panel reads under the pointer; the
+    /// rubber band of a mask path the Pen is drawing; or the pan of a zoomed
+    /// frame or a guide, held under the pointer.
     Frame,
+    /// The pointer over the timeline's lanes, onto a target that sets another
+    /// cursor than the lanes last painted.
+    Pointer,
+    /// A drag held on the timeline: what it draws while the button is down,
+    /// a clip drag's cards, readout and magnet (`AppState::hold_drag`), or the
+    /// drop row of a lane dragged by its header. It lands nothing in the
+    /// project before its release.
+    Drag,
 }
 
 impl Moved {
-    pub const ALL: [Moved; 5] = [
+    pub const ALL: [Moved; 7] = [
         Moved::View,
         Moved::Playhead,
         Moved::PoolHover,
         Moved::Filmstrip,
         Moved::Frame,
+        Moved::Pointer,
+        Moved::Drag,
     ];
 }
 
@@ -105,17 +126,36 @@ impl Moved {
 const UNMOVED: &[(PanelId, &[Moved])] = &[
     (
         PANEL_PROJECT,
-        &[Moved::View, Moved::Playhead, Moved::Filmstrip, Moved::Frame],
+        &[
+            Moved::View,
+            Moved::Playhead,
+            Moved::Filmstrip,
+            Moved::Frame,
+            Moved::Pointer,
+            Moved::Drag,
+        ],
     ),
     (PANEL_EFFECTS, &Moved::ALL),
     (PANEL_AUDIO_METERS, &Moved::ALL),
     (
         PANEL_VIEWER,
-        &[Moved::View, Moved::PoolHover, Moved::Filmstrip],
+        &[
+            Moved::View,
+            Moved::PoolHover,
+            Moved::Filmstrip,
+            Moved::Pointer,
+            Moved::Drag,
+        ],
     ),
     (
         PANEL_INSPECTOR,
-        &[Moved::View, Moved::PoolHover, Moved::Filmstrip],
+        &[
+            Moved::View,
+            Moved::PoolHover,
+            Moved::Filmstrip,
+            Moved::Pointer,
+            Moved::Drag,
+        ],
     ),
     (PANEL_TIMELINE, &[Moved::PoolHover, Moved::Frame]),
 ];
@@ -143,6 +183,16 @@ pub fn notify_after_draw<T: 'static>(entity: &Entity<T>, cx: &mut App) {
     cx.defer(move |cx| {
         // A view dropped before the draw ended has nothing left to redraw.
         let _ = entity.update(cx, |_, cx| cx.notify());
+    });
+}
+
+/// Redraws `shell`'s window as [`Shell::redraw`] does for a change that moved
+/// only `moved`, once the draw in progress ends: [`notify_after_draw`] for a
+/// value recorded during the draw that only the bodies `moved` redraws read.
+pub fn redraw_after_draw(shell: WeakEntity<Shell>, moved: Moved, cx: &mut App) {
+    cx.defer(move |cx| {
+        // A window closed before the draw ended has nothing left to redraw.
+        let _ = shell.update(cx, |shell, cx| shell.redraw(moved, cx));
     });
 }
 

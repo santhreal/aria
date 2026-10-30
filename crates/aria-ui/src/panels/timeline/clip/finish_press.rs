@@ -18,6 +18,7 @@ pub(super) fn on_left_down(
     let Some(hit) = hit_test(lanes, local_x, local_y, fps, pps, scroll_x) else {
         return;
     };
+    PRESS_CURSOR.set(cursor_for(tool, Some(hit)));
     let origin_x = f32::from(event.position.x);
 
     // An armed Parent pick whip takes the press on a clip, whatever the tool.

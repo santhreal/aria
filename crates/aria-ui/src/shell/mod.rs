@@ -33,7 +33,7 @@ mod drag;
 use drag::{Drag, DragKind};
 // Docked panel bodies as cached views.
 mod panel_view;
-pub use panel_view::{Moved, notify_after_draw};
+pub use panel_view::{Moved, notify_after_draw, redraw_after_draw};
 /// A press held on the Viewer's picture with the left or middle button.
 #[derive(Clone, Copy)]
 pub(crate) struct PreviewPan {

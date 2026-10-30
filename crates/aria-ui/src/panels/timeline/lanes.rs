@@ -337,27 +337,29 @@ pub(super) fn lane_group(
                     window,
                     cx,
                 );
-                // The cursor names what a press under the pointer does.
-                if hitbox.is_hovered(window) {
+                // The cursor states what a press under the pointer does, or
+                // the press's while its gesture is held.
+                let cursor = hitbox.is_hovered(window).then(|| {
                     let at = window.mouse_position();
-                    let cursor = if painted.iter().any(|(_, badge)| badge.contains(&at)) {
-                        gpui::CursorStyle::PointingHand
-                    } else {
-                        let local = at - bounds.origin;
-                        clip::hit::cursor_for(
-                            tool,
-                            clip::hit::hit_test(
-                                &paint_data.visible_lanes,
-                                f32::from(local.x).max(0.0),
-                                f32::from(local.y).max(0.0),
-                                fps,
-                                pps,
-                                scroll_x,
-                            ),
-                        )
-                    };
+                    let local = at - bounds.origin;
+                    clip::finish::lanes_cursor(
+                        at,
+                        &painted,
+                        clip::hit::hit_test(
+                            &paint_data.visible_lanes,
+                            f32::from(local.x).max(0.0),
+                            f32::from(local.y).max(0.0),
+                            fps,
+                            pps,
+                            scroll_x,
+                        ),
+                        tool,
+                    )
+                });
+                if let Some(cursor) = cursor {
                     window.set_cursor_style(cursor, &hitbox);
                 }
+                clip::finish::painted_cursor(is_audio, cursor);
                 drop(painted);
                 let total_lanes = paint_data.total_lanes;
                 let total_clips = paint_data.total_clips;
@@ -388,6 +390,7 @@ pub(super) fn lane_group(
 
     let time_area = clip::finish::attach_group_mouse_listeners(
         time_area,
+        is_audio,
         canvas_bounds,
         badges,
         shared_lanes,

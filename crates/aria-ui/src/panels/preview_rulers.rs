@@ -120,11 +120,13 @@ fn ruler(
 ) -> gpui::AnyElement {
     let label = theme.text_faint;
     let mark = theme.text_muted;
+    let name = match axis {
+        GuideAxis::Horizontal => "viewer-ruler-top",
+        GuideAxis::Vertical => "viewer-ruler-left",
+    };
     let strip = div()
-        .id(match axis {
-            GuideAxis::Horizontal => "viewer-ruler-top",
-            GuideAxis::Vertical => "viewer-ruler-left",
-        })
+        .id(name)
+        .debug_selector(move || name.into())
         .absolute()
         .overflow_hidden()
         .bg(theme.surface)

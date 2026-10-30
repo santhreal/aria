@@ -23,7 +23,9 @@ previous tool on release. With the Select tool, Ctrl over an edge switches it
 to Ripple Trim, and Ctrl+Alt to Rolling Edit, while the modifiers are held.
 
 The cursor names the edit a drag will make before the drag starts: trim
-bracket, ripple bracket, roll bracket, slip, slide, rate, or razor.
+bracket, ripple bracket, roll bracket, slip, slide, rate, or razor. A drag
+keeps the cursor and tool in effect at its press until the button is
+released, over any clip edge it crosses and with Ctrl or Alt pressed during it.
 
 ## Selection
 

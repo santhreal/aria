@@ -135,6 +135,14 @@ impl AppState {
         self.program_to(to)
     }
 
+    /// Whether a drag of the held press moves the take of the Source tab in
+    /// front rather than the playhead: a press on the mini ruler over a Source
+    /// tab. A playhead field moves the playhead from either tab.
+    pub fn viewer_drag_moves_take(&self) -> bool {
+        matches!(self.viewer_scrub.press, Some(ViewerPress::Ruler { .. }))
+            && self.sources.focused().is_some()
+    }
+
     /// Let go of the press. A press on a playhead field that never moved
     /// opens that field for typing. Returns whether a press was held.
     pub fn release_viewer(&mut self) -> bool {
