@@ -915,6 +915,7 @@ Notes for the latest release. For previous releases, see the
 - A text preset is written onto a title's style only when it is chosen, so an edited stroke, shadow, or card survives retyping the title.
 - A clip whose generator plugin is missing, failed, or disabled draws a slate stating the generator's id instead of nothing, an unknown transition plays as a cut, and the clip shows a `Missing plugin: <id>` badge for its first unknown clip type, effect, audio effect, or transition.
 - `rustls` is 0.23.46, which fixes RUSTSEC-2026-0346 through RUSTSEC-2026-0349.
+- `wasmtime` is 49.0.5, which fixes RUSTSEC-2026-0422 through RUSTSEC-2026-0424 for WebAssembly component plugins.
 - Export on Linux uses the first H.264 or H.265 encoder that opens on the machine, so a registered NVENC or VAAPI encoder whose driver does not load no longer fails the export, and the error lists each encoder's reason when none opens.
 - A package effect's declared `category` was dropped at registration; it now sets the effect's Effect menu submenu.
 - The action safe and title safe overlays mark the inner 93 and 90 per cent of the frame, not 90 and 80.
