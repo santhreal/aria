@@ -83,6 +83,12 @@ serde_json = "1.0.150"
 rustc-hash = "2"
 tracing = "0.1"
 parking_lot = "0.12"
+# Global allocator of the editor process (`aria_ui::Allocator`). Builds the
+# bundled mimalloc v3 C sources with `cc`. With `no_thp` it does not call
+# `madvise(MADV_HUGEPAGE)` on its arenas on Linux: the first touch of each huge
+# page zeroes 2 MiB, which cost warm startup 7% and the window 47 MiB at open
+# on Server.
+mimalloc = { version = "0.1.52", default-features = false, features = ["no_thp"] }
 # dlopen for external plugin libraries.
 libloading = "0.8"
 # Runtime for WebAssembly component plugins.

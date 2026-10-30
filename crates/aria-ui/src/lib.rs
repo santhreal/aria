@@ -77,6 +77,11 @@ pub use projection::project_to_ui;
 pub use theme::{Appearance, Theme};
 pub use types::{ActivePanel, UiEditorStore};
 
+/// The global allocator of the editor process. `aria-desktop` installs it and
+/// `aria-bench` counts allocations through it, so the benches measure the
+/// allocator the editor ships with.
+pub use mimalloc::MiMalloc as Allocator;
+
 /// Embedded UI typeface: Inter in four static weights, © The Inter Project
 /// Authors, licensed under the SIL Open Font License 1.1 (text in
 /// `LICENSES/Inter-OFL-1.1.txt`). Static faces, because the text system picks

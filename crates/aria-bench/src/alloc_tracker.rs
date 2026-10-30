@@ -2,8 +2,9 @@
 
 #![allow(unsafe_code)]
 
+use aria_ui::Allocator;
 use parking_lot::Mutex;
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
 use std::backtrace::Backtrace;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -17,8 +18,9 @@ std::thread_local! {
     static THREAD_TAG: Cell<u64> = const { Cell::new(0) };
 }
 
-/// System allocator wrapper that counts allocations on one watched thread when
-/// a measurement scope is active.
+/// Wrapper over [`aria_ui::Allocator`], the allocator the editor ships with,
+/// that counts allocations on one watched thread when a measurement scope is
+/// active.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CountingAllocator;
 
@@ -68,25 +70,25 @@ fn capture_site(limit: usize) {
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record_if_tracked(layout.size());
-        // SAFETY: Forwards directly to the standard system allocator with the same layout.
-        unsafe { System.alloc(layout) }
+        // SAFETY: Forwards to the editor allocator with the same layout.
+        unsafe { Allocator.alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // SAFETY: Forwards directly to the standard system allocator with the same pointer and layout.
-        unsafe { System.dealloc(ptr, layout) }
+        // SAFETY: Forwards to the editor allocator with the same pointer and layout.
+        unsafe { Allocator.dealloc(ptr, layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         record_if_tracked(layout.size());
-        // SAFETY: Forwards directly to the standard system allocator with the same layout.
-        unsafe { System.alloc_zeroed(layout) }
+        // SAFETY: Forwards to the editor allocator with the same layout.
+        unsafe { Allocator.alloc_zeroed(layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         record_if_tracked(new_size);
-        // SAFETY: Forwards directly to the standard system allocator with the same parameters.
-        unsafe { System.realloc(ptr, layout, new_size) }
+        // SAFETY: Forwards to the editor allocator with the same parameters.
+        unsafe { Allocator.realloc(ptr, layout, new_size) }
     }
 }
 

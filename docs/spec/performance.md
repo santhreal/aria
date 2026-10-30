@@ -79,6 +79,10 @@ Scenarios that need a window run on a private headless compositor. Dropped
 frames, A/V offset, and latencies come from the same counters the status bar
 and the dropped-frame indicator read.
 
+The in-process scenarios allocate through `aria_ui::Allocator`, the mimalloc
+allocator `aria-desktop` installs, so their times and allocation counts are
+those of the editor process.
+
 ## Per-frame rules
 
 The preview path is held to these rules; each is checked in the `playback`

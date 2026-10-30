@@ -53,6 +53,8 @@ toml = "0.8"
 dirs = "6"
 tracing = { workspace = true }
 parking_lot = { workspace = true }
+# The editor process allocator, re-exported as `aria_ui::Allocator`.
+mimalloc = { workspace = true }
 # No `rfd` here on purpose. Its blocking dialog calls freeze the window until
 # the dialog is answered, so they live in `aria-dialog`, which offers futures
 # only. `app::picker` is the one module that calls it.

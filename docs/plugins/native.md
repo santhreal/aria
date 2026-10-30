@@ -240,6 +240,9 @@ Both `AriaHostV1` and `AriaPluginV1` start with `AriaTableHeader`
 (`struct_size`, `api_major`, `reserved`) followed by `free_string` and
 `free_bytes` release functions so whichever side allocates an `AriaOwnedStr` or
 `AriaOwnedBytes` buffer frees it with its own allocator.
+The editor process allocates with mimalloc, not the C library's `malloc`, so a
+buffer released by the other side's function, or by `free`, is undefined
+behavior.
 
 `validate_plugin_table` requires `api_major == ARIA_API_MAJOR` (`1`) and a
 `struct_size` of at least `ARIA_PLUGIN_V1_MIN_SIZE`. Each

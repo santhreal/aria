@@ -9,6 +9,9 @@ mod startup_tests;
 
 use std::path::PathBuf;
 
+#[global_allocator]
+static ALLOCATOR: aria_ui::Allocator = aria_ui::Allocator;
+
 /// Where the session keeps settings, caches, and the recovery file.
 ///
 /// `ARIA_DATA_DIR` overrides it, which is what makes a second instance on a
