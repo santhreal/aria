@@ -20,18 +20,6 @@ use aria_models::{AudioInsertTarget, AudioSend, AutomationMode, Param, TrackOutp
 mod mixer_automation;
 pub use mixer_automation::{AutomationPassState, frac_to_pan, pan_label, pan_to_frac};
 
-/// The bottom of the fader's travel, in decibels. Below this a fader reads as
-/// silence: a mixer that offered -80 dB would be offering arithmetic, not a
-/// mix.
-pub const FADER_FLOOR_DB: f32 = -60.0;
-
-/// The top of the fader's travel, in decibels: whatever the model's own send
-/// ceiling is, read from it, so the fader and the model refuse at exactly the
-/// same place.
-pub fn fader_ceiling_db() -> f32 {
-    aria_analysis::db_from_linear(AudioSend::MAX_LEVEL).unwrap_or(0.0)
-}
-
 /// How close to unity a drag has to land before it snaps there, in decibels.
 ///
 /// Unity is the value a fader returns to most often, and hitting it on a 120 px fader
@@ -392,41 +380,26 @@ impl MixerFacts {
     }
 }
 
-/// Linear gain as decibels, floored at the bottom of the fader's travel so
-/// silence has a position rather than an infinity.
-///
-/// The conversion itself belongs to `aria_analysis`; this only decides what the
-/// bottom of a fader means.
-pub fn gain_to_db(gain: f32) -> f32 {
-    aria_analysis::db_from_linear(gain).map_or(FADER_FLOOR_DB, |db| db.max(FADER_FLOOR_DB))
-}
-
-/// Decibels as linear gain. The floor is exactly silence, so a fader pulled to
-/// the bottom writes `0.0` and not a level that is merely quiet.
-pub fn db_to_gain(db: f32) -> f32 {
-    if db <= FADER_FLOOR_DB {
-        return 0.0;
-    }
-    aria_analysis::linear_from_db(db.min(fader_ceiling_db()))
-}
-
-/// Where a gain sits on the fader's travel, `0.0` at the floor and `1.0` at the
-/// ceiling.
+/// Where a gain sits on the fader's travel: `0.0` at
+/// [`aria_analysis::GAIN_FLOOR_DB`] and at silence, `1.0` at the model's own
+/// send ceiling, [`AudioSend::MAX_LEVEL`], so the fader and the model refuse at
+/// the same place.
 pub fn gain_to_frac(gain: f32) -> f32 {
-    let db = gain_to_db(gain);
-    ((db - FADER_FLOOR_DB) / (fader_ceiling_db() - FADER_FLOOR_DB)).clamp(0.0, 1.0)
+    aria_analysis::gain_travel(gain, AudioSend::MAX_LEVEL)
 }
 
-/// The gain a position on the fader means, with the unity detent applied.
+/// The gain a position on the fader means, with the unity detent applied. The
+/// bottom of the travel is silence, so a fader pulled to the bottom writes
+/// `0.0` and not a level that is merely quiet.
 pub fn frac_to_gain(frac: f32) -> f32 {
     if !frac.is_finite() {
         return 1.0;
     }
-    let db = FADER_FLOOR_DB + frac.clamp(0.0, 1.0) * (fader_ceiling_db() - FADER_FLOOR_DB);
-    if db.abs() <= UNITY_DETENT_DB {
+    let gain = aria_analysis::gain_at_travel(frac, AudioSend::MAX_LEVEL);
+    if aria_analysis::db_from_linear(gain).is_some_and(|db| db.abs() <= UNITY_DETENT_DB) {
         return 1.0;
     }
-    db_to_gain(db)
+    gain
 }
 
 /// What a fader reads beside it. Silence is named, not printed as -60.0.
@@ -434,7 +407,8 @@ pub fn gain_label(gain: f32) -> String {
     if gain <= 0.0 {
         return "-inf".to_string();
     }
-    let db = gain_to_db(gain);
+    let floor = aria_analysis::GAIN_FLOOR_DB;
+    let db = aria_analysis::db_from_linear(gain).map_or(floor, |db| db.max(floor));
     if db.abs() < 0.05 {
         return "0.0 dB".to_string();
     }

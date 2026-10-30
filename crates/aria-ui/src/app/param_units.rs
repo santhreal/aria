@@ -13,11 +13,12 @@
 
 use std::fmt::Write as _;
 
-use aria_analysis::{db_from_linear, linear_from_db};
+use aria_analysis::{GAIN_FLOOR_DB, db_from_linear, linear_from_db};
 use aria_models::{ClipParam, EffectParamDisplay, EffectParamKind, EffectParamSpec, ParamRange};
 
-use super::clip_audio::{SILENT_DB, VOLUME_FLOOR_DB};
+use super::clip_audio::SILENT_DB;
 use super::value_scrub::ValueKind;
+use crate::types::Taper;
 
 /// What a gain row prints at silence, which has no decibel value. A readout
 /// printing `-inf` would print a number its field could not take back.
@@ -50,7 +51,7 @@ impl Scale {
     pub fn stored(self, shown: f32) -> f32 {
         match self {
             Self::Linear(factor) => shown / factor,
-            Self::Gain if shown < VOLUME_FLOOR_DB => 0.0,
+            Self::Gain if shown < GAIN_FLOOR_DB => 0.0,
             Self::Gain => linear_from_db(shown),
         }
     }
@@ -72,6 +73,18 @@ impl Scale {
         match self {
             Self::Linear(factor) => delta / factor,
             Self::Gain => self.moved(stored, delta) - stored,
+        }
+    }
+
+    /// The travel a property of this scale bounded by `range` stands on: even
+    /// between the bounds, or for a gain the mixer fader's taper, even in
+    /// decibels from [`GAIN_FLOOR_DB`] up to the top of `range`. A volume row's
+    /// track and a clip's volume line share it. `None` when `range` leaves the
+    /// travel no end.
+    pub fn taper(self, range: &ParamRange) -> Option<Taper> {
+        match self {
+            Self::Linear(_) => Taper::between(range),
+            Self::Gain => range.max.map(|max| Taper::Gain { max }),
         }
     }
 }

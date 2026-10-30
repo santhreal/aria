@@ -1,34 +1,41 @@
-//! Every number an effect, a transition or an audio insert declares bounds for
-//! draws a value track, filled to where the value stands between the bounds.
+//! Every number an effect, a transition, an audio insert or the property
+//! catalog declares bounds for draws a value track, filled to where the value
+//! stands on its travel.
 //!
-//! Closes the class "a bounded number row with no value track". The rows the
-//! property catalog generates drew a track along the range the catalog
-//! declares, while the number slots of an effect and of a transition, and the
-//! parameters of an audio insert, drew none, though each declares its bounds
-//! and a plugin manifest's default display for a number is a slider. An effect
-//! and a transition with a slot of every [`EffectParamKind`], and a shipped
-//! insert, are drawn. Every slot of a number kind draws a track whose fill
-//! covers the value's share of the slot's bounds, an integer's being its
-//! integer bounds and not its float ones, no slot of another kind draws one,
-//! and every insert parameter's track is filled to its value's share of its
-//! range. A kind added to `EffectParamKind` does not build until
-//! [`draws_a_track`] places it.
+//! Closes the class "a bounded number row with no value track, or with one
+//! filled on the wrong travel". The rows the property catalog generates drew a
+//! track along the range the catalog declares, except a gain's, while the
+//! number slots of an effect and of a transition, and the parameters of an
+//! audio insert, drew none, though each declares its bounds and a plugin
+//! manifest's default display for a number is a slider. An effect and a
+//! transition with a slot of every [`EffectParamKind`], and a shipped insert,
+//! are drawn. Every slot of a number kind draws a track whose fill covers the
+//! value's share of the slot's bounds, an integer's being its integer bounds
+//! and not its float ones, no slot of another kind draws one, and every insert
+//! parameter's track is filled to its value's share of its range. Every scalar
+//! row of the transform and audio catalog groups is filled where [`stands`]
+//! places it: a gain on the fader's taper, even in decibels, and any other
+//! number evenly between its bounds. A kind added to `EffectParamKind`, or a
+//! scale added to `Scale`, does not build until [`draws_a_track`] or
+//! [`stands`] places it.
 //!
 //! Not covered: a number row drawn with `unkeyed_row`, which takes no range;
-//! a row the property catalog generates, which draws its track through the
-//! same `Travel::along`; of the keyed axes of an effect's vector slot, which
-//! share one debug selector, only the last drawn is measured; and an insert
-//! other than the shipped gain.
+//! of the keyed axes of an effect's vector slot, and the components of a
+//! catalog vector, which share one debug selector, the axes only the last
+//! drawn and the components not at all; a catalog group other than transform
+//! and audio; and an insert other than the shipped gain.
 
 use aria_models::{
-    AudioInsertTarget, ClipParam, EffectParamKind, EffectParamSpec, EffectSpec, ParamValue,
-    TransitionSpec,
+    AudioInsertTarget, ClipParam, EffectParamKind, EffectParamSpec, EffectSpec, ParamRange,
+    ParamValue, TransitionSpec,
 };
 use gpui::{TestAppContext, VisualTestContext};
 
 use super::columns_tests::{EVERY_KIND, every_kind};
 use super::strip_tests::drawn_with;
 use super::tabs::effects::effects_params::vec2_axes;
+use crate::app::AppState;
+use crate::app::param_units::{Scale, Units};
 use crate::interned::intern;
 
 /// Whether a slot of `kind` draws a value track. No wildcard arm: a new kind
@@ -231,4 +238,84 @@ async fn every_insert_parameter_draws_its_value_on_a_track(cx: &mut TestAppConte
         let at = share(param.value, (param.min, param.max));
         reads(visual, "insert", &param.label, Some(at));
     }
+}
+
+/// Where a catalog row's track is filled to, worked out here rather than
+/// through the row's own taper: a gain's decibels between -60 dB and the
+/// decibels of the top of its range, any other number's share of its bounds.
+/// `None` for a row with no travel, a linear row open on a side or a gain row
+/// open at the top. No wildcard arm: a scale added to `Scale` does not build
+/// until it is placed.
+fn stands(scale: Scale, value: f32, range: ParamRange) -> Option<f32> {
+    match scale {
+        Scale::Linear(_) => range
+            .bounds()
+            .filter(|(min, max)| max > min)
+            .map(|bounds| share(value, bounds).clamp(0.0, 1.0)),
+        Scale::Gain => range.max.map(|max| {
+            let above_floor = |gain: f32| 20.0 * gain.log10() + 60.0;
+            if value <= 0.0 {
+                0.0
+            } else {
+                (above_floor(value) / above_floor(max)).clamp(0.0, 1.0)
+            }
+        }),
+    }
+}
+
+/// Draws `media` with the Inspector on `tab`, after `dress`, and holds every
+/// scalar row of catalog group `group` the tab draws to [`stands`]. Returns
+/// each row read with where its track is filled to.
+fn catalog_rows_read(
+    cx: &mut TestAppContext,
+    (media, tab): (&str, &str),
+    group: &str,
+    dress: impl FnOnce(&mut AppState),
+) -> Vec<(ClipParam, Option<f32>)> {
+    let (state, visual) = drawn_with(cx, &format!("slot-track-{tab}"), media, tab, dress);
+    let rows = visual.read(|app| state.read(app).param_rows(group));
+    let mut read = Vec::new();
+    for row in rows {
+        if row.component.is_some() {
+            continue;
+        }
+        let cell = format!("{:?}", row.param);
+        if visual
+            .debug_bounds(intern(&format!("insp-value-{cell}")))
+            .is_none()
+        {
+            continue;
+        }
+        let scale = Units::of(row.param, &row.range).number.scale;
+        let at = stands(scale, row.value, row.range);
+        reads(visual, "catalog", &cell, at);
+        read.push((row.param, at));
+    }
+    read
+}
+
+#[gpui::test]
+async fn every_transform_row_draws_its_value_where_its_scale_places_it(cx: &mut TestAppContext) {
+    let read = catalog_rows_read(cx, ("texture.png", "transform"), "transform", |_| {});
+    assert!(
+        read.iter().any(|(_, at)| at.is_some()),
+        "the transform tab drew no bounded scalar row: {read:?}"
+    );
+}
+
+#[gpui::test]
+async fn every_audio_row_draws_its_value_where_its_scale_places_it(cx: &mut TestAppContext) {
+    // -6 dB, which a track even between silence and the ceiling would fill a
+    // twentieth of the way.
+    let read = catalog_rows_read(cx, ("fixture-sine-48k-2s.wav", "audio"), "audio", |state| {
+        state
+            .set_selected_volume(aria_analysis::linear_from_db(-6.0))
+            .expect("set the volume");
+    });
+    let volume = read.iter().find(|(param, _)| *param == ClipParam::Volume);
+    assert!(
+        matches!(volume, Some((_, Some(at))) if (at - 0.675).abs() < 1e-3),
+        "the volume row is read at {volume:?}, and -6 dB stands at 0.675 of a travel from \
+         -60 dB to +20 dB"
+    );
 }

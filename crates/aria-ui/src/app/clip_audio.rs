@@ -6,6 +6,7 @@
 //! [`aria_analysis::gain`] rather than being spelled out here: a clip's gain, a
 //! normalisation, and an export's headroom have to agree on what −6 dB means.
 
+use aria_analysis::GAIN_FLOOR_DB;
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{ClipParam, Rational, RationalTime};
@@ -13,15 +14,11 @@ use aria_models::{ClipParam, Rational, RationalTime};
 use super::AppState;
 use super::param_units::Scale;
 
-/// The quietest fader position that still reads as a level. A step below this
-/// is silence, which has no decibel value, and a step up from silence lands
-/// here rather than seventy steps under unity.
-pub(crate) const VOLUME_FLOOR_DB: f32 = -60.0;
-
-/// The level silence counts as when a gain is moved: one decibel under the
-/// floor, so a 1 dB step up lands on the floor and any level under the floor
-/// mutes.
-pub(crate) const SILENT_DB: f32 = VOLUME_FLOOR_DB - 1.0;
+/// The level silence counts as when a gain is moved: one decibel under
+/// [`GAIN_FLOOR_DB`], the quietest fader position that still reads as a level,
+/// so a 1 dB step up from silence lands on the floor rather than seventy steps
+/// under unity, and any level under the floor mutes.
+pub(crate) const SILENT_DB: f32 = GAIN_FLOOR_DB - 1.0;
 
 impl AppState {
     /// Set the selected clip's gain.
@@ -35,7 +32,7 @@ impl AppState {
     }
 
     /// Move the selected clip's gain by `decibels`, in the scale its row
-    /// reads in ([`Scale::Gain`]): stepping under `VOLUME_FLOOR_DB` mutes, and a
+    /// reads in ([`Scale::Gain`]): stepping under [`GAIN_FLOOR_DB`] mutes, and a
     /// step up from silence lands on the floor.
     pub fn nudge_selected_volume_db(&mut self, decibels: f32) -> Result<(), EngineError> {
         self.nudge_param_in(ClipParam::Volume, None, Scale::Gain, decibels)

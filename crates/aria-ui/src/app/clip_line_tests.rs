@@ -13,7 +13,7 @@ use aria_models::{ClipId, ClipParam, Param, RationalTime};
 
 use super::{AppState, LinePress};
 use crate::app::premiere_tests::{with_clip, with_media};
-use crate::types::LineScale;
+use crate::types::Taper;
 
 /// The band the tests drag on: 40 px from the bottom of the scale to its top.
 const BAND: f32 = 40.0;
@@ -46,7 +46,7 @@ fn keys(state: &AppState, clip: ClipId, param: ClipParam) -> Vec<(i64, f32)> {
         .collect()
 }
 
-fn line_scale(state: &AppState, clip: ClipId) -> LineScale {
+fn line_scale(state: &AppState, clip: ClipId) -> Taper {
     state
         .ui_clip_ref(clip)
         .and_then(|ui| ui.line.as_ref())
@@ -78,7 +78,7 @@ fn a_drag_is_measured_from_the_press_and_lands_as_one_undo_step() {
     assert_eq!(constant(&state, clip, ClipParam::Opacity), 1.0);
     assert_eq!(
         line_scale(&state, clip),
-        LineScale::Linear { min: 0.0, max: 1.0 }
+        Taper::Linear { min: 0.0, max: 1.0 }
     );
 
     assert!(state.press_clip_line(clip, LinePress::Line(6), BAND));
@@ -143,7 +143,7 @@ fn a_gain_line_moves_in_decibels() {
             .join("../../tests/fixtures/fixture-sine-48k-2s.wav"),
     );
     let scale = line_scale(&state, clip);
-    let LineScale::Gain { max } = scale else {
+    let Taper::Gain { max } = scale else {
         panic!("an audio clip's volume line draws a gain, got {scale:?}");
     };
     assert_eq!(constant(&state, clip, ClipParam::Volume), 1.0);
@@ -153,7 +153,7 @@ fn a_gain_line_moves_in_decibels() {
     assert!(state.press_clip_line(clip, LinePress::Line(0), BAND));
     assert!(state.drag_clip_line(travel));
     assert!(state.release_clip_line());
-    let span_db = 20.0 * max.log10() - LineScale::FLOOR_DB;
+    let span_db = 20.0 * max.log10() - aria_analysis::GAIN_FLOOR_DB;
     let after_db = 20.0 * constant(&state, clip, ClipParam::Volume).log10();
     assert!(
         (after_db - (-span_db / 6.0)).abs() < 1e-2,

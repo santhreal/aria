@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use aria_analysis::{db_from_linear, linear_from_db};
+use aria_analysis::{GAIN_FLOOR_DB, db_from_linear, linear_from_db};
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
@@ -13,7 +13,6 @@ use aria_models::{
 };
 use gpui::SharedString;
 
-use super::clip_audio::VOLUME_FLOOR_DB;
 use super::clip_speed::RAMP_POINTS;
 use super::{AppState, DialogKind, describe_engine_error};
 use crate::types::ActivePanel;
@@ -114,7 +113,7 @@ fn speed_percent_to_rational(percent: f32) -> Rational {
 }
 
 fn linear_for_db(db: f32) -> f32 {
-    if db <= VOLUME_FLOOR_DB {
+    if db <= GAIN_FLOOR_DB {
         0.0
     } else {
         linear_from_db(db).min(MAX_CLIP_VOLUME)
@@ -527,8 +526,8 @@ impl AppState {
         }
         let first_vol = self.ui_clip_ref(clips[0]).map_or(1.0, |c| c.volume);
         let set_db = db_from_linear(first_vol)
-            .unwrap_or(VOLUME_FLOOR_DB)
-            .clamp(VOLUME_FLOOR_DB, MAX_GAIN_DB);
+            .unwrap_or(GAIN_FLOOR_DB)
+            .clamp(GAIN_FLOOR_DB, MAX_GAIN_DB);
         let mut max_peak_dbfs: Option<f32> = None;
         for &clip in &clips {
             if let Some(peak) = self.clip_audio_peak_dbfs(clip) {
@@ -555,9 +554,9 @@ impl AppState {
 
     /// Set the target gain in dB for `AudioGainMode::SetGain` (`-60..=+12 dB`).
     pub fn set_audio_gain_set_db(&mut self, db: f32) -> Result<(), String> {
-        if !db.is_finite() || !(VOLUME_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
+        if !db.is_finite() || !(GAIN_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
             let reason =
-                format!("Gain must be between {VOLUME_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB");
+                format!("Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB");
             self.audio_gain.error = Some(reason.clone().into());
             self.status_message = Some(reason.clone());
             return Err(reason);
@@ -583,9 +582,8 @@ impl AppState {
     /// Set the normalization target in dBFS for `NormalizeMaxPeak` / `NormalizeAllPeaks`
     /// (`-60..=0 dBFS`).
     pub fn set_audio_gain_target_db(&mut self, db: f32) -> Result<(), String> {
-        if !db.is_finite() || !(VOLUME_FLOOR_DB..=0.0).contains(&db) {
-            let reason =
-                format!("Peak target must be between {VOLUME_FLOOR_DB:.0} dBFS and 0 dBFS");
+        if !db.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&db) {
+            let reason = format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
             self.audio_gain.error = Some(reason.clone().into());
             self.status_message = Some(reason.clone());
             return Err(reason);
@@ -611,9 +609,9 @@ impl AppState {
         match self.audio_gain.mode {
             AudioGainMode::SetGain => {
                 let db = self.audio_gain.set_db;
-                if !db.is_finite() || !(VOLUME_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
+                if !db.is_finite() || !(GAIN_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
                     let reason = format!(
-                        "Gain must be between {VOLUME_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB"
+                        "Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB"
                     );
                     self.audio_gain.error = Some(reason.clone().into());
                     self.status_message = Some(reason);
@@ -634,16 +632,16 @@ impl AppState {
                 }
                 for clip in clips {
                     let cur = self.ui_clip_ref(clip).map_or(1.0, |c| c.volume);
-                    let cur_db = db_from_linear(cur).unwrap_or(VOLUME_FLOOR_DB);
+                    let cur_db = db_from_linear(cur).unwrap_or(GAIN_FLOOR_DB);
                     let next_db = cur_db + delta;
                     plan.push((clip, linear_for_db(next_db)));
                 }
             }
             AudioGainMode::NormalizeMaxPeak => {
                 let target = self.audio_gain.target_db;
-                if !target.is_finite() || !(VOLUME_FLOOR_DB..=0.0).contains(&target) {
+                if !target.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&target) {
                     let reason =
-                        format!("Peak target must be between {VOLUME_FLOOR_DB:.0} dBFS and 0 dBFS");
+                        format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
                     self.audio_gain.error = Some(reason.clone().into());
                     self.status_message = Some(reason);
                     return;
@@ -667,9 +665,9 @@ impl AppState {
             }
             AudioGainMode::NormalizeAllPeaks => {
                 let target = self.audio_gain.target_db;
-                if !target.is_finite() || !(VOLUME_FLOOR_DB..=0.0).contains(&target) {
+                if !target.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&target) {
                     let reason =
-                        format!("Peak target must be between {VOLUME_FLOOR_DB:.0} dBFS and 0 dBFS");
+                        format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
                     self.audio_gain.error = Some(reason.clone().into());
                     self.status_message = Some(reason);
                     return;

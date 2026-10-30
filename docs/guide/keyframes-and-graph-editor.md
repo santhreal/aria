@@ -59,6 +59,10 @@ timeline property row:
   rotation in degrees, volume in decibels, and a volume of zero as Silent.
   Drag the value to scrub it, or click it and type a number in the units it
   prints.
+- In Effect Controls, a property bounded at both ends draws a track under its
+  name and value, filled to where the value stands between the bounds.
+  Volume's track is even in decibels from -60 dB to the +20 dB ceiling, as an
+  Audio Track Mixer fader is, so 0 dB stands three quarters along.
 - The stopwatch, left of the name, turns animation on and off. A click on a
   constant property writes a keyframe at the playhead. A click on an animated
   property deletes every keyframe and keeps the value at the playhead, as one

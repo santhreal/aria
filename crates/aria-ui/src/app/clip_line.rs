@@ -20,7 +20,7 @@ use aria_plugin::EditGroup;
 use gpui::SharedString;
 
 use super::AppState;
-use crate::types::{LineScale, TrimFeedback, UiTrackKind};
+use crate::types::{Taper, TrimFeedback, UiTrackKind};
 
 /// Where a press on a clip's line landed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -38,7 +38,7 @@ pub(crate) struct LineDrag {
     /// The scale the bar drew the line in when it was pressed. The travel is
     /// measured in it, and the bar keeps it until release, so a property
     /// whose scale is fitted to its values does not rescale under the pointer.
-    scale: LineScale,
+    scale: Taper,
     range: ParamRange,
     /// Pixels between the bottom and the top of the scale.
     band: f32,
@@ -274,7 +274,7 @@ impl AppState {
     ///
     /// Only the lane holding the clip is written: a write moves a lane's
     /// clips, and a moved lane is rebuilt by the next projection.
-    fn pin_line_scale(&mut self, clip: ClipId, scale: LineScale) {
+    fn pin_line_scale(&mut self, clip: ClipId, scale: Taper) {
         let id = clip.raw();
         let Some(lane) = self
             .store

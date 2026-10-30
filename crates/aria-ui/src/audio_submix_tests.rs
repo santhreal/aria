@@ -16,7 +16,7 @@ use crate::app::mixer::{
     FaderTarget, frac_to_gain, frac_to_pan, gain_label, gain_to_frac, pan_label, pan_to_frac,
 };
 use crate::app::premiere_tests::with_clip;
-use aria_models::{AutomationMode, TrackId, TrackKind};
+use aria_models::{AudioSend, AutomationMode, TrackId, TrackKind};
 
 /// The height a fader is drawn at in the panel, so a drag here travels the same
 /// distance a pointer does there.
@@ -286,9 +286,11 @@ fn the_fader_snaps_to_unity_and_bottoms_out_at_silence() {
     assert_eq!(frac_to_gain(0.0), 0.0);
     assert_eq!(gain_label(0.0), "-inf");
     assert_eq!(gain_label(1.0), "0.0 dB");
-    // Outside the detent a position round-trips through the scale.
-    let loud = frac_to_gain(1.0);
-    assert!(loud > 3.9, "the top of the travel is the model's ceiling");
+    // Outside the detent a position round-trips through the scale, and the
+    // top of the travel is the model's own send ceiling.
+    assert_eq!(frac_to_gain(1.0), AudioSend::MAX_LEVEL);
+    assert_eq!(gain_to_frac(AudioSend::MAX_LEVEL), 1.0);
+    assert!(gain_to_frac(AudioSend::MAX_LEVEL * 0.99) < 1.0);
     let quiet = frac_to_gain(0.25);
     assert!((gain_to_frac(quiet) - 0.25).abs() < 0.01);
     assert!(gain_label(quiet).starts_with('-'));

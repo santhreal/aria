@@ -5,11 +5,12 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use aria_models::{Clip, ClipAttribute, ClipParam, ParamKind, ParamRange};
+use aria_models::{Clip, ClipAttribute, ParamKind, ParamRange};
 use gpui::SharedString;
 
 use crate::app::curve_geometry::sample_param_scalar;
-use crate::types::{LineScale, UiClipLine, UiFxBadge};
+use crate::app::param_units::Units;
+use crate::types::{Taper, UiClipLine, UiFxBadge};
 
 /// Points sampled evenly along an animated line, besides each keyframe and
 /// the frame before it.
@@ -101,14 +102,14 @@ pub(super) fn clip_line(clip: &Clip, audio_lane: bool) -> Option<UiClipLine> {
         .map(|tick| (tick, sample_local(clip.param_tick_f(tick))))
         .collect();
 
-    let scale = if !numeric {
-        LineScale::Linear { min: 0.0, max: 1.0 }
-    } else if spec.param == ClipParam::Volume {
-        LineScale::Gain {
-            max: spec.range.max.unwrap_or(aria_models::MAX_CLIP_VOLUME),
-        }
+    let scale = if numeric {
+        Units::of(spec.param, &spec.range)
+            .number
+            .scale
+            .taper(&spec.range)
+            .unwrap_or_else(|| fitted(spec.range, points.iter().map(|&(_, value)| value)))
     } else {
-        fitted(spec.range, points.iter().map(|&(_, value)| value))
+        Taper::Linear { min: 0.0, max: 1.0 }
     };
     Some(UiClipLine {
         param: spec.param,
@@ -123,18 +124,18 @@ pub(super) fn clip_line(clip: &Clip, audio_lane: bool) -> Option<UiClipLine> {
     })
 }
 
-/// The range a line spans: the property's own bounds when it declares both,
-/// else the values it takes with room around them, inside whichever bound it
-/// does declare.
-fn fitted(range: ParamRange, values: impl Iterator<Item = f32>) -> LineScale {
+/// The range a line spans when the property's scale places it on no travel:
+/// its own bounds when it declares both, else the values it takes with room
+/// around them, inside whichever bound it does declare.
+fn fitted(range: ParamRange, values: impl Iterator<Item = f32>) -> Taper {
     if let (Some(min), Some(max)) = (range.min, range.max) {
-        return LineScale::Linear { min, max };
+        return Taper::Linear { min, max };
     }
     let (low, high) = values.fold((f32::INFINITY, f32::NEG_INFINITY), |(low, high), value| {
         (low.min(value), high.max(value))
     });
     if !low.is_finite() || !high.is_finite() {
-        return LineScale::Linear { min: 0.0, max: 1.0 };
+        return Taper::Linear { min: 0.0, max: 1.0 };
     }
     let pad = if high - low < 1e-3 {
         low.abs().max(1.0)
@@ -145,7 +146,7 @@ fn fitted(range: ParamRange, values: impl Iterator<Item = f32>) -> LineScale {
     let max = range
         .max
         .map_or(high + pad, |ceiling| (high + pad).min(ceiling));
-    LineScale::Linear { min, max }
+    Taper::Linear { min, max }
 }
 
 #[cfg(test)]

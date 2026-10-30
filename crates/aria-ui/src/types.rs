@@ -43,3 +43,6 @@ pub use sidebar::*;
 #[path = "types_target.rs"]
 mod target;
 pub use target::*;
+#[path = "types_taper.rs"]
+mod taper;
+pub use taper::*;

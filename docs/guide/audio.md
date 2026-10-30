@@ -24,10 +24,10 @@ Each strip holds:
   to drop the send. A send reads its level beside the bus name.
 - The fader, read in decibels below it. The faders of every strip stand level
   and take the height of the panel. Drag one: up is louder, the travel runs from
-  silence to +12 dB over the fader's drawn height, and it snaps to 0 dB near
-  unity. The fader follows the pointer off the strip, and the project is
-  written once on release wherever the button comes up, so riding a fader is
-  one undo step.
+  silence through -60 dB to +12 dB over the fader's drawn height, even in
+  decibels above -60 dB, and it snaps to 0 dB near unity. The fader follows the
+  pointer off the strip, and the project is written once on release wherever
+  the button comes up, so riding a fader is one undo step.
 
 **+ Submix bus** at the top right adds a bus, named `Bus 1`, `Bus 2`, and so on.
 **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the palette does the same. Deleting a bus returns

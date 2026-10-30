@@ -2,7 +2,7 @@
 //! color swatch rows of one group, and rows whose caller has the write.
 
 use crate::app::AppState;
-use crate::app::param_units::{Scale, Units};
+use crate::app::param_units::Units;
 use crate::motion;
 use crate::surfaces::clip_pick;
 use crate::theme::Theme;
@@ -61,10 +61,10 @@ pub fn unkeyed_row(
 ///
 /// Every row is printed, dragged and typed in the units
 /// [`crate::app::param_units`] declares for its property: an opacity in
-/// percent, a gain in decibels. A row in a linear scale keeps its track, which
-/// travels along the range the catalog declares. A gain row keeps its
-/// stopwatch and loses its track: a thumb placed along the multiplier would
-/// stand where the decibels it prints are not.
+/// percent, a gain in decibels. Its track is the travel its scale places the
+/// value on: even between the bounds the catalog declares, and for a gain the
+/// mixer fader's taper, even in decibels from the floor to the top of the
+/// range.
 ///
 /// The state entity is passed in rather than read back off the shell: a panel
 /// draws inside an update of the shell entity, so reading that entity from here
@@ -144,9 +144,9 @@ fn catalog_rows(
         let key = motion::MotionKey::new(surface, &row.id);
         let units = Units::of(param, &row.range);
         let scale = units.number.scale;
-        let travel = match scale {
-            Scale::Linear(_) => Some(Travel::along(row.value, &row.range)),
-            Scale::Gain => None,
+        let travel = Travel {
+            value: row.value,
+            taper: scale.taper(&row.range),
         };
         let element = stepper_row(
             theme,
@@ -154,7 +154,7 @@ fn catalog_rows(
             key,
             row.label.clone(),
             Readout::of(units, row.value).dashed(row.mixed),
-            travel,
+            Some(travel),
             Keys::Watch(stopwatch),
             move |state, delta| state.nudge_shared_param_in(param, component, scale, delta),
             cx,

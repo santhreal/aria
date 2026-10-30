@@ -1,5 +1,6 @@
-//! Gain arithmetic: decibels against the linear multiplier a mixer applies, and
-//! the multiplier that moves a measured level onto a target.
+//! Gain arithmetic: decibels against the linear multiplier a mixer applies, the
+//! travel a gain control stands on, and the multiplier that moves a measured
+//! level onto a target.
 //!
 //! A fader is linear, a meter reads decibels, and a normalisation is the
 //! difference between a measurement and a target. Those three conversions were
@@ -25,6 +26,12 @@ pub const MAX_NORMALISATION_BOOST_DB: f32 = 24.0;
 /// The quietest measurement worth normalising, in dBFS.
 pub const NORMALISATION_FLOOR_DBFS: f32 = -70.0;
 
+/// The quietest level a gain control holds apart from silence, in decibels.
+///
+/// A mixer fader, a clip's volume row and the volume line on its timeline bar
+/// travel from here to their ceiling, and a gain under it is silence.
+pub const GAIN_FLOOR_DB: f32 = -60.0;
+
 /// The linear multiplier for a level in decibels. `0 dB` is unity.
 #[must_use]
 pub fn linear_from_db(decibels: f32) -> f32 {
@@ -44,6 +51,49 @@ pub fn db_from_linear(linear: f32) -> Option<f32> {
         return None;
     }
     Some(20.0 * linear.log10())
+}
+
+/// The level in decibels of the gain `ceiling`, when it is above
+/// [`GAIN_FLOOR_DB`]: the top of a travel with a length.
+fn travel_top(ceiling: f32) -> Option<f32> {
+    db_from_linear(ceiling).filter(|top| *top > GAIN_FLOOR_DB)
+}
+
+/// Where `gain` stands on a travel from [`GAIN_FLOOR_DB`] to the gain
+/// `ceiling`, even in decibels: `0.0` at the floor, under it and at silence,
+/// `1.0` at the ceiling and over it.
+///
+/// A travel whose ceiling is not above the floor has no length, and every gain
+/// stands at its start.
+#[must_use]
+pub fn gain_travel(gain: f32, ceiling: f32) -> f32 {
+    let Some(top) = travel_top(ceiling) else {
+        return 0.0;
+    };
+    if gain >= ceiling {
+        return 1.0;
+    }
+    db_from_linear(gain).map_or(0.0, |db| {
+        ((db - GAIN_FLOOR_DB) / (top - GAIN_FLOOR_DB)).clamp(0.0, 1.0)
+    })
+}
+
+/// The gain standing at `travel` of the way from [`GAIN_FLOOR_DB`] to the
+/// gain `ceiling`: silence at `0.0`, under it and at a `travel` that is not a
+/// number, and `ceiling` at `1.0` and over it. The inverse of [`gain_travel`]
+/// above the floor.
+#[must_use]
+pub fn gain_at_travel(travel: f32, ceiling: f32) -> f32 {
+    let Some(top) = travel_top(ceiling) else {
+        return 0.0;
+    };
+    if travel.is_nan() || travel <= 0.0 {
+        return 0.0;
+    }
+    if travel >= 1.0 {
+        return ceiling;
+    }
+    linear_from_db(GAIN_FLOOR_DB + (top - GAIN_FLOOR_DB) * travel)
 }
 
 /// The linear multiplier that moves `measured_dbfs` onto `target_dbfs`.

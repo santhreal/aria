@@ -405,7 +405,7 @@ fn inspector_audio_edits_selected_clip() {
 /// inaudible at the top of the range and mutes anything under it.
 #[test]
 fn the_volume_fader_steps_in_decibels_and_bottoms_out_at_silence() {
-    let floor = super::clip_audio::VOLUME_FLOOR_DB;
+    let floor = aria_analysis::GAIN_FLOOR_DB;
     let dir = scratch();
     let mut state = AppState::new(PluginContext::new(), dir).unwrap();
     state.new_project().unwrap();

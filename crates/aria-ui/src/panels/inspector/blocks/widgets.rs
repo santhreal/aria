@@ -20,7 +20,7 @@ use crate::motion::{self, glide};
 use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
-use crate::types::UiClipKind;
+use crate::types::{Taper, UiClipKind};
 use aria_engine::EngineError;
 use aria_models::{ClipParam, ParamRange};
 use gpui::motion::presets;
@@ -92,39 +92,48 @@ const SPAN: f32 = LABEL_RESERVE + Theme::SPACE_XS + VALUE_MIN;
 /// narrows by what the two narrow by and ends where the value ends.
 const SPAN_YIELD: f32 = (LABEL_YIELD * LABEL_RESERVE + VALUE_YIELD * VALUE_MIN) / SPAN;
 
+/// How many nudges a track holds: a twentieth of its travel is a stepper's
+/// useful granularity whatever the units are.
+const NUDGES: f32 = 20.0;
+
 /// What a row's value is doing, beyond the number it prints.
 #[derive(Debug, Clone, Copy)]
 pub struct Travel {
     /// The value itself. The row eases toward this, so it can tell a value
     /// that is still arriving from one that has settled.
     pub value: f32,
-    /// One nudge. How far the row still has to go is measured in these, so the
-    /// property's own scale decides what "nearly there" means — a constant
-    /// would be wrong for degrees and right for fractions.
-    pub step: f32,
-    /// The bounds the model enforces, when it bounds both sides. The track is
-    /// drawn against these and the fill follows the same eased value the
-    /// readout does, so the bar and the number can never disagree.
-    pub range: Option<(f32, f32)>,
+    /// The track the value travels along, when its range has two ends. The
+    /// track places the same eased value the readout prints, so the bar and
+    /// the number can never disagree. `None` for an open-ended property, whose
+    /// nudge is one, a pixel-ish unit, which is what open-ended properties
+    /// here are: blur, radius, padding, offset.
+    pub taper: Option<Taper>,
 }
 
 impl Travel {
-    /// `value` moving within `range`.
-    ///
-    /// A bounded property's nudge is a twentieth of its span, a stepper's
-    /// useful granularity whatever the units are. An open-ended property's is
-    /// one, a pixel-ish unit, which is what open-ended properties here are:
-    /// blur, radius, padding, offset.
+    /// `value` moving evenly between the bounds of `range`.
     pub fn along(value: f32, range: &ParamRange) -> Self {
-        let step = match range.span() {
-            Some(span) if span > 0.0 => span / 20.0,
-            _ => 1.0,
-        };
         Self {
             value,
-            step,
-            range: range.bounds(),
+            taper: Taper::between(range),
         }
+    }
+
+    /// Where `eased`, the value on its way to [`Travel::value`], fills the
+    /// track, when there is one, and how far it still has to go, in nudges up
+    /// to one: the share of the accent the row's readout leads with. A track's
+    /// nudge is a twentieth of its travel, so the property's own travel decides
+    /// what "nearly there" means.
+    fn reads(self, eased: f32) -> (Option<f32>, f32) {
+        let (fill, remaining) = match self.taper {
+            Some(taper) => {
+                let fill = taper.fraction(eased);
+                let gap = (fill - taper.fraction(self.value)).abs();
+                (Some(fill), gap * NUDGES)
+            }
+            None => (None, (eased - self.value).abs()),
+        };
+        (fill, remaining.clamp(0.0, 1.0))
     }
 }
 
@@ -502,22 +511,9 @@ pub fn stepper_row(
 
     // One eased value feeds both the fill and the readout, so a bar that has
     // arrived cannot be drawn beside a number that says it has not.
-    let (fill, lead) = match travel {
-        Some(travel) => {
-            let eased = glide::glide(key, travel.value, presets::RESIZE, false);
-            let remaining = if travel.step > 0.0 {
-                ((eased - travel.value).abs() / travel.step).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let fill = travel.range.and_then(|(min, max)| {
-                let span = max - min;
-                (span > 0.0).then(|| ((eased - min) / span).clamp(0.0, 1.0))
-            });
-            (fill, remaining)
-        }
-        None => (None, 0.0),
-    };
+    let (fill, lead) = travel.map_or((None, 0.0), |travel| {
+        travel.reads(glide::glide(key, travel.value, presets::RESIZE, false))
+    });
 
     // A row with a time area stays on one line, so its strip starts where the
     // strips of the rows above and below it start and their keyframes line up
@@ -925,3 +921,7 @@ pub fn kind_label(kind: UiClipKind) -> &'static str {
         UiClipKind::Generator => "Generator",
     }
 }
+
+#[cfg(test)]
+#[path = "widgets_travel_tests.rs"]
+mod travel_tests;

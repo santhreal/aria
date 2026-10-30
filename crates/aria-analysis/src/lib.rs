@@ -43,8 +43,8 @@ pub use align::{
 };
 
 pub use gain::{
-    MAX_NORMALISATION_BOOST_DB, NORMALISATION_FLOOR_DBFS, db_from_linear, linear_from_db,
-    normalisation_gain,
+    GAIN_FLOOR_DB, MAX_NORMALISATION_BOOST_DB, NORMALISATION_FLOOR_DBFS, db_from_linear,
+    gain_at_travel, gain_travel, linear_from_db, normalisation_gain,
 };
 pub use scopes::measure as measure_scopes;
 pub use scopes::{
