@@ -40,7 +40,7 @@ jobs:
         # here when one lands. Intel macOS / arm64 Windows are possible
         # follow-ups via `target:` cross builds.
         platform:
-          - { name: macos-arm64, runner: macos-14 }
+          - { name: macos-arm64, runner: macos-15 }
           - { name: windows-x64, runner: windows-latest }
         # Non-abi3 pyo3 ⇒ one wheel per CPython minor: 3.9 is the oldest we
         # support (requires-python in pyproject.toml), 3.14 the newest

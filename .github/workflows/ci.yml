@@ -213,7 +213,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-ios
           - os: ubuntu-latest
             target: aarch64-linux-android
@@ -318,7 +318,7 @@ jobs:
 
   build-macos:
     name: release build / macos arm64
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4

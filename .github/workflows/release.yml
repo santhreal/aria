@@ -22,7 +22,7 @@ jobs:
         # To bring back an Intel/universal build, cross-compile x86_64 here on the
         # arm64 runner rather than depending on a macos-13 runner.
         include:
-          - runner: macos-14   # Apple Silicon
+          - runner: macos-15   # Apple Silicon
             arch: arm64
     steps:
       - uses: actions/checkout@v4
