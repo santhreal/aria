@@ -774,7 +774,7 @@ mod overlay_tests;
 mod plugin_overlays_tests;
 #[cfg(test)]
 #[path = "app/plugin_panels_tests.rs"]
-mod plugin_panels_tests;
+pub(crate) mod plugin_panels_tests;
 #[cfg(test)]
 #[path = "app/plugin_tests.rs"]
 mod plugin_tests;

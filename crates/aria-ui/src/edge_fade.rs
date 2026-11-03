@@ -2,10 +2,12 @@
 //!
 //! [`scroll_y`] and [`scroll_x`] make a scroll frame, which fades each edge on
 //! its axis while the frame's content continues past that edge, read from the
-//! frame's scroll handle. [`edge_faded`] fades the left and right edges of a
-//! view that scrolls by its own model, where the caller states which edges
-//! content continues past. There is no unconditional fade: a band over an
-//! edge with nothing past it cuts the first or last row of a list that fits.
+//! frame's scroll handle. [`edge_faded`] fades the edges of a view that scrolls
+//! by its own model, such as the Timeline's ruler and lanes, where the caller
+//! states how far content continues past each edge. A fade is as deep as the
+//! content past its edge, up to the view's band: a view scrolled a few pixels
+//! off a row fades those pixels, not a band over the row's text, and a list
+//! that fits fades nothing.
 //!
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
@@ -21,23 +23,23 @@ use gpui::{
 mod tests;
 
 /// Depth of the fade over an edge of a scroll frame that content continues
-/// past.
+/// past by this much or more.
 pub const SCROLL_FADE: f32 = 24.0;
 
-/// `child`, faded `band` px deep at each edge a builder reports content past.
+/// `child`, faded at each edge a builder reports content past: as deep as the
+/// content past the edge, up to `band` px.
 pub fn edge_faded(band: f32, child: impl IntoElement) -> EdgeFaded {
     EdgeFaded {
         band,
-        left: false,
-        right: false,
+        past: Edges::default(),
         child: child.into_any_element(),
     }
 }
 
 pub struct EdgeFaded {
     band: f32,
-    left: bool,
-    right: bool,
+    /// How far content continues past each edge, in px.
+    past: Edges<f32>,
     child: AnyElement,
 }
 
@@ -45,22 +47,33 @@ impl std::fmt::Debug for EdgeFaded {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EdgeFaded")
             .field("band", &self.band)
-            .field("left", &self.left)
-            .field("right", &self.right)
+            .field("past", &self.past)
             .finish_non_exhaustive()
     }
 }
 
 impl EdgeFaded {
-    /// Content continues past the left edge.
-    pub fn fade_left(mut self, continues: bool) -> Self {
-        self.left = continues;
+    /// Content continues `past` px beyond the left edge.
+    pub fn fade_left(mut self, past: f32) -> Self {
+        self.past.left = past;
         self
     }
 
-    /// Content continues past the right edge.
-    pub fn fade_right(mut self, continues: bool) -> Self {
-        self.right = continues;
+    /// Content continues `past` px beyond the right edge.
+    pub fn fade_right(mut self, past: f32) -> Self {
+        self.past.right = past;
+        self
+    }
+
+    /// Content continues `past` px beyond the top edge.
+    pub fn fade_top(mut self, past: f32) -> Self {
+        self.past.top = past;
+        self
+    }
+
+    /// Content continues `past` px beyond the bottom edge.
+    pub fn fade_bottom(mut self, past: f32) -> Self {
+        self.past.bottom = past;
         self
     }
 }
@@ -122,19 +135,28 @@ impl ScrollFrame {
     }
 }
 
-/// Whether content continues before and after the view on one axis of
-/// `handle`. A pixel of slack absorbs layout rounding at either end.
-fn continues(scroll: &ScrollHandle, axis: fn(gpui::Point<Pixels>) -> Pixels) -> (bool, bool) {
+/// How far content continues before and after the view on one axis of
+/// `handle`, in px.
+fn continues(scroll: &ScrollHandle, axis: fn(gpui::Point<Pixels>) -> Pixels) -> (f32, f32) {
     let scrolled = -f32::from(axis(scroll.offset()));
     let max_scroll = f32::from(axis(scroll.max_offset()));
-    (scrolled > 1.0, scrolled < max_scroll - 1.0)
+    (scrolled, max_scroll - scrolled)
 }
 
-/// The fade over `bounds`, `band` px deep at each edge `at` sets.
-pub(crate) fn fade(bounds: Bounds<Pixels>, band: f32, at: Edges<bool>) -> EdgeFade {
+/// Depth of the fade over an edge content continues `past` px beyond, in a
+/// view whose fade is `band` px deep: the content past the edge, up to the
+/// band. A pixel of slack absorbs layout rounding, so content within a pixel
+/// of the edge fades nothing.
+pub(crate) fn depth(band: f32, past: f32) -> f32 {
+    if past > 1.0 { past.min(band) } else { 0.0 }
+}
+
+/// The fade over `bounds` with content `past` each edge by that many px, at
+/// most `band` px deep at any edge.
+pub(crate) fn fade(bounds: Bounds<Pixels>, band: f32, past: Edges<f32>) -> EdgeFade {
     EdgeFade {
         bounds,
-        bands: at.map(|&on| px(if on { band } else { 0.0 })),
+        bands: past.map(|&past| px(depth(band, past))),
     }
 }
 
@@ -209,16 +231,7 @@ impl Element for EdgeFaded {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let fade = fade(
-            bounds,
-            self.band,
-            Edges {
-                top: false,
-                bottom: false,
-                left: self.left,
-                right: self.right,
-            },
-        );
+        let fade = fade(bounds, self.band, self.past);
         paint_in(window, Some(fade), |window| self.child.paint(window, cx));
     }
 }
@@ -300,15 +313,18 @@ impl Element for ScrollFrame {
         let (before, after) = self
             .handle
             .as_ref()
-            .map_or((false, false), |handle| continues(handle, along));
-        let vertical = self.axis == Axis::Vertical;
-        let at = Edges {
-            top: vertical && before,
-            bottom: vertical && after,
-            left: !vertical && before,
-            right: !vertical && after,
+            .map_or((0.0, 0.0), |handle| continues(handle, along));
+        let (on_y, on_x) = match self.axis {
+            Axis::Vertical => ((before, after), (0.0, 0.0)),
+            Axis::Horizontal => ((0.0, 0.0), (before, after)),
         };
-        paint_in(window, Some(fade(bounds, SCROLL_FADE, at)), |window| {
+        let past = Edges {
+            top: on_y.0,
+            bottom: on_y.1,
+            left: on_x.0,
+            right: on_x.1,
+        };
+        paint_in(window, Some(fade(bounds, SCROLL_FADE, past)), |window| {
             child.paint(window, cx)
         });
     }

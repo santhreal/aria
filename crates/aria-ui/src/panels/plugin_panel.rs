@@ -17,10 +17,12 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::plugin_panels::{PanelImages, PanelInput, PanelSlide, PluginPanels, image_of};
+use crate::components::travel::{self, Gauge, Ink, Run};
 use crate::components::{self, ChipSize};
 use crate::motion::{self, MotionKey};
 use crate::shell::Shell;
 use crate::theme::Theme;
+use crate::types::{Reach, Taper};
 use gpui::prelude::FluentBuilder;
 
 /// What every node of one panel is drawn against.
@@ -431,10 +433,17 @@ fn slider(
         .slide
         .filter(|slide| *slide.panel == *draw.spec.id && slide.control == *control);
     let value = held.map_or(value, |slide| slide.value);
-    let frac = if max > min {
-        ((value - min) / (max - min)).clamp(0.0, 1.0) as f32
+    let reach = if max > min {
+        Taper::Linear {
+            min: min as f32,
+            max: max as f32,
+        }
+        .reach(value as f32)
     } else {
-        0.0
+        Reach {
+            origin: 0.0,
+            at: 0.0,
+        }
     };
     let shown = if step >= 1.0 && step.fract() == 0.0 {
         format!("{value:.0}")
@@ -443,9 +452,12 @@ fn slider(
     };
     let measured = PluginPanels::slider_key(&draw.spec.id, control);
     let spec = Arc::clone(draw.spec);
+    let fill = Arc::clone(control);
+    let named = Arc::clone(control);
     let control = Arc::clone(control);
     let track = div()
         .id(key.element_id("plugin-slider"))
+        .debug_selector(move || format!("plugin-slider-{named}"))
         .relative()
         .flex_1()
         .h(px(16.))
@@ -453,22 +465,21 @@ fn slider(
         .items_center()
         .cursor(CursorStyle::ResizeLeftRight)
         .child(
-            div()
-                .w_full()
-                .h(px(4.))
-                .rounded_full()
-                .bg(theme.border)
-                .child(
-                    div()
-                        .h_full()
-                        .w(relative(frac))
-                        .rounded_full()
-                        .bg(if held.is_some() {
-                            theme.accent
-                        } else {
-                            theme.text_muted
-                        }),
-                ),
+            travel::track(
+                reach,
+                Run::Across,
+                Gauge::ROW,
+                Ink {
+                    rail: theme.border,
+                    lit: if held.is_some() {
+                        theme.accent
+                    } else {
+                        theme.text_muted
+                    },
+                },
+                move || format!("plugin-slider-{fill}-fill"),
+            )
+            .w_full(),
         )
         .child(measure(draw.state, measured))
         .on_mouse_down(
@@ -604,3 +615,7 @@ fn choice(
         )
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "plugin_panel_travel_tests.rs"]
+mod travel_tests;

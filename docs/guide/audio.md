@@ -22,12 +22,16 @@ Each strip holds:
 - **Sends**: one chip per bus. Click it once to send a copy of the lane to that
   bus after its fader, again to take the copy before the fader, and a third time
   to drop the send. A send reads its level beside the bus name.
-- The fader, read in decibels below it. The faders of every strip stand level
-  and take the height of the panel. Drag one: up is louder, the travel runs from
-  silence through -60 dB to +12 dB over the fader's drawn height, even in
-  decibels above -60 dB, and it snaps to 0 dB near unity. The fader follows the
-  pointer off the strip, and the project is written once on release wherever
-  the button comes up, so riding a fader is one undo step.
+- **Pan**, read as `C`, `L50` or `R50` beside it. Its track is lit from the
+  center to the thumb, so a centered pan lights none of it. Drag it: right pans
+  right, and it snaps to center near it.
+- The fader, read in decibels below it, lit from its foot to the thumb. The
+  faders of every strip stand level and take the height of the panel. Drag
+  one: up is louder, the travel runs from silence through -60 dB to +12 dB over
+  the fader's drawn height, even in decibels above -60 dB, and it snaps to 0 dB
+  near unity. The fader follows the pointer off the strip, and the project is
+  written once on release wherever the button comes up, so riding a fader is
+  one undo step.
 
 **+ Submix bus** at the top right adds a bus, named `Bus 1`, `Bus 2`, and so on.
 **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the palette does the same. Deleting a bus returns

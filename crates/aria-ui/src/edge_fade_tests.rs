@@ -10,10 +10,13 @@
 //! The census reads every production source in the crate and fails on a frame
 //! made to scroll anywhere but [`scroll_y`] and [`scroll_x`], and on fewer
 //! frames made there than the crate has. The draw cases scroll a column and a
-//! row of cells to their start, middle, and end by a caller's handle, and read
-//! which edges fade at each: an edge fades only while the content continues
-//! past it, and a frame whose content fits fades none. A column turned by the
-//! wheel with no caller's handle keeps its place on the next draw.
+//! row of cells to their start, a few pixels off it, their middle, a few pixels
+//! short of their end, and their end by a caller's handle, and read how deep
+//! each edge fades at each: an edge fades only while the content continues past
+//! it, as deep as the content past it up to the band, so a frame scrolled a few
+//! pixels off its first cell fades those pixels and not a band over the cell,
+//! and a frame whose content fits fades none. A column turned by the wheel with
+//! no caller's handle keeps its place on the next draw.
 //!
 //! Not covered: the fade's pixels, which the test platform does not raster on
 //! Linux.
@@ -145,16 +148,16 @@ fn bands(visual: &mut VisualTestContext, axis: Axis, what: &str) -> (f32, f32) {
 }
 
 /// One frame: its axis, its cells, the caller's offset along the axis, and
-/// whether the start and the end edges fade there.
+/// how deep the start and the end edges fade there.
 struct Case {
     axis: Axis,
     cells: usize,
     scrolled: f32,
-    start: bool,
-    end: bool,
+    start: f32,
+    end: f32,
 }
 
-const fn case(axis: Axis, cells: usize, scrolled: f32, start: bool, end: bool) -> Case {
+const fn case(axis: Axis, cells: usize, scrolled: f32, start: f32, end: f32) -> Case {
     Case {
         axis,
         cells,
@@ -167,15 +170,21 @@ const fn case(axis: Axis, cells: usize, scrolled: f32, start: bool, end: bool) -
 /// The furthest a long frame scrolls.
 const END: f32 = LONG as f32 * CELL - VIEW;
 
-const CASES: [Case; 8] = [
-    case(Axis::Vertical, FILL, 0.0, false, false),
-    case(Axis::Vertical, LONG, 0.0, false, true),
-    case(Axis::Vertical, LONG, END / 2.0, true, true),
-    case(Axis::Vertical, LONG, END, true, false),
-    case(Axis::Horizontal, FILL, 0.0, false, false),
-    case(Axis::Horizontal, LONG, 0.0, false, true),
-    case(Axis::Horizontal, LONG, END / 2.0, true, true),
-    case(Axis::Horizontal, LONG, END, true, false),
+const CASES: [Case; 14] = [
+    case(Axis::Vertical, FILL, 0.0, 0.0, 0.0),
+    case(Axis::Vertical, LONG, 0.0, 0.0, SCROLL_FADE),
+    case(Axis::Vertical, LONG, 0.5, 0.0, SCROLL_FADE),
+    case(Axis::Vertical, LONG, 6.0, 6.0, SCROLL_FADE),
+    case(Axis::Vertical, LONG, END / 2.0, SCROLL_FADE, SCROLL_FADE),
+    case(Axis::Vertical, LONG, END - 10.0, SCROLL_FADE, 10.0),
+    case(Axis::Vertical, LONG, END, SCROLL_FADE, 0.0),
+    case(Axis::Horizontal, FILL, 0.0, 0.0, 0.0),
+    case(Axis::Horizontal, LONG, 0.0, 0.0, SCROLL_FADE),
+    case(Axis::Horizontal, LONG, 0.5, 0.0, SCROLL_FADE),
+    case(Axis::Horizontal, LONG, 6.0, 6.0, SCROLL_FADE),
+    case(Axis::Horizontal, LONG, END / 2.0, SCROLL_FADE, SCROLL_FADE),
+    case(Axis::Horizontal, LONG, END - 10.0, SCROLL_FADE, 10.0),
+    case(Axis::Horizontal, LONG, END, SCROLL_FADE, 0.0),
 ];
 
 #[gpui::test]
@@ -207,11 +216,11 @@ fn a_frame_fades_only_the_edges_its_content_continues_past(cx: &mut TestAppConte
             offset,
             "{what}: the frame does not scroll by the caller's handle"
         );
-        let want = |on: bool| if on { SCROLL_FADE } else { 0.0 };
-        assert_eq!(
-            (start, end),
-            (want(case.start), want(case.end)),
-            "{what}: the start and end bands"
+        assert!(
+            (start - case.start).abs() < 0.01 && (end - case.end).abs() < 0.01,
+            "{what}: the start and end bands are {start} and {end}, not {} and {}",
+            case.start,
+            case.end
         );
     }
 }

@@ -212,8 +212,9 @@ A menu, a popover, a dialog and a card take `PANEL_RADIUS`. A button, a
 field, a tab, a chip, a toggle, a bar and a clip take `CONTROL_RADIUS`. A dot
 and a handle are circles.
 
-A region that scrolls fades each edge its content continues past across
-`SCROLL_FADE = 24` px (`crates/aria-ui/src/edge_fade.rs`). An edge with nothing
-past it does not fade.
+A region that scrolls fades each edge its content continues past, as deep as
+the content past that edge up to `SCROLL_FADE = 24` px
+(`crates/aria-ui/src/edge_fade.rs`). A region scrolled 6 px off its first row
+fades 6 px at that edge. An edge with nothing past it does not fade.
 
 Glass is 0.80 alpha on macOS and opaque elsewhere.

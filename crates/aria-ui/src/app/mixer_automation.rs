@@ -6,12 +6,21 @@ use super::*;
 use aria_engine::EngineError;
 use aria_models::{AutomationMode, Easing, Param, TrackId};
 
+use crate::types::Taper;
+
 /// Snap window around center pan (`0.0`), in pan units (`-1.0..=1.0`).
 const CENTER_PAN_DETENT: f32 = 0.04;
 
+/// The pan control's travel: hard left at its start, hard right at its end,
+/// center in the middle.
+pub const PAN_TRAVEL: Taper = Taper::Linear {
+    min: -1.0,
+    max: 1.0,
+};
+
 /// Map stereo pan (`-1.0` left .. `+1.0` right) to `[0.0, 1.0]`.
 pub fn pan_to_frac(pan: f32) -> f32 {
-    ((pan.clamp(-1.0, 1.0) + 1.0) * 0.5).clamp(0.0, 1.0)
+    PAN_TRAVEL.fraction(pan)
 }
 
 /// Map a `[0.0, 1.0]` travel fraction to stereo pan (`-1.0..=1.0`) with a
@@ -20,7 +29,7 @@ pub fn frac_to_pan(frac: f32) -> f32 {
     if !frac.is_finite() {
         return 0.0;
     }
-    let pan = (frac.clamp(0.0, 1.0) * 2.0 - 1.0).clamp(-1.0, 1.0);
+    let pan = PAN_TRAVEL.value(frac);
     if pan.abs() <= CENTER_PAN_DETENT {
         0.0
     } else {

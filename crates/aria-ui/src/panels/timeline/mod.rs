@@ -779,3 +779,6 @@ mod tests {
 #[cfg(test)]
 #[path = "layout_tests.rs"]
 mod layout_tests;
+
+#[cfg(test)]
+mod fade_tests;

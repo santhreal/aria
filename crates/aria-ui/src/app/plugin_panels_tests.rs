@@ -106,7 +106,7 @@ fn register(state: &AppState, probe: &Probe) -> Registration {
 /// Read until the panels stop moving: a read can queue a build, and a build
 /// moves the revision when it lands. Bounded, so a read that never settles
 /// fails here rather than hanging the suite.
-fn settle(state: &mut AppState) {
+pub(crate) fn settle(state: &mut AppState) {
     for _ in 0..16 {
         assert!(
             state.ctx.events().flush(Duration::from_secs(5)),

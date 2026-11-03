@@ -13,12 +13,12 @@
 
 use super::audio_inserts;
 use super::*;
-use crate::types::{UiInsert, UiKeyChoice};
+use crate::types::{Taper, UiInsert, UiKeyChoice};
 use aria_models::{AudioInsertTarget, AudioSend, AutomationMode, Param, TrackOutput};
 
 #[path = "mixer_automation.rs"]
 mod mixer_automation;
-pub use mixer_automation::{AutomationPassState, frac_to_pan, pan_label, pan_to_frac};
+pub use mixer_automation::{AutomationPassState, PAN_TRAVEL, frac_to_pan, pan_label, pan_to_frac};
 
 /// How close to unity a drag has to land before it snaps there, in decibels.
 ///
@@ -380,12 +380,17 @@ impl MixerFacts {
     }
 }
 
-/// Where a gain sits on the fader's travel: `0.0` at
-/// [`aria_analysis::GAIN_FLOOR_DB`] and at silence, `1.0` at the model's own
-/// send ceiling, [`AudioSend::MAX_LEVEL`], so the fader and the model refuse at
-/// the same place.
+/// The fader's travel: [`aria_analysis::GAIN_FLOOR_DB`] and silence at its
+/// foot, the model's own send ceiling, [`AudioSend::MAX_LEVEL`], at its head,
+/// so the fader and the model refuse at the same place.
+pub const FADER_TRAVEL: Taper = Taper::Gain {
+    max: AudioSend::MAX_LEVEL,
+};
+
+/// Where a gain sits on the fader's travel, `0.0` at its foot and `1.0` at its
+/// head.
 pub fn gain_to_frac(gain: f32) -> f32 {
-    aria_analysis::gain_travel(gain, AudioSend::MAX_LEVEL)
+    FADER_TRAVEL.fraction(gain)
 }
 
 /// The gain a position on the fader means, with the unity detent applied. The
@@ -395,7 +400,7 @@ pub fn frac_to_gain(frac: f32) -> f32 {
     if !frac.is_finite() {
         return 1.0;
     }
-    let gain = aria_analysis::gain_at_travel(frac, AudioSend::MAX_LEVEL);
+    let gain = FADER_TRAVEL.value(frac);
     if aria_analysis::db_from_linear(gain).is_some_and(|db| db.abs() <= UNITY_DETENT_DB) {
         return 1.0;
     }

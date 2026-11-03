@@ -143,12 +143,12 @@ impl Slot {
     }
 }
 
-/// The ruler's slot, the depth of its edge fades, and whether content
+/// The ruler's slot, the depth of its edge fades, and how far content
 /// continues past its left and right edges, which fades them.
 struct RulerSlot {
     slot: Slot,
     fade_depth: f32,
-    fade: (bool, bool),
+    past: (f32, f32),
 }
 
 /// The timecode field's text slot, the style its text is set in, and the text
@@ -205,12 +205,13 @@ impl Layer {
 
     /// The ruler's mark: a box over the ruler body that records the body's
     /// bounds, mask and fade, and paints the head at `x` px from the ruler's
-    /// left edge when the body draws the playhead.
+    /// left edge when the body draws the playhead. `past` is how far content
+    /// continues past the ruler's left and right edges.
     pub(crate) fn ruler_mark(
         &self,
         x: Option<f32>,
         fade_depth: f32,
-        fade: (bool, bool),
+        past: (f32, f32),
         color: Hsla,
     ) -> impl IntoElement + use<> {
         let drawn = self.0.clone();
@@ -219,7 +220,7 @@ impl Layer {
                 drawn.borrow_mut().ruler = Some(RulerSlot {
                     slot: Slot::at(bounds, window),
                     fade_depth,
-                    fade,
+                    past,
                 });
             },
             move |bounds, (), window, _| {
@@ -306,7 +307,7 @@ pub(crate) fn layer(app: &AppState, theme: &Theme) -> impl IntoElement + use<> {
                 let x = drawn.view.x(at);
                 if let Some(ruler) = &drawn.ruler {
                     let bounds = ruler.slot.bounds;
-                    let fade = ruler_fade(bounds, ruler.fade_depth, ruler.fade, x);
+                    let fade = ruler_fade(bounds, ruler.fade_depth, ruler.past, x);
                     window.with_content_mask(Some(ruler.slot.mask), |window| {
                         crate::edge_fade::paint_in(window, fade, |window| {
                             paint_ruler_mark(window, bounds, x, color);
@@ -332,25 +333,36 @@ pub(crate) fn layer(app: &AppState, theme: &Theme) -> impl IntoElement + use<> {
     .size_full()
 }
 
-/// The ruler's fade, `depth` px deep, over a head at `x`: the faded edges the
-/// head reaches into. `None` when it reaches into neither, since a fade costs a
-/// layer mask.
+/// The ruler's fade, at most `depth` px deep, over a head at `x`, with content
+/// past the ruler's left and right edges by `(left, right)` px: the faded
+/// bands the head reaches into, as deep as the ruler body fades them. `None`
+/// when it reaches into neither, since a fade costs a layer mask.
 fn ruler_fade(
     bounds: Bounds<Pixels>,
     depth: f32,
-    (left, right): (bool, bool),
+    (left, right): (f32, f32),
     x: f32,
 ) -> Option<EdgeFade> {
     let width = f32::from(bounds.size.width);
-    let left = left && x - LINE_AT < depth;
-    let right = right && x - LINE_AT + HEAD_W > width - depth;
-    (left || right).then(|| {
+    let left_band = crate::edge_fade::depth(depth, left);
+    let right_band = crate::edge_fade::depth(depth, right);
+    let left = if left_band > 0.0 && x - LINE_AT < left_band {
+        left
+    } else {
+        0.0
+    };
+    let right = if right_band > 0.0 && x - LINE_AT + HEAD_W > width - right_band {
+        right
+    } else {
+        0.0
+    };
+    (left > 0.0 || right > 0.0).then(|| {
         crate::edge_fade::fade(
             bounds,
             depth,
             Edges {
-                top: false,
-                bottom: false,
+                top: 0.0,
+                bottom: 0.0,
                 left,
                 right,
             },

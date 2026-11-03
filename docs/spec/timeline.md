@@ -41,8 +41,10 @@ spare height is above the top video track and below the last audio track. A
 side whose tracks take more height than it has scrolls with the wheel. At rest
 V1 stands on the divider and A1 hangs from it; a wheel up over the video side
 shows the tracks above V1, and a wheel down over the audio side shows the
-tracks below A1. A media drag over the spare height above the video tracks
-lands on the top one.
+tracks below A1. A side fades its top or bottom edge while tracks continue
+past that edge, as deep as the tracks past it up to 24 px, as every scrolling
+list fades its edges. A media drag over the spare height above the video
+tracks lands on the top one.
 A side with no tracks is one 22 px strip labeled "No video tracks" or "No
 audio tracks", and the divider above or below it does not drag.
 

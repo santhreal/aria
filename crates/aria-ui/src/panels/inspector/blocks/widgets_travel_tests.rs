@@ -23,7 +23,8 @@ fn close(a: f32, b: f32) -> bool {
 }
 
 fn assert_reads(travel: Travel, eased: f32, fill: Option<f32>, lead: f32) {
-    let (drawn, lit) = travel.reads(eased);
+    let (reach, lit) = travel.reads(eased);
+    let drawn = reach.map(|reach| reach.at);
     assert!(
         match (drawn, fill) {
             (Some(drawn), Some(fill)) => close(drawn, fill),

@@ -1,23 +1,27 @@
 //! Every number an effect, a transition, an audio insert or the property
-//! catalog declares bounds for draws a value track, filled to where the value
-//! stands on its travel.
+//! catalog declares bounds for draws a value track, filled from the travel's
+//! origin to where the value stands on it.
 //!
 //! Closes the class "a bounded number row with no value track, or with one
-//! filled on the wrong travel". The rows the property catalog generates drew a
-//! track along the range the catalog declares, except a gain's, while the
-//! number slots of an effect and of a transition, and the parameters of an
-//! audio insert, drew none, though each declares its bounds and a plugin
-//! manifest's default display for a number is a slider. An effect and a
-//! transition with a slot of every [`EffectParamKind`], and a shipped insert,
-//! are drawn. Every slot of a number kind draws a track whose fill covers the
-//! value's share of the slot's bounds, an integer's being its integer bounds
-//! and not its float ones, no slot of another kind draws one, and every insert
-//! parameter's track is filled to its value's share of its range. Every scalar
-//! row of the transform and audio catalog groups is filled where [`stands`]
-//! places it: a gain on the fader's taper, even in decibels, and any other
-//! number evenly between its bounds. A kind added to `EffectParamKind`, or a
-//! scale added to `Scale`, does not build until [`draws_a_track`] or
-//! [`stands`] places it.
+//! filled on the wrong travel or from the wrong origin". The rows the property
+//! catalog generates drew a track along the range the catalog declares, except
+//! a gain's, while the number slots of an effect and of a transition, and the
+//! parameters of an audio insert, drew none, though each declares its bounds
+//! and a plugin manifest's default display for a number is a slider. A track
+//! on bounds that run through zero filled from its start, so a zero angle
+//! drew half a track lit. An effect and a transition with a slot of every
+//! [`EffectParamKind`], and a shipped insert, are drawn; the fixture's integer,
+//! vector, point and angle slots run through zero, with values either side of
+//! it. Every slot of a number kind draws a track whose fill covers the
+//! stretch from zero, or from the start of bounds that do not run through
+//! zero, to the value's share of the slot's bounds, an integer's being its
+//! integer bounds and not its float ones, no slot of another kind draws one,
+//! and every insert parameter's track is filled the same way along its range.
+//! Every scalar row of the transform and audio catalog groups is filled where
+//! [`stands`] places it: a gain on the fader's taper, even in decibels, from
+//! silence, and any other number evenly between its bounds. A kind added to
+//! `EffectParamKind`, or a scale added to `Scale`, does not build until
+//! [`draws_a_track`] or [`stands`] places it.
 //!
 //! Not covered: a number row drawn with `unkeyed_row`, which takes no range;
 //! of the keyed axes of an effect's vector slot, and the components of a
@@ -37,6 +41,7 @@ use super::tabs::effects::effects_params::vec2_axes;
 use crate::app::AppState;
 use crate::app::param_units::{Scale, Units};
 use crate::interned::intern;
+use crate::types::Reach;
 
 /// Whether a slot of `kind` draws a value track. No wildcard arm: a new kind
 /// does not build until it is placed.
@@ -75,6 +80,21 @@ fn share(value: f32, (min, max): (f32, f32)) -> f32 {
     (value - min) / (max - min)
 }
 
+/// The stretch of a track on `bounds` that `value` fills: from zero's share
+/// when the bounds run through zero, and from their start otherwise, to the
+/// value's share.
+fn covers(value: f32, bounds: (f32, f32)) -> Reach {
+    let origin = if bounds.0 < 0.0 && bounds.1 > 0.0 {
+        share(0.0, bounds)
+    } else {
+        0.0
+    };
+    Reach {
+        origin,
+        at: share(value, bounds).clamp(0.0, 1.0),
+    }
+}
+
 /// A slot of every kind, labelled for its `holder`, with the integer's float
 /// bounds left as a manifest that states only `int_min` and `int_max` reads
 /// them, so an integer row drawn against its float bounds draws a fill of its
@@ -106,18 +126,25 @@ fn axes(pspec: &EffectParamSpec) -> Vec<(Option<&'static str>, f32)> {
     }
 }
 
-/// The row whose cells' debug selectors end in `cell` draws a track filled to
-/// `expected` of its width, or, at `None`, draws none.
-fn reads(visual: &mut VisualTestContext, holder: &str, cell: &str, expected: Option<f32>) {
+/// The row whose cells' debug selectors end in `cell` draws a track filled
+/// over the `expected` stretch of its width, or, at `None`, draws none.
+fn reads(visual: &mut VisualTestContext, holder: &str, cell: &str, expected: Option<Reach>) {
     let track = visual.debug_bounds(intern(&format!("insp-track-{cell}")));
     let fill = visual.debug_bounds(intern(&format!("insp-fill-{cell}")));
     match (track.zip(fill), expected) {
         (None, None) => {}
-        (Some((track, fill)), Some(share)) => {
-            let (width, filled) = (f32::from(track.size.width), f32::from(fill.size.width));
+        (Some((track, fill)), Some(stretch)) => {
+            let width = f32::from(track.size.width);
+            let start = f32::from(fill.left() - track.left());
+            let filled = f32::from(fill.size.width);
+            let (from, to) = (
+                stretch.origin.min(stretch.at),
+                stretch.origin.max(stretch.at),
+            );
             assert!(
-                (filled - share * width).abs() < 1.0,
-                "the {holder}'s {cell} track is filled {filled} px of {width} px, and its value stands at {share} of its bounds"
+                (start - from * width).abs() < 1.0 && (filled - (to - from) * width).abs() < 1.0,
+                "the {holder}'s {cell} track of {width} px is filled {filled} px from {start} px, \
+                 and its value covers {from}..{to} of its bounds"
             );
         }
         (Some(_), None) => {
@@ -162,7 +189,7 @@ async fn every_number_slot_of_an_effect_draws_its_value_on_a_track(cx: &mut Test
             // The keyed axes of one slot share its selector; the last drawn
             // is the one read.
             let &(_, value) = axes(pspec).last().expect("a number slot has an axis");
-            reads(visual, "effect", &keyed, Some(share(value, bounds(pspec))));
+            reads(visual, "effect", &keyed, Some(covers(value, bounds(pspec))));
         }
     });
 }
@@ -201,7 +228,7 @@ async fn every_number_slot_of_a_transition_draws_its_value_on_a_track(cx: &mut T
                     || pspec.label.clone(),
                     |axis| format!("{} {axis}", pspec.label),
                 );
-                reads(visual, "transition", &cell, Some(share(value, bounds)));
+                reads(visual, "transition", &cell, Some(covers(value, bounds)));
             }
         }
     });
@@ -235,43 +262,44 @@ async fn every_insert_parameter_draws_its_value_on_a_track(cx: &mut TestAppConte
     });
     assert!(!params.is_empty(), "the gain insert projects no parameter");
     for param in params {
-        let at = share(param.value, (param.min, param.max));
+        let at = covers(param.value, (param.min, param.max));
         reads(visual, "insert", &param.label, Some(at));
     }
 }
 
-/// Where a catalog row's track is filled to, worked out here rather than
-/// through the row's own taper: a gain's decibels between -60 dB and the
-/// decibels of the top of its range, any other number's share of its bounds.
-/// `None` for a row with no travel, a linear row open on a side or a gain row
-/// open at the top. No wildcard arm: a scale added to `Scale` does not build
-/// until it is placed.
-fn stands(scale: Scale, value: f32, range: ParamRange) -> Option<f32> {
+/// The stretch a catalog row's track is filled over, worked out here rather
+/// than through the row's own taper: a gain's from silence to its decibels
+/// between -60 dB and the decibels of the top of its range, any other
+/// number's as [`covers`] places it. `None` for a row with no travel, a linear
+/// row open on a side or a gain row open at the top. No wildcard arm: a scale
+/// added to `Scale` does not build until it is placed.
+fn stands(scale: Scale, value: f32, range: ParamRange) -> Option<Reach> {
     match scale {
         Scale::Linear(_) => range
             .bounds()
             .filter(|(min, max)| max > min)
-            .map(|bounds| share(value, bounds).clamp(0.0, 1.0)),
+            .map(|bounds| covers(value, bounds)),
         Scale::Gain => range.max.map(|max| {
             let above_floor = |gain: f32| 20.0 * gain.log10() + 60.0;
-            if value <= 0.0 {
+            let at = if value <= 0.0 {
                 0.0
             } else {
                 (above_floor(value) / above_floor(max)).clamp(0.0, 1.0)
-            }
+            };
+            Reach { origin: 0.0, at }
         }),
     }
 }
 
 /// Draws `media` with the Inspector on `tab`, after `dress`, and holds every
 /// scalar row of catalog group `group` the tab draws to [`stands`]. Returns
-/// each row read with where its track is filled to.
+/// each row read with the stretch its track is filled over.
 fn catalog_rows_read(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
     group: &str,
     dress: impl FnOnce(&mut AppState),
-) -> Vec<(ClipParam, Option<f32>)> {
+) -> Vec<(ClipParam, Option<Reach>)> {
     let (state, visual) = drawn_with(cx, &format!("slot-track-{tab}"), media, tab, dress);
     let rows = visual.read(|app| state.read(app).param_rows(group));
     let mut read = Vec::new();
@@ -314,7 +342,7 @@ async fn every_audio_row_draws_its_value_where_its_scale_places_it(cx: &mut Test
     });
     let volume = read.iter().find(|(param, _)| *param == ClipParam::Volume);
     assert!(
-        matches!(volume, Some((_, Some(at))) if (at - 0.675).abs() < 1e-3),
+        matches!(volume, Some((_, Some(stretch))) if (stretch.at - 0.675).abs() < 1e-3),
         "the volume row is read at {volume:?}, and -6 dB stands at 0.675 of a travel from \
          -60 dB to +20 dB"
     );

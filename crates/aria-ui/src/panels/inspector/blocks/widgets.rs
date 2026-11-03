@@ -16,18 +16,19 @@ use crate::app::key_strip::KeyStrip;
 use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind};
 use crate::components::Wraps as _;
+use crate::components::travel::{self, Gauge, Ink, Run};
 use crate::motion::{self, glide};
 use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
-use crate::types::{Taper, UiClipKind};
+use crate::types::{Reach, Taper, UiClipKind};
 use aria_engine::EngineError;
 use aria_models::{ClipParam, ParamRange};
 use gpui::motion::presets;
 use gpui::prelude::FluentBuilder;
 use gpui::{
     CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, div, px, relative,
+    SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
 #[path = "widgets_catalog.rs"]
@@ -43,12 +44,6 @@ pub use controls::{
     switch_line, under_labels,
 };
 use keys::{Affordances, WATCH_SLOT, affordances, blanks};
-
-/// Thickness of a row's value track.
-const TRACK_H: f32 = 3.0;
-
-/// Diameter of the thumb riding the track.
-const THUMB: f32 = 7.0;
 
 /// Diameter of the stopwatch's ring.
 const DOT: f32 = 8.0;
@@ -119,21 +114,21 @@ impl Travel {
         }
     }
 
-    /// Where `eased`, the value on its way to [`Travel::value`], fills the
+    /// What `eased`, the value on its way to [`Travel::value`], covers of the
     /// track, when there is one, and how far it still has to go, in nudges up
     /// to one: the share of the accent the row's readout leads with. A track's
-    /// nudge is a twentieth of its travel, so the property's own travel decides
+    /// nudge is a twentieth of its travel, so the property's own travel sets
     /// what "nearly there" means.
-    fn reads(self, eased: f32) -> (Option<f32>, f32) {
-        let (fill, remaining) = match self.taper {
+    fn reads(self, eased: f32) -> (Option<Reach>, f32) {
+        let (reach, remaining) = match self.taper {
             Some(taper) => {
-                let fill = taper.fraction(eased);
-                let gap = (fill - taper.fraction(self.value)).abs();
-                (Some(fill), gap * NUDGES)
+                let reach = taper.reach(eased);
+                let gap = (reach.at - taper.fraction(self.value)).abs();
+                (Some(reach), gap * NUDGES)
             }
             None => (None, (eased - self.value).abs()),
         };
-        (fill, remaining.clamp(0.0, 1.0))
+        (reach, remaining.clamp(0.0, 1.0))
     }
 }
 
@@ -511,7 +506,7 @@ pub fn stepper_row(
 
     // One eased value feeds both the fill and the readout, so a bar that has
     // arrived cannot be drawn beside a number that says it has not.
-    let (fill, lead) = travel.map_or((None, 0.0), |travel| {
+    let (reach, lead) = travel.map_or((None, 0.0), |travel| {
         travel.reads(glide::glide(key, travel.value, presets::RESIZE, false))
     });
 
@@ -557,7 +552,7 @@ pub fn stepper_row(
             },
             cx,
         ));
-    let track = fill.map(|fill| value_track(theme, fill, hovered, column.as_ref(), &label));
+    let track = reach.map(|reach| value_track(theme, reach, hovered, column.as_ref(), &label));
     let head = line(
         key,
         label,
@@ -748,12 +743,12 @@ fn driver_source(
 /// it spans the row.
 fn value_track(
     theme: &Theme,
-    fill: f32,
+    reach: Reach,
     hovered: f32,
     column: Option<&Column>,
     label: &SharedString,
 ) -> gpui::AnyElement {
-    let track = track(theme, fill, hovered, || {
+    let track = track(theme, reach, hovered, || {
         cell_selector(column, label, "fill")
     })
     .debug_selector(|| cell_selector(column, label, "track"));
@@ -768,7 +763,7 @@ fn value_track(
     div()
         .flex()
         .flex_row()
-        .h(px(THUMB))
+        .h(px(Gauge::ROW.thumb))
         .gap(px(Theme::SPACE_XS))
         .children(dot)
         .child(
@@ -783,54 +778,22 @@ fn value_track(
         .into_any_element()
 }
 
-/// A rail, the part of it the value covers, and the thumb where the two meet.
-/// `fill_selector` is the covered part's debug selector.
+/// A rail, the part of it the value covers, and the thumb where the value
+/// stands. `fill_selector` is the covered part's debug selector.
 ///
 /// `hovered` brightens all three together rather than only the thumb, because
 /// a lit thumb on a dim rail reads as a different control.
 fn track(
     theme: &Theme,
-    fill: f32,
+    reach: Reach,
     hovered: f32,
     fill_selector: impl FnOnce() -> String,
 ) -> gpui::Div {
-    let rail = motion::mix(theme.border, theme.border_strong, hovered);
-    let lit = motion::mix(theme.accent, theme.accent_strong, hovered);
-    let mid = (THUMB - TRACK_H) / 2.0;
-    div()
-        .relative()
-        .h(px(THUMB))
-        .child(
-            div()
-                .absolute()
-                .top(px(mid))
-                .w_full()
-                .h(px(TRACK_H))
-                .rounded(px(TRACK_H / 2.0))
-                .bg(rail),
-        )
-        .child(
-            div()
-                .absolute()
-                .top(px(mid))
-                .w(relative(fill))
-                .h(px(TRACK_H))
-                .rounded(px(TRACK_H / 2.0))
-                .bg(lit)
-                .debug_selector(fill_selector),
-        )
-        .child(
-            div()
-                .absolute()
-                .top(px(0.))
-                .left(relative(fill))
-                // Centered on the fill's edge rather than starting at it, so
-                // the thumb still reads as "here" at both ends of the range.
-                .ml(px(-THUMB / 2.0))
-                .size(px(THUMB))
-                .rounded(px(THUMB / 2.0))
-                .bg(lit),
-        )
+    let ink = Ink {
+        rail: motion::mix(theme.border, theme.border_strong, hovered),
+        lit: motion::mix(theme.accent, theme.accent_strong, hovered),
+    };
+    travel::track(reach, Run::Across, Gauge::ROW, ink, fill_selector)
 }
 
 /// A row's label. On a row in the keyed rows' columns, `column` is set: the

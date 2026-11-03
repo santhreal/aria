@@ -400,7 +400,7 @@ fragment pass with default `name`, `inputs`, and `output`) or a pass table:
 | `soft_min` | float (`f32`) | none | Optional slider scrub minimum (`min <= soft_min <= soft_max <= max`). |
 | `soft_max` | float (`f32`) | none | Optional slider scrub maximum (`min <= soft_min <= soft_max <= max`). |
 | `unit` | string | none | Unit suffix shown in the inspector (`"px"`, `"deg"`, `"%"`, `"s"`). |
-| `display` | string (`EffectParamDisplay`) | none (`"slider"`) | How the inspector prints the value: `"slider"` prints it with its unit, `"angle_dial"` (aliases `"angle"`, `"dial"`) in degrees to a tenth, and `"percentage"` (alias `"percent"`) prints the stored fraction as a whole percent. Every number row draws a value track between its bounds (`min` and `max`, or `int_min` and `int_max`) when they differ. |
+| `display` | string (`EffectParamDisplay`) | none (`"slider"`) | How the inspector prints the value: `"slider"` prints it with its unit, `"angle_dial"` (aliases `"angle"`, `"dial"`) in degrees to a tenth, and `"percentage"` (alias `"percent"`) prints the stored fraction as a whole percent. Every number row draws a value track between its bounds (`min` and `max`, or `int_min` and `int_max`) when they differ, lit from zero to the value when the bounds run from below zero to above it and from the lower bound otherwise. |
 | `default_int` | integer (`i64`) | `0` | Default value for `"int"`. |
 | `int_min` | integer (`i64`) | `0` | Minimum allowed value for `"int"` (`int_min <= int_max`). |
 | `int_max` | integer (`i64`) | `0` | Maximum allowed value for `"int"` (`int_min <= int_max`). |

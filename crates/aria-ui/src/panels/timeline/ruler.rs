@@ -57,8 +57,9 @@ pub(super) fn ruler(
 ) -> impl IntoElement {
     let glow = snap_guide.map(|_| snap_glow(cx)).unwrap_or_default();
     let sequence_px = ticks_to_px(sequence.duration_ticks, fps, pps);
-    let fade_left = scroll_x > 0.0;
-    let fade_right = sequence_px > scroll_x + viewport;
+    // How far the sequence continues past the ruler's left and right edges.
+    let fade_left = scroll_x;
+    let fade_right = sequence_px - (scroll_x + viewport);
     let mark = state.read(cx).timeline_playhead.ruler_mark(
         playhead.map(|at| ticks_to_px_f(at, fps, pps) - scroll_x),
         RULER_FADE,

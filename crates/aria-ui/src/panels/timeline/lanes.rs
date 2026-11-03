@@ -105,7 +105,12 @@ pub(super) fn lane_group(
         });
     }
     let total_content_h: f32 = sized.iter().map(|lane| lane.clip_h + lane.outline_h).sum();
-    let mut y_cursor = first_lane_top(is_audio, group_viewport_h, total_content_h, scroll_y);
+    let first_top = first_lane_top(is_audio, group_viewport_h, total_content_h, scroll_y);
+    // The lanes continue past an edge of the side that cuts them, as a scroll
+    // frame's rows do, and the side fades that edge by how far they continue.
+    let past_top = -first_top;
+    let past_bottom = first_top + total_content_h - group_viewport_h;
+    let mut y_cursor = first_top;
     // A clip drag in flight draws its clips where the release puts them, and a
     // ripple move draws the line it inserts at.
     let (held, held_edit) = {
@@ -400,8 +405,9 @@ pub(super) fn lane_group(
         tool,
         cx,
     );
-    div()
+    let group = div()
         .id(group_id)
+        .debug_selector(move || group_id.into())
         .w_full()
         .h_full()
         .flex()
@@ -447,7 +453,10 @@ pub(super) fn lane_group(
                 .bg(theme.surface)
                 .children(headers),
         )
-        .child(time_area)
+        .child(time_area);
+    crate::edge_fade::edge_faded(crate::edge_fade::SCROLL_FADE, group)
+        .fade_top(past_top)
+        .fade_bottom(past_bottom)
 }
 
 /// One lane's drawn heights, measured before the group places any lane.

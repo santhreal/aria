@@ -60,7 +60,10 @@ timeline property row:
   Drag the value to scrub it, or click it and type a number in the units it
   prints.
 - In Effect Controls, a property bounded at both ends draws a track under its
-  name and value, filled to where the value stands between the bounds.
+  name and value, with a thumb where the value stands between the bounds. The
+  track is lit from zero to the thumb when the bounds run from below zero to
+  above it, so an Exposure of 0 lights none of it, and from the lower bound
+  to the thumb otherwise.
   Volume's track is even in decibels from -60 dB to the +20 dB ceiling, as an
   Audio Track Mixer fader is, so 0 dB stands three quarters along.
 - The stopwatch, left of the name, turns animation on and off. A click on a

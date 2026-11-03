@@ -20,13 +20,19 @@
 //!
 //! Motion is the shared vocabulary. The panel fades in on the pane switch and
 //! every chip's background is `motion::hover_blend` on its own key, so the fade
-//! is per chip. A fader's fill follows the pointer with no easing: on a drag an
-//! animation is lag, not polish.
+//! is per chip. A fader's thumb follows the pointer with no easing: on a drag
+//! an animation is lag, not polish.
+//!
+//! A pan and a fader draw the value track every bounded control draws
+//! ([`crate::components::travel`]): a rail, the stretch the value covers and a
+//! thumb. A pan's stretch runs from center, so a centered pan lights nothing,
+//! and a fader's from silence at its foot.
 
 use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::components::Wraps as _;
+use crate::components::travel::{self, Gauge, Ink, Run};
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, canvas, div, px, relative,
@@ -34,14 +40,13 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::meter::meter_fraction;
-use crate::app::mixer::{
-    FaderTarget, MixerStrip, gain_label, gain_to_frac, pan_label, pan_to_frac,
-};
+use crate::app::mixer::{FADER_TRAVEL, FaderTarget, MixerStrip, PAN_TRAVEL, gain_label, pan_label};
 use crate::motion;
 use crate::panels::insert_chain::{self, Chain};
 use crate::panels::inspector::blocks::widgets::Columns;
 use crate::surfaces::mixer_strip::{self, Gesture};
 use crate::theme::Theme;
+use crate::types::Reach;
 use aria_models::{AudioInsertTarget, AutomationMode, TrackId};
 use gpui::prelude::FluentBuilder;
 
@@ -50,7 +55,9 @@ use gpui::prelude::FluentBuilder;
 const FADER_MIN_HEIGHT: f32 = 96.0;
 const FADER_WIDTH: f32 = 28.0;
 const PAN_WIDTH: f32 = 96.0;
-const PAN_HEIGHT: f32 = 10.0;
+/// A pan's height: its track's, with a pixel of room for the pointer on each
+/// side.
+const PAN_HEIGHT: f32 = Gauge::STRIP.thumb + 2.0;
 /// A strip's width. Inside its border and padding it holds the insert chain's
 /// outlined "+ Audio effect" button whole.
 const STRIP_WIDTH: f32 = 140.0;
@@ -648,7 +655,7 @@ fn pan_control(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let pan = state.read(cx).fader_value(target, stored_pan);
-    let frac = pan_to_frac(pan);
+    let reach = PAN_TRAVEL.reach(pan);
     div()
         .flex()
         .flex_col()
@@ -669,7 +676,7 @@ fn pan_control(
             theme,
             ("mixer-pan", raw_id),
             target,
-            frac,
+            reach,
             audible,
             true,
             cx,
@@ -711,7 +718,7 @@ fn fader_and_meter(
     level: [f32; 2],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let frac = gain_to_frac(gain);
+    let reach = FADER_TRAVEL.reach(gain);
     div()
         .flex()
         .flex_col()
@@ -728,7 +735,7 @@ fn fader_and_meter(
                     theme,
                     ("mixer-fader", raw_id),
                     target,
-                    frac,
+                    reach,
                     audible,
                     false,
                     cx,
@@ -786,7 +793,8 @@ fn meter(theme: &Theme, raw_id: u64, audible: bool, level: [f32; 2]) -> gpui::An
 }
 
 /// A fader or a pan track. `(name, raw_id)` names it, for its motion key and
-/// its debug selector.
+/// its debug selector, and the stretch its value covers is drawn as
+/// `{name}-{raw_id}-fill`.
 ///
 /// A press rides the track as drawn: a fader runs the height its strip leaves
 /// it, which only layout settles, so the track's length is read where it is
@@ -801,43 +809,43 @@ fn drag_track(
     theme: &Theme,
     (name, raw_id): (&'static str, u64),
     target: FaderTarget,
-    frac: f32,
+    reach: Reach,
     audible: bool,
     horizontal: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let (fill, cursor) = if horizontal {
-        (
-            div().absolute().top_0().left_0().h_full().w(relative(frac)),
-            CursorStyle::ResizeLeftRight,
-        )
-    } else {
-        (
-            div()
-                .absolute()
-                .bottom_0()
-                .left_0()
-                .w_full()
-                .h(relative(frac)),
-            CursorStyle::ResizeUpDown,
-        )
-    };
-    let length = Rc::new(Cell::new(0.0_f32));
-    let painted = Rc::clone(&length);
-    div()
-        .id(motion::MotionKey::new(name, raw_id).element_id("mixer-drag"))
-        .debug_selector(move || format!("{name}-{raw_id}"))
-        .relative()
-        .when(horizontal, |track| track.w(px(PAN_WIDTH)).h(px(PAN_HEIGHT)))
-        .when(!horizontal, |track| track.w(px(FADER_WIDTH)))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(theme.wash(0.12))
-        .cursor(cursor)
-        .child(fill.rounded(px(Theme::CONTROL_RADIUS)).bg(if audible {
+    let ink = Ink {
+        rail: theme.border,
+        lit: if audible {
             theme.accent
         } else {
             theme.text_muted
-        }))
+        },
+    };
+    let fill = move || format!("{name}-{raw_id}-fill");
+    let (run, cursor) = if horizontal {
+        (Run::Across, CursorStyle::ResizeLeftRight)
+    } else {
+        (Run::Up, CursorStyle::ResizeUpDown)
+    };
+    let drawn = travel::track(reach, run, Gauge::STRIP, ink, fill);
+    let length = Rc::new(Cell::new(0.0_f32));
+    let painted = Rc::clone(&length);
+    let hit = div()
+        .id(motion::MotionKey::new(name, raw_id).element_id("mixer-drag"))
+        .debug_selector(move || format!("{name}-{raw_id}"))
+        .relative()
+        .flex();
+    let hit = if horizontal {
+        hit.w(px(PAN_WIDTH))
+            .h(px(PAN_HEIGHT))
+            .items_center()
+            .child(drawn.w_full())
+    } else {
+        // A row's item stretches to the row's height: the strip's.
+        hit.w(px(FADER_WIDTH)).justify_center().child(drawn)
+    };
+    hit.cursor(cursor)
         .child(
             canvas(
                 move |bounds, _, _| {
@@ -930,3 +938,7 @@ fn chip(
 #[cfg(test)]
 #[path = "mixer_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "mixer_travel_tests.rs"]
+mod travel_tests;

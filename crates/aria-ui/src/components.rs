@@ -16,6 +16,7 @@ pub mod drawn;
 pub use drawn::{Picture, Wraps, picture};
 #[cfg(test)]
 pub(crate) mod noted;
+pub mod travel;
 
 /// A disclosure chevron, sized to sit beside 12px row text.
 const CHEVRON_PX: f32 = 12.;

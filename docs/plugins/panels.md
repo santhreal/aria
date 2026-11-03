@@ -121,7 +121,7 @@ frame (`Left`, `Right`, or `Bottom`) and an entry in the **Window** menu.
 | `Heading`, `Text`, `Field`, `Separator` | Title, paragraph in a `Tone`, label and value, rule | |
 | `Button { id, label, disabled }` | Push button | `Pressed { id }` on click |
 | `Toggle { id, label, on }` | Switch | `Toggled { id, on }` with the opposite of `on` |
-| `Slider { id, label, value, min, max, step }` | Track and value | `Slid { id, value }` on release, snapped to `step` |
+| `Slider { id, label, value, min, max, step }` | The Effect Controls value track, lit from zero when `min` is below zero and `max` above it and from `min` otherwise, and the value | `Slid { id, value }` on release, snapped to `step` |
 | `Input { id, value, placeholder }` | One-line text box | `Submitted { id, text }` on Enter; Escape sends nothing |
 | `Choice { id, label, options, selected }` | A row of chips | `Chose { id, index }` |
 | `Progress { label, fraction }` | Bar filled to `fraction` | |
