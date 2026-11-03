@@ -24,7 +24,7 @@ use crate::components;
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
     Chip, Columns, Keys, MIXED, Readout, Stopwatch, Travel, Watching, chip_row, choice_chip,
-    color_stopwatch, pick_button, stepper_row, swatch_row, switch_line,
+    color_stopwatch, fact_row, pick_button, stepper_row, swatch_row, switch_line, under_labels,
 };
 use crate::surfaces::effects_rack::{self, Gesture, SlotEdit};
 use crate::theme::Theme;
@@ -138,6 +138,8 @@ pub(crate) fn effect_param_rows(
         }
     }
 
+    push_compositing_options_rows(&mut out, theme, state, &keys, index, effect, cx);
+
     out
 }
 
@@ -152,6 +154,9 @@ struct EffectKeys {
     /// The slots no curve carries that the other selected clips set
     /// differently.
     mixed_slots: Vec<usize>,
+    clip_masks: Vec<SharedString>,
+    mixed_masks: bool,
+    mixed_invert_masks: bool,
 }
 
 impl EffectKeys {
@@ -175,6 +180,24 @@ impl EffectKeys {
                 .collect(),
             watching: Watching::read(state),
             mixed_slots: state.effect_slots_mixed(index),
+            clip_masks: state
+                .selected_ui_clip_ref()
+                .map(|clip| {
+                    clip.masks
+                        .iter()
+                        .enumerate()
+                        .map(|(i, mask)| {
+                            let shape = crate::catalog_text::masks()
+                                .iter()
+                                .find(|choice| choice.id == mask.kind.id())
+                                .map_or("Mask", |choice| choice.label.as_str());
+                            SharedString::from(format!("Mask {} {shape}", i + 1))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            mixed_masks: state.effect_masks_mixed(index),
+            mixed_invert_masks: state.effect_invert_masks_mixed(index),
         }
     }
 
@@ -214,6 +237,19 @@ impl EffectKeys {
             .iter()
             .find(|(row, _)| row.param == param)
             .map(|(row, strip)| (row.value, color_stopwatch(row, strip.clone())))
+    }
+
+    /// The compositing opacity of effect `index` at the playhead, its
+    /// stopwatch, and whether the other selected clips read differently.
+    fn opacity(&self, index: usize) -> (Option<(f32, Stopwatch)>, bool) {
+        let param = ClipParam::EffectOpacity {
+            effect: index as u32,
+        };
+        let found = self.rows.iter().find(|(row, _)| row.param == param);
+        let keyed =
+            found.map(|(row, strip)| (row.value, self.watching.stopwatch(row, strip.clone())));
+        let mixed = found.is_some_and(|(row, _)| row.mixed);
+        (keyed, mixed)
     }
 }
 
@@ -268,6 +304,156 @@ fn slot_button(
     pick_button(key, text, theme, cx, slot_edit(index, slot, edit)).into_any_element()
 }
 
+const COMPOSITING_GROUP: &str = "compositing";
+
+fn push_compositing_options_rows(
+    out: &mut Vec<AnyElement>,
+    theme: &Theme,
+    state: &gpui::Entity<crate::app::AppState>,
+    keys: &EffectKeys,
+    index: usize,
+    effect: &UiEffectInstance,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) {
+    let collapsed = state
+        .read(cx)
+        .is_effect_group_collapsed(index, COMPOSITING_GROUP, false);
+    out.push(
+        components::disclosure_button(
+            MotionKey::new("fx-group", index).with(COMPOSITING_GROUP),
+            "Compositing Options",
+            !collapsed,
+            theme,
+            cx.reduce_motion(),
+        )
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = effects_rack::apply(
+                        state,
+                        Gesture::ToggleGroup {
+                            index,
+                            group: COMPOSITING_GROUP.to_string(),
+                        },
+                    ) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element(),
+    );
+    if collapsed {
+        return;
+    }
+
+    let param = ClipParam::EffectOpacity {
+        effect: index as u32,
+    };
+    let (keyed, mixed_opacity) = keys.opacity(index);
+    let value = keyed.as_ref().map_or(effect.opacity, |(value, _)| *value);
+    let opacity_range = aria_models::ParamRange::between(0.0, 1.0);
+    let units = Units::of(param, &opacity_range);
+    let scale = units.number.scale;
+    let readout = Readout::of(units, value).dashed(mixed_opacity);
+    out.push(
+        div()
+            .id(MotionKey::new("fx-param-tip", index)
+                .with("opacity")
+                .element_id("fx-param-tip"))
+            .with_tip(crate::tooltip::text_builder(
+                "Mix between the clip before this effect (0%) and this effect's output (100%)",
+            ))
+            .child(stepper_row(
+                theme,
+                state,
+                MotionKey::new("fx.opacity", index),
+                "Effect Opacity",
+                readout,
+                Some(Travel::along(value, &opacity_range)),
+                keys_of(keyed),
+                move |state, by| {
+                    let by = scale.stored_delta(value, by);
+                    effects_rack::apply(state, Gesture::NudgeOpacity { index, by })
+                },
+                cx,
+            ))
+            .into_any_element(),
+    );
+
+    if keys.clip_masks.is_empty() && effect.masks.is_empty() {
+        return;
+    }
+
+    let shown: SharedString = if keys.mixed_masks {
+        SharedString::new_static(MIXED)
+    } else if effect.masks.is_empty() {
+        SharedString::new_static("None")
+    } else if effect.masks.len() == 1 {
+        let mask_idx = effect.masks[0] as usize;
+        keys.clip_masks
+            .get(mask_idx)
+            .cloned()
+            .unwrap_or_else(|| SharedString::from(format!("Mask {}", mask_idx + 1)))
+    } else {
+        SharedString::from(format!("{} masks", effect.masks.len()))
+    };
+    out.push(fact_row(theme, "Mask Reference", shown, Columns::Keyed).into_any_element());
+
+    let none_active = !keys.mixed_masks && effect.masks.is_empty();
+    let mut mask_chips: Vec<AnyElement> = Vec::with_capacity(1 + keys.clip_masks.len());
+    mask_chips.push(
+        choice_chip(
+            MotionKey::new("fx-choice", index).with("mask-none"),
+            "None",
+            none_active,
+            theme,
+            cx,
+            move |state| effects_rack::apply(state, Gesture::ClearMasks { index }),
+        )
+        .into_any_element(),
+    );
+    for (mask_idx, label) in keys.clip_masks.iter().enumerate() {
+        let mask = mask_idx as u32;
+        let active = !keys.mixed_masks && effect.masks.contains(&mask);
+        mask_chips.push(
+            choice_chip(
+                MotionKey::new("fx-choice", index)
+                    .with("mask")
+                    .with(mask_idx),
+                label.clone(),
+                active,
+                theme,
+                cx,
+                move |state| effects_rack::apply(state, Gesture::ToggleMask { index, mask }),
+            )
+            .into_any_element(),
+        );
+    }
+    out.push(under_labels(Columns::Keyed, mask_chips).into_any_element());
+
+    if !effect.masks.is_empty() || keys.mixed_masks {
+        let on = (!keys.mixed_invert_masks).then_some(effect.invert_masks);
+        out.push(
+            switch_line(
+                theme,
+                MotionKey::new("fx-mask-invert-row", index),
+                "Invert Masks",
+                Columns::Keyed,
+                MotionKey::new("fx-param-bool", index).with("mask-invert"),
+                on,
+                cx,
+                move |state| effects_rack::apply(state, Gesture::ToggleInvertMasks { index }),
+            )
+            .id(MotionKey::new("fx-param-bool-row", index)
+                .with("mask-invert")
+                .element_id("fx-param-bool-row"))
+            .into_any_element(),
+        );
+    }
+}
 #[allow(clippy::too_many_arguments)]
 fn push_effect_slot_rows(
     out: &mut Vec<AnyElement>,

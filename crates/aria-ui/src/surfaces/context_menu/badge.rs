@@ -92,7 +92,10 @@ impl BadgeMenu {
 fn block_label(clip: &Clip, spec: &ParamSpec) -> Option<String> {
     let group = PropertyGroup::of(spec)?;
     Some(match (group, spec.param) {
-        (PropertyGroup::Effects, ClipParam::Effect { effect, .. }) => {
+        (
+            PropertyGroup::Effects,
+            ClipParam::Effect { effect, .. } | ClipParam::EffectOpacity { effect },
+        ) => {
             let instance = clip.effects.get(usize::try_from(effect).ok()?)?;
             instance.name.clone().unwrap_or_else(|| {
                 aria_models::effect_spec(&instance.effect_id)

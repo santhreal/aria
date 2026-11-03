@@ -94,7 +94,7 @@ impl ParamState {
             ClipParam::Text { .. } | ClipParam::Shape { .. } => {
                 Ok(ParamState::TextOrShape(Box::new(clip.content.clone())))
             }
-            ClipParam::Effect { effect, .. } => {
+            ClipParam::Effect { effect, .. } | ClipParam::EffectOpacity { effect } => {
                 let instance = clip.effects.get(effect as usize).cloned().ok_or_else(|| {
                     ModelError::InvalidParam(format!("effect index {effect} out of range"))
                 })?;
@@ -160,7 +160,7 @@ impl ParamState {
                     effect_idx,
                     instance,
                 },
-                ClipParam::Effect { .. },
+                ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. },
             ) => {
                 if let Some(slot) = clip.effects.get_mut(effect_idx) {
                     *slot = instance;

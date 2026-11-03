@@ -21,6 +21,7 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 | `Volume` | `Direct("volume")` | `Audio` | `Scalar` | `true` |
 | `Pan` | `Direct("pan")` | `Audio` | `Scalar` | `true` |
 | `Effect` | `Excluded(EffectSlot)` | `Visual` | `None` | `false` |
+| `EffectOpacity` | `Excluded(EffectSlot)` | `Visual` | `Scalar` | `true` |
 | `Shape` | `Delegated(Shape)` | `Visual` | `Scalar` | `false` |
 | `Text` | `Delegated(Text)` | `Visual` | `Scalar` | `false` |
 | `Look` | `Delegated(Look)` | `Visual` | `Scalar` | `true` |

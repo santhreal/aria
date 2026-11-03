@@ -77,6 +77,9 @@ enum Route {
         effect: u32,
         param: u32,
     },
+    EffectOpacity {
+        effect: u32,
+    },
     /// A mask property is addressed by the mask's index in the stack, for the
     /// same reason.
     Mask {
@@ -171,6 +174,7 @@ impl ParamSpec {
         match self.route {
             Route::Fixed(route) => route(clip),
             Route::Effect { effect, param } => effect_rows::effect_route(clip, effect, param),
+            Route::EffectOpacity { effect } => effect_rows::effect_opacity_route(clip, effect),
             Route::Mask { mask, param } => mask_rows::mask_route(clip, mask, param),
             Route::Axis => self.param.route(clip),
         }
@@ -377,7 +381,9 @@ mod mask_rows;
 pub use effect_rows::{clip_params_for, visit_clip_keyframes, visit_clip_params};
 /// The `ClipParam::Effect` row reads its route and its reset value here: an
 /// effect slot is addressed by position, so both need the clip's chain.
-pub(crate) use effect_rows::{effect_default, effect_range, effect_route};
+pub(crate) use effect_rows::{
+    effect_default, effect_opacity_default, effect_opacity_route, effect_range, effect_route,
+};
 pub use mask_rows::mask_param_group;
 /// The `ClipParam::Mask` row reads its route here: a mask is addressed by its
 /// index in the stack.

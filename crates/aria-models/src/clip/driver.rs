@@ -114,10 +114,20 @@ impl Clip {
                 }
                 None => false,
             },
+            ClipParam::EffectOpacity { effect } => match map(effect) {
+                Some(effect) => {
+                    driver.param = ClipParam::EffectOpacity { effect };
+                    true
+                }
+                None => false,
+            },
             _ => true,
         });
         if let Some(ClipParam::Effect { effect, param }) = self.line_param {
             self.line_param = map(effect).map(|effect| ClipParam::Effect { effect, param });
+        }
+        if let Some(ClipParam::EffectOpacity { effect }) = self.line_param {
+            self.line_param = map(effect).map(|effect| ClipParam::EffectOpacity { effect });
         }
     }
 
@@ -138,6 +148,14 @@ impl Clip {
         });
         if let Some(ClipParam::Mask { mask, param }) = self.line_param {
             self.line_param = map(mask).map(|mask| ClipParam::Mask { mask, param });
+        }
+        for effect in &mut self.effects {
+            effect.masks = effect.masks.iter().copied().filter_map(&map).collect();
+            effect.masks.sort_unstable();
+            effect.masks.dedup();
+            if effect.masks.is_empty() {
+                effect.invert_masks = false;
+            }
         }
     }
 }

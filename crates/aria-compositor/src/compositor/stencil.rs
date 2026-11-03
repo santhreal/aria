@@ -11,20 +11,20 @@ use std::sync::{Arc, LazyLock};
 
 use aria_core::RgbaImage;
 
+use super::Compositor;
+use super::draw_layer::TargetPass;
 use crate::effect_render::{
     OffscreenPool, StackStep, blit_replace, blit_replace_to_target,
     blit_weighted_additive_to_target, run_mask_stack_pass, run_matte_pass,
-    run_matte_pass_to_target,
+    run_matte_pass_to_target, run_single_effect, run_transition_pass,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::layer::{
-    CompositeLayer, CompositorConfig, CoverageMix, LayerEffects, LayerStencil, MatteRead,
-    StencilCoverage, StencilMask,
+    CompositeLayer, CompositorConfig, CoverageMix, LayerEffects, LayerPlacement, LayerStencil,
+    MatteRead, StencilCoverage, StencilMask,
 };
-
-use super::Compositor;
-use super::draw_layer::TargetPass;
+use crate::passes::PassInstance;
 
 /// One opaque white texel. Stretched over a placed quad and cut by a shape in
 /// the fx pipeline, it draws that shape's coverage for any layer content,
@@ -291,5 +291,190 @@ impl Compositor {
             1.0,
         );
         Ok(())
+    }
+
+    /// Run `effects` over `input_view`, blending each pass with its dry input
+    /// whenever the pass carries reduced opacity or a mask scope.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn run_layer_effects<'p>(
+        &self,
+        gpu: &GpuContext,
+        encoder: &mut wgpu::CommandEncoder,
+        config: &CompositorConfig,
+        offscreen: &'p OffscreenPool,
+        input_view: &'p wgpu::TextureView,
+        effects: &[PassInstance],
+        mask_placement: LayerPlacement,
+        blur_passes: &[LayerPlacement],
+    ) -> Result<&'p wgpu::TextureView, CompositorError> {
+        if effects.iter().all(|e| !e.has_compositing_options()) {
+            return crate::effect_render::run_effect_chain(
+                &gpu.device,
+                encoder,
+                &self.pass_registry,
+                offscreen,
+                &self.references,
+                input_view,
+                effects,
+                config.width,
+                config.height,
+            );
+        }
+        let mut read_idx = 0usize;
+        let mut current_input = input_view;
+        for effect in effects {
+            let in_idx = offscreen.index_of(current_input).unwrap_or(read_idx);
+            let Some((wet_idx, wet_view)) = run_single_effect(
+                &gpu.device,
+                encoder,
+                &self.pass_registry,
+                offscreen,
+                &self.references,
+                current_input,
+                in_idx,
+                effect,
+                config.width,
+                config.height,
+            )?
+            else {
+                continue;
+            };
+            if effect.has_compositing_options() {
+                let (mixed_idx, mixed_view) = self.mix_effect_result(
+                    gpu,
+                    encoder,
+                    config,
+                    offscreen,
+                    current_input,
+                    in_idx,
+                    wet_view,
+                    wet_idx,
+                    effect,
+                    mask_placement,
+                    blur_passes,
+                )?;
+                read_idx = mixed_idx;
+                current_input = mixed_view;
+            } else {
+                read_idx = wet_idx;
+                current_input = wet_view;
+            }
+        }
+        Ok(current_input)
+    }
+
+    /// Blend `current_input` (dry) and `wet_view` (wet) by `effect`'s opacity
+    /// and mask scope.
+    #[allow(clippy::too_many_arguments)]
+    fn mix_effect_result<'p>(
+        &self,
+        gpu: &GpuContext,
+        encoder: &mut wgpu::CommandEncoder,
+        config: &CompositorConfig,
+        offscreen: &'p OffscreenPool,
+        current_input: &'p wgpu::TextureView,
+        in_idx: usize,
+        wet_view: &'p wgpu::TextureView,
+        wet_idx: usize,
+        effect: &PassInstance,
+        mask_placement: LayerPlacement,
+        blur_passes: &[LayerPlacement],
+    ) -> Result<(usize, &'p wgpu::TextureView), CompositorError> {
+        let opacity = effect.opacity.clamp(0.0, 1.0);
+        if effect.masks.is_empty() {
+            let Some(out_idx) = (0..offscreen.slots()).find(|&s| s != in_idx && s != wet_idx)
+            else {
+                return Ok((wet_idx, wet_view));
+            };
+            run_transition_pass(
+                &gpu.device,
+                encoder,
+                &self.pass_registry,
+                offscreen.passes(),
+                current_input,
+                wet_view,
+                offscreen.view(out_idx),
+                "crossfade",
+                opacity,
+                &[],
+                config.width,
+                config.height,
+            );
+            return Ok((out_idx, offscreen.view(out_idx)));
+        }
+        let stencil = LayerStencil {
+            masks: &effect.masks,
+            images: &effect.mask_images,
+            placement: mask_placement,
+            blur_passes,
+        };
+        let mut free = (0..offscreen.slots()).filter(|&s| s != in_idx && s != wet_idx);
+        let slots = if stencil.masks.len() > 1 {
+            let (Some(s0), Some(s1), Some(s2)) = (free.next(), free.next(), free.next()) else {
+                return Ok((wet_idx, wet_view));
+            };
+            [s0, s1, s2]
+        } else {
+            let (Some(first), Some(second)) = (free.next(), free.next()) else {
+                return Ok((wet_idx, wet_view));
+            };
+            [first, first, second]
+        };
+        let Some(coverage) = self.draw_stencil(gpu, encoder, config, offscreen, &stencil, slots)?
+        else {
+            return Ok((wet_idx, wet_view));
+        };
+        let base_mix = if effect.invert_masks {
+            coverage.mix.complement()
+        } else {
+            coverage.mix
+        };
+        let wet_mix = base_mix.scaled(opacity);
+        let dry_mix = wet_mix.complement();
+        let cut = if coverage.slot == slots[1] {
+            slots[2]
+        } else {
+            slots[1]
+        };
+        run_matte_pass(
+            &gpu.device,
+            encoder,
+            &self.pass_registry,
+            offscreen.passes(),
+            wet_view,
+            offscreen.view(coverage.slot),
+            offscreen.view(cut),
+            MatteRead::Alpha,
+            wet_mix,
+            coverage.softness,
+            config.width,
+            config.height,
+        );
+        let mut target = TargetPass::new(None, offscreen.view(wet_idx), None);
+        run_matte_pass_to_target(
+            &gpu.device,
+            &self.pass_registry,
+            offscreen.passes(),
+            current_input,
+            offscreen.view(coverage.slot),
+            (1u8 << in_idx) | (1u8 << coverage.slot),
+            &mut target,
+            MatteRead::Alpha,
+            dry_mix,
+            coverage.softness,
+            config.width,
+            config.height,
+        );
+        blit_weighted_additive_to_target(
+            &gpu.device,
+            &self.pass_registry,
+            offscreen.passes(),
+            offscreen.view(cut),
+            1u8 << cut,
+            &mut target,
+            1.0,
+        );
+        target.flush(encoder, &self.pipelines);
+        Ok((wet_idx, offscreen.view(wet_idx)))
     }
 }

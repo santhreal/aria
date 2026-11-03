@@ -6,7 +6,7 @@
 //! re-initializing the GPU or re-opening decoders.
 
 mod api;
-mod effects;
+pub(crate) mod effects;
 mod look_ahead;
 mod measure;
 mod media_cache;

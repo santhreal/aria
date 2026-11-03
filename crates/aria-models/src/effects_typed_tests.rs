@@ -496,6 +496,9 @@ impl Holder for EffectInstance {
             generator: _,
             bypass: _,
             name: _,
+            opacity: _,
+            masks: _,
+            invert_masks: _,
         } = self;
         [
             (Store::Params, params.is_empty()),

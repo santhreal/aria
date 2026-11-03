@@ -166,6 +166,7 @@ impl ClipParam {
             Self::Volume => &direct::VOLUME,
             Self::Pan => &direct::PAN,
             Self::Effect { .. } => &delegated::EFFECT,
+            Self::EffectOpacity { .. } => &delegated::EFFECT_OPACITY,
             Self::Mask { .. } => &delegated::MASK,
             Self::Shape { .. } => &delegated::SHAPE,
             Self::Text { .. } => &delegated::TEXT,

@@ -37,6 +37,25 @@ pub(crate) fn effect_route(clip: &Clip, effect: u32, param: u32) -> ParamRoute<'
         .map_or(ParamRoute::Absent, |pspec| slot_route(instance, pspec))
 }
 
+/// Where one effect's compositing opacity lives on `clip`, or `Absent` when the
+/// effect index does not exist or its catalog entry is unknown.
+pub(crate) fn effect_opacity_route(clip: &Clip, effect: u32) -> ParamRoute<'_> {
+    let Some(instance) = clip.effects.get(effect as usize) else {
+        return ParamRoute::Absent;
+    };
+    if crate::effect_spec(&instance.effect_id).is_none() {
+        return ParamRoute::Absent;
+    }
+    ParamRoute::Scalar(&instance.opacity)
+}
+
+/// The value a reset returns one effect's compositing opacity to (`1.0`).
+pub(crate) fn effect_opacity_default(clip: &Clip, effect: u32) -> Option<ParamValue> {
+    let instance = clip.effects.get(effect as usize)?;
+    crate::effect_spec(&instance.effect_id)?;
+    Some(ParamValue::Scalar(1.0))
+}
+
 /// Where the parameter `pspec` describes lives on `instance`: its stored curve,
 /// else its catalog default, or `Absent` on a kind no curve carries.
 fn slot_route<'a>(instance: &'a EffectInstance, pspec: &EffectParamSpec) -> ParamRoute<'a> {
@@ -141,18 +160,34 @@ fn row(index: u32, spec: &EffectSpec, slot: u32, pspec: &EffectParamSpec) -> Opt
     })
 }
 
+fn opacity_row(index: u32, spec: &EffectSpec) -> ParamSpec {
+    ParamSpec {
+        id: format!("effect-{index}-opacity").into(),
+        label: format!("{} Effect Opacity", spec.label).into(),
+        group: format!("effect-{index}").into(),
+        param: ClipParam::EffectOpacity { effect: index },
+        kind: ParamKind::Scalar,
+        scope: ParamScope::Visual,
+        range: ParamRange::between(0.0, 1.0),
+        route: Route::EffectOpacity { effect: index },
+    }
+}
+
 /// One row per keyframeable parameter of one effect instance, in the order the
 /// effect declares them. Empty when the effect id is not in any catalog.
 fn rows_for(index: u32, instance: &EffectInstance) -> Vec<ParamSpec> {
     let Some(spec) = crate::effect_spec(&instance.effect_id) else {
         return Vec::new();
     };
-    spec.params
+    let mut rows: Vec<ParamSpec> = spec
+        .params
         .iter()
         .enumerate()
         .filter(|(_, pspec)| instance.is_param_visible(pspec, &spec, 0.0))
         .filter_map(|(slot, pspec)| row(index, &spec, slot as u32, pspec))
-        .collect()
+        .collect();
+    rows.push(opacity_row(index, &spec));
+    rows
 }
 
 /// Call `visit` for every animatable property of `clip` without collecting a
@@ -184,6 +219,7 @@ pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
                 visit(&dynamic);
             }
         }
+        visit(&opacity_row(index as u32, &spec));
     }
 }
 
@@ -214,6 +250,7 @@ pub fn visit_clip_keyframes(clip: &Clip, mut visit: impl FnMut(i64, Easing)) {
                 super::route_keyframes(slot_route(instance, pspec), &mut visit);
             }
         }
+        super::route_keyframes(ParamRoute::Scalar(&instance.opacity), &mut visit);
     }
 }
 
@@ -393,9 +430,10 @@ mod tests {
         let clip = solid_with(vec![EffectInstance::new("not-an-effect")]);
         let rows = clip_params_for(&clip);
         assert!(
-            !rows
-                .iter()
-                .any(|row| matches!(row.param, ClipParam::Effect { .. })),
+            !rows.iter().any(|row| matches!(
+                row.param,
+                ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. }
+            )),
             "an unknown effect must contribute nothing"
         );
         assert!(
@@ -421,11 +459,10 @@ mod tests {
         let clip = solid_with(Vec::new());
         let rows = clip_params_for(&clip);
         assert!(!rows.is_empty());
-        assert!(
-            !rows
-                .iter()
-                .any(|row| matches!(row.param, ClipParam::Effect { .. }))
-        );
+        assert!(!rows.iter().any(|row| matches!(
+            row.param,
+            ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. }
+        )));
         // Every offered row is reachable: `clip_params_for` filters, so a caller
         // does not have to.
         for row in &rows {

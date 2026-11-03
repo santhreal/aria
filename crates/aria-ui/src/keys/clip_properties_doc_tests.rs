@@ -43,6 +43,7 @@ fn format_param_variant(p: ClipParam) -> String {
         ClipParam::Volume => "Volume".into(),
         ClipParam::Pan => "Pan".into(),
         ClipParam::Effect { .. } => "Effect".into(),
+        ClipParam::EffectOpacity { .. } => "EffectOpacity".into(),
         ClipParam::Shape { param } => format!("Shape({param:?})"),
         ClipParam::Text { param } => format!("Text({param:?})"),
         ClipParam::Look { param } => format!("Look({param:?})"),

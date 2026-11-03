@@ -79,7 +79,9 @@ impl PropertyGroup {
     /// belongs to one of the four timeline groups.
     pub fn of(spec: &ParamSpec) -> Option<Self> {
         match spec.param {
-            ClipParam::Effect { .. } => return Some(Self::Effects),
+            ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. } => {
+                return Some(Self::Effects);
+            }
             ClipParam::Mask { .. } => return Some(Self::Masks),
             _ => {}
         }

@@ -155,6 +155,7 @@ impl ParamWalk for crate::look::LayerStyles {
 
 impl ParamWalk for crate::effects::EffectInstance {
     fn walk_params(&mut self, visit: Visit<'_>) -> Result<(), ModelError> {
+        visit(&mut self.opacity)?;
         for param in self.params.values_mut() {
             visit(param)?;
         }

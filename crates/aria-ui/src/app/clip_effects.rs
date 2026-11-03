@@ -812,6 +812,114 @@ impl AppState {
             SlotEdit::Layer(layer) => self.pick_selected_effect_layer(index, param, layer),
         }
     }
+
+    /// The compositing opacity of the selected clip's effect at `index` at the
+    /// playhead.
+    pub fn selected_effect_opacity(&self, index: usize) -> Option<f32> {
+        match self.param_value(effect_opacity_param(index)) {
+            Some(ParamValue::Scalar(value)) => Some(value),
+            Some(_) => None,
+            None => self
+                .selected_ui_clip_ref()?
+                .effects
+                .get(index)
+                .map(|effect| effect.opacity),
+        }
+    }
+
+    /// Set the compositing opacity of the selected clip's effect at `index`,
+    /// clamped to `0.0..=1.0`.
+    pub fn set_selected_effect_opacity(
+        &mut self,
+        index: usize,
+        value: f32,
+    ) -> Result<(), EngineError> {
+        if !value.is_finite() {
+            return Ok(());
+        }
+        let has_effect = self
+            .selected_ui_clip_ref()
+            .is_some_and(|clip| index < clip.effects.len());
+        if !has_effect {
+            return Ok(());
+        }
+        let clamped = value.clamp(0.0, 1.0);
+        self.set_param_value(effect_opacity_param(index), ParamValue::Scalar(clamped))
+    }
+
+    /// Step the compositing opacity of the selected clip's effect at `index` by
+    /// `step`.
+    pub fn nudge_selected_effect_opacity(
+        &mut self,
+        index: usize,
+        step: f32,
+    ) -> Result<(), EngineError> {
+        let Some(current) = self.selected_effect_opacity(index) else {
+            return Ok(());
+        };
+        self.set_selected_effect_opacity(index, current + step)
+    }
+
+    /// The mask reference scope and inversion of the selected clip's effect at
+    /// `index`.
+    pub fn selected_effect_masks(&self, index: usize) -> Option<(Vec<u32>, bool)> {
+        let effect = self.selected_ui_clip_ref()?.effects.get(index)?;
+        Some((effect.masks.clone(), effect.invert_masks))
+    }
+
+    /// Set the mask reference scope and inversion on the selected clip's effect
+    /// at `index`. Indices past the clip's mask stack are pruned.
+    pub fn set_selected_effect_masks(
+        &mut self,
+        index: usize,
+        mut masks: Vec<u32>,
+        invert_masks: bool,
+    ) -> Result<(), EngineError> {
+        let mask_len = self
+            .selected_ui_clip_ref()
+            .map_or(0, |clip| clip.masks.len() as u32);
+        masks.retain(|&m| m < mask_len);
+        let invert = invert_masks && !masks.is_empty();
+        self.modify_selected_effect_instance(index, |effect, _spec| {
+            effect.set_masks(masks, invert);
+            Ok(())
+        })
+    }
+
+    /// Toggle `mask` in the mask reference scope of the selected clip's effect
+    /// at `index`.
+    pub fn toggle_selected_effect_mask(
+        &mut self,
+        index: usize,
+        mask: u32,
+    ) -> Result<(), EngineError> {
+        let Some((mut masks, invert)) = self.selected_effect_masks(index) else {
+            return Ok(());
+        };
+        if let Some(pos) = masks.iter().position(|&m| m == mask) {
+            masks.remove(pos);
+        } else {
+            masks.push(mask);
+        }
+        let invert = invert && !masks.is_empty();
+        self.set_selected_effect_masks(index, masks, invert)
+    }
+
+    /// Clear all mask references on the selected clip's effect at `index`.
+    pub fn clear_selected_effect_masks(&mut self, index: usize) -> Result<(), EngineError> {
+        self.set_selected_effect_masks(index, Vec::new(), false)
+    }
+
+    /// Flip mask reference inversion on the selected clip's effect at `index`.
+    pub fn toggle_selected_effect_invert_masks(&mut self, index: usize) -> Result<(), EngineError> {
+        let Some((masks, invert)) = self.selected_effect_masks(index) else {
+            return Ok(());
+        };
+        if masks.is_empty() {
+            return Ok(());
+        }
+        self.set_selected_effect_masks(index, masks, !invert)
+    }
 }
 
 /// The address of slot `slot` on effect `index`, as every keyframe command and
@@ -820,5 +928,12 @@ pub(crate) fn effect_param(index: usize, slot: usize) -> ClipParam {
     ClipParam::Effect {
         effect: index as u32,
         param: slot as u32,
+    }
+}
+
+/// The address of the compositing opacity on effect `index`.
+pub(crate) fn effect_opacity_param(index: usize) -> ClipParam {
+    ClipParam::EffectOpacity {
+        effect: index as u32,
     }
 }

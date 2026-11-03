@@ -20,9 +20,11 @@ impl Clip {
         let row = match param {
             // An effect parameter or a mask property exists once per effect or
             // mask on this clip, so it has no static row.
-            ClipParam::Effect { .. } | ClipParam::Mask { .. } => clip_params_for(self)
-                .into_iter()
-                .find(|row| row.param == param)?,
+            ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. } | ClipParam::Mask { .. } => {
+                clip_params_for(self)
+                    .into_iter()
+                    .find(|row| row.param == param)?
+            }
             _ => param_spec(param)
                 .filter(|row| row.available(self))
                 .cloned()?,

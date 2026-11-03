@@ -84,6 +84,9 @@ pub(super) fn effect_to_ui(effect: &EffectInstance) -> UiEffectInstance {
         bypass: effect.bypass,
         values,
         visible,
+        opacity: effect.sample_opacity(0.0),
+        masks: effect.masks.clone(),
+        invert_masks: effect.invert_masks,
     }
 }
 

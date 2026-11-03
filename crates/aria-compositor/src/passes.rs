@@ -32,8 +32,10 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::{Arc, LazyLock};
 
+use aria_core::RgbaImage;
 use aria_models::EffectParamKind;
 
+use crate::layer::{StencilCoverage, StencilMask};
 use crate::passes_uniform as uniform;
 use crate::registered_passes::{RegisteredPass, registered_effect, registered_transition};
 
@@ -196,6 +198,15 @@ pub struct PassInstance {
     /// Full effect instance state for CPU effects reading non-float parameters
     /// (text, font, file, layer references, exact curve/gradient control points).
     pub instance: Option<aria_models::EffectInstance>,
+    /// Wet/dry mix weight for this effect in `0.0..=1.0`.
+    pub opacity: f32,
+    /// Scoped mask stack limiting where this effect applies; empty applies to
+    /// the whole layer.
+    pub masks: Vec<StencilMask>,
+    /// Rasterized path-mask coverages referenced by `masks`.
+    pub mask_images: Vec<Arc<RgbaImage>>,
+    /// Invert the combined coverage of `masks` when `masks` is non-empty.
+    pub invert_masks: bool,
 }
 
 impl PassInstance {
@@ -205,6 +216,10 @@ impl PassInstance {
             params,
             time: 0.0,
             instance: None,
+            opacity: 1.0,
+            masks: Vec::new(),
+            mask_images: Vec::new(),
+            invert_masks: false,
         }
     }
 
@@ -221,9 +236,41 @@ impl PassInstance {
         self.instance = Some(instance);
         self
     }
+
+    /// Set the wet/dry opacity mix for this effect in `0.0..=1.0`.
+    #[must_use]
+    pub fn with_opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Limit this effect to `masks` (with optional `invert_masks`).
+    #[must_use]
+    pub fn with_masks(
+        mut self,
+        masks: Vec<StencilMask>,
+        mask_images: Vec<Arc<RgbaImage>>,
+        invert_masks: bool,
+    ) -> Self {
+        self.masks = masks;
+        self.mask_images = mask_images;
+        self.invert_masks = invert_masks;
+        self
+    }
+
+    /// Whether this pass mixes its output with its dry input through a reduced
+    /// opacity or a non-empty mask scope.
+    pub fn has_compositing_options(&self) -> bool {
+        (self.opacity - 1.0).abs() > 1e-6 || !self.masks.is_empty()
+    }
+
     /// Whether drawing this instance changes nothing; see [`effect_is_noop`].
-    /// A registration that was dropped draws nothing.
+    /// A registration that was dropped or an instance with zero opacity draws
+    /// nothing.
     pub fn is_noop(&self) -> bool {
+        if self.opacity <= 0.0 {
+            return true;
+        }
         match &self.id {
             PassId::Shipped(id) => effect_is_noop(id, &self.params),
             PassId::Registered(pass) => pass.is_removed(),
@@ -253,16 +300,29 @@ impl PassInstance {
                 }
             }
         }
+        for mask in &mut self.masks {
+            if let StencilCoverage::Shape(shape) = &mut mask.coverage {
+                shape.expansion *= factor;
+            }
+        }
     }
 
     /// Offscreen slots the chain needs to draw this instance without writing
     /// the texture it reads: three for the shipped blur, which keeps its input
-    /// readable across passes, two otherwise. A registered graph draws its
-    /// passes before the last into targets of its own.
-    pub(crate) fn slot_demand(&self) -> usize {
-        match &self.id {
+    /// readable across passes, two otherwise. A pass with reduced opacity holds
+    /// dry, wet, and mixed slots; a pass with a mask scope also holds the
+    /// stencil evaluation slots.
+    pub fn slot_demand(&self) -> usize {
+        let base = match &self.id {
             PassId::Shipped(id) if *id == GAUSSIAN_BLUR => 3,
             PassId::Shipped(_) | PassId::Registered(_) => 2,
+        };
+        if !self.masks.is_empty() {
+            if self.masks.len() > 1 { 5 } else { 4 }
+        } else if (self.opacity - 1.0).abs() > 1e-6 {
+            base.max(3)
+        } else {
+            base
         }
     }
 }

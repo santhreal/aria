@@ -130,7 +130,11 @@ impl AppState {
     /// starts.
     pub fn effect_param_rows(&self, index: usize) -> Vec<ParamRow> {
         self.param_rows_where(|spec| {
-            matches!(spec.param, ClipParam::Effect { effect, .. } if effect as usize == index)
+            matches!(
+                spec.param,
+                ClipParam::Effect { effect, .. } | ClipParam::EffectOpacity { effect }
+                    if effect as usize == index
+            )
         })
     }
 

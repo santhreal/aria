@@ -119,8 +119,20 @@ pub(super) fn resolve_clip_pooled(
     let rotation = xf.rotation.to_radians();
     let opacity = xf.opacity.clamp(0.0, 1.0);
     let uv = crop_flip_uv(clip, local_tick, overrides);
+    // Isotropic: stroke / blur / style ref-px → canvas px. Geometric mean
+    // keeps widths stable under uniform scale and splits the difference
+    // under stretch.
+    let px = (ch / REFERENCE_HEIGHT) * xf.scale.isotropic();
     let seconds = RationalTime::new(clip.animation_tick(t.value), t.rate).seconds() as f32;
-    let effects = resolve_effects_pooled(clip, local_tick, seconds, overrides.effect_vec2, pool);
+    let effects = resolve_effects_pooled(
+        clip,
+        local_tick,
+        seconds,
+        px,
+        [cw, ch],
+        overrides.effect_vec2,
+        pool,
+    );
     let (filter, adjust) = match overrides.look {
         Some((id, filter, adjust)) if id == clip.id => (filter, adjust),
         _ => (clip.filter.as_ref(), &clip.adjust),
@@ -141,11 +153,7 @@ pub(super) fn resolve_clip_pooled(
         strength: chroma.strength.sample(local_tick),
         shadow: chroma.shadow.sample(local_tick),
     });
-    // Isotropic: stroke / blur / style ref-px → canvas px. Geometric mean
-    // keeps widths stable under uniform scale and splits the difference
-    // under stretch.
-    let px = (ch / REFERENCE_HEIGHT) * xf.scale.isotropic();
-    let masks = resolve_masks(&clip.masks, local_tick, px);
+    let masks = resolve_masks(&clip.masks, &clip.effects, local_tick, px);
     let styles_src = match overrides.styles {
         Some((id, s)) if id == clip.id => s,
         _ => &clip.styles,
@@ -305,44 +313,54 @@ pub(super) fn resolve_clip_pooled(
 
 /// Sample a clip's mask stack at clip-local `tick`, top first, with
 /// expansion in canvas pixels at `px` canvas pixels per reference pixel. A
-/// mask whose mode is `None` is left out of the stack.
-fn resolve_masks(masks: &[aria_models::Mask], tick: i64, px: f32) -> Vec<SceneMask> {
+/// mask whose mode is `None` or that scopes an effect on the clip is left out
+/// of the layer-cutting stack.
+fn resolve_masks(
+    masks: &[aria_models::Mask],
+    effects: &[EffectInstance],
+    tick: i64,
+    px: f32,
+) -> Vec<SceneMask> {
     masks
         .iter()
-        .filter_map(|mask| {
-            let op = match mask.mode {
-                MaskMode::None => return None,
-                MaskMode::Add => MaskOp::Add,
-                MaskMode::Subtract => MaskOp::Subtract,
-                MaskMode::Intersect => MaskOp::Intersect,
-                MaskMode::Lighten => MaskOp::Lighten,
-                MaskMode::Darken => MaskOp::Darken,
-                MaskMode::Difference => MaskOp::Difference,
-            };
-            Some(SceneMask {
-                kind: mask.kind,
-                feather: mask.feather.sample(tick),
-                op,
-                opacity: mask.opacity.sample(tick).clamp(0.0, 1.0),
-                expansion: mask.expansion.sample(tick) * px,
-                center: mask.center.sample(tick),
-                size: mask.size.sample(tick),
-                rotation_rad: mask.rotation.sample(tick).to_radians(),
-                roundness: mask.roundness.sample(tick),
-                invert: mask.invert,
-                path: mask
-                    .path_at(tick as f64)
-                    .iter()
-                    .map(|p| aria_shapes::PathPoint {
-                        anchor: p.anchor,
-                        handle_in: p.handle_in,
-                        handle_out: p.handle_out,
-                    })
-                    .collect(),
-                path_closed: mask.path_closed,
-            })
-        })
+        .enumerate()
+        .filter(|(idx, _)| !effects.iter().any(|fx| fx.masks.contains(&(*idx as u32))))
+        .filter_map(|(_, mask)| resolve_mask(mask, tick, px))
         .collect()
+}
+
+pub(super) fn resolve_mask(mask: &aria_models::Mask, tick: i64, px: f32) -> Option<SceneMask> {
+    let op = match mask.mode {
+        MaskMode::None => return None,
+        MaskMode::Add => MaskOp::Add,
+        MaskMode::Subtract => MaskOp::Subtract,
+        MaskMode::Intersect => MaskOp::Intersect,
+        MaskMode::Lighten => MaskOp::Lighten,
+        MaskMode::Darken => MaskOp::Darken,
+        MaskMode::Difference => MaskOp::Difference,
+    };
+    Some(SceneMask {
+        kind: mask.kind,
+        feather: mask.feather.sample(tick),
+        op,
+        opacity: mask.opacity.sample(tick).clamp(0.0, 1.0),
+        expansion: mask.expansion.sample(tick) * px,
+        center: mask.center.sample(tick),
+        size: mask.size.sample(tick),
+        rotation_rad: mask.rotation.sample(tick).to_radians(),
+        roundness: mask.roundness.sample(tick),
+        invert: mask.invert,
+        path: mask
+            .path_at(tick as f64)
+            .iter()
+            .map(|p| aria_shapes::PathPoint {
+                anchor: p.anchor,
+                handle_in: p.handle_in,
+                handle_out: p.handle_out,
+            })
+            .collect(),
+        path_closed: mask.path_closed,
+    })
 }
 
 /// The card drawn in place of a generator effect that no catalog lists: its id

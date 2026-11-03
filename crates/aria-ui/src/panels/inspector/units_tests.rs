@@ -269,6 +269,9 @@ fn inspector_key(state: &AppState, param: ClipParam) -> Option<MotionKey> {
             _ => key,
         });
     }
+    if let ClipParam::EffectOpacity { effect } = param {
+        return Some(MotionKey::new("fx.opacity", effect as usize));
+    }
     let group = clip_param_catalog()
         .iter()
         .find(|spec| spec.param == param)?

@@ -3,6 +3,7 @@
 A plugin adds an effect or a transition by supplying a catalog spec and WGSL.
 The compositor draws it like a shipped one: on clips, in the effect rack, in
 the browser and the palette, in previews and in exports.
+Every registered GPU or CPU effect also receives the **Compositing Options** section in Effect Controls (**Effect Opacity**, **Mask Reference**, and **Invert Masks**), applied by the host compositor after the plugin pass runs.
 
 ```rust
 use aria_plugin::{EffectDefinition, EffectParamKind, EffectParamSpec, EffectSpec};

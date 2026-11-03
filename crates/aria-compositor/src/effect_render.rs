@@ -122,111 +122,131 @@ pub(crate) fn run_effect_chain<'a>(
 ) -> Result<&'a wgpu::TextureView, CompositorError> {
     let mut read_idx = 0usize;
     let mut current_input = input_view;
-
-    let cache = pool.passes();
     for effect in effects {
-        let shipped = match &effect.id {
-            PassId::Shipped(id) => *id,
-            PassId::Registered(pass) => {
-                if pass.float_count() != effect.params.len() {
-                    return Err(CompositorError::InvalidEffectParams {
-                        effect: pass.id().to_string(),
-                        expected: pass.float_count(),
-                        actual: effect.params.len(),
-                    });
-                }
-                if effect.is_noop() {
-                    continue;
-                }
-                let in_idx = pool.index_of(current_input).unwrap_or(read_idx);
-                if let Some((written, view)) = registered::run_registered_effect(
-                    device,
-                    encoder,
-                    registry,
-                    pool,
-                    references,
-                    current_input,
-                    in_idx,
-                    effect,
-                    pass,
-                    width,
-                    height,
-                ) {
-                    read_idx = written;
-                    current_input = view;
-                }
-                continue;
-            }
-        };
-        validate_and_pack_effect_params(shipped, &effect.params)?;
-        if effect.is_noop() {
-            continue;
-        }
         let in_idx = pool.index_of(current_input).unwrap_or(read_idx);
-
-        match shipped {
-            GAUSSIAN_BLUR => {
-                let radius = effect.params[0];
-                let blur_params = [radius];
-                let mid_idx = (in_idx + 1) % pool.slots();
-                let out_idx = (in_idx + 2) % pool.slots();
-                let mid_view = pool.view(mid_idx);
-                let out_view = pool.view(out_idx);
-                let (horizontal, vertical) = registry.blur_passes();
-                draw_effect_pass(
-                    device,
-                    encoder,
-                    registry,
-                    cache,
-                    horizontal,
-                    current_input,
-                    mid_view,
-                    width,
-                    height,
-                    GAUSSIAN_BLUR,
-                    &blur_params,
-                )?;
-                draw_effect_pass(
-                    device,
-                    encoder,
-                    registry,
-                    cache,
-                    vertical,
-                    mid_view,
-                    out_view,
-                    width,
-                    height,
-                    GAUSSIAN_BLUR,
-                    &blur_params,
-                )?;
-                read_idx = out_idx;
-                current_input = out_view;
-                continue;
-            }
-            _ => {
-                let write_idx = (in_idx + 1) % pool.slots();
-                let write_view = pool.view(write_idx);
-                let pipeline = registry.effect_pipeline(shipped);
-                draw_effect_pass(
-                    device,
-                    encoder,
-                    registry,
-                    cache,
-                    pipeline,
-                    current_input,
-                    write_view,
-                    width,
-                    height,
-                    shipped,
-                    &effect.params,
-                )?;
-                read_idx = write_idx;
-                current_input = pool.view(read_idx);
-            }
+        if let Some((written, view)) = run_single_effect(
+            device,
+            encoder,
+            registry,
+            pool,
+            references,
+            current_input,
+            in_idx,
+            effect,
+            width,
+            height,
+        )? {
+            read_idx = written;
+            current_input = view;
         }
     }
-
     Ok(current_input)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_single_effect<'a>(
+    device: &wgpu::Device,
+    encoder: &mut wgpu::CommandEncoder,
+    registry: &PassRegistry,
+    pool: &'a OffscreenPool,
+    references: &CanvasTargets,
+    current_input: &'a wgpu::TextureView,
+    in_idx: usize,
+    effect: &PassInstance,
+    width: u32,
+    height: u32,
+) -> Result<Option<(usize, &'a wgpu::TextureView)>, CompositorError> {
+    let cache = pool.passes();
+    let shipped = match &effect.id {
+        PassId::Shipped(id) => *id,
+        PassId::Registered(pass) => {
+            if pass.float_count() != effect.params.len() {
+                return Err(CompositorError::InvalidEffectParams {
+                    effect: pass.id().to_string(),
+                    expected: pass.float_count(),
+                    actual: effect.params.len(),
+                });
+            }
+            if effect.is_noop() {
+                return Ok(None);
+            }
+            return Ok(registered::run_registered_effect(
+                device,
+                encoder,
+                registry,
+                pool,
+                references,
+                current_input,
+                in_idx,
+                effect,
+                pass,
+                width,
+                height,
+            ));
+        }
+    };
+    validate_and_pack_effect_params(shipped, &effect.params)?;
+    if effect.is_noop() {
+        return Ok(None);
+    }
+
+    match shipped {
+        GAUSSIAN_BLUR => {
+            let radius = effect.params[0];
+            let blur_params = [radius];
+            let mid_idx = (in_idx + 1) % pool.slots();
+            let out_idx = (in_idx + 2) % pool.slots();
+            let mid_view = pool.view(mid_idx);
+            let out_view = pool.view(out_idx);
+            let (horizontal, vertical) = registry.blur_passes();
+            draw_effect_pass(
+                device,
+                encoder,
+                registry,
+                cache,
+                horizontal,
+                current_input,
+                mid_view,
+                width,
+                height,
+                GAUSSIAN_BLUR,
+                &blur_params,
+            )?;
+            draw_effect_pass(
+                device,
+                encoder,
+                registry,
+                cache,
+                vertical,
+                mid_view,
+                out_view,
+                width,
+                height,
+                GAUSSIAN_BLUR,
+                &blur_params,
+            )?;
+            Ok(Some((out_idx, out_view)))
+        }
+        _ => {
+            let write_idx = (in_idx + 1) % pool.slots();
+            let write_view = pool.view(write_idx);
+            let pipeline = registry.effect_pipeline(shipped);
+            draw_effect_pass(
+                device,
+                encoder,
+                registry,
+                cache,
+                pipeline,
+                current_input,
+                write_view,
+                width,
+                height,
+                shipped,
+                &effect.params,
+            )?;
+            Ok(Some((write_idx, pool.view(write_idx))))
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

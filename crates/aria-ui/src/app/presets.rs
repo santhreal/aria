@@ -369,7 +369,12 @@ impl AppState {
         let properties: Vec<(String, String, bool)> = self
             .key_params()
             .iter()
-            .filter(|row| !matches!(row.param(), ClipParam::Effect { .. }) && !row.marks.is_empty())
+            .filter(|row| {
+                !matches!(
+                    row.param(),
+                    ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. }
+                ) && !row.marks.is_empty()
+            })
             .map(|row| (row.id.to_string(), row.label.to_string(), true))
             .collect();
         let draft = {

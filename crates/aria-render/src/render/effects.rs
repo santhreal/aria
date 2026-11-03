@@ -35,7 +35,7 @@ pub(super) fn layer_effects(layer: &SceneLayer) -> LayerEffects {
 /// `m`'s shape for the compositor, before its inversion and its mix with the
 /// masks above it. Only a parametric kind reads it: a path mask draws from
 /// its raster.
-pub(super) fn shape_mask(m: &SceneMask) -> LayerMask {
+pub(crate) fn shape_mask(m: &SceneMask) -> LayerMask {
     LayerMask {
         kind: mask_kind_id(m.kind),
         feather: m.feather,

@@ -350,3 +350,99 @@ fn set_effect_bypass_undo_redo_roundtrip() {
     assert!(refused.is_err(), "an index past the chain is refused");
     assert_eq!(effects(&engine), expected);
 }
+
+/// Keyframing `ClipParam::EffectOpacity` and editing the clip's mask stack
+/// while an effect references masks rewrites `effect.masks` and restores in a
+/// single undo step per action.
+#[test]
+fn effect_opacity_and_mask_scope_reorder_remove_and_undo_in_one_step() {
+    let (_dir, mut engine) = temp_engine();
+    let clip_id = text_clip(&mut engine);
+    engine
+        .apply(Command::Edit(EditCommand::AddEffect {
+            clip: clip_id,
+            effect_id: "gaussian_blur".into(),
+        }))
+        .expect("add effect");
+    for kind in [
+        aria_models::MaskKind::Rectangle,
+        aria_models::MaskKind::Circle,
+        aria_models::MaskKind::Star,
+    ] {
+        engine
+            .apply(Command::Edit(EditCommand::AddClipMask {
+                clip: clip_id,
+                mask: aria_models::Mask::new(kind),
+            }))
+            .expect("add mask");
+    }
+
+    let mut fx = engine.project().clip(clip_id).unwrap().effects[0].clone();
+    fx.set_masks(vec![0, 2], true);
+    engine
+        .apply(Command::Edit(EditCommand::SetEffectInstance {
+            clip: clip_id,
+            index: 0,
+            effect: fx,
+        }))
+        .expect("apply effect masks");
+    assert_eq!(
+        engine.project().clip(clip_id).unwrap().effects[0].masks,
+        vec![0, 2]
+    );
+    assert!(engine.project().clip(clip_id).unwrap().effects[0].invert_masks);
+
+    // Move mask 2 to index 0: old 0 -> 1, old 2 -> 0, so [0, 2] -> [0, 1].
+    engine
+        .apply(Command::Edit(EditCommand::MoveClipMask {
+            clip: clip_id,
+            from_index: 2,
+            to_index: 0,
+        }))
+        .expect("move mask");
+    assert_eq!(
+        engine.project().clip(clip_id).unwrap().effects[0].masks,
+        vec![0, 1]
+    );
+    assert!(engine.undo());
+    assert_eq!(
+        engine.project().clip(clip_id).unwrap().effects[0].masks,
+        vec![0, 2]
+    );
+
+    // Remove mask 0: old 0 -> dropped, old 2 -> 1, so [0, 2] -> [1].
+    engine
+        .apply(Command::Edit(EditCommand::RemoveClipMask {
+            clip: clip_id,
+            index: 0,
+        }))
+        .expect("remove mask 0");
+    assert_eq!(
+        engine.project().clip(clip_id).unwrap().effects[0].masks,
+        vec![1]
+    );
+    assert!(engine.project().clip(clip_id).unwrap().effects[0].invert_masks);
+    assert!(engine.undo());
+    assert_eq!(
+        engine.project().clip(clip_id).unwrap().effects[0].masks,
+        vec![0, 2]
+    );
+
+    // Keyframe EffectOpacity and undo in one step.
+    let op_param = ClipParam::EffectOpacity { effect: 0 };
+    engine
+        .apply(Command::Edit(EditCommand::SetParamConstant {
+            clip: clip_id,
+            param: op_param,
+            value: ParamValue::Scalar(0.35),
+        }))
+        .expect("set effect opacity");
+    assert!(
+        (engine.project().clip(clip_id).unwrap().effects[0].sample_opacity(0.0) - 0.35).abs()
+            < 1e-6
+    );
+    assert!(engine.undo());
+    assert!(
+        (engine.project().clip(clip_id).unwrap().effects[0].sample_opacity(0.0) - 1.0).abs() < 1e-6
+    );
+}

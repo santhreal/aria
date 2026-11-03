@@ -87,7 +87,11 @@ impl PresetParts {
     pub fn all_of(clip: &Clip) -> Self {
         let mut properties = Vec::new();
         visit_clip_params(clip, |spec| {
-            if !matches!(spec.param, ClipParam::Effect { .. }) && !spec.keyframes(clip).is_empty() {
+            if !matches!(
+                spec.param,
+                ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. }
+            ) && !spec.keyframes(clip).is_empty()
+            {
                 properties.push(spec.id.to_string());
             }
         });
@@ -256,6 +260,10 @@ impl Preset {
         }
 
         for (index, effect) in self.effects.iter().enumerate() {
+            check_keyframe_limit(
+                effect.opacity.keyframes().len(),
+                format_args!("effect `{}` (index {index}) opacity", effect.effect_id),
+            )?;
             for (param, curve) in &effect.params {
                 check_keyframe_limit(
                     curve.keyframes().len(),
@@ -741,3 +749,7 @@ mod tests {
 #[cfg(test)]
 #[path = "preset_mask_tests.rs"]
 mod mask_tests;
+
+#[cfg(test)]
+#[path = "preset_keyframe_limit_tests.rs"]
+mod keyframe_limit_tests;

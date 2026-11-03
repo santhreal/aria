@@ -101,6 +101,19 @@ fn staged() -> Vec<Staged> {
         },
         a_modified_effect,
     );
+    push(
+        Gesture::NudgeOpacity {
+            index: 0,
+            by: -0.05,
+        },
+        one_effect,
+    );
+    push(
+        Gesture::ToggleMask { index: 0, mask: 0 },
+        an_effect_with_a_mask,
+    );
+    push(Gesture::ClearMasks { index: 0 }, a_masked_effect);
+    push(Gesture::ToggleInvertMasks { index: 0 }, a_masked_effect);
     out
 }
 
@@ -351,6 +364,13 @@ fn a_gesture_past_the_end_of_the_chain_is_inert() {
             index: 9,
             group: "advanced".to_string(),
         },
+        Gesture::NudgeOpacity {
+            index: 9,
+            by: -0.05,
+        },
+        Gesture::ToggleMask { index: 9, mask: 0 },
+        Gesture::ClearMasks { index: 9 },
+        Gesture::ToggleInvertMasks { index: 9 },
     ] {
         let mut state = one_effect();
         let watch = Watch::on(&state);
@@ -531,6 +551,21 @@ fn a_modified_effect() -> AppState {
     state
         .nudge_selected_effect_param(0, slot, 0.05)
         .expect("nudge scalar slot");
+    state
+}
+fn an_effect_with_a_mask() -> AppState {
+    let mut state = one_effect();
+    state
+        .add_selected_mask(aria_models::MaskKind::ALL[0])
+        .expect("add a mask to the selected clip");
+    state
+}
+
+fn a_masked_effect() -> AppState {
+    let mut state = an_effect_with_a_mask();
+    state
+        .toggle_selected_effect_mask(0, 0)
+        .expect("reference mask 0 on the effect");
     state
 }
 

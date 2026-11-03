@@ -159,6 +159,57 @@ pub(super) static EFFECT: ClipParamSpec = ClipParamSpec {
     },
 };
 
+/// Per-effect compositing opacity (`0.0..=1.0`, default `1.0`) exists once per
+/// effect on one clip, so [`crate::clip_params_for`] builds a row for each
+/// effect a clip carries.
+pub(super) static EFFECT_OPACITY: ClipParamSpec = ClipParamSpec {
+    class: ClipParamClass::Excluded(ParamExclusion::EffectSlot),
+    scope: ParamScope::Visual,
+    browse: None,
+    kind: |_| Some(ParamKind::Scalar),
+    range: |_| ParamRange::between(0.0, 1.0),
+    read: |clip, param| match effect_opacity_of(param) {
+        Ok(effect) => crate::clip::param_catalog::effect_opacity_route(clip, effect),
+        Err(_) => ParamRoute::Absent,
+    },
+    slot: None,
+    validate: |param, value| {
+        let v = value.scalar()?;
+        if v.is_finite() && (0.0..=1.0).contains(&v) {
+            Ok(())
+        } else {
+            Err(ModelError::InvalidParam(format!(
+                "{param:?} opacity {v} is outside 0.0..=1.0"
+            )))
+        }
+    },
+    keyframe: |clip, param, tick, value, easing| {
+        effect_opacity_slot(clip, param)?.set_keyframe(tick, value, easing)
+    },
+    constant: |clip, param, value| effect_opacity_slot(clip, param)?.set_constant(value),
+    erase: |clip, param, tick| {
+        if effect_opacity_slot(clip, param)?.remove_keyframe(tick) {
+            Ok(())
+        } else {
+            Err(ModelError::InvalidParam(format!(
+                "no {param:?} keyframe at tick {tick}"
+            )))
+        }
+    },
+    ease: Some(|clip, param, tick, preset| {
+        effect_opacity_slot(clip, param)?.apply_easing_preset(tick, preset)
+    }),
+    default: |clip, param| {
+        let effect = effect_opacity_of(param).ok()?;
+        crate::clip::param_catalog::effect_opacity_default(clip, effect)
+    },
+};
+
+fn effect_opacity_slot(clip: &mut Clip, param: ClipParam) -> Result<ParamSlot<'_>, ModelError> {
+    let effect = effect_opacity_of(param)?;
+    Ok(ParamSlot::Scalar(&mut effect_mut(clip, effect)?.opacity))
+}
+
 /// A mask property exists once per mask on one clip, so the static catalog
 /// holds no row for it: [`crate::clip_params_for`] builds one per property of
 /// each mask. The kind and range come off [`MaskParam`], and the stored
@@ -308,6 +359,14 @@ fn effect_of(param: ClipParam) -> Result<(u32, u32), ModelError> {
     } = param
     {
         Ok((effect, slot))
+    } else {
+        Err(wrong_row(param))
+    }
+}
+
+fn effect_opacity_of(param: ClipParam) -> Result<u32, ModelError> {
+    if let ClipParam::EffectOpacity { effect } = param {
+        Ok(effect)
     } else {
         Err(wrong_row(param))
     }

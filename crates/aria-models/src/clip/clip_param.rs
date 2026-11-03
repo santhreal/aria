@@ -91,6 +91,11 @@ pub enum ClipParam {
         effect: u32,
         param: u32,
     } => ClipParam::Effect { effect: 0, param: 0 },
+    /// Per-effect compositing opacity (`0.0..=1.0`, default `1.0`) for the
+    /// effect at `effect` in [`crate::Clip::effects`].
+    EffectOpacity {
+        effect: u32,
+    } => ClipParam::EffectOpacity { effect: 0 },
     /// An animatable property of a [`crate::Generator::Shape`] clip. Routed to the
     /// generator's own `Param`s instead of the transform, so the same
     /// keyframe commands animate shape geometry and colors. Scalar

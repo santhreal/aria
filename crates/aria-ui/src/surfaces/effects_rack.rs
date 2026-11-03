@@ -15,7 +15,7 @@
 use aria_engine::EngineError;
 
 use crate::app::AppState;
-use crate::app::clip_effects::effect_param;
+use crate::app::clip_effects::{effect_opacity_param, effect_param};
 
 /// One update to an effect's parameter slot.
 #[derive(Clone, Debug)]
@@ -94,6 +94,14 @@ pub enum Gesture {
     },
     /// Collapse or expand a parameter group on an effect.
     ToggleGroup { index: usize, group: String },
+    /// One step of an effect's compositing opacity stepper.
+    NudgeOpacity { index: usize, by: f32 },
+    /// Toggle one clip mask in an effect's mask reference scope.
+    ToggleMask { index: usize, mask: u32 },
+    /// Clear an effect's mask reference scope so it applies to the whole clip.
+    ClearMasks { index: usize },
+    /// Flip mask reference inversion on an effect.
+    ToggleInvertMasks { index: usize },
 }
 
 impl Gesture {
@@ -118,6 +126,10 @@ impl Gesture {
             Self::NudgeVec2 { .. } => "one axis of an effect's vector stepped",
             Self::EditSlot { .. } => "an effect's parameter slot updated",
             Self::ToggleGroup { .. } => "an effect's parameter group toggled",
+            Self::NudgeOpacity { .. } => "an effect's opacity stepped",
+            Self::ToggleMask { .. } => "a mask toggled in an effect's scope",
+            Self::ClearMasks { .. } => "an effect's mask scope cleared",
+            Self::ToggleInvertMasks { .. } => "an effect's mask scope inverted",
         }
     }
 
@@ -141,7 +153,11 @@ impl Gesture {
             | Self::NudgeScalar { index, .. }
             | Self::NudgeVec2 { index, .. }
             | Self::EditSlot { index, .. }
-            | Self::ToggleGroup { index, .. } => Some(*index),
+            | Self::ToggleGroup { index, .. }
+            | Self::NudgeOpacity { index, .. }
+            | Self::ToggleMask { index, .. }
+            | Self::ClearMasks { index }
+            | Self::ToggleInvertMasks { index } => Some(*index),
         }
     }
 }
@@ -245,6 +261,43 @@ pub fn apply(state: &mut AppState, gesture: Gesture) -> Result<(), EngineError> 
         Gesture::ToggleGroup { index, group } => {
             state.toggle_effect_group(index, &group);
             Ok(())
+        }
+        Gesture::NudgeOpacity { index, by } => {
+            let peers = state.peers_sharing_effect(Some(index));
+            state.land_each(peers, &[(effect_opacity_param(index), None)], |state| {
+                state.nudge_selected_effect_opacity(index, by)
+            })
+        }
+        Gesture::ToggleMask { index, mask } => {
+            let peers = state.peers_sharing_effect(Some(index));
+            let Some((mut masks, invert)) = state.selected_effect_masks(index) else {
+                return Ok(());
+            };
+            if let Some(pos) = masks.iter().position(|&m| m == mask) {
+                masks.remove(pos);
+            } else {
+                masks.push(mask);
+            }
+            let invert = invert && !masks.is_empty();
+            state.edit_each(peers, |state| {
+                state.set_selected_effect_masks(index, masks.clone(), invert)
+            })
+        }
+        Gesture::ClearMasks { index } => {
+            let peers = state.peers_sharing_effect(Some(index));
+            state.edit_each(peers, |state| state.clear_selected_effect_masks(index))
+        }
+        Gesture::ToggleInvertMasks { index } => {
+            let peers = state.peers_sharing_effect(Some(index));
+            let Some((masks, invert)) = state.selected_effect_masks(index) else {
+                return Ok(());
+            };
+            if masks.is_empty() {
+                return Ok(());
+            }
+            state.edit_each(peers, |state| {
+                state.set_selected_effect_masks(index, masks.clone(), !invert)
+            })
         }
     }
 }

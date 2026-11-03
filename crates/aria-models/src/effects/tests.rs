@@ -430,3 +430,107 @@ fn a_manifest_parameter_reads_every_omitted_key_as_the_default_spec() {
         "the manifest reference documents a range of 0.0 to 1.0"
     );
 }
+
+/// Every catalog effect exposes `ClipParam::EffectOpacity`, omits default
+/// compositing options on save, loads legacy JSON without those fields
+/// unchanged, and rewrites `masks` when clip masks are reordered or removed.
+///
+/// Closes the class "an effect whose compositing opacity or mask scope drifts
+/// from the catalog, breaks older project files, or points at the wrong mask
+/// after a mask stack edit".
+#[test]
+fn every_catalog_effect_roundtrips_compositing_options_and_remaps_masks() {
+    let catalog: Vec<_> = crate::effect_catalog()
+        .into_iter()
+        .filter(|spec| !spec.id.starts_with("test."))
+        .collect();
+    assert!(
+        !catalog.is_empty(),
+        "shipped effect catalog must not be empty"
+    );
+    for spec in catalog {
+        let fresh = EffectInstance::new(&spec.id);
+        let json = serde_json::to_string(&fresh).expect("serialize default effect");
+        assert!(
+            !json.contains("\"opacity\"")
+                && !json.contains("\"masks\"")
+                && !json.contains("\"invert_masks\""),
+            "{}: default instance must omit compositing fields in JSON: {json}",
+            spec.id
+        );
+        let legacy_json = format!(r#"{{"effect_id":{:?}}}"#, spec.id);
+        let legacy: EffectInstance =
+            serde_json::from_str(&legacy_json).expect("deserialize legacy effect JSON");
+        assert_eq!(legacy.opacity, crate::Param::Constant(1.0));
+        assert!(legacy.masks.is_empty());
+        assert!(!legacy.invert_masks);
+        legacy.validate().expect("legacy instance validates");
+
+        let mut clip = crate::Clip::generated(
+            crate::Generator::SolidColor {
+                rgba: [0, 0, 0, 255],
+            },
+            crate::TimeRange::at_rate(0, 48, crate::Rational::FPS_24),
+        );
+        for _ in 0..3 {
+            clip.masks
+                .push(crate::Mask::new(crate::MaskKind::Rectangle));
+        }
+        let mut fx = EffectInstance::new(&spec.id);
+        fx.set_masks(vec![2, 0, 2], true);
+        assert_eq!(fx.masks, vec![0, 2], "masks are sorted and deduplicated");
+        assert!(fx.invert_masks);
+        clip.effects.push(fx);
+
+        let op_param = crate::ClipParam::EffectOpacity { effect: 0 };
+        assert!(
+            crate::clip_params_for(&clip)
+                .iter()
+                .any(|row| row.param == op_param),
+            "{}: clip_params_for must expose EffectOpacity",
+            spec.id
+        );
+        op_param
+            .set_keyframe(
+                &mut clip,
+                0,
+                crate::ParamValue::Scalar(0.2),
+                crate::Easing::Linear,
+            )
+            .expect("kf0");
+        op_param
+            .set_keyframe(
+                &mut clip,
+                20,
+                crate::ParamValue::Scalar(0.8),
+                crate::Easing::Linear,
+            )
+            .expect("kf20");
+        assert!((clip.effects[0].sample_opacity(10.0) - 0.5).abs() < 1e-6);
+
+        let saved = serde_json::to_string(&clip.effects[0]).expect("serialize configured effect");
+        let restored: EffectInstance =
+            serde_json::from_str(&saved).expect("deserialize configured effect");
+        assert_eq!(restored, clip.effects[0]);
+
+        // Reorder mask 2 -> 0 (0 -> 1, 1 -> 2, 2 -> 0): [0, 2] becomes [0, 1].
+        clip.remap_mask_refs(|idx| match idx {
+            0 => Some(1),
+            1 => Some(2),
+            2 => Some(0),
+            other => Some(other),
+        });
+        assert_eq!(clip.effects[0].masks, vec![0, 1]);
+        assert!(clip.effects[0].invert_masks);
+
+        // Remove mask 0 (0 -> None, 1 -> 0): [0, 1] becomes [0].
+        clip.remap_mask_refs(|idx| if idx == 0 { None } else { Some(idx - 1) });
+        assert_eq!(clip.effects[0].masks, vec![0]);
+        assert!(clip.effects[0].invert_masks);
+
+        // Remove the last referenced mask: masks becomes empty and invert_masks resets.
+        clip.remap_mask_refs(|_| None);
+        assert!(clip.effects[0].masks.is_empty());
+        assert!(!clip.effects[0].invert_masks);
+    }
+}

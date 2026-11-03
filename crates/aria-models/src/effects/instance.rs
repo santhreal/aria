@@ -20,6 +20,14 @@ use crate::param::{Easing, Param};
 /// Longest name an [`EffectInstance`] takes, in characters.
 pub const EFFECT_NAME_MAX_CHARS: usize = 64;
 
+fn default_effect_opacity() -> Param<f32> {
+    Param::Constant(1.0)
+}
+
+fn is_default_effect_opacity(opacity: &Param<f32>) -> bool {
+    *opacity == Param::Constant(1.0)
+}
+
 /// Refuse an instance name that is blank, starts or ends with whitespace, is
 /// longer than [`EFFECT_NAME_MAX_CHARS`], or holds a control character.
 fn check_effect_name(name: &str) -> Result<(), ModelError> {
@@ -150,6 +158,26 @@ pub struct EffectInstance {
     /// `None` draws the label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Per-effect compositing opacity (`0.0..=1.0`, default `1.0`) that mixes
+    /// the effect's wet output with its dry input before the next effect in the
+    /// chain.
+    #[serde(
+        default = "default_effect_opacity",
+        skip_serializing_if = "is_default_effect_opacity"
+    )]
+    pub opacity: Param<f32>,
+    /// Mask scope (`0`-based indices into [`crate::Clip::masks`], sorted and
+    /// deduplicated). Empty means the effect applies to the whole layer.
+    ///
+    /// Mask identity is maintained by rewriting these indices in
+    /// `Clip::remap_mask_refs` whenever the clip's mask stack is edited
+    /// (insert, remove, reorder) and restoring the clip snapshot on undo.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub masks: Vec<u32>,
+    /// Whether the combined coverage of [`Self::masks`] is inverted before
+    /// mixing this effect with its input.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub invert_masks: bool,
 }
 
 impl EffectInstance {
@@ -173,6 +201,9 @@ impl EffectInstance {
             generator,
             bypass: false,
             name: None,
+            opacity: default_effect_opacity(),
+            masks: Vec::new(),
+            invert_masks: false,
         }
     }
 
@@ -265,6 +296,20 @@ impl EffectInstance {
     /// fractional `tick`, falling back to the catalog default when never set.
     pub fn sample_param(&self, param: &str, tick: f64) -> Option<f32> {
         self.read_named(param, |p| self.scalar(p, tick))
+    }
+    /// Sampled compositing opacity (`0.0..=1.0`) of this effect at clip-relative
+    /// fractional `tick`.
+    pub fn sample_opacity(&self, tick: f64) -> f32 {
+        self.opacity.sample_at(tick).clamp(0.0, 1.0)
+    }
+
+    /// Set the mask scope (`0`-based indices into `Clip::masks`) and mask-scope
+    /// inversion flag, sorting and deduplicating `masks`.
+    pub fn set_masks(&mut self, mut masks: Vec<u32>, invert_masks: bool) {
+        masks.sort_unstable();
+        masks.dedup();
+        self.masks = masks;
+        self.invert_masks = invert_masks;
     }
 
     /// Sampled integer (`i64`) value of `param` at clip-relative fractional `tick`.
@@ -743,6 +788,32 @@ impl EffectInstance {
         let spec = self.spec()?;
         if let Some(name) = &self.name {
             check_effect_name(name)?;
+        }
+        self.opacity.validate_shape()?;
+        self.opacity.for_each_value(|&v| {
+            if v.is_finite() && (0.0..=1.0).contains(&v) {
+                Ok(())
+            } else {
+                Err(ModelError::InvalidParam(format!(
+                    "effect '{}' opacity {v} is outside 0.0..=1.0",
+                    self.effect_id
+                )))
+            }
+        })?;
+        for &mask_idx in &self.masks {
+            if (mask_idx as usize) >= crate::look::MAX_CLIP_MASKS {
+                return Err(ModelError::InvalidParam(format!(
+                    "effect '{}' mask reference {mask_idx} exceeds maximum mask count {}",
+                    self.effect_id,
+                    crate::look::MAX_CLIP_MASKS
+                )));
+            }
+        }
+        if !self.masks.windows(2).all(|pair| pair[0] < pair[1]) {
+            return Err(ModelError::InvalidParam(format!(
+                "effect '{}' mask references {:?} must be sorted and unique",
+                self.effect_id, self.masks
+            )));
         }
         let slot = |name: &str, store: &str, holds: fn(EffectParamKind) -> bool| {
             stored_slot(&spec.params, "effect", &self.effect_id, name, store, holds)

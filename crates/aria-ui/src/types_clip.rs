@@ -171,6 +171,12 @@ pub struct UiEffectInstance {
     pub values: Vec<UiEffectValue>,
     /// Visibility per catalog slot (`true` when `visible_when` is satisfied or absent).
     pub visible: Vec<bool>,
+    /// Per-effect compositing opacity (`0.0..=1.0`, default `1.0`).
+    pub opacity: f32,
+    /// Zero-based indices into `Clip::masks` scoping this effect (`empty` = whole layer).
+    pub masks: Vec<u32>,
+    /// Whether the mask scope coverage is inverted before mixing this effect.
+    pub invert_masks: bool,
 }
 
 /// Typed reads of the per-slot values and visibility that an effect instance

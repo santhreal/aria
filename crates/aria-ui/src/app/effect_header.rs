@@ -249,10 +249,21 @@ impl AppState {
     fn insert_effect_instance(
         &mut self,
         clip: ClipId,
-        effect: EffectInstance,
+        mut effect: EffectInstance,
         at: usize,
     ) -> Result<(), EngineError> {
-        let end = self.chain_len(clip);
+        let (end, mask_len) = {
+            let engine = self.engine.lock();
+            let model = engine.project().timeline().clip(clip);
+            (
+                model.map_or(0, |c| c.effects.len()),
+                model.map_or(0, |c| c.masks.len() as u32),
+            )
+        };
+        effect.masks.retain(|&m| m < mask_len);
+        if effect.masks.is_empty() {
+            effect.invert_masks = false;
+        }
         self.apply_command(Command::Edit(EditCommand::AddEffect {
             clip,
             effect_id: effect.effect_id.clone(),

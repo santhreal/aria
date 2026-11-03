@@ -34,6 +34,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
   - Turn an instance's switch off to skip it during rendering without removing its parameters or keyframes; a skipped instance draws its name dimmed.
   - Click the up or down chevron to reorder passes in the chain, or the bin to remove the instance.
   - Drag a numeric readout horizontally or click `−` / `+` to step the value; click `◆` to insert or update a keyframe at the playhead (`◇` when no keyframe sits at the playhead).
+  - Under **Compositing Options**, scrub or keyframe **Effect Opacity** (`ClipParam::EffectOpacity { effect }`, `effect-<index>-opacity`, `0%..=100%`) to mix the effect's output with its input, pick clip masks under **Mask Reference** (`EffectInstance::masks`) to confine the effect to those masks without cutting the clip's layer stencil, and toggle **Invert Masks** (`EffectInstance::invert_masks`) to apply the effect outside the referenced mask coverage.
   - Use **Save Preset** to store the clip's current effect chain to `<data dir>/effect-presets/<name>.toml`, **Apply Preset** to append a saved chain, or **Clear All** to empty the stack.
 - **Adjustment layers (`Sequence > Add Adjustment Layer`)**: effects placed on an adjustment clip process the composite of all video tracks below that adjustment track over the clip's timeline span.
 

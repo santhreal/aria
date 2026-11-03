@@ -247,6 +247,8 @@ pub(super) fn resolve_effects_pooled(
     clip: &aria_models::Clip,
     tick: i64,
     seconds: f32,
+    px: f32,
+    canvas: [f32; 2],
     point: Option<(aria_models::ClipId, usize, usize, [f32; 2])>,
     pool: &mut ResolvePool,
 ) -> Vec<ResolvedPass> {
@@ -260,17 +262,84 @@ pub(super) fn resolve_effects_pooled(
         if fx.bypass {
             continue;
         }
+        let opacity = fx.sample_opacity(tick_f).clamp(0.0, 1.0);
+        if opacity <= 0.0 {
+            continue;
+        }
         let Some(id) = aria_compositor::pass_id(&fx.effect_id) else {
             continue;
         };
         let point = point
             .filter(|(owner, effect, ..)| *owner == clip.id && *effect == index)
             .map(|(_, _, slot, value)| (slot, value));
-        if let Ok(pass) = pack_effect(fx, tick_f, id, seconds, point, pool) {
+        if let Ok(mut pass) = pack_effect(fx, tick_f, id, seconds, point, pool) {
+            pass = pass.with_opacity(opacity);
+            if !fx.masks.is_empty() {
+                let (masks, mask_images) = resolve_effect_masks(clip, fx, tick, px, canvas);
+                pass = pass.with_masks(masks, mask_images, fx.invert_masks);
+            }
             out.push(pass);
         }
     }
     out
+}
+
+fn resolve_effect_masks(
+    clip: &aria_models::Clip,
+    fx: &EffectInstance,
+    tick: i64,
+    px: f32,
+    canvas: [f32; 2],
+) -> (
+    Vec<aria_compositor::StencilMask>,
+    Vec<std::sync::Arc<aria_core::RgbaImage>>,
+) {
+    let mut masks = Vec::with_capacity(fx.masks.len());
+    let mut images = Vec::new();
+    let mut paths = None;
+    let size = [
+        canvas[0].round().max(1.0) as u32,
+        canvas[1].round().max(1.0) as u32,
+    ];
+    for &mask_idx in &fx.masks {
+        let Some(raw_mask) = clip.masks.get(mask_idx as usize) else {
+            continue;
+        };
+        let Some(mask) = super::clip::resolve_mask(raw_mask, tick, px) else {
+            continue;
+        };
+        let (coverage, softness) = if mask.kind == aria_models::MaskKind::Path {
+            if mask.path.len() < 3 {
+                continue;
+            }
+            let rasterizer = paths.get_or_insert_with(aria_shapes::PathRaster::new);
+            images.push(rasterizer.rasterize_mask(
+                size[0],
+                size[1],
+                &mask.path,
+                mask.center,
+                mask.rotation_rad,
+                mask.expansion,
+            ));
+            (
+                aria_compositor::StencilCoverage::Image(images.len() - 1),
+                mask.feather.clamp(0.0, 1.0),
+            )
+        } else {
+            (
+                aria_compositor::StencilCoverage::Shape(crate::render::effects::shape_mask(&mask)),
+                0.0,
+            )
+        };
+        masks.push(aria_compositor::StencilMask {
+            coverage,
+            invert: mask.invert,
+            softness,
+            op: mask.op,
+            opacity: mask.opacity,
+        });
+    }
+    (masks, images)
 }
 
 fn pack_effect(

@@ -2,13 +2,13 @@
 //! far. The result replaces the canvas, or replaces it inside a mask.
 
 use crate::effect_render::{
-    OffscreenPool, blit_replace, blit_replace_to_target, effects_need_offscreen, run_effect_chain,
-    run_grade_pass, run_lut_pass,
+    OffscreenPool, blit_replace, blit_replace_to_target, effects_need_offscreen, run_grade_pass,
+    run_lut_pass,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::grade::ColorGrade;
-use crate::layer::{CompositorConfig, LayerLut, LayerStencil};
+use crate::layer::{CompositorConfig, LayerLut, LayerPlacement, LayerStencil};
 use crate::passes::PassInstance;
 
 use super::Compositor;
@@ -58,16 +58,15 @@ impl Compositor {
             offscreen.view(0),
         );
         let mut result = if effects_need_offscreen(effects) {
-            run_effect_chain(
-                device,
+            self.run_layer_effects(
+                gpu,
                 encoder,
-                &self.pass_registry,
+                config,
                 offscreen,
-                &self.references,
                 offscreen.view(0),
                 effects,
-                config.width,
-                config.height,
+                LayerPlacement::full_canvas(config),
+                &[],
             )?
         } else {
             offscreen.view(0)

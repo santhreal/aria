@@ -5,12 +5,11 @@
 
 use crate::color_pass;
 use crate::effect_render::{
-    OffscreenPool, blit_premultiplied_to_target, effects_need_offscreen, run_effect_chain,
-    run_lut_pass,
+    OffscreenPool, blit_premultiplied_to_target, effects_need_offscreen, run_lut_pass,
 };
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
-use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer};
+use crate::layer::{CompositeLayer, CompositorConfig, CompositorLayer, LayerPlacement};
 
 use super::draw_layer::TargetPass;
 use super::pairs::{MatteDraw, TransitionDraw};
@@ -85,16 +84,22 @@ impl Compositor {
                 )?;
             }
         }
-        let mut result = run_effect_chain(
-            device,
+        let mask_placement = layer.stencil.as_ref().map_or(
+            LayerPlacement {
+                opacity: 1.0,
+                ..layer.placement
+            },
+            |s| s.placement,
+        );
+        let mut result = self.run_layer_effects(
+            gpu,
             encoder,
-            &self.pass_registry,
+            config,
             offscreen,
-            &self.references,
             offscreen.view(0),
             layer.effects,
-            config.width,
-            config.height,
+            mask_placement,
+            layer.blur_passes,
         )?;
         if let Some(lut) = &layer.lut {
             let uploaded = self.lut_cache.peek(lut.key).expect("LUT preloaded");

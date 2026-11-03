@@ -230,7 +230,9 @@ impl SelectedDetail {
     /// on an effect slot the same effect at the same place in its chain.
     pub fn shares(&self, peer: &Peer, param: ClipParam) -> bool {
         match param {
-            ClipParam::Effect { effect, .. } => self.same_effect(peer, effect as usize),
+            ClipParam::Effect { effect, .. } | ClipParam::EffectOpacity { effect } => {
+                self.same_effect(peer, effect as usize)
+            }
             _ => peer.params.iter().any(|row| row.spec.param == param),
         }
     }
@@ -284,6 +286,30 @@ impl SelectedDetail {
                     })
             })
             .collect()
+    }
+
+    /// Whether a peer holding the same effect at `index` sets a different mask
+    /// reference list from this clip.
+    pub fn mixed_effect_masks(&self, index: usize) -> bool {
+        let Some(mine) = self.model.effects.get(index) else {
+            return false;
+        };
+        self.peers
+            .iter()
+            .filter(|peer| self.same_effect(peer, index))
+            .any(|peer| peer.model.effects[index].masks != mine.masks)
+    }
+
+    /// Whether a peer holding the same effect at `index` sets `invert_masks`
+    /// differently from this clip.
+    pub fn mixed_effect_invert_masks(&self, index: usize) -> bool {
+        let Some(mine) = self.model.effects.get(index) else {
+            return false;
+        };
+        self.peers
+            .iter()
+            .filter(|peer| self.same_effect(peer, index))
+            .any(|peer| peer.model.effects[index].invert_masks != mine.invert_masks)
     }
 
     /// Whether a peer that shares `param` reads differently from `mine` at

@@ -112,6 +112,15 @@ value at the playhead.
   [Property controls](keyframes-and-graph-editor.md#property-controls). Editing an animated parameter writes
   a keyframe at the playhead; editing a constant one changes the constant.
 
+
+### Compositing Options
+
+Each effect ends with a **Compositing Options** disclosure section:
+
+- **Effect Opacity** (`0%` to `100%`, default `100%`) mixes the picture entering the effect (`0%`) with the effect's output (`100%`). It has a stopwatch, keyframe navigator, reset button, and time area, and appears in the timeline under **Effects** as `<Effect> Effect Opacity` (`effect-<index>-opacity`). At `100%` with no referenced masks, the compositor runs no extra pass. At `0%`, the effect is skipped.
+- **Mask Reference** appears when the clip has at least one mask. Click a mask chip to add or remove that mask from the effect's scope, or click **None** to apply the effect across the whole clip. Referenced masks combine in stack order using each mask's mode, feather, opacity, expansion, and invert setting, and a mask referenced by any effect on the clip scopes that effect instead of cutting the clip's alpha stencil. Reordering or removing a clip mask updates the effect's mask references in the same undo step.
+- **Invert Masks** flips the combined mask scope for that effect so the effect applies outside the referenced masks instead of inside them.
+
 **Presets** holds the chains you saved. Click a preset to apply it to the
 selected clip, replacing that clip's chain in one undo entry. **Delete** beside
 a preset removes it.

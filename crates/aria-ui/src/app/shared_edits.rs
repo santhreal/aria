@@ -241,6 +241,20 @@ impl AppState {
             .map_or_else(Vec::new, |detail| detail.mixed_effect_slots(index))
     }
 
+    /// Whether another selected clip holding the same effect at `index` sets
+    /// its mask reference scope differently.
+    pub fn effect_masks_mixed(&self, index: usize) -> bool {
+        self.shared_detail()
+            .is_some_and(|detail| detail.mixed_effect_masks(index))
+    }
+
+    /// Whether another selected clip holding the same effect at `index` sets
+    /// its mask reference inversion differently.
+    pub fn effect_invert_masks_mixed(&self, index: usize) -> bool {
+        self.shared_detail()
+            .is_some_and(|detail| detail.mixed_effect_invert_masks(index))
+    }
+
     /// The other selected clips of the first one's kind whose row reads what
     /// the first clip's row reads through `reads`, in lane order. A block's
     /// chip or switch reaches these.

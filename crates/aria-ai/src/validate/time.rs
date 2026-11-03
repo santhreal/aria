@@ -126,6 +126,15 @@ pub(super) fn param_value(
     rect: Option<[f64; 4]>,
 ) -> Result<ParamValue, Rejection> {
     match param {
+        WireClipParam::Effect { index, param: name } if name == "opacity" => {
+            let _ = effect_index(clip, *index, wire_clip)?;
+            value
+                .map(|v| finite_scalar(v, name).map(ParamValue::Scalar))
+                .transpose()?
+                .ok_or_else(|| {
+                    Rejection::new("effect param 'opacity' is a scalar; pass 'value' (a number)")
+                })
+        }
         WireClipParam::Effect { index, param: name } => {
             let (_, slot, spec) = effect_param_slot(clip, *index, name, wire_clip)?;
             let pspec = &spec.params[slot];

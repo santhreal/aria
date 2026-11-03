@@ -104,7 +104,12 @@ impl ClipAttribute {
             Self::TimeRemapping => matches!(param, ClipParam::Speed),
             Self::Volume => matches!(param, ClipParam::Volume),
             Self::Pan => matches!(param, ClipParam::Pan),
-            Self::Effects => matches!(param, ClipParam::Effect { .. }),
+            Self::Effects => {
+                matches!(
+                    param,
+                    ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. }
+                )
+            }
             Self::AudioEffects => false,
             Self::Grade => matches!(param, ClipParam::Look { param } if param.is_grade()),
             Self::Mask => matches!(param, ClipParam::Mask { .. }),
@@ -172,15 +177,23 @@ impl ClipAttribute {
                 clip.lut = None;
                 clip.adjust = crate::look::ColorAdjustments::default();
             }
-            Self::Mask => clip.masks.clear(),
+            Self::Mask => {
+                clip.masks.clear();
+                for effect in &mut clip.effects {
+                    effect.masks.clear();
+                    effect.invert_masks = false;
+                }
+            }
             Self::ChromaKey => clip.chroma_key = None,
         }
         clip.drivers.retain(|driver| !self.drives(&driver.param));
         // A line on an effect or a mask has nothing left to draw once the
         // chain or stack is gone; any other property survives at its default.
         if clip.line_param.is_some_and(|param| {
-            matches!(param, ClipParam::Effect { .. } | ClipParam::Mask { .. })
-                && self.drives(&param)
+            matches!(
+                param,
+                ClipParam::Effect { .. } | ClipParam::EffectOpacity { .. } | ClipParam::Mask { .. }
+            ) && self.drives(&param)
         }) {
             clip.line_param = None;
         }

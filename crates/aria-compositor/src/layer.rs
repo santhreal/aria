@@ -256,6 +256,15 @@ impl CoverageMix {
         }
     }
 
+    /// Scale `mix(c)` by `factor` in `0.0..=1.0`.
+    pub fn scaled(self, factor: f32) -> Self {
+        let factor = factor.clamp(0.0, 1.0);
+        Self {
+            offset: self.offset * factor,
+            scale: self.scale * factor,
+        }
+    }
+
     /// `offset + scale * c`, clamped to `0..=1`.
     pub fn apply(self, c: f32) -> f32 {
         (self.offset + self.scale * c).clamp(0.0, 1.0)

@@ -96,3 +96,66 @@ fn a_bypassed_missing_generator_draws_the_clip_rather_than_the_slate() {
         scene.layers[0].source
     );
 }
+
+/// An effect's compositing opacity samples its curve at each tick, skipping the
+/// pass at `0.0`, and any clip mask referenced by an effect scopes that effect
+/// without also cutting the underlying clip's layer stencil.
+#[test]
+fn effect_compositing_options_resolve_opacity_and_scope_masks_without_cutting_layer() {
+    use aria_models::{ClipParam, Easing, Mask, MaskKind, ParamValue};
+
+    let (mut project, clip) = solid_project();
+    project
+        .add_clip_mask(clip, Mask::new(MaskKind::Rectangle))
+        .unwrap();
+    project
+        .add_clip_mask(clip, Mask::new(MaskKind::Circle))
+        .unwrap();
+
+    let mut fx = EffectInstance::new("gaussian_blur");
+    fx.set_masks(vec![0], true);
+    project.timeline_mut().clip_mut(clip).unwrap().effects = vec![fx];
+    let op_param = ClipParam::EffectOpacity { effect: 0 };
+    project
+        .set_param_keyframe(
+            clip,
+            op_param,
+            rt(0),
+            ParamValue::Scalar(0.0),
+            Easing::Linear,
+            None,
+        )
+        .unwrap();
+    project
+        .set_param_keyframe(
+            clip,
+            op_param,
+            rt(24),
+            ParamValue::Scalar(1.0),
+            Easing::Linear,
+            None,
+        )
+        .unwrap();
+
+    // At tick 0, opacity is 0.0 so the effect is skipped, while mask 0 is still
+    // reserved for the effect and only mask 1 (Circle) cuts the layer stencil.
+    let at_zero = resolve(&project, rt(0)).unwrap();
+    assert!(at_zero.layers[0].effects.is_empty());
+    assert_eq!(at_zero.layers[0].masks.len(), 1);
+    assert_eq!(at_zero.layers[0].masks[0].kind, MaskKind::Circle);
+
+    // At tick 12, opacity is 0.5 and the effect carries mask 0 with invert_masks = true.
+    let at_mid = resolve(&project, rt(12)).unwrap();
+    assert_eq!(at_mid.layers[0].effects.len(), 1);
+    let resolved_fx = &at_mid.layers[0].effects[0];
+    assert!((resolved_fx.opacity - 0.5).abs() < 1e-6);
+    assert_eq!(resolved_fx.masks.len(), 1);
+    assert!(matches!(
+        resolved_fx.masks[0].coverage,
+        aria_compositor::StencilCoverage::Shape(m)
+            if m.kind == aria_compositor::mask_kind::RECTANGLE
+    ));
+    assert!(resolved_fx.invert_masks);
+    assert_eq!(at_mid.layers[0].masks.len(), 1);
+    assert_eq!(at_mid.layers[0].masks[0].kind, MaskKind::Circle);
+}

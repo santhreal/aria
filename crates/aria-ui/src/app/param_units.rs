@@ -140,7 +140,9 @@ impl Units<'static> {
                 },
                 suffix: "dB",
             },
-            ClipParam::Opacity | ClipParam::Scale => linear(100.0, digits(0, 1), "%", span),
+            ClipParam::Opacity | ClipParam::EffectOpacity { .. } | ClipParam::Scale => {
+                linear(100.0, digits(0, 1), "%", span)
+            }
             ClipParam::Rotation => linear(1.0, 1, "°", span),
             _ => linear(1.0, digits(2, 1), "", span),
         }

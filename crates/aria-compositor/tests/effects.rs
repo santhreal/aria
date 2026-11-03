@@ -4,9 +4,11 @@
 //! here by what it does to a known plate rather than by whether it dispatches.
 
 use aria_compositor::{
-    CompositeLayer, Compositor, CompositorConfig, GpuContext, LayerPlacement, PassInstance,
-    RgbaImage,
+    CompositeLayer, Compositor, CompositorConfig, CpuFrameIn, CpuFrameOut, EffectDefinition,
+    EffectParams, GpuContext, LayerMask, LayerPlacement, MaskOp, PassInstance, RgbaImage,
+    StencilCoverage, StencilMask, mask_kind, pass_id, register_effect,
 };
+use aria_models::EffectSpec;
 
 /// Try to bring up a headless GPU; `None` (skip) if the host has no adapter.
 fn try_gpu() -> Option<GpuContext> {
@@ -343,4 +345,146 @@ fn glitch_tears_bands_and_repeats_for_one_seed() {
     // value the untouched plate has there.
     let moved = (0..64).any(|y| torn.pixel(32, y)[0] != 255);
     assert!(moved, "the edge did not move on any row");
+}
+
+/// Closes the class "an effect's compositing opacity is ignored by GPU or CPU
+/// passes, or adds slot overhead at 100%".
+#[test]
+fn effect_opacity_mixes_dry_and_wet_across_gpu_and_cpu_passes() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let config = CompositorConfig::new(16, 16).with_background([0, 0, 0, 255]);
+    let dry = [0u8, 100, 200, 255];
+    let wet = [255u8, 0, 0, 255];
+    let half = [128u8, 50, 100, 255];
+
+    const CPU_RED: &str = "test.compositing.cpu_red";
+    let _cpu_reg = register_effect(EffectDefinition::cpu(
+        EffectSpec {
+            id: CPU_RED.into(),
+            label: "CPU Red".into(),
+            ..Default::default()
+        },
+        |input: CpuFrameIn<'_>, output: &mut CpuFrameOut<'_>, _: &EffectParams<'_>, _: f32| {
+            for y in 0..input.height() {
+                for x in 0..input.width() {
+                    let [_, _, _, a] = input.pixel_f32(x, y);
+                    output.set_pixel_f32(x, y, [a, 0.0, 0.0, a]);
+                }
+            }
+            Ok(())
+        },
+    ))
+    .expect("register CPU red effect");
+
+    let gpu_base = PassInstance::new("color_overlay", vec![1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]);
+    let cpu_base = PassInstance::new(pass_id(CPU_RED).expect("cpu pass id"), Vec::new());
+
+    for (label, base) in [("gpu", gpu_base), ("cpu", cpu_base)] {
+        assert_eq!(
+            base.slot_demand(),
+            2,
+            "{label}: opacity 1.0 unmasked must demand 2 slots"
+        );
+        let zero = base.clone().with_opacity(0.0);
+        assert!(zero.is_noop(), "{label}: opacity 0.0 must be a no-op");
+
+        let half_fx = [base.clone().with_opacity(0.5)];
+        assert_eq!(half_fx[0].slot_demand(), 3);
+        let layer =
+            CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&half_fx);
+        let img = comp.render(&gpu, &config, &[layer]).expect("render half");
+        assert_px(&img, 8, 8, half, 3);
+
+        let full_fx = [base.with_opacity(1.0)];
+        let layer =
+            CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&full_fx);
+        let img = comp.render(&gpu, &config, &[layer]).expect("render full");
+        assert_px(&img, 8, 8, wet, 3);
+    }
+}
+
+/// Closes the class "a masked effect cuts the underlying layer outside its
+/// mask, ignores `invert_masks`, or fails to combine multiple masks across
+/// `MaskMode`s".
+#[test]
+fn effect_mask_scope_confines_pass_and_inversion_flips_it() {
+    let gpu = gpu_or_skip!();
+    let mut comp = Compositor::new(&gpu);
+    let config = CompositorConfig::new(64, 16).with_background([0, 0, 0, 255]);
+    let dry = [0u8, 100, 200, 255];
+    let wet = [255u8, 0, 0, 255];
+    let half = [128u8, 50, 100, 255];
+
+    // Left half of the canvas: center = [-0.25, 0.0] (-0.25 * width), half-extents = [0.5, 1.0].
+    let left_mask = StencilMask::keep(StencilCoverage::Shape(LayerMask {
+        center: [-0.25, 0.0],
+        size: [0.5, 1.0],
+        ..LayerMask::new(mask_kind::RECTANGLE)
+    }));
+    let base = PassInstance::new("color_overlay", vec![1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]);
+
+    // Uninverted: left is wet, right is dry (and still opaque 255, not cut!).
+    let masked = [base.clone().with_masks(vec![left_mask], Vec::new(), false)];
+    let layer =
+        CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&masked);
+    let img = comp.render(&gpu, &config, &[layer]).expect("render masked");
+    assert_px(&img, 8, 8, wet, 3);
+    assert_px(&img, 56, 8, dry, 3);
+
+    // Inverted: left is dry, right is wet.
+    let inverted = [base.clone().with_masks(vec![left_mask], Vec::new(), true)];
+    let layer =
+        CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&inverted);
+    let img = comp
+        .render(&gpu, &config, &[layer])
+        .expect("render inverted");
+    assert_px(&img, 8, 8, dry, 3);
+    assert_px(&img, 56, 8, wet, 3);
+
+    // Masked + 50% opacity: left is 50/50 mix, right is dry.
+    let masked_half =
+        [base
+            .clone()
+            .with_opacity(0.5)
+            .with_masks(vec![left_mask], Vec::new(), false)];
+    let layer =
+        CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&masked_half);
+    let img = comp
+        .render(&gpu, &config, &[layer])
+        .expect("render masked half");
+    assert_px(&img, 8, 8, half, 3);
+    assert_px(&img, 56, 8, dry, 3);
+
+    // Every combinable MaskMode on a second mask over the full canvas executes
+    // cleanly and obeys its mode semantics over the left/right halves.
+    for op in MaskOp::ALL {
+        let mut second =
+            StencilMask::keep(StencilCoverage::Shape(LayerMask::new(mask_kind::RECTANGLE)));
+        second.op = op;
+        let fx = [base
+            .clone()
+            .with_masks(vec![left_mask, second], Vec::new(), false)];
+        let layer =
+            CompositeLayer::solid(dry, LayerPlacement::full_canvas(&config)).with_effects(&fx);
+        let img = comp.render(&gpu, &config, &[layer]).expect("mode render");
+        match op {
+            MaskOp::Add | MaskOp::Lighten => {
+                assert_px(&img, 8, 8, wet, 3);
+                assert_px(&img, 56, 8, wet, 3);
+            }
+            MaskOp::Subtract => {
+                assert_px(&img, 8, 8, dry, 3);
+                assert_px(&img, 56, 8, dry, 3);
+            }
+            MaskOp::Intersect | MaskOp::Darken => {
+                assert_px(&img, 8, 8, wet, 3);
+                assert_px(&img, 56, 8, dry, 3);
+            }
+            MaskOp::Difference => {
+                assert_px(&img, 8, 8, dry, 3);
+                assert_px(&img, 56, 8, wet, 3);
+            }
+        }
+    }
 }

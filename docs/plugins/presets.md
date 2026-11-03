@@ -70,6 +70,9 @@ omitted parameters use the effect's catalog default.
 | `generator` | boolean | `false` | Whether `effect_id` was placed as a generator. |
 | `bypass` | boolean | `false` | Whether the effect instance starts switched off. |
 | `name` | string | none | Custom instance label: 1 to `EFFECT_NAME_MAX_CHARS` (`64`) printable characters without leading or trailing whitespace. |
+| `opacity` | `Param<f32>` | `1.0` | Keyframeable compositing opacity that mixes the effect's output with its input before the next effect in the chain, in `0.0..=1.0`. |
+| `masks` | array of `u32` | `[]` | Mask scope: sorted, unique `0`-based indices into the clip's masks, each below `MAX_CLIP_MASKS` (`32`). Empty applies the effect to the whole layer. Applying the preset drops indices past the target clip's last mask. |
+| `invert_masks` | boolean | `false` | Whether the combined coverage of `masks` is inverted before the effect mixes with its input. Cleared on apply when no index remains in `masks`. |
 
 ### `audio_effects[]` (`AudioEffectInstance`)
 
