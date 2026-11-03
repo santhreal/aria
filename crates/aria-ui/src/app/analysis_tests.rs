@@ -140,27 +140,50 @@ fn an_older_analyzer_version_reads_as_stale_and_can_be_cleared() {
     let kind = AnalysisKind::Shots;
     let content_key = content_key_for(&media_path(&state)).expect("a key");
     let index = state.analysis_index().expect("open the index");
-    let old = aria_analysis::moments::AnalyzerVersion::new(kind.analyzer_version().get())
-        .expect("non-zero");
-    // The current version is 1, so a stale batch needs the schema to have moved. Store
-    // under the current version, then assert the rule that decides staleness directly,
-    // which is what a future bump will exercise.
+    let v1 = aria_analysis::moments::AnalyzerVersion::new(1).expect("non-zero");
+    assert!(
+        kind.analyzer_version().get() > v1.get(),
+        "Shots analyzer version must exceed v1 after the detector upgrade"
+    );
+    let stale_record = MomentRecord::new(
+        content_key,
+        TimeSpan::new(0.5, 0.5).expect("span"),
+        kind.moment_kind(),
+        MomentConfidence::CERTAIN,
+        kind.analyzer_identity(),
+        v1,
+        None,
+    );
+    let stale_batch = MomentReplacementBatch::new(
+        aria_analysis::moments::MomentBatchKey::new(content_key, kind.analyzer_identity(), v1),
+        vec![stale_record],
+    )
+    .expect("v1 batch");
+    index.replace_batch(&stale_batch).expect("write v1");
+    state.refresh_moments().expect("read v1");
+    assert_eq!(state.analysis.moments.len(), 1);
+    assert!(
+        state.analysis.moments[0].stale,
+        "a stored v1 shot batch must read as stale under v2"
+    );
+    state.clear_analysis(kind).expect("clear stale v1 batch");
+
+    let current = kind.analyzer_version();
     let record = MomentRecord::new(
         content_key,
         TimeSpan::new(1.0, 1.0).expect("span"),
         kind.moment_kind(),
         MomentConfidence::CERTAIN,
         kind.analyzer_identity(),
-        old,
+        current,
         None,
     );
     let batch = MomentReplacementBatch::new(
-        aria_analysis::moments::MomentBatchKey::new(content_key, kind.analyzer_identity(), old),
+        aria_analysis::moments::MomentBatchKey::new(content_key, kind.analyzer_identity(), current),
         vec![record.clone()],
     )
     .expect("batch");
     index.replace_batch(&batch).expect("write");
-
     // Which detectors hold results is recorded by the refresh, not asked of the
     // database while a button draws, so the batch is invisible until then.
     assert!(

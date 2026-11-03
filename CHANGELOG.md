@@ -758,6 +758,9 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- Shot detection samples 30 frames per second and finds the cuts of fast-cut footage on their frames, including dark and partial-frame cuts, instead of finding none.
+- Shot detection no longer reports fast motion, the start or stop of a camera move, exposure fades, flashes, or picture changes lasting five frames or fewer as cuts.
+- `aria analyze --shots` alone decodes no audio, so it runs on a video file with no audio track.
 - `aria-desktop` started with no display server that accepts the connection, or with a window that does not open, prints the reason, including the `DISPLAY` or `WAYLAND_DISPLAY` value it tried, and the fix to standard error and exits with status 1, instead of running without a window or panicking.
 - A video side with more tracks than it holds opens with V1 on the A/V divider instead of the top track at the side's top, and a wheel up over it shows the tracks above V1.
 - A lane side's scroll kept from before a track was removed or shortened no longer lifts its tracks off the A/V divider, and the first wheel step moves them.

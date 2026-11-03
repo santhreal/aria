@@ -141,18 +141,21 @@ aria analyze <media> [--beats] [--silence] [--loudness] [--shots] [--limit N]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--beats` | on when no audio detector flag is given | Run the beat detector on mono `16000` Hz audio |
-| `--silence` | on when no audio detector flag is given | Run the silence detector on mono `16000` Hz audio |
-| `--loudness` | on when no audio detector flag is given | Compute the loudness contour on mono `16000` Hz audio |
-| `--shots` | off | Sample video frames at `2` fps up to `30` minutes and detect shot boundaries |
+| `--beats` | on when no detector flag is given | Run the beat detector on mono `16000` Hz audio |
+| `--silence` | on when no detector flag is given | Run the silence detector on mono `16000` Hz audio |
+| `--loudness` | on when no detector flag is given | Compute the loudness contour on mono `16000` Hz audio |
+| `--shots` | off | Sample video frames at `30` fps up to `30` minutes and detect shot boundaries |
 | `--limit <N>` | `40` | Maximum rows printed per detector before eliding the remainder |
 
 Run detectors over a media file and print the results on stdout without
-modifying any project file. With no audio detector flag (`--beats`, `--silence`,
-`--loudness`), all three audio detectors run over one shared mono `16000` Hz
-decode. `--shots` samples video frames at `2` fps up to `30` minutes (`1800`
-seconds). `--limit` caps the printed rows per detector (`40` by default) and
-prints the count of remaining rows.
+modifying any project file. With no detector flag, all three audio detectors run
+over one shared mono `16000` Hz decode; a detector flag runs only the named
+detectors, so `--shots` alone decodes no audio. `--shots` samples video frames
+at `30` fps up to `30` minutes (`1800` seconds) and reports a cut where a frame
+change stands out from the changes before it and the changes after it, and
+lasts more than five frames.
+`--limit` caps the printed rows per detector (`40` by default) and prints the
+count of remaining rows.
 
 ```
 aria analyze interview.wav --silence

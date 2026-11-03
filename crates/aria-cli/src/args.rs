@@ -647,7 +647,12 @@ mod tests {
             "`aria inspect` lane flags drifted"
         );
 
-        let analyze_sec = doc_section(COMMAND_LINE_DOC, "analyze");
+        // Prose reflows; the facts it states do not. Words are compared with
+        // every run of whitespace collapsed, so a rewrap cannot fail the check.
+        let analyze_sec = doc_section(COMMAND_LINE_DOC, "analyze")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(
             analyze_sec.contains(&format!("`{}`", crate::analyze::DEFAULT_LIMIT)),
             "`analyze` section must document DEFAULT_LIMIT"
@@ -655,7 +660,7 @@ mod tests {
         assert!(
             analyze_sec.contains(&format!("`{}` fps", aria_detect::SHOT_SAMPLE_FPS))
                 && analyze_sec.contains(&format!(
-                    "`{}` minutes (`{}`\nseconds)",
+                    "`{}` minutes (`{}` seconds)",
                     (aria_detect::MAX_SHOT_SECONDS as u64) / 60,
                     aria_detect::MAX_SHOT_SECONDS as u64
                 ))

@@ -76,6 +76,16 @@ pub(super) fn run_analysis(
     index
         .replace_batch(&batch)
         .map_err(|err| format!("writing the moments index: {err}"))?;
+    for raw_version in 1..request.kind.analyzer_version().get() {
+        if let Ok(version) = AnalyzerVersion::new(raw_version) {
+            let stale_key = MomentBatchKey::new(
+                request.content_key,
+                request.kind.analyzer_identity(),
+                version,
+            );
+            let _ = index.delete_batch(&stale_key);
+        }
+    }
     context.set_progress(1.0, "stored");
     Ok(AnalysisReport {
         count,

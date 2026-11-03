@@ -5,7 +5,10 @@
 The Project panel's **Analysis** tab runs three detectors on the selected clip and keeps
 their results in a moments index under `analysis/` in the data directory.
 
-- **Shots** samples the video at 2 frames per second and finds the cuts.
+- **Shots** samples the video at 30 frames per second and finds the cuts. A cut
+  is a frame change that stands out from the changes before it and the changes
+  after it, and lasts more than five frames, so a whip pan, a camera move that
+  starts or stops, a camera flash, or a one-frame glitch is not a cut.
 - **Silence** finds the spans quieter than −50 dBFS.
 - **Beats** finds the beat times in the audio.
 

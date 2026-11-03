@@ -21,7 +21,7 @@ use aria_core::{FrameData, PixelFormat, RationalTime, VideoFrame};
 /// Matches `ShotDetectionConfig`'s own sampling grid: a larger buffer would be
 /// subsampled again by the detector, and a smaller one would throw away detail it
 /// would have used.
-pub const SAMPLE_EDGE: usize = 256;
+pub const SAMPLE_EDGE: usize = 64;
 
 /// Longest video one shot-detection run samples, in seconds.
 ///
@@ -31,9 +31,11 @@ pub const MAX_SHOT_SECONDS: f64 = 60.0 * 30.0;
 
 /// Frames per second sampled for shot detection.
 ///
-/// A cut is a whole-frame change, so it survives coarse sampling; two frames
-/// per second finds cuts in edited footage without decoding every frame.
-pub const SHOT_SAMPLE_FPS: f64 = 2.0;
+/// Thirty frames per second steps through 24, 25, and 30 fps sources frame by
+/// frame through the decoder's rolling window, without keyframe seeks, so a
+/// boundary lands on the frame where the cut is and the detector's neighborhood
+/// spans count frames of the source.
+pub const SHOT_SAMPLE_FPS: f64 = 30.0;
 
 /// Detect shot boundaries by sampling `path` at `fps`, up to `max_seconds`.
 ///
@@ -85,7 +87,7 @@ fn detect_shots_from_source(
             break;
         }
         let target = RationalTime::new(
-            (target_seconds * f64::from(time_base.num) / f64::from(time_base.den)) as i64,
+            (target_seconds * f64::from(time_base.num) / f64::from(time_base.den)).round() as i64,
             time_base,
         );
         let Some(frame) = frame_at(target)? else {
@@ -106,13 +108,13 @@ fn detect_shots_from_source(
         let (width, height) = convert_into(&frame, &mut buffer)?;
         let view = Rgba8Frame::new(&buffer, width, height, width * 4, seconds.max(0.0))
             .map_err(|err| format!("sampled frame: {err}"))?;
-        if let Some(boundary) = detector
-            .push_frame(view)
-            .map_err(|err| format!("shot detection: {err}"))?
-        {
-            boundaries.push(boundary);
-        }
+        boundaries.extend(
+            detector
+                .push_frame(view)
+                .map_err(|err| format!("shot detection: {err}"))?,
+        );
     }
+    boundaries.extend(detector.finish());
     Ok(boundaries)
 }
 
@@ -471,5 +473,52 @@ mod tests {
 
         assert!(boundaries.is_empty());
         assert_eq!(calls.get(), pts.len() + 1);
+    }
+
+    /// End-to-end verification across two distinct codecs and containers
+    /// (H.264 in `.mp4` and VP9 in `.webm`): `detect_shots_sampled` with the
+    /// production defaults finds every cut within one frame, including a cut three
+    /// frames before the end that only the detector's `finish` resolves.
+    ///
+    /// Both fixtures are 160×90 at 30 fps with no audio: red for 1.0 s, blue for
+    /// 0.2 s, green for 0.8 s, yellow for 0.1 s. Written by ffmpeg from the lavfi
+    /// graph `color=c=red:s=160x90:r=30:d=1.0[s0];…;[s0][s1][s2][s3]concat=n=4:v=1:a=0`
+    /// with `libx264 -g 30` and `libvpx-vp9 -g 30 -b:v 400k`.
+    #[test]
+    fn detect_shots_sampled_across_codecs_and_containers() {
+        let fixtures =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        let expected_cuts = [1.0_f64, 1.2, 2.0];
+
+        for filename in [
+            "fixture-160x90-30fps-cuts.mp4",
+            "fixture-160x90-30fps-cuts.webm",
+        ] {
+            let boundaries = detect_shots_sampled(
+                &fixtures.join(filename),
+                SHOT_SAMPLE_FPS,
+                MAX_SHOT_SECONDS,
+                ShotDetectionConfig::default(),
+                || false,
+            )
+            .unwrap_or_else(|err| panic!("{filename}: detect_shots_sampled failed: {err}"));
+
+            assert_eq!(
+                boundaries.len(),
+                expected_cuts.len(),
+                "{filename}: expected {} cuts, got {:?}",
+                expected_cuts.len(),
+                boundaries
+            );
+            for (boundary, &expected_sec) in boundaries.iter().zip(&expected_cuts) {
+                let frame_err = ((boundary.timestamp_seconds() - expected_sec) * 30.0).abs();
+                assert!(
+                    frame_err <= 1.0,
+                    "{filename}: cut at {:.4}s drifted more than 1 frame from {:.4}s",
+                    boundary.timestamp_seconds(),
+                    expected_sec
+                );
+            }
+        }
     }
 }

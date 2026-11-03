@@ -7,8 +7,8 @@ use aria_analysis::moments::{
 };
 use aria_analysis::{
     BeatConfig, BeatEvent, LoudnessConfig, Rgba8Frame, ShotBoundaryKind, ShotDetectionConfig,
-    ShotScoreWeights, SilenceConfig, SilenceSpan, TimeSpan, detect_beats, detect_shots,
-    detect_silence,
+    ShotNeighborhood, ShotScoreWeights, SilenceConfig, SilenceSpan, TimeSpan, detect_beats,
+    detect_shots, detect_silence,
 };
 
 fn content_key(marker: u8) -> MediaContentKey {
@@ -150,7 +150,8 @@ fn detected_shots_convert_with_exact_point_semantics_and_payloads() {
             .expect("dimension-changed frame is valid"),
     ];
     let config = ShotDetectionConfig::new(8, 8, 16, ShotScoreWeights::default(), 0.30, 0.0)
-        .expect("test shot config is valid");
+        .expect("test shot config is valid")
+        .with_neighborhood(ShotNeighborhood::OFF);
     let boundaries = detect_shots(&frames, config).expect("synthetic frames are ordered");
     assert_eq!(boundaries.len(), 2);
     assert_eq!(boundaries[0].kind(), ShotBoundaryKind::VisualChange);

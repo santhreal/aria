@@ -53,9 +53,10 @@ pub use scopes::{
     chroma_codes709, sample_stride as scope_sample_stride, vectorscope_cell,
 };
 pub use shot_detection::{
-    MAX_SHOT_HISTOGRAM_BINS, MAX_SHOT_SAMPLE_HEIGHT, MAX_SHOT_SAMPLE_WIDTH, Rgba8Frame,
-    Rgba8FrameError, ShotBoundary, ShotBoundaryKind, ShotDetectionConfig, ShotDetectionError,
-    ShotDetector, ShotScoreWeights, detect_shots,
+    MAX_SHOT_CONTEXT_FRAMES, MAX_SHOT_HISTOGRAM_BINS, MAX_SHOT_SAMPLE_HEIGHT,
+    MAX_SHOT_SAMPLE_WIDTH, Rgba8Frame, Rgba8FrameError, ShotBoundary, ShotBoundaryKind,
+    ShotDetectionConfig, ShotDetectionError, ShotDetector, ShotNeighborhood, ShotScoreWeights,
+    detect_shots,
 };
 
 /// A failure to construct a validated analysis configuration.

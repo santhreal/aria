@@ -571,9 +571,18 @@ impl AppState {
     /// there was one.
     fn delete_analysis_batch(&self, kind: AnalysisKind) -> Result<bool, String> {
         let request = self.analysis_precheck(kind)?;
-        self.analysis_index()?
-            .delete_batch(&kind.batch_key(request.content_key))
-            .map_err(|err| format!("clearing the moments index: {err}"))
+        let index = self.analysis_index()?;
+        let mut deleted = false;
+        for raw_version in 1..=kind.analyzer_version().get() {
+            if let Ok(version) = AnalyzerVersion::new(raw_version) {
+                let key =
+                    MomentBatchKey::new(request.content_key, kind.analyzer_identity(), version);
+                deleted |= index
+                    .delete_batch(&key)
+                    .map_err(|err| format!("clearing the moments index: {err}"))?;
+            }
+        }
+        Ok(deleted)
     }
 
     /// Whether the selected media already has this detector's current results.

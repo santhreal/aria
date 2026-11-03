@@ -62,7 +62,11 @@ impl AnalysisKind {
     /// Bump this when a detector's configuration or output meaning changes, so every
     /// stored batch from the previous behaviour reads as stale instead of current.
     pub fn analyzer_version(self) -> AnalyzerVersion {
-        AnalyzerVersion::new(1).expect("analyzer version constants are non-zero")
+        let version = match self {
+            Self::Shots => 2,
+            Self::Silence | Self::Beats => 1,
+        };
+        AnalyzerVersion::new(version).expect("analyzer version constants are non-zero")
     }
 
     /// The moment kind this detector writes.

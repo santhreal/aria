@@ -3,6 +3,7 @@
 mod detector;
 mod histogram;
 mod metrics;
+mod neighborhood;
 
 pub use detector::{
     MAX_SHOT_HISTOGRAM_BINS, MAX_SHOT_SAMPLE_HEIGHT, MAX_SHOT_SAMPLE_WIDTH, Rgba8Frame,
@@ -12,6 +13,7 @@ pub use detector::{
 #[cfg(test)]
 pub(crate) use histogram::{FrameFeatures, histogram_earth_mover_distance, sample_coordinate};
 pub use metrics::ShotScoreWeights;
+pub use neighborhood::{MAX_SHOT_CONTEXT_FRAMES, ShotNeighborhood};
 
 #[cfg(test)]
 mod tests {

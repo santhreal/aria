@@ -25,9 +25,11 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     }
     let limit = args.number("limit")?.map_or(DEFAULT_LIMIT, |n| n as usize);
     let shots = args.present("shots");
-    // With no audio detector named, all three run: they share one decode, so
-    // asking for every one costs what asking for one costs.
-    let named = args.present("beats") || args.present("silence") || args.present("loudness");
+    // With no detector flag named, all three audio detectors run: they share
+    // one decode, so asking for every one costs what asking for one costs.
+    // Naming `--shots` (or any audio flag) runs only the named detectors.
+    let named =
+        args.present("beats") || args.present("silence") || args.present("loudness") || shots;
     let beats = args.present("beats") || !named;
     let silence = args.present("silence") || !named;
     let loudness = args.present("loudness") || !named;
@@ -139,5 +141,26 @@ fn run_audio(
 fn elided(total: usize, limit: usize) {
     if total > limit {
         println!("  … {} more (raise --limit)", total - limit);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Passing `--shots` alone on a video-only file must run only shot detection
+    /// and succeed without attempting an audio decode on a stream with no audio.
+    /// The fixture is H.264 with no audio stream.
+    #[test]
+    fn shots_flag_alone_succeeds_on_video_without_audio_stream() {
+        let video = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-160x90-30fps-cuts.mp4");
+        let raw = [
+            "analyze".to_owned(),
+            video.to_string_lossy().into_owned(),
+            "--shots".to_owned(),
+        ];
+        let parsed = Args::parse(&raw).expect("valid args");
+        run(&parsed).expect("--shots on video-only file must succeed without audio decode");
     }
 }
