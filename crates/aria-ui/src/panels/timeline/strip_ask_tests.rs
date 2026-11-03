@@ -8,17 +8,19 @@
 //! queued and started no next cell: a strip filled one cell per frame, and a
 //! cell drawn with no picture snapped only when it was the first one a draw
 //! found. After a draw, the store holds every cell any group drew without its
-//! exact frame, and every cell any group drew with no picture. Not covered: a
-//! strip in the audio group, which draws none.
+//! exact frame, and every cell any group drew with no picture, each on the
+//! lane of the clip it was drawn on. Not covered: a strip in the audio group,
+//! which draws none.
 
 use super::lanes::built;
+use crate::filmstrips::CellKey;
 use crate::test_support::drawn_shell;
 
-/// `ticks` in order, each once.
-fn once_each(mut ticks: Vec<i64>) -> Vec<i64> {
-    ticks.sort_unstable();
-    ticks.dedup();
-    ticks
+/// `keys` in order, each once.
+fn once_each(mut keys: Vec<CellKey>) -> Vec<CellKey> {
+    keys.sort_unstable();
+    keys.dedup();
+    keys
 }
 
 #[gpui::test]
@@ -32,15 +34,24 @@ fn a_draw_asks_for_every_cell_its_lane_groups_drew_without_its_frame(
     built::take_owed();
     // The update draws the window once it has settled and lands no cell: a
     // landing runs on the test's thread at its next drain.
-    visual.update(|window, app| {
-        state.update(app, |state, cx| {
+    let lane = visual.update(|window, app| {
+        let lane = state.update(app, |state, cx| {
             let media = state.import_media(still).expect("import the still");
             state
                 .drop_media_on_timeline(media, None, 0)
                 .expect("place the still");
             cx.notify();
+            state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .find(|track| !track.clips.is_empty())
+                .expect("the still is on a lane")
+                .id
         });
         window.refresh();
+        lane
     });
     let (missing, blank) = built::take_owed();
     let (missing, blank) = (once_each(missing), once_each(blank));
@@ -52,6 +63,10 @@ fn a_draw_asks_for_every_cell_its_lane_groups_drew_without_its_frame(
     assert_eq!(
         blank, missing,
         "the first draw of a strip drew a cell with a picture"
+    );
+    assert!(
+        missing.iter().all(|key| key.lane == lane),
+        "the draw asked for a cell of another lane than the still's, {lane}"
     );
     let (queued, snapping) = visual.read(|app| {
         let (queued, snapping) = state.read(app).filmstrips.asked();

@@ -6,16 +6,20 @@
 //! the refill took. Each now draws the picture the strip showed at its left
 //! edge before the zoom, and asks for its own. The other half is the bound:
 //! a stand-in never comes from outside its clip, so no frame is drawn across
-//! the clip's cut, and never from farther than [`stand_in_reach`]. Every
-//! draw checks what it asks for: each cell without its exact frame, a
-//! snapped one included, and, as empty, each cell it drew no picture in. Not
-//! covered: the paint, which the test platform does not record.
+//! the clip's cut, never from farther than [`stand_in_reach`], and never from
+//! another lane, whose cells show that lane's pictures. Every draw checks
+//! what it asks for: each cell without its exact frame, a snapped one
+//! included, and, as empty, each cell it drew no picture in, all on the lane
+//! it drew. Not covered: the paint, which the test platform does not record.
 
 use std::sync::Arc;
 
 use super::{FilmCell, cell_pictures, stand_in_reach, strip_cells};
-use crate::filmstrips::{Cell, FilmstripStore, test_cell};
+use crate::filmstrips::{Cell, CellKey, FilmstripStore, test_cell, test_key};
 use crate::timeline_display::{StripCell, Thumbnails};
+
+/// The lane [`holding`] holds its cells on.
+const LANE: u64 = test_key(0).lane;
 
 /// The cells a continuous strip shows of `clip` at `px_per_tick`, the whole
 /// clip on screen.
@@ -32,10 +36,11 @@ fn strip(clip: (i64, i64), px_per_tick: f32) -> Vec<StripCell> {
     .collect()
 }
 
-/// What `clip` draws at `px_per_tick` from `store`: each drawn cell's tick
-/// and picture, and the ticks it asks for.
+/// What `clip` on `lane` draws at `px_per_tick` from `store`: each drawn
+/// cell's tick and picture, and the ticks it asks for.
 fn draw(
     store: &FilmstripStore,
+    lane: u64,
     clip: (i64, i64),
     px_per_tick: f32,
 ) -> (Vec<(i64, Arc<gpui::RenderImage>)>, Vec<i64>) {
@@ -46,12 +51,19 @@ fn draw(
     let (mut missing, mut blank) = (Vec::new(), Vec::new());
     let pictures = cell_pictures(
         store,
+        lane,
         cells.into_iter(),
         clip,
         stand_in_reach(px_per_tick),
         &mut missing,
         &mut blank,
     );
+    assert!(
+        missing.iter().chain(&blank).all(|key| key.lane == lane),
+        "the draw on lane {lane} asked for a cell of another lane"
+    );
+    let ticks = |keys: Vec<CellKey>| -> Vec<i64> { keys.iter().map(|key| key.tick).collect() };
+    let (missing, blank) = (ticks(missing), ticks(blank));
     let drawn: Vec<(i64, Arc<gpui::RenderImage>)> = pictures
         .into_iter()
         .map(|picture: FilmCell| {
@@ -65,7 +77,11 @@ fn draw(
     let inexact: Vec<i64> = heads
         .iter()
         .map(|(_, tick)| *tick)
-        .filter(|tick| store.get(*tick).is_none_or(|cell| cell.snapped))
+        .filter(|&tick| {
+            store
+                .get(CellKey::new(lane, tick))
+                .is_none_or(|cell| cell.snapped)
+        })
         .collect();
     assert_eq!(
         missing, inexact,
@@ -83,11 +99,11 @@ fn draw(
     (drawn, missing)
 }
 
-/// A store holding a distinct picture at each of `ticks`.
+/// A store holding a distinct picture at each of `ticks` on [`LANE`].
 fn holding(ticks: impl IntoIterator<Item = i64>) -> FilmstripStore {
     let mut store = FilmstripStore::default();
     for tick in ticks {
-        store.hold(tick, test_cell());
+        store.hold(test_key(tick), test_cell());
     }
     store
 }
@@ -99,7 +115,7 @@ fn a_zoom_in_draws_each_new_cell_with_the_picture_shown_there_before() {
         let before = 1.0 / zoom;
         let shown = strip(clip, before);
         let store = holding(shown.iter().map(|cell| cell.tick));
-        let (drawn, missing) = draw(&store, clip, 1.0);
+        let (drawn, missing) = draw(&store, LANE, clip, 1.0);
         let after = strip(clip, 1.0);
         assert!(
             !missing.is_empty(),
@@ -119,7 +135,7 @@ fn a_zoom_in_draws_each_new_cell_with_the_picture_shown_there_before() {
                 .rev()
                 .find(|cell| cell.from <= x)
                 .expect("a cell at the clip's head");
-            let was = &store.get(was.tick).expect("held").image;
+            let was = &store.get(test_key(was.tick)).expect("held").image;
             assert!(
                 Arc::ptr_eq(&picture, was),
                 "{zoom}x: the cell at tick {tick} drew a picture the strip did not show there"
@@ -133,7 +149,7 @@ fn a_stand_in_never_comes_from_across_the_clips_cut() {
     let (a, b) = ((0, 240), (240, 480));
     // Only the clip before the cut is rendered.
     let store = holding(strip(a, 1.0).into_iter().map(|cell| cell.tick));
-    let (drawn, missing) = draw(&store, b, 1.0);
+    let (drawn, missing) = draw(&store, LANE, b, 1.0);
     assert!(
         drawn.is_empty(),
         "the clip after the cut drew a frame of the clip before it: {:?}",
@@ -142,7 +158,7 @@ fn a_stand_in_never_comes_from_across_the_clips_cut() {
     assert_eq!(missing.len(), strip(b, 1.0).len());
     // Only the clip after the cut is rendered.
     let store = holding(strip(b, 1.0).into_iter().map(|cell| cell.tick));
-    let (drawn, _) = draw(&store, a, 1.0);
+    let (drawn, _) = draw(&store, LANE, a, 1.0);
     assert!(
         drawn.is_empty(),
         "the clip before the cut drew a frame of the clip after it: {:?}",
@@ -156,7 +172,7 @@ fn a_stand_in_comes_from_no_farther_than_the_reach() {
     let reach = stand_in_reach(1.0);
     assert!(reach > 0 && reach < clip.1);
     let store = holding([0]);
-    let (drawn, _) = draw(&store, clip, 1.0);
+    let (drawn, _) = draw(&store, LANE, clip, 1.0);
     let near: Vec<i64> = strip(clip, 1.0)
         .iter()
         .map(|cell| cell.tick)
@@ -169,7 +185,7 @@ fn a_stand_in_comes_from_no_farther_than_the_reach() {
     );
     // A clip whose only rendered cell is past its head draws that one there.
     let store = holding([32]);
-    let (drawn, _) = draw(&store, clip, 1.0);
+    let (drawn, _) = draw(&store, LANE, clip, 1.0);
     assert_eq!(drawn.first().map(|(tick, _)| *tick), Some(0));
 }
 
@@ -188,19 +204,42 @@ fn a_snapped_cell_draws_itself_and_is_asked_for_again() {
             snapped: snapped.contains(&cell.tick),
             ..test_cell()
         };
-        store.hold(cell.tick, held);
+        store.hold(test_key(cell.tick), held);
     }
-    let (drawn, missing) = draw(&store, clip, 1.0);
+    let (drawn, missing) = draw(&store, LANE, clip, 1.0);
     assert_eq!(
         missing, snapped,
         "the draw did not ask for the snapped cells"
     );
     assert_eq!(drawn.len(), shown.len(), "a cell drew nothing");
     for (tick, picture) in drawn {
-        let own = &store.get(tick).expect("held").image;
+        let own = &store.get(test_key(tick)).expect("held").image;
         assert!(
             Arc::ptr_eq(&picture, own),
             "the cell at tick {tick} drew another cell's picture"
         );
     }
+}
+
+/// WHY: a cell shows the pictures of the lane it was rendered on. Cells were
+/// keyed by tick alone, so a clip drew the cells another lane rendered at its
+/// ticks, its own or as stand-ins, and two lanes drew one strip. A clip on a
+/// lane that holds no cell draws nothing, whatever another lane holds at the
+/// same ticks, and asks for every cell on its own lane.
+#[test]
+fn a_clip_never_draws_the_cells_of_another_lane() {
+    let clip = (0, 480);
+    let store = holding(strip(clip, 1.0).iter().map(|cell| cell.tick));
+    for other in [LANE - 1, LANE + 1] {
+        let (drawn, missing) = draw(&store, other, clip, 1.0);
+        assert!(
+            drawn.is_empty(),
+            "lane {other} drew the cells lane {LANE} holds at {:?}",
+            drawn.iter().map(|(tick, _)| tick).collect::<Vec<_>>()
+        );
+        assert_eq!(missing.len(), strip(clip, 1.0).len());
+    }
+    let (drawn, missing) = draw(&store, LANE, clip, 1.0);
+    assert_eq!(drawn.len(), strip(clip, 1.0).len(), "the lane drew its own");
+    assert!(missing.is_empty());
 }

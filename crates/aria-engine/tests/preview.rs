@@ -565,7 +565,7 @@ fn a_cell_is_marked_snapped_only_when_it_shows_a_frame_before_its_time() {
         (5, SeekPolicy::NearestSync, true),
     ] {
         let frame = cells
-            .render_fit(&source, rt(tick), 160, 90, policy)
+            .render_fit(&source, track, rt(tick), 160, 90, policy)
             .unwrap_or_else(|error| panic!("the cell at {tick} under {policy:?}: {error}"));
         assert_eq!(
             frame.snapped, snapped,
@@ -575,5 +575,82 @@ fn a_cell_is_marked_snapped_only_when_it_shows_a_frame_before_its_time() {
             frame.image.pixels.iter().any(|&byte| byte != 0),
             "the cell at {tick} drew nothing"
         );
+    }
+}
+
+/// WHY: a filmstrip cell is drawn on one lane's clip, so it shows that lane.
+/// Cells resolved the whole sequence, so a title on the lane above a clip
+/// drew in the clip's strip, and two video lanes drew identical strips.
+/// Every visual lane of the project, enumerated from it, renders its own
+/// picture over the background and nothing of the others: a lane hidden, a
+/// lane shadowed by another's solo, and a lane with no clip included. Not
+/// covered: the lanes of a nested sequence, which a cell of the lane holding
+/// it still composites.
+#[test]
+fn a_cell_shows_its_own_lane_and_no_other() {
+    use aria_engine::CellRenderer;
+    use aria_render::SeekPolicy;
+
+    const BACKGROUND: [u8; 4] = [0, 0, 0, 255];
+    let (_dir, mut engine) = temp_engine();
+    let mut lanes = Vec::new();
+    for (n, rgba) in [
+        [200, 30, 10, 255],
+        [10, 180, 40, 255],
+        [20, 40, 220, 255],
+        [230, 210, 20, 255],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let lane = common::add_track(&mut engine, TrackKind::Sticker, &format!("S{n}"));
+        common::add_generated(&mut engine, lane, Generator::SolidColor { rgba }, tr(0, 48));
+        lanes.push(lane);
+    }
+    lanes.push(common::add_track(&mut engine, TrackKind::Sticker, "Empty"));
+    for edit in [
+        EditCommand::SetTrackEnabled {
+            track: lanes[1],
+            enabled: false,
+        },
+        EditCommand::SetTrackSolo {
+            track: lanes[2],
+            solo: true,
+        },
+    ] {
+        engine.apply(Command::Edit(edit)).expect("the lane edit");
+    }
+    let source = engine.cell_source();
+    let mut cells = CellRenderer::default();
+    let project = engine.project();
+    let mut drawn = Vec::new();
+    for track in project
+        .timeline()
+        .tracks_ordered()
+        .filter(|track| track.kind.is_visual())
+    {
+        let own = track
+            .clips()
+            .find_map(|clip| match &clip.content {
+                ClipSource::Generated(Generator::SolidColor { rgba }) => Some(*rgba),
+                _ => None,
+            })
+            .unwrap_or(BACKGROUND);
+        let frame = cells
+            .render_fit(&source, track.id, rt(5), 160, 90, SeekPolicy::Exact)
+            .unwrap_or_else(|error| panic!("the cell of {}: {error}", track.name));
+        let pixels = frame.image.pixels.as_chunks::<4>().0;
+        let foreign = pixels.iter().filter(|&&pixel| pixel != own).count();
+        assert_eq!(
+            foreign,
+            0,
+            "the cell of {} drew {foreign} of {} pixels in another color than {own:?}",
+            track.name,
+            pixels.len()
+        );
+        drawn.push(track.id);
+    }
+    for lane in &lanes {
+        assert!(drawn.contains(lane), "the lane {lane} drew no cell");
     }
 }

@@ -19,7 +19,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, ClipSource, ParamValue};
 use aria_plugin::{Origin, Reverted};
 
-use super::{FilmstripStore, JOURNAL, test_cell as cell};
+use super::{FilmstripStore, JOURNAL, test_cell as cell, test_key as key};
 use crate::app::AppState;
 use crate::app::clip_line::LinePress;
 use crate::app::grade_controls::WheelControl;
@@ -80,16 +80,18 @@ fn pictures() -> Pictures {
 /// timeline's draw does.
 fn land(state: &mut AppState, tick: i64) {
     let revision = state.revision;
-    state.filmstrips.start(tick, aria_engine::SeekPolicy::Exact);
-    state.filmstrips.finish(revision, tick, Some(cell()));
+    state
+        .filmstrips
+        .start(key(tick), aria_engine::SeekPolicy::Exact);
+    state.filmstrips.finish(revision, key(tick), Some(cell()));
     assert!(
-        state.filmstrips.get(tick).is_some(),
+        state.filmstrips.get(key(tick)).is_some(),
         "a cell rendered at the projected revision {revision} was rejected"
     );
 }
 
 fn has(state: &AppState, tick: i64) -> bool {
-    state.filmstrips.get(tick).is_some()
+    state.filmstrips.get(key(tick)).is_some()
 }
 
 fn opacity(clip: ClipId, value: f32) -> Command {
@@ -279,8 +281,8 @@ fn store_with(ticks: &[i64]) -> FilmstripStore {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
     for &tick in ticks {
-        store.start(tick, aria_engine::SeekPolicy::Exact);
-        store.finish(4, tick, Some(cell()));
+        store.start(key(tick), aria_engine::SeekPolicy::Exact);
+        store.finish(4, key(tick), Some(cell()));
     }
     store
 }
@@ -289,7 +291,7 @@ fn kept(store: &FilmstripStore, ticks: &[i64]) -> Vec<i64> {
     ticks
         .iter()
         .copied()
-        .filter(|&tick| store.get(tick).is_some())
+        .filter(|&tick| store.get(key(tick)).is_some())
         .collect()
 }
 
@@ -299,7 +301,7 @@ fn an_edit_from_a_revision_the_store_skipped_drops_every_cell() {
     let mut store = store_with(&ticks);
     store.advance(5, 6, vec![(16, 32)]);
     assert_eq!(kept(&store, &ticks), [] as [i64; 0]);
-    assert!(store.wants(8), "a dropped cell is rendered again");
+    assert!(store.wants(key(8)), "a dropped cell is rendered again");
 
     let mut store = store_with(&ticks);
     store.advance(4, 5, vec![(16, 32)]);
@@ -315,8 +317,8 @@ fn a_savepoint_and_its_group_revert_what_each_one_spanned() {
     // A savepoint opens at 5, edits around 40, and rolls back to 7.
     store.advance(5, 6, vec![(32, 48)]);
     for tick in [24, 40] {
-        store.start(tick, aria_engine::SeekPolicy::Exact);
-        store.finish(6, tick, Some(cell()));
+        store.start(key(tick), aria_engine::SeekPolicy::Exact);
+        store.finish(6, key(tick), Some(cell()));
     }
     store.revert(Reverted {
         opened: 5,
@@ -332,10 +334,10 @@ fn a_savepoint_and_its_group_revert_what_each_one_spanned() {
         left: 9,
     });
     assert_eq!(kept(&store, &ticks), [8, 72], "the group");
-    store.start(40, aria_engine::SeekPolicy::Exact);
-    store.finish(9, 40, Some(cell()));
+    store.start(key(40), aria_engine::SeekPolicy::Exact);
+    store.finish(9, key(40), Some(cell()));
     assert!(
-        store.get(40).is_some(),
+        store.get(key(40)).is_some(),
         "a cell rendered after the rollback"
     );
 }
@@ -349,8 +351,8 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
     store.advance(4, 5, vec![(16, 32)]);
     store.sync_revision(6);
     for &tick in &ticks {
-        store.start(tick, aria_engine::SeekPolicy::Exact);
-        store.finish(6, tick, Some(cell()));
+        store.start(key(tick), aria_engine::SeekPolicy::Exact);
+        store.finish(6, key(tick), Some(cell()));
     }
     store.advance(6, 7, vec![(32, 48)]);
     store.revert(Reverted {
@@ -373,16 +375,16 @@ fn a_rollback_the_journal_does_not_link_drops_every_cell() {
     // A rollback that reverted nothing keeps everything, the render in
     // flight included.
     let mut store = store_with(&ticks);
-    store.start(56, aria_engine::SeekPolicy::Exact);
+    store.start(key(56), aria_engine::SeekPolicy::Exact);
     store.revert(Reverted {
         opened: 4,
         found: 4,
         left: 4,
     });
     assert_eq!(kept(&store, &ticks), ticks, "an empty rollback");
-    store.finish(4, 56, Some(cell()));
+    store.finish(4, key(56), Some(cell()));
     assert!(
-        store.get(56).is_some(),
+        store.get(key(56)).is_some(),
         "an empty rollback abandoned the render in flight"
     );
 }
@@ -404,7 +406,7 @@ fn a_rollback_reaching_past_the_journal_drops_every_cell() {
             left: 5 + edits,
         });
         assert_eq!(
-            store.get(far).is_some(),
+            store.get(key(far)).is_some(),
             survives,
             "{edits} edits: a cell outside every edit"
         );

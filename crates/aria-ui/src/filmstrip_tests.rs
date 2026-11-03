@@ -19,7 +19,23 @@ use std::time::{Duration, Instant};
 use aria_models::RationalTime;
 use gpui::AppContext as _;
 
-use super::{CELL_H, CELL_MAX_W, FilmstripStore, ask, cell_spans, cell_step, test_cell as cell};
+use super::{
+    CELL_H, CELL_MAX_W, CellKey, FilmstripStore, ask, cell_spans, cell_step, test_cell as cell,
+    test_key as at,
+};
+
+/// The lane of the first clip of `engine`'s project.
+fn clip_lane(engine: &parking_lot::Mutex<aria_engine::Engine>) -> u64 {
+    let engine = engine.lock();
+    engine
+        .project()
+        .timeline()
+        .tracks_ordered()
+        .find(|track| track.clips().next().is_some())
+        .expect("a lane with a clip")
+        .id
+        .raw()
+}
 
 /// Every tick a clip from `start` to `end` draws, as cell heads.
 fn heads(start: i64, end: i64, width: f32) -> Vec<i64> {
@@ -132,16 +148,16 @@ fn a_degenerate_span_asks_for_no_work() {
 fn an_edit_drops_every_cell_rendered_before_it() {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
-    store.start(24, aria_engine::SeekPolicy::Exact);
-    store.finish(4, 24, Some(cell()));
-    assert!(store.get(24).is_some());
+    store.start(at(24), aria_engine::SeekPolicy::Exact);
+    store.finish(4, at(24), Some(cell()));
+    assert!(store.get(at(24)).is_some());
 
     store.sync_revision(5);
     assert!(
-        store.get(24).is_none(),
+        store.get(at(24)).is_none(),
         "a frame from before the edit must not be shown after it"
     );
-    assert!(store.wants(24), "and it is worth rendering again");
+    assert!(store.wants(at(24)), "and it is worth rendering again");
 }
 
 #[test]
@@ -149,38 +165,47 @@ fn a_picture_edit_invalidates_only_cells_inside_its_tick_spans() {
     let mut store = FilmstripStore::default();
     store.sync_revision(4);
     for tick in [8, 24, 40] {
-        store.start(tick, aria_engine::SeekPolicy::Exact);
-        store.finish(4, tick, Some(cell()));
+        store.start(at(tick), aria_engine::SeekPolicy::Exact);
+        store.finish(4, at(tick), Some(cell()));
     }
 
     store.advance(4, 5, vec![(16, 32)]);
 
     assert!(
-        store.get(8).is_some(),
+        store.get(at(8)).is_some(),
         "a frame before the edit was discarded"
     );
-    assert!(store.get(24).is_none(), "the edited frame remained cached");
     assert!(
-        store.get(40).is_some(),
+        store.get(at(24)).is_none(),
+        "the edited frame remained cached"
+    );
+    assert!(
+        store.get(at(40)).is_some(),
         "a frame after the edit was discarded"
     );
-    assert!(store.wants(24), "the edited cell is not scheduled again");
+    assert!(
+        store.wants(at(24)),
+        "the edited cell is not scheduled again"
+    );
 }
 
 #[test]
 fn an_audio_only_edit_keeps_every_cell_but_rejects_old_in_flight_work() {
     let mut store = FilmstripStore::default();
     store.sync_revision(7);
-    store.start(8, aria_engine::SeekPolicy::Exact);
-    store.finish(7, 8, Some(cell()));
-    store.start(24, aria_engine::SeekPolicy::Exact);
+    store.start(at(8), aria_engine::SeekPolicy::Exact);
+    store.finish(7, at(8), Some(cell()));
+    store.start(at(24), aria_engine::SeekPolicy::Exact);
 
     store.advance(7, 8, Vec::new());
-    store.finish(7, 24, Some(cell()));
+    store.finish(7, at(24), Some(cell()));
 
-    assert!(store.get(8).is_some(), "an audio edit discarded a picture");
     assert!(
-        store.get(24).is_none(),
+        store.get(at(8)).is_some(),
+        "an audio edit discarded a picture"
+    );
+    assert!(
+        store.get(at(24)).is_none(),
         "a render started before the edit was accepted afterward"
     );
 }
@@ -189,11 +214,11 @@ fn an_audio_only_edit_keeps_every_cell_but_rejects_old_in_flight_work() {
 fn a_render_that_lands_late_against_an_old_revision_is_dropped() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
-    store.start(48, aria_engine::SeekPolicy::Exact);
+    store.start(at(48), aria_engine::SeekPolicy::Exact);
     store.sync_revision(2);
-    store.finish(1, 48, Some(cell()));
+    store.finish(1, at(48), Some(cell()));
     assert!(
-        store.get(48).is_none(),
+        store.get(at(48)).is_none(),
         "the frame describes state that is gone"
     );
 }
@@ -202,13 +227,13 @@ fn a_render_that_lands_late_against_an_old_revision_is_dropped() {
 fn a_tick_that_renders_nothing_is_not_retried() {
     let mut store = FilmstripStore::default();
     store.sync_revision(1);
-    store.start(96, aria_engine::SeekPolicy::Exact);
-    store.finish(1, 96, None);
+    store.start(at(96), aria_engine::SeekPolicy::Exact);
+    store.finish(1, at(96), None);
     assert!(
-        !store.wants(96),
+        !store.wants(at(96)),
         "a gap in the sequence must not be re-rendered every frame"
     );
-    assert!(store.get(96).is_none());
+    assert!(store.get(at(96)).is_none());
 }
 
 /// How long the lock holder below keeps the engine locked at most.
@@ -236,7 +261,7 @@ fn asking_for_cells_does_not_wait_on_the_engine_lock() {
         .recv_timeout(HELD)
         .expect("the holder took the engine lock");
     let started = Instant::now();
-    cx.update(|app| ask(&state, app, vec![0], Vec::new()));
+    cx.update(|app| ask(&state, app, vec![at(0)], Vec::new()));
     let waited = started.elapsed();
     drop(release_tx);
     holder.join().expect("the holder released the engine lock");
@@ -245,8 +270,8 @@ fn asking_for_cells_does_not_wait_on_the_engine_lock() {
         "the ask waited {waited:?} on the engine lock"
     );
     assert_eq!(
-        cx.update(|app| state.read(app).filmstrips.flight.map(|flight| flight.tick)),
-        Some(0),
+        cx.update(|app| state.read(app).filmstrips.flight.map(|flight| flight.key)),
+        Some(at(0)),
         "the ask did not start its tick"
     );
     // The cell task holds the state until its render lands; a task left
@@ -289,7 +314,7 @@ fn a_cell_renders_nothing_on_the_sessions_renderer() {
         let state = state.read(app);
         (state.engine().clone(), state.playhead.rate)
     });
-    let far = 48;
+    let far = CellKey::new(clip_lane(&engine), 48);
     engine
         .lock()
         .get_frame_fit(RationalTime::new(0, rate), 320, 180)
@@ -315,7 +340,7 @@ fn a_cell_renders_nothing_on_the_sessions_renderer() {
         .expect("the cell landed");
     let drawn = engine
         .lock()
-        .get_frame_fit(RationalTime::new(far, rate), CELL_MAX_W, CELL_H)
+        .get_frame_fit(RationalTime::new(far.tick, rate), CELL_MAX_W, CELL_H)
         .expect("the session's frame at the cell's tick");
     let drawn = crate::frame::rgba_to_render(&drawn).expect("a drawable frame");
     assert_eq!(landed.size(0), drawn.size(0), "the cell's size");
@@ -348,6 +373,7 @@ fn a_blank_cell_lands_its_sync_frame_then_its_own() {
         let state = state.read(app);
         (state.engine().clone(), state.playhead.rate)
     });
+    let lane = clip_lane(&engine);
     let session = |tick: i64| {
         let frame = engine
             .lock()
@@ -356,13 +382,22 @@ fn a_blank_cell_lands_its_sync_frame_then_its_own() {
         crate::frame::rgba_to_render(&frame).expect("a drawable frame")
     };
     let held = |tick: i64| {
-        cx.update(|app| state.read(app).filmstrips.get(tick).cloned())
-            .unwrap_or_else(|| panic!("no cell landed at {tick}"))
+        cx.update(|app| {
+            state
+                .read(app)
+                .filmstrips
+                .get(CellKey::new(lane, tick))
+                .cloned()
+        })
+        .unwrap_or_else(|| panic!("no cell landed at {tick}"))
     };
     // The fixture's sync frames are 12 frames apart. The cell between them
     // snaps first, on a renderer that has decoded nothing, so it seeks.
     let (between, sync, on) = (18, 12, 24);
-    cx.update(|app| ask(&state, app, Vec::new(), vec![on, between]));
+    let cells = |ticks: &[i64]| -> Vec<CellKey> {
+        ticks.iter().map(|&tick| CellKey::new(lane, tick)).collect()
+    };
+    cx.update(|app| ask(&state, app, Vec::new(), cells(&[on, between])));
     cx.run_until_parked();
     let snapped = held(between);
     assert!(snapped.snapped, "the cell between sync frames landed exact");
@@ -380,7 +415,7 @@ fn a_blank_cell_lands_its_sync_frame_then_its_own() {
         "the cell on a sync frame does not show its own frame"
     );
 
-    cx.update(|app| ask(&state, app, vec![between], Vec::new()));
+    cx.update(|app| ask(&state, app, cells(&[between]), Vec::new()));
     cx.run_until_parked();
     let exact = held(between);
     assert!(!exact.snapped, "the cell asked for again stayed snapped");

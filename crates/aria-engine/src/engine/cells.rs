@@ -1,16 +1,18 @@
-//! Sequence frames rendered away from the session's renderer.
+//! Lane frames rendered away from the session's renderer.
 //!
-//! A filmstrip cell is one sequence frame fit to a thumbnail. Rendered through
-//! the session's renderer, a cell holds the session for its whole decode and
-//! moves the decoder the Viewer reads from to the cell's source time, so the
-//! Viewer's next frame seeks back and decodes a GOP again. A [`CellRenderer`]
-//! renders from a [`CellSource`] on decoders and pipelines of its own: the
-//! session is held only to take the source, which costs reference counts.
+//! A filmstrip cell is one lane's frame fit to a thumbnail: the lane's
+//! pictures alone over the canvas background, so a cell shows the clip it is
+//! drawn on and not the lanes above it. Rendered through the session's
+//! renderer, a cell holds the session for its whole decode and moves the
+//! decoder the Viewer reads from to the cell's source time, so the Viewer's
+//! next frame seeks back and decodes a GOP again. A [`CellRenderer`] renders
+//! from a [`CellSource`] on decoders and pipelines of its own: the session is
+//! held only to take the source, which costs reference counts.
 
 use std::sync::Arc;
 
 use aria_compositor::GpuContext;
-use aria_models::{Project, RationalTime};
+use aria_models::{Project, RationalTime, TrackId};
 use aria_render::{MediaSources, Renderer, ResolveOverrides, RgbaImage, SeekPolicy};
 
 use super::Engine;
@@ -47,20 +49,22 @@ pub struct CellFrame {
     pub snapped: bool,
 }
 
-/// A renderer of sequence frames with decoders of its own, on the session's
-/// GPU device. The first frame builds it.
+/// A renderer of lane frames with decoders of its own, on the session's GPU
+/// device. The first frame builds it.
 #[derive(Debug, Default)]
 pub struct CellRenderer {
     renderer: Option<Renderer>,
 }
 
 impl CellRenderer {
-    /// The frame `source`'s project plays at `at`, fit within
+    /// The frame `lane` of `source`'s project shows at `at`, over the canvas
+    /// background and whether or not the lane is hidden, fit within
     /// `max_width`×`max_height` (aspect kept, never upscaled), its media
     /// decoded under `policy`.
     pub fn render_fit(
         &mut self,
         source: &CellSource,
+        lane: TrackId,
         at: RationalTime,
         max_width: u32,
         max_height: u32,
@@ -75,7 +79,10 @@ impl CellRenderer {
             at,
             max_width,
             max_height,
-            ResolveOverrides::default(),
+            ResolveOverrides {
+                lane: Some(lane),
+                ..ResolveOverrides::default()
+            },
             policy,
         )?;
         Ok(CellFrame {

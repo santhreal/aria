@@ -58,8 +58,8 @@ Anything not listed here is not in the build.
   group's longest camera reaches. Each angle has its own offset on the
   group's clock, drawn as a waveform strip, nudged by the frame, or measured
   from the cameras' own sound.
-- Waveform overlays and filmstrip thumbnails per lane, decoded once per source
-  and shared between clips cut from it.
+- Waveform overlays per lane, decoded once per source and shared between
+  clips cut from it, and filmstrip thumbnails of each lane's own pictures.
 
 ## Preview
 

@@ -105,6 +105,7 @@ impl Renderer {
             shared_check_stamp: u64::MAX,
             scene_shares_frames: false,
             last_tick: None,
+            look_lane: None,
             look_uses: Vec::new(),
             look_ticks: Vec::new(),
             luts: HashMap::new(),
@@ -461,7 +462,7 @@ impl Renderer {
         let res = self.render_scene_into_policy(project, &scene, sink, policy);
         self.return_resolved_scene(scene);
         res?;
-        self.look_ahead(project, tick, policy);
+        self.look_ahead(project, tick, overrides.lane, policy);
         Ok(())
     }
 
@@ -496,7 +497,7 @@ impl Renderer {
         let res = self.render_scene_into_policy(project, &scene, sink, policy);
         self.return_resolved_scene(scene);
         res?;
-        self.look_ahead(project, tick, policy);
+        self.look_ahead(project, tick, overrides.lane, policy);
         Ok(())
     }
 
@@ -531,7 +532,7 @@ impl Renderer {
         self.return_resolved_scene(scene);
         let pending = pending?;
         self.finish_pending_on_gpu(pending);
-        self.look_ahead(project, tick, policy);
+        self.look_ahead(project, tick, overrides.lane, policy);
         Ok(texture)
     }
 
@@ -572,7 +573,7 @@ impl Renderer {
         self.return_resolved_scene(scene);
         let pending = pending?;
         self.finish_pending_on_gpu(pending);
-        self.look_ahead(project, tick, policy);
+        self.look_ahead(project, tick, overrides.lane, policy);
         Ok(texture)
     }
 
@@ -590,7 +591,7 @@ impl Renderer {
         let mut scene = self.resolve_frame(project, t)?;
         scene.fit_into(width, height);
         let image = self.render_scene(project, &scene)?;
-        self.look_ahead(project, scene.tick, SeekPolicy::Exact);
+        self.look_ahead(project, scene.tick, None, SeekPolicy::Exact);
         Ok(image)
     }
 
@@ -618,7 +619,7 @@ impl Renderer {
         self.return_resolved_scene(scene);
         let pending = pending?;
         // Export overlaps the next frames' decode with this frame's GPU work.
-        self.look_ahead(project, tick, SeekPolicy::Exact);
+        self.look_ahead(project, tick, None, SeekPolicy::Exact);
         Ok(pending)
     }
 

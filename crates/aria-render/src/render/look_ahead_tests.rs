@@ -2,8 +2,9 @@
 //! key, clip entrances are found in the playback direction within the window,
 //! playback through decode-ahead shows the same pixels as frames decoded cold,
 //! a clip about to come on screen has its decoder open before it does,
-//! idle decoders drop their frames and close past the cap, and a repeat
-//! render of one source time takes the shown frame back with no decode.
+//! look-ahead along one lane opens that lane's clips alone, idle decoders
+//! drop their frames and close past the cap, and a repeat render of one
+//! source time takes the shown frame back with no decode.
 //!
 //! Not covered: hardware decode paths (the fixture decodes in software on the
 //! test hosts) and the decode pool's timing.
@@ -156,8 +157,16 @@ fn lane_project() -> Project {
 }
 
 fn entrances_from(project: &Project, tick: i64, step: i64) -> Vec<i64> {
+    entrances_along(project, None, tick, step)
+}
+
+fn entrances_along(project: &Project, lane: Option<TrackId>, tick: i64, step: i64) -> Vec<i64> {
     let mut found = Vec::new();
-    entrances(project.timeline(), tick, step, &mut found);
+    let overrides = crate::resolve::ResolveOverrides {
+        lane,
+        ..crate::resolve::ResolveOverrides::default()
+    };
+    entrances(project.timeline(), overrides, tick, step, &mut found);
     found
 }
 
@@ -180,6 +189,34 @@ fn reverse_entrances_are_the_last_frames_behind() {
     assert_eq!(entrances_from(&project, 120, -1), [95]);
     assert_eq!(entrances_from(&project, 70, -2), [59, 47]);
     assert_eq!(entrances_from(&project, 250, -1), [247]);
+}
+
+/// WHY: a filmstrip cell resolves one lane, and the look-ahead keeps only the
+/// nearest entrances, so the nearer entrances of other lanes would crowd out
+/// the lane's own. Entrances along one lane are that lane's alone; with no
+/// lane they are every visual lane's.
+#[test]
+fn entrances_along_one_lane_are_that_lanes_alone() {
+    let mut project = lane_project();
+    let v1 = project
+        .timeline()
+        .tracks_ordered()
+        .find(|track| track.kind == TrackKind::Video)
+        .unwrap()
+        .id;
+    let media = project.add_media(MediaSource::new("/w.mp4", 64, 36, FPS_24, 1000, false));
+    let v2 = project.add_track(TrackKind::Video, "V2");
+    project
+        .add_clip(
+            v2,
+            media,
+            TimeRange::at_rate(0, 10, FPS_24),
+            RationalTime::new(20, FPS_24),
+        )
+        .unwrap();
+    assert_eq!(entrances_along(&project, Some(v1), 10, 1), [36, 48]);
+    assert_eq!(entrances_along(&project, Some(v2), 10, 1), [20]);
+    assert_eq!(entrances_along(&project, None, 10, 1), [20, 36, 48]);
 }
 
 fn fixture() -> PathBuf {
@@ -318,6 +355,79 @@ fn a_clip_coming_on_screen_opens_before_it_does() {
     frame(&mut jumping, &project, 5);
     let open: Vec<DecoderKey> = jumping.decoder_keys().copied().collect();
     assert_eq!(open, [key(a)]);
+}
+
+/// WHY: a filmstrip cell resolves one lane, and its renderer walks the lanes
+/// in turn. Look-ahead along such frames opens the clips of the lane being
+/// rendered and no other, and a frame of one lane after a frame of another is
+/// no playback step, so a cell of the next lane opens nothing ahead. Not
+/// covered: which frames the opened decoders queue.
+#[test]
+fn look_ahead_along_one_lane_opens_that_lane_alone() {
+    let (mut project, media, a, b) = fixture_project();
+    let v1 = project.timeline().track_of(a).unwrap();
+    // V2 repeats V1 ten frames later in the source, so no clip shares a
+    // decoder with another: clip `c` on screen from the first frame, `d`
+    // entering with `b`.
+    let v2 = project.add_track(TrackKind::Video, "V2");
+    let mut v2_clip = |source, at| {
+        project
+            .add_clip(
+                v2,
+                media,
+                TimeRange::at_rate(source, 30, FPS_30),
+                RationalTime::new(at, FPS_30),
+            )
+            .unwrap()
+    };
+    let c = v2_clip(10, 0);
+    let d = v2_clip(55, 30);
+    let key = |clip| DecoderKey {
+        media,
+        clip: Some(clip),
+    };
+    let lane_frame = |renderer: &mut Renderer, lane, tick| {
+        renderer
+            .render_frame_fit_with(
+                &project,
+                RationalTime::new(tick, FPS_30),
+                160,
+                90,
+                crate::resolve::ResolveOverrides {
+                    lane,
+                    ..crate::resolve::ResolveOverrides::default()
+                },
+                SeekPolicy::Exact,
+            )
+            .unwrap_or_else(|error| panic!("frame {tick}: {error}"));
+    };
+    let open = |renderer: &Renderer| {
+        let mut open: Vec<DecoderKey> = renderer.decoder_keys().copied().collect();
+        open.sort_by_key(|key| key.clip);
+        open
+    };
+    for (lane, opened) in [
+        (Some(v1), vec![key(a), key(b)]),
+        (Some(v2), vec![key(c), key(d)]),
+        (None, vec![key(a), key(b), key(c), key(d)]),
+    ] {
+        let Ok(mut renderer) = Renderer::new_headless() else {
+            return;
+        };
+        lane_frame(&mut renderer, lane, 0);
+        lane_frame(&mut renderer, lane, 1);
+        assert_eq!(open(&renderer), opened, "playing lane {lane:?}");
+    }
+    let Ok(mut renderer) = Renderer::new_headless() else {
+        return;
+    };
+    lane_frame(&mut renderer, Some(v2), 0);
+    lane_frame(&mut renderer, Some(v1), 1);
+    assert_eq!(
+        open(&renderer),
+        [key(a), key(c)],
+        "a frame of V1 after one of V2 is no step"
+    );
 }
 
 #[test]

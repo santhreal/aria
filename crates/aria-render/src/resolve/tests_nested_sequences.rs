@@ -110,6 +110,38 @@ fn a_hidden_lane_of_a_sequence_stays_out_of_its_nest() {
     assert_eq!(kinds, ["media"]);
 }
 
+/// WHY: a filmstrip cell resolves one lane of the open timeline, and the
+/// lane a sequence clip sits on is a lane of that timeline, not of the
+/// sequence. Resolving one lane resolves the nest on it with every visible
+/// lane of its sequence, and no lane of the root above it.
+#[test]
+fn one_lane_of_the_root_resolves_its_nest_with_every_lane_of_the_sequence() {
+    let (mut project, clip, _) = nested([1920, 1080], [1920, 1080]);
+    let lane = project.timeline().track_of(clip).unwrap();
+    let above = project.add_track(TrackKind::Sticker, "S1");
+    project
+        .add_generated(
+            above,
+            Generator::SolidColor {
+                rgba: [0, 0, 255, 255],
+            },
+            tr(0, 100),
+        )
+        .unwrap();
+    let overrides = ResolveOverrides {
+        lane: Some(lane),
+        ..ResolveOverrides::default()
+    };
+    let scene = resolve_with(&project, rt(5), overrides).unwrap();
+    assert_eq!(scene.layers.len(), 1, "the lane holds the nest alone");
+    let LayerSource::Nest { scene, .. } = &scene.layers[0].source else {
+        panic!("the lane's clip places a nest");
+    };
+    let mut kinds: Vec<&str> = scene.layers.iter().map(|l| l.source.kind()).collect();
+    kinds.sort_unstable();
+    assert_eq!(kinds, ["media", "solid"], "both lanes reach the nest");
+}
+
 #[test]
 fn a_nest_takes_its_clips_placement_and_look() {
     let (mut project, clip, _) = nested([1920, 1080], [1920, 1080]);

@@ -113,6 +113,7 @@ impl LivePreviews {
             crop: self.crop,
             effect_vec2: self.effect_vec2,
             transparent: false,
+            lane: None,
         }
     }
 

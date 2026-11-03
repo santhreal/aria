@@ -1,25 +1,29 @@
 //! Filmstrip cells for the timeline.
 //!
-//! A cell is a rendered frame of the sequence at one tick, scaled down to the
-//! strip's height. The cell is rendered rather than decoded from the source:
-//! the renderer applies color conversion, transforms, and effects, so a cell
-//! shows the frame that plays at that tick instead of a raw source frame.
+//! A cell is a rendered frame of one lane at one tick, scaled down to the
+//! strip's height: the lane's pictures alone over the canvas background, so
+//! a clip's strip shows that clip and not the titles, grades, or pictures of
+//! the lanes above it. The cell is rendered rather than decoded from the
+//! source: the renderer applies color conversion, transforms, and effects, so
+//! a cell shows the frame the lane plays at that tick instead of a raw source
+//! frame.
 //!
-//! Cells are keyed by tick. An edit invalidates only cells whose ticks
-//! intersect the picture spans it changed, and a rollback only the cells the
-//! edits it reverted changed; audio-only and organizational edits keep every
-//! rendered cell. A change the store did not follow drops every cell. The
-//! session revision still rejects a render that finishes after a newer edit.
+//! Cells are keyed by lane and tick ([`CellKey`]). An edit invalidates only
+//! cells whose ticks intersect the picture spans it changed, and a rollback
+//! only the cells the edits it reverted changed; audio-only and
+//! organizational edits keep every rendered cell. A change the store did not
+//! follow drops every cell. The session revision still rejects a render that
+//! finishes after a newer edit.
 //!
 //! The timeline's draw hands the store the cells it drew without their exact
 //! frame, once for all its lane groups, and the store renders them one at a
 //! time, starting the next as one lands, so a strip fills without waiting a
 //! frame between cells. The next cell is the first at or after the one
-//! started last, so the renderer's decoders roll forward from one cell to the
-//! next and decode no frame twice; after the last, the strip wraps to its
-//! first cell still owed. More renderers do not fill a strip faster: their
-//! decoders share the host's decode capacity, and each seeks to a sync frame
-//! of its own.
+//! started last, in lane order and then tick order, so the renderer's
+//! decoders roll forward from one cell of a lane to the next and decode no
+//! frame twice; after the last, the strips wrap to their first cell still
+//! owed. More renderers do not fill a strip faster: their decoders share the
+//! host's decode capacity, and each seeks to a sync frame of its own.
 //!
 //! A cell the draw finds blank, with neither a picture of its own nor a
 //! stand-in, renders first snapped: its media decodes the sync frame at or
@@ -40,7 +44,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use aria_engine::{CellRenderer, CellSource, SeekPolicy};
-use aria_models::RationalTime;
+use aria_models::{RationalTime, TrackId};
 use aria_plugin::Reverted;
 use gpui::{App, Context, Entity, RenderImage};
 use parking_lot::Mutex;
@@ -56,14 +60,31 @@ pub const CELL_H: u32 = 34;
 const CELL_MAX_W: u32 = 96;
 
 /// Cells kept across all clips. A 16:9 cell is about 8 KB, so the store holds
-/// at most about 8 MB. A cell landing in a full store drops the cell farthest
-/// from it, which is the one farthest from the view.
+/// at most about 8 MB. A cell landing in a full store drops the cell of any
+/// lane whose tick is farthest from it, which is the one farthest from the
+/// view.
 const MAX_CELLS: usize = 1024;
 
 /// Edits the store remembers for a rollback to walk back. A gesture's
 /// rollback walks back the few edits of one pointer move; a rollback that
 /// reaches past the oldest one drops every cell.
 const JOURNAL: usize = 64;
+
+/// Where a cell is: the lane it shows and the tick it shows the lane at.
+/// Ordered by lane, then tick, so one lane's cells are adjacent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CellKey {
+    /// The raw [`TrackId`] of the lane, as [`crate::types::UiTrack::id`]
+    /// holds it.
+    pub lane: u64,
+    pub tick: i64,
+}
+
+impl CellKey {
+    pub const fn new(lane: u64, tick: i64) -> Self {
+        Self { lane, tick }
+    }
+}
 
 /// One rendered cell.
 #[derive(Clone)]
@@ -90,39 +111,39 @@ struct Step {
     spans: Vec<(i64, i64)>,
 }
 
-/// The render in flight: the tick and the revision it renders.
+/// The render in flight: the cell and the revision it renders.
 #[derive(Clone, Copy)]
 struct Flight {
-    tick: i64,
+    key: CellKey,
     revision: u64,
 }
 
-/// Cells by the tick they were rendered at.
+/// Cells by the lane and tick they were rendered at.
 #[derive(Default)]
 pub struct FilmstripStore {
     revision: u64,
-    cells: BTreeMap<i64, Cell>,
+    cells: BTreeMap<CellKey, Cell>,
     /// The render in flight. A render started before an edit holds the
     /// renderer until it lands, and lands nothing.
     flight: Option<Flight>,
-    /// Ticks that produced no frame, so a gap in the sequence is not retried
-    /// every frame for as long as it stays on screen.
-    empty: BTreeSet<i64>,
+    /// Cells that produced no frame, so a gap in a lane is not retried every
+    /// frame for as long as it stays on screen.
+    empty: BTreeSet<CellKey>,
     /// The cells the timeline's last draw drew without their exact frame, in
-    /// tick order.
-    queue: Vec<i64>,
-    /// The cells of `queue` the last draw drew with no picture at all, in tick
+    /// key order.
+    queue: Vec<CellKey>,
+    /// The cells of `queue` the last draw drew with no picture at all, in key
     /// order. They render snapped before any cell renders exactly.
-    blank: Vec<i64>,
+    blank: Vec<CellKey>,
     /// The latest edits followed by span, oldest first. The newest ends at
     /// `revision`; the store forgets them all when it drops every cell.
     journal: VecDeque<Step>,
     /// The renderer cells are drawn on.
     renderer: Arc<Mutex<CellRenderer>>,
-    /// The tick of the cell started last exactly, which is where the
-    /// renderer's decoders stand. `None` after a snap, which leaves them at a
-    /// sync frame rather than at a cell.
-    at: Option<i64>,
+    /// The cell started last exactly, which is where the renderer's decoders
+    /// stand. `None` after a snap, which leaves them at a sync frame rather
+    /// than at a cell.
+    at: Option<CellKey>,
     /// Images of dropped cells, for the window atlas to release. Cells drop
     /// on an edit or a landing, and both redraw the timeline without them.
     retired: Vec<Arc<RenderImage>>,
@@ -139,24 +160,25 @@ impl std::fmt::Debug for FilmstripStore {
 }
 
 impl FilmstripStore {
-    pub fn get(&self, tick: i64) -> Option<&Cell> {
-        self.cells.get(&tick)
+    pub fn get(&self, key: CellKey) -> Option<&Cell> {
+        self.cells.get(&key)
     }
 
-    /// The rendered cell nearest `tick` inside `[within.0, within.1)`: the
-    /// last at or before it, or else the first after it. A cell not rendered
-    /// yet draws this one in its place, which after a zoom in is the frame
-    /// the strip showed there before.
-    pub fn stand_in(&self, tick: i64, within: (i64, i64)) -> Option<&Cell> {
+    /// The rendered cell of `key`'s lane nearest its tick inside
+    /// `[within.0, within.1)`: the last at or before it, or else the first
+    /// after it. A cell not rendered yet draws this one in its place, which
+    /// after a zoom in is the frame the strip showed there before.
+    pub fn stand_in(&self, key: CellKey, within: (i64, i64)) -> Option<&Cell> {
         let (from, until) = within;
         if from >= until {
             return None;
         }
-        let tick = tick.clamp(from, until - 1);
+        let at = |tick| CellKey::new(key.lane, tick);
+        let tick = key.tick.clamp(from, until - 1);
         self.cells
-            .range(from..=tick)
+            .range(at(from)..=at(tick))
             .next_back()
-            .or_else(|| self.cells.range(tick + 1..until).next())
+            .or_else(|| self.cells.range(at(tick + 1)..at(until)).next())
             .map(|(_, cell)| cell)
     }
 
@@ -171,16 +193,16 @@ impl FilmstripStore {
         self.blank.len()
     }
 
-    /// Whether `tick` should be rendered exactly: there is no retained cell
+    /// Whether `key` should be rendered exactly: there is no retained cell
     /// for it or only a snapped one, and it did not already come back empty.
-    fn wants(&self, tick: i64) -> bool {
-        !self.empty.contains(&tick) && self.cells.get(&tick).is_none_or(|cell| cell.snapped)
+    fn wants(&self, key: CellKey) -> bool {
+        !self.empty.contains(&key) && self.cells.get(&key).is_none_or(|cell| cell.snapped)
     }
 
-    /// Whether `tick` should be rendered snapped: there is no retained cell
+    /// Whether `key` should be rendered snapped: there is no retained cell
     /// for it, and it did not already come back empty.
-    fn wants_snap(&self, tick: i64) -> bool {
-        !self.cells.contains_key(&tick) && !self.empty.contains(&tick)
+    fn wants_snap(&self, key: CellKey) -> bool {
+        !self.cells.contains_key(&key) && !self.empty.contains(&key)
     }
 
     /// Drop everything rendered against an older revision. The fallback for a
@@ -202,12 +224,13 @@ impl FilmstripStore {
     /// Follow one edit from revision `from` to `to` that changed the picture
     /// only inside `spans`, retaining every cell outside them.
     ///
-    /// A cell is one frame at one exact timeline tick, so half-open span
-    /// intersection reduces to membership. Empty results follow the same rule:
-    /// an edit inside a gap may put a frame there, while an edit elsewhere
-    /// cannot. The cells hold for the store's revision only, so an edit from
-    /// any other revision follows a change the store never saw, and every cell
-    /// is dropped.
+    /// A cell is one frame of one lane at one exact timeline tick, so
+    /// half-open span intersection reduces to membership. Every lane's cells
+    /// inside the spans drop: a lane's effects read the lanes they reference.
+    /// Empty results follow the same rule: an edit inside a gap may put a
+    /// frame there, while an edit elsewhere cannot. The cells hold for the
+    /// store's revision only, so an edit from any other revision follows a
+    /// change the store never saw, and every cell is dropped.
     pub fn advance(&mut self, from: u64, to: u64, spans: Vec<(i64, i64)>) {
         if to == self.revision {
             return;
@@ -269,23 +292,24 @@ impl FilmstripStore {
         (cursor == opened).then_some(spans)
     }
 
-    /// Drop the cells and empty results inside `spans`. A render in flight
-    /// lands nothing: the step that follows moves the revision past it.
+    /// Drop the cells and empty results of every lane inside `spans`. A
+    /// render in flight lands nothing: the step that follows moves the
+    /// revision past it.
     fn drop_spans(&mut self, spans: &[(i64, i64)]) {
-        let inside = |tick: i64| {
+        let inside = |key: &CellKey| {
             spans
                 .iter()
-                .any(|&(start, end)| tick >= start && tick < end)
+                .any(|&(start, end)| key.tick >= start && key.tick < end)
         };
         let retired = &mut self.retired;
-        self.cells.retain(|tick, cell| {
-            let keep = !inside(*tick);
+        self.cells.retain(|key, cell| {
+            let keep = !inside(key);
             if !keep {
                 retired.push(cell.image.clone());
             }
             keep
         });
-        self.empty.retain(|tick| !inside(*tick));
+        self.empty.retain(|key| !inside(key));
     }
 
     /// Move to `step.to` and remember the step for a later rollback.
@@ -297,49 +321,49 @@ impl FilmstripStore {
         self.journal.push_back(step);
     }
 
-    /// Mark `tick` in flight at the store's revision, rendered under `policy`.
-    fn start(&mut self, tick: i64, policy: SeekPolicy) {
+    /// Mark `key` in flight at the store's revision, rendered under `policy`.
+    fn start(&mut self, key: CellKey, policy: SeekPolicy) {
         self.flight = Some(Flight {
-            tick,
+            key,
             revision: self.revision,
         });
-        self.at = (policy == SeekPolicy::Exact).then_some(tick);
+        self.at = (policy == SeekPolicy::Exact).then_some(key);
     }
 
-    /// The next tick to render and how, marked in flight, while the renderer
+    /// The next cell to render and how, marked in flight, while the renderer
     /// is free: the first blank cell snapped while one is left, else the first
     /// queued cell at or after the one started last, or else the first,
     /// exactly. A snap costs one decode wherever the decoders stand, so blank
-    /// cells snap left to right, and the exact walk after them starts again
-    /// at the first cell. Ticks no longer wanted leave their list.
-    fn next_flight(&mut self) -> Option<(i64, SeekPolicy)> {
+    /// cells snap in key order, and the exact walk after them starts again at
+    /// the first cell. Cells no longer wanted leave their list.
+    fn next_flight(&mut self) -> Option<(CellKey, SeekPolicy)> {
         if self.flight.is_some() {
             return None;
         }
         let mut blank = std::mem::take(&mut self.blank);
-        blank.retain(|&tick| self.wants_snap(tick));
+        blank.retain(|&key| self.wants_snap(key));
         self.blank = blank;
         let mut queue = std::mem::take(&mut self.queue);
-        queue.retain(|&tick| self.wants(tick));
+        queue.retain(|&key| self.wants(key));
         self.queue = queue;
-        let (tick, policy) = match self.blank.first() {
-            Some(&tick) => (tick, SeekPolicy::NearestSync),
+        let (key, policy) = match self.blank.first() {
+            Some(&key) => (key, SeekPolicy::NearestSync),
             None => {
                 let ahead = self
                     .at
-                    .map_or(0, |at| self.queue.partition_point(|&tick| tick < at));
-                let tick = *self.queue.get(ahead).or_else(|| self.queue.first())?;
-                (tick, SeekPolicy::Exact)
+                    .map_or(0, |at| self.queue.partition_point(|&key| key < at));
+                let key = *self.queue.get(ahead).or_else(|| self.queue.first())?;
+                (key, SeekPolicy::Exact)
             }
         };
-        self.start(tick, policy);
-        Some((tick, policy))
+        self.start(key, policy);
+        Some((key, policy))
     }
 
-    fn finish(&mut self, revision: u64, tick: i64, cell: Option<Cell>) {
+    fn finish(&mut self, revision: u64, key: CellKey, cell: Option<Cell>) {
         if self
             .flight
-            .is_some_and(|flight| flight.tick == tick && flight.revision == revision)
+            .is_some_and(|flight| flight.key == key && flight.revision == revision)
         {
             self.flight = None;
         }
@@ -348,33 +372,44 @@ impl FilmstripStore {
         }
         match cell {
             Some(cell) => {
-                if !self.cells.contains_key(&tick) && self.cells.len() >= MAX_CELLS {
-                    self.drop_farthest_from(tick);
+                if !self.cells.contains_key(&key) && self.cells.len() >= MAX_CELLS {
+                    self.drop_farthest_from(key.tick);
                 }
-                if let Some(replaced) = self.cells.insert(tick, cell) {
+                if let Some(replaced) = self.cells.insert(key, cell) {
                     self.retired.push(replaced.image);
                 }
             }
             None => {
-                self.empty.insert(tick);
+                self.empty.insert(key);
             }
         }
     }
 
-    /// Drop the retained cell farthest from `tick`, which is the first or the
-    /// last.
+    /// Drop the retained cell, of any lane, whose tick is farthest from
+    /// `tick`. Each lane's farthest is its first or its last, so the walk
+    /// visits two cells per lane.
     fn drop_farthest_from(&mut self, tick: i64) {
-        let (Some((&first, _)), Some((&last, _))) =
-            (self.cells.first_key_value(), self.cells.last_key_value())
-        else {
-            return;
-        };
-        let far = if tick.abs_diff(first) >= tick.abs_diff(last) {
-            first
-        } else {
-            last
-        };
-        if let Some(cell) = self.cells.remove(&far) {
+        let mut far: Option<CellKey> = None;
+        let mut lane = self.cells.first_key_value().map(|(&key, _)| key);
+        while let Some(first) = lane {
+            let end = CellKey::new(first.lane, i64::MAX);
+            let last = self
+                .cells
+                .range(first..=end)
+                .next_back()
+                .map_or(first, |(&key, _)| key);
+            for key in [first, last] {
+                if far.is_none_or(|far| tick.abs_diff(key.tick) > tick.abs_diff(far.tick)) {
+                    far = Some(key);
+                }
+            }
+            lane = self
+                .cells
+                .range((std::ops::Bound::Excluded(end), std::ops::Bound::Unbounded))
+                .next()
+                .map(|(&key, _)| key);
+        }
+        if let Some(cell) = far.and_then(|far| self.cells.remove(&far)) {
             self.retired.push(cell.image);
         }
     }
@@ -385,17 +420,17 @@ impl FilmstripStore {
         out.append(&mut self.retired);
     }
 
-    /// Store `cell` at `tick` as rendered at the store's revision and landed.
+    /// Store `cell` at `key` as rendered at the store's revision and landed.
     #[cfg(test)]
-    pub(crate) fn hold(&mut self, tick: i64, cell: Cell) {
-        self.start(tick, SeekPolicy::Exact);
-        self.finish(self.revision, tick, Some(cell));
+    pub(crate) fn hold(&mut self, key: CellKey, cell: Cell) {
+        self.start(key, SeekPolicy::Exact);
+        self.finish(self.revision, key, Some(cell));
     }
 
     /// The cells the store was asked for and has not landed, and the ones of
     /// them asked for snapped.
     #[cfg(test)]
-    pub(crate) fn asked(&self) -> (&[i64], &[i64]) {
+    pub(crate) fn asked(&self) -> (&[CellKey], &[CellKey]) {
         (&self.queue, &self.blank)
     }
 }
@@ -450,15 +485,20 @@ pub fn cell_spans(
     out
 }
 
-/// Render the cells at `missing`, the ticks the timeline's draw drew without
-/// their exact frame, snapping first the ones of them at `blank`, the ticks it
-/// drew with no picture at all. They replace the ones an earlier draw asked
-/// for. Safe to call from a render: nothing here takes the engine lock, and
-/// each render thread holds it only to take the cell's source.
-pub fn ask(state: &Entity<AppState>, cx: &mut App, mut missing: Vec<i64>, mut blank: Vec<i64>) {
-    for ticks in [&mut missing, &mut blank] {
-        ticks.sort_unstable();
-        ticks.dedup();
+/// Render the cells at `missing`, the cells the timeline's draw drew without
+/// their exact frame, snapping first the ones of them at `blank`, the cells
+/// it drew with no picture at all. They replace the ones an earlier draw
+/// asked for. Safe to call from a render: nothing here takes the engine
+/// lock, and each render thread holds it only to take the cell's source.
+pub fn ask(
+    state: &Entity<AppState>,
+    cx: &mut App,
+    mut missing: Vec<CellKey>,
+    mut blank: Vec<CellKey>,
+) {
+    for keys in [&mut missing, &mut blank] {
+        keys.sort_unstable();
+        keys.dedup();
     }
     state.update(cx, |state, cx| {
         state.filmstrips.queue = missing;
@@ -474,12 +514,13 @@ fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     // what was rendered before it.
     let revision = state.revision;
     state.filmstrips.sync_revision(revision);
-    let Some((tick, policy)) = state.filmstrips.next_flight() else {
+    let Some((key, policy)) = state.filmstrips.next_flight() else {
         return;
     };
     let engine = state.engine().clone();
     let renderer = Arc::clone(&state.filmstrips.renderer);
-    let at = RationalTime::new(tick, state.playhead.rate);
+    let lane = TrackId::from_raw(key.lane);
+    let at = RationalTime::new(key.tick, state.playhead.rate);
     // Its own thread, so a codec that panics cannot take the window with it,
     // started here so the render starts now rather than when the task that
     // waits for it first runs. The wait is as long as the render: waiting on
@@ -487,28 +528,29 @@ fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     let rendering =
         crate::handoff::on_a_thread(cx.background_executor(), "aria-filmstrip", move || {
             let source = engine.lock().cell_source();
-            render_cell(&mut renderer.lock(), &source, at, policy)
+            render_cell(&mut renderer.lock(), &source, lane, at, policy)
         });
     cx.spawn(async move |this, cx| {
         let rendered = rendering.await.flatten();
         let _ = this.update(cx, |state, cx| {
-            land(state, revision, tick, rendered, cx);
+            land(state, revision, key, rendered, cx);
         });
     })
     .detach();
 }
 
-/// The cell at `at`: the frame `source` plays there, its media decoded under
-/// `policy`, fit to a cell and drawn on `renderer`. `None` where nothing plays
-/// or the render fails.
+/// The cell of `lane` at `at`: the frame the lane of `source`'s project plays
+/// there, its media decoded under `policy`, fit to a cell and drawn on
+/// `renderer`. `None` where the lane plays nothing or the render fails.
 pub fn render_cell(
     renderer: &mut CellRenderer,
     source: &CellSource,
+    lane: TrackId,
     at: RationalTime,
     policy: SeekPolicy,
 ) -> Option<Cell> {
     let frame = renderer
-        .render_fit(source, at, CELL_MAX_W, CELL_H, policy)
+        .render_fit(source, lane, at, CELL_MAX_W, CELL_H, policy)
         .ok()?;
     Some(Cell {
         image: crate::frame::rgba_to_render(&frame.image)?,
@@ -516,18 +558,18 @@ pub fn render_cell(
     })
 }
 
-/// Store the cell rendered for `tick` at `revision`, start the next queued
+/// Store the cell rendered for `key` at `revision`, start the next queued
 /// cell, release the cells the store dropped from the window atlas, and
 /// redraw the panel bodies that draw filmstrips, through
 /// [`crate::app::FilmstripChanged`]. Called where no window is being updated.
 pub(crate) fn land(
     state: &mut AppState,
     revision: u64,
-    tick: i64,
+    key: CellKey,
     cell: Option<Cell>,
     cx: &mut Context<AppState>,
 ) {
-    state.filmstrips.finish(revision, tick, cell);
+    state.filmstrips.finish(revision, key, cell);
     pump(state, cx);
     state.release_retired_images(None, cx);
     cx.emit(crate::app::FilmstripChanged);
@@ -544,6 +586,12 @@ pub(crate) fn test_cell() -> Cell {
         ]))),
         snapped: false,
     }
+}
+
+/// The cell at `tick` on the lane tests that render nothing hold cells on.
+#[cfg(test)]
+pub(crate) const fn test_key(tick: i64) -> CellKey {
+    CellKey::new(3, tick)
 }
 
 #[cfg(test)]

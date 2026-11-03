@@ -162,6 +162,7 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
         std::hint::black_box(aria_ui::filmstrips::render_cell(
             &mut cells,
             &source,
+            v1,
             cell,
             SeekPolicy::Exact,
         ));

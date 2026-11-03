@@ -29,7 +29,7 @@ use std::path::PathBuf;
 
 use aria_core::{FrameData, RationalTime, VideoDecoder, VideoFrame};
 use aria_decoder::{AheadDecoder, OpeningDecoder, open_ahead, open_video_decoder_at};
-use aria_models::{ClipId, MediaId, Project, Timeline};
+use aria_models::{ClipId, MediaId, Project, Timeline, TrackId};
 
 use crate::error::RenderError;
 use crate::resolve::ResolveOverrides;
@@ -232,9 +232,16 @@ fn window_ticks(timeline: &Timeline) -> i64 {
 }
 
 /// The ticks within the look-ahead window from `tick` in the direction of
-/// `step` at which a clip comes on screen, nearest first: clip starts and
-/// transition starts going forward, their last frames going backward.
-pub(super) fn entrances(timeline: &Timeline, tick: i64, step: i64, into: &mut Vec<i64>) {
+/// `step` at which a clip of a lane `overrides` resolves comes on screen,
+/// nearest first: clip starts and transition starts going forward, their
+/// last frames going backward.
+pub(super) fn entrances(
+    timeline: &Timeline,
+    overrides: ResolveOverrides<'_>,
+    tick: i64,
+    step: i64,
+    into: &mut Vec<i64>,
+) {
     into.clear();
     let window = window_ticks(timeline);
     let forward = step > 0;
@@ -245,7 +252,7 @@ pub(super) fn entrances(timeline: &Timeline, tick: i64, step: i64, into: &mut Ve
         }
     };
     for track in timeline.tracks_ordered() {
-        if !track.kind.is_visual() || !timeline.track_is_visible(track) {
+        if !overrides.resolves(timeline, track) {
             continue;
         }
         for clip in track.clips() {
@@ -493,26 +500,39 @@ impl Renderer {
         self.look_ahead(
             project,
             RationalTime::new(one_back, first.rate),
+            None,
             SeekPolicy::Exact,
         );
     }
 
     /// Look ahead from the timeline frame at `tick`, just rendered under
-    /// `policy`: at a playback step from the previous timeline frame, request
-    /// the next step's frames and open the clips coming on screen within
-    /// [`LOOK_AHEAD_SECONDS`]. A scrub ([`SeekPolicy::NearestSync`]) looks
-    /// nowhere.
-    pub(super) fn look_ahead(&mut self, project: &Project, tick: RationalTime, policy: SeekPolicy) {
+    /// `policy` with only `lane` resolved (`None` for every lane): at a
+    /// playback step from the previous timeline frame of the same lane,
+    /// request the next step's frames and open the clips coming on screen
+    /// within [`LOOK_AHEAD_SECONDS`]. A scrub ([`SeekPolicy::NearestSync`])
+    /// looks nowhere, and a frame of another lane is no step.
+    pub(super) fn look_ahead(
+        &mut self,
+        project: &Project,
+        tick: RationalTime,
+        lane: Option<TrackId>,
+        policy: SeekPolicy,
+    ) {
+        let previous_lane = std::mem::replace(&mut self.look_lane, lane);
         let Some(previous) = self.last_tick.replace(tick) else {
             return;
         };
-        if policy != SeekPolicy::Exact || previous.rate != tick.rate {
+        if policy != SeekPolicy::Exact || previous.rate != tick.rate || previous_lane != lane {
             return;
         }
         let step = tick.value.saturating_sub(previous.value);
         if step == 0 || step.abs() > MAX_STEP {
             return;
         }
+        let overrides = ResolveOverrides {
+            lane,
+            ..ResolveOverrides::default()
+        };
         let mut uses = std::mem::take(&mut self.look_uses);
         uses.clear();
         let mut look_scene = std::mem::replace(
@@ -522,7 +542,7 @@ impl Renderer {
         if crate::resolve::resolve_with_into(
             project,
             RationalTime::new(tick.value + step, tick.rate),
-            ResolveOverrides::default(),
+            overrides,
             &mut look_scene,
             &mut self.look_ahead_pool,
         )
@@ -537,12 +557,12 @@ impl Renderer {
         }
         let next_uses = uses.len();
         let mut ticks = std::mem::take(&mut self.look_ticks);
-        entrances(project.timeline(), tick.value, step, &mut ticks);
+        entrances(project.timeline(), overrides, tick.value, step, &mut ticks);
         for &at in &ticks {
             if crate::resolve::resolve_with_into(
                 project,
                 RationalTime::new(at, tick.rate),
-                ResolveOverrides::default(),
+                overrides,
                 &mut look_scene,
                 &mut self.look_ahead_pool,
             )

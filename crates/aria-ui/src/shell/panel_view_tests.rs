@@ -518,7 +518,7 @@ pub(super) fn make(
                     crate::filmstrips::land(
                         state,
                         revision,
-                        tick,
+                        crate::filmstrips::test_key(tick),
                         Some(crate::filmstrips::test_cell()),
                         cx,
                     );

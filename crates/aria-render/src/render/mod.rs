@@ -34,7 +34,7 @@ use std::sync::Arc;
 use aria_compositor::{Compositor, GpuContext, PendingReadback, RgbaImage};
 use aria_core::RationalTime;
 use aria_decoder::OutputMode;
-use aria_models::MediaId;
+use aria_models::{MediaId, TrackId};
 use aria_shapes::PathRaster;
 use aria_text::TextRenderer;
 
@@ -190,6 +190,9 @@ pub struct Renderer {
     /// The tick of the last timeline frame rendered, which the next one's
     /// look-ahead reads its playback step from.
     last_tick: Option<RationalTime>,
+    /// The lane `last_tick` resolved, `None` for every lane: a frame of
+    /// another lane is no playback step.
+    look_lane: Option<TrackId>,
     /// Reusable look-ahead storage: media uses and entrance ticks.
     look_uses: Vec<(DecoderKey, RationalTime)>,
     look_ticks: Vec<i64>,

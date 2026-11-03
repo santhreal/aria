@@ -489,6 +489,7 @@ pub(super) mod built {
     use std::cell::RefCell;
 
     use super::VisibleLane;
+    use crate::filmstrips::CellKey;
 
     /// One lane a group built.
     #[derive(Debug)]
@@ -521,7 +522,7 @@ pub(super) mod built {
         static LANES: RefCell<Vec<Lane>> = const { RefCell::new(Vec::new()) };
         static MEDIA_ROWS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
         static CANVASES: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
-        static OWED: RefCell<(Vec<i64>, Vec<i64>)> = const { RefCell::new((Vec::new(), Vec::new())) };
+        static OWED: RefCell<(Vec<CellKey>, Vec<CellKey>)> = const { RefCell::new((Vec::new(), Vec::new())) };
     }
 
     pub(in crate::panels::timeline) fn lanes(lanes: &[VisibleLane], viewport_h: f32, view: View) {
@@ -555,7 +556,7 @@ pub(super) mod built {
 
     /// Records the filmstrip cells a lane group drew without their exact
     /// frame, and the ones of them it drew with no picture.
-    pub(in crate::panels::timeline) fn owed(missing: &[i64], blank: &[i64]) {
+    pub(in crate::panels::timeline) fn owed(missing: &[CellKey], blank: &[CellKey]) {
         OWED.with_borrow_mut(|(owed, empty)| {
             owed.extend_from_slice(missing);
             empty.extend_from_slice(blank);
@@ -564,7 +565,7 @@ pub(super) mod built {
 
     /// The filmstrip cells lane groups drew without their exact frame, and
     /// the ones of them they drew with no picture, since the last call.
-    pub(crate) fn take_owed() -> (Vec<i64>, Vec<i64>) {
+    pub(crate) fn take_owed() -> (Vec<CellKey>, Vec<CellKey>) {
         OWED.with_borrow_mut(std::mem::take)
     }
 

@@ -27,7 +27,7 @@ use aria_core::{RationalTime, resample};
 use aria_models::{
     AnimationSlot, CanvasSettings, ClipId, ClipSource, ClipTransform, ColorAdjustments, CropRect,
     Easing, EffectInstance, Filter, Generator, LayerStyles, LookAnimations, MaskMode, MatteSource,
-    MediaKind, Project, Timeline, look_animation_window_ticks,
+    MediaKind, Project, Timeline, Track, TrackId, look_animation_window_ticks,
 };
 
 use crate::animation::{apply_look_animations, is_per_character, scaled_ticks, text_knobs};
@@ -96,6 +96,12 @@ pub struct ResolveOverrides<'a> {
     /// no layer covers the canvas. The frame stays premultiplied. The
     /// Viewer's transparency grid sets it; export never does.
     pub transparent: bool,
+    /// Resolve only this lane of the open timeline, over the canvas
+    /// background: a filmstrip cell shows the pictures of the lane it is drawn
+    /// on, without the lanes above or below it. A nested sequence on the lane
+    /// still resolves every lane of its own, and a matted clip on it draws
+    /// unmatted, as its stencil is the lane above.
+    pub lane: Option<TrackId>,
 }
 
 impl ResolveOverrides<'_> {
@@ -109,6 +115,19 @@ impl ResolveOverrides<'_> {
             && self.crop.is_none()
             && self.effect_vec2.is_none()
             && !self.transparent
+            && self.lane.is_none()
+    }
+
+    /// Whether `track` of `timeline` resolves: with [`Self::lane`] set, that
+    /// lane alone, whether or not it is hidden or another lane is soloed, as
+    /// a filmstrip cell shows the lane's pictures and not its output; else
+    /// every visual lane the composite shows.
+    pub(crate) fn resolves(&self, timeline: &Timeline, track: &Track) -> bool {
+        track.kind.is_visual()
+            && match self.lane {
+                Some(lane) => track.id == lane,
+                None => timeline.track_is_visible(track),
+            }
     }
 }
 
@@ -157,6 +176,7 @@ pub fn resolve_gesture_partitions(
         crop: None,
         effect_vec2: None,
         transparent: false,
+        lane: None,
     };
     Ok(partition_gesture_scene(
         resolve_with(project, t, overrides)?,
@@ -331,7 +351,7 @@ fn resolve_timeline_into<'p>(
     let mut requests: Vec<Option<MatteRequest>> = Vec::new();
     let mut drivers = DriverFrame::in_timeline(project, timeline);
     for track in timeline.tracks_ordered() {
-        if !track.kind.is_visual() || !timeline.track_is_visible(track) {
+        if !overrides.resolves(timeline, track) {
             continue;
         }
         if let Some(layer) = resolve_track_at(

@@ -231,8 +231,12 @@ changes nothing. A locked clip draws no handles.
 ## Filmstrips
 
 A media clip draws a filmstrip along the bottom of its card. Each cell is a
-rendered frame of the sequence at that point, so the strip shows the picture
-with its transform, grade, and effects applied rather than the raw file.
+rendered frame of the clip's lane at that point, alone over the canvas
+background, so the strip shows the picture with its transform, grade, and
+effects applied rather than the raw file, and none of the titles, adjustment
+clips, or pictures on other lanes. A hidden lane, or a lane another lane's
+solo hides, still draws its own pictures. A matted clip draws without its
+matte, and a nested sequence draws every lane of its own.
 
 The cells cover the clip end to end at every zoom. The first cell is the
 clip's first frame, and each picture keeps its width and is cropped where the
@@ -244,11 +248,11 @@ the Viewer never waits for a cell. A cell with no picture to draw renders
 first from the sync frame at or before its point, one decode per cell, and
 every such cell renders before any cell renders its exact frame. The exact
 frame then replaces it. The next exact cell is the first cell without its
-exact frame at or after the one rendered last, so the renderer decodes
-forward from one cell to the next and decodes no frame twice; after the
-last, it wraps to the first. A picture edit invalidates cells inside its
-changed timeline spans; audio, labels, lane display settings, and other
-picture-neutral edits retain them.
+exact frame at or after the one rendered last, lane by lane, so the renderer
+decodes forward from one cell of a lane to the next and decodes no frame
+twice; after the last, it wraps to the first. A picture edit invalidates the
+cells of every lane inside its changed timeline spans; audio, labels, lane
+display settings, and other picture-neutral edits retain them.
 Each move of a value scrub, a clip line drag, or a color wheel drag replaces
 the edit of the move before it, and invalidates only the cells inside the
 spans of both edits; Escape invalidates only the cells inside the spans the
@@ -258,10 +262,10 @@ every cell. Work started before an edit is rejected when it finishes.
 A cell with no picture of its own draws the last picture of the same clip at
 or before it, or else the first after it, within four cell widths. After a
 zoom in, that is the picture the strip showed there before. A cell never
-draws a frame of another clip; with no picture that near, its space stays
-empty until its sync frame renders.
-The timeline keeps up to 1,024 cells and drops the one farthest from a new
-cell to make room.
+draws a frame of another clip or another lane; with no picture that near, its
+space stays empty until its sync frame renders.
+The timeline keeps up to 1,024 cells and drops the one of any lane farthest
+from a new cell to make room.
 
 ## Timeline display settings
 

@@ -86,7 +86,12 @@ pub(super) fn resolve_nest(
         source_time,
         [iw, ih],
         [0, 0, 0, 0],
-        overrides,
+        // The lane is a lane of the outer timeline; the sequence shows every
+        // lane of its own.
+        ResolveOverrides {
+            lane: None,
+            ..overrides
+        },
         &nesting.inside(sequence),
     )?;
     if scene.layers.is_empty() {

@@ -3,7 +3,7 @@
 use gpui::Entity;
 
 use crate::app::AppState;
-use crate::filmstrips::FilmstripStore;
+use crate::filmstrips::{CellKey, FilmstripStore};
 use crate::timeline_display::{StripCell, Thumbnails};
 use crate::types::HeldEdit;
 
@@ -142,8 +142,8 @@ fn stand_in_reach(px_per_tick: f32) -> i64 {
 /// take back what the groups before it asked for.
 #[derive(Default)]
 pub(super) struct Owed {
-    missing: Vec<i64>,
-    blank: Vec<i64>,
+    missing: Vec<CellKey>,
+    blank: Vec<CellKey>,
 }
 
 impl Owed {
@@ -154,10 +154,10 @@ impl Owed {
 }
 
 /// Filmstrip cells per visible media clip, each the part of the clip card it
-/// covers and the image drawn there. Only cells that overlap the visible ticks
-/// are built or asked for. A clip an edge drag or a slide in flight changes,
-/// `held`, draws each cell where its frame plays once the release lands, and
-/// none past its ends.
+/// covers and the image drawn there: the frame of the clip's own lane at the
+/// cell's tick. Only cells that overlap the visible ticks are built or asked
+/// for. A clip an edge drag or a slide in flight changes, `held`, draws each
+/// cell where its frame plays once the release lands, and none past its ends.
 ///
 /// A cell not rendered yet draws the last rendered cell of the same clip at
 /// or before its tick, or else the first after it, within [`STAND_IN_CELLS`]
@@ -182,19 +182,24 @@ pub(super) fn clip_cells(
     let mut out = std::collections::HashMap::new();
     #[cfg(test)]
     super::lanes::built::media_rows(visible_rows);
-    let visible: Vec<(u64, i64, i64, f32)> = visible_rows
+    let visible: Vec<(u64, u64, i64, i64, f32)> = visible_rows
         .iter()
         .filter_map(|row| store.sequence.tracks.get(*row))
         .filter(|track| track.filmstrip && !track.collapsed)
-        .flat_map(|track| visible_clips_slice(&track.clips, view_start, view_end).iter())
-        .filter(|clip| clip.kind == crate::types::UiClipKind::Media)
-        .filter_map(|clip| {
+        .flat_map(|track| {
+            visible_clips_slice(&track.clips, view_start, view_end)
+                .iter()
+                .map(|clip| (track.id, clip))
+        })
+        .filter(|(_, clip)| clip.kind == crate::types::UiClipKind::Media)
+        .filter_map(|(lane, clip)| {
             let span = (clip.timeline_end_ticks - clip.timeline_start_ticks).max(1);
             let width = (span as f32 / fps) * pps;
             if width < 24.0 {
                 return None;
             }
             Some((
+                lane,
                 clip.id,
                 clip.timeline_start_ticks,
                 clip.timeline_end_ticks,
@@ -209,7 +214,7 @@ pub(super) fn clip_cells(
     let filmstrips = &state.read(cx).filmstrips;
     #[cfg(test)]
     let drawn_before = (owed.missing.len(), owed.blank.len());
-    for (clip, start, end, width) in visible {
+    for (lane, clip, start, end, width) in visible {
         let shown = strip_cells(
             thumbnails,
             start,
@@ -220,6 +225,7 @@ pub(super) fn clip_cells(
         );
         let mut cells = cell_pictures(
             filmstrips,
+            lane,
             shown,
             (start, end),
             reach,
@@ -277,36 +283,39 @@ pub(super) fn strip_cells(
         .filter(move |cell| cell.to > shown.0 && cell.from < shown.1)
 }
 
-/// The pictures of `cells`, the cells of the clip from `start` to `end`: each
-/// cell's own or, while it is not rendered, the last rendered cell of the clip
-/// at or before its tick, or else the first after it, no more than `reach`
-/// ticks away. Pushes the tick of every cell drawn without its exact frame to
-/// `missing`, and of every cell drawn with no picture also to `blank`.
+/// The pictures of `cells`, the cells of the clip on `lane` from `start` to
+/// `end`: each cell's own or, while it is not rendered, the last rendered
+/// cell of the lane inside the clip at or before its tick, or else the first
+/// after it, no more than `reach` ticks away. Pushes every cell drawn without
+/// its exact frame to `missing`, and every cell drawn with no picture also to
+/// `blank`.
 fn cell_pictures(
     filmstrips: &FilmstripStore,
+    lane: u64,
     cells: impl Iterator<Item = StripCell>,
     (start, end): (i64, i64),
     reach: i64,
-    missing: &mut Vec<i64>,
-    blank: &mut Vec<i64>,
+    missing: &mut Vec<CellKey>,
+    blank: &mut Vec<CellKey>,
 ) -> Vec<FilmCell> {
     cells
         .filter_map(|cell| {
-            let picture = match filmstrips.get(cell.tick) {
+            let key = CellKey::new(lane, cell.tick);
+            let picture = match filmstrips.get(key) {
                 Some(own) => {
                     if own.snapped {
-                        missing.push(cell.tick);
+                        missing.push(key);
                     }
                     own
                 }
                 None => {
-                    missing.push(cell.tick);
+                    missing.push(key);
                     let within = (
                         start.max(cell.tick.saturating_sub(reach)),
                         end.min(cell.tick.saturating_add(reach).saturating_add(1)),
                     );
-                    let Some(stand_in) = filmstrips.stand_in(cell.tick, within) else {
-                        blank.push(cell.tick);
+                    let Some(stand_in) = filmstrips.stand_in(key, within) else {
+                        blank.push(key);
                         return None;
                     };
                     stand_in

@@ -49,6 +49,7 @@ fn resolve_with_substitutes_styles_for_one_clip() {
         crop: None,
         effect_vec2: None,
         transparent: false,
+        lane: None,
     };
     let scene = resolve_with(&project, rt(5), overrides).unwrap();
     approx(
@@ -162,6 +163,7 @@ fn resolve_with_substitutes_animation_slots_for_one_clip() {
             crop: None,
             effect_vec2: None,
             transparent: false,
+            lane: None,
         },
     )
     .unwrap();
@@ -200,6 +202,7 @@ fn resolve_with_substitutes_animation_slots_for_one_clip() {
             crop: None,
             effect_vec2: None,
             transparent: false,
+            lane: None,
         },
     )
     .unwrap();

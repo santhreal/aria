@@ -68,6 +68,7 @@ fn resolve_with_substitutes_transform_and_generator_for_one_clip() {
         crop: None,
         effect_vec2: None,
         transparent: false,
+        lane: None,
     };
     let scene = resolve_with(&project, rt(5), overrides).unwrap();
     let layer = &scene.layers[0];
