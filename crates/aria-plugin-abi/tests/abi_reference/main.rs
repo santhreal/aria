@@ -42,6 +42,7 @@ const DEFINE_GROUPS: &[(&str, &str)] = &[
     ("ARIA_FORMAT_", "Pixel formats"),
     ("ARIA_COLOR_", "Color encodings"),
     ("ARIA_PARAM_", "Parameter kinds"),
+    ("ARIA_FRAME_", "Frame rendering"),
     ("ARIA_HOST_V1_", "Table sizes"),
     ("ARIA_PLUGIN_V1_", "Table sizes"),
 ];

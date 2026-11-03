@@ -281,8 +281,8 @@ impl AriaResult {
     }
 }
 
-/// Result of a call that returns bytes: `storage_get`, `panel_view` and
-/// `overlay_scene`.
+/// Result of a call that returns bytes: `storage_get`, `render_frame`, `panel_view`
+/// and `overlay_scene`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct AriaBytesResult {

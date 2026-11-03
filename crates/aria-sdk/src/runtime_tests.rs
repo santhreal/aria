@@ -12,8 +12,8 @@ use parking_lot::Mutex;
 use std::ffi::c_void;
 
 use aria_plugin_abi::{
-    ARIA_API_MAJOR, AriaBytes, AriaBytesResult, AriaHostV1, AriaInstanceResult, AriaResult,
-    AriaStr, free_rust_bytes, free_rust_string,
+    ARIA_API_MAJOR, AriaBytes, AriaBytesResult, AriaFrameRequest, AriaHostV1, AriaInstanceResult,
+    AriaResult, AriaStr, free_rust_bytes, free_rust_string,
 };
 
 #[derive(Default)]
@@ -47,6 +47,12 @@ struct MockHostState {
     workspaces: Vec<String>,
     analyzers: Vec<String>,
     textures: Vec<(String, u32, u32, Vec<u8>)>,
+    seeks: Vec<String>,
+    plays: Vec<i32>,
+    stops: usize,
+    opened: Vec<String>,
+    saved: usize,
+    saved_as: Vec<String>,
 }
 
 #[allow(unsafe_code)]
@@ -526,6 +532,80 @@ unsafe extern "C" fn mock_register_texture(
     AriaResult::ok_empty()
 }
 
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_render_frame(
+    _ctx: *mut c_void,
+    req: *mut AriaFrameRequest,
+) -> AriaBytesResult {
+    if req.is_null() {
+        return AriaBytesResult::err("null request".to_owned());
+    }
+    // SAFETY: Validated non-null above.
+    let req = unsafe { &mut *req };
+    let w = req.width.max(2);
+    let h = req.height.max(1);
+    req.width = w;
+    req.height = h;
+    let bytes = vec![128u8; (w as usize) * (h as usize) * 4];
+    AriaBytesResult::found(bytes)
+}
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_editor_seek(ctx: *mut c_void, tick_json: AriaStr) -> AriaResult {
+    // SAFETY: Validated by test harness.
+    let raw = unsafe { tick_json.as_str() }.unwrap().to_owned();
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().seeks.push(raw.clone());
+    AriaResult::ok(raw)
+}
+
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_editor_play(ctx: *mut c_void, speed: i32) -> AriaResult {
+    if speed == 0 {
+        return AriaResult::err("speed must be non-zero".to_owned());
+    }
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().plays.push(speed);
+    AriaResult::ok_empty()
+}
+
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_editor_stop(ctx: *mut c_void) -> AriaResult {
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().stops += 1;
+    AriaResult::ok_empty()
+}
+
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_project_open(ctx: *mut c_void, path: AriaStr) -> AriaResult {
+    // SAFETY: Validated by test harness.
+    let p = unsafe { path.as_str() }.unwrap().to_owned();
+    if p.is_empty() {
+        return AriaResult::err("empty path".to_owned());
+    }
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().opened.push(p);
+    AriaResult::ok_empty()
+}
+
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_project_save(ctx: *mut c_void) -> AriaResult {
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().saved += 1;
+    AriaResult::ok("/work/saved.aria".to_owned())
+}
+
+#[allow(unsafe_code)]
+unsafe extern "C" fn mock_project_save_as(ctx: *mut c_void, path: AriaStr) -> AriaResult {
+    // SAFETY: Validated by test harness.
+    let p = unsafe { path.as_str() }.unwrap().to_owned();
+    if p.is_empty() {
+        return AriaResult::err("empty path".to_owned());
+    }
+    // SAFETY: `ctx` points to `Mutex<MockHostState>`.
+    unsafe { state_mut(ctx) }.lock().saved_as.push(p.clone());
+    AriaResult::ok(p)
+}
+
 static MOCK_HOST: AriaHostV1 = AriaHostV1 {
     struct_size: std::mem::size_of::<AriaHostV1>(),
     api_major: ARIA_API_MAJOR,
@@ -573,6 +653,13 @@ static MOCK_HOST: AriaHostV1 = AriaHostV1 {
     markers_in_range: mock_markers_in_range,
     in_out: mock_in_out,
     register_texture: mock_register_texture,
+    render_frame: mock_render_frame,
+    editor_seek: mock_editor_seek,
+    editor_play: mock_editor_play,
+    editor_stop: mock_editor_stop,
+    project_open: mock_project_open,
+    project_save: mock_project_save,
+    project_save_as: mock_project_save_as,
 };
 
 #[path = "runtime_tests_contributions.rs"]

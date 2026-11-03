@@ -77,10 +77,31 @@ export events. `result` is `RenderResult::Written`, `Failed(reason)`, or
 
 ## Editor view
 
-`EditorView` is a service holding the view as of the last drawn frame. The
-engine plugin registers it; a plugin declares `uses: &["EditorView"]` and calls
-`current()`, which returns a `ViewState` (`selection`, `playhead`, `mark_in`,
-`mark_out`, `playing`, `speed`), or `None` before the first frame.
+`EditorView` is a service holding the view as of the last drawn frame and the
+transport queue processed by the window thread. The engine plugin registers it; a
+plugin declares `uses: &["EditorView"]` and calls `current()`, which returns a
+`ViewState` (`selection`, `playhead`, `mark_in`, `mark_out`, `playing`, `speed`),
+or `None` before the first frame.
+
+`EditorView` also moves the playhead and controls playback through the same
+transport path as the viewer buttons and J/K/L keys:
+
+- `seek(at, bus)` rescales `at` (`at.value >= 0`, positive rate) to the
+  published view's frame rate, updates `ViewState::playhead`, posts
+  `PlayheadMoved { at }` on `bus`, and wakes the window thread to seek the
+  viewer and audio scrub.
+- `play(speed, bus)` accepts a non-zero shuttle multiplier in
+  `MIN_PLAYBACK_SPEED..=MAX_PLAYBACK_SPEED` (`-8..=8`), updates
+  `ViewState::{playing, speed}`, posts `PlaybackStarted { at, speed }` on `bus`,
+  and wakes the window thread to start playback at `speed`.
+- `stop(bus)` clears `ViewState::{playing, speed}` when playing, posts
+  `PlaybackStopped { at }` on `bus`, and wakes the window thread to stop
+  playback.
+
+External WASM and native plugins call `editor-seek` / `Host::editor_seek`,
+`editor-play` / `Host::editor_play`, and `editor-stop` / `Host::editor_stop`
+(requiring `project = "read-write"`). See
+[Capabilities across surfaces](capabilities.md#transport-and-playhead-control).
 
 ## Context menus
 

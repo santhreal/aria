@@ -227,3 +227,125 @@ fn every_context_location_draws_its_placed_commands_in_one_menu() {
         "a row whose command is not registered was drawn"
     );
 }
+
+#[test]
+fn plugin_commands_drive_editor_transport_and_project_session_through_shared_services() {
+    use aria_commands::{Command, EditCommand};
+    use aria_core::{Rational, RationalTime};
+    use aria_models::TrackKind;
+    use aria_plugin::{EditorView, Origin, ProjectHost};
+
+    let dir = crate::scratch_pool::scratch("plugin-transport-session");
+    let mut state = AppState::new(PluginContext::new(), dir.clone()).expect("state");
+    let first_path = dir.join("first.aria");
+    let second_path = dir.join("second.aria");
+
+    let first_move = first_path.clone();
+    let _save_as_first = state
+        .ctx
+        .register_command(
+            CommandSpec::new("session.save_as_first", "Save First"),
+            move |ctx: &PluginContext| {
+                let host = ctx.get::<ProjectHost>();
+                host.save_as(&Origin::plugin("test.session"), &first_move)
+                    .map(|_| ())
+                    .map_err(|err| err.to_string())
+            },
+        )
+        .expect("registers save_as_first");
+    state.run_plugin_command("session.save_as_first");
+    assert_eq!(state.last_error, None);
+    assert_eq!(state.project_path.as_deref(), Some(first_path.as_path()));
+    assert!(first_path.is_file());
+
+    // Dirty the session with a track addition, then save to `second_path`.
+    state
+        .host
+        .apply(
+            &Origin::plugin("test.session"),
+            Command::Edit(EditCommand::AddTrack {
+                name: "V2".into(),
+                kind: TrackKind::Video,
+                index: None,
+                pinned: false,
+            }),
+        )
+        .expect("add track");
+    state.sync_from_plugin_host();
+    assert!(state.host.is_dirty());
+
+    let second_move = second_path.clone();
+    let _save_as_second = state
+        .ctx
+        .register_command(
+            CommandSpec::new("session.save_as_second", "Save Second"),
+            move |ctx: &PluginContext| {
+                let host = ctx.get::<ProjectHost>();
+                host.save_as(&Origin::plugin("test.session"), &second_move)
+                    .map(|_| ())
+                    .map_err(|err| err.to_string())
+            },
+        )
+        .expect("registers save_as_second");
+    state.run_plugin_command("session.save_as_second");
+    assert_eq!(state.last_error, None);
+    assert_eq!(state.project_path.as_deref(), Some(second_path.as_path()));
+    assert!(!state.host.is_dirty());
+
+    // Re-open `first_path` from a plugin command and verify `AppState` resets to `first_path`.
+    let open_first = first_path.clone();
+    let _open_cmd = state
+        .ctx
+        .register_command(
+            CommandSpec::new("session.open_first", "Open First"),
+            move |ctx: &PluginContext| {
+                let host = ctx.get::<ProjectHost>();
+                host.open(&Origin::plugin("test.session"), &open_first)
+                    .map_err(|err| err.to_string())
+            },
+        )
+        .expect("registers open_first");
+    state.run_plugin_command("session.open_first");
+    assert_eq!(state.last_error, None);
+    assert_eq!(state.project_path.as_deref(), Some(first_path.as_path()));
+
+    // Drive transport (`play`, `seek`, `stop`) from a plugin command and verify `AppState` and `EditorView`.
+    let _transport_cmd = state
+        .ctx
+        .register_command(
+            CommandSpec::new("transport.drive", "Drive Transport"),
+            |ctx: &PluginContext| {
+                let view = ctx.get::<EditorView>();
+                view.play(2, ctx.events())?;
+                view.seek(RationalTime::new(0, Rational::FPS_24), ctx.events())?;
+                Ok(())
+            },
+        )
+        .expect("registers transport.drive");
+    state.run_plugin_command("transport.drive");
+    assert_eq!(state.last_error, None);
+    assert!(state.playing);
+    assert_eq!(state.shuttle.as_plugin_speed(), 2);
+    assert_eq!(
+        state.editor_view.current().map(|s| (s.playing, s.speed)),
+        Some((true, 2))
+    );
+
+    let _stop_cmd = state
+        .ctx
+        .register_command(
+            CommandSpec::new("transport.stop", "Stop Transport"),
+            |ctx: &PluginContext| {
+                let view = ctx.get::<EditorView>();
+                view.stop(ctx.events())
+            },
+        )
+        .expect("registers transport.stop");
+    state.run_plugin_command("transport.stop");
+    assert_eq!(state.last_error, None);
+    assert!(!state.playing);
+    assert_eq!(
+        state.editor_view.current().map(|s| (s.playing, s.speed)),
+        Some((false, 1))
+    );
+}

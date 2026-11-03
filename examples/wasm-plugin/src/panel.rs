@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::{
     DragPhase, HandleLook, OverlayColor, OverlayEvent, OverlayHandle, OverlayLine, OverlayRect,
-    OverlayShape, OverlayText, PanelEvent, Point, UiButton, UiInput, UiNode, UiSlider,
+    OverlayShape, OverlayText, PanelEvent, Point, UiButton, UiImage, UiInput, UiNode, UiSlider,
     project_snapshot,
 };
 
@@ -22,6 +22,7 @@ pub(crate) struct PanelModel {
     level: f64,
     note: String,
     mode: PanelMode,
+    pub(crate) thumbnail: Option<(u32, u32, Vec<u8>)>,
 }
 
 impl Default for PanelModel {
@@ -31,6 +32,7 @@ impl Default for PanelModel {
             level: 0.5,
             note: "ready".to_owned(),
             mode: PanelMode::Normal,
+            thumbnail: None,
         }
     }
 }
@@ -80,8 +82,12 @@ pub(crate) fn panel_view(id: String) -> Vec<UiNode> {
         PanelMode::Normal => {}
     }
 
-    vec![
-        UiNode::Column(vec![1, 2, 3, 4]),
+    let mut children = vec![1, 2, 3, 4];
+    if state.thumbnail.is_some() {
+        children.push(5);
+    }
+    let mut nodes = vec![
+        UiNode::Column(children),
         UiNode::Heading(format!("Tools ({})", state.presses)),
         UiNode::Button(UiButton {
             id: "bump".to_owned(),
@@ -101,7 +107,15 @@ pub(crate) fn panel_view(id: String) -> Vec<UiNode> {
             value: state.note.clone(),
             placeholder: "Enter note".to_owned(),
         }),
-    ]
+    ];
+    if let Some((width, height, ref rgba)) = state.thumbnail {
+        nodes.push(UiNode::Image(UiImage {
+            width,
+            height,
+            rgba: rgba.clone(),
+        }));
+    }
+    nodes
 }
 
 pub(crate) fn panel_event(id: String, event: PanelEvent) -> Result<(), String> {

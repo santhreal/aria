@@ -85,8 +85,8 @@ extern "C" {
 #define ARIA_INSTANCE_UNSUPPORTED ARIA_STATUS_UNSUPPORTED
 
 /// `AriaBytesResult.status`: `bytes` holds the result: the value stored under a
-/// `storage_get` key, the panel tree JSON of `panel_view`, or the scene JSON of
-/// `overlay_scene`.
+/// `storage_get` key, the rendered RGBA8 pixels of `render_frame`, the panel tree JSON
+/// of `panel_view`, or the scene JSON of `overlay_scene`.
 #define ARIA_BYTES_FOUND 0u
 
 /// `AriaBytesResult.status`: `storage_get` found no value under the key. `bytes` and
@@ -151,6 +151,33 @@ extern "C" {
 /// `AriaParamValue.kind`: 3-d vector in `x`, `y` and `z`.
 #define ARIA_PARAM_VEC3 4u
 
+/// `AriaFrameRequest.source_kind`: the sequence open for editing.
+#define ARIA_FRAME_SOURCE_OPEN 0u
+
+/// `AriaFrameRequest.source_kind`: the root sequence (`source_id == 0`) or the
+/// nested sequence `source_id`.
+#define ARIA_FRAME_SOURCE_SEQUENCE 1u
+
+/// `AriaFrameRequest.source_kind`: the clip in `source_id`, rendered through its
+/// own effects at its timeline position with other clips of that sequence removed.
+#define ARIA_FRAME_SOURCE_CLIP 2u
+
+/// `AriaFrameRequest.size_kind`: the sequence's canvas resolution, at most
+/// `ARIA_FRAME_MAX_SIDE` on each side.
+#define ARIA_FRAME_SIZE_CANVAS 0u
+
+/// `AriaFrameRequest.size_kind`: fit inside `width` by `height` (each 1 through
+/// `ARIA_FRAME_MAX_SIDE`), keeping aspect and rounding to even, at least 2x2
+/// without scaling up.
+#define ARIA_FRAME_SIZE_FIT 1u
+
+/// `AriaFrameRequest.size_kind`: exact `width` by `height` in pixels (each 1
+/// through `ARIA_FRAME_MAX_SIDE`).
+#define ARIA_FRAME_SIZE_EXACT 2u
+
+/// Largest width or height `AriaHostV1.render_frame` renders, in pixels.
+#define ARIA_FRAME_MAX_SIDE 4096u
+
 /// Borrowed UTF-8 text, valid until the call it is passed to returns. It holds no
 /// terminating NUL.
 typedef struct AriaStr {
@@ -210,8 +237,8 @@ typedef struct AriaResult {
     AriaOwnedStr value;
 } AriaResult;
 
-/// Result of a call that returns bytes: `storage_get`, `panel_view` and
-/// `overlay_scene`.
+/// Result of a call that returns bytes: `storage_get`, `render_frame`, `panel_view`
+/// and `overlay_scene`.
 typedef struct AriaBytesResult {
     /// An `ARIA_BYTES_*` value.
     uint32_t status;
@@ -558,6 +585,38 @@ typedef struct AriaDriverEvalCall {
     AriaParamValue output;
 } AriaDriverEvalCall;
 
+/// The frame `AriaHostV1.render_frame` renders, and the dimensions it writes back.
+typedef struct AriaFrameRequest {
+    /// An `ARIA_FRAME_SOURCE_*` value.
+    uint32_t source_kind;
+
+    /// An `ARIA_FRAME_SIZE_*` value.
+    uint32_t size_kind;
+
+    /// Sequence id (`0` for the root sequence) when `source_kind` is
+    /// `ARIA_FRAME_SOURCE_SEQUENCE`, clip id when `ARIA_FRAME_SOURCE_CLIP`, or `0`.
+    uint64_t source_id;
+
+    /// Timestamp numerator in ticks.
+    int64_t time_value;
+
+    /// Tick rate numerator.
+    int32_t time_rate_num;
+
+    /// Tick rate denominator.
+    int32_t time_rate_den;
+
+    /// Requested width in pixels when `size_kind` is `ARIA_FRAME_SIZE_FIT` or
+    /// `ARIA_FRAME_SIZE_EXACT`, and the rendered frame width written by
+    /// `AriaHostV1.render_frame` on `ARIA_BYTES_FOUND`.
+    uint32_t width;
+
+    /// Requested height in pixels when `size_kind` is `ARIA_FRAME_SIZE_FIT` or
+    /// `ARIA_FRAME_SIZE_EXACT`, and the rendered frame height written by
+    /// `AriaHostV1.render_frame` on `ARIA_BYTES_FOUND`.
+    uint32_t height;
+} AriaFrameRequest;
+
 /// The calls a host makes available to a plugin. The host passes it to
 /// `aria_plugin_entry`, and it stays valid while the library is loaded.
 ///
@@ -774,6 +833,40 @@ typedef struct AriaHostV1 {
     /// Register `width * height * 4` straight-alpha RGBA8 `pixels` as the
     /// plugin texture `id`, which an effect pass reads as an input.
     AriaResult (*register_texture)(void *host_ctx, AriaStr id, uint32_t width, uint32_t height, AriaBytes pixels);
+
+    /// Render a frame of the project as straight-alpha RGBA8 pixels (`width * height * 4`
+    /// bytes, top row first, at most `ARIA_FRAME_MAX_SIDE` on each side), write the
+    /// rendered dimensions to `request.width` and `request.height`, and return the
+    /// pixels in `AriaBytesResult.bytes` with `ARIA_BYTES_FOUND`. Requires project
+    /// read permission.
+    AriaBytesResult (*render_frame)(void *host_ctx, AriaFrameRequest *request);
+
+    /// Move the playhead to `tick_json`, a time object with `value` and `rate`, and post
+    /// `PlayheadMoved`. Requires project write permission.
+    AriaResult (*editor_seek)(void *host_ctx, AriaStr tick_json);
+
+    /// Start playback at signed integer multiplier `speed` (`-8` through `-1` or `1`
+    /// through `8`) and post `PlaybackStarted`. Requires project write permission.
+    AriaResult (*editor_play)(void *host_ctx, int32_t speed);
+
+    /// Stop playback and post `PlaybackStopped` when playing. Requires project write
+    /// permission.
+    AriaResult (*editor_stop)(void *host_ctx);
+
+    /// Open the `.aria` project at `path` when the open project has no unsaved changes,
+    /// posting `ProjectClosed` and `ProjectOpened`. Requires project write permission and
+    /// filesystem read permission for `path`.
+    AriaResult (*project_open)(void *host_ctx, AriaStr path);
+
+    /// Save the open project to its current path without adding an undo step, posting
+    /// `ProjectSaved`. Fails when the project has no path. Requires project write
+    /// permission and filesystem write permission for the project's path.
+    AriaResult (*project_save)(void *host_ctx);
+
+    /// Save the open project to `path` without adding an undo step, setting the project
+    /// path and posting `ProjectSaved`. Requires project write permission and filesystem
+    /// write permission for `path`.
+    AriaResult (*project_save_as)(void *host_ctx, AriaStr path);
 } AriaHostV1;
 
 /// The callbacks a plugin exports. `aria_plugin_entry` returns it, and it stays valid
@@ -1023,6 +1116,9 @@ typedef struct AriaTableHeader {
 
 /// Byte size of an `AriaHostV1` through `in_out`.
 #define ARIA_HOST_V1_QUERIES_SIZE offsetof(AriaHostV1, register_texture)
+
+/// Byte size of an `AriaHostV1` through `register_texture`.
+#define ARIA_HOST_V1_TEXTURES_SIZE offsetof(AriaHostV1, render_frame)
 
 #ifdef __cplusplus
 }

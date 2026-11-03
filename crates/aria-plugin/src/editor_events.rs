@@ -10,9 +10,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use aria_core::RationalTime;
+use aria_core::{Rational, RationalTime};
 use aria_models::{ClipId, MediaId, Project, TrackId};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 
 use crate::events::{Event, EventBus, WaterfallEvent};
 
@@ -240,11 +240,32 @@ impl ViewFrame<'_> {
     }
 }
 
-/// The editor's [`ViewState`] as of the last drawn frame. The editor registers
-/// it; a plugin declares `uses: &["EditorView"]` to read it.
+/// Lowest playback speed multiplier accepted by [`EditorView::play`].
+pub const MIN_PLAYBACK_SPEED: i32 = -8;
+
+/// Highest playback speed multiplier accepted by [`EditorView::play`].
+pub const MAX_PLAYBACK_SPEED: i32 = 8;
+
+/// One transport operation queued on [`EditorView`] for the editor window thread.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportRequest {
+    /// Move the playhead to `at`.
+    Seek { at: RationalTime },
+    /// Start playback at signed integer multiplier `speed` in
+    /// [`MIN_PLAYBACK_SPEED`]..=-1 or 1..=[`MAX_PLAYBACK_SPEED`].
+    Play { speed: i32 },
+    /// Stop playback.
+    Stop,
+}
+
+/// The editor's [`ViewState`] as of the last drawn frame, plus transport control
+/// requests queued for the editor window thread. The editor registers it; a
+/// plugin declares `uses: &["EditorView"]` to read or drive it.
 #[derive(Default)]
 pub struct EditorView {
     state: RwLock<Option<ViewState>>,
+    pending: Mutex<Vec<TransportRequest>>,
+    waker: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 impl std::fmt::Debug for EditorView {
@@ -307,6 +328,146 @@ impl EditorView {
         }
         *state = Some(frame.to_state());
     }
+
+    /// Register the callback invoked when [`seek`](Self::seek),
+    /// [`play`](Self::play), or [`stop`](Self::stop) queues a
+    /// [`TransportRequest`].
+    pub fn set_transport_waker(&self, waker: impl Fn() + Send + Sync + 'static) {
+        *self.waker.lock() = Some(Arc::new(waker));
+    }
+
+    /// Drain all queued [`TransportRequest`] items in FIFO order.
+    pub fn take_transport_requests(&self) -> Vec<TransportRequest> {
+        std::mem::take(&mut *self.pending.lock())
+    }
+
+    fn push_request(&self, req: TransportRequest) {
+        self.pending.lock().push(req);
+        let waker = self.waker.lock().clone();
+        if let Some(wake) = waker {
+            wake();
+        }
+    }
+
+    /// Move the playhead to `at`, updating the published [`ViewState`], posting
+    /// [`PlayheadMoved`] on `bus` when the position changes, and queueing
+    /// [`TransportRequest::Seek`] for the editor window.
+    pub fn seek(&self, at: RationalTime, bus: &EventBus) -> Result<RationalTime, String> {
+        if at.rate.num <= 0 || at.rate.den <= 0 {
+            return Err(format!(
+                "invalid seek time rate {}/{}: rate numerator and denominator must be positive",
+                at.rate.num, at.rate.den
+            ));
+        }
+        if at.value < 0 {
+            return Err(format!(
+                "invalid negative seek time {} ticks: pass a non-negative timestamp",
+                at.value
+            ));
+        }
+        let target = {
+            let mut state = self.state.write();
+            if let Some(current) = state.as_mut() {
+                let target = rescale_time(at, current.playhead.rate);
+                if current.playhead != target {
+                    current.playhead = target;
+                    bus.post(PlayheadMoved { at: target });
+                }
+                target
+            } else {
+                *state = Some(ViewState {
+                    selection: Vec::new(),
+                    playhead: at,
+                    mark_in: None,
+                    mark_out: None,
+                    playing: false,
+                    speed: 1,
+                });
+                bus.post(PlayheadMoved { at });
+                at
+            }
+        };
+        self.push_request(TransportRequest::Seek { at: target });
+        Ok(target)
+    }
+
+    /// Start playback at signed integer multiplier `speed`
+    /// ([`MIN_PLAYBACK_SPEED`]..=-1 or 1..=[`MAX_PLAYBACK_SPEED`]), updating
+    /// the published [`ViewState`], posting [`PlaybackStarted`] on `bus` when
+    /// state changes, and queueing [`TransportRequest::Play`].
+    pub fn play(&self, speed: i32, bus: &EventBus) -> Result<(), String> {
+        if speed == 0 || !(MIN_PLAYBACK_SPEED..=MAX_PLAYBACK_SPEED).contains(&speed) {
+            return Err(format!(
+                "invalid playback speed {speed}: pass a non-zero integer multiplier in {MIN_PLAYBACK_SPEED}..=-1 or 1..={MAX_PLAYBACK_SPEED}, or call editor_stop"
+            ));
+        }
+        {
+            let mut state = self.state.write();
+            if let Some(current) = state.as_mut() {
+                let changed = !current.playing || current.speed != speed;
+                current.playing = true;
+                current.speed = speed;
+                let at = current.playhead;
+                if changed {
+                    bus.post(PlaybackStarted { at, speed });
+                }
+            } else {
+                let at = RationalTime::new(0, Rational::FPS_24);
+                *state = Some(ViewState {
+                    selection: Vec::new(),
+                    playhead: at,
+                    mark_in: None,
+                    mark_out: None,
+                    playing: true,
+                    speed,
+                });
+                bus.post(PlaybackStarted { at, speed });
+            }
+        }
+        self.push_request(TransportRequest::Play { speed });
+        Ok(())
+    }
+
+    /// Stop playback, updating the published [`ViewState`], posting
+    /// [`PlaybackStopped`] on `bus` when playing, and queueing
+    /// [`TransportRequest::Stop`].
+    pub fn stop(&self, bus: &EventBus) -> Result<(), String> {
+        {
+            let mut state = self.state.write();
+            if let Some(current) = state.as_mut() {
+                let was_playing = current.playing;
+                current.playing = false;
+                current.speed = 1;
+                let at = current.playhead;
+                if was_playing {
+                    bus.post(PlaybackStopped { at });
+                }
+            } else {
+                let at = RationalTime::new(0, Rational::FPS_24);
+                *state = Some(ViewState {
+                    selection: Vec::new(),
+                    playhead: at,
+                    mark_in: None,
+                    mark_out: None,
+                    playing: false,
+                    speed: 1,
+                });
+            }
+        }
+        self.push_request(TransportRequest::Stop);
+        Ok(())
+    }
+}
+
+/// Convert `time` to `rate`, saturating to [`i64`] bounds.
+pub fn rescale_time(time: RationalTime, rate: Rational) -> RationalTime {
+    if time.rate == rate || !time.rate.is_valid() || !rate.is_valid() {
+        return RationalTime::new(time.value, rate);
+    }
+    let num = i128::from(time.value) * i128::from(time.rate.den) * i128::from(rate.num);
+    let den = i128::from(time.rate.num) * i128::from(rate.den);
+    let ticks = (num / den).clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64;
+    RationalTime::new(ticks, rate)
 }
 
 /// What a context menu was opened on.

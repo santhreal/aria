@@ -216,6 +216,62 @@ import project-undo: func() -> result<bool, string>;
 
 Undo the latest step on the project host. Requires permission `project = "read-write"`.
 
+### import `render-frame`
+
+```wit
+import render-frame: func(source: frame-source, time: rational-time, size: frame-size) -> result<rendered-frame, string>;
+```
+
+Render a frame of `source` at `time` and `size` as straight-alpha RGBA8 pixels. Requires permission `project = "read"` or `"read-write"`.
+
+### import `editor-seek`
+
+```wit
+import editor-seek: func(time: rational-time) -> result<rational-time, string>;
+```
+
+Move the playhead to `time`, posting `PlayheadMoved`, and return the resulting position. Requires permission `project = "read-write"`.
+
+### import `editor-play`
+
+```wit
+import editor-play: func(speed: s32) -> result<_, string>;
+```
+
+Start playback at signed integer multiplier `speed` (`-8` through `-1` or `1` through `8`), posting `PlaybackStarted`. Requires permission `project = "read-write"`.
+
+### import `editor-stop`
+
+```wit
+import editor-stop: func() -> result<_, string>;
+```
+
+Stop playback, posting `PlaybackStopped` when playing. Requires permission `project = "read-write"`.
+
+### import `project-open`
+
+```wit
+import project-open: func(path: string) -> result<_, string>;
+```
+
+Open the `.aria` project at `path` when the open project has no unsaved changes, posting `ProjectClosed` and `ProjectOpened`. Requires permission `project = "read-write"` and filesystem read permission for `path`.
+
+### import `project-save`
+
+```wit
+import project-save: func() -> result<string, string>;
+```
+
+Save the open project to its current path without adding an undo step, posting `ProjectSaved`. Requires permission `project = "read-write"` and filesystem write permission for the project path.
+
+### import `project-save-as`
+
+```wit
+import project-save-as: func(path: string) -> result<string, string>;
+```
+
+Save the open project to `path` without adding an undo step, setting the project path and posting `ProjectSaved`. Requires permission `project = "read-write"` and filesystem write permission for `path`.
+
 ### import `fs-read`
 
 ```wit
@@ -1771,3 +1827,33 @@ Ruler marker on a sequence timeline.
 | `color` | [`marker-color`](#enum-marker-color) | The marker color. |
 | `comment` | `string` | Comment text, empty when none. |
 | `kind` | [`marker-kind`](#enum-marker-kind) | The marker category. |
+
+### variant `frame-source`
+
+Source composite target for `render-frame`.
+
+| Case | Payload | Description |
+| --- | --- | --- |
+| `open` |  | The sequence open for editing. |
+| `sequence` | `option<u64>` | The root sequence (`none`) or the nested sequence with this id. |
+| `clip` | `u64` | A clip by id, rendered through its own effects at its timeline position. |
+
+### variant `frame-size`
+
+Output dimensions for `render-frame`.
+
+| Case | Payload | Description |
+| --- | --- | --- |
+| `canvas` |  | The sequence canvas resolution, at most 4096 on each side. |
+| `fit` | `tuple<u32, u32>` | Fit inside `(max-width, max-height)`, keeping aspect and rounding to even. |
+| `exact` | `tuple<u32, u32>` | Exact `(width, height)` in pixels, each 1 through 4096. |
+
+### record `rendered-frame`
+
+Straight-alpha RGBA8 frame returned by `render-frame`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `width` | `u32` | Width in pixels. |
+| `height` | `u32` | Height in pixels. |
+| `data` | `list<u8>` | Straight-alpha RGBA8 pixels (`width * height * 4` bytes, top row first). |

@@ -1,13 +1,14 @@
+use std::path::Path;
 use std::sync::Arc;
-
-use aria_models::{ClipId, MarkerColor, MarkerKind, SequenceId};
-use aria_plugin::package::Access;
-use aria_plugin::{
-    ClipRef, EditorView, PluginContext, ProjectHost, Rational, RationalTime, TimeRange, host_wire,
-};
 
 use super::HostState;
 use crate::bindings;
+use aria_models::{ClipId, MarkerColor, MarkerKind, SequenceId};
+use aria_plugin::package::Access;
+use aria_plugin::{
+    ClipRef, EditorView, FrameRequest, FrameSize, FrameSource, PluginContext, ProjectHost,
+    Rational, RationalTime, TimeRange, host_wire,
+};
 
 /// Marker type used with `PluginContext::has` to record a `CapabilityDenial` when a plugin
 /// with `permissions.project = "read"` attempts a write operation (`project-transact` or `project-undo`).
@@ -147,6 +148,116 @@ impl HostState {
     pub(super) fn host_project_undo(&mut self) -> Result<bool, String> {
         let (_ctx, host) = self.require_project_write()?;
         host.undo().map_err(|err| err.to_string())
+    }
+
+    pub(super) fn host_render_frame(
+        &mut self,
+        source: bindings::FrameSource,
+        time: bindings::RationalTime,
+        size: bindings::FrameSize,
+    ) -> Result<bindings::RenderedFrame, String> {
+        let (ctx, host) = self.require_project_read()?;
+        let time = wit_to_rational_time(time)?;
+        let source = match source {
+            bindings::FrameSource::Open => FrameSource::Open,
+            bindings::FrameSource::Sequence(seq) => {
+                FrameSource::Sequence(seq.map(SequenceId::from_raw))
+            }
+            bindings::FrameSource::Clip(id) => FrameSource::Clip(ClipId::from_raw(id)),
+        };
+        let size = match size {
+            bindings::FrameSize::Canvas => FrameSize::Canvas,
+            bindings::FrameSize::Fit((max_width, max_height)) => FrameSize::Fit {
+                max_width,
+                max_height,
+            },
+            bindings::FrameSize::Exact((width, height)) => FrameSize::Exact { width, height },
+        };
+        let req = FrameRequest {
+            source,
+            size,
+            motion_blur: false,
+        };
+        let image = host_wire::render_frame(&ctx, &host, time, &req)?;
+        Ok(bindings::RenderedFrame {
+            width: image.width,
+            height: image.height,
+            data: image.pixels,
+        })
+    }
+
+    pub(super) fn host_editor_seek(
+        &mut self,
+        time: bindings::RationalTime,
+    ) -> Result<bindings::RationalTime, String> {
+        let (ctx, host) = self.require_project_write()?;
+        let time = wit_to_rational_time(time)?;
+        let target = host_wire::editor_seek(&ctx, &host, time)?;
+        Ok(rational_time_to_wit(target))
+    }
+
+    pub(super) fn host_editor_play(&mut self, speed: i32) -> Result<(), String> {
+        let (ctx, _host) = self.require_project_write()?;
+        host_wire::editor_play(&ctx, speed)
+    }
+
+    pub(super) fn host_editor_stop(&mut self) -> Result<(), String> {
+        let (ctx, _host) = self.require_project_write()?;
+        host_wire::editor_stop(&ctx)
+    }
+
+    pub(super) fn host_project_open(&mut self, path: String) -> Result<(), String> {
+        let (ctx, host) = self.require_project_write()?;
+        let allowed = match host_wire::check_project_fs_path(
+            &self.package,
+            &host,
+            Path::new(&path),
+            "read",
+        ) {
+            Ok(allowed) => allowed,
+            Err(err) => {
+                if err.starts_with("permission denied:") {
+                    let _ = ctx.has::<super::storage::FsPermission>();
+                }
+                return Err(err);
+            }
+        };
+        host_wire::project_open(&host, &self.package.manifest.id, allowed)
+    }
+
+    pub(super) fn host_project_save(&mut self) -> Result<String, String> {
+        let (ctx, host) = self.require_project_write()?;
+        let current_path = host.project_path().ok_or_else(|| {
+            "project has no file path; call project-save-as with a destination path first"
+                .to_owned()
+        })?;
+        if let Err(err) =
+            host_wire::check_project_fs_path(&self.package, &host, &current_path, "write")
+        {
+            if err.starts_with("permission denied:") {
+                let _ = ctx.has::<super::storage::FsPermission>();
+            }
+            return Err(err);
+        }
+        let saved = host_wire::project_save(&host, &self.package.manifest.id)?;
+        Ok(saved.to_string_lossy().into_owned())
+    }
+
+    pub(super) fn host_project_save_as(&mut self, path: String) -> Result<String, String> {
+        let (ctx, host) = self.require_project_write()?;
+        let allowed =
+            match host_wire::check_project_fs_path(&self.package, &host, Path::new(&path), "write")
+            {
+                Ok(allowed) => allowed,
+                Err(err) => {
+                    if err.starts_with("permission denied:") {
+                        let _ = ctx.has::<super::storage::FsPermission>();
+                    }
+                    return Err(err);
+                }
+            };
+        let saved = host_wire::project_save_as(&host, &self.package.manifest.id, allowed)?;
+        Ok(saved.to_string_lossy().into_owned())
     }
 }
 

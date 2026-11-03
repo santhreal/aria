@@ -7,20 +7,15 @@
 //! implies: [`MediaImported`], [`ProjectSaved`], and the rest. A group
 //! ([`ProjectHost::group`]) or a transaction ([`ProjectHost::transact_with`])
 //! applies any number of commands as one undo step.
-//!
-//! One thread edits at a time. A thread that applies a command or opens a group
-//! holds the project until the command lands or the outermost group closes;
-//! edits from the same thread join in, and a group opened inside another is a
-//! savepoint of it. An edit from another thread waits up to
-//! [`ProjectHost::CONTENDED_WAIT`] and is then refused, naming the holder, so an
-//! assistant turn that holds the project for its whole reply refuses an edit
-//! from the window instead of freezing it.
+//! One thread edits at a time, waiting up to [`ProjectHost::CONTENDED_WAIT`]
+//! when another thread holds the project.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt;
 use std::marker::PhantomData;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::ThreadId;
 use std::time::{Duration, Instant};
@@ -173,6 +168,7 @@ struct Sequence {
     /// the outermost one commits and dropped when the group they belong to
     /// rolls back.
     announced: Vec<Announcement>,
+    session_changes: Vec<crate::host_wire::SessionChange>,
 }
 
 thread_local! {
@@ -411,10 +407,19 @@ impl ProjectHost {
         }
     }
 
+    /// The file path of the open project, or `None` when unsaved.
+    pub fn project_path(&self) -> Option<PathBuf> {
+        self.engine.lock().project_path().cloned()
+    }
+
+    /// Whether the open project has unsaved edits.
+    pub fn is_dirty(&self) -> bool {
+        self.engine.lock().is_dirty()
+    }
+
     /// Look up `id` across the open sequence, root timeline, and nested sequences.
     pub fn clip(&self, id: aria_models::ClipId) -> Option<crate::ClipRef> {
-        let snapshot = self.snapshot();
-        crate::clip(&snapshot, id)
+        crate::clip(&self.snapshot(), id)
     }
 
     /// Clips on `sequence` (`None` for the open sequence) overlapping the half-open
@@ -424,8 +429,7 @@ impl ProjectHost {
         sequence: Option<aria_models::SequenceId>,
         range: aria_core::TimeRange,
     ) -> Vec<crate::ClipRef> {
-        let snapshot = self.snapshot();
-        crate::clips_in_range(&snapshot, sequence, range)
+        crate::clips_in_range(&self.snapshot(), sequence, range)
     }
 
     /// Clips on `sequence` (`None` for the open sequence) covering `tick`,
@@ -435,15 +439,13 @@ impl ProjectHost {
         sequence: Option<aria_models::SequenceId>,
         tick: aria_core::RationalTime,
     ) -> Vec<crate::ClipRef> {
-        let snapshot = self.snapshot();
-        crate::clips_at(&snapshot, sequence, tick)
+        crate::clips_at(&self.snapshot(), sequence, tick)
     }
 
     /// Resolve `selection` to [`ClipRef`](crate::ClipRef)s, dropping any clip
     /// ids no longer in the project.
     pub fn selected_clips(&self, selection: &[aria_models::ClipId]) -> Vec<crate::ClipRef> {
-        let snapshot = self.snapshot();
-        crate::selected_clips(&snapshot, selection)
+        crate::selected_clips(&self.snapshot(), selection)
     }
 
     /// Ruler markers on `sequence` (`None` for the open sequence) overlapping
@@ -453,8 +455,7 @@ impl ProjectHost {
         sequence: Option<aria_models::SequenceId>,
         range: aria_core::TimeRange,
     ) -> Vec<aria_models::Marker> {
-        let snapshot = self.snapshot();
-        crate::markers_in_range(&snapshot, sequence, range)
+        crate::markers_in_range(&self.snapshot(), sequence, range)
     }
 
     /// Who holds the project from another thread, if anyone.
@@ -593,6 +594,12 @@ impl ProjectHost {
             })
         });
         let derived = derived(&outcome, engine, closed);
+        crate::host_wire::record_session_outcome(
+            &mut self.sequence.lock().session_changes,
+            origin,
+            &outcome,
+            engine,
+        );
         Ok((outcome, result, [applied, derived]))
     }
 
@@ -787,6 +794,57 @@ impl ProjectHost {
         let stepped = !grouped && step(&mut self.engine.lock());
         self.announce(hold.release([]));
         Ok(stepped)
+    }
+
+    pub(crate) fn take_session_changes(&self) -> Vec<crate::host_wire::SessionChange> {
+        std::mem::take(&mut self.sequence.lock().session_changes)
+    }
+
+    /// Open the `.aria` project at `path` when the open project has no unsaved
+    /// changes, posting [`ProjectClosed`] and [`ProjectOpened`].
+    pub fn open(&self, origin: &Origin, path: impl Into<PathBuf>) -> Result<(), EngineError> {
+        let path = path.into();
+        if path.as_os_str().is_empty() {
+            return Err(EngineError::Refused("project path cannot be empty".into()));
+        }
+        if self.is_dirty() {
+            return Err(EngineError::Refused(
+                "project has unsaved changes; save the project before opening another".into(),
+            ));
+        }
+        self.apply(origin, Command::Project(ProjectCommand::Open { path }))
+            .map(drop)
+    }
+
+    /// Save the open project to its current path without adding an undo step,
+    /// posting [`ProjectSaved`].
+    pub fn save(&self, origin: &Origin) -> Result<PathBuf, EngineError> {
+        let Some(path) = self.project_path() else {
+            return Err(EngineError::Refused(
+                "the project has not been saved yet; choose a file to save it to".into(),
+            ));
+        };
+        self.apply(
+            origin,
+            Command::Project(ProjectCommand::Save { path: path.clone() }),
+        )?;
+        Ok(self.project_path().unwrap_or(path))
+    }
+
+    /// Save the open project to `path` without adding an undo step, setting the
+    /// project path and posting [`ProjectSaved`].
+    pub fn save_as(
+        &self,
+        origin: &Origin,
+        path: impl Into<PathBuf>,
+    ) -> Result<PathBuf, EngineError> {
+        let path = path.into();
+        if path.as_os_str().is_empty() {
+            return Err(EngineError::Refused("project path cannot be empty".into()));
+        }
+        let cmd = Command::Project(ProjectCommand::Save { path: path.clone() });
+        self.apply(origin, cmd)?;
+        Ok(self.project_path().unwrap_or(path))
     }
 
     /// Replace the session by running `f` on the engine while no edit or group

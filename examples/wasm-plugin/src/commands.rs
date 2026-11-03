@@ -5,11 +5,12 @@ use serde_json::{Value, json};
 use crate::jobs::start_counting_job;
 use crate::panel::{OVERLAY_STATE, OverlayMode, OverlayModel, PANEL_STATE, PanelModel};
 use crate::{
-    DEFAULT_MARKER_NAME, ImportResult, OverlaySpec, RationalTime, Report, TimeRange, clip,
-    clips_at, clips_in_range, editor_view, fs_read, fs_write, in_out, markers_in_range,
+    DEFAULT_MARKER_NAME, FrameSize, FrameSource, ImportResult, OverlaySpec, RationalTime, Report,
+    TimeRange, clip, clips_at, clips_in_range, editor_play, editor_seek, editor_stop, editor_view,
+    fs_read, fs_write, in_out, markers_in_range, project_open, project_save, project_save_as,
     project_snapshot, project_transact, project_undo, refresh_panel, refresh_viewer_overlay,
-    register_command, register_viewer_overlay, selected_clips, setting_get, storage_delete,
-    storage_get, storage_keys, storage_set,
+    register_command, register_viewer_overlay, render_frame, selected_clips, setting_get,
+    storage_delete, storage_get, storage_keys, storage_set,
 };
 
 pub(crate) fn command_run(id: String, args_json: String) -> Result<(), String> {
@@ -65,6 +66,9 @@ pub(crate) fn command_run(id: String, args_json: String) -> Result<(), String> {
         }
         "example.count-job" => start_counting_job(false),
         "example.endless-job" => start_counting_job(true),
+        "example.render-frame" => run_render_frame(&args_json),
+        "example.transport-control" => run_transport_control(&args_json),
+        "example.project-session" => run_project_session(&args_json),
         other => Err(format!("unknown command: {other}")),
     }
 }
@@ -304,6 +308,125 @@ fn run_query_project() -> Result<(), String> {
         "mark_out": io.mark_out.map(|t| t.value),
     });
     storage_set("last-queries.json", summary.to_string().as_bytes())?;
+    Ok(())
+}
+
+fn command_args(args_json: &str, setting_key: &str) -> Result<Value, String> {
+    let trimmed = args_json.trim();
+    if !trimmed.is_empty() && trimmed != "{}" {
+        return serde_json::from_str(trimmed).map_err(|err| format!("invalid args JSON: {err}"));
+    }
+    if let Some(raw) = setting_get(setting_key)? {
+        if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+            return Ok(val);
+        }
+    }
+    Ok(json!({}))
+}
+
+fn run_render_frame(args_json: &str) -> Result<(), String> {
+    let args = command_args(args_json, "example.render_frame_args")?;
+    let source = match args.get("source").and_then(Value::as_str).unwrap_or("open") {
+        "open" => FrameSource::Open,
+        "sequence" => FrameSource::Sequence(args.get("id").and_then(Value::as_u64)),
+        "clip" => {
+            let id = args
+                .get("id")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "clip source requires numeric id".to_owned())?;
+            FrameSource::Clip(id)
+        }
+        other => return Err(format!("unknown frame source: {other}")),
+    };
+    let time = RationalTime {
+        value: args.get("value").and_then(Value::as_i64).unwrap_or(0),
+        rate_num: args.get("rate_num").and_then(Value::as_i64).unwrap_or(24) as i32,
+        rate_den: args.get("rate_den").and_then(Value::as_i64).unwrap_or(1) as i32,
+    };
+    let size = match args.get("size").and_then(Value::as_str).unwrap_or("fit") {
+        "canvas" => FrameSize::Canvas,
+        "fit" => {
+            let w = args.get("width").and_then(Value::as_u64).unwrap_or(64) as u32;
+            let h = args.get("height").and_then(Value::as_u64).unwrap_or(36) as u32;
+            FrameSize::Fit((w, h))
+        }
+        "exact" => {
+            let w = args.get("width").and_then(Value::as_u64).unwrap_or(64) as u32;
+            let h = args.get("height").and_then(Value::as_u64).unwrap_or(36) as u32;
+            FrameSize::Exact((w, h))
+        }
+        other => return Err(format!("unknown frame size: {other}")),
+    };
+    let frame = render_frame(source, time, size)?;
+    if let Ok(mut guard) = PANEL_STATE.lock() {
+        let state = guard.get_or_insert_with(PanelModel::default);
+        state.thumbnail = Some((frame.width, frame.height, frame.data.clone()));
+    }
+    let first_pixel: Vec<u8> = frame.data.iter().take(4).copied().collect();
+    let summary = json!({
+        "width": frame.width,
+        "height": frame.height,
+        "byte_len": frame.data.len(),
+        "first_pixel": first_pixel,
+    });
+    storage_set("last-rendered-frame.json", summary.to_string().as_bytes())?;
+    Ok(())
+}
+
+fn run_transport_control(args_json: &str) -> Result<(), String> {
+    let args = command_args(args_json, "example.transport_args")?;
+    let op = args.get("op").and_then(Value::as_str).unwrap_or("seek");
+    let summary = match op {
+        "seek" => {
+            let time = RationalTime {
+                value: args.get("value").and_then(Value::as_i64).unwrap_or(0),
+                rate_num: args.get("rate_num").and_then(Value::as_i64).unwrap_or(24) as i32,
+                rate_den: args.get("rate_den").and_then(Value::as_i64).unwrap_or(1) as i32,
+            };
+            let landed = editor_seek(time)?;
+            json!({
+                "op": "seek",
+                "value": landed.value,
+                "rate_num": landed.rate_num,
+                "rate_den": landed.rate_den,
+            })
+        }
+        "play" => {
+            let speed = args.get("speed").and_then(Value::as_i64).unwrap_or(1) as i32;
+            editor_play(speed)?;
+            json!({ "op": "play", "speed": speed })
+        }
+        "stop" => {
+            editor_stop()?;
+            json!({ "op": "stop" })
+        }
+        other => return Err(format!("unknown transport op: {other}")),
+    };
+    storage_set("last-transport.json", summary.to_string().as_bytes())?;
+    Ok(())
+}
+
+fn run_project_session(args_json: &str) -> Result<(), String> {
+    let args = command_args(args_json, "example.session_args")?;
+    let op = args.get("op").and_then(Value::as_str).unwrap_or("save");
+    let summary = match op {
+        "open" => {
+            let path = args.get("path").and_then(Value::as_str).unwrap_or_default();
+            project_open(path)?;
+            json!({ "op": "open", "path": path })
+        }
+        "save" => {
+            let saved = project_save()?;
+            json!({ "op": "save", "path": saved })
+        }
+        "save_as" => {
+            let path = args.get("path").and_then(Value::as_str).unwrap_or_default();
+            let saved = project_save_as(path)?;
+            json!({ "op": "save_as", "path": saved })
+        }
+        other => return Err(format!("unknown project session op: {other}")),
+    };
+    storage_set("last-session.json", summary.to_string().as_bytes())?;
     Ok(())
 }
 

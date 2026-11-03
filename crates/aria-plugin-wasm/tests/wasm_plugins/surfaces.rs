@@ -51,7 +51,7 @@ fn panel_view_events_and_refresh_rebuild_exact_ui_tree() {
             id: "example.tools-panel".to_owned(),
             title: "WASM Tools".into(),
             location: PanelLocation::Sidebar,
-        })]
+        }),]
     );
 
     let _ = ctx.panel("example.tools-panel").expect("panel registered");

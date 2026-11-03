@@ -121,6 +121,13 @@ load.
 | [`register-theme`](wit-reference.md#import-register-theme) | `mount` only | [Theme files](../theme-tokens.md#theme-files) |
 | [`register-workspace`](wit-reference.md#import-register-workspace) | `mount` only | [Workspaces](workspaces.md) |
 | [`register-analyzer`](wit-reference.md#import-register-analyzer) | `mount` only | [Audio analyzers](analyzers.md) |
+| [`render-frame`](wit-reference.md#import-render-frame) | `project = "read"` or `"read-write"` | [Frames](project.md#frames) |
+| [`editor-seek`](wit-reference.md#import-editor-seek) | `project = "read-write"` | [Capabilities](capabilities.md#transport-and-playhead-control) |
+| [`editor-play`](wit-reference.md#import-editor-play) | `project = "read-write"` | [Capabilities](capabilities.md#transport-and-playhead-control) |
+| [`editor-stop`](wit-reference.md#import-editor-stop) | `project = "read-write"` | [Capabilities](capabilities.md#transport-and-playhead-control) |
+| [`project-open`](wit-reference.md#import-project-open) | `project = "read-write"` and `permissions.fs` read | [Capabilities](capabilities.md#project-session-open-and-save) |
+| [`project-save`](wit-reference.md#import-project-save) | `project = "read-write"` and `permissions.fs` write | [Capabilities](capabilities.md#project-session-open-and-save) |
+| [`project-save-as`](wit-reference.md#import-project-save-as) | `project = "read-write"` and `permissions.fs` write | [Capabilities](capabilities.md#project-session-open-and-save) |
 
 ### Guest Exports
 

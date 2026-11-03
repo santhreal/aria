@@ -64,6 +64,9 @@ pub const ARIA_HOST_V1_CONTRIBUTIONS_SIZE: usize = std::mem::offset_of!(AriaHost
 /// Byte size of an [`AriaHostV1`] through `in_out`.
 pub const ARIA_HOST_V1_QUERIES_SIZE: usize = std::mem::offset_of!(AriaHostV1, register_texture);
 
+/// Byte size of an [`AriaHostV1`] through `register_texture`.
+pub const ARIA_HOST_V1_TEXTURES_SIZE: usize = std::mem::offset_of!(AriaHostV1, render_frame);
+
 #[allow(unsafe_code)]
 unsafe extern "C" fn stub_panel_view(
     _host_ctx: *mut c_void,
@@ -348,6 +351,12 @@ impl AriaHostV1 {
 
     /// Whether the table holds `register_texture`.
     pub const fn has_textures(&self) -> bool {
+        self.struct_size >= ARIA_HOST_V1_TEXTURES_SIZE
+    }
+
+    /// Whether the table holds `render_frame`, `editor_seek`, `editor_play`,
+    /// `editor_stop`, `project_open`, `project_save`, and `project_save_as`.
+    pub const fn has_editor_reach(&self) -> bool {
         self.struct_size >= std::mem::size_of::<Self>()
     }
 }

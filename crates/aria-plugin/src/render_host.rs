@@ -15,6 +15,12 @@ use aria_models::{ClipId, ModelError, Project, SequenceId};
 use aria_render::{LayerSource, RenderError, Renderer, Scene, SceneLayer};
 use parking_lot::Mutex;
 
+/// Maximum width or height in pixels accepted by [`FrameSize::Fit`] or [`FrameSize::Exact`].
+pub const MAX_FRAME_DIMENSION: u32 = 4096;
+
+/// Alias for [`MAX_FRAME_DIMENSION`].
+pub const MAX_RENDER_FRAME_DIMENSION: u32 = MAX_FRAME_DIMENSION;
+
 /// What a frame shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameSource {

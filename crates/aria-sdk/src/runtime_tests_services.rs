@@ -491,3 +491,77 @@ fn host_project_queries_round_trip_and_refuse_on_shorter_table() {
     assert!(short.markers_in_range(None, range).is_err());
     assert!(short.in_out().is_err());
 }
+
+#[test]
+fn host_project_reach_renders_frames_controls_transport_and_manages_sessions() {
+    use crate::{FrameSize, FrameSource};
+
+    let mut state = Mutex::new(MockHostState::default());
+    let ctx = (&raw mut state).cast::<c_void>();
+    #[allow(unsafe_code)]
+    let host = unsafe { Host::from_raw(&MOCK_HOST, ctx) };
+
+    let t12 = RationalTime::new(12, Rational::FPS_24);
+    let frame = host
+        .render_frame(
+            FrameSource::Open,
+            t12,
+            FrameSize::Exact {
+                width: 4,
+                height: 2,
+            },
+        )
+        .expect("render_frame");
+    assert_eq!((frame.width, frame.height), (4, 2));
+    assert_eq!(frame.data.len(), 32);
+
+    let sought = host.editor_seek(t12).expect("editor_seek");
+    assert_eq!(sought, t12);
+    host.editor_play(2).expect("editor_play");
+    assert!(host.editor_play(0).is_err());
+    host.editor_stop().expect("editor_stop");
+
+    host.project_open("/work/cut.aria").expect("project_open");
+    assert!(host.project_open("").is_err());
+    assert_eq!(
+        host.project_save().expect("project_save"),
+        "/work/saved.aria"
+    );
+    assert_eq!(
+        host.project_save_as("/work/copy.aria")
+            .expect("project_save_as"),
+        "/work/copy.aria"
+    );
+    assert!(host.project_save_as("").is_err());
+
+    {
+        let st = state.lock();
+        assert_eq!(st.seeks.len(), 1);
+        assert_eq!(st.plays, vec![2]);
+        assert_eq!(st.stops, 1);
+        assert_eq!(st.opened, vec!["/work/cut.aria".to_owned()]);
+        assert_eq!(st.saved, 1);
+        assert_eq!(st.saved_as, vec!["/work/copy.aria".to_owned()]);
+    }
+
+    static SHORT_HOST: AriaHostV1 = {
+        let mut h = MOCK_HOST;
+        h.struct_size = aria_plugin_abi::ARIA_HOST_V1_TEXTURES_SIZE;
+        h
+    };
+    assert!(SHORT_HOST.has_textures());
+    assert!(!SHORT_HOST.has_editor_reach());
+    #[allow(unsafe_code)]
+    let short = unsafe { Host::from_raw(&SHORT_HOST, ctx) };
+    assert!(
+        short
+            .render_frame(FrameSource::Open, t12, FrameSize::Canvas)
+            .is_err()
+    );
+    assert!(short.editor_seek(t12).is_err());
+    assert!(short.editor_play(1).is_err());
+    assert!(short.editor_stop().is_err());
+    assert!(short.project_open("/work/cut.aria").is_err());
+    assert!(short.project_save().is_err());
+    assert!(short.project_save_as("/work/copy.aria").is_err());
+}

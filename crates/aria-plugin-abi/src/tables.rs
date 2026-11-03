@@ -2,15 +2,15 @@ use std::ffi::c_void;
 
 #[cfg(doc)]
 use super::{
-    ARIA_API_MAJOR, ARIA_BYTES_FOUND, ARIA_BYTES_NOT_FOUND, ARIA_INSTANCE_UNSUPPORTED,
-    ARIA_PLUGIN_ENTRY_SYMBOL, ARIA_PLUGIN_V1_MIN_SIZE, ARIA_STATUS_ERR, ARIA_STATUS_OK,
-    ARIA_STATUS_PANIC, ARIA_STATUS_UNSUPPORTED,
+    ARIA_API_MAJOR, ARIA_BYTES_FOUND, ARIA_BYTES_NOT_FOUND, ARIA_FRAME_MAX_SIDE,
+    ARIA_INSTANCE_UNSUPPORTED, ARIA_PLUGIN_ENTRY_SYMBOL, ARIA_PLUGIN_V1_MIN_SIZE, ARIA_STATUS_ERR,
+    ARIA_STATUS_OK, ARIA_STATUS_PANIC, ARIA_STATUS_UNSUPPORTED,
 };
 use super::{
     AriaAudioBlock, AriaAudioParam, AriaBytes, AriaBytesResult, AriaCpuEffectCall,
-    AriaDriverEvalCall, AriaEncoderAudio, AriaEncoderConfig, AriaEncoderFrame, AriaInstanceResult,
-    AriaJobStep, AriaOwnedBytes, AriaOwnedStr, AriaResult, AriaScopeCall, AriaStr,
-    AriaVideoFrameOut, AriaVideoInfo,
+    AriaDriverEvalCall, AriaEncoderAudio, AriaEncoderConfig, AriaEncoderFrame, AriaFrameRequest,
+    AriaInstanceResult, AriaJobStep, AriaOwnedBytes, AriaOwnedStr, AriaResult, AriaScopeCall,
+    AriaStr, AriaVideoFrameOut, AriaVideoInfo,
 };
 
 /// The calls a host makes available to a plugin. The host passes it to
@@ -240,6 +240,36 @@ pub struct AriaHostV1 {
         height: u32,
         pixels: AriaBytes,
     ) -> AriaResult,
+    /// Render a frame of the project as straight-alpha RGBA8 pixels (`width * height * 4`
+    /// bytes, top row first, at most [`ARIA_FRAME_MAX_SIDE`] on each side), write the
+    /// rendered dimensions to `request.width` and `request.height`, and return the
+    /// pixels in [`AriaBytesResult::bytes`] with [`ARIA_BYTES_FOUND`]. Requires project
+    /// read permission.
+    pub render_frame: unsafe extern "C" fn(
+        host_ctx: *mut c_void,
+        request: *mut AriaFrameRequest,
+    ) -> AriaBytesResult,
+    /// Move the playhead to `tick_json`, a time object with `value` and `rate`, and post
+    /// `PlayheadMoved`. Requires project write permission.
+    pub editor_seek: unsafe extern "C" fn(host_ctx: *mut c_void, tick_json: AriaStr) -> AriaResult,
+    /// Start playback at signed integer multiplier `speed` (`-8` through `-1` or `1`
+    /// through `8`) and post `PlaybackStarted`. Requires project write permission.
+    pub editor_play: unsafe extern "C" fn(host_ctx: *mut c_void, speed: i32) -> AriaResult,
+    /// Stop playback and post `PlaybackStopped` when playing. Requires project write
+    /// permission.
+    pub editor_stop: unsafe extern "C" fn(host_ctx: *mut c_void) -> AriaResult,
+    /// Open the `.aria` project at `path` when the open project has no unsaved changes,
+    /// posting `ProjectClosed` and `ProjectOpened`. Requires project write permission and
+    /// filesystem read permission for `path`.
+    pub project_open: unsafe extern "C" fn(host_ctx: *mut c_void, path: AriaStr) -> AriaResult,
+    /// Save the open project to its current path without adding an undo step, posting
+    /// `ProjectSaved`. Fails when the project has no path. Requires project write
+    /// permission and filesystem write permission for the project's path.
+    pub project_save: unsafe extern "C" fn(host_ctx: *mut c_void) -> AriaResult,
+    /// Save the open project to `path` without adding an undo step, setting the project
+    /// path and posting `ProjectSaved`. Requires project write permission and filesystem
+    /// write permission for `path`.
+    pub project_save_as: unsafe extern "C" fn(host_ctx: *mut c_void, path: AriaStr) -> AriaResult,
 }
 
 /// The callbacks a plugin exports. `aria_plugin_entry` returns it, and it stays valid

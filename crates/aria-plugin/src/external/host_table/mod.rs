@@ -25,9 +25,10 @@ use self::panels::{
     host_register_viewer_overlay, host_start_job,
 };
 use self::project::{
-    host_clip, host_clips_at, host_clips_in_range, host_editor_view, host_in_out,
-    host_markers_in_range, host_project_snapshot, host_project_transact, host_project_undo,
-    host_selected_clips,
+    host_clip, host_clips_at, host_clips_in_range, host_editor_play, host_editor_seek,
+    host_editor_stop, host_editor_view, host_in_out, host_markers_in_range, host_project_open,
+    host_project_save, host_project_save_as, host_project_snapshot, host_project_transact,
+    host_project_undo, host_render_frame, host_selected_clips,
 };
 pub(crate) use self::registration::register_native_command;
 use self::registration::{
@@ -46,6 +47,12 @@ use self::storage::{
 pub(crate) struct ProjectWrite;
 
 impl Service for ProjectWrite {}
+
+/// Capability marker recorded in `PluginContext::denials()` when a plugin
+/// attempts a filesystem operation without a matching `permissions.fs` grant.
+pub(crate) struct FsPermission;
+
+impl Service for FsPermission {}
 
 /// Static `AriaHostV1` function table handed to `aria_plugin_entry`.
 pub(crate) static HOST_V1: AriaHostV1 = AriaHostV1 {
@@ -95,6 +102,13 @@ pub(crate) static HOST_V1: AriaHostV1 = AriaHostV1 {
     markers_in_range: host_markers_in_range,
     in_out: host_in_out,
     register_texture: host_register_texture,
+    render_frame: host_render_frame,
+    editor_seek: host_editor_seek,
+    editor_play: host_editor_play,
+    editor_stop: host_editor_stop,
+    project_open: host_project_open,
+    project_save: host_project_save,
+    project_save_as: host_project_save_as,
 };
 
 /// Convert `host_ctx` back into a shared `&HostCallContext`.

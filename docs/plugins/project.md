@@ -13,6 +13,8 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 | `engine()` | The underlying `&Arc<Mutex<Engine>>` |
 | `snapshot()` | The project as an immutable `Arc<Project>`. A snapshot held across an edit costs one copy of the project |
 | `revision()` | The engine revision, bumped by every change |
+| `project_path()` | `Option<PathBuf>` of the open `.aria` project, or `None` when unsaved |
+| `is_dirty()` | Whether the open project has unsaved edits |
 | `clip(id)` | `Option<ClipRef>` (`id`, `track`, `start`, `end`, `kind`, `name`) across the root timeline and nested sequences |
 | `clips_in_range(sequence, range)` | `Vec<ClipRef>` overlapping the half-open `range` (`None` for the open sequence, `Some(id)` for a nested one), in track order then time order |
 | `clips_at(sequence, tick)` | `Vec<ClipRef>` covering `tick` (`start <= tick < end`), in track order then time order |
@@ -27,6 +29,9 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 | `undo()` | Undoes the latest step (`Ok(false)` while this thread has a group open) |
 | `redo()` | Redoes the latest undone step (`Ok(false)` while this thread has a group open) |
 | `history_jump(depth)` | Jumps undo history to `depth` (`Ok(false)` while this thread has a group open) |
+| `open(&origin, path)` | Opens the `.aria` project at `path` outside an edit group when `is_dirty()` is `false`, posting `ProjectClosed` and `ProjectOpened` |
+| `save(&origin)` | Writes the open project to its current `project_path()` outside an edit group without adding an undo step, posting `ProjectSaved` |
+| `save_as(&origin, path)` | Writes the open project to `path` outside an edit group without adding an undo step, setting `project_path()` and posting `ProjectSaved` |
 | `replace_session(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command, then posts `ProjectClosed` and `ProjectOpened` |
 
 `PluginContext` also exposes convenience query methods (`ctx.clip(id)`,
@@ -145,6 +150,12 @@ A clip in a transition or a track matte at `time` draws without the other clip.
 A clip that is not visible at `time` renders as a transparent frame. A clip id
 that is not in the project fails with `ModelError::UnknownClip`, and a sequence
 id with `ModelError::UnknownSequence`.
+
+External WASM and native plugins render a frame through `render-frame` or
+`aria_sdk::Host::render_frame(source, time, size)` (backed by `AriaHostV1::render_frame`),
+which requires `project = "read"` or `"read-write"`, caps each output dimension at
+`MAX_RENDER_FRAME_DIMENSION` (`4096`), and returns straight-alpha RGBA8 pixels. See
+[Capabilities across surfaces](capabilities.md#frame-rendering).
 
 ## Sound
 

@@ -66,8 +66,8 @@ pub const ARIA_INSTANCE_PANIC: u32 = ARIA_STATUS_PANIC;
 pub const ARIA_INSTANCE_UNSUPPORTED: u32 = ARIA_STATUS_UNSUPPORTED;
 
 /// [`AriaBytesResult::status`]: `bytes` holds the result: the value stored under a
-/// `storage_get` key, the panel tree JSON of `panel_view`, or the scene JSON of
-/// `overlay_scene`.
+/// `storage_get` key, the rendered RGBA8 pixels of `render_frame`, the panel tree JSON
+/// of `panel_view`, or the scene JSON of `overlay_scene`.
 pub const ARIA_BYTES_FOUND: u32 = 0;
 /// [`AriaBytesResult::status`]: `storage_get` found no value under the key. `bytes` and
 /// `error` are empty.
@@ -116,6 +116,28 @@ pub const ARIA_PARAM_COLOR: u32 = 2;
 pub const ARIA_PARAM_RECT: u32 = 3;
 /// [`AriaParamValue::kind`]: 3-d vector in `x`, `y` and `z`.
 pub const ARIA_PARAM_VEC3: u32 = 4;
+
+/// [`AriaFrameRequest::source_kind`]: the sequence open for editing.
+pub const ARIA_FRAME_SOURCE_OPEN: u32 = 0;
+/// [`AriaFrameRequest::source_kind`]: the root sequence (`source_id == 0`) or the
+/// nested sequence `source_id`.
+pub const ARIA_FRAME_SOURCE_SEQUENCE: u32 = 1;
+/// [`AriaFrameRequest::source_kind`]: the clip in `source_id`, rendered through its
+/// own effects at its timeline position with other clips of that sequence removed.
+pub const ARIA_FRAME_SOURCE_CLIP: u32 = 2;
+
+/// [`AriaFrameRequest::size_kind`]: the sequence's canvas resolution, at most
+/// [`ARIA_FRAME_MAX_SIDE`] on each side.
+pub const ARIA_FRAME_SIZE_CANVAS: u32 = 0;
+/// [`AriaFrameRequest::size_kind`]: fit inside `width` by `height` (each 1 through
+/// [`ARIA_FRAME_MAX_SIDE`]), keeping aspect and rounding to even, at least 2x2
+/// without scaling up.
+pub const ARIA_FRAME_SIZE_FIT: u32 = 1;
+/// [`AriaFrameRequest::size_kind`]: exact `width` by `height` in pixels (each 1
+/// through [`ARIA_FRAME_MAX_SIDE`]).
+pub const ARIA_FRAME_SIZE_EXACT: u32 = 2;
+/// Largest width or height [`AriaHostV1::render_frame`] renders, in pixels.
+pub const ARIA_FRAME_MAX_SIDE: u32 = 4096;
 
 mod values;
 pub use values::*;

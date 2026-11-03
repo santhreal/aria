@@ -1237,6 +1237,36 @@ world plugin {
         kind: marker-kind,
     }
 
+    /// Source composite target for `render-frame`.
+    variant frame-source {
+        /// The sequence open for editing.
+        open,
+        /// The root sequence (`none`) or the nested sequence with this id.
+        sequence(option<u64>),
+        /// A clip by id, rendered through its own effects at its timeline position.
+        clip(u64),
+    }
+
+    /// Output dimensions for `render-frame`.
+    variant frame-size {
+        /// The sequence canvas resolution, at most 4096 on each side.
+        canvas,
+        /// Fit inside `(max-width, max-height)`, keeping aspect and rounding to even.
+        fit(tuple<u32, u32>),
+        /// Exact `(width, height)` in pixels, each 1 through 4096.
+        exact(tuple<u32, u32>),
+    }
+
+    /// Straight-alpha RGBA8 frame returned by `render-frame`.
+    record rendered-frame {
+        /// Width in pixels.
+        width: u32,
+        /// Height in pixels.
+        height: u32,
+        /// Straight-alpha RGBA8 pixels (`width * height * 4` bytes, top row first).
+        data: list<u8>,
+    }
+
     /// Emit a log line at `level`. The line is kept in the plugin's log in Settings > Plugins.
     import log: func(level: log-level, text: string);
 
@@ -1332,6 +1362,34 @@ world plugin {
     /// Requires permission `project = "read-write"`.
     import project-undo: func() -> result<bool, string>;
 
+
+    /// Render a frame of `source` at `time` and `size` as straight-alpha RGBA8 pixels.
+    /// Requires permission `project = "read"` or `"read-write"`.
+    import render-frame: func(source: frame-source, time: rational-time, size: frame-size) -> result<rendered-frame, string>;
+
+    /// Move the playhead to `time`, posting `PlayheadMoved`, and return the resulting position.
+    /// Requires permission `project = "read-write"`.
+    import editor-seek: func(time: rational-time) -> result<rational-time, string>;
+
+    /// Start playback at signed integer multiplier `speed` (`-8` through `-1` or `1` through `8`), posting `PlaybackStarted`.
+    /// Requires permission `project = "read-write"`.
+    import editor-play: func(speed: s32) -> result<_, string>;
+
+    /// Stop playback, posting `PlaybackStopped` when playing.
+    /// Requires permission `project = "read-write"`.
+    import editor-stop: func() -> result<_, string>;
+
+    /// Open the `.aria` project at `path` when the open project has no unsaved changes, posting `ProjectClosed` and `ProjectOpened`.
+    /// Requires permission `project = "read-write"` and filesystem read permission for `path`.
+    import project-open: func(path: string) -> result<_, string>;
+
+    /// Save the open project to its current path without adding an undo step, posting `ProjectSaved`.
+    /// Requires permission `project = "read-write"` and filesystem write permission for the project path.
+    import project-save: func() -> result<string, string>;
+
+    /// Save the open project to `path` without adding an undo step, setting the project path and posting `ProjectSaved`.
+    /// Requires permission `project = "read-write"` and filesystem write permission for `path`.
+    import project-save-as: func(path: string) -> result<string, string>;
     /// Read bytes from a permitted filesystem path or active import target.
     import fs-read: func(path: string) -> result<list<u8>, string>;
 

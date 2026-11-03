@@ -66,10 +66,10 @@ pub use context::{
 pub use cost::{CostMetric, PluginCost};
 pub use editor_events::{
     ContextMenuRequested, EditorView, ExportFinished, ExportStarted, InOutChanged, JobFinished,
-    JobOutcome, JobProgress, MediaImported, MediaOffline, MediaRelinked, MenuEntry, MenuTarget,
-    PlaybackStarted, PlaybackStopped, PlayheadMoved, PluginActivated, PluginDeactivated,
-    ProjectClosed, ProjectOpened, ProjectSaved, RenderFinished, RenderKind, RenderResult,
-    SelectionChanged, ViewFrame, ViewState,
+    JobOutcome, JobProgress, MAX_PLAYBACK_SPEED, MIN_PLAYBACK_SPEED, MediaImported, MediaOffline,
+    MediaRelinked, MenuEntry, MenuTarget, PlaybackStarted, PlaybackStopped, PlayheadMoved,
+    PluginActivated, PluginDeactivated, ProjectClosed, ProjectOpened, ProjectSaved, RenderFinished,
+    RenderKind, RenderResult, SelectionChanged, TransportRequest, ViewFrame, ViewState,
 };
 pub use enablement::{
     ContextKey, ContextKeys, ENABLEMENT_MAX_DEPTH, ENABLEMENT_MAX_LEN, Enablement,
@@ -97,7 +97,10 @@ pub use queries::{
     ClipRef, InOut, clip, clips_at, clips_in_range, in_out, markers_in_range, selected_clips,
 };
 pub use registration::{Contribution, ContributionKind, Registration};
-pub use render_host::{FrameRequest, FrameSize, FrameSource, RenderHost};
+pub use render_host::{
+    FrameRequest, FrameSize, FrameSource, MAX_FRAME_DIMENSION, MAX_RENDER_FRAME_DIMENSION,
+    RenderHost,
+};
 pub use scopes::{
     MAX_SCOPE_READOUT, MAX_SCOPE_SIDE, PluginScope, Scope, ScopeError, ScopeFrame, ScopeImage,
     ScopeSpec,

@@ -198,11 +198,13 @@ impl WasmPlugin {
         };
 
         let mut manifest = package.plugin_manifest();
-        if package.manifest.permissions.project != Access::None
-            && !manifest.uses.contains("EditorView")
-        {
+        if package.manifest.permissions.project != Access::None {
             let mut uses: Vec<String> = manifest.uses.iter().map(str::to_owned).collect();
-            uses.push("EditorView".to_owned());
+            for svc in ["EditorView", "RenderHost"] {
+                if !uses.iter().any(|u| u == svc) {
+                    uses.push(svc.to_owned());
+                }
+            }
             manifest.uses = Names::Owned(uses);
         }
 
@@ -703,6 +705,42 @@ impl bindings::PluginImports for HostState {
 
     fn project_undo(&mut self) -> Result<bool, String> {
         self.host_project_undo()
+    }
+
+    fn render_frame(
+        &mut self,
+        source: bindings::FrameSource,
+        time: bindings::RationalTime,
+        size: bindings::FrameSize,
+    ) -> Result<bindings::RenderedFrame, String> {
+        self.host_render_frame(source, time, size)
+    }
+
+    fn editor_seek(
+        &mut self,
+        time: bindings::RationalTime,
+    ) -> Result<bindings::RationalTime, String> {
+        self.host_editor_seek(time)
+    }
+
+    fn editor_play(&mut self, speed: i32) -> Result<(), String> {
+        self.host_editor_play(speed)
+    }
+
+    fn editor_stop(&mut self) -> Result<(), String> {
+        self.host_editor_stop()
+    }
+
+    fn project_open(&mut self, path: String) -> Result<(), String> {
+        self.host_project_open(path)
+    }
+
+    fn project_save(&mut self) -> Result<String, String> {
+        self.host_project_save()
+    }
+
+    fn project_save_as(&mut self, path: String) -> Result<String, String> {
+        self.host_project_save_as(path)
     }
 
     fn fs_read(&mut self, path: String) -> Result<Vec<u8>, String> {

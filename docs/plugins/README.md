@@ -36,3 +36,5 @@ service registry plus an event bus. Built-in plugins are defined in
 - [Native ABI reference](native-abi-reference.md)
 - [WIT reference](wit-reference.md)
 - [Worked example](worked-example.md)
+- [Capabilities across surfaces](capabilities.md)
+- [Plugin cookbook](cookbook.md)

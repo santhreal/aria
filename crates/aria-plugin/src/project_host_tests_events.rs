@@ -358,3 +358,170 @@ fn replacing_the_session_announces_the_closed_and_the_opened_project() {
     assert_eq!(lanes(&host), ["Main"]);
     assert_idle(&host);
 }
+
+/// WHY: closes the defect class where plugin-initiated `ProjectHost::{open,
+/// save, save_as}`, `host_wire`, or `AriaHostV1` session/transport/render calls
+/// bypass dirty-project protection, undo-group refusal, or package permission
+/// grants (`project` and `fs`).
+#[test]
+fn project_host_and_host_wire_enforce_session_and_permission_contracts() {
+    use crate::editor_events::{EditorView, TransportRequest};
+    use crate::host_wire::{self, SessionChange};
+    use crate::package::Package;
+    use crate::render_host::{FrameRequest, FrameSize, FrameSource, MAX_RENDER_FRAME_DIMENSION};
+    use aria_core::{Rational, RationalTime};
+
+    let (Fixture { host, ctx }, _policy) = fixture();
+    std::mem::forget(ctx.register_arc(Arc::clone(&host)));
+    let view = Arc::new(EditorView::new());
+    std::mem::forget(ctx.register_arc(Arc::clone(&view)));
+    let files = Files::new();
+    let notes = Notes::new(&ctx);
+
+    // Saving an unsaved project with no path fails with EngineError::Refused.
+    let plugin_origin = Origin::plugin("com.example.session");
+    assert!(matches!(
+        host.save(&plugin_origin),
+        Err(EngineError::Refused(_))
+    ));
+
+    // save_as writes the file, clears dirty state, posts ProjectSaved, and records SessionChange::Saved.
+    host.apply(&plugin_origin, add("tracked"))
+        .expect("add lane");
+    assert!(host.is_dirty());
+    let saved_path = host
+        .save_as(&plugin_origin, &files.project)
+        .expect("save_as");
+    assert_eq!(saved_path, files.project);
+    assert!(!host.is_dirty());
+    assert_eq!(host.project_path(), Some(files.project.clone()));
+    assert_eq!(
+        notes.take(),
+        [
+            Note::Applied("Add track"),
+            Note::Applied("Save project"),
+            Note::Saved(files.project.clone()),
+        ]
+    );
+
+    // A dirty project refuses `open` until saved.
+    host.apply(&plugin_origin, add("unsaved"))
+        .expect("dirty edit");
+    notes.take();
+    let err = host
+        .open(&plugin_origin, &files.project)
+        .expect_err("dirty open must be refused");
+    assert!(err.to_string().contains("unsaved changes"), "got: {err}");
+    assert!(notes.take().is_empty());
+
+    // Saving via `save()` clears dirty state, after which `open()` succeeds and records SessionChange::Opened.
+    host.save(&plugin_origin).expect("save existing");
+    host.open(&plugin_origin, &files.project)
+        .expect("open clean");
+    assert_eq!(
+        notes.take(),
+        [
+            Note::Applied("Save project"),
+            Note::Saved(files.project.clone()),
+            Note::Applied("Open project"),
+            Note::Closed(Some(files.project.clone())),
+            Note::Opened(
+                Some(files.project.clone()),
+                vec!["tracked".into(), "unsaved".into()],
+            ),
+        ]
+    );
+    assert_eq!(
+        host_wire::take_session_changes(&host),
+        [
+            SessionChange::Saved {
+                path: files.project.clone()
+            },
+            SessionChange::Saved {
+                path: files.project.clone()
+            },
+            SessionChange::Opened {
+                path: Some(files.project.clone())
+            },
+        ]
+    );
+
+    // Inside an open EditGroup, open/save/save_as are refused.
+    let group = host.group(&plugin_origin).expect("group");
+    assert!(host.save(&plugin_origin).is_err());
+    assert!(host.save_as(&plugin_origin, &files.project).is_err());
+    assert!(host.open(&plugin_origin, &files.project).is_err());
+    group.rollback();
+
+    // Bounds validation on host_wire::render_frame and check_project_fs_path.
+    for bad_size in [
+        FrameSize::Fit {
+            max_width: 0,
+            max_height: 180,
+        },
+        FrameSize::Fit {
+            max_width: MAX_RENDER_FRAME_DIMENSION + 1,
+            max_height: 180,
+        },
+        FrameSize::Exact {
+            width: 320,
+            height: 0,
+        },
+        FrameSize::Exact {
+            width: 320,
+            height: MAX_RENDER_FRAME_DIMENSION + 1,
+        },
+    ] {
+        let req = FrameRequest {
+            source: FrameSource::Open,
+            size: bad_size,
+            motion_blur: false,
+        };
+        assert!(
+            host_wire::render_frame(&ctx, &host, RationalTime::new(0, Rational::FPS_24), &req)
+                .is_err(),
+            "bad size {bad_size:?} must fail"
+        );
+    }
+
+    let pkg_dir = files.project.parent().expect("parent").join("pkg");
+    std::fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    std::fs::write(
+        pkg_dir.join("plugin.toml"),
+        r#"[plugin]
+id = "com.example.rw"
+name = "RW"
+version = "0.1.0"
+api = 1
+publisher = "Test"
+description = "Test"
+license = "MIT"
+
+[permissions]
+project = "read-write"
+fs = ["project"]
+"#,
+    )
+    .expect("write manifest");
+    let pkg = Package::open(&pkg_dir).expect("open package");
+    assert!(
+        host_wire::check_project_fs_path(&pkg, &host, Path::new("/etc/passwd"), "read").is_err()
+    );
+    assert!(host_wire::check_project_fs_path(&pkg, &host, &files.project, "write").is_ok());
+
+    let landed =
+        host_wire::editor_seek(&ctx, &host, RationalTime::new(6, Rational::FPS_24)).expect("seek");
+    assert_eq!(landed, RationalTime::new(6, Rational::FPS_24));
+    host_wire::editor_play(&ctx, 2).expect("play");
+    host_wire::editor_stop(&ctx).expect("stop");
+    assert_eq!(
+        view.take_transport_requests(),
+        [
+            TransportRequest::Seek {
+                at: RationalTime::new(6, Rational::FPS_24)
+            },
+            TransportRequest::Play { speed: 2 },
+            TransportRequest::Stop,
+        ]
+    );
+}

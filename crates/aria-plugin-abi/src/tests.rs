@@ -91,7 +91,8 @@ fn prefix_size_predicates_and_copy_from_prefix_fill_trailing_stubs() {
         assert!(ARIA_HOST_V1_AI_TOOLS_SIZE < ARIA_HOST_V1_SCOPES_SIZE);
         assert!(ARIA_HOST_V1_SCOPES_SIZE < ARIA_HOST_V1_CONTRIBUTIONS_SIZE);
         assert!(ARIA_HOST_V1_CONTRIBUTIONS_SIZE < ARIA_HOST_V1_QUERIES_SIZE);
-        assert!(ARIA_HOST_V1_QUERIES_SIZE < size_of::<AriaHostV1>());
+        assert!(ARIA_HOST_V1_QUERIES_SIZE < ARIA_HOST_V1_TEXTURES_SIZE);
+        assert!(ARIA_HOST_V1_TEXTURES_SIZE < size_of::<AriaHostV1>());
 
         assert!(ARIA_PLUGIN_V1_MIN_SIZE < ARIA_PLUGIN_V1_PANELS_SIZE);
         assert!(ARIA_PLUGIN_V1_PANELS_SIZE < ARIA_PLUGIN_V1_ENCODERS_SIZE);

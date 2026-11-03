@@ -143,3 +143,46 @@ pub struct Marker {
     #[serde(default, skip_serializing_if = "MarkerKind::is_default")]
     pub kind: MarkerKind,
 }
+
+/// Which sequence or clip [`Host::render_frame`](crate::Host::render_frame) composites.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FrameSource {
+    /// The sequence open for editing.
+    Open,
+    /// The root sequence (`None`) or the nested sequence with the given id.
+    Sequence(Option<u64>),
+    /// A single clip by id, rendered through its own effects on its sequence canvas.
+    Clip(u64),
+}
+
+/// Output dimensions for [`Host::render_frame`](crate::Host::render_frame).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FrameSize {
+    /// Sequence canvas resolution (at most 4096 on each side).
+    Canvas,
+    /// Fit inside `max_width` by `max_height` preserving aspect ratio and rounding to even.
+    Fit {
+        /// Largest output width in pixels (1 through 4096).
+        max_width: u32,
+        /// Largest output height in pixels (1 through 4096).
+        max_height: u32,
+    },
+    /// Exact `width` by `height` in pixels (each 1 through 4096).
+    Exact {
+        /// Output width in pixels.
+        width: u32,
+        /// Output height in pixels.
+        height: u32,
+    },
+}
+
+/// Straight-alpha RGBA8 frame returned by [`Host::render_frame`](crate::Host::render_frame).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenderedFrame {
+    /// Frame width in pixels.
+    pub width: u32,
+    /// Frame height in pixels.
+    pub height: u32,
+    /// Straight-alpha RGBA8 pixel bytes (`width * height * 4`, top row first).
+    pub data: Vec<u8>,
+}

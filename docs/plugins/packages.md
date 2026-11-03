@@ -234,11 +234,11 @@ host service names in `PluginManifest::uses`. `SettingsService` and
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `project` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Project access level. `"read"` and `"read-write"` add `ProjectHost` (`"read"` permits project snapshots; `"read-write"` also permits transactions and undo). |
+| `project` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Project access level. `"read"` and `"read-write"` add `ProjectHost`, `EditorView`, and `RenderHost` (`"read"` permits project snapshots, queries, and `render_frame`; `"read-write"` also permits transactions, undo, transport control, and project open and save). |
 | `media` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Media access level. `"read"` and `"read-write"` add `DecoderService` and `AudioHost`. |
 | `gpu` | boolean | `false` | GPU compute and render access. `true` adds `GpuContext` and `RenderHost`. |
 | `net` | array of strings | `[]` | Allowed network host names (`"api.example.com"`, `"*.cdn.example.com"`). Each entry must be non-empty and contain only ASCII alphanumeric characters, `-`, `.`, or `*`. |
-| `fs` | array of strings | `[]` | File-system scopes (`FsScope`) beyond the package directory and `<data dir>/plugin-data/<id>`. Each entry is `"project"` (the open project folder), `"pick"` (paths chosen in a file dialog), or an absolute path. |
+| `fs` | array of strings | `[]` | File-system scopes (`FsScope`) beyond the package directory and `<data dir>/plugin-data/<id>`. Each entry is `"project"` (the open project folder), `"pick"` (paths chosen in a file dialog), or an absolute path. `project_open` checks read access and `project_save` and `project_save_as` check write access against these scopes. |
 | `process` | `false` or array of strings | `false` | Executables the plugin may spawn. `process = true` and empty executable strings are rejected. |
 | `clipboard` | boolean | `false` | System clipboard read access. |
 

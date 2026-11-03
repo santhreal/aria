@@ -1,6 +1,10 @@
 use super::AriaStr;
 #[cfg(doc)]
-use super::{ARIA_FORMAT_NV12, ARIA_FORMAT_YUV420P, ARIA_STATUS_OK};
+use super::{
+    ARIA_BYTES_FOUND, ARIA_FORMAT_NV12, ARIA_FORMAT_YUV420P, ARIA_FRAME_SIZE_EXACT,
+    ARIA_FRAME_SIZE_FIT, ARIA_FRAME_SOURCE_CLIP, ARIA_FRAME_SOURCE_SEQUENCE, ARIA_STATUS_OK,
+    AriaHostV1,
+};
 
 /// One parameter of an audio effect across one [`AriaAudioBlock`]: a constant, or one
 /// value per frame when the parameter is automated.
@@ -276,4 +280,31 @@ pub struct AriaDriverEvalCall {
     /// The value the plugin writes. The host sets it to `value` before the call, and
     /// its `kind` must stay the same.
     pub output: AriaParamValue,
+}
+
+/// The frame [`AriaHostV1::render_frame`] renders, and the dimensions it writes back.
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct AriaFrameRequest {
+    /// An `ARIA_FRAME_SOURCE_*` value.
+    pub source_kind: u32,
+    /// An `ARIA_FRAME_SIZE_*` value.
+    pub size_kind: u32,
+    /// Sequence id (`0` for the root sequence) when `source_kind` is
+    /// [`ARIA_FRAME_SOURCE_SEQUENCE`], clip id when [`ARIA_FRAME_SOURCE_CLIP`], or `0`.
+    pub source_id: u64,
+    /// Timestamp numerator in ticks.
+    pub time_value: i64,
+    /// Tick rate numerator.
+    pub time_rate_num: i32,
+    /// Tick rate denominator.
+    pub time_rate_den: i32,
+    /// Requested width in pixels when `size_kind` is [`ARIA_FRAME_SIZE_FIT`] or
+    /// [`ARIA_FRAME_SIZE_EXACT`], and the rendered frame width written by
+    /// [`AriaHostV1::render_frame`] on [`ARIA_BYTES_FOUND`].
+    pub width: u32,
+    /// Requested height in pixels when `size_kind` is [`ARIA_FRAME_SIZE_FIT`] or
+    /// [`ARIA_FRAME_SIZE_EXACT`], and the rendered frame height written by
+    /// [`AriaHostV1::render_frame`] on [`ARIA_BYTES_FOUND`].
+    pub height: u32,
 }

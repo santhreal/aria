@@ -55,6 +55,9 @@ pub(crate) fn mount() -> Result<(), String> {
     register_command("example.count-job", "Count in a Background Job")?;
     register_command("example.endless-job", "Step Until Cancelled")?;
 
+    register_command("example.render-frame", "Render Project Frame")?;
+    register_command("example.transport-control", "Control Editor Transport")?;
+    register_command("example.project-session", "Open or Save Project")?;
     register_importer(&ImporterSpec {
         id: "example.markers".to_owned(),
         name: "Marker Lines".to_owned(),

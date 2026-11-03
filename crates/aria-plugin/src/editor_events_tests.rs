@@ -313,3 +313,82 @@ fn a_context_menu_collects_rows_from_every_handler_in_registration_order() {
         "each row runs its own action"
     );
 }
+
+/// WHY: closes the defect class where plugin-driven transport (`seek`, `play`,
+/// `stop`) fails to validate inputs, fails to rescale to the published frame
+/// rate, fails to post `PlayheadMoved`/`PlaybackStarted`/`PlaybackStopped`, or
+/// fails to queue `TransportRequest` items and wake the editor window.
+#[test]
+fn transport_control_validates_updates_view_posts_events_and_wakes_ui() {
+    use super::TransportRequest;
+
+    let bus = Arc::new(EventBus::new());
+    let recorder = Recorder::new(&bus);
+    let view = EditorView::new();
+    let wakes = Arc::new(AtomicUsize::new(0));
+    {
+        let wakes = Arc::clone(&wakes);
+        view.set_transport_waker(move || {
+            wakes.fetch_add(1, Ordering::SeqCst);
+        });
+    }
+
+    let initial = stopped_at_zero(&[A]);
+    view.publish(frame(&initial), &bus);
+    assert!(recorder.take().is_empty());
+
+    // Invalid seek inputs fail closed without mutating state or queueing requests.
+    assert!(view.seek(RationalTime::new(-1, RATE), &bus).is_err());
+    assert!(
+        view.seek(RationalTime::new(10, Rational::new(0, 1)), &bus)
+            .is_err()
+    );
+    assert!(
+        view.seek(RationalTime::new(10, Rational::new(24, -1)), &bus)
+            .is_err()
+    );
+    assert!(view.take_transport_requests().is_empty());
+    assert_eq!(wakes.load(Ordering::SeqCst), 0);
+
+    // Seek at 48 fps rescales to the published 24 fps playhead rate.
+    let landed = view
+        .seek(RationalTime::new(48, Rational::new(48, 1)), &bus)
+        .expect("seek");
+    assert_eq!(landed, at(24));
+    assert_eq!(view.current().expect("view").playhead, at(24));
+    assert_eq!(recorder.take(), [Seen::Playhead(at(24))]);
+    assert_eq!(
+        view.take_transport_requests(),
+        [TransportRequest::Seek { at: at(24) }]
+    );
+    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+
+    // Invalid speeds fail closed.
+    for bad_speed in [0, -9, 9, i32::MIN, i32::MAX] {
+        assert!(
+            view.play(bad_speed, &bus).is_err(),
+            "speed {bad_speed} must be rejected"
+        );
+    }
+    assert!(view.take_transport_requests().is_empty());
+
+    // Valid forward and reverse shuttle speeds update ViewState and post PlaybackStarted.
+    view.play(2, &bus).expect("play 2x");
+    assert_eq!(recorder.take(), [Seen::Started(at(24), 2)]);
+    view.play(-4, &bus).expect("play -4x");
+    assert_eq!(recorder.take(), [Seen::Started(at(24), -4)]);
+    view.stop(&bus).expect("stop");
+    assert_eq!(recorder.take(), [Seen::Stopped(at(24))]);
+    // Stopping again while already stopped queues Stop for the window without duplicate event.
+    view.stop(&bus).expect("stop again");
+    assert!(recorder.take().is_empty());
+    assert_eq!(
+        view.take_transport_requests(),
+        [
+            TransportRequest::Play { speed: 2 },
+            TransportRequest::Play { speed: -4 },
+            TransportRequest::Stop,
+            TransportRequest::Stop,
+        ]
+    );
+}

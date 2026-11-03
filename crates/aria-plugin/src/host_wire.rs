@@ -5,6 +5,7 @@
 //! this module for validation, state transitions, and service operations that
 //! behave identically across both runtimes.
 
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use aria_commands::Command;
@@ -14,9 +15,12 @@ use aria_models::{ClipTypeIcon, EffectParamKind, EffectParamSpec, Preset};
 use aria_render::{EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE};
 use serde_json::json;
 
+pub use crate::editor_events::rescale_time;
+use crate::package::{FsScope, Package};
 use crate::{
-    AnalyzerResult, ClipRef, EditorView, Event, InterchangeReport, MAX_WIDGET_ID_BYTES, Origin,
-    PluginContext, ProjectHost, SettingsService, TransactError, Transaction, ViewState,
+    AnalyzerResult, ClipRef, EditorView, Event, FrameRequest, FrameSize, InterchangeReport,
+    MAX_RENDER_FRAME_DIMENSION, MAX_WIDGET_ID_BYTES, Origin, PluginContext, ProjectHost,
+    RenderHost, SettingsService, TransactError, Transaction, ViewState,
 };
 
 /// Sentinel event type used so `EventBus` holds an unmount drop guard inside a
@@ -270,6 +274,230 @@ pub fn sanitize_fault_widget_id(reason: &str, fallback: &str) -> Arc<str> {
         Arc::from(fallback)
     } else {
         Arc::from(sanitized)
+    }
+}
+
+/// Check whether `raw_path` is an absolute path without `..` covered by
+/// `package.manifest.permissions.fs` (including [`FsScope::Project`] when the
+/// open project on `host` has a file path).
+pub fn check_project_fs_path(
+    package: &Package,
+    host: &ProjectHost,
+    raw_path: &Path,
+    mode: &str,
+) -> Result<PathBuf, String> {
+    if raw_path.as_os_str().is_empty() {
+        return Err(format!(
+            "invalid project path: path cannot be empty; pass an absolute .aria file path for {mode}"
+        ));
+    }
+    if !raw_path.is_absolute()
+        || raw_path
+            .components()
+            .any(|comp| matches!(comp, Component::ParentDir))
+    {
+        return Err(format!(
+            "invalid project path {:?}: must be an absolute path without `..`",
+            raw_path
+        ));
+    }
+    let project_dir = host
+        .project_path()
+        .and_then(|p| p.parent().map(Path::to_path_buf));
+    for scope in &package.manifest.permissions.fs {
+        match scope {
+            FsScope::Path(prefix) if raw_path.starts_with(prefix) => {
+                return Ok(raw_path.to_path_buf());
+            }
+            FsScope::Project => {
+                if let Some(dir) = &project_dir
+                    && raw_path.starts_with(dir)
+                {
+                    return Ok(raw_path.to_path_buf());
+                }
+            }
+            _ => {}
+        }
+    }
+    Err(format!(
+        "permission denied: {}: fs {mode} for {:?} is not granted by permissions.fs",
+        package.manifest.id, raw_path
+    ))
+}
+
+/// Render `request` at `time` from `host` using the [`RenderHost`] registered
+/// on `ctx`.
+pub fn render_frame(
+    ctx: &PluginContext,
+    host: &ProjectHost,
+    time: RationalTime,
+    request: &FrameRequest,
+) -> Result<RgbaImage, String> {
+    if time.rate.num <= 0 || time.rate.den <= 0 {
+        return Err(format!(
+            "invalid frame time rate {}/{}: rate numerator and denominator must be positive",
+            time.rate.num, time.rate.den
+        ));
+    }
+    match request.size {
+        FrameSize::Canvas => {}
+        FrameSize::Fit {
+            max_width,
+            max_height,
+        } => {
+            if max_width == 0 || max_height == 0 {
+                return Err(format!(
+                    "invalid frame fit size {max_width}x{max_height}: width and height must be at least 1"
+                ));
+            }
+            if max_width > MAX_RENDER_FRAME_DIMENSION || max_height > MAX_RENDER_FRAME_DIMENSION {
+                return Err(format!(
+                    "frame fit size {max_width}x{max_height} exceeds maximum dimension {MAX_RENDER_FRAME_DIMENSION}"
+                ));
+            }
+        }
+        FrameSize::Exact { width, height } => {
+            if width == 0 || height == 0 {
+                return Err(format!(
+                    "invalid exact frame size {width}x{height}: width and height must be at least 1"
+                ));
+            }
+            if width > MAX_RENDER_FRAME_DIMENSION || height > MAX_RENDER_FRAME_DIMENSION {
+                return Err(format!(
+                    "exact frame size {width}x{height} exceeds maximum dimension {MAX_RENDER_FRAME_DIMENSION}"
+                ));
+            }
+        }
+    }
+    let render_host = ctx.try_get::<RenderHost>().ok_or_else(|| {
+        "RenderHost service is not registered; enable a GPU device or register RenderHost on PluginContext".to_owned()
+    })?;
+    let snapshot = host.snapshot();
+    render_host
+        .frame(&snapshot, time, request)
+        .map_err(|err| err.to_string())
+}
+
+/// Move the playhead on `ctx`'s [`EditorView`] to `time`, clamping to the open
+/// sequence duration on `host` when the sequence is non-empty.
+pub fn editor_seek(
+    ctx: &PluginContext,
+    host: &ProjectHost,
+    time: RationalTime,
+) -> Result<RationalTime, String> {
+    if time.rate.num <= 0 || time.rate.den <= 0 {
+        return Err(format!(
+            "invalid seek time rate {}/{}: rate numerator and denominator must be positive",
+            time.rate.num, time.rate.den
+        ));
+    }
+    if time.value < 0 {
+        return Err(format!(
+            "invalid negative seek time {} ticks: pass a non-negative timestamp",
+            time.value
+        ));
+    }
+    let view = ctx
+        .try_get::<EditorView>()
+        .ok_or_else(|| "EditorView service is not registered".to_owned())?;
+    let snapshot = host.snapshot();
+    let timeline = snapshot.timeline();
+    let rescaled = rescale_time(time, timeline.frame_rate);
+    let duration = rescale_time(timeline.duration(), timeline.frame_rate).value;
+    let target = if duration > 0 {
+        RationalTime::new(rescaled.value.clamp(0, duration), timeline.frame_rate)
+    } else {
+        rescaled
+    };
+    view.seek(target, ctx.events())
+}
+
+/// Parse `tick_json` as a [`RationalTime`] and call [`editor_seek`].
+pub fn editor_seek_json(
+    ctx: &PluginContext,
+    host: &ProjectHost,
+    tick_json: &str,
+) -> Result<RationalTime, String> {
+    let tick: RationalTime =
+        serde_json::from_str(tick_json).map_err(|err| format!("invalid tick JSON: {err}"))?;
+    editor_seek(ctx, host, tick)
+}
+
+/// Start playback on `ctx`'s [`EditorView`] at signed integer multiplier `speed`.
+pub fn editor_play(ctx: &PluginContext, speed: i32) -> Result<(), String> {
+    let view = ctx
+        .try_get::<EditorView>()
+        .ok_or_else(|| "EditorView service is not registered".to_owned())?;
+    view.play(speed, ctx.events())
+}
+
+/// Stop playback on `ctx`'s [`EditorView`].
+pub fn editor_stop(ctx: &PluginContext) -> Result<(), String> {
+    let view = ctx
+        .try_get::<EditorView>()
+        .ok_or_else(|| "EditorView service is not registered".to_owned())?;
+    view.stop(ctx.events())
+}
+
+/// Open the project at `path` on `host` under `Origin::plugin(plugin_id)`.
+pub fn project_open(host: &ProjectHost, plugin_id: &str, path: PathBuf) -> Result<(), String> {
+    host.open(&Origin::plugin(plugin_id), path)
+        .map_err(|err| err.to_string())
+}
+
+/// Save the open project on `host` under `Origin::plugin(plugin_id)`.
+pub fn project_save(host: &ProjectHost, plugin_id: &str) -> Result<PathBuf, String> {
+    host.save(&Origin::plugin(plugin_id))
+        .map_err(|err| err.to_string())
+}
+
+/// Save the open project on `host` to `path` under `Origin::plugin(plugin_id)`.
+pub fn project_save_as(
+    host: &ProjectHost,
+    plugin_id: &str,
+    path: PathBuf,
+) -> Result<PathBuf, String> {
+    host.save_as(&Origin::plugin(plugin_id), path)
+        .map_err(|err| err.to_string())
+}
+
+/// A project session change initiated outside [`Origin::Editor`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionChange {
+    /// A project was opened at `path`.
+    Opened { path: Option<PathBuf> },
+    /// The open project was saved to `path`.
+    Saved { path: PathBuf },
+}
+
+/// Drain queued [`SessionChange`] items from `host`.
+pub fn take_session_changes(host: &ProjectHost) -> Vec<SessionChange> {
+    host.take_session_changes()
+}
+
+pub(crate) fn record_session_outcome(
+    changes: &mut Vec<SessionChange>,
+    origin: &Origin,
+    outcome: &aria_engine::ApplyOutcome,
+    engine: &aria_engine::Engine,
+) {
+    if origin == &Origin::Editor {
+        return;
+    }
+    match outcome {
+        aria_engine::ApplyOutcome::Opened
+        | aria_engine::ApplyOutcome::Loaded
+        | aria_engine::ApplyOutcome::AppliedTemplate => {
+            changes.push(SessionChange::Opened {
+                path: engine.project_path().cloned(),
+            });
+        }
+        aria_engine::ApplyOutcome::Saved => {
+            if let Some(path) = engine.project_path().cloned() {
+                changes.push(SessionChange::Saved { path });
+            }
+        }
+        _ => {}
     }
 }
 

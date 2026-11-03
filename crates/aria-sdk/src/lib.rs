@@ -60,7 +60,10 @@ pub use overlays::{
 };
 pub use panels::{Panel, PanelEvent, PanelLocation, PanelSpec, PanelView, Tone, UiNode};
 pub use presets::PresetSpec;
-pub use project::{ClipRef, InOut, Marker, MarkerKind, Rational, RationalTime, TimeRange};
+pub use project::{
+    ClipRef, FrameSize, FrameSource, InOut, Marker, MarkerKind, Rational, RationalTime,
+    RenderedFrame, TimeRange,
+};
 pub use runtime::{PluginRuntime, panic_message};
 pub use scopes::{ScopeFrame, ScopeImage, ScopeSpec};
 pub use serde_json;

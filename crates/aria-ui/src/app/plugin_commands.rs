@@ -15,7 +15,9 @@ impl AppState {
         // Read before the run: a panic fails the plugin, which can take the
         // command with it.
         let spec = self.ctx.commands().into_iter().find(|spec| spec.id == id);
-        let Err(err) = self.ctx.run_command(id) else {
+        let res = self.ctx.run_command(id);
+        self.sync_from_plugin_host();
+        let Err(err) = res else {
             return;
         };
         match spec {

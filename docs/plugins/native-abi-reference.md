@@ -47,7 +47,7 @@ A callback that fails returns [`ARIA_STATUS_ERR`](#status-codes) with the messag
 
 | Define | Value | Description |
 | --- | --- | --- |
-| `ARIA_BYTES_FOUND` | `0u` | [`AriaBytesResult.status`](#ariabytesresult): `bytes` holds the result: the value stored under a `storage_get` key, the panel tree JSON of `panel_view`, or the scene JSON of `overlay_scene`. |
+| `ARIA_BYTES_FOUND` | `0u` | [`AriaBytesResult.status`](#ariabytesresult): `bytes` holds the result: the value stored under a `storage_get` key, the rendered RGBA8 pixels of `render_frame`, the panel tree JSON of `panel_view`, or the scene JSON of `overlay_scene`. |
 | `ARIA_BYTES_NOT_FOUND` | `1u` | [`AriaBytesResult.status`](#ariabytesresult): `storage_get` found no value under the key. `bytes` and `error` are empty. |
 | `ARIA_BYTES_ERR` | `2u` | [`AriaBytesResult.status`](#ariabytesresult): the call failed, and `error` holds the message. |
 | `ARIA_BYTES_PANIC` | `3u` | [`AriaBytesResult.status`](#ariabytesresult): the plugin caught a panic or exception in `panel_view` or `overlay_scene`, and `error` holds its message. |
@@ -88,6 +88,18 @@ A callback that fails returns [`ARIA_STATUS_ERR`](#status-codes) with the messag
 | `ARIA_PARAM_RECT` | `3u` | [`AriaParamValue.kind`](#ariaparamvalue): axis-aligned rect, with its left edge in `x`, its top edge in `y`, its width in `z` and its height in `w`. |
 | `ARIA_PARAM_VEC3` | `4u` | [`AriaParamValue.kind`](#ariaparamvalue): 3-d vector in `x`, `y` and `z`. |
 
+### Frame rendering
+
+| Define | Value | Description |
+| --- | --- | --- |
+| `ARIA_FRAME_SOURCE_OPEN` | `0u` | [`AriaFrameRequest.source_kind`](#ariaframerequest): the sequence open for editing. |
+| `ARIA_FRAME_SOURCE_SEQUENCE` | `1u` | [`AriaFrameRequest.source_kind`](#ariaframerequest): the root sequence (`source_id == 0`) or the nested sequence `source_id`. |
+| `ARIA_FRAME_SOURCE_CLIP` | `2u` | [`AriaFrameRequest.source_kind`](#ariaframerequest): the clip in `source_id`, rendered through its own effects at its timeline position with other clips of that sequence removed. |
+| `ARIA_FRAME_SIZE_CANVAS` | `0u` | [`AriaFrameRequest.size_kind`](#ariaframerequest): the sequence's canvas resolution, at most [`ARIA_FRAME_MAX_SIDE`](#frame-rendering) on each side. |
+| `ARIA_FRAME_SIZE_FIT` | `1u` | [`AriaFrameRequest.size_kind`](#ariaframerequest): fit inside `width` by `height` (each 1 through [`ARIA_FRAME_MAX_SIDE`](#frame-rendering)), keeping aspect and rounding to even, at least 2x2 without scaling up. |
+| `ARIA_FRAME_SIZE_EXACT` | `2u` | [`AriaFrameRequest.size_kind`](#ariaframerequest): exact `width` by `height` in pixels (each 1 through [`ARIA_FRAME_MAX_SIDE`](#frame-rendering)). |
+| `ARIA_FRAME_MAX_SIDE` | `4096u` | Largest width or height [`AriaHostV1.render_frame`](#ariahostv1render_frame) renders, in pixels. |
+
 ### Table sizes
 
 | Define | Value | Description |
@@ -110,6 +122,7 @@ A callback that fails returns [`ARIA_STATUS_ERR`](#status-codes) with the messag
 | `ARIA_PLUGIN_V1_SCOPES_SIZE` | `offsetof(AriaPluginV1, cpu_effect_process)` | Byte size of an [`AriaPluginV1`](#ariapluginv1) through `scope_measure`. |
 | `ARIA_HOST_V1_CONTRIBUTIONS_SIZE` | `offsetof(AriaHostV1, clip)` | Byte size of an [`AriaHostV1`](#ariahostv1) through `register_analyzer`. |
 | `ARIA_HOST_V1_QUERIES_SIZE` | `offsetof(AriaHostV1, register_texture)` | Byte size of an [`AriaHostV1`](#ariahostv1) through `in_out`. |
+| `ARIA_HOST_V1_TEXTURES_SIZE` | `offsetof(AriaHostV1, render_frame)` | Byte size of an [`AriaHostV1`](#ariahostv1) through `register_texture`. |
 
 ## Types
 
@@ -162,7 +175,7 @@ Result of a call that returns text: a JSON document, a message, or nothing.
 
 ### `AriaBytesResult`
 
-Result of a call that returns bytes: `storage_get`, `panel_view` and `overlay_scene`.
+Result of a call that returns bytes: `storage_get`, `render_frame`, `panel_view` and `overlay_scene`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -360,6 +373,21 @@ What `driver_evaluate` reads and the value it writes. Times are sequence seconds
 | `seed` | `uint64_t` | A number fixed for this clip and property, for seeded noise. |
 | `output` | `AriaParamValue` | The value the plugin writes. The host sets it to `value` before the call, and its `kind` must stay the same. |
 
+### `AriaFrameRequest`
+
+The frame [`AriaHostV1.render_frame`](#ariahostv1render_frame) renders, and the dimensions it writes back.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `source_kind` | `uint32_t` | An `ARIA_FRAME_SOURCE_*` value. |
+| `size_kind` | `uint32_t` | An `ARIA_FRAME_SIZE_*` value. |
+| `source_id` | `uint64_t` | Sequence id (`0` for the root sequence) when `source_kind` is [`ARIA_FRAME_SOURCE_SEQUENCE`](#frame-rendering), clip id when [`ARIA_FRAME_SOURCE_CLIP`](#frame-rendering), or `0`. |
+| `time_value` | `int64_t` | Timestamp numerator in ticks. |
+| `time_rate_num` | `int32_t` | Tick rate numerator. |
+| `time_rate_den` | `int32_t` | Tick rate denominator. |
+| `width` | `uint32_t` | Requested width in pixels when `size_kind` is [`ARIA_FRAME_SIZE_FIT`](#frame-rendering) or [`ARIA_FRAME_SIZE_EXACT`](#frame-rendering), and the rendered frame width written by [`AriaHostV1.render_frame`](#ariahostv1render_frame) on [`ARIA_BYTES_FOUND`](#bytes-status-codes). |
+| `height` | `uint32_t` | Requested height in pixels when `size_kind` is [`ARIA_FRAME_SIZE_FIT`](#frame-rendering) or [`ARIA_FRAME_SIZE_EXACT`](#frame-rendering), and the rendered frame height written by [`AriaHostV1.render_frame`](#ariahostv1render_frame) on [`ARIA_BYTES_FOUND`](#bytes-status-codes). |
+
 ### `AriaPluginEntryFn`
 
 ```c
@@ -407,7 +435,8 @@ A table holds the slots of a prefix when its `struct_size` is at least the prefi
 | `ARIA_HOST_V1_SCOPES_SIZE` | [`register_scope`](#ariahostv1register_scope) |
 | `ARIA_HOST_V1_CONTRIBUTIONS_SIZE` | [`register_effect`](#ariahostv1register_effect), [`register_cpu_effect`](#ariahostv1register_cpu_effect), [`register_transition`](#ariahostv1register_transition), [`register_generator`](#ariahostv1register_generator), [`register_clip_type`](#ariahostv1register_clip_type), [`register_driver_language`](#ariahostv1register_driver_language), [`register_preset`](#ariahostv1register_preset), [`register_theme`](#ariahostv1register_theme), [`register_workspace`](#ariahostv1register_workspace), [`register_analyzer`](#ariahostv1register_analyzer) |
 | `ARIA_HOST_V1_QUERIES_SIZE` | [`clip`](#ariahostv1clip), [`clips_in_range`](#ariahostv1clips_in_range), [`clips_at`](#ariahostv1clips_at), [`selected_clips`](#ariahostv1selected_clips), [`markers_in_range`](#ariahostv1markers_in_range), [`in_out`](#ariahostv1in_out) |
-| `sizeof(AriaHostV1)` | [`register_texture`](#ariahostv1register_texture) |
+| `ARIA_HOST_V1_TEXTURES_SIZE` | [`register_texture`](#ariahostv1register_texture) |
+| `sizeof(AriaHostV1)` | [`render_frame`](#ariahostv1render_frame), [`editor_seek`](#ariahostv1editor_seek), [`editor_play`](#ariahostv1editor_play), [`editor_stop`](#ariahostv1editor_stop), [`project_open`](#ariahostv1project_open), [`project_save`](#ariahostv1project_save), [`project_save_as`](#ariahostv1project_save_as) |
 
 ### `AriaHostV1.free_string`
 
@@ -835,9 +864,79 @@ The In and Out points as a JSON object with `mark_in` and `mark_out`, each a tim
 AriaResult (*register_texture)(void *host_ctx, AriaStr id, uint32_t width, uint32_t height, AriaBytes pixels);
 ```
 
-Prefix: `sizeof(AriaHostV1)`.
+Prefix: [`ARIA_HOST_V1_TEXTURES_SIZE`](#table-sizes).
 
 Register `width * height * 4` straight-alpha RGBA8 `pixels` as the plugin texture `id`, which an effect pass reads as an input.
+
+### `AriaHostV1.render_frame`
+
+```c
+AriaBytesResult (*render_frame)(void *host_ctx, AriaFrameRequest *request);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Render a frame of the project as straight-alpha RGBA8 pixels (`width * height * 4` bytes, top row first, at most [`ARIA_FRAME_MAX_SIDE`](#frame-rendering) on each side), write the rendered dimensions to `request.width` and `request.height`, and return the pixels in [`AriaBytesResult.bytes`](#ariabytesresult) with [`ARIA_BYTES_FOUND`](#bytes-status-codes). Requires project read permission.
+
+### `AriaHostV1.editor_seek`
+
+```c
+AriaResult (*editor_seek)(void *host_ctx, AriaStr tick_json);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Move the playhead to `tick_json`, a time object with `value` and `rate`, and post `PlayheadMoved`. Requires project write permission.
+
+### `AriaHostV1.editor_play`
+
+```c
+AriaResult (*editor_play)(void *host_ctx, int32_t speed);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Start playback at signed integer multiplier `speed` (`-8` through `-1` or `1` through `8`) and post `PlaybackStarted`. Requires project write permission.
+
+### `AriaHostV1.editor_stop`
+
+```c
+AriaResult (*editor_stop)(void *host_ctx);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Stop playback and post `PlaybackStopped` when playing. Requires project write permission.
+
+### `AriaHostV1.project_open`
+
+```c
+AriaResult (*project_open)(void *host_ctx, AriaStr path);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Open the `.aria` project at `path` when the open project has no unsaved changes, posting `ProjectClosed` and `ProjectOpened`. Requires project write permission and filesystem read permission for `path`.
+
+### `AriaHostV1.project_save`
+
+```c
+AriaResult (*project_save)(void *host_ctx);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Save the open project to its current path without adding an undo step, posting `ProjectSaved`. Fails when the project has no path. Requires project write permission and filesystem write permission for the project's path.
+
+### `AriaHostV1.project_save_as`
+
+```c
+AriaResult (*project_save_as)(void *host_ctx, AriaStr path);
+```
+
+Prefix: `sizeof(AriaHostV1)`.
+
+Save the open project to `path` without adding an undo step, setting the project path and posting `ProjectSaved`. Requires project write permission and filesystem write permission for `path`.
 
 ## `AriaPluginV1`
 

@@ -20,6 +20,13 @@ impl SdkPlugin for PermissionGuest {
         host.register_command("perm.in_out", "InOut")?;
         host.register_command("perm.transact", "Transact")?;
         host.register_command("perm.undo", "Undo")?;
+        host.register_command("perm.render_frame", "RenderFrame")?;
+        host.register_command("perm.seek", "Seek")?;
+        host.register_command("perm.play", "Play")?;
+        host.register_command("perm.stop", "Stop")?;
+        host.register_command("perm.open", "Open")?;
+        host.register_command("perm.save", "Save")?;
+        host.register_command("perm.save_as", "SaveAs")?;
         Ok(())
     }
 
@@ -37,6 +44,36 @@ impl SdkPlugin for PermissionGuest {
             "perm.in_out" => host.in_out().map(drop),
             "perm.transact" => host.project_transact_json("noop", "[]").map(drop),
             "perm.undo" => host.project_undo().map(drop),
+            "perm.render_frame" => host
+                .render_frame(
+                    aria_sdk::FrameSource::Open,
+                    t0,
+                    aria_sdk::FrameSize::Exact {
+                        width: 0,
+                        height: 180,
+                    },
+                )
+                .map(drop),
+            "perm.seek" => host
+                .editor_seek(SdkRationalTime::new(12, SdkRational::FPS_24))
+                .map(drop),
+            "perm.play" => host.editor_play(2),
+            "perm.stop" => host.editor_stop(),
+            "perm.open" => {
+                let path = host
+                    .storage_get("target_path")?
+                    .and_then(|b| String::from_utf8(b).ok())
+                    .unwrap_or_else(|| "/work/cut.aria".to_owned());
+                host.project_open(&path)
+            }
+            "perm.save" => host.project_save().map(drop),
+            "perm.save_as" => {
+                let path = host
+                    .storage_get("target_path")?
+                    .and_then(|b| String::from_utf8(b).ok())
+                    .unwrap_or_else(|| "/work/cut.aria".to_owned());
+                host.project_save_as(&path).map(drop)
+            }
             other => Err(format!("unknown: {other}")),
         }
     }
@@ -76,6 +113,13 @@ fn permission_levels_enforce_access_and_record_capability_denials() {
             "perm.in_out",
             "perm.transact",
             "perm.undo",
+            "perm.render_frame",
+            "perm.seek",
+            "perm.play",
+            "perm.stop",
+            "perm.open",
+            "perm.save",
+            "perm.save_as",
         ] {
             let err = ctx.run_command(cmd).expect_err("must be denied");
             assert!(
@@ -116,17 +160,34 @@ fn permission_levels_enforce_access_and_record_capability_denials() {
             "read operations must not record denials when project = read"
         );
 
-        let tx_err = ctx
-            .run_command("perm.transact")
-            .expect_err("transact denied under read");
-        assert!(tx_err.to_string().contains("permission denied"), "{tx_err}");
-        let undo_err = ctx
-            .run_command("perm.undo")
-            .expect_err("undo denied under read");
+        // Under `project = "read"`, `render_frame` passes the permission gate and fails on invalid 0 width.
+        let rf_err = ctx
+            .run_command("perm.render_frame")
+            .expect_err("0 width must fail bounds check");
         assert!(
-            undo_err.to_string().contains("permission denied"),
-            "{undo_err}"
+            !rf_err.to_string().contains("permission denied"),
+            "render_frame must be permitted under project = read: {rf_err}"
         );
+        assert!(ctx.denials().is_empty());
+
+        for write_cmd in [
+            "perm.transact",
+            "perm.undo",
+            "perm.seek",
+            "perm.play",
+            "perm.stop",
+            "perm.open",
+            "perm.save",
+            "perm.save_as",
+        ] {
+            let err = ctx
+                .run_command(write_cmd)
+                .expect_err("write operation denied under read");
+            assert!(
+                err.to_string().contains("permission denied"),
+                "{write_cmd}: {err}"
+            );
+        }
 
         let denials = ctx.denials();
         assert_eq!(denials.len(), 1);
@@ -136,5 +197,57 @@ fn permission_levels_enforce_access_and_record_capability_denials() {
             "{:?}",
             denials[0]
         );
+    }
+
+    // Case 3: `project = "read-write"` with `fs = ["project"]` allows transport and session
+    // save/open inside the project directory, and denies filesystem paths outside granted scopes.
+    {
+        let mut manifest_toml = basic_manifest("test.permrw", "PermRW", "read-write");
+        manifest_toml.push_str("fs = [\"project\"]\n");
+        let pkg_dir = write_package(temp.path(), "test.permrw", &manifest_toml, None);
+        let pkg = Package::open(&pkg_dir).expect("open package");
+        let ctx = PluginContext::new();
+        let host = make_project_host(&ctx);
+        let proj_dir = temp.path().join("proj");
+        std::fs::create_dir_all(&proj_dir).expect("proj_dir");
+        host.save_as(&crate::Origin::Editor, proj_dir.join("seed.aria"))
+            .expect("seed project path");
+        let view = Arc::new(crate::EditorView::new());
+        let _view_reg = ctx.register_arc(Arc::clone(&view));
+        let plugin = build_in_process_native_plugin(&pkg, &data_root, &table);
+        ctx.mount(plugin.as_ref()).expect("mount test.permrw");
+
+        ctx.run_command("perm.seek").expect("seek allowed");
+        ctx.run_command("perm.play").expect("play allowed");
+        ctx.run_command("perm.stop").expect("stop allowed");
+        assert_eq!(view.take_transport_requests().len(), 3);
+
+        let data_dir = pkg.data_dir(&data_root);
+        std::fs::create_dir_all(&data_dir).expect("data_dir");
+        let allowed_file = proj_dir.join("saved.aria");
+        std::fs::write(
+            data_dir.join("target_path"),
+            allowed_file.to_str().expect("utf8").as_bytes(),
+        )
+        .expect("write target_path");
+        ctx.run_command("perm.save_as")
+            .expect("save_as in project dir allowed");
+        ctx.run_command("perm.save")
+            .expect("save to existing allowed path allowed");
+        ctx.run_command("perm.open")
+            .expect("open from project dir allowed");
+        assert!(ctx.denials().is_empty());
+
+        let outside_file = temp.path().join("outside.aria");
+        std::fs::write(
+            data_dir.join("target_path"),
+            outside_file.to_str().expect("utf8").as_bytes(),
+        )
+        .expect("write outside target_path");
+        let fs_err = ctx
+            .run_command("perm.save_as")
+            .expect_err("save_as outside granted fs scopes must fail");
+        assert!(fs_err.to_string().contains("permission denied"), "{fs_err}");
+        assert!(!ctx.denials().is_empty());
     }
 }

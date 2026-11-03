@@ -448,3 +448,80 @@ fn project_doc_matches_project_render_audio_host_registries_bidirectionally() {
         &extract_call_names_from_table(&sound_tables[0]),
     );
 }
+
+/// WHY: closes the defect class where a host capability is added to `AriaHostV1`
+/// (`crates/aria-plugin-abi/src/tables.rs`) or `world plugin`
+/// (`crates/aria-plugin-wasm/wit/plugin.wit`) without documenting its cross-surface
+/// mapping and permission rule in `docs/plugins/capabilities.md`, or where a
+/// `plugin.toml` recipe in `docs/plugins/cookbook.md` drifts from
+/// `PackageManifest::parse`. Both member sets are derived from source at run time.
+#[test]
+fn capabilities_doc_lists_every_wit_import_and_native_abi_host_slot_and_cookbook_manifests_parse() {
+    let doc = read_workspace_file("docs/plugins/capabilities.md");
+    let tables_src = read_workspace_file("crates/aria-plugin-abi/src/tables.rs");
+    let wit_src = read_workspace_file("crates/aria-plugin-wasm/wit/plugin.wit");
+
+    let header_fields: BTreeSet<String> = extract_struct_pub_fields(&tables_src, "AriaTableHeader")
+        .into_iter()
+        .collect();
+    let expected_abi_slots: Vec<String> = extract_struct_pub_fields(&tables_src, "AriaHostV1")
+        .into_iter()
+        .filter(|field| !header_fields.contains(field))
+        .collect();
+    assert!(
+        expected_abi_slots.len() >= 50,
+        "expected at least 50 AriaHostV1 callback slots, found {}",
+        expected_abi_slots.len()
+    );
+
+    let expected_wit_imports: Vec<String> = wit_src
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("import ")?;
+            let (name, _) = rest.split_once(':')?;
+            Some(name.trim().to_owned())
+        })
+        .collect();
+    assert!(
+        expected_wit_imports.len() >= 48,
+        "expected at least 48 WIT imports in plugin.wit, found {}",
+        expected_wit_imports.len()
+    );
+
+    let matrix_tables = parse_markdown_tables(extract_heading_section(&doc, "## Host call matrix"));
+    assert_eq!(matrix_tables.len(), 1);
+    let mut doc_abi_slots = Vec::new();
+    let mut doc_wit_imports = Vec::new();
+    for row in &matrix_tables[0].rows {
+        assert_eq!(
+            row.len(),
+            6,
+            "capabilities.md Host call matrix row {row:?} must have 6 columns"
+        );
+        doc_abi_slots.extend(extract_backticked_tokens(&row[2]));
+        doc_wit_imports.extend(extract_backticked_tokens(&row[4]));
+    }
+
+    assert_key_parity(
+        "docs/plugins/capabilities.md AriaHostV1 slots",
+        &expected_abi_slots,
+        &doc_abi_slots,
+    );
+    assert_key_parity(
+        "docs/plugins/capabilities.md plugin.wit imports",
+        &expected_wit_imports,
+        &doc_wit_imports,
+    );
+
+    let cookbook = read_workspace_file("docs/plugins/cookbook.md");
+    let toml_blocks = extract_code_blocks(&cookbook, "toml");
+    assert!(
+        toml_blocks.len() >= 3,
+        "expected at least 3 plugin.toml blocks in docs/plugins/cookbook.md"
+    );
+    for (idx, block) in toml_blocks.iter().enumerate() {
+        aria_plugin::package::PackageManifest::parse(block).unwrap_or_else(|err| {
+            panic!("docs/plugins/cookbook.md toml block #{idx} failed to parse: {err}")
+        });
+    }
+}

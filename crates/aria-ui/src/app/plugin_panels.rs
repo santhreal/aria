@@ -365,7 +365,9 @@ impl AppState {
     /// Send `event` to panel `panel`. A refusal (a control that is gone, a
     /// value the control cannot produce) is reported like a failed action.
     pub fn panel_event(&mut self, panel: &str, event: PanelEvent) {
-        if let Err(err) = self.ctx.send_panel_event(panel, event) {
+        let res = self.ctx.send_panel_event(panel, event);
+        self.sync_from_plugin_host();
+        if let Err(err) = res {
             self.report_error(err.to_string());
         }
     }

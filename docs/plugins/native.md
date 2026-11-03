@@ -137,7 +137,7 @@ function table:
 | Settings | `setting_get(key)` (`Result<Option<Value>, String>`), `setting_get_json(key)` | |
 | Commands | `register_command(id, title)` | `command_run(&self, host, id, args_json)` |
 | Events | `subscribe(event_kind)`, `subscribe_with_priority(event_kind, priority)` ([kinds and payloads](events.md#external-plugins)) | `event(&self, host, kind, event_json) -> Result<EventResponse, String>` |
-| Project & view | `project_snapshot()`, `project_snapshot_json()`, `editor_view()`, `editor_view_json()`, `clip(id)`, `clip_json(id)`, `clips_in_range(sequence, range)`, `clips_in_range_json(sequence, range_json)`, `clips_at(sequence, tick)`, `clips_at_json(sequence, tick_json)`, `selected_clips()`, `selected_clips_json()`, `markers_in_range(sequence, range)`, `markers_in_range_json(sequence, range_json)`, `in_out()`, `in_out_json()`, `project_transact(label, commands)`, `project_transact_json(label, commands_json)`, `project_undo()` | |
+| Project & view | `project_snapshot()`, `project_snapshot_json()`, `editor_view()`, `editor_view_json()`, `clip(id)`, `clip_json(id)`, `clips_in_range(sequence, range)`, `clips_in_range_json(sequence, range_json)`, `clips_at(sequence, tick)`, `clips_at_json(sequence, tick_json)`, `selected_clips()`, `selected_clips_json()`, `markers_in_range(sequence, range)`, `markers_in_range_json(sequence, range_json)`, `in_out()`, `in_out_json()`, `render_frame(source, time, size)`, `editor_seek(time)`, `editor_seek_json(tick_json)`, `editor_play(speed)`, `editor_stop()`, `project_open(path)`, `project_save()`, `project_save_as(path)`, `project_transact(label, commands)`, `project_transact_json(label, commands_json)`, `project_undo()` | |
 | Interchange | `register_importer(&ImporterSpec)`, `register_exporter(&ExporterSpec)`, `register_encoder(EncoderSpec, impl Encoder)`, `register_encoder_spec(&EncoderSpec)` | `import(&self, host, importer_id, path)`, `export(&self, host, exporter_id, project_json, path)`, `encoder_open(&self, host, encoder_id, path, config)` |
 | Audio effects | `register_audio_effect(&AudioEffectSpec)` | `audio_create(&self, host, effect_id, sample_rate) -> Result<Box<dyn AudioProcessor>, String>` |
 | Analyzers | `register_analyzer(AnalyzerSpec, impl Analyzer)`, `register_analyzer_spec(&AnalyzerSpec)` | `analyzer_open(&self, host, id, sample_rate, channels) -> Result<Box<dyn AnalyzerRun>, String>` ([Analyzers](analyzers.md)) |
@@ -166,6 +166,14 @@ open sequence. The typed forms use these `aria_sdk` types:
 | `Rational` | `num`, `den`, `FPS_24`, `FPS_25`, `FPS_30`, `FPS_60`, `new` |
 | `RationalTime` | `value`, `rate`, `new` |
 | `TimeRange` | `start`, `duration`, `new` |
+| `FrameSource` | `Open`, `Sequence`, `Clip` |
+| `FrameSize` | `Canvas`, `Fit`, `Exact` |
+| `RenderedFrame` | `width`, `height`, `data` |
+
+`FrameSize::Fit { max_width, max_height }` scales down to fit inside the box and
+`FrameSize::Exact { width, height }` renders at exact pixel dimensions (each side
+`1..=4096`). `RenderedFrame::data` holds `width * height * 4` straight-alpha RGBA8
+bytes.
 
 `Rational` is `num / den` ticks per second, and `RationalTime` is `value / rate`
 seconds. `TimeRange` is the half-open interval `[start, start + duration)`. A
@@ -204,7 +212,7 @@ Each item exported from `aria_sdk` is documented in one chapter:
 
 | Chapter | Exports |
 | --- | --- |
-| [Native plugins](native.md) | `Plugin`, `Host`, `LogLevel`, `export!`, `PluginRuntime`, `panic_message`, `ClipRef`, `InOut`, `Marker`, `MarkerKind`, `Rational`, `RationalTime`, `TimeRange`, `abi`, `serde_json` |
+| [Native plugins](native.md) | `Plugin`, `Host`, `LogLevel`, `export!`, `PluginRuntime`, `panic_message`, `ClipRef`, `InOut`, `Marker`, `MarkerKind`, `Rational`, `RationalTime`, `TimeRange`, `FrameSource`, `FrameSize`, `RenderedFrame`, `abi`, `serde_json` |
 | [Events](events.md) | `EventResponse`, `DropAction` |
 | [Jobs](jobs.md) | `JobStep` |
 | [Panels](panels.md) | `Panel`, `PanelEvent`, `PanelLocation`, `PanelSpec`, `PanelView`, `Tone`, `UiNode` |

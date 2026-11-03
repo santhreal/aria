@@ -406,6 +406,7 @@ Notes for the latest release. For previous releases, see the
 - `aria_render::PlaybackReport::holds_rate` reports whether a playback run held its rate, counting dropped frames as well as late renders.
 - `aria-bench timeline-frame` reports `inspector_scrub_frame_ms`, one held pointer move of an Inspector value scrub on a `project-10k` clip's Opacity and the frame it draws, beside its target series.
 - `PluginContext::mounted_revision` returns a counter that moves by one each time a plugin joins or leaves the mounted set.
+- In-process, native C ABI (`aria-sdk`), and WebAssembly plugins can render straight-alpha RGBA8 project or clip frames up to 4096×4096 (`RenderHost::render`, `Host::render_frame`, `render-frame`), seek and run playback (`EditorView::{seek, play, stop}`, `Host::{editor_seek, editor_play, editor_stop}`, `editor-seek`, `editor-play`, `editor-stop`), and open or save `.aria` projects (`ProjectHost::{open, save, save_as}`, `Host::{project_open, project_save, project_save_as}`, `project-open`, `project-save`, `project-save-as`) through the same host services as the editor UI.
 
 ### Changed
 

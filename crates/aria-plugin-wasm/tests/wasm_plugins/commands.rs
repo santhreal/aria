@@ -460,3 +460,172 @@ fn wasm_project_queries_round_trip_and_refuse_without_read_permission() {
     assert_eq!(summary["mark_out"], 36);
     ctx.unmount("com.example.wasm-tools").expect("unmount");
 }
+
+#[test]
+fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
+    let _serial = SERIAL.lock();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let (ctx, host, view, settings) = setup_host_context();
+
+    // 1. With `project = "read"`, `render-frame` checks bounds/RenderHost availability,
+    // while `editor-seek`, `editor-play`, `editor-stop`, `project-open`, `project-save`,
+    // and `project-save-as` are refused with a recorded capability denial.
+    let pkg_read = write_package(&temp.path().join("read"), "read", &["pick"], FIXTURE_WASM);
+    let plugin_read = load(&pkg_read, &Limits::default()).expect("load wasm plugin (read)");
+    ctx.mount(plugin_read.as_ref())
+        .expect("mount wasm plugin (read)");
+
+    settings.set(
+        "example.render_frame_args",
+        serde_json::json!({ "size": "exact", "width": 5000, "height": 64 }),
+    );
+    let oversize = ctx
+        .run_command("example.render-frame")
+        .expect_err("oversize render-frame must fail");
+    assert!(
+        oversize.to_string().contains("4096") || oversize.to_string().contains("RenderHost"),
+        "unexpected error: {oversize}"
+    );
+
+    for (cmd, key, args) in [
+        (
+            "example.transport-control",
+            "example.transport_args",
+            serde_json::json!({ "op": "seek", "value": 10 }),
+        ),
+        (
+            "example.transport-control",
+            "example.transport_args",
+            serde_json::json!({ "op": "play", "speed": 1 }),
+        ),
+        (
+            "example.transport-control",
+            "example.transport_args",
+            serde_json::json!({ "op": "stop" }),
+        ),
+        (
+            "example.project-session",
+            "example.session_args",
+            serde_json::json!({ "op": "save" }),
+        ),
+    ] {
+        settings.set(key, args);
+        let err = ctx
+            .run_command(cmd)
+            .expect_err("read-only plugin must not control transport or session");
+        assert!(
+            err.to_string().contains("permission denied"),
+            "unexpected error for {cmd}: {err}"
+        );
+    }
+    assert!(!ctx.denials().is_empty());
+    ctx.unmount("com.example.wasm-tools").expect("unmount read");
+
+    // 2. With `project = "read-write"` and `fs = ["project"]`, transport and session calls
+    // succeed within the project directory, reject invalid inputs, and refuse paths outside
+    // the project directory.
+    let proj_dir = temp.path().join("proj");
+    fs::create_dir_all(&proj_dir).expect("create proj dir");
+    let initial_path = proj_dir.join("initial.aria");
+    host.save_as(&Origin::Editor, &initial_path)
+        .expect("seed initial project path");
+
+    let pkg_rw = write_package(
+        &temp.path().join("rw"),
+        "read-write",
+        &["project"],
+        FIXTURE_WASM,
+    );
+    let plugin_rw = load(&pkg_rw, &Limits::default()).expect("load wasm plugin (rw)");
+    ctx.mount(plugin_rw.as_ref())
+        .expect("mount wasm plugin (rw)");
+
+    // Transport: seek, play, stop, plus invalid negative seek and zero play speed.
+    settings.set(
+        "example.transport_args",
+        serde_json::json!({ "op": "seek", "value": 12, "rate_num": 24, "rate_den": 1 }),
+    );
+    ctx.run_command("example.transport-control")
+        .expect("seek succeeds");
+    assert_eq!(
+        view.current().expect("view").playhead,
+        RationalTime::new(12, Rational::FPS_24)
+    );
+
+    settings.set(
+        "example.transport_args",
+        serde_json::json!({ "op": "play", "speed": 2 }),
+    );
+    ctx.run_command("example.transport-control")
+        .expect("play succeeds");
+    assert_eq!(
+        view.current().map(|v| (v.playing, v.speed)),
+        Some((true, 2))
+    );
+
+    settings.set(
+        "example.transport_args",
+        serde_json::json!({ "op": "stop" }),
+    );
+    ctx.run_command("example.transport-control")
+        .expect("stop succeeds");
+    assert_eq!(
+        view.current().map(|v| (v.playing, v.speed)),
+        Some((false, 1))
+    );
+
+    settings.set(
+        "example.transport_args",
+        serde_json::json!({ "op": "seek", "value": -5, "rate_num": 24, "rate_den": 1 }),
+    );
+    assert!(
+        ctx.run_command("example.transport-control").is_err(),
+        "negative seek must fail"
+    );
+
+    settings.set(
+        "example.transport_args",
+        serde_json::json!({ "op": "play", "speed": 0 }),
+    );
+    assert!(
+        ctx.run_command("example.transport-control").is_err(),
+        "play(0) must fail"
+    );
+
+    // Session: save_as inside project dir, save, open, and refuse save_as outside project dir.
+    let copy_path = proj_dir.join("copy.aria");
+    settings.set(
+        "example.session_args",
+        serde_json::json!({ "op": "save_as", "path": copy_path.to_string_lossy() }),
+    );
+    ctx.run_command("example.project-session")
+        .expect("save_as in project dir succeeds");
+    assert_eq!(host.project_path(), Some(copy_path));
+
+    settings.set("example.session_args", serde_json::json!({ "op": "save" }));
+    ctx.run_command("example.project-session")
+        .expect("save succeeds");
+
+    settings.set(
+        "example.session_args",
+        serde_json::json!({ "op": "open", "path": initial_path.to_string_lossy() }),
+    );
+    ctx.run_command("example.project-session")
+        .expect("open in project dir succeeds");
+    assert_eq!(host.project_path(), Some(initial_path));
+
+    let outside_path = temp.path().join("outside.aria");
+    settings.set(
+        "example.session_args",
+        serde_json::json!({ "op": "save_as", "path": outside_path.to_string_lossy() }),
+    );
+    let fs_err = ctx
+        .run_command("example.project-session")
+        .expect_err("save_as outside project dir must fail");
+    assert!(
+        fs_err.to_string().contains("permission denied"),
+        "unexpected error: {fs_err}"
+    );
+
+    ctx.unmount("com.example.wasm-tools").expect("unmount rw");
+}

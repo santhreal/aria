@@ -10,7 +10,7 @@ use crate::bindings;
 
 /// Marker type used with `PluginContext::has` to record a `CapabilityDenial` when a plugin
 /// attempts to read or write an unpermitted filesystem path via `fs-read` or `fs-write`.
-struct FsPermission;
+pub(super) struct FsPermission;
 
 /// Most bytes one `fs-read-at` call returns.
 const FS_READ_AT_MAX: u32 = 64 * 1024 * 1024;
