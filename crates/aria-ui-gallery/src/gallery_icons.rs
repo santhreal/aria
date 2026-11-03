@@ -1,156 +1,74 @@
 //! Typography, Icons, and the theme tokens.
 //!
-//! The icon section is self-checking: every constant is drawn with its name,
-//! every constant is loaded through the shipped `AssetSource` so a wrong path
-//! shows up as a red row, and the asset source is enumerated so an icon that
-//! exists in `aria-ui` but not in this list shows up as an unlisted row.
+//! The icon section draws `icons::ALL`, the registry the asset source serves,
+//! rather than a list of its own, so an icon added to `aria-ui` is on screen
+//! here with no edit to the gallery.
 
 use aria_ui::components;
 use aria_ui::icons;
 use aria_ui::theme::Theme;
-use gpui::{AnyElement, AssetSource, IntoElement, ParentElement, Styled, div, px};
+use gpui::{AnyElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::gallery_kit::{caption, group, section, shelf, specimen, swatch};
 
-/// Every `pub const` in `aria_ui::icons`.
-///
-/// `icons.rs` exposes no iterable list, and `Assets::list` hands back
-/// `SharedString` while `icon_button` demands `&'static str`, so the paths
-/// cannot round-trip through the asset source. The cross-check below is what
-/// keeps this list honest instead.
-const ICONS: [&str; 32] = [
-    icons::PLAY,
-    icons::PAUSE,
-    icons::PLUS,
-    icons::FOLDER_OPEN,
-    icons::CLAPPERBOARD,
-    icons::EYE,
-    icons::EYE_OFF,
-    icons::LOCK,
-    icons::LOCK_OPEN,
-    icons::VOLUME,
-    icons::VOLUME_X,
-    icons::UPLOAD,
-    icons::SETTINGS,
-    icons::TRASH,
-    icons::FIT,
-    icons::SCISSORS,
-    icons::ZOOM_IN,
-    icons::ZOOM_OUT,
-    icons::MAGNET,
-    icons::MINUS,
-    icons::SQUARE,
-    icons::CLOSE,
-    icons::SLIP,
-    icons::SLIDE,
-    icons::ROLL,
-    icons::RATE,
-    icons::RIPPLE,
-    icons::SKIP_BACK,
-    icons::SKIP_FORWARD,
-    icons::CHEVRON_LEFT,
-    icons::CHEVRON_RIGHT,
-    icons::CHEVRON_DOWN,
+/// The brand rows: art drawn at a height by its own function rather than
+/// through `icon_button`, at each height the app draws it. Every other path in
+/// `icons::ALL` is a glyph.
+const BRAND: [(&str, fn(f32) -> AnyElement, &[f32]); 2] = [
+    (icons::BRAND_MARK, brand_mark, &[18.0]),
+    (icons::WORDMARK, wordmark, &[20.0, 56.0]),
 ];
 
-/// The raster rows: art the theme does not tint, drawn at a size instead of a
-/// text colour. Listed separately from the glyphs because they are drawn by a
-/// different element, and cross-checked the same way so a raster asset added
-/// without a row here shows up as unlisted.
-const RASTER: [&str; 1] = [icons::BRAND_MARK];
+fn brand_mark(size: f32) -> AnyElement {
+    icons::brand_mark(size).into_any_element()
+}
+
+fn wordmark(height: f32) -> AnyElement {
+    icons::wordmark(height).into_any_element()
+}
 
 pub(crate) fn icons_section(theme: &Theme) -> AnyElement {
-    let listed = icons::Assets.list("icon/").unwrap_or_default();
-    let unlisted: Vec<String> = listed
+    let glyphs: Vec<AnyElement> = icons::ALL
         .iter()
-        .filter(|path| {
-            !ICONS
-                .iter()
-                .chain(RASTER.iter())
-                .any(|known| *known == path.as_str())
+        .copied()
+        .filter(|path| !BRAND.iter().any(|(brand, _, _)| brand == path))
+        .map(|path| {
+            let name = stem(path);
+            specimen(theme, name, components::icon_button(name, path, theme))
         })
-        .map(|path| path.to_string())
         .collect();
-    let specimens: Vec<AnyElement> = ICONS.into_iter().map(|path| glyph(theme, path)).collect();
+    let caption_text = format!(
+        "{} glyphs and {} brand assets: every path icons::ALL serves.",
+        glyphs.len(),
+        BRAND.len()
+    );
     section(
         theme,
         "Icons",
-        "every icons:: constant, drawn through icon_button and checked against the asset source",
+        "every icons::ALL path: glyphs through icon_button, brand art at each height the app draws it",
         div()
             .flex()
             .flex_col()
             .gap(px(Theme::SPACE_MD))
-            .child(shelf(specimens))
+            .child(shelf(glyphs))
             .child(group(
                 theme,
-                "icons::brand_mark(size_px)",
+                "icons::brand_mark(size_px), icons::wordmark(height_px)",
                 shelf(
-                    RASTER
+                    BRAND
                         .into_iter()
-                        .flat_map(|path| {
-                            [24.0f32, 72.0].map(move |size| {
-                                specimen(
-                                    theme,
-                                    stem(path),
-                                    icons::brand_mark(size).into_any_element(),
-                                )
-                            })
+                        .flat_map(|(path, draw, heights)| {
+                            heights
+                                .iter()
+                                .map(move |&height| specimen(theme, stem(path), draw(height)))
                         })
                         .collect(),
                 ),
             ))
-            .child(caption(
-                theme,
-                format!(
-                    "{} constants drawn; the asset source lists {} paths under icon/.",
-                    ICONS.len(),
-                    listed.len()
-                ),
-            ))
-            .child(if unlisted.is_empty() {
-                caption(theme, "No unlisted icons: the gallery covers every asset.")
-            } else {
-                div()
-                    .p(px(Theme::SPACE_SM))
-                    .rounded(px(Theme::CONTROL_RADIUS))
-                    .border_1()
-                    .border_color(theme.danger)
-                    .text_size(px(11.))
-                    .text_color(theme.danger)
-                    .child(format!(
-                        "In aria-ui but not in this gallery: {}",
-                        unlisted.join(", ")
-                    ))
-                    .into_any_element()
-            })
-            .child(caption(
-                theme,
-                "A `pub const ALL: &[(&str, &str)]` in icons.rs would make this \
-                 section self-maintaining; today the list above is manual and only \
-                 the cross-check catches drift.",
-            ))
+            .child(caption(theme, caption_text))
             .into_any_element(),
     )
     .into_any_element()
-}
-
-/// One icon: the control, its name, and — when the asset will not load — the
-/// path that failed, in danger colour.
-fn glyph(theme: &Theme, path: &'static str) -> AnyElement {
-    let name = stem(path);
-    let present = matches!(icons::Assets.load(path), Ok(Some(_)));
-    if present {
-        specimen(theme, name, components::icon_button(name, path, theme))
-    } else {
-        specimen(
-            theme,
-            name,
-            div()
-                .text_size(px(9.))
-                .text_color(theme.danger)
-                .child(format!("missing {path}")),
-        )
-    }
 }
 
 /// `icon/eye-off.svg` -> `eye-off`, `icon/aria-icon.png` -> `aria-icon`,

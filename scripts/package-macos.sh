@@ -52,7 +52,7 @@ APP_NAME="Aria.app"
 STAGING="$DIST/staging-$ARCH"
 APP="$STAGING/$APP_NAME"
 BINARY_SRC="$TARGET_DIR/release/aria-desktop"
-ICON_PNG="assets/icon/aria-icon.png"
+ICON_PNG="assets/icon/aria-icon-macos.png"
 
 echo "==> packaging Aria $VERSION for macOS ($ARCH)"
 
@@ -68,7 +68,7 @@ cp packaging/macos/Info.plist "$APP/Contents/Info.plist"
 cp "$BINARY_SRC" "$APP/Contents/MacOS/aria-desktop"
 chmod +x "$APP/Contents/MacOS/aria-desktop"
 
-# App icon (.icns) from the canonical Aria mark.
+# App icon (.icns) from the Aria mark drawn on the macOS icon grid.
 # Optional: skip if the source PNG isn't present so packaging still succeeds.
 if [[ -f "$ICON_PNG" ]]; then
     ICONSET="$STAGING/AppIcon.iconset"

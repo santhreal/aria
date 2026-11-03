@@ -245,25 +245,15 @@ pub fn splash_overlay(theme: &Theme, fading: bool) -> AnyElement {
     }
 }
 
-/// The mark over the word, as the boot splash and nothing else draws it.
+/// The wordmark, as the boot splash and nothing else draws it.
 ///
-/// The mark is the shipped art rather than the pulse loader beside it: the
-/// splash is the first frame of a session, and the product's own mark is what
+/// The logo is the shipped art rather than the pulse loader beside it: the
+/// splash is the first frame of a session, and the product's own word is what
 /// it should be showing while the window comes up.
 fn hero_wordmark(theme: &Theme) -> AnyElement {
     div()
-        .flex()
-        .flex_col()
-        .items_center()
-        .gap(px(12.0))
-        .child(crate::icons::brand_mark(72.0))
-        .child(
-            div()
-                .text_size(Theme::TEXT_DISPLAY)
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_color(theme.text)
-                .child(SharedString::from("Aria")),
-        )
+        .text_color(theme.text)
+        .child(crate::icons::wordmark(56.0))
         .into_any_element()
 }
 

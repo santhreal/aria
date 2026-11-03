@@ -410,6 +410,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Changed
 
+- The app icon is the "a" of the new wordmark on a dark tile, drawn on the macOS icon grid for the macOS app, and the boot splash and the Home rail draw the wordmark, "aria" with a playhead handle for the dot of its i, in the theme's text color.
 - Placing a source with sound in a sequence with no audio lane creates an audio lane and lands the sound there as a clip linked to the picture, and the new lane and the edit are one undo step named Source edit.
 - `aria new` places each file's sound on `A1` as a clip linked to its picture on `V1`, and its summary counts files.
 - The Audio Track Mixer draws no strip for a picture lane while none of its clips holds sound in the picture, so a sound placed on a linked audio lane has one strip and the new project's empty Main lane has none.

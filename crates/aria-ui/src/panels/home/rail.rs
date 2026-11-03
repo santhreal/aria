@@ -1,4 +1,4 @@
-//! The Home sidebar navigation rail: brand mark, navigation tabs, and rail selection.
+//! The Home sidebar navigation rail: wordmark, navigation tabs, and rail selection.
 //!
 //! Home is the first surface of a session, so the rail defines the primary
 //! entry points: New, Open, Recents, Samples, and Learn.
@@ -25,11 +25,10 @@ pub(super) fn home_rail(
         (HomeRail::Samples, crate::icons::IMAGE),
         (HomeRail::Learn, crate::icons::SPARKLES),
     ];
-    // The brand is the shipped mark, the same art the packagers turn into the
-    // app icon: Home is the first surface of a session, and a placeholder there
-    // is the one place the product looks unfinished for free. 24px to sit on the
-    // cap height of the word beside it.
-    let mark = crate::icons::brand_mark(24.);
+    // The brand is the shipped wordmark, the full logo: Home is the first
+    // surface of a session, and a placeholder there is the one place the
+    // product looks unfinished for free. The titlebar keeps the compact mark.
+    let wordmark = crate::icons::wordmark(20.);
     div()
         .id("home-rail")
         .w(px(crate::settings::SIDEBAR_MIN))
@@ -47,15 +46,9 @@ pub(super) fn home_rail(
                 .flex()
                 .flex_row()
                 .items_center()
-                .gap(px(Theme::SPACE_SM))
                 .mb(px(Theme::SPACE_MD))
-                .child(mark)
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_LARGE)
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .child("Aria"),
-                ),
+                .text_color(theme.text)
+                .child(wordmark),
         )
         .children(tabs.into_iter().map(|(tab, icon)| {
             let on = tab == selected;

@@ -659,31 +659,27 @@ fn button_states(theme: &Theme, cx: &App) -> AnyElement {
                 specimen(
                     theme,
                     "icon rest",
-                    components::icon_button("st-icon-rest", icons::SETTINGS, theme),
+                    components::icon_button("st-icon-rest", icons::MAGNET, theme),
                 ),
                 specimen(
                     theme,
                     "icon hover",
-                    components::icon_button("st-icon-hover", icons::SETTINGS, theme),
+                    components::icon_button("st-icon-hover", icons::MAGNET, theme),
                 ),
                 specimen(
                     theme,
                     "icon disabled",
-                    disabled(components::icon_button(
-                        "st-icon-off",
-                        icons::SETTINGS,
-                        theme,
-                    )),
+                    disabled(components::icon_button("st-icon-off", icons::MAGNET, theme)),
                 ),
                 specimen(
                     theme,
                     "icon lit",
-                    components::lit_icon("st-icon-lit", icons::SETTINGS, true, theme),
+                    components::lit_icon("st-icon-lit", icons::MAGNET, true, theme),
                 ),
                 specimen(
                     theme,
                     "icon lit hover",
-                    components::lit_icon("st-icon-lit-hover", icons::SETTINGS, true, theme),
+                    components::lit_icon("st-icon-lit-hover", icons::MAGNET, true, theme),
                 ),
             ])),
     )

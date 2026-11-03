@@ -26,9 +26,13 @@ label is plain text and it has no row here until the icon lands.
 
 All UI icons are under `assets/icon/`: transport and the brand mark at the
 top level, library glyphs in `library/`, and Lucide and Tabler fetches under
-`shell/`, `timeline/`, `text/`, `inspector/`, `preview/`, `chat/`, and `ui/`.
-Media scratch files for local development and tests are in the gitignored
-`local-assets/assets/`.
+`shell/`, `timeline/`, `inspector/`, `preview/`, and `ui/`. Every file there
+is a registered icon or packaging art;
+`every_file_under_assets_icon_is_registered_or_packaging_art` in
+`crates/aria-ui/src/icons.rs` fails on a file no `icon_assets!` row embeds.
+The control gallery (`crates/aria-ui-gallery`) draws every path in
+`icons::ALL`. Media scratch files for local development and tests are in the
+gitignored `local-assets/assets/`.
 
 An icon sets `currentColor` on `stroke` or `fill`, never on the root `color`
 attribute: usvg cannot read `color="currentColor"` and logs a warning each
@@ -38,10 +42,17 @@ time gpui rasterizes the glyph at a new size.
 renderer and fails on any usvg warning. An icon paints its glyph in the text
 color of the control around it.
 
-`assets/icon/aria-icon.png` is the brand mark. `icons::brand_mark` draws it in
-the window, Linux packages install it, `scripts/package-macos.sh` turns it
-into `AppIcon.icns`, and the Xcode asset catalog under `apps/aria-ios-macos`
-contains the resized copies.
+`assets/icon/aria-icon.png` is the brand mark: the "a" of the wordmark on a
+tile. `icons::brand_mark` draws it in the window, Linux packages install it,
+and the Windows icon `packaging/windows/aria.ico` is cut from the same art.
+`assets/icon/aria-icon-macos.png` is the mark on the macOS icon grid;
+`scripts/package-macos.sh` turns it into `AppIcon.icns`, and the Xcode asset
+catalog under `apps/aria-ios-macos` contains the resized copies.
+
+`assets/icon/aria-wordmark.svg` is the full logo: "aria" set in Red Hat
+Display SemiBold, the dot of the i replaced by a playhead handle.
+`icons::wordmark(height_px)` draws it at the proportions of its view box, in
+the text color of its parent like any glyph.
 
 `assets/generated/` contains the hand-authored 32 px workflow icon set added
 in repository commit `9e55722`. The files use square line caps, a 2.5 px
@@ -56,14 +67,13 @@ Defined in `crates/aria-ui/src/chrome.rs` and `chrome/tool_strip.rs`.
 
 | Constant | File | Use |
 | --- | --- | --- |
-| `BRAND_MARK` | `assets/icon/aria-icon.png` | The brand mark, drawn by `icons::brand_mark` in the titlebar (`chrome.rs`) and at the top of the Home rail (`panels/home/rail.rs`). |
+| `BRAND_MARK` | `assets/icon/aria-icon.png` | The brand mark, drawn by `icons::brand_mark` in the titlebar (`chrome.rs`). |
+| `WORDMARK` | `assets/icon/aria-wordmark.svg` | The wordmark, drawn by `icons::wordmark` on the boot splash (`loaders.rs`) and at the top of the Home rail (`panels/home/rail.rs`). |
 | `MINUS` | `assets/icon/shell/minus.svg` | Minimize the window. |
 | `SQUARE` | `assets/icon/shell/square.svg` | Maximize or restore the window. |
 | `CLOSE` | `assets/icon/shell/x.svg` | Close the window, a dock tab (`shell/dock_tabs.rs`), and a Viewer Source tab (`panels/preview_tabs.rs`); clear the timeline property search (`panels/timeline/header.rs`) and the Effects & Presets search (`panels/effects_browser.rs`). |
 | `UPLOAD` | `assets/icon/shell/upload.svg` | Export, on the tool bar. |
 | `WRENCH` | `assets/icon/timeline/wrench.svg` | Display settings: the Viewer's control row holds View > Viewer Display Settings under it, and the Timeline header holds View > Timeline Display Settings (`display_btn` in `chrome/tool_strip.rs`). |
-| `SETTINGS` | `assets/icon/shell/settings.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
-| `FIT` | `assets/icon/fullscreen.svg` | Drawn only by the control gallery (`crates/aria-ui-gallery`). |
 
 ### Tools
 

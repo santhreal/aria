@@ -1,11 +1,12 @@
-//! Embedded Lucide icons, the brand mark, and the gpui [`AssetSource`] that
-//! serves them.
+//! Embedded Lucide icons, the brand mark, the wordmark, and the gpui
+//! [`AssetSource`] that serves them.
 //!
 //! Art lives in repo-root `assets/icon/`. An icon paints its glyph as a mask
 //! in the text colour of the control around it, so one glyph serves both
-//! appearances; the brand mark is raster art with its own colours and is drawn
-//! through [`brand_mark`]. A plugin command's icon is served under
-//! `plugin-icon/` once `plugin_icon_path` has named it.
+//! appearances; the wordmark paints the same way. The brand mark is raster art
+//! with its own colours and is drawn through [`brand_mark`]. A plugin
+//! command's icon is served under `plugin-icon/` once `plugin_icon_path` has
+//! named it.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -23,6 +24,10 @@ use gpui::{
 macro_rules! icon_assets {
     ($(($const_name:ident, $file:literal, $path:literal)),+ $(,)?) => {
         $(pub const $const_name: &str = $path;)+
+
+        /// Every embedded asset path, in registry order: the brand mark, the
+        /// wordmark, then every glyph. [`Assets`] serves each one.
+        pub const ALL: &[&str] = &[$($path),+];
 
         /// Every registered icon as its constant's name and its file under
         /// `assets/icon/`, in registry order.
@@ -44,8 +49,7 @@ macro_rules! icon_assets {
             }
 
             fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-                let all = [$($path),+];
-                Ok(all
+                Ok(ALL
                     .iter()
                     .filter(|p| p.starts_with(path))
                     .map(|p| SharedString::from(*p))
@@ -58,8 +62,10 @@ macro_rules! icon_assets {
 icon_assets![
     // The brand mark, and the only raster row: the same art the packagers turn
     // into the app icon, so the mark in the window and the icon in the dock
-    // cannot drift apart.
+    // cannot drift apart. The wordmark is the full logo, a glyph like the
+    // icons, set from the same a.
     (BRAND_MARK, "aria-icon.png", "icon/aria-icon.png"),
+    (WORDMARK, "aria-wordmark.svg", "icon/aria-wordmark.svg"),
     (PLAY, "play.svg", "icon/play.svg"),
     (PAUSE, "pause.svg", "icon/pause.svg"),
     (PLUS, "plus.svg", "icon/plus.svg"),
@@ -88,10 +94,8 @@ icon_assets![
         "icon/rotate-ccw.svg"
     ),
     (UPLOAD, "shell/upload.svg", "icon/upload.svg"),
-    (SETTINGS, "shell/settings.svg", "icon/settings.svg"),
     (TRASH, "inspector/trash-2.svg", "icon/trash.svg"),
     (ELLIPSIS, "inspector/ellipsis.svg", "icon/ellipsis.svg"),
-    (FIT, "fullscreen.svg", "icon/fit.svg"),
     (SCISSORS, "timeline/scissors.svg", "icon/scissors.svg"),
     (ZOOM_IN, "timeline/zoom-in.svg", "icon/zoom-in.svg"),
     (ZOOM_OUT, "timeline/zoom-out.svg", "icon/zoom-out.svg"),
@@ -355,6 +359,18 @@ pub fn brand_mark(size_px: f32) -> Img {
         .size(px(size_px))
 }
 
+/// Width over height of the view box of `assets/icon/aria-wordmark.svg`.
+pub const WORDMARK_ASPECT: f32 = 541.61 / 256.0;
+
+/// The wordmark, "aria" with the playhead for its i, `height_px` tall at its
+/// drawn proportions. The full logo where the word has room; [`brand_mark`]
+/// is the compact mark. Paints in its own or its parent's text colour.
+pub fn wordmark(height_px: f32) -> Icon {
+    icon(WORDMARK)
+        .w(px(height_px * WORDMARK_ASPECT))
+        .h(px(height_px))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,6 +585,55 @@ mod tests {
         }
     }
 
+    /// Files under `assets/icon/` that the registry does not embed: art the
+    /// packagers read rather than the editor.
+    const PACKAGING_ONLY: &[&str] = &["aria-icon-macos.png"];
+
+    /// Every file under `assets/icon/` is a registered icon or packaging art.
+    ///
+    /// Closes the class of a fetched glyph left in the tree after the control
+    /// that drew it changed: 44 such files sat under `assets/icon/` with
+    /// nothing drawing them. Walks the directory at run time, so a file added
+    /// without a registry row fails here, and a packaging entry whose file is
+    /// gone fails too. Does not check that a registered icon is drawn by any
+    /// control.
+    #[test]
+    fn every_file_under_assets_icon_is_registered_or_packaging_art() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/icon");
+        let mut dirs = vec![root.clone()];
+        let mut files = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).expect("assets/icon/ reads") {
+                let path = entry.expect("a directory entry reads").path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let file = path.strip_prefix(&root).expect("a file under the root");
+                files.push(file.to_string_lossy().replace('\\', "/"));
+            }
+        }
+        let mut stray: Vec<&str> = files
+            .iter()
+            .map(String::as_str)
+            .filter(|file| {
+                !REGISTRY.iter().any(|(_, registered)| registered == file)
+                    && !PACKAGING_ONLY.contains(file)
+            })
+            .collect();
+        stray.sort_unstable();
+        assert!(
+            stray.is_empty(),
+            "assets/icon/ holds files no icon_assets! row embeds: {stray:?}"
+        );
+        for packaged in PACKAGING_ONLY {
+            assert!(
+                files.iter().any(|file| file == packaged),
+                "PACKAGING_ONLY lists {packaged}, which assets/icon/ does not hold"
+            );
+        }
+    }
+
     struct BrandView;
 
     impl gpui::Render for BrandView {
@@ -600,6 +665,39 @@ mod tests {
         assert!(
             loads.0.lock().is_empty(),
             "brand_mark must use the shared RenderImage instead of reloading through AssetSource"
+        );
+    }
+
+    /// The wordmark lays out at the proportions of its art.
+    ///
+    /// Closes the class of the word painted squeezed or stretched: the element
+    /// is `WORDMARK_ASPECT` times its height wide, and gpui rasterizes the SVG
+    /// to that width at the view box's own ratio, so an asset redrawn to a new
+    /// shape with the constant left behind would paint the word out of its
+    /// box. Reads the view box the asset source serves. Does not check the
+    /// drawing inside the view box.
+    #[test]
+    fn the_wordmark_lays_out_at_its_view_box_proportions() {
+        let bytes = Assets
+            .load(WORDMARK)
+            .unwrap()
+            .expect("the wordmark is embedded");
+        let text = std::str::from_utf8(&bytes).expect("the wordmark is utf-8");
+        let view_box = text
+            .split_once("viewBox=\"")
+            .and_then(|(_, rest)| rest.split_once('"'))
+            .map(|(value, _)| value)
+            .expect("the wordmark has a view box");
+        let numbers: Vec<f32> = view_box
+            .split_ascii_whitespace()
+            .map(|n| n.parse().expect("a view box number"))
+            .collect();
+        let [_, _, width, height] = numbers[..] else {
+            panic!("view box {view_box:?} is not four numbers");
+        };
+        assert!(
+            (width / height - WORDMARK_ASPECT).abs() < 1e-4,
+            "WORDMARK_ASPECT is {WORDMARK_ASPECT}, the art is {width} x {height}"
         );
     }
 }
