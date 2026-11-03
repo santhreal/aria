@@ -27,7 +27,7 @@ Defined in `crates/aria-encoder/src/lib.rs` (`capability()` and `AUDIO_CAPABILIT
 
 ### Linux encoder elements (`aria_encoder::gst`)
 
-Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device.
+Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device and takes the export's frame size and rate. `nvh264enc` takes widths 145 to 4096 and heights 49 to 4096, so a narrower export goes to the next element in order.
 
 | Codec | Elements in order | Software element | Software speed preset |
 | --- | --- | --- | --- |
@@ -35,6 +35,8 @@ Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENC
 | `H.265` | `nvh265enc`, `nvcudah265enc`, `vaapih265enc`, `x265enc` | `x265enc` | `veryfast` |
 
 `x264enc` also runs `tune=zerolatency` with trellis quantization off. A hardware element whose GStreamer plugin failed to load in the process is skipped without being built again. Only `x265enc` has `videoconvert` in front of it, because it takes no NV12.
+
+An error that stops the encode pipeline, such as a full disk, fails the export's next frame or sound push, or its finish, with GStreamer's reason.
 
 The export sheet's Codec row offers the codecs `aria_encoder::available_codecs` returns. On Linux, a codec is offered when one of its elements opens; the probe runs once per process, on the `aria-codec-probe` thread, when the Export sheet first opens. Until it answers, the row states the chosen codec. On other targets the row offers the Codecs column above.
 

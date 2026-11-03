@@ -6,6 +6,7 @@
 //! package that carries them. Aria never ships a codec.
 
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
 
 use aria_core::{
     AudioEncoderConfig, EncodeError, EncoderConfig, RationalTime, VideoCodec, VideoEncoder,
@@ -57,6 +58,8 @@ pub struct GstEncoder {
     layout: FrameLayout,
     config: EncoderConfig,
     choice: EncoderChoice,
+    /// The first error the pipeline posted, set from the thread that posted it.
+    failure: Arc<OnceLock<String>>,
     finished: bool,
 }
 
@@ -87,8 +90,9 @@ impl GstEncoder {
                 "encoder size must be greater than zero.",
             ));
         }
-        let (choice, encoder) = pick_encoder(config.video_codec)?;
-        match Self::assemble(path, config, choice, &encoder) {
+        let frames = video_caps(width, height, config.frame_rate)?;
+        let (choice, encoder) = pick_encoder(config.video_codec, &frames)?;
+        match Self::assemble(path, config, choice, &encoder, &frames) {
             Ok(opened) => Ok(opened),
             Err(err) => {
                 // The picked element is open (`READY`), and GStreamer will not
@@ -99,25 +103,26 @@ impl GstEncoder {
         }
     }
 
-    /// The encode pipeline around the opened `encoder`, playing.
+    /// The encode pipeline around the opened `encoder`, playing, taking
+    /// `v_caps` frames.
     fn assemble(
         path: &Path,
         config: EncoderConfig,
         choice: EncoderChoice,
         encoder: &gst::Element,
+        v_caps: &gst::Caps,
     ) -> Result<Self, EncodeError> {
         let (width, height) = config.size;
         let enc_name: &str = &choice.encoder;
         let location = path.to_string_lossy().into_owned();
 
         let pipeline = gst::Pipeline::new();
-        let v_caps = video_caps(width, height, config.frame_rate)?;
         let layout = FrameLayout::new(width, height)?;
         let frame_bytes = layout.buffer_bytes;
-        let buffer_pool = open_buffer_pool(&v_caps, frame_bytes);
+        let buffer_pool = open_buffer_pool(v_caps, frame_bytes);
         let video = gst_app::AppSrc::builder()
             .format(gst::Format::Time)
-            .caps(&v_caps)
+            .caps(v_caps)
             .stream_type(gst_app::AppStreamType::Stream)
             .is_live(false)
             .block(true)
@@ -163,6 +168,10 @@ impl GstEncoder {
             None
         };
 
+        let failure = end_sources_on_error(
+            &pipeline,
+            [Some(&video), audio.as_ref()].into_iter().flatten(),
+        );
         if let Err(err) = pipeline.set_state(gst::State::Playing) {
             let _ = pipeline.set_state(gst::State::Null);
             return Err(EncodeError::Start(err.to_string()));
@@ -176,8 +185,21 @@ impl GstEncoder {
             layout,
             config,
             choice,
+            failure,
             finished: false,
         })
+    }
+
+    /// The error a push or end of stream that `flow` refused reports: the
+    /// pipeline's own error when one stopped it, which is why the source
+    /// refused.
+    fn push_failed(&self, flow: gst::FlowError) -> EncodeError {
+        EncodeError::Encode(
+            self.failure
+                .get()
+                .cloned()
+                .unwrap_or_else(|| format!("GStreamer refused the buffer ({flow:?}).")),
+        )
     }
 }
 
@@ -228,7 +250,7 @@ impl VideoEncoder for GstEncoder {
         self.video
             .push_buffer(buffer)
             .map(|_| ())
-            .map_err(|e| EncodeError::Encode(e.to_string()))
+            .map_err(|flow| self.push_failed(flow))
     }
 
     fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
@@ -255,7 +277,7 @@ impl VideoEncoder for GstEncoder {
         audio
             .push_buffer(buffer)
             .map(|_| ())
-            .map_err(|e| EncodeError::Encode(e.to_string()))
+            .map_err(|flow| self.push_failed(flow))
     }
 
     fn finish(&mut self) -> Result<(), EncodeError> {
@@ -264,11 +286,11 @@ impl VideoEncoder for GstEncoder {
         }
         self.video
             .end_of_stream()
-            .map_err(|e| EncodeError::Encode(e.to_string()))?;
+            .map_err(|flow| self.push_failed(flow))?;
         if let Some(audio) = &self.audio {
             audio
                 .end_of_stream()
-                .map_err(|e| EncodeError::Encode(e.to_string()))?;
+                .map_err(|flow| self.push_failed(flow))?;
         }
         let bus = self
             .pipeline
@@ -287,10 +309,7 @@ impl VideoEncoder for GstEncoder {
                 match msg.view() {
                     gst::MessageView::Eos(_) => break,
                     gst::MessageView::Error(err) => {
-                        return Err(EncodeError::Encode(format!(
-                            "GStreamer encode failed: {}. Check the output path and codec plugins.",
-                            err.error()
-                        )));
+                        return Err(EncodeError::Encode(encode_failure(err)));
                     }
                     _ => {}
                 }
@@ -326,6 +345,49 @@ impl Drop for GstEncoder {
             let _ = pool.set_active(false);
         }
     }
+}
+
+/// The error an encode that stopped on `err` reports.
+fn encode_failure(err: &gst::message::Error) -> String {
+    format!(
+        "GStreamer encode failed: {}. Check the output path, the free disk space, and the codec plugins.",
+        err.error().message().trim_end_matches('.')
+    )
+}
+
+/// Record the first error `pipeline` posts and end each of `sources`, from the
+/// thread that posts it. Returns where the error is recorded.
+///
+/// Each source blocks a push while it is full. A pipeline stopped by an error
+/// (an encoder that refuses the frame size, a full disk) takes no more
+/// buffers, so with nothing else to wake it the next push waits forever and
+/// the error waits on the bus for a `finish` that never comes. An ended source
+/// wakes the blocked push, which then fails with the recorded error. The
+/// sources are held weakly, as the pipeline holds the bus that holds this
+/// handler.
+fn end_sources_on_error<'a>(
+    pipeline: &gst::Pipeline,
+    sources: impl IntoIterator<Item = &'a gst_app::AppSrc>,
+) -> Arc<OnceLock<String>> {
+    let failure = Arc::new(OnceLock::new());
+    let Some(bus) = pipeline.bus() else {
+        return failure;
+    };
+    let sources: Vec<_> = sources
+        .into_iter()
+        .map(|source| source.downgrade())
+        .collect();
+    let failed = Arc::clone(&failure);
+    bus.set_sync_handler(move |_, message| {
+        if let gst::MessageView::Error(err) = message.view() {
+            let _ = failed.set(encode_failure(err));
+            for source in sources.iter().filter_map(|source| source.upgrade()) {
+                let _ = source.end_of_stream();
+            }
+        }
+        gst::BusSyncReply::Pass
+    });
+    failure
 }
 
 fn add_audio_branch(

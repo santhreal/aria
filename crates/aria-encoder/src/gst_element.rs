@@ -11,32 +11,38 @@ use gstreamer::prelude::*;
 use super::ensure_init;
 use crate::EncoderChoice;
 
-/// The encoder element for `codec`, built and opened: hardware first, software
-/// last.
+/// The encoder element for `codec` that takes `frames`, built and opened:
+/// hardware first, software last.
 ///
 /// A registered factory is not a working encoder. NVENC stays in the registry
 /// cache when the driver and its library disagree, and VAAPI registers without
 /// a device to open, so each candidate is built and moved to `READY` (where a
-/// video encoder opens its device). The first one that opens is returned still
-/// open, so the pipeline it joins does not open the device a second time, with
-/// why each earlier one did not; when none does, the error lists every
+/// video encoder opens its device). An open encoder can still refuse the
+/// export's frames: `nvh264enc` takes widths from 145 up, so its pipeline
+/// fails negotiation on the first frame of a narrower export. The first
+/// candidate that opens and takes `frames` is returned still open, so the
+/// pipeline it joins does not open the device a second time, with why each
+/// earlier one was passed over; when none does, the error lists every
 /// candidate's reason. A caller that does not keep the element sets it to
 /// `NULL` before dropping it.
 pub(super) fn pick_encoder(
     codec: VideoCodec,
+    frames: &gst::Caps,
 ) -> Result<(EncoderChoice, gst::Element), EncodeError> {
     let hint = match codec {
         VideoCodec::H264 => "Install gstreamer1.0-plugins-ugly (x264enc) or a VAAPI/NVENC plugin.",
         VideoCodec::H265 => "Install gstreamer1.0-plugins-bad (x265enc) or a VAAPI/NVENC plugin.",
     };
-    let (element, opened, passed_over) = first_opened(candidates(codec), open_encoder_element)
-        .map_err(|reasons| {
-            EncodeError::unsupported(format!(
-                "no {} encoder opens here: {}. {hint}",
-                codec.label(),
-                reasons.join("; ")
-            ))
-        })?;
+    let (element, opened, passed_over) =
+        first_opened(candidates(codec), |name| open_encoder_element(name, frames)).map_err(
+            |reasons| {
+                EncodeError::unsupported(format!(
+                    "no {} encoder opens here: {}. {hint}",
+                    codec.label(),
+                    reasons.join("; ")
+                ))
+            },
+        )?;
     let choice = EncoderChoice {
         encoder: element.into(),
         hardware: Some(!SOFTWARE_ENCODERS.contains(&element)),
@@ -109,14 +115,15 @@ fn demote_factory_plugin(factory: &gst::ElementFactory) {
     }
 }
 
-/// Build `name` and open it, returning it in `READY` state.
+/// Build `name` and open it, returning it in `READY` state when its sink pad
+/// takes `frames`.
 ///
 /// Closing `nvh264enc` takes 250 ms on an RTX 5090 and opening it again 75 ms,
 /// so the element is kept open for the pipeline rather than closed and opened
 /// again there. It opens on the device contexts the decoders keep, so an
 /// export runs one CUDA context rather than one for the encoder beside the
 /// decoders' one, and a decoder opened after it reuses the encoder's.
-fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
+fn open_encoder_element(name: &'static str, frames: &gst::Caps) -> Result<gst::Element, String> {
     let is_hw = !SOFTWARE_ENCODERS.contains(&name);
     if is_hw {
         aria_decoder::await_warm_up();
@@ -140,10 +147,32 @@ fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
         let _ = element.set_state(gst::State::Null);
         return Err(format!("{name} could not open its device"));
     }
+    if !takes_frames(&element, frames) {
+        let _ = element.set_state(gst::State::Null);
+        return Err(format!("{name} does not take {frames}"));
+    }
     Ok(element)
 }
 
-/// Whether this host can encode `codec` at all: one of its elements opens.
+/// Whether the sink pad of `element`, open, takes `frames` in some pixel
+/// format.
+///
+/// `nvh264enc` takes widths 145 to 4096 and heights 49 to 4096. The format is
+/// left out of the comparison: `x265enc` takes no NV12 and is fed through a
+/// `videoconvert`.
+fn takes_frames(element: &gst::Element, frames: &gst::Caps) -> bool {
+    let Some(sink) = element.static_pad("sink") else {
+        return false;
+    };
+    let mut any_format = frames.clone();
+    for structure in any_format.make_mut().iter_mut() {
+        structure.remove_field("format");
+    }
+    sink.query_caps(None).can_intersect(&any_format)
+}
+
+/// Whether this host can encode `codec` at all: one of its elements opens and
+/// takes frames of some size.
 ///
 /// The one owner of that answer: a picker offering a codec the pipeline would
 /// then refuse is worse than a picker with one entry.
@@ -153,7 +182,7 @@ fn open_encoder_element(name: &'static str) -> Result<gst::Element, String> {
 /// yet.
 fn can_encode(codec: VideoCodec) -> bool {
     ensure_init().is_ok()
-        && pick_encoder(codec).is_ok_and(|(_, opened)| {
+        && pick_encoder(codec, &gst::Caps::new_any()).is_ok_and(|(_, opened)| {
             let _ = opened.set_state(gst::State::Null);
             true
         })
@@ -251,6 +280,12 @@ mod tests {
     use super::*;
     use aria_core::Rational;
 
+    /// NV12 frames of `width` by `height` at 30 fps, as an export pushes them.
+    fn frames(width: u32, height: u32) -> gst::Caps {
+        super::super::frame::video_caps(width, height, Rational::new(30, 1))
+            .expect("a positive rate builds caps")
+    }
+
     /// The walk returns the first candidate that opens and stops there; a
     /// candidate that fails (a registered NVENC whose driver does not answer)
     /// is passed over rather than returned for the pipeline to fail on, and its
@@ -332,7 +367,7 @@ mod tests {
     fn the_picked_encoder_opens_on_this_machine() {
         ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
-            let Ok((choice, element)) = pick_encoder(codec) else {
+            let Ok((choice, element)) = pick_encoder(codec, &frames(1920, 1080)) else {
                 continue;
             };
             let name = &choice.encoder;
@@ -343,6 +378,32 @@ mod tests {
             );
             let _ = element.set_state(gst::State::Null);
         }
+    }
+
+    /// WHY: an encoder that opened was picked whatever the export's size, so on
+    /// a host with NVENC a 128 by 72 export went to `nvh264enc`, which takes
+    /// widths from 145: the pipeline failed negotiation on the first frame and
+    /// the export waited forever on a later push. Closes a candidate picked
+    /// for frames its open sink pad does not take, and a size check that also
+    /// compares the pixel format, which would pass over `x265enc` (no NV12, fed
+    /// through a `videoconvert`) at every size. `x265enc`, which takes sizes
+    /// from 16 by 16, stands in for a hardware encoder's size floor on a host
+    /// with no NVENC. Checks nothing on a host without `x265enc`.
+    #[test]
+    fn a_candidate_is_passed_over_for_frames_its_sink_does_not_take() {
+        ensure_init().expect("GStreamer initializes");
+        if gst::ElementFactory::find("x265enc").is_none() {
+            return;
+        }
+        let small = frames(8, 8);
+        assert_eq!(
+            open_encoder_element("x265enc", &small).map(|_| ()),
+            Err(format!("x265enc does not take {small}"))
+        );
+        let floor = open_encoder_element("x265enc", &frames(16, 16))
+            .expect("x265enc takes 16 by 16 frames, through a videoconvert");
+        assert_eq!(floor.current_state(), gst::State::Ready);
+        let _ = floor.set_state(gst::State::Null);
     }
 
     /// WHY: the picked encoder opened alone, with no bus to ask for a device
@@ -358,12 +419,13 @@ mod tests {
     fn encoders_picked_in_a_row_open_on_one_device_context() {
         ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
-            let Ok((choice, first)) = pick_encoder(codec) else {
+            let Ok((choice, first)) = pick_encoder(codec, &frames(1920, 1080)) else {
                 continue;
             };
             let _ = first.set_state(gst::State::Null);
             let held = || {
-                let (_, element) = pick_encoder(codec).expect("the encoder opens again");
+                let (_, element) =
+                    pick_encoder(codec, &frames(1920, 1080)).expect("the encoder opens again");
                 let contexts = element.contexts();
                 let _ = element.set_state(gst::State::Null);
                 contexts
@@ -447,12 +509,13 @@ mod tests {
             })
             .collect();
         assert!(!plugin_is_demoted(&factory), "{plugin} starts demoted");
-        let opened = open_encoder_element(name).expect("a ranked candidate builds and opens");
+        let any = gst::Caps::new_any();
+        let opened = open_encoder_element(name, &any).expect("a ranked candidate builds and opens");
         let _ = opened.set_state(gst::State::Null);
 
         demote_factory_plugin(&factory);
         let demoted = plugin_is_demoted(&factory);
-        let refused = open_encoder_element(name);
+        let refused = open_encoder_element(name, &any);
         for (feature, rank) in ranks {
             feature.set_rank(rank);
         }

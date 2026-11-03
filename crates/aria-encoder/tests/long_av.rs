@@ -31,6 +31,26 @@ fn solid_rgba_frame(width: u32, height: u32, index: i64, rate: Rational) -> Vide
     for _ in 0..(width * height) {
         pixels.extend_from_slice(&[20, 120, 220, 255]);
     }
+    rgba_frame(width, height, index, rate, pixels)
+}
+
+/// Pixels that differ from their neighbors and from the same pixel in every
+/// other frame, so any coder writes many bytes a frame and a write error comes
+/// within the first frames rather than at the end of the file.
+fn noise_rgba_frame(width: u32, height: u32, index: i64, rate: Rational) -> VideoFrame {
+    let mut state = (index as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut pixels = Vec::with_capacity((width * height * 4) as usize);
+    for _ in 0..(width * height) {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        let [r, g, b, ..] = state.to_le_bytes();
+        pixels.extend_from_slice(&[r, g, b, 255]);
+    }
+    rgba_frame(width, height, index, rate, pixels)
+}
+
+fn rgba_frame(width: u32, height: u32, index: i64, rate: Rational, pixels: Vec<u8>) -> VideoFrame {
     let plane = Plane::new(pixels, width as usize * 4, height as usize);
     VideoFrame::new(
         RationalTime::new(index, rate),
@@ -140,5 +160,55 @@ fn a_video_coder_delay_of_many_seconds_does_not_wedge_the_audio_branch() {
     );
     for &codec in codecs {
         interleaved_export_in(&format!("lag-{codec:?}"), (128, 72), 1, 30, codec);
+    }
+}
+
+/// WHY: a pipeline stopped by an error takes no more buffers, and both
+/// sources block a push while full, so the export's next push waited forever
+/// and the error stayed on the bus for a `finish` the export never reached. A
+/// full disk is one such error; an encoder that refuses the frame size is
+/// another. Closes a push that waits on a stopped pipeline, for each source:
+/// with no sound the video source fills, and at 1 fps with a second of sound
+/// per frame the audio source fills before the video one. With a frame's
+/// sound per frame, the sound push after the error fails first. `/dev/full`
+/// opens for writing and fails every write.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_full_disk_fails_the_export_with_its_reason_instead_of_wedging_it() {
+    for (fps, sound) in [(30, false), (30, true), (1, true)] {
+        let (done, finished) = mpsc::channel();
+        std::thread::spawn(move || {
+            let rate = Rational::new(fps, 1);
+            let audio_rate = 48_000u32;
+            let mut config = EncoderConfig::new((320, 240), rate, ColorSpace::BT709);
+            if sound {
+                config = config.with_audio(AudioEncoderConfig::new(audio_rate, 2));
+            }
+            let mut encoder = NativeEncoder::open(std::path::Path::new("/dev/full"), config)
+                .expect("open encoder");
+            let per_frame = (audio_rate / fps as u32) as usize;
+            let block: Vec<f32> = vec![0.1; per_frame * 2];
+            let audio_time = Rational::new(audio_rate as i32, 1);
+            let mut export = || {
+                for i in 0..600i64 {
+                    encoder.push(&noise_rgba_frame(320, 240, i, rate))?;
+                    if sound {
+                        let pts = RationalTime::new(i * per_frame as i64, audio_time);
+                        encoder.push_audio(&block, pts)?;
+                    }
+                }
+                encoder.finish()
+            };
+            let _ = done.send(export().map_err(|e| e.to_string()));
+        });
+        let case = if sound { "with sound" } else { "without sound" };
+        let result = finished.recv_timeout(DEADLINE).unwrap_or_else(|_| {
+            panic!("an export at {fps} fps {case} into a full disk wedged for {DEADLINE:?}")
+        });
+        let reason = result.expect_err("an export into a full disk succeeded");
+        assert!(
+            reason.contains("No space left"),
+            "an export at {fps} fps {case} into a full disk failed without its reason: {reason}"
+        );
     }
 }
