@@ -49,7 +49,11 @@ impl GpuContext {
         {
             return Ok(gpu);
         }
-        Self::new_headless_with(wgpu::Backends::all()).await
+        full_or_primary(
+            Self::new_headless_with(wgpu::Backends::all()),
+            Self::new_headless_with(wgpu::Backends::PRIMARY),
+        )
+        .await
     }
 
     async fn new_headless_with(backends: wgpu::Backends) -> Result<Self, CompositorError> {
@@ -189,6 +193,32 @@ fn new_instance(backends: wgpu::Backends) -> wgpu::Instance {
     })
 }
 
+/// The full backend set's context, or the primary backends' when the full
+/// set's first-ranked adapter opens no device.
+///
+/// A GL driver can list an adapter it then opens no device on: an NVIDIA GL
+/// 3.3 context reached through EGL has no compute shaders, `wgpu`'s indirect
+/// validation needs them, and the device request fails with "Parent device is
+/// lost" while a Vulkan CPU rasterizer on the same host renders. The primary
+/// context is brought up again rather than held open through the full set's
+/// bring-up. When both fail, the full set's error is returned.
+async fn full_or_primary<T, E: std::fmt::Display>(
+    full: impl Future<Output = Result<T, E>>,
+    primary: impl Future<Output = Result<T, E>>,
+) -> Result<T, E> {
+    let error = match full.await {
+        Ok(gpu) => return Ok(gpu),
+        Err(error) => error,
+    };
+    match primary.await {
+        Ok(gpu) => {
+            tracing::warn!(%error, "the first-ranked adapter opened no device; using the primary backends' adapter");
+            Ok(gpu)
+        }
+        Err(_) => Err(error),
+    }
+}
+
 /// Whether a primary-backend adapter of `kind` is used without bringing up the
 /// GL backend. `wgpu` sorts the adapters of every backend it was given by
 /// device type, CPU rasterizers last, so with the GL backend present a GL
@@ -270,6 +300,49 @@ mod tests {
                 primary_suffices(kind),
                 used,
                 "primary adapter of type {kind:?}"
+            );
+        }
+    }
+
+    /// **An adapter that opens no device does not end start-up while another
+    /// adapter opens.**
+    ///
+    /// Closes the class of the editor refusing to start on a host that has a
+    /// working adapter: the full backend set ranked an NVIDIA GL 3.3 adapter
+    /// first, its device request failed for want of compute shaders, and that
+    /// error ended start-up while lavapipe on the same host rendered. Every
+    /// combination of the two outcomes is listed, with whether the primary
+    /// backends were brought up a second time: never when the full set opened.
+    ///
+    /// Not caught: an adapter that opens a device and fails later, on the
+    /// first pipeline or submit.
+    #[test]
+    fn the_primary_adapter_opens_when_the_first_ranked_one_opens_no_device() {
+        let primary_runs = std::cell::Cell::new(0_u32);
+        let primary = |result| {
+            let runs = &primary_runs;
+            async move {
+                runs.set(runs.get() + 1);
+                result
+            }
+        };
+        for (full, primary_result, expected, runs) in [
+            (Ok("full"), Ok("primary"), Ok("full"), 0),
+            (Ok("full"), Err("no adapter"), Ok("full"), 0),
+            (Err("device lost"), Ok("primary"), Ok("primary"), 1),
+            (Err("device lost"), Err("no adapter"), Err("device lost"), 1),
+        ] {
+            primary_runs.set(0);
+            let opened =
+                pollster::block_on(full_or_primary(async { full }, primary(primary_result)));
+            assert_eq!(
+                opened, expected,
+                "full {full:?}, primary {primary_result:?}"
+            );
+            assert_eq!(
+                primary_runs.get(),
+                runs,
+                "primary bring-ups for full {full:?}"
             );
         }
     }

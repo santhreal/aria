@@ -764,6 +764,7 @@ Notes for the latest release. For previous releases, see the
 - On Linux, an export narrower than 145 pixels on a host with an NVIDIA encoder goes to the next encoder that takes its size, instead of waiting forever on its first frames.
 - On Linux, an export that fails partway, such as on a full disk, stops with GStreamer's reason, instead of waiting forever on its next frame.
 - `aria-desktop` started with no display server that accepts the connection, or with a window that does not open, prints the reason, including the `DISPLAY` or `WAYLAND_DISPLAY` value it tried, and the fix to standard error and exits with status 1, instead of running without a window or panicking.
+- The editor starts on a host whose first-ranked graphics adapter opens no device, such as an NVIDIA GPU reached only through GL 3.3, by opening the Vulkan, Metal, or DirectX 12 adapter beside it, instead of exiting with "Parent device is lost".
 - A video side with more tracks than it holds opens with V1 on the A/V divider instead of the top track at the side's top, and a wheel up over it shows the tracks above V1.
 - A lane side's scroll kept from before a track was removed or shortened no longer lifts its tracks off the A/V divider, and the first wheel step moves them.
 - The 0 and -60 dBFS marks of the Audio Meters no longer run into the clip light and the channel names.
