@@ -169,7 +169,8 @@ properties chosen by clicking a row's name or a keyframe (Shift+click adds a
 property). With none chosen, it draws the property chosen in the Graph block,
 else the clip's first keyframed property, while that row is open or no row is,
 and otherwise the clip's first open row. The rows of the drawn properties are
-highlighted.
+highlighted. With no clip selected and no property chosen, the graph draws no
+curve and no value axis, and shows "Select a clip to graph its properties."
 
 - **Value** plots the property's value; **Speed** plots its rate of change.
 - Drag a keyframe to change its value and time. The drag follows the pointer

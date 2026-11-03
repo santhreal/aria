@@ -189,7 +189,10 @@ The graph editor band is 168 px tall. Its header column holds the property's
 name on the first 24 px row and the graph tools on the second: the Value and
 Speed chips, then Easy Ease and Hold. The value axis labels stand on the
 column's right edge, in a 40 px gutter, at the top, middle and bottom values'
-ys, and the graph draws its three grid lines at the same ys.
+ys, and the graph draws its three grid lines at the same ys. A band that draws
+no curve, with no clip selected and no property chosen, leaves the name row and
+the axis gutter empty and centers "Select a clip to graph its properties." on
+the graph.
 
 A path mask's group starts with its Path row (`Mask N Path`). A Path keyframe
 holds every vertex of the path, so the row has a stopwatch, the vertex count

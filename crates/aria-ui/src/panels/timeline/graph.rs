@@ -38,6 +38,8 @@ use super::property_rows::{paint_rect, paint_segment};
 pub(super) const AXIS_GUTTER: f32 = 40.0;
 /// Height of one value axis label, centred on its value's y.
 const AXIS_LABEL_H: f32 = 12.0;
+/// What the graph states while it draws no curve, as with no clip selected.
+pub(super) const GRAPH_EMPTY: &str = "Select a clip to graph its properties.";
 
 /// Render the Timeline Graph Editor band (Value graph and Speed graph with
 /// incoming/outgoing influence handles and spatial tangent handles). `ruled`
@@ -59,11 +61,14 @@ pub(super) fn render_graph_editor(
         .read(cx)
         .build_timeline_graph_model(fps, pps, scroll_x, GRAPH_EDITOR_H);
     let mode = model.mode;
+    // No clip selected graphs nothing, and the axis's numbers would read as a
+    // property's range, so the band states what draws a curve instead.
+    let empty = model.curves.is_empty();
     let active_label = model
         .curves
         .first()
         .map(|c| c.label.clone())
-        .unwrap_or_else(|| SharedString::new_static("Property"));
+        .unwrap_or_default();
     let top_lbl = model.top_label.clone();
     let mid_lbl = model.mid_label.clone();
     let bot_lbl = model.bottom_label.clone();
@@ -181,9 +186,11 @@ pub(super) fn render_graph_editor(
                 .child(easy_ease)
                 .child(hold),
         )
-        .child(axis(top_lbl, top_y).debug_selector(|| "graph-axis-top".into()))
-        .child(axis(mid_lbl, mid_y).debug_selector(|| "graph-axis-mid".into()))
-        .child(axis(bot_lbl, bot_y).debug_selector(|| "graph-axis-bottom".into()));
+        .when(!empty, |el| {
+            el.child(axis(top_lbl, top_y).debug_selector(|| "graph-axis-top".into()))
+                .child(axis(mid_lbl, mid_y).debug_selector(|| "graph-axis-mid".into()))
+                .child(axis(bot_lbl, bot_y).debug_selector(|| "graph-axis-bottom".into()))
+        });
 
     let canvas_bounds = Rc::new(Cell::new(Bounds::default()));
     let bounds_prepaint = canvas_bounds.clone();
@@ -304,7 +311,20 @@ pub(super) fn render_graph_editor(
                 },
             )
             .size_full(),
-        );
+        )
+        .when(empty, |el| {
+            el.child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_size(Theme::TEXT_SMALL)
+                    .text_color(theme.text_faint)
+                    .child(GRAPH_EMPTY),
+            )
+        });
 
     div()
         .id("timeline-graph-editor")

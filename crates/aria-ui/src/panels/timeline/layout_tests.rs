@@ -4,8 +4,9 @@
 //! The class closed here is a control or a label drawn off its grid: a toggle
 //! at another size than its neighbours, a label that runs into a control or
 //! past its column, two rows of a column that disagree about an edge, a value
-//! axis label at a y the curve does not map its value to, a side of the stack
-//! drawn as an empty band, a marker drawn over a ruler label, and a playhead
+//! axis label at a y the curve does not map its value to, a graph with no curve
+//! drawing an axis of placeholder numbers, a side of the stack drawn as an
+//! empty band, a marker drawn over a ruler label, and a playhead
 //! field left open with its caret after the pointer went elsewhere. Every sweep
 //! runs at the outline widths the settings allow, from the minimum through the
 //! width where the timecode steps down to the maximum, so a layout that holds
@@ -551,6 +552,49 @@ fn the_graph_axis_stands_on_the_curve_ys(cx: &mut gpui::TestAppContext) {
             }
         }
         assert_clear(&drawn, header, &format!("graph header at {width}"));
+    }
+}
+
+/// A graph that draws no curve, with no clip selected, states what draws one
+/// in the middle of the graph and draws no value axis, whose placeholder
+/// numbers would read as a property's range. Selecting a clip graphs its
+/// property: the axis is drawn and the statement goes.
+#[gpui::test]
+fn an_empty_graph_states_what_draws_a_curve_and_draws_no_axis(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = shell_with_still(cx, "timeline-graph-empty");
+    change(visual, &state, |state| {
+        state.clear_selection();
+        state.toggle_timeline_graph_editor();
+    });
+    let clip = visual.read(|app| state.read(app).store.sequence.tracks[0].clips[0].id);
+    for selected in [false, true] {
+        if selected {
+            change(visual, &state, |state| {
+                state.select_clip(aria_models::ClipId::from_raw(clip));
+            });
+        }
+        let canvas = bounds(visual, "timeline-graph-canvas");
+        let stated: Vec<TextRunLayout> = runs(visual)
+            .into_iter()
+            .filter(|run| run.text.as_ref() == super::graph::GRAPH_EMPTY)
+            .collect();
+        let axis: Vec<&str> = ["graph-axis-top", "graph-axis-mid", "graph-axis-bottom"]
+            .into_iter()
+            .filter(|selector| visual.debug_bounds(*selector).is_some())
+            .collect();
+        if selected {
+            assert!(stated.is_empty(), "a graphed clip still states {stated:?}");
+            assert_eq!(axis.len(), 3, "a graphed clip draws its axis: {axis:?}");
+        } else {
+            assert_eq!(stated.len(), 1, "the empty graph states what draws a curve");
+            let (at, middle) = (stated[0].bounds.center(), canvas.center());
+            assert!(
+                (f32::from(at.x - middle.x)).abs() <= 1.0
+                    && (f32::from(at.y - middle.y)).abs() <= 1.0,
+                "the statement at {at:?} is off the graph's middle {middle:?}"
+            );
+            assert!(axis.is_empty(), "the empty graph draws an axis: {axis:?}");
+        }
     }
 }
 
