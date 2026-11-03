@@ -40,9 +40,9 @@ pub enum ClipSource {
     },
 }
 
-/// A synthetic clip with no source media. Parameters are intentionally minimal
-/// for now; richer styling (fonts, transforms, gradients) can be added per
-/// variant without touching the timeline model.
+/// A synthetic clip with no source media: a title, a solid, a shape, a
+/// sticker, a Lottie animation, or a lane bar that applies its effects to
+/// the layers below it.
 ///
 /// `Deserialize` is hand-written (below the enum) for sticker back-compat;
 /// keep the mirror enum in that impl in sync when changing variants here.
@@ -111,11 +111,14 @@ pub enum Generator {
         width: u32,
         height: u32,
     },
-    /// Motion / composited VFX layer (implementation TBD).
+    /// A lane bar on an effect lane. Like [`Generator::Adjustment`], it covers
+    /// the canvas and applies its effect chain, grade, and LUT to everything
+    /// composited below it.
     Effect,
-    /// Blur, mask, and similar pixel filters (implementation TBD).
+    /// A lane bar on a filter lane. Renders as [`Generator::Adjustment`] does.
     Filter,
-    /// Color grade / pass-through layer affecting tracks beneath it.
+    /// An adjustment layer: covers the canvas and applies its effect chain,
+    /// grade, and LUT to everything composited below it.
     Adjustment,
 }
 
