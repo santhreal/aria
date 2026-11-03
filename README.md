@@ -1,15 +1,34 @@
 # Aria
 
-Aria is a free, open-source video editor. Edit on a multi-track timeline, or
-describe the change and the assistant applies it as regular undoable
-commands.
+Aria is a free, open-source video editor that cuts and animates in one
+application. A multi-track timeline in the manner of Premiere Pro and the
+layers, keyframes, masks, and graph editor of After Effects share one project
+and one undo history. A cut, a title animation, and a composite stay in the
+same sequence, with no second application and no round trip between them.
 
-The desktop UI is built on [santh-gpui](https://github.com/santhreal/santh-gpui);
-motion curves and loaders are `gpui::motion`. The target editor is defined in
-the [specification](docs/spec/README.md).
+## Why Aria
 
-It's early alpha. The core editing loop works. Expect rough edges and a
-project format that hasn't settled.
+- **One project for the edit and the motion work.** Keyframe every animatable property of
+  a clip on the timeline where it was cut; nested sequences take the place of
+  precomps.
+- **Measured speed.** On the Server machine with software Vulkan
+  ([measurements](docs/spec/status.md#performance-performancemd)), an edit or
+  undo on a 10,000-clip project reaches the screen in 3.3 ms (p95), the
+  timeline frame of that project builds in under 2.1 ms (p95), the project opens in
+  46 ms, and the app starts in 0.75 s cold and 0.21 s warm.
+- **Plugins on the same interfaces as the built-in features.** Effects,
+  transitions, panels, commands, decoders, encoders, importers, and analyzers
+  load from native (C ABI) or WebAssembly packages.
+- **Scriptable.** A command line creates, inspects, analyzes, renders, and
+  exports projects, and the optional assistant applies its changes as regular
+  undoable commands.
+
+The desktop UI is built on [santh-gpui](https://github.com/santhreal/santh-gpui).
+The target editor is defined in the [specification](docs/spec/README.md).
+
+Aria is in early alpha: the core editing loop works, and rough edges remain.
+Project files carry a schema version; a build opens every earlier version and
+rejects a newer one without changing the file.
 
 ## What it looks like
 
@@ -17,9 +36,9 @@ project format that hasn't settled.
 | --- | --- |
 | ![Home](assets/screenshots/launch.png) | ![Editor](assets/screenshots/editor.png) |
 
-The chrome is neutral gray with one accent: a blue playhead and selection, an
-amber snap guide, a pink busy spinner. A clip bar is filled with its label
-color. UI text is Inter.
+A clip bar is filled with its label color. UI text is Inter. The footage is
+[Tears of Steel](https://mango.blender.org)
+([CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), Blender Foundation).
 
 ## What works today
 

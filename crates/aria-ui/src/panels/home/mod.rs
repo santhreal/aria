@@ -10,6 +10,8 @@
 //! [`crate::app::recents`]. Home draws what the state hands it.
 
 mod cards;
+#[cfg(test)]
+mod layout_tests;
 mod panes;
 #[cfg(test)]
 mod press_tests;

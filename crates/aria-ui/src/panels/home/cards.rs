@@ -49,6 +49,9 @@ const CARD_STAGGER: f32 = share(2 * motion::ROW_STAGGER_MS);
 const CARD_FADE: f32 = share(200);
 /// How far a card rises under the pointer.
 const HOVER_LIFT: f32 = 3.0;
+/// Width of every Home card. The hero tiles and the recents grid share it,
+/// with the same gap and the same inset, so the rows form one set of columns.
+const CARD_WIDTH: f32 = 320.0;
 
 /// The last stagger slot. Cards past it share the slot, so the tail of a long
 /// list still completes its fade inside the animation instead of freezing part
@@ -146,7 +149,8 @@ pub(super) fn hero_tile(
     let fade = id.motion("hero-tile");
     let card = div()
         .id(id.element("hero-tile"))
-        .w(px(320.))
+        .debug_selector(move || format!("hero-tile-{index}"))
+        .w(px(CARD_WIDTH))
         .px(px(Theme::SPACE_LG))
         .py(px(Theme::SPACE_LG))
         .rounded(px(Theme::PANEL_RADIUS))
@@ -243,9 +247,9 @@ fn recent_card(
     let card = div()
         .id(key)
         .debug_selector(move || format!("recent-card-{index}"))
-        .w(px(280.))
-        .px(px(Theme::SPACE_MD))
-        .py(px(Theme::SPACE_MD))
+        .w(px(CARD_WIDTH))
+        .px(px(Theme::SPACE_LG))
+        .py(px(Theme::SPACE_LG))
         .rounded(px(Theme::PANEL_RADIUS))
         .bg(motion::hover_blend(
             fade,

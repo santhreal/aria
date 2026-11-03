@@ -765,6 +765,7 @@ Notes for the latest release. For previous releases, see the
 - `aria analyze --shots` alone decodes no audio, so it runs on a video file with no audio track.
 - A project still named `untitled` takes the name of its `.aria` file when it is opened from the command line, the Open dialog, Recents, Recovery, or a drop onto the window, or saved, so the window title shows the file name instead of `untitled`.
 - Opening a project saved by a newer Aria states the file's project format version and the versions this build reads, and prompts to update Aria, instead of a generic error.
+- Home's Start tiles and recent project cards share one column width, so each recent card lines up under the Start tile above it.
 - On Linux, an export narrower than 145 pixels on a host with an NVIDIA encoder goes to the next encoder that takes its size, instead of waiting forever on its first frames.
 - On Linux, an export that fails partway, such as on a full disk, stops with GStreamer's reason, instead of waiting forever on its next frame.
 - `aria-desktop` started with no display server that accepts the connection, or with a window that does not open, prints the reason, including the `DISPLAY` or `WAYLAND_DISPLAY` value it tried, and the fix to standard error and exits with status 1, instead of running without a window or panicking.

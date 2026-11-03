@@ -30,7 +30,7 @@ const EPS: f32 = 0.51;
 
 /// Home on its Recents rail in a `width` x `height` window, listing `count`
 /// projects that exist on disk.
-fn home_with_recents(
+pub(super) fn home_with_recents(
     cx: &mut TestAppContext,
     tag: &str,
     (width, height): (f32, f32),
@@ -66,14 +66,14 @@ fn home_with_recents(
 }
 
 /// The fades of one full draw, after the follow-ups of the last change.
-fn draw(visual: &mut VisualTestContext) -> Vec<EdgeFade> {
+pub(super) fn draw(visual: &mut VisualTestContext) -> Vec<EdgeFade> {
     visual.run_until_parked();
     crate::edge_fade::take_painted();
     visual.update(|window, _| window.refresh());
     crate::edge_fade::take_painted()
 }
 
-fn bounds(visual: &mut VisualTestContext, selector: &'static str) -> Bounds<Pixels> {
+pub(super) fn bounds(visual: &mut VisualTestContext, selector: &'static str) -> Bounds<Pixels> {
     visual
         .debug_bounds(selector)
         .unwrap_or_else(|| panic!("Home drew no {selector}"))
