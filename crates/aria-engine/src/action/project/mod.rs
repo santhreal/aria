@@ -29,7 +29,8 @@ pub(crate) fn load_session(
     path: PathBuf,
     strict: bool,
 ) -> Result<(), EngineError> {
-    let loaded = Project::load_from_file(&path)?;
+    let mut loaded = Project::load_from_file(&path)?;
+    sync_project_name_from_path(&mut loaded, &path);
     if strict {
         for media in loaded.media_iter() {
             if !media.path().exists() {
@@ -43,4 +44,24 @@ pub(crate) fn load_session(
     *ctx.project_path = Some(path);
     ctx.history.clear();
     Ok(())
+}
+
+/// Adopt the file stem of `path` when `project.name` is empty or the default
+/// `"untitled"` placeholder, ignoring internal shadow files (`untitled.aria`,
+/// `recovery.aria`).
+pub(crate) fn sync_project_name_from_path(project: &mut Project, path: &std::path::Path) {
+    let trimmed = project.name.trim();
+    if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("untitled") {
+        return;
+    }
+    let Some(stem) = path.file_stem().and_then(|s| s.to_str()).map(str::trim) else {
+        return;
+    };
+    if stem.is_empty()
+        || stem.eq_ignore_ascii_case("untitled")
+        || stem.eq_ignore_ascii_case("recovery")
+    {
+        return;
+    }
+    project.name = stem.to_owned();
 }

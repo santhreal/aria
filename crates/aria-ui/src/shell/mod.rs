@@ -543,17 +543,7 @@ impl Render for Shell {
             return window_frame::framed(floating, frame, &theme, window);
         }
         motion::mount_chrome(self.beacon.entity_id());
-        let title = {
-            let read = self.state.read(cx);
-            if read.route == UiRoute::Home {
-                WindowTitle::Home
-            } else {
-                WindowTitle::Project {
-                    name: read.store.project_name.clone(),
-                    dirty: read.store.is_dirty,
-                }
-            }
-        };
+        let title = self.state.read(cx).window_title();
         self.set_title(title, window);
         // The window's keyboard lives on one handle: `on_key_down` below and the
         // platform input handler both hang off it, so a keystroke and an IME

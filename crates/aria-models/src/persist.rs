@@ -16,9 +16,6 @@ mod pretty;
 /// Recommended extension for Aria project files.
 pub const PROJECT_FILE_EXTENSION: &str = "aria";
 
-/// Numeric version from [`ProjectSchema::current`] for simple callers.
-pub const PROJECT_FILE_VERSION: u32 = PROJECT_SCHEMA_VERSION;
-
 const UNIQUE_PATH_ATTEMPTS: usize = 128;
 static UNIQUE_PATH_COUNTER: AtomicU64 = AtomicU64::new(0);
 

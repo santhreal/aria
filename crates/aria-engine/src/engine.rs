@@ -293,6 +293,20 @@ impl Engine {
         self.revision += 1;
     }
 
+    /// Point the session at `path` after a recovery load, adopt its file stem
+    /// when the recovered document is still `"untitled"`, and mark the session
+    /// unsaved.
+    pub fn adopt_recovered_path(&mut self, path: Option<PathBuf>) {
+        if let Some(target) = &path {
+            crate::action::project::sync_project_name_from_path(
+                Arc::make_mut(&mut self.project),
+                target,
+            );
+        }
+        self.project_path = path;
+        self.revision += 1;
+    }
+
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }

@@ -84,6 +84,19 @@ impl AppState {
         self.enter_editor();
     }
 
+    /// Current window title derived from the active route, project name, and
+    /// dirty state.
+    pub(crate) fn window_title(&self) -> crate::chrome::window_frame::WindowTitle {
+        if self.route == UiRoute::Home {
+            crate::chrome::window_frame::WindowTitle::Home
+        } else {
+            crate::chrome::window_frame::WindowTitle::Project {
+                name: self.store.project_name.clone(),
+                dirty: self.store.is_dirty,
+            }
+        }
+    }
+
     pub fn new_project(&mut self) -> Result<(), EngineError> {
         self.empty_session()?;
         self.enter_editor();

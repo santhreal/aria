@@ -285,6 +285,7 @@ pub(crate) struct ProjectionKey {
     playhead: RationalTime,
     selection: Vec<ClipId>,
     dirty: bool,
+    project_name: String,
     /// The history list's generation: a committed group or a merged pair
     /// changes the list without moving `revision`.
     history: u64,
@@ -307,6 +308,7 @@ impl ProjectionKey {
             playhead,
             selection: selection.to_vec(),
             dirty: engine.is_dirty(),
+            project_name: engine.project().name.clone(),
             history: engine.history_generation(),
             catalogs: CatalogRevisions::of_with_basis(engine.project(), basis),
             basis: None,
@@ -330,6 +332,7 @@ impl ProjectionKey {
             && self.proxy_revision == engine.proxy_revision()
             && self.selection == selection
             && self.dirty == engine.is_dirty()
+            && self.project_name == engine.project().name
             && self.history == engine.history_generation()
             && self.catalogs.current()
     }

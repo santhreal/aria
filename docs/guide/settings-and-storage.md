@@ -260,6 +260,36 @@ read a base URL with a model as the freeform endpoint; version 2 reads an absent
 `source` as the local server. `[cloud]` version 1 kept the API host in
 `[account].base_url`; version 2 keeps it in `[cloud].base_url`.
 
+## Project files (`.aria`) and schema versions
+
+A saved project is a UTF-8 JSON document with the `.aria` extension (`PROJECT_FILE_EXTENSION = "aria"`). Every document begins with a `schema` header recording `kind = "aria.project"` (`PROJECT_SCHEMA_KIND`) and `version = 3` (`PROJECT_SCHEMA_VERSION` in `crates/aria-models/src/schema.rs`), followed by `id`, `name`, `metadata`, `media`, `timeline`, `sequences`, `active_sequence`, `bins`, and `transcripts`:
+
+```json
+{
+	"schema": {
+		"version": 3,
+		"kind": "aria.project"
+	},
+	"id": 1,
+	"name": "short-film",
+	"metadata": {},
+	"media": [],
+	"timeline": {
+		"frame_rate": { "num": 24, "den": 1 },
+		"tracks": [],
+		"order": [],
+		"clip_index": []
+	}
+}
+```
+
+| Schema version | Shape changes |
+| --- | --- |
+| `1` | Initial project document (`media`, `timeline`, `sequences`, `bins`, constant parameters, and single per-clip `mask`). |
+| `2` | Animatable parameters may serialize as `{"kf": [...]}` keyframe curves in addition to bare constant values. |
+| `3` | Per-clip `mask` is replaced by the `masks` array (`MAX_CLIP_MASKS`), and expression drivers on mask parameters address `{"mask": {"mask": <index>, "param": <name>}}`. |
+
+On load, documents at schema versions `1` and `2` migrate step by step (`v1 -> v2 -> v3`) before typed deserialization; saving writes schema version `3`. Documents with an unknown `schema.kind`, version `0`, or a `schema.version` greater than `3` fail closed with `ModelError::UnsupportedProjectSchema`, which states the file's schema version, the versions this build reads (1 to 3), and the corrective action. The file is left unchanged.
 
 ## Example
 

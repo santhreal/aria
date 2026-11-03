@@ -95,3 +95,58 @@ fn corrupt_project_names_the_file_and_the_fix() {
     assert!(msg.contains("corrupted"));
     assert!(msg.contains(".aria"));
 }
+
+#[test]
+fn unsupported_project_schema_names_both_versions_and_the_fix() {
+    let expected = aria_models::ProjectSchema::current();
+    let future = aria_models::ProjectSchema {
+        version: aria_models::PROJECT_SCHEMA_VERSION + 2,
+        kind: aria_models::PROJECT_SCHEMA_KIND.into(),
+        extensions: Vec::new(),
+    };
+    let future_msg = describe_engine_error(&EngineError::Model(
+        aria_models::ModelError::UnsupportedProjectSchema {
+            found: future,
+            expected: expected.clone(),
+        },
+    ));
+    assert!(
+        future_msg.contains(&format!(
+            "version {}",
+            aria_models::PROJECT_SCHEMA_VERSION + 2
+        )),
+        "{future_msg}"
+    );
+    assert!(
+        future_msg.contains(&format!(
+            "versions 1 to {}",
+            aria_models::PROJECT_SCHEMA_VERSION
+        )),
+        "{future_msg}"
+    );
+    assert!(future_msg.contains("Update Aria"), "{future_msg}");
+
+    let foreign = aria_models::ProjectSchema {
+        version: aria_models::PROJECT_SCHEMA_VERSION,
+        kind: "aria.foreign".into(),
+        extensions: Vec::new(),
+    };
+    let foreign_msg = describe_engine_error(&EngineError::Model(
+        aria_models::ModelError::UnsupportedProjectSchema {
+            found: foreign,
+            expected,
+        },
+    ));
+    assert!(foreign_msg.contains("aria.foreign"), "{foreign_msg}");
+    assert!(
+        foreign_msg.contains(&format!(
+            "versions 1 to {}",
+            aria_models::PROJECT_SCHEMA_VERSION
+        )),
+        "{foreign_msg}"
+    );
+    assert!(
+        foreign_msg.contains("Pick a valid .aria project file"),
+        "{foreign_msg}"
+    );
+}

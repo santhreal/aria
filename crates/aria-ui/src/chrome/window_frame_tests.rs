@@ -319,3 +319,128 @@ fn home_draws_its_title_bar_only_on_a_frame_that_has_one(cx: &mut TestAppContext
         );
     }
 }
+
+/// WHY: a project saved while its internal `Project::name` was still `"untitled"`
+/// (such as a session created with `Engine::new_session` and saved to `rich.aria`)
+/// kept `"name": "untitled"` in the `.aria` JSON, and opening that file through
+/// CLI `open_paths`, the Open dialog, Recents, Recovery, or drag-and-drop left
+/// the window title as `"untitled - Aria"` instead of the opened project's stem.
+/// This test enumerates every open path against the single [`AppState::window_title`]
+/// choke point and asserts both the project name and the dirty/clean state.
+#[test]
+fn window_title_tracks_project_name_and_dirty_state_across_every_open_path() {
+    #[derive(Debug, Clone, Copy)]
+    enum OpenPath {
+        CliStartupOpenPaths,
+        OpenDialog,
+        Recents,
+        Recovery,
+        DragDropHome,
+        DragDropEditor,
+        SaveAsFromUntitled,
+    }
+
+    const ALL_PATHS: [OpenPath; 7] = [
+        OpenPath::CliStartupOpenPaths,
+        OpenPath::OpenDialog,
+        OpenPath::Recents,
+        OpenPath::Recovery,
+        OpenPath::DragDropHome,
+        OpenPath::DragDropEditor,
+        OpenPath::SaveAsFromUntitled,
+    ];
+
+    for (idx, path_kind) in ALL_PATHS.into_iter().enumerate() {
+        let temp = crate::scratch_pool::scratch(&format!("window-title-open-paths-{idx}"));
+        let data_dir = temp.join("data");
+        std::fs::create_dir_all(&data_dir).expect("create data_dir");
+        let project_file = temp.join("golden-cut.aria");
+
+        // Write a .aria file whose internal JSON `"name"` is still `"untitled"`,
+        // reproducing the exact on-disk shape of an untitled session saved to disk.
+        aria_models::Project::new("untitled", aria_models::Rational::FPS_24)
+            .save_to_file(&project_file)
+            .expect("save untitled project fixture");
+
+        let mut state =
+            crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir.clone())
+                .expect("init AppState");
+        assert_eq!(state.window_title(), WindowTitle::Home, "{path_kind:?}");
+
+        match path_kind {
+            OpenPath::CliStartupOpenPaths => {
+                // Exact entry point called by `aria_ui::run_app_with` for `config.open_paths`.
+                state
+                    .drop_on_home(vec![project_file.clone()])
+                    .expect("CLI open_paths");
+            }
+            OpenPath::OpenDialog => {
+                state
+                    .open_project(project_file.clone())
+                    .expect("open dialog");
+            }
+            OpenPath::Recents => {
+                state.request_open_project(project_file.clone());
+            }
+            OpenPath::Recovery => {
+                state.project_path = Some(project_file.clone());
+                state.write_recovery().expect("write recovery copy");
+                state =
+                    crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir.clone())
+                        .expect("relaunch AppState with pending recovery");
+                state.restore_recovery().expect("restore recovery");
+            }
+            OpenPath::DragDropHome => {
+                state.request_drop_on_home(vec![project_file.clone()]);
+            }
+            OpenPath::DragDropEditor => {
+                state.new_project().expect("enter editor");
+                state
+                    .handle_dropped_paths(vec![project_file.clone()])
+                    .expect("drop project in editor");
+            }
+            OpenPath::SaveAsFromUntitled => {
+                state.new_project().expect("new untitled project");
+                state.project_path = Some(project_file.clone());
+                state.save_project().expect("save as golden-cut.aria");
+            }
+        }
+
+        let expect_initially_dirty = matches!(path_kind, OpenPath::Recovery);
+        let title = state.window_title();
+        assert_eq!(
+            title,
+            WindowTitle::Project {
+                name: "golden-cut".into(),
+                dirty: expect_initially_dirty,
+            },
+            "{path_kind:?}: window title must adopt the file stem instead of staying untitled"
+        );
+        assert_eq!(
+            title.text(),
+            if expect_initially_dirty {
+                "*golden-cut - Aria"
+            } else {
+                "golden-cut - Aria"
+            },
+            "{path_kind:?}"
+        );
+
+        // Mutate the project and verify the dirty indicator flips on, then save and verify it clears.
+        state
+            .add_track(aria_models::TrackKind::Video, "B-Roll")
+            .expect("add track");
+        assert_eq!(
+            state.window_title().text(),
+            "*golden-cut - Aria",
+            "{path_kind:?}: dirty state must be reflected in window title"
+        );
+
+        state.save_project().expect("save project");
+        assert_eq!(
+            state.window_title().text(),
+            "golden-cut - Aria",
+            "{path_kind:?}: saving must clear the dirty marker while keeping project name"
+        );
+    }
+}

@@ -7,11 +7,31 @@ use crate::schema::ProjectSchema;
 use crate::time::{Rational, TimeError};
 use crate::track::TrackKind;
 
+fn format_unsupported_project_schema(found: &ProjectSchema, expected: &ProjectSchema) -> String {
+    let supported = format!("'{}' versions 1 to {}", expected.kind, expected.version);
+    if found.kind != expected.kind {
+        format!(
+            "unsupported project schema '{}' version {}; this build reads {supported}; open a valid .aria project file",
+            found.kind, found.version
+        )
+    } else if found.version > expected.version {
+        format!(
+            "project schema '{}' version {} is newer than this build reads ({supported}); update Aria to open this project",
+            found.kind, found.version
+        )
+    } else {
+        format!(
+            "unsupported project schema '{}' version {}; this build reads {supported}; open a valid .aria project file",
+            found.kind, found.version
+        )
+    }
+}
+
 /// Errors from model mutations that would violate a referential or layout
 /// invariant.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ModelError {
-    #[error("unsupported project schema (found {found:?}, expected {expected:?})")]
+    #[error("{}", format_unsupported_project_schema(found, expected))]
     UnsupportedProjectSchema {
         found: ProjectSchema,
         expected: ProjectSchema,

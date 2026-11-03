@@ -26,10 +26,22 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
             "Couldn't render this frame. Scrub the playhead or reopen the project.".into()
         }
         EngineError::Model(model) => match model {
-            aria_models::ModelError::InvalidProjectFile(_)
-            | aria_models::ModelError::UnsupportedProjectSchema { .. } => {
+            aria_models::ModelError::InvalidProjectFile(_) => {
                 "Couldn't open this project. The file may be corrupted. Pick another .aria file."
                     .into()
+            }
+            aria_models::ModelError::UnsupportedProjectSchema { found, expected } => {
+                if found.kind == expected.kind && found.version > expected.version {
+                    format!(
+                        "Couldn't open this project: it uses project format version {}, and this build reads versions 1 to {}. Update Aria to open it.",
+                        found.version, expected.version
+                    )
+                } else {
+                    format!(
+                        "Couldn't open this project: its format is '{}' version {}, and this build reads '{}' versions 1 to {}. Pick a valid .aria project file.",
+                        found.kind, found.version, expected.kind, expected.version
+                    )
+                }
             }
             _ => "Couldn't apply that edit. Undo, then try again.".into(),
         },

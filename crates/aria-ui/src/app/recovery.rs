@@ -255,7 +255,9 @@ impl AppState {
         }))?;
         self.project_path = offer.project.clone();
         self.waveforms.clear();
-        self.engine.lock().mark_unsaved();
+        self.engine
+            .lock()
+            .adopt_recovered_path(offer.project.clone());
         self.clear_recovery();
         self.enter_editor();
         self.sync_from_engine();

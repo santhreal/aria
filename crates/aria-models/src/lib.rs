@@ -137,7 +137,7 @@ pub use param::{
     PiecewiseEasingPreset, PiecewisePresetSpec, SegmentSample, SpatialTangents, TemporalEase,
     Waypoint, easing_preset, expand_preset, piecewise_preset_by_id, piecewise_presets,
 };
-pub use persist::{PROJECT_FILE_EXTENSION, PROJECT_FILE_VERSION};
+pub use persist::PROJECT_FILE_EXTENSION;
 pub use preset::{
     MAX_PRESET_AUDIO_EFFECTS, MAX_PRESET_EFFECTS, MAX_PRESET_KEYFRAMES, MAX_PRESET_PROPERTIES,
     PRESET_FILE_EXTENSION, PRESET_MAX_BYTES, PRESET_MAX_NAME_CHARS, PRESET_VERSION, Preset,
