@@ -60,7 +60,7 @@ Normalizer; a plugin adds more.
 
 A clip's chain is the **Audio effects** section of the Audio tab, shown for a
 clip with sound. A lane's chain and the master's are the **Inserts** row of each
-mixer strip and of the Master strip. A lane and the master hold five effects
+mixer strip and of the Master strip. A lane and the master hold up to `MAX_TRACK_AUDIO_EFFECTS` (5) effects
 each; a clip holds any number.
 
 - **+ Audio effect** opens the list of effects; clicking one appends it and

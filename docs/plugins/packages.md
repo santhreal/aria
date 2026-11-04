@@ -754,8 +754,8 @@ params = [
 
 Packages are stored at `<data dir>/plugins/<id>/`.
 
-1. Install an `.ariaplugin` archive from **File > Install Plugin...**, from
-   **Settings > Plugins > Install from File...**, or by dragging and dropping the
+1. Install an `.ariaplugin` archive from **File > Install Plugin…**, from
+   **Install Plugin…** (`plugin-install`) in **Settings > Plugins**, or by dragging and dropping the
    `.ariaplugin` file onto the editor window.
 2. `stage` unpacks the archive (at most `MAX_ARCHIVE_ENTRIES` = 1,024 entries
    and `MAX_UNPACKED_BYTES` = 64 MiB uncompressed) into a sibling

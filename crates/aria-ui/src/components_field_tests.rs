@@ -130,7 +130,10 @@ impl Render for Field {
                     ("field-case", self.0),
                     case.value,
                     PLACEHOLDER,
-                    case.focused,
+                    case.focused.then(|| {
+                        let end = case.value.chars().count();
+                        (end, end)
+                    }),
                     &theme,
                 )
                 .debug_selector(|| "field".into()),

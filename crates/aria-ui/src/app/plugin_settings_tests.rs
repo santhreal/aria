@@ -240,7 +240,7 @@ fn a_typed_plugin_field_round_trips_through_the_dialog() {
 
     state.focus_setting(Some(field));
     for ch in "/srv/notes".chars() {
-        state.setting_push(ch);
+        state.type_key(ch);
     }
     state.commit_setting().expect("a plugin value is savable");
     assert_eq!(state.settings_form.focused, None);
@@ -255,7 +255,7 @@ fn a_typed_plugin_field_round_trips_through_the_dialog() {
     );
 
     state.focus_setting(Some(number));
-    state.setting_push('7');
+    state.type_key('7');
     assert_eq!(state.commit_setting(), Err("Mix: 7 is above 1".to_owned()));
     assert_eq!(state.settings_form.focused, Some(number));
     assert_eq!(state.settings_form.draft, "7");

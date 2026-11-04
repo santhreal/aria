@@ -21,6 +21,7 @@ use aria_engine::EngineError;
 use aria_plugin::EditGroup;
 
 use super::AppState;
+use super::line_text::{LineRule, LineText};
 use crate::motion::MotionKey;
 
 /// Pointer travel, in pixels, that moves a value one unit.
@@ -81,11 +82,17 @@ impl ValueKind {
         }
     }
 
-    /// Whether `ch` can be part of a typed value.
-    pub(crate) fn accepts(self, ch: char) -> bool {
+    /// What a typed value takes: the characters a value of this kind is
+    /// written with.
+    pub(crate) fn rule(self) -> LineRule {
+        let rule = LineRule::chars(DRAFT_CAP);
         match self {
-            Self::Number { .. } => ch.is_ascii_digit() || matches!(ch, '.' | '-' | '+'),
-            Self::Frames { .. } => ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.'),
+            Self::Number { .. } => {
+                rule.admitting(|_, ch| ch.is_ascii_digit() || matches!(ch, '.' | '-' | '+'))
+            }
+            Self::Frames { .. } => {
+                rule.admitting(|_, ch| ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.'))
+            }
         }
     }
 }
@@ -130,14 +137,12 @@ struct Press {
     group: Option<EditGroup>,
 }
 
-/// A readout open as text.
+/// A readout open as text. It opens with the printed value selected, so the
+/// first character typed replaces it and Backspace clears it.
 #[derive(Debug)]
 pub struct ValueEntry {
     pub target: ScrubTarget,
-    pub draft: String,
-    /// The whole draft is selected: the next character replaces it and
-    /// Backspace clears it.
-    pub all: bool,
+    pub draft: LineText,
 }
 
 /// The readouts drawn on either side of the open field, so Tab and Shift+Tab
@@ -324,12 +329,11 @@ impl AppState {
             }
             return true;
         }
-        let draft = press.target.kind.format(press.target.value);
+        let draft = LineText::selecting_all(press.target.kind.format(press.target.value));
         self.value_scrubs.neighbours = Neighbours::default();
         self.value_scrubs.entry = Some(ValueEntry {
             target: press.target,
             draft,
-            all: true,
         });
         true
     }
@@ -353,40 +357,23 @@ impl AppState {
     }
 
     /// What the open value field holds.
-    pub fn value_entry_text(&self) -> String {
+    pub fn value_entry_line(&self) -> Option<&LineText> {
+        self.value_scrubs.entry.as_ref().map(|entry| &entry.draft)
+    }
+
+    pub fn value_entry_line_mut(&mut self) -> Option<&mut LineText> {
+        self.value_scrubs
+            .entry
+            .as_mut()
+            .map(|entry| &mut entry.draft)
+    }
+
+    /// What the open value field takes.
+    pub fn value_entry_rule(&self) -> LineRule {
         self.value_scrubs
             .entry
             .as_ref()
-            .map(|entry| entry.draft.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn value_entry_push(&mut self, ch: char) {
-        let Some(entry) = self.value_scrubs.entry.as_mut() else {
-            return;
-        };
-        if !entry.target.kind.accepts(ch) {
-            return;
-        }
-        if entry.all {
-            entry.draft.clear();
-            entry.all = false;
-        }
-        if entry.draft.len() < DRAFT_CAP {
-            entry.draft.push(ch);
-        }
-    }
-
-    pub fn value_entry_pop(&mut self) {
-        let Some(entry) = self.value_scrubs.entry.as_mut() else {
-            return;
-        };
-        if entry.all {
-            entry.draft.clear();
-            entry.all = false;
-        } else {
-            entry.draft.pop();
-        }
+            .map_or(LineRule::chars(DRAFT_CAP), |entry| entry.target.kind.rule())
     }
 
     /// Escape: close the field and keep the value it opened on.
@@ -437,12 +424,8 @@ impl AppState {
             neighbours.after
         };
         if let Some(target) = next {
-            let draft = target.kind.format(target.value);
-            self.value_scrubs.entry = Some(ValueEntry {
-                target,
-                draft,
-                all: true,
-            });
+            let draft = LineText::selecting_all(target.kind.format(target.value));
+            self.value_scrubs.entry = Some(ValueEntry { target, draft });
         }
     }
 }

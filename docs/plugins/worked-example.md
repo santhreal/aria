@@ -434,6 +434,6 @@ aria plugin pack com.example.color-tools
 ```
 
 This writes `com.example.color-tools/com.example.color-tools-0.1.0.ariaplugin`.
-Install the archive into Aria with **File > Install Plugin...**, **Settings >
-Plugins > Install from File...**, or by dropping the `.ariaplugin` file onto
+Install the archive into Aria with **File > Install Plugin…**, **Install Plugin…** (`plugin-install`) in **Settings >
+Plugins**, or by dropping the `.ariaplugin` file onto
 the editor window, then confirm the `project = "read"` permission prompt.

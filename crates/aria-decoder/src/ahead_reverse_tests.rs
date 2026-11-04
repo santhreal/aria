@@ -277,19 +277,21 @@ fn reverse_playback_across_gop_boundaries_prewalks_on_the_pool() {
     let kept_pts: Vec<i64> = current_gop.frames.iter().map(|f| f.pts.value).collect();
     assert_eq!(kept_pts, [9, 10]);
 
+    let current_count = BEHIND_SURFACES as i64 / 2;
+    let prev_count = BEHIND_SURFACES as i64 - current_count + 2;
     let mut current_gpu = Behind::default();
-    for pts_val in 10..10 + (BEHIND_SURFACES as i64 / 2) {
+    for pts_val in prev_count..prev_count + current_count {
         current_gpu.push(gpu_frame(pts_val));
     }
     let mut prev_gpu = Behind::default();
-    for pts_val in 0..10 {
+    for pts_val in 0..prev_count {
         prev_gpu.push(gpu_frame(pts_val));
     }
     current_gpu.prepend(prev_gpu);
     assert_eq!(current_gpu.surfaces, BEHIND_SURFACES);
     assert_eq!(
         current_gpu.frames.back().map(|f| f.pts.value),
-        Some(10 + (BEHIND_SURFACES as i64 / 2) - 1)
+        Some(prev_count + current_count - 1)
     );
 }
 

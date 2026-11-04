@@ -207,24 +207,6 @@ impl Project {
         Ok(inverse)
     }
 
-    /// Group `clips` as one group, returning its id.
-    pub fn group_clips(&mut self, clips: &[ClipId]) -> Result<GroupId, ModelError> {
-        let plan = self.group_plan(clips)?;
-        let group = plan
-            .first()
-            .and_then(|&(_, group)| group)
-            .ok_or(ModelError::InvalidRange)?;
-        self.set_clip_groups(&plan)?;
-        Ok(group)
-    }
-
-    /// Dissolve every group touched by `clips`.
-    pub fn ungroup_clips(&mut self, clips: &[ClipId]) -> Result<(), ModelError> {
-        let plan = self.ungroup_plan(clips)?;
-        self.set_clip_groups(&plan)?;
-        Ok(())
-    }
-
     /// Live members of `group`, in track/clip order.
     pub fn grouped_clips(&self, group: GroupId) -> Vec<ClipId> {
         self.timeline()

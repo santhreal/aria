@@ -470,7 +470,7 @@ pub fn effects_tab(
                         "inspector-fx-preset-name",
                         &draft.name,
                         "Name this preset",
-                        true,
+                        Some(draft.name.selection()),
                         theme,
                     ))
                     .into_any_element()],

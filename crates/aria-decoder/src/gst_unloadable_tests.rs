@@ -20,6 +20,7 @@ fn stamp() -> Stamp {
         size: 699_160,
         modified_ns: 1_713_139_200_000_000_000,
         boot: "5f0c6a1e-0000-4000-8000-000000000001".into(),
+        driver: "580.178.04:1713139200000000000:1".into(),
     }
 }
 
@@ -40,6 +41,9 @@ fn changes() -> Vec<(&'static str, fn(&mut Stamp))> {
         ("modified", |s: &mut Stamp| s.modified_ns += 1),
         ("boot", |s: &mut Stamp| {
             s.boot = "5f0c6a1e-0000-4000-8000-000000000002".into();
+        }),
+        ("driver", |s: &mut Stamp| {
+            s.driver = "580.178.04:1713139300000000000:1".into();
         }),
     ]
 }
@@ -98,7 +102,7 @@ fn a_file_of_another_layout_is_never_read_as_a_record() {
     std::fs::create_dir_all(at.parent().expect("a parent")).expect("mkdir");
     std::fs::write(
         &at,
-        format!("aria unloadable plugins 0\n{}\n", stamp().line()),
+        format!("aria unloadable plugins 1\n{}\n", stamp().line()),
     )
     .expect("write an old layout");
     assert!(!failed_before(&at, &stamp()));

@@ -20,10 +20,10 @@ use aria_core::{FrameData, VideoFrame};
 const MIN_BYTES: usize = 64 << 10;
 
 /// Most buffers the pool keeps.
-const MAX_BUFFERS: usize = 64;
+const MAX_BUFFERS: usize = 128;
 
-/// Most bytes the pool keeps (128 MiB, ten 4K NV12 frames).
-const MAX_BYTES: usize = 128 << 20;
+/// Most bytes the pool keeps (256 MiB, twenty 4K NV12 frames).
+const MAX_BYTES: usize = 256 << 20;
 
 static POOL: Mutex<PlanePool> = Mutex::new(PlanePool::new());
 

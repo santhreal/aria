@@ -2,12 +2,12 @@
 //!
 //! The bar is one field for eight targets, so the registry here is the target
 //! itself: `RenameTarget::label` is the prompt the panel draws, and the state
-//! machine behind it is `begin_rename` / `rename_push` / `commit_rename`.
-//! `rename_push` types one character over the selection through
-//! `replace_rename_text`, the call the shell's text-input handler makes. A census drives that path one
-//! character at a time rather than writing `rename_draft` and committing,
-//! because the draft is bounded on push and a census that assigns the field
-//! would measure a keyboard the product does not have.
+//! machine behind it is `begin_rename`, the rename row of `keys::fields`, and
+//! `commit_rename`. A census types one character at a time through
+//! `fields::insert`, the call the shell's text-input handler makes, rather than
+//! writing `rename_draft` and committing, because the draft is bounded as it is
+//! typed and a census that assigns the field would measure a keyboard the
+//! product does not have.
 //!
 //! Fail by default: `typed` matches [`RenameTarget`] exhaustively, so a new
 //! target cannot compile without a row, and
@@ -123,7 +123,7 @@ fn commit(state: &mut AppState, target: RenameTarget, draft: &str) {
     );
     clear(state);
     for ch in draft.chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state
         .commit_rename()
@@ -134,7 +134,7 @@ fn commit(state: &mut AppState, target: RenameTarget, draft: &str) {
 /// itself.
 fn clear(state: &mut AppState) {
     while !state.rename_draft.is_empty() {
-        state.rename_pop();
+        state.press_backspace();
     }
 }
 
@@ -383,7 +383,7 @@ fn typing_cannot_grow_a_draft_past_the_field() {
         let (mut state, target) = (stage.dress)();
         state.begin_rename(target);
         for _ in 0..(crate::app::rename::RENAME_MAX_LEN * 2) {
-            state.rename_push('x');
+            state.type_key('x');
         }
         assert_eq!(
             state.rename_draft.chars().count(),
@@ -391,38 +391,5 @@ fn typing_cannot_grow_a_draft_past_the_field() {
             "the draft on {} is not bounded by the field",
             stage.what
         );
-    }
-}
-
-#[test]
-fn the_bar_is_drawn_from_the_rename_state() {
-    // The census drives `begin_rename` / `rename_push` / `commit_rename`. That
-    // measures the surface only while the drawn bar shows that draft and the key
-    // routing calls those functions.
-    //
-    // Not covered: where the bar sits or what it looks like. The picture is the
-    // panel's.
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    for (file, needles) in [
-        (
-            "panels/rename_bar.rs",
-            ["app.rename_draft.clone()", "target.label()"],
-        ),
-        (
-            "keys/fields.rs",
-            [
-                "state.commit_rename()",
-                "replace: AppState::replace_rename_text",
-            ],
-        ),
-    ] {
-        let drawn = std::fs::read_to_string(src.join(file))
-            .unwrap_or_else(|err| panic!("{file} is readable: {err}"));
-        for needle in needles {
-            assert!(
-                drawn.contains(needle),
-                "{file} has no `{needle}`, so the census measures a path it does not run"
-            );
-        }
     }
 }

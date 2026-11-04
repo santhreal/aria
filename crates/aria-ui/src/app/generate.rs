@@ -52,7 +52,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// What the Generate panel is holding.
 #[derive(Debug, Clone, Default)]
 pub struct GenerateForm {
-    pub prompt: String,
+    pub prompt: super::line_text::LineText,
     pub kind: GenerateKind,
     /// Whether the prompt box has keyboard focus. Explicit, not inferred from the
     /// visible tab, so the bare-letter tool shortcuts keep working with the tab open.
@@ -109,18 +109,6 @@ impl GenerateKind {
 impl AppState {
     pub fn focus_generate_prompt(&mut self, focused: bool) {
         self.generate.focused = focused;
-    }
-
-    pub fn generate_prompt_push(&mut self, ch: char) {
-        if self.generate.focused {
-            self.generate.prompt.push(ch);
-        }
-    }
-
-    pub fn generate_prompt_pop(&mut self) {
-        if self.generate.focused {
-            self.generate.prompt.pop();
-        }
     }
 
     /// Switching kind keeps the prompt: "a dog on a skateboard" is the same idea as an

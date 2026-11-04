@@ -19,15 +19,18 @@ use aria_plugin::{
 use gpui::{Context, RenderImage};
 
 use super::AppState;
+use super::line_text::{LineRule, LineText};
 use crate::motion::MotionKey;
+
+/// What a declared text box takes: the longest text a panel event carries.
+pub(crate) const INPUT_RULE: LineRule = LineRule::bytes(MAX_TEXT_BYTES);
 
 /// A declared text box holding the keyboard.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanelInput {
     pub panel: Arc<str>,
     pub control: Arc<str>,
-    /// Rebuilt per keystroke, so drawing it is a reference count.
-    pub draft: gpui::SharedString,
+    pub draft: LineText,
 }
 
 /// A declared slider being dragged. Its value is drawn in place of the tree's
@@ -380,45 +383,12 @@ impl AppState {
         else {
             return false;
         };
-        let draft = gpui::SharedString::from(value);
         self.plugin_panels.input = Some(PanelInput {
             panel: Arc::from(panel),
             control: Arc::clone(control),
-            draft,
+            draft: LineText::new(&**value),
         });
         true
-    }
-
-    /// The focused panel box's draft, or nothing.
-    pub fn panel_input_text(&self) -> String {
-        self.plugin_panels
-            .input
-            .as_ref()
-            .map(|input| input.draft.to_string())
-            .unwrap_or_default()
-    }
-
-    /// Type one character. A control character is not text, and the draft
-    /// stops at the longest text a panel event carries.
-    pub fn panel_input_push(&mut self, ch: char) {
-        let Some(input) = self.plugin_panels.input.as_mut() else {
-            return;
-        };
-        if ch.is_control() || input.draft.len() + ch.len_utf8() > MAX_TEXT_BYTES {
-            return;
-        }
-        let mut text = input.draft.to_string();
-        text.push(ch);
-        input.draft = text.into();
-    }
-
-    pub fn panel_input_pop(&mut self) {
-        if let Some(input) = self.plugin_panels.input.as_mut() {
-            let mut text = input.draft.to_string();
-            if text.pop().is_some() {
-                input.draft = text.into();
-            }
-        }
     }
 
     /// Esc: leave the box and send nothing.

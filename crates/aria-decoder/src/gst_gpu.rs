@@ -77,6 +77,7 @@ pub(crate) fn open_pipeline(
 ) -> Result<OpenedPipeline, DecodeError> {
     let uri = path_uri(path)?;
     crate::gst_context::await_warm_up();
+    crate::gst_context::preload_core_factories();
     let has_dmabuf = crate::gst_dmabuf_watch::registry_has_dmabuf_video_decoder();
     open_latched_for(
         &DMABUF_FAILED,
@@ -294,7 +295,7 @@ pub(crate) fn build_decode_pipeline(
         .build();
     let sink_el = sink.upcast_ref::<gst::Element>();
 
-    let first_downstream = if dmabuf {
+    if dmabuf {
         let caps = gst::Caps::builder("video/x-raw")
             .features([crate::gst_dmabuf_watch::DMABUF_MEMORY])
             .build();
@@ -310,7 +311,13 @@ pub(crate) fn build_decode_pipeline(
                 gst::PadLinkCheck::empty(),
             )
             .map_err(|e| DecodeError::Open(format!("couldn't link decode sink: {e}")))?;
-        filter
+        src.connect_pad_added(move |_, pad| {
+            if let Some(sink_pad) = filter.static_pad("sink")
+                && !sink_pad.is_linked()
+            {
+                let _ = pad.link_full(&sink_pad, gst::PadLinkCheck::empty());
+            }
+        });
     } else {
         let convert = make("videoconvert", None)?;
         convert.set_property("n-threads", CONVERT_THREADS);
@@ -324,19 +331,30 @@ pub(crate) fn build_decode_pipeline(
         pipeline
             .add_many([&src, &convert, &filter, sink_el])
             .map_err(|e| DecodeError::Open(format!("couldn't build decode pipeline: {e}")))?;
-        for (up, down) in [(&convert, &filter), (&filter, sink_el)] {
-            up.link_pads_full(Some("src"), down, Some("sink"), gst::PadLinkCheck::empty())
-                .map_err(|e| DecodeError::Open(format!("couldn't link decode pipeline: {e}")))?;
-        }
         convert
-    };
-    src.connect_pad_added(move |_, pad| {
-        if let Some(sink_pad) = first_downstream.static_pad("sink")
-            && !sink_pad.is_linked()
-        {
-            let _ = pad.link_full(&sink_pad, gst::PadLinkCheck::empty());
-        }
-    });
+            .link_pads_full(
+                Some("src"),
+                &filter,
+                Some("sink"),
+                gst::PadLinkCheck::empty(),
+            )
+            .and_then(|()| {
+                filter.link_pads_full(
+                    Some("src"),
+                    sink_el,
+                    Some("sink"),
+                    gst::PadLinkCheck::empty(),
+                )
+            })
+            .map_err(|e| DecodeError::Open(format!("couldn't link decode pipeline: {e}")))?;
+        src.connect_pad_added(move |_, pad| {
+            if let Some(sink_pad) = convert.static_pad("sink")
+                && !sink_pad.is_linked()
+            {
+                let _ = pad.link_full(&sink_pad, gst::PadLinkCheck::empty());
+            }
+        });
+    }
     let bin = src
         .downcast::<gst::Bin>()
         .map_err(|_| DecodeError::Open("uridecodebin is not a GstBin.".into()))?;

@@ -5,8 +5,8 @@
 //! produced the old name with the new one stuck on the end. The draft now opens
 //! with the name selected. Every edit here goes through the rename row of
 //! `keys::fields`, the table the shell's key handler and text-input handler
-//! read, so a row that stopped naming the caret functions goes red here rather
-//! than in a hand.
+//! read, so a row whose box loses its caret goes red here rather than in a
+//! hand.
 //!
 //! Covers typing over the selection, collapsing it from either end, Shift
 //! extending it by character and by word, Backspace and Delete with and
@@ -19,7 +19,7 @@ use aria_commands::{Command, EditCommand};
 
 use crate::app::AppState;
 use crate::app::rename::RENAME_MAX_LEN;
-use crate::keys::fields::{self, Caret, CaretKey};
+use crate::keys::fields::{self, CaretKey, TextField};
 use crate::types::RenameTarget;
 
 const OPENING: &str = "Night Exterior";
@@ -42,15 +42,15 @@ fn renaming() -> AppState {
     state
 }
 
-/// The rename row's caret: the functions the shell calls for its keys.
-fn caret(state: &AppState) -> Caret {
+/// The rename row: the box the shell routes the bar's keys to.
+fn field(state: &AppState) -> TextField {
     let field = fields::focused(state).expect("the rename bar holds the keys");
     assert_eq!(field.id, "aria.field.rename");
-    field.caret.expect("the rename row has a caret")
+    field
 }
 
 fn key(state: &mut AppState, key: CaretKey, shift: bool) {
-    (caret(state).key)(state, key, shift);
+    field(state).key(state, key, shift);
 }
 
 /// What typing `text` does: the input handler replaces the selection.
@@ -59,13 +59,15 @@ fn type_text(state: &mut AppState, text: &str) {
 }
 
 fn backspace(state: &mut AppState) {
-    let field = fields::focused(state).expect("the rename bar holds the keys");
-    (field.backspace)(state);
+    field(state).backspace(state);
 }
 
 /// The draft and its `(anchor, caret)`.
 fn draft(state: &AppState) -> (String, (usize, usize)) {
-    (state.rename_draft.clone(), (caret(state).selection)(state))
+    (
+        state.rename_draft.to_string(),
+        field(state).selection(state),
+    )
 }
 
 #[test]
@@ -73,10 +75,10 @@ fn a_rename_opens_on_its_whole_name_selected_and_typing_replaces_it() {
     let mut state = renaming();
     let len = OPENING.chars().count();
     assert_eq!(draft(&state), (OPENING.to_string(), (0, len)));
-    assert_eq!((caret(&state).selected)(&state).as_deref(), Some(OPENING));
+    assert_eq!(field(&state).selected(&state).as_deref(), Some(OPENING));
     type_text(&mut state, "Cut 2");
     assert_eq!(draft(&state), ("Cut 2".to_string(), (5, 5)));
-    assert_eq!((caret(&state).selected)(&state), None);
+    assert_eq!(field(&state).selected(&state), None);
     state.commit_rename().expect("the new name lands");
     assert_eq!(state.store.project_name.to_string(), "Cut 2");
 }
@@ -121,10 +123,7 @@ fn shift_extends_the_selection_by_character_and_by_word() {
         (len, 6),
         "Shift+Ctrl+Left selects the last word"
     );
-    assert_eq!(
-        (caret(&state).selected)(&state).as_deref(),
-        Some("Exterior")
-    );
+    assert_eq!(field(&state).selected(&state).as_deref(), Some("Exterior"));
     type_text(&mut state, "Interior");
     assert_eq!(draft(&state).0, "Night Interior");
 
@@ -230,19 +229,6 @@ fn a_paste_drops_control_characters_and_stops_at_the_cap() {
     assert_eq!(draft(&state), ("Short".to_string(), (5, 5)));
 }
 
-#[test]
-fn a_draft_set_without_the_caret_holds_the_caret_inside_it() {
-    let mut state = renaming();
-    state.rename_draft = "ab".into();
-    assert_eq!(
-        draft(&state).1,
-        (0, 2),
-        "the caret is read past the end of the draft"
-    );
-    type_text(&mut state, "c");
-    assert_eq!(draft(&state), ("c".to_string(), (1, 1)));
-}
-
 /// WHY: the selection is a state that is invisible unless the bar draws it.
 /// Opens the bar in a drawn shell, checks the tinted run spans the name with
 /// the caret at its right edge, types through the platform input handler and
@@ -262,10 +248,10 @@ fn the_bar_draws_the_selection_and_the_caret_at_its_end(cx: &mut gpui::TestAppCo
     });
     visual.run_until_parked();
     let selection = visual
-        .debug_bounds("rename-selection")
+        .debug_bounds("text-selection")
         .expect("the opening name is drawn selected");
     let caret = visual
-        .debug_bounds("rename-caret")
+        .debug_bounds("text-caret")
         .expect("the bar draws its caret");
     assert_eq!(
         caret.left(),
@@ -282,7 +268,7 @@ fn the_bar_draws_the_selection_and_the_caret_at_its_end(cx: &mut gpui::TestAppCo
         ("D".to_string(), (1, 1)),
         "typing did not replace the name"
     );
-    assert_eq!(visual.debug_bounds("rename-selection"), None);
+    assert_eq!(visual.debug_bounds("text-selection"), None);
 
     visual.simulate_input("ay");
     visual.simulate_keystrokes("shift-left shift-left");
@@ -290,10 +276,10 @@ fn the_bar_draws_the_selection_and_the_caret_at_its_end(cx: &mut gpui::TestAppCo
     let walked = visual.read(|app| draft(state.read(app)));
     assert_eq!(walked, ("Day".to_string(), (3, 1)));
     let selection = visual
-        .debug_bounds("rename-selection")
+        .debug_bounds("text-selection")
         .expect("Shift+Left draws a selection");
     let caret = visual
-        .debug_bounds("rename-caret")
+        .debug_bounds("text-caret")
         .expect("the bar draws its caret");
     assert_eq!(
         caret.left(),

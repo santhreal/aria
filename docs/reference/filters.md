@@ -2,15 +2,15 @@
 
 Aria provides two color-grading mechanisms that share the same GPU color pipeline (`crates/aria-compositor/shaders/grade.wgsl` and `lut.wgsl`):
 
-1. **Filter presets (`filters.toml`)**: 10 named color-grade recipes (`vivid`, `warm`, `cool`, `mono`, `fade`, `chrome`, `noir`, `sunset`, `forest`, `berry`) scaled by the clip's animatable `filter-intensity` parameter (`0.0..=1.0`, default `1.0`).
+1. **Filter presets (`filters.toml`)**: named color-grade recipes (`vivid`, `warm`, `cool`, `mono`, `fade`, `chrome`, `noir`, `sunset`, `forest`, `berry`) scaled by the clip's animatable `filter-intensity` parameter (`0.0..=1.0`, default `1.0`).
 2. **Per-clip color adjustments (`ColorAdjustments::SLIDERS`)**: animatable color-grading sliders declared in `crates/aria-models/src/look/adjust_rows.rs`, plus 3D `.cube` LUT application (`lut-intensity`).
 
 ## Examples
 
-### Apply a Sunset filter on a Filter track
+### Apply a Sunset filter to a clip or import a LUT filter track
 
-1. Open **Window > Project**, select **Filters**, and click **Sunset** (`sunset`) with no clip selected to create a 5-second `Filter` generator clip on the filter track (`F1`), or select a video clip first to set its filter directly.
-2. Open **Window > Effect Controls > Color** (or **Window > Lumetri Color**) to adjust **Filter intensity** (`filter-intensity`) or keyframe it between `0.0` and `1.0`.
+1. Select a video clip on the timeline, open **Window > Effect Controls**, switch to the **Look** tab (or open **Window > Color**), and click **Sunset** (`sunset`) in the **Filter** row (`look-choice` / `color-filter-choice`).
+2. Adjust **Filter intensity** (`filter-intensity`) or keyframe it between `0.0` and `1.0` (or choose **File > Import Timeline…** and select a `.cube` file with no clip selected to create a `Filter` track bar across the sequence).
 
 ### Override `filters.toml` to tune the Noir recipe
 
@@ -28,12 +28,10 @@ vignette = 0.30
 
 ## Where to apply and edit filters and color grades
 
-- **Effects & Presets (`Window > Effects & Presets > Filters`)**: double-click a filter preset or drag it onto a clip.
-- **Project panel (`Window > Project > Filters`)**: click an entry to apply it to the selected clip (or create a `Filter` track clip when no clip is selected).
-- **Lumetri Color panel (`Window > Lumetri Color`)** and **Effect Controls (`Window > Effect Controls > Color` tab)**:
-  - Pick a filter preset and drag **Filter intensity** (`0.0..=1.0`).
-  - Load a `.cube` 3D LUT file and set **LUT intensity** (`0.0..=1.0`).
-  - Adjust or keyframe any `ColorAdjustments::SLIDERS` color slider across `Basic`, `Tone`, `Detail`, `Lift / Gamma / Gain`, `Master / Red / Green / Blue Curve`, `Hue vs Sat / Hue / Luma`, and `HSL Secondary`.
+- **Effect Controls (`Window > Effect Controls`, `Look` tab)** and **Color panel (`Window > Color`)**:
+  - Pick a filter preset (`look-choice` or `color-filter-choice`), clear it (`look-clear` or `color-filter-clear`), and drag **Filter intensity** (`filter-intensity`, `0.0..=1.0`).
+  - Load a `.cube` 3D LUT file (`lut-load` or `color-lut-pick`) and set **LUT intensity** (`lut-intensity`, `0.0..=1.0`), or drop a `.cube` file with no clip selected (or via **File > Import Timeline…**) to add a `Filter` track bar.
+  - Adjust or keyframe any `ColorAdjustments::SLIDERS` color slider across `Basic`, `Tone`, `Detail`, `Lift / Gamma / Gain`, `Master / Red / Green / Blue Curve`, `Hue vs Sat / Hue / Luma`, and `HSL Secondary`, or reset the grade with `grade-clear` / `color-grade-clear` (**Effect > Reset Grade**).
 
 ## Filter presets (`filters.toml`)
 
@@ -56,61 +54,61 @@ Every entry in `crates/aria-models/data/filters.toml` defines a `FilterGrade` re
 
 Boosts saturation (`+0.45`) and contrast (`+0.15`).
 
-UI location: **Effects & Presets > Filters > Vivid**, **Project > Filters > Vivid**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Warm (`warm`)
 
 Shifts white balance toward amber (`temperature = 0.4`) with a slight brightness lift (`+0.05`).
 
-UI location: **Effects & Presets > Filters > Warm**, **Project > Filters > Warm**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Cool (`cool`)
 
 Shifts white balance toward blue (`temperature = -0.4`).
 
-UI location: **Effects & Presets > Filters > Cool**, **Project > Filters > Cool**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Mono (`mono`)
 
 Desaturates completely to monochrome (`saturation = -1.0`) and increases contrast (`+0.1`).
 
-UI location: **Effects & Presets > Filters > Mono**, **Project > Filters > Mono**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Fade (`fade`)
 
 Lowers contrast (`-0.3`) and saturation (`-0.2`) while lifting brightness (`+0.1`).
 
-UI location: **Effects & Presets > Filters > Fade**, **Project > Filters > Fade**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Chrome (`chrome`)
 
 Increases contrast (`+0.25`), saturation (`+0.1`), and brightness (`+0.05`).
 
-UI location: **Effects & Presets > Filters > Chrome**, **Project > Filters > Chrome**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Noir (`noir`)
 
 Desaturates to monochrome (`saturation = -1.0`) with high contrast (`+0.35`) and darkened brightness (`-0.05`).
 
-UI location: **Effects & Presets > Filters > Noir**, **Project > Filters > Noir**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Sunset (`sunset`)
 
 Applies warm golden-hour white balance (`temperature = 0.5`, `tint = 0.1`) and increases saturation (`+0.15`).
 
-UI location: **Effects & Presets > Filters > Sunset**, **Project > Filters > Sunset**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Forest (`forest`)
 
 Shifts tint toward green (`tint = -0.25`) while raising saturation (`+0.2`) and brightness (`+0.03`).
 
-UI location: **Effects & Presets > Filters > Forest**, **Project > Filters > Forest**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ### Berry (`berry`)
 
 Pushes tint toward magenta (`tint = 0.35`, `temperature = -0.1`) and increases saturation (`+0.25`).
 
-UI location: **Effects & Presets > Filters > Berry**, **Project > Filters > Berry**, and **Lumetri Color**.
+UI location: **Window > Effect Controls** (**Look > Filter**) and **Window > Color** (**Filter**).
 
 ## Color grading sliders (`ColorAdjustments::SLIDERS`)
 

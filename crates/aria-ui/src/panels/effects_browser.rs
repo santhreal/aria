@@ -140,17 +140,23 @@ pub(crate) fn effects_panel(
                 .items_center()
                 .gap(px(Theme::SPACE_XS))
                 .child(
-                    components::text_box("effects-query", query, "Search", focused, theme)
-                        .flex_1()
-                        .min_w_0()
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                this.state
-                                    .update(cx, |state, _| state.focus_effects_search(true));
-                                cx.notify();
-                            }),
-                        ),
+                    components::text_box(
+                        "effects-query",
+                        &query,
+                        "Search",
+                        query.editing(focused),
+                        theme,
+                    )
+                    .flex_1()
+                    .min_w_0()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                            this.state
+                                .update(cx, |state, _| state.focus_effects_search(true));
+                            cx.notify();
+                        }),
+                    ),
                 )
                 .when(searching, |el| {
                     el.child(

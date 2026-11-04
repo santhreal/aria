@@ -368,10 +368,6 @@ impl Clip {
         matches!(self.content, ClipSource::Generated(_))
     }
 
-    pub fn is_multicam(&self) -> bool {
-        matches!(self.content, ClipSource::Multicam { .. })
-    }
-
     pub fn is_sequence(&self) -> bool {
         matches!(self.content, ClipSource::Sequence { .. })
     }

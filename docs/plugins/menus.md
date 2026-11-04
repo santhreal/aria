@@ -45,7 +45,7 @@ names a command no `[[commands]]` row lists is refused.
 
 Built-in code can draw rows from the state with a `MenuHost` contributor.
 `aria.ui` mounts the host and adds the shipped tables as its first contributor;
-the bar asks the host for one menu's items each time it opens. A contributor is
+the bar queries the host for one menu's items each time it opens. A contributor is
 a function, because an entry that cannot run right now is drawn from the state:
 
 ```rust

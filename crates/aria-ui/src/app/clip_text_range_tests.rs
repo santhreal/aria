@@ -191,7 +191,7 @@ fn typing_inside_a_styled_run_grows_it_and_undo_restores_it() {
     state.title_caret_key(CaretKey::Left, false);
     state.title_caret_key(CaretKey::Right, false);
     assert_eq!(state.text_selection(), (2, 2));
-    state.title_push('x');
+    state.type_key('x');
     let held = style(&state, title);
     assert_eq!((held.runs[0].start, held.runs[0].end), (1, 4));
     state.title_caret_key(CaretKey::Undo, false);

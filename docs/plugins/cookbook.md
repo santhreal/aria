@@ -354,8 +354,8 @@ aria_sdk::export!(ReviewShuttle);
 This native plugin saves the active project (`Host::project_save` or
 `Host::project_save_as`) before opening a reference project
 (`Host::project_open`), relying on `fs = ["project"]` in `plugin.toml` so paths
-inside the active project folder pass `PackageGrants::check_fs_read` and
-`PackageGrants::check_fs_write`.
+inside the active project folder pass the `FsScope::Project` check on
+`permissions.fs`.
 
 ### `plugin.toml`
 

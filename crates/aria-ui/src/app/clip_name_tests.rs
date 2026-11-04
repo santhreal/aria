@@ -11,8 +11,9 @@
 //! operator never sees anywhere else is not a name.
 //!
 //! Not covered: the double-click that opens the draft, which needs a render
-//! surface. The draft itself is exercised through `begin_rename` /
-//! `rename_push` / `commit_rename`, which is the state that gesture drives.
+//! surface. The draft itself is exercised through `begin_rename`, typing into
+//! the rename row of `keys::fields`, and `commit_rename`, which is the state
+//! that gesture drives.
 
 use aria_models::{ClipId, MediaId, MulticamAngle};
 
@@ -38,10 +39,10 @@ fn card_name(state: &AppState, clip: ClipId) -> String {
 fn rename(state: &mut AppState, clip: ClipId, text: &str) {
     state.begin_rename(RenameTarget::Clip(clip.raw()));
     while !state.rename_draft.is_empty() {
-        state.rename_pop();
+        state.press_backspace();
     }
     for ch in text.chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("the rename lands");
 }
@@ -72,7 +73,7 @@ fn an_empty_draft_clears_the_name_rather_than_cancelling() {
     // "changed my mind" — the only way back to the source's own name.
     state.begin_rename(RenameTarget::Clip(clip.raw()));
     while !state.rename_draft.is_empty() {
-        state.rename_pop();
+        state.press_backspace();
     }
     state.commit_rename().expect("clearing lands");
     assert_eq!(card_name(&state, clip), derived);

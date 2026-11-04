@@ -110,26 +110,26 @@ fn generation_is_configured_only_by_a_resolvable_key_for_this_provider() {
 fn the_prompt_box_only_takes_keys_while_focused() {
     let (mut state, _clip) = with_clip();
 
-    state.generate_prompt_push('a');
+    state.type_key('a');
     assert_eq!(state.generate.prompt, "", "unfocused typing is not text");
 
     state.focus_generate_prompt(true);
     for ch in "cat".chars() {
-        state.generate_prompt_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(state.generate.prompt, "cat");
 
-    state.generate_prompt_pop();
+    state.press_backspace();
     assert_eq!(state.generate.prompt, "ca");
 
     // Backspace past the start is not an error and not a panic.
     for _ in 0..4 {
-        state.generate_prompt_pop();
+        state.press_backspace();
     }
     assert_eq!(state.generate.prompt, "");
 
     state.focus_generate_prompt(false);
-    state.generate_prompt_push('x');
+    state.type_key('x');
     assert_eq!(state.generate.prompt, "");
 }
 
@@ -138,7 +138,7 @@ fn changing_kind_keeps_the_prompt() {
     let (mut state, _clip) = with_clip();
     state.focus_generate_prompt(true);
     for ch in "a dog".chars() {
-        state.generate_prompt_push(ch);
+        state.type_key(ch);
     }
     state.set_generate_kind(GenerateKind::Video);
     assert_eq!(state.generate.kind, GenerateKind::Video);
@@ -155,14 +155,14 @@ fn a_blank_prompt_and_a_missing_key_are_both_refused() {
 
     // Blank first: with neither a prompt nor a key, the prompt is the nearer fix.
     state.focus_generate_prompt(true);
-    state.generate_prompt_push(' ');
+    state.type_key(' ');
     let err = state
         .generation_precheck()
         .expect_err("a blank prompt is refused");
     assert!(err.contains("Type what to generate"), "{err}");
 
     for ch in "a cat".chars() {
-        state.generate_prompt_push(ch);
+        state.type_key(ch);
     }
     let err = state
         .generation_precheck()

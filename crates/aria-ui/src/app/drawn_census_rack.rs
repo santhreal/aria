@@ -268,7 +268,7 @@ fn a_name_already_taken_is_refused_without_losing_the_typing() {
     effects_rack::apply(&mut state, Gesture::SavePreset).expect("the first save");
     state.open_preset_draft();
     for ch in PRESET.chars() {
-        state.preset_draft_push(ch);
+        state.type_key(ch);
     }
 
     let refused = effects_rack::apply(&mut state, Gesture::SavePreset)
@@ -277,7 +277,10 @@ fn a_name_already_taken_is_refused_without_losing_the_typing() {
         matches!(refused, aria_engine::EngineError::Refused(_)),
         "a taken name is a refusal, not a failure: {refused:?}"
     );
-    assert_eq!(state.preset_draft_text(), PRESET);
+    assert_eq!(
+        state.preset_draft_name().map(|name| name.as_str()),
+        Some(PRESET)
+    );
     assert_eq!(state.presets().len(), 1);
 }
 
@@ -481,11 +484,11 @@ fn a_named_draft() -> AppState {
     let mut state = one_effect();
     state.open_preset_draft();
     for ch in PRESET.chars() {
-        state.preset_draft_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(
-        state.preset_draft_text(),
-        PRESET,
+        state.preset_draft_name().map(|name| name.as_str()),
+        Some(PRESET),
         "the field must hold what was typed into it"
     );
     state

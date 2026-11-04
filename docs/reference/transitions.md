@@ -10,8 +10,8 @@ A video transition (`Transition`) attaches to a cut between two abutting clips o
 
 1. Place two clips side-by-side on `V1`.
 2. Select the outgoing (left) clip.
-3. Open **Window > Effects & Presets**, expand **Transitions**, and double-click **Wipe Left** (or press `Ctrl+D` to apply the default `crossfade` transition and change its type in **Window > Effect Controls > Transition**).
-4. In **Effect Controls > Transition**, set **Duration** to `0.75 s`, **Feather** (`feather`) to `0.10`, and **Easing** to `ease_in_out`.
+3. Open **Window > Effects & Presets**, expand **Video Transitions**, and double-click **Wipe Left** (or press `Ctrl+T` / choose **Sequence > Apply Default Transitions** and change its kind in **Window > Effect Controls** under **Look > Transition**).
+4. In **Effect Controls** (**Look > Transition**), set **Duration (ticks)** (`transition-duration`), **Align** (`transition-align`), and **Feather** (`feather`, `0.10`).
 
 ### Override `transitions.toml` to increase default wipe feather
 
@@ -31,11 +31,11 @@ default = 0.1
 
 ## Where to apply and edit transitions
 
-- **Keyboard shortcut (`Ctrl+D` / `Cmd+D`)**: applies or toggles the default video transition (`crossfade`, `0.5 s`) on the selected clip's outgoing cut.
-- **Sequence menu (`Sequence > Apply Default Transition`)**: applies `crossfade` (`0.5 s`) to the selected clip.
-- **Effects & Presets (`Window > Effects & Presets > Transitions`)**: double-click an entry or drag it onto a clip cut on the timeline.
-- **Project panel (`Window > Project > Transitions`)**: click an entry to apply it to the selected clip or drag it onto a timeline cut.
-- **Effect Controls (`Window > Effect Controls > Transition` tab)**: selects the transition kind, duration (`0.05 s..=5.0 s`), easing curve, and per-transition parameters (`feather` on wipes), or removes the transition.
+- **Keyboard shortcut (`Ctrl+T` / `Cmd+T`, `key-transition`)**: applies the default video transition (`crossfade`, `DEFAULT_TRANSITION_TICKS = 24`) on the selected clip's outgoing cut.
+- **Sequence menu (**Sequence > Apply Default Transitions** and **Sequence > Add Cross Fade at Cut**)**: applies `crossfade` (`24` ticks) to the selected clip's outgoing cut.
+- **Effects & Presets (**Window > Effects & Presets**, **Video Transitions**)**: double-click an entry or drag it onto a clip cut on the timeline.
+- **Project panel (**Window > Project**, **Effects > Transitions**)**: click an entry to apply it to the selected clip's outgoing cut or drag it onto a timeline cut.
+- **Effect Controls (**Window > Effect Controls**, **Look > Transition** for picture cuts or **Audio > Transition** for sound cuts)**: selects the transition kind (`transition-choice`), duration in ticks (`transition-duration`), cut alignment (`transition-align`), and per-transition parameters (`feather` on wipes), or removes the transition (`transition-clear` / **Sequence > Remove Transition at Cut**).
 - **Timeline cut handle**: drag the transition pill across the cut to resize its duration directly on the track.
 
 ## Video transition catalog (`transitions.toml`)
@@ -55,7 +55,7 @@ default = 0.1
 
 Evaluates `mix(a, b, clamp(progress, 0.0, 1.0))` on premultiplied RGBA textures `tex_a` and `tex_b` (`transition_crossfade.wgsl`).
 
-UI location: **Effects & Presets > Transitions > Cross Fade**, **Project > Transitions > Cross Fade**, and `Ctrl+D`.
+UI location: **Effects & Presets > Video Transitions > Cross Fade**, **Project > Effects > Transitions > Cross Fade**, **Sequence > Add Cross Fade at Cut**, and `Ctrl+T`.
 
 Parameters: none (`params = []`).
 
@@ -63,7 +63,7 @@ Parameters: none (`params = []`).
 
 Evaluates `transition_dip.wgsl` with dip target `dip = vec4(0.0, 0.0, 0.0, 1.0)`. For `progress < 0.5`, mixes `tex_a` toward `dip` by `progress * 2.0`; for `progress >= 0.5`, mixes `dip` toward `tex_b` by `(progress - 0.5) * 2.0`.
 
-UI location: **Effects & Presets > Transitions > Dip to Black** and **Project > Transitions > Dip to Black**.
+UI location: **Effects & Presets > Video Transitions > Dip to Black** and **Project > Effects > Transitions > Dip to Black**.
 
 Parameters: none (`params = []`).
 
@@ -71,7 +71,7 @@ Parameters: none (`params = []`).
 
 Evaluates `transition_dip.wgsl` with dip target `dip = vec4(1.0, 1.0, 1.0, 1.0)`. For `progress < 0.5`, mixes `tex_a` toward `dip` by `progress * 2.0`; for `progress >= 0.5`, mixes `dip` toward `tex_b` by `(progress - 0.5) * 2.0`.
 
-UI location: **Effects & Presets > Transitions > Dip to White** and **Project > Transitions > Dip to White**.
+UI location: **Effects & Presets > Video Transitions > Dip to White** and **Project > Effects > Transitions > Dip to White**.
 
 Parameters: none (`params = []`).
 
@@ -79,7 +79,7 @@ Parameters: none (`params = []`).
 
 Evaluates `transition_wipe.wgsl` with `direction = 0` (`coord = 1.0 - uv.x`). For `feather = max(params[0].z, 0.0005)`, expands the edge sweep across `-feather..=(1.0 + feather)` (`edge = progress * (1.0 + 2.0 * feather) - feather`) and blends `mix(b, a, smoothstep(edge - feather, edge + feather, coord))` so `t = 0.0` is pure `A` and `t = 1.0` is pure `B`.
 
-UI location: **Effects & Presets > Transitions > Wipe Left** and **Project > Transitions > Wipe Left**.
+UI location: **Effects & Presets > Video Transitions > Wipe Left** and **Project > Effects > Transitions > Wipe Left**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ UI location: **Effects & Presets > Transitions > Wipe Left** and **Project > Tra
 
 Evaluates `transition_wipe.wgsl` with `direction = 1` (`coord = uv.x`) and the same `smoothstep(edge - feather, edge + feather, coord)` blend as `wipe_left`.
 
-UI location: **Effects & Presets > Transitions > Wipe Right** and **Project > Transitions > Wipe Right**.
+UI location: **Effects & Presets > Video Transitions > Wipe Right** and **Project > Effects > Transitions > Wipe Right**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -99,7 +99,7 @@ UI location: **Effects & Presets > Transitions > Wipe Right** and **Project > Tr
 
 Evaluates `transition_wipe.wgsl` with `direction = 2` (`coord = 1.0 - uv.y`) and the same `smoothstep(edge - feather, edge + feather, coord)` blend as `wipe_left`.
 
-UI location: **Effects & Presets > Transitions > Wipe Up** and **Project > Transitions > Wipe Up**.
+UI location: **Effects & Presets > Video Transitions > Wipe Up** and **Project > Effects > Transitions > Wipe Up**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -109,7 +109,7 @@ UI location: **Effects & Presets > Transitions > Wipe Up** and **Project > Trans
 
 Evaluates `transition_wipe.wgsl` with `direction = 3` (`coord = uv.y`) and the same `smoothstep(edge - feather, edge + feather, coord)` blend as `wipe_left`.
 
-UI location: **Effects & Presets > Transitions > Wipe Down** and **Project > Transitions > Wipe Down**.
+UI location: **Effects & Presets > Video Transitions > Wipe Down** and **Project > Effects > Transitions > Wipe Down**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ UI location: **Effects & Presets > Transitions > Wipe Down** and **Project > Tra
 
 Evaluates `transition_slide.wgsl`: slides incoming texture `tex_b` in from the right (`uv_b.x = uv.x - (1.0 - t)`) when `uv.x >= 1.0 - t` while pushing outgoing texture `tex_a` to the left (`uv_a.x = uv.x + t`).
 
-UI location: **Effects & Presets > Transitions > Slide** and **Project > Transitions > Slide**.
+UI location: **Effects & Presets > Video Transitions > Slide** and **Project > Effects > Transitions > Slide**.
 
 Parameters: none (`params = []`).
 
@@ -143,4 +143,4 @@ Defined in `crates/aria-models/src/audio_transition.rs` (`AudioTransition::ALL`,
 | `constant_gain` | Constant Gain | `ConstantGain` | `no` | Incoming `p`, outgoing `1.0 - p` |
 | `exponential_fade` | Exponential Fade | `ExponentialFade` | `no` | Level linear in dB from `-60.0` dBFS (`EXPONENTIAL_FLOOR_DB`) to `0.0` dB |
 
-Where to apply: `Ctrl+Shift+T`, **Sequence > Apply Audio Crossfade**, or **Effects & Presets > Audio Transitions**.
+Where to apply: `Ctrl+Shift+T` (`key-audio-transition`), **Window > Effect Controls** (**Audio > Transition**), or **Window > Effects & Presets** (**Audio Transitions**).

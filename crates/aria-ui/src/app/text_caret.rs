@@ -30,7 +30,7 @@ use crate::app::selected_detail::TitleCaret;
 use crate::keys::fields::CaretKey;
 
 #[path = "text_caret_geometry.rs"]
-pub(in crate::app) mod geometry;
+pub(crate) mod geometry;
 use geometry::*;
 
 /// How far outside a title's line, in window pixels, a press still lands on
@@ -262,22 +262,24 @@ impl AppState {
 
     /// Replace characters `range` of the title being typed into with `text`,
     /// as one keystroke of a typing burst. Control characters other than a
-    /// line break are dropped.
-    pub fn replace_title_text(&mut self, range: Range<usize>, text: &str) {
-        let text: String = text
+    /// line break are dropped, and a run of nothing else is refused whole, so
+    /// the selection it was typed over stays.
+    ///
+    /// Returns whether the title changed.
+    pub fn replace_title_text(&mut self, range: Range<usize>, text: &str) -> bool {
+        let typed: String = text
             .chars()
             .filter(|ch| *ch == '\n' || !ch.is_control())
             .collect();
-        if let Err(err) = self.edit_title(range, &text) {
-            self.report_error(&err);
+        if typed.is_empty() && !text.is_empty() {
+            return false;
         }
-    }
-
-    /// Type one character over the selection.
-    pub fn title_push(&mut self, ch: char) {
-        let range = self.text_edit().map(TextEdit::range);
-        if let Some(range) = range {
-            self.replace_title_text(range, ch.encode_utf8(&mut [0; 4]));
+        match self.edit_title(range, &typed) {
+            Ok(()) => true,
+            Err(err) => {
+                self.report_error(&err);
+                false
+            }
         }
     }
 

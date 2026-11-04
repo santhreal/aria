@@ -139,7 +139,7 @@ with the current drawn value as its origin, so a reversal continues from where
 the value is instead of restarting the leg or snapping to the end it never
 reached. Nothing queues: a value has one target at a time.
 
-A spec in the table above is a one-shot, played by `gpui`'s animation element
+A spec in the [Specs](#specs) table is a one-shot, played by `gpui`'s animation element
 when an element appears or leaves. A one-shot cannot be retargeted, so anything
 that can be interrupted belongs in a store rather than in a one-shot. That is
 the rule the two stores exist to satisfy: hover, selection, lock, geometry,

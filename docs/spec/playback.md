@@ -68,14 +68,17 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    one decoded CPU frame. Video decode pipelines expose only raw video pads
    (`expose-all-streams=false`, `video/x-raw(ANY)`) and bound software video
    decoder thread pools across active pipelines (`max-threads` scaled from `16`
-   down to `8` as concurrent pipelines open). A decoder runs ahead of the playhead by a window sized
-   by frame size and codec (at least 8 frames). CPU frames reach the renderer
+   down to `8` as concurrent pipelines open). A decoder runs ahead of the playhead by a 25-frame
+   decode-ahead queue (`AHEAD_FRAMES = 25` in `crates/aria-decoder/src/ahead.rs`) with a 4-buffer
+   GStreamer `appsink` queue, waits for all 25 ahead frames on a cold exact decode, schedules pool
+   serves in a pre-allocated ring without per-frame heap allocation, and cancels and joins an
+   in-flight background open when dropped (`OpeningDecoder`). CPU frames reach the renderer
    as NV12: `videoconvert` passes the `I420` and `I420_10LE` of software
    decoders and the `P010_10LE` of hardware decoders through, and the decoder
    packs them to NV12 in one pass (`crates/aria-decoder/src/nv12_pack.rs`).
-   The plane buffers of a frame that is shown, skipped, or dropped by a seek
-   return to a process-wide pool of at most 64 buffers and 128 MiB, and the
-   next decode of the same plane size reuses them
+   The plane buffers of a frame that is shown, skipped, or dropped by a seek, a stale request
+   answer, or a closed decoder return to a process-wide pool of at most 128 buffers and 256 MiB,
+   and the next decode of the same plane size reuses them
    (`crates/aria-decoder/src/plane_pool.rs`). Reverse playback decodes each
    GOP forward once and serves its frames backward from the cache. A paused
    frame redrawn at the same source time, for a parameter drag or a selection

@@ -578,6 +578,7 @@ impl Shell {
             } => {
                 let full_path =
                     super::dock_view::active_split_drag_path(&path[..usize::from(depth)]);
+                super::dock_view::clear_active_split_drag_path();
                 let slice: &[usize] = &full_path;
                 if let Some(mut weights) = state.dock_tree.split_weights(slice)
                     && index + 1 < weights.len()

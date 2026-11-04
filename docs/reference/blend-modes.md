@@ -50,7 +50,7 @@ A clip's `masks: Vec<Mask>` stack holds up to `MAX_CLIP_MASKS = 32` masks and ev
 
 ## Mask shapes (`MaskKind` and `masks.toml`)
 
-`mask_catalog()` loads the shipped mask shape order and labels from `crates/aria-models/data/masks.toml`. The six parametric shapes (`Linear` through `Star`) evaluate in the GPU mask shader using `aria_compositor::layer::mask_kind` constants `0..=5`. `MaskKind::Path` rasterizes a cubic Bezier vertex list (`MASK_PATH_VERSION = 1`, `1..=1024` vertices via `MAX_MASK_PATH_POINTS = 1024`) in normalized layer coordinates (`[0, 1]` across the layer quad, validated within `[-10.0, 10.0]`). Mask expansion is bounded to `[-4096.0, 4096.0]` reference pixels (`MAX_MASK_EXPANSION = 4096.0`).
+`mask_catalog()` loads the shipped mask shape order and labels from `crates/aria-models/data/masks.toml`. The parametric shapes (`Linear` through `Star`) evaluate in the GPU mask shader using `aria_compositor::layer::mask_kind` constants `0..=5`. `MaskKind::Path` rasterizes a cubic Bezier vertex list (`MASK_PATH_VERSION = 1`, `1..=1024` vertices via `MAX_MASK_PATH_POINTS = 1024`) in normalized layer coordinates (`[0, 1]` across the layer quad, validated within `[-10.0, 10.0]`). Mask expansion is bounded to `[-4096.0, 4096.0]` reference pixels (`MAX_MASK_EXPANSION = 4096.0`).
 
 | ID | Label | Variant | Shader Kind ID | Supports Size | Supports Roundness |
 | --- | --- | --- | --- | --- | --- |

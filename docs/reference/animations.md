@@ -2,9 +2,9 @@
 
 Aria ships four motion, text-style, and timing catalogs under `crates/aria-models/data/`:
 
-1. **Clip and per-character animations (`animations.toml`)**: 31 entrance (`in`), exit (`out`), and looping (`combo`) presets evaluated in `crates/aria-render/src/animation.rs` (whole-layer) and `crates/aria-render/src/render/text_anim.rs` (`text_only = true` per-cluster glyph animations).
-2. **Text style presets (`text_effects.toml`)**: 6 stroke and drop-shadow combinations (`neon`, `shadow`, `outline`, `glow`, `retro`, `chrome`) applied to `TextStyle` (`crates/aria-models/src/text.rs`).
-3. **Easing curves (`easings.toml` and `preset_catalog.rs`)**: named cubic-bezier curves (`snappy`, `overshoot`, `anticipate`), the core `Easing` modes (`linear`, `ease_in`, `ease_out`, `ease_in_out`, `hold`, `cubic_bezier`), and multi-keyframe piecewise presets (`bounce_out`, `elastic_out`, `back_out`).
+1. **Clip and per-character animations (`animations.toml`)**: entrance (`in`), exit (`out`), and looping (`combo`) presets evaluated in `crates/aria-render/src/animation.rs` (whole-layer) and `crates/aria-render/src/render/text_anim.rs` (`text_only = true` per-cluster glyph animations).
+2. **Text style presets (`text_effects.toml`)**: stroke and drop-shadow combinations (`neon`, `shadow`, `outline`, `glow`, `retro`, `chrome`) applied to `TextStyle` (`crates/aria-models/src/clip/text.rs`).
+3. **Easing curves (`easings.toml` and `preset_catalog.rs`)**: named cubic-bezier curves (`snappy`, `overshoot`, `anticipate`), the core `Easing` modes (`linear`, `ease_in`, `ease_out`, `ease_in_out`, `hold`, `bezier`, `temporal`), and multi-keyframe piecewise presets (`bounce_out`, `elastic_out`, `back_out`).
 4. **Speed-ramp presets (`speed_presets.toml`)**: normalized speed multiplier curves (`ramp_up`, `ramp_down`, `montage`, `hero`, `bullet`, `jump_cut`, `flash_in`, `flash_out`).
 
 ## Examples
@@ -12,15 +12,15 @@ Aria ships four motion, text-style, and timing catalogs under `crates/aria-model
 ### Apply an Entrance and Exit animation to a clip
 
 1. Select a video, text, or sticker clip on the timeline.
-2. Open **Window > Effect Controls** and switch to the **Motion** tab (or **Window > Project > Animations**).
+2. Open **Window > Effect Controls** and switch to the **Look** tab (or open **Window > Project** and select **Effects > Animations**).
 3. In the **Animation** block:
    - Set **In** (`slot = "in"`) to **Slide up** (`slide_up`), **Speed** (`speed`) to `1.2`, and **Intensity** (`intensity`) to `1.0`.
    - Set **Out** (`slot = "out"`) to **Fade out** (`fade_out`) and **Speed** to `1.0`.
 
 ### Apply a Neon text style preset and a per-character Typewriter entrance
 
-1. Select a `Text` clip on `T1` and open **Window > Effect Controls > Text**.
-2. Click **Neon** (`neon`) in the **Text Effects** preset bar (or **Window > Project > Graphics > Text Effects**) to apply a `#39FF14` (`4 px`) stroke and `#39FF14C8` (`blur = 0.35`, `distance = 0 px`) glow shadow.
+1. Select a `Text` clip on `T1`, open **Window > Effect Controls**, and switch to the **Text** tab.
+2. Click **Neon** (`neon`) under **Effect** (`text-effect`) to apply a `#39FF14` (`4 px`) stroke and `#39FF14C8` (`blur = 0.35`, `distance = 0 px`) glow shadow.
 3. In the **Animation** block, set **In** to **Typewriter** (`char_typewriter`) and adjust **Stagger** (`stagger`, `0.05..=2.0`, default `1.0`).
 
 ### Override `speed_presets.toml` to customize the Hero ramp
@@ -44,7 +44,7 @@ Each entry in `crates/aria-models/data/animations.toml` specifies `id`, `label`,
 - **Whole-layer presets (`text_only = false`)**: expose `speed` (`0.25..=4.0`, default `1.0`, scaling the base window `look_animation_window_ticks(duration, rate)`) and `intensity` (`0.0..=2.0`, default `1.0`).
 - **Per-character text presets (`text_only = true`)**: expose `speed` (`0.25..=4.0`, default `1.0`), `intensity` (`0.0..=2.0`, default `1.0`), and `stagger` (`0.05..=2.0`, default `1.0`, scaling the `0.55` per-cluster stagger window).
 
-UI location: **Window > Effect Controls > Motion > Animation**, **Window > Effects & Presets > Animations**, and **Window > Project > Animations**.
+UI location: **Window > Effect Controls** (**Look > Animation**) and **Window > Project** (**Effects > Animations**).
 
 ### Whole-layer animations (`text_only = false`, `crates/aria-render/src/animation.rs`)
 
@@ -89,7 +89,7 @@ UI location: **Window > Effect Controls > Motion > Animation**, **Window > Effec
 
 ## Text style presets (`text_effects.toml`)
 
-Defined in `crates/aria-models/data/text_effects.toml` (`TextEffectPreset` in `crates/aria-models/src/text.rs`). Selecting a preset copies its `stroke` (`rgba`, `width` in px) and `shadow` (`rgba`, `blur` in `0.0..=1.0`, `distance` in px) fields onto the clip's `TextStyle`:
+Defined in `crates/aria-models/data/text_effects.toml` (`TextEffectSpec` in `crates/aria-models/src/look/text_effect.rs`). Selecting a preset copies its `stroke` (`rgba`, `width` in px) and `shadow` (`rgba`, `blur` in `0.0..=1.0`, `distance` in px) fields onto the clip's `TextStyle`:
 
 | ID | Label | Stroke (`rgba`, `width`) | Shadow (`rgba`, `blur`, `distance`) |
 | --- | --- | --- | --- |
@@ -100,13 +100,13 @@ Defined in `crates/aria-models/data/text_effects.toml` (`TextEffectPreset` in `c
 | `retro` | Retro | `[255, 140, 60, 255]`, `width = 5.0` | `[120, 40, 160, 255]`, `blur = 0.05`, `distance = 10.0` |
 | `chrome` | Chrome | `[230, 230, 240, 255]`, `width = 3.0` | `[40, 60, 90, 200]`, `blur = 0.2`, `distance = 6.0` |
 
-UI location: **Window > Effect Controls > Text** and **Window > Project > Graphics > Text Effects**.
+UI location: **Window > Effect Controls** (**Text > Effect**).
 
 ## Easing curves (`easings.toml`, `Easing`, and `PiecewiseEasingPreset`)
 
 ### Named cubic-bezier presets (`easings.toml`)
 
-Defined in `crates/aria-models/data/easings.toml` (`EASING_PRESETS` in `crates/aria-models/src/param/mod.rs`). Selecting a preset writes `Easing::CubicBezier { x1, y1, x2, y2 }` onto the keyframe or transition:
+Defined in `crates/aria-models/data/easings.toml` (`EASING_PRESETS` in `crates/aria-models/src/param/easing.rs`). Selecting a preset writes `Easing::Bezier { points }` onto the keyframe or transition:
 
 | ID | Label | Control `points` (`[x1, y1, x2, y2]`) | Behavior |
 | --- | --- | --- | --- |
@@ -114,7 +114,7 @@ Defined in `crates/aria-models/data/easings.toml` (`EASING_PRESETS` in `crates/a
 | `overshoot` | Overshoot | `[0.34, 1.56, 0.64, 1.0]` | Overshoots past `1.0` (`y1 = 1.56`) before settling onto the target value. |
 | `anticipate` | Anticipate | `[0.36, 0.0, 0.66, -0.56]` | Winds up below `0.0` (`y2 = -0.56`) before accelerating into the target value. |
 
-### Built-in `Easing` interpolation modes (`crates/aria-models/src/param/mod.rs`)
+### Built-in `Easing` interpolation modes (`crates/aria-models/src/param/easing.rs`)
 
 | ID | Variant | Formula (`Easing::apply(t)`) |
 | --- | --- | --- |
@@ -123,7 +123,8 @@ Defined in `crates/aria-models/data/easings.toml` (`EASING_PRESETS` in `crates/a
 | `ease_out` | `Easing::EaseOut` | `1.0 - (1.0 - t)^2` (quadratic ease-out) |
 | `ease_in_out` | `Easing::EaseInOut` | Smoothstep `t^2 * (3.0 - 2.0 * t)` |
 | `hold` | `Easing::Hold` | Step hold: returns the outgoing keyframe value until the next keyframe tick. |
-| `cubic_bezier` | `Easing::CubicBezier { x1, y1, x2, y2 }` | Solves `B_x(s) = t` via 8 Newton-Raphson iterations and evaluates `B_y(s)`. |
+| `bezier` | `Easing::Bezier { points }` | Solves `B_x(s) = t` via 8 Newton-Raphson iterations and evaluates `B_y(s)`. |
+| `temporal` | `Easing::Temporal { in_ease, out_ease, roving, hold, points }` | Evaluates `Hold` when `hold = true`, or solves `B_x(s) = t` on the segment's derived cubic-bezier `points`. |
 
 ### Multi-keyframe piecewise easing presets (`crates/aria-models/src/param/preset_catalog.rs`)
 
@@ -137,7 +138,7 @@ Expanding a `PiecewiseEasingPreset` across a keyframe pair inserts intermediate 
 
 ## Speed-ramp presets (`speed_presets.toml`)
 
-Defined in `crates/aria-models/data/speed_presets.toml` (`SpeedPreset` in `crates/aria-models/src/clip/speed_curve.rs`). Each preset defines a normalized curve of speed multipliers (`value` in `0.01..=100.0`) at clip positions `at` in `0.0..=1.0` with segment `easing` (`linear` when omitted):
+Defined in `crates/aria-models/data/speed_presets.toml` (`SpeedPresetSpec` in `crates/aria-models/src/clip/retiming.rs`). Each preset defines a normalized curve of speed multipliers (`value` in `0.01..=100.0`) at clip positions `at` in `0.0..=1.0` with segment `easing` (`linear` when omitted):
 
 | ID | Label | Points (`at -> value (easing)`) |
 | --- | --- | --- |
@@ -150,4 +151,4 @@ Defined in `crates/aria-models/data/speed_presets.toml` (`SpeedPreset` in `crate
 | `flash_in` | Flash in | `0.0 -> 3.0 (ease_out)`, `0.3 -> 1.0 (linear)`, `1.0 -> 1.0 (linear)` |
 | `flash_out` | Flash out | `0.0 -> 1.0 (linear)`, `0.7 -> 1.0 (ease_in)`, `1.0 -> 3.0 (linear)` |
 
-UI location: **Window > Effect Controls > Speed** and **Window > Project > Effects > Speed Presets**.
+UI location: **Window > Effect Controls** (**Speed > Preset**).

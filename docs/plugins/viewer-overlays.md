@@ -13,7 +13,7 @@ use aria_plugin::{
     PluginContext, ViewerOverlay,
 };
 
-/// A crosshair the user drags, in canvas pixels.
+/// A draggable crosshair, in canvas pixels.
 struct Crosshair(Mutex<[f32; 2]>);
 
 impl ViewerOverlay for Crosshair {

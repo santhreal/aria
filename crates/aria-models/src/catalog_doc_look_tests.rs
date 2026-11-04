@@ -1,5 +1,5 @@
 use crate::{
-    BlendMode, ColorAdjustments, EASING_PRESETS, MASK_PATH_VERSION, MAX_CLIP_MASKS,
+    BlendMode, ColorAdjustments, EASING_PRESETS, Easing, MASK_PATH_VERSION, MAX_CLIP_MASKS,
     MAX_MASK_EXPANSION, MAX_MASK_PATH_POINTS, MaskKind, MaskMode, MaskParam, ParamKind, ParamRange,
     animation_catalog, filter_catalog, mask_catalog, piecewise_presets, speed_preset_catalog,
     sticker_catalog, text_effect_catalog,
@@ -138,6 +138,51 @@ fn animations_text_effects_easings_and_speed_presets_match_catalogs() {
     assert_eq!(
         doc_beziers, expected_beziers,
         "docs/reference/animations.md cubic-bezier presets table does not match EASING_PRESETS"
+    );
+
+    let easing_sec = section(
+        ANIMATIONS_DOC,
+        "### Built-in `Easing` interpolation modes (`crates/aria-models/src/param/easing.rs`)",
+    );
+    let doc_easings: Vec<(&str, &str)> = table_rows(easing_sec)
+        .into_iter()
+        .map(|r| (unquote(r[0]), unquote(r[1])))
+        .collect();
+    let easing_census = [
+        Easing::Linear,
+        Easing::EaseIn,
+        Easing::EaseOut,
+        Easing::EaseInOut,
+        Easing::Hold,
+        Easing::Bezier {
+            points: [0.0, 0.0, 1.0, 1.0],
+        },
+        Easing::Temporal {
+            in_ease: None,
+            out_ease: None,
+            roving: false,
+            hold: false,
+            points: [0.0, 0.0, 1.0, 1.0],
+        },
+    ];
+    let expected_easings: Vec<(&str, &str)> = easing_census
+        .iter()
+        .map(|e| match e {
+            Easing::Linear => ("linear", "Easing::Linear"),
+            Easing::EaseIn => ("ease_in", "Easing::EaseIn"),
+            Easing::EaseOut => ("ease_out", "Easing::EaseOut"),
+            Easing::EaseInOut => ("ease_in_out", "Easing::EaseInOut"),
+            Easing::Hold => ("hold", "Easing::Hold"),
+            Easing::Bezier { .. } => ("bezier", "Easing::Bezier { points }"),
+            Easing::Temporal { .. } => (
+                "temporal",
+                "Easing::Temporal { in_ease, out_ease, roving, hold, points }",
+            ),
+        })
+        .collect();
+    assert_eq!(
+        doc_easings, expected_easings,
+        "docs/reference/animations.md built-in Easing modes table does not match Easing variants"
     );
 
     let pw_sec = section(
@@ -466,4 +511,63 @@ fn blend_modes_and_masks_reference_matches_catalog() {
         blend_modes_doc.contains(&format!("MAX_MASK_PATH_POINTS = {MAX_MASK_PATH_POINTS}")),
         "blend-modes.md must document MAX_MASK_PATH_POINTS = {MAX_MASK_PATH_POINTS}"
     );
+}
+
+/// **Every workspace path and `(`Symbol` in `crates/...`)` citation in the look reference docs resolves.**
+///
+/// Closes: renamed or moved source files (`crates/...`, `assets/...`) or renamed
+/// catalog specification structs in `docs/reference/{animations,filters,stickers-and-masks,blend-modes}.md`.
+/// Not caught: prose behavior descriptions.
+#[test]
+fn reference_docs_cited_paths_and_defined_in_symbols_resolve() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("workspace root");
+    let blend_modes_doc = std::fs::read_to_string(root.join("docs/reference/blend-modes.md"))
+        .expect("read docs/reference/blend-modes.md");
+    for (name, doc) in [
+        ("docs/reference/animations.md", ANIMATIONS_DOC),
+        ("docs/reference/filters.md", FILTERS_DOC),
+        ("docs/reference/stickers-and-masks.md", STICKERS_MASKS_DOC),
+        ("docs/reference/blend-modes.md", blend_modes_doc.as_str()),
+    ] {
+        let mut rest = doc;
+        while let Some(open) = rest.find('`') {
+            let after_open = &rest[open + 1..];
+            let Some(close) = after_open.find('`') else {
+                break;
+            };
+            let span = &after_open[..close];
+            if (span.starts_with("crates/") || span.starts_with("assets/")) && !span.contains(' ') {
+                let full = root.join(span.trim_end_matches('/'));
+                assert!(
+                    full.exists(),
+                    "{name} cites missing workspace path `{span}`"
+                );
+            }
+            let tail = &after_open[close + 1..];
+            if let Some(after_in) = tail.strip_prefix(" in `")
+                && let Some(path_close) = after_in.find('`')
+            {
+                let path = &after_in[..path_close];
+                if path.starts_with("crates/") {
+                    let full = root.join(path);
+                    let source = std::fs::read_to_string(&full).unwrap_or_else(|e| {
+                        panic!("{name} cites unreadable `{path}` for `{span}`: {e}")
+                    });
+                    let ident = span
+                        .split("::")
+                        .last()
+                        .unwrap_or(span)
+                        .trim_end_matches("()");
+                    assert!(
+                        source.contains(ident),
+                        "{name} cites `{span}` in `{path}`, but `{ident}` is not in that file"
+                    );
+                }
+            }
+            rest = tail;
+        }
+    }
 }

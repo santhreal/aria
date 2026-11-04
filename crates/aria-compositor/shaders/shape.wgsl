@@ -184,8 +184,8 @@ fn sd_heart(p: vec2<f32>, half: vec2<f32>) -> f32 {
     let lobe = 0.35355338; // sqrt(2) / 4
     let unit_hw = 0.25 + lobe;
     let unit_h = 0.75 + lobe;
-    let sx = half.x / unit_hw;
-    let sy = half.y / (unit_h * 0.5);
+    let sx = max(half.x, 1e-3) / unit_hw;
+    let sy = max(half.y, 1e-3) / (unit_h * 0.5);
     let hx = abs(p.x / sx);
     let hy = (half.y - p.y) / sy;
 
@@ -209,7 +209,7 @@ fn sd_heart(p: vec2<f32>, half: vec2<f32>) -> f32 {
 fn fs(in: VertexOutput) -> @location(0) vec4<f32> {
     let half = s.geo.xy;
     let kind = u32(s.geo.z + 0.5);
-    let radius = clamp(s.geo.w, 0.0, min(half.x, half.y));
+    let radius = clamp(s.geo.w, 0.0, max(min(half.x, half.y), 0.0));
 
     var d = 0.0;
     switch kind {

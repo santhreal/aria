@@ -194,16 +194,6 @@ impl AppState {
         self.stock_search_focus = focused;
     }
 
-    /// Append a typed character to the query.
-    pub fn stock_query_push(&mut self, ch: char) {
-        self.stock_query.push(ch);
-    }
-
-    /// Delete the last character of the query.
-    pub fn stock_query_pop(&mut self) {
-        self.stock_query.pop();
-    }
-
     /// Choose the media kind stock search asks for.
     ///
     /// The pending results are dropped: they answer the previous kind, and leaving
@@ -218,7 +208,7 @@ impl AppState {
 
     /// Run the search the box currently describes.
     pub fn run_stock_search(&mut self, cx: &mut Context<Self>) {
-        let query = self.stock_query.clone();
+        let query = self.stock_query.to_string();
         let kind = self.stock_kind;
         self.search_stock(&query, kind, cx);
     }

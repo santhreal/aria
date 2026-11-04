@@ -237,7 +237,7 @@ fn a_search_that_hides_the_pool_says_nothing_matches(cx: &mut gpui::TestAppConte
     let set_query = |visual: &mut gpui::VisualTestContext, query: &str| {
         visual.update(|_, app| {
             state.update(app, |state, cx| {
-                state.media_query = query.to_string();
+                state.media_query = query.into();
                 cx.notify();
             })
         });

@@ -9,6 +9,31 @@ use aria_core::{DecodeError, FrameData, Rational, RationalTime, VideoDecoder, Vi
 use super::{AHEAD_FRAMES, BEHIND_BYTES, BEHIND_SURFACES};
 use crate::seek::{frame_covers, is_after, is_frame_before, seek_walk};
 
+/// Held backward frames below which a parked reverse decoder pre-walks the
+/// preceding GOP on the decode pool.
+const BEHIND_FILL_FRAMES: usize = 16;
+
+/// Frames detached from [`State`] to return their planes to the pool outside
+/// the state lock.
+pub(super) struct HeldFrames {
+    ahead: VecDeque<VideoFrame>,
+    behind: Behind,
+    answer: Option<Answer>,
+}
+
+impl HeldFrames {
+    /// Return the planes of `ahead`, `behind`, and `answer` to the plane pool.
+    pub(super) fn recycle(mut self) {
+        for mut frame in self.ahead {
+            crate::recycle_frame_planes(&mut frame);
+        }
+        self.behind.clear();
+        if let Some(Ok(Some(mut frame))) = self.answer.map(|a| a.result) {
+            crate::recycle_frame_planes(&mut frame);
+        }
+    }
+}
+
 /// What a frame request accepts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Ask {
@@ -315,10 +340,13 @@ impl State {
         want: Want,
         frame_rate: Rational,
     ) -> Option<Result<Option<VideoFrame>, DecodeError>> {
-        if let Some(answer) = self.answer.take()
-            && answer.want.is(want)
-        {
-            return Some(answer.result);
+        if let Some(answer) = self.answer.take() {
+            if answer.want.is(want) {
+                return Some(answer.result);
+            }
+            if let Ok(Some(mut frame)) = answer.result {
+                crate::recycle_frame_planes(&mut frame);
+            }
         }
         if let Some(frame) = self.take_ahead(want.target, frame_rate) {
             self.behind.clear();
@@ -368,6 +396,15 @@ impl State {
     pub(super) fn discard_answer(&mut self) {
         if let Some(Ok(Some(mut frame))) = self.answer.take().map(|answer| answer.result) {
             crate::recycle_frame_planes(&mut frame);
+        }
+    }
+
+    /// Detach all frames held in `ahead`, `behind`, and `answer`.
+    pub(super) fn take_held_frames(&mut self) -> HeldFrames {
+        HeldFrames {
+            ahead: std::mem::take(&mut self.ahead),
+            behind: std::mem::take(&mut self.behind),
+            answer: self.answer.take(),
         }
     }
 
@@ -431,7 +468,7 @@ impl State {
             || !self.parked
             || self.ended
             || self.failure.is_some()
-            || self.behind.frames.len() >= 2 * AHEAD_FRAMES
+            || self.behind.frames.len() >= BEHIND_FILL_FRAMES
             || self.behind.bytes > BEHIND_BYTES / 2
             || self.behind.surfaces > BEHIND_SURFACES / 2
         {

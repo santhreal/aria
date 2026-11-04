@@ -88,10 +88,10 @@ fn a_rename_commits_what_was_typed_and_refuses_an_empty_name() {
     let mut state = state();
     let bin = made(&mut state);
     for _ in 0..crate::app::bins::DEFAULT_BIN_NAME.len() {
-        state.bin_rename_pop();
+        state.press_backspace();
     }
     for ch in "B roll".chars() {
-        state.bin_rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_bin_rename().expect("the rename applies");
     assert_eq!(state.bin_rename, None);
@@ -107,7 +107,7 @@ fn a_rename_commits_what_was_typed_and_refuses_an_empty_name() {
 
     state.begin_bin_rename(bin);
     for _ in 0.."B roll".len() {
-        state.bin_rename_pop();
+        state.press_backspace();
     }
     state
         .commit_bin_rename()
@@ -130,10 +130,10 @@ fn a_rename_is_bounded_and_escapes_without_committing() {
     let mut state = state();
     let bin = made(&mut state);
     for _ in 0..crate::app::bins::DEFAULT_BIN_NAME.len() {
-        state.bin_rename_pop();
+        state.press_backspace();
     }
     for _ in 0..(crate::app::bins::BIN_NAME_MAX_LEN + 20) {
-        state.bin_rename_push('x');
+        state.type_key('x');
     }
     assert_eq!(
         state

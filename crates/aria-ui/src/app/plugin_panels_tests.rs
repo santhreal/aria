@@ -337,9 +337,9 @@ fn a_text_box_takes_typing_and_sends_its_draft_on_enter() {
     assert_eq!(field.id, "aria.field.plugin-panel");
 
     assert!(fields::insert(&mut state, "Ada\n"));
-    assert_eq!((field.text)(&state), "Ada");
-    (field.backspace)(&mut state);
-    assert_eq!((field.text)(&state), "Ad");
+    assert_eq!(field.text(&state), "Ada");
+    field.backspace(&mut state);
+    assert_eq!(field.text(&state), "Ad");
     state.submit_panel_input();
     assert!(fields::focused(&state).is_none(), "Enter leaves the box");
     settle(&mut state);
@@ -354,7 +354,7 @@ fn a_text_box_takes_typing_and_sends_its_draft_on_enter() {
 
     // Focus starts from the tree's value; Escape sends nothing.
     assert!(state.focus_panel_input(PANEL, &name));
-    assert_eq!((field.text)(&state), "Ad");
+    assert_eq!(field.text(&state), "Ad");
     fields::insert(&mut state, "x");
     (field.escape)(&mut state);
     assert!(fields::focused(&state).is_none());
@@ -386,7 +386,11 @@ fn a_draft_stops_at_the_longest_text_an_event_carries() {
     let (mut state, _) = mounted();
     assert!(state.focus_panel_input(PANEL, &Arc::from("name")));
     fields::insert(&mut state, &"é".repeat(MAX_TEXT_BYTES));
-    let draft = state.panel_input_text();
+    let draft = state
+        .plugin_panels
+        .input
+        .as_ref()
+        .map_or("", |input| input.draft.as_str());
     assert!(draft.len() <= MAX_TEXT_BYTES, "{} bytes", draft.len());
     assert!(draft.len() > MAX_TEXT_BYTES - 2, "{} bytes", draft.len());
     assert!(draft.chars().all(|ch| ch == 'é'));

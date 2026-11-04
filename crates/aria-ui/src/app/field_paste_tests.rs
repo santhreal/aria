@@ -1,15 +1,25 @@
-//! A run of characters lands in every key-routed box.
+//! Every key-routed box is one line with a caret and a selection.
 //!
-//! Typing was routed a character at a time, so nothing in the app took a paste
-//! or an IME commit: a pasted path, a pasted prompt, and every non-Latin input
-//! were unreachable. The run now goes through each row's own `push`, which is
-//! why these tests check the box's own rules survive it — the clock still
-//! refuses letters and a name still stops at its cap.
+//! Closes two classes. The first is "a box that takes only a character at a
+//! time": nothing in the app took a paste or an IME commit, so a pasted path,
+//! a pasted prompt and every non-Latin input were unreachable. The second is
+//! "a box that only appends": every box but the rename bar and the title kept
+//! its caret at the end, so the arrows, Home, End, Shift and a selection did
+//! nothing in a search, a prompt, a clock or a dialog field. Each case below
+//! puts focus in one shipped box and drives it through its row, the table the
+//! shell's key handler and input handler read, so a row added without a case
+//! turns the suite red, and a row whose box loses its caret goes red here.
+//!
+//! The box's own rule survives every edit: the clock still refuses letters,
+//! a value still takes only what a number is written with, and a name still
+//! stops at its cap. A run the rule refuses whole leaves the selection it was
+//! typed over in place. Not covered: the drawn caret, which
+//! `components_field_tests` measures.
 
 use super::AppState;
 use super::premiere_tests::with_clip;
 use crate::app::settings_form::SettingsField;
-use crate::keys::fields;
+use crate::keys::fields::{self, CaretKey};
 use crate::types::RenameTarget;
 
 /// How to put focus in one box, what to paste there, and what the box should
@@ -34,6 +44,12 @@ const CASES: &[Case] = &[
         expect: "Opening shot",
     },
     Case {
+        id: "aria.field.palette",
+        focus: |state| state.open_dialog(crate::app::DialogKind::Palette),
+        paste: "export frame",
+        expect: "export frame",
+    },
+    Case {
         id: "aria.field.value",
         focus: super::value_scrub_tests::open_probe_entry,
         // A value box takes the characters a number is written with and drops
@@ -49,9 +65,7 @@ const CASES: &[Case] = &[
             state.create_bin().expect("a bin");
             let bin = state.store.bins.first().map(|item| item.id).expect("a bin");
             state.begin_bin_rename(bin);
-            while !(fields::focused(state).expect("bin rename").text)(state).is_empty() {
-                state.bin_rename_pop();
-            }
+            clear(state);
         },
         paste: "B roll",
         expect: "B roll",
@@ -98,9 +112,7 @@ const CASES: &[Case] = &[
             state.add_marker_at_playhead().expect("a marker");
             state.edit_marker_at_playhead();
             state.focus_marker_edit_field(Some(crate::app::MarkerEditField::Name));
-            while !(fields::focused(state).expect("marker edit").text)(state).is_empty() {
-                state.marker_edit_pop();
-            }
+            clear(state);
         },
         paste: "Chapter 1",
         expect: "Chapter 1",
@@ -109,9 +121,7 @@ const CASES: &[Case] = &[
         id: "aria.field.setting",
         focus: |state| {
             state.focus_setting(Some(SettingsField::AiBaseUrl));
-            while !(fields::focused(state).expect("setting").text)(state).is_empty() {
-                state.setting_pop();
-            }
+            clear(state);
         },
         paste: "http://localhost:11434/v1",
         expect: "http://localhost:11434/v1",
@@ -120,9 +130,7 @@ const CASES: &[Case] = &[
         id: "aria.field.clock",
         focus: |state| {
             state.focus_clock(true);
-            while !(fields::focused(state).expect("clock").text)(state).is_empty() {
-                state.clock_pop();
-            }
+            clear(state);
         },
         // The clock takes digits and separators only, and a paste is held to the
         // same rule as a keystroke: the letters in "at 00:00:12:00" are dropped.
@@ -161,9 +169,7 @@ const CASES: &[Case] = &[
             state
                 .toggle_driver(aria_models::ClipParam::Rotation)
                 .expect("add a driver");
-            while !(fields::focused(state).expect("driver").text)(state).is_empty() {
-                state.driver_draft_pop();
-            }
+            clear(state);
         },
         paste: "wiggle(2, 15)",
         expect: "wiggle(2, 15)",
@@ -207,6 +213,37 @@ fn first_clip(state: &AppState) -> u64 {
         .id
 }
 
+/// Empty the focused box as Ctrl+A and Backspace do.
+fn clear(state: &mut AppState) {
+    let field = fields::focused(state).expect("a box holds focus");
+    field.key(state, CaretKey::SelectAll, false);
+    field.backspace(state);
+    assert_eq!(
+        field.text(state),
+        "",
+        "{} kept text past Ctrl+A, Backspace",
+        field.id
+    );
+}
+
+/// A state with focus in `case`'s box, holding its pasted run.
+fn pasted(case: &Case) -> (AppState, fields::TextField) {
+    let (mut state, _) = with_clip();
+    (case.focus)(&mut state);
+    let field = fields::focused(&state).unwrap_or_else(|| panic!("{} did not take focus", case.id));
+    assert_eq!(field.id, case.id, "{} focused another box", case.id);
+    assert!(fields::insert(&mut state, case.paste), "{}", case.id);
+    (state, field)
+}
+
+/// The first `count` characters of `text`.
+fn head(text: &str, count: usize) -> &str {
+    &text[..text
+        .char_indices()
+        .nth(count)
+        .map_or(text.len(), |(at, _)| at)]
+}
+
 /// Every shipped box has a paste case. A row added without one is a box whose
 /// paste behaviour nobody decided, which is the state this row started in.
 #[test]
@@ -229,19 +266,109 @@ fn every_shipped_field_has_a_paste_case() {
     }
 }
 
-/// A multi-character insert lands whole, in whichever box holds focus.
+/// A multi-character insert lands whole, in whichever box holds focus, with
+/// the caret after it.
 #[test]
 fn a_pasted_run_lands_whole_in_every_field() {
     for case in CASES {
-        let (mut state, _) = with_clip();
-        (case.focus)(&mut state);
-        let field =
-            fields::focused(&state).unwrap_or_else(|| panic!("{} did not take focus", case.id));
-        assert_eq!(field.id, case.id, "{} focused another box", case.id);
+        let (state, field) = pasted(case);
+        assert_eq!(
+            field.text(&state),
+            case.expect,
+            "{} did not take the run whole",
+            case.id
+        );
+        let end = case.expect.chars().count();
+        assert_eq!(field.selection(&state), (end, end), "{}", case.id);
+    }
+}
 
-        assert!(fields::insert(&mut state, case.paste), "{}", case.id);
-        let text = (field.text)(&state);
-        assert_eq!(text, case.expect, "{} did not take the run whole", case.id);
+/// The caret moves inside every box, and typing lands at it rather than at
+/// the end: Home, Right, then a digit, which every box's rule admits.
+#[test]
+fn every_field_types_at_its_caret() {
+    for case in CASES {
+        let (mut state, field) = pasted(case);
+        field.key(&mut state, CaretKey::LineStart, false);
+        assert_eq!(field.selection(&state), (0, 0), "{}: Home", case.id);
+        field.key(&mut state, CaretKey::Right, false);
+        assert!(
+            fields::insert(&mut state, "7"),
+            "{} refused a digit",
+            case.id
+        );
+        let (first, rest) = case.expect.split_at(head(case.expect, 1).len());
+        assert_eq!(
+            field.text(&state),
+            format!("{first}7{rest}"),
+            "{} typed elsewhere",
+            case.id
+        );
+        assert_eq!(field.selection(&state), (2, 2), "{}", case.id);
+    }
+}
+
+/// Shift extends a selection from the caret in every box, the selection is
+/// what Ctrl+C copies, and Backspace takes it whole. Every case pastes at
+/// least two characters, so the selection after the first is never empty.
+#[test]
+fn every_field_selects_with_shift_and_deletes_the_selection() {
+    for case in CASES {
+        let (mut state, field) = pasted(case);
+        field.key(&mut state, CaretKey::LineStart, false);
+        field.key(&mut state, CaretKey::Right, false);
+        field.key(&mut state, CaretKey::LineEnd, true);
+        let end = case.expect.chars().count();
+        assert_eq!(field.selection(&state), (1, end), "{}: Shift+End", case.id);
+        let (kept, selected) = case.expect.split_at(head(case.expect, 1).len());
+        assert_eq!(
+            field.selected(&state).as_deref(),
+            Some(selected),
+            "{}",
+            case.id
+        );
+        field.backspace(&mut state);
+        assert_eq!(field.text(&state), kept, "{} kept the selection", case.id);
+        assert_eq!(field.selection(&state), (1, 1), "{}", case.id);
+    }
+}
+
+/// Ctrl+Z in a box takes back its typing and Ctrl+Shift+Z puts it back, in
+/// every box. A box that let Ctrl+Z reach the timeline would undo the last
+/// edit there and leave the typed text standing.
+#[test]
+fn every_field_undoes_and_redoes_its_typing() {
+    for case in CASES {
+        let (mut state, field) = pasted(case);
+        field.key(&mut state, CaretKey::Undo, false);
+        assert_ne!(
+            field.text(&state),
+            case.expect,
+            "{}: Undo kept the paste",
+            case.id
+        );
+        field.key(&mut state, CaretKey::Redo, false);
+        assert_eq!(field.text(&state), case.expect, "{}: Redo", case.id);
+    }
+}
+
+/// Delete takes the character after the caret, and Ctrl+A selects the whole
+/// line, in every box.
+#[test]
+fn every_field_deletes_forward_and_selects_all() {
+    for case in CASES {
+        let (mut state, field) = pasted(case);
+        field.key(&mut state, CaretKey::LineStart, false);
+        field.key(&mut state, CaretKey::Delete, false);
+        assert_eq!(
+            field.text(&state),
+            &case.expect[head(case.expect, 1).len()..],
+            "{}: Delete",
+            case.id
+        );
+        field.key(&mut state, CaretKey::SelectAll, false);
+        let rest = case.expect.chars().count() - 1;
+        assert_eq!(field.selection(&state), (0, rest), "{}: Ctrl+A", case.id);
     }
 }
 
@@ -253,25 +380,52 @@ fn a_pasted_run_drops_control_characters() {
     state.focus_media_search(true);
     fields::insert(&mut state, "one\ntwo\r\n\ttab\u{7}");
     let field = fields::focused(&state).expect("search");
-    assert_eq!((field.text)(&state), "onetwotab");
+    assert_eq!(field.text(&state), "onetwotab");
 }
 
-/// An IME replaces the run it marked, which the boxes express as pops. The
-/// count is characters, not bytes, so a preedit in a non-Latin script does not
-/// leave half of itself behind.
+/// A run a box refuses whole leaves the box as it was, in every box. A bell
+/// pasted over a selected name, or a letter typed over the selected timecode,
+/// would otherwise delete the selection and put nothing in its place.
+#[test]
+fn a_run_refused_whole_keeps_the_selection_it_was_typed_over() {
+    for case in CASES {
+        let (mut state, field) = pasted(case);
+        field.key(&mut state, CaretKey::SelectAll, false);
+        let before = (field.text(&state).into_owned(), field.selection(&state));
+        assert!(
+            !fields::insert(&mut state, "\u{7}"),
+            "{} took a bell",
+            case.id
+        );
+        let after = (field.text(&state).into_owned(), field.selection(&state));
+        assert_eq!(after, before, "{}: a refused run changed the box", case.id);
+    }
+    let clock = CASES
+        .iter()
+        .find(|case| case.id == "aria.field.clock")
+        .expect("the clock case");
+    let (mut state, field) = pasted(clock);
+    field.key(&mut state, CaretKey::SelectAll, false);
+    assert!(!fields::insert(&mut state, "x"), "the clock took a letter");
+    assert_eq!(field.text(&state), clock.expect);
+    let end = clock.expect.chars().count();
+    assert_eq!(field.selection(&state), (0, end));
+}
+
+/// An IME replaces the run it marked. The range is characters, not bytes, so
+/// a preedit in a non-Latin script does not leave half of itself behind.
 #[test]
 fn a_marked_run_is_replaced_not_doubled() {
     let (mut state, _) = with_clip();
     state.focus_assistant_prompt(true);
     fields::insert(&mut state, "にほ");
     let field = fields::focused(&state).expect("prompt");
-    assert_eq!((field.text)(&state), "にほ");
+    assert_eq!(field.text(&state), "にほ");
 
     // The commit replaces the two marked characters with the finished word.
-    assert!(fields::truncate(&mut state, 2));
-    assert_eq!((field.text)(&state), "");
-    fields::insert(&mut state, "日本語");
-    assert_eq!((field.text)(&state), "日本語");
+    assert!(field.replace(&mut state, 0..2, "日本語"));
+    assert_eq!(field.text(&state), "日本語");
+    assert_eq!(field.selection(&state), (3, 3));
 }
 
 /// With no box focused there is nothing to paste into, and the run must not be
@@ -285,7 +439,6 @@ fn a_run_with_nothing_focused_is_refused() {
 
     assert!(fields::focused(&state).is_none());
     assert!(!fields::insert(&mut state, "lost"));
-    assert!(!fields::truncate(&mut state, 3));
     assert_eq!(state.assistant.prompt, "kept");
 }
 
@@ -300,7 +453,7 @@ fn a_pasted_run_respects_the_length_cap() {
     let long = "x".repeat(4096);
     fields::insert(&mut state, &long);
     let field = fields::focused(&state).expect("rename");
-    let text = (field.text)(&state);
+    let text = field.text(&state);
     assert!(
         text.chars().count() < long.chars().count(),
         "the cap did not hold: {} characters",

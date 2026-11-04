@@ -253,7 +253,7 @@ fn preset_validation_refuses_empty_duplicate_and_empty_part_selection() {
     // while keeping the draft open.
     state.open_preset_draft();
     for ch in "Empty Parts".chars() {
-        state.preset_draft_push(ch);
+        state.type_key(ch);
     }
     effects_rack::apply(&mut state, Gesture::TogglePresetEffect(0)).expect("toggle effect off");
     let refused = effects_rack::apply(&mut state, Gesture::SavePreset)
@@ -263,7 +263,10 @@ fn preset_validation_refuses_empty_duplicate_and_empty_part_selection() {
         state.preset_draft_open(),
         "draft stays open when refused so a part can be re-enabled"
     );
-    assert_eq!(state.preset_draft_text(), "Empty Parts");
+    assert_eq!(
+        state.preset_draft_name().map(|name| name.as_str()),
+        Some("Empty Parts")
+    );
 }
 
 #[test]
@@ -362,7 +365,7 @@ fn preset_draft_part_toggles_exclude_unchecked_parts() {
 
     state.open_preset_draft();
     for ch in "Selective".chars() {
-        state.preset_draft_push(ch);
+        state.type_key(ch);
     }
     // Toggle off first visual effect (gaussian_blur), audio inserts, and opacity.
     effects_rack::apply(&mut state, Gesture::TogglePresetEffect(0)).expect("toggle fx 0");

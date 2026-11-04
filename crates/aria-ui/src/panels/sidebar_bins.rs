@@ -38,13 +38,15 @@ pub(crate) fn strip(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Option<gpui::AnyElement> {
-    let (path, children, open, rename, strip) = {
+    let (path, children, open, mut rename, strip) = {
         let read = state.read(cx);
         (
             read.bin_path(),
             read.child_bins(),
             read.current_bin,
-            read.bin_rename.clone(),
+            read.bin_rename
+                .as_ref()
+                .map(|active| (active.bin, name_box(theme, &active.draft))),
             // Read once, for every button: two of them act on the open folder,
             // and a button that read the folder again on press could act on a
             // different one.
@@ -77,9 +79,8 @@ pub(crate) fn strip(
     let mut rows: Vec<gpui::AnyElement> = Vec::with_capacity(children.len());
     for (index, item) in children.iter().enumerate() {
         let editing = rename
-            .as_ref()
-            .filter(|active| active.bin == item.id)
-            .map(|active| active.draft.clone());
+            .take_if(|(bin, _)| *bin == item.id)
+            .map(|(_, field)| field);
         rows.push(row(theme, item.id, item.name.clone(), editing, index, cx));
     }
 
@@ -269,27 +270,37 @@ fn crumb(
         .into_any_element()
 }
 
+/// The name box of a folder being renamed, drawn in its row's place.
+fn name_box(theme: &Theme, draft: &crate::app::line_text::LineText) -> gpui::AnyElement {
+    div()
+        .px(px(Theme::SPACE_XS))
+        .child(components::text_box(
+            "bin-name",
+            draft,
+            "Bin name",
+            Some(draft.selection()),
+            theme,
+        ))
+        .into_any_element()
+}
+
 /// A folder inside the open one: click to enter, drop onto it to file something
-/// there, drag it to move it.
+/// there, drag it to move it. `editing` is its [`name_box`] while it is
+/// renamed, drawn instead.
 fn row(
     theme: &Theme,
     bin: u64,
     label: SharedString,
-    editing: Option<String>,
+    editing: Option<gpui::AnyElement>,
     index: usize,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    if let Some(field) = editing {
+        return field;
+    }
     let key = motion::MotionKey::new("sidebar.bin", bin);
     let lit = motion::hover_t(key);
     let accent = theme.accent;
-    if let Some(draft) = editing {
-        return div()
-            .px(px(Theme::SPACE_XS))
-            .child(components::text_box(
-                "bin-name", &draft, "Bin name", true, theme,
-            ))
-            .into_any_element();
-    }
     let card = div()
         .id(gpui::ElementId::named_usize("bin-row", bin as usize))
         .flex()

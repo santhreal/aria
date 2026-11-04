@@ -116,13 +116,16 @@ pub(super) fn clock_field(
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let (focused, text) = state
-        .read(cx)
-        .clock_field(crate::app::clock::ClockSite::Viewer);
+    let (focused, text, selection) = {
+        let app = state.read(cx);
+        let (focused, text) = app.clock_field(crate::app::clock::ClockSite::Viewer);
+        (focused, text, app.clock_selection())
+    };
     let lit = motion::hover_t(motion::ControlId::from("playhead-tc").motion("field"));
     // The row's controls are one height, so the field is an icon button's. At
     // rest it is figures in the playhead's color, as the timeline's clock is.
-    crate::components::text_box("playhead-tc", text, "00:00:00:00", focused, theme)
+    let editing = selection.filter(|_| focused);
+    crate::components::text_box("playhead-tc", &text, "00:00:00:00", editing, theme)
         .h(px(Theme::ICON_HIT))
         .text_size(Theme::TEXT_UI)
         .font_features(crate::theme::tabular_figures())

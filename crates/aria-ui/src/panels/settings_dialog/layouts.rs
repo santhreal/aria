@@ -1,10 +1,11 @@
 //! The workspace list.
 //!
 //! Generated from [`AppState::workspace_rows`], which is the same list the Window
-//! menu draws, so the two cannot offer different arrangements. Each row says what
-//! it would do to the panes before it is clicked, because an arrangement is
-//! easier to recognise by its numbers than by its name.
+//! menu draws, so the two cannot offer different arrangements. Under its name,
+//! each row shows the pane sizes it applies, since an arrangement is easier to
+//! recognize by its numbers than by its name; the row on screen reads "In use".
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
@@ -69,26 +70,21 @@ fn workspace_row(
         Some(plugin) => format!("{plugin} \u{b7} {}", measurements(&row)),
         None => measurements(&row),
     };
-    let tone = if row.active {
-        theme.accent
-    } else {
-        theme.text_faint
-    };
+    // The measurements are the line under the name; the right edge holds only
+    // the row's state, so a row never reads the same numbers twice.
     let mut actions = div()
         .flex()
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(tone)
-                .child(if row.active {
-                    "In use".to_string()
-                } else {
-                    numbers.clone()
-                }),
-        );
+        .when(row.active, |actions| {
+            actions.child(
+                div()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.accent)
+                    .child("In use"),
+            )
+        });
     // Forgetting is offered on the row it would empty, not on the hint line: the
     // slot is the row, and a button somewhere else would leave it unclear
     // which one it meant.

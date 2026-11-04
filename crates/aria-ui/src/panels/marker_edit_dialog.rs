@@ -189,7 +189,7 @@ pub fn render(
 #[allow(clippy::too_many_arguments)]
 fn field_row(
     label: &'static str,
-    value: &str,
+    value: &crate::app::line_text::LineText,
     placeholder: &'static str,
     focused: bool,
     field: MarkerEditField,
@@ -209,9 +209,9 @@ fn field_row(
         .child(
             components::text_box(
                 ("marker-edit-field", label),
-                value.to_owned(),
+                value,
                 placeholder,
-                focused,
+                value.editing(focused),
                 theme,
             )
             .on_mouse_down(

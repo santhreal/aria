@@ -206,7 +206,8 @@ fn a_slider_needs_a_finite_ordered_range_holding_its_value() {
         (slider(1.0, 1.0, 1.0, 0.0), bad_range.clone()),
         (slider(0.5, 1.0, 0.0, 0.0), bad_range.clone()),
         (slider(0.5, 0.0, 1.0, -0.1), bad_range.clone()),
-        (slider(0.5, 0.0, 1.0, 1.5), bad_range),
+        (slider(0.5, 0.0, 1.0, 1.5), bad_range.clone()),
+        (slider(0.0, -1e308, 1e308, 1.0), bad_range),
         (slider(-0.01, 0.0, 1.0, 0.0), outside.clone()),
         (slider(1.01, 0.0, 1.0, 0.0), outside),
     ];
@@ -347,6 +348,23 @@ fn a_slid_value_is_clamped_and_snapped_to_the_step() {
     let snapped = snap(1.0, 0.0, 1.0, 0.3);
     assert!(snapped <= 1.0 && (snapped - 0.9).abs() < 1e-12, "{snapped}");
     assert_eq!(snap(0.7, 0.0, 1.0, 0.0), 0.7);
+    for bad_slider in [
+        slider(0.5, 1.0, 0.0, 0.1),
+        slider(0.5, f64::NAN, 1.0, 0.1),
+        slider(0.5, 0.0, 1.0, f64::NAN),
+        slider(0.5, 0.0, 1.0, f64::INFINITY),
+        slider(0.0, -1e308, 1e308, 1.0),
+    ] {
+        assert_eq!(
+            slid(0.5).conform(&bad_slider),
+            Err(EventMismatch::Wrong("s".into())),
+            "{bad_slider:?}"
+        );
+    }
+    assert_eq!(snap(0.5, 1.0, 0.0, 0.25), 0.5);
+    assert_eq!(snap(0.5, 0.0, 1.0, f64::NAN), 0.5);
+    assert_eq!(snap(0.5, 0.0, 1.0, f64::INFINITY), 0.5);
+    assert_eq!(snap(1e308, -1e308, 1e308, 1.0), 1e308);
 }
 
 #[test]

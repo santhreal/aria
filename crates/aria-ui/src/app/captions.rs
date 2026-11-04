@@ -75,7 +75,7 @@ impl CaptionCommit {
 #[derive(Debug, Clone, Default)]
 pub struct CaptionsForm {
     /// Whisper language code, or empty for automatic detection.
-    pub language: String,
+    pub language: super::line_text::LineText,
     /// Whether typing goes to the language box.
     pub language_focused: bool,
     /// Whether a commit writes one unit per word instead of per segment.
@@ -371,18 +371,6 @@ impl AppState {
 
     pub fn focus_caption_language(&mut self, focused: bool) {
         self.captions.language_focused = focused;
-    }
-
-    pub fn caption_language_push(&mut self, ch: char) {
-        if self.captions.language_focused {
-            self.captions.language.push(ch);
-        }
-    }
-
-    pub fn caption_language_pop(&mut self) {
-        if self.captions.language_focused {
-            self.captions.language.pop();
-        }
     }
 
     pub fn set_caption_word_level(&mut self, word_level: bool) {

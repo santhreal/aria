@@ -33,6 +33,10 @@ const LEGACY_PRESETS_FILE: &str = "effects.json";
 /// Maximum length of a preset name typed in the inspector's draft field.
 pub(crate) const PRESET_NAME_MAX_LEN: usize = 48;
 
+/// What the preset name field takes.
+pub(crate) const PRESET_NAME_RULE: crate::app::line_text::LineRule =
+    crate::app::line_text::LineRule::chars(PRESET_NAME_MAX_LEN);
+
 /// A `.ariapreset` file in `<data dir>/presets/` that failed to load.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrokenPreset {
@@ -45,7 +49,7 @@ pub struct BrokenPreset {
 /// by label), all on by default.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PresetDraft {
-    pub name: String,
+    pub name: crate::app::line_text::LineText,
     /// `(effect_index, display_label, included)` for each visual effect on the clip.
     pub effects: Vec<(usize, String, bool)>,
     /// Indices of audio inserts on the clip when the draft was opened.
@@ -392,7 +396,7 @@ impl AppState {
             let audio_effects: Vec<usize> = (0..clip.audio_effects.len()).collect();
             let include_audio_effects = !audio_effects.is_empty();
             PresetDraft {
-                name: String::new(),
+                name: Default::default(),
                 effects,
                 audio_effects,
                 include_audio_effects,
@@ -412,26 +416,13 @@ impl AppState {
         self.preset_draft.is_some()
     }
 
-    /// Current text in the preset save draft's name field.
-    pub fn preset_draft_text(&self) -> String {
-        self.preset_draft
-            .as_ref()
-            .map(|draft| draft.name.clone())
-            .unwrap_or_default()
+    /// The preset save draft's name field.
+    pub fn preset_draft_name(&self) -> Option<&crate::app::line_text::LineText> {
+        self.preset_draft.as_ref().map(|draft| &draft.name)
     }
 
-    pub fn preset_draft_push(&mut self, ch: char) {
-        if let Some(draft) = self.preset_draft.as_mut()
-            && draft.name.chars().count() < PRESET_NAME_MAX_LEN
-        {
-            draft.name.push(ch);
-        }
-    }
-
-    pub fn preset_draft_pop(&mut self) {
-        if let Some(draft) = self.preset_draft.as_mut() {
-            draft.name.pop();
-        }
+    pub fn preset_draft_name_mut(&mut self) -> Option<&mut crate::app::line_text::LineText> {
+        self.preset_draft.as_mut().map(|draft| &mut draft.name)
     }
 
     /// Toggle whether effect `index` on the selected clip is included in the draft.
@@ -476,7 +467,7 @@ impl AppState {
             return Ok(());
         };
         let parts = draft.selected_parts();
-        self.save_selected_preset_parts(&draft.name, &parts)?;
+        self.save_selected_preset_parts(draft.name.as_str(), &parts)?;
         self.preset_draft = None;
         Ok(())
     }

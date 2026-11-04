@@ -104,7 +104,7 @@ fn the_palette_offers_a_plugin_command_by_title_while_it_is_registered() {
     );
 
     for ch in "reset grade".chars() {
-        state.palette_push(ch);
+        state.type_key(ch);
     }
     assert!(state.run_palette_highlight().is_none(), "the row ran here");
     assert_eq!(runs.load(Ordering::Relaxed), 1);

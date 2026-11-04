@@ -22,8 +22,16 @@ pub(super) fn header(
     tab: SidebarTab,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let query = state.read(cx).media_query.clone();
-    let focused = state.read(cx).media_search_focus;
+    let query = {
+        let read = state.read(cx);
+        components::text_box(
+            "media-query",
+            &read.media_query,
+            "Search",
+            read.media_query.editing(read.media_search_focus),
+            theme,
+        )
+    };
     let audio = tab == SidebarTab::Audio;
     div()
         .id("pool-header")
@@ -33,18 +41,14 @@ pub(super) fn header(
         .flex_row()
         .items_center()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            components::text_box("media-query", &query, "Search", focused, theme)
-                .flex_1()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.focus_media_search(true));
-                        cx.notify();
-                    }),
-                ),
-        )
+        .child(query.flex_1().on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| state.focus_media_search(true));
+                cx.notify();
+            }),
+        ))
         .child(
             lit_icon("pool-audio-only", icons::AUDIO_LINES, audio, theme).on_mouse_down(
                 MouseButton::Left,

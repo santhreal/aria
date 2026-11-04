@@ -1,6 +1,6 @@
 # Menus Reference
 
-The application menu bar contains ten top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`).
+The application menu bar contains the top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`).
 
 A row also marks where a group starts: `rule` starts a group of the drop at the entry the row is drawn as, and `flyout_rule` starts a group of its submenu's flyout. The bar draws a hairline rule above each entry that starts a group, never above the first entry of a list, and the macOS menu bar draws a separator in the same place. The rows plugins add start a group of their own below the shipped rows; a plugin row placed in a shipped submenu starts a group of that flyout instead. The tables below list rows in registry order and do not mark the groups.
 
@@ -186,7 +186,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-mask-clear` | `none` | Remove Mask | `none` | The selected clip has no mask (`guards::mask`) | Removes all masks from the selected clips. |
 | `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected (`guards::selection`) | Removes the chroma keyer from the selected clips. |
 
-In addition to the eight fixed rows above, `items_for(AppMenu::Effect, state)` appends:
+After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 - One `fx-apply:<id>` row under its category submenu for every `EntryKind::VideoEffect` in `crate::catalog_text::effect_entries()` (`docs/reference/effects.md`), disabled when no clip is selected (`guards::selection`).
 - One `fx-apply-audio:<id>` row under its category submenu for every `EntryKind::AudioEffect` in `crate::catalog_text::effect_entries()` (`docs/reference/audio-effects.md`), disabled when no clip with sound is selected (`guards::sound`).
 
@@ -335,7 +335,7 @@ Defined in `crates/aria-ui/src/app/audio_channels.rs` (`AudioChannels::ALL`, und
 
 ## Track matte sources (`MatteSource::ALL`)
 
-Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by **Clip > Set Matte** in the clip context menu).
+Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by **Set Matte** in the clip context menu).
 
 | Variant | ID (`id()`) | Label (`label()`) |
 | --- | --- | --- |

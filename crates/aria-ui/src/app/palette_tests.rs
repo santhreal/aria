@@ -284,7 +284,7 @@ fn the_query_narrows_and_ranks_the_hits() {
     state.open_dialog(DialogKind::Palette);
     let all = state.palette_hits().len();
     for ch in "mark".chars() {
-        state.palette_push(ch);
+        state.type_key(ch);
     }
     let hits = state.palette_hits();
     assert!(hits.len() < all, "a query must narrow the offer");
@@ -323,14 +323,14 @@ fn typing_returns_the_highlight_to_the_first_hit() {
     state.open_dialog(DialogKind::Palette);
     state.palette_move(3);
     assert_eq!(state.palette_highlight(), Some(3));
-    state.palette_push('s');
+    state.type_key('s');
     assert_eq!(
         state.palette_highlight(),
         Some(0),
         "the row under the highlight is not the row it was"
     );
     state.palette_move(1);
-    state.palette_pop();
+    state.press_backspace();
     assert_eq!(state.palette_highlight(), Some(0), "so is a deletion");
 }
 
@@ -350,7 +350,7 @@ fn a_shorter_hit_list_cannot_leave_the_highlight_past_the_end() {
         .map(|offer| offer.label.to_string())
         .max_by_key(|label| label.len())
         .expect("the palette lists rows");
-    state.palette_query = longest;
+    state.palette_query = longest.into();
     let count = state.palette_hits().len();
     assert!((1..7).contains(&count), "{count} hits");
     assert_eq!(state.palette_highlight(), Some(count - 1));
@@ -389,7 +389,7 @@ fn enter_runs_the_highlighted_row_not_the_first() {
         commands.add(crate::commands::host::CommandEntry { id, label, run });
     }
     for ch in "palette enter probe".chars() {
-        state.palette_push(ch);
+        state.type_key(ch);
     }
     let hits = state.palette_hits();
     let labels: Vec<&str> = hits.iter().map(|offer| offer.label.as_str()).collect();
@@ -469,7 +469,7 @@ fn a_query_that_matches_nothing_offers_nothing_and_enter_is_inert() {
 fn closing_the_palette_forgets_the_query_and_the_highlight() {
     let mut state = state();
     state.open_dialog(DialogKind::Palette);
-    state.palette_push('s');
+    state.type_key('s');
     state.palette_move(1);
     state.open_dialog(DialogKind::None);
     assert!(state.palette_query.is_empty());
@@ -485,7 +485,7 @@ fn unchanged_palette_reads_share_the_catalog_and_hits() {
     let hits = state.palette_hits();
     assert!(std::sync::Arc::ptr_eq(&hits, &state.palette_hits()));
 
-    state.palette_push('s');
+    state.type_key('s');
     assert!(
         !std::sync::Arc::ptr_eq(&hits, &state.palette_hits()),
         "a changed query retained stale hits"

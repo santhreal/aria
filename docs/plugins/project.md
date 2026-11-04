@@ -82,7 +82,7 @@ later edits join in. An edit from another thread waits up to
 `ProjectHost::CONTENDED_WAIT` (100 ms) and then fails with
 `TransactError::Busy`, or `EngineError::Refused` from `apply`, naming the holder:
 "the assistant is editing the project; try again when it finishes". A background
-job retries until it gets the project or is cancelled.
+job retries until it gets the project or is canceled.
 
 ## Frames
 

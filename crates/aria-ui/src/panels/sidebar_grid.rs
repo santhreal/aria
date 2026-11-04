@@ -374,13 +374,18 @@ fn stock_form(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let app = state.read(cx);
-    let query = app.stock_query.clone();
-    let focused = app.stock_search_focus;
     let kind = app.stock_kind;
     let placeholder = STOCK_KINDS
         .iter()
         .find(|row| row.kind == kind)
         .map_or("Search stock media", |row| row.placeholder);
+    let query = components::text_box(
+        "stock-query",
+        &app.stock_query,
+        placeholder,
+        app.stock_query.editing(app.stock_search_focus),
+        theme,
+    );
     div()
         .flex()
         .flex_col()
@@ -390,7 +395,7 @@ fn stock_form(
                 .flex()
                 .gap(px(Theme::SPACE_XS))
                 .child(
-                    components::text_box("stock-query", query, placeholder, focused, theme)
+                    query
                         .flex_1()
                         .debug_selector(|| "stock-query".into())
                         .on_mouse_down(

@@ -44,7 +44,7 @@ end.
 | `Running` | Executing on its job thread |
 | `Done` | Completed with `Ok` |
 | `Failed` | Returned `Err` or panicked |
-| `Cancelled` | Cancelled before `try_begin_commit()` |
+| `Cancelled` | Canceled before `try_begin_commit()` |
 
 `work` returns `Ok(detail)` for the last line the board shows or `Err(reason)`
 for a failure.
@@ -68,7 +68,7 @@ The host calls WASM and native plugins one bounded call at a time, so their
 jobs run in steps. The plugin starts a job and receives its id; the host then
 calls the plugin's job step on the job thread until a step reports `done`, a
 step fails, or Cancel is accepted, and then calls the job end with whether the
-job was cancelled. A faulted plugin, and a WASM plugin already unloaded,
+job was canceled. A faulted plugin, and a WASM plugin already unloaded,
 receive no job end. A step that panics or traps ends without a job end. The host
 checks Cancel between steps, so a step should do a bounded amount of work.
 
@@ -118,4 +118,4 @@ impl aria_sdk::Plugin for Counter {
 
 The WASM example plugin in `examples/wasm-plugin` registers
 `example.count-job`, a job of four steps, and `example.endless-job`, a job with
-unknown progress that runs until cancelled.
+unknown progress that runs until canceled.

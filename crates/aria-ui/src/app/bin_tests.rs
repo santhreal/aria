@@ -41,7 +41,7 @@ fn the_filter_matches_name_path_and_metadata_and_the_count_follows_the_rows() {
     assert_eq!((rows.len(), rows.total()), (total, total));
 
     // The name matches case-insensitively.
-    state.media_query = item.name.to_uppercase();
+    state.media_query = item.name.to_uppercase().into();
     assert_eq!(state.pool_rows(SidebarTab::Media).len(), 1);
 
     // So does a fragment of the path, which the row never prints.
@@ -50,7 +50,7 @@ fn the_filter_matches_name_path_and_metadata_and_the_count_follows_the_rows() {
 
     // And the metadata: the frame size is searchable even though the name has
     // no digits in it.
-    state.media_query = format!("{}x{}", item.width, item.height);
+    state.media_query = format!("{}x{}", item.width, item.height).into();
     assert_eq!(
         state.pool_rows(SidebarTab::Media).len(),
         1,
@@ -214,10 +214,10 @@ fn the_filter_box_takes_the_keyboard_only_while_focused() {
     assert!(!state.media_search_focus);
     state.focus_media_search(true);
     for ch in "sun".chars() {
-        state.media_query_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(state.media_query, "sun");
-    state.media_query_pop();
+    state.press_backspace();
     assert_eq!(state.media_query, "su");
     state.clear_media_query();
     assert!(state.media_query.is_empty());
@@ -231,7 +231,7 @@ fn the_filter_box_takes_the_keyboard_only_while_focused() {
 fn the_filter_is_bounded() {
     let mut state = with_media();
     for _ in 0..500 {
-        state.media_query_push('a');
+        state.type_key('a');
     }
     assert!(state.media_query.chars().count() <= 64);
 }
@@ -298,7 +298,7 @@ fn an_empty_draft_clears_a_note_but_cancels_a_rename() {
         "the draft seeds from the note"
     );
     while !state.rename_draft.is_empty() {
-        state.rename_pop();
+        state.press_backspace();
     }
     state.commit_rename().expect("commit");
     assert_eq!(

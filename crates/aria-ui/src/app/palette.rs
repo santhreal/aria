@@ -315,7 +315,7 @@ impl AppState {
                 .filter_map(|ix| catalog.get(ix).cloned())
                 .collect();
         let mut cache = self.palette_cache.borrow_mut();
-        cache.query = Some(self.palette_query.clone());
+        cache.query = Some(self.palette_query.to_string());
         cache.hits = std::sync::Arc::clone(&hits);
         hits
     }
@@ -342,18 +342,6 @@ impl AppState {
         // Scrolls the least distance that draws the row whole, on the next
         // frame, when the row's bounds are known.
         self.palette_scroll.scroll_to_item(index);
-    }
-
-    /// Type into the query. The highlight returns to the first hit, because the
-    /// row under it is not the row it was.
-    pub fn palette_push(&mut self, ch: char) {
-        self.palette_query.push(ch);
-        self.palette_restart();
-    }
-
-    pub fn palette_pop(&mut self) {
-        self.palette_query.pop();
-        self.palette_restart();
     }
 
     /// Highlights the first hit and returns the list to its top.

@@ -685,10 +685,10 @@ fn press(state: &mut AppState, clip: ClipId, index: usize, id: &str) {
     (row.run)(state, &facts).unwrap_or_else(|err| panic!("{id} was refused: {err}"));
     if state.rename.is_some() {
         while !state.rename_draft.is_empty() {
-            state.rename_pop();
+            state.press_backspace();
         }
         for ch in "Soft".chars() {
-            state.rename_push(ch);
+            state.type_key(ch);
         }
         state
             .commit_rename()

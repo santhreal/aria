@@ -42,6 +42,7 @@ pub(super) fn field_row(
         return div().into_any_element();
     };
     let (value, focused) = state.read(cx).setting_draft(field);
+    let editing = state.read(cx).settings_form.draft.editing(focused);
     let value = if look.kind == aria_plugin::SettingKind::Secret && !focused && !value.is_empty() {
         let count = value.chars().count();
         format!("Stored, {}", counted(count, "character", "characters"))
@@ -57,9 +58,9 @@ pub(super) fn field_row(
         .child(
             components::text_box(
                 ("settings-field", field.id()),
-                value,
+                &value,
                 look.placeholder,
-                focused,
+                editing,
                 theme,
             )
             .flex_1(),

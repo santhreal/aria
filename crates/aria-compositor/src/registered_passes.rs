@@ -579,8 +579,6 @@ fn registered_params(params: &[EffectParamSpec]) -> Box<[RegisteredParam]> {
                     .map(|c| c.id.clone().into_boxed_str())
                     .collect(),
                 default_text: param.default_text.clone().into_boxed_str(),
-                default_curve: param.default_curve_points().into_boxed_slice(),
-                default_gradient: param.default_gradient_stops().into_boxed_slice(),
             };
             offset += floats_of(param.kind);
             slot

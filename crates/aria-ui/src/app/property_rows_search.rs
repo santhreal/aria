@@ -8,7 +8,8 @@
 
 use super::{ClipRevealMode, PropertyGroup};
 use crate::app::AppState;
-use crate::app::effects_browser::{QUERY_MAX_LEN, needle};
+use crate::app::effects_browser::needle;
+use crate::app::line_text::LineText;
 
 impl AppState {
     /// Take or release the keyboard for the property search. Taking it closes
@@ -28,18 +29,13 @@ impl AppState {
     }
 
     /// What the property search holds.
-    pub fn property_query(&self) -> &str {
+    pub fn property_query(&self) -> &LineText {
         &self.prop_rows.query
     }
 
-    pub fn property_query_push(&mut self, ch: char) {
-        if self.prop_rows.query.chars().count() < QUERY_MAX_LEN {
-            self.prop_rows.query.push(ch);
-        }
-    }
-
-    pub fn property_query_pop(&mut self) {
-        self.prop_rows.query.pop();
+    /// The property search, for an edit.
+    pub fn property_query_mut(&mut self) -> &mut LineText {
+        &mut self.prop_rows.query
     }
 
     /// Empty the search, which shows each clip's own outline again.

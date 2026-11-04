@@ -354,8 +354,7 @@ fn check_node(node: &UiNode, budget: &mut Budget) -> Result<(), TreeError> {
             step,
         } => {
             budget.text(label)?;
-            let finite = [*value, *min, *max, *step].iter().all(|n| n.is_finite());
-            if !finite || min >= max || *step < 0.0 || *step > max - min {
+            if !value.is_finite() || !valid_slider_range(*min, *max, *step) {
                 return Err(TreeError::BadRange(id.to_string()));
             }
             if value < min || value > max {
@@ -505,7 +504,7 @@ impl PanelEvent {
             }
             (event @ Self::Toggled { .. }, UiNode::Toggle { .. }) => Ok(event),
             (Self::Slid { id, value }, UiNode::Slider { min, max, step, .. }) => {
-                if !value.is_finite() {
+                if !value.is_finite() || !valid_slider_range(*min, *max, *step) {
                     return Err(EventMismatch::Wrong(id.to_string()));
                 }
                 Ok(Self::Slid {
@@ -530,15 +529,35 @@ impl PanelEvent {
     }
 }
 
+fn valid_slider_range(min: f64, max: f64, step: f64) -> bool {
+    let span = max - min;
+    min.is_finite()
+        && max.is_finite()
+        && step.is_finite()
+        && span.is_finite()
+        && min < max
+        && step >= 0.0
+        && step <= span
+}
+
 /// `value` clamped into `min..=max` and, for a positive `step`, rounded to the
 /// nearest multiple of `step` from `min` that is still inside the range.
 pub fn snap(value: f64, min: f64, max: f64, step: f64) -> f64 {
-    let clamped = value.clamp(min, max);
-    if step <= 0.0 {
+    let (low, high) = if min <= max { (min, max) } else { (max, min) };
+    if !low.is_finite() || !high.is_finite() {
+        return value;
+    }
+    let clamped = value.clamp(low, high);
+    if !step.is_finite() || step <= 0.0 {
         return clamped;
     }
-    let steps = ((clamped - min) / step).round();
-    (min + steps * step).clamp(min, max)
+    let steps = ((clamped - low) / step).round();
+    let snapped = low + steps * step;
+    if snapped.is_finite() {
+        snapped.clamp(low, high)
+    } else {
+        clamped
+    }
 }
 
 /// Why an event does not fit the tree the panel currently shows.

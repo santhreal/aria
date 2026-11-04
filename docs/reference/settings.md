@@ -122,17 +122,17 @@ api_key_env = "PEXELS_API_KEY"
 | `poolView` | `string` | `"tiles"` | `"tiles"`, `"list"`, `"icons"`, `"freeform"` | Project > Media toolbar | Display mode of the Media pool (`PoolView`). |
 | `logDroppedFrames` | `boolean` | `false` | `true`, `false` | **Settings > Playback** | Logs dropped presentation frames and their cause under the `aria::playback` tracing target. |
 | `themeFile` | `string` | `null` | File stem in `<data dir>/themes` (without `.toml`) or `null` | **Settings > Appearance** | Applies a custom theme file over the active appearance. |
-| `playbackResolution` | `string` | `"auto"` | `"full"`, `"half"`, `"quarter"`, `"eighth"`, `"auto"` | **View > Playback Resolution** | Viewer raster resolution while transport is playing (`PlaybackResolution`). |
-| `pausedResolution` | `string` | `"full"` | `"full"`, `"half"` | **View > Paused Resolution** | Viewer raster resolution while transport is paused or scrubbing (`PausedResolution`). |
-| `useProxies` | `boolean` | `true` | `true`, `false` | **View > Use Proxies** | Substitutes generated proxy media during Viewer decode when available. |
-| `transparencyGrid` | `boolean` | `false` | `true`, `false` | **View > Transparency Grid** | Draws a transparency checkerboard where no layer covers the canvas. |
-| `audioScrubbing` | `boolean` | `true` | `true`, `false` | **Settings > Playback** / **Sequence > Audio Scrubbing** | Plays a 40 ms audio grain at each new pointer position while scrubbing. |
-| `timelineDisplay` | `object` | `{ "thumbnails": "continuous", "waveform": "logarithmic", "follow": "page" }` | `{ thumbnails, waveform, follow }` | **View > Timeline Display** | Composite timeline display preferences (`TimelineDisplay`), detailed in the three sub-keys below. |
-| `timelineDisplay.thumbnails` | `string` | `"continuous"` | `"head"`, `"head_and_tail"`, `"continuous"` | **View > Timeline Display** | Controls filmstrip thumbnail cells on video clips (`Thumbnails`). |
-| `timelineDisplay.waveform` | `string` | `"logarithmic"` | `"logarithmic"`, `"linear"`, `"hidden"` | **View > Timeline Display** | Maps audio sample peaks to clip bar heights (`WaveformScale`, floor `-48.0 dB` in logarithmic mode). |
-| `timelineDisplay.follow` | `string` | `"page"` | `"page"`, `"smooth"` | **View > Timeline Display** | Controls how the timeline viewport follows the playhead during playback (`Follow`). |
+| `playbackResolution` | `string` | `"auto"` | `"full"`, `"half"`, `"quarter"`, `"eighth"`, `"auto"` | **View > Resolution > Playback Resolution** | Viewer raster resolution while transport is playing (`PlaybackResolution`). |
+| `pausedResolution` | `string` | `"full"` | `"full"`, `"half"` | **View > Resolution > Paused Resolution** | Viewer raster resolution while transport is paused or scrubbing (`PausedResolution`). |
+| `useProxies` | `boolean` | `true` | `true`, `false` | **View > Proxies** | Substitutes generated proxy media during Viewer decode when available. |
+| `transparencyGrid` | `boolean` | `false` | `true`, `false` | **View > Viewer Display Settings > Transparency Grid** | Draws a transparency checkerboard where no layer covers the canvas. |
+| `audioScrubbing` | `boolean` | `true` | `true`, `false` | **Settings > Playback** | Plays a 40 ms audio grain at each new pointer position while scrubbing. |
+| `timelineDisplay` | `object` | `{ "thumbnails": "continuous", "waveform": "logarithmic", "follow": "page" }` | `{ thumbnails, waveform, follow }` | **View > Timeline Display Settings** | Composite timeline display preferences (`TimelineDisplay`), detailed in the three sub-keys below. |
+| `timelineDisplay.thumbnails` | `string` | `"continuous"` | `"head"`, `"head_and_tail"`, `"continuous"` | **View > Timeline Display Settings** | Controls filmstrip thumbnail cells on video clips (`Thumbnails`). |
+| `timelineDisplay.waveform` | `string` | `"logarithmic"` | `"logarithmic"`, `"linear"`, `"hidden"` | **View > Timeline Display Settings** | Maps audio sample peaks to clip bar heights (`WaveformScale`, floor `-48.0 dB` in logarithmic mode). |
+| `timelineDisplay.follow` | `string` | `"page"` | `"page"`, `"smooth"` | **View > Timeline Display Settings** | Controls how the timeline viewport follows the playhead during playback (`Follow`). |
 | `zoomBarKnobs` | `string` | `"playhead"` | `"playhead"`, `"other_end"` | **Settings > Timeline** | Selects what a drag on a knob of the timeline's zoom bar holds still while the dragged end follows the pointer (`ZoomBarKnobs`): the playhead's pixel while the playhead is inside the view, or the view's other end. With `"playhead"`, a playhead at or outside an edge of the view holds the other end. |
-| `waveform` | `string` | `"luma"` | `"luma"`, `"rgbParade"`, `"ycbcrParade"` | **View > Scopes** / Scopes panel chips | Selects the Scopes waveform monitor mode (`WaveformMode`). |
+| `waveform` | `string` | `"luma"` | `"luma"`, `"rgbParade"`, `"ycbcrParade"` | **View > Scope Waveform** / Scopes panel chips | Selects the Scopes waveform monitor mode (`WaveformMode`). |
 | `favouriteEffects` | `array` | `[]` | Array of `"kind:id"` strings (such as `"video:gaussian_blur"`) | Effects & Presets star button | Starred effect keys in the order they were favorited. |
 | `windowPlacements` | `object` | `{}` | Map of display arrangement signature (`"x,y,wxH;..."`) to `WindowPlacement` | Window move/resize | Saved main window position, size (`>= 1024x640`), maximized state, and display index per monitor layout. |
 | `lastDisplayArrangement` | `string` | `null` | Display arrangement signature string or `null` | Multi-monitor restore | Most recent monitor arrangement signature used for fallback display selection on launch. |
@@ -160,7 +160,7 @@ When `Settings::from_document` encounters a field in `config.toml` that fails va
 
 ## Storage cache registry (`CacheId::ALL`)
 
-`CacheId::ALL` (`crates/aria-storage/src/cache_registry.rs`) enumerates the thirteen clearable caches displayed in **Settings > Caches**:
+`CacheId::ALL` (`crates/aria-storage/src/cache_registry.rs`) enumerates the caches displayed in **Settings > Caches**:
 
 | Variant | Key (`as_str()`) | Label (`descriptor().label`) | Kind (`kind`) | Tier (`tier`) | Default relative path (`default_relative`) |
 | --- | --- | --- | --- | --- | --- |

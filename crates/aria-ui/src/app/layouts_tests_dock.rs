@@ -181,7 +181,7 @@ fn float_open_failure_redocks_frame_and_save_workspace_menu_prompts_for_name() {
                 Some(crate::types::RenameTarget::SaveWorkspace)
             );
             for ch in "Evening Cut".chars() {
-                state.rename_push(ch);
+                state.type_key(ch);
             }
             state.commit_rename().expect("commit workspace name");
         });
@@ -281,6 +281,21 @@ fn six_deep_nested_splitter_and_half_window_nested_split_span_and_window_placeme
             crate::shell::dock_view::set_active_split_drag_path(&deep_path);
             let recovered = crate::shell::dock_view::active_split_drag_path(&deep_path[..4]);
             assert_eq!(recovered, deep_path);
+            // A shallow or sibling-branch fallback never inherits a stale deep path
+            // left in the thread-local by an earlier drag or another window.
+            assert_eq!(
+                crate::shell::dock_view::active_split_drag_path(&[0]),
+                vec![0]
+            );
+            assert_eq!(
+                crate::shell::dock_view::active_split_drag_path(&[0, 0, 0, 0]),
+                vec![0, 0, 0, 0]
+            );
+            crate::shell::dock_view::clear_active_split_drag_path();
+            assert_eq!(
+                crate::shell::dock_view::active_split_drag_path(&deep_path[..4]),
+                deep_path[..4]
+            );
 
             // Drag the 6-deep splitter: only the 6-deep split's weights change;
             // ancestor splits at depth <= 4 remain untouched at [0.5, 0.5].

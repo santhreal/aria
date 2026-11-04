@@ -357,4 +357,46 @@ mod raster_coverage_tests {
             assert!(inked(&img) > 0, "{name} drew no stroke");
         }
     }
+
+    #[test]
+    fn every_shape_stays_finite_under_degenerate_extents_and_params() {
+        let mut all: Vec<SdfParams> = shapes().into_iter().map(|(p, _, _)| p).collect();
+        all.extend([
+            SdfParams::RoundedRect { radius: -5.0 },
+            SdfParams::RoundedRect { radius: f32::NAN },
+            SdfParams::RoundedRect {
+                radius: f32::INFINITY,
+            },
+        ]);
+        for params in all {
+            let name = variant_name(params);
+            for half in [
+                [0.0, 0.0],
+                [-10.0, 20.0],
+                [20.0, -10.0],
+                [f32::NAN, 12.0],
+                [12.0, f32::NAN],
+            ] {
+                let shape = params.with_half(half);
+                for p in [[0.0, 0.0], [10.0, -5.0]] {
+                    let d = eval(&shape, p);
+                    assert!(
+                        d.is_finite(),
+                        "{name} non-finite at {p:?} for half={half:?}: {d}"
+                    );
+                }
+                let img = raster(
+                    &shape,
+                    &ShapeStyle {
+                        fill: Some(OPAQUE),
+                        stroke: Some(Stroke {
+                            rgba: OPAQUE,
+                            width: f32::NAN,
+                        }),
+                    },
+                );
+                assert!(img.is_well_formed(), "{name} bad raster for half={half:?}");
+            }
+        }
+    }
 }

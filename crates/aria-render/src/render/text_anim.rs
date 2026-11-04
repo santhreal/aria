@@ -14,177 +14,255 @@ use crate::scene::TextAnimation;
 
 /// Compute per-cluster deltas for `anim` over `shaped`.
 pub fn cluster_deltas(shaped: &ShapedText, anim: &TextAnimation) -> Vec<LookDelta> {
-    if shaped.clusters.is_empty() {
+    let count = shaped.clusters.len();
+    if count == 0 {
         return Vec::new();
     }
-    if shaped.clusters.len() == 1 {
-        return vec![sample_cluster(anim, 0.0, shaped.clusters[0].line, 0)];
+    let Some(kind) = ClusterAnimKind::from_slot(&anim.id, anim.slot) else {
+        return vec![LookDelta::IDENTITY; count];
+    };
+    let ctx = SampleContext::new(anim);
+    if count == 1 {
+        return vec![ctx.sample(kind, 0.0, 0)];
     }
-    let n = (shaped.clusters.len() - 1) as f32;
-    shaped
-        .clusters
-        .iter()
-        .enumerate()
-        .map(|(i, cluster)| {
-            let stagger = i as f32 / n;
-            sample_cluster(anim, stagger, cluster.line, i)
-        })
-        .collect()
+    let n = (count - 1) as f32;
+    let mut out = Vec::with_capacity(count);
+    for i in 0..count {
+        let stagger = i as f32 / n;
+        out.push(ctx.sample(kind, stagger, i));
+    }
+    out
 }
 
-fn sample_cluster(anim: &TextAnimation, stagger: f32, _line: usize, index: usize) -> LookDelta {
-    let t = anim.t.clamp(0.0, 1.0);
-    // Catalog stagger window 0.55, stretched by the clip's stagger knob.
-    let window = (0.55 * anim.stagger.clamp(0.05, 2.0)).clamp(0.05, 0.95);
-    let delta = match anim.slot {
-        AnimationSlot::In => sample_entrance(&anim.id, t, stagger, window),
-        AnimationSlot::Out => sample_exit(&anim.id, t, stagger, window),
-        AnimationSlot::Combo => sample_combo(&anim.id, t, stagger, index, window),
-    };
-    delta
-        .unwrap_or(LookDelta::IDENTITY)
-        .with_intensity(anim.intensity)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ClusterAnimKind {
+    InTypewriter,
+    InFade,
+    InBounce,
+    InSlide,
+    InPop,
+    OutFade,
+    OutFallAway,
+    OutTypewriter,
+    ComboTypewriter,
+    ComboFade,
+    ComboBounce,
+    ComboSlide,
+    ComboPop,
+    ComboWave,
+    ComboJitter,
+    ComboPulse,
+}
+
+impl ClusterAnimKind {
+    fn from_slot(id: &str, slot: AnimationSlot) -> Option<Self> {
+        Some(match slot {
+            AnimationSlot::In => match id {
+                "typewriter" | "char_typewriter" => Self::InTypewriter,
+                "char_fade_in" => Self::InFade,
+                "char_bounce_in" => Self::InBounce,
+                "char_slide_in" => Self::InSlide,
+                "char_pop_in" => Self::InPop,
+                _ => return None,
+            },
+            AnimationSlot::Out => match id {
+                "char_fade_out" => Self::OutFade,
+                "char_fall_away" => Self::OutFallAway,
+                "char_typewriter_out" => Self::OutTypewriter,
+                _ => return None,
+            },
+            AnimationSlot::Combo => match id {
+                "typewriter" => Self::ComboTypewriter,
+                "text_fade" => Self::ComboFade,
+                "text_bounce" => Self::ComboBounce,
+                "text_slide" => Self::ComboSlide,
+                "pop" => Self::ComboPop,
+                "wave" => Self::ComboWave,
+                "char_jitter" => Self::ComboJitter,
+                "char_pulse" => Self::ComboPulse,
+                _ => return None,
+            },
+        })
+    }
 }
 
 /// True when this build has a per-character implementation for `id` in `slot`.
 ///
-/// Asked of the samplers below, so it cannot drift from what they match.
+/// Asked of [`ClusterAnimKind::from_slot`], so it cannot drift from what the
+/// sampler matches.
 pub(crate) fn renders_cluster(id: &str, slot: AnimationSlot) -> bool {
-    match slot {
-        AnimationSlot::In => sample_entrance(id, 0.5, 0.0, 0.55).is_some(),
-        AnimationSlot::Out => sample_exit(id, 0.5, 0.0, 0.55).is_some(),
-        AnimationSlot::Combo => sample_combo(id, 0.5, 0.0, 0, 0.55).is_some(),
-    }
+    ClusterAnimKind::from_slot(id, slot).is_some()
 }
 
 /// Map global progress `t` and per-cluster `stagger` ∈ [0,1) into a local
 /// 0…1 progress that rises earlier for lower-index clusters.
+#[inline]
 fn stagger_progress(t: f32, stagger: f32, window: f32) -> f32 {
-    let window = window.clamp(0.05, 0.95);
     let start = stagger * (1.0 - window);
     ((t - start) / window).clamp(0.0, 1.0)
 }
 
-fn sample_entrance(id: &str, t: f32, stagger: f32, window: f32) -> Option<LookDelta> {
-    let local = stagger_progress(t, stagger, window);
-    let inv = 1.0 - local;
-    Some(match id {
-        "typewriter" | "char_typewriter" => LookDelta {
-            opacity: if local > 0.0 { 1.0 } else { 0.0 },
-            ..LookDelta::IDENTITY
-        },
-        "char_fade_in" => LookDelta {
-            opacity: local,
-            ..LookDelta::IDENTITY
-        },
-        "char_bounce_in" => LookDelta {
-            position: [0.0, inv * 18.0],
-            scale: 0.4 + 0.6 * bounce_out(local),
-            opacity: local,
-            ..LookDelta::IDENTITY
-        },
-        "char_slide_in" => LookDelta {
-            position: [inv * 24.0, 0.0],
-            opacity: local,
-            ..LookDelta::IDENTITY
-        },
-        "char_pop_in" => LookDelta {
-            scale: 0.2 + 0.8 * local,
-            opacity: local,
-            ..LookDelta::IDENTITY
-        },
-        _ => return None,
-    })
-}
-
-fn sample_exit(id: &str, t: f32, stagger: f32, window: f32) -> Option<LookDelta> {
-    // Exit staggers in reverse so the last character leaves first.
-    let local = stagger_progress(t, 1.0 - stagger, window);
-    let inv = 1.0 - local;
-    Some(match id {
-        "char_fade_out" => LookDelta {
-            opacity: inv,
-            ..LookDelta::IDENTITY
-        },
-        "char_fall_away" => LookDelta {
-            position: [0.0, local * 28.0],
-            scale: 1.0 - 0.35 * local,
-            opacity: inv,
-            ..LookDelta::IDENTITY
-        },
-        "char_typewriter_out" => LookDelta {
-            opacity: if local < 1.0 { 1.0 } else { 0.0 },
-            ..LookDelta::IDENTITY
-        },
-        _ => return None,
-    })
-}
-
-fn sample_combo(
-    id: &str,
+#[derive(Clone, Copy)]
+struct SampleContext {
+    t: f32,
     phase: f32,
-    stagger: f32,
-    index: usize,
     window: f32,
-) -> Option<LookDelta> {
-    let phase = phase.fract();
-    let wave = ((phase + stagger) * std::f32::consts::TAU).sin();
-    Some(match id {
-        "typewriter" => {
-            // Looping reveal: phase 0..0.85 types in, then holds / resets.
-            let reveal = (phase / 0.85).clamp(0.0, 1.0);
-            let local = stagger_progress(reveal, stagger, (window * 0.4 / 0.55).clamp(0.05, 0.95));
-            LookDelta {
-                opacity: if local > 0.0 { 1.0 } else { 0.0 },
-                ..LookDelta::IDENTITY
-            }
+    combo_tw_reveal: f32,
+    combo_tw_window: f32,
+    jitter_bucket: f32,
+    intensity: f32,
+}
+
+impl SampleContext {
+    #[inline]
+    fn new(anim: &TextAnimation) -> Self {
+        let t = anim.t.clamp(0.0, 1.0);
+        // Catalog stagger window 0.55, stretched by the clip's stagger knob.
+        let window = (0.55 * anim.stagger.clamp(0.05, 2.0)).clamp(0.05, 0.95);
+        let phase = t.fract();
+        Self {
+            t,
+            phase,
+            window,
+            combo_tw_reveal: (phase / 0.85).clamp(0.0, 1.0),
+            combo_tw_window: (window * 0.4 / 0.55).clamp(0.05, 0.95),
+            jitter_bucket: (phase * 12.0).floor() * 78.233,
+            intensity: anim.intensity,
         }
-        "text_fade" => LookDelta {
-            opacity: 0.55
-                + 0.45 * ((phase * std::f32::consts::PI + stagger * 2.0).sin() * 0.5 + 0.5),
-            ..LookDelta::IDENTITY
-        },
-        "text_bounce" => LookDelta {
-            position: [0.0, wave.abs() * 6.0],
-            scale: 1.0 + 0.08 * wave.abs(),
-            ..LookDelta::IDENTITY
-        },
-        "text_slide" => LookDelta {
-            position: [wave * 5.0, 0.0],
-            ..LookDelta::IDENTITY
-        },
-        "pop" => {
-            let pulse = (phase * std::f32::consts::PI + stagger * std::f32::consts::PI)
-                .sin()
-                .max(0.0);
-            LookDelta {
-                scale: 1.0 + 0.18 * pulse,
-                ..LookDelta::IDENTITY
+    }
+
+    #[inline]
+    fn sample(self, kind: ClusterAnimKind, stagger: f32, index: usize) -> LookDelta {
+        let delta = match kind {
+            ClusterAnimKind::InTypewriter => {
+                let local = stagger_progress(self.t, stagger, self.window);
+                LookDelta {
+                    opacity: if local > 0.0 { 1.0 } else { 0.0 },
+                    ..LookDelta::IDENTITY
+                }
             }
-        }
-        "wave" => LookDelta {
-            position: [0.0, wave * 8.0],
-            rotation: wave * 0.12,
-            ..LookDelta::IDENTITY
-        },
-        "char_jitter" => {
-            // Deterministic tiny noise from index + phase buckets.
-            let bucket = (phase * 12.0).floor();
-            let seed = (index as f32 * 12.9898 + bucket * 78.233).sin() * 43_758.547;
-            let nx = seed.fract() * 2.0 - 1.0;
-            let ny = ((seed * 1.37).fract()) * 2.0 - 1.0;
-            LookDelta {
-                position: [nx * 2.5, ny * 2.5],
-                rotation: nx * 0.05,
-                ..LookDelta::IDENTITY
+            ClusterAnimKind::InFade => {
+                let local = stagger_progress(self.t, stagger, self.window);
+                LookDelta {
+                    opacity: local,
+                    ..LookDelta::IDENTITY
+                }
             }
-        }
-        "char_pulse" => LookDelta {
-            scale: 1.0 + 0.12 * ((phase * std::f32::consts::TAU + stagger * 3.0).sin()),
-            ..LookDelta::IDENTITY
-        },
-        _ => return None,
-    })
+            ClusterAnimKind::InBounce => {
+                let local = stagger_progress(self.t, stagger, self.window);
+                let inv = 1.0 - local;
+                LookDelta {
+                    position: [0.0, inv * 18.0],
+                    scale: 0.4 + 0.6 * bounce_out(local),
+                    opacity: local,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::InSlide => {
+                let local = stagger_progress(self.t, stagger, self.window);
+                let inv = 1.0 - local;
+                LookDelta {
+                    position: [inv * 24.0, 0.0],
+                    opacity: local,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::InPop => {
+                let local = stagger_progress(self.t, stagger, self.window);
+                LookDelta {
+                    scale: 0.2 + 0.8 * local,
+                    opacity: local,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::OutFade => {
+                // Exit staggers in reverse so the last character leaves first.
+                let local = stagger_progress(self.t, 1.0 - stagger, self.window);
+                LookDelta {
+                    opacity: 1.0 - local,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::OutFallAway => {
+                let local = stagger_progress(self.t, 1.0 - stagger, self.window);
+                LookDelta {
+                    position: [0.0, local * 28.0],
+                    scale: 1.0 - 0.35 * local,
+                    opacity: 1.0 - local,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::OutTypewriter => {
+                let local = stagger_progress(self.t, 1.0 - stagger, self.window);
+                LookDelta {
+                    opacity: if local < 1.0 { 1.0 } else { 0.0 },
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboTypewriter => {
+                // Looping reveal: phase 0..0.85 types in, then holds / resets.
+                let local = stagger_progress(self.combo_tw_reveal, stagger, self.combo_tw_window);
+                LookDelta {
+                    opacity: if local > 0.0 { 1.0 } else { 0.0 },
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboFade => LookDelta {
+                opacity: 0.55
+                    + 0.45
+                        * ((self.phase * std::f32::consts::PI + stagger * 2.0).sin() * 0.5 + 0.5),
+                ..LookDelta::IDENTITY
+            },
+            ClusterAnimKind::ComboBounce => {
+                let wave = ((self.phase + stagger) * std::f32::consts::TAU).sin().abs();
+                LookDelta {
+                    position: [0.0, wave * 6.0],
+                    scale: 1.0 + 0.08 * wave,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboSlide => {
+                let wave = ((self.phase + stagger) * std::f32::consts::TAU).sin();
+                LookDelta {
+                    position: [wave * 5.0, 0.0],
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboPop => {
+                let pulse = (self.phase * std::f32::consts::PI + stagger * std::f32::consts::PI)
+                    .sin()
+                    .max(0.0);
+                LookDelta {
+                    scale: 1.0 + 0.18 * pulse,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboWave => {
+                let wave = ((self.phase + stagger) * std::f32::consts::TAU).sin();
+                LookDelta {
+                    position: [0.0, wave * 8.0],
+                    rotation: wave * 0.12,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboJitter => {
+                // Deterministic tiny noise from index + phase buckets.
+                let seed = (index as f32 * 12.9898 + self.jitter_bucket).sin() * 43_758.547;
+                let nx = seed.fract() * 2.0 - 1.0;
+                let ny = ((seed * 1.37).fract()) * 2.0 - 1.0;
+                LookDelta {
+                    position: [nx * 2.5, ny * 2.5],
+                    rotation: nx * 0.05,
+                    ..LookDelta::IDENTITY
+                }
+            }
+            ClusterAnimKind::ComboPulse => LookDelta {
+                scale: 1.0 + 0.12 * ((self.phase * std::f32::consts::TAU + stagger * 3.0).sin()),
+                ..LookDelta::IDENTITY
+            },
+        };
+        delta.with_intensity(self.intensity)
+    }
 }
 
 fn bounce_out(t: f32) -> f32 {
@@ -217,14 +295,10 @@ pub fn place_clusters(
     layer_rotation: f32,
     layer_opacity: f32,
 ) -> Vec<GlyphInstance> {
-    shaped
-        .clusters
-        .iter()
-        .zip(deltas.iter())
-        .enumerate()
-        .filter(|(_, (c, _))| c.image.width > 0 && c.image.height > 0)
-        .map(|(i, (cluster, delta))| {
-            instance_for_cluster(
+    let mut out = Vec::with_capacity(shaped.clusters.len().min(deltas.len()));
+    for (i, (cluster, delta)) in shaped.clusters.iter().zip(deltas.iter()).enumerate() {
+        if cluster.image.width > 0 && cluster.image.height > 0 {
+            out.push(instance_for_cluster(
                 i as u32,
                 cluster,
                 delta,
@@ -232,9 +306,10 @@ pub fn place_clusters(
                 scale,
                 layer_rotation,
                 layer_opacity,
-            )
-        })
-        .collect()
+            ));
+        }
+    }
+    out
 }
 
 fn instance_for_cluster(
@@ -258,12 +333,9 @@ fn instance_for_cluster(
     ];
     // Anchor rise/drop about the baseline for natural motion.
     let baseline_y = origin[1] + cluster.baseline * scale[1];
-    let anchor = [rest_center[0], baseline_y];
-    let from_anchor = [rest_center[0] - anchor[0], rest_center[1] - anchor[1]];
-    let scaled_from = [from_anchor[0] * delta.scale, from_anchor[1] * delta.scale];
     let center = [
-        anchor[0] + scaled_from[0] + delta.position[0] * scale[0],
-        anchor[1] + scaled_from[1] + delta.position[1] * scale[1],
+        rest_center[0] + delta.position[0] * scale[0],
+        baseline_y + (rest_center[1] - baseline_y) * delta.scale + delta.position[1] * scale[1],
     ];
     GlyphInstance {
         glyph,

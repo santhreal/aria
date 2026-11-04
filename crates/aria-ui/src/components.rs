@@ -562,62 +562,98 @@ pub fn form_row(
         )
 }
 
-/// A key-routed text box: the value, or the placeholder while it is empty, and
-/// the caret at the insertion point while it holds focus.
+/// A key-routed text box: the value, or the placeholder while it is empty,
+/// and while the box holds focus its caret and selection.
 ///
 /// Every text box in the app is drawn by this, so the accent border that means
-/// "your keys go here" and the caret cannot be spelled differently in two
-/// panels. The caller attaches the click that takes focus, since the field a
-/// click focuses is the caller's. An empty box keeps its placeholder while it
-/// holds focus, with the caret before it, so a clicked box still states what
-/// it takes.
+/// "your keys go here", the caret and the selection tint cannot be spelled
+/// differently in two panels. The caller attaches the click that takes focus,
+/// since the field a click focuses is the caller's. `editing` is the box's
+/// `(anchor, caret)` in characters while it holds focus. An empty box keeps
+/// its placeholder while it holds focus, with the caret before it, so a
+/// clicked box still states what it takes.
 pub fn text_box(
     id: impl Into<motion::ControlId>,
-    value: impl Into<SharedString>,
+    value: &str,
     placeholder: impl Into<SharedString>,
-    focused: bool,
+    editing: Option<(usize, usize)>,
     theme: &Theme,
 ) -> Stateful<Div> {
-    let value = value.into();
-    let empty = value.is_empty();
-    let caret = || {
-        focused
-            .then(|| caret_mark(Theme::TEXT_UI, 1.0, theme).debug_selector(|| "text-caret".into()))
-    };
-    field_frame(id, focused, theme)
-        .text_color(if empty { theme.text_muted } else { theme.text })
-        .children(if empty { caret() } else { None })
-        .child(if empty {
-            typed_line(placeholder, false)
-        } else {
-            typed_line(value, focused)
-        })
-        .children(if empty { None } else { caret() })
+    let frame = field_frame(id, editing.is_some(), theme);
+    if value.is_empty() {
+        return frame
+            .text_color(theme.text_muted)
+            .children(editing.map(|_| text_caret(Theme::TEXT_UI, 1.0, theme)))
+            .child(clipped(placeholder.into()).text_ellipsis());
+    }
+    let frame = frame.text_color(theme.text);
+    match editing {
+        Some(selection) => frame.child(edited_line(value, selection, Theme::TEXT_UI, 1.0, theme)),
+        None => frame.child(clipped(value.to_owned().into()).text_ellipsis()),
+    }
 }
 
-/// The text of a box that takes typed text, on one line that ends in an
-/// ellipsis inside the box when it is wider than the box.
+/// One line of text being typed into: the text ahead of the selection, the
+/// selection on the selection tint, the caret at its end, and the rest.
+/// `selection` is `(anchor, caret)` in characters; the caret is a
+/// [`caret_mark`] as tall as a line of `size` text, at `opacity`.
 ///
-/// `typing` is true while the next typed character joins the end of `text`.
-/// The ellipsis then leads instead, so that end stays in view beside the
-/// caret, as a field scrolled to its caret shows it.
-pub fn typed_line(text: impl Into<SharedString>, typing: bool) -> Div {
-    let line = div().min_w_0().overflow_hidden().whitespace_nowrap();
-    let line = if typing {
-        line.text_ellipsis_start()
+/// A line wider than its box keeps the caret in view: the text ahead of the
+/// selection gives way from its start and the text after it from its end,
+/// each behind an ellipsis.
+///
+/// The text boxes, the rename bar, a value readout open for typing and a
+/// driver's source draw this one line. The rename bar passes the opacity of
+/// its blink; the others hold the caret solid.
+pub fn edited_line(
+    text: &str,
+    selection: (usize, usize),
+    size: Pixels,
+    opacity: f32,
+    theme: &Theme,
+) -> Div {
+    use crate::app::clip_text::text_caret::geometry::byte_at;
+    let (anchor, caret) = selection;
+    let (low, high) = (anchor.min(caret), anchor.max(caret));
+    let (from, to) = (byte_at(text, low), byte_at(text, high));
+    let run = |part: &str| (!part.is_empty()).then(|| clipped(part.to_owned().into()));
+    let selected = run(&text[from..to]).map(|run| {
+        run.debug_selector(|| "text-selection".into())
+            .text_ellipsis()
+            .bg(theme.selection)
+    });
+    let mark = text_caret(size, opacity, theme);
+    let line = div()
+        .flex()
+        .items_center()
+        .min_w_0()
+        .overflow_hidden()
+        .children(run(&text[..from]).map(Div::text_ellipsis_start));
+    let line = if caret == low {
+        line.child(mark).children(selected)
     } else {
-        line.text_ellipsis()
+        line.children(selected).child(mark)
     };
-    line.child(text.into())
+    line.children(run(&text[to..]).map(Div::text_ellipsis))
+}
+
+/// A run of a box's text on one line, clipped to the room the box gives it.
+fn clipped(text: SharedString) -> Div {
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .child(text)
+}
+
+/// The caret of a box being typed into, drawn as `text-caret`.
+fn text_caret(size: Pixels, opacity: f32, theme: &Theme) -> Div {
+    caret_mark(size, opacity, theme).debug_selector(|| "text-caret".into())
 }
 
 /// The caret of a box that takes typed text: a bar in the caret color at
 /// `opacity`, as tall as a line of `size` text, standing on a mark of no
 /// width so the glyphs on either side of it stay where the font sets them.
-///
-/// The text boxes, the rename bar, a value readout opened for typing and a
-/// driver's expression draw this one mark. The rename bar passes the opacity of its
-/// blink; the others hold it solid.
 pub fn caret_mark(size: Pixels, opacity: f32, theme: &Theme) -> Div {
     div()
         .relative()

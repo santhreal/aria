@@ -23,7 +23,7 @@ mod tests;
 
 pub use cache_registry::{
     CACHE_REGISTRY, CacheDescriptor, CacheId, CacheKind, CacheTier, ParseCacheIdError,
-    cache_descriptor, cache_descriptor_by_key, cache_descriptors,
+    cache_descriptor_by_key, cache_descriptors,
 };
 pub use error::{ClearReport, DiskUsage, RelocationReport, StorageError};
 pub use layout::{

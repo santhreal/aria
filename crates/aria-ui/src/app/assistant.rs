@@ -48,6 +48,7 @@ use gpui::Context;
 
 use super::AppState;
 use super::assistant_host::{HostRequest, PendingAsk, ShellHost, on_ui_thread};
+use super::line_text::LineText;
 use crate::types::{AgentEntryKind, UiAgentEntry};
 
 /// How many sent prompts the composer remembers for Up/Down recall.
@@ -57,7 +58,7 @@ const RECALL_DEPTH: usize = 32;
 #[derive(Debug, Default)]
 pub struct AssistantForm {
     /// What is typed in the composer.
-    pub prompt: String,
+    pub prompt: LineText,
     /// Whether the composer owns the keyboard.
     pub focused: bool,
     /// Whether a turn is in flight.
@@ -315,27 +316,13 @@ impl AppState {
         };
         self.assistant.recall = next;
         self.assistant.prompt = match next {
-            Some(index) => self.assistant.recent[index].clone(),
-            None => String::new(),
+            Some(index) => LineText::new(self.assistant.recent[index].as_str()),
+            None => LineText::default(),
         };
     }
 
     pub fn focus_assistant_prompt(&mut self, focused: bool) {
         self.assistant.focused = focused;
-    }
-
-    pub fn assistant_prompt_push(&mut self, ch: char) {
-        if self.assistant.focused {
-            self.assistant.prompt.push(ch);
-            self.assistant.recall = None;
-        }
-    }
-
-    pub fn assistant_prompt_pop(&mut self) {
-        if self.assistant.focused {
-            self.assistant.prompt.pop();
-            self.assistant.recall = None;
-        }
     }
 
     pub fn clear_agent_transcript(&mut self) {

@@ -77,8 +77,8 @@ fn press(
 
 /// Finish the name field, if the press opened one.
 ///
-/// Typed through the field row's own `push`, which is the function the shell's
-/// key handler calls. `commit_bin_rename` stands in for the row's `submit`, which
+/// Typed through `fields::insert`, which is the function the shell's input
+/// handler calls. `commit_bin_rename` stands in for the row's `submit`, which
 /// takes a gpui context a headless census has no way to build;
 /// `the_strip_is_built_from_the_registry` guards that the row's submit is that
 /// same call.
@@ -90,9 +90,10 @@ fn finish_any_field(state: &mut AppState) {
         field.id, "aria.field.bin-rename",
         "the strip opened a field the pool does not own"
     );
-    for ch in TYPED.chars() {
-        (field.push)(state, ch);
-    }
+    assert!(
+        crate::keys::fields::insert(state, TYPED),
+        "the name did not take"
+    );
     state.commit_bin_rename().expect("the folder rename lands");
 }
 
@@ -117,7 +118,10 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
 fn shape(state: &AppState) -> (Option<u64>, Option<String>, Vec<String>) {
     (
         state.current_bin,
-        state.bin_rename.as_ref().map(|rename| rename.draft.clone()),
+        state
+            .bin_rename
+            .as_ref()
+            .map(|rename| rename.draft.to_string()),
         state
             .store
             .bins
@@ -208,7 +212,7 @@ fn a_new_folder_opens_with_the_caret_in_its_name() {
     let field = crate::keys::fields::focused(&state).expect("no field took the caret");
     assert_eq!(field.id, "aria.field.bin-rename");
     assert_eq!(
-        (field.text)(&state),
+        field.text(&state),
         crate::app::bins::DEFAULT_BIN_NAME,
         "the field did not open on the new folder's name"
     );

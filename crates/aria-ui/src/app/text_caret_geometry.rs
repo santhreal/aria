@@ -6,7 +6,7 @@
 use crate::app::selected_detail::TitleCaret;
 
 /// The byte offset of character `index` in `text`, its length past the end.
-pub(in crate::app) fn byte_at(text: &str, index: usize) -> usize {
+pub(crate) fn byte_at(text: &str, index: usize) -> usize {
     text.char_indices()
         .nth(index)
         .map_or(text.len(), |(at, _)| at)

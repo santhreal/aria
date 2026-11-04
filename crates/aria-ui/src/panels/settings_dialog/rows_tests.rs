@@ -565,6 +565,40 @@ fn a_settings_list_row_stands_on_the_section_edge_and_shows_clear_for_the_pointe
     );
 }
 
+/// WHY: Each Workspaces row drew its pane sizes twice, as the line under its
+/// name and again at its right edge, so the list read every number twice.
+///
+/// Counts, over every row `workspace_rows` lists, the drawn runs holding a
+/// row's sizes (each holds ` · Timeline `) and the runs reading "In use": one
+/// sizes line per row, and one "In use" per row on screen. Not covered: a
+/// plugin's name ahead of the sizes, which shares the one line.
+#[gpui::test]
+fn a_workspace_row_reads_its_pane_sizes_once(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "settings-workspace-sizes");
+    let card = opened_on(&state, visual, SettingsSection::Workspaces.title());
+    let (rows, active) = visual.read(|app| {
+        let rows = state.read(app).workspace_rows();
+        let active = rows.iter().filter(|row| row.active).count();
+        (rows.len(), active)
+    });
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let count = |matches: &dyn Fn(&str) -> bool| {
+        runs.iter()
+            .filter(|run| card.contains(&run.bounds.center()) && matches(run.text.as_ref()))
+            .count()
+    };
+    assert_eq!(
+        count(&|text| text.contains(" \u{b7} Timeline ")),
+        rows,
+        "{rows} workspace rows draw their pane sizes once each"
+    );
+    assert_eq!(
+        count(&|text| text == "In use"),
+        active,
+        "{active} workspace rows are on screen"
+    );
+}
+
 /// The topmost run inside `card` below `above` that reads `text`.
 fn run_below<'a>(
     runs: &'a [TextRunLayout],
@@ -595,7 +629,7 @@ fn opened_on(
             state.settings_form.filter.clear();
             state.focus_setting(Some(SettingsField::Filter));
             for ch in filter.chars() {
-                state.setting_push(ch);
+                state.type_key(ch);
             }
             cx.notify();
         });

@@ -162,8 +162,9 @@ fn the_pool_filter_matches_a_label_colour() {
         .set_media_label(media, Some(LabelColor::Teal))
         .expect("set");
 
+    state.focus_media_search(true);
     for ch in "teal".chars() {
-        state.media_query_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(
         state.pool_rows(SidebarTab::Media).len(),
@@ -173,7 +174,7 @@ fn the_pool_filter_matches_a_label_colour() {
 
     state.clear_media_query();
     for ch in "berry".chars() {
-        state.media_query_push(ch);
+        state.type_key(ch);
     }
     assert!(
         state.pool_rows(SidebarTab::Media).is_empty(),

@@ -129,7 +129,7 @@ budget per frame; a driver that exceeds it is stopped and reported.
 
 Effects & Presets > Save Animation Preset stores the selected properties,
 effects, and keyframes as an `.ariapreset` file. Applying a preset to a clip
-adds its effects and keyframes relative to the playhead. Presets live in
+adds its effects and keyframes relative to the playhead. Presets are stored in
 `<data dir>/presets/` and plugins can ship them.
 
 ## Time

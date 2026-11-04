@@ -2,7 +2,7 @@
 
 ## Trim tools
 
-The tool bar picks what a drag means. Five tools trim without moving a clip's
+The tool bar picks what a drag means. The trim tools edit without moving a clip's
 edges the way a plain drag does. Each keeps something fixed:
 
 - **Slip (Y)** keeps the clip where it is and moves the take inside it. Drag the

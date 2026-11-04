@@ -149,7 +149,8 @@ selected it trims the edge. With nothing selected it moves the playhead.
 ## Timeline header
 
 The header over the track headers has two columns. The left one holds the
-sequence timecode, a playhead field like the Viewer's (see above), drawn as
+sequence timecode, a playhead field like the Viewer's (see
+[Copy, paste, and timecode entry](#copy-paste-and-timecode-entry)), drawn as
 figures until the pointer is over it. The right one holds, top to bottom:
 
 - The property search. Typing in it narrows the property rows of every opened

@@ -29,14 +29,14 @@ pub(super) fn bin(
     rows: &PoolRows,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let query = state.read(cx).media_query.clone();
+    let filtered = !state.read(cx).media_query.trim().is_empty();
     let (shown, total) = (rows.len(), rows.total());
     let view = state.read(cx).pool_view();
     let properties = state.read(cx).media_properties();
-    let count = if query.trim().is_empty() {
-        counted(total, "item", "items").to_string()
-    } else {
+    let count = if filtered {
         format!("{shown} of {total}")
+    } else {
+        counted(total, "item", "items").to_string()
     };
 
     div()

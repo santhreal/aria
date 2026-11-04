@@ -6,9 +6,11 @@ What a dropped file becomes follows its type, on Home and in Aria alike:
 
 | File | Result |
 | --- | --- |
+| `.ariaplugin` | Opens the Install Plugin dialog for the package archive |
+| `.ariapreset` | Imports the preset into `<data dir>/presets/` and applies it to the selected clip when one is selected |
 | `.aria` | Opens as a project, replacing the session |
 | `.edl`, `.fcpxml`, `.otio`, `.srt`, `.vtt`, or another extension a timeline plugin reads | Read into the open timeline, one undo step per file |
-| Media (see the list above) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
+| Media (`.mp4`, `.mov`, `.mkv`, `.webm`, `.wav`, `.mp3`, `.png`, `.jpg`, `.jpeg`, `.webp`, or another extension a decoder plugin registers) | Imported into the media pool and placed end to end from the playhead on the matching lane, in free space |
 | `.cube` | Applied to the selected clip; with no clip selected, read as a LUT filter over the sequence |
 | `SKILL.md` | Installed as an assistant skill |
 | Anything else | Imported as media, which reports why it cannot be |
@@ -47,8 +49,8 @@ export that fails leaves an existing file at that path as it was.
 A format holds less than an Aria timeline. An EDL holds one picture track and
 four sound channels, for example, and no format holds a generated clip. What a
 run places or writes the nearest way, or leaves out, is listed in the
-**Timeline file** panel in Effect Controls, one line per item. The panel stays
-until you click **Dismiss**, and the next import or export replaces it.
+**Timeline File** dialog (`timeline-report`), one line per item. The dialog stays open
+until you click **Close** (`timeline-report-close`), and the next import or export replaces it.
 
 A subtitle file adds a text track named after the file, with one text clip per
 cue on the nearest frame. Cues that overlap go to further text tracks, numbered

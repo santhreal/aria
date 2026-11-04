@@ -12,9 +12,14 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, DriverCode, MAX_DRIVER_SOURCE};
 
 use super::AppState;
+use super::line_text::{LineRule, LineText};
 
 /// The language a new driver is written in, when a plugin provides it.
 pub const DEFAULT_DRIVER_LANGUAGE: &str = "aria.expressions";
+
+/// What a driver's source takes: [`MAX_DRIVER_SOURCE`] bytes, the limit the
+/// model holds a driver to.
+pub(crate) const DRIVER_RULE: LineRule = LineRule::bytes(MAX_DRIVER_SOURCE);
 
 /// Driver source being edited.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +27,7 @@ pub struct DriverDraft {
     pub clip: ClipId,
     pub param: ClipParam,
     pub language: String,
-    pub text: String,
+    pub text: LineText,
     /// The next property clicked in the inspector inserts a reference to
     /// itself instead of changing its value.
     pub picking: bool,
@@ -76,7 +81,7 @@ impl AppState {
             clip,
             param,
             language,
-            text,
+            text: LineText::new(text),
             picking: false,
         });
         Ok(())
@@ -92,7 +97,7 @@ impl AppState {
             clip,
             param,
             language: code.language.clone(),
-            text: code.source.clone(),
+            text: LineText::new(code.source.clone()),
             picking: false,
         });
     }
@@ -111,26 +116,9 @@ impl AppState {
             .is_some_and(|draft| draft.picking || Some(draft.clip) == self.selected_clip())
     }
 
-    pub fn driver_draft_text(&self) -> String {
-        self.driver_draft
-            .as_ref()
-            .map(|draft| draft.text.clone())
-            .unwrap_or_default()
-    }
-
-    /// Append `ch`, within [`MAX_DRIVER_SOURCE`] bytes.
-    pub fn driver_draft_push(&mut self, ch: char) {
-        if let Some(draft) = self.driver_draft.as_mut()
-            && draft.text.len() + ch.len_utf8() <= MAX_DRIVER_SOURCE
-        {
-            draft.text.push(ch);
-        }
-    }
-
-    pub fn driver_draft_pop(&mut self) {
-        if let Some(draft) = self.driver_draft.as_mut() {
-            draft.text.pop();
-        }
+    /// The open draft's source, for an edit.
+    pub fn driver_draft_text_mut(&mut self) -> Option<&mut LineText> {
+        self.driver_draft.as_mut().map(|draft| &mut draft.text)
     }
 
     /// Esc: end a pick, else close the draft without writing it.
@@ -147,7 +135,7 @@ impl AppState {
         let Some(draft) = self.driver_draft.take() else {
             return Ok(());
         };
-        let code = DriverCode::new(draft.language.clone(), draft.text.clone());
+        let code = DriverCode::new(draft.language.clone(), draft.text.to_string());
         if let Err(err) = self.set_driver(draft.clip, draft.param, Some(code)) {
             self.driver_draft = Some(draft);
             return Err(err);
@@ -194,12 +182,15 @@ impl AppState {
             })?;
         let driven = draft.clip;
         if let Some(draft) = self.driver_draft.as_mut() {
-            if draft.text.len() + reference.len() > MAX_DRIVER_SOURCE {
+            let replaced = draft.text.selected().map_or(0, str::len);
+            if draft.text.len() - replaced + reference.len() > MAX_DRIVER_SOURCE {
                 return Err(EngineError::Refused(format!(
                     "driver source is limited to {MAX_DRIVER_SOURCE} bytes"
                 )));
             }
-            draft.text.push_str(&reference);
+            // The reference lands at the caret, over the selection, as typed
+            // text does.
+            draft.text.type_text(&reference, DRIVER_RULE);
             draft.picking = false;
         }
         if source != driven {

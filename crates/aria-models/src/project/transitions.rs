@@ -234,16 +234,6 @@ impl Project {
         Ok(())
     }
 
-    /// Set one scalar/angle/int transition parameter at `left`'s right junction.
-    pub fn set_transition_param(
-        &mut self,
-        left: ClipId,
-        param: usize,
-        value: f32,
-    ) -> Result<(), ModelError> {
-        self.transition_at_mut(left)?
-            .set_param_constant(param, value)
-    }
     /// The clip on `track` whose start abuts the end of `left`, if any.
     fn right_neighbor(&self, track_id: TrackId, left: ClipId) -> Option<ClipId> {
         let track = self.timeline().track(track_id)?;

@@ -365,7 +365,7 @@ fn the_typed_offset_parses_a_signed_frame_count_and_nothing_else() {
         state.begin_rename(RenameTarget::ShiftFrames);
         assert_eq!(state.rename_draft, "", "the offset draft starts empty");
         for ch in typed.chars() {
-            state.rename_push(ch);
+            state.type_key(ch);
         }
         state.commit_rename().expect("commit");
         assert_eq!(
@@ -380,7 +380,7 @@ fn the_typed_offset_parses_a_signed_frame_count_and_nothing_else() {
     let before = clip_start(&state, lane_a, clip_a);
     state.begin_rename(RenameTarget::ShiftFrames);
     for ch in "2.5s".chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("commit");
     assert_eq!(clip_start(&state, lane_a, clip_a), before);

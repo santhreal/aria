@@ -190,7 +190,7 @@ A WebAssembly plugin contributes an output format to the media Export dialog by 
 [`encoder-push-audio`](wit-reference.md#export-encoder-push-audio),
 [`encoder-finish`](wit-reference.md#export-encoder-finish), and
 [`encoder-drop`](wit-reference.md#export-encoder-drop). The host calls `encoder-drop` when an
-export is cancelled or fails before `encoder-finish`. [Encoders](interchange.md#encoders)
+export is canceled or fails before `encoder-finish`. [Encoders](interchange.md#encoders)
 describes the export flow.
 
 During `encoder-open`, `encoder-push-frame`, `encoder-push-audio`, and `encoder-finish`, the host permits `fs-write` to the active staging `path` passed to `encoder-open` without requiring `permissions.fs` in `plugin.toml`. Writing to any other path is denied and records a `CapabilityDenial` unless covered by `permissions.fs`. Every encoder call runs under `Limits::fuel_per_call`, `Limits::memory_bytes`, and `Limits::call_deadline`; a guest trap, fuel exhaustion, or deadline interruption fails the plugin for the session, drops its registrations, and discards the staged file.

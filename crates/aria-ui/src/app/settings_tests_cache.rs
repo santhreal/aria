@@ -319,7 +319,7 @@ fn every_settings_field_round_trips_and_esc_keeps_the_saved_value() {
     // storing an empty string.
     state.focus_setting(Some(SettingsField::AiKeyEnv));
     for _ in 0.."ARIA_KEY".len() {
-        state.setting_pop();
+        state.press_backspace();
     }
     state.commit_setting().expect("clear the variable name");
     assert!(

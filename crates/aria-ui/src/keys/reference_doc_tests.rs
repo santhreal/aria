@@ -706,21 +706,26 @@ fn menus_doc_matches_registry() {
 }
 
 /// Every valid menu path (`Menu > Item`, `Menu > Submenu > Item`, and `Menu > Submenu`)
-/// produced by `items_for(menu, &state)` across `AppMenu::ALL`.
+/// produced by `items_for(menu, &state)` across `AppMenu::ALL`, for an empty
+/// project and for one holding a clip, so a row offered only once the project
+/// holds something (Window > Project Report) is a shipped path.
 pub(super) fn shipped_menu_paths() -> BTreeSet<String> {
     let dir = crate::scratch_pool::scratch("guide-menus-doc");
-    let state = AppState::new(PluginContext::new(), dir).expect("build headless AppState");
+    let empty = AppState::new(PluginContext::new(), dir).expect("build headless AppState");
+    let (populated, _) = crate::app::premiere_tests::with_clip();
     let mut paths = BTreeSet::new();
-    for menu in AppMenu::ALL {
-        let menu_name = menu.label();
-        for item in items_for(menu, &state).iter() {
-            match item.under {
-                Some(sub) => {
-                    paths.insert(format!("{menu_name} > {sub}"));
-                    paths.insert(format!("{menu_name} > {sub} > {}", item.label));
-                }
-                None => {
-                    paths.insert(format!("{menu_name} > {}", item.label));
+    for state in [&empty, &populated] {
+        for menu in AppMenu::ALL {
+            let menu_name = menu.label();
+            for item in items_for(menu, state).iter() {
+                match item.under {
+                    Some(sub) => {
+                        paths.insert(format!("{menu_name} > {sub}"));
+                        paths.insert(format!("{menu_name} > {sub} > {}", item.label));
+                    }
+                    None => {
+                        paths.insert(format!("{menu_name} > {}", item.label));
+                    }
                 }
             }
         }
@@ -739,4 +744,79 @@ pub(super) fn shipped_palette_commands() -> BTreeMap<&'static str, &'static str>
                 .map(|entry| (entry.id, entry.label)),
         )
         .collect()
+}
+
+/// WHY: closes the defect class where a reference or plugin documentation page
+/// under `docs/` names a top-level menu path (`**File > ...**`, `**Edit > ...**`,
+/// `**Clip > ...**`, `**Sequence > ...**`, `**Markers > ...**`, `**Effect > ...**`,
+/// `**Animation > ...**`, `**View > ...**`, `**Window > ...**`, `**Help > ...**`)
+/// that does not exist or has a different label or ellipsis (`…`) in the runtime
+/// menu registry (`shipped_menu_paths`).
+#[test]
+fn every_doc_top_level_menu_path_matches_registry() {
+    let docs_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    let mut md_files = Vec::new();
+    super::docs_markdown_tests::collect_md_files(&docs_root, &mut md_files);
+    let valid_menus = shipped_menu_paths();
+    let menu_prefixes: Vec<String> = AppMenu::ALL
+        .iter()
+        .map(|m| format!("{} > ", m.label()))
+        .collect();
+    let mut checked = 0usize;
+    let mut errors = Vec::new();
+    for md_file in &md_files {
+        let text = std::fs::read_to_string(md_file)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", md_file.display()));
+        let mut in_fence = false;
+        for (idx, line) in text.lines().enumerate() {
+            let line_no = idx + 1;
+            if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
+                in_fence = !in_fence;
+                continue;
+            }
+            if in_fence {
+                continue;
+            }
+            let cleaned = super::docs_markdown_tests::strip_inline_code(line);
+            let bytes = cleaned.as_bytes();
+            let mut i = 0usize;
+            while i + 1 < bytes.len() {
+                if bytes[i] == b'*' && bytes[i + 1] == b'*' {
+                    let start = i + 2;
+                    let mut j = start;
+                    while j + 1 < bytes.len() && !(bytes[j] == b'*' && bytes[j + 1] == b'*') {
+                        j += 1;
+                    }
+                    if j + 1 < bytes.len() {
+                        let span = cleaned[start..j]
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        if menu_prefixes.iter().any(|p| span.starts_with(p)) && !span.ends_with('>')
+                        {
+                            checked += 1;
+                            if !valid_menus.contains(&span) {
+                                errors.push(format!(
+                                    "{}:{line_no}: menu path `**{span}**` is not a shipped menu row",
+                                    md_file.display()
+                                ));
+                            }
+                        }
+                        i = j + 2;
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+        }
+    }
+    assert!(
+        checked >= 80,
+        "expected at least 80 top-level menu paths across docs/, checked {checked}"
+    );
+    assert!(
+        errors.is_empty(),
+        "stale or invalid top-level menu paths in docs/:\n{}",
+        errors.join("\n")
+    );
 }

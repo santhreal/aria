@@ -2,21 +2,21 @@
 
 Aria includes two shape and overlay catalogs under `crates/aria-models/data/`:
 
-1. **Stickers (`stickers.toml`)**: 8 built-in static and animated raster overlays (`heart`, `star`, `smiley`, `bolt`, `bubble`, `flower`, `star_spin`, `heart_beat`) decoded from `crates/aria-models/data/stickers/` or `<data dir>/catalogs/stickers/`.
+1. **Stickers (`stickers.toml`)**: built-in static and animated raster overlays (`heart`, `star`, `smiley`, `bolt`, `bubble`, `flower`, `star_spin`, `heart_beat`) decoded from `assets/stickers/` or `<data dir>/catalogs/stickers/`.
 2. **Mask shapes (`masks.toml`)**: mask shape entries (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) evaluated on the GPU in `crates/aria-compositor/shaders/mask.wgsl`, `matte.wgsl`, and `mask_stack.wgsl`.
 
 ## Examples
 
 ### Place an animated Spinning Star sticker
 
-1. Open **Window > Project**, switch to the **Graphics** tab, and click **Stickers** (or open **Window > Effects & Presets > Stickers**).
+1. Open **Window > Project**, switch to the **Graphics** group, and click **Stickers**.
 2. Click **Spinning Star** (`star_spin`) to place a 5-second `Generator::Sticker` clip (`128 x 128` reference pixels, `star_spin.gif`) on the `S1` sticker track at the playhead.
-3. Select the clip and open **Window > Effect Controls > Motion** to position, scale, rotate, or animate it.
+3. Select the clip, open **Window > Effect Controls**, and use the **Transform** tab to position, scale, rotate, or animate it.
 
 ### Apply a subtracted feathered Circle mask on a clip
 
 1. Select a clip on a video track.
-2. Open **Window > Effect Controls** and switch to the **Mask** tab.
+2. Open **Window > Effect Controls** and switch to the **Look** tab (or open **Window > Project** and select **Graphics > Masks**).
 3. Click **Circle** (`circle`) to add a circular mask to the clip's mask stack.
 4. Set **Mode** to **Subtract** (`subtract`) or enable **Inverted** (`inverted = true`), and drag **Feather** (`mask-0-feather`) to `0.15`.
 5. Click `◆` on **Center** (`mask-0-center`) or **Size** (`mask-0-size`) to keyframe the mask across the clip.
@@ -36,7 +36,7 @@ file = "logo_badge.png"
 
 ## Stickers (`stickers.toml`)
 
-Defined in `crates/aria-models/data/stickers.toml` (`StickerSpec` in `crates/aria-models/src/clip/generator.rs`). Each entry specifies a permanent `id`, display `label`, intrinsic size `width x height` in reference pixels (at 1080p), `animated` (`true` for multi-frame GIF or APNG art, default `false`), and `file` (under `<data dir>/catalogs/stickers/` or bundled in the binary):
+Defined in `crates/aria-models/data/stickers.toml` (`StickerSpec` in `crates/aria-models/src/sticker.rs`). Each entry specifies a permanent `id`, display `label`, intrinsic size `width x height` in reference pixels (at 1080p), `animated` (`true` for multi-frame GIF or APNG art, default `false`), and `file` (under `<data dir>/catalogs/stickers/` or bundled in the binary):
 
 | ID | Label | Size (`width x height`) | Animated | Asset `file` | Parameters |
 | --- | --- | --- | --- | --- | --- |
@@ -51,7 +51,7 @@ Defined in `crates/aria-models/data/stickers.toml` (`StickerSpec` in `crates/ari
 
 - **Static and animated assets**: multi-frame `.gif` (`star_spin.gif`) and APNG (`heart_beat.png`) assets decode frame-accurately by clip local time; static `.png` assets upload once to the GPU texture cache.
 - **Lottie vector animations**: `Generator::Lottie` clips (`lottie` in [Generators](generators.md)) render Bodymovin/Lottie JSON animations on the same `Sticker` track kind (`S1`).
-- **UI location**: **Window > Project > Graphics > Stickers** and **Window > Effects & Presets > Stickers**.
+- **UI location**: **Window > Project** (**Graphics > Stickers**).
 
 ## Mask shapes (`masks.toml`)
 
@@ -67,7 +67,7 @@ Defined in `crates/aria-models/data/masks.toml` (`MaskSpec` / `MaskKind` in `cra
 | `star` | Star | 5-point star (`kind = 4` in `mask.wgsl`, inner vertex ratio `0.42`) fit to `size` around `center` at `rotation`. |
 | `path` | Path | Cubic-bezier vertex path (`1..=1024` `ShapePathPoint` vertices within `±10.0` normalized coordinates, `MASK_PATH_VERSION = 1`), rasterized to a stencil texture and feathered in `matte.wgsl` / `mask_stack.wgsl` (`MAX_SOFTNESS_TEXELS = 12.0`). |
 
-UI location: **Window > Effect Controls > Mask**, **Window > Effects & Presets > Masks**, and the **Pen tool (`P`)** when **Mask** path target mode is active in the Program Monitor.
+UI location: **Window > Effect Controls** (**Look > Mask**), **Window > Project** (**Graphics > Masks**), and the **Pen** tool (`P`) when **View > Canvas Handles > Mask** (`preview-handles-mask`) is active in the Viewer.
 
 ### Multi-mask stack modes (`MaskMode` in `crates/aria-models/src/look/mask.rs`)
 

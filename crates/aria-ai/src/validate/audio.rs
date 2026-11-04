@@ -280,7 +280,7 @@ pub(super) fn set_clip_audio(
                 return Err(Rejection::new(format!(
                     "{what} of {seconds}s is longer than clip {} ({:.3}s)",
                     args.clip,
-                    ticks_to_seconds(clip_ticks, rate),
+                    clip.timeline.duration.seconds(),
                 )));
             }
             Ok(time)

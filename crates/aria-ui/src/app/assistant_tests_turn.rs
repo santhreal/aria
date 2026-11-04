@@ -258,7 +258,7 @@ fn typing_leaves_recall() {
     state.recall_agent_prompt(-1);
     assert_eq!(state.assistant.prompt, "older");
 
-    state.assistant_prompt_push('!');
+    state.type_key('!');
     assert!(state.assistant.recall.is_none());
     state.recall_agent_prompt(-1);
     assert_eq!(state.assistant.prompt, "newer");
@@ -268,11 +268,11 @@ fn typing_leaves_recall() {
 #[test]
 fn an_unfocused_composer_takes_no_keys() {
     let mut state = state();
-    state.assistant_prompt_push('x');
+    state.type_key('x');
     assert_eq!(state.assistant.prompt, "");
     state.assistant.focused = true;
-    state.assistant_prompt_push('x');
-    state.assistant_prompt_pop();
+    state.type_key('x');
+    state.press_backspace();
     assert_eq!(state.assistant.prompt, "");
 }
 /// Sending the same prompt twice in a row remembers it once, so Up is not two

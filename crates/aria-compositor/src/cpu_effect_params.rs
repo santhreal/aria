@@ -2,8 +2,7 @@
 //! resolved by name or slot from the registered parameter layout.
 
 use aria_models::{
-    EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EffectCurvePoint, EffectGradientStop,
-    EffectInstance, EffectParamKind,
+    EFFECT_CURVE_LUT_SAMPLES, EFFECT_GRADIENT_LUT_SAMPLES, EffectInstance, EffectParamKind,
 };
 
 /// Metadata for one parameter slot of a registered effect.
@@ -14,8 +13,6 @@ pub(crate) struct RegisteredParam {
     pub offset: usize,
     pub choices: Box<[Box<str>]>,
     pub default_text: Box<str>,
-    pub default_curve: Box<[EffectCurvePoint]>,
-    pub default_gradient: Box<[EffectGradientStop]>,
 }
 
 impl Default for RegisteredParam {
@@ -26,8 +23,6 @@ impl Default for RegisteredParam {
             offset: 0,
             choices: Box::new([]),
             default_text: "".into(),
-            default_curve: Box::new([]),
-            default_gradient: Box::new([]),
         }
     }
 }
@@ -132,11 +127,6 @@ impl<'a> EffectParams<'a> {
     pub fn boolean(&self, name: &str) -> Option<bool> {
         let index = self.specs.iter().position(|p| &*p.name == name)?;
         self.bool_at(index)
-    }
-
-    /// Boolean parameter `name`, or `None` if not present or not `Bool`.
-    pub fn bool_val(&self, name: &str) -> Option<bool> {
-        self.boolean(name)
     }
 
     /// Boolean parameter at slot `index`, or `None` if out of bounds or not `Bool`.
@@ -270,30 +260,6 @@ impl<'a> EffectParams<'a> {
             .ok()
     }
 
-    /// Sample curve parameter `name` at `x` in `0.0..=1.0`.
-    pub fn sample_curve(&self, name: &str, x: f32) -> Option<f32> {
-        let lut = self.curve_lut(name)?;
-        let u = x.clamp(0.0, 1.0) * ((EFFECT_CURVE_LUT_SAMPLES - 1) as f32);
-        let i = (u.floor() as usize).min(EFFECT_CURVE_LUT_SAMPLES - 2);
-        let f = u - (i as f32);
-        Some(lut[i] + (lut[i + 1] - lut[i]) * f)
-    }
-
-    /// Control points of curve parameter `name`, or `None`.
-    pub fn curve_points(&self, name: &str) -> Option<&'a [EffectCurvePoint]> {
-        let index = self.specs.iter().position(|p| &*p.name == name)?;
-        let spec = self.specs.get(index)?;
-        if spec.kind != EffectParamKind::Curve {
-            return None;
-        }
-        if let Some(fx) = self.instance
-            && let Some(points) = fx.curve_params.get(&*spec.name)
-        {
-            return Some(points.as_slice());
-        }
-        Some(&spec.default_curve)
-    }
-
     /// 64-stop RGBA LUT (256 floats) for gradient parameter `name`, or `None`.
     pub fn gradient_lut(&self, name: &str) -> Option<&'a [f32; EFFECT_GRADIENT_LUT_SAMPLES * 4]> {
         let index = self.specs.iter().position(|p| &*p.name == name)?;
@@ -313,37 +279,6 @@ impl<'a> EffectParams<'a> {
             .get(spec.offset..spec.offset + EFFECT_GRADIENT_LUT_SAMPLES * 4)?
             .try_into()
             .ok()
-    }
-
-    /// Sample gradient parameter `name` at `t` in `0.0..=1.0`.
-    pub fn sample_gradient(&self, name: &str, t: f32) -> Option<[f32; 4]> {
-        let lut = self.gradient_lut(name)?;
-        let u = t.clamp(0.0, 1.0) * ((EFFECT_GRADIENT_LUT_SAMPLES - 1) as f32);
-        let i = (u.floor() as usize).min(EFFECT_GRADIENT_LUT_SAMPLES - 2);
-        let f = u - (i as f32);
-        let b0 = i * 4;
-        let b1 = b0 + 4;
-        Some([
-            lut[b0] + (lut[b1] - lut[b0]) * f,
-            lut[b0 + 1] + (lut[b1 + 1] - lut[b0 + 1]) * f,
-            lut[b0 + 2] + (lut[b1 + 2] - lut[b0 + 2]) * f,
-            lut[b0 + 3] + (lut[b1 + 3] - lut[b0 + 3]) * f,
-        ])
-    }
-
-    /// Stops of gradient parameter `name`, or `None`.
-    pub fn gradient_stops(&self, name: &str) -> Option<&'a [EffectGradientStop]> {
-        let index = self.specs.iter().position(|p| &*p.name == name)?;
-        let spec = self.specs.get(index)?;
-        if spec.kind != EffectParamKind::Gradient {
-            return None;
-        }
-        if let Some(fx) = self.instance
-            && let Some(stops) = fx.gradient_params.get(&*spec.name)
-        {
-            return Some(stops.as_slice());
-        }
-        Some(&spec.default_gradient)
     }
 
     /// Text, font, or file parameter `name`, or `None`.

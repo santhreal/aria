@@ -60,7 +60,7 @@ impl Rational {
 
     /// Seconds-per-unit as a float.
     pub fn seconds_per_unit(self) -> f64 {
-        if self.num == 0 {
+        if !self.is_valid() {
             return 0.0;
         }
         f64::from(self.den) / f64::from(self.num)
@@ -147,7 +147,7 @@ impl RationalTime {
 
     /// Position in seconds as a float (display/UI; not for exact comparisons).
     pub fn seconds(self) -> f64 {
-        if self.rate.num == 0 {
+        if !self.rate.is_valid() {
             return 0.0;
         }
         (self.value as f64) * f64::from(self.rate.den) / f64::from(self.rate.num)
@@ -371,6 +371,15 @@ mod tests {
         assert!((rt(48, R24).seconds() - 2.0).abs() < f64::EPSILON);
         // One 29.97 frame is value=1 at rate 30000/1001 -> exactly 1001/30000 s.
         assert!((rt(1, Rational::FPS_29_97).seconds() - 1001.0 / 30000.0).abs() < 1e-12);
+        for invalid in [
+            Rational::new(0, 1),
+            Rational::new(24, 0),
+            Rational::new(-24, 1),
+            Rational::new(24, -1),
+        ] {
+            assert_eq!(invalid.seconds_per_unit(), 0.0, "{invalid:?}");
+            assert_eq!(rt(48, invalid).seconds(), 0.0, "{invalid:?}");
+        }
     }
 
     #[test]

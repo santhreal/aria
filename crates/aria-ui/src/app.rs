@@ -151,6 +151,8 @@ mod lanes;
 pub mod launch;
 #[path = "app/layouts.rs"]
 pub(crate) mod layouts;
+#[path = "app/line_text.rs"]
+pub mod line_text;
 #[path = "app/marquee.rs"]
 pub mod marquee;
 #[path = "app/mask_path.rs"]
@@ -226,7 +228,7 @@ pub mod recovery;
 pub(crate) mod relink;
 pub mod remove_attributes;
 #[path = "app/rename.rs"]
-mod rename;
+pub(crate) mod rename;
 #[path = "app/render_bar.rs"]
 mod render_bar;
 #[path = "app/render_device.rs"]

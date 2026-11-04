@@ -225,7 +225,7 @@ impl AppState {
     /// exactly as a typed one is.
     pub fn pick_ai_model(&mut self, id: &str) -> Result<(), String> {
         self.focus_setting(Some(SettingsField::AiModel));
-        self.settings_form.draft = id.trim().to_string();
+        self.settings_form.draft.set(id.trim());
         self.commit_setting()
     }
 

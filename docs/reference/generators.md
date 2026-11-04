@@ -2,15 +2,15 @@
 
 Aria provides two layers of generated visual content:
 
-1. **Clip content generators (`Generator` / `generator_specs()`)**: the eight `ClipSource::Generated` variants that define what a generated timeline clip holds (`text`, `solid`, `shape`, `sticker`, `lottie`, `effect`, `filter`, `adjustment`).
-2. **GPU effect generators (`effects.toml` entries with `generator = true`)**: seven procedural shader passes (`color_matte`, `linear_gradient`, `radial_gradient`, `checkerboard`, `grid`, `fractal_noise`, `color_bars`) that synthesize pixels without reading source media.
+1. **Clip content generators (`Generator` / `generator_specs()`)**: the `ClipSource::Generated` variants that define what a generated timeline clip holds (`text`, `solid`, `shape`, `sticker`, `lottie`, `effect`, `filter`, `adjustment`).
+2. **GPU effect generators (`effects.toml` entries with `generator = true`)**: procedural shader passes (`color_matte`, `linear_gradient`, `radial_gradient`, `checkerboard`, `grid`, `fractal_noise`, `color_bars`) that synthesize pixels without reading source media.
 
 ## Examples
 
 ### Place an animated Fractal Noise background clip
 
-1. Open **Window > Effects & Presets**, expand **Generators**, and drag **Fractal Noise** onto `V1` (or click **Fractal Noise** in **Window > Project > Effects > Generators** to place an `effect` generator clip at the playhead).
-2. Select the generated clip and open **Window > Effect Controls > Effects**.
+1. Open **Window > Effects & Presets**, expand **Generators**, and drag **Fractal Noise** onto `V1` (or open **Window > Project**, select **Effects > Generators**, and click **Fractal Noise** to place an `effect` generator clip at the playhead).
+2. Select the generated clip, open **Window > Effect Controls**, and switch to the **Effects** tab.
 3. Set **Fractal Noise > Scale** to `160.0`, **Complexity** to `5.0`, and **Contrast** to `1.4`.
 4. Move the playhead to the start of the clip, set **Evolution** to `0.0`, and click `◆`.
 5. Move the playhead to the end of the clip and set **Evolution** to `4.0`.
@@ -35,8 +35,8 @@ params = [{ name = "color", label = "Color", kind = "color", default_color = [18
   - **Graphics > Titles**: places a `text` generator clip (`Generator::text("Title")`).
   - **Graphics > Shapes**: places a `shape` generator clip (`Rectangle` or `Ellipse`, `200 x 200` reference pixels).
   - **Graphics > Stickers**: places a `sticker` generator clip from `stickers.toml` (see [Stickers and masks](stickers-and-masks.md)).
-- **Viewport tools (`T` Type, `R` Rectangle, `E` Ellipse, `P` Pen)**: clicking or dragging in the Program Monitor creates a `text` or `shape` generator clip at the playhead (see [Tools](tools.md)).
-- **Sequence menu (`Sequence > Add Adjustment Layer`)**: places a 5-second `adjustment` generator clip at the playhead.
+- **Viewport tools (`T` Type, `P` Pen)**: clicking in the Viewer with **Type** (`T`) creates a `text` generator clip at the playhead; clicking or dragging with **Pen** (`P`) when no mask path is targeted creates a `shape` path generator clip at the playhead (see [Tools](tools.md)).
+- **Sequence menu (**Sequence > Add Adjustment Layer**)**: places an `adjustment` generator clip across the marked In/Out range, the selected clips' span, the full sequence, or five seconds from the start of an empty sequence.
 
 ## Clip content generators
 

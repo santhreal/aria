@@ -38,21 +38,21 @@ fn pressing_m_twice_opens_marker_edit_dialog_and_commits_in_one_undo_step() {
     // (`run_dialog_primary`).
     state.focus_marker_edit_field(Some(MarkerEditField::Name));
     while !state.marker_edit.name.is_empty() {
-        state.marker_edit_pop();
+        state.press_backspace();
     }
     for ch in "Act I".chars() {
-        state.marker_edit_push(ch);
+        state.type_key(ch);
     }
     state.focus_marker_edit_field(Some(MarkerEditField::Comment));
     for ch in "Opening beat".chars() {
-        state.marker_edit_push(ch);
+        state.type_key(ch);
     }
     state.focus_marker_edit_field(Some(MarkerEditField::Duration));
     while !state.marker_edit.duration.is_empty() {
-        state.marker_edit_pop();
+        state.press_backspace();
     }
     for ch in "00:00:00:10".chars() {
-        state.marker_edit_push(ch);
+        state.type_key(ch);
     }
     state.set_marker_edit_color(MarkerColor::Purple);
     state.set_marker_edit_kind(MarkerKind::Chapter);
@@ -87,7 +87,7 @@ fn marker_edit_dialog_refuses_negative_and_out_of_bounds_durations_with_reason()
 
     // 1. Negative duration is refused with a clear reason and leaves the marker intact.
     assert!(state.open_marker_edit(marker_id));
-    state.marker_edit.duration = "-00:00:00:05".to_string();
+    state.marker_edit.duration.set("-00:00:00:05");
     state.apply_marker_edit();
     assert_eq!(
         state.dialog,
@@ -106,7 +106,7 @@ fn marker_edit_dialog_refuses_negative_and_out_of_bounds_durations_with_reason()
     assert_eq!(state.store.sequence.markers[0].duration_ticks, 0);
 
     // 2. Duration running past sequence end is refused with a clear reason.
-    state.marker_edit.duration = "00:01:00:00".to_string();
+    state.marker_edit.duration.set("00:01:00:00");
     state.apply_marker_edit();
     assert_eq!(state.dialog, DialogKind::MarkerEdit);
     let err = state

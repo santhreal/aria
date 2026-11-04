@@ -16,7 +16,7 @@ use serde::Serialize;
 
 use aria_models::{
     AudioRole, ChromaKey, Clip, ClipSource, ColorAdjustments, Filter, Generator, Mask, Param,
-    Project, Rational, StabilizeLevel, TextStyle, Track, TrackId, TrackKind,
+    Project, Rational, RationalTime, StabilizeLevel, TextStyle, Track, TrackId, TrackKind,
 };
 use aria_render::canvas_size;
 
@@ -245,7 +245,7 @@ impl UiState {
 
         let main_duration_seconds = main
             .and_then(|id| timeline.track(id))
-            .map(|t| ticks_to_seconds(t.content_end(), rate))
+            .map(|t| RationalTime::new(t.content_end(), rate).seconds())
             .unwrap_or(0.0);
 
         UiState {
@@ -307,7 +307,7 @@ fn build_clip(project: &Project, track: &Track, clip: &Clip, rate: Rational) -> 
 
     let transition_after = track.transition_at(clip.id).map(|t| UiTransition {
         id: t.transition_id.clone(),
-        duration_seconds: ticks_to_seconds(t.duration, rate),
+        duration_seconds: RationalTime::new(t.duration, rate).seconds(),
     });
 
     UiClip {
@@ -325,8 +325,8 @@ fn build_clip(project: &Project, track: &Track, clip: &Clip, rate: Rational) -> 
         speed: clip.speed.as_f64(),
         reversed: clip.reversed,
         volume: clip.volume.sample(0),
-        fade_in_seconds: ticks_to_seconds(clip.fade_in, rate),
-        fade_out_seconds: ticks_to_seconds(clip.fade_out, rate),
+        fade_in_seconds: RationalTime::new(clip.fade_in, rate).seconds(),
+        fade_out_seconds: RationalTime::new(clip.fade_out, rate).seconds(),
         transform,
         keyframe_seconds: transform_keyframe_seconds(clip, rate),
         text,
@@ -442,7 +442,7 @@ fn transform_keyframe_seconds(clip: &Clip, rate: Rational) -> Vec<f64> {
     ticks.dedup();
     ticks
         .into_iter()
-        .map(|t| ticks_to_seconds(t, rate))
+        .map(|t| RationalTime::new(t, rate).seconds())
         .collect()
 }
 
@@ -461,10 +461,6 @@ pub(crate) fn is_media_picture(kind: TrackKind) -> bool {
 pub(crate) fn in_overlay_block(kind: TrackKind) -> bool {
     let spec = kind.spec();
     spec.is_visual && !spec.accepts_media
-}
-
-fn ticks_to_seconds(ticks: i64, rate: Rational) -> f64 {
-    ticks as f64 * rate.seconds_per_unit()
 }
 
 #[cfg(test)]

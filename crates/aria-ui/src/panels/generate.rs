@@ -54,7 +54,7 @@ pub(crate) fn generate_panel(
                         "generate-prompt",
                         &form.prompt,
                         "Describe what to generate",
-                        form.focused,
+                        form.prompt.editing(form.focused),
                         theme,
                     )
                     .flex_1()

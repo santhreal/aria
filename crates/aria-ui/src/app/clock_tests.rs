@@ -28,10 +28,10 @@ fn a_typed_timecode_seeks() {
     let (mut state, _) = with_clip();
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     for ch in "00:00:01:00".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
 
@@ -45,10 +45,10 @@ fn a_bare_frame_count_seeks() {
     let (mut state, _) = with_clip();
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     for ch in "36".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
     assert_eq!(state.store.playhead_ticks, 36);
@@ -60,10 +60,10 @@ fn nonsense_restores_the_previous_value() {
     state.set_playhead(48);
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     for ch in "99:99".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
 
@@ -89,7 +89,7 @@ fn escape_leaves_without_seeking() {
     state.set_playhead(24);
     state.focus_clock(true);
     for ch in "12".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.focus_clock(false);
 
@@ -103,10 +103,10 @@ fn the_draft_takes_digits_and_separators_only() {
     let (mut state, _) = with_clip();
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     for ch in "1a2;3 4:5".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(state.clock_draft.as_deref(), Some("12;34:5"));
 }
@@ -139,10 +139,10 @@ fn a_seek_past_the_end_is_clamped_not_refused() {
     let end = state.store.sequence.duration_ticks;
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     for ch in "10:00:00:00".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
 
@@ -180,11 +180,11 @@ fn the_clock_reads_and_takes_the_sequence_time_display() {
         .expect("feet");
     state.focus_clock(true);
     while state.clock_draft.as_deref().is_some_and(|d| !d.is_empty()) {
-        state.clock_pop();
+        state.press_backspace();
     }
     // Three feet and four frames.
     for ch in "3+04".chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
     assert!(state.last_error.is_none(), "{:?}", state.last_error);

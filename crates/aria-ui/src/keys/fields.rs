@@ -1,71 +1,161 @@
 //! Key-routed text fields, as data.
 //!
 //! Every text box in the app is a row here rather than a GPUI text field. The
-//! key handler routes a box's editing keys (Backspace, Enter, Esc, the arrows,
-//! paste) through its row, and the platform input handler in
-//! `shell/text_input.rs` routes its typed text through the row's `push`.
+//! key handler routes a box's editing keys (Backspace, Delete, Enter, Esc, the
+//! arrows, Home and End, select all, undo, copy, cut and paste) through its
+//! row, and the platform input handler in `shell/text_input.rs` routes its
+//! typed text and IME runs through the row too.
 //!
 //! The list is precedence order: the first field whose `focused` holds takes
 //! the keystroke, so rename outranking a search box is a position in a table
 //! rather than a guard in every box.
 
+use std::borrow::Cow;
+use std::ops::Range;
+
 use crate::app::AppState;
+use crate::app::line_text::{LineRule, LineText};
 use crate::app::settings_form::SettingsField;
 
 /// One key-routed text field: what holds its focus, and the things a keystroke
 /// can mean while it does.
-///
-/// `submit` takes the state's own context because a field's Enter can start
-/// work (a search, a transcription, a generation), not only change state.
 #[derive(Debug, Clone, Copy)]
 pub struct TextField {
     pub id: &'static str,
     pub focused: fn(&AppState) -> bool,
-    /// What the box currently holds. An input handler has to be able to read
-    /// what it is editing: a platform IME asks for the text around the caret
-    /// before it commits, and a preedit run is replaced rather than appended.
-    pub text: fn(&AppState) -> String,
     /// Esc: leave the field. Never commits.
     pub escape: fn(&mut AppState),
-    pub backspace: fn(&mut AppState),
-    pub submit: fn(&mut AppState, &mut gpui::Context<AppState>),
-    pub push: fn(&mut AppState, char),
-    /// Up/Down: walk this box's own history of submitted values, `-1` toward
-    /// older and `1` toward newer.
+    /// Enter.
+    pub submit: Submit,
+    /// Up/Down: step through the list the box keeps, `-1` up and `1` down:
+    /// the prompts it sent, or the rows its text filters.
     ///
-    /// `None` for a box with no history, and then the arrows do nothing while
-    /// the box holds focus. A box that recalls is not a special case in the
-    /// shell for the same reason the other four keys are not: the shell routes
-    /// the key, and the row's function sets what it does.
-    pub history: Option<fn(&mut AppState, i32)>,
+    /// `None` for a box with no list, and then Up and Down move the caret to
+    /// the ends of the line.
+    pub step: Option<fn(&mut AppState, i32)>,
     /// Tab and Shift+Tab (`true`): move to the next or previous box of the
     /// same kind. `None` for a box that has no neighbours, and then Tab is
     /// not consumed.
     pub tab: Option<fn(&mut AppState, bool)>,
-    /// A caret the box moves, and a selection it replaces. `None` for a box
-    /// that only appends and pops.
-    pub caret: Option<Caret>,
+    /// Where the box's text is held.
+    pub store: Store,
 }
 
-/// The caret of a box that has one: the title typed into in the Viewer, and
-/// the rename bar.
+/// What Enter does in a box.
 #[derive(Debug, Clone, Copy)]
-pub struct Caret {
-    /// Whether a key in the box changes the Viewer's picture, so the Viewer
-    /// renders a new frame after each one: a title typed into in the Viewer
-    /// does, and a rename draft does not.
-    pub redraws: bool,
-    /// A movement, selection or history key, and whether Shift is held.
-    pub key: fn(&mut AppState, CaretKey, bool),
-    /// `(anchor, caret)` in characters.
-    pub selection: fn(&AppState) -> (usize, usize),
-    /// Replace a range of characters with text.
-    pub replace: fn(&mut AppState, std::ops::Range<usize>, &str),
-    /// The selected text, `None` with nothing selected.
-    pub selected: fn(&AppState) -> Option<String>,
+pub enum Submit {
+    /// Runs on the state with its own context, because Enter can start work
+    /// (a search, a transcription, a generation), not only change state.
+    State(fn(&mut AppState, &mut gpui::Context<AppState>)),
+    /// Runs the palette's highlighted command. A command can start playback,
+    /// which takes the window, so the shell runs it.
+    PaletteCommand,
 }
 
-/// A key a box with a caret answers on its own.
+/// Where a box's text is held.
+#[derive(Debug, Clone, Copy)]
+pub enum Store {
+    /// One line, as a [`LineText`].
+    Line(Line),
+    /// The title typed into in the Viewer: the lines of a text clip, so every
+    /// edit draws a new frame of the Viewer.
+    Title,
+}
+
+/// The text of a one-line box and what the box takes.
+#[derive(Debug, Clone, Copy)]
+pub struct Line {
+    /// The text, `None` while the box is closed.
+    pub get: fn(&AppState) -> Option<&LineText>,
+    pub get_mut: fn(&mut AppState) -> Option<&mut LineText>,
+    /// What the box takes: its cap and its characters.
+    pub rule: fn(&AppState) -> LineRule,
+    /// What follows an edit that changed the text, such as a filter applied on
+    /// every keystroke or the end of a walk through the history.
+    pub changed: Option<fn(&mut AppState)>,
+}
+
+impl Line {
+    /// Run `edit` on the text with the box's rule, then the box's follow-up
+    /// when the text changed. Returns whether it changed.
+    fn edit(
+        self,
+        state: &mut AppState,
+        edit: impl FnOnce(&mut LineText, LineRule) -> bool,
+    ) -> bool {
+        let rule = (self.rule)(state);
+        let changed = (self.get_mut)(state).is_some_and(|text| edit(text, rule));
+        if changed && let Some(follow) = self.changed {
+            follow(state);
+        }
+        changed
+    }
+}
+
+impl TextField {
+    /// What the box holds.
+    pub fn text(self, state: &AppState) -> Cow<'_, str> {
+        match self.store {
+            Store::Line(line) => Cow::Borrowed((line.get)(state).map_or("", LineText::as_str)),
+            Store::Title => Cow::Owned(state.edited_text()),
+        }
+    }
+
+    /// `(anchor, caret)` in characters.
+    pub fn selection(self, state: &AppState) -> (usize, usize) {
+        match self.store {
+            Store::Line(line) => (line.get)(state).map_or((0, 0), LineText::selection),
+            Store::Title => state.text_selection(),
+        }
+    }
+
+    /// The selected text, `None` with nothing selected.
+    pub fn selected(self, state: &AppState) -> Option<String> {
+        match self.store {
+            Store::Line(line) => (line.get)(state)?.selected().map(str::to_owned),
+            Store::Title => state.edited_selection_text(),
+        }
+    }
+
+    /// Whether an edit in the box changes the Viewer's picture, so the Viewer
+    /// renders a new frame after each one.
+    pub fn redraws(self) -> bool {
+        matches!(self.store, Store::Title)
+    }
+
+    /// Replace characters `range` with what the box takes of `text`, and put
+    /// the caret after it: a keystroke, a paste, or an IME run. Returns
+    /// whether the text changed.
+    pub fn replace(self, state: &mut AppState, range: Range<usize>, text: &str) -> bool {
+        match self.store {
+            Store::Line(line) => line.edit(state, |line, rule| line.replace(range, text, rule)),
+            Store::Title => state.replace_title_text(range, text),
+        }
+    }
+
+    /// Backspace: the selection, or the character before the caret.
+    pub fn backspace(self, state: &mut AppState) {
+        match self.store {
+            Store::Line(line) => {
+                line.edit(state, |line, _| line.backspace());
+            }
+            Store::Title => state.title_backspace(),
+        }
+    }
+
+    /// A caret key, with `extend` for Shift held.
+    pub fn key(self, state: &mut AppState, key: CaretKey, extend: bool) {
+        match self.store {
+            Store::Line(line) => {
+                line.edit(state, |line, _| line.key(key, extend));
+            }
+            Store::Title => state.title_caret_key(key, extend),
+        }
+    }
+}
+
+/// A key a box answers on its own: a caret movement, a selection, a delete,
+/// or an undo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CaretKey {
     Left,
@@ -112,216 +202,243 @@ impl CaretKey {
 /// Every shipped text box, in precedence order.
 ///
 /// Rename is first because a draft is the newer intention: opening a rename over
-/// an open search box means the next key is part of the name. A value readout
-/// open as text comes next: it opens from a click, so it is newer than any box
-/// that was focused before it. The bare-letter tool shortcuts survive an open
-/// box because focus is explicit — a box that was never clicked into holds no
-/// keys.
+/// an open search box means the next key is part of the name. The palette comes
+/// next: it opens over every panel, so a box focused before it waits under it.
+/// A value readout open as text follows: it opens from a click, so it is newer
+/// than any box that was focused before it. The bare-letter tool shortcuts
+/// survive an open box because focus is explicit — a box that was never
+/// clicked into holds no keys.
 pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.rename",
         focused: |state| state.rename.is_some(),
-        text: |state| state.rename_draft.clone(),
         escape: AppState::cancel_rename,
-        backspace: AppState::rename_pop,
-        submit: |state, _| {
+        submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_rename() {
                 state.report_error(&err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::rename_push,
-        caret: Some(Caret {
-            redraws: false,
-            key: AppState::rename_caret_key,
-            selection: AppState::rename_selection,
-            replace: AppState::replace_rename_text,
-            selected: AppState::rename_selected_text,
+        store: Store::Line(Line {
+            get: |state| Some(&state.rename_draft),
+            get_mut: |state| Some(&mut state.rename_draft),
+            rule: |_| crate::app::rename::RENAME_RULE,
+            changed: None,
+        }),
+    },
+    TextField {
+        id: "aria.field.palette",
+        focused: |state| state.dialog == crate::app::DialogKind::Palette,
+        escape: |state| state.open_dialog(crate::app::DialogKind::None),
+        submit: Submit::PaletteCommand,
+        step: Some(|state, delta| state.palette_move(delta as isize)),
+        tab: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.palette_query),
+            get_mut: |state| Some(&mut state.palette_query),
+            rule: |_| LineRule::ANY,
+            // The highlight returns to the first hit: the row under it is not
+            // the row it was.
+            changed: Some(AppState::palette_restart),
         }),
     },
     TextField {
         id: "aria.field.value",
         focused: AppState::value_entry_open,
-        text: AppState::value_entry_text,
         escape: AppState::cancel_value_entry,
-        backspace: AppState::value_entry_pop,
-        submit: |state, cx| {
+        submit: Submit::State(|state, cx| {
             // Under playback the next frame presented carries the edit.
             if state.commit_value_entry() && !state.playing {
                 let state = cx.entity();
                 cx.defer(move |app| crate::app::spawn_preview(state, app));
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: Some(AppState::tab_value_entry),
-        push: AppState::value_entry_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: AppState::value_entry_line,
+            get_mut: AppState::value_entry_line_mut,
+            rule: AppState::value_entry_rule,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.bin-rename",
         focused: |state| state.bin_rename.is_some(),
-        text: |state| {
-            state
-                .bin_rename
-                .as_ref()
-                .map(|rename| rename.draft.clone())
-                .unwrap_or_default()
-        },
         escape: AppState::cancel_bin_rename,
-        backspace: AppState::bin_rename_pop,
-        submit: |state, _| {
+        submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_bin_rename() {
                 state.report_error(&err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::bin_rename_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| state.bin_rename.as_ref().map(|rename| &rename.draft),
+            get_mut: |state| state.bin_rename.as_mut().map(|rename| &mut rename.draft),
+            rule: |_| crate::app::bins::BIN_NAME_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.preset",
         focused: AppState::preset_draft_open,
-        text: AppState::preset_draft_text,
         escape: AppState::cancel_preset_draft,
-        backspace: AppState::preset_draft_pop,
         // The save is the rack's gesture, not a call from here: an empty or
         // duplicate name is refused by the same path the button presses.
-        submit: |state, _| {
+        submit: Submit::State(|state, _| {
             if let Err(err) = crate::surfaces::effects_rack::apply(
                 state,
                 crate::surfaces::effects_rack::Gesture::SavePreset,
             ) {
                 state.report_error(&err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::preset_draft_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: AppState::preset_draft_name,
+            get_mut: AppState::preset_draft_name_mut,
+            rule: |_| crate::app::presets::PRESET_NAME_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.driver",
         focused: AppState::driver_draft_open,
-        text: AppState::driver_draft_text,
         escape: AppState::escape_driver_draft,
-        backspace: AppState::driver_draft_pop,
-        submit: |state, _| {
+        submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_driver_draft() {
                 state.report_error(&err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::driver_draft_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| state.driver_draft().map(|draft| &draft.text),
+            get_mut: AppState::driver_draft_text_mut,
+            rule: |_| crate::app::drivers::DRIVER_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.stock-search",
         focused: |state| state.stock_search_focus,
-        text: |state| state.stock_query.clone(),
         escape: |state| state.focus_stock_search(false),
-        backspace: AppState::stock_query_pop,
-        submit: |state, cx| state.run_stock_search(cx),
-        history: None,
+        submit: Submit::State(|state, cx| state.run_stock_search(cx)),
+        step: None,
         tab: None,
-        push: AppState::stock_query_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.stock_query),
+            get_mut: |state| Some(&mut state.stock_query),
+            rule: |_| LineRule::ANY,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.generate-prompt",
         focused: |state| state.generate.focused,
-        text: |state| state.generate.prompt.clone(),
         escape: |state| state.focus_generate_prompt(false),
-        backspace: AppState::generate_prompt_pop,
-        submit: |state, cx| {
+        submit: Submit::State(|state, cx| {
             if let Err(err) = state.submit_generation(cx) {
                 state.report_error(err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::generate_prompt_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.generate.prompt),
+            get_mut: |state| Some(&mut state.generate.prompt),
+            rule: |_| LineRule::ANY,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.caption-language",
         focused: |state| state.captions.language_focused,
-        text: |state| state.captions.language.clone(),
         escape: |state| state.focus_caption_language(false),
-        backspace: AppState::caption_language_pop,
-        submit: |state, cx| {
+        submit: Submit::State(|state, cx| {
             if let Err(err) = state.transcribe_selected(cx) {
                 state.report_error(err);
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::caption_language_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.captions.language),
+            get_mut: |state| Some(&mut state.captions.language),
+            rule: |_| LineRule::ANY,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.bin-search",
         focused: |state| state.media_search_focus,
-        text: |state| state.media_query.clone(),
         escape: |state| state.focus_media_search(false),
-        backspace: AppState::media_query_pop,
         // A filter has nothing to submit: the list is already filtered on every
         // keystroke, so Enter just puts the keyboard back on the editor.
-        submit: |state, _| state.focus_media_search(false),
-        history: None,
+        submit: Submit::State(|state, _| state.focus_media_search(false)),
+        step: None,
         tab: None,
-        push: AppState::media_query_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.media_query),
+            get_mut: |state| Some(&mut state.media_query),
+            rule: |_| crate::app::media::MEDIA_QUERY_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.effects-search",
         focused: AppState::effects_search_focused,
-        text: |state| state.effects_browser.query.clone(),
         escape: |state| state.focus_effects_search(false),
-        backspace: AppState::effects_query_pop,
         // The tree is filtered on every keystroke, so Enter returns the
         // keyboard to the editor as the bin search does.
-        submit: |state, _| state.focus_effects_search(false),
-        history: None,
+        submit: Submit::State(|state, _| state.focus_effects_search(false)),
+        step: None,
         tab: None,
-        push: AppState::effects_query_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.effects_browser.query),
+            get_mut: |state| Some(&mut state.effects_browser.query),
+            rule: |_| crate::app::effects_browser::QUERY_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.property-search",
         focused: AppState::property_search_focused,
-        text: |state| state.property_query().to_string(),
         escape: |state| state.focus_property_search(false),
-        backspace: AppState::property_query_pop,
         // The rows are filtered on every keystroke, so Enter returns the
         // keyboard to the editor as the bin search does.
-        submit: |state, _| state.focus_property_search(false),
-        history: None,
+        submit: Submit::State(|state, _| state.focus_property_search(false)),
+        step: None,
         tab: None,
-        push: AppState::property_query_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(state.property_query()),
+            get_mut: |state| Some(state.property_query_mut()),
+            rule: |_| crate::app::effects_browser::QUERY_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.marker-edit",
         focused: AppState::marker_edit_focused,
-        text: AppState::marker_edit_text,
         escape: AppState::escape_marker_edit,
-        backspace: AppState::marker_edit_pop,
-        submit: |state, _| state.apply_marker_edit(),
-        history: None,
+        submit: Submit::State(|state, _| state.apply_marker_edit()),
+        step: None,
         tab: None,
-        push: AppState::marker_edit_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: AppState::marker_edit_line,
+            get_mut: AppState::marker_edit_line_mut,
+            rule: AppState::marker_edit_rule,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.setting",
         focused: |state| state.settings_form.focused.is_some(),
-        text: |state| state.settings_form.draft.clone(),
         escape: AppState::cancel_setting,
-        backspace: AppState::setting_pop,
-        submit: |state, cx| {
+        submit: Submit::State(|state, cx| {
             // A named key set is recorded in `ui-settings.json`, which the
             // config file's own save does not write.
             let keymap = state.settings_form.focused == Some(SettingsField::KeymapName);
@@ -330,74 +447,82 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
                 Ok(()) => {}
                 Err(err) => state.report_error(err),
             }
-        },
-        history: None,
+        }),
+        step: None,
         tab: None,
-        push: AppState::setting_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.settings_form.draft),
+            get_mut: |state| Some(&mut state.settings_form.draft),
+            rule: |_| LineRule::ANY,
+            // The filter box narrows the sections as it is typed into.
+            changed: Some(AppState::live_filter),
+        }),
     },
     TextField {
         id: "aria.field.clock",
         focused: AppState::clock_focused,
-        text: |state| state.clock_draft.clone().unwrap_or_default(),
         escape: |state| state.focus_clock(false),
-        backspace: AppState::clock_pop,
-        submit: |state, _| state.commit_clock(),
-        history: None,
+        submit: Submit::State(|state, _| state.commit_clock()),
+        step: None,
         tab: None,
-        push: AppState::clock_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| state.clock_draft.as_ref(),
+            get_mut: |state| state.clock_draft.as_mut(),
+            rule: |_| crate::app::clock::CLOCK_RULE,
+            changed: None,
+        }),
     },
     TextField {
         id: "aria.field.ai-prompt",
         focused: |state| state.assistant.focused,
-        text: |state| state.assistant.prompt.clone(),
         escape: |state| state.focus_assistant_prompt(false),
-        backspace: AppState::assistant_prompt_pop,
-        submit: |state, cx| {
-            let prompt = state.assistant.prompt.clone();
-            state.send_agent_prompt(prompt, cx);
-        },
-        history: Some(AppState::recall_agent_prompt),
+        // Enter is Send: a slash command expands here as it does on the button.
+        submit: Submit::State(AppState::send_composer_prompt),
+        step: Some(AppState::recall_agent_prompt),
         tab: None,
-        push: AppState::assistant_prompt_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| Some(&state.assistant.prompt),
+            get_mut: |state| Some(&mut state.assistant.prompt),
+            rule: |_| LineRule::ANY,
+            // An edit makes the prompt the composer's own, so the next Up
+            // starts from the newest sent prompt again.
+            changed: Some(|state| state.assistant.recall = None),
+        }),
     },
     TextField {
         id: "aria.field.plugin-panel",
         focused: |state| state.plugin_panels.input.is_some(),
-        text: AppState::panel_input_text,
         escape: AppState::cancel_panel_input,
-        backspace: AppState::panel_input_pop,
-        submit: |state, _| state.submit_panel_input(),
-        history: None,
+        submit: Submit::State(|state, _| state.submit_panel_input()),
+        step: None,
         tab: None,
-        push: AppState::panel_input_push,
-        caret: None,
+        store: Store::Line(Line {
+            get: |state| state.plugin_panels.input.as_ref().map(|input| &input.draft),
+            get_mut: |state| {
+                state
+                    .plugin_panels
+                    .input
+                    .as_mut()
+                    .map(|input| &mut input.draft)
+            },
+            rule: |_| crate::app::plugin_panels::INPUT_RULE,
+            changed: None,
+        }),
     },
     // Last: the title stays live while the Type tool holds it, so a box clicked into takes the keys
     // from it.
     TextField {
         id: "aria.field.title",
         focused: |state| state.dialog == crate::app::DialogKind::None && state.text_editing(),
-        text: AppState::edited_text,
         escape: AppState::end_text_edit,
-        backspace: AppState::title_backspace,
         // A title has more than one line: Enter breaks the line.
-        submit: |state, _| {
+        submit: Submit::State(|state, _| {
             let (anchor, caret) = state.text_selection();
             state.replace_title_text(anchor.min(caret)..anchor.max(caret), "\n");
-        },
-        history: None,
-        tab: None,
-        push: AppState::title_push,
-        caret: Some(Caret {
-            redraws: true,
-            key: AppState::title_caret_key,
-            selection: AppState::text_selection,
-            replace: AppState::replace_title_text,
-            selected: AppState::edited_selection_text,
         }),
+        step: None,
+        tab: None,
+        store: Store::Title,
     },
 ];
 
@@ -409,44 +534,40 @@ pub fn focused(state: &AppState) -> Option<TextField> {
         .copied()
 }
 
-/// Insert a run of characters into the focused box, as if they had been typed.
+/// Type a run of characters over the focused box's selection, as one edit.
 ///
-/// This is the whole of paste and of an IME commit: a run is the same event as
-/// a keystroke repeated, so it goes through each row's own `push` and keeps that
-/// box's own rules — the clock still refuses letters, the bin name still stops
-/// at its length cap, and no row needs a second entry point.
+/// This is the whole of paste and of an IME commit: the run goes through the
+/// box's own rule, so the clock still refuses letters and the bin name still
+/// stops at its length cap, and no row needs a second entry point.
 ///
 /// Control characters are dropped. A pasted path with a trailing newline is a
-/// path, and a box has no second line to move to.
+/// path, and a one-line box has no second line to move to.
 ///
-/// Returns whether a box took the text.
+/// Returns whether the box's text changed.
 pub fn insert(state: &mut AppState, text: &str) -> bool {
     let Some(field) = focused(state) else {
         return false;
     };
-    // A box with a caret takes the run over its selection in one edit.
-    if let Some(caret) = field.caret {
-        let (anchor, at) = (caret.selection)(state);
-        (caret.replace)(state, anchor.min(at)..anchor.max(at), text);
-        return true;
-    }
-    for ch in text.chars().filter(|ch| !ch.is_control()) {
-        (field.push)(state, ch);
-    }
-    true
+    let (anchor, caret) = field.selection(state);
+    field.replace(state, anchor.min(caret)..anchor.max(caret), text)
 }
 
-/// Remove `count` characters from the end of the focused box, as if Backspace
-/// had been pressed that many times. An IME replaces the preedit run it marked,
-/// and a box that only appends and pops expresses that as this.
-pub fn truncate(state: &mut AppState, count: usize) -> bool {
-    let Some(field) = focused(state) else {
-        return false;
-    };
-    for _ in 0..count {
-        (field.backspace)(state);
+/// Keystrokes as a test presses them: into the box that holds focus, through
+/// its row, as the key handler and the input handler route them.
+#[cfg(test)]
+impl AppState {
+    /// Type `ch` into the box that holds focus. With no box focused the key
+    /// is not text, and nothing changes.
+    pub(crate) fn type_key(&mut self, ch: char) {
+        insert(self, ch.encode_utf8(&mut [0; 4]));
     }
-    true
+
+    /// Press Backspace in the box that holds focus.
+    pub(crate) fn press_backspace(&mut self) {
+        if let Some(field) = focused(self) {
+            field.backspace(self);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -16,10 +16,15 @@ use aria_plugin::ContributionKind;
 use gpui::SharedString;
 
 use super::AppState;
+use super::line_text::{LineRule, LineText};
 use crate::types::{CatalogDragKind, SidebarTab};
 
 /// The longest search the panel's box takes, in characters.
 pub const QUERY_MAX_LEN: usize = 64;
+
+/// What a panel's search box takes: Effects & Presets and the Timeline's
+/// property search.
+pub const QUERY_RULE: LineRule = LineRule::chars(QUERY_MAX_LEN);
 
 /// A top-level folder of the tree.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -262,7 +267,7 @@ pub enum Node<'a> {
 /// The panel's own state: the search, the open folders, and the picked row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectsBrowser {
-    pub query: String,
+    pub query: LineText,
     pub focused: bool,
     pub open: BTreeSet<FolderKey>,
     /// The row a single click picked, drawn highlighted.
@@ -278,7 +283,7 @@ impl Default for EffectsBrowser {
     /// failure is read rather than found.
     fn default() -> Self {
         Self {
-            query: String::new(),
+            query: LineText::default(),
             focused: false,
             open: BTreeSet::from([
                 FolderKey::group(Group::Favorites),
@@ -665,16 +670,6 @@ impl AppState {
     pub fn open_effects_panel(&mut self) {
         self.focus_dock_panel(crate::dock::PANEL_EFFECTS);
         self.focus_effects_search(true);
-    }
-
-    pub fn effects_query_push(&mut self, ch: char) {
-        if self.effects_browser.query.chars().count() < QUERY_MAX_LEN {
-            self.effects_browser.query.push(ch);
-        }
-    }
-
-    pub fn effects_query_pop(&mut self) {
-        self.effects_browser.query.pop();
     }
 
     /// List one group's entries, or every group's with `None`.

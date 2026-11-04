@@ -27,6 +27,7 @@ Complete reference for Aria's built-in catalogs, user interface controls, menus,
 | [menus.md](menus.md) | Application menus and all menu rows (`crates/aria-ui/src/chrome/menu_items.rs` and one `menu_<name>.rs` per menu) | `aria_ui::keys::reference_doc_tests::menus_doc_matches_registry` |
 | [commands.md](commands.md) | State commands and job commands (`crates/aria-ui/src/commands/`) | `aria_ui::keys::reference_doc_tests::commands_doc_matches_registry` |
 | [settings.md](settings.md) | `config.toml` keys, `[schema]` versions, `ui-settings.json` fields, and project canvas settings (`crates/aria-settings/` and `crates/aria-ui/src/settings.rs`) | `aria_ui::keys::settings_doc_tests::settings_doc_matches_registries` |
+| [equivalents.md](equivalents.md) | Premiere Pro and After Effects command and shortcut equivalents (`SHIPPED_BINDINGS`, `items_for`, `BUILTIN_COMMANDS`, `BUILTIN_JOB_COMMANDS`, `CONTROL_TIPS`) | `aria_ui::keys::equivalents_doc_tests::equivalents_doc_matches_registries` |
 | [../keyboard-shortcuts.md](../keyboard-shortcuts.md) | All shipped keyboard shortcuts (`SHIPPED_BINDINGS`) | `aria_ui::keys::doc_tests` |
 | [../catalogs.md](../catalogs.md) | TOML catalog override file format and `FilterGrade` recipe keys | `aria_models::look::filter_grade_tests` |
 | [../plugins/README.md](../plugins/README.md) | Plugin manifest (`plugin.toml`), WIT, C ABI, and Rust SDK reference | `aria_ui::test_support` |

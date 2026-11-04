@@ -16,6 +16,7 @@ use aria_engine::EngineError;
 use aria_models::{BinId, MediaId};
 
 use crate::app::AppState;
+use crate::app::line_text::{LineRule, LineText};
 
 /// The name a new folder gets before it is renamed.
 pub const DEFAULT_BIN_NAME: &str = "New bin";
@@ -53,15 +54,16 @@ impl AppState {
             name: DEFAULT_BIN_NAME.into(),
             parent,
         }))?;
-        // The new folder is opened and put straight into rename, because a
-        // folder called "New bin" is not why anyone made one.
+        // The new folder is opened and put straight into rename, with its
+        // placeholder name selected, because a folder called "New bin" is not
+        // why anyone made one: the first key typed replaces it.
         if let aria_engine::ApplyOutcome::Edited(aria_commands::EditOutcome::CreatedBin(bin)) =
             outcome
         {
             self.set_open_bin(Some(bin.raw()));
             self.bin_rename = Some(BinRename {
                 bin: bin.raw(),
-                draft: DEFAULT_BIN_NAME.into(),
+                draft: LineText::selecting_all(DEFAULT_BIN_NAME),
             });
         }
         Ok(())
@@ -124,30 +126,17 @@ impl AppState {
         Ok(())
     }
 
-    /// Start renaming a folder. The draft starts as the current name, so a
-    /// commit with no typing is not a rename to nothing.
+    /// Start renaming a folder. The draft opens on the current name, all of it
+    /// selected, so typing replaces the name and a commit with no typing is not
+    /// a rename to nothing.
     pub fn begin_bin_rename(&mut self, bin: u64) {
         let Some(item) = self.store.bins.iter().find(|item| item.id == bin) else {
             return;
         };
         self.bin_rename = Some(BinRename {
             bin,
-            draft: item.name.to_string(),
+            draft: LineText::selecting_all(item.name.to_string()),
         });
-    }
-
-    pub fn bin_rename_push(&mut self, ch: char) {
-        if let Some(rename) = self.bin_rename.as_mut()
-            && rename.draft.chars().count() < BIN_NAME_MAX_LEN
-        {
-            rename.draft.push(ch);
-        }
-    }
-
-    pub fn bin_rename_pop(&mut self) {
-        if let Some(rename) = self.bin_rename.as_mut() {
-            rename.draft.pop();
-        }
     }
 
     pub fn cancel_bin_rename(&mut self) {
@@ -247,13 +236,16 @@ impl AppState {
     }
 }
 
-/// Longest folder name the field accepts. Long enough for a sentence, short
-/// enough that a row stays readable.
+/// What a folder name takes. Long enough for a sentence, short enough that a
+/// row stays readable.
+pub const BIN_NAME_RULE: LineRule = LineRule::chars(BIN_NAME_MAX_LEN);
+
+/// Longest folder name the field accepts.
 pub const BIN_NAME_MAX_LEN: usize = 64;
 
 /// A folder rename in flight: which folder, and what has been typed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinRename {
     pub bin: u64,
-    pub draft: String,
+    pub draft: LineText,
 }

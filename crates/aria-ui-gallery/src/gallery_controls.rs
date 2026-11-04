@@ -52,7 +52,7 @@ pub(crate) fn controls(theme: &Theme, cx: &mut Context<Gallery>) -> AnyElement {
                 specimen(
                     theme,
                     "text_box",
-                    components::text_box("ctl-field", "", "Clip name", false, theme),
+                    components::text_box("ctl-field", "", "Clip name", None, theme),
                 ),
             ]))
             .child(readout_rows(theme))
@@ -233,7 +233,7 @@ fn form_rows(theme: &Theme) -> AnyElement {
                 theme,
                 "Name",
                 [
-                    components::text_box("ctl-form-name", "", "Untitled", false, theme)
+                    components::text_box("ctl-form-name", "", "Untitled", None, theme)
                         .into_any_element(),
                 ],
             ))
@@ -423,38 +423,60 @@ fn empty_state_rows(theme: &Theme) -> AnyElement {
     )
 }
 
-/// The two parts of a box that takes typed text, in a box too narrow for its
-/// name: the line at rest ends in an ellipsis, the line being typed leads with
-/// one so its end stays beside the caret, and the caret at half strength is the
-/// rename bar's blink caught midway.
+/// The line of a box that takes typed text, in a box too narrow for its name:
+/// at rest it ends in an ellipsis; being typed into, the text ahead of the
+/// caret gives way from its start so the caret stays in view, and a selection
+/// sits on the selection tint. The line with its caret at half strength is
+/// the rename bar's blink caught midway; the bare mark is the solid caret the
+/// other boxes hold.
 fn typed_rows(theme: &Theme) -> AnyElement {
     const NAME: &str = "Interview B-roll, second take";
-    let narrow = |typing: bool| {
+    let end = NAME.chars().count();
+    let narrow = |id: &'static str, editing: Option<(usize, usize)>| {
         div()
             .w(px(120.))
-            .flex()
-            .items_center()
-            .text_size(Theme::TEXT_UI)
-            .text_color(theme.text)
-            .child(components::typed_line(NAME, typing))
-            .children(typing.then(|| components::caret_mark(Theme::TEXT_UI, 1.0, theme)))
+            .child(components::text_box(id, NAME, "Clip name", editing, theme))
     };
     group(
         theme,
-        "typed_line(text, typing) / caret_mark(size, opacity, theme) — at rest / typing / blink",
+        "edited_line(text, selection, size, opacity, theme) / caret_mark(size, opacity, theme) — at rest / caret / selection / blink / mark",
         shelf(vec![
-            specimen(theme, "typed_line at rest", narrow(false)),
-            specimen(theme, "typed_line typing", narrow(true)),
+            specimen(theme, "at rest", narrow("ctl-typed-rest", None)),
             specimen(
                 theme,
-                "caret_mark at 0.5",
+                "caret at the end",
+                narrow("ctl-typed-caret", Some((end, end))),
+            ),
+            specimen(
+                theme,
+                "selection",
+                narrow("ctl-typed-select", Some((10, 17))),
+            ),
+            specimen(
+                theme,
+                "blink at 0.5",
+                div()
+                    .flex()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text)
+                    .child(components::edited_line(
+                        "b-roll",
+                        (6, 6),
+                        Theme::TEXT_UI,
+                        0.5,
+                        theme,
+                    )),
+            ),
+            specimen(
+                theme,
+                "caret_mark",
                 div()
                     .flex()
                     .items_center()
                     .text_size(Theme::TEXT_UI)
                     .text_color(theme.text)
                     .child("b-roll")
-                    .child(components::caret_mark(Theme::TEXT_UI, 0.5, theme)),
+                    .child(components::caret_mark(Theme::TEXT_UI, 1.0, theme)),
             ),
         ]),
     )
@@ -687,8 +709,9 @@ fn button_states(theme: &Theme, cx: &App) -> AnyElement {
     )
 }
 
-/// `text_box` takes `focused` from the caller, so the caller owns the click that
-/// takes focus. Both fields here are live: click one and the caret moves.
+/// `text_box` draws the selection its caller passes, and the caller attaches
+/// the click that focuses the box. Both fields here are live: click one and
+/// the caret moves.
 fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -> AnyElement {
     pin_hover("field", "st-field-hover", cx);
     let fields: Vec<AnyElement> = (0..2usize)
@@ -707,7 +730,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                     motion::MotionKey::new("gallery-field", index),
                     value,
                     "Clip name",
-                    focused,
+                    focused.then(|| (value.chars().count(), value.chars().count())),
                     theme,
                 )
                 .on_mouse_down(
@@ -726,7 +749,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
         .collect();
     group(
         theme,
-        "text_box(id, value, placeholder, focused, theme) / field_frame / figures_at_rest",
+        "text_box(id, value, placeholder, editing, theme) / field_frame / figures_at_rest",
         div()
             .flex()
             .flex_col()
@@ -736,22 +759,39 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                 specimen(
                     theme,
                     "placeholder",
-                    components::text_box("st-field-empty", "", "Clip name", false, theme),
+                    components::text_box("st-field-empty", "", "Clip name", None, theme),
                 ),
                 specimen(
                     theme,
                     "value",
-                    components::text_box("st-field-value", "b-roll-04", "Clip name", false, theme),
+                    components::text_box("st-field-value", "b-roll-04", "Clip name", None, theme),
                 ),
                 specimen(
                     theme,
                     "hover",
-                    components::text_box("st-field-hover", "b-roll-04", "Clip name", false, theme),
+                    components::text_box("st-field-hover", "b-roll-04", "Clip name", None, theme),
                 ),
                 specimen(
                     theme,
                     "focused (caret)",
-                    components::text_box("st-field-focus", "b-roll-04", "Clip name", true, theme),
+                    components::text_box(
+                        "st-field-focus",
+                        "b-roll-04",
+                        "Clip name",
+                        Some((9, 9)),
+                        theme,
+                    ),
+                ),
+                specimen(
+                    theme,
+                    "focused (selection)",
+                    components::text_box(
+                        "st-field-select",
+                        "b-roll-04",
+                        "Clip name",
+                        Some((0, 6)),
+                        theme,
+                    ),
                 ),
                 specimen(
                     theme,
@@ -765,7 +805,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                             "st-field-error",
                             "b-roll-04/",
                             "Clip name",
-                            false,
+                            None,
                             theme,
                         )),
                 ),
@@ -776,7 +816,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
                         "st-field-off",
                         "b-roll-04",
                         "Clip name",
-                        false,
+                        None,
                         theme,
                     )),
                 ),

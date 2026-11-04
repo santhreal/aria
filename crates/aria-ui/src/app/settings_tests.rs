@@ -28,7 +28,7 @@ use std::path::PathBuf;
 /// Type `text` into the focused field.
 fn type_text(state: &mut AppState, text: &str) {
     for ch in text.chars() {
-        state.setting_push(ch);
+        state.type_key(ch);
     }
 }
 /// Focus a field and replace what is there.
@@ -38,7 +38,7 @@ fn type_text(state: &mut AppState, text: &str) {
 fn retype(state: &mut AppState, field: SettingsField, text: &str) {
     state.focus_setting(Some(field));
     while !state.setting_draft(field).0.is_empty() {
-        state.setting_pop();
+        state.press_backspace();
     }
     type_text(state, text);
 }

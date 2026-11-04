@@ -278,8 +278,16 @@ fn composer(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let running = state.read(cx).assistant.running;
-    let focused = state.read(cx).assistant.focused;
-    let prompt = state.read(cx).assistant.prompt.clone();
+    let prompt = {
+        let assistant = &state.read(cx).assistant;
+        crate::components::text_box(
+            "ai-prompt",
+            &assistant.prompt,
+            "Message Aria…",
+            assistant.prompt.editing(assistant.focused),
+            theme,
+        )
+    };
     let target = state.read(cx).assistant_target();
     let scope = state.read(cx).assistant_scope();
     let plan_only = state.read(cx).assistant.plan_only;
@@ -383,24 +391,14 @@ fn composer(
                 .flex()
                 .flex_row()
                 .gap(px(Theme::SPACE_SM))
-                .child(
-                    crate::components::text_box(
-                        "ai-prompt",
-                        &prompt,
-                        "Message Aria…",
-                        focused,
-                        theme,
-                    )
-                    .flex_1()
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| state.focus_assistant_prompt(true));
-                            cx.notify();
-                        }),
-                    ),
-                )
+                .child(prompt.flex_1().on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                        this.state
+                            .update(cx, |state, _| state.focus_assistant_prompt(true));
+                        cx.notify();
+                    }),
+                ))
                 .child(if running {
                     crate::components::danger_button("ai-stop", "Stop", theme)
                         .on_mouse_down(

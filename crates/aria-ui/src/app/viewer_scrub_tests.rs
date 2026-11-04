@@ -98,7 +98,7 @@ fn a_click_opens_the_field_pressed_and_only_that_one() {
         "the Viewer's field opened with the timeline's"
     );
 
-    state.clock_pop();
+    state.press_backspace();
     state.press_clock(ClockSite::Viewer);
     assert!(
         !state.clock_focused(),

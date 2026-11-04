@@ -162,7 +162,7 @@ fn a_disabled_command_is_refused_and_left_out_of_menus() {
     assert!(rows_in(&state.ctx, MenuLocation::Sequence).is_empty());
     assert!(state.plugin_menu_rows(&target).is_empty());
     for ch in "match grade".chars() {
-        state.palette_push(ch);
+        state.type_key(ch);
     }
     assert!(state.run_palette_highlight().is_none());
     assert_eq!(runs.load(Ordering::Relaxed), 0, "a disabled command ran");

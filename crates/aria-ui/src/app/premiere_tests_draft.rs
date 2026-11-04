@@ -114,7 +114,7 @@ fn rename_seeds_the_draft_and_applies_to_every_target() {
     state.begin_rename(RenameTarget::Marker(marker));
     state.rename_draft.clear();
     for ch in "Chorus".chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("commit marker");
     assert_eq!(state.store.sequence.markers[0].name, "Chorus");
@@ -127,7 +127,7 @@ fn rename_seeds_the_draft_and_applies_to_every_target() {
     state.begin_rename(RenameTarget::Track(track));
     state.rename_draft.clear();
     for ch in "Dialogue".chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("commit track");
     assert_eq!(state.store.sequence.tracks[0].name, "Dialogue");
@@ -139,7 +139,7 @@ fn rename_seeds_the_draft_and_applies_to_every_target() {
     state.begin_rename(RenameTarget::Project);
     state.rename_draft.clear();
     for ch in "Reel".chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("commit project");
     assert_eq!(state.store.project_name, "Reel");
@@ -189,7 +189,7 @@ fn rename_input_is_bounded_and_inert_when_closed() {
     let (mut state, _) = with_clip();
 
     // With no rename open, typing must not accumulate anywhere.
-    state.rename_push('x');
+    state.type_key('x');
     assert!(
         state.rename_draft.is_empty(),
         "typing with no draft is inert"
@@ -199,14 +199,14 @@ fn rename_input_is_bounded_and_inert_when_closed() {
     state.begin_rename(RenameTarget::Track(track));
     state.rename_draft.clear();
     for _ in 0..(RENAME_MAX_LEN * 2) {
-        state.rename_push('a');
+        state.type_key('a');
     }
     assert_eq!(
         state.rename_draft.chars().count(),
         RENAME_MAX_LEN,
         "a held key must not grow the draft without bound"
     );
-    state.rename_pop();
+    state.press_backspace();
     assert_eq!(state.rename_draft.chars().count(), RENAME_MAX_LEN - 1);
 }
 #[test]

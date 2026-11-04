@@ -148,9 +148,11 @@ fn drawn_under(drawn: &[DrawnReadout], key: MotionKey) -> Option<&DrawnReadout> 
 
 /// The number `text` starts with, read as a field of `kind` reads typed text.
 fn printed_number(kind: ValueKind, text: &str) -> Option<f32> {
+    let admits = kind.rule().admits;
     let end = text
-        .find(|ch: char| !kind.accepts(ch))
-        .unwrap_or(text.len());
+        .char_indices()
+        .find(|&(at, ch)| !admits(&text[..at], ch))
+        .map_or(text.len(), |(at, _)| at);
     kind.parse(&text[..end])
 }
 

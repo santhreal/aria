@@ -27,7 +27,7 @@ The desktop UI is built on [santh-gpui](https://github.com/santhreal/santh-gpui)
 The target editor is defined in the [specification](docs/spec/README.md).
 
 Aria is in early alpha: the core editing loop works, and rough edges remain.
-Project files carry a schema version; a build opens every earlier version and
+Project files include a schema version; a build opens every earlier version and
 rejects a newer one without changing the file.
 
 ## What it looks like

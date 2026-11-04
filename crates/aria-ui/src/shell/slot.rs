@@ -300,152 +300,19 @@ impl Shell {
         // is `keys::fields` data — focus is explicit, so the bare-letter tool
         // shortcuts still work with a search tab open.
         if let Some(field) = crate::keys::fields::focused(self.state.read(cx)) {
-            // A box with a caret moves it, selects, copies, and steps history
-            // on its own keys.
-            if let Some(caret) = field.caret {
-                if let Some(caret_key) = crate::keys::fields::CaretKey::of(key, ctrl, mods.shift) {
-                    self.state
-                        .update(cx, |state, _| (caret.key)(state, caret_key, mods.shift));
-                    if caret.redraws {
-                        spawn_preview(self.state.clone(), cx);
-                    }
-                    cx.stop_propagation();
-                    cx.notify();
-                    return;
-                }
-                if ctrl && matches!(key, "c" | "x") {
-                    if let Some(text) = (caret.selected)(self.state.read(cx)) {
-                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
-                        if key == "x" {
-                            let cut = crate::keys::fields::CaretKey::Delete;
-                            self.state
-                                .update(cx, |state, _| (caret.key)(state, cut, false));
-                            if caret.redraws {
-                                spawn_preview(self.state.clone(), cx);
-                            }
-                        }
-                    }
-                    cx.stop_propagation();
-                    cx.notify();
-                    return;
-                }
-            }
-            // Tab moves to the box's neighbour when the row has one; a box
-            // without one lets Tab through.
-            if key == "tab"
-                && !ctrl
-                && let Some(tab) = field.tab
-            {
-                self.state.update(cx, |state, _| tab(state, mods.shift));
-                spawn_preview(self.state.clone(), cx);
+            if self.field_key(field, key, mods, window, cx) {
                 cx.stop_propagation();
                 cx.notify();
                 return;
             }
-            // Paste is the same event as a run of keystrokes, so it goes through
-            // the row's own `push` and keeps that box's own rules.
-            if ctrl && key == "v" {
-                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-                    self.state
-                        .update(cx, |state, _| crate::keys::fields::insert(state, &text));
-                    if field.caret.is_some_and(|caret| caret.redraws) {
-                        spawn_preview(self.state.clone(), cx);
-                    }
-                }
-                cx.stop_propagation();
+            // Printable text propagates: the platform commits its `key_char`
+            // through the input handler in `text_input.rs`, case and layout
+            // intact. A chord the box does not answer is the editor's, so
+            // Ctrl+S saves mid-edit.
+            if !ctrl {
                 cx.notify();
                 return;
             }
-            let handled = match crate::popover::classify_key(key, mods.platform, ctrl) {
-                crate::popover::MenuKey::Escape => {
-                    self.state.update(cx, |state, _| (field.escape)(state));
-                    true
-                }
-                crate::popover::MenuKey::Backspace => {
-                    self.state.update(cx, |state, _| (field.backspace)(state));
-                    true
-                }
-                crate::popover::MenuKey::Enter => {
-                    self.state.update(cx, |state, cx| (field.submit)(state, cx));
-                    true
-                }
-                crate::popover::MenuKey::Up => field.history.is_some_and(|walk| {
-                    self.state.update(cx, |state, _| walk(state, -1));
-                    true
-                }),
-                crate::popover::MenuKey::Down => field.history.is_some_and(|walk| {
-                    self.state.update(cx, |state, _| walk(state, 1));
-                    true
-                }),
-                // Printable text is not handled here: the key-down propagates,
-                // and the platform commits its `key_char` through the input
-                // handler in `text_input.rs`, case and layout intact. Taking the
-                // key name here as well would type each character twice.
-                _ => false,
-            };
-            // A key handled here is not text as well: Enter's `key_char` is a
-            // newline.
-            if handled {
-                if field.caret.is_some_and(|caret| caret.redraws) {
-                    spawn_preview(self.state.clone(), cx);
-                }
-                cx.stop_propagation();
-            }
-            // A chord a box with a caret does not answer is the editor's, so
-            // Ctrl+S saves mid-edit. A box that only appends keeps every key.
-            if handled || field.caret.is_none() || !ctrl {
-                cx.notify();
-                return;
-            }
-        }
-
-        if self.state.read(cx).dialog == DialogKind::Palette {
-            if ctrl && key == "v" {
-                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-                    self.state.update(cx, |state, _| {
-                        for ch in text.chars().filter(|ch| !ch.is_control()) {
-                            state.palette_push(ch);
-                        }
-                    });
-                }
-                cx.stop_propagation();
-                cx.notify();
-                return;
-            }
-            match crate::popover::classify_key(key, mods.platform, ctrl) {
-                crate::popover::MenuKey::Escape => {
-                    self.state
-                        .update(cx, |state, _| state.open_dialog(DialogKind::None));
-                }
-                crate::popover::MenuKey::Backspace => {
-                    self.state.update(cx, |state, _| state.palette_pop());
-                }
-                crate::popover::MenuKey::Down => {
-                    self.state.update(cx, |state, _| state.palette_move(1));
-                }
-                crate::popover::MenuKey::Up => {
-                    self.state.update(cx, |state, _| state.palette_move(-1));
-                }
-                crate::popover::MenuKey::Enter => {
-                    crate::commands::dispatch(self, None, window, cx);
-                }
-                // The input handler writes only to a field, so the palette
-                // takes the keystroke's own text: `F` for Shift+F, where the key
-                // name is `f`.
-                crate::popover::MenuKey::Other if !ctrl => {
-                    if let Some(text) = event.keystroke.key_char.as_deref() {
-                        self.state.update(cx, |state, _| {
-                            for ch in text.chars().filter(|ch| !ch.is_control()) {
-                                state.palette_push(ch);
-                            }
-                        });
-                    }
-                }
-                _ => {}
-            }
-            cx.stop_propagation();
-            cx.notify();
-            return;
         }
 
         // A dialog that is up owns the keyboard, so Enter is its primary action
@@ -578,6 +445,72 @@ impl Shell {
         // binding focused.
         cx.stop_propagation();
         cx.notify();
+    }
+
+    /// A key for the focused box: its list on Up and Down, a caret key, copy,
+    /// cut, paste, Tab, Esc, Backspace or Enter. Returns whether the box
+    /// answered it.
+    fn field_key(
+        &mut self,
+        field: crate::keys::fields::TextField,
+        key: &str,
+        mods: &gpui::Modifiers,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        use crate::keys::fields::{CaretKey, Submit};
+        use crate::popover::MenuKey;
+        let ctrl = mods.control || mods.platform;
+        let state = self.state.clone();
+        let listed = field.step.filter(|_| !ctrl).zip(match key {
+            "up" => Some(-1),
+            "down" => Some(1),
+            _ => None,
+        });
+        if let Some((step, delta)) = listed {
+            state.update(cx, |state, _| step(state, delta));
+        } else if let Some(caret_key) = CaretKey::of(key, ctrl, mods.shift) {
+            state.update(cx, |state, _| field.key(state, caret_key, mods.shift));
+        } else if ctrl && matches!(key, "c" | "x") {
+            let Some(text) = field.selected(state.read(cx)) else {
+                return true;
+            };
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+            if key == "c" {
+                return true;
+            }
+            state.update(cx, |state, _| field.key(state, CaretKey::Delete, false));
+        } else if ctrl && key == "v" {
+            // A paste is a run of keystrokes, so it goes through the box's own
+            // rule.
+            let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+                return true;
+            };
+            state.update(cx, |state, _| crate::keys::fields::insert(state, &text));
+        } else if let Some(tab) = field.tab.filter(|_| key == "tab" && !ctrl) {
+            // Tab commits the box before it moves, so the picture changes.
+            state.update(cx, |state, _| tab(state, mods.shift));
+            spawn_preview(state, cx);
+            return true;
+        } else {
+            match crate::popover::classify_key(key, mods.platform, ctrl) {
+                MenuKey::Escape => state.update(cx, |state, _| (field.escape)(state)),
+                MenuKey::Backspace => state.update(cx, |state, _| field.backspace(state)),
+                MenuKey::Enter => match field.submit {
+                    Submit::State(submit) => state.update(cx, |state, cx| submit(state, cx)),
+                    Submit::PaletteCommand => {
+                        crate::commands::dispatch(self, None, window, cx);
+                        return true;
+                    }
+                },
+                // Printable text, and a key the box does not take.
+                _ => return false,
+            }
+        }
+        if field.redraws() {
+            spawn_preview(state, cx);
+        }
+        true
     }
 
     /// The press and release of a bare modifier. A lone Alt opens the menu bar

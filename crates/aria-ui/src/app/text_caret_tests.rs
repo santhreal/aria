@@ -57,7 +57,7 @@ fn content(state: &AppState, clip: ClipId) -> String {
 
 pub(in crate::app) fn type_text(state: &mut AppState, text: &str) {
     for ch in text.chars() {
-        state.title_push(ch);
+        state.type_key(ch);
     }
 }
 
@@ -97,7 +97,7 @@ fn a_typing_burst_is_one_undo_step_and_a_caret_move_ends_it() {
     let (mut state, title, _) = typing();
     type_text(&mut state, "Hey");
     state.title_caret_key(CaretKey::Left, false);
-    state.title_push('!');
+    state.type_key('!');
     assert_eq!(content(&state, title), "He!y");
     state.title_caret_key(CaretKey::Undo, false);
     assert_eq!(content(&state, title), "Hey");
@@ -182,7 +182,7 @@ fn backspace_and_delete_take_the_selection_or_one_character() {
     // An empty title draws nothing, and still has a caret to type at.
     let drawn = state.drawn_text_caret().expect("still typing");
     assert!(drawn.caret.is_some());
-    state.title_push('z');
+    state.type_key('z');
     assert_eq!(content(&state, title), "z");
 }
 
@@ -249,7 +249,7 @@ fn an_edit_is_live_only_with_the_type_tool_on_its_selected_title() {
     let (mut state, title, picture) = typing();
     state.tool = EditorTool::Pointer;
     assert!(fields::focused(&state).is_none());
-    state.title_push('x');
+    state.type_key('x');
     assert_eq!(content(&state, title), "Title");
     state.tool = EditorTool::Type;
     state.select_clip(picture);

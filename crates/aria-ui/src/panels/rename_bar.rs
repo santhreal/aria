@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 
 use gpui::{
-    Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, Styled, div, px,
 };
 
@@ -37,8 +37,10 @@ pub fn render(
 ) -> impl IntoElement {
     let open = {
         let app = state.read(cx);
-        app.rename
-            .map(|target| (target, app.rename_draft.clone(), app.rename_selection()))
+        app.rename.map(|target| {
+            let draft = &app.rename_draft;
+            (target, draft.to_string(), draft.selection())
+        })
     };
     let exiting = match open {
         Some(_) => None,
@@ -77,7 +79,19 @@ pub fn render(
                 .text_color(theme.text_muted)
                 .child(SharedString::from(target.label())),
         )
-        .child(draft_line(&draft, anchor, caret, &theme, blink))
+        .child(
+            div()
+                .flex()
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text)
+                .child(crate::components::edited_line(
+                    &draft,
+                    (anchor, caret),
+                    Theme::TEXT_UI,
+                    blink,
+                    &theme,
+                )),
+        )
         .child(
             div()
                 .text_size(Theme::TEXT_MICRO)
@@ -114,42 +128,6 @@ pub fn render(
         // `Frosted` is not `Styled`, so it cannot be faded.
         .child(crate::frost::frost(card))
         .into_any_element()
-}
-
-/// The draft, its selection tinted, with the caret at the caret's end of it.
-fn draft_line(draft: &str, anchor: usize, caret: usize, theme: &Theme, blink: f32) -> Div {
-    let byte = |index: usize| {
-        draft
-            .char_indices()
-            .nth(index)
-            .map_or(draft.len(), |(at, _)| at)
-    };
-    let (low, high) = (anchor.min(caret), anchor.max(caret));
-    let run = |range: std::ops::Range<usize>| {
-        div().child(SharedString::from(
-            draft[byte(range.start)..byte(range.end)].to_owned(),
-        ))
-    };
-    let mark = crate::components::caret_mark(Theme::TEXT_UI, blink, theme)
-        .debug_selector(|| "rename-caret".into());
-    let selected = (low < high).then(|| {
-        run(low..high)
-            .debug_selector(|| "rename-selection".into())
-            .rounded(px(Theme::CONTROL_RADIUS))
-            .bg(theme.selection)
-    });
-    let line = div()
-        .flex()
-        .items_center()
-        .text_size(Theme::TEXT_UI)
-        .text_color(theme.text)
-        .child(run(0..low));
-    let line = if caret == low {
-        line.child(mark).children(selected)
-    } else {
-        line.children(selected).child(mark)
-    };
-    line.child(run(high..draft.chars().count()))
 }
 
 /// The rename to draw: the live one, or the one still fading out.

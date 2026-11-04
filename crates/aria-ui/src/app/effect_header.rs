@@ -226,11 +226,14 @@ impl AppState {
         for (_, _, on) in &mut draft.properties {
             *on = false;
         }
-        draft.name = effect
-            .display_name()
-            .chars()
-            .take(super::presets::PRESET_NAME_MAX_LEN)
-            .collect();
+        // Opened on the effect's name, selected, so typing renames it.
+        draft.name = crate::app::line_text::LineText::selecting_all(
+            effect
+                .display_name()
+                .chars()
+                .take(super::presets::PRESET_NAME_MAX_LEN)
+                .collect::<String>(),
+        );
         self.inspector_tab = "effects".to_string();
     }
 

@@ -6,9 +6,10 @@ the keymap, not a fixed key; [Customizing](#customizing) covers changes.
 ## Resolution
 
 A key resolves against the focused panel first, then the window. A text field
-with focus takes printable keys, Backspace, Delete, Enter, Escape, Tab, arrows,
-and the clipboard chords; every other chord passes through. Bare letters and
-digits reach the Timeline and the Viewer only.
+with focus takes printable keys, Backspace, Delete, Enter, Escape, Tab, the
+arrows, Home and End, Ctrl+A, the clipboard chords, and the undo chords; every
+other chord passes through. Bare letters and digits reach the Timeline and the
+Viewer only.
 
 Menus open with F10 or a lone Alt press and release. Alt with a letter never
 opens a menu; Alt+letter chords are the property reveal keys below.
@@ -192,8 +193,8 @@ Pointer gestures on keyframes are in [animation.md](animation.md#keyframes).
 Edit > Keyboard Shortcuts shows a keyboard image with each key colored by the
 kind of command it holds, the command list with search, and the conflict list.
 Dropping a command on a key binds it; pressing a key in a command's row binds
-it; a chord already bound in the same context shows the holder and asks before
-moving it. Keymaps are saved as named sets in `<data dir>/keymaps/<name>.toml`,
+it; a chord already bound in the same context shows the holder and prompts
+before moving it. Keymaps are saved as named sets in `<data dir>/keymaps/<name>.toml`,
 imported and exported as files.
 
 Plugins add bindings through their manifest

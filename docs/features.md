@@ -193,7 +193,7 @@ Anything not listed here is not in the build.
   marked.
 - A peak meter beside every fader, in the mixer and on the Viewer's control
   row. A strip's bars read that lane's own level after its own fader, so a bus
-  reads what everything routed into it sums to. A lane the mix is not carrying reads
+  reads what everything routed into it sums to. A lane not routed to the mix reads
   silence. The master strip and the Viewer's bars read the program mix the
   Audio Meters panel reads. Every meter draws on one scale, from -60 dBFS at
   its foot to 0 dBFS at its head, and a mixer bar that reaches 0 dBFS turns red.

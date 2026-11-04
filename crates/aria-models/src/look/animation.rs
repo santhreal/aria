@@ -70,13 +70,6 @@ impl AnimationKnobs {
         intensity: true,
         stagger: false,
     };
-    /// Speed + intensity + stagger (per-character presets).
-    pub const SPEED_INTENSITY_STAGGER: Self = Self {
-        speed: true,
-        intensity: true,
-        stagger: true,
-    };
-
     /// Serde default for a catalog entry with no `knobs` key.
     fn speed_intensity() -> Self {
         Self::SPEED_INTENSITY

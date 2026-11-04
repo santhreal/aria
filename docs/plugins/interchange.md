@@ -121,7 +121,7 @@ Registration returns `PluginError::InterchangeRefused(message)` when:
 
 In the native C ABI tier (`aria-sdk`), register an importer with
 `Host::register_importer(&ImporterSpec)` and an exporter with
-`Host::register_exporter(&ExporterSpec)`; both specs hold the fields above.
+`Host::register_exporter(&ExporterSpec)`; both specs hold the `id`, `label`, and extension fields.
 `Plugin::import(&self, host, importer_id, path)` returns an `ImportResult`:
 `commands_json`, a JSON array of `aria_commands::Command` that the host
 applies as one transaction, and `skipped`. `ImportResult::new(commands_json,
@@ -233,7 +233,7 @@ the whole canvas.
 
 A panic in `Encoder::open`, `VideoEncoder::push`, `VideoEncoder::push_audio`,
 `VideoEncoder::finish`, `VideoEncoder::choice` or
-`VideoEncoder::accepts_cpu_nv12` is caught and fails the owning plugin for the
+`VideoEncoder::accepts_cpu_nv12` is caught and fails that plugin for the
 session, dropping its registrations. `choice` then reports the encoder id with
 the processor unknown, `accepts_cpu_nv12` reports `false`, and the others
 return `EncodeError`.
@@ -336,7 +336,7 @@ Every import dialog offers the extensions of every registered decoder after
 the shipped ones, and a dropped file with one of them is imported as media.
 
 A panic in any call into the decoder, or into a `VideoDecoder` or
-`AudioReader` it returned, is caught, fails the owning plugin for the session,
+`AudioReader` it returned, is caught, fails that plugin for the session,
 drops its registrations, and returns `DecodeError::Decode`. The time of each
 frame decode is recorded as the plugin's frame cost in the Plugins list.
 

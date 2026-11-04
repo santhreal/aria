@@ -397,7 +397,7 @@ fn the_save_as_field_saves_a_set_under_the_typed_name() {
     press(&mut state, a.id, free_key());
     state.focus_setting(Some(SettingsField::KeymapName));
     for ch in "Edit keys".chars() {
-        state.setting_push(ch);
+        state.type_key(ch);
     }
     state.commit_setting().expect("a plain name");
     assert_eq!(state.active_keymap(), Some("Edit keys"));
@@ -418,7 +418,7 @@ fn the_save_as_field_saves_a_set_under_the_typed_name() {
         state.settings_form.draft, "Edit keys",
         "the field opens on the set in force"
     );
-    state.settings_form.draft = "a/b".to_owned();
+    state.settings_form.draft = "a/b".into();
     assert!(state.commit_setting().is_err());
     assert!(
         state.setting_draft(SettingsField::KeymapName).1,

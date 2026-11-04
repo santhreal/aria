@@ -43,6 +43,8 @@ mod docs_claims_tests;
 #[cfg(test)]
 mod docs_markdown_tests;
 #[cfg(test)]
+mod equivalents_doc_tests;
+#[cfg(test)]
 mod export_doc_tests;
 #[cfg(test)]
 mod guide_doc_tests;

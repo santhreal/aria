@@ -47,7 +47,7 @@ impl AppState {
     /// own answer, and it is the right one: refusing would make a prompt that
     /// happens to start with a slash unsendable.
     pub fn send_composer_prompt(&mut self, cx: &mut Context<Self>) {
-        let typed = self.assistant.prompt.clone();
+        let typed = self.assistant.prompt.to_string();
         let commands = aria_ai::load_agent_dir(&self.agent_dir()).commands;
         match aria_ai::extend::expand_slash_command(&typed, &commands) {
             Some(expanded) => {

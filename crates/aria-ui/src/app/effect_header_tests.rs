@@ -161,10 +161,10 @@ fn the_rename_bar_takes_a_name_as_long_as_it_can_type() {
         "the draft is seeded with the drawn name"
     );
     while !state.rename_draft.is_empty() {
-        state.rename_pop();
+        state.press_backspace();
     }
     for _ in 0..crate::app::rename::RENAME_MAX_LEN * 2 {
-        state.rename_push('é');
+        state.type_key('é');
     }
     state.commit_rename().expect("the longest draft is a name");
     let name = chain(&state, clip)[1]

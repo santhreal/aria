@@ -84,7 +84,7 @@ fn type_entry(state: &mut AppState, key: &str, rest: &str) {
         state.active_panel
     );
     for ch in rest.chars() {
-        state.clock_push(ch);
+        state.type_key(ch);
     }
     state.commit_clock();
     assert!(!state.clock_focused(), "Enter releases the field");

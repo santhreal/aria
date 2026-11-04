@@ -259,16 +259,16 @@ impl Watching {
             None
         } else if let Some(draft) = self.draft.as_ref().filter(|draft| draft.param == param) {
             Some(DriverLine {
-                source: draft.text.clone().into(),
+                source: draft.text.to_string().into(),
                 fault: row.fault.clone(),
-                editing: true,
+                editing: Some(draft.text.selection()),
                 picking: draft.picking,
             })
         } else {
             row.driver.clone().map(|source| DriverLine {
                 source,
                 fault: row.fault.clone(),
-                editing: false,
+                editing: None,
                 picking: false,
             })
         };
@@ -306,8 +306,9 @@ pub struct DriverLine {
     pub source: SharedString,
     /// Why the driver failed at the playhead.
     pub fault: Option<SharedString>,
-    /// The source is open in the `aria.field.driver` box.
-    pub editing: bool,
+    /// The draft's `(anchor, caret)` while the source is open in the
+    /// `aria.field.driver` box.
+    pub editing: Option<(usize, usize)>,
     /// The pick whip is waiting for a property.
     pub picking: bool,
 }
@@ -685,22 +686,25 @@ fn driver_source(
         .text_size(Theme::TEXT_TITLE)
         .text_color(ink)
         .cursor(CursorStyle::IBeam)
-        .when(line.editing, |el| {
+        .when(line.editing.is_some(), |el| {
             el.bg(theme.input_bg).border_1().border_color(theme.accent)
         })
         .when_some(line.fault.clone(), |el, fault| {
             el.with_tip(crate::tooltip::text_builder(fault))
         })
-        .when_else(
-            line.editing,
-            |el| {
-                el.flex()
-                    .items_center()
-                    .child(crate::components::typed_line(line.source.clone(), true))
-                    .child(crate::components::caret_mark(Theme::TEXT_TITLE, 1.0, theme))
-            },
-            |el| el.child(line.source.clone()),
-        )
+        .map(|el| match line.editing {
+            Some(selection) => el
+                .flex()
+                .items_center()
+                .child(crate::components::edited_line(
+                    &line.source,
+                    selection,
+                    Theme::TEXT_TITLE,
+                    1.0,
+                    theme,
+                )),
+            None => el.child(line.source.clone()),
+        })
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -711,7 +715,7 @@ fn driver_source(
                 cx.notify();
             }),
         );
-    let whip = line.editing.then(|| {
+    let whip = line.editing.is_some().then(|| {
         crate::components::lit_icon(
             ("inspector-driver-whip", key.with("whip")),
             crate::icons::LINK,

@@ -95,25 +95,34 @@ std::thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
-/// Store the full split path for an in-flight splitter drag so splits nested
-/// deeper than 4 levels are never truncated.
+/// Store the full split path for an in-flight splitter drag when nested deeper
+/// than the 4 inline steps of [`DragKind::DockSplit`], clearing any prior deep
+/// path when a shallow drag starts or ends.
 pub(crate) fn set_active_split_drag_path(path: &[usize]) {
     ACTIVE_SPLIT_DRAG_PATH.with(|cell| {
         let mut buf = cell.borrow_mut();
         buf.clear();
-        buf.extend_from_slice(path);
+        if path.len() > 4 {
+            buf.extend_from_slice(path);
+        }
     });
 }
 
-/// Read the full split path for an in-flight splitter drag, falling back to
-/// `fallback` when none was recorded.
+/// Clear any stored deep split path when a splitter drag ends or cancels.
+pub(crate) fn clear_active_split_drag_path() {
+    set_active_split_drag_path(&[]);
+}
+
+/// Read the full split path for an in-flight splitter drag, using the recorded
+/// deep path only when `fallback` saturates the 4 inline steps and matches its
+/// prefix.
 pub(crate) fn active_split_drag_path(fallback: &[usize]) -> Vec<usize> {
     ACTIVE_SPLIT_DRAG_PATH.with(|cell| {
         let buf = cell.borrow();
-        if buf.is_empty() {
-            fallback.to_vec()
-        } else {
+        if fallback.len() == 4 && buf.len() > 4 && buf.starts_with(fallback) {
             buf.clone()
+        } else {
+            fallback.to_vec()
         }
     })
 }

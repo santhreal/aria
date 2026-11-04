@@ -299,19 +299,14 @@ pub(super) fn keyframe_position(
     let at = timeline_time(project, seconds, "at")?;
     let tl = clip.timeline;
     if at.value < tl.start.value || at.value >= tl.end_tick() {
-        let rate = timeline_rate(project);
         return Err(Rejection::new(format!(
             "keyframe position {seconds:.3}s is outside clip {} ({:.3}s to {:.3}s)",
             clip.id.raw(),
-            ticks_to_seconds(tl.start.value, rate),
-            ticks_to_seconds(tl.end_tick(), rate),
+            tl.start.seconds(),
+            RationalTime::new(tl.end_tick(), tl.start.rate).seconds(),
         )));
     }
     Ok(at)
-}
-
-pub(super) fn ticks_to_seconds(ticks: i64, rate: Rational) -> f64 {
-    ticks as f64 * rate.seconds_per_unit()
 }
 
 pub(super) fn seconds_to_ticks(seconds: f64, rate: Rational, what: &str) -> Result<i64, Rejection> {
@@ -403,7 +398,7 @@ pub(super) fn media_placement(
             source_start,
             source_duration,
             media.id.raw(),
-            ticks_to_seconds(media.duration.value, rate),
+            media.duration.seconds(),
         )));
     }
     let source = TimeRange::at_rate(start_ticks, duration_ticks, rate);

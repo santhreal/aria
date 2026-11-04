@@ -29,7 +29,7 @@ fn names(rows: &[TimelineOutlineRow]) -> Vec<String> {
 fn search(state: &mut AppState, text: &str) {
     state.focus_property_search(true);
     while !state.property_query().is_empty() {
-        state.property_query_pop();
+        state.press_backspace();
     }
     assert!(
         fields::insert(state, text),
@@ -146,7 +146,7 @@ fn backspace_takes_the_search_back_one_character() {
     let (mut state, track, all) = shut_clip();
     search(&mut state, "posz");
     assert_eq!(state.track_outline_rows(track), Vec::new());
-    assert!(fields::truncate(&mut state, 1));
+    state.press_backspace();
     assert_eq!(state.property_query(), "pos");
     let want: Vec<String> = all
         .iter()

@@ -1,10 +1,11 @@
 //! The playhead clock as a typed field.
 //!
 //! The SMPTE readout at the left of the Viewer's control row is a text box
-//! like any other: clicking it seeds a draft from the current position, keys
-//! route to it through the field table, Enter seeks, and anything that is not
-//! a timecode leaves the playhead alone. A refusal restores the displayed value
-//! rather than clearing it, so a mistyped digit keeps the playhead's place.
+//! like any other: clicking it seeds a draft from the current position, all of
+//! it selected so a typed timecode replaces it, keys route to it through the
+//! field table, Enter seeks, and anything that is not a timecode leaves the
+//! playhead alone. A refusal restores the displayed value rather than clearing
+//! it, so a mistyped digit keeps the playhead's place.
 //!
 //! A digit or a keypad `+`/`-` pressed over the Timeline or the Program view
 //! opens the field with that character, so a timecode is typed without a click.
@@ -18,6 +19,16 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, RationalTime, TrackId};
 
 use super::AppState;
+use super::line_text::{LineRule, LineText};
+
+/// What the clock takes: digits, the separators `:`, `;` and `.`, the feet
+/// mark `+` after a digit, and a `+` or `-` ahead of everything else. A time
+/// has no other characters, so a stray letter never reaches the draft.
+pub(crate) const CLOCK_RULE: LineRule = LineRule::chars(16).admitting(|before, ch| {
+    let sign = matches!(ch, '+' | '-') && before.is_empty();
+    let feet = ch == '+' && before.bytes().any(|b| b.is_ascii_digit());
+    sign || feet || ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.')
+});
 
 /// A playhead field: the one in the Viewer's control row, or the 18 px one in
 /// the timeline header. Both read and type the same draft; the site is the one
@@ -31,13 +42,10 @@ pub enum ClockSite {
 
 impl AppState {
     /// Take or release the clock's focus. Taking it seeds the draft from where
-    /// the playhead is now, so a partial edit starts from the truth on screen.
+    /// the playhead is now, selected: a typed time replaces it, and an arrow
+    /// key keeps it for a partial edit that starts from the truth on screen.
     pub fn focus_clock(&mut self, focused: bool) {
-        if focused {
-            self.clock_draft = Some(self.clock_display.to_string());
-        } else {
-            self.clock_draft = None;
-        }
+        self.clock_draft = focused.then(|| LineText::selecting_all(self.clock_display.to_string()));
     }
 
     /// Open the field from a key pressed over the Timeline or the Program
@@ -63,7 +71,7 @@ impl AppState {
             return false;
         }
         self.clock_site = site;
-        self.clock_draft = Some(first.to_string());
+        self.clock_draft = Some(LineText::new(first.to_string()));
         true
     }
 
@@ -79,6 +87,11 @@ impl AppState {
         } else {
             (false, self.clock_display.clone())
         }
+    }
+
+    /// The draft's `(anchor, caret)`, `None` while no clock field holds it.
+    pub fn clock_selection(&self) -> Option<(usize, usize)> {
+        self.clock_draft.as_ref().map(LineText::selection)
     }
 
     /// The text the field shows: the draft while it is being typed, the playhead
@@ -98,29 +111,6 @@ impl AppState {
     pub(crate) fn sequence_time(&self, ticks: i64) -> String {
         let sequence = &self.store.sequence;
         crate::timecode::format_time(ticks, sequence.frame_rate, sequence.time_display)
-    }
-
-    /// Digits, the separators `:`, `;` and `.`, and the feet mark `+` after a
-    /// digit, plus a `+` or `-` as the first character: a time has no other
-    /// characters, so a stray letter never reaches the draft.
-    pub fn clock_push(&mut self, ch: char) {
-        let Some(draft) = self.clock_draft.as_mut() else {
-            return;
-        };
-        let sign = matches!(ch, '+' | '-') && draft.is_empty();
-        let feet = ch == '+' && draft.bytes().any(|b| b.is_ascii_digit());
-        if !(sign || feet || ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.')) {
-            return;
-        }
-        if draft.len() < 16 {
-            draft.push(ch);
-        }
-    }
-
-    pub fn clock_pop(&mut self) {
-        if let Some(draft) = self.clock_draft.as_mut() {
-            draft.pop();
-        }
     }
 
     /// Enter: seek, move by a signed duration, or refuse and put the previous

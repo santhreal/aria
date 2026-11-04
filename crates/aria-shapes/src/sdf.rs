@@ -41,10 +41,15 @@ pub fn coverage(d: f32) -> f32 {
 /// Signed distance (pixels) from point `p` (origin at shape center, +y
 /// down) to `shape`'s edge. Negative inside.
 pub fn eval(shape: &SdfShape, p: [f32; 2]) -> f32 {
-    let half = shape.half;
+    let half = sanitize_half(shape.half);
     match shape.params {
         SdfParams::RoundedRect { radius } => {
-            let r = radius.clamp(0.0, half[0].min(half[1]));
+            let max_r = half[0].min(half[1]);
+            let r = if radius.is_finite() && radius > 0.0 {
+                radius.min(max_r)
+            } else {
+                0.0
+            };
             sd_round_box(p, half, r)
         }
         SdfParams::Ellipse => sd_ellipse(p, half),
@@ -53,7 +58,7 @@ pub fn eval(shape: &SdfShape, p: [f32; 2]) -> f32 {
             inner,
             round,
         } => {
-            let max_r = half[0].min(half[1]).max(0.0);
+            let max_r = half[0].min(half[1]);
             let round = if round.is_finite() && round > 0.0 {
                 round.min(max_r)
             } else {
@@ -85,8 +90,14 @@ pub fn eval(shape: &SdfShape, p: [f32; 2]) -> f32 {
 /// and available as a software fallback), not a per-frame path — it is a
 /// plain O(w·h) loop.
 pub fn raster(shape: &SdfShape, style: &ShapeStyle) -> RgbaImage {
-    let half = shape.half;
-    let stroke_w = style.stroke.map_or(0.0, |s| s.width.max(0.0));
+    let half = sanitize_half(shape.half);
+    let stroke_w = style.stroke.map_or(0.0, |s| {
+        if s.width.is_finite() && s.width > 0.0 {
+            s.width
+        } else {
+            0.0
+        }
+    });
     let pad = stroke_w * 0.5 + 2.0 * SDF_AA;
     let w = ((half[0] + pad) * 2.0).ceil().max(1.0) as u32;
     let h = ((half[1] + pad) * 2.0).ceil().max(1.0) as u32;
@@ -138,6 +149,21 @@ pub fn shade(d: f32, style: &ShapeStyle, stroke_w: f32) -> [u8; 4] {
     }
     out[3] = (a * 255.0).round().clamp(0.0, 255.0) as u8;
     out
+}
+
+fn sanitize_half(half: [f32; 2]) -> [f32; 2] {
+    [
+        if half[0].is_finite() {
+            half[0].max(0.0)
+        } else {
+            0.0
+        },
+        if half[1].is_finite() {
+            half[1].max(0.0)
+        } else {
+            0.0
+        },
+    ]
 }
 
 // --- shape formulas (each has a WGSL twin in shape.wgsl) ---------------------
@@ -260,8 +286,8 @@ fn sd_heart(p: [f32; 2], half: [f32; 2]) -> f32 {
     let unit_hw = 0.25 + lobe; // half-width of the unit heart
     let unit_h = 0.75 + lobe; // full height of the unit heart
 
-    let sx = half[0] / unit_hw;
-    let sy = half[1] / (unit_h * 0.5);
+    let sx = half[0].max(1e-3) / unit_hw;
+    let sy = half[1].max(1e-3) / (unit_h * 0.5);
     // Heart space: x mirrored around 0, y up from the tip.
     let hx = (p[0] / sx).abs();
     let hy = (half[1] - p[1]) / sy;

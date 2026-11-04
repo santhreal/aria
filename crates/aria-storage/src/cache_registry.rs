@@ -275,11 +275,6 @@ pub const fn cache_descriptors() -> &'static [CacheDescriptor] {
     &CACHE_REGISTRY
 }
 
-/// Look up a descriptor by typed identifier.
-pub const fn cache_descriptor(id: CacheId) -> &'static CacheDescriptor {
-    id.descriptor()
-}
-
 /// Look up a descriptor by exact stable key.
 pub fn cache_descriptor_by_key(key: &str) -> Option<&'static CacheDescriptor> {
     CacheId::parse(key).ok().map(CacheId::descriptor)

@@ -71,7 +71,7 @@ not `Origin::Editor`.
 
 The view events are posted at most once per drawn frame, one per part that
 changed. `MediaOffline` is posted again for a file that returns and goes
-missing a second time. A render queue entry cancelled before it starts posts no
+missing a second time. A render queue entry canceled before it starts posts no
 export events. `result` is `RenderResult::Written`, `Failed(reason)`, or
 `Cancelled`, and agrees with the job's final state on the Jobs board.
 

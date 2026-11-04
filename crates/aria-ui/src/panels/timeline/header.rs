@@ -23,8 +23,8 @@
 //! markers, the display settings, and the Graph Editor.
 
 use gpui::{
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels,
-    SharedString, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels, Styled,
+    div, px,
 };
 
 use crate::app::AppState;
@@ -69,8 +69,9 @@ pub(super) fn header_controls(
     let app = state.read(cx);
     let outline = app.outline_drawn_width();
     let (tc_open, tc_text) = app.clock_field(ClockSite::Timeline);
+    let tc_editing = app.clock_selection().filter(|_| tc_open);
     let tc_layer = app.timeline_playhead.clone();
-    let query = SharedString::from(app.property_query().to_owned());
+    let query = app.property_query().clone();
     let searching = !query.is_empty();
     let search_open = app.property_search_focused();
     let snap = app.snap_enabled;
@@ -79,7 +80,7 @@ pub(super) fn header_controls(
 
     let lit = motion::hover_t(motion::ControlId::from("timeline-tc").motion("field"));
     let field = if tc_open || !crate::timeline_playhead::layers_timecode() {
-        components::text_box("timeline-tc", tc_text, "", tc_open, theme)
+        components::text_box("timeline-tc", &tc_text, "", tc_editing, theme)
     } else {
         components::field_frame("timeline-tc", false, theme).child(tc_layer.timecode(tc_text))
     };
@@ -120,30 +121,36 @@ pub(super) fn header_controls(
 
     // As tall as the toggles in the row under it, so the field and the toggles
     // stand the same step in from the header's top and bottom edges.
-    let search = components::text_box("property-search", query, "Search", search_open, theme)
-        .debug_selector(|| "property-search".into())
-        .flex_1()
-        .min_w_0()
-        .min_h(px(Theme::ICON_HIT_ROW))
-        .h(px(Theme::ICON_HIT_ROW))
-        .truncate()
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.focus_property_search(true));
-                cx.notify();
-            }),
-        )
-        // A press anywhere else gives the keys back and keeps the filter, and
-        // still lands where it was aimed.
-        .when(search_open, |el| {
-            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.focus_property_search(false));
-                cx.notify();
-            }))
-        });
+    let search = components::text_box(
+        "property-search",
+        &query,
+        "Search",
+        query.editing(search_open),
+        theme,
+    )
+    .debug_selector(|| "property-search".into())
+    .flex_1()
+    .min_w_0()
+    .min_h(px(Theme::ICON_HIT_ROW))
+    .h(px(Theme::ICON_HIT_ROW))
+    .truncate()
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.focus_property_search(true));
+            cx.notify();
+        }),
+    )
+    // A press anywhere else gives the keys back and keeps the filter, and
+    // still lands where it was aimed.
+    .when(search_open, |el| {
+        el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.focus_property_search(false));
+            cx.notify();
+        }))
+    });
 
     let row = || div().h(px(HEADER_ROW_H)).flex_none().flex().items_center();
 

@@ -179,7 +179,8 @@ pub struct AppState {
     /// The rows plugins added to the menu last opened, in mount order. Kept
     /// after the menu closes so its fade out draws the same rows.
     pub(crate) context_plugin_rows: Arc<[super::ContextPluginRow]>,
-    pub palette_query: String,
+    /// The palette's query, with its caret and selection.
+    pub palette_query: super::line_text::LineText,
     pub(crate) palette_cache: std::cell::RefCell<crate::app::palette::PaletteCache>,
     /// Which of the palette's current hits is highlighted. Clamped on read, so a
     /// query that shortens the list cannot leave it pointing past the end.
@@ -189,12 +190,11 @@ pub struct AppState {
     pub palette_scroll: gpui::ScrollHandle,
     /// In-progress inline rename, if any.
     pub rename: Option<crate::types::RenameTarget>,
-    pub rename_draft: String,
-    /// The caret and selection in `rename_draft`.
-    pub(crate) rename_caret: super::rename::RenameCaret,
+    /// The draft of the rename in progress, with its caret and selection.
+    pub rename_draft: super::line_text::LineText,
     /// The clock's draft while a playhead field holds focus. `None` means the
     /// fields are showing the playhead.
-    pub clock_draft: Option<String>,
+    pub clock_draft: Option<super::line_text::LineText>,
     /// The playhead field the draft is typed into: the Viewer's or the
     /// Timeline's.
     pub(crate) clock_site: crate::app::clock::ClockSite,
@@ -407,7 +407,7 @@ pub struct AppState {
     /// next launch rather than trusted from a previous one.
     pub cloud_feeds: cloud_feeds::Feeds,
     /// The stock search box.
-    pub stock_query: String,
+    pub stock_query: super::line_text::LineText,
     /// Whether the stock search box has keyboard focus. Typing is captured only while
     /// it does, so the single-letter tool shortcuts keep working with the tab open.
     pub stock_search_focus: bool,
@@ -415,7 +415,7 @@ pub struct AppState {
     pub stock_kind: aria_cloud::dto::StockKind,
     /// The bin's filter text. Session state: a filter is a way of looking at the
     /// pool, not a property of the project, so it is never saved.
-    pub media_query: String,
+    pub media_query: super::line_text::LineText,
     /// Whether the bin filter box has keyboard focus.
     pub media_search_focus: bool,
     /// How the bin orders what it shows.

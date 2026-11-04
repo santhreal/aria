@@ -148,7 +148,7 @@ fn a_title_selection_dragged_off_the_viewer_follows_the_pointer(cx: &mut gpui::T
             "the Type tool places a title"
         );
         for ch in "abcdefgh".chars() {
-            state.title_push(ch);
+            state.type_key(ch);
         }
         state.end_text_edit();
     });

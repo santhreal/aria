@@ -43,6 +43,11 @@ fn opacity(state: &AppState) -> f32 {
         .expect("opacity")
 }
 
+/// The text typed into the open value readout, empty with none open.
+fn entry(state: &AppState) -> &str {
+    state.value_entry_line().map_or("", |line| line.as_str())
+}
+
 /// An opacity readout as a row draws it at the current value.
 fn opacity_target(state: &AppState, name: &str, shape: Shape) -> ScrubTarget {
     let drawn = opacity(state);
@@ -167,11 +172,11 @@ fn a_click_opens_the_value_as_text_and_enter_writes_it() {
         state.press_value(opacity_target(&state, "a", shape));
         assert!(state.release_value(), "{shape:?}");
         assert!(state.value_entry_open(), "{shape:?}");
-        assert_eq!(state.value_entry_text(), "0.50", "{shape:?}");
+        assert_eq!(entry(&state), "0.50", "{shape:?}");
         for ch in "0.25".chars() {
-            state.value_entry_push(ch);
+            state.type_key(ch);
         }
-        assert_eq!(state.value_entry_text(), "0.25", "{shape:?}");
+        assert_eq!(entry(&state), "0.25", "{shape:?}");
         assert!(state.commit_value_entry(), "{shape:?}");
         assert!(!state.value_entry_open(), "{shape:?}");
         assert!(
@@ -190,7 +195,7 @@ fn escape_closes_the_field_without_writing() {
         let depth = state.history_depth();
         state.press_value(opacity_target(&state, "a", shape));
         state.release_value();
-        state.value_entry_push('1');
+        state.type_key('1');
         state.cancel_value_entry();
         assert!(!state.value_entry_open(), "{shape:?}");
         assert!(close(opacity(&state), 0.5), "{shape:?}");
@@ -206,9 +211,9 @@ fn text_stating_no_number_keeps_the_field_and_reports_it() {
     state.press_value(opacity_target(&state, "a", Shape::Incremental));
     state.release_value();
     for ch in "x-.".chars() {
-        state.value_entry_push(ch);
+        state.type_key(ch);
     }
-    assert_eq!(state.value_entry_text(), "-.");
+    assert_eq!(entry(&state), "-.");
     assert!(!state.commit_value_entry());
     assert!(state.value_entry_open());
     assert!(
@@ -227,12 +232,12 @@ fn backspace_on_the_selected_draft_clears_it() {
     let mut state = start(0.5);
     state.press_value(opacity_target(&state, "a", Shape::Incremental));
     state.release_value();
-    state.value_entry_pop();
-    assert_eq!(state.value_entry_text(), "");
-    state.value_entry_push('1');
-    state.value_entry_push('2');
-    state.value_entry_pop();
-    assert_eq!(state.value_entry_text(), "1");
+    state.press_backspace();
+    assert_eq!(entry(&state), "");
+    state.type_key('1');
+    state.type_key('2');
+    state.press_backspace();
+    assert_eq!(entry(&state), "1");
 }
 
 /// Tab commits and opens the readout painted after the open one, Shift+Tab the
@@ -250,7 +255,7 @@ fn tab_commits_and_opens_the_neighbouring_readout() {
         state.value_painted(target);
     }
     for ch in "0.4".chars() {
-        state.value_entry_push(ch);
+        state.type_key(ch);
     }
     state.tab_value_entry(false);
     assert!(close(opacity(&state), 0.4), "read {}", opacity(&state));

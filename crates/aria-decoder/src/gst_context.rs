@@ -165,6 +165,20 @@ const CORE_DECODE_FACTORIES: &[&str] = &[
     "appsink",
 ];
 
+/// Pre-load [`CORE_DECODE_FACTORIES`] once per process so the first pipeline
+/// for each codec does not block on `.so` mapping or GType registration.
+pub(crate) fn preload_core_factories() {
+    static PRELOADED: std::sync::Once = std::sync::Once::new();
+    PRELOADED.call_once(|| {
+        for name in CORE_DECODE_FACTORIES {
+            if WARM_UP.stopping() {
+                return;
+            }
+            let _ = gst::ElementFactory::make(name).build();
+        }
+    });
+}
+
 /// Open each device in [`DEVICES`] whose element this host has and can load.
 ///
 /// The registry can list an element whose plugin no longer loads (a CUDA
@@ -218,12 +232,7 @@ fn warm_devices() {
         return;
     }
     let _ = crate::gst_dmabuf_watch::registry_has_dmabuf_video_decoder();
-    for name in CORE_DECODE_FACTORIES {
-        if WARM_UP.stopping() {
-            return;
-        }
-        let _ = gst::ElementFactory::make(name).build();
-    }
+    preload_core_factories();
 }
 
 /// Run `launch` to `PAUSED` with context sharing, then stop it.

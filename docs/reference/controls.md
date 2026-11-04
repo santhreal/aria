@@ -55,7 +55,7 @@ The Viewer and Source Monitor (`crates/aria-ui/src/panels/preview*.rs`) render t
 | `preview-zoom-out` | Zoom out | Steps the Viewer to the next zoom level below the one on screen, holding the picture's center. | None |
 | `program-mark-in` | In | Sets the sequence in mark at the current playhead frame. | `I` |
 | `program-mark-out` | Out | Sets the sequence out mark at the current playhead frame. | `O` |
-| `source-close` | Sequence | Closes the Source Monitor view and returns focus to the active sequence. | `Space` |
+| `source-close` | Sequence | Switches the Viewer from the Source Monitor back to the Program tab without closing the Source tab. | `Space` |
 | `source-insert` | Insert | Inserts the marked source range at the sequence playhead and ripples downstream clips. | `,` |
 | `source-mark-clear` | Clear | Clears both in and out marks on the active source clip. | None |
 | `source-mark-in` | In | Sets the source clip in point at the Source Monitor playhead. | `I` |
@@ -100,7 +100,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `blur-toggle` | Switch | Toggles motion blur evaluation for transform animation on the selected clip; drawn on the Motion blur section's Enabled line. | None |
 | `chroma-clear` | Remove key | Removes the chroma key filter from the selected clip. | None |
 | `chroma-key-color` (per row) | Green / Blue / Cyan | Keys the selected clip on the green, blue, or cyan screen color. | None |
-| `clip-type-detach` | Detach | Detaches the linked audio stream from the selected video clip onto its own track item. | None |
+| `clip-type-detach` | Detach | Detaches the selected clip from its plugin clip type and converts it to an editable clip. | None |
 | `crop-clear` | Reset icon | Resets the crop rectangle and horizontal and vertical flip flags on the selected clip to their defaults; drawn at the right of the Crop heading. | None |
 | `denoise-toggle` | Switch | Runs the selected clip's audio through RNNoise noise reduction, or stops it; drawn on the Inspector Audio tab's Denoise line. | None |
 | `duck-run` | Duck under voice | Computes and applies volume keyframes that lower music or effects gain during dialogue segments. | None |
@@ -251,7 +251,7 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
 | `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
 | `caption-threads` (per row) | Auto / 1 / 2 / 4 / 8 | Sets how many CPU threads the transcription model decodes with; Auto uses one per core, up to 8. | None |
-| `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that carry word timings. | None |
+| `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that include word timings. | None |
 
 ## Text
 
@@ -405,7 +405,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `caches-measure` | Measure | Scans disk usage across all registered cache directories and updates their byte totals. | None |
 | `model-install` (per row) | Install / Reinstall | Downloads and installs the selected local transcription model. | None |
 | `plugin-folder` | Open Folder | Opens the installed plugins directory in the system file manager. | None |
-| `plugin-install` | Install Plugin… | Opens a file picker to install a `.ariap` plugin archive. | None |
+| `plugin-install` | Install Plugin… | Opens a file picker to install an `.ariaplugin` plugin archive. | None |
 | `plugin-log-copy` (per row) | Copy | Copies the diagnostic log output of the selected plugin to the clipboard. | None |
 | `plugin-row-action` (per row) | Reload / Uninstall / Open Folder / Log / Hide Log | Reloads or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
 | `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's choice setting. | None |

@@ -142,7 +142,7 @@ pub(crate) fn cpu_frame(pts: i64, bytes: usize) -> VideoFrame {
 /// The byte that fills each plane of the frame at `pts` from
 /// [`Mock::with_planes`]; never zero, the contents of a new plane buffer.
 pub(crate) fn plane_fill(pts: i64) -> u8 {
-    0x80 | (pts.rem_euclid(64) as u8)
+    0x80 | (pts.rem_euclid(128) as u8)
 }
 
 pub(crate) fn gpu_frame(pts: i64) -> VideoFrame {
@@ -270,6 +270,10 @@ fn a_fill_stops_at_the_ahead_bound() {
     let (mock, counts) = Mock::new(100, 10);
     let mut decoder = ahead(mock);
     assert_eq!(pts(decoder.frame_at(rt(0))), Some(0));
+    assert!(
+        decoder.ahead() >= AHEAD_FRAMES && decoder.ahead() >= START_FRAMES && AHEAD_FRAMES >= 25,
+        "an exact cold decode must queue all ahead frames before returning"
+    );
     decoder.idle();
     assert_eq!(decoder.ahead(), AHEAD_FRAMES);
     assert_eq!(counts.decoded(), 1 + AHEAD_FRAMES);
@@ -282,7 +286,7 @@ fn a_fill_stops_at_the_ahead_bound() {
 
 #[test]
 fn ahead_frames_decode_on_the_pool() {
-    let (mock, counts) = Mock::new(30, 10);
+    let (mock, counts) = Mock::new(10 + AHEAD_FRAMES as i64, 10);
     let mut decoder = ahead(mock);
     decoder.request(rt(4), false);
     decoder.idle();
@@ -343,9 +347,9 @@ fn nearest_matches_the_wrapped_decoder_and_holds_nothing_ahead() {
 
 #[test]
 fn seek_and_next_frame_follow_the_wrapped_decoder() {
-    let (bare, _) = Mock::new(40, 10);
+    let (bare, _) = Mock::new(20 + AHEAD_FRAMES as i64, 10);
     let mut bare = bare;
-    let (mock, _) = Mock::new(40, 10);
+    let (mock, _) = Mock::new(20 + AHEAD_FRAMES as i64, 10);
     let mut decoder = ahead(mock);
     decoder
         .seek(rt(23))
@@ -467,9 +471,12 @@ fn discarded_frames_return_their_planes_to_the_plane_pool() {
         fills.sort_unstable();
         fills
     };
-    let fills =
-        |frames: std::ops::RangeInclusive<i64>| -> Vec<u8> { frames.map(plane_fill).collect() };
-    let (mock, _) = Mock::new(100, 10);
+    let fills = |frames: std::ops::RangeInclusive<i64>| -> Vec<u8> {
+        let mut v: Vec<u8> = frames.map(plane_fill).collect();
+        v.sort_unstable();
+        v
+    };
+    let (mock, _) = Mock::new(80 + AHEAD_FRAMES as i64, 10);
     let mut decoder = ahead(mock.with_planes(LEN));
     assert_eq!(pts(decoder.frame_at(rt(0))), Some(0));
     decoder.idle();
@@ -500,11 +507,28 @@ fn discarded_frames_return_their_planes_to_the_plane_pool() {
         fills(41..=40 + AHEAD_FRAMES as i64),
         "release freed the frames it held"
     );
+    // A stale request answer and a dropped AheadDecoder also return their planes.
+    decoder.request(rt(70), false);
+    decoder.idle();
+    assert_eq!(pts(decoder.frame_at(rt(71))), Some(71));
+    decoder.idle();
+    let expected_drop_fills = {
+        let mut v = vec![plane_fill(70)];
+        v.extend(fills(72..=71 + AHEAD_FRAMES as i64));
+        v.sort_unstable();
+        v
+    };
+    drop(decoder);
+    assert_eq!(
+        pooled(1 + AHEAD_FRAMES),
+        expected_drop_fills,
+        "a stale request answer and Drop for AheadDecoder must return their planes to the pool"
+    );
 }
 
 #[test]
 fn open_ahead_opens_and_decodes_the_first_frame_on_the_pool() {
-    let (mock, counts) = Mock::new(30, 10);
+    let (mock, counts) = Mock::new(10 + AHEAD_FRAMES as i64, 10);
     let opening = open_ahead(
         move || Ok(Box::new(mock) as Box<dyn VideoDecoder>),
         rt(3),
@@ -534,4 +558,35 @@ fn open_ahead_reports_a_failed_or_panicking_open() {
     let panicked = open_ahead(|| panic!("open fault"), rt(0), false);
     let error = panicked.wait().err().unwrap_or_else(|| panic!("opened"));
     assert!(error.to_string().contains("panicked"), "{error}");
+}
+
+#[test]
+fn dropping_an_opening_decoder_waits_for_an_in_flight_open_to_drop_the_decoder() {
+    let (mock, counts) = Mock::new(30, 10);
+    let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+    let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+    let opening = open_ahead(
+        move || {
+            let _ = entered_tx.send(());
+            let _ = release_rx.recv();
+            Ok(Box::new(mock) as Box<dyn VideoDecoder>)
+        },
+        rt(0),
+        false,
+    );
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("open started on pool");
+    let _ = release_tx.send(());
+    drop(opening);
+    assert_eq!(
+        counts.dropped(),
+        1,
+        "dropping OpeningDecoder must join an in-flight open and drop the wrapped decoder before returning"
+    );
+    assert_eq!(
+        counts.decoded(),
+        0,
+        "a canceled OpeningDecoder must not decode ahead after open"
+    );
 }

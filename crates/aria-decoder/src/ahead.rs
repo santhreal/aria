@@ -20,9 +20,11 @@
 //! would, and a miss goes to the wrapped decoder, whose roll-forward policy
 //! chooses between rolling and seeking.
 
+use std::collections::VecDeque;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, LazyLock};
 
 use aria_core::{DecodeError, Rational, RationalTime, SourceInfo, VideoDecoder, VideoFrame};
@@ -33,8 +35,11 @@ mod state;
 use state::{Answer, Ask, Claim, Op, Reach, Shared, State, Want, broken};
 
 /// Frames an [`AheadDecoder`] holds decoded past the last frame it returned.
-pub const AHEAD_FRAMES: usize = 8;
+pub const AHEAD_FRAMES: usize = 25;
 
+/// Frames a cold exact decode waits for the pool to queue ahead before
+/// returning its first frame.
+const START_FRAMES: usize = AHEAD_FRAMES;
 /// CPU frame bytes a backward request keeps before its target.
 pub const BEHIND_BYTES: usize = 256 << 20;
 
@@ -60,15 +65,43 @@ impl Job {
     }
 }
 
+struct JobQueue {
+    jobs: Mutex<VecDeque<Job>>,
+    ready: Condvar,
+}
+
+impl JobQueue {
+    fn new() -> Self {
+        Self {
+            jobs: Mutex::new(VecDeque::with_capacity(64)),
+            ready: Condvar::new(),
+        }
+    }
+
+    fn push(&self, job: Job) {
+        self.jobs.lock().push_back(job);
+        self.ready.notify_one();
+    }
+
+    fn pop(&self) -> Job {
+        let mut jobs = self.jobs.lock();
+        loop {
+            if let Some(job) = jobs.pop_front() {
+                return job;
+            }
+            self.ready.wait(&mut jobs);
+        }
+    }
+}
+
 /// The pool's job queue, or `None` when no decode thread could start; then
 /// every decode runs on its caller.
-fn pool() -> Option<&'static Sender<Job>> {
-    static POOL: LazyLock<Option<Sender<Job>>> = LazyLock::new(|| {
-        let (send, receive) = mpsc::channel::<Job>();
-        let receive = Arc::new(Mutex::new(receive));
+fn pool() -> Option<&'static Arc<JobQueue>> {
+    static POOL: LazyLock<Option<Arc<JobQueue>>> = LazyLock::new(|| {
+        let queue = Arc::new(JobQueue::new());
         let mut started = 0;
         for index in 0..pool_threads() {
-            let jobs = Arc::clone(&receive);
+            let jobs = Arc::clone(&queue);
             match std::thread::Builder::new()
                 .name(format!("{DECODE_THREAD_PREFIX}{index}"))
                 .spawn(move || work(&jobs))
@@ -77,7 +110,7 @@ fn pool() -> Option<&'static Sender<Job>> {
                 Err(error) => tracing::warn!(%error, "a decode-ahead thread did not start"),
             }
         }
-        (started > 0).then_some(send)
+        (started > 0).then_some(queue)
     });
     POOL.as_ref()
 }
@@ -89,7 +122,7 @@ fn pool_threads() -> usize {
     std::thread::available_parallelism().map_or(2, |threads| (threads.get() / 4).clamp(2, 4))
 }
 
-fn work(jobs: &Mutex<Receiver<Job>>) {
+fn work(jobs: &JobQueue) {
     // Media Foundation readers are opened in the multithreaded apartment and
     // move between its threads.
     #[cfg(target_os = "windows")]
@@ -103,22 +136,14 @@ fn work(jobs: &Mutex<Receiver<Job>>) {
         );
     }
     loop {
-        let job = jobs.lock().recv();
-        let Ok(job) = job else {
-            return;
-        };
-        job.run();
+        jobs.pop().run();
     }
 }
 
 /// Run `job` on the pool, or on this thread when the pool is gone.
 fn run_on_pool(job: Job) {
     match pool() {
-        Some(jobs) => {
-            if let Err(mpsc::SendError(job)) = jobs.send(job) {
-                job.run();
-            }
-        }
+        Some(jobs) => jobs.push(job),
         None => job.run(),
     }
 }
@@ -137,11 +162,7 @@ fn schedule(shared: &Arc<Shared>, state: &mut State, frame_rate: Rational) {
     // A job queued while the state is locked runs after the lock is released;
     // only the no-pool fallback runs it here, and that needs the lock free.
     match pool() {
-        Some(jobs) => {
-            if jobs.send(Job::Serve(Arc::clone(shared))).is_err() {
-                state.queued = false;
-            }
-        }
+        Some(jobs) => jobs.push(Job::Serve(Arc::clone(shared))),
         None => state.queued = false,
     }
 }
@@ -159,6 +180,7 @@ fn serve(shared: &Arc<Shared>) {
         if let Some(want) = want {
             // A frame held now answers it; a stale answer gives way.
             if let Some(result) = state.take_held(want, frame_rate) {
+                state.discard_answer();
                 state.answer = Some(Answer { want, result });
                 shared.changed.notify_all();
                 continue;
@@ -192,6 +214,7 @@ fn serve(shared: &Arc<Shared>) {
                 match want {
                     Some(want) => {
                         let result = state.settle(op, outcome);
+                        state.discard_answer();
                         state.answer = Some(Answer { want, result });
                     }
                     None => state.settle_fill(op, outcome),
@@ -206,10 +229,7 @@ fn serve(shared: &Arc<Shared>) {
         shared.changed.notify_all();
     }
     state.queued = false;
-    let orphan = state.closed.then(|| state.decoder.take()).flatten();
     shared.changed.notify_all();
-    drop(state);
-    drop(orphan);
 }
 
 /// A [`VideoDecoder`] that decodes ahead of its caller on the decode pool.
@@ -269,25 +289,15 @@ impl AheadDecoder {
     /// Drop every frame held ahead and behind, for a decoder no frame uses
     /// now. The next request decodes from the wrapped decoder's position.
     pub fn release(&self) {
-        let (ahead, mut behind, answer) = {
+        let held = {
             let mut state = self.shared.lock();
             state.stop = true;
             state.want = None;
             state.behind_floor = None;
             state.reach = Reach::Unknown;
-            (
-                std::mem::take(&mut state.ahead),
-                std::mem::take(&mut state.behind),
-                state.answer.take(),
-            )
+            state.take_held_frames()
         };
-        for mut frame in ahead {
-            crate::recycle_frame_planes(&mut frame);
-        }
-        behind.clear();
-        if let Some(Ok(Some(mut frame))) = answer.map(|a| a.result) {
-            crate::recycle_frame_planes(&mut frame);
-        }
+        held.recycle();
     }
 
     /// Frames decoded ahead of the last frame returned, held now.
@@ -348,6 +358,7 @@ impl AheadDecoder {
         op: Op,
     ) -> Result<Option<VideoFrame>, DecodeError> {
         let frame_rate = self.shared.frame_rate;
+        let cold = matches!(state.reach, Reach::Unknown);
         if !matches!(op, Op::Next) {
             state.reposition();
         }
@@ -361,8 +372,8 @@ impl AheadDecoder {
         let result = state.settle(op, outcome);
         schedule(&self.shared, &mut state, frame_rate);
         match op {
-            Op::Exact(_) if result.as_ref().is_ok_and(Option::is_some) => {
-                self.shared.wait_for_ahead(state, AHEAD_FRAMES / 2);
+            Op::Exact(_) if cold && result.as_ref().is_ok_and(Option::is_some) => {
+                self.shared.wait_for_ahead(state, START_FRAMES);
             }
             Op::Back(_) if result.as_ref().is_ok_and(Option::is_some) => {
                 self.shared.wait_for_behind(state);
@@ -460,24 +471,26 @@ impl VideoDecoder for AheadDecoder {
 
 impl Drop for AheadDecoder {
     fn drop(&mut self) {
-        let held = {
+        let (decoder, held) = {
             let mut state = self.shared.lock();
             state.closed = true;
-            (
-                state.decoder.take(),
-                std::mem::take(&mut state.ahead),
-                std::mem::take(&mut state.behind),
-                state.answer.take(),
-            )
+            state.stop = true;
+            state.want = None;
+            while state.decoder.is_none() && !state.broken {
+                self.shared.wait(&mut state);
+            }
+            (state.decoder.take(), state.take_held_frames())
         };
         self.shared.changed.notify_all();
-        drop(held);
+        held.recycle();
+        drop(decoder);
     }
 }
 
 /// A decoder opening on the decode pool.
 pub struct OpeningDecoder {
-    receive: Receiver<Result<AheadDecoder, DecodeError>>,
+    canceled: Arc<AtomicBool>,
+    receive: Option<Receiver<Result<AheadDecoder, DecodeError>>>,
 }
 
 impl fmt::Debug for OpeningDecoder {
@@ -488,12 +501,24 @@ impl fmt::Debug for OpeningDecoder {
 
 impl OpeningDecoder {
     /// Wait for the open to finish.
-    pub fn wait(self) -> Result<AheadDecoder, DecodeError> {
-        self.receive.recv().unwrap_or_else(|_| {
-            Err(DecodeError::Open(
-                "the decoder open stopped before it finished. Try the media again.".into(),
-            ))
-        })
+    pub fn wait(mut self) -> Result<AheadDecoder, DecodeError> {
+        self.receive
+            .take()
+            .and_then(|receive| receive.recv().ok())
+            .unwrap_or_else(|| {
+                Err(DecodeError::Open(
+                    "the decoder open stopped before it finished. Try the media again.".into(),
+                ))
+            })
+    }
+}
+
+impl Drop for OpeningDecoder {
+    fn drop(&mut self) {
+        self.canceled.store(true, Ordering::Release);
+        if let Some(receive) = self.receive.take() {
+            let _ = receive.recv();
+        }
     }
 }
 
@@ -505,20 +530,31 @@ pub fn open_ahead<F>(open: F, first: RationalTime, nearest: bool) -> OpeningDeco
 where
     F: FnOnce() -> Result<Box<dyn VideoDecoder>, DecodeError> + Send + 'static,
 {
+    let canceled = Arc::new(AtomicBool::new(false));
+    let job_canceled = Arc::clone(&canceled);
     let (send, receive) = mpsc::sync_channel(1);
     run_on_pool(Job::Open(Box::new(move || {
+        if job_canceled.load(Ordering::Acquire) {
+            return;
+        }
         let opened = catch_unwind(AssertUnwindSafe(open)).unwrap_or_else(|_| {
             Err(DecodeError::Open(
                 "the video decoder panicked while opening. Try another file.".into(),
             ))
         });
+        if job_canceled.load(Ordering::Acquire) {
+            return;
+        }
         let decoder = opened.map(AheadDecoder::new);
         if let Ok(decoder) = &decoder {
             decoder.request(first, nearest);
         }
         let _ = send.send(decoder);
     })));
-    OpeningDecoder { receive }
+    OpeningDecoder {
+        canceled,
+        receive: Some(receive),
+    }
 }
 
 #[cfg(test)]

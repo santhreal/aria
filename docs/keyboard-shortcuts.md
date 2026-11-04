@@ -12,32 +12,15 @@ table is `keys::bindings::SHIPPED_BINDINGS`; a plugin registers its own through
 overriding the binding that holds it. See
 [plugins/keys.md](plugins/keys.md).
 
-Two keys are the shell's own and not in the table: text keys while a rename, a
-search box, or the palette holds focus, and Escape in the editor, which cancels
-whatever drag is in flight.
+Two keys are the shell's own and not in the table: text keys while a text box
+holds focus, and Escape in the editor, which cancels whatever drag is in flight.
 
 ## Inside a text box
 
 A box takes keys only while it holds focus, so the bare-letter tool shortcuts
-keep working with a search box open.
-
-| Shortcut | Action |
-| --- | --- |
-| Any printable key | Append the character |
-| Backspace | Delete the last character |
-| Enter | Commit: rename, run the search, send the prompt |
-| Esc | Leave the box without committing |
-| Ctrl+V | Paste the clipboard as text |
-| Up / Down | Walk this box's own history, where it keeps one |
-
-A paste is held to the same rules as typing: the timecode box takes digits,
-the separators `:`, `;` and `.`, and a leading `+` or `-` only, a name stops at its length cap, and control characters are
-dropped, so a path pasted with a trailing newline arrives as a path.
-
-### A title in the Viewer
-
-With the Type tool, a title clicked in the Viewer takes the keys until Esc,
-another tool, or another selection.
+keep working with a search box open. Every one-line box edits the same way: a
+name, a search, a prompt, the timecode, a value typed into a readout, a dialog
+field, a plugin panel's field, and the command palette.
 
 | Shortcut | Action |
 | --- | --- |
@@ -46,12 +29,32 @@ another tool, or another selection.
 | Left / Right | Move the caret one character, or to the edge of the selection |
 | Ctrl+Left / Ctrl+Right | Move the caret one word |
 | Home / End | Move the caret to the start or end of the line |
-| Ctrl+Home / Ctrl+End | Move the caret to the start or end of the text |
-| Up / Down | Move the caret one line |
+| Up / Down | In the palette, move the highlight; in the AI prompt, recall a sent prompt; elsewhere, move the caret to the start or end of the line |
 | Shift with any caret key | Extend the selection |
 | Ctrl+A | Select all of the text |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste over the selection |
-| Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Undo or redo; a burst of typing is one step |
+| Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Put back the text the box held before typing, or put the typing back |
+| Tab / Shift+Tab | In a value readout, commit and move to the next or previous value |
+| Enter | Commit: rename, run the search, send the prompt, run the highlighted command |
+| Esc | Leave the box without committing |
+
+A paste follows the rules typing follows. The timecode box takes digits, the
+separators `:`, `;` and `.`, and a leading `+` or `-`. A name stops at its
+length cap. Control characters are dropped, so a path pasted with a trailing
+newline arrives as a path. A paste or keystroke the box takes none of leaves
+the text and the selection unchanged.
+
+### A title in the Viewer
+
+With the Type tool, a title clicked in the Viewer takes the keys until Esc,
+another tool, or another selection. It edits as a one-line box does, over
+several lines, with these differences:
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl+Home / Ctrl+End | Move the caret to the start or end of the text |
+| Up / Down | Move the caret one line |
+| Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Undo or redo in the project history; a burst of typing is one step |
 | Enter | Start a new line |
 | Esc | Stop typing |
 
@@ -107,9 +110,9 @@ replaced by the finished text rather than appended to it.
 | Ctrl+Alt+K | Keyboard shortcuts in Settings |
 | Ctrl+, | Settings |
 | Ctrl+Q | Quit |
-| With palette open | Printable keys filter. Ctrl+V pastes into the filter. Backspace deletes. Up / Down light the next or previous hit and wrap. Enter runs the lit hit. Esc closes. Every command and every menu row is offered by name. An effect is offered as its Effect menu row, after its category (`Blur & Sharpen: Gaussian Blur`), so typing an effect's name and pressing Enter applies it to the selection. A generator is offered by its own name and places a clip at the playhead. |
+| With palette open | The filter edits as any text box does ([Inside a text box](#inside-a-text-box)), and typing lights the first hit. Up / Down light the next or previous hit and wrap. Enter runs the lit hit. Esc closes. Every command and every menu row is offered by name. An effect is offered as its Effect menu row, after its category (`Blur & Sharpen: Gaussian Blur`), so typing an effect's name and pressing Enter applies it to the selection. A generator is offered by its own name and places a clip at the playhead. |
 | With a menu open | Up / Down light the next or previous row and wrap. Left / Right open the neighboring menu. Home / End light the first or last row. A letter or digit lights the next row starting with it. Enter or Space runs the lit row. Esc closes. The pointer moves the light over a lit menu. |
-| With a rename open | Printable keys type, up to 64 characters. Backspace deletes. Enter applies. Esc cancels. An empty or unchanged name makes no change. |
+| With a rename open | The name opens selected and edits as any text box does, up to 64 characters. Enter applies. Esc cancels. An empty or unchanged name makes no change. |
 | With a dialog open | Enter runs the dialog's primary action: Export queues the export, the unsaved-changes prompt saves and continues. Every other dialog has no primary action and swallows the key. Esc closes. |
 
 ## Tools
@@ -297,7 +300,7 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 
 Settings > Keyboard Shortcuts lists every binding the registry holds, with the chord it
 answers to now. Click a row and press the key you want; Esc cancels. A chord
-another binding on the same surface already answers asks before it moves: the
+another binding on the same surface already answers prompts before it moves: the
 row names the holder and offers Move and Keep. Enter moves the chord and leaves
 the holder with no key; Esc leaves the chord with the holder and ends the
 capture. Clear, on the row under the pointer and on the row waiting for a key,

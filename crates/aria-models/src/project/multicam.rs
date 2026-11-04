@@ -84,35 +84,6 @@ impl Project {
             .ok_or(ModelError::UnknownMulticamGroup(id))
     }
 
-    /// Add an angle to a multicam group.
-    pub fn add_multicam_angle(
-        &mut self,
-        id: MulticamGroupId,
-        angle: MulticamAngle,
-    ) -> Result<usize, ModelError> {
-        if !self.media.contains_key(&angle.media) {
-            return Err(ModelError::UnknownMedia(angle.media));
-        }
-        let group = self
-            .multicam_groups
-            .get_mut(&id)
-            .ok_or(ModelError::UnknownMulticamGroup(id))?;
-        group.add_angle(angle)
-    }
-
-    /// Remove an angle from a multicam group by index.
-    pub fn remove_multicam_angle(
-        &mut self,
-        id: MulticamGroupId,
-        index: usize,
-    ) -> Result<MulticamAngle, ModelError> {
-        let group = self
-            .multicam_groups
-            .get_mut(&id)
-            .ok_or(ModelError::UnknownMulticamGroup(id))?;
-        group.remove_angle(index)
-    }
-
     /// Switch the active angle of a multicam group at a timeline tick.
     pub fn switch_multicam_angle(
         &mut self,

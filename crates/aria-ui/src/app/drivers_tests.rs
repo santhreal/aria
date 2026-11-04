@@ -41,9 +41,14 @@ fn row(state: &AppState, param: ClipParam) -> ParamRow {
         .unwrap_or_else(|| panic!("the {group} group offers no row for {param:?}"))
 }
 
+/// The open draft's source, empty with no draft.
+fn draft_text(state: &AppState) -> &str {
+    state.driver_draft().map_or("", |draft| draft.text.as_str())
+}
+
 fn retype(state: &mut AppState, text: &str) {
-    while !state.driver_draft_text().is_empty() {
-        state.driver_draft_pop();
+    while !draft_text(state).is_empty() {
+        state.press_backspace();
     }
     if !text.is_empty() {
         assert!(fields::insert(state, text), "the driver box has focus");
@@ -151,7 +156,7 @@ fn a_cycle_is_refused_and_the_draft_stays_open() {
             .contains("this driver would read its own value back"),
         "{refused}"
     );
-    assert_eq!(state.driver_draft_text(), "rotation + 1");
+    assert_eq!(draft_text(&state), "rotation + 1");
     assert_eq!(row(&state, ROTATION).driver.as_deref(), Some("value"));
 
     // Esc closes the draft without writing it.
@@ -214,7 +219,7 @@ fn the_pick_whip_reads_a_property_of_another_clip() {
     );
     assert!(!state.driver_picking());
     assert_eq!(
-        state.driver_draft_text(),
+        draft_text(&state),
         "thisComp.layer(\"Logo\").transform.rotation"
     );
 
@@ -306,8 +311,8 @@ async fn alt_click_on_a_drawn_stopwatch_adds_a_driver_the_keys_edit(cx: &mut Tes
 
     visual.update(|_, app| {
         state.update(app, |state, _| {
-            while !state.driver_draft_text().is_empty() {
-                state.driver_draft_pop();
+            while !draft_text(state).is_empty() {
+                state.press_backspace();
             }
         })
     });

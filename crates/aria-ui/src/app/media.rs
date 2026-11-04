@@ -229,17 +229,6 @@ impl AppState {
         }
     }
 
-    pub fn media_query_push(&mut self, ch: char) {
-        if self.media_query.chars().count() >= MEDIA_QUERY_MAX_LEN {
-            return;
-        }
-        self.media_query.push(ch);
-    }
-
-    pub fn media_query_pop(&mut self) {
-        self.media_query.pop();
-    }
-
     pub fn clear_media_query(&mut self) {
         self.media_query.clear();
     }
@@ -442,8 +431,9 @@ pub(crate) fn media_facts(item: &crate::types::UiMediaItem) -> MediaFacts {
     }
 }
 
-/// Longest accepted filter. A held key cannot grow the query without bound.
-const MEDIA_QUERY_MAX_LEN: usize = 64;
+/// What the bin filter takes. A held key cannot grow the query without bound.
+pub(crate) const MEDIA_QUERY_RULE: crate::app::line_text::LineRule =
+    crate::app::line_text::LineRule::chars(64);
 
 /// Whether one pool item answers the filter.
 ///

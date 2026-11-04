@@ -17,8 +17,19 @@ use aria_engine::EngineError;
 use aria_models::{MarkerColor, MarkerId, MarkerKind, RationalTime};
 use gpui::SharedString;
 
+use super::line_text::{LineRule, LineText};
 use super::{AppState, DialogKind};
 use crate::types::UiMarker;
+
+/// What the Marker Edit dialog's Name field takes.
+const MARKER_NAME_RULE: LineRule = LineRule::chars(120);
+
+/// What its Comment field takes.
+const MARKER_COMMENT_RULE: LineRule = LineRule::chars(500);
+
+/// What its Duration field takes: frames or a timecode.
+const MARKER_DURATION_RULE: LineRule = LineRule::chars(24)
+    .admitting(|_, ch| ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.' | '-'));
 
 /// Which text field inside the Marker Edit dialog holds keyboard focus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,9 +43,9 @@ pub enum MarkerEditField {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarkerEditForm {
     pub marker: u64,
-    pub name: String,
-    pub comment: String,
-    pub duration: String,
+    pub name: LineText,
+    pub comment: LineText,
+    pub duration: LineText,
     pub color: MarkerColor,
     pub kind: MarkerKind,
     pub focused: Option<MarkerEditField>,
@@ -45,9 +56,9 @@ impl Default for MarkerEditForm {
     fn default() -> Self {
         Self {
             marker: 0,
-            name: String::new(),
-            comment: String::new(),
-            duration: String::new(),
+            name: LineText::default(),
+            comment: LineText::default(),
+            duration: LineText::default(),
             color: MarkerColor::Teal,
             kind: MarkerKind::Comment,
             focused: None,
@@ -227,7 +238,8 @@ impl AppState {
         })
     }
 
-    /// Open [`DialogKind::MarkerEdit`] populated from `marker`.
+    /// Open [`DialogKind::MarkerEdit`] populated from `marker`, with the name
+    /// focused and selected so a typed name replaces it.
     pub fn open_marker_edit(&mut self, marker: u64) -> bool {
         let Some(row) = self.marker_row(marker).cloned() else {
             self.status_message = Some("No marker at the playhead".into());
@@ -237,9 +249,9 @@ impl AppState {
         let duration = crate::timecode::format_ticks(row.duration_ticks.max(0), rate.num, rate.den);
         self.marker_edit = MarkerEditForm {
             marker: row.id,
-            name: row.name.to_string(),
-            comment: row.comment.to_string(),
-            duration,
+            name: LineText::selecting_all(row.name.to_string()),
+            comment: LineText::new(row.comment.to_string()),
+            duration: LineText::new(duration),
             color: row.color,
             kind: row.kind,
             focused: Some(MarkerEditField::Name),
@@ -308,55 +320,36 @@ impl AppState {
         self.dialog == DialogKind::MarkerEdit && self.marker_edit.focused.is_some()
     }
 
-    pub fn marker_edit_text(&self) -> String {
+    /// The dialog field that holds the keys, `None` with none focused.
+    pub fn marker_edit_line(&self) -> Option<&LineText> {
+        let form = &self.marker_edit;
+        Some(match form.focused? {
+            MarkerEditField::Name => &form.name,
+            MarkerEditField::Comment => &form.comment,
+            MarkerEditField::Duration => &form.duration,
+        })
+    }
+
+    pub fn marker_edit_line_mut(&mut self) -> Option<&mut LineText> {
+        let form = &mut self.marker_edit;
+        Some(match form.focused? {
+            MarkerEditField::Name => &mut form.name,
+            MarkerEditField::Comment => &mut form.comment,
+            MarkerEditField::Duration => &mut form.duration,
+        })
+    }
+
+    /// What the focused dialog field takes.
+    pub fn marker_edit_rule(&self) -> LineRule {
         match self.marker_edit.focused {
-            Some(MarkerEditField::Name) => self.marker_edit.name.clone(),
-            Some(MarkerEditField::Comment) => self.marker_edit.comment.clone(),
-            Some(MarkerEditField::Duration) => self.marker_edit.duration.clone(),
-            None => String::new(),
+            Some(MarkerEditField::Duration) => MARKER_DURATION_RULE,
+            Some(MarkerEditField::Comment) => MARKER_COMMENT_RULE,
+            Some(MarkerEditField::Name) | None => MARKER_NAME_RULE,
         }
     }
 
     pub fn escape_marker_edit(&mut self) {
         self.open_dialog(DialogKind::None);
-    }
-
-    pub fn marker_edit_pop(&mut self) {
-        match self.marker_edit.focused {
-            Some(MarkerEditField::Name) => {
-                self.marker_edit.name.pop();
-            }
-            Some(MarkerEditField::Comment) => {
-                self.marker_edit.comment.pop();
-            }
-            Some(MarkerEditField::Duration) => {
-                self.marker_edit.duration.pop();
-            }
-            None => {}
-        }
-    }
-
-    pub fn marker_edit_push(&mut self, ch: char) {
-        match self.marker_edit.focused {
-            Some(MarkerEditField::Name) => {
-                if self.marker_edit.name.chars().count() < 120 {
-                    self.marker_edit.name.push(ch);
-                }
-            }
-            Some(MarkerEditField::Comment) => {
-                if self.marker_edit.comment.chars().count() < 500 {
-                    self.marker_edit.comment.push(ch);
-                }
-            }
-            Some(MarkerEditField::Duration) => {
-                if (ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.' | '-'))
-                    && self.marker_edit.duration.len() < 24
-                {
-                    self.marker_edit.duration.push(ch);
-                }
-            }
-            None => {}
-        }
     }
 
     pub fn focus_marker_edit_field(&mut self, field: Option<MarkerEditField>) {

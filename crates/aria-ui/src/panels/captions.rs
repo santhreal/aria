@@ -134,9 +134,9 @@ pub(crate) fn captions_panel(
             "Language",
             [components::text_box(
                 "caption-language",
-                language,
+                &language,
                 "Detect, or a code such as en",
-                focused,
+                language.editing(focused),
                 theme,
             )
             .flex_1()

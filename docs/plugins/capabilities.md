@@ -229,7 +229,7 @@ editor_stop()?;
 
 `ProjectHost::open`, `ProjectHost::save`, and `ProjectHost::save_as` execute
 `Command::Project(ProjectCommand::{Open, Save})` outside undo history, matching
-**File > Open Project**, **File > Save**, and **File > Save As**. Both the
+**File > Open…**, **File > Save**, and **File > Save As…**. Both the
 editor window (`AppState::open_project`, `save_project`, `save_project_as`) and
 plugins call these methods on `ProjectHost`.
 

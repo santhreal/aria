@@ -41,12 +41,12 @@ impl Render for Controls {
             .flex_col()
             .items_start()
             .child(
-                text_box("empty-box", "", "Search", false, &theme)
+                text_box("empty-box", "", "Search", None, &theme)
                     .w_full()
                     .debug_selector(|| CONTROLS[0].into()),
             )
             .child(
-                text_box("filled-box", "a query", "Search", true, &theme)
+                text_box("filled-box", "a query", "Search", Some((7, 7)), &theme)
                     .w_full()
                     .debug_selector(|| CONTROLS[1].into()),
             )

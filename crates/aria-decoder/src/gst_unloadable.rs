@@ -23,7 +23,7 @@ use gstreamer::prelude::*;
 
 /// The first line of the record file. A file that starts otherwise has another
 /// layout: its records are ignored and the next write replaces them.
-const HEADER: &str = "aria unloadable plugins 1";
+const HEADER: &str = "aria unloadable plugins 2";
 
 /// One plugin file on one boot, as a load read it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +33,24 @@ pub(crate) struct Stamp {
     size: u64,
     modified_ns: u128,
     boot: String,
+    driver: String,
+}
+
+/// Loaded GPU kernel-module version, module load timestamp, and control-device
+/// presence, so loading or updating a GPU driver on the same boot invalidates
+/// failures recorded before the driver was ready.
+fn driver_state() -> String {
+    let version = std::fs::read_to_string("/sys/module/nvidia/version")
+        .ok()
+        .map(|s| s.trim().to_owned())
+        .unwrap_or_else(|| "none".into());
+    let loaded_ns = std::fs::metadata("/sys/module/nvidia")
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos());
+    let dev = u8::from(Path::new("/dev/nvidiactl").exists());
+    format!("{version}:{loaded_ns}:{dev}")
 }
 
 impl Stamp {
@@ -56,17 +74,19 @@ impl Stamp {
             size: meta.len(),
             modified_ns,
             boot: boot.trim().to_owned(),
+            driver: driver_state(),
         })
     }
 
     fn line(&self) -> String {
         format!(
-            "{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}",
             self.plugin,
             self.file.display(),
             self.size,
             self.modified_ns,
-            self.boot
+            self.boot,
+            self.driver
         )
     }
 

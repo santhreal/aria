@@ -7,7 +7,7 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 `ClipParam::CENSUS` lists one representative value for each `ClipParam` variant in declaration order. `ClipParam::class()` classifies each variant as:
 - `Direct(&'static str)` for a single clip property with one static row in `clip_param_catalog()`.
 - `Delegated(ParamAxis)` for a wrapper over a sub-enum (`ParamAxis::Look`, `ParamAxis::Style`, `ParamAxis::Text`, or `ParamAxis::Shape`), where each member of the sub-enum (`LookParam::ALL`, `StyleParam::ALL`, `TextParam::ALL`, `ShapeParam::ALL`) has its own row in `clip_param_catalog()`.
-- `Excluded(ParamExclusion)` for a parameter with no static row in `clip_param_catalog()`: `ParamExclusion::SpeedCurve` (edited via `EditCommand::SetClipSpeedCurve` on `0..=SPEED_CURVE_SCALE` with `SPEED_CURVE_SCALE = 1000` and speed bounds `MIN_SPEED = 0.05` to `MAX_SPEED = 100.0`), `ParamExclusion::EffectSlot` (built per effect instance via `clip_params_for`), and `ParamExclusion::MaskSlot` (built per mask via `clip_params_for` over the `MaskParam::ALL` variants).
+- `Excluded(ParamExclusion)` for a parameter with no static row in `clip_param_catalog()`: `ParamExclusion::SpeedCurve` (edited via `EditCommand::SetSpeedCurve` on `0..=SPEED_CURVE_SCALE` with `SPEED_CURVE_SCALE = 1000` and speed bounds `MIN_SPEED = 0.05` to `MAX_SPEED = 100.0`), `ParamExclusion::EffectSlot` (built per effect instance via `clip_params_for`), and `ParamExclusion::MaskSlot` (built per mask via `clip_params_for` over the `MaskParam::ALL` variants).
 
 | Variant | Class | Scope | Kind | Easing Preset (`supports_easing_preset`) |
 | --- | --- | --- | --- | --- |
@@ -290,7 +290,7 @@ Defined in `crates/aria-models/src/look/chroma.rs` (`StabilizeLevel::ALL`, `#[se
 
 ## Copyable and removable clip attributes (`ClipAttribute::ALL`)
 
-Defined in `crates/aria-models/src/clip/attributes.rs` (`ClipAttribute::ALL`; `is_intrinsic()` is `true` for the first six intrinsic clip property groups and `false` for the five applied effect/grade/mask/key groups). Used by **Edit > Paste Attributes** and **Edit > Remove Attributes** (`aria.dialog.remove-attributes`):
+Defined in `crates/aria-models/src/clip/attributes.rs` (`ClipAttribute::ALL`; `is_intrinsic()` is `true` for the intrinsic clip property groups and `false` for the applied effect, grade, mask, and key groups). Used by **Edit > Remove Attributes…** (`aria.dialog.remove-attributes`):
 
 | Variant | Label | Intrinsic (`is_intrinsic()`) |
 | --- | --- | --- |

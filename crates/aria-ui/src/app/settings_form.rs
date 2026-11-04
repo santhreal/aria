@@ -198,7 +198,7 @@ pub struct SettingsForm {
     /// Which field typing goes to, if any.
     pub focused: Option<SettingsField>,
     /// The in-progress text for the focused field.
-    pub draft: String,
+    pub draft: crate::app::line_text::LineText,
     /// The committed section filter.
     pub filter: String,
 }
@@ -284,13 +284,14 @@ impl AppState {
     /// and a field that cleared itself on focus would lose the value being fixed.
     pub fn focus_setting(&mut self, field: Option<SettingsField>) {
         self.settings_form.focused = field;
-        self.settings_form.draft = match field {
+        let draft = match field {
             Some(SettingsField::Filter) => self.settings_form.filter.clone(),
             Some(SettingsField::KeymapName) => self.active_keymap().unwrap_or_default().to_owned(),
             Some(SettingsField::Plugin(key)) => self.plugin_setting(key),
             Some(field) => field.value(&self.cloud_settings()),
             None => String::new(),
         };
+        self.settings_form.draft.set(draft);
     }
 
     /// How `field` reads in the dialog, or nothing for a plugin field no
@@ -396,25 +397,13 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    pub fn setting_push(&mut self, ch: char) {
-        if self.settings_form.focused.is_some() {
-            self.settings_form.draft.push(ch);
-            self.live_filter();
-        }
-    }
-
-    pub fn setting_pop(&mut self) {
-        if self.settings_form.focused.is_some() {
-            self.settings_form.draft.pop();
-            self.live_filter();
-        }
-    }
-
     /// The filter narrows as it is typed; every other field waits for Enter, because
     /// a half-typed URL saved on each keystroke would be written to disk six times.
-    fn live_filter(&mut self) {
-        if self.settings_form.focused == Some(SettingsField::Filter) {
-            self.settings_form.filter = self.settings_form.draft.clone();
+    pub(crate) fn live_filter(&mut self) {
+        let form = &mut self.settings_form;
+        if form.focused == Some(SettingsField::Filter) {
+            form.filter.clear();
+            form.filter.push_str(&form.draft);
         }
     }
 
@@ -435,11 +424,11 @@ impl AppState {
             return Ok(());
         };
         if field == SettingsField::Filter {
-            self.settings_form.filter = self.settings_form.draft.clone();
+            self.settings_form.filter = self.settings_form.draft.to_string();
             self.settings_form.focused = None;
             return Ok(());
         }
-        let draft = self.settings_form.draft.clone();
+        let draft = self.settings_form.draft.to_string();
         // A plugin's value is not in `Settings`: it is a key in the service that owns
         // the file, so the write goes there and the same save path persists it.
         if let SettingsField::Plugin(key) = field {
@@ -642,7 +631,7 @@ impl AppState {
     pub fn setting_draft(&self, field: SettingsField) -> (String, bool) {
         let focused = self.settings_form.focused == Some(field);
         if focused {
-            return (self.settings_form.draft.clone(), true);
+            return (self.settings_form.draft.to_string(), true);
         }
         let saved = match field {
             SettingsField::Filter => self.settings_form.filter.clone(),

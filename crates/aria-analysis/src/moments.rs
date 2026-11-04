@@ -2,7 +2,7 @@
 //!
 //! The domain values and in-memory matching behavior remain dependency-free.
 //! Enabling the `sqlite` feature also exposes the optional persistent
-//! [`MomentsIndex`] adapter.
+//! `MomentsIndex` adapter.
 
 use std::borrow::Cow;
 use std::cmp::Ordering;

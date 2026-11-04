@@ -229,15 +229,15 @@ fn the_search_box_edits_the_query_only_while_it_holds_focus() {
 
     state.focus_stock_search(true);
     for ch in "sun set".chars() {
-        state.stock_query_push(ch);
+        state.type_key(ch);
     }
     assert_eq!(state.stock_query, "sun set");
-    state.stock_query_pop();
+    state.press_backspace();
     assert_eq!(state.stock_query, "sun se");
 
     // Backspacing past the start is a no-op, not a panic.
     for _ in 0..32 {
-        state.stock_query_pop();
+        state.press_backspace();
     }
     assert!(state.stock_query.is_empty());
 

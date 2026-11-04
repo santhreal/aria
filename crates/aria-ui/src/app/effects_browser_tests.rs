@@ -312,11 +312,12 @@ fn a_favorite_toggles_and_round_trips_through_the_settings_file() {
 #[test]
 fn the_search_stops_at_its_cap() {
     let (mut state, _) = with_clip();
+    state.focus_effects_search(true);
     for _ in 0..QUERY_MAX_LEN + 10 {
-        state.effects_query_push('é');
+        state.type_key('é');
     }
     assert_eq!(state.effects_browser.query.chars().count(), QUERY_MAX_LEN);
-    state.effects_query_pop();
+    state.press_backspace();
     assert_eq!(
         state.effects_browser.query.chars().count(),
         QUERY_MAX_LEN - 1

@@ -540,9 +540,9 @@ fn input(
     let typing = draw
         .input
         .filter(|input| *input.panel == *draw.spec.id && input.control == *id);
-    let text = match typing {
-        Some(input) => input.draft.clone(),
-        None => SharedString::from(value),
+    let (text, editing) = match typing {
+        Some(input) => (input.draft.as_str(), Some(input.draft.selection())),
+        None => (&**value, None),
     };
     let spec = Arc::clone(draw.spec);
     let control = Arc::clone(id);
@@ -550,7 +550,7 @@ fn input(
         ("plugin-ui-input", draw.key.with(&**id)),
         text,
         SharedString::from(placeholder),
-        typing.is_some(),
+        editing,
         draw.theme,
     )
     .on_mouse_down(

@@ -4,9 +4,9 @@
 //! over it. A press hands the readout's [`ScrubTarget`] to the state, and the
 //! shell routes the pointer from there: the drag is the state's, so it keeps
 //! going when the pointer leaves the readout. Once open, the readout draws the
-//! draft with a caret, selected while the next key would replace it.
+//! draft as an [`edited_line`](crate::components::edited_line): its caret and
+//! its selection.
 
-use gpui::prelude::FluentBuilder as _;
 use gpui::{
     AnyElement, CursorStyle, Entity, Hsla, InteractiveElement, IntoElement, MouseButton,
     MouseDownEvent, ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -79,7 +79,7 @@ pub fn readout(
         (
             scrubs
                 .entry_for(key)
-                .map(|entry| (entry.draft.clone(), entry.all)),
+                .map(|entry| (entry.draft.to_string(), entry.draft.selection())),
             scrubs.dragging(key),
             scrubs.entry_open(),
         )
@@ -97,13 +97,7 @@ pub fn readout(
         .size(px(0.))
     });
 
-    if let Some((draft, all)) = draft {
-        let body = div()
-            .when(all, |el| {
-                el.bg(theme.accent.opacity(0.35))
-                    .rounded(px(Theme::CONTROL_RADIUS))
-            })
-            .child(draft);
+    if let Some((draft, selection)) = draft {
         return div()
             .id(key.element_id("value-field"))
             .relative()
@@ -119,8 +113,9 @@ pub fn readout(
             .font_features(crate::theme::tabular_figures())
             .text_color(theme.text)
             .cursor(CursorStyle::IBeam)
-            .child(body)
-            .child(crate::components::caret_mark(look.size, 1.0, theme))
+            .child(crate::components::edited_line(
+                &draft, selection, look.size, 1.0, theme,
+            ))
             .children(painted)
             // A press on the open field is not a new gesture on the row.
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

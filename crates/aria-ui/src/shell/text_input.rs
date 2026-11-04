@@ -8,21 +8,16 @@
 //! Korean commit lands in whichever box holds focus without any box knowing an
 //! IME exists.
 //!
-//! Most boxes append and pop, so a range is expressible only as a tail: the
-//! caret is always at the end of the draft and nothing selects text with the
-//! pointer. A replacement therefore pops the marked run and pushes the new one,
-//! through each box's own `push`, which keeps that box's own rules.
-//!
-//! A box with a caret, the title typed into in the Viewer or the rename bar,
-//! reports its selection and replaces the range asked for: typed text goes over
-//! the selection, and a preedit run is marked where the caret is.
+//! Every box reports its selection and replaces the range asked for through
+//! its own row, which keeps the box's own rules: typed text goes over the
+//! selection, and a preedit run is marked where the caret is.
 
 use std::ops::Range;
 
 use gpui::{Bounds, Context, EntityInputHandler, Pixels, UTF16Selection, Window};
 
 use super::Shell;
-use crate::keys::fields;
+use crate::keys::fields::{self, TextField};
 
 /// Byte index of a UTF-16 offset, clamped to the string.
 fn byte_of_utf16(text: &str, offset: usize) -> usize {
@@ -36,11 +31,6 @@ fn byte_of_utf16(text: &str, offset: usize) -> usize {
     text.len()
 }
 
-/// How many characters of `text` lie at or after the UTF-16 offset `from`.
-fn chars_after_utf16(text: &str, from: usize) -> usize {
-    text[byte_of_utf16(text, from)..].chars().count()
-}
-
 /// How many characters of `text` lie before the UTF-16 offset `offset`.
 fn chars_before_utf16(text: &str, offset: usize) -> usize {
     text[..byte_of_utf16(text, offset)].chars().count()
@@ -52,75 +42,64 @@ fn utf16_of_char(text: &str, index: usize) -> usize {
 }
 
 impl Shell {
-    /// The text of the box holding focus, if any.
-    fn field_text(&self, cx: &Context<Self>) -> Option<String> {
+    /// The focused box, its text, and its `(anchor, caret)` in characters.
+    fn focused_field(&self, cx: &Context<Self>) -> Option<(TextField, String, (usize, usize))> {
         let state = self.state.read(cx);
-        fields::focused(state).map(|field| (field.text)(state))
+        let field = fields::focused(state)?;
+        Some((
+            field,
+            field.text(state).into_owned(),
+            field.selection(state),
+        ))
     }
 
-    /// Replace `range` (UTF-16 offsets) with `text`. A box without a caret
-    /// replaces the tail from the range's start.
+    /// The focused box's text.
+    fn field_text(&self, cx: &Context<Self>) -> Option<String> {
+        self.focused_field(cx).map(|(_, text, _)| text)
+    }
+
+    /// Replace `range` (UTF-16 offsets) with `text` in the focused box. `None`
+    /// means the run the IME marked, and with nothing marked, the selection.
     ///
-    /// `None` means "the range the IME already marked", and when nothing is
-    /// marked the run is typed at the caret.
-    fn replace_tail(&mut self, range: Option<Range<usize>>, text: &str, cx: &mut Context<Self>) {
-        let Some(current) = self.field_text(cx) else {
-            return;
-        };
-        if self.replace_at_caret(range.clone(), &current, text, cx) {
-            return;
-        }
-        let drop = match range.map(|range| range.start) {
-            Some(offset) => chars_after_utf16(&current, offset),
-            None => self.ime_marked.unwrap_or(0),
-        };
-        self.state.update(cx, |state, _| {
-            fields::truncate(state, drop);
-            fields::insert(state, text);
-        });
-        cx.notify();
-    }
-
-    /// Replace `range` (UTF-16 offsets) in a box with a caret, or the marked
-    /// run, or the selection when nothing is marked. `false` when the focused
-    /// box has no caret.
-    fn replace_at_caret(
+    /// Returns how many characters the box took, which is the run a preedit
+    /// marks: a box that refused a character (the clock refuses letters, a
+    /// name stops at its cap) is never asked to replace one it does not hold.
+    fn replace_field_text(
         &mut self,
         range: Option<Range<usize>>,
-        current: &str,
         text: &str,
         cx: &mut Context<Self>,
-    ) -> bool {
-        let state = self.state.read(cx);
-        let Some(caret) = fields::focused(state).and_then(|field| field.caret) else {
-            return false;
+    ) -> usize {
+        let Some((field, current, (anchor, caret))) = self.focused_field(cx) else {
+            return 0;
         };
-        let (anchor, at) = (caret.selection)(state);
         let range = match (range, self.ime_marked) {
             (Some(range), _) => {
-                let start = chars_before_utf16(current, range.start);
-                let end = chars_before_utf16(current, range.end);
+                let start = chars_before_utf16(&current, range.start);
+                let end = chars_before_utf16(&current, range.end);
                 start.min(end)..start.max(end)
             }
-            (None, Some(marked)) => at.saturating_sub(marked)..at,
-            (None, None) => anchor.min(at)..anchor.max(at),
+            (None, Some(marked)) => caret.saturating_sub(marked)..caret,
+            (None, None) => anchor.min(caret)..anchor.max(caret),
         };
-        self.state
-            .update(cx, |state, _| (caret.replace)(state, range, text));
-        if caret.redraws {
+        let start = range.start;
+        let taken = self.state.update(cx, |state, _| {
+            if field.replace(state, range, text) {
+                field.selection(state).1.saturating_sub(start)
+            } else {
+                0
+            }
+        });
+        if field.redraws() {
             crate::app::spawn_preview(self.state.clone(), cx);
         }
         cx.notify();
-        true
+        taken
     }
 
-    /// The focused box's caret as UTF-16 offsets `(anchor, caret)` and its
-    /// text, `None` when the box has no caret.
+    /// The focused box's `(anchor, caret)` as UTF-16 offsets, and its text.
     fn caret_utf16(&self, cx: &Context<Self>) -> Option<(usize, usize, String)> {
-        let state = self.state.read(cx);
-        let field = fields::focused(state)?;
-        let (anchor, at) = (field.caret?.selection)(state);
-        let text = (field.text)(state);
+        let (_, text, (anchor, at)) = self.focused_field(cx)?;
         Some((utf16_of_char(&text, anchor), utf16_of_char(&text, at), text))
     }
 }
@@ -151,19 +130,10 @@ impl EntityInputHandler for Shell {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        if let Some((anchor, at, _)) = self.caret_utf16(cx) {
-            return Some(UTF16Selection {
-                range: anchor.min(at)..anchor.max(at),
-                reversed: at < anchor,
-            });
-        }
-        let text = self.field_text(cx)?;
-        let end = text.encode_utf16().count();
-        // The caret is at the end: a box without one has no pointer selection
-        // and no arrow-key caret, so a collapsed range there is the whole truth.
+        let (anchor, at, _) = self.caret_utf16(cx)?;
         Some(UTF16Selection {
-            range: end..end,
-            reversed: false,
+            range: anchor.min(at)..anchor.max(at),
+            reversed: at < anchor,
         })
     }
 
@@ -173,17 +143,8 @@ impl EntityInputHandler for Shell {
         cx: &mut Context<Self>,
     ) -> Option<Range<usize>> {
         let marked = self.ime_marked?;
-        // The marked run ends at the caret in a box that has one, and at the
-        // end of the text in every other box.
-        let (text, end) = match self.caret_utf16(cx) {
-            Some((_, at, text)) => (text, at),
-            None => {
-                let state = self.state.read(cx);
-                let text = (fields::focused(state)?.text)(state);
-                let end = text.encode_utf16().count();
-                (text, end)
-            }
-        };
+        // The marked run ends at the caret.
+        let (_, end, text) = self.caret_utf16(cx)?;
         let run: usize = text[..byte_of_utf16(&text, end)]
             .chars()
             .rev()
@@ -205,7 +166,7 @@ impl EntityInputHandler for Shell {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.replace_tail(range, text, cx);
+        self.replace_field_text(range, text, cx);
         self.ime_marked = None;
     }
 
@@ -217,16 +178,8 @@ impl EntityInputHandler for Shell {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.replace_tail(range, new_text, cx);
-        // What the box actually took is what may be replaced next: a box that
-        // refused a character (the clock refuses letters, a name stops at its
-        // cap) must not be asked to pop one it never pushed.
-        let landed = new_text.chars().filter(|ch| !ch.is_control()).count();
-        let held = self
-            .field_text(cx)
-            .map(|text| text.chars().count())
-            .unwrap_or(0);
-        self.ime_marked = Some(landed.min(held));
+        // What the box took is what may be replaced next.
+        self.ime_marked = Some(self.replace_field_text(range, new_text, cx));
     }
 
     fn bounds_for_range(

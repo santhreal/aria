@@ -61,19 +61,19 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 
 ## Project panel tabs
 
-`SidebarTab::ALL` (`crates/aria-ui/src/types_sidebar.rs`) defines the fifteen tabs inside the **Project** panel (`aria.panel.media`), grouped under five top-level group chips (`SidebarGroup::ALL`):
+`SidebarTab::ALL` (`crates/aria-ui/src/types_sidebar.rs`) defines the tabs inside the **Project** panel (`aria.panel.media`), grouped under the top-level group chips (`SidebarGroup::ALL`):
 
 | ID | Group | Label | Summary |
 | --- | --- | --- | --- |
 | `Media` | `Media` | Media | Media pool with search, view modes (`List`, `Icon`, `Freeform`), sort order, bins, and multicam creation. |
 | `Audio` | `Media` | Audio | Audio-filtered media pool listing imported audio assets and sound effects. |
 | `Titles` | `Graphics` | Titles | Built-in title templates and cloud text preset packs; clicking places a text clip at the playhead. |
-| `Shapes` | `Graphics` | Shapes | Seven vector shape generators (`rounded_rect`, `ellipse`, `polygon`, `star`, `line`, `arrow`, `heart`). |
+| `Shapes` | `Graphics` | Shapes | Places a `Rectangle` or `Ellipse` vector shape generator clip (`200 x 200` reference pixels) at the playhead. |
 | `Stickers` | `Graphics` | Stickers | Built-in sticker catalog (`docs/reference/stickers-and-masks.md`) and Lottie imports. |
-| `Masks` | `Graphics` | Masks | Seven mask shapes (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) applied to the selected clip. |
-| `Effects` | `Effects` | Effects | Unified browser tree for Video Effects, Audio Effects, Transitions, Generators, and Animation Presets. |
-| `Transitions` | `Effects` | Transitions | Picture and audio transition catalog applied to the selected cut. |
-| `Generators` | `Effects` | Generators | Seven procedural GPU generators (`docs/reference/generators.md`) and plugin clip types. |
+| `Masks` | `Graphics` | Masks | Mask shapes (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) applied to the selected clip. |
+| `Effects` | `Effects` | Effects | Unified browser tree for Favorites, Video Effects, Audio Effects, Video Transitions, Audio Transitions, Generators, and User Presets. |
+| `Transitions` | `Effects` | Transitions | Video transition catalog applied to the selected clip's outgoing cut or dragged onto a cut. |
+| `Generators` | `Effects` | Generators | Procedural GPU generators (`docs/reference/generators.md`) and plugin clip types. |
 | `Animations` | `Effects` | Animations | In, Out, and Loop clip animation catalog (`docs/reference/animations.md`) with hover preview. |
 | `Stock` | `Library` | Stock | Video, photo, and audio stock search via Pexels, Pixabay, or the Aria cloud backend. |
 | `CloudSfx` | `Library` | SFX | Cloud sound-effect catalog with download caching and pool import. |
@@ -83,7 +83,7 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 
 ## Home rail items
 
-When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers five views (`HomeRail` in `crates/aria-ui/src/types_editor.rs`):
+When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers these views (`HomeRail` in `crates/aria-ui/src/types_editor.rs`):
 
 | ID | Label | Summary |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers five vi
 
 ## Effect Controls inspector tabs
 
-`crate::panels::inspector::host_of()` (`crates/aria-ui/src/panels/inspector/tab_host.rs`) defines the eight shipped tabs inside **Effect Controls** (`aria.panel.inspector`), filtered by the selected clip's `UiClipKind` (`UiClipKind::ALL` in `crates/aria-ui/src/types_clip.rs`: `Media`, `Text`, `Shape`, `Generator`, `Audio`):
+`crate::panels::inspector::host_of()` (`crates/aria-ui/src/panels/inspector/tab_host.rs`) defines the shipped tabs inside **Effect Controls** (`aria.panel.inspector`), filtered by the selected clip's `UiClipKind` (`UiClipKind::ALL` in `crates/aria-ui/src/types_clip.rs`: `Media`, `Text`, `Shape`, `Generator`, `Audio`):
 
 | ID | Label | Applicable `UiClipKind` variants |
 | --- | --- | --- |

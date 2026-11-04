@@ -26,8 +26,17 @@ pub fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let query = state.read(cx).palette_query.clone();
     let theme = Theme::of(cx);
+    // The palette takes every key while it is open, so its box always holds
+    // focus.
+    let query = &state.read(cx).palette_query;
+    let query_row = crate::components::text_box(
+        "palette-query",
+        query,
+        "Type to filter…",
+        Some(query.selection()),
+        &theme,
+    );
     let hits = state.read(cx).palette_hits();
     let highlight = state.read(cx).palette_highlight();
     let scroll = state.read(cx).palette_scroll.clone();
@@ -51,10 +60,6 @@ pub fn render(
                 .into_any_element(),
         );
     }
-    // The palette takes every key while it is open, so its box always holds
-    // focus.
-    let query_row =
-        crate::components::text_box("palette-query", query, "Type to filter…", true, &theme);
     // One row height and no gap, as a menu's rows: the palette is the menus
     // filtered, and reads at their pitch.
     let list = div().flex().flex_col().children(rows);

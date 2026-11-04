@@ -639,31 +639,4 @@ impl Project {
             Ok(())
         })
     }
-
-    /// Set the mask scope (`masks`, `0`-based indices into `clip.masks`) and
-    /// `invert_masks` flag on the effect at `index` on `clip_id`.
-    pub fn set_effect_masks(
-        &mut self,
-        clip_id: ClipId,
-        index: usize,
-        mut masks: Vec<u32>,
-        invert_masks: bool,
-    ) -> Result<(), ModelError> {
-        self.check_visual_target(clip_id)?;
-        masks.sort_unstable();
-        masks.dedup();
-        self.edit_clip(clip_id, |clip| {
-            let mask_count = clip.masks.len();
-            for &mask_idx in &masks {
-                if (mask_idx as usize) >= mask_count {
-                    return Err(ModelError::InvalidParam(format!(
-                        "mask index {mask_idx} out of range for clip {clip_id} with {mask_count} masks"
-                    )));
-                }
-            }
-            let fx = effect_mut(clip, index as u32)?;
-            fx.set_masks(masks, invert_masks);
-            Ok(())
-        })
-    }
 }

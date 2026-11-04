@@ -55,16 +55,15 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
                 .has_overlap(destination, None)
                 .map_err(|error| Rejection::new(error.to_string()))?
             {
-                let rate = timeline_rate(project);
                 return Err(Rejection::new(format!(
                     "track {} has a clip overlapping duplicate of clip {} in the exact \
                      destination range {:.3}s to {:.3}s; choose another target track or a start \
                      with {:.3}s of free space — duplicate_clip does not ripple or search for space",
                     args.to_track,
                     args.clip,
-                    ticks_to_seconds(destination.start.value, rate),
-                    ticks_to_seconds(destination.end_tick(), rate),
-                    ticks_to_seconds(destination.duration.value, rate),
+                    destination.start.seconds(),
+                    RationalTime::new(destination.end_tick(), destination.start.rate).seconds(),
+                    destination.duration.seconds(),
                 )));
             }
             EditCommand::DuplicateClip {
@@ -461,14 +460,13 @@ pub fn validate(command: &WireCommand, project: &Project) -> Result<Lowered, Rej
             let at = timeline_time(project, args.at, "at")?;
             let tl = clip.timeline;
             if at.value <= tl.start.value || at.value >= tl.end_tick() {
-                let rate = timeline_rate(project);
                 return Err(Rejection::new(format!(
                     "split position {:.3}s is not strictly inside clip {} \
                      ({:.3}s to {:.3}s)",
                     args.at,
                     args.clip,
-                    ticks_to_seconds(tl.start.value, rate),
-                    ticks_to_seconds(tl.end_tick(), rate),
+                    tl.start.seconds(),
+                    RationalTime::new(tl.end_tick(), tl.start.rate).seconds(),
                 )));
             }
             EditCommand::SplitClip { clip: clip.id, at }

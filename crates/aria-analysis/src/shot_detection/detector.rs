@@ -517,12 +517,6 @@ impl ShotDetector {
         self.config.maximum_sampled_pixels() * self.config.neighborhood().retained_frames()
     }
 
-    /// Logical upper bound on histogram bins across the retained frames.
-    #[must_use]
-    pub const fn histogram_bin_storage_limit(&self) -> usize {
-        self.config.luma_histogram_bins() * self.config.neighborhood().retained_frames()
-    }
-
     /// Number of sampled pixel records currently retained in frame buffers.
     #[must_use]
     pub fn retained_sampled_pixels(&self) -> usize {

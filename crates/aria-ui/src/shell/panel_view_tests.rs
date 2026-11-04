@@ -473,7 +473,7 @@ pub(super) fn make(
                 }),
                 Change::Search => notify(shell, cx, &|state| {
                     if state.effects_browser.query.is_empty() {
-                        state.effects_query_push('b');
+                        state.type_key('b');
                     } else {
                         state.clear_effects_query();
                     }

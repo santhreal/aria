@@ -141,7 +141,7 @@ fn the_hint_is_editable_through_the_rename_primitive() {
     assert_eq!(state.rename, Some(RenameTarget::SlotLabel));
     assert_eq!(state.rename_draft, "");
     for ch in "Intro".chars() {
-        state.rename_push(ch);
+        state.type_key(ch);
     }
     state.commit_rename().expect("commit");
     assert_eq!(state.rename, None);

@@ -70,7 +70,7 @@ fn the_property_search_holds_the_keys_until_a_press_elsewhere(cx: &mut gpui::Tes
             let state = state.read(app);
             (
                 state.property_search_focused(),
-                state.property_query().to_owned(),
+                state.property_query().as_str().to_owned(),
             )
         })
     };

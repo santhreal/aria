@@ -341,7 +341,7 @@ pub(crate) struct PropertyRowsState {
     pub(crate) strip_press: Option<super::key_strip::StripPress>,
     /// The property search in the timeline header, and whether it holds the
     /// keyboard.
-    query: String,
+    query: crate::app::line_text::LineText,
     search_focused: bool,
 }
 
