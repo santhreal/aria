@@ -167,16 +167,18 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     .under(SOURCE)
     .flyout_rule(),
     MenuItem::new("seq-ripple-in", "Ripple Trim In", |_, s, _| {
-        let trimmed = s.trim_selected_to_playhead(true);
+        let trimmed = s.ripple_trim_to_playhead(true);
         report(s, trimmed)
     })
-    .when(guards::selection)
+    .key("key-trim-in")
+    .when(guards::clips)
     .rule(),
     MenuItem::new("seq-ripple-out", "Ripple Trim Out", |_, s, _| {
-        let trimmed = s.trim_selected_to_playhead(false);
+        let trimmed = s.ripple_trim_to_playhead(false);
         report(s, trimmed)
     })
-    .when(guards::selection),
+    .key("key-trim-out")
+    .when(guards::clips),
     MenuItem::new(
         "seq-transition-crossfade",
         "Add Cross Fade at Cut",

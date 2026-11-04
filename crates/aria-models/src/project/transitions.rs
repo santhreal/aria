@@ -1,5 +1,6 @@
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
+use crate::time::{RationalTime, check_same_rate};
 use crate::transition::{Transition, TransitionAlignment};
 
 use super::Project;
@@ -239,6 +240,52 @@ impl Project {
             .map(|c| c.id)
     }
 
+    /// Fail when cutting `clip` at `at` leaves a half too short for a
+    /// transition at one of its ends ([`TransitionAlignment::junction_limit`]).
+    /// [`Project::split_clip`] drops such a transition; a razor cut checks
+    /// first and refuses instead, so the transition stays until it is
+    /// shortened or deleted.
+    pub fn check_split_keeps_transitions(
+        &self,
+        clip: ClipId,
+        at: RationalTime,
+    ) -> Result<(), ModelError> {
+        check_same_rate(at.rate, self.timeline().frame_rate)?;
+        let track = self
+            .timeline()
+            .track_of(clip)
+            .and_then(|track_id| self.timeline().track(track_id))
+            .ok_or(ModelError::UnknownClip(clip))?;
+        let range = track
+            .clip(clip)
+            .ok_or(ModelError::UnknownClip(clip))?
+            .timeline;
+        let head = at.value - range.start.value;
+        let tail = range.end_tick() - at.value;
+        if head <= 0 || tail <= 0 {
+            return Err(ModelError::InvalidRange);
+        }
+        let ticks = |id: ClipId| track.clip(id).map(|clip| clip.timeline.duration.value);
+        for transition in track.transitions() {
+            let limit = if transition.left == clip {
+                ticks(transition.right)
+                    .map(|right| transition.alignment.junction_limit(tail, right))
+            } else if transition.right == clip {
+                ticks(transition.left).map(|left| transition.alignment.junction_limit(left, head))
+            } else {
+                continue;
+            };
+            if limit.is_some_and(|limit| transition.duration > limit) {
+                return Err(ModelError::InvalidParam(format!(
+                    "a cut here leaves the {} transition longer than the clip beside it; \
+                     cut farther from the transition, or shorten it first",
+                    transition_label(transition)
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Whether any track carries a transition (cheap guard for prune).
     pub fn has_transitions(&self) -> bool {
         self.timeline()
@@ -289,4 +336,18 @@ fn audio_transition_labels() -> String {
         Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
         None => String::new(),
     }
+}
+
+/// The catalog name of a picture or audio transition, or its id when neither
+/// catalog has it.
+fn transition_label(transition: &Transition) -> String {
+    transition
+        .spec()
+        .map(|spec| spec.label.clone())
+        .ok()
+        .or_else(|| {
+            crate::AudioTransition::from_id(&transition.transition_id)
+                .map(|audio| audio.label().to_owned())
+        })
+        .unwrap_or_else(|| transition.transition_id.clone())
 }

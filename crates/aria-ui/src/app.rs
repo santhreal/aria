@@ -488,6 +488,18 @@ mod menu_reach_tests;
 mod linked_selection_tests;
 
 #[cfg(test)]
+#[path = "app/linked_cut_tests.rs"]
+mod linked_cut_tests;
+
+#[cfg(test)]
+#[path = "app/ripple_delete_tests.rs"]
+mod ripple_delete_tests;
+
+#[cfg(test)]
+#[path = "app/ripple_trim_playhead_tests.rs"]
+mod ripple_trim_playhead_tests;
+
+#[cfg(test)]
 #[path = "app/animation_verbs_tests.rs"]
 mod animation_verbs_tests;
 
@@ -746,6 +758,9 @@ mod viewer_row_tests;
 #[cfg(test)]
 #[path = "app/activation_tests.rs"]
 mod activation_tests;
+#[cfg(test)]
+#[path = "app/analysis_edit_tests.rs"]
+mod analysis_edit_tests;
 #[cfg(test)]
 #[path = "app/analysis_tests.rs"]
 mod analysis_tests;

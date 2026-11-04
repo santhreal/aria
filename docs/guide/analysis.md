@@ -38,12 +38,15 @@ the ends; the palette's **Previous Detected Moment** (`pal-previous-moment`) and
 **Next Detected Moment** (`pal-next-moment`) rows do the same. Stored beats also
 draw as hairlines on the ruler and act as snap magnets; they are not clickable.
 
-Two rows turn a detection into an edit:
+Two rows turn a detection into an edit. Each acts on the selected clip and on
+the selected clips linked to it, and is one undo step:
 
-- **Split at shots** cuts the selected clip at every shot boundary inside it.
-  Boundaries outside the clip are skipped.
-- **Ripple-delete silence** removes every silent span inside the selected clip and
-  closes the gaps. Each span is its own undo entry.
+- **Split at shots** cuts the clips at every shot boundary inside the selected
+  clip. Boundaries outside the clip are skipped. The pieces of a linked picture
+  and sound stay linked in pairs.
+- **Ripple-delete silence** removes every silent span inside the selected clip
+  from the clips and closes the gaps on their tracks and on every sync-locked
+  track.
 
 **Measure** in the **Loudness** row measures the clip's loudness contour, prints
 the peak level beside the button with a clipping flag, and draws the contour in

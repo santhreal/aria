@@ -9,7 +9,8 @@
 //!
 //! A transition lives only while its pair of clips still abuts (left's end
 //! tick equals right's start tick). Structural edits that break the abutment
-//! prune the dead junction; undo restores it.
+//! prune the dead junction; undo restores it. A split moves the junction at
+//! the clip's out point onto the tail, which ends there.
 
 use std::sync::{Arc, LazyLock};
 

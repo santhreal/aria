@@ -82,8 +82,9 @@ impl Project {
         let mut new_clip = clip;
         new_clip.id = ClipId::next();
         new_clip.timeline = right_tl;
-        // Existing policy: the shell decides whether split tails should form a
-        // new link group (linked multi-clip splits relink them explicitly).
+        // The tail starts unlinked: a link holds clips that move together, and
+        // its partners still run on past the cut unless they were cut there
+        // too. [`Project::split_tail_links`] pairs the tails of one cut.
         new_clip.link = None;
         if let (
             Some((_, right_source)),
@@ -187,6 +188,7 @@ impl Project {
         }
         let new_id = self.timeline_mut().add_clip(track_id, new_clip)?;
         if let Some(track) = self.timeline_mut().track_mut(track_id) {
+            track.carry_transitions_across_split(clip_id, new_id);
             track.prune_dead_transitions();
         }
         Ok(new_id)

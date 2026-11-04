@@ -121,6 +121,24 @@ impl Project {
             .collect()
     }
 
+    /// The tails of one cut that link together. Each `(head, tail)` is a clip
+    /// split at the same tick by [`Project::split_clip`]; the tails of heads
+    /// that share a link form one group, so a picture and its sound stay
+    /// paired on both sides of the cut. A tail whose head was unlinked, or was
+    /// cut without any of its partners, is in no group.
+    pub fn split_tail_links(&self, cuts: &[(ClipId, ClipId)]) -> Vec<Vec<ClipId>> {
+        let mut tails: Vec<(LinkId, ClipId)> = cuts
+            .iter()
+            .filter_map(|&(head, tail)| Some((self.clip(head)?.link?, tail)))
+            .collect();
+        tails.sort_unstable_by_key(|&(link, _)| link);
+        tails
+            .chunk_by(|a, b| a.0 == b.0)
+            .filter(|group| group.len() > 1)
+            .map(|group| group.iter().map(|&(_, tail)| tail).collect())
+            .collect()
+    }
+
     /// The assignments that put `clips` into one freshly allocated group.
     ///
     /// Requires at least two distinct clips, all of which must exist. If

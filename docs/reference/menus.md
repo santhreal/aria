@@ -137,8 +137,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-source-insert` | `Source` | Insert | `none` | Open a source in the Source monitor first (`guards::source_range`) | Ripple-inserts the active Source monitor range at the playhead. |
 | `seq-source-overwrite` | `Source` | Overwrite | `none` | Open a source in the Source monitor first (`guards::source_range`) | Overwrites the active Source monitor range onto the sequence at the playhead. |
 | `seq-ripple-insert` | `Source` | Insert Pool Selection | `none` | No media is selected in the pool (`guards::pool_selection`) | Ripple-inserts the selected media pool items at the playhead. |
-| `seq-ripple-in` | `none` | Ripple Trim In | `none` | No clip is selected (`guards::selection`) | Trims the selected clip's in-point to the playhead and ripples the lane. |
-| `seq-ripple-out` | `none` | Ripple Trim Out | `none` | No clip is selected (`guards::selection`) | Trims the selected clip's out-point to the playhead and ripples the lane. |
+| `seq-ripple-in` | `none` | Ripple Trim In | `Q` | The sequence has no clips (`guards::clips`) | Removes the span from the previous cut on the targeted tracks to the playhead from every targeted track, closes the gap, and moves the playhead to the span's start. |
+| `seq-ripple-out` | `none` | Ripple Trim Out | `W` | The sequence has no clips (`guards::clips`) | Removes the span from the playhead to the next cut on the targeted tracks from every targeted track and closes the gap. |
 | `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected (`guards::selection`) | Applies a `crossfade` transition to the selected clip's cut. |
 | `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected (`guards::selection`) | Removes the transition from the selected clip's cut. |
 | `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | Always enabled | Shifts every clip on the selected clip's track later by one second. |

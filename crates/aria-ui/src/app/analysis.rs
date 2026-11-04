@@ -593,89 +593,75 @@ impl AppState {
         self.analysis.stored.contains(&kind)
     }
 
-    /// Split the selected clip at every detected shot boundary inside it.
+    /// Split the selected clip, and the selected clips linked to it, at every
+    /// detected shot boundary inside it, as one undo step.
     ///
     /// Boundaries outside the clip's own range are skipped rather than clamped: a cut
     /// at the clip edge is not an edit, and a cut past it belongs to media the clip
     /// does not show.
     pub fn split_at_shots(&mut self) -> Result<(), EngineError> {
         let ticks = self.moment_ticks_in_selection(MomentKind::SHOT_BOUNDARY);
-        let Some(clip) = self.selected_clip() else {
+        let targets = self.analysis_targets();
+        if targets.is_empty() {
             self.status_message = Some("Select a clip to split".into());
             return Ok(());
-        };
+        }
         if ticks.is_empty() {
             self.status_message =
                 Some("No shot boundaries inside the clip. Detect shots first".into());
             return Ok(());
         }
         let rate = self.playhead.rate;
-        let mut split = 0_usize;
-        // Later cuts first: splitting the head does not move the tail's ticks, and a
-        // cut is addressed by the clip that still covers it.
-        for tick in ticks.into_iter().rev() {
-            let target = self
-                .store
-                .sequence
-                .tracks
-                .iter()
-                .flat_map(|track| track.clips.iter())
-                .find(|candidate| {
-                    candidate.timeline_start_ticks < tick && candidate.timeline_end_ticks > tick
-                })
-                .map_or(clip, |candidate| {
-                    aria_models::ClipId::from_raw(candidate.id)
-                });
-            self.apply_command(Command::Edit(EditCommand::SplitClip {
-                clip: target,
-                at: RationalTime::new(tick, rate),
-            }))?;
-            split += 1;
-        }
+        // Later cuts first: a cut keeps the head's id, so every earlier boundary
+        // still falls inside the clips named here.
+        self.one_step(|this| {
+            for &tick in ticks.iter().rev() {
+                this.cut_clips_at(&targets, RationalTime::new(tick, rate))?;
+            }
+            Ok(())
+        })?;
         self.status_message = Some(format!(
             "Split at {}",
-            counted(split, "shot boundary", "shot boundaries")
+            counted(ticks.len(), "shot boundary", "shot boundaries")
         ));
         Ok(())
     }
 
-    /// Remove every detected silent span inside the selected clip, closing the gaps.
+    /// Remove every detected silent span inside the selected clip from it and
+    /// from the selected clips linked to it, closing the gaps, as one undo step.
     ///
-    /// Each span becomes two splits and one ripple delete. The engine has no batch, so
-    /// each command is its own undo entry; the spans are walked from the end so an
-    /// earlier removal never moves a later span's ticks.
+    /// The spans are walked from the end, so a closed gap never moves a span
+    /// still to come and a cut keeps the head's id for the spans before it.
+    /// Each span's pieces are removed as Shift+Delete removes a selection,
+    /// latest first and each span closed once per lane.
     pub fn ripple_delete_silence(&mut self) -> Result<(), EngineError> {
         let spans = self.moment_spans_in_selection(MomentKind::SILENCE);
         if spans.is_empty() {
             self.status_message = Some("No silence inside the clip. Detect silence first.".into());
             return Ok(());
         }
+        let targets = self.analysis_targets();
+        let lanes: Vec<u64> = targets
+            .iter()
+            .filter_map(|&clip| self.ui_clip_ref(clip).map(|ui| ui.track_id))
+            .collect();
         let rate = self.playhead.rate;
-        let mut removed = 0_usize;
-        for (start, end) in spans.into_iter().rev() {
-            let Some(head) = self.clip_covering(start) else {
-                continue;
-            };
-            self.apply_command(Command::Edit(EditCommand::SplitClip {
-                clip: head,
-                at: RationalTime::new(start, rate),
-            }))?;
-            if let Some(middle) = self.clip_covering(end) {
-                self.apply_command(Command::Edit(EditCommand::SplitClip {
-                    clip: middle,
-                    at: RationalTime::new(end, rate),
-                }))?;
+        self.one_step(|this| {
+            for &(start, end) in spans.iter().rev() {
+                this.cut_clips_at(&targets, RationalTime::new(end, rate))?;
+                this.cut_clips_at(&targets, RationalTime::new(start, rate))?;
+                let silent: Vec<ClipId> = lanes
+                    .iter()
+                    .filter_map(|&lane| this.clip_on_lane_within(lane, start, end))
+                    .collect();
+                this.ripple_delete_clips(&silent)?;
             }
-            let Some(silent) = self.clip_starting_at(start) else {
-                continue;
-            };
-            self.apply_command(Command::Edit(EditCommand::RippleDelete { clip: silent }))?;
-            removed += 1;
-        }
+            Ok(())
+        })?;
         self.clear_selection();
         self.status_message = Some(format!(
             "Removed {}",
-            counted(removed, "silent span", "silent spans")
+            counted(spans.len(), "silent span", "silent spans")
         ));
         Ok(())
     }

@@ -1,6 +1,7 @@
 //! `split_clip` cases.
 
 use super::*;
+use crate::transition::TransitionAlignment;
 
 // --- remove_clip ------------------------------------------------------
 
@@ -210,7 +211,7 @@ fn split_clip_preserves_full_property_snapshot_and_rebases_tail_curves() {
     assert_eq!(project.clip(clip_id).unwrap().link, Some(link));
     assert_eq!(
         right.link, None,
-        "callers remain responsible for relinking tails"
+        "a lone cut leaves the tail unlinked; split_tail_links pairs one cut's tails"
     );
 }
 
@@ -458,4 +459,95 @@ fn split_clip_rejects_unknown_clip() {
         project.split_clip(unknown, rt(5)),
         Err(ModelError::UnknownClip(unknown))
     );
+}
+
+// --- split across transitions and links --------------------------------
+
+/// A [0,48), B [48,120), C [120,168) on V1 with a 24-tick crossfade at A|B
+/// and a 24-tick dip to black at B|C, both aligned `alignment`.
+fn transitioned_row(alignment: TransitionAlignment) -> (Project, TrackId, [ClipId; 3]) {
+    let (mut project, media_id, track) = project_with_media(1_000);
+    let clips = [(0, 48), (48, 72), (120, 48)].map(|(start, length)| {
+        project
+            .add_clip(track, media_id, tr(start, length), rt(start))
+            .unwrap()
+    });
+    for (clip, id) in [(clips[0], "crossfade"), (clips[1], "dip_to_black")] {
+        project.add_transition(clip, id).unwrap();
+        project.set_transition_duration(clip, 24).unwrap();
+        project.set_transition_alignment(clip, alignment).unwrap();
+    }
+    (project, track, clips)
+}
+
+/// The razor's check and the split agree at every cut point of every
+/// alignment: the check passes exactly where the split keeps both of the
+/// clip's transitions, the out-point one moves to the tail, and every
+/// transition left on the lane still joins abutting clips within its limit.
+#[test]
+fn split_keeps_a_transition_exactly_where_the_razor_check_allows_the_cut() {
+    for alignment in TransitionAlignment::ALL {
+        let mut allowed_somewhere = false;
+        let mut refused_somewhere = false;
+        for at in 49..120 {
+            let (mut project, track, [a, b, c]) = transitioned_row(alignment);
+            let allowed = project.check_split_keeps_transitions(b, rt(at)).is_ok();
+            let tail = project.split_clip(b, rt(at)).unwrap();
+            let lane = project.timeline().track(track).unwrap();
+            let case = format!("{alignment:?} cut at {at}");
+            assert_eq!(allowed, lane.transitions().len() == 2, "{case}");
+            allowed_somewhere |= allowed;
+            refused_somewhere |= !allowed;
+            assert!(lane.transition_at(b).is_none(), "{case}: B ends at the cut");
+            if allowed {
+                assert_eq!(lane.transition_at(a).unwrap().right, b, "{case}");
+                assert_eq!(lane.transition_at(tail).unwrap().right, c, "{case}");
+            }
+            for transition in lane.transitions() {
+                let left = lane.clip(transition.left).unwrap().timeline;
+                let right = lane.clip(transition.right).unwrap().timeline;
+                assert_eq!(left.end_tick(), right.start.value, "{case}");
+                let limit = transition
+                    .alignment
+                    .junction_limit(left.duration.value, right.duration.value);
+                assert!(transition.duration <= limit, "{case}");
+            }
+        }
+        assert!(allowed_somewhere && refused_somewhere, "{alignment:?}");
+    }
+}
+
+#[test]
+fn split_tail_links_pairs_the_tails_of_each_source_link_and_nothing_else() {
+    let (mut project, media_id, v1) = project_with_media(1_000);
+    let mut lanes = vec![v1];
+    for name in ["A1", "V2", "A2", "V3", "A3", "V4"] {
+        lanes.push(project.add_track(TrackKind::Video, name));
+    }
+    let clips: Vec<ClipId> = lanes
+        .iter()
+        .map(|&lane| project.add_clip(lane, media_id, tr(0, 48), rt(0)).unwrap())
+        .collect();
+    for pair in clips[..6].chunks(2) {
+        project.link_clips(pair).unwrap();
+    }
+    // Both clips of the first two links are cut, one clip of the third, and
+    // the unlinked clip on V4.
+    let cut = [0, 1, 2, 3, 4, 6].map(|index| clips[index]);
+    let cuts: Vec<(ClipId, ClipId)> = cut
+        .iter()
+        .map(|&head| (head, project.split_clip(head, rt(24)).unwrap()))
+        .collect();
+
+    let mut groups = project.split_tail_links(&cuts);
+    for group in &mut groups {
+        group.sort_unstable();
+    }
+    groups.sort_unstable();
+    let mut expected = vec![vec![cuts[0].1, cuts[1].1], vec![cuts[2].1, cuts[3].1]];
+    for group in &mut expected {
+        group.sort_unstable();
+    }
+    expected.sort_unstable();
+    assert_eq!(groups, expected);
 }

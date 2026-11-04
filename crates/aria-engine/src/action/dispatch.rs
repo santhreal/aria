@@ -184,7 +184,17 @@ fn dispatch_edit(edit: EditCommand, ctx: &mut ApplyContext<'_>) -> Result<Dispat
     // A structural edit can leave a transition sitting on an abutment that no
     // longer exists. Which edits those are is the row's `junctions:` column.
     let guard = transitions_guard(ctx, &edit);
-    let Applied { outcome, inverse } = rows::apply_edit(ctx, edit)?;
+    let Applied { outcome, inverse } = match rows::apply_edit(ctx, edit) {
+        Ok(applied) => applied,
+        Err(err) => {
+            // A refused edit rolls its clips back, but a split it made first
+            // has already moved or dropped junctions on the way.
+            if let Some(snapshot) = guard {
+                ctx.project.restore_transitions(snapshot);
+            }
+            return Err(err);
+        }
+    };
     let inverse = finalize_structural(ctx, guard, inverse);
     Ok((ApplyOutcome::Edited(outcome), Some(inverse)))
 }

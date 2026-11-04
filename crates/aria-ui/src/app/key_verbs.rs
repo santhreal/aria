@@ -122,35 +122,22 @@ impl AppState {
             return Ok(());
         }
         let cut = RationalTime::new(at, self.playhead.rate);
-        self.one_step(|this| {
-            for clip in targets {
-                this.apply_command(Command::Edit(EditCommand::SplitClip { clip, at: cut }))?;
-            }
-            Ok(())
-        })
+        self.one_step(|this| this.cut_clips_at(&targets, cut))
     }
 
-    /// Cut the unlocked clip on `lane` that `tick` falls strictly inside.
-    fn cut_lane_at(&mut self, lane: u64, tick: i64) -> Result<(), EngineError> {
-        let inside = self
-            .store
+    /// The unlocked clips on `lanes` that `tick` falls strictly inside.
+    fn clips_spanning(&self, lanes: &[u64], tick: i64) -> Vec<ClipId> {
+        self.store
             .sequence
             .tracks
             .iter()
-            .find(|track| track.id == lane)
-            .and_then(|track| {
-                track.clips.iter().find(|clip| {
-                    !clip.locked
-                        && clip.timeline_start_ticks < tick
-                        && tick < clip.timeline_end_ticks
-                })
+            .filter(|track| lanes.contains(&track.id))
+            .flat_map(|track| track.clips.iter())
+            .filter(|clip| {
+                !clip.locked && clip.timeline_start_ticks < tick && tick < clip.timeline_end_ticks
             })
-            .map(|clip| ClipId::from_raw(clip.id));
-        if let Some(clip) = inside {
-            let at = RationalTime::new(tick, self.playhead.rate);
-            self.apply_command(Command::Edit(EditCommand::SplitClip { clip, at }))?;
-        }
-        Ok(())
+            .map(|clip| ClipId::from_raw(clip.id))
+            .collect()
     }
 
     /// Lift (`close_gap` false) or Extract (`close_gap` true): remove the In to
@@ -161,17 +148,46 @@ impl AppState {
             self.status_message = Some("Mark In and Out first".into());
             return Ok(());
         };
+        let label = if close_gap { "Extract" } else { "Lift" };
+        let Some(removed) = self.remove_range(from, to, close_gap, label)? else {
+            return Ok(());
+        };
+        self.clear_selection();
+        self.set_playhead(from);
+        let verb = if close_gap { "Extracted" } else { "Lifted" };
+        self.status_message = Some(format!(
+            "{verb} {} from In to Out",
+            counted(removed, "clip", "clips")
+        ));
+        Ok(())
+    }
+
+    /// Remove `[from, to)` from every targeted lane as one undo step named
+    /// `label`, cutting the clips that cross either end, and with `close_gap`
+    /// slide each lane's later clips left by the span. The number of clips
+    /// removed, or `None` with the status line set when no lane is targeted.
+    fn remove_range(
+        &mut self,
+        from: i64,
+        to: i64,
+        close_gap: bool,
+        label: &'static str,
+    ) -> Result<Option<usize>, EngineError> {
         let lanes: Vec<u64> = self.targeted_lanes().map(|lane| lane.id).collect();
         if lanes.is_empty() {
             self.status_message = Some("Target a track first".into());
-            return Ok(());
+            return Ok(None);
         }
         let rate = self.playhead.rate;
-        let removed = self.one_step(|this| {
+        self.one_step_as(label, |this| {
+            // Out first, so a clip spanning both points is cut again at In on
+            // its head; each pass relinks the tails it cuts.
+            for tick in [to, from] {
+                let spanning = this.clips_spanning(&lanes, tick);
+                this.cut_clips_at(&spanning, RationalTime::new(tick, rate))?;
+            }
             let mut removed = 0_usize;
             for lane in lanes {
-                this.cut_lane_at(lane, to)?;
-                this.cut_lane_at(lane, from)?;
                 let (inside, later): (Vec<ClipId>, bool) = this
                     .store
                     .sequence
@@ -209,15 +225,8 @@ impl AppState {
                 }
             }
             Ok(removed)
-        })?;
-        self.clear_selection();
-        self.set_playhead(from);
-        let verb = if close_gap { "Extracted" } else { "Lifted" };
-        self.status_message = Some(format!(
-            "{verb} {} from In to Out",
-            counted(removed, "clip", "clips")
-        ));
-        Ok(())
+        })
+        .map(Some)
     }
 
     /// Delete: remove the selected clips and leave their gaps. A selected gap
@@ -242,24 +251,32 @@ impl AppState {
         Ok(())
     }
 
-    /// Q / W: trim the head or tail of the clip under the playhead to the
-    /// playhead and close the gap the trim leaves.
+    /// Q / W: remove from the previous cut on the targeted lanes to the
+    /// playhead (`head`), or from the playhead to the next cut, on every
+    /// targeted lane, and close the gap, as one undo step. The playhead lands
+    /// on the span's start, where the frame after the span now sits.
     pub fn ripple_trim_to_playhead(&mut self, head: bool) -> Result<(), EngineError> {
-        let Some(clip) = self.playhead_trim_target() else {
-            self.status_message = Some("No clip under the playhead to trim".into());
+        let at = self.playhead.value;
+        let points = self.edit_points(false);
+        let span = if head {
+            points
+                .iter()
+                .rev()
+                .find(|&&tick| tick < at)
+                .map(|&from| (from, at))
+        } else {
+            points.iter().find(|&&tick| tick > at).map(|&to| (at, to))
+        };
+        let Some((from, to)) = span else {
+            self.status_message = Some(if head {
+                "No earlier edit on a targeted track".into()
+            } else {
+                "No later edit on a targeted track".into()
+            });
             return Ok(());
         };
-        let at = self.playhead.value;
-        let (start, end) = (clip.timeline_start_ticks, clip.timeline_end_ticks);
-        let track = TrackId::from_raw(clip.track_id);
-        let id = ClipId::from_raw(clip.id);
-        if head {
-            self.ripple_trim(id, track, start, end, true, at - start)?;
-            // The head now sits where the clip used to start, and so does the
-            // frame that was under the playhead.
-            self.set_playhead(start);
-        } else {
-            self.ripple_trim(id, track, start, end, false, at - end)?;
+        if self.remove_range(from, to, true, "Ripple trim")?.is_some() {
+            self.set_playhead(from);
         }
         Ok(())
     }
@@ -693,7 +710,7 @@ impl AppState {
         }
         let from_program = self.sources.focus_index().is_none();
         if !self.sources.swap_program_and_recent() {
-            self.status_message = Some("No source has been open in the Viewer".into());
+            self.status_message = Some("No source has been opened in the Viewer".into());
             return;
         }
         if from_program {

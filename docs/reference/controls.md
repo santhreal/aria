@@ -175,14 +175,14 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | --- | --- | --- | --- |
 | `analysis-clear` (per row) | × | Clears cached analysis results for the specified detector kind on the selected clip. | None |
 | `analysis-confidence` (per row) | ≥0% / ≥25% / ≥50% / ≥75% | Hides detected moments whose confidence is below the chosen value. | None |
-| `analysis-cut-silence` | Ripple-delete silence | Splits and ripple-deletes detected silent spans on the selected timeline clip. | None |
+| `analysis-cut-silence` | Ripple-delete silence | Removes each detected silent span from the selected timeline clip and the selected clips linked to it, and closes the gaps, as one undo step. | None |
 | `analysis-kind` (per row) | All / Shots / Silence / Beats | Lists the moments of every detector, or of the chosen detector only. | None |
 | `analysis-loudness` | Measure | Measures the windowed dBFS loudness contour across the selected clip's audio stream. | None |
 | `analysis-next` | Next | Moves the playhead to the next detected analysis moment. | None |
 | `analysis-prev` | Previous | Moves the playhead to the previous detected analysis moment. | None |
 | `analysis-refresh` | Refresh | Reloads stored analysis moments for the selected clip from the on-disk moments index into the Analysis panel. | None |
 | `analysis-run` (per row) | Shots / Silence / Beats | Runs the shot, silence, or beat detector on the selected clip. | None |
-| `analysis-split-shots` | Split at shots | Splits the selected timeline clip at every detected shot boundary. | None |
+| `analysis-split-shots` | Split at shots | Splits the selected timeline clip and the selected clips linked to it at every detected shot boundary, as one undo step. | None |
 | `bin-delete` | Delete bin | Deletes the currently open media bin and moves its contents to the parent bin. | None |
 | `bin-name` | Bin name | Edits the name of the bin currently being renamed. | None |
 | `bin-new` | New bin | Creates a new media bin inside the current Project panel folder. | None |

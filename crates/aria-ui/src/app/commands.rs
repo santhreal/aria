@@ -685,32 +685,60 @@ impl AppState {
         Ok(())
     }
 
-    /// Shift+Delete: remove the selected clips and close each gap, latest
-    /// first so an earlier removal never moves a later clip out from under its
-    /// own delete. A selected gap is closed.
+    /// Shift+Delete: remove the selected clips and close each gap, as one undo
+    /// step. A selected gap is closed.
     pub fn ripple_delete_selected(&mut self) -> Result<(), EngineError> {
         if let Some(gap) = self.selected_gap.take() {
             return self.close_gap(gap);
         }
-        let mut clips: Vec<(i64, ClipId)> = self
-            .selection
-            .iter()
-            .filter_map(|id| {
-                self.ui_clip_ref(*id)
-                    .map(|clip| (clip.timeline_start_ticks, *id))
-            })
-            .collect();
+        let clips = self.selection.clone();
         if clips.is_empty() {
             return Ok(());
         }
-        clips.sort_unstable_by_key(|(start, _)| std::cmp::Reverse(*start));
-        self.one_step(|this| {
-            for (_, clip) in clips {
-                this.apply_command(Command::Edit(EditCommand::RippleDelete { clip }))?;
-            }
-            Ok(())
-        })?;
+        self.one_step(|this| this.ripple_delete_clips(&clips))?;
         self.clear_selection();
+        Ok(())
+    }
+
+    /// Remove `clips` and close each one's span, inside the caller's undo
+    /// step: the removal Shift+Delete and silence removal share.
+    ///
+    /// The clip that ends latest goes first. Its ripple closes its span on its
+    /// own lane and on every sync-locked lane, so a clip it covers on such a
+    /// lane, its linked sound among them, is gone by its turn and is skipped,
+    /// and a clip that starts before it keeps its head, with its id, for its
+    /// own turn. Every clip processed later ends at or before the span already
+    /// closed, so no ripple moves a clip still to come. Of clips with one span,
+    /// only the first ripples: another one still there is on a lane out of
+    /// sync lock and closes that lane alone, so no sync-locked lane loses the
+    /// span twice.
+    pub(crate) fn ripple_delete_clips(&mut self, clips: &[ClipId]) -> Result<(), EngineError> {
+        let mut order: Vec<(i64, i64, ClipId)> = clips
+            .iter()
+            .filter_map(|&id| {
+                self.ui_clip_ref(id)
+                    .map(|clip| (clip.timeline_end_ticks, clip.timeline_start_ticks, id))
+            })
+            .collect();
+        order.sort_unstable_by_key(|&(end, start, _)| std::cmp::Reverse((end, start)));
+        let rate = self.playhead.rate;
+        let mut rippled = None;
+        for (end, start, clip) in order {
+            let Some(lane) = self.ui_clip_ref(clip).map(|ui| ui.track_id) else {
+                continue;
+            };
+            if rippled == Some((start, end)) {
+                self.apply_command(Command::Edit(EditCommand::RemoveClip { clip }))?;
+                self.apply_command(Command::Edit(EditCommand::ShiftClips {
+                    track: TrackId::from_raw(lane),
+                    from: RationalTime::new(end, rate),
+                    delta: RationalTime::new(start - end, rate),
+                }))?;
+            } else {
+                self.apply_command(Command::Edit(EditCommand::RippleDelete { clip }))?;
+                rippled = Some((start, end));
+            }
+        }
         Ok(())
     }
 }

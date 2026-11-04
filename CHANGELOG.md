@@ -785,6 +785,15 @@ Notes for the latest release. For previous releases, see the
 - A mixer strip's **+ Audio effect** button and insert rows start in the strip's column with its labels and chips, instead of four pixels to their right.
 - The Audio Gain and Speed/Duration dialogs change their values by scrubbing, typing, or a preset, without a row of fixed step buttons under the value, and the Audio Gain value row reads Gain, Adjustment, or Peak target instead of repeating the selected mode's name.
 - Scene resolution, layer realization, and the preview worker reuse their per-frame vectors, strings, transition and matte side layers, path-raster keys, and empty RGBA image handle across frames, which reduces steady-frame Aria-side heap allocations from 10 to 0 on a combined video, still, audio, mask, effect-mask, and matte scene, from 8 to 0 on a wipe transition, from 6 to 0 on a crossfade, dip, or slide transition, from 5 to 0 on a track matte, from 4 to 0 on styled text or a path mask, from 3 to 0 on a Lottie layer, from 2 to 0 on a sticker or a rectangle or circle mask, and from 1 to 0 on a path shape or an effect mask.
+- A split keeps the transition at the clip's Out point on the tail instead of deleting it, and a razor cut that would leave the clip beside a transition shorter than the transition is refused with a message that states the transition.
+- An edit refused after it moved or removed a transition puts the transition back instead of leaving it moved or removed.
+- A cut through both clips of a linked pair, by Add Edit, the razor, Lift, Extract, Q, W, a ripple delete, or a rippled insert, links the two tails to each other instead of leaving them unlinked.
+- Shift+Delete on a linked pair, or on a sound inside its selected picture, removes the selection and closes the gap on every sync-locked track as one undo step, instead of reporting `unknown clip` and changing nothing, or leaving a piece of the picture behind.
+- Shift+Delete on a linked pair with one track out of sync lock closes the span once on every sync-locked track instead of twice.
+- Split at shots and Ripple-delete silence act on the selected clip and the selected clips linked to it as one undo step, instead of cutting or deleting the first clip at each boundary on any track, a title above the picture among them, one undo step per cut.
+- Q and W remove from the previous cut on the targeted tracks to the playhead, or from the playhead to the next cut, on every targeted track and close the gap, instead of trimming the top clip under the playhead and sliding only its track, and Sequence > Ripple Trim In and Ripple Trim Out run the same edit and show Q and W instead of trimming the selected clip and leaving the gap.
+- Lift, Extract, Q and W appear in the history as Lift, Extract and Ripple trim instead of as the first command they send.
+- With no source open, the Viewer key reports "No source has been opened in the Viewer" instead of "No source has been open in the Viewer".
 
 ### Fixed
 

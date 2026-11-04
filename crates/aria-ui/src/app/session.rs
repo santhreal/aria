@@ -387,30 +387,6 @@ impl AppState {
         }
     }
 
-    pub fn trim_selected_to_playhead(&mut self, from_start: bool) -> Result<(), EngineError> {
-        let Some(ui) = self.selected_ui_clip() else {
-            return Ok(());
-        };
-        let at = self.playhead.value;
-        let start = if from_start {
-            at.clamp(
-                ui.timeline_start_ticks,
-                ui.timeline_end_ticks.saturating_sub(1),
-            )
-        } else {
-            ui.timeline_start_ticks
-        };
-        let end = if from_start {
-            ui.timeline_end_ticks
-        } else {
-            at.clamp(ui.timeline_start_ticks + 1, ui.timeline_end_ticks)
-        };
-        if end <= start {
-            return Ok(());
-        }
-        self.trim_clip(ClipId::from_raw(ui.id), start, end)
-    }
-
     pub fn select_clip_linked(&mut self, id: ClipId, with_link: bool) {
         if !with_link {
             self.selection = vec![id];

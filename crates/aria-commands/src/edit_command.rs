@@ -483,7 +483,10 @@ pub enum EditCommand {
         clip: ClipId,
         transition: Transition,
     },
-    /// Split a clip at a timeline position into two abutting clips.
+    /// Split a clip at a timeline position into two abutting clips. A
+    /// transition at either end of the clip stays on the half beside it; a
+    /// cut that leaves that half shorter than the transition's window is
+    /// refused.
     SplitClip { clip: ClipId, at: RationalTime },
     /// Re-place / trim a clip to occupy `timeline`. Linked companions take the
     /// same start and end deltas.

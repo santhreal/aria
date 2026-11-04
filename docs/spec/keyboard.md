@@ -119,7 +119,7 @@ Holding a tool key uses that tool until release
 | `,` / `.` | Insert / Overwrite from the Source tab |
 | `;` / `'` | Lift / Extract |
 | Ctrl+K / Ctrl+Shift+K | Add Edit / Add Edit to All Tracks |
-| Q / W | Ripple trim head / tail to the playhead |
+| Q / W | Remove from the previous cut to the playhead / the playhead to the next cut on targeted tracks, closing the gap |
 | Alt+[ / Alt+] | Trim head / tail to the playhead without closing the gap |
 | Delete / Shift+Delete | Clear / Ripple Delete |
 | Ctrl+Left / Ctrl+Right | Trim the selected edges one frame |

@@ -88,25 +88,46 @@ impl AppState {
         spans
     }
 
-    /// The clip covering `tick` strictly inside its own range.
-    pub(super) fn clip_covering(&self, tick: i64) -> Option<aria_models::ClipId> {
-        self.store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|track| track.clips.iter())
-            .find(|clip| clip.timeline_start_ticks < tick && clip.timeline_end_ticks > tick)
-            .map(|clip| aria_models::ClipId::from_raw(clip.id))
+    /// The clips a detector's edit acts on: the selected clip first, then each
+    /// selected clip linked to it. With linked selection on, a click selects a
+    /// picture and its sound together and both are cut; a clip selected alone
+    /// is cut alone, and a clip on another lane under the same frame is never
+    /// touched.
+    pub(super) fn analysis_targets(&self) -> Vec<aria_models::ClipId> {
+        let Some(primary) = self.selected_ui_clip_ref() else {
+            return Vec::new();
+        };
+        let (id, link) = (primary.id, primary.linked_to);
+        let mut targets = vec![aria_models::ClipId::from_raw(id)];
+        if link.is_some() {
+            targets.extend(self.selection.iter().copied().filter(|clip| {
+                clip.raw() != id
+                    && self
+                        .ui_clip_ref(*clip)
+                        .is_some_and(|ui| ui.linked_to == link)
+            }));
+        }
+        targets
     }
 
-    /// The clip that starts exactly at `tick`.
-    pub(super) fn clip_starting_at(&self, tick: i64) -> Option<aria_models::ClipId> {
+    /// The unlocked clip on `lane` that starts at `start` and ends at or
+    /// before `end`: the piece of a target that a removal at `[start, end)`
+    /// takes.
+    pub(super) fn clip_on_lane_within(
+        &self,
+        lane: u64,
+        start: i64,
+        end: i64,
+    ) -> Option<aria_models::ClipId> {
         self.store
             .sequence
             .tracks
             .iter()
+            .filter(|track| track.id == lane)
             .flat_map(|track| track.clips.iter())
-            .find(|clip| clip.timeline_start_ticks == tick)
+            .find(|clip| {
+                !clip.locked && clip.timeline_start_ticks == start && clip.timeline_end_ticks <= end
+            })
             .map(|clip| aria_models::ClipId::from_raw(clip.id))
     }
 }

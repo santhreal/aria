@@ -785,6 +785,31 @@ impl Track {
             });
         self.transitions.len() != before
     }
+
+    /// Keep the transitions at the two cuts of a clip split into `head` and
+    /// `tail` where the halves still hold them. The transition at the clip's
+    /// out point moves to `tail`, which ends there now; either transition is
+    /// dropped when the half beside it is shorter than its window
+    /// ([`TransitionAlignment::junction_limit`]).
+    ///
+    /// [`TransitionAlignment::junction_limit`]: crate::TransitionAlignment::junction_limit
+    pub(crate) fn carry_transitions_across_split(&mut self, head: ClipId, tail: ClipId) {
+        let clips = &self.clips;
+        let ticks = |id: ClipId| clips.get(&id).map(|clip| clip.timeline.duration.value);
+        self.transitions.retain_mut(|transition| {
+            if transition.left == head {
+                transition.left = tail;
+            } else if transition.right != head {
+                return true;
+            }
+            match (ticks(transition.left), ticks(transition.right)) {
+                (Some(left), Some(right)) => {
+                    transition.duration <= transition.alignment.junction_limit(left, right)
+                }
+                _ => false,
+            }
+        });
+    }
 }
 
 /// Mutable access to one clip. Timeline-start changes update the ordered index

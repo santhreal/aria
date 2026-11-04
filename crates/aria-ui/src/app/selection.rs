@@ -280,18 +280,40 @@ impl AppState {
         if targets.is_empty() {
             return Ok(());
         }
-        let rate = self.playhead.rate;
-        let at = RationalTime::new(at_tick, rate);
-        self.one_step(|this| {
-            for clip in targets {
-                if this.ui_clip(clip).is_some_and(|ui| {
-                    at_tick > ui.timeline_start_ticks && at_tick < ui.timeline_end_ticks
-                }) {
-                    this.apply_command(Command::Edit(EditCommand::SplitClip { clip, at }))?;
-                }
+        let at = RationalTime::new(at_tick, self.playhead.rate);
+        self.one_step(|this| this.cut_clips_at(&targets, at))
+    }
+
+    /// Cut each of `clips` that still spans `at`, inside the caller's undo
+    /// step, and link the tails whose heads share a link
+    /// ([`Project::split_tail_links`]): a picture and its sound stay paired on
+    /// both sides of the cut, and a tail cut without its partners stays
+    /// unlinked.
+    ///
+    /// [`Project::split_tail_links`]: aria_models::Project::split_tail_links
+    pub(crate) fn cut_clips_at(
+        &mut self,
+        clips: &[ClipId],
+        at: RationalTime,
+    ) -> Result<(), EngineError> {
+        let mut cuts = Vec::with_capacity(clips.len());
+        for &clip in clips {
+            let spans = self.ui_clip_ref(clip).is_some_and(|ui| {
+                at.value > ui.timeline_start_ticks && at.value < ui.timeline_end_ticks
+            });
+            if !spans {
+                continue;
             }
-            Ok(())
-        })
+            let outcome = self.apply_command(Command::Edit(EditCommand::SplitClip { clip, at }))?;
+            if let ApplyOutcome::Edited(aria_commands::EditOutcome::Created(tail)) = outcome {
+                cuts.push((clip, tail));
+            }
+        }
+        let groups = self.engine.lock().project().split_tail_links(&cuts);
+        for clips in groups {
+            self.apply_command(Command::Edit(EditCommand::LinkClips { clips }))?;
+        }
+        Ok(())
     }
 
     /// The projected row for `id`, borrowed.

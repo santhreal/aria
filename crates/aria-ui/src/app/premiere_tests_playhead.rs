@@ -74,41 +74,39 @@ fn trim_to_playhead_pulls_the_chosen_edge_only() {
     assert!(mid > start && mid < end, "fixture clip must span a range");
 
     state.set_playhead(mid);
-    state.trim_selected_to_playhead(true).expect("trim head");
+    state.trim_to_playhead(true).expect("trim head");
     let (new_start, new_end) = clip_bounds(&state, clip);
-    assert_eq!(new_start, mid, "Q must move the head to the playhead");
-    assert_eq!(new_end, end, "Q must leave the tail alone");
+    assert_eq!(new_start, mid, "Alt+[ must move the head to the playhead");
+    assert_eq!(new_end, end, "Alt+[ must leave the tail alone");
 
     let mid2 = new_start + (new_end - new_start) / 2;
     state.set_playhead(mid2);
-    state.trim_selected_to_playhead(false).expect("trim tail");
+    state.trim_to_playhead(false).expect("trim tail");
     let (after_start, after_end) = clip_bounds(&state, clip);
-    assert_eq!(after_start, new_start, "W must leave the head alone");
-    assert_eq!(after_end, mid2, "W must move the tail to the playhead");
+    assert_eq!(after_start, new_start, "Alt+] must leave the head alone");
+    assert_eq!(after_end, mid2, "Alt+] must move the tail to the playhead");
 }
 #[test]
-fn trim_to_playhead_never_collapses_a_clip() {
+fn trim_to_playhead_on_an_edge_changes_nothing() {
     let (mut state, clip) = with_clip();
-    let (start, end) = clip_bounds(&state, clip);
+    let bounds = clip_bounds(&state, clip);
 
-    // Playhead at or past the far edge would produce an empty or inverted clip.
-    state.set_playhead(end);
-    state.trim_selected_to_playhead(true).expect("trim head");
-    let (a, b) = clip_bounds(&state, clip);
-    assert!(b > a, "head trim must leave a non-empty clip");
-
-    state.set_playhead(start);
-    state.trim_selected_to_playhead(false).expect("trim tail");
-    let (a, b) = clip_bounds(&state, clip);
-    assert!(b > a, "tail trim must leave a non-empty clip");
+    // A playhead on either edge would leave an empty clip or trim nothing.
+    for (at, head) in [(bounds.1, true), (bounds.0, false)] {
+        state.set_playhead(at);
+        state.trim_to_playhead(head).expect("inert trim");
+        assert_eq!(clip_bounds(&state, clip), bounds);
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("No clip under the playhead to trim")
+        );
+    }
 }
 #[test]
-fn trim_and_delete_are_inert_with_no_selection() {
+fn delete_is_inert_with_no_selection() {
     let (mut state, _) = with_clip();
     state.clear_selection();
     let before = state.store.sequence.clip_count();
-    state.trim_selected_to_playhead(true).expect("inert trim");
-    state.trim_selected_to_playhead(false).expect("inert trim");
     state.clear_selected().expect("inert delete");
     assert_eq!(state.store.sequence.clip_count(), before);
 }

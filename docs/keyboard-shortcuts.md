@@ -193,8 +193,8 @@ clock stops the other, and focusing another tab stops the source.
 | ; / ' | Lift / Extract the In to Out range on the targeted tracks. Extract closes the gap. |
 | Ctrl+K | Add Edit: cut the selected clips under the playhead, or every targeted track when nothing is selected |
 | Ctrl+Shift+K | Add Edit to every unlocked track |
-| Q / W | Ripple trim the head / tail of the clip under the playhead to the playhead |
-| Alt+[ / Alt+] | Trim the head / tail to the playhead, leaving the gap |
+| Q / W | Remove from the previous cut on the targeted tracks to the playhead / from the playhead to the next cut, on every targeted track, and close the gap |
+| Alt+[ / Alt+] | Trim the head / tail of the clip under the playhead to the playhead, leaving the gap |
 | Delete / Backspace | Clear the selection and leave its gap, or close a selected gap |
 | Shift+Delete / Shift+Backspace | Ripple Delete |
 | Ctrl+Left / Ctrl+Right | Trim the selected edge one frame, or move the selected clip when no edge is selected |

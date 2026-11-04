@@ -28,6 +28,19 @@ pub(crate) struct ReapplySplitAction {
     pub right_id: ClipId,
 }
 
+/// The SplitClip command: refuse a cut that would drop a transition at either
+/// end of the clip, then cut. Edits that split as one step of a larger change
+/// (freeze frame, a sync-locked insert, an overwrite) cut without the check,
+/// and the model drops such a transition with the material it covered.
+pub(crate) fn razor(
+    ctx: &mut ApplyContext<'_>,
+    clip: ClipId,
+    at: RationalTime,
+) -> Result<(ClipId, Box<dyn EditAction>), EngineError> {
+    ctx.project.check_split_keeps_transitions(clip, at)?;
+    execute(ctx, clip, at)
+}
+
 pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clip: ClipId,

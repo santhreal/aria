@@ -91,9 +91,13 @@ pub(crate) fn open_lanes_for_insert(
     delta: RationalTime,
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
-    let riders = rider_lanes(ctx.project.timeline(), lanes);
-    for &lane in lanes.iter().chain(&riders) {
-        cut_at(ctx, lane, from, inverses)?;
+    let lanes: Vec<TrackId> = lanes
+        .iter()
+        .copied()
+        .chain(rider_lanes(ctx.project.timeline(), lanes))
+        .collect();
+    cut_at(ctx, &lanes, from, inverses)?;
+    for lane in lanes {
         inverses.push(execute(ctx, lane, from, delta)?);
     }
     Ok(())
@@ -111,7 +115,7 @@ pub(crate) fn open_lanes_for_insert(
 /// Closing a span is not the mirror image of opening one. Opening a hole moves
 /// material aside and preserves all of it; closing a span removes that stretch of
 /// timeline, and a rider lane's own material inside it goes with it — that is
-/// what keeping the lanes in step means. So each rider lane is cut at both
+/// what keeping the lanes in step means. So every rider lane is cut at both
 /// boundaries, every clip then lying wholly inside the span is removed, and what
 /// followed the span moves up by its length. Cutting first means a clip
 /// straddling either boundary loses only the part inside the span.
@@ -132,9 +136,9 @@ pub(crate) fn close_for_ripple_delete(
 ) -> Result<(), EngineError> {
     let span = RationalTime::new(from.value - to.value, from.rate);
     let riders = rider_lanes(ctx.project.timeline(), excluded);
+    cut_at(ctx, &riders, from, inverses)?;
+    cut_at(ctx, &riders, to, inverses)?;
     for lane in riders {
-        cut_at(ctx, lane, from, inverses)?;
-        cut_at(ctx, lane, to, inverses)?;
         let covered: Vec<_> = ctx
             .project
             .timeline()
@@ -154,26 +158,36 @@ pub(crate) fn close_for_ripple_delete(
     Ok(())
 }
 
-/// Split the clip that straddles `at` on `lane`, if there is one, so the hole
-/// opens at a cut. A clip that starts or ends exactly at `at` is already cut
-/// there and is left alone.
+/// Split the clip that straddles `at` on each of `lanes`, if there is one, so
+/// the hole opens at a cut, and link the tails whose heads share a link
+/// ([`Project::split_tail_links`]). A clip that starts or ends exactly at `at`
+/// is already cut there and is left alone.
+///
+/// [`Project::split_tail_links`]: aria_models::Project::split_tail_links
 fn cut_at(
     ctx: &mut ApplyContext<'_>,
-    lane: TrackId,
+    lanes: &[TrackId],
     at: RationalTime,
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
-    let straddling = ctx.project.timeline().track(lane).and_then(|track| {
-        track
-            .clips()
-            .find(|clip| {
-                clip.timeline.start.value < at.value && clip.timeline.end_tick() > at.value
-            })
-            .map(|clip| clip.id)
-    });
-    if let Some(clip) = straddling {
-        let (_, inverse) = super::split_clip::execute(ctx, clip, at)?;
-        inverses.push(inverse);
+    let mut cuts = Vec::new();
+    for &lane in lanes {
+        let straddling = ctx.project.timeline().track(lane).and_then(|track| {
+            track
+                .clips()
+                .find(|clip| {
+                    clip.timeline.start.value < at.value && clip.timeline.end_tick() > at.value
+                })
+                .map(|clip| clip.id)
+        });
+        if let Some(clip) = straddling {
+            let (tail, inverse) = super::split_clip::execute(ctx, clip, at)?;
+            inverses.push(inverse);
+            cuts.push((clip, tail));
+        }
+    }
+    for tails in ctx.project.split_tail_links(&cuts) {
+        inverses.push(super::link_clips::execute(ctx, &tails)?);
     }
     Ok(())
 }

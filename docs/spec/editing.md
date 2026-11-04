@@ -69,8 +69,8 @@ Every drag is one undo step with a name in Edit > Undo ("Undo Ripple Trim").
 | Select a gap | Click it | The gap highlights; Delete closes it |
 | Lift | `;` | Removes the In to Out range on targeted tracks, leaves the gap |
 | Extract | `'` | Removes the In to Out range on targeted tracks, closes the gap |
-| Ripple trim to playhead | Q / W | Trims the clip's head / tail to the playhead and closes the gap |
-| Trim to playhead | Alt+[ / Alt+] | Same without closing the gap |
+| Ripple trim to playhead | Q / W | Removes from the previous cut on targeted tracks to the playhead / from the playhead to the next cut, on targeted tracks, closes the gap |
+| Trim to playhead | Alt+[ / Alt+] | Trims the head / tail of the clip under the playhead to the playhead, leaves the gap |
 | Add Edit | Ctrl+K | Splits targeted tracks at the playhead |
 | Add Edit to All Tracks | Ctrl+Shift+K | Splits every unlocked track at the playhead |
 

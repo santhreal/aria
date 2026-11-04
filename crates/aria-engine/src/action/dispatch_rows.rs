@@ -30,7 +30,7 @@ edit_ops! { ctx;
     FreezeFrame { clip, at, duration } => created(edit::freeze_frame::execute(ctx, clip, at, duration)?),
     BakeClip { clip, media } => updated(clip, edit::bake::bake_clip(ctx, clip, media)?),
     RestoreBakedClip { clip } => updated(clip, edit::bake::restore_baked_clip(ctx, clip)?),
-    SplitClip { clip, at } => created(edit::split_clip::execute(ctx, clip, at)?),
+    SplitClip { clip, at } => created(edit::split_clip::razor(ctx, clip, at)?),
     RippleInsert { track, media, source, at } => created(edit::ripple_insert::execute(ctx, track, media, source, at)?),
     OverwriteClip { track, media, source, at } => created(edit::overwrite::execute(ctx, track, media, source, at)?),
     FitToFill { track, media, source, at, duration, ripple } => created(edit::fit_to_fill::execute(ctx, track, media, source, at, duration, ripple)?),

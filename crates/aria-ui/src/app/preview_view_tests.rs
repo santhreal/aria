@@ -344,6 +344,18 @@ fn escape_gives_fullscreen_back_once() {
 }
 
 #[test]
+fn the_viewer_key_with_no_source_shown_keeps_the_program_and_reports_why() {
+    let (mut state, _) = with_clip();
+    state.active_panel = crate::types::ActivePanel::Preview;
+    state.viewer_key();
+    assert_eq!(state.sources.focus_index(), None, "the program stays up");
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("No source has been opened in the Viewer")
+    );
+}
+
+#[test]
 fn every_level_reads_as_its_own_whole_percentage() {
     assert_eq!(zoom_label(None), "Fit");
     let labels: Vec<String> = ZOOM_STEPS.map(|step| zoom_label(Some(step))).to_vec();
