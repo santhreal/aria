@@ -6,7 +6,8 @@ The control row under the Viewer holds, left to right: the playhead timecode
 field, the zoom controls, the resolution menu, the Proxies toggle, the transport
 (go to start, step back, play, step forward, go to end), the Loop toggle, the
 shuttle readout, **In** and **Out** while Program is in front, the Transform,
-Crop and Mask handle toggles, the Scopes toggle, and the peak meter. The toggles
+Crop and Mask handle toggles, the Scopes toggle, and the peak meter, which
+shows while the output plays sound or holds a clip. The toggles
 are icons; hover one for its name, and a lit icon is on. The transport acts on
 the tab in front of the Viewer: with a Source tab in front, the buttons move its
 take and the sequence playhead stays where it was. **In** and **Out** mark the

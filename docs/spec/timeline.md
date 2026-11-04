@@ -105,10 +105,9 @@ A track header is one row of 20 px controls: the source indicator, the
 track badge, the name, then the toggles. Mute and solo show at all times on
 audio tracks. Every other toggle shows while the pointer is over the header,
 and at all times while its track departs from a new track: collapsed,
-locked, hidden, sync lock off, muted or soloed. Target shows at all times
-while the track is targeted. A hidden toggle keeps its place, so no control
-moves when the pointer enters the header. A lit toggle is drawn in the accent
-color.
+locked, hidden, untargeted, sync lock off, muted or soloed. A hidden toggle
+keeps its place, so no control moves when the pointer enters the header. A
+lit toggle is drawn in the accent color.
 
 Right-click on a header offers Add Track, Delete Track, Rename, Duplicate,
 Collapse, and track output routing for audio. Tracks are reordered by dragging
@@ -133,10 +132,11 @@ audio clips the volume line.
 | Fill | The clip's label color. Selected clips use the label's selected fill and a 1 px white border. |
 | Name strip | Clip name, then the speed when it is not 100 % (`120%`, `-100%` reversed), then badges. |
 | fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
-| Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default. Generators: their name and a solid swatch. |
+| Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default, one bar per 3 px of the clip at every zoom. Generators: their name and a solid swatch. |
 | Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line up or down changes the volume, and a drag from it along the lane moves the clip; Ctrl+click adds a keyframe. |
 | Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. |
-| Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. |
+| Fade handles | A square at each top corner of an unlocked bar 28 px or wider, at the end of its fade. Each shows while the pointer is over the bar, and at all times once its fade is set. Dragging one sets the fade. The name strip keeps clear of their place, so it holds still as they show. |
+| Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. The name strips of the clips under it start after it and end before it. The bar draws and takes presses while any part of it is in view, with its cut in view or not. |
 | Offline | Red fill with "Media Offline" and the file name. |
 | Disabled | Clip drawn at 40 % opacity and excluded from render. |
 | Linked | Video and audio of one source move, trim, and select together while linked selection is on. A link that has drifted out of sync shows the offset in frames on both bars (`+3`). |

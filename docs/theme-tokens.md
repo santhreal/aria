@@ -4,8 +4,9 @@ Source: `crates/aria-ui/src/theme.rs`, ported from
 [Comet](https://github.com/zeronsh/comet). Two appearances, one token set.
 
 Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
-`wash(alpha)` for hover plates. Selection is an inset ring
-(`glass_selected_shadows`), not a colored fill.
+`wash(alpha)` for hover plates. A selected row, menu title, rail tab or tile
+draws one plate, `glass_selected_bg` (wash 0.11 dark, 0.06 light), with no
+outline and no colored fill.
 
 ## Surfaces
 

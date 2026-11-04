@@ -18,7 +18,9 @@ pub(super) fn on_left_down(
     let Some(hit) = hit_test(lanes, local_x, local_y, fps, pps, scroll_x) else {
         return;
     };
-    PRESS_CURSOR.set(cursor_for(tool, Some(hit)));
+    LanePointer::of(this)
+        .press_cursor
+        .set(cursor_for(tool, Some(hit)));
     let origin_x = f32::from(event.position.x);
 
     // An armed Parent pick whip takes the press on a clip, whatever the tool.
@@ -135,7 +137,7 @@ pub(super) fn on_left_down(
             duration_ticks,
         } => {
             cx.stop_propagation();
-            ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
+            LanePointer::of(this).gesture.set(Some(CanvasGesture::Clip {
                 kind: if right {
                     DragKind::TransitionRight
                 } else {
@@ -163,7 +165,7 @@ pub(super) fn on_left_down(
             ..
         } => {
             cx.stop_propagation();
-            ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
+            LanePointer::of(this).gesture.set(Some(CanvasGesture::Clip {
                 kind: if left {
                     DragKind::FadeIn
                 } else {
@@ -207,7 +209,7 @@ pub(super) fn on_left_down(
                 };
                 state.hold_drag(g, d);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
+            LanePointer::of(this).gesture.set(Some(CanvasGesture::Clip {
                 kind: if left {
                     DragKind::TrimStart
                 } else {
@@ -250,7 +252,7 @@ pub(super) fn on_left_down(
                 }
             });
             if !locked {
-                ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
+                LanePointer::of(this).gesture.set(Some(CanvasGesture::Clip {
                     kind: DragKind::Move,
                     clip_id,
                     origin_track_id: track_id,
@@ -318,7 +320,7 @@ pub(super) fn on_left_down(
                 }
             });
             if gesture.is_some() {
-                ACTIVE_GESTURE.set(gesture);
+                LanePointer::of(this).gesture.set(gesture);
             }
             cx.notify();
         }
@@ -337,7 +339,9 @@ pub(super) fn on_left_down(
                 state.select_clip(clip);
                 state.begin_timeline_keyframe_drag(clip, param, tick, event.modifiers.shift);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::KeyframeDrag { origin_x }));
+            LanePointer::of(this)
+                .gesture
+                .set(Some(CanvasGesture::KeyframeDrag { origin_x }));
             cx.notify();
         }
         HitTarget::PropertyRow { clip, param, tick } => {
@@ -350,7 +354,9 @@ pub(super) fn on_left_down(
                 }
                 state.begin_key_band(clip, param, tick);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::KeyBand));
+            LanePointer::of(this)
+                .gesture
+                .set(Some(CanvasGesture::KeyBand));
             cx.notify();
         }
         HitTarget::MaskPathKey { clip, mask, tick } => {
@@ -358,7 +364,9 @@ pub(super) fn on_left_down(
             this.state.update(cx, |state, _| {
                 state.begin_mask_path_key_drag(clip, mask, tick);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::MaskPathKeyDrag { origin_x }));
+            LanePointer::of(this)
+                .gesture
+                .set(Some(CanvasGesture::MaskPathKeyDrag { origin_x }));
             cx.notify();
         }
         HitTarget::MaskPathRow { clip, mask } => {
@@ -372,10 +380,12 @@ pub(super) fn on_left_down(
                 state.select_gap_at(TrackId::from_raw(track_id), tick);
                 state.begin_marquee(track_id, tick);
             });
-            ACTIVE_GESTURE.set(Some(CanvasGesture::Marquee {
-                origin_x,
-                moved: false,
-            }));
+            LanePointer::of(this)
+                .gesture
+                .set(Some(CanvasGesture::Marquee {
+                    origin_x,
+                    moved: false,
+                }));
             cx.notify();
         }
     }

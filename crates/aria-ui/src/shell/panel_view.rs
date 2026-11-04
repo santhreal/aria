@@ -94,7 +94,8 @@ pub enum Moved {
     /// frame or a guide, held under the pointer.
     Frame,
     /// The pointer over the timeline's lanes, onto a target that sets another
-    /// cursor than the lanes last painted.
+    /// cursor than the lanes last painted or onto another clip's bar, or off
+    /// the lanes from a bar that showed its fade handles for it.
     Pointer,
     /// A drag held on the timeline: what it draws while the button is down,
     /// a clip drag's cards, readout and magnet (`AppState::hold_drag`), or the

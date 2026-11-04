@@ -150,6 +150,37 @@ fn a_hover_over_the_lanes_sets_its_targets_cursor_and_builds_the_timeline_alone(
     );
 }
 
+/// A clip drag held in a window that closes ends with that window: in the
+/// next window, the pointer onto the still's left edge handle sets the trim
+/// cursor and draws the bar's fade handles, as a whole redraw does. The lanes
+/// once kept the gesture of a press on them for the whole thread, so every
+/// window opened after one closed mid-drag took each hover over its lanes
+/// for a move of that drag: the cursor stayed the press's and the bar under
+/// the pointer never showed its handles. Fails when any lane gesture state
+/// outlives the window it was made in.
+#[gpui::test]
+fn a_drag_held_in_a_closed_window_leaves_the_next_windows_lanes_to_their_hover(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    {
+        let (_, visual) = opened(cx, "pointer-closed-mid-drag");
+        let shell = shell_of(visual);
+        hold_still(visual, &shell);
+        visual.update(|window, _| window.remove_window());
+    }
+    let (_, visual) = opened(cx, "pointer-after-closed-drag");
+    let shell = shell_of(visual);
+    hover_still(visual, &shell, 1);
+    let at = visual.update(|window, _| window.mouse_position());
+    assert_eq!(
+        cursor(visual),
+        Some(CursorStyle::ResizeLeftRight),
+        "the cursor over the still's left edge at {at:?}"
+    );
+    draws_as_a_whole_redraw(visual, "the hover onto the still's left edge");
+}
+
 /// Every move of a held clip drag keeps the cursor of its press and builds the
 /// bodies a drag moves and no chrome part, while the pointer runs onto the
 /// edge handle of the card it carries, with no modifier and with Ctrl, which

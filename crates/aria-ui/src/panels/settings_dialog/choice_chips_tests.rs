@@ -5,11 +5,12 @@
 //! The class closed here: a choice row drawn with a solid button for the
 //! choice in force, so the choice read as an action, filled as the Done button
 //! under it is; a press that reported the persisted key, `AI protocol is
-//! chat_completions`, for a chip that reads Chat Completions; and a boolean
-//! drawn as an On chip beside an Off chip, two controls for one bit. The
-//! choices are read from each setting's own list, so a new source, protocol,
-//! reasoning mode, autonomy level, zoom bar knob hold or accent is pressed
-//! without an edit here.
+//! chat_completions`, for a chip that reads Chat Completions; a boolean
+//! drawn as an On chip beside an Off chip, two controls for one bit; and a
+//! chip that prints Title Case beside rows in sentence case, as the zoom bar
+//! knob holds' `Hold Other End` did. The choices are read from each setting's
+//! own list, so a new source, protocol, reasoning mode, autonomy level, zoom
+//! bar knob hold or accent is pressed and read without an edit here.
 //!
 //! Not caught: the controls' colors, which the test renderer does not raster.
 //! A chip is told from a button, and a switch from a chip, by the hover it
@@ -58,6 +59,19 @@ fn chip_choices<T: Copy + PartialEq + 'static>(
             holds: Box::new(move |state| read(state) == choice),
         });
     }
+}
+
+/// Chip labels printed as their owners write them: an API's name.
+const NAMES: [&str; 1] = ["Chat Completions"];
+
+/// Whether a chip label is in sentence case: a name, or every word after the
+/// first starting in lower case.
+fn sentence_case(label: &str) -> bool {
+    NAMES.contains(&label)
+        || label
+            .split_whitespace()
+            .skip(1)
+            .all(|word| !word.starts_with(char::is_uppercase))
 }
 
 /// One Settings switch: the label of its row, its selector, and the setting
@@ -182,6 +196,12 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
 
     let mut faults = Vec::new();
     for choice in &choices {
+        if choice.chip.is_some() && !sentence_case(&choice.shown) {
+            faults.push(format!(
+                "the chip {:?} is not in sentence case",
+                choice.shown
+            ));
+        }
         let card = visual
             .debug_bounds("dialog-card")
             .expect("the Settings dialog draws a card");

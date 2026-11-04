@@ -26,7 +26,7 @@ pub struct LaneToggle {
     /// Where the header draws it, and whether it shows at rest.
     pub rest: Rest,
     /// Whether the lane is in a state this toggle shows at rest: a state a
-    /// new lane does not start in, or one an edit depends on.
+    /// new lane does not start in.
     pub flagged: fn(LaneFlags) -> bool,
     /// What pressing it asks the session for.
     pub run: fn(&mut AppState, LaneFlags) -> Result<(), EngineError>,
@@ -184,7 +184,8 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
         run: |state, lane| state.set_track_enabled(TrackId::from_raw(lane.id), !lane.enabled),
     },
     // Routing: which lane an edit lands on, and which lanes ride along with an
-    // insert.
+    // insert. A new lane is targeted and sync-locked, so each shows at rest
+    // while it is off.
     LaneToggle {
         id: "target",
         shown: every_lane,
@@ -194,7 +195,7 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
             off: crate::icons::CROSSHAIR,
         },
         rest: Rest::Hover,
-        flagged: |lane| lane.targeted,
+        flagged: |lane| !lane.targeted,
         run: |state, lane| state.toggle_track_targeted(TrackId::from_raw(lane.id)),
     },
     LaneToggle {

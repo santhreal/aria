@@ -132,10 +132,12 @@ pub fn render(
             AppState::set_export_scale,
             cx,
         )
-        // The size the scale gives, read beside the choice that sets it.
+        // The size the scale gives, read beside the choice that sets it: the
+        // chip line's gap and this margin make the gap a label keeps to its value.
         .child(
             div()
-                .ml_auto()
+                .debug_selector(|| "export-scale-size".into())
+                .ml(px(Theme::SPACE_MD - Theme::SPACE_XS))
                 .line_height(px(CHIP.height()))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)

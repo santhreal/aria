@@ -68,7 +68,9 @@ The control row, left to right:
   and inserts or overwrites with it, from its own bar under the picture.
 - Transform, Crop, Mask: icon toggles, one per set of on-canvas handles; the
   lit one is live.
-- Scopes, an icon toggle, the output peak meter, and the display wrench.
+- Scopes, an icon toggle, the output peak meter, and the display wrench. The
+  meter draws nothing while the output is silent; its two bars keep their
+  place and show while it reads a level or holds a clip.
 
 Every control in the row is 24 px high: the icon buttons are 24 px squares,
 and the worded controls (the magnification, In, Out) are 24 px with 4 px side

@@ -1,48 +1,8 @@
-//! Selected-surface washes and shadows, OKLCH/RGB/HSL color conversion, and
-//! WCAG contrast ratios.
+//! OKLCH/RGB/HSL color conversion and WCAG contrast ratios.
 //!
 //! Re-exported from `theme.rs` with `pub use`.
 
 use super::*;
-
-pub fn glass_selected_bg() -> Hsla {
-    match current_appearance() {
-        Appearance::Dark => wash(0.11),
-        Appearance::Light => wash(0.06),
-    }
-}
-
-pub fn user_bubble_bg() -> Hsla {
-    match current_appearance() {
-        Appearance::Dark => wash(0.08),
-        Appearance::Light => wash(0.04),
-    }
-}
-
-pub fn card_selected_bg() -> Hsla {
-    match current_appearance() {
-        Appearance::Dark => wash(0.11),
-        Appearance::Light => wash(0.06),
-    }
-}
-
-pub fn glass_selected_shadows() -> Vec<gpui::BoxShadow> {
-    card_selected_shadows()
-}
-
-pub fn card_selected_shadows() -> Vec<gpui::BoxShadow> {
-    let color = match current_appearance() {
-        Appearance::Dark => hairline(0.09),
-        Appearance::Light => hsla(0.0, 0.0, 0.0, 0.07),
-    };
-    vec![gpui::BoxShadow {
-        color,
-        offset: gpui::point(gpui::px(0.0), gpui::px(0.0)),
-        blur_radius: gpui::px(0.0),
-        spread_radius: gpui::px(1.0),
-        inset: true,
-    }]
-}
 
 pub fn grey(value: u8) -> Hsla {
     hsla(0.0, 0.0, value as f32 / 255.0, 1.0)

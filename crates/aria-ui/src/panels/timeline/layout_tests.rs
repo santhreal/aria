@@ -351,24 +351,23 @@ fn a_track_header_is_one_row_of_equal_controls(cx: &mut gpui::TestAppContext) {
 }
 
 /// At rest a track header draws the source patch, mute and solo on audio
-/// lanes, and any other toggle only while its lane departs from a new lane
-/// (collapsed, locked, hidden, sync lock off, muted or soloed on a video lane)
-/// or is the edit target. A new toggle is a new row here, so the suite asks
-/// when it draws.
+/// lanes, and any other toggle only while its lane departs from a new lane:
+/// collapsed, locked, hidden, untargeted, sync lock off, or muted or soloed on
+/// a video lane. The new lane is the one a new project places a clip on, so a
+/// flag whose default changes moves the rule with it, and an always-on state
+/// such as targeting draws nothing at rest. A new toggle is a new row here, so
+/// the suite asks when it draws.
 #[test]
 fn a_track_header_at_rest_draws_only_what_its_lane_calls_for() {
-    let fresh = LaneFlags {
-        id: 1,
-        muted: false,
-        solo: false,
-        locked: false,
-        enabled: true,
-        collapsed: false,
-        targeted: false,
-        sync_lock: true,
-        channel: Some(aria_models::SourceChannel::Video),
-        patched: false,
-    };
+    let (state, _) = crate::app::premiere_tests::with_clip();
+    let fresh = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| !lane.clips.is_empty())
+        .map(LaneFlags::of)
+        .expect("the lane the clip landed on");
     let at_rest = |lane: LaneFlags, audio: bool| -> Vec<&str> {
         LANE_TOGGLES
             .iter()
@@ -382,31 +381,31 @@ fn a_track_header_at_rest_draws_only_what_its_lane_calls_for() {
         let departed = match row.id {
             "patch" => continue,
             "mute" => LaneFlags {
-                muted: true,
+                muted: !fresh.muted,
                 ..fresh
             },
             "solo" => LaneFlags {
-                solo: true,
+                solo: !fresh.solo,
                 ..fresh
             },
             "collapse" => LaneFlags {
-                collapsed: true,
+                collapsed: !fresh.collapsed,
                 ..fresh
             },
             "lock" => LaneFlags {
-                locked: true,
+                locked: !fresh.locked,
                 ..fresh
             },
             "vis" => LaneFlags {
-                enabled: false,
+                enabled: !fresh.enabled,
                 ..fresh
             },
             "target" => LaneFlags {
-                targeted: true,
+                targeted: !fresh.targeted,
                 ..fresh
             },
             "sync" => LaneFlags {
-                sync_lock: false,
+                sync_lock: !fresh.sync_lock,
                 ..fresh
             },
             other => panic!("decide when the `{other}` toggle draws at rest"),

@@ -175,7 +175,9 @@ pub fn wave(bars: Vec<f32>, theme: &crate::theme::Theme) -> impl IntoElement {
 }
 
 /// Scale bar heights by what the mix will actually do to them: the clip's own
-/// volume, then its fade ramps.
+/// volume, then its fade ramps. The bars cover the ticks `covers` of the clip,
+/// counted from its start, one even slice each: `0.0..clip_ticks` for the
+/// whole clip.
 ///
 /// A wave drawn at source level after a volume change is a lie about what will
 /// be heard, and a fade that is invisible on the card is the most common
@@ -183,6 +185,7 @@ pub fn wave(bars: Vec<f32>, theme: &crate::theme::Theme) -> impl IntoElement {
 /// what the renderer applies.
 pub fn apply_gain(
     bars: &mut [f32],
+    covers: std::ops::Range<f64>,
     volume: f32,
     fade_in_ticks: i64,
     fade_out_ticks: i64,
@@ -194,10 +197,11 @@ pub fn apply_gain(
         return;
     }
     let span = clip_ticks.max(1) as f64;
+    let slice = (covers.end - covers.start) / count as f64;
     for (index, bar) in bars.iter_mut().enumerate() {
         // The middle of the bar's own slice, so a ramp is sampled where the bar
         // is drawn rather than at its leading edge.
-        let at = span * (index as f64 + 0.5) / count as f64;
+        let at = covers.start + slice * (index as f64 + 0.5);
         let mut gain = volume;
         if fade_in_ticks > 0 {
             gain *= (at / fade_in_ticks as f64).min(1.0) as f32;

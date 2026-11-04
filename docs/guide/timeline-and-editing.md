@@ -194,9 +194,9 @@ scroll; the point you pressed stays under the pointer. Drag either knob to
 zoom; the knob stays under the pointer. **Zoom bar knobs**, in the Timeline
 section of Settings, sets what holds still while it moves (see
 [Finding a setting](settings-and-storage.md#finding-a-setting)). **Hold
-Playhead**, the default, keeps the playhead at its place in the view while the
+playhead**, the default, keeps the playhead at its place in the view while the
 playhead is inside the view, and the other end of the view moves to match.
-**Hold Other End**, or a playhead outside the view, keeps the other end in
+**Hold other end**, or a playhead outside the view, keeps the other end in
 place. An end that would move off the bar stops at the bar's end. Drag the
 knobs to the bar's two ends to show the whole sequence. Click outside the
 thumb to center the view there and keep dragging from there. A drag continues
@@ -214,19 +214,22 @@ when the decode lands. Two clips cut from one file share that decode.
 
 A clip shows the part of the source it plays: trimming, moving, or splitting it
 redraws from the same peaks and costs no decode. A source with no audio stream
-draws no wave and is not read again.
+draws no wave and is not read again. At every zoom the wave is one bar per 3
+pixels of the clip, each the loudest peak of the audio under it.
 
 The wave is drawn at the level the mix will play: a volume change scales it, and
 a fade in or out ramps it. A muted clip draws a flat line.
 
 ### Fade handles
 
-Each clip card has a small square in its top left and top right corner. The
+A clip card shows a small square in its top left and top right corner while
+the pointer is over the card, and a square whose fade is set at all times. The
 square sits where the fade currently ends, so its position is the fade length.
 Drag it along the card to set the fade in or the fade out; Effect Controls shows
 the same numbers. A drag past either end of the card stops at zero or at the
 whole clip. One drag is one undo entry, and a drag that ends where it started
-changes nothing. A locked clip draws no handles.
+changes nothing. A locked clip, or a card narrower than 28 pixels, draws no
+handles.
 
 ## Filmstrips
 

@@ -5,7 +5,8 @@
 //!
 //! - Two row shapes on one sheet. Every row, a chip row or a fact, stands one
 //!   chip tall at one pitch, its label where the title starts, and a chip's
-//!   label on the same text edge as a fact's value.
+//!   label on the same text edge as a fact's value. The size the Scale chips
+//!   give stands a label's gap after the last of them, not at the card's edge.
 //! - A choice the sheet draws but cannot reach, or a chip that sets another
 //!   choice or another row's field. Each row's chips are enumerated from the
 //!   option's own `ALL`, so a choice added later is pressed without an edit
@@ -25,6 +26,7 @@ use crate::app::export_options::{
 use crate::app::{AppState, DialogKind};
 use crate::interned::intern;
 use crate::test_support::drawn_shell;
+use crate::theme::Theme;
 
 const LABELS: [&str; 11] = [
     "Encoder",
@@ -150,6 +152,20 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
         "the first chip's label starts at {:?}, a fact's value at {:?}",
         chip_text.bounds.left(),
         fact.left()
+    );
+    let last = ExportScale::ALL[ExportScale::ALL.len() - 1].label();
+    let last_chip = visual
+        .debug_bounds(intern(&format!("export-scale-{last}")))
+        .expect("the Scale row draws its last chip");
+    let size = visual
+        .debug_bounds("export-scale-size")
+        .expect("the Scale row draws the size it gives");
+    assert!(
+        (size.left() - last_chip.right() - px(Theme::SPACE_MD)).abs() < px(EPS)
+            && (size.center().y - last_chip.center().y).abs() < px(EPS),
+        "the size stands at {:?}, the {last} chip ends at {:?}",
+        size.origin,
+        last_chip.right()
     );
     // Each row's value stands on its label's line, a fact's as a chip's. A
     // line box centers its text, so two runs stand on one line when their

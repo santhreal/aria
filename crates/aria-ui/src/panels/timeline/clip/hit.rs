@@ -82,6 +82,20 @@ pub(crate) enum HitTarget {
     },
 }
 
+impl HitTarget {
+    /// The clip whose bar the target is on: its body, an edge, a fade handle,
+    /// or its line.
+    pub(crate) fn bar_clip(self) -> Option<u64> {
+        match self {
+            HitTarget::Fade { clip_id, .. }
+            | HitTarget::ClipEdge { clip_id, .. }
+            | HitTarget::ClipBody { clip_id, .. }
+            | HitTarget::ClipLine { clip_id, .. } => Some(clip_id),
+            _ => None,
+        }
+    }
+}
+
 /// Hit-test a local `(local_x, local_y)` point against `visible_lanes`.
 pub(crate) fn hit_test(
     visible_lanes: &[VisibleLane],

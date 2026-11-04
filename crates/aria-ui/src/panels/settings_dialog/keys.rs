@@ -17,7 +17,8 @@
 
 use gpui::{
     AppContext, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
+    ParentElement, SharedString, StatefulInteractiveElement, Styled, div, prelude::FluentBuilder,
+    px,
 };
 
 use crate::app::AppState;
@@ -104,12 +105,11 @@ fn binding_row(
 ) -> gpui::AnyElement {
     let id = row.binding.id;
     let label = SharedString::from(label);
-    let element_id = gpui::ElementId::from(("settings-key", index));
+    let control = motion::ControlId::from(("settings-key", index));
     if let Some((pending, holder)) = asked {
-        let question = motion::ControlId::Key(motion::MotionKey::new("settings-key", index));
-        return question_row(theme, pending, holder, label, question, cx).into_any_element();
+        return question_row(theme, pending, holder, label, control, cx).into_any_element();
     }
-    let fade = motion::MotionKey::new("settings-key", &element_id);
+    let fade = control.motion("row");
     // Three states, and each one says what to do next: waiting for a keystroke,
     // holding a chord, or holding none because it was cleared.
     let (shown, tone) = if armed {
@@ -120,6 +120,29 @@ fn binding_row(
             None => ("Unbound".to_string(), theme.text_faint),
         }
     };
+    // Clear stands on every row, so the chords end on one column; it draws
+    // under the pointer and on the armed row, and only where there is a chord
+    // to clear. Revert draws wherever the chord in force is not the shipped
+    // one, and marks the row as changed at rest.
+    let lit = if armed { 1.0 } else { motion::hover_t(fade) };
+    let clear = components::ghost_button(
+        motion::MotionKey::new("settings-key-clear", index),
+        "Clear",
+        theme,
+    )
+    .opacity(lit)
+    .when(lit <= 0.0 || row.chord.is_none(), |el| el.invisible())
+    .on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.stop_propagation();
+            this.state.update(cx, |state, cx| {
+                state.clear_binding(id);
+                state.persist_settings_later(cx);
+            });
+            cx.notify();
+        }),
+    );
     let mut actions = div()
         .flex()
         .flex_row()
@@ -130,29 +153,8 @@ fn binding_row(
                 .text_size(Theme::TEXT_UI)
                 .text_color(tone)
                 .child(shown),
-        );
-    // Clear is drawn only where there is a chord to clear, and Revert only where
-    // the chord in force is not the shipped one: no button on a row does nothing.
-    if row.chord.is_some() {
-        actions = actions.child(
-            components::ghost_button(
-                motion::MotionKey::new("settings-key-clear", index),
-                "Clear",
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.state.update(cx, |state, cx| {
-                        state.clear_binding(id);
-                        state.persist_settings_later(cx);
-                    });
-                    cx.notify();
-                }),
-            ),
-        );
-    }
+        )
+        .child(clear);
     if row.overridden {
         actions = actions.child(
             components::ghost_button(
@@ -173,28 +175,8 @@ fn binding_row(
             ),
         );
     }
-    div()
-        .id(element_id)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_SM))
-        .px(px(Theme::SPACE_SM))
+    super::widgets::row_plate(control, theme, fade, armed)
         .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(
-            fade,
-            if armed {
-                theme.glass_selected_bg()
-            } else {
-                theme.wash(0.0)
-            },
-            theme.glass_hover(),
-        ))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
         .child(
             div()
                 .flex()
@@ -254,7 +236,8 @@ fn question_row(
         .items_center()
         .justify_between()
         .gap(px(Theme::SPACE_SM))
-        .px(px(Theme::SPACE_SM))
+        .px(px(Theme::SPACE_XS))
+        .mx(px(-Theme::SPACE_XS))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .bg(theme.glass_selected_bg())

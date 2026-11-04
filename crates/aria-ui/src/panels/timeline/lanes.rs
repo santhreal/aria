@@ -187,7 +187,7 @@ pub(super) fn lane_group(
                     store.sequence.frame_rate,
                 )
             }
-            Some(_) | None => visible_clips_slice(&track.clips, view_start, view_end).to_vec(),
+            Some(_) | None => clip::drawn_clips(&track.clips, view_start, view_end).to_vec(),
         };
         if let Some(held) = &held {
             clips.retain(|clip| !held.takes(clip.id));
@@ -275,6 +275,9 @@ pub(super) fn lane_group(
     let badges: clip::FxBadges = Rc::default();
     let badges_for_paint = badges.clone();
     let state_for_paint = state.clone();
+    // The window's shell holds the lanes' pointer state; the paint below
+    // runs after the shell's draw ends, so it reads the shell.
+    let shell_for_paint = cx.entity();
     let paint_theme = theme.clone();
     let paint_data = LaneGroupPaint {
         is_first_group,
@@ -332,39 +335,39 @@ pub(super) fn lane_group(
                 window.insert_hitbox(bounds, HitboxBehavior::Normal)
             },
             move |bounds, hitbox, window, cx| {
+                // What a press under the pointer lands on, while the pointer
+                // is over the lanes.
+                let under = hitbox.is_hovered(window).then(|| {
+                    let at = window.mouse_position();
+                    let (x, y) = clip::finish::local_coords(at, bounds);
+                    let hit =
+                        clip::hit::hit_test(&paint_data.visible_lanes, x, y, fps, pps, scroll_x);
+                    (at, hit)
+                });
+                let hovered =
+                    under.and_then(|(_, hit)| hit.and_then(clip::hit::HitTarget::bar_clip));
                 let mut painted = badges_for_paint.borrow_mut();
                 painted.clear();
                 let (vis_lanes, vis_clips, calls) = clip::paint_lane_group(
                     bounds,
                     &paint_data,
                     &paint_theme,
+                    hovered,
                     &mut painted,
                     window,
                     cx,
                 );
                 // The cursor states what a press under the pointer does, or
                 // the press's while its gesture is held.
-                let cursor = hitbox.is_hovered(window).then(|| {
-                    let at = window.mouse_position();
-                    let local = at - bounds.origin;
-                    clip::finish::lanes_cursor(
-                        at,
-                        &painted,
-                        clip::hit::hit_test(
-                            &paint_data.visible_lanes,
-                            f32::from(local.x).max(0.0),
-                            f32::from(local.y).max(0.0),
-                            fps,
-                            pps,
-                            scroll_x,
-                        ),
-                        tool,
-                    )
+                let lane_pointer = clip::finish::LanePointer::of(shell_for_paint.read(cx));
+                let pointer = under.map(|(at, hit)| clip::finish::PointerPaint {
+                    cursor: lane_pointer.cursor(at, &painted, hit, tool),
+                    clip: hovered,
                 });
-                if let Some(cursor) = cursor {
-                    window.set_cursor_style(cursor, &hitbox);
+                if let Some(pointer) = pointer {
+                    window.set_cursor_style(pointer.cursor, &hitbox);
                 }
-                clip::finish::painted_cursor(is_audio, cursor);
+                lane_pointer.record(is_audio, pointer);
                 drop(painted);
                 let total_lanes = paint_data.total_lanes;
                 let total_clips = paint_data.total_clips;

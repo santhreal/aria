@@ -33,6 +33,8 @@ mod drag;
 use drag::{Drag, DragKind};
 // Docked panel bodies as cached views.
 mod panel_view;
+// What the panels drawn in a window keep for it.
+mod panel_memory;
 pub use panel_view::{Moved, notify_after_draw, redraw_after_draw};
 /// A press held on the Viewer's picture with the left or middle button.
 #[derive(Clone, Copy)]
@@ -48,6 +50,9 @@ pub struct Shell {
     drag: Option<Drag>,
     /// A press on an element whose drag this shell carries past the element.
     hold: Option<gesture::Hold>,
+    /// What the panels drawn in this window keep for it, such as the gesture
+    /// a press on the timeline lanes holds.
+    pub(crate) panel_memory: panel_memory::PanelMemory,
     /// The preview audio stream, which the main window's shell pumps. A
     /// floating window's shell has none: a second system on the one handle
     /// would never start a stream, and dropping it would clear the clock the
@@ -165,6 +170,7 @@ impl Shell {
             state,
             drag: None,
             hold: None,
+            panel_memory: Default::default(),
             audio,
             splash: Splash::Covering(Instant::now()),
             catalog_drop: None,
@@ -205,6 +211,7 @@ impl Shell {
             state,
             drag: None,
             hold: None,
+            panel_memory: Default::default(),
             audio: None,
             splash: Splash::Done,
             catalog_drop: None,

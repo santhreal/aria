@@ -6,7 +6,9 @@ use crate::app::meter::meter_fraction;
 /// Two peak bars on the meter scale the Audio Meters panel draws: the left end
 /// of a bar is -60 dBFS and the right end 0 dBFS. Both bars draw red from the
 /// first full-scale block until a click on the strip, or on the Audio Meters
-/// clip light, clears the clip.
+/// clip light, clears the clip. A silent output draws nothing: the bars keep
+/// their place, and their tracks show while the meter reads a level or holds
+/// a clip.
 pub(super) fn peak_meter(
     state: &Entity<AppState>,
     theme: &Theme,
@@ -14,6 +16,7 @@ pub(super) fn peak_meter(
 ) -> impl IntoElement {
     const WIDTH: f32 = 56.0;
     let reading = state.read(cx).meter();
+    let live = reading.active() || reading.clipped;
     let bar = |level: f32, id: &'static str| {
         div()
             .id(id)
@@ -21,7 +24,7 @@ pub(super) fn peak_meter(
             .w(px(WIDTH))
             .h(px(3.))
             .rounded(px(1.))
-            .bg(theme.wash(0.12))
+            .when(live, |el| el.bg(theme.wash(0.12)))
             .child(
                 div()
                     .debug_selector(move || format!("{id}-fill"))

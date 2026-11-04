@@ -226,9 +226,9 @@ The Cloud section holds the backend base URL. Left empty it uses the shipped
 default.
 
 In the Timeline section, **Zoom bar knobs** sets what a drag on a knob of the
-timeline's zoom bar holds still. **Hold Playhead**, the default, keeps the
+timeline's zoom bar holds still. **Hold playhead**, the default, keeps the
 playhead at its place in the view while the playhead is inside the view;
-**Hold Other End** keeps the other end of the view in place (see
+**Hold other end** keeps the other end of the view in place (see
 [Timeline header](timeline-and-editing.md#timeline-header)). The choice
 persists in `ui-settings.json` and applies from the next press on a knob.
 

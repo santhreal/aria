@@ -8,10 +8,11 @@ use crate::app::value_scrub::CLICK_SLOP_PX;
 use super::*;
 
 /// The pointer over the audio or video canvas with no gesture held: the edge
-/// modifiers its target asks for, and the cursor the lanes set for it.
+/// modifiers its target asks for, the cursor the lanes set for it, and the bar
+/// that shows its fade handles for it.
 ///
 /// A held gesture is carried by the shell's hold and keeps its press's
-/// cursor, so a move under it leaves both alone.
+/// cursor, so a move under it leaves all three alone.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn hover(
     this: &mut Shell,
@@ -26,7 +27,8 @@ pub(super) fn hover(
     tool: EditorTool,
     cx: &mut Context<Shell>,
 ) {
-    if ACTIVE_GESTURE.get().is_some() {
+    let lane_pointer = LanePointer::of(this);
+    if lane_pointer.gesture.get().is_some() {
         return;
     }
     let (local_x, local_y) = local_coords(event.position, bounds);
@@ -42,8 +44,11 @@ pub(super) fn hover(
         cx.notify();
         return;
     }
-    let cursor = lanes_cursor(event.position, badges, hit, tool);
-    if PAINTED_CURSOR.with(|painted| painted[usize::from(is_audio)].get()) != Some(cursor) {
+    let pointer = PointerPaint {
+        cursor: lane_pointer.cursor(event.position, badges, hit, tool),
+        clip: hit.and_then(HitTarget::bar_clip),
+    };
+    if lane_pointer.painted(is_audio) != Some(pointer) {
         this.redraw(crate::shell::Moved::Pointer, cx);
     }
 }
@@ -62,7 +67,7 @@ pub(super) fn carry(
     tool: EditorTool,
     cx: &mut Context<Shell>,
 ) {
-    let Some(active) = ACTIVE_GESTURE.get() else {
+    let Some(active) = LanePointer::of(this).gesture.get() else {
         return;
     };
     let (local_x, local_y) = local_coords(event.position, bounds);
@@ -91,7 +96,7 @@ pub(super) fn carry(
                 })
             {
                 target_track_id = hovered_lane.track_id;
-                ACTIVE_GESTURE.set(Some(CanvasGesture::Clip {
+                LanePointer::of(this).gesture.set(Some(CanvasGesture::Clip {
                     kind,
                     clip_id,
                     origin_track_id,
@@ -137,7 +142,9 @@ pub(super) fn carry(
             let delta_px = (f32::from(event.position.x) - origin_x).abs();
             if delta_px >= 2.0 || moved {
                 moved = true;
-                ACTIVE_GESTURE.set(Some(CanvasGesture::Marquee { origin_x, moved }));
+                LanePointer::of(this)
+                    .gesture
+                    .set(Some(CanvasGesture::Marquee { origin_x, moved }));
                 let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
                 let track_id = lanes
                     .iter()
@@ -206,11 +213,11 @@ pub(super) fn carry(
                 && this.state.update(cx, |state, _| {
                     state.press_clip_line(ClipId::from_raw(clip_id), LinePress::Line(tick), band)
                 });
-            ACTIVE_GESTURE.set(Some(if line {
+            LanePointer::of(this).gesture.set(Some(if line {
                 CanvasGesture::Line { origin_y }
             } else {
                 // The press now holds the clip by its body.
-                PRESS_CURSOR.set(cursor_for(
+                LanePointer::of(this).press_cursor.set(cursor_for(
                     tool,
                     Some(HitTarget::ClipBody {
                         clip_id,
@@ -244,7 +251,7 @@ pub(super) fn on_left_up(
     tool: EditorTool,
     cx: &mut Context<Shell>,
 ) {
-    let Some(active) = ACTIVE_GESTURE.take() else {
+    let Some(active) = LanePointer::of(this).gesture.take() else {
         return;
     };
     match active {
@@ -345,7 +352,7 @@ pub(super) fn on_left_up(
 /// release, so dropping what they hold puts them back; a key band puts the
 /// selection back, and a clip's line its value.
 pub(super) fn cancel(this: &mut Shell, cx: &mut Context<Shell>) {
-    let Some(active) = ACTIVE_GESTURE.take() else {
+    let Some(active) = LanePointer::of(this).gesture.take() else {
         return;
     };
     let line = this.state.update(cx, |state, _| match active {

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use aria_models::{AudioLayout, CanvasAspect, Rational, TimeDisplay};
 use gpui::{
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px,
+    Styled, div, px,
 };
 
 use crate::appearance::{self, AppearanceMode};
@@ -33,49 +33,19 @@ fn swatch(preview: &Theme) -> impl IntoElement {
     )
 }
 
-/// The fill for a picker row, blended from rest to hover over `key`.
-///
-/// Every picker row shares this so a section fades at one rate. The key is the
-/// row's own element id, which is already unique per row.
-fn row_fill(theme: &Theme, key: motion::MotionKey, selected: bool) -> gpui::Hsla {
-    let rest = if selected {
-        theme.glass_selected_bg()
-    } else {
-        theme.wash(0.0)
-    };
-    motion::hover_blend(key, rest, theme.glass_hover())
-}
-
-/// The box every picker row shares: one row height, the label at the left and
-/// any detail at the right, the fill from [`row_fill`], and the selected rows'
-/// shadow. The row steps out by its inset so its label stands on the section
-/// title's edge, as every other settings row does. A row adds its children and
-/// its click.
+/// The box every picker row shares: a [`super::widgets::row_plate`] one row
+/// tall, the label at the left and any detail at the right. The fade key is
+/// the row's own element id, which is already unique per row. A row adds its
+/// children and its click.
 fn row_shell(
     id: impl Into<motion::ControlId>,
     theme: &Theme,
     fade: motion::MotionKey,
     selected: bool,
 ) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id.into().element("picker-row"))
-        .flex()
-        .flex_row()
+    super::widgets::row_plate(id.into(), theme, fade, selected)
         .flex_none()
-        .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_SM))
         .h(px(Theme::ROW_HEIGHT))
-        .px(px(Theme::SPACE_XS))
-        .mx(px(-Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(row_fill(theme, fade, selected))
-        .when(selected, |el| {
-            el.shadow(crate::theme::glass_selected_shadows())
-        })
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
 }
 
 /// A picker row's label: the whole text, or its start and an ellipsis in a

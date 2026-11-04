@@ -300,8 +300,9 @@ answers to now. Click a row and press the key you want; Esc cancels. A chord
 another binding on the same surface already answers asks before it moves: the
 row names the holder and offers Move and Keep. Enter moves the chord and leaves
 the holder with no key; Esc leaves the chord with the holder and ends the
-capture. Clear leaves a binding with no key at all. Revert restores one row,
-Reset all restores every row.
+capture. Clear, on the row under the pointer and on the row waiting for a key,
+leaves a binding with no key at all. Revert, on each row whose key differs from
+the shipped one, restores that row; Reset all restores every row.
 
 The Settings filter also searches the bindings, by name and by chord: `razor`
 and `ctrl+k` each list the rows they match.

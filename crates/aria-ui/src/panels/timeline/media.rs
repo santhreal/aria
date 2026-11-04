@@ -11,25 +11,46 @@ use super::clip::FilmCell;
 use super::{BAR_STEP, CELL_W};
 
 /// Slice of `clips` intersecting `[view_start, view_end)` in $O(\log N)$ time.
-///
-/// `UiTrack::clips` is projected from `Track::clips_ordered()`, which is sorted
-/// by `timeline_start_ticks` and non-overlapping.
 pub(crate) fn visible_clips_slice(
     clips: &[crate::types::UiClip],
     view_start: i64,
     view_end: i64,
 ) -> &[crate::types::UiClip] {
+    &clips[visible_range(clips, view_start, view_end)]
+}
+
+/// Indices of the `clips` intersecting `[view_start, view_end)`, in
+/// $O(\log N)$ time.
+///
+/// `UiTrack::clips` is projected from `Track::clips_ordered()`, which is sorted
+/// by `timeline_start_ticks` and non-overlapping.
+pub(crate) fn visible_range(
+    clips: &[crate::types::UiClip],
+    view_start: i64,
+    view_end: i64,
+) -> std::ops::Range<usize> {
     if clips.is_empty() || view_end <= view_start {
-        return &[];
+        return 0..0;
     }
     let start = clips.partition_point(|clip| clip.timeline_end_ticks <= view_start);
     let count = clips[start..].partition_point(|clip| clip.timeline_start_ticks < view_end);
-    &clips[start..start + count]
+    start..start + count
 }
 
-/// Waveform bar heights per visible clip, keyed by clip id. A clip an edge
-/// drag or a slide in flight changes, `held`, plays the take its release
-/// leaves it.
+/// The waveform bars of one clip the view shows: `heights` of the bars from
+/// `first` on, of `total` bars `BAR_STEP` apart that tile the whole clip.
+pub(crate) struct WaveBars {
+    pub first: usize,
+    pub total: usize,
+    pub heights: Vec<f32>,
+}
+
+/// Waveform bars per visible clip, keyed by clip id. A clip an edge drag or a
+/// slide in flight changes, `held`, plays the take its release leaves it.
+///
+/// Only the bars on screen are built, on the grid that tiles the whole clip,
+/// so a scroll moves the bars with the clip instead of resampling them, and a
+/// clip zoomed far wider than the view costs no more than the view.
 ///
 /// This is also where a decode is asked for: a clip is on screen, so its source
 /// is worth reading. Peaks belong to the media, so two clips cut from one file
@@ -45,7 +66,7 @@ pub(super) fn clip_bars(
     view_start: i64,
     view_end: i64,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> std::collections::HashMap<u64, Vec<f32>> {
+) -> std::collections::HashMap<u64, WaveBars> {
     struct Visible {
         clip: u64,
         media: u64,
@@ -56,6 +77,8 @@ pub(super) fn clip_bars(
         fade_in_ticks: i64,
         fade_out_ticks: i64,
         clip_ticks: i64,
+        /// The ticks of the clip on screen, from its start.
+        seen: (i64, i64),
     }
     let mut out = std::collections::HashMap::new();
     #[cfg(test)]
@@ -80,6 +103,7 @@ pub(super) fn clip_bars(
             if width < 12.0 {
                 return None;
             }
+            let start = clip.timeline_start_ticks;
             Some(Visible {
                 clip: clip.id,
                 media: clip.media_id?,
@@ -90,6 +114,10 @@ pub(super) fn clip_bars(
                 fade_in_ticks: clip.fade_in_ticks,
                 fade_out_ticks: clip.fade_out_ticks,
                 clip_ticks,
+                seen: (
+                    (view_start - start).clamp(0, clip_ticks),
+                    (view_end - start).clamp(0, clip_ticks),
+                ),
             })
         })
         .take(64)
@@ -109,19 +137,32 @@ pub(super) fn clip_bars(
         let Some(waveform) = app.waveforms.get(entry.media) else {
             continue;
         };
-        let count = (entry.width / BAR_STEP).floor().max(1.0) as usize;
-        let mut bars = crate::waveforms::bars(waveform, entry.from, entry.to, count);
+        let total = (entry.width / BAR_STEP).floor().max(1.0) as usize;
+        let per_bar = entry.clip_ticks as f64 / total as f64;
+        let first = ((entry.seen.0 as f64 / per_bar).floor() as usize).min(total);
+        let last = ((entry.seen.1 as f64 / per_bar).ceil() as usize).clamp(first, total);
+        let source = entry.to - entry.from;
+        let at = |bar: usize| entry.from + source * bar as f64 / total as f64;
+        let mut heights = crate::waveforms::bars(waveform, at(first), at(last), last - first);
         crate::waveforms::apply_gain(
-            &mut bars,
+            &mut heights,
+            per_bar * first as f64..per_bar * last as f64,
             entry.volume,
             entry.fade_in_ticks,
             entry.fade_out_ticks,
             entry.clip_ticks,
         );
-        for bar in &mut bars {
-            *bar = scale.height(*bar);
+        for height in &mut heights {
+            *height = scale.height(*height);
         }
-        out.insert(entry.clip, bars);
+        out.insert(
+            entry.clip,
+            WaveBars {
+                first,
+                total,
+                heights,
+            },
+        );
     }
     out
 }

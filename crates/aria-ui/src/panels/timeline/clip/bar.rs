@@ -223,7 +223,8 @@ pub(crate) struct Strip {
 impl Strip {
     /// The strip of a bar spanning `[x, x + w)` in a view starting at
     /// `view_left`. The name keeps to the view's left edge while the bar
-    /// starts off it, and clears the fade grips when they are drawn.
+    /// starts off it, and keeps clear of the fade grips' place on a bar that
+    /// draws them, so it holds still as they show and hide.
     pub(crate) fn of(x: f32, w: f32, view_left: f32, grips: bool) -> Self {
         let grip = if grips {
             super::TRIM + super::FADE_GRIP + 2.0
@@ -233,6 +234,16 @@ impl Strip {
         Self {
             left: (x + grip).max(view_left + GAP),
             right: x + w - grip,
+        }
+    }
+
+    /// The strip kept clear of the transition bars painted over the bar's
+    /// ends: one over its start whose right edge is at `start_cover`, and one
+    /// over its end whose left edge is at `end_cover`.
+    pub(crate) fn clear_of(self, start_cover: Option<f32>, end_cover: Option<f32>) -> Self {
+        Self {
+            left: start_cover.map_or(self.left, |edge| self.left.max(edge + GAP)),
+            right: end_cover.map_or(self.right, |edge| self.right.min(edge - GAP)),
         }
     }
 }
@@ -746,3 +757,7 @@ mod tests;
 #[cfg(test)]
 #[path = "strip_cover_tests.rs"]
 mod strip_cover_tests;
+
+#[cfg(test)]
+#[path = "grip_tests.rs"]
+mod grip_tests;

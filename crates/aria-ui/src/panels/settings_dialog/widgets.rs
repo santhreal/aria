@@ -2,7 +2,7 @@
 
 use gpui::{
     Div, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
-    Stateful, Styled, div, px,
+    Stateful, StatefulInteractiveElement, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -104,22 +104,22 @@ pub(super) fn section(theme: &Theme, title: &str, rows: Vec<gpui::AnyElement>) -
         .children(rows)
 }
 
+/// A row that reads a value: `label` in the label column, then `value` at a
+/// chip's inset on the column the controls of the other rows start on,
+/// wrapping in the rest of the row.
 pub(super) fn kv(theme: &Theme, label: &str, value: impl Into<String>) -> impl IntoElement {
     div()
         .flex()
         .flex_row()
         .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_MD))
+        .gap(px(Theme::SPACE_SM))
         .min_h(px(Theme::ROW_HEIGHT))
+        .child(row_label(theme, label.to_string()))
         .child(
             div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(label.to_string()),
-        )
-        .child(
-            div()
+                .flex_1()
+                .min_w_0()
+                .px(px(Theme::SPACE_SM))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text)
                 .child(value.into()),
@@ -133,4 +133,37 @@ pub(super) fn group_divider(theme: &Theme) -> gpui::AnyElement {
         .my(px(Theme::SPACE_XXS))
         .bg(theme.hairline)
         .into_any_element()
+}
+
+/// A row a click picks or arms: its text at the left and any actions at the
+/// right, on the plate every selected row draws while `selected`, fading to
+/// the hover wash under the pointer over `fade`. The plate steps out by its
+/// inset on each side, so the row's text stands on the section title's edge
+/// and its last action ends on the card's column, as every other settings
+/// row's do.
+pub(super) fn row_plate(
+    id: crate::motion::ControlId,
+    theme: &Theme,
+    fade: crate::motion::MotionKey,
+    selected: bool,
+) -> Stateful<Div> {
+    let rest = if selected {
+        theme.glass_selected_bg()
+    } else {
+        theme.wash(0.0)
+    };
+    div()
+        .id(id.element("row-plate"))
+        .flex()
+        .flex_row()
+        .items_center()
+        .justify_between()
+        .gap(px(Theme::SPACE_SM))
+        .px(px(Theme::SPACE_XS))
+        .mx(px(-Theme::SPACE_XS))
+        .rounded(px(Theme::CONTROL_RADIUS))
+        .bg(crate::motion::hover_blend(fade, rest, theme.glass_hover()))
+        .cursor(gpui::CursorStyle::PointingHand)
+        .active(|style| style.opacity(0.92))
+        .on_hover(crate::motion::hover_listener(fade))
 }

@@ -9,7 +9,7 @@
 //! the Canvas pickers, which need a project's canvas, and the glyphs.
 
 use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary, ThemeChoice};
-use gpui::{Modifiers, TestAppContext, TextRunLayout, px, size};
+use gpui::{Modifiers, TestAppContext, TextRunLayout, VisualTestContext, px, size};
 
 use crate::app::DialogKind;
 use crate::app::settings_form::{SettingsField, SettingsSection};
@@ -432,6 +432,180 @@ fn the_filter_box_starts_on_the_column_of_the_boxes_below_it(cx: &mut TestAppCon
     );
 }
 
+/// WHY: A row that reads a value spread its label and value to the two ends
+/// of the row, so the AI section's Status sentence ended on the card's right
+/// edge while the chips and boxes above it start on the control column, and
+/// every read-only value of the Storage, Caches, Plugins, Configuration and
+/// Canvas sections stood the same way.
+///
+/// Reads the AI section alone: the Status value starts at a chip's inset on
+/// the column the Source chips start on. Every read-only row is the one
+/// `kv` widget, so the row read here stands for each. Not covered: a value
+/// too long for one line, which wraps under its own first line.
+#[gpui::test]
+fn a_read_only_value_starts_on_the_column_of_the_controls(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "settings-value-column");
+    let card = opened_on(&state, visual, SettingsSection::Ai.title());
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let chip = run(&runs, card, AiSource::ALL[0].label());
+    let label = run(&runs, card, "Status");
+    let value = runs
+        .iter()
+        .filter(|run| {
+            card.contains(&run.bounds.center())
+                && run.bounds.left() > label.bounds.right()
+                && run.bounds.top() < label.bounds.bottom()
+                && run.bounds.bottom() > label.bounds.top()
+        })
+        .min_by(|a, b| a.bounds.left().partial_cmp(&b.bounds.left()).unwrap())
+        .expect("the Status row draws its value beside its label");
+    assert!(
+        (value.bounds.left() - chip.bounds.left()).abs() < px(EPS),
+        "the Status value `{}` starts at {:?}, the Source chips' text at {:?}",
+        value.text,
+        value.bounds.left(),
+        chip.bounds.left()
+    );
+}
+
+/// WHY: The Keyboard Shortcuts list drew a Clear button beside every row that
+/// holds a key, a column of identical boxes down the section, and its rows and
+/// the Workspaces rows stood their text 4 px right of the hint line above
+/// them, where every picker row steps out to the section's edge.
+///
+/// Reads the shortcuts listed under one binding's name as the filter and the
+/// Workspaces section: no Clear at rest, Clear on the row under the pointer
+/// alone, Clear on the armed row with the pointer away, and each list's row
+/// text on the edge of its hint line. Every such row is the one `row_plate`,
+/// so the rows read here stand for each. Not covered: Revert, which draws at
+/// rest on a row whose key differs from the shipped one, and the frames of the
+/// fade between rest and lit.
+#[gpui::test]
+fn a_settings_list_row_stands_on_the_section_edge_and_shows_clear_for_the_pointer(
+    cx: &mut TestAppContext,
+) {
+    let (state, visual) = drawn_shell(cx, "settings-list-rows");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let label = visual.read(|app| {
+        let listing = state
+            .read(app)
+            .listed_binding_rows()
+            .expect("an empty Settings filter lists every binding");
+        listing
+            .rows
+            .into_iter()
+            .find(|(row, _)| row.chord.is_some() && !row.overridden)
+            .map(|(_, label)| label)
+            .expect("a binding holds its shipped key")
+    });
+    let card = opened_on(&state, visual, &label);
+    let clears = |visual: &mut VisualTestContext| -> Vec<gpui::Bounds<gpui::Pixels>> {
+        visual.update(|window, _| {
+            window
+                .rendered_text_runs()
+                .iter()
+                .filter(|run| card.contains(&run.bounds.center()) && run.text.as_ref() == "Clear")
+                .map(|run| run.bounds)
+                .collect()
+        })
+    };
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let hint = run(&runs, card, "Click a row, then press the key you want").bounds;
+    let row = run_below(&runs, card, hint, &label).bounds;
+    assert!(
+        (row.left() - hint.left()).abs() < px(EPS),
+        "the `{label}` row's text starts at {:?}, the hint above it at {:?}",
+        row.left(),
+        hint.left()
+    );
+    let at_rest = clears(visual);
+    assert!(at_rest.is_empty(), "at rest Clear is drawn at {at_rest:?}");
+
+    let on_row = |clear: &[gpui::Bounds<gpui::Pixels>]| {
+        clear.len() == 1 && clear[0].center().y > row.top() && clear[0].center().y < row.bottom()
+    };
+    visual.simulate_mouse_move(row.center(), None, Modifiers::default());
+    visual.run_until_parked();
+    let hovered = clears(visual);
+    assert!(
+        on_row(&hovered),
+        "the pointer on the `{label}` row at {row:?} draws Clear at {hovered:?}"
+    );
+
+    visual.simulate_click(row.center(), Modifiers::default());
+    visual.run_until_parked();
+    visual.simulate_mouse_move(hint.center(), None, Modifiers::default());
+    visual.run_until_parked();
+    assert!(
+        visual.read(|app| state.read(app).rebinding().is_some()),
+        "a click on the `{label}` row arms it"
+    );
+    let armed = clears(visual);
+    assert!(
+        on_row(&armed),
+        "the armed `{label}` row at {row:?}, the pointer away, draws Clear at {armed:?}"
+    );
+
+    visual.update(|_, app| state.update(app, |state, _| state.cancel_rebind()));
+    let card = opened_on(&state, visual, SettingsSection::Workspaces.title());
+    let name = visual.read(|app| state.read(app).workspace_rows()[0].name);
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let hint = run(
+        &runs,
+        card,
+        "Click a workspace to arrange the panes that way",
+    )
+    .bounds;
+    let first = run_below(&runs, card, hint, name).bounds;
+    assert!(
+        (first.left() - hint.left()).abs() < px(EPS),
+        "the `{name}` workspace row's text starts at {:?}, the hint above it at {:?}",
+        first.left(),
+        hint.left()
+    );
+}
+
+/// The topmost run inside `card` below `above` that reads `text`.
+fn run_below<'a>(
+    runs: &'a [TextRunLayout],
+    card: gpui::Bounds<gpui::Pixels>,
+    above: gpui::Bounds<gpui::Pixels>,
+    text: &str,
+) -> &'a TextRunLayout {
+    runs.iter()
+        .filter(|run| {
+            card.contains(&run.bounds.center())
+                && run.bounds.top() >= above.bottom()
+                && run.text.as_ref() == text
+        })
+        .min_by(|a, b| a.bounds.top().partial_cmp(&b.bounds.top()).unwrap())
+        .unwrap_or_else(|| panic!("the Settings dialog draws `{text}` below {above:?}"))
+}
+
+/// The Settings dialog opened with `filter`, in place of any earlier one,
+/// typed into its filter box and drawn: the dialog's card.
+fn opened_on(
+    state: &gpui::Entity<crate::app::AppState>,
+    visual: &mut VisualTestContext,
+    filter: &str,
+) -> gpui::Bounds<gpui::Pixels> {
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.open_dialog(DialogKind::Settings);
+            state.settings_form.filter.clear();
+            state.focus_setting(Some(SettingsField::Filter));
+            for ch in filter.chars() {
+                state.setting_push(ch);
+            }
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    visual
+        .debug_bounds("dialog-card")
+        .expect("the Settings dialog draws a card")
+}
+
 /// The Settings dialog drawn under the Keyboard Shortcuts title as the filter:
 /// its card, its text runs, and the text the Set name box shows, its value or
 /// else its placeholder.
@@ -440,20 +614,7 @@ fn drawn_under_shortcuts(
     name: &str,
 ) -> (gpui::Bounds<gpui::Pixels>, Vec<TextRunLayout>, String) {
     let (state, visual) = drawn_shell(cx, name);
-    visual.update(|_, app| {
-        state.update(app, |state, cx| {
-            state.open_dialog(DialogKind::Settings);
-            state.focus_setting(Some(SettingsField::Filter));
-            for ch in SettingsSection::KeyboardShortcuts.title().chars() {
-                state.setting_push(ch);
-            }
-            cx.notify();
-        });
-    });
-    visual.run_until_parked();
-    let card = visual
-        .debug_bounds("dialog-card")
-        .expect("the Settings dialog draws a card");
+    let card = opened_on(&state, visual, SettingsSection::KeyboardShortcuts.title());
     let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
     let shown = visual.read(|app| {
         let state = state.read(app);

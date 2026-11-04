@@ -41,6 +41,26 @@ pub(crate) struct VisibleLane {
     pub outline_rows: Vec<crate::app::property_rows::TimelineOutlineRow>,
 }
 
+/// The clips of a lane a view of `[view_start, view_end)` paints and
+/// hit-tests: the ones on screen, and the one before them when the bar of
+/// the transition at its end reaches into the view.
+pub(crate) fn drawn_clips(clips: &[UiClip], view_start: i64, view_end: i64) -> &[UiClip] {
+    let on_screen = super::media::visible_range(clips, view_start, view_end);
+    let from = on_screen
+        .start
+        .checked_sub(1)
+        .filter(|&before| {
+            let clip = &clips[before];
+            view_end > view_start
+                && clip
+                    .transition
+                    .as_ref()
+                    .is_some_and(|tr| bar::transition_span(clip, tr).1 > view_start)
+        })
+        .unwrap_or(on_screen.start);
+    &clips[from..on_screen.end]
+}
+
 /// Snapshot of data painted by one lane-group canvas in a single pass.
 pub(crate) struct LaneGroupPaint {
     pub is_first_group: bool,
@@ -59,7 +79,7 @@ pub(crate) struct LaneGroupPaint {
     pub selected_edge: Option<SelectedEdge>,
     pub selected_gap: Option<SelectedGap>,
     pub trim_feedback: Option<TrimFeedback>,
-    pub waves: Arc<std::collections::HashMap<u64, Vec<f32>>>,
+    pub waves: Arc<std::collections::HashMap<u64, super::media::WaveBars>>,
     pub strips: Arc<std::collections::HashMap<u64, Vec<FilmCell>>>,
     pub reduced: bool,
 }
@@ -95,12 +115,14 @@ pub(crate) fn clip_opacity(clip: &UiClip) -> f32 {
 
 /// Paint all visible lanes, clips, waveforms, filmstrips, transitions,
 /// selection highlights, guides, and the trim HUD inside `bounds`, returning
-/// `(visible_lanes_count, visible_clips_count, paint_calls)`. Each fx badge
-/// painted is pushed to `badges`.
+/// `(visible_lanes_count, visible_clips_count, paint_calls)`. `hovered` is
+/// the clip whose bar the pointer is on. Each fx badge painted is pushed to
+/// `badges`.
 pub(crate) fn paint_lane_group(
     bounds: Bounds<Pixels>,
     data: &LaneGroupPaint,
     theme: &Theme,
+    hovered: Option<u64>,
     badges: &mut Vec<(u64, Bounds<Pixels>)>,
     window: &mut Window,
     cx: &mut App,
@@ -154,8 +176,19 @@ pub(crate) fn paint_lane_group(
 
             // Clips on this lane, coalescing sub-pixel unselected bars when zoomed out.
             let mut last_coalesced_end = -10.0f32;
+            // The window of the transition at the right junction of the clip
+            // before this one, whose bar paints over this clip's start.
+            let mut before: Option<(i64, i64)> = None;
             for clip in &lane.clips {
-                visible_clips += 1;
+                let start_cover = before
+                    .filter(|&(low, high)| {
+                        low <= clip.timeline_start_ticks && high > clip.timeline_start_ticks
+                    })
+                    .map(|(_, high)| high);
+                before = clip
+                    .transition
+                    .as_ref()
+                    .map(|tr| bar::transition_span(clip, tr));
                 let x0 = ticks_to_px(clip.timeline_start_ticks, data.fps, data.pps) - data.scroll_x;
                 let raw_w = ticks_to_px(
                     (clip.timeline_end_ticks - clip.timeline_start_ticks).max(1),
@@ -167,6 +200,7 @@ pub(crate) fn paint_lane_group(
                 if x1 < 0.0 || x0 > view_w {
                     continue;
                 }
+                visible_clips += 1;
                 if !clip.selected && raw_w < 1.5 && x1 <= last_coalesced_end + 1.5 {
                     continue;
                 }
@@ -181,6 +215,8 @@ pub(crate) fn paint_lane_group(
                     data,
                     lane,
                     clip,
+                    start_cover,
+                    hovered == Some(clip.id),
                     origin_x + x0,
                     lane_y,
                     w,
@@ -331,7 +367,9 @@ pub(crate) fn paint_lane_group(
     (data.visible_lanes.len(), visible_clips, paint_calls)
 }
 
-/// Paint one clip bar, and return where its fx badge was drawn.
+/// Paint one clip bar, and return where its fx badge was drawn. `start_cover`
+/// is the tick at which the window of a transition over the bar's start ends,
+/// and `hovered` whether the pointer is on the bar.
 #[allow(clippy::too_many_arguments)]
 fn paint_clip(
     window: &mut Window,
@@ -341,6 +379,8 @@ fn paint_clip(
     data: &LaneGroupPaint,
     lane: &VisibleLane,
     clip: &UiClip,
+    start_cover: Option<i64>,
+    hovered: bool,
     x: f32,
     lane_y: f32,
     w: f32,
@@ -399,7 +439,14 @@ fn paint_clip(
     let content_bottom = card_y + card_h - 1.0;
     let content_h = content_bottom - content_top;
     let grips = !clip.locked && w >= 28.0;
-    let strip = bar::Strip::of(x, w, origin_x, grips);
+    // The transition bars paint over the bar's ends, so the strip starts
+    // after the one over its start and ends before the one over its end.
+    let at = |tick: i64| origin_x + ticks_to_px(tick, data.fps, data.pps) - data.scroll_x;
+    let end_cover = clip
+        .transition
+        .as_ref()
+        .map(|tr| at(bar::transition_span(clip, tr).0));
+    let strip = bar::Strip::of(x, w, origin_x, grips).clear_of(start_cover.map(at), end_cover);
     let filmstrip = data
         .strips
         .get(&clip.id)
@@ -444,20 +491,20 @@ fn paint_clip(
         );
     }
 
-    // Waveform bars across the content strip of an audio clip.
+    // Waveform bars across the content strip of an audio clip: the bars on
+    // screen, each at its place on the grid that tiles the clip.
     if clip.offline.is_none()
         && w >= 12.0
         && content_h >= 4.0
-        && let Some(bars) = data.waves.get(&clip.id)
-        && !bars.is_empty()
+        && let Some(wave) = data.waves.get(&clip.id)
+        && wave.total > 0
     {
         let wave_h = (content_h - 2.0).max(2.0);
         let wave_bottom = content_bottom - 1.0;
-        let max_bars = bars.len().min(96);
-        let step = (w / max_bars as f32).max(2.0);
-        for (idx, amp) in bars.iter().take(max_bars).enumerate() {
-            let bx = x + idx as f32 * step;
-            if bx < origin_x || bx > origin_x + view_w {
+        let step = w / wave.total as f32;
+        for (idx, amp) in wave.heights.iter().enumerate() {
+            let bx = x + (wave.first + idx) as f32 * step;
+            if bx + step < origin_x || bx > origin_x + view_w {
                 continue;
             }
             let bh = (amp.clamp(0.05, 1.0) * wave_h).max(1.5);
@@ -496,34 +543,33 @@ fn paint_clip(
         );
     }
 
-    // Fade handles on unlocked clips with sufficient width.
+    // The fade handles of an unlocked bar wide enough to hold them: each shows
+    // while the pointer is on the bar, and at all times once its fade is set.
     if grips {
-        let fi = ticks_to_px(clip.fade_in_ticks.max(0), data.fps, data.pps);
-        let fo = ticks_to_px(clip.fade_out_ticks.max(0), data.fps, data.pps);
-        paint_bordered(
-            window,
-            paint_calls,
-            (x + TRIM + fi).min(x + w - FADE_GRIP),
-            card_y + 2.0,
-            FADE_GRIP,
-            FADE_GRIP,
-            2.0,
-            theme.wash(0.25),
-            1.0,
-            theme.border_strong.opacity(0.55),
-        );
-        paint_bordered(
-            window,
-            paint_calls,
-            (x + w - TRIM - fo - FADE_GRIP).max(x),
-            card_y + 2.0,
-            FADE_GRIP,
-            FADE_GRIP,
-            2.0,
-            theme.wash(0.25),
-            1.0,
-            theme.border_strong.opacity(0.55),
-        );
+        let fade_in = clip.fade_in_ticks.max(0);
+        let fade_out = clip.fade_out_ticks.max(0);
+        let handles = [
+            (hovered || fade_in > 0).then(|| {
+                (x + TRIM + ticks_to_px(fade_in, data.fps, data.pps)).min(x + w - FADE_GRIP)
+            }),
+            (hovered || fade_out > 0).then(|| {
+                (x + w - TRIM - ticks_to_px(fade_out, data.fps, data.pps) - FADE_GRIP).max(x)
+            }),
+        ];
+        for left in handles.into_iter().flatten() {
+            paint_bordered(
+                window,
+                paint_calls,
+                left,
+                card_y + 2.0,
+                FADE_GRIP,
+                FADE_GRIP,
+                2.0,
+                theme.wash(0.25),
+                1.0,
+                theme.border_strong.opacity(0.55),
+            );
+        }
     }
     // Clip-attached markers (point flags and range bars along the top edge).
     if !clip.markers.is_empty() && w >= 6.0 {

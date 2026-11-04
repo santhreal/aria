@@ -118,15 +118,15 @@ fn a_source_is_asked_for_once_and_a_refusal_is_remembered() {
 #[test]
 fn a_volume_change_scales_every_bar() {
     let mut drawn = vec![1.0, 1.0, 1.0, 1.0];
-    apply_gain(&mut drawn, 0.5, 0, 0, 100);
+    apply_gain(&mut drawn, 0.0..100.0, 0.5, 0, 0, 100);
     assert_eq!(drawn, vec![0.5, 0.5, 0.5, 0.5], "the wave follows the mix");
 
     let mut silent = vec![1.0, 0.4];
-    apply_gain(&mut silent, 0.0, 0, 0, 100);
+    apply_gain(&mut silent, 0.0..100.0, 0.0, 0, 0, 100);
     assert_eq!(silent, vec![0.0, 0.0], "a muted clip draws nothing");
 
     let mut boosted = vec![0.8, 0.2];
-    apply_gain(&mut boosted, 4.0, 0, 0, 100);
+    apply_gain(&mut boosted, 0.0..100.0, 4.0, 0, 0, 100);
     assert_eq!(
         boosted,
         vec![1.0, 0.8],
@@ -138,7 +138,7 @@ fn a_volume_change_scales_every_bar() {
 fn a_fade_in_ramps_the_bars_it_covers() {
     // Ten bars over 100 ticks; the fade covers the first 50.
     let mut drawn = vec![1.0; 10];
-    apply_gain(&mut drawn, 1.0, 50, 0, 100);
+    apply_gain(&mut drawn, 0.0..100.0, 1.0, 50, 0, 100);
     assert!(drawn[0] < drawn[1], "the ramp rises: {drawn:?}");
     assert!(drawn[3] < 1.0, "still inside the fade: {drawn:?}");
     for value in &drawn[5..] {
@@ -152,7 +152,7 @@ fn a_fade_in_ramps_the_bars_it_covers() {
 #[test]
 fn a_fade_out_ramps_down_to_the_end() {
     let mut drawn = vec![1.0; 10];
-    apply_gain(&mut drawn, 1.0, 0, 50, 100);
+    apply_gain(&mut drawn, 0.0..100.0, 1.0, 0, 50, 100);
     assert!(
         (drawn[0] - 1.0).abs() < 1e-6,
         "before the fade nothing changes: {drawn:?}"
@@ -167,7 +167,7 @@ fn a_fade_out_ramps_down_to_the_end() {
 #[test]
 fn overlapping_fades_multiply_rather_than_fight() {
     let mut drawn = vec![1.0; 4];
-    apply_gain(&mut drawn, 1.0, 100, 100, 100);
+    apply_gain(&mut drawn, 0.0..100.0, 1.0, 100, 100, 100);
     assert!(
         drawn.iter().all(|v| *v < 1.0),
         "every bar is inside both ramps: {drawn:?}"
@@ -181,6 +181,27 @@ fn overlapping_fades_multiply_rather_than_fight() {
 #[test]
 fn scaling_an_empty_wave_is_inert() {
     let mut nothing: Vec<f32> = Vec::new();
-    apply_gain(&mut nothing, 1.0, 10, 10, 0);
+    apply_gain(&mut nothing, 0.0..0.0, 1.0, 10, 10, 0);
     assert!(nothing.is_empty());
+}
+
+/// The timeline builds only the bars on screen, so a slice of a clip's bars
+/// must ramp exactly as the same bars of the whole clip do: a slice sampled
+/// from its own start drew a fade at the wrong place once the clip scrolled.
+#[test]
+fn a_slice_of_the_bars_ramps_as_the_whole_clip_does() {
+    let mut whole = vec![1.0; 10];
+    apply_gain(&mut whole, 0.0..100.0, 0.8, 40, 30, 100);
+    for (first, last) in [(0, 10), (0, 3), (2, 6), (5, 10), (9, 10)] {
+        let mut slice = vec![1.0; last - first];
+        let covers = first as f64 * 10.0..last as f64 * 10.0;
+        apply_gain(&mut slice, covers, 0.8, 40, 30, 100);
+        for (index, (part, all)) in slice.iter().zip(&whole[first..last]).enumerate() {
+            assert!(
+                (part - all).abs() < 1e-6,
+                "bar {} of the slice {first}..{last} is {part}, of the whole clip {all}",
+                first + index
+            );
+        }
+    }
 }

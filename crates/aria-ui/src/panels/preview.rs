@@ -342,6 +342,9 @@ mod source;
 #[path = "preview_tabs.rs"]
 mod tabs;
 #[cfg(test)]
+#[path = "viewer_peak_tests.rs"]
+mod viewer_peak_tests;
+#[cfg(test)]
 #[path = "viewer_row_height_tests.rs"]
 mod viewer_row_height_tests;
 #[cfg(test)]

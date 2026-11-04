@@ -6,7 +6,7 @@ use std::rc::Rc;
 use aria_models::{ClipId, TrackId};
 use gpui::{
     Bounds, Context, CursorStyle, InteractiveElement, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, Stateful,
+    MouseUpEvent, Pixels, Point, Stateful, StatefulInteractiveElement,
 };
 
 use super::VisibleLane;
@@ -83,42 +83,70 @@ enum CanvasGesture {
     },
 }
 
-thread_local! {
-    static ACTIVE_GESTURE: Cell<Option<CanvasGesture>> = const { Cell::new(None) };
+/// The lane groups' pointer state in one window. The window's shell keeps it
+/// in its panel memory, so a gesture held when the window closes ends with
+/// the window, and the lanes of the next window take each hover as a hover.
+#[derive(Default)]
+pub(crate) struct LanePointer {
+    /// The gesture a press on a lane group holds.
+    gesture: Cell<Option<CanvasGesture>>,
     /// The cursor of what the last press on a lane group landed on. The lanes
     /// set it while the gesture that press began is held, so a card carried
     /// over another clip's edge keeps the cursor it was picked up with.
-    static PRESS_CURSOR: Cell<CursorStyle> = const { Cell::new(CursorStyle::Arrow) };
-    /// The cursor each lane group's canvas set at its last paint, video then
-    /// audio, or `None` for a paint with the pointer elsewhere. A cached
-    /// Timeline replays that paint, so a hover redraws the Timeline when the
-    /// pointer's target calls for another cursor.
-    static PAINTED_CURSOR: [Cell<Option<CursorStyle>>; 2] =
-        const { [Cell::new(None), Cell::new(None)] };
+    press_cursor: Cell<CursorStyle>,
+    /// What each lane group's canvas drew for the pointer at its last paint,
+    /// video then audio, or `None` for a paint with the pointer elsewhere. A
+    /// cached Timeline replays that paint, so a hover redraws the Timeline
+    /// when the pointer's target calls for another cursor or lies on another
+    /// clip's bar.
+    painted: [Cell<Option<PointerPaint>>; 2],
 }
 
-/// The cursor the lanes set for the pointer at `at` over `hit`: the press's
-/// while a gesture a lane group began is held, and otherwise what a press
-/// there does. `badges` are the fx badges the lanes last painted.
-pub(crate) fn lanes_cursor(
-    at: Point<Pixels>,
-    badges: &[(u64, Bounds<Pixels>)],
-    hit: Option<HitTarget>,
-    tool: EditorTool,
-) -> CursorStyle {
-    if ACTIVE_GESTURE.get().is_some() {
-        PRESS_CURSOR.get()
-    } else if badges.iter().any(|(_, badge)| badge.contains(&at)) {
-        CursorStyle::PointingHand
-    } else {
-        cursor_for(tool, hit)
+impl LanePointer {
+    /// The lanes' pointer state in the window `shell` draws.
+    pub(crate) fn of(shell: &Shell) -> Rc<Self> {
+        shell.panel_memory.get()
+    }
+
+    /// The cursor the lanes set for the pointer at `at` over `hit`: the
+    /// press's while a gesture a lane group began is held, and otherwise what
+    /// a press there does. `badges` are the fx badges the lanes last painted.
+    pub(crate) fn cursor(
+        &self,
+        at: Point<Pixels>,
+        badges: &[(u64, Bounds<Pixels>)],
+        hit: Option<HitTarget>,
+        tool: EditorTool,
+    ) -> CursorStyle {
+        if self.gesture.get().is_some() {
+            self.press_cursor.get()
+        } else if badges.iter().any(|(_, badge)| badge.contains(&at)) {
+            CursorStyle::PointingHand
+        } else {
+            cursor_for(tool, hit)
+        }
+    }
+
+    /// Records what the audio or video lane group's canvas drew for the
+    /// pointer in the paint in progress, `None` when the pointer was
+    /// elsewhere.
+    pub(crate) fn record(&self, is_audio: bool, pointer: Option<PointerPaint>) {
+        self.painted[usize::from(is_audio)].set(pointer);
+    }
+
+    /// What the audio or video lane group's canvas drew for the pointer at
+    /// its last paint.
+    fn painted(&self, is_audio: bool) -> Option<PointerPaint> {
+        self.painted[usize::from(is_audio)].get()
     }
 }
 
-/// Records the cursor the audio or video lane group's canvas set in the paint
-/// in progress, `None` when the pointer was elsewhere.
-pub(crate) fn painted_cursor(is_audio: bool, cursor: Option<CursorStyle>) {
-    PAINTED_CURSOR.with(|painted| painted[usize::from(is_audio)].set(cursor));
+/// What a lane group's canvas draws for the pointer over it: the cursor, and
+/// the clip whose bar shows its fade handles because the pointer is on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PointerPaint {
+    pub cursor: CursorStyle,
+    pub clip: Option<u64>,
 }
 
 /// Attach left/right mouse-down, mouse-move, and mouse-up handlers to the
@@ -168,7 +196,7 @@ pub(crate) fn attach_group_mouse_listeners(
             // The shell carries the gesture the press began, so a clip, a
             // trim or a band follows the pointer off this lane group and the
             // release lands wherever the button comes up.
-            if ACTIVE_GESTURE.get().is_some() {
+            if LanePointer::of(this).gesture.get().is_some() {
                 let (bounds, lanes) = (bounds_down.clone(), lanes_down.clone());
                 this.hold(Hold::new(
                     move |this, event, cx| {
@@ -223,13 +251,21 @@ pub(crate) fn attach_group_mouse_listeners(
             cx,
         );
     }))
+    // The pointer off the lanes: the bar it was on is drawn without the fade
+    // handles it showed for the pointer.
+    .on_hover(cx.listener(move |this, hovered: &bool, _, cx| {
+        let shown = LanePointer::of(this).painted(is_audio);
+        if !*hovered && shown.is_some_and(|pointer| pointer.clip.is_some()) {
+            this.redraw(crate::shell::Moved::Pointer, cx);
+        }
+    }))
     .on_mouse_up(
         MouseButton::Left,
         cx.listener(move |this, event: &MouseUpEvent, _, cx| {
             // A Parent pick whip dragged out of the inspector lands on the clip
             // it is released over. A gesture this canvas began ends at the
             // shell's release.
-            if ACTIVE_GESTURE.get().is_none() {
+            if LanePointer::of(this).gesture.get().is_none() {
                 let (local_x, local_y) = local_coords(event.position, bounds_up.get());
                 if let Some(HitTarget::ClipBody { clip_id, .. }) =
                     hit_test(&lanes_up, local_x, local_y, fps, pps, scroll_x)
@@ -390,7 +426,8 @@ fn resolve_edge_gesture(
     Gesture::Edge { drag, left, span }
 }
 
-fn local_coords(pos: Point<Pixels>, bounds: Bounds<Pixels>) -> (f32, f32) {
+/// `pos` in the canvas at `bounds`, clamped to its top left corner.
+pub(crate) fn local_coords(pos: Point<Pixels>, bounds: Bounds<Pixels>) -> (f32, f32) {
     (
         f32::from(pos.x - bounds.origin.x).max(0.0),
         f32::from(pos.y - bounds.origin.y).max(0.0),

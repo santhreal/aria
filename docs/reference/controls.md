@@ -416,7 +416,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-audio-scrubbing` | Switch | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged; drawn on the Audio scrubbing line. | None |
 | `settings-done` | Done | Closes the Settings dialog. | None |
 | `settings-field` (per row) | Field label | Edits the row's text setting: the AI provider's base URL, model, key, or key variable, the cloud base URL, the section filter, the keymap set name, or a plugin's text setting. Enter saves it and Esc leaves the saved value. | None |
-| `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row. | None |
+| `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row; drawn on the row under the pointer and on the armed row. | None |
 | `settings-key-keep` | Keep | Keeps the existing binding when a newly pressed chord conflicts with another command. | None |
 | `settings-key-move` | Move | Reassigns a conflicting keyboard chord to the newly selected command. | None |
 | `settings-key-revert` (per row) | Revert | Restores the command row's keyboard shortcut to its shipped default chord. | None |
@@ -428,8 +428,8 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-log-dropped-frames` | Switch | Toggles writing each dropped playback frame and its cause to the log under the `aria::playback` target; drawn on the Log dropped frames line. | None |
 | `settings-workspace-forget` (per row) | Forget | Deletes the saved custom workspace layout. | None |
 | `settings-workspace-reset` | Reset | Resets the active workspace dock layout to its factory pane arrangement. | None |
-| `settings-workspace-save` | Save layout / Overwrite | Saves the current dock pane arrangement into the active workspace slot. | None |
-| `settings-zoom-knobs` (per row) | Hold Playhead / Hold Other End | Sets what a drag on a knob of the timeline's zoom bar holds still: the playhead's pixel while the playhead is inside the view, or the view's other end; drawn on the Zoom bar knobs line. | None |
+| `settings-workspace-save` | Save as Custom / Replace Custom | Saves the current dock pane arrangement into the Custom workspace slot, replacing the one saved there. | None |
+| `settings-zoom-knobs` (per row) | Hold playhead / Hold other end | Sets what a drag on a knob of the timeline's zoom bar holds still: the playhead's pixel while the playhead is inside the view, or the view's other end; drawn on the Zoom bar knobs line. | None |
 | `storage-clear` | Clear cache | Clears downloaded cloud and stock media assets from the download cache. | None |
 | `storage-relocate` | Move storage… | Opens the Move Storage folder picker and moves the root storage directory to the chosen folder. | None |
 | `timeout-dec` (per row) | Halve | Halves the execution timeout in seconds for the selected transcription step. | None |

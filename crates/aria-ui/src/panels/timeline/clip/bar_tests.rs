@@ -27,20 +27,20 @@ use crate::surfaces::timeline_gesture::{Drag, Gesture, Span};
 use crate::theme::Theme;
 use crate::types::{ContextTarget, TrimSide, UiClipKind};
 
-fn texture() -> PathBuf {
+pub(super) fn texture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
 
 /// One quad the last frame painted, in window pixels.
 #[derive(Debug)]
-struct Painted {
-    bounds: Bounds<Pixels>,
-    background: Background,
-    rounded: bool,
+pub(super) struct Painted {
+    pub(super) bounds: Bounds<Pixels>,
+    pub(super) background: Background,
+    pub(super) rounded: bool,
 }
 
 /// Every quad the last frame painted with its centre inside `within`.
-fn painted(visual: &mut VisualTestContext, within: Bounds<Pixels>) -> Vec<Painted> {
+pub(super) fn painted(visual: &mut VisualTestContext, within: Bounds<Pixels>) -> Vec<Painted> {
     visual.update(|window, _| {
         let scale = window.scale_factor();
         window
@@ -63,7 +63,7 @@ fn painted(visual: &mut VisualTestContext, within: Bounds<Pixels>) -> Vec<Painte
 }
 
 /// A drawn shell with `asset` placed at the start of the timeline.
-fn placed<'a>(
+pub(super) fn placed<'a>(
     cx: &'a mut TestAppContext,
     tag: &str,
     asset: PathBuf,
@@ -94,13 +94,22 @@ fn placed<'a>(
 }
 
 /// The V1 lane on the canvas: the canvas's width at the height of V1's header.
-fn v1_lane(visual: &mut VisualTestContext) -> Bounds<Pixels> {
+pub(super) fn v1_lane(visual: &mut VisualTestContext) -> Bounds<Pixels> {
+    lane_of(visual, "timeline-video-canvas", "track-header-V1")
+}
+
+/// The lane on `canvas` at the height of the track header `header`.
+fn lane_of(
+    visual: &mut VisualTestContext,
+    canvas: &'static str,
+    header: &'static str,
+) -> Bounds<Pixels> {
     let canvas = visual
-        .debug_bounds("timeline-video-canvas")
-        .expect("the video canvas is drawn");
+        .debug_bounds(canvas)
+        .unwrap_or_else(|| panic!("{canvas} is drawn"));
     let header = visual
-        .debug_bounds("track-header-V1")
-        .expect("the V1 header is drawn");
+        .debug_bounds(header)
+        .unwrap_or_else(|| panic!("{header} is drawn"));
     Bounds::new(
         point(canvas.left(), header.top()),
         size(canvas.size.width, header.size.height),
@@ -425,6 +434,335 @@ fn the_fx_badge_is_grey_yellow_purple_or_yellow_over_purple(cx: &mut TestAppCont
         },
     );
     assert_eq!(badge(visual), (Background::from(yellow), false));
+}
+
+/// Two clips of the fixture cut together, each named longer than any bar
+/// draws, with a dip to black at the cut: the outgoing clip, which holds the
+/// transition, and the incoming clip's name.
+fn a_cut_under_a_transition<'a>(
+    cx: &'a mut TestAppContext,
+    tag: &str,
+) -> (Entity<AppState>, &'a mut VisualTestContext, ClipId, String) {
+    let outgoing_name = "Outgoing take ".repeat(40);
+    let incoming_name = "Incoming take ".repeat(40);
+    let (state, visual, outgoing) = placed(cx, tag, texture());
+    let incoming = visual.update(|window, app| {
+        let incoming = state.update(app, |s, _| {
+            let first = s.ui_clip_ref(outgoing).expect("the placed clip");
+            let media = first.media_id.expect("a clip of the fixture");
+            let cut = first.timeline_end_ticks;
+            s.drop_media_on_timeline(aria_models::MediaId::from_raw(media), None, cut)
+                .expect("place the fixture at the cut");
+            s.store
+                .sequence
+                .tracks
+                .iter()
+                .flat_map(|lane| lane.clips.iter())
+                .find(|clip| clip.timeline_start_ticks == cut)
+                .map(|clip| ClipId::from_raw(clip.id))
+                .expect("the second clip starts at the cut")
+        });
+        window.refresh();
+        incoming
+    });
+    visual.run_until_parked();
+    for (clip, name) in [(outgoing, &outgoing_name), (incoming, &incoming_name)] {
+        let name = Some(name.clone());
+        edit(visual, &state, EditCommand::SetClipName { clip, name });
+    }
+    edit(
+        visual,
+        &state,
+        EditCommand::AddTransition {
+            clip: outgoing,
+            transition_id: "dip_to_black".to_owned(),
+        },
+    );
+    (state, visual, outgoing, incoming_name)
+}
+
+/// Align the transition `outgoing` holds and fit the sequence in the view.
+fn align(
+    visual: &mut VisualTestContext,
+    state: &Entity<AppState>,
+    outgoing: ClipId,
+    alignment: aria_models::TransitionAlignment,
+) {
+    visual.update(|window, app| {
+        state.update(app, |s, _| {
+            s.set_clip_transition_alignment(outgoing, alignment)
+                .expect("the junction takes the alignment");
+            s.zoom_fit_sequence();
+        });
+        window.refresh();
+    });
+    visual.run_until_parked();
+}
+
+/// The transition bars among `quads`: the quads in the bar's fill.
+fn transition_bars(visual: &mut VisualTestContext, quads: &[Painted]) -> Vec<Bounds<Pixels>> {
+    let theme = visual.read(Theme::of);
+    let fill = Background::from(theme.surface_raised.opacity(0.92));
+    quads
+        .iter()
+        .filter(|quad| quad.background == fill)
+        .map(|quad| quad.bounds)
+        .collect()
+}
+
+/// The left edge of the drawn run of `name`.
+fn name_left(visual: &mut VisualTestContext, name: &str) -> Pixels {
+    visual
+        .update(|window, _| {
+            window
+                .rendered_text_runs()
+                .iter()
+                .find(|run| run.text == name)
+                .map(|run| run.bounds.left())
+        })
+        .expect("the clip's name is drawn")
+}
+
+/// Closes the class "a name strip draws under a transition bar": the bar over
+/// a cut paints after the strips of both clips under it, so a name or a badge
+/// that reached under it read cut off, `e [V]` for `dome [V]`. Every alignment
+/// in `TransitionAlignment::ALL` is drawn, so a bar over the incoming clip's
+/// start, one over the outgoing clip's end, and one over both are each
+/// checked: the incoming name starts after the bar, and both fx badges, pushed
+/// to the ends of their strips by names longer than the bars, stay off it. Not
+/// covered: a held card dragged under a bar at a cut it does not touch.
+#[gpui::test]
+fn a_name_strip_keeps_clear_of_the_transition_bars_over_its_ends(cx: &mut TestAppContext) {
+    let (state, visual, outgoing, incoming_name) =
+        a_cut_under_a_transition(cx, "bar-transition-cover");
+    for alignment in aria_models::TransitionAlignment::ALL {
+        align(visual, &state, outgoing, alignment);
+        let lane = v1_lane(visual);
+        let quads = painted(visual, lane);
+        let bars = transition_bars(visual, &quads);
+        assert_eq!(bars.len(), 1, "{alignment:?}: one transition bar: {bars:?}");
+        let bar = bars[0];
+        let badges: Vec<Bounds<Pixels>> = quads
+            .iter()
+            .filter(|quad| {
+                quad.rounded
+                    && near(quad.bounds.size.width, px(FX_W))
+                    && near(quad.bounds.size.height, px(FX_H))
+            })
+            .map(|quad| quad.bounds)
+            .collect();
+        assert_eq!(
+            badges.len(),
+            2,
+            "{alignment:?}: one badge per bar: {badges:?}"
+        );
+        for badge in badges {
+            assert!(
+                badge.right() <= bar.left() || badge.left() >= bar.right(),
+                "{alignment:?}: the fx badge at {badge:?} draws under the transition bar at {bar:?}"
+            );
+        }
+        let incoming = name_left(visual, &incoming_name);
+        assert!(
+            incoming >= bar.right(),
+            "{alignment:?}: the incoming name starts at {incoming:?}, under the transition bar at {bar:?}"
+        );
+    }
+}
+
+/// Closes the class "a transition bar draws only while its cut is on screen":
+/// the bar belongs to the clip before the cut, and a lane drew and hit-tested
+/// only the clips on screen, so a view starting past the cut and inside the
+/// bar drew none of it, a press there landed on the incoming clip, and the
+/// incoming name took no room for it. Every alignment is scrolled to start
+/// three quarters of the way into its bar: past the cut for Center at Cut and
+/// Start at Cut, before it for End at Cut. Not covered: an edge drag started
+/// on the part in view.
+#[gpui::test]
+fn a_transition_bar_draws_while_its_cut_is_scrolled_off_the_left(cx: &mut TestAppContext) {
+    let (state, visual, outgoing, incoming_name) =
+        a_cut_under_a_transition(cx, "bar-transition-scrolled");
+    for alignment in aria_models::TransitionAlignment::ALL {
+        align(visual, &state, outgoing, alignment);
+        let lane = v1_lane(visual);
+        let quads = painted(visual, lane);
+        let fitted = transition_bars(visual, &quads);
+        assert_eq!(
+            fitted.len(),
+            1,
+            "{alignment:?}: one transition bar: {fitted:?}"
+        );
+        let fitted = fitted[0];
+        assert!(
+            fitted.size.width > px(48.0),
+            "{alignment:?}: a quarter of the bar at {fitted:?} leaves no body to press"
+        );
+        let shift = f32::from(fitted.left() + fitted.size.width * 0.75 - lane.left());
+        visual.update(|window, app| {
+            state.update(app, |s, _| {
+                let to = s.scroll_x + shift;
+                s.scroll_timeline_to(to, false);
+            });
+            window.refresh();
+        });
+        visual.run_until_parked();
+        // Most of the bar is left of the canvas, so its center is too.
+        let wide = Bounds::new(
+            point(lane.left() - lane.size.width, lane.top()),
+            size(lane.size.width * 2.0, lane.size.height),
+        );
+        let quads = painted(visual, wide);
+        let bars = transition_bars(visual, &quads);
+        assert_eq!(
+            bars.len(),
+            1,
+            "{alignment:?}: the bar reaching into the view is drawn: {bars:?}"
+        );
+        let bar = bars[0];
+        let reach = f32::from(bar.right() - lane.left());
+        let quarter = f32::from(fitted.size.width) * 0.25;
+        assert!(
+            (reach - quarter).abs() <= 1.0,
+            "{alignment:?}: the bar reaches {reach} px into the view, not its last quarter, {quarter} px"
+        );
+        let incoming = name_left(visual, &incoming_name);
+        assert!(
+            incoming >= bar.right(),
+            "{alignment:?}: the incoming name starts at {incoming:?}, under the transition bar at {bar:?}"
+        );
+        // A press on the part in view lands on the transition, which selects
+        // the clip holding it, not on the incoming clip under it.
+        let at = point(
+            lane.left() + (bar.right() - lane.left()) / 2.0,
+            bar.center().y,
+        );
+        visual.simulate_event(MouseDownEvent {
+            position: at,
+            modifiers: Modifiers::none(),
+            button: MouseButton::Left,
+            click_count: 1,
+            first_mouse: false,
+        });
+        visual.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+        visual.run_until_parked();
+        let selection = visual.read(|app| state.read(app).selection.clone());
+        assert_eq!(
+            selection,
+            vec![outgoing],
+            "{alignment:?}: a press at {at:?} on the bar in view selects another clip"
+        );
+    }
+}
+
+/// Closes the class "a waveform draws its bars at a pitch of its own": the
+/// bars were a resample of the whole clip into at most 96, so a clip wider
+/// than 288 px drew them further apart than 3 px, further the more it was
+/// zoomed in. Drawn at the fit, and zoomed all the way in with the view on
+/// the clip's middle, the bars stand 3 px apart and run across all of the
+/// clip in view. Not covered: which bars are built, only which are drawn, and
+/// the bar heights, which `waveform_tests` pins.
+#[gpui::test]
+fn a_waveform_draws_a_bar_every_3_px_at_every_zoom(cx: &mut TestAppContext) {
+    let sine = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-sine-48k-2s.wav");
+    let (state, visual) = crate::test_support::drawn_shell(cx, "bar-wave-pitch");
+    let clip = visual.update(|window, app| {
+        app.set_reduce_motion(true);
+        let clip = state.update(app, |s, _| {
+            let media = s.import_media(sine).expect("import the fixture");
+            // Peaks in hand, so the paint starts no decode.
+            s.waveforms.insert(
+                media.raw(),
+                crate::waveforms::Waveform {
+                    peaks: std::sync::Arc::new(vec![0.5; 400]),
+                    per_second: 200.0,
+                },
+            );
+            s.drop_media_on_timeline(media, None, 0)
+                .expect("place the fixture");
+            s.zoom_fit_sequence();
+            s.store
+                .sequence
+                .tracks
+                .iter()
+                .flat_map(|lane| lane.clips.iter())
+                .find(|clip| clip.kind == UiClipKind::Audio)
+                .map(|clip| ClipId::from_raw(clip.id))
+                .expect("an audio clip")
+        });
+        window.refresh();
+        clip
+    });
+    visual.run_until_parked();
+    // The clip as it is drawn, selected or not once the drop has settled.
+    let clip = visual
+        .read(|app| state.read(app).ui_clip_ref(clip).cloned())
+        .expect("the placed clip");
+    let theme = visual.read(Theme::of);
+    let wave = Background::from(
+        super::super::ink(&theme, &clip).opacity(0.55 * super::super::clip_opacity(&clip)),
+    );
+    // The wave's bars inside `lane`, left to right, and their mean pitch.
+    let bars = |visual: &mut VisualTestContext, lane: Bounds<Pixels>| {
+        let mut bars: Vec<Bounds<Pixels>> = painted(visual, lane)
+            .into_iter()
+            .filter(|quad| quad.background == wave)
+            .map(|quad| quad.bounds)
+            .collect();
+        bars.sort_by(|a, b| f32::from(a.left()).total_cmp(&f32::from(b.left())));
+        assert!(bars.len() >= 2, "the wave draws at most one bar: {bars:?}");
+        let span = f32::from(bars[bars.len() - 1].left() - bars[0].left());
+        let pitch = span / (bars.len() - 1) as f32;
+        (bars, pitch)
+    };
+    let lane = lane_of(visual, "timeline-audio-canvas", "track-header-A1");
+
+    let (fitted, pitch) = bars(visual, lane);
+    assert!(
+        (2.9..=3.2).contains(&pitch),
+        "at the fit, {} bars stand {pitch} px apart",
+        fitted.len()
+    );
+    let width = fitted[fitted.len() - 1].right() - fitted[0].left();
+    assert!(
+        width > lane.size.width * 0.5,
+        "the fit draws the wave {width:?} wide in a lane {:?} wide",
+        lane.size.width
+    );
+
+    // As far in as the timeline zooms, with the view centred on the clip's
+    // middle, so the clip runs past both of its sides.
+    let reach = visual.update(|window, app| {
+        let reach = state.update(app, |s, _| {
+            s.set_zoom(crate::transport::ZOOM_MAX, false);
+            let per_tick =
+                crate::transport::TIMELINE_BASE_PPS * s.zoom / s.store.sequence.ticks_per_second();
+            let width = (clip.timeline_end_ticks - clip.timeline_start_ticks) as f32 * per_tick;
+            let middle =
+                (clip.timeline_start_ticks + clip.timeline_end_ticks) as f32 * 0.5 * per_tick;
+            s.scroll_timeline_to(middle - f32::from(lane.size.width) * 0.5, false);
+            (width - f32::from(lane.size.width)) * 0.5
+        });
+        window.refresh();
+        reach
+    });
+    visual.run_until_parked();
+    assert!(
+        reach >= 12.0,
+        "zoomed all the way in, the clip reaches {reach} px past each side of the lane"
+    );
+    let (zoomed, pitch) = bars(visual, lane);
+    assert!(
+        (2.9..=3.2).contains(&pitch),
+        "zoomed in, {} bars stand {pitch} px apart",
+        zoomed.len()
+    );
+    let first = zoomed[0].left() - lane.left();
+    let last = lane.right() - zoomed[zoomed.len() - 1].right();
+    assert!(
+        first <= px(3.5) && last <= px(3.5),
+        "zoomed in, the bars leave {first:?} of the lane empty at its left and {last:?} at its right"
+    );
 }
 
 #[gpui::test]

@@ -166,15 +166,6 @@ fn solid_is_neutral_primary() {
 }
 
 #[test]
-fn glass_selected_shadows_are_inset_1px_rings() {
-    let shadows = glass_selected_shadows();
-    assert_eq!(shadows.len(), 1);
-    assert!(shadows[0].inset);
-    assert_eq!(shadows[0].spread_radius, gpui::px(1.0));
-    assert_eq!(shadows[0].blur_radius, gpui::px(0.0));
-}
-
-#[test]
 fn track_tints_are_near_neutral() {
     let d = Theme::dark();
     for tint in [

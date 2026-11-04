@@ -213,8 +213,8 @@ impl ZoomBarKnobs {
     /// The Settings label of this choice.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Playhead => "Hold Playhead",
-            Self::OtherEnd => "Hold Other End",
+            Self::Playhead => "Hold playhead",
+            Self::OtherEnd => "Hold other end",
         }
     }
 }

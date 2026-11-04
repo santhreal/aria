@@ -6,8 +6,8 @@
 //! easier to recognise by its numbers than by its name.
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, div, px,
+    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
+    div, px,
 };
 
 use crate::app::AppState;
@@ -63,8 +63,8 @@ fn workspace_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let id = row.id;
-    let element_id = gpui::ElementId::from(("settings-workspace", index));
-    let fade = motion::MotionKey::new("settings-workspace", &element_id);
+    let control = motion::ControlId::from(("settings-workspace", index));
+    let fade = control.motion("row");
     let numbers = match row.plugin {
         Some(plugin) => format!("{plugin} \u{b7} {}", measurements(&row)),
         None => measurements(&row),
@@ -110,28 +110,8 @@ fn workspace_row(
             ),
         );
     }
-    div()
-        .id(element_id)
-        .flex()
-        .flex_row()
-        .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_SM))
-        .px(px(Theme::SPACE_SM))
+    super::widgets::row_plate(control, theme, fade, row.active)
         .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(
-            fade,
-            if row.active {
-                theme.glass_selected_bg()
-            } else {
-                theme.wash(0.0)
-            },
-            theme.glass_hover(),
-        ))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(fade))
         .child(
             div()
                 .flex()
