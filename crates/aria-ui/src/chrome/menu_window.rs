@@ -88,7 +88,8 @@ static WINDOW_TOOLS: &[MenuItem] = &[
     MenuItem::new("win-palette", "Command Palette", |_, s, _| {
         s.open_dialog(DialogKind::Palette)
     })
-    .key("key-palette"),
+    .key("key-palette")
+    .rule(),
     MenuItem::new("win-home", "Home", |_, s, _| s.request_go_home()),
 ];
 
@@ -110,7 +111,8 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
         MenuItem::new(crate::layouts::SAVE_ID, "Save Workspace", |_, s, cx| {
             s.save_workspace(cx)
         })
-        .under(WORKSPACES),
+        .under(WORKSPACES)
+        .flyout_rule(),
     );
     items.push(
         MenuItem::new(
@@ -120,10 +122,15 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
         )
         .under(WORKSPACES),
     );
+    // The panels are a group of the drop.
     items.extend(
         PANEL_ROWS
             .iter()
-            .map(|&(id, panel, run)| panel_row(state, id, panel, run).checked(panel_row_open)),
+            .enumerate()
+            .map(|(index, &(id, panel, run))| {
+                let row = panel_row(state, id, panel, run).checked(panel_row_open);
+                if index == 0 { row.rule() } else { row }
+            }),
     );
     // One row per other registered dock panel, so a panel added to the registry
     // or declared by a plugin is opened from the menu with no row written for

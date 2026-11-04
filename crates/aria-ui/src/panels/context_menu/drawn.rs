@@ -65,6 +65,11 @@ struct Blocks<'a> {
 /// operator opened rather than on whatever the session holds by the time they
 /// reach for it. An engine refusal is reported here, once: forty rows cannot
 /// disagree about whether a refused edit is announced.
+///
+/// A [`MenuItem::Rule`] is held until the next entry that draws something and
+/// drawn above it, so a group whose rows are all withheld leaves no rule at the
+/// card's edge and no two rules in a row. The rules are drawn as `ctx-rule-0`,
+/// `ctx-rule-1` and on, top to bottom.
 fn drawn<F: Clone + 'static>(
     items: &'static [MenuItem<F>],
     facts: F,
@@ -73,8 +78,15 @@ fn drawn<F: Clone + 'static>(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
     let mut out = Vec::with_capacity(items.len());
+    let mut held_rule = false;
+    let mut rules = 0usize;
     for entry in items {
+        let start = out.len();
         match entry {
+            MenuItem::Rule => {
+                held_rule = !out.is_empty();
+                continue;
+            }
             // A row that leaves the editor draws exactly like one that does not:
             // the distinction is for the census, not for display.
             MenuItem::Row(row) | MenuItem::Outside(row) => {
@@ -163,6 +175,17 @@ fn drawn<F: Clone + 'static>(
                     ));
                 }
             }
+        }
+        if held_rule && out.len() > start {
+            let at = rules;
+            out.insert(
+                start,
+                crate::components::menu_rule(theme)
+                    .debug_selector(move || format!("ctx-rule-{at}"))
+                    .into_any_element(),
+            );
+            rules += 1;
+            held_rule = false;
         }
     }
     out
@@ -287,13 +310,7 @@ pub(super) fn plugin_items(
         return Vec::new();
     }
     let mut out = Vec::with_capacity(entries.len() + 1);
-    out.push(
-        div()
-            .h(px(1.))
-            .my(px(Theme::SPACE_XS))
-            .bg(theme.border)
-            .into_any_element(),
-    );
+    out.push(crate::components::menu_rule(theme).into_any_element());
     for (index, entry) in entries.iter().enumerate() {
         let row = entry.clone();
         out.push(item_with_icon(

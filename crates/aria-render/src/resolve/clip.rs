@@ -42,19 +42,6 @@ fn read_at<'p>(
     }
 }
 
-pub(super) fn resolve_clip(
-    project: &Project,
-    clip: &aria_models::Clip,
-    t: RationalTime,
-    cw: f32,
-    ch: f32,
-    overrides: ResolveOverrides<'_>,
-    nesting: &Nesting<'_>,
-) -> Result<Option<SceneLayer>, aria_models::ModelError> {
-    let mut pool = super::sample::ResolvePool::default();
-    resolve_clip_pooled(project, clip, t, cw, ch, overrides, nesting, &mut pool)
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_clip_pooled(
     project: &Project,
@@ -145,7 +132,7 @@ pub(super) fn resolve_clip_pooled(
         .as_ref()
         .filter(|l| l.intensity.sample(local_tick) > 0.0)
         .map(|l| SceneLut {
-            path: l.path.clone(),
+            path: pool.take_string_from(&l.path),
             intensity: l.intensity.sample(local_tick),
         });
     let chroma_key = clip.chroma_key.as_ref().map(|chroma| SceneChromaKey {
@@ -153,7 +140,7 @@ pub(super) fn resolve_clip_pooled(
         strength: chroma.strength.sample(local_tick),
         shadow: chroma.shadow.sample(local_tick),
     });
-    let masks = resolve_masks(&clip.masks, &clip.effects, local_tick, px);
+    let masks = resolve_masks(&clip.masks, &clip.effects, local_tick, px, pool);
     let styles_src = match overrides.styles {
         Some((id, s)) if id == clip.id => s,
         _ => &clip.styles,
@@ -265,6 +252,7 @@ pub(super) fn resolve_clip_pooled(
                         local_tick,
                         local_tick_f,
                         t.rate,
+                        pool,
                     );
                 }
                 layer
@@ -320,16 +308,29 @@ fn resolve_masks(
     effects: &[EffectInstance],
     tick: i64,
     px: f32,
+    pool: &mut super::sample::ResolvePool,
 ) -> Vec<SceneMask> {
-    masks
-        .iter()
-        .enumerate()
-        .filter(|(idx, _)| !effects.iter().any(|fx| fx.masks.contains(&(*idx as u32))))
-        .filter_map(|(_, mask)| resolve_mask(mask, tick, px))
-        .collect()
+    if masks.is_empty() {
+        return Vec::new();
+    }
+    let mut out = pool.take_masks();
+    for (idx, mask) in masks.iter().enumerate() {
+        if effects.iter().any(|fx| fx.masks.contains(&(idx as u32))) {
+            continue;
+        }
+        if let Some(resolved) = resolve_mask_pooled(mask, tick, px, pool) {
+            out.push(resolved);
+        }
+    }
+    out
 }
 
-pub(super) fn resolve_mask(mask: &aria_models::Mask, tick: i64, px: f32) -> Option<SceneMask> {
+pub(super) fn resolve_mask_pooled(
+    mask: &aria_models::Mask,
+    tick: i64,
+    px: f32,
+    pool: &mut super::sample::ResolvePool,
+) -> Option<SceneMask> {
     let op = match mask.mode {
         MaskMode::None => return None,
         MaskMode::Add => MaskOp::Add,
@@ -339,6 +340,18 @@ pub(super) fn resolve_mask(mask: &aria_models::Mask, tick: i64, px: f32) -> Opti
         MaskMode::Darken => MaskOp::Darken,
         MaskMode::Difference => MaskOp::Difference,
     };
+    let mut path = if mask.has_path() {
+        pool.take_path_points()
+    } else {
+        Vec::new()
+    };
+    mask.visit_path_at(tick as f64, |p| {
+        path.push(aria_shapes::PathPoint {
+            anchor: p.anchor,
+            handle_in: p.handle_in,
+            handle_out: p.handle_out,
+        });
+    });
     Some(SceneMask {
         kind: mask.kind,
         feather: mask.feather.sample(tick),
@@ -350,15 +363,7 @@ pub(super) fn resolve_mask(mask: &aria_models::Mask, tick: i64, px: f32) -> Opti
         rotation_rad: mask.rotation.sample(tick).to_radians(),
         roundness: mask.roundness.sample(tick),
         invert: mask.invert,
-        path: mask
-            .path_at(tick as f64)
-            .iter()
-            .map(|p| aria_shapes::PathPoint {
-                anchor: p.anchor,
-                handle_in: p.handle_in,
-                handle_out: p.handle_out,
-            })
-            .collect(),
+        path,
         path_closed: mask.path_closed,
     })
 }

@@ -126,7 +126,7 @@ entry. Both tables name a command declared in `[[commands]]`.
   [Enablement](../plugins/commands.md#enablement).
 - `key` is a chord such as `Ctrl+Alt+L` on a key Aria binds. `route` is
   `editor` (the default) or `home`. A chord another binding holds on the same
-  route is refused and listed under Settings > Keys, where the command can be
+  route is refused and listed under Settings > Keyboard Shortcuts, where the command can be
   given another chord.
 - `[[settings]]` fields are drawn in Settings in a section titled with the
   plugin's name. `type` is `text` (the default), `secret`, `toggle`, `number`

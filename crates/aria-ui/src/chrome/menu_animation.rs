@@ -74,19 +74,22 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         report(s, reversed)
     })
     .when(guards::keyframe_span)
-    .under(ASSISTANT),
+    .under(ASSISTANT)
+    .flyout_rule(),
     MenuItem::new("anim-add-expression", "Add Expression", |_, s, _| {
         let added = s.add_expression_to_selected_property();
         report(s, added)
     })
-    .when(guards::clip_property_row),
+    .when(guards::clip_property_row)
+    .rule(),
     MenuItem::new(
         "anim-reveal-keyed",
         "Reveal Properties with Keyframes",
         |_, s, _| s.reveal_properties(RevealAction::AnimatedOrModified, false),
     )
     .key("key-reveal-animated")
-    .when(guards::selection),
+    .when(guards::selection)
+    .rule(),
     MenuItem::new(
         "anim-reveal-modified",
         "Reveal Modified Properties",
@@ -96,7 +99,8 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
     MenuItem::new("anim-graph-editor", "Graph Editor", |_, s, _| {
         s.toggle_timeline_graph_editor()
     })
-    .key("key-graph-editor"),
+    .key("key-graph-editor")
+    .rule(),
 ];
 
 pub(super) fn animation_items(_state: &AppState) -> MenuItems {

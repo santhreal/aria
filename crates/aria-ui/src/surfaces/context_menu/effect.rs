@@ -68,6 +68,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
             Ok(())
         },
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-fx-duplicate",
         label: |_| "Duplicate",
@@ -118,6 +119,7 @@ pub const EFFECT_ITEMS: &[MenuItem<EffectMenu>] = &[
             Ok(())
         },
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-fx-remove",
         label: |_| "Remove Effect",

@@ -16,6 +16,7 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::captions::{CaptionCommit, THREAD_CHOICES};
+use crate::app::settings_form::SettingsSection;
 use crate::components;
 use crate::theme::Theme;
 
@@ -97,8 +98,9 @@ pub(crate) fn captions_panel(
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.open_settings_at("Transcription"));
+                        this.state.update(cx, |state, _| {
+                            state.open_settings_at(SettingsSection::Transcription)
+                        });
                         cx.notify();
                     }),
                 )

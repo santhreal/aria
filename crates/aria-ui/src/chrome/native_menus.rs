@@ -54,18 +54,29 @@ pub fn native_menus(state: &AppState) -> Vec<Menu> {
             .disabled(item.blocked_by(state).is_some())
             .checked(item.is_checked(state))
         };
-        let items: Vec<MenuItem> = super::menu_items::drop_entries(&rows)
-            .into_iter()
-            .map(|entry| match entry {
-                super::menu_items::DropEntry::Row(at) => native(&rows[at]),
+        let entries = super::menu_items::drop_entries(&rows);
+        let mut items: Vec<MenuItem> = Vec::with_capacity(entries.len() * 2);
+        for (index, entry) in entries.iter().enumerate() {
+            if index > 0 && entry.starts_group(&rows) {
+                items.push(MenuItem::separator());
+            }
+            items.push(match entry {
+                super::menu_items::DropEntry::Row(at) => native(&rows[*at]),
                 super::menu_items::DropEntry::Sub {
                     caption,
                     rows: held,
-                } => MenuItem::submenu(
-                    Menu::new(caption).items(held.iter().map(|at| native(&rows[*at]))),
-                ),
-            })
-            .collect();
+                } => {
+                    let mut flyout = Vec::with_capacity(held.len() * 2);
+                    for (child, at) in held.iter().enumerate() {
+                        if child > 0 && rows[*at].flyout_rule {
+                            flyout.push(MenuItem::separator());
+                        }
+                        flyout.push(native(&rows[*at]));
+                    }
+                    MenuItem::submenu(Menu::new(*caption).items(flyout))
+                }
+            });
+        }
         if items.is_empty() {
             continue;
         }

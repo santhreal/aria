@@ -290,12 +290,12 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 | Click a title with the Type tool | Place the caret at the nearest character boundary |
 | Drag across a title with the Type tool | Select characters |
 | Shift+click a title with the Type tool | Extend the selection to the click |
-| Drag a Settings > Keys row onto the keyboard image | Bind it to that key with the modifiers the image holds |
+| Drag a Settings > Keyboard Shortcuts row onto the keyboard image | Bind it to that key with the modifiers the image holds |
 | Click Ctrl, Shift or Alt on the keyboard image | Show the chords with that modifier held |
 
 ## Rebinding
 
-Settings > Keys lists every binding the registry holds, with the chord it
+Settings > Keyboard Shortcuts lists every binding the registry holds, with the chord it
 answers to now. Click a row and press the key you want; Esc cancels. A chord
 another binding on the same surface already answers asks before it moves: the
 row names the holder and offers Move and Keep. Enter moves the chord and leaves

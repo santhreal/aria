@@ -21,14 +21,16 @@ static HELP_ITEMS: &[MenuItem] = &[
     }),
     MenuItem::new("help-data", "Open Data Folder", |_, s, _| {
         crate::app::recents::reveal_in_folder(&s.data_dir)
-    }),
+    })
+    .rule(),
     MenuItem::new("help-updates", "Check for Updates", |_, s, cx| {
         s.check_for_updates(cx)
     }),
     MenuItem::new("help-about", "About", |_, s, _| {
         s.open_dialog(DialogKind::About)
     })
-    .checked(|_, s| s.dialog == DialogKind::About),
+    .checked(|_, s| s.dialog == DialogKind::About)
+    .rule(),
 ];
 
 /// The plugin developer guide, in the source repository of this build.

@@ -70,7 +70,8 @@ impl<F> MenuRow<F> {
     }
 }
 
-/// One entry in a menu: a command row, or a block the panel owns.
+/// One entry in a menu: a command row, a block the panel owns, or the rule
+/// between two groups of rows.
 #[derive(Debug)]
 pub enum MenuItem<F> {
     /// A row that acts on the project or the session. The census presses these.
@@ -92,6 +93,10 @@ pub enum MenuItem<F> {
     /// checked. Generated from the clip like [`MenuItem::Blends`]; what each row
     /// asks for is [`draw_property`].
     Properties,
+    /// A rule between the entries above it and the entries below it. Drawn only
+    /// where both sides draw something, so a group whose rows are all withheld
+    /// leaves no rule at the menu's edge and no two rules in a row.
+    Rule,
 }
 
 impl<F> MenuItem<F> {
@@ -99,7 +104,7 @@ impl<F> MenuItem<F> {
     pub fn row(&self) -> Option<&MenuRow<F>> {
         match self {
             Self::Row(row) | Self::Outside(row) => Some(row),
-            Self::Labels | Self::Blends | Self::Properties => None,
+            Self::Labels | Self::Blends | Self::Properties | Self::Rule => None,
         }
     }
 }

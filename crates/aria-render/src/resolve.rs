@@ -49,11 +49,11 @@ mod shape;
 
 use canvas::timeline_canvas;
 pub use canvas::{canvas_size, canvas_size_of, derived_canvas_size, derived_canvas_size_of};
-use clip::{resolve_clip, resolve_clip_pooled};
+use clip::resolve_clip_pooled;
 #[cfg(test)]
 use generator::map_text_style;
 pub(crate) use generator::{resolve_generator, resolve_generator_pooled};
-use matte::{MatteRequest, fold_mattes, matte_request};
+use matte::{fold_mattes_into, matte_request};
 use nest::Nesting;
 use sample::{
     crop_flip_uv, fit_scale, resolve_effects_pooled, resolve_styles, sample_text_animation,
@@ -348,7 +348,8 @@ fn resolve_timeline_into<'p>(
     let cw = width as f32;
     let ch = height as f32;
 
-    let mut requests: Vec<Option<MatteRequest>> = Vec::new();
+    let mut requests = std::mem::take(&mut pool.matte_requests);
+    requests.clear();
     let mut drivers = DriverFrame::in_timeline(project, timeline);
     for track in timeline.tracks_ordered() {
         if !overrides.resolves(timeline, track) {
@@ -375,9 +376,11 @@ fn resolve_timeline_into<'p>(
         }
     }
     if !requests.is_empty() {
-        scene.layers = fold_mattes(std::mem::take(&mut scene.layers), requests, cw, ch);
+        fold_mattes_into(&mut scene.layers, &mut requests, cw, ch, pool);
     }
-    scene.references = reference::resolve_references(
+    requests.clear();
+    pool.matte_requests = requests;
+    reference::resolve_references(
         project,
         timeline,
         &scene.layers,
@@ -386,6 +389,8 @@ fn resolve_timeline_into<'p>(
         overrides,
         nesting,
         &mut drivers,
+        &mut scene.references,
+        pool,
     )?;
 
     Ok(())
@@ -461,22 +466,32 @@ fn resolve_track_at<'p>(
             if outgoing.source.is_canvas_pass() || incoming.source.is_canvas_pass() {
                 break;
             }
-            let outgoing = Box::new(outgoing);
-            let incoming = Box::new(incoming);
-            let transition_params = transition.sample_flattened_floats().unwrap_or_default();
+            let outgoing = pool.box_layer(outgoing);
+            let incoming = pool.box_layer(incoming);
+            let mut transition_params = pool.take_params();
+            if transition
+                .sample_flattened_floats_into(&mut transition_params)
+                .is_err()
+            {
+                transition_params.clear();
+            }
             let effects = if transition_params.is_empty() {
+                pool.recycle_params(transition_params);
                 Vec::new()
             } else {
                 let id = aria_compositor::pass_id(&transition.transition_id)
                     .unwrap_or_else(|| aria_compositor::PassId::from("crossfade"));
-                vec![ResolvedPass::new(id, transition_params)]
+                let mut effects = pool.take_effects();
+                effects.push(ResolvedPass::new(id, transition_params));
+                effects
             };
+            let transition_id = pool.take_string_from(&transition.transition_id);
             return Ok(Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Transition {
                     outgoing,
                     incoming,
-                    transition_id: transition.transition_id.clone(),
+                    transition_id,
                     progress,
                 },
                 center: [cw * 0.5, ch * 0.5],

@@ -107,6 +107,12 @@ impl Drop for ResetGuard {
     }
 }
 
+/// Current tracked allocation count on the active measurement thread.
+#[inline]
+pub fn current_thread_alloc_count() -> u64 {
+    TRACKED_ALLOC_COUNT.load(Ordering::Relaxed)
+}
+
 /// Measure heap allocations performed on the calling thread while `work` runs.
 ///
 /// With `ARIA_BENCH_ALLOC_SITES=N` the call stacks of the first `N` counted

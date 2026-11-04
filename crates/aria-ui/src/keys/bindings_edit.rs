@@ -6,11 +6,11 @@
 
 use super::bind;
 use super::binding_actions::{
-    clear_selected, gain, new_project, open_settings, redo, ripple_delete, trim_edges, zoom_in,
-    zoom_out,
+    clear_selected, gain, new_project, redo, ripple_delete, trim_edges, zoom_in, zoom_out,
 };
 use super::{Binding, Chord};
 use crate::app::DialogKind;
+use crate::app::settings_form::SettingsSection;
 
 /// Transport, marking, editing, timeline view, and the application chords.
 pub(super) const EDIT_ROWS: &[Binding] = &[
@@ -377,9 +377,10 @@ pub(super) const EDIT_ROWS: &[Binding] = &[
         "key-keyboard-shortcuts",
         Chord::ctrl_alt("k"),
         Editor,
-        |state| state.open_keyboard_shortcuts()
+        |state| state.open_settings_at(SettingsSection::KeyboardShortcuts)
     ),
-    bind!("key-settings", Chord::ctrl(","), Editor, open_settings),
+    bind!("key-settings", Chord::ctrl(","), Editor, |state| state
+        .open_settings()),
     bind!("key-quit", Chord::ctrl("q"), Editor, |state| state
         .request_quit()),
 ];

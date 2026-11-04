@@ -6,6 +6,7 @@
 
 use std::borrow::Cow;
 
+use crate::app::settings_form::SettingsSection;
 use crate::app::{AppState, DialogKind};
 
 use super::menu_items::{MenuItem, MenuItems, report};
@@ -29,7 +30,9 @@ static FILE_OPEN: &[MenuItem] = &[
         crate::commands::reach::new_sequence(s)
     })
     .key("key-new-sequence"),
-    MenuItem::new("file-open", "Open…", |_, s, _| s.request_pick_project()).key("key-open"),
+    MenuItem::new("file-open", "Open…", |_, s, _| s.request_pick_project())
+        .key("key-open")
+        .rule(),
     MenuItem::new("file-use-template", "Use Template…", |_, s, _| {
         s.pick_and_apply_template()
     }),
@@ -39,8 +42,11 @@ static FILE_SAVE: &[MenuItem] = &[
     MenuItem::new("file-home", "All Recent Projects…", |_, s, _| {
         s.request_go_home()
     })
-    .under(OPEN_RECENT),
-    MenuItem::new("file-close", "Close", |_, s, _| s.close_project()).key("key-close"),
+    .under(OPEN_RECENT)
+    .flyout_rule(),
+    MenuItem::new("file-close", "Close", |_, s, _| s.close_project())
+        .key("key-close")
+        .rule(),
     MenuItem::new("file-rename", "Rename Project…", |_, s, _| {
         s.begin_rename(crate::types::RenameTarget::Project)
     }),
@@ -48,7 +54,8 @@ static FILE_SAVE: &[MenuItem] = &[
         let saved = s.save_project();
         report(s, saved)
     })
-    .key("key-save"),
+    .key("key-save")
+    .rule(),
     MenuItem::new("file-save-as", "Save As…", |_, s, _| s.save_project_as()).key("key-save-as"),
     MenuItem::new("file-save-copy", "Save a Copy…", |_, s, _| {
         s.save_project_copy()
@@ -59,7 +66,9 @@ static FILE_SAVE: &[MenuItem] = &[
     }),
     MenuItem::new("file-revert", "Revert", |_, s, _| s.revert_project())
         .when(super::menu_guards::revertible),
-    MenuItem::new("file-import", "Import…", |_, s, _| s.pick_and_import()).key("key-import"),
+    MenuItem::new("file-import", "Import…", |_, s, _| s.pick_and_import())
+        .key("key-import")
+        .rule(),
 ];
 
 static FILE_IMPORT_CLEAR: MenuItem = MenuItem::new(
@@ -68,7 +77,8 @@ static FILE_IMPORT_CLEAR: MenuItem = MenuItem::new(
     |_, s, _| s.clear_import_recents(),
 )
 .when(super::menu_guards::import_recents)
-.under(IMPORT_RECENT);
+.under(IMPORT_RECENT)
+.flyout_rule();
 
 static FILE_IMPORT: &[MenuItem] = &[
     MenuItem::new("file-import-timeline", "Import Timeline…", |_, s, _| {
@@ -79,7 +89,8 @@ static FILE_IMPORT: &[MenuItem] = &[
         s.open_dialog(DialogKind::Export)
     })
     .key("key-export")
-    .under(EXPORT),
+    .under(EXPORT)
+    .rule(),
     MenuItem::new("file-export-frame", "Frame…", |_, s, _| {
         s.pick_and_export_frame()
     })
@@ -92,14 +103,18 @@ static FILE_CLOSE: &[MenuItem] = &[
         s.pick_and_export_timeline()
     })
     .when(super::menu_guards::exporters)
-    .under(EXPORT),
+    .under(EXPORT)
+    .flyout_rule(),
     MenuItem::new("file-install-plugin", "Install Plugin…", |_, s, _| {
         s.pick_plugin_archive()
-    }),
+    })
+    .rule(),
     MenuItem::new("file-project-settings", "Project Settings…", |_, s, _| {
-        s.open_settings_at("Canvas")
+        s.open_settings_at(SettingsSection::Canvas)
     }),
-    MenuItem::new("file-quit", "Quit", |_, s, _| s.request_quit()).key("key-quit"),
+    MenuItem::new("file-quit", "Quit", |_, s, _| s.request_quit())
+        .key("key-quit")
+        .rule(),
 ];
 
 pub(super) fn file_items(state: &AppState) -> MenuItems {
@@ -157,20 +172,19 @@ pub(super) fn file_items(state: &AppState) -> MenuItems {
     items.push(FILE_IMPORT_CLEAR);
     items.extend_from_slice(FILE_IMPORT);
     // One row per mounted timeline exporter, each asking for a file of its own
-    // format only.
-    for exporter in &exporters {
-        items.push(
-            MenuItem::new(
-                crate::interned::intern(&format!("{EXPORT_PREFIX}{}", exporter.id)),
-                crate::interned::intern(&format!("{}…", exporter.name)),
-                |id, s, _| {
-                    if let Some(exporter) = id.strip_prefix(EXPORT_PREFIX) {
-                        s.pick_and_export_timeline_as(exporter);
-                    }
-                },
-            )
-            .under(EXPORT),
-        );
+    // format only. The exporters are a group of the Export flyout.
+    for (index, exporter) in exporters.iter().enumerate() {
+        let row = MenuItem::new(
+            crate::interned::intern(&format!("{EXPORT_PREFIX}{}", exporter.id)),
+            crate::interned::intern(&format!("{}…", exporter.name)),
+            |id, s, _| {
+                if let Some(exporter) = id.strip_prefix(EXPORT_PREFIX) {
+                    s.pick_and_export_timeline_as(exporter);
+                }
+            },
+        )
+        .under(EXPORT);
+        items.push(if index == 0 { row.flyout_rule() } else { row });
     }
     items.extend_from_slice(FILE_CLOSE);
     Cow::Owned(items)

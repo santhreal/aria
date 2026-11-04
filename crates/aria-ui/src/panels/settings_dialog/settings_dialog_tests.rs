@@ -1,12 +1,25 @@
 //! Settings dialog UI and integration tests.
 
-use crate::app::AppState;
-use crate::app::settings_form::{SettingsField, format_agent_capabilities};
+use crate::app::settings_form::{SettingsField, SettingsSection, format_agent_capabilities};
+use crate::app::{AppState, DialogKind};
 use aria_plugin::PluginContext;
 
 fn make_state() -> AppState {
     let ctx = PluginContext::new();
     let dir = crate::scratch_pool::scratch("settings-dialog-test");
+    AppState::new(ctx, dir).expect("state")
+}
+
+/// A state with the key bindings and the plugin settings registry mounted.
+fn mounted_state() -> AppState {
+    let dir = crate::scratch_pool::scratch("settings-dialog-sections");
+    let ctx = PluginContext::new();
+    ctx.mount(&crate::plugins::SettingsPlugin {
+        path: dir.join("settings.toml"),
+    })
+    .expect("the settings plugin mounts");
+    ctx.mount(&crate::plugins::UiPlugin)
+        .expect("the ui plugin needs nothing");
     AppState::new(ctx, dir).expect("state")
 }
 
@@ -16,21 +29,144 @@ fn filter_subsets_settings_sections() {
 
     // Empty filter matches all sections
     state.settings_form.filter.clear();
-    assert!(state.settings_section_visible("Appearance"));
-    assert!(state.settings_section_visible("Storage"));
-    assert!(state.settings_section_visible("Plugins"));
-    assert!(state.settings_section_visible("Keys"));
+    assert!(
+        SettingsSection::ALL
+            .iter()
+            .all(|section| state.settings_section_visible(section.title()))
+    );
 
-    // Exact or substring filter
+    // A filter that is part of a title shows each section containing it.
     state.settings_form.filter = "stor".into();
     assert!(state.settings_section_visible("Storage"));
     assert!(!state.settings_section_visible("Appearance"));
-    assert!(!state.settings_section_visible("Keys"));
+    let keys = SettingsSection::ProviderKeys.title();
+    let shortcuts = SettingsSection::KeyboardShortcuts.title();
+    state.settings_form.filter = "key".into();
+    assert!(state.settings_section_visible(keys));
+    assert!(state.settings_section_visible(shortcuts));
 
     // Case-insensitive filtering
-    state.settings_form.filter = "KEYS".into();
-    assert!(state.settings_section_visible("Keys"));
-    assert!(!state.settings_section_visible("Storage"));
+    state.settings_form.filter = "SHORTCUT".into();
+    assert!(state.settings_section_visible(shortcuts));
+    assert!(!state.settings_section_visible(keys));
+}
+
+/// What Settings shows under its current filter: the titles of the sections
+/// it shows, shipped then declared, and how many key bindings it lists.
+fn shown(
+    state: &AppState,
+    declared: &[std::sync::Arc<aria_plugin::SettingsSection>],
+) -> (Vec<String>, usize) {
+    let titles = SettingsSection::ALL
+        .iter()
+        .map(|section| section.title())
+        .chain(declared.iter().map(|section| section.title.as_str()))
+        .filter(|title| state.settings_section_visible(title))
+        .map(str::to_owned)
+        .collect();
+    let listed = state
+        .listed_binding_rows()
+        .map_or(0, |listing| listing.rows.len());
+    (titles, listed)
+}
+
+/// Run the shipped binding `id` against the state.
+fn run_binding(state: &mut AppState, id: &str) {
+    let binding = crate::keys::bindings::SHIPPED_BINDINGS
+        .iter()
+        .find(|binding| binding.id == id)
+        .unwrap_or_else(|| panic!("{id} is a shipped binding"));
+    let crate::keys::KeyBody::Plain(run) = binding.run else {
+        panic!("{id} runs against the state alone");
+    };
+    run(state);
+}
+
+/// WHY: Edit > Keyboard Shortcuts opened Settings under the filter `Keys`,
+/// which the title Provider keys contains too, so the item opened two
+/// sections where its name promises one, and Ctrl+, after it kept that
+/// filter. Every opener now passes a `SettingsSection`, a filter that is a
+/// shipped section's whole title shows that section alone, and Preferences
+/// clears the filter.
+///
+/// Opens each section of `SettingsSection::ALL` and reads every title the
+/// dialog shows: the shipped ones, a plugin section whose title contains the
+/// opened one, and the key bindings, which list only under Keyboard
+/// Shortcuts. Then presses Ctrl+Alt+K and Ctrl+, through their bindings. Not
+/// covered: the drawn dialog, which tests the same predicate for each
+/// section it draws, and the menu rows, which call the same opener.
+#[test]
+fn opening_a_section_shows_that_section_alone() {
+    let mut state = mounted_state();
+    let _lookalikes: Vec<aria_plugin::Registration> = SettingsSection::ALL
+        .iter()
+        .enumerate()
+        .map(|(ix, section)| {
+            state
+                .ctx
+                .register_settings(aria_plugin::SettingsSection {
+                    plugin: format!("example.lookalike{ix}"),
+                    title: format!("{} extras", section.title()),
+                    fields: Vec::new(),
+                })
+                .expect("the section registers")
+        })
+        .collect();
+    let declared = state.plugin_settings_sections();
+    for section in SettingsSection::ALL {
+        let lookalike = format!("{} extras", section.title());
+        assert!(
+            declared.iter().any(|held| held.title == lookalike),
+            "{lookalike} was not declared"
+        );
+    }
+    let total = state.binding_rows().len();
+    assert!(total > 0, "no key binding is mounted");
+    let alone = |section: SettingsSection| {
+        let listed = if section == SettingsSection::KeyboardShortcuts {
+            total
+        } else {
+            0
+        };
+        (vec![section.title().to_owned()], listed)
+    };
+
+    for opened in SettingsSection::ALL {
+        state.open_settings_at(opened);
+        assert_eq!(state.dialog, DialogKind::Settings);
+        assert_eq!(
+            shown(&state, &declared),
+            alone(opened),
+            "{} opened",
+            opened.title()
+        );
+        state.settings_form.filter = opened.title().to_lowercase();
+        assert_eq!(
+            shown(&state, &declared),
+            alone(opened),
+            "under the filter {:?}",
+            state.settings_form.filter
+        );
+    }
+
+    run_binding(&mut state, "key-keyboard-shortcuts");
+    assert_eq!(state.dialog, DialogKind::Settings);
+    assert_eq!(
+        shown(&state, &declared),
+        alone(SettingsSection::KeyboardShortcuts),
+        "Ctrl+Alt+K opened"
+    );
+    run_binding(&mut state, "key-settings");
+    let every: Vec<String> = SettingsSection::ALL
+        .iter()
+        .map(|section| section.title().to_owned())
+        .chain(declared.iter().map(|section| section.title.clone()))
+        .collect();
+    assert_eq!(
+        shown(&state, &declared),
+        (every, total),
+        "Ctrl+, after Ctrl+Alt+K opened"
+    );
 }
 
 #[test]

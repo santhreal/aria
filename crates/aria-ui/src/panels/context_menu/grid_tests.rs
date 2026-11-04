@@ -60,7 +60,12 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
             })
         });
         visual.run_until_parked();
-        let rows = visual.read(|app| rows_of(state.read(app), &target));
+        let rows: Vec<(String, bool)> = visual.read(|app| {
+            rows_of(state.read(app), &target)
+                .into_iter()
+                .filter_map(|entry| Some((entry.caption?, entry.checked)))
+                .collect()
+        });
         assert!(!rows.is_empty(), "the menu on {target:?} offers no rows");
         let card = visual
             .debug_bounds("context-menu-card")
@@ -223,11 +228,23 @@ pub(super) fn dress(state: &mut AppState) -> Vec<ContextTarget> {
     ]
 }
 
-/// The rows the menu on `target` draws, top to bottom: each caption, and
-/// whether it is checked.
-fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<(String, bool)> {
+/// One thing a menu draws, in the order its table lists it: a text row, or
+/// the label swatch block, and the group it stands in, counted in the
+/// [`MenuItem::Rule`] entries the table lists before it.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct Entry {
+    /// The row's caption, or `None` for the label swatch block.
+    pub(super) caption: Option<String>,
+    pub(super) checked: bool,
+    pub(super) group: usize,
+}
+
+/// What the menu on `target` draws, top to bottom.
+pub(super) fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<Entry> {
     match target {
-        ContextTarget::Clip { clip, .. } => table(CLIP_ITEMS, &ClipMenu::of(state, *clip), &[]),
+        ContextTarget::Clip { clip, .. } => {
+            table(CLIP_ITEMS, &ClipMenu::of(state, *clip), &[], true)
+        }
         ContextTarget::Transition { clip } => {
             let junction = aria_models::ClipId::from_raw(*clip);
             assert!(
@@ -245,12 +262,18 @@ fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<(String, bool)> {
                     applied.as_deref() == Some(&*spec.id),
                 ));
             }
-            table(TRANSITION_ITEMS, &ClipMenu::of(state, *clip), &blends)
+            table(
+                TRANSITION_ITEMS,
+                &ClipMenu::of(state, *clip),
+                &blends,
+                false,
+            )
         }
         ContextTarget::Track { track } => table(
             TRACK_ITEMS,
             &TrackMenu::of(state, *track).expect("the lane is projected"),
             &[],
+            false,
         ),
         ContextTarget::ClipBadge { clip, .. } => {
             let badge = BadgeMenu::of(state, *clip).expect("the clip is projected");
@@ -264,45 +287,73 @@ fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<(String, bool)> {
                     )
                 })
                 .collect();
-            table(BADGE_ITEMS, &badge, &properties)
+            table(BADGE_ITEMS, &badge, &properties, false)
         }
-        ContextTarget::Effect { clip, index } => {
-            table(EFFECT_ITEMS, &EffectMenu::of(state, *clip, *index), &[])
+        ContextTarget::Effect { clip, index } => table(
+            EFFECT_ITEMS,
+            &EffectMenu::of(state, *clip, *index),
+            &[],
+            false,
+        ),
+        ContextTarget::PoolItem { media } => {
+            table(POOL_ITEMS, &PoolMenu::of(state, *media), &[], true)
         }
-        ContextTarget::PoolItem { media } => table(POOL_ITEMS, &PoolMenu::of(state, *media), &[]),
-        ContextTarget::Preview => table(PREVIEW_ITEMS, &(), &[]),
-        ContextTarget::Recent { path } => table(RECENT_ITEMS, path, &[]),
+        ContextTarget::Preview => table(PREVIEW_ITEMS, &(), &[], false),
+        ContextTarget::Recent { path } => table(RECENT_ITEMS, path, &[], false),
         ContextTarget::Keyframe { clip, param, tick } => table(
             KEYFRAME_ITEMS,
             &KeyframeMenu::of(state, *clip, *param, *tick).expect("the property row draws it"),
             &[],
+            false,
         ),
         ContextTarget::MaskPathKey { clip, mask, tick } => table(
             MASK_PATH_KEY_ITEMS,
             &MaskPathKeyMenu::of(state, *clip, *mask, *tick).expect("the Path row draws it"),
             &[],
+            false,
         ),
     }
 }
 
-/// The rows `items` draws against `facts`, with `block` standing where the
-/// table places its generated blend or property rows.
+/// What `items` draws against `facts`, with `block` standing where the table
+/// places its generated blend or property rows, and the label swatch block
+/// where the table places it when `labels`, as the clip and pool menus draw it.
 fn table<F>(
     items: &'static [MenuItem<F>],
     facts: &F,
     block: &[(String, bool)],
-) -> Vec<(String, bool)> {
-    let mut rows = Vec::new();
+    labels: bool,
+) -> Vec<Entry> {
+    let mut entries = Vec::new();
+    let mut group = 0;
+    let row = |caption: &str, checked: bool, group: usize| Entry {
+        caption: Some(caption.to_owned()),
+        checked,
+        group,
+    };
     for entry in items {
         match entry {
-            MenuItem::Row(row) | MenuItem::Outside(row) => {
-                if (row.when)(facts) {
-                    rows.push(((row.label)(facts).to_owned(), row.is_checked(facts)));
+            MenuItem::Row(item) | MenuItem::Outside(item) => {
+                if (item.when)(facts) {
+                    entries.push(row((item.label)(facts), item.is_checked(facts), group));
                 }
             }
-            MenuItem::Labels => {}
-            MenuItem::Blends | MenuItem::Properties => rows.extend_from_slice(block),
+            MenuItem::Labels => {
+                if labels {
+                    entries.push(Entry {
+                        caption: None,
+                        checked: false,
+                        group,
+                    });
+                }
+            }
+            MenuItem::Blends | MenuItem::Properties => entries.extend(
+                block
+                    .iter()
+                    .map(|(caption, checked)| row(caption, *checked, group)),
+            ),
+            MenuItem::Rule => group += 1,
         }
     }
-    rows
+    entries
 }

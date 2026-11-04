@@ -207,7 +207,12 @@ another panel.
 ## Finding a setting
 
 The box at the top of Settings filters the sections by name. It narrows as you type,
-Escape clears it, and it is never written to the config file.
+Escape clears it, and it is never written to the config file. A built-in section's
+whole title, such as `Canvas` or `Keyboard Shortcuts`, shows that section alone; any
+other text shows each section whose title contains it and lists the key bindings
+whose name or chord contains it. **Edit > Keyboard Shortcuts…** (Ctrl+Alt+K)
+opens Settings with that section's title in the box, and **Edit > Preferences…**
+(Ctrl+,) opens it with the box empty.
 
 In the Appearance section, **System**, **Light**, and **Dark** choose the
 appearance, **Accent** chooses the family used for the accent, the playhead,
@@ -295,8 +300,8 @@ On load, documents at schema versions `1` and `2` migrate step by step (`v1 -> v
 
 Configure project canvas settings, measure and clear a storage cache, and save a custom workspace arrangement:
 
-1. Choose **File > Project Settings…** or **Sequence > Sequence Settings…** (or press <kbd>Ctrl+,</kbd> (`key-settings`) / choose **Edit > Preferences…**). The Settings dialog opens on the **Canvas** section.
-2. Pick an aspect ratio and frame rate for the open sequence, then switch to the **Caches** section and click [`caches-measure`](../reference/controls.md#settings) to compute disk usage across all cache directories. Each cache row fills in its measured byte size and file count.
+1. Press <kbd>Ctrl+,</kbd> (`key-settings`) or choose **Edit > Preferences…**. Settings opens with the box empty and lists every section, **Canvas** among them while a project is open. **File > Project Settings…** and **Sequence > Sequence Settings…** open it with `Canvas` in the box, which shows that section alone; Escape clears the box.
+2. Pick an aspect ratio and frame rate for the open sequence, then scroll to the **Caches** section and click [`caches-measure`](../reference/controls.md#settings) to compute disk usage across all cache directories. Each cache row fills in its measured byte size and file count.
 3. Click [`cache-clear`](../reference/controls.md#settings) on an unpinned cache row (or click [`storage-clear`](../reference/controls.md#settings) in the **Storage** section and adjust the download quota with [`quota-dec`](../reference/controls.md#settings) or [`quota-inc`](../reference/controls.md#settings)), then click [`settings-done`](../reference/controls.md#settings) to close Settings. The status line reports the reclaimed bytes.
 4. Drag panel tabs or splitters to arrange the dock layout, then choose **Window > Workspaces > Save Workspace** (or click [`settings-workspace-save`](../reference/controls.md#settings) in the **Workspaces** section of Settings). Aria writes the layout to `<data dir>/workspaces/` and enables the **Custom** workspace slot; choosing **Window > Workspaces > Reset to Saved Layout** restores the saved arrangement at any time.
 

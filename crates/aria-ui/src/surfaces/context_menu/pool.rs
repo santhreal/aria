@@ -50,6 +50,7 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
         checked: None,
         run: |state, pool| state.remove_media(MediaId::from_raw(pool.media)),
     }),
+    MenuItem::Rule,
     // Which way the substitution can move, named on the row: the substitution is
     // invisible on the pool item itself, so a row that read the same in both
     // states would say nothing about which is true.
@@ -78,5 +79,6 @@ pub const POOL_ITEMS: &[MenuItem<PoolMenu>] = &[
             Ok(())
         },
     }),
+    MenuItem::Rule,
     MenuItem::Labels,
 ];

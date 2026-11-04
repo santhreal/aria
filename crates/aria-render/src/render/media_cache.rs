@@ -306,8 +306,8 @@ impl Renderer {
     /// remembered and logged once, not re-probed per frame.
     pub(super) fn ensure_lottie_frame(&mut self, path: &str, local_time: f64) -> Option<usize> {
         let stamp = self.scene_stamp;
-        let state = self.lottie.entry(path.to_owned()).or_insert_with(|| {
-            match aria_decoder::LottieAnimation::load(std::path::Path::new(path)) {
+        if !self.lottie.contains_key(path) {
+            let loaded = match aria_decoder::LottieAnimation::load(std::path::Path::new(path)) {
                 Ok(animation) => LottieState::Loaded(Box::new(LottiePlayer {
                     animation,
                     frames: HashMap::new(),
@@ -316,8 +316,10 @@ impl Renderer {
                     tracing::warn!("lottie '{path}' failed to load: {e}");
                     LottieState::Failed
                 }
-            }
-        });
+            };
+            self.lottie.insert(path.to_owned(), loaded);
+        }
+        let state = self.lottie.get_mut(path).expect("lottie entry inserted");
         let LottieState::Loaded(player) = state else {
             return None;
         };
@@ -343,14 +345,21 @@ impl Renderer {
     }
 
     /// Return a scene LUT only after its background load has completed.
-    pub(super) fn resolve_scene_lut(&mut self, lut: &Option<SceneLut>) -> Option<SceneLut> {
+    pub(super) fn resolve_scene_lut(
+        &mut self,
+        lut: &Option<SceneLut>,
+        scratch: &mut super::realize::RealizeScratch,
+    ) -> Option<SceneLut> {
         let lut = lut.as_ref()?;
         queue_cube_lut(&mut self.luts, &lut.path);
         self.luts
             .get_mut(&lut.path)
             .expect("queued LUT state exists")
             .finish_loading()
-            .then(|| lut.clone())
+            .then(|| SceneLut {
+                path: scratch.take_string_from(&lut.path),
+                intensity: lut.intensity,
+            })
     }
 }
 

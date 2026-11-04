@@ -54,7 +54,7 @@ and `Option` as `Alt`. The key name must be in
 The binding is placed while the command is registered. A chord that a shipped
 binding or an earlier plugin already registered on the same route is rejected:
 the first binding keeps the chord, so a plugin cannot take Ctrl+S away from
-saving. A rejected key is listed in **Settings > Keys** with no chord, under
+saving. A rejected key is listed in **Settings > Keyboard Shortcuts** with no chord, under
 the conflicts, and can be bound there like any other row. A rebinding persists
 across remounts.
 

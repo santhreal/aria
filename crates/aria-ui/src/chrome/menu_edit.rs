@@ -9,10 +9,11 @@ use std::borrow::Cow;
 use aria_models::LabelColor;
 
 use crate::app::AppState;
+use crate::app::settings_form::SettingsSection;
 
 use super::menu_items::{MenuItem, MenuItems, report};
 
-/// The id prefix of an Edit > Label row. The rest of the id is the colour's
+/// The id prefix of an Edit > Label row. The rest of the id is the color's
 /// name in lowercase, or `none`.
 const LABEL_PREFIX: &str = "edit-label-";
 
@@ -32,7 +33,8 @@ static EDIT_ITEMS: &[MenuItem] = &[
         report(s, cut)
     })
     .key("key-cut")
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("edit-copy", "Copy", |_, s, _| s.copy_selected())
         .key("key-copy")
         .when(super::menu_guards::selection),
@@ -70,7 +72,8 @@ static EDIT_ITEMS: &[MenuItem] = &[
         report(s, cleared)
     })
     .key("key-delete")
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("edit-ripple", "Ripple Delete", |_, s, _| {
         let deleted = s.ripple_delete_selected();
         report(s, deleted)
@@ -86,29 +89,33 @@ static EDIT_ITEMS: &[MenuItem] = &[
     MenuItem::new("edit-select-all", "Select All", |_, s, _| {
         s.select_all_unlocked()
     })
-    .key("key-select-all"),
+    .key("key-select-all")
+    .rule(),
     MenuItem::new("edit-deselect", "Deselect All", |_, s, _| {
         s.clear_selection()
     })
     .key("key-deselect-all")
     .when(super::menu_guards::selection),
-    MenuItem::new("edit-find", "Find…", |_, s, _| s.find_in_project()).key("key-find"),
+    MenuItem::new("edit-find", "Find…", |_, s, _| s.find_in_project())
+        .key("key-find")
+        .rule(),
 ];
 
 static EDIT_TAIL: &[MenuItem] = &[
     MenuItem::new(
         "edit-keyboard-shortcuts",
         "Keyboard Shortcuts…",
-        |_, s, _| s.open_keyboard_shortcuts(),
+        |_, s, _| s.open_settings_at(SettingsSection::KeyboardShortcuts),
     )
-    .key("key-keyboard-shortcuts"),
+    .key("key-keyboard-shortcuts")
+    .rule(),
     MenuItem::new("edit-preferences", "Preferences…", |_, s, _| {
-        s.open_settings_at("")
+        s.open_settings()
     })
     .key("key-settings"),
 ];
 
-/// The Label row for `color`, or for no colour.
+/// The Label row for `color`, or for no color.
 fn label_row(color: Option<LabelColor>) -> MenuItem {
     let (id, name) = match color {
         Some(color) => (
@@ -142,12 +149,17 @@ static EDIT_MENU: std::sync::LazyLock<Vec<MenuItem>> = std::sync::LazyLock::new(
     let mut items =
         Vec::with_capacity(EDIT_ITEMS.len() + LabelColor::ALL.len() + 1 + EDIT_TAIL.len());
     items.extend_from_slice(EDIT_ITEMS);
+    // The Label submenu is a group of the drop; None is a group of its flyout.
     items.extend(
         LabelColor::ALL
             .into_iter()
-            .map(|color| label_row(Some(color))),
+            .enumerate()
+            .map(|(index, color)| {
+                let row = label_row(Some(color));
+                if index == 0 { row.rule() } else { row }
+            }),
     );
-    items.push(label_row(None));
+    items.push(label_row(None).flyout_rule());
     items.extend_from_slice(EDIT_TAIL);
     items
 });

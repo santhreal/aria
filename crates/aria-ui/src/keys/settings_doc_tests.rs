@@ -16,7 +16,7 @@ use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary, ThemeCh
 use crate::app::models::TimeoutField;
 use crate::app::plugin_install::WasmLimit;
 use crate::app::project_settings::CANVAS_BASELINES;
-use crate::app::settings_form::SettingsField;
+use crate::app::settings_form::{SettingsField, SettingsSection};
 use crate::appearance::AppearanceMode;
 use crate::cloud::BYOK_PROVIDERS;
 use crate::motion::MotionPreference;
@@ -737,6 +737,49 @@ fn settings_doc_matches_registries() {
     assert_eq!(
         documented_wasm_limits, expected_wasm_limits,
         "docs/reference/settings.md WasmLimit table drifted from WasmLimit::ALL"
+    );
+
+    // Settings dialog sections (`SettingsSection::ALL`).
+    let expected_sections: Vec<(String, String)> = SettingsSection::ALL
+        .iter()
+        .map(|&s| {
+            match s {
+                SettingsSection::Appearance
+                | SettingsSection::Playback
+                | SettingsSection::Timeline
+                | SettingsSection::Ai
+                | SettingsSection::ProviderKeys
+                | SettingsSection::Storage
+                | SettingsSection::Caches
+                | SettingsSection::Transcription
+                | SettingsSection::Cloud
+                | SettingsSection::Plugins
+                | SettingsSection::KeyboardShortcuts
+                | SettingsSection::Workspaces
+                | SettingsSection::Catalogs
+                | SettingsSection::Configuration
+                | SettingsSection::Application
+                | SettingsSection::Canvas => {}
+            }
+            (format!("{s:?}"), s.title().to_string())
+        })
+        .collect();
+    let documented_sections: Vec<(String, String)> = parse_table_rows(section_slice(
+        SETTINGS_DOC,
+        "Settings dialog sections (`SettingsSection::ALL`)",
+    ))
+    .iter()
+    .map(|cells| {
+        assert!(cells.len() >= 2, "malformed SettingsSection row: {cells:?}");
+        (
+            strip_ticks(cells[0]).to_string(),
+            strip_ticks(cells[1]).to_string(),
+        )
+    })
+    .collect();
+    assert_eq!(
+        documented_sections, expected_sections,
+        "docs/reference/settings.md Settings dialog sections drifted from SettingsSection::ALL"
     );
 
     // Playback drop causes and decoder output modes (`DropCause::ALL` and `OutputMode::ALL`).

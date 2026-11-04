@@ -4,7 +4,7 @@
 //! One of the three tables [`super::bindings::SHIPPED_BINDINGS`] joins.
 
 use super::bind;
-use super::binding_actions::{new_project, open_settings, step, viewer_arrow};
+use super::binding_actions::{new_project, step, viewer_arrow};
 use super::{Binding, Chord};
 use crate::app::DialogKind;
 use crate::types::{ActivePanel, EditorTool};
@@ -176,7 +176,8 @@ pub(super) const TOOL_ROWS: &[Binding] = &[
     bind!("key-home-new", Chord::ctrl_alt("n"), Home, new_project),
     bind!("key-home-open", Chord::ctrl("o"), Home, |state| state
         .set_home_rail(crate::types::HomeRail::Open)),
-    bind!("key-home-settings", Chord::ctrl(","), Home, open_settings),
+    bind!("key-home-settings", Chord::ctrl(","), Home, |state| state
+        .open_settings()),
     bind!("key-home-quit", Chord::ctrl("q"), Home, |state| state
         .request_quit()),
     bind!("key-home-escape", Chord::plain("escape"), Home, |state| {

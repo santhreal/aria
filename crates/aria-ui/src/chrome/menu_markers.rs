@@ -17,13 +17,15 @@ static MARKER_ITEMS: &[MenuItem] = &[
     .when(guards::clips),
     MenuItem::new("mark-go-in", "Go to In", |_, s, _| s.go_to_in())
         .key("key-mark-in-go")
-        .when(guards::mark_in),
+        .when(guards::mark_in)
+        .rule(),
     MenuItem::new("mark-go-out", "Go to Out", |_, s, _| s.go_to_out())
         .key("key-mark-out-go")
         .when(guards::mark_out),
     MenuItem::new("seq-clear-in", "Clear In", |_, s, _| s.clear_mark_in_here())
         .key("key-mark-in-clear")
-        .when(guards::mark_in),
+        .when(guards::mark_in)
+        .rule(),
     MenuItem::new("seq-clear-out", "Clear Out", |_, s, _| {
         s.clear_mark_out_here()
     })
@@ -38,7 +40,8 @@ static MARKER_ITEMS: &[MenuItem] = &[
         let added = s.add_or_edit_marker();
         report(s, added)
     })
-    .key("key-marker-add"),
+    .key("key-marker-add")
+    .rule(),
     MenuItem::new("seq-marker-next", "Go to Next Marker", |_, s, _| {
         s.go_to_next_marker()
     })
@@ -54,7 +57,8 @@ static MARKER_ITEMS: &[MenuItem] = &[
         report(s, removed)
     })
     .key("key-marker-remove")
-    .when(guards::markers),
+    .when(guards::markers)
+    .rule(),
     MenuItem::new("marker-clear-all", "Clear All Markers", |_, s, _| {
         let cleared = s.clear_all_markers();
         report(s, cleared)
@@ -64,7 +68,8 @@ static MARKER_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-marker-rename", "Edit Marker…", |_, s, _| {
         s.edit_marker_at_playhead()
     })
-    .when(guards::markers),
+    .when(guards::markers)
+    .rule(),
     MenuItem::new(
         "seq-marker-snap",
         "Move Nearest Marker to Playhead",

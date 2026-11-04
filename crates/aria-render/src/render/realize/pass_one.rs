@@ -49,7 +49,7 @@ impl Renderer {
                 &mut decoded,
             )?;
             scratch.levels.push(start..scratch.realized.len());
-            level = nests.scenes.get(next_nest).copied();
+            level = nests.scenes.as_slice().get(next_nest).copied();
             next_nest += 1;
         }
         Ok(decoded)
@@ -86,8 +86,8 @@ impl Renderer {
                     let mut fx = layer_effects(layer);
                     Realized::CanvasPass {
                         grade: layer.color_grade,
-                        lut: self.resolve_scene_lut(&layer.lut),
-                        stencil: self.layer_stencil(layer, &mut fx, false, canvas),
+                        lut: self.resolve_scene_lut(&layer.lut, scratch),
+                        stencil: self.layer_stencil(layer, &mut fx, false, canvas, scratch),
                     }
                 }
                 LayerSource::Transition {
@@ -97,10 +97,10 @@ impl Renderer {
                     progress,
                 } => Realized::Transition {
                     outgoing: self
-                        .realize_side(project, scene, outgoing, policy, nests, decoded)?,
+                        .realize_side(project, scene, outgoing, policy, nests, scratch, decoded)?,
                     incoming: self
-                        .realize_side(project, scene, incoming, policy, nests, decoded)?,
-                    transition_id: transition_id.clone(),
+                        .realize_side(project, scene, incoming, policy, nests, scratch, decoded)?,
+                    transition_id: scratch.take_string_from(transition_id),
                     progress: *progress,
                 },
                 LayerSource::Matte {
@@ -109,16 +109,20 @@ impl Renderer {
                     invert,
                     softness,
                 } => Realized::Matte {
-                    content: self
-                        .realize_side(project, scene, &layers[0], policy, nests, decoded)?,
-                    stencil: self
-                        .realize_side(project, scene, &layers[1], policy, nests, decoded)?,
+                    content: self.realize_side(
+                        project, scene, &layers[0], policy, nests, scratch, decoded,
+                    )?,
+                    stencil: self.realize_side(
+                        project, scene, &layers[1], policy, nests, scratch, decoded,
+                    )?,
                     read: *read,
                     invert: *invert,
                     softness: *softness,
                 },
                 _ => {
-                    match self.realize_leaf(project, scene, layer, policy, false, nests, decoded)? {
+                    match self.realize_leaf(
+                        project, scene, layer, policy, false, nests, scratch, decoded,
+                    )? {
                         Some(leaf) => Realized::Layer(leaf),
                         None => continue,
                     }

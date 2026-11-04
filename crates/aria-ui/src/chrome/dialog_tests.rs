@@ -104,12 +104,12 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
 ///
 /// The class closed here: a value or a description that starts in lower case
 /// among capitalised ones, as the Export sheet's `included`, the motion rows'
-/// `every transition at its designed speed`, the Keys section's `unbound`,
+/// `every transition at its designed speed`, the Keyboard Shortcuts section's `unbound`,
 /// the Project Report's `none` and the Media Support report's `available`
 /// were. Every run drawn inside the card of each registered kind is read from
 /// the frame, so a row added later is checked on the run that adds it. A run
 /// the editor behind the card draws at the same place is the editor's, and is
-/// skipped. One binding is cleared before the walk, so the Keys section draws
+/// skipped. One binding is cleared before the walk, so the Keyboard Shortcuts section draws
 /// a row with no chord, and a still is placed and selected, so a dialog that
 /// reads the selection draws its rows for it. A line the project supplies,
 /// such as the still's name, is written as the project wrote it and is

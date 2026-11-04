@@ -6,8 +6,9 @@
 //! neighbours, so the column the eye runs down broke.
 //!
 //! Each menu of [`AppMenu::ALL`] is opened in a drawn shell. Its rows must be
-//! one row height tall at one pitch, its captions must start at one x, and its
-//! shortcuts must end at one x inside the row's padding.
+//! one row height tall at one pitch, or one pitch and one rule apart where a
+//! group starts, its captions must start at one x, and its shortcuts must end
+//! at one x inside the row's padding.
 //!
 //! A plugin row's icon is drawn in the lead column, the column a toggle row
 //! draws its check mark in: a command with an icon is placed in every menu and
@@ -41,10 +42,10 @@ fn every_menu_stands_on_one_row_grid(cx: &mut TestAppContext) {
             });
         });
         visual.run_until_parked();
-        let entries: Vec<(&'static str, String, Option<String>)> = visual.read(|app| {
+        let entries: Vec<(&'static str, String, Option<String>, bool)> = visual.read(|app| {
             super::drawn_entries(menu, state.read(app))
                 .into_iter()
-                .map(|entry| (entry.id, entry.caption, entry.chord))
+                .map(|entry| (entry.id, entry.caption, entry.chord, entry.rule))
                 .collect()
         });
         assert!(!entries.is_empty(), "{menu:?} draws no rows");
@@ -52,7 +53,7 @@ fn every_menu_stands_on_one_row_grid(cx: &mut TestAppContext) {
         let mut rows: Vec<Bounds<Pixels>> = Vec::new();
         let mut captions = Vec::new();
         let mut chords = Vec::new();
-        for (id, caption, chord) in &entries {
+        for (id, caption, chord, _) in &entries {
             let row = visual
                 .debug_bounds(crate::interned::intern(&format!("menu-row-{id}")))
                 .unwrap_or_else(|| panic!("{menu:?}: row {id} was not drawn"));
@@ -73,7 +74,7 @@ fn every_menu_stands_on_one_row_grid(cx: &mut TestAppContext) {
             }
             rows.push(row);
         }
-        for (row, (_, caption, _)) in rows.iter().zip(&entries) {
+        for (row, (_, caption, _, _)) in rows.iter().zip(&entries) {
             if (row.size.height - px(Theme::ROW_HEIGHT)).abs() > px(EPS) {
                 faults.push(format!(
                     "{menu:?}: `{caption}` is {:?} tall",
@@ -86,10 +87,15 @@ fn every_menu_stands_on_one_row_grid(cx: &mut TestAppContext) {
                 faults.push(format!("{menu:?}: `{caption}` spans {row:?}"));
             }
         }
-        for pair in rows.windows(2) {
+        // A rule is a hairline with a small gap above and below it.
+        let rule_pitch = 1.0 + 2.0 * Theme::SPACE_XS;
+        for (pair, (_, caption, _, ruled)) in rows.windows(2).zip(&entries[1..]) {
             let pitch = pair[1].top() - pair[0].top();
-            if (pitch - px(Theme::ROW_HEIGHT)).abs() > px(EPS) {
-                faults.push(format!("{menu:?}: a row pitch of {pitch:?}"));
+            let expected = Theme::ROW_HEIGHT + if *ruled { rule_pitch } else { 0.0 };
+            if (pitch - px(expected)).abs() > px(EPS) {
+                faults.push(format!(
+                    "{menu:?}: a row pitch of {pitch:?} above `{caption}`, {expected} expected"
+                ));
             }
         }
         if let Some((_, first)) = captions.first() {

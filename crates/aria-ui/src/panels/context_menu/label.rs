@@ -60,6 +60,7 @@ pub(super) fn label_row(
         });
     }
     div()
+        .debug_selector(|| "ctx-labels".into())
         .flex()
         .flex_row()
         .wraps()

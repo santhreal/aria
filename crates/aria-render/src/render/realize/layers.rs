@@ -22,7 +22,7 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 use super::super::effects::{blend_mode, layer_effects, layer_styles, shape_mask};
 use super::super::look_ahead::{DecoderKey, Shown};
 use super::super::{Renderer, SeekPolicy};
-use super::{DecodeTally, text};
+use super::{DecodeTally, InlineVec, RealizeScratch, text};
 
 /// An owned, decoded or rasterized scene layer kept alive while the compositor
 /// borrows it.
@@ -30,14 +30,14 @@ pub(super) enum Realized {
     /// A layer drawn alone.
     Layer(Leaf),
     Transition {
-        outgoing: Box<Leaf>,
-        incoming: Box<Leaf>,
+        outgoing: usize,
+        incoming: usize,
         transition_id: String,
         progress: f32,
     },
     Matte {
-        content: Box<Leaf>,
-        stencil: Box<Leaf>,
+        content: usize,
+        stencil: usize,
         read: MatteSource,
         invert: bool,
         softness: f32,
@@ -121,15 +121,15 @@ impl Pixels {
 /// top-left corner, so a nest scene smaller than the canvas fills part of it.
 pub(super) struct Nests<'s> {
     canvas: [f32; 2],
-    pub(super) scenes: Vec<&'s Scene>,
+    pub(super) scenes: InlineVec<&'s Scene, 8>,
 }
 
 impl<'s> Nests<'s> {
     /// No nests yet, for a frame whose canvas is `scene`'s.
-    pub(super) fn new(scene: &Scene) -> Self {
+    pub(super) fn new(scene: &'s Scene) -> Self {
         Self {
             canvas: [scene.width as f32, scene.height as f32],
-            scenes: Vec::new(),
+            scenes: InlineVec::new(scene),
         }
     }
 
@@ -153,11 +153,11 @@ fn uv_within([u0, v0, u1, v1]: [f32; 4], [sx, sy]: [f32; 2]) -> [f32; 4] {
 
 /// A mask stack placed on the canvas; see [`LayerStencil`].
 pub(super) struct Stencil {
-    masks: Vec<StencilMask>,
+    pub(super) masks: Vec<StencilMask>,
     /// The rasterized path masks, alpha the coverage, in stack order, held in
     /// `Renderer::paths`.
-    images: Vec<Arc<RgbaImage>>,
-    placement: LayerPlacement,
+    pub(super) images: Vec<Arc<RgbaImage>>,
+    pub(super) placement: LayerPlacement,
 }
 
 impl Stencil {
@@ -203,6 +203,7 @@ impl Renderer {
         policy: SeekPolicy,
         side: bool,
         nests: &mut Nests<'s>,
+        scratch: &mut RealizeScratch,
         decoded: &mut DecodeTally,
     ) -> Result<Option<Leaf>, RenderError> {
         let canvas = [scene.width as f32, scene.height as f32];
@@ -256,7 +257,7 @@ impl Renderer {
                 let Some(frame_index) = self.ensure_lottie_frame(path, *local_time) else {
                     return Ok(None);
                 };
-                let path = path.clone();
+                let path = scratch.take_string_from(path);
                 (Pixels::Lottie { path, frame_index }, fixed())
             }
             LayerSource::Sticker { asset, local_time } => {
@@ -267,7 +268,7 @@ impl Renderer {
                 };
                 self.ensure_sticker(spec)?;
                 let frame_index = self.stickers[spec.id.as_str()].frame_at(*local_time);
-                let asset = asset.clone();
+                let asset = scratch.take_string_from(asset);
                 (Pixels::Sticker { asset, frame_index }, fixed())
             }
             LayerSource::Shape {
@@ -340,7 +341,7 @@ impl Renderer {
             opacity: 1.0,
             ..placement
         };
-        let stencil = self.layer_stencil(layer, &mut fx, textured, mask_box);
+        let stencil = self.layer_stencil(layer, &mut fx, textured, mask_box, scratch);
         Ok(Some(Leaf {
             pixels,
             placement,
@@ -351,7 +352,7 @@ impl Renderer {
             },
             fx,
             color_grade: layer.color_grade,
-            lut: self.resolve_scene_lut(&layer.lut),
+            lut: self.resolve_scene_lut(&layer.lut, scratch),
             blend_mode: blend_mode(layer.blend_mode),
             styles: layer_styles(layer.styles.as_ref()),
             blur,
@@ -361,6 +362,7 @@ impl Renderer {
 
     /// Realize one side of a transition or a matte. A side that draws
     /// nothing is a transparent layer, so the pair still blends.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn realize_side<'s>(
         &mut self,
         project: &Project,
@@ -368,10 +370,12 @@ impl Renderer {
         layer: &'s SceneLayer,
         policy: SeekPolicy,
         nests: &mut Nests<'s>,
+        scratch: &mut RealizeScratch,
         decoded: &mut DecodeTally,
-    ) -> Result<Box<Leaf>, RenderError> {
-        let leaf = self.realize_leaf(project, scene, layer, policy, true, nests, decoded)?;
-        Ok(Box::new(leaf.unwrap_or_else(|| Leaf {
+    ) -> Result<usize, RenderError> {
+        let leaf =
+            self.realize_leaf(project, scene, layer, policy, true, nests, scratch, decoded)?;
+        let leaf = leaf.unwrap_or_else(|| Leaf {
             pixels: Pixels::Solid([0, 0, 0, 0]),
             placement: LayerPlacement {
                 center: [scene.width as f32 * 0.5, scene.height as f32 * 0.5],
@@ -387,7 +391,10 @@ impl Renderer {
             styles: LayerStyles::default(),
             blur: Vec::new(),
             stencil: None,
-        })))
+        });
+        let idx = scratch.sides.len();
+        scratch.sides.push(leaf);
+        Ok(idx)
     }
 
     /// The stencil that cuts `layer` inside `mask_box`: its whole mask stack,
@@ -401,8 +408,9 @@ impl Renderer {
         fx: &mut LayerEffects,
         textured: bool,
         mask_box: LayerPlacement,
+        scratch: &mut RealizeScratch,
     ) -> Option<Stencil> {
-        if textured && fx.mask.is_some() {
+        if (textured && fx.mask.is_some()) || layer.masks.is_empty() {
             return None;
         }
         fx.mask = None;
@@ -410,8 +418,7 @@ impl Renderer {
             mask_box.size[0].round().max(1.0) as u32,
             mask_box.size[1].round().max(1.0) as u32,
         ];
-        let mut masks = Vec::with_capacity(layer.masks.len());
-        let mut images = Vec::new();
+        let (mut masks, mut images) = scratch.take_stencil_vecs(layer.masks.len());
         for mask in &layer.masks {
             let (coverage, softness) = if mask.kind == MaskKind::Path {
                 if mask.path.len() < 3 {
@@ -442,6 +449,7 @@ impl Renderer {
             });
         }
         if masks.is_empty() {
+            scratch.recycle_stencil_vecs(masks, images);
             return None;
         }
         Some(Stencil {

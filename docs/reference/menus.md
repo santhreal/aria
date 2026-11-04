@@ -2,6 +2,8 @@
 
 The application menu bar contains ten top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`).
 
+A row also marks where a group starts: `rule` starts a group of the drop at the entry the row is drawn as, and `flyout_rule` starts a group of its submenu's flyout. The bar draws a hairline rule above each entry that starts a group, never above the first entry of a list, and the macOS menu bar draws a separator in the same place. The rows plugins add start a group of their own below the shipped rows; a plugin row placed in a shipped submenu starts a group of that flyout instead. The tables below list rows in registry order and do not mark the groups.
+
 ## Worked example
 
 Set an in-point and out-point around a range, add a sequence marker, and render a preview cache for that span:
@@ -74,8 +76,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-label-brown` | `Label` | Brown | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Brown`. |
 | `edit-label-yellow` | `Label` | Yellow | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Yellow`. |
 | `edit-label-none` | `Label` | None | `none` | No clip is selected (`guards::selection`) | Clears the label color (`None`) on selected clips. |
-| `edit-keyboard-shortcuts` | `none` | Keyboard Shortcuts… | `Ctrl+Alt+K` | Always enabled | Opens `aria.dialog.settings` on the `Shortcuts` section. |
-| `edit-preferences` | `none` | Preferences… | `Ctrl+,` | Always enabled | Opens `aria.dialog.settings`. |
+| `edit-keyboard-shortcuts` | `none` | Keyboard Shortcuts… | `Ctrl+Alt+K` | Always enabled | Opens `aria.dialog.settings` on the Keyboard Shortcuts section alone. |
+| `edit-preferences` | `none` | Preferences… | `Ctrl+,` | Always enabled | Opens `aria.dialog.settings` on every section, with the filter cleared. |
 
 ## Clip menu
 
@@ -360,7 +362,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 
-Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment, a keyframe that neither holds nor roves), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
+Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A `Rule` draws a hairline between the group above it and the group below it; a rule with no drawn row above it, or none below it, is not drawn, and two rules in a row draw as one. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment, a keyframe that neither holds nor roves), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
 
 | Target slice | Entry kind | Row ID | Default label | Default check |
 | --- | --- | --- | --- | --- |
@@ -370,59 +372,77 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `CLIP_ITEMS` | `Row` | `ctx-delete` | `Delete` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename Clip` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-freeze` | `Freeze Frame` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-extract-audio` | `Extract Audio` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |
 | `CLIP_ITEMS` | `Row` | `ctx-link` | `Link Clips` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink Clips` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |
 | `CLIP_ITEMS` | `Row` | `ctx-group` | `Group` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-ungroup` | `Ungroup` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-release-parent` | `Release Parent` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-speed-duration` | `Speed/Duration…` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-time-remap` | `Time Remapping` | `off` |
+| `CLIP_ITEMS` | `Row` | `ctx-freeze` | `Freeze Frame` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-audio-gain` | `Audio Gain…` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-extract-audio` | `Extract Audio` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Labels` | `none` | `none` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename Clip` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-properties` | `Properties` | `none` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove Transition` | `none` |
+| `TRANSITION_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-center` | `Center at Cut` | `off` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-start` | `Start at Cut` | `off` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-align-end` | `End at Cut` | `off` |
+| `TRANSITION_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRANSITION_ITEMS` | `Blends` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-add-track` | `Add Track` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-rename-track` | `Rename Track` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-delete-track` | `Delete Track` | `none` |
+| `TRACK_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-mute-track` | `Mute` | `none` |
+| `TRACK_ITEMS` | `Row` | `ctx-track-duck` | `Duck Source` | `off` |
+| `TRACK_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-track-up` | `Move Track Up` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-track-down` | `Move Track Down` | `none` |
-| `TRACK_ITEMS` | `Row` | `ctx-track-duck` | `Duck Source` | `off` |
+| `TRACK_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-track-open-gap` | `Open Gap at Playhead` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-track-close-gap` | `Close Gap at Playhead` | `none` |
+| `TRACK_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-collapse` | `Collapse Lane` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-waveform` | `Hide Waveforms` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-filmstrip` | `Hide Filmstrips` | `none` |
+| `TRACK_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-mini` | `Lane Height: Mini` | `off` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-small` | `Lane Height: Small` | `off` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-medium` | `Lane Height: Medium` | `on` |
 | `TRACK_ITEMS` | `Row` | `ctx-lane-large` | `Lane Height: Large` | `off` |
 | `POOL_ITEMS` | `Row` | `ctx-pool-in-use` | `Select Clips in Timeline` | `none` |
 | `POOL_ITEMS` | `Row` | `ctx-pool-remove` | `Remove from Project` | `none` |
+| `POOL_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `POOL_ITEMS` | `Row` | `ctx-pool-proxy-clear` | `Decode from Original File` | `none` |
 | `POOL_ITEMS` | `Row` | `ctx-pool-proxy-use` | `Decode from Proxy` | `none` |
+| `POOL_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `POOL_ITEMS` | `Labels` | `none` | `none` | `none` |
 | `RECENT_ITEMS` | `Row` | `ctx-recent-open` | `Open` | `none` |
 | `RECENT_ITEMS` | `Outside` | `ctx-recent-reveal` | `Reveal` | `none` |
+| `RECENT_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `RECENT_ITEMS` | `Row` | `ctx-recent-remove` | `Remove from List` | `none` |
 | `RECENT_ITEMS` | `Row` | `ctx-recent-delete` | `Delete File…` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-reset` | `Reset` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-rename` | `Rename Effect` | `none` |
+| `EFFECT_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-duplicate` | `Duplicate` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-copy` | `Copy` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-paste` | `Paste Below` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-save-preset` | `Save as Preset…` | `none` |
+| `EFFECT_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `EFFECT_ITEMS` | `Row` | `ctx-fx-remove` | `Remove Effect` | `none` |
 | `BADGE_ITEMS` | `Row` | `ctx-badge-controls` | `Show in Effect Controls` | `none` |
+| `BADGE_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `BADGE_ITEMS` | `Properties` | `none` | `none` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-linear` | `Linear` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-easy-ease` | `Easy Ease` | `none` |
@@ -430,12 +450,15 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-easy-ease-out` | `Easy Ease Out` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-hold` | `Hold` | `off` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-rove` | `Rove Across Time` | `off` |
+| `KEYFRAME_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-copy` | `Copy Keyframes` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-paste` | `Paste Keyframes at Playhead` | `none` |
+| `KEYFRAME_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `KEYFRAME_ITEMS` | `Row` | `ctx-key-delete` | `Delete Keyframes` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-linear` | `Linear` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease` | `Easy Ease` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease-in` | `Easy Ease In` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-ease-out` | `Easy Ease Out` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-hold` | `Hold` | `off` |
+| `MASK_PATH_KEY_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `MASK_PATH_KEY_ITEMS` | `Row` | `ctx-path-key-delete` | `Delete Keyframe` | `none` |

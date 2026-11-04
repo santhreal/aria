@@ -466,6 +466,28 @@ impl Renderer {
         Ok(())
     }
 
+    /// Resolve, realize, and build the compositor layer list for `project` at `t`
+    /// without submitting to `wgpu`, returning the realized scratch to the pool
+    /// and advancing look-ahead.
+    #[cfg(test)]
+    pub(crate) fn realize_frame_with(
+        &mut self,
+        project: &Project,
+        t: RationalTime,
+        overrides: ResolveOverrides<'_>,
+        policy: SeekPolicy,
+    ) -> Result<(), RenderError> {
+        let mut scene = self.take_resolved_scene(project, t, overrides)?;
+        self.prepare_motion_blur(project, &mut scene);
+        let tick = scene.tick;
+        let pending = self.submit_scene_policy(project, &scene, policy, Output::DryRun);
+        self.return_resolved_scene(scene);
+        let pending = pending?;
+        self.finish_pending_on_gpu(pending);
+        self.look_ahead(project, tick, overrides.lane, policy);
+        Ok(())
+    }
+
     /// [`render_frame_fit_with`](Self::render_frame_fit_with) writing the
     /// composited rows directly into `sink`-provided storage — the
     /// interactive-preview path, which hands the pixels straight to the UI's
@@ -819,17 +841,15 @@ impl Renderer {
         if let Some(gpu) = sink.adopt_gpu() {
             self.set_gpu(gpu);
         }
-        let res = if let Some(texture) = sink.texture(scene.width, scene.height) {
-            let pending =
-                self.submit_scene_policy(project, scene, policy, Output::Texture(texture))?;
+        let pending = self.submit_scene_policy(project, scene, policy, Output::Sink(sink))?;
+        if pending.readback.is_some() {
+            let res = self.finish_pending_into(pending, sink);
+            sink.record_readbacks(self.readback_count());
+            res
+        } else {
             self.finish_pending_on_gpu(pending);
             Ok(())
-        } else {
-            let pending = self.submit_scene_policy(project, scene, policy, Output::Readback)?;
-            self.finish_pending_into(pending, sink)
-        };
-        sink.record_readbacks(self.readback_count());
-        res
+        }
     }
 
     fn submit_scene_policy(
@@ -837,9 +857,10 @@ impl Renderer {
         project: &Project,
         scene: &Scene,
         policy: SeekPolicy,
-        output: Output<'_>,
+        mut output: Output<'_>,
     ) -> Result<PendingFrame, RenderError> {
-        match self.submit_scene_once(project, scene, policy, output) {
+        let first = self.submit_scene_once(project, scene, policy, output.reborrow());
+        match first {
             Err(RenderError::Compositor(CompositorError::UnsupportedFormat(_)))
                 if self.decode_mode == OutputMode::Gpu =>
             {

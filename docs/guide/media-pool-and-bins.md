@@ -73,12 +73,14 @@ view is saved with your settings, not with the project, so it is the same in the
 next project you open.
 
 Click an item to select it; double-click it to open it in a Source tab (see
-[Previewing a source](#previewing-a-source)). Each row states the
-frame size, the length, the video codec, and either the audio codec or that the
-file is silent, so a silent video is visible before it is cut in. The block under
-the list reports what the pool has for the selected item: container, frame
-size, frame rate, duration, video codec, audio, when it was imported (UTC),
-whether it is still linked, and its path.
+[Previewing a source](#previewing-a-source)). A Tiles row states the frame
+size and the length on one line and, under it, the video codec and either the
+audio codec or that the file is silent, so a silent video is visible before it
+is cut in. A List row states the same facts on one line. A line with no room
+for its facts ends in an ellipsis. The block under the list reports what the
+pool has for the selected item: container, frame size, frame rate, duration,
+video codec, audio, when it was imported (UTC), whether it is still linked,
+and its path.
 
 Ctrl+click (Cmd+click on macOS) adds an item to the selection, or drops it if it
 is already in. Shift+click picks every item drawn between the last one you
@@ -91,9 +93,9 @@ a multicam group built from it. Opening another folder drops the selection.
 
 The container is the file extension. A codec name is what the platform's demuxer
 reported at import: on Linux, GStreamer's description of the track's caps. Where
-a backend reports no codec, the row reads `unknown` rather than guessing from the
-extension, which would repeat the container. Stills have no codec track and
-read `unknown`.
+a backend reports no codec, the row leaves the codec out and the block under the
+list reads `Unknown` rather than guessing from the extension, which would repeat
+the container. Stills have no codec track and read `Unknown`.
 
 Drag an item onto the timeline to place it where you drop it:
 

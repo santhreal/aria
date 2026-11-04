@@ -26,7 +26,8 @@ static EFFECT_ITEMS: &[MenuItem] = &[
         let removed = s.remove_all_effects_selected();
         report(s, removed)
     })
-    .when(guards::effects),
+    .when(guards::effects)
+    .rule(),
     MenuItem::new("seq-effect-reset", "Reset Effect Parameters", |_, s, _| {
         crate::commands::reach::reset_effects(s)
     })
@@ -63,6 +64,7 @@ fn last_effect_row(state: &AppState) -> MenuItem {
         report(s, applied)
     })
     .when(guards::last_effect)
+    .rule()
 }
 
 /// The id prefix of a row that applies one video effect. The rest of the id
@@ -91,37 +93,50 @@ fn apply_audio(id: &str, state: &mut AppState, _: &mut gpui::Context<AppState>) 
 /// One row per video effect that changes its input, then one per audio effect,
 /// each under its category's submenu, in the order the Effects panel lists
 /// them. Generators place clips of their own and are offered where clips are
-/// placed, not here.
+/// placed, not here. The video categories are a group of the drop, and the
+/// audio categories that are not video categories too are the next.
 fn push_category_rows(items: &mut Vec<MenuItem>) {
     let intern = crate::interned::intern;
     let entries = crate::catalog_text::effect_entries();
+    let video_start = items.len();
     for entry in entries
         .iter()
         .filter(|entry| entry.kind == EntryKind::VideoEffect)
     {
-        items.push(
-            MenuItem::new(
-                intern(&format!("{APPLY_PREFIX}{}", entry.id)),
-                intern(&entry.label),
-                apply_video,
-            )
-            .when(guards::selection)
-            .under(intern(&entry.category)),
-        );
+        let row = MenuItem::new(
+            intern(&format!("{APPLY_PREFIX}{}", entry.id)),
+            intern(&entry.label),
+            apply_video,
+        )
+        .when(guards::selection)
+        .under(intern(&entry.category));
+        items.push(if items.len() == video_start {
+            row.rule()
+        } else {
+            row
+        });
     }
+    let audio_start = items.len();
+    let mut ruled = false;
     for entry in entries
         .iter()
         .filter(|entry| entry.kind == EntryKind::AudioEffect)
     {
-        items.push(
-            MenuItem::new(
-                intern(&format!("{APPLY_AUDIO_PREFIX}{}", entry.id)),
-                intern(&entry.label),
-                apply_audio,
-            )
-            .when(guards::sound)
-            .under(intern(&entry.category)),
-        );
+        let category = intern(&entry.category);
+        let row = MenuItem::new(
+            intern(&format!("{APPLY_AUDIO_PREFIX}{}", entry.id)),
+            intern(&entry.label),
+            apply_audio,
+        )
+        .when(guards::sound)
+        .under(category);
+        // A category the video effects use is drawn in their group already.
+        let opens = !ruled
+            && !items[video_start..audio_start]
+                .iter()
+                .any(|video| video.under == Some(category));
+        ruled |= opens;
+        items.push(if opens { row.rule() } else { row });
     }
 }
 

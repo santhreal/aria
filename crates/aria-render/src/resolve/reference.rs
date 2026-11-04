@@ -29,13 +29,16 @@ pub(super) fn resolve_references<'p>(
     overrides: ResolveOverrides<'_>,
     nesting: &Nesting<'_>,
     drivers: &mut DriverFrame<'p>,
-) -> Result<Vec<SceneLayer>, aria_models::ModelError> {
+    out: &mut Vec<SceneLayer>,
+    pool: &mut super::sample::ResolvePool,
+) -> Result<(), aria_models::ModelError> {
+    out.clear();
     let mut wanted = Vec::new();
     for layer in layers {
         referenced(layer, &mut wanted);
     }
     if wanted.is_empty() {
-        return Ok(Vec::new());
+        return Ok(());
     }
     let mut walk = Walk {
         project,
@@ -46,12 +49,13 @@ pub(super) fn resolve_references<'p>(
         nesting,
         drivers,
         visiting: Vec::new(),
-        out: Vec::new(),
+        out,
+        pool,
     };
     for id in wanted {
         walk.visit(id)?;
     }
-    Ok(walk.out)
+    Ok(())
 }
 
 /// Append the clips `layer` reads by layer reference: the layer parameters of
@@ -101,9 +105,9 @@ struct Walk<'a, 'p, 'o> {
     drivers: &'a mut DriverFrame<'p>,
     /// The clips whose references are being resolved, outermost first.
     visiting: Vec<ClipId>,
-    out: Vec<SceneLayer>,
+    out: &'a mut Vec<SceneLayer>,
+    pool: &'a mut super::sample::ResolvePool,
 }
-
 impl Walk<'_, '_, '_> {
     fn visit(&mut self, id: ClipId) -> Result<(), aria_models::ModelError> {
         if self.visiting.contains(&id)
@@ -122,8 +126,16 @@ impl Walk<'_, '_, '_> {
         }
         let clip = self.drivers.apply(clip, self.t.value as f64);
         let [cw, ch] = self.canvas;
-        let Some(layer) =
-            resolve_clip(project, &clip, self.t, cw, ch, self.overrides, self.nesting)?
+        let Some(layer) = resolve_clip_pooled(
+            project,
+            &clip,
+            self.t,
+            cw,
+            ch,
+            self.overrides,
+            self.nesting,
+            self.pool,
+        )?
         else {
             return Ok(());
         };

@@ -139,10 +139,7 @@ pub(super) fn menu_drop(
     let rows: Vec<AnyElement> = match phase {
         Some(_) => {
             let drawn = drawn_entries(menu, state.read(cx));
-            drawn
-                .into_iter()
-                .map(|entry| menu_row(entry, open, theme, state, cx).into_any_element())
-                .collect()
+            drawn_list(label, drawn, open, theme, state, cx)
         }
         None => Vec::new(),
     };
@@ -205,6 +202,37 @@ struct Drawn {
     sub: bool,
     /// The entry sits in a flyout rather than the drop.
     nested: bool,
+    /// The entry starts a group of its list after the first, so the list draws
+    /// a rule above it.
+    rule: bool,
+}
+
+/// The elements of one drop, flyout or popup, top to bottom: each entry, and a
+/// rule above each entry that starts a group. `list` names the rules
+/// `menu-rule-{list}-0`, `menu-rule-{list}-1` and on.
+fn drawn_list(
+    list: &'static str,
+    entries: Vec<Drawn>,
+    live: bool,
+    theme: &Theme,
+    state: &Entity<AppState>,
+    cx: &mut Context<Shell>,
+) -> Vec<AnyElement> {
+    let mut out = Vec::with_capacity(entries.len() * 2);
+    let mut rules = 0usize;
+    for entry in entries {
+        if entry.rule {
+            let at = rules;
+            rules += 1;
+            out.push(
+                crate::components::menu_rule(theme)
+                    .debug_selector(move || format!("menu-rule-{list}-{at}"))
+                    .into_any_element(),
+            );
+        }
+        out.push(menu_row(entry, live, theme, state, cx).into_any_element());
+    }
+    out
 }
 
 /// The entries `menu` draws now, with the open submenu's rows inside it.
@@ -215,60 +243,60 @@ fn drawn_entries(menu: AppMenu, state: &AppState) -> Vec<Drawn> {
     let items = state.menu_rows(menu);
     let plugin_rows =
         super::plugin_menus::rows_in(&state.ctx, super::plugin_menus::location_of(menu));
-    let row = |item: &MenuItem, index: usize, lit: bool, nested: bool| {
-        drawn_row(item, &plugin_rows, index, lit, nested, state)
+    let row = |item: &MenuItem, index: usize, lit: bool, nested: bool, rule: bool| {
+        drawn_row(item, &plugin_rows, index, lit, nested, rule, state)
     };
     let (flyout_at, flyout_lit) = match state.menu_flyout {
         Some((at, child)) => (Some(at), child),
         None => (None, None),
     };
-    super::menu_items::drop_entries(&items)
-        .into_iter()
-        .enumerate()
-        .map(|(index, entry)| {
-            let lit = state.menu_row == Some(index);
-            match entry {
-                super::menu_items::DropEntry::Row(at) => row(&items[at], index, lit, false),
-                super::menu_items::DropEntry::Sub { caption, rows } => {
-                    let flyout = (flyout_at == Some(index)).then(|| {
-                        rows.iter()
-                            .enumerate()
-                            .map(|(child, at)| {
-                                row(&items[*at], child, flyout_lit == Some(child), true)
-                            })
-                            .collect()
-                    });
-                    Drawn {
-                        id: crate::interned::intern(&format!(
-                            "menu-sub-{}-{caption}",
-                            menu.label()
-                        )),
-                        caption: caption.to_string(),
-                        icon: None,
-                        chord: None,
-                        blocked: None,
-                        checked: None,
-                        item: None,
-                        index,
-                        lit,
-                        ring: lit && !(flyout_at == Some(index) && flyout_lit.is_some()),
-                        flyout,
-                        sub: true,
-                        nested: false,
-                    }
+    let entries = super::menu_items::drop_entries(&items);
+    let mut drawn = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let lit = state.menu_row == Some(index);
+        let rule = index > 0 && entry.starts_group(&items);
+        drawn.push(match entry {
+            super::menu_items::DropEntry::Row(at) => row(&items[*at], index, lit, false, rule),
+            super::menu_items::DropEntry::Sub { caption, rows } => {
+                let flyout = (flyout_at == Some(index)).then(|| {
+                    rows.iter()
+                        .enumerate()
+                        .map(|(child, at)| {
+                            let rule = child > 0 && items[*at].flyout_rule;
+                            row(&items[*at], child, flyout_lit == Some(child), true, rule)
+                        })
+                        .collect()
+                });
+                Drawn {
+                    id: crate::interned::intern(&format!("menu-sub-{}-{caption}", menu.label())),
+                    caption: caption.to_string(),
+                    icon: None,
+                    chord: None,
+                    blocked: None,
+                    checked: None,
+                    item: None,
+                    index,
+                    lit,
+                    ring: lit && !(flyout_at == Some(index) && flyout_lit.is_some()),
+                    flyout,
+                    sub: true,
+                    nested: false,
+                    rule,
                 }
             }
-        })
-        .collect()
+        });
+    }
+    drawn
 }
 
-/// One command row of a drop or a flyout.
+/// One command row of a drop or a flyout. `rule` draws a rule above it.
 fn drawn_row(
     item: &MenuItem,
     plugin_rows: &[super::plugin_menus::PluginRow],
     index: usize,
     lit: bool,
     nested: bool,
+    rule: bool,
     state: &AppState,
 ) -> Drawn {
     Drawn {
@@ -285,6 +313,7 @@ fn drawn_row(
         flyout: None,
         sub: false,
         nested,
+        rule,
     }
 }
 
@@ -320,6 +349,7 @@ fn submenu_rows(menu: AppMenu, caption: &str, live: bool, state: &AppState) -> V
                 child,
                 lit == Some(child),
                 true,
+                child > 0 && items[*row].flyout_rule,
                 state,
             )
         })
@@ -388,10 +418,8 @@ pub(super) fn submenu_under(
     let rows: Vec<AnyElement> = match phase {
         Some(phase) => {
             let live = phase == Phase::Open;
-            submenu_rows(menu, caption, live, state.read(cx))
-                .into_iter()
-                .map(|row| menu_row(row, live, theme, state, cx).into_any_element())
-                .collect()
+            let drawn = submenu_rows(menu, caption, live, state.read(cx));
+            drawn_list(owner, drawn, live, theme, state, cx)
         }
         None => Vec::new(),
     };
@@ -477,6 +505,7 @@ fn menu_row(
         flyout,
         sub,
         nested,
+        rule: _,
     } = entry;
     let key = motion::MotionKey::new("menu-row", id);
     let hover = motion::hover_listener(key);
@@ -493,10 +522,7 @@ fn menu_row(
         cx.notify();
     });
     let flyout = flyout.map(|rows| {
-        let rows: Vec<AnyElement> = rows
-            .into_iter()
-            .map(|row| menu_row(row, live, theme, state, cx).into_any_element())
-            .collect();
+        let rows = drawn_list(id, rows, live, theme, state, cx);
         div()
             .absolute()
             .top(px(-Theme::SPACE_XS))
@@ -607,3 +633,7 @@ mod tests;
 #[cfg(test)]
 #[path = "menu_grid_tests.rs"]
 mod grid_tests;
+
+#[cfg(test)]
+#[path = "menu_rule_tests.rs"]
+mod rule_tests;

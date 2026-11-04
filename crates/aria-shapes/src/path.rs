@@ -34,6 +34,7 @@ const RASTER_PAD: f32 = 2.0;
 pub struct PathRaster {
     memo: HashMap<PathKey, Arc<RgbaImage>>,
     order: VecDeque<PathKey>,
+    key_points: Vec<[u32; 6]>,
 }
 
 impl std::fmt::Debug for PathRaster {
@@ -55,6 +56,7 @@ impl PathRaster {
         Self {
             memo: HashMap::new(),
             order: VecDeque::new(),
+            key_points: Vec::new(),
         }
     }
 
@@ -69,7 +71,10 @@ impl PathRaster {
         style: &ShapeStyle,
         scale: f32,
     ) -> Arc<RgbaImage> {
-        let key = PathKey::new(path, style, scale);
+        let mut points = std::mem::take(&mut self.key_points);
+        points.clear();
+        points.extend(path.points.iter().map(point_bits));
+        let key = PathKey::from_points(points, path.closed, style, scale, 0);
         self.memoized(key, || rasterize_uncached(path, style, scale))
     }
 
@@ -90,17 +95,6 @@ impl PathRaster {
         let (w, h) = (width.max(1), height.max(1));
         let (wf, hf) = (w as f32, h as f32);
         let map = |v: [f32; 2]| [(v[0] + center[0]) * wf, (v[1] + center[1]) * hf];
-        let pixel_path = BezierPath {
-            points: points
-                .iter()
-                .map(|p| PathPoint {
-                    anchor: map(p.anchor),
-                    handle_in: map(p.handle_in),
-                    handle_out: map(p.handle_out),
-                })
-                .collect(),
-            closed: true,
-        };
         let style = ShapeStyle {
             fill: Some([255, 255, 255, 255]),
             stroke: Some(crate::Stroke {
@@ -113,21 +107,43 @@ impl PathRaster {
         } else {
             0.0
         };
-        let key = PathKey {
-            expansion: expansion.to_bits(),
-            ..PathKey::new(&pixel_path, &style, rotation_rad)
-        };
+        let mut key_points = std::mem::take(&mut self.key_points);
+        key_points.clear();
+        key_points.extend(points.iter().map(|p| {
+            point_bits(&PathPoint {
+                anchor: map(p.anchor),
+                handle_in: map(p.handle_in),
+                handle_out: map(p.handle_out),
+            })
+        }));
+        let key = PathKey::from_points(key_points, true, &style, rotation_rad, expansion.to_bits());
         self.memoized(key, || {
+            let pixel_path = BezierPath {
+                points: points
+                    .iter()
+                    .map(|p| PathPoint {
+                        anchor: map(p.anchor),
+                        handle_in: map(p.handle_in),
+                        handle_out: map(p.handle_out),
+                    })
+                    .collect(),
+                closed: true,
+            };
             rasterize_mask_uncached(&pixel_path, w, h, center, rotation_rad, expansion)
         })
     }
 
     fn memoized(&mut self, key: PathKey, build: impl FnOnce() -> RgbaImage) -> Arc<RgbaImage> {
         if let Some(hit) = self.memo.get(&key) {
-            if let Some(pos) = self.order.iter().position(|k| k == &key) {
-                self.order.remove(pos);
-                self.order.push_back(key);
+            if self.order.back() != Some(&key)
+                && let Some(pos) = self.order.iter().position(|k| k == &key)
+                && let Some(existing) = self.order.remove(pos)
+            {
+                self.order.push_back(existing);
             }
+            let mut points = key.points;
+            points.clear();
+            self.key_points = points;
             return Arc::clone(hit);
         }
         let image = Arc::new(build());
@@ -511,28 +527,32 @@ struct PathKey {
     expansion: u32,
 }
 
+fn point_bits(p: &PathPoint) -> [u32; 6] {
+    [
+        p.anchor[0].to_bits(),
+        p.anchor[1].to_bits(),
+        p.handle_in[0].to_bits(),
+        p.handle_in[1].to_bits(),
+        p.handle_out[0].to_bits(),
+        p.handle_out[1].to_bits(),
+    ]
+}
+
 impl PathKey {
-    fn new(path: &BezierPath, style: &ShapeStyle, scale: f32) -> Self {
+    fn from_points(
+        points: Vec<[u32; 6]>,
+        closed: bool,
+        style: &ShapeStyle,
+        scale: f32,
+        expansion: u32,
+    ) -> Self {
         Self {
-            points: path
-                .points
-                .iter()
-                .map(|p| {
-                    [
-                        p.anchor[0].to_bits(),
-                        p.anchor[1].to_bits(),
-                        p.handle_in[0].to_bits(),
-                        p.handle_in[1].to_bits(),
-                        p.handle_out[0].to_bits(),
-                        p.handle_out[1].to_bits(),
-                    ]
-                })
-                .collect(),
-            closed: path.closed,
+            points,
+            closed,
             fill: style.fill,
             stroke: style.stroke.map(|s| (s.rgba, s.width.to_bits())),
             scale: scale.to_bits(),
-            expansion: 0,
+            expansion,
         }
     }
 }

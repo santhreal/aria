@@ -13,11 +13,11 @@ does not override a track's own mute: a muted track stays silent while soloed.
 
 Right-click a track header for the rest:
 
-- **Move Track Up** / **Move Track Down** move the track one row, which is one
-  layer in the composite. The main track stays at the bottom of the stack.
 - **Duck Source** marks an audio track as the voice that auto-duck listens to,
   and draws a check mark while the track is the voice. Only audio tracks can
   be the source.
+- **Move Track Up** / **Move Track Down** move the track one row, which is one
+  layer in the composite. The main track stays at the bottom of the stack.
 - **Open Gap at Playhead** shifts every clip on that track starting at or after
   the playhead one second later. **Close Gap at Playhead** shifts them back. A
   shift that would collide with another clip, or move one before the start of the

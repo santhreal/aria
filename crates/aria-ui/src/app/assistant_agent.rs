@@ -106,7 +106,7 @@ impl AppState {
                 self.push_agent_message(AgentEntryKind::Error, refusal.clone());
                 self.status_message = Some(refusal);
                 if unconfigured {
-                    self.open_dialog(crate::app::DialogKind::Settings);
+                    self.open_settings_at(crate::app::settings_form::SettingsSection::Ai);
                 }
                 return;
             }

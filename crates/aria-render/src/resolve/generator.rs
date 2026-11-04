@@ -72,6 +72,7 @@ pub(crate) fn resolve_generator_pooled(
             let mut text = pool.take_string();
             apply_text_case_into(style.case, content, &mut text);
             if text.trim().is_empty() {
+                pool.recycle_string(text);
                 return None;
             }
             let font_buf = if style.font.is_empty() {
@@ -82,7 +83,7 @@ pub(crate) fn resolve_generator_pooled(
             Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Text {
-                    style: map_text_style_for(&text, style, cw, ch, tick, font_buf),
+                    style: map_text_style_for(&text, style, cw, ch, tick, font_buf, pool),
                     content: text,
                     animation: None,
                 },
@@ -146,6 +147,7 @@ pub(crate) fn resolve_generator_pooled(
             uv,
             color_grade,
             effects,
+            pool,
         ),
         // A lane bar covers the canvas and applies what it carries to
         // everything composited below it: its own effect stack, its grade, and
@@ -167,7 +169,7 @@ pub(crate) fn resolve_generator_pooled(
             Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Lottie {
-                    path: path.clone(),
+                    path: pool.take_string_from(path),
                     local_time: local_seconds,
                 },
                 center,
@@ -199,7 +201,7 @@ pub(crate) fn resolve_generator_pooled(
             Some(SceneLayer {
                 clip: None,
                 source: LayerSource::Sticker {
-                    asset: asset.clone(),
+                    asset: pool.take_string_from(asset),
                     local_time: local_seconds,
                 },
                 center,
@@ -288,10 +290,20 @@ fn quantize_layout_px(v: f32) -> f32 {
 /// alignment is applied later to the finished bitmap's placement.
 #[cfg(test)]
 pub(super) fn map_text_style(style: &ModelTextStyle, cw: f32, ch: f32, tick: i64) -> TextStyle {
-    map_text_style_pooled(style, cw, ch, tick, String::new())
+    let mut pool = super::sample::ResolvePool::default();
+    let mut mapped = map_text_style_base(style, cw, ch, tick, String::new());
+    if !style.runs.is_empty() {
+        let scale = ch / REFERENCE_HEIGHT;
+        let mut runs = pool.take_text_runs();
+        for r in &style.runs {
+            runs.push(map_text_run(r.start..r.end, r, scale, &mut pool));
+        }
+        mapped.runs = runs;
+    }
+    mapped
 }
 
-fn map_text_style_pooled(
+fn map_text_style_base(
     style: &ModelTextStyle,
     cw: f32,
     ch: f32,
@@ -355,13 +367,6 @@ fn map_text_style_pooled(
             distance: shadow.distance.sample(tick) * scale,
         });
     }
-    if !style.runs.is_empty() {
-        mapped.runs = style
-            .runs
-            .iter()
-            .map(|r| map_text_run(r.start..r.end, r, scale))
-            .collect();
-    }
     mapped
 }
 
@@ -372,19 +377,20 @@ fn map_text_style_for(
     ch: f32,
     tick: i64,
     font_buf: String,
+    pool: &mut super::sample::ResolvePool,
 ) -> TextStyle {
-    let mut mapped = map_text_style_pooled(style, cw, ch, tick, font_buf);
+    let mut mapped = map_text_style_base(style, cw, ch, tick, font_buf);
     if !style.runs.is_empty() {
         let scale = ch / REFERENCE_HEIGHT;
-        mapped.runs = style
-            .runs
-            .iter()
-            .filter_map(|r| {
-                let start = char_to_byte(text, r.start);
-                let end = char_to_byte(text, r.end);
-                (start < end).then(|| map_text_run(start..end, r, scale))
-            })
-            .collect();
+        let mut runs = pool.take_text_runs();
+        for r in &style.runs {
+            let start = char_to_byte(text, r.start);
+            let end = char_to_byte(text, r.end);
+            if start < end {
+                runs.push(map_text_run(start..end, r, scale, pool));
+            }
+        }
+        mapped.runs = runs;
     }
     mapped
 }
@@ -393,6 +399,7 @@ fn map_text_run(
     range: std::ops::Range<usize>,
     r: &aria_models::TextStyleRun,
     scale: f32,
+    pool: &mut super::sample::ResolvePool,
 ) -> TextRun {
     TextRun {
         range,
@@ -400,7 +407,7 @@ fn map_text_run(
             if f.is_empty() {
                 FontFamily::SansSerif
             } else {
-                FontFamily::Named(f.clone())
+                FontFamily::Named(pool.take_string_from(f))
             }
         }),
         font_size: r.size.map(|s| quantize_layout_px(s * scale)),

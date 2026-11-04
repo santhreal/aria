@@ -191,7 +191,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `create-multicam-group` | New multicam | Creates a new multicam group from the selected media pool items. | None |
 | `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the AI generation output kind (Image, Video, or Voice) in the Project panel Generate tab. | None |
-| `generate-keys` | Open Settings | Opens Settings at the Keys section while no generation provider key is set. | None |
+| `generate-keys` | Open Settings | Opens Settings at the Provider keys section while no generation provider key is set. | None |
 | `generate-prompt` | Describe what to generate | Edits the prompt the Generate tab submits; Enter submits it. | None |
 | `generate-submit` | Generate | Submits the prompt in the Generate tab to the fal AI generation provider as a background job and imports the generated media file into the pool. | None |
 | `media-import` | Import | Opens the File > Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. | `Ctrl+I` |

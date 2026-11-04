@@ -127,6 +127,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         checked: None,
         run: |state, lane| state.remove_track(TrackId::from_raw(lane.track)),
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-mute-track",
         // The row names where the click lands, not where the lane is.
@@ -135,6 +136,15 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         checked: None,
         run: |state, lane| state.set_track_muted(TrackId::from_raw(lane.track), !lane.muted),
     }),
+    // Auto-duck listens to one voice, and a voice is sound.
+    MenuItem::Row(MenuRow {
+        id: "ctx-track-duck",
+        label: |_| "Duck Source",
+        when: |lane| lane.audio,
+        checked: Some(|lane| lane.duck_source),
+        run: |state, lane| state.toggle_track_duck_source(TrackId::from_raw(lane.track)),
+    }),
+    MenuItem::Rule,
     // Offered where there is somewhere to move: the top lane has no row above it,
     // and a row that does nothing when clicked is worse than no row.
     MenuItem::Row(MenuRow {
@@ -151,14 +161,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         checked: None,
         run: |state, lane| state.move_track_down(TrackId::from_raw(lane.track)),
     }),
-    // Auto-duck listens to one voice, and a voice is sound.
-    MenuItem::Row(MenuRow {
-        id: "ctx-track-duck",
-        label: |_| "Duck Source",
-        when: |lane| lane.audio,
-        checked: Some(|lane| lane.duck_source),
-        run: |state, lane| state.toggle_track_duck_source(TrackId::from_raw(lane.track)),
-    }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-track-open-gap",
         label: |_| "Open Gap at Playhead",
@@ -180,6 +183,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
             state.shift_clips_from_playhead(TrackId::from_raw(lane.track), -delta)
         },
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-lane-collapse",
         label: |lane| {
@@ -219,6 +223,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         checked: None,
         run: |state, lane| state.set_lane_filmstrip(lane.track, !lane.lane.filmstrip),
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: LANE_HEIGHTS[0].id,
         label: |_| LANE_HEIGHTS[0].label,

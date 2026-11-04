@@ -338,7 +338,7 @@ fn the_settings_filter_lists_the_bindings_it_names() {
         .expect("the row is listed by chord");
     assert!(listing.rows.iter().any(|(row, _)| row.binding.id == a.id));
 
-    for title in ["", "keys", " KEY "] {
+    for title in ["", "keyboard shortcuts", " KEY ", "Shortcuts"] {
         state.settings_form.filter = title.to_owned();
         let listing = state
             .listed_binding_rows()

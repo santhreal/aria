@@ -47,10 +47,18 @@ pub struct MenuItem {
     /// drop itself. Rows with one caption are drawn together in one flyout, at
     /// the place the first of them sits.
     pub under: Option<&'static str>,
+    /// The row starts a group of the drop: the drop draws a rule above the
+    /// entry the row is drawn as, which is the row itself or the submenu it
+    /// sits in. A submenu starts a group when any of its rows does.
+    pub rule: bool,
+    /// The row starts a group of its submenu's flyout, which draws a rule
+    /// above it.
+    pub flyout_rule: bool,
 }
 
 impl MenuItem {
-    /// A row that can always run, with no chord, no check mark, and no submenu.
+    /// A row that can always run, with no chord, no check mark, no submenu, and
+    /// no rule.
     pub const fn new(id: &'static str, label: &'static str, run: RowRun) -> Self {
         Self {
             id,
@@ -60,6 +68,8 @@ impl MenuItem {
             blocked: super::menu_guards::ready,
             checked: None,
             under: None,
+            rule: false,
+            flyout_rule: false,
         }
     }
 
@@ -85,6 +95,18 @@ impl MenuItem {
     /// Put the row in the submenu captioned `caption`.
     pub const fn under(mut self, caption: &'static str) -> Self {
         self.under = Some(caption);
+        self
+    }
+
+    /// Start a group of the drop at the entry this row is drawn as.
+    pub const fn rule(mut self) -> Self {
+        self.rule = true;
+        self
+    }
+
+    /// Start a group of the submenu's flyout at this row.
+    pub const fn flyout_rule(mut self) -> Self {
+        self.flyout_rule = true;
         self
     }
 
@@ -121,6 +143,15 @@ impl DropEntry {
         match self {
             Self::Row(at) => items[*at].label,
             Self::Sub { caption, .. } => caption,
+        }
+    }
+
+    /// Whether the entry starts a group of the drop. The drop draws the rule
+    /// only between two entries, never above the first.
+    pub fn starts_group(&self, items: &[MenuItem]) -> bool {
+        match self {
+            Self::Row(at) => items[*at].rule,
+            Self::Sub { rows, .. } => rows.iter().any(|at| items[*at].rule),
         }
     }
 }

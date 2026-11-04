@@ -13,6 +13,7 @@
 //! control. `AI_JOB_ROWS` holds the two that can be fired directly, because
 //! they need the entity context to start a request.
 
+use crate::app::settings_form::SettingsSection;
 use crate::types::ActivePanel;
 
 use super::host::{CommandEntry, WindowedEntry};
@@ -50,19 +51,19 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-ai-models",
         label: "AI: Choose the Model",
-        run: |state| state.open_settings_at("AI"),
+        run: |state| state.open_settings_at(SettingsSection::Ai),
     },
     CommandEntry {
         id: "pal-ai-connection",
         label: "AI: Test the Connection",
-        run: |state| state.open_settings_at("AI"),
+        run: |state| state.open_settings_at(SettingsSection::Ai),
     },
     CommandEntry {
         id: "pal-ai-schema",
         label: "Configuration: What This Build Reads",
         run: |state| {
             let status = state.settings_schema_status();
-            state.open_settings_at("Configuration");
+            state.open_settings_at(SettingsSection::Configuration);
             state.status_message = Some(status);
         },
     },

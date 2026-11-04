@@ -15,6 +15,7 @@ use gpui::{
 
 use crate::app::AppState;
 use crate::app::generate::{GenerateKind, missing_key_line};
+use crate::app::settings_form::SettingsSection;
 use crate::components;
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
@@ -105,8 +106,9 @@ pub(crate) fn generate_panel(
                 components::button("generate-keys", "Open Settings", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.open_settings_at("Keys"));
+                        this.state.update(cx, |state, _| {
+                            state.open_settings_at(SettingsSection::ProviderKeys)
+                        });
                         cx.notify();
                     }),
                 ),

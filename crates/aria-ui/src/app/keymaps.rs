@@ -14,11 +14,13 @@ use aria_core::count::counted;
 use gpui::SharedString;
 
 use super::AppState;
+use super::settings_form::SettingsSection;
 use crate::keys::keyboard_image::{CommandKind, Modifier, Mods};
 use crate::keys::keymap_sets::{self, KeySet, KeySetSkip, SkipReason};
 use crate::keys::{self, BindingRow, Chord, KeyOverrideError};
 
-/// The Keys page's own state. Session state: none of it is saved.
+/// The Keyboard Shortcuts section's own state. Session state: none of it is
+/// saved.
 #[derive(Debug, Default)]
 pub struct KeyForm {
     /// The sets in `<data dir>/keymaps`, by name. Read when Settings opens and
@@ -38,7 +40,7 @@ impl KeyForm {
     }
 }
 
-/// The Keys section's rows under the Settings filter.
+/// The Keyboard Shortcuts section's rows under the Settings filter.
 #[derive(Debug)]
 pub struct KeyListing {
     /// Each listed binding with what it is called, in registration order.
@@ -69,12 +71,13 @@ impl AppState {
         self.ui_settings.keymap.as_deref()
     }
 
-    /// The bindings the Keys section lists under the Settings filter, or
-    /// nothing when it lists none.
+    /// The bindings the Keyboard Shortcuts section lists under the Settings
+    /// filter, or nothing when it lists none.
     ///
-    /// A filter that is part of the section's title lists every binding. Any
-    /// other filter lists the bindings whose name or chord contains it, without
-    /// regard to case, so `razor` and `ctrl+k` both find a row.
+    /// A filter that is part of the section's title lists every binding, and
+    /// one that is another section's whole title lists none. Any other filter
+    /// lists the bindings whose name or chord contains it, without regard to
+    /// case, so `razor` and `ctrl+k` both find a row.
     pub fn listed_binding_rows(&self) -> Option<KeyListing> {
         let host = self.key_host();
         let rows = host.as_ref().map(|host| host.rows()).unwrap_or_default();
@@ -85,11 +88,14 @@ impl AppState {
             );
             (row, label)
         });
-        if self.settings_section_visible("Keys") {
+        if self.settings_section_visible(SettingsSection::KeyboardShortcuts.title()) {
             return Some(KeyListing {
                 rows: named.collect(),
                 whole: true,
             });
+        }
+        if self.settings_filter_names_a_section() {
+            return None;
         }
         let filter = self.settings_form.filter.trim().to_lowercase();
         let rows: Vec<(BindingRow, String)> = named

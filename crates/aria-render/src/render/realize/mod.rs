@@ -28,15 +28,34 @@ use super::media_cache::layer_lut;
 use super::{FrameStats, PendingFrame, Renderer, SLOW_FRAME_LOG_MS, SeekPolicy};
 
 /// Where a submitted frame's canvas goes.
-#[derive(Clone, Copy)]
 pub(in crate::render) enum Output<'t> {
-    /// A readback buffer the CPU maps when the frame finishes.
-    Readback,
     /// A readback buffer unless the realized scene is a single unmodified
     /// full-canvas CPU NV12 media frame matching the canvas size.
     ExportReadback { allow_nv12_passthrough: bool },
     /// A caller texture, written on the GPU.
     Texture(&'t wgpu::Texture),
+    /// A caller [`FrameSink`], queried for a GPU texture immediately before
+    /// `wgpu` submission and notified of readback counts immediately after.
+    Sink(&'t mut dyn FrameSink),
+    /// Realize and build compositor layers without submitting to `wgpu`.
+    #[cfg(test)]
+    DryRun,
+}
+
+impl Output<'_> {
+    pub(in crate::render) fn reborrow(&mut self) -> Output<'_> {
+        match self {
+            Self::ExportReadback {
+                allow_nv12_passthrough,
+            } => Output::ExportReadback {
+                allow_nv12_passthrough: *allow_nv12_passthrough,
+            },
+            Self::Texture(tex) => Output::Texture(tex),
+            Self::Sink(sink) => Output::Sink(*sink),
+            #[cfg(test)]
+            Self::DryRun => Output::DryRun,
+        }
+    }
 }
 
 /// Which channel of the stencil the compositor reads. The compositor does not
@@ -68,6 +87,10 @@ fn matte_effects(layer: &SceneLayer) -> (&[PassInstance], &[PassInstance]) {
 #[derive(Default)]
 pub(super) struct RealizeScratch {
     realized: Vec<Realized>,
+    sides: Vec<Leaf>,
+    strings: Vec<String>,
+    stencil_masks: Vec<Vec<aria_compositor::StencilMask>>,
+    stencil_images: Vec<Vec<std::sync::Arc<aria_compositor::RgbaImage>>>,
     scene_indices: Vec<usize>,
     /// The range of `realized` each level holds: the frame's scene, then the
     /// scene of each nest.
@@ -79,37 +102,100 @@ pub(super) struct RealizeScratch {
 
 impl RealizeScratch {
     fn begin_frame(&mut self) {
+        self.take_shown(|_| {});
         self.realized.clear();
+        self.sides.clear();
         self.scene_indices.clear();
         self.levels.clear();
         self.item_levels.clear();
     }
 
-    /// Move every decoded frame out of `realized`, for its decoder to keep.
+    pub(super) fn take_string_from(&mut self, src: &str) -> String {
+        let mut s = self.strings.pop().unwrap_or_default();
+        s.clear();
+        s.push_str(src);
+        s
+    }
+
+    pub(super) fn recycle_string(&mut self, mut s: String) {
+        if s.capacity() > 0 && self.strings.len() < 32 {
+            s.clear();
+            self.strings.push(s);
+        }
+    }
+
+    pub(super) fn take_stencil_vecs(
+        &mut self,
+        cap: usize,
+    ) -> (
+        Vec<aria_compositor::StencilMask>,
+        Vec<std::sync::Arc<aria_compositor::RgbaImage>>,
+    ) {
+        let mut masks = self.stencil_masks.pop().unwrap_or_default();
+        masks.clear();
+        masks.reserve(cap);
+        let mut images = self.stencil_images.pop().unwrap_or_default();
+        images.clear();
+        (masks, images)
+    }
+
+    pub(super) fn recycle_stencil_vecs(
+        &mut self,
+        mut masks: Vec<aria_compositor::StencilMask>,
+        mut images: Vec<std::sync::Arc<aria_compositor::RgbaImage>>,
+    ) {
+        if masks.capacity() > 0 && self.stencil_masks.len() < 32 {
+            masks.clear();
+            self.stencil_masks.push(masks);
+        }
+        if images.capacity() > 0 && self.stencil_images.len() < 32 {
+            images.clear();
+            self.stencil_images.push(images);
+        }
+    }
+
+    fn recycle_leaf(&mut self, leaf: Leaf, keep: &mut impl FnMut(Shown)) {
+        match leaf.pixels {
+            Pixels::Frame(shown) => keep(shown),
+            Pixels::Sticker { asset, .. } => self.recycle_string(asset),
+            Pixels::Lottie { path, .. } => self.recycle_string(path),
+            _ => {}
+        }
+        if let Some(lut) = leaf.lut {
+            self.recycle_string(lut.path);
+        }
+        if let Some(stencil) = leaf.stencil {
+            self.recycle_stencil_vecs(stencil.masks, stencil.images);
+        }
+    }
+
+    /// Move every decoded frame out of `realized`, for its decoder to keep,
+    /// and recycle pooled strings and stencil buffers.
     fn take_shown(&mut self, mut keep: impl FnMut(Shown)) {
-        let mut leaf = |leaf: Leaf| {
-            if let Pixels::Frame(shown) = leaf.pixels {
-                keep(shown);
-            }
-        };
-        for realized in self.realized.drain(..) {
-            match realized {
-                Realized::Layer(layer) => leaf(layer),
-                Realized::Transition {
-                    outgoing, incoming, ..
-                } => {
-                    leaf(*outgoing);
-                    leaf(*incoming);
+        let mut realized = std::mem::take(&mut self.realized);
+        for item in realized.drain(..) {
+            match item {
+                Realized::Layer(layer) => self.recycle_leaf(layer, &mut keep),
+                Realized::Transition { transition_id, .. } => {
+                    self.recycle_string(transition_id);
                 }
-                Realized::Matte {
-                    content, stencil, ..
-                } => {
-                    leaf(*content);
-                    leaf(*stencil);
+                Realized::Matte { .. } => {}
+                Realized::CanvasPass { lut, stencil, .. } => {
+                    if let Some(lut) = lut {
+                        self.recycle_string(lut.path);
+                    }
+                    if let Some(stencil) = stencil {
+                        self.recycle_stencil_vecs(stencil.masks, stencil.images);
+                    }
                 }
-                Realized::CanvasPass { .. } => {}
             }
         }
+        self.realized = realized;
+        let mut sides = std::mem::take(&mut self.sides);
+        for side in sides.drain(..) {
+            self.recycle_leaf(side, &mut keep);
+        }
+        self.sides = sides;
     }
 }
 
@@ -146,6 +232,10 @@ impl<T: Copy, const N: usize> InlineVec<T, N> {
         } else {
             self.heap.len()
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     fn push(&mut self, item: T) {
@@ -389,7 +479,7 @@ impl Renderer {
         // for a job drawn onto the canvas.
         let mut jobs: InlineVec<(Option<u64>, LayerJob<'_>), 16> =
             InlineVec::new((None, LayerJob::Plain { storage_idx: 0 }));
-        let level_scenes = std::iter::once(scene).chain(nests.scenes.iter().copied());
+        let level_scenes = std::iter::once(scene).chain(nests.scenes.as_slice().iter().copied());
         for (level_scene, level) in level_scenes.zip(&scratch.levels) {
             let start = jobs.len();
             for (r, &scene_idx) in realized[level.clone()]
@@ -430,9 +520,17 @@ impl Renderer {
                         progress,
                     } => {
                         let (out_effects, in_effects) = transition_effects(scene_layer);
-                        layer_storage.push(composite_leaf(outgoing, &caches, out_effects));
+                        layer_storage.push(composite_leaf(
+                            &scratch.sides[*outgoing],
+                            &caches,
+                            out_effects,
+                        ));
                         let out_idx = layer_storage.len() - 1;
-                        layer_storage.push(composite_leaf(incoming, &caches, in_effects));
+                        layer_storage.push(composite_leaf(
+                            &scratch.sides[*incoming],
+                            &caches,
+                            in_effects,
+                        ));
                         let in_idx = layer_storage.len() - 1;
                         let params = scene_layer
                             .effects
@@ -457,9 +555,17 @@ impl Renderer {
                         softness,
                     } => {
                         let (content_effects, stencil_effects) = matte_effects(scene_layer);
-                        layer_storage.push(composite_leaf(content, &caches, content_effects));
+                        layer_storage.push(composite_leaf(
+                            &scratch.sides[*content],
+                            &caches,
+                            content_effects,
+                        ));
                         let content_idx = layer_storage.len() - 1;
-                        layer_storage.push(composite_leaf(stencil, &caches, stencil_effects));
+                        layer_storage.push(composite_leaf(
+                            &scratch.sides[*stencil],
+                            &caches,
+                            stencil_effects,
+                        ));
                         let stencil_idx = layer_storage.len() - 1;
                         jobs.push((
                             reference,
@@ -596,10 +702,11 @@ impl Renderer {
         let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
         let submitted_at = Instant::now();
         let readback = match output {
-            Output::Readback | Output::ExportReadback { .. } => Some(
-                self.compositor
-                    .submit_compositor_layers(&self.gpu, &config, compositor_layers)?,
-            ),
+            Output::ExportReadback { .. } => Some(self.compositor.submit_compositor_layers(
+                &self.gpu,
+                &config,
+                compositor_layers,
+            )?),
             Output::Texture(texture) => {
                 self.compositor.submit_compositor_layers_to_texture(
                     &self.gpu,
@@ -609,6 +716,26 @@ impl Renderer {
                 )?;
                 None
             }
+            Output::Sink(sink) => {
+                if let Some(texture) = sink.texture(scene.width, scene.height) {
+                    self.compositor.submit_compositor_layers_to_texture(
+                        &self.gpu,
+                        &config,
+                        compositor_layers,
+                        texture,
+                    )?;
+                    sink.record_readbacks(self.readback_count());
+                    None
+                } else {
+                    Some(self.compositor.submit_compositor_layers(
+                        &self.gpu,
+                        &config,
+                        compositor_layers,
+                    )?)
+                }
+            }
+            #[cfg(test)]
+            Output::DryRun => None,
         };
         let passes = self.compositor.pass_stats();
         Ok(PendingFrame {
@@ -730,3 +857,7 @@ impl Renderer {
 #[cfg(test)]
 #[path = "scratch_tests.rs"]
 mod scratch_tests;
+
+#[cfg(test)]
+#[path = "steady_alloc_tests.rs"]
+mod steady_alloc_tests;

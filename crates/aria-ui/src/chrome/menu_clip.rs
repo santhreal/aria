@@ -47,7 +47,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         s.open_speed_duration()
     })
     .key("key-speed-duration")
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("clip-time-remap", "Time Remapping", |_, s, _| {
         let remapped = s.toggle_time_remap();
         report(s, remapped)
@@ -61,7 +62,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
     })
     .key("key-clip-enable")
     .when(super::menu_guards::selection)
-    .checked(|_, s| s.selection_is_enabled()),
+    .checked(|_, s| s.selection_is_enabled())
+    .rule(),
     MenuItem::new("seq-link", "Link", |_, s, _| {
         let linked = s.link_selected();
         report(s, linked)
@@ -87,7 +89,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-nest", "Nest…", |_, s, _| {
         crate::commands::reach::nest_selection(s)
     })
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("clip-replace-source", "From Source Monitor", |_, s, _| {
         let replaced = s.replace_with_source();
         report(s, replaced)
@@ -98,7 +101,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         let frozen = s.freeze_selected_frame();
         report(s, frozen)
     })
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("seq-bake-clip", "Render and Replace", |_, s, _| {
         if let Err(err) = s.render_and_replace() {
             s.status_message = Some(err);
@@ -115,7 +119,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         s.open_audio_gain()
     })
     .key("key-audio-gain")
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::selection)
+    .rule(),
     MenuItem::new("clip-channels-stereo", "Stereo", run_audio_channels)
         .checked(audio_channels_checked)
         .when(super::menu_guards::sound)
@@ -146,7 +151,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         report(s, flipped)
     })
     .when(super::menu_guards::selection)
-    .under("Transform"),
+    .under("Transform")
+    .rule(),
     MenuItem::new("seq-flip-v", "Flip Vertical", |_, s, _| {
         let flipped = s.toggle_selected_flip_v();
         report(s, flipped)
@@ -158,7 +164,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         report(s, reset)
     })
     .when(super::menu_guards::selection)
-    .under("Transform"),
+    .under("Transform")
+    .flyout_rule(),
     MenuItem::new("seq-matte-luma", "Luma Matte from Above", |_, s, _| {
         let set = s.set_selected_matte_source(aria_models::MatteSource::Luma);
         report(s, set)
@@ -176,7 +183,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
         report(s, cleared)
     })
     .when(super::menu_guards::selection)
-    .under("Track Matte"),
+    .under("Track Matte")
+    .flyout_rule(),
 ];
 
 fn run_clip_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {
@@ -197,17 +205,17 @@ pub(super) fn clip_items(state: &AppState) -> MenuItems {
     let intern = crate::interned::intern;
     let mut items = Vec::with_capacity(CLIP_ITEMS.len() + analyzers.len());
     items.extend_from_slice(CLIP_ITEMS);
-    for entry in analyzers {
+    // The analyzers are a group of the drop.
+    for (index, entry) in analyzers.into_iter().enumerate() {
         let spec = entry.spec();
-        items.push(
-            MenuItem::new(
-                intern(&format!("{CLIP_ANALYZE_PREFIX}{}", spec.id)),
-                intern(&spec.label),
-                run_clip_analyzer,
-            )
-            .when(super::menu_guards::sound)
-            .under(ANALYZE),
-        );
+        let row = MenuItem::new(
+            intern(&format!("{CLIP_ANALYZE_PREFIX}{}", spec.id)),
+            intern(&spec.label),
+            run_clip_analyzer,
+        )
+        .when(super::menu_guards::sound)
+        .under(ANALYZE);
+        items.push(if index == 0 { row.rule() } else { row });
     }
     Cow::Owned(items)
 }

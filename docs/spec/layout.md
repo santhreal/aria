@@ -141,8 +141,13 @@ plugin panel docks, floats, and tabs the same way a shipped panel does.
 | Help | Keyboard Shortcuts, Plugin Development, Open Data Folder, Check for Updates, About |
 
 A row with a parenthesised list is a submenu. Plugin menu rows follow the
-shipped rows of their menu; a plugin row placed in a group sits in a submenu
-named after the group ([plugins/menus.md](../plugins/menus.md)).
+shipped rows of their menu as a group of their own; a plugin row placed in a
+group sits in a submenu named after the group, or joins a shipped submenu of
+that name as a group of its flyout ([plugins/menus.md](../plugins/menus.md)).
+
+A drop, a flyout and a context menu split their rows into groups of related
+commands. A 1 px rule inset by the row padding, with 4 px above and below it,
+is drawn between two groups and never at a menu's edge.
 
 Every menu row is 22 px, in the menu bar and in a context menu. A 16 px lead
 column holds a toggle's check mark while it is on, or a plugin row's icon, and
@@ -160,7 +165,7 @@ a plain row move to the neighboring menu, Enter runs the lit row, and Escape
 closes the drop. Opening a dialog, the command palette, or the unsaved-changes
 prompt, or returning to Home, closes an open drop, flyout, or popover, so the
 keys typed next reach the dialog. On macOS the bar is the native menu bar, with
-the same submenus, check marks and disabled rows. After the menu titles, centered, the
+the same submenus, separators, check marks and disabled rows. After the menu titles, centered, the
 bar shows `Home / ` and the project name, with a dot before the name while the
 project has unsaved changes. Clicking Home returns to the Home screen.
 

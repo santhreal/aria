@@ -20,6 +20,7 @@ use aria_models::{AudioLayout, CanvasAspect, TimeDisplay};
 use gpui::{Bounds, Pixels, TestAppContext, px, size};
 
 use crate::app::AppState;
+use crate::app::settings_form::SettingsSection;
 use crate::settings::MIN_WINDOW_WIDTH;
 use crate::surfaces::settings_pick::RATES;
 use crate::test_support::{bounds_inside, drawn_shell};
@@ -72,7 +73,7 @@ fn every_canvas_choice_reads_whole_or_ends_in_an_ellipsis_inside_its_row(cx: &mu
     let (state, visual) = drawn_shell(cx, "settings-choice-fit");
     visual.update(|_, app| {
         state.update(app, |state, cx| {
-            state.open_settings_at("Canvas");
+            state.open_settings_at(SettingsSection::Canvas);
             cx.notify();
         });
     });

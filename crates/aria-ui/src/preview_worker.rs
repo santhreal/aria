@@ -712,6 +712,7 @@ struct TexturePool {
     size: (u32, u32),
     slots: Vec<PooledSlot>,
     cursor: usize,
+    empty_rgba: Option<Arc<RgbaImage>>,
     /// The scope pass on `device`: `None` until scopes first read a texture
     /// frame, `Some(None)` once the device has shown it cannot run the pass.
     scopes: Option<Option<GpuScopes>>,
@@ -759,6 +760,18 @@ impl TexturePool {
         self.scopes
             .get_or_insert_with(|| GpuScopes::new(device, queue))
             .as_mut()
+    }
+
+    fn empty_rgba(&mut self, width: u32, height: u32) -> Arc<RgbaImage> {
+        if let Some(img) = &self.empty_rgba
+            && img.width == width
+            && img.height == height
+        {
+            return Arc::clone(img);
+        }
+        let img = Arc::new(RgbaImage::new(width, height, Vec::new()));
+        self.empty_rgba = Some(Arc::clone(&img));
+        img
     }
 
     fn acquire(
@@ -914,10 +927,11 @@ fn render(
             None => None,
         };
         let wgpu::Extent3d { width, height, .. } = raw.size();
+        let rgba = sink.pool.empty_rgba(width, height);
         return Ok((
             PreviewFrame {
                 tick: time.value,
-                rgba: Arc::new(RgbaImage::new(width, height, Vec::new())),
+                rgba,
                 image: None,
                 texture: Some(texture),
                 stats,

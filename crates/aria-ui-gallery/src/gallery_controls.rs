@@ -462,7 +462,8 @@ fn typed_rows(theme: &Theme) -> AnyElement {
 
 /// The lead column of a menu row in its three states, a check mark on a toggle
 /// that holds, an icon, and the empty column of a plain row, each beside a
-/// caption so the captions are seen to line up.
+/// caption so the captions are seen to line up, with the rule between two
+/// groups of rows under the toggle.
 fn menu_lead_rows(theme: &Theme) -> AnyElement {
     let row = |checked: bool, icon: Option<&'static str>, caption: &'static str| {
         div()
@@ -478,11 +479,12 @@ fn menu_lead_rows(theme: &Theme) -> AnyElement {
     };
     group(
         theme,
-        "menu_lead(checked, icon, theme) — checked / icon / empty",
+        "menu_lead(checked, icon, theme) / menu_rule(theme) — checked / rule / icon / empty",
         div()
             .flex()
             .flex_col()
             .child(row(true, None, "Snapping"))
+            .child(components::menu_rule(theme))
             .child(row(false, Some(icons::SCISSORS), "Split at Playhead"))
             .child(row(false, None, "Ripple Delete")),
     )

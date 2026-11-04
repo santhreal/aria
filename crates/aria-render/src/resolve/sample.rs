@@ -117,6 +117,7 @@ pub(super) fn sample_text_animation(
     local_tick: i64,
     local_tick_f: f64,
     rate: aria_core::Rational,
+    pool: &mut ResolvePool,
 ) -> Option<TextAnimation> {
     let duration = duration_ticks.max(1);
     let base_window = look_animation_window_ticks(duration, rate);
@@ -125,7 +126,7 @@ pub(super) fn sample_text_animation(
             let phase = crate::animation::combo_phase(local_tick_f, rate, combo.speed) as f32;
             let (intensity, stagger) = text_knobs(combo);
             return Some(TextAnimation {
-                id: combo.id.clone(),
+                id: pool.take_string_from(&combo.id),
                 slot: AnimationSlot::Combo,
                 t: phase,
                 intensity,
@@ -144,7 +145,7 @@ pub(super) fn sample_text_animation(
             let eased = Easing::EaseOut.apply(raw);
             let (intensity, stagger) = text_knobs(anim);
             return Some(TextAnimation {
-                id: anim.id.clone(),
+                id: pool.take_string_from(&anim.id),
                 slot: AnimationSlot::In,
                 t: eased,
                 intensity,
@@ -164,7 +165,7 @@ pub(super) fn sample_text_animation(
             let eased = Easing::EaseIn.apply(raw);
             let (intensity, stagger) = text_knobs(anim);
             return Some(TextAnimation {
-                id: anim.id.clone(),
+                id: pool.take_string_from(&anim.id),
                 slot: AnimationSlot::Out,
                 t: eased,
                 intensity,
@@ -184,55 +185,113 @@ pub(super) fn sample_text_animation(
 /// Reusable heap buffers harvested from a resolved [`Scene`] before it is
 /// refilled for the next frame.
 #[derive(Default)]
+#[allow(clippy::vec_box)] // pools the Box heap allocations themselves
 pub(crate) struct ResolvePool {
     effects: Vec<Vec<ResolvedPass>>,
     params: Vec<Vec<f32>>,
     strings: Vec<String>,
+    masks: Vec<Vec<SceneMask>>,
+    path_points: Vec<Vec<aria_shapes::PathPoint>>,
+    text_runs: Vec<Vec<aria_text::TextRun>>,
+    effect_masks: Vec<Vec<aria_compositor::StencilMask>>,
+    effect_mask_images: Vec<Vec<std::sync::Arc<aria_core::RgbaImage>>>,
+    effect_paths: Option<aria_shapes::PathRaster>,
+    boxed_layers: Vec<Box<SceneLayer>>,
+    boxed_layer_pairs: Vec<Box<[SceneLayer; 2]>>,
+    pub(super) matte_requests: Vec<Option<super::matte::MatteRequest>>,
+    pub(super) layers_scratch: Vec<SceneLayer>,
 }
 
 impl ResolvePool {
     pub(crate) fn recycle_scene(&mut self, scene: &mut Scene) {
-        for layer in scene.layers.drain(..).chain(scene.references.drain(..)) {
-            self.recycle_layer(layer);
+        for mut layer in scene.layers.drain(..).chain(scene.references.drain(..)) {
+            self.recycle_layer_fields(&mut layer);
         }
     }
 
-    fn recycle_layer(&mut self, mut layer: SceneLayer) {
+    fn recycle_layer_fields(&mut self, layer: &mut SceneLayer) {
         for mut pass in layer.effects.drain(..) {
-            if pass.params.capacity() > 0 && self.params.len() < 32 {
-                pass.params.clear();
-                self.params.push(pass.params);
+            self.recycle_params(pass.params);
+            if pass.masks.capacity() > 0 && self.effect_masks.len() < 16 {
+                pass.masks.clear();
+                self.effect_masks.push(pass.masks);
+            }
+            if pass.mask_images.capacity() > 0 && self.effect_mask_images.len() < 16 {
+                pass.mask_images.clear();
+                self.effect_mask_images.push(pass.mask_images);
             }
         }
-        if layer.effects.capacity() > 0 && self.effects.len() < 32 {
-            self.effects.push(layer.effects);
+        let effects = std::mem::take(&mut layer.effects);
+        if effects.capacity() > 0 && self.effects.len() < 32 {
+            self.effects.push(effects);
         }
-        match layer.source {
+        for mask in layer.masks.drain(..) {
+            self.recycle_path_points(mask.path);
+        }
+        let masks = std::mem::take(&mut layer.masks);
+        if masks.capacity() > 0 && self.masks.len() < 32 {
+            self.masks.push(masks);
+        }
+        if let Some(lut) = layer.lut.take() {
+            self.recycle_string(lut.path);
+        }
+        layer.blur_passes = Vec::new();
+        match std::mem::replace(&mut layer.source, LayerSource::CanvasPass) {
             LayerSource::Text {
-                mut content, style, ..
+                content,
+                mut style,
+                animation,
             } => {
-                if content.capacity() > 0 && self.strings.len() < 16 {
-                    content.clear();
-                    self.strings.push(content);
+                self.recycle_string(content);
+                if let aria_text::FontFamily::Named(font) = style.family {
+                    self.recycle_string(font);
                 }
-                if let aria_text::FontFamily::Named(mut font) = style.family
-                    && font.capacity() > 0
-                    && self.strings.len() < 16
-                {
-                    font.clear();
-                    self.strings.push(font);
+                for run in style.runs.drain(..) {
+                    if let Some(aria_text::FontFamily::Named(font)) = run.family {
+                        self.recycle_string(font);
+                    }
                 }
+                if style.runs.capacity() > 0 && self.text_runs.len() < 16 {
+                    self.text_runs.push(style.runs);
+                }
+                if let Some(anim) = animation {
+                    self.recycle_string(anim.id);
+                }
+            }
+            LayerSource::Sticker { asset, .. } => {
+                self.recycle_string(asset);
+            }
+            LayerSource::Lottie { path, .. } => {
+                self.recycle_string(path);
+            }
+            LayerSource::PathShape { path, .. } => {
+                self.recycle_path_points(path.points);
             }
             LayerSource::Transition {
-                outgoing, incoming, ..
+                mut outgoing,
+                mut incoming,
+                transition_id,
+                ..
             } => {
-                self.recycle_layer(*outgoing);
-                self.recycle_layer(*incoming);
+                self.recycle_string(transition_id);
+                self.recycle_layer_fields(&mut outgoing);
+                if self.boxed_layers.len() < 16 {
+                    self.boxed_layers.push(outgoing);
+                }
+                self.recycle_layer_fields(&mut incoming);
+                if self.boxed_layers.len() < 16 {
+                    self.boxed_layers.push(incoming);
+                }
             }
-            LayerSource::Matte { layers, .. } => {
-                let [a, b] = *layers;
-                self.recycle_layer(a);
-                self.recycle_layer(b);
+            LayerSource::Matte { mut layers, .. } => {
+                self.recycle_layer_fields(&mut layers[0]);
+                self.recycle_layer_fields(&mut layers[1]);
+                if self.boxed_layer_pairs.len() < 16 {
+                    self.boxed_layer_pairs.push(layers);
+                }
+            }
+            LayerSource::Nest { mut scene, .. } => {
+                self.recycle_scene(&mut scene);
             }
             _ => {}
         }
@@ -240,6 +299,85 @@ impl ResolvePool {
 
     pub(crate) fn take_string(&mut self) -> String {
         self.strings.pop().unwrap_or_default()
+    }
+
+    pub(crate) fn take_string_from(&mut self, src: &str) -> String {
+        let mut s = self.take_string();
+        s.clear();
+        s.push_str(src);
+        s
+    }
+
+    pub(crate) fn recycle_string(&mut self, mut s: String) {
+        if s.capacity() > 0 && self.strings.len() < 32 {
+            s.clear();
+            self.strings.push(s);
+        }
+    }
+
+    pub(crate) fn take_effects(&mut self) -> Vec<ResolvedPass> {
+        let mut v = self.effects.pop().unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    pub(crate) fn take_params(&mut self) -> Vec<f32> {
+        let mut v = self.params.pop().unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    pub(crate) fn recycle_params(&mut self, mut v: Vec<f32>) {
+        if v.capacity() > 0 && self.params.len() < 32 {
+            v.clear();
+            self.params.push(v);
+        }
+    }
+
+    pub(crate) fn take_masks(&mut self) -> Vec<SceneMask> {
+        let mut v = self.masks.pop().unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    pub(crate) fn take_path_points(&mut self) -> Vec<aria_shapes::PathPoint> {
+        let mut v = self.path_points.pop().unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    pub(crate) fn recycle_path_points(&mut self, mut v: Vec<aria_shapes::PathPoint>) {
+        if v.capacity() > 0 && self.path_points.len() < 32 {
+            v.clear();
+            self.path_points.push(v);
+        }
+    }
+
+    pub(crate) fn take_text_runs(&mut self) -> Vec<aria_text::TextRun> {
+        let mut v = self.text_runs.pop().unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    pub(crate) fn box_layer(&mut self, layer: SceneLayer) -> Box<SceneLayer> {
+        match self.boxed_layers.pop() {
+            Some(mut b) => {
+                *b = layer;
+                b
+            }
+            None => Box::new(layer),
+        }
+    }
+
+    pub(crate) fn box_layer_pair(&mut self, a: SceneLayer, b: SceneLayer) -> Box<[SceneLayer; 2]> {
+        match self.boxed_layer_pairs.pop() {
+            Some(mut pair) => {
+                pair[0] = a;
+                pair[1] = b;
+                pair
+            }
+            None => Box::new([a, b]),
+        }
     }
 }
 
@@ -275,7 +413,7 @@ pub(super) fn resolve_effects_pooled(
         if let Ok(mut pass) = pack_effect(fx, tick_f, id, seconds, point, pool) {
             pass = pass.with_opacity(opacity);
             if !fx.masks.is_empty() {
-                let (masks, mask_images) = resolve_effect_masks(clip, fx, tick, px, canvas);
+                let (masks, mask_images) = resolve_effect_masks(clip, fx, tick, px, canvas, pool);
                 pass = pass.with_masks(masks, mask_images, fx.invert_masks);
             }
             out.push(pass);
@@ -290,13 +428,16 @@ fn resolve_effect_masks(
     tick: i64,
     px: f32,
     canvas: [f32; 2],
+    pool: &mut ResolvePool,
 ) -> (
     Vec<aria_compositor::StencilMask>,
     Vec<std::sync::Arc<aria_core::RgbaImage>>,
 ) {
-    let mut masks = Vec::with_capacity(fx.masks.len());
-    let mut images = Vec::new();
-    let mut paths = None;
+    let mut masks = pool.effect_masks.pop().unwrap_or_default();
+    masks.clear();
+    masks.reserve(fx.masks.len());
+    let mut images = pool.effect_mask_images.pop().unwrap_or_default();
+    images.clear();
     let size = [
         canvas[0].round().max(1.0) as u32,
         canvas[1].round().max(1.0) as u32,
@@ -305,14 +446,17 @@ fn resolve_effect_masks(
         let Some(raw_mask) = clip.masks.get(mask_idx as usize) else {
             continue;
         };
-        let Some(mask) = super::clip::resolve_mask(raw_mask, tick, px) else {
+        let Some(mask) = super::clip::resolve_mask_pooled(raw_mask, tick, px, pool) else {
             continue;
         };
         let (coverage, softness) = if mask.kind == aria_models::MaskKind::Path {
             if mask.path.len() < 3 {
+                pool.recycle_path_points(mask.path);
                 continue;
             }
-            let rasterizer = paths.get_or_insert_with(aria_shapes::PathRaster::new);
+            let rasterizer = pool
+                .effect_paths
+                .get_or_insert_with(aria_shapes::PathRaster::new);
             images.push(rasterizer.rasterize_mask(
                 size[0],
                 size[1],
@@ -321,15 +465,15 @@ fn resolve_effect_masks(
                 mask.rotation_rad,
                 mask.expansion,
             ));
+            pool.recycle_path_points(mask.path);
             (
                 aria_compositor::StencilCoverage::Image(images.len() - 1),
                 mask.feather.clamp(0.0, 1.0),
             )
         } else {
-            (
-                aria_compositor::StencilCoverage::Shape(crate::render::effects::shape_mask(&mask)),
-                0.0,
-            )
+            let shape = crate::render::effects::shape_mask(&mask);
+            pool.recycle_path_points(mask.path);
+            (aria_compositor::StencilCoverage::Shape(shape), 0.0)
         };
         masks.push(aria_compositor::StencilMask {
             coverage,
@@ -447,6 +591,7 @@ mod style_tests {
             0,
             -0.75 * period,
             aria_core::Rational::FPS_24,
+            &mut ResolvePool::default(),
         )
         .expect("text combo");
         assert!((sampled.t - 0.25).abs() < f32::EPSILON);

@@ -626,6 +626,11 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "settings_doc_matches_registries",
         ),
         (
+            "SettingsSection",
+            "docs/reference/settings.md",
+            "settings_doc_matches_registries",
+        ),
+        (
             "WasmLimit",
             "docs/reference/settings.md",
             "settings_doc_matches_registries",

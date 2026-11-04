@@ -1,4 +1,4 @@
-//! The top of the Keys section: the named sets, and the keyboard image.
+//! The top of the Keyboard Shortcuts section: the named sets, and the keyboard image.
 //!
 //! The image is drawn from [`crate::keys::keyboard_image`], with each key
 //! coloured by the kinds of command it holds under the modifiers shown. A

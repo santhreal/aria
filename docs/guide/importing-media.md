@@ -134,7 +134,7 @@ result downloads into the download cache, is pinned, and imports into the media
 pool.
 
 Without a `fal` key the tab states which key to add and offers no **Generate**
-button. **Open Settings** under the line opens Settings at the **Keys** section.
+button. **Open Settings** under the line opens Settings at the **Provider keys** section.
 See [Provider keys](settings-and-storage.md#provider-keys) for where the key goes.
 
 **Lottie animations** under the jobs lists the Lottie catalog. Click **Load

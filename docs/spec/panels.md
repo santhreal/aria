@@ -49,9 +49,11 @@ click, and the count shortens with an ellipsis so the footer stays on one line.
 An item's name with
 no room ends in an ellipsis. In Tiles an item draws its 120 × 68 px picture at
 the left and its name and facts beside it, and in a panel too narrow for both
-the name and facts wrap under the picture. In every view that draws pictures,
-an item with no frame to show (an audio file, a file that is gone) draws a
-glyph in a slot the size of the others' pictures.
+the name and facts wrap under the picture. The facts take two lines, the frame
+size and length over the codecs, and List draws them as one line beside the
+name. A facts line never wraps: with no room it ends in an ellipsis. In every
+view that draws pictures, an item with no frame to show (an audio file, a file
+that is gone) draws a glyph in a slot the size of the others' pictures.
 
 Between the two rows: the breadcrumb, while a bin is open, with Rename and
 Delete bin at the right, which move to a line of their own when the

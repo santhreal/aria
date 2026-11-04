@@ -139,5 +139,6 @@ pub const BADGE_ITEMS: &[MenuItem<BadgeMenu>] = &[
             Ok(())
         },
     }),
+    MenuItem::Rule,
     MenuItem::Properties,
 ];

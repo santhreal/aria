@@ -113,8 +113,8 @@ api_key_env = "PEXELS_API_KEY"
 | `appearance` | `string` | `"system"` | `"system"`, `"light"`, `"dark"` | **Settings > Appearance** | Selects the dark or light surface palette (`AppearanceMode`). |
 | `homeRail` | `string` | `"recents"` | `"new"`, `"open"`, `"recents"`, `"samples"`, `"learn"` | Home left rail | Last selected view on the Home route (`HomeRail`). |
 | `motion` | `string` | `"full"` | `"full"`, `"brisk"`, `"relaxed"`, `"off"` | **Settings > Appearance** | Controls UI transition animation duration (`MotionPreference`). |
-| `keys` | `object` | `{}` | Map of binding ID to chord string (`"Ctrl+Shift+P"`) or `null` (unbound) | **Settings > Keys** | Per-command keyboard shortcut overrides. |
-| `keymap` | `string` | `null` | Keymap name in `<data dir>/keymaps` or `null` | **Settings > Keys** | Name of the custom keymap file last loaded or saved. |
+| `keys` | `object` | `{}` | Map of binding ID to chord string (`"Ctrl+Shift+P"`) or `null` (unbound) | **Settings > Keyboard Shortcuts** | Per-command keyboard shortcut overrides. |
+| `keymap` | `string` | `null` | Keymap name in `<data dir>/keymaps` or `null` | **Settings > Keyboard Shortcuts** | Name of the custom keymap file last loaded or saved. |
 | `workspace` | `object` | `null` | `PaneLayout` JSON object or `null` | **Settings > Workspaces** | Saved `Custom` workspace slot. |
 | `dockTree` | `object` | `null` | `DockTree` (`version = 2`) or `null` | Workspace dock | Active dock frame tree restored on launch. |
 | `workspaceTrees` | `object` | `{}` | Map of workspace ID to `DockTree` | Workspace switcher | Per-workspace customized dock trees saved via **Save Changes to this Workspace**. |
@@ -196,6 +196,29 @@ When `Settings::from_document` encounters a field in `config.toml` that fails va
 | `Total` | `model-timeout-total` | `Total` |
 | `Fuel` | `wasm-limit-fuel` | `WASM fuel per call` |
 | `Memory` | `wasm-limit-memory` | `WASM memory` |
+
+## Settings dialog sections (`SettingsSection::ALL`)
+
+`SettingsSection::ALL` (`crates/aria-ui/src/app/settings_form.rs`) lists the shipped sections of `aria.dialog.settings` in the order the dialog draws them. Sections a plugin declares are drawn between Application and Canvas, and Canvas is drawn only while a project is open. A filter equal to a title, ignoring case, shows that section alone; any other filter shows each section whose title contains it.
+
+| Variant | Title (`title()`) |
+| --- | --- |
+| `Appearance` | `Appearance` |
+| `Playback` | `Playback` |
+| `Timeline` | `Timeline` |
+| `Ai` | `AI` |
+| `ProviderKeys` | `Provider keys` |
+| `Storage` | `Storage` |
+| `Caches` | `Caches` |
+| `Transcription` | `Transcription` |
+| `Cloud` | `Cloud` |
+| `Plugins` | `Plugins` |
+| `KeyboardShortcuts` | `Keyboard Shortcuts` |
+| `Workspaces` | `Workspaces` |
+| `Catalogs` | `Catalogs` |
+| `Configuration` | `Configuration` |
+| `Application` | `Application` |
+| `Canvas` | `Canvas` |
 
 ## Playback drop causes and decoder output modes (`DropCause::ALL` and `OutputMode::ALL`)
 

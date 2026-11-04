@@ -94,6 +94,7 @@ pub const KEYFRAME_ITEMS: &[MenuItem<KeyframeMenu>] = &[
         checked: Some(|key| key.roving),
         run: |state, key| state.toggle_roving_keyframe(key.clip, key.param, key.tick),
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-key-copy",
         label: |_| "Copy Keyframes",
@@ -111,6 +112,7 @@ pub const KEYFRAME_ITEMS: &[MenuItem<KeyframeMenu>] = &[
         checked: None,
         run: |state, _| state.paste_keyframes_at_playhead().map(drop),
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-key-delete",
         label: |_| "Delete Keyframes",
@@ -196,6 +198,7 @@ pub const MASK_PATH_KEY_ITEMS: &[MenuItem<MaskPathKeyMenu>] = &[
             key.ease(state, easing)
         },
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-path-key-delete",
         label: |_| "Delete Keyframe",

@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 
 use crate::app::AppState;
+use crate::app::settings_form::SettingsSection;
 use crate::commands::reach;
 
 use super::menu_guards as guards;
@@ -40,7 +41,7 @@ pub(crate) const SEQ_ANALYZE_PREFIX: &str = "seq-analyze:";
 const ANALYZE: &str = "Analyze";
 static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-settings", "Sequence Settings…", |_, s, _| {
-        s.open_settings_at("Canvas")
+        s.open_settings_at(SettingsSection::Canvas)
     }),
     MenuItem::new("seq-render-in-to-out", "Render In to Out", |_, s, _| {
         if let Err(err) = s.render_in_to_out() {
@@ -48,7 +49,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         }
     })
     .key("key-render-in-to-out")
-    .when(guards::clips),
+    .when(guards::clips)
+    .rule(),
     MenuItem::new("seq-render-selection", "Render Selection", |_, s, _| {
         if let Err(err) = s.render_selection() {
             s.status_message = Some(err);
@@ -69,7 +71,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         report(s, added)
     })
     .key("key-split")
-    .when(guards::clips),
+    .when(guards::clips)
+    .rule(),
     MenuItem::new("seq-add-edit-all", "Add Edit to All Tracks", |_, s, _| {
         let added = s.add_edit(true);
         report(s, added)
@@ -94,13 +97,15 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         },
     )
     .key("key-transition")
-    .when(guards::clips),
+    .when(guards::clips)
+    .rule(),
     MenuItem::new("seq-lift", "Lift", |_, s, _| {
         let lifted = s.remove_marked_range(false);
         report(s, lifted)
     })
     .key("key-lift")
-    .when(guards::range),
+    .when(guards::range)
+    .rule(),
     MenuItem::new("seq-extract", "Extract", |_, s, _| {
         let extracted = s.remove_marked_range(true);
         report(s, extracted)
@@ -109,7 +114,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     .when(guards::range),
     MenuItem::new("seq-snap", "Snap", |_, s, _| s.toggle_snapping())
         .key("key-snap")
-        .checked(|_, s| s.snap_enabled),
+        .checked(|_, s| s.snap_enabled)
+        .rule(),
     MenuItem::new("seq-linked-selection", "Linked Selection", |_, s, _| {
         s.toggle_linked_selection()
     })
@@ -117,7 +123,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-v", "Video Track", |_, s, _| {
         add_lane(s, aria_models::TrackKind::Video)
     })
-    .under(ADD_TRACKS),
+    .under(ADD_TRACKS)
+    .rule(),
     MenuItem::new("seq-a", "Audio Track", |_, s, _| {
         add_lane(s, aria_models::TrackKind::Audio)
     })
@@ -135,7 +142,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         s.match_frame();
     })
     .key("key-match-frame")
-    .when(guards::selection),
+    .when(guards::selection)
+    .rule(),
     MenuItem::new("seq-source-insert", "Insert", |_, s, _| {
         let cut = s.cut_source_in(crate::types::EditMode::Ripple);
         report(s, cut)
@@ -152,12 +160,14 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         reach::ripple_insert(s)
     })
     .when(guards::pool_selection)
-    .under(SOURCE),
+    .under(SOURCE)
+    .flyout_rule(),
     MenuItem::new("seq-ripple-in", "Ripple Trim In", |_, s, _| {
         let trimmed = s.trim_selected_to_playhead(true);
         report(s, trimmed)
     })
-    .when(guards::selection),
+    .when(guards::selection)
+    .rule(),
     MenuItem::new("seq-ripple-out", "Ripple Trim Out", |_, s, _| {
         let trimmed = s.trim_selected_to_playhead(false);
         report(s, trimmed)
@@ -171,7 +181,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
             report(s, set)
         },
     )
-    .when(guards::selection),
+    .when(guards::selection)
+    .rule(),
     MenuItem::new(
         "seq-transition-clear",
         "Remove Transition at Cut",
@@ -188,7 +199,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "seq-lane-shift-later",
         "Shift Lane One Second Later",
         |_, s, _| reach::shift_lane(s, true),
-    ),
+    )
+    .rule(),
     MenuItem::new(
         "seq-lane-shift-earlier",
         "Shift Lane One Second Earlier",
@@ -198,7 +210,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "seq-canvas-background",
         "Reset Canvas Background",
         |_, s, _| reach::reset_canvas_background(s),
-    ),
+    )
+    .rule(),
     MenuItem::new("seq-duck-amount", "Cycle Duck Amount", |_, s, _| {
         s.cycle_duck_amount()
     })
@@ -251,17 +264,17 @@ pub(super) fn sequence_items(state: &AppState) -> MenuItems {
     let intern = crate::interned::intern;
     let mut items = Vec::with_capacity(SEQUENCE_ITEMS.len() + analyzers.len());
     items.extend_from_slice(SEQUENCE_ITEMS);
-    for entry in analyzers {
+    // The analyzers are a group of the drop.
+    for (index, entry) in analyzers.into_iter().enumerate() {
         let spec = entry.spec();
-        items.push(
-            MenuItem::new(
-                intern(&format!("{SEQ_ANALYZE_PREFIX}{}", spec.id)),
-                intern(&spec.label),
-                run_sequence_analyzer,
-            )
-            .when(guards::clips)
-            .under(ANALYZE),
-        );
+        let row = MenuItem::new(
+            intern(&format!("{SEQ_ANALYZE_PREFIX}{}", spec.id)),
+            intern(&spec.label),
+            run_sequence_analyzer,
+        )
+        .when(guards::clips)
+        .under(ANALYZE);
+        items.push(if index == 0 { row.rule() } else { row });
     }
     Cow::Owned(items)
 }

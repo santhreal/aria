@@ -4,8 +4,9 @@
 //! rest of the app draws, and the drift is invisible on the platform that does
 //! not use it — a Linux gate would never see a macOS menu missing half its rows.
 //! So the derivation is asserted here, on any platform: every menu the bar
-//! titles is present with every row the registry offers, in registry order, and
-//! a row dispatched by label and id runs the same code the CSD bar runs.
+//! titles is present with every row the registry offers, in registry order,
+//! with a separator exactly where the drawn bar draws a rule, and a row
+//! dispatched by label and id runs the same code the CSD bar runs.
 //!
 //! Not covered: that macOS actually draws them. `set_menus` is a platform call
 //! with no readable state, and this gate has no macOS.
@@ -44,15 +45,19 @@ fn every_menu_carries_every_row_the_registry_offers() {
         }
         let native = native.unwrap_or_else(|| panic!("{} is missing", menu.label()));
         let entries = menu_items::drop_entries(&rows);
-        assert_eq!(
-            native.items.len(),
-            entries.len(),
-            "{} has {} native items for {} drop entries",
-            menu.label(),
-            native.items.len(),
-            entries.len()
-        );
-        for (item, entry) in native.items.iter().zip(entries.iter()) {
+        let mut native_items = native.items.iter();
+        for (index, entry) in entries.iter().enumerate() {
+            if index > 0 && entry.starts_group(&rows) {
+                assert!(
+                    matches!(native_items.next(), Some(gpui::MenuItem::Separator)),
+                    "{} has no separator above {}",
+                    menu.label(),
+                    entry.caption(&rows)
+                );
+            }
+            let item = native_items
+                .next()
+                .unwrap_or_else(|| panic!("{} lost {}", menu.label(), entry.caption(&rows)));
             match (item, entry) {
                 (gpui::MenuItem::Action { .. }, menu_items::DropEntry::Row(at)) => {
                     assert_native_row(menu, item, &rows[*at], &state);
@@ -70,15 +75,26 @@ fn every_menu_carries_every_row_the_registry_offers() {
                         "{} named a submenu wrongly",
                         menu.label()
                     );
-                    assert_eq!(
-                        sub.items.len(),
-                        held.len(),
-                        "{} > {caption} lost rows",
-                        menu.label()
-                    );
-                    for (item, at) in sub.items.iter().zip(held.iter()) {
+                    let mut sub_items = sub.items.iter();
+                    for (child, at) in held.iter().enumerate() {
+                        if child > 0 && rows[*at].flyout_rule {
+                            assert!(
+                                matches!(sub_items.next(), Some(gpui::MenuItem::Separator)),
+                                "{} > {caption} has no separator above {}",
+                                menu.label(),
+                                rows[*at].label
+                            );
+                        }
+                        let item = sub_items.next().unwrap_or_else(|| {
+                            panic!("{} > {caption} lost {}", menu.label(), rows[*at].label)
+                        });
                         assert_native_row(menu, item, &rows[*at], &state);
                     }
+                    assert!(
+                        sub_items.next().is_none(),
+                        "{} > {caption} has items the registry does not",
+                        menu.label()
+                    );
                 }
                 // `MenuItem` carries no `Debug`, so name the menu and the entry
                 // the registry expected there instead of the item itself.
@@ -89,6 +105,11 @@ fn every_menu_carries_every_row_the_registry_offers() {
                 ),
             }
         }
+        assert!(
+            native_items.next().is_none(),
+            "{} has items the registry does not",
+            menu.label()
+        );
     }
 }
 

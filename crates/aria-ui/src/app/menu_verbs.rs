@@ -11,6 +11,7 @@ use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, MediaId, RationalTime, TimeRange, TrackId, resample};
 
+use super::settings_form::SettingsSection;
 use super::{AppState, DialogKind};
 use crate::types::{SelectedEdge, TrimSide};
 
@@ -26,13 +27,22 @@ pub enum KeyInterpolation {
 }
 
 impl AppState {
-    /// Open Settings with its filter set to one section's title.
+    /// Open Settings on every section, with the filter cleared.
+    pub fn open_settings(&mut self) {
+        self.open_settings_filtered(String::new());
+    }
+
+    /// Open Settings on `section` alone, with its title in the filter.
     ///
-    /// The filter rather than a scroll position: the dialog narrows itself by
-    /// section title, so setting it shows the section without the dialog
-    /// recording which surface opened it.
-    pub fn open_settings_at(&mut self, section: &str) {
-        self.settings_form.filter = section.to_string();
+    /// The filter rather than a scroll position: a filter that is a section's
+    /// whole title shows that section and no other, and clearing it shows the
+    /// rest, without the dialog recording which surface opened it.
+    pub fn open_settings_at(&mut self, section: SettingsSection) {
+        self.open_settings_filtered(section.title().to_owned());
+    }
+
+    fn open_settings_filtered(&mut self, filter: String) {
+        self.settings_form.filter = filter;
         self.settings_form.focused = None;
         self.settings_form.draft.clear();
         self.open_dialog(DialogKind::Settings);

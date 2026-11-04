@@ -172,7 +172,7 @@ pub(super) fn media_tile(
     let picked = state.read(cx).pool_selection.contains(id);
     let key = motion::MotionKey::new("sidebar.media", id);
     let lit = motion::hover_t(key);
-    let caption = crate::app::media::media_caption(item);
+    let facts = view.facts().then(|| crate::app::media::media_facts(item));
     let caption_color = if missing {
         theme.warning
     } else {
@@ -254,13 +254,7 @@ pub(super) fn media_tile(
         );
     let text = [
         Some(name.into_any_element()),
-        view.facts().then(|| {
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(caption_color)
-                .child(caption)
-                .into_any_element()
-        }),
+        facts.map(|facts| facts_block(facts, view.inline(), caption_color, index)),
         note.map(|note| {
             div()
                 .text_size(Theme::TEXT_UI)
@@ -376,6 +370,37 @@ pub(super) fn media_tile(
             }),
         );
     crate::pending::arriving(crate::motion::MotionKey::new("media-in", id), index, tile)
+}
+
+/// A row's facts: one line in a view that reads left to right, and the
+/// picture's line over the streams' line beside a picture. Each line stays one
+/// line and ends in an ellipsis where the row is too narrow for it, so no line
+/// of a row starts with a separator.
+fn facts_block(
+    facts: crate::app::media::MediaFacts,
+    inline: bool,
+    color: gpui::Hsla,
+    index: usize,
+) -> gpui::AnyElement {
+    let line = move |text: String, at: usize| {
+        div()
+            .debug_selector(move || format!("pool-facts-{index}-{at}"))
+            .min_w_0()
+            .truncate()
+            .text_size(Theme::TEXT_UI)
+            .text_color(color)
+            .child(text)
+    };
+    if inline {
+        return line(facts.line(), 0).into_any_element();
+    }
+    let crate::app::media::MediaFacts { picture, streams } = facts;
+    div()
+        .flex()
+        .flex_col()
+        .child(line(picture, 0))
+        .children(streams.map(|streams| line(streams, 1)))
+        .into_any_element()
 }
 
 /// The box a picture or its stand-in fills: `width` wide, or the cell's

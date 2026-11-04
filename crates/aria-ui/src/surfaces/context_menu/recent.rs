@@ -40,6 +40,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
             Ok(())
         },
     }),
+    MenuItem::Rule,
     MenuItem::Row(MenuRow {
         id: "ctx-recent-remove",
         label: |_| "Remove from List",

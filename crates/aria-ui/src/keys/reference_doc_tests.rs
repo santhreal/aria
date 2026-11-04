@@ -547,6 +547,7 @@ fn menus_doc_matches_registry() {
                 MenuItem::Labels => "Labels",
                 MenuItem::Blends => "Blends",
                 MenuItem::Properties => "Properties",
+                MenuItem::Rule => "Rule",
             };
             let (id, label, check) = match item.row() {
                 Some(row) => (

@@ -12,7 +12,7 @@ use aria_settings::{AiApiProtocol, AiSource, Autonomy, ReasoningSummary, ThemeCh
 use gpui::{Modifiers, TestAppContext, TextRunLayout, px, size};
 
 use crate::app::DialogKind;
-use crate::app::settings_form::SettingsField;
+use crate::app::settings_form::{SettingsField, SettingsSection};
 use crate::appearance::AppearanceMode;
 use crate::cloud::{BYOK_PROVIDERS, provider_label};
 use crate::keys::keyboard_image::{self, CapKind};
@@ -314,7 +314,7 @@ fn every_keyboard_cap_label_fits_inside_its_cap_across_dialog_widths(cx: &mut Te
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             state.open_dialog(DialogKind::Settings);
-            state.settings_form.filter = "Keys".into();
+            state.settings_form.filter = SettingsSection::KeyboardShortcuts.title().into();
             cx.notify();
         });
     });
@@ -387,13 +387,13 @@ fn every_keyboard_cap_label_fits_inside_its_cap_across_dialog_widths(cx: &mut Te
 /// `SPACE_SM`, so the set chips started 4 px left of the Set name box under
 /// them, and a second line of chips wrapped back under the label.
 ///
-/// Reads the Keys section under the filter `Keys`: the row's first item, with
-/// no saved sets the line saying so, stands at a chip's inset on the column
-/// the set name box below it starts on. Not covered: the row's
-/// second line of chips, which needs more saved sets than fit one line.
+/// Reads the Keyboard Shortcuts section under its title as the filter: the
+/// row's first item, with no saved sets the line saying so, stands at a chip's
+/// inset on the column the set name box below it starts on. Not covered: the
+/// row's second line of chips, which needs more saved sets than fit one line.
 #[gpui::test]
 fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppContext) {
-    let (card, runs, shown) = drawn_under_keys(cx, "settings-keymap-column");
+    let (card, runs, shown) = drawn_under_shortcuts(cx, "settings-keymap-column");
     let first = run(&runs, card, "No saved sets");
     let set_name = run(&runs, card, &shown);
     // A text box's text stands inside its 1 px border and its padding, and a
@@ -413,15 +413,16 @@ fn the_keymap_row_starts_on_the_column_of_the_box_below_it(cx: &mut TestAppConte
 /// started 9 px left of every text box under it, on a dialog whose label
 /// column exists to line those boxes up.
 ///
-/// Reads the Keys section under the filter `Keys`: the filter's text starts
-/// where the Set name box's text starts, so the two boxes share a column. Not
-/// covered: the right edges of the boxes, which no text run reaches.
+/// Reads the Keyboard Shortcuts section under its title as the filter: the
+/// filter's text starts where the Set name box's text starts, so the two boxes
+/// share a column. Not covered: the right edges of the boxes, which no text
+/// run reaches.
 #[gpui::test]
 fn the_filter_box_starts_on_the_column_of_the_boxes_below_it(cx: &mut TestAppContext) {
-    let (card, runs, shown) = drawn_under_keys(cx, "settings-filter-column");
-    // The header stands above the sections, so the topmost `Keys` is the
-    // filter's own text and not the section title.
-    let filter = run(&runs, card, "Keys");
+    let (card, runs, shown) = drawn_under_shortcuts(cx, "settings-filter-column");
+    // The header stands above the sections, so the topmost run of the title is
+    // the filter's own text and not the section title.
+    let filter = run(&runs, card, SettingsSection::KeyboardShortcuts.title());
     let set_name = run(&runs, card, &shown);
     assert!(
         (filter.bounds.left() - set_name.bounds.left()).abs() < px(EPS),
@@ -431,9 +432,10 @@ fn the_filter_box_starts_on_the_column_of_the_boxes_below_it(cx: &mut TestAppCon
     );
 }
 
-/// The Settings dialog drawn under the filter `Keys`: its card, its text runs,
-/// and the text the Set name box shows, its value or else its placeholder.
-fn drawn_under_keys(
+/// The Settings dialog drawn under the Keyboard Shortcuts title as the filter:
+/// its card, its text runs, and the text the Set name box shows, its value or
+/// else its placeholder.
+fn drawn_under_shortcuts(
     cx: &mut TestAppContext,
     name: &str,
 ) -> (gpui::Bounds<gpui::Pixels>, Vec<TextRunLayout>, String) {
@@ -442,7 +444,7 @@ fn drawn_under_keys(
         state.update(app, |state, cx| {
             state.open_dialog(DialogKind::Settings);
             state.focus_setting(Some(SettingsField::Filter));
-            for ch in "Keys".chars() {
+            for ch in SettingsSection::KeyboardShortcuts.title().chars() {
                 state.setting_push(ch);
             }
             cx.notify();

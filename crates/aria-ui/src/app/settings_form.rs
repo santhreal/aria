@@ -43,7 +43,7 @@ pub enum SettingsField {
     /// The dialog's own filter. It is a field so it shares the key routing, but it
     /// never touches the config file.
     Filter,
-    /// The name the Keys section saves the keys in force under. Not part of the
+    /// The name the Keyboard Shortcuts section saves the keys in force under. Not part of the
     /// config file: Enter writes `<data dir>/keymaps/<name>.toml`, and the field
     /// shows the name of the set in force.
     KeymapName,
@@ -201,6 +201,80 @@ pub struct SettingsForm {
     pub draft: String,
     /// The committed section filter.
     pub filter: String,
+}
+
+/// A shipped section of the Settings dialog. The dialog draws them in the
+/// order of [`SettingsSection::ALL`], with the sections plugins declare between
+/// Application and Canvas, and draws Canvas only while a project is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsSection {
+    Appearance,
+    Playback,
+    Timeline,
+    Ai,
+    ProviderKeys,
+    Storage,
+    Caches,
+    Transcription,
+    Cloud,
+    Plugins,
+    KeyboardShortcuts,
+    Workspaces,
+    Catalogs,
+    Configuration,
+    Application,
+    Canvas,
+}
+
+impl SettingsSection {
+    /// Every shipped section, in dialog order.
+    pub const ALL: [Self; 16] = [
+        Self::Appearance,
+        Self::Playback,
+        Self::Timeline,
+        Self::Ai,
+        Self::ProviderKeys,
+        Self::Storage,
+        Self::Caches,
+        Self::Transcription,
+        Self::Cloud,
+        Self::Plugins,
+        Self::KeyboardShortcuts,
+        Self::Workspaces,
+        Self::Catalogs,
+        Self::Configuration,
+        Self::Application,
+        Self::Canvas,
+    ];
+
+    /// The title over the section, which the filter matches.
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Appearance => "Appearance",
+            Self::Playback => "Playback",
+            Self::Timeline => "Timeline",
+            Self::Ai => "AI",
+            Self::ProviderKeys => "Provider keys",
+            Self::Storage => "Storage",
+            Self::Caches => "Caches",
+            Self::Transcription => "Transcription",
+            Self::Cloud => "Cloud",
+            Self::Plugins => "Plugins",
+            Self::KeyboardShortcuts => "Keyboard Shortcuts",
+            Self::Workspaces => "Workspaces",
+            Self::Catalogs => "Catalogs",
+            Self::Configuration => "Configuration",
+            Self::Application => "Application",
+            Self::Canvas => "Canvas",
+        }
+    }
+
+    /// The section whose whole title `filter` is, ignoring case.
+    fn titled(filter: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|section| section.title().eq_ignore_ascii_case(filter))
+    }
 }
 
 impl AppState {
@@ -543,10 +617,25 @@ impl AppState {
         on.join(", ")
     }
 
-    /// Whether a section survives the current filter. An empty filter shows everything.
+    /// Whether the section titled `title` survives the current filter. An
+    /// empty filter shows every section, a filter that is a shipped section's
+    /// whole title shows that section alone, and any other filter shows each
+    /// section whose title contains it, all ignoring case.
     pub fn settings_section_visible(&self, title: &str) -> bool {
-        let filter = self.settings_form.filter.trim().to_lowercase();
-        filter.is_empty() || title.to_lowercase().contains(&filter)
+        let filter = self.settings_form.filter.trim();
+        if filter.is_empty() {
+            return true;
+        }
+        if let Some(section) = SettingsSection::titled(filter) {
+            return section.title() == title;
+        }
+        title.to_lowercase().contains(&filter.to_lowercase())
+    }
+
+    /// Whether the filter is a shipped section's whole title, which shows that
+    /// section alone and lists no key binding outside it.
+    pub(super) fn settings_filter_names_a_section(&self) -> bool {
+        SettingsSection::titled(self.settings_form.filter.trim()).is_some()
     }
 
     /// The draft to draw for `field`, and whether it is focused.

@@ -35,28 +35,30 @@ pub(super) fn matte_request<'p>(
 /// dropped rather than chained — it is being read, not drawn. A matted layer
 /// with nothing above it keeps drawing unmatted, since a missing stencil is a
 /// stack still under construction, not a reason to blank the frame.
-pub(super) fn fold_mattes(
-    layers: Vec<SceneLayer>,
-    requests: Vec<Option<MatteRequest>>,
+pub(super) fn fold_mattes_into(
+    layers: &mut Vec<SceneLayer>,
+    requests: &mut Vec<Option<MatteRequest>>,
     cw: f32,
     ch: f32,
-) -> Vec<SceneLayer> {
+    pool: &mut ResolvePool,
+) {
     if !requests.iter().any(Option::is_some) {
-        return layers;
+        return;
     }
-    let mut out = Vec::with_capacity(layers.len());
-    let mut layers = layers.into_iter();
-    let mut requests = requests.into_iter();
-    while let Some(layer) = layers.next() {
-        let Some(request) = requests.next().flatten() else {
+    let mut out = std::mem::take(&mut pool.layers_scratch);
+    out.clear();
+    let mut layers_iter = layers.drain(..);
+    let mut requests_iter = requests.drain(..);
+    while let Some(layer) = layers_iter.next() {
+        let Some(request) = requests_iter.next().flatten() else {
             out.push(layer);
             continue;
         };
-        let Some(stencil) = layers.next() else {
+        let Some(stencil) = layers_iter.next() else {
             out.push(layer);
             continue;
         };
-        let _stencil_request = requests.next();
+        let _stencil_request = requests_iter.next();
         // A canvas-wide pass has no picture of its own to read or to cut, so
         // pairing one with a matte would ask the compositor for a nested pass.
         if layer.source.is_canvas_pass() || stencil.source.is_canvas_pass() {
@@ -66,10 +68,11 @@ pub(super) fn fold_mattes(
         }
         let blend_mode = layer.blend_mode;
         let clip = layer.clip;
+        let pair = pool.box_layer_pair(layer, stencil);
         out.push(SceneLayer {
             clip,
             source: LayerSource::Matte {
-                layers: Box::new([layer, stencil]),
+                layers: pair,
                 read: request.read,
                 invert: request.invert,
                 softness: request.softness.clamp(0.0, 1.0),
@@ -90,5 +93,8 @@ pub(super) fn fold_mattes(
             blur_passes: Vec::new(),
         });
     }
-    out
+    drop(layers_iter);
+    drop(requests_iter);
+    std::mem::swap(layers, &mut out);
+    pool.layers_scratch = out;
 }

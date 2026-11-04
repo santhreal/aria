@@ -108,10 +108,13 @@ fn a_proxy_already_on_disk_is_adopted_without_a_job_and_the_pool_row_says_so() {
         state.store.media[0].proxied,
         "the pool row does not state the substitution"
     );
-    let caption = crate::app::media::media_caption(&state.store.media[0]);
+    let facts = crate::app::media::media_facts(&state.store.media[0]);
     assert!(
-        caption.ends_with("proxy"),
-        "the caption does not name the proxy: {caption}"
+        facts
+            .streams
+            .as_deref()
+            .is_some_and(|line| line.ends_with("Proxy")),
+        "the facts do not name the proxy: {facts:?}"
     );
 
     // Asking again is refused by name rather than starting a second pass.
@@ -125,8 +128,11 @@ fn a_proxy_already_on_disk_is_adopted_without_a_job_and_the_pool_row_says_so() {
     state.clear_media_proxy(media);
     assert!(!state.media_has_proxy(media));
     assert!(!state.store.media[0].proxied);
-    let caption = crate::app::media::media_caption(&state.store.media[0]);
-    assert!(!caption.contains("proxy"), "a cleared row still claims one");
+    let facts = crate::app::media::media_facts(&state.store.media[0]);
+    assert!(
+        !facts.line().contains("Proxy"),
+        "a cleared row still claims one"
+    );
 }
 
 #[test]

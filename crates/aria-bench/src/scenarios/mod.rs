@@ -179,6 +179,8 @@ pub(crate) struct GpuTextureSink {
     target: Option<(u32, u32, wgpu::Texture)>,
     cpu_scratch: Vec<u8>,
     cpu_frames: u64,
+    submit_start_allocs: u64,
+    pub(crate) gpu_submit_allocs: u64,
 }
 
 impl std::fmt::Debug for GpuTextureSink {
@@ -198,7 +200,14 @@ impl GpuTextureSink {
             target: None,
             cpu_scratch: Vec::new(),
             cpu_frames: 0,
+            submit_start_allocs: 0,
+            gpu_submit_allocs: 0,
         }
+    }
+
+    pub(crate) fn reset_alloc_counters(&mut self) {
+        self.submit_start_allocs = 0;
+        self.gpu_submit_allocs = 0;
     }
 
     pub(crate) fn preallocate(&mut self, width: u32, height: u32) {
@@ -221,7 +230,15 @@ impl FrameSink for GpuTextureSink {
             let tex = create_frame_target(&self.gpu.device, w, h);
             self.target = Some((w, h, tex));
         }
+        self.submit_start_allocs = crate::alloc_tracker::current_thread_alloc_count();
         self.target.as_ref().map(|(_, _, tex)| tex)
+    }
+
+    fn record_readbacks(&mut self, _count: u64) {
+        let now = crate::alloc_tracker::current_thread_alloc_count();
+        self.gpu_submit_allocs = self
+            .gpu_submit_allocs
+            .saturating_add(now.saturating_sub(self.submit_start_allocs));
     }
 
     fn pixels(&mut self, width: u32, height: u32) -> &mut [u8] {

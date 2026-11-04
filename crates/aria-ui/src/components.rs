@@ -500,6 +500,18 @@ pub fn menu_lead(checked: bool, icon: Option<&'static str>, theme: &Theme) -> Di
         })
 }
 
+/// The rule between two groups of rows in a menu bar drop, a flyout, or a
+/// context menu: a hairline inset by a row's side padding, with a small gap
+/// above and below.
+pub fn menu_rule(theme: &Theme) -> Div {
+    div()
+        .flex_none()
+        .h(px(1.))
+        .mx(px(Theme::SPACE_SM))
+        .my(px(Theme::SPACE_XS))
+        .bg(theme.border)
+}
+
 /// The label a form row starts with: `label` in a column `width` wide that
 /// keeps its width, so the controls after the labels of a form start on one
 /// edge.

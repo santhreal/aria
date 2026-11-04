@@ -37,7 +37,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         "Playback Resolution",
         |_, s, cx| s.cycle_playback_resolution(cx),
     )
-    .under("Resolution"),
+    .under("Resolution")
+    .rule(),
     MenuItem::new("view-paused-resolution", "Paused Resolution", |_, s, cx| {
         s.toggle_paused_resolution(cx)
     })
@@ -50,7 +51,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
     MenuItem::new("view-rulers", "Show Rulers", |_, s, _| s.toggle_rulers())
         .key("key-rulers")
         .checked(|_, s| s.viewer_guides.rulers)
-        .under(VIEWER_DISPLAY),
+        .under(VIEWER_DISPLAY)
+        .flyout_rule(),
     MenuItem::new("view-guides-show", "Show Guides", |_, s, _| {
         s.toggle_guides_shown()
     })
@@ -69,7 +71,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.toggle_title_safe()
     })
     .checked(|_, s| s.preview_view.title_safe)
-    .under(VIEWER_DISPLAY),
+    .under(VIEWER_DISPLAY)
+    .flyout_rule(),
     MenuItem::new("view-action-safe", "Action Safe", |_, s, _| {
         s.toggle_action_safe()
     })
@@ -79,7 +82,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.toggle_transparency_grid(cx)
     })
     .checked(|_, s| s.transparency_grid_on())
-    .under(VIEWER_DISPLAY),
+    .under(VIEWER_DISPLAY)
+    .flyout_rule(),
     MenuItem::new("view-grid", "Grid", |_, s, _| s.toggle_preview_grid())
         .checked(|_, s| s.preview_view.grid)
         .under(VIEWER_DISPLAY),
@@ -105,7 +109,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.set_compare_layout(CompareLayout::Vertical)
     })
     .checked(|_, s| s.viewer_compare.layout() == CompareLayout::Vertical)
-    .under(COMPARE),
+    .under(COMPARE)
+    .flyout_rule(),
     MenuItem::new("view-compare-horizontal", "Horizontal Wipe", |_, s, _| {
         s.set_compare_layout(CompareLayout::Horizontal)
     })
@@ -120,15 +125,18 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.stop_comparing()
     })
     .when(super::menu_guards::comparing)
-    .under(COMPARE),
+    .under(COMPARE)
+    .flyout_rule(),
     MenuItem::new("view-scopes", "Scope Strip", |_, s, _| s.toggle_scopes())
-        .checked(|_, s| s.scopes_open),
+        .checked(|_, s| s.scopes_open)
+        .rule(),
     waveform_row(WaveformMode::Luma),
     waveform_row(WaveformMode::RgbParade),
     waveform_row(WaveformMode::YcbcrParade),
     MenuItem::new("view-zoom-fit", "Fit Preview", |_, s, _| {
         s.preview_zoom_fit()
-    }),
+    })
+    .rule(),
     MenuItem::new("view-zoom-actual", "Preview 100%", |_, s, _| {
         s.preview_zoom_actual()
     }),
@@ -150,7 +158,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
     MenuItem::new("view-fullscreen", "Fullscreen Preview", |_, s, _| {
         s.toggle_preview_fullscreen()
     })
-    .checked(|_, s| s.preview_view.fullscreen),
+    .checked(|_, s| s.preview_view.fullscreen)
+    .rule(),
     MenuItem::new("view-loop", "Loop Playback", |_, s, _| s.toggle_loop())
         .key("key-loop")
         .checked(|_, s| s.looping),
@@ -158,7 +167,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.set_timeline_thumbnails(Thumbnails::Head, cx)
     })
     .checked(|_, s| s.ui_settings.timeline_display.thumbnails == Thumbnails::Head)
-    .under(TIMELINE_DISPLAY),
+    .under(TIMELINE_DISPLAY)
+    .rule(),
     MenuItem::new(
         "view-thumbs-head-tail",
         "Head and Tail Thumbnails",
@@ -177,7 +187,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.set_waveform_scale(WaveformScale::Logarithmic, cx)
     })
     .checked(|_, s| s.ui_settings.timeline_display.waveform == WaveformScale::Logarithmic)
-    .under(TIMELINE_DISPLAY),
+    .under(TIMELINE_DISPLAY)
+    .flyout_rule(),
     MenuItem::new("view-waveform-linear", "Linear Waveforms", |_, s, cx| {
         s.set_waveform_scale(WaveformScale::Linear, cx)
     })
@@ -192,7 +203,8 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.set_timeline_follow(Follow::Page, cx)
     })
     .checked(|_, s| s.ui_settings.timeline_display.follow == Follow::Page)
-    .under(TIMELINE_DISPLAY),
+    .under(TIMELINE_DISPLAY)
+    .flyout_rule(),
     MenuItem::new("view-follow-smooth", "Smooth Scroll", |_, s, cx| {
         s.set_timeline_follow(Follow::Smooth, cx)
     })

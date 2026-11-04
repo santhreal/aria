@@ -3,8 +3,6 @@
 //! Multi-step action handlers shared by the key-binding row tables in this
 //! module tree.
 
-use crate::app::DialogKind;
-
 pub(super) fn zoom_in(state: &mut crate::app::AppState) {
     state.zoom_around_playhead(crate::transport::ZOOM_STEP);
 }
@@ -31,10 +29,6 @@ pub(super) fn redo(state: &mut crate::app::AppState) {
 
 pub(super) fn new_project(state: &mut crate::app::AppState) {
     state.request_new_project();
-}
-
-pub(super) fn open_settings(state: &mut crate::app::AppState) {
-    state.open_dialog(DialogKind::Settings);
 }
 
 /// Left, Right, Shift+Left and Shift+Right: the playhead by `frames`. A

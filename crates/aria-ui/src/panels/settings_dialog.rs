@@ -1,8 +1,9 @@
-//! Settings dialog: Appearance, Playback, Timeline, Provider keys, Storage, Transcription, Cloud, Plugins, Keys, Workspaces, Canvas.
+//! Settings dialog: the sections of [`SettingsSection::ALL`] in that order,
+//! with the sections plugins declare before Canvas.
 //!
 //! The dialog is a list of sections, each generated from a table rather than written
 //! out row by row, so a new provider, model, timeout, cache, or theme appears without
-//! an edit here. Every section lives in its own module; this one only assembles them.
+//! an edit here. Every section is defined in its own module; this one only assembles them.
 
 mod ai;
 mod caches;
@@ -30,7 +31,7 @@ use gpui::{
 
 use gpui::prelude::FluentBuilder;
 
-use crate::app::settings_form::SettingsField;
+use crate::app::settings_form::{SettingsField, SettingsSection};
 use crate::app::{AppState, DialogKind};
 use crate::appearance::{self, AppearanceMode};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
@@ -57,39 +58,62 @@ pub fn render(
     // one section therefore constructs only that section's element tree.
     let mut sections: Vec<(&'static str, Vec<gpui::AnyElement>)> = Vec::new();
     macro_rules! push_visible {
-        ($title:literal, $rows:expr) => {
-            if state.read(cx).settings_section_visible($title) {
-                sections.push(($title, $rows));
+        ($section:expr, $rows:expr) => {
+            let title = $section.title();
+            if state.read(cx).settings_section_visible(title) {
+                sections.push((title, $rows));
             }
         };
     }
-    push_visible!("Appearance", appearance_rows(&theme, state, mode, cx));
-    push_visible!("Playback", playback_rows(&theme, state, cx));
-    push_visible!("Timeline", timeline_rows(&theme, state, cx));
-    push_visible!("AI", ai::ai_rows(&theme, state, cx));
-    push_visible!("Provider keys", providers::provider_rows(&theme, state, cx));
-    push_visible!("Storage", storage::storage_rows(&theme, state, cx));
-    push_visible!("Caches", caches::cache_rows(&theme, state, cx));
     push_visible!(
-        "Transcription",
+        SettingsSection::Appearance,
+        appearance_rows(&theme, state, mode, cx)
+    );
+    push_visible!(SettingsSection::Playback, playback_rows(&theme, state, cx));
+    push_visible!(SettingsSection::Timeline, timeline_rows(&theme, state, cx));
+    push_visible!(SettingsSection::Ai, ai::ai_rows(&theme, state, cx));
+    push_visible!(
+        SettingsSection::ProviderKeys,
+        providers::provider_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Storage,
+        storage::storage_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Caches,
+        caches::cache_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Transcription,
         transcription::model_rows(&theme, state, cx)
     );
-    push_visible!("Cloud", cloud_rows(&theme, state, cx));
-    push_visible!("Plugins", {
+    push_visible!(SettingsSection::Cloud, cloud_rows(&theme, state, cx));
+    push_visible!(SettingsSection::Plugins, {
         let mut rows = plugin_limits::limit_rows(&theme, state, cx);
         rows.extend(plugins::plugin_rows(&theme, state, cx));
         rows
     });
-    // The Keys section lists its bindings under a filter that names one, so a
-    // search for a command finds its key without the section's title.
+    // The Keyboard Shortcuts section lists its bindings under a filter that
+    // names one, so a search for a command finds its key without the
+    // section's title.
     if let Some(rows) = keys::section(&theme, state, cx) {
-        sections.push(("Keys", rows));
+        sections.push((SettingsSection::KeyboardShortcuts.title(), rows));
     }
-    push_visible!("Workspaces", layouts::workspace_rows(&theme, state, cx));
-    push_visible!("Catalogs", plugins::catalog_rows(&theme, state, cx));
-    push_visible!("Configuration", ai::schema_rows(&theme, state, cx));
     push_visible!(
-        "Application",
+        SettingsSection::Workspaces,
+        layouts::workspace_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Catalogs,
+        plugins::catalog_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Configuration,
+        ai::schema_rows(&theme, state, cx)
+    );
+    push_visible!(
+        SettingsSection::Application,
         vec![
             kv(
                 &theme,
@@ -110,10 +134,8 @@ pub fn render(
     }
     // Canvas is a project setting, so the section is absent with no project open
     // rather than editing a project that does not exist.
-    if !state.read(cx).store.project_name.is_empty()
-        && state.read(cx).settings_section_visible("Canvas")
-    {
-        sections.push(("Canvas", canvas_rows(&theme, state, cx)));
+    if !state.read(cx).store.project_name.is_empty() {
+        push_visible!(SettingsSection::Canvas, canvas_rows(&theme, state, cx));
     }
     let visible = sections;
     let matched = !visible.is_empty();

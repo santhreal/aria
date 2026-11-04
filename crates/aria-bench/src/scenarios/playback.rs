@@ -30,6 +30,7 @@ struct StreamRunResult {
     dropped: DroppedFrames,
     readbacks: u64,
     threads_created_after_start: u64,
+    aria_allocs_per_frame_after_1s: f64,
     allocs_per_frame_after_1s: f64,
 }
 
@@ -89,6 +90,7 @@ fn run_forward_stream(
         frame_ms.push(took.as_secs_f64() * 1000.0);
     }
 
+    sink.reset_alloc_counters();
     let (steady_res, alloc_stats) = measure_thread_allocs(|| -> Result<(), String> {
         for tick in warmup_frames..total_frames {
             let t0 = Instant::now();
@@ -122,6 +124,14 @@ fn run_forward_stream(
     let threads_at_end = current_thread_count().unwrap_or(threads_at_start);
     let threads_created_after_start = threads_at_end.saturating_sub(threads_at_start);
     let report = meter.report();
+    let aria_allocs = alloc_stats
+        .allocations
+        .saturating_sub(sink.gpu_submit_allocs);
+    let aria_allocs_per_frame_after_1s = if steady_frames > 0 {
+        aria_allocs as f64 / (steady_frames as f64)
+    } else {
+        0.0
+    };
     let allocs_per_frame_after_1s = if steady_frames > 0 {
         alloc_stats.allocations as f64 / (steady_frames as f64)
     } else {
@@ -133,6 +143,7 @@ fn run_forward_stream(
         dropped: report.dropped,
         readbacks: renderer.readback_count() + sink.cpu_frames,
         threads_created_after_start,
+        aria_allocs_per_frame_after_1s,
         allocs_per_frame_after_1s,
     })
 }
@@ -241,6 +252,7 @@ fn run_reverse_long_gop(gpu: &GpuContext, ctx: &BenchContext) -> Result<StreamRu
         dropped: report.dropped,
         readbacks: renderer.readback_count() + sink.cpu_frames,
         threads_created_after_start: 0,
+        aria_allocs_per_frame_after_1s: 0.0,
         allocs_per_frame_after_1s: 0.0,
     })
 }
@@ -407,9 +419,14 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             measured: Some(h264_res.allocs_per_frame_after_1s),
             unit: "allocs_per_frame".to_string(),
             reason: (h264_res.allocs_per_frame_after_1s > 0.0).then(|| {
+                let wgpu_allocs = (h264_res.allocs_per_frame_after_1s
+                    - h264_res.aria_allocs_per_frame_after_1s)
+                    .max(0.0);
                 format!(
-                    "render thread performed {:.1} heap allocations/frame after 1 s; ARIA_BENCH_ALLOC_SITES=<n> prints their call stacks",
-                    h264_res.allocs_per_frame_after_1s
+                    "render thread performed {:.1} heap allocations/frame after 1 s (aria={:.1}, wgpu={:.1}); ARIA_BENCH_ALLOC_SITES=<n> prints their call stacks",
+                    h264_res.allocs_per_frame_after_1s,
+                    h264_res.aria_allocs_per_frame_after_1s,
+                    wgpu_allocs
                 )
             }),
             required_on_machine: true,
@@ -524,10 +541,12 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
             stills_res.dropped.render_late
         ),
         format!(
-            "reverse long-gop-scrub p50={:.2} ms (dropped={}); render-thread allocs/frame after 1s={:.1}",
+            "reverse long-gop-scrub p50={:.2} ms (dropped={}); render-thread allocs/frame after 1s: {:.1} (aria={:.1}, wgpu={:.1})",
             rev_series.p50,
             rev_res.dropped.total(),
-            h264_res.allocs_per_frame_after_1s
+            h264_res.allocs_per_frame_after_1s,
+            h264_res.aria_allocs_per_frame_after_1s,
+            (h264_res.allocs_per_frame_after_1s - h264_res.aria_allocs_per_frame_after_1s).max(0.0)
         ),
     ];
 

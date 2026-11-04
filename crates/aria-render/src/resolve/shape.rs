@@ -30,6 +30,7 @@ pub(super) fn resolve_shape(
     uv: [f32; 4],
     color_grade: Option<ColorGrade>,
     effects: Vec<ResolvedPass>,
+    pool: &mut super::sample::ResolvePool,
 ) -> Option<SceneLayer> {
     let fill = rgba.sample(tick);
     // Isotropic: stroke widths should not stretch with non-uniform scale.
@@ -43,8 +44,9 @@ pub(super) fn resolve_shape(
     // stays warm under transform-scale animation (the quad magnifies the
     // bitmap, like text).
     if let Shape::Path(path) = shape {
-        let bezier = to_bezier(path);
+        let bezier = to_bezier(path, pool);
         if !bezier.is_drawable() {
+            pool.recycle_path_points(bezier.points);
             return None;
         }
         return Some(SceneLayer {
@@ -156,17 +158,15 @@ pub(super) fn resolve_shape(
 }
 
 /// Convert the model's serialized path into the shapes crate's bezier form.
-fn to_bezier(path: &ShapePath) -> BezierPath {
+fn to_bezier(path: &ShapePath, pool: &mut super::sample::ResolvePool) -> BezierPath {
+    let mut points = pool.take_path_points();
+    points.extend(path.points.iter().map(|p| PathPoint {
+        anchor: p.anchor,
+        handle_in: p.handle_in,
+        handle_out: p.handle_out,
+    }));
     BezierPath {
-        points: path
-            .points
-            .iter()
-            .map(|p| PathPoint {
-                anchor: p.anchor,
-                handle_in: p.handle_in,
-                handle_out: p.handle_out,
-            })
-            .collect(),
+        points,
         closed: path.closed,
     }
 }

@@ -50,6 +50,10 @@ impl MenuHost {
     /// placed in it. A duplicate id from a later contributor or a plugin row is
     /// dropped: the bar hands ids to GPUI as element ids, and a plugin must not
     /// be able to shadow a shipped entry by reusing its id.
+    ///
+    /// The plugin rows start a group of the drop at the first of them drawn as
+    /// an entry of its own. Plugin rows placed in a shipped submenu start a
+    /// group of its flyout instead.
     pub fn items(&self, menu: AppMenu, state: &AppState) -> MenuItems {
         let mut items = self.contributed(menu, state);
         let plugin = super::plugin_menus::bar_items(menu, state);
@@ -57,10 +61,23 @@ impl MenuHost {
             return items;
         }
         let held = items.to_mut();
-        for item in plugin {
-            if !held.iter().any(|row| row.id == item.id) {
-                held.push(item);
+        let shipped = held.len();
+        let mut ruled = false;
+        for mut item in plugin {
+            if held.iter().any(|row| row.id == item.id) {
+                continue;
             }
+            match item.under {
+                Some(caption) if held[..shipped].iter().any(|row| row.under == Some(caption)) => {
+                    item.flyout_rule =
+                        !held[shipped..].iter().any(|row| row.under == Some(caption));
+                }
+                _ => {
+                    item.rule = !ruled;
+                    ruled = true;
+                }
+            }
+            held.push(item);
         }
         items
     }

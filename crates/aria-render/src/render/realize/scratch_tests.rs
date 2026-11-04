@@ -37,7 +37,7 @@ unsafe impl GlobalAlloc for CountingAlloc {
 #[global_allocator]
 static COUNTING_ALLOC: CountingAlloc = CountingAlloc;
 
-fn count_thread_allocs<R>(f: impl FnOnce() -> R) -> (R, u64) {
+pub(super) fn count_thread_allocs<R>(f: impl FnOnce() -> R) -> (R, u64) {
     let before = THREAD_ALLOCS.with(Cell::get);
     let out = f();
     let after = THREAD_ALLOCS.with(Cell::get);
@@ -411,6 +411,55 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
             floor <= LAVAPIPE_STEADY_FLOOR,
             "steady frame allocated {floor} blocks/frame on {}, exceeding the lavapipe floor {LAVAPIPE_STEADY_FLOOR}",
             adapter.name
+        );
+        // Single-pass project must stay at or below the shared WGPU_STEADY_FLOOR.
+        let mut single_proj = Project::new("single-pass", Rational::FPS_60);
+        single_proj
+            .timeline_mut()
+            .set_canvas(aria_models::CanvasSettings {
+                aspect: aria_models::CanvasAspect::Auto,
+                background: [0, 0, 0],
+                resolution: Some([64, 64]),
+            });
+        let s_track = single_proj.add_track(aria_models::TrackKind::Sticker, "S0");
+        single_proj
+            .add_generated(
+                s_track,
+                aria_models::Generator::SolidColor {
+                    rgba: [128, 64, 32, 255],
+                },
+                aria_models::TimeRange::at_rate(0, 120, Rational::FPS_60),
+            )
+            .expect("add single solid");
+        for tick in 0..2 {
+            renderer
+                .render_frame_to_texture_with(
+                    &single_proj,
+                    RationalTime::new(tick, Rational::FPS_60),
+                    ResolveOverrides::default(),
+                    SeekPolicy::Exact,
+                    |_, _| target.clone(),
+                )
+                .expect("warmup single-pass");
+        }
+        idle();
+        let (res, single_allocs) = count_thread_allocs(|| {
+            let r = renderer.render_frame_to_texture_with(
+                &single_proj,
+                RationalTime::new(2, Rational::FPS_60),
+                ResolveOverrides::default(),
+                SeekPolicy::Exact,
+                |_, _| target.clone(),
+            );
+            idle();
+            r
+        });
+        res.expect("steady single-pass");
+        const SINGLE_PASS_LAVAPIPE_FLOOR: u64 = 52;
+        assert!(
+            single_allocs <= SINGLE_PASS_LAVAPIPE_FLOOR,
+            "single-pass steady frame allocated {single_allocs} blocks on {}, exceeding SINGLE_PASS_LAVAPIPE_FLOOR ({SINGLE_PASS_LAVAPIPE_FLOOR})",
+            adapter.name,
         );
     } else {
         eprintln!(

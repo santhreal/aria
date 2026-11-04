@@ -31,6 +31,23 @@ impl Mask {
         }
     }
 
+    /// Visit each vertex of the path at clip-relative `tick` without allocating.
+    pub fn visit_path_at(&self, tick: f64, mut f: impl FnMut(&ShapePathPoint)) {
+        match segment(&self.path, tick) {
+            (from, Some(to), t) => {
+                for (a, b) in from.iter().zip(to) {
+                    let pt = between(a, b, t);
+                    f(&pt);
+                }
+            }
+            (from, None, _) => {
+                for pt in from {
+                    f(pt);
+                }
+            }
+        }
+    }
+
     /// Whether the mask has a path with vertices at any time.
     pub fn has_path(&self) -> bool {
         match &self.path {

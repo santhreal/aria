@@ -514,7 +514,7 @@ pub struct AppState {
     pub caches: caches::CacheForm,
     /// The Settings dialog's focused field, draft text, and section filter.
     pub settings_form: settings_form::SettingsForm,
-    /// The Keys section's named sets, its keyboard image modifiers, and the
+    /// The Keyboard Shortcuts section's named sets, its keyboard image modifiers, and the
     /// move a taken chord is asking about. Session state.
     pub(crate) key_form: super::keymaps::KeyForm,
     /// The Marker Edit dialog's draft fields, focus, and validation error.

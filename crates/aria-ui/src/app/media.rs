@@ -366,34 +366,59 @@ pub(crate) fn codec_label(codec: Option<&str>) -> String {
     }
 }
 
-/// The facts line of a pool row: what the pool can prove about the
-/// file. Shape, length, codec, and whether there is sound in it — a video with
-/// no audio track is the one found missing halfway through a cut.
+/// The facts a pool row states about its file, on the lines it draws them:
+/// the picture's shape and length, then the streams in the file. A line holds
+/// whole facts and never wraps, so a row too narrow for one ends it in an
+/// ellipsis rather than starting the next line with a separator. Each word the
+/// editor writes is capitalized, since any of them can start a line. The row of
+/// a video with no audio track reads `Silent`, because that is the file found
+/// missing halfway through a cut.
 ///
 /// A proxied row says so last. The substitution changes which file the preview
 /// decodes while every number above it still describes the original, so a row
 /// that did not name it would be a row where "1920×1080" and the picture on
 /// screen disagree about what is being played.
-pub(crate) fn media_caption(item: &crate::types::UiMediaItem) -> String {
-    use std::fmt::Write as _;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MediaFacts {
+    /// Shape and length: `1920×1080 · 00:00:02:00`, `Audio · 00:00:30:00`,
+    /// or `Media missing`.
+    pub(crate) picture: String,
+    /// The codecs, the sound and the proxy, when there is one to state.
+    pub(crate) streams: Option<String>,
+}
 
+impl MediaFacts {
+    /// Both lines as one, for a view that reads a row left to right.
+    pub(crate) fn line(&self) -> String {
+        match &self.streams {
+            Some(streams) => format!("{} · {streams}", self.picture),
+            None => self.picture.clone(),
+        }
+    }
+}
+
+/// The [`MediaFacts`] of one pool item.
+pub(crate) fn media_facts(item: &crate::types::UiMediaItem) -> MediaFacts {
     if item.missing {
-        return "media missing".to_string();
+        return MediaFacts {
+            picture: "Media missing".to_string(),
+            streams: None,
+        };
     }
 
     let audio_only = item.kind == crate::types::UiClipKind::Audio;
-    let mut caption = String::with_capacity(64);
-    if audio_only {
-        caption.push_str("Audio");
+    let picture = if audio_only {
+        format!("Audio · {}", item.duration_label)
     } else {
-        write!(caption, "{}×{}", item.width, item.height).expect("writing to a String cannot fail");
-    }
-    let mut append = |part: &str| {
-        caption.push_str(" · ");
-        caption.push_str(part);
+        format!("{}×{} · {}", item.width, item.height, item.duration_label)
     };
-    append(&item.duration_label);
-
+    let mut streams = String::new();
+    let mut append = |part: &str| {
+        if !streams.is_empty() {
+            streams.push_str(" · ");
+        }
+        streams.push_str(part);
+    };
     if audio_only {
         if let Some(codec) = item.audio_codec.as_deref() {
             append(codec);
@@ -403,15 +428,18 @@ pub(crate) fn media_caption(item: &crate::types::UiMediaItem) -> String {
             append(codec);
         }
         append(match (item.has_audio, item.audio_codec.as_deref()) {
-            (false, _) => "silent",
+            (false, _) => "Silent",
             (true, Some(codec)) => codec,
-            (true, None) => "audio",
+            (true, None) => "Audio",
         });
     }
     if item.proxied {
-        append("proxy");
+        append("Proxy");
     }
-    caption
+    MediaFacts {
+        picture,
+        streams: (!streams.is_empty()).then_some(streams),
+    }
 }
 
 /// Longest accepted filter. A held key cannot grow the query without bound.

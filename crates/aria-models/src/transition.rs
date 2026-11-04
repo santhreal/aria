@@ -383,6 +383,12 @@ impl Transition {
         Ok(self.flatten_floats(&self.spec()?.params, 0.0, None))
     }
 
+    /// Sample all shader-visible transition parameters in declaration order into `out`.
+    pub fn sample_flattened_floats_into(&self, out: &mut Vec<f32>) -> Result<(), ModelError> {
+        self.flatten_floats_into(&self.spec()?.params, 0.0, None, out);
+        Ok(())
+    }
+
     /// Set a scalar, angle, or integer parameter slot on this transition.
     pub fn set_param(&mut self, index: usize, value: f32) -> Result<(), ModelError> {
         let pspec = self.param_spec(index)?;

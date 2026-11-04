@@ -22,7 +22,10 @@ drawn in the clip context menu and in the menu bar's Clip menu. In the menu bar 
 group is a submenu: `Sequence/Color Tools` puts the row in a `Color Tools`
 flyout of the Sequence menu. In a context menu and in the palette a grouped row
 reads `Color Tools: Clear Notes`. The row is drawn while a command by that id is
-registered, after the shipped rows of the menu. A row id a shipped entry already
+registered, after the shipped rows of the menu, below a rule: the plugin rows
+of a menu are a group of their own. A row whose group is a submenu the menu
+bar already draws joins that flyout, below a rule that starts a group of the
+flyout. A row id a shipped entry already
 holds is dropped, so a plugin cannot shadow a shipped entry. In a context menu,
 declared rows come before the rows `MenuRequested` handlers add. The same
 command in the same place twice is refused. The row holds no code, so the
@@ -82,6 +85,8 @@ builder adds the rest:
 | `.when(blocked)` | Draws the row at 40 % opacity while `blocked` returns a reason, with the reason as its tooltip. Choosing the row from the keyboard, the palette or the platform menu bar puts the reason on the status line and runs nothing. |
 | `.checked(test)` | Draws a check mark while `test` holds. |
 | `.under(caption)` | Puts the row in the submenu `caption`. Rows with one caption share one flyout, drawn where the first of them sits. |
+| `.rule()` | Starts a group of the drop: the bar draws a rule above the entry the row is drawn as, which is the row or its submenu, and the macOS menu bar draws a separator. The first entry of a drop draws no rule. |
+| `.flyout_rule()` | Starts a group of the row's submenu flyout: the flyout draws a rule above the row. The first row of a flyout draws no rule. |
 
 Items land after the ones already registered. An id that a contributor already
 used is dropped rather than drawn twice. A row receives its own id, so one

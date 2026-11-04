@@ -30,8 +30,9 @@ use crate::theme::Theme;
 
 use super::keyboard::KeyDrag;
 
-/// The Keys section under the Settings filter, or nothing when the filter
-/// matches neither the section's title nor any binding.
+/// The Keyboard Shortcuts section under the Settings filter, or nothing when
+/// the filter matches neither the section's title nor any binding, or is
+/// another section's whole title.
 ///
 /// The sets and the keyboard image, the reset, every listed binding, then any
 /// refusal. The image and the refusals are drawn only when the whole list is.

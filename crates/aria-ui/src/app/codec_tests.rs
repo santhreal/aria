@@ -6,7 +6,7 @@
 //! outcomes (a name the demuxer gave, or a stated unknown) for every row kind,
 //! including the audio-only row, which has no video codec to report at all.
 
-use crate::app::media::{codec_label, media_caption};
+use crate::app::media::{MediaFacts, codec_label, media_facts};
 use crate::types::{UiClipKind, UiMediaItem};
 use aria_models::Rational;
 
@@ -43,13 +43,25 @@ fn an_unreported_codec_is_stated_not_guessed() {
     assert_eq!(codec_label(Some(" H.264 ")), "H.264");
 }
 
+/// The facts a row draws, as its two lines.
+fn lines(picture: &str, streams: Option<&str>) -> MediaFacts {
+    MediaFacts {
+        picture: picture.to_string(),
+        streams: streams.map(str::to_string),
+    }
+}
+
 #[test]
 fn a_row_names_both_codecs_when_the_demuxer_did() {
     let mut media = item(UiClipKind::Media);
     media.video_codec = Some("H.264".into());
     media.audio_codec = Some("MPEG-4 AAC".into());
-    let caption = media_caption(&media);
-    assert_eq!(caption, "1920×1080 · 00:00:02:00 · H.264 · MPEG-4 AAC");
+    let facts = media_facts(&media);
+    assert_eq!(
+        facts,
+        lines("1920×1080 · 00:00:02:00", Some("H.264 · MPEG-4 AAC"))
+    );
+    assert_eq!(facts.line(), "1920×1080 · 00:00:02:00 · H.264 · MPEG-4 AAC");
 }
 
 #[test]
@@ -57,10 +69,16 @@ fn a_row_with_no_codec_still_says_whether_there_is_sound() {
     // The audio fact was the row's whole point before codecs existed; adding a
     // codec must not cost it on a file whose codec is unknown.
     let media = item(UiClipKind::Media);
-    assert_eq!(media_caption(&media), "1920×1080 · 00:00:02:00 · audio");
+    assert_eq!(
+        media_facts(&media),
+        lines("1920×1080 · 00:00:02:00", Some("Audio"))
+    );
     let mut silent = item(UiClipKind::Media);
     silent.has_audio = false;
-    assert_eq!(media_caption(&silent), "1920×1080 · 00:00:02:00 · silent");
+    assert_eq!(
+        media_facts(&silent),
+        lines("1920×1080 · 00:00:02:00", Some("Silent"))
+    );
 }
 
 #[test]
@@ -69,12 +87,13 @@ fn an_audio_only_row_names_its_own_codec_and_no_video_one() {
     media.audio_codec = Some("FLAC".into());
     media.video_codec = Some("nonsense".into());
     media.duration_label = "00:00:30:00".into();
-    let caption = media_caption(&media);
-    assert_eq!(caption, "Audio · 00:00:30:00 · FLAC");
-    assert!(
-        !caption.contains("nonsense"),
-        "an audio-only row has no picture to describe"
-    );
+    let facts = media_facts(&media);
+    assert_eq!(facts, lines("Audio · 00:00:30:00", Some("FLAC")));
+    // An audio file with no codec reported has no streams line to draw.
+    media.audio_codec = None;
+    let facts = media_facts(&media);
+    assert_eq!(facts, lines("Audio · 00:00:30:00", None));
+    assert_eq!(facts.line(), "Audio · 00:00:30:00");
 }
 
 #[test]
@@ -82,7 +101,27 @@ fn a_missing_file_reports_that_before_anything_else() {
     let mut media = item(UiClipKind::Media);
     media.missing = true;
     media.video_codec = Some("H.264".into());
-    assert_eq!(media_caption(&media), "media missing");
+    media.proxied = true;
+    assert_eq!(media_facts(&media), lines("Media missing", None));
+}
+
+/// The proxy closes the streams line of every kind of row, and an audio file
+/// with no codec reported draws a streams line that holds the proxy alone.
+#[test]
+fn a_proxied_row_names_the_proxy_last_on_its_streams_line() {
+    let mut video = item(UiClipKind::Media);
+    video.video_codec = Some("H.264".into());
+    video.proxied = true;
+    assert_eq!(
+        media_facts(&video),
+        lines("1920×1080 · 00:00:02:00", Some("H.264 · Audio · Proxy"))
+    );
+    let mut sound = item(UiClipKind::Audio);
+    sound.proxied = true;
+    assert_eq!(
+        media_facts(&sound),
+        lines("Audio · 00:00:02:00", Some("Proxy"))
+    );
 }
 
 #[test]

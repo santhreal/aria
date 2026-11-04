@@ -641,12 +641,6 @@ impl AppState {
         self.focus_media_search(true);
     }
 
-    /// Ctrl+Alt+K: Settings, filtered to the key bindings.
-    pub fn open_keyboard_shortcuts(&mut self) {
-        self.settings_form.filter = "Keys".into();
-        self.open_dialog(super::DialogKind::Settings);
-    }
-
     /// Ctrl+Alt+S: write the project to a chosen file without adopting it. The
     /// open project keeps its own path and its unsaved state.
     pub fn save_project_copy(&mut self) {

@@ -166,7 +166,7 @@ with ripple delete, on-screen trim feedback, source patching (`SetSourcePatch`)
 with V and A indicators in the lane headers, and three- and four-point Source
 edits and media drops (`SourceEdit`) that place picture and sound on their
 patched lanes, linked, with Fit to Fill retiming both. The shipped keys follow
-[keyboard.md](keyboard.md). Settings > Keys rebinds any of them, lists them by
+[keyboard.md](keyboard.md). Settings > Keyboard Shortcuts rebinds any of them, lists them by
 name or chord under the Settings filter, draws them on a keyboard image colored
 by command kind with a row dropped on a key binding it there, asks before taking
 a chord another binding holds, and saves, loads, imports and exports named
@@ -318,3 +318,5 @@ per run, from between 120 and 129; frames drawn between 477 and 491, from
 between 142 and 156. A window that draws continuously presents at
 $239\text{ fps}$ with acquire p50 $0.009\text{ ms}$, from $60\text{ fps}$ with
 acquire p50 $13.7\text{ ms}$ to $14.5\text{ ms}$.
+
+Scene resolution, layer realization, and the preview worker reuse their per-frame vectors, strings, transition and matte side layers, path-raster keys, and empty RGBA image handle across frames. Measured per steady frame after two warmup frames: Aria-side heap allocations drop from $10$ to $0$ on a combined video, still, audio, mask, effect-mask, and matte scene, from $8$ to $0$ on a wipe transition, from $6$ to $0$ on a crossfade, dip, or slide transition, from $5$ to $0$ on a track matte, from $4$ to $0$ on styled text or a path mask, from $3$ to $0$ on a Lottie layer, from $2$ to $0$ on a sticker or a rectangle or circle mask, and from $1$ to $0$ on a path shape or an effect mask; in the `playback` scenario on `h264-1080p60`, Aria-side render-thread allocations after the first second are $0.0\text{ blocks/frame}$, while `wgpu` command encoding and queue submission allocate $52.0\text{ blocks/frame}$.

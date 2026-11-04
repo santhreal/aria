@@ -1,4 +1,4 @@
-//! Rebinding a key, through the Keys settings.
+//! Rebinding a key, through the Keyboard Shortcuts settings.
 //!
 //! The registry holds the chords ([`crate::keys::KeyHost`]); this holds the
 //! gesture. Arming a row makes the next keystroke the answer rather than a
