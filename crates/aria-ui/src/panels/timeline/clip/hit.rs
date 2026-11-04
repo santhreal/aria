@@ -96,6 +96,27 @@ impl HitTarget {
     }
 }
 
+/// The lane whose rows span `local_y`.
+pub(crate) fn lane_under(visible_lanes: &[VisibleLane], local_y: f32) -> Option<&VisibleLane> {
+    visible_lanes
+        .iter()
+        .find(|l| local_y >= l.y_top && local_y <= l.y_bottom)
+}
+
+/// The lane under `local_y`, or the nearest lane to a point above or below
+/// every lane. The video lanes stand on the divider, so their canvas has room
+/// above the top one.
+pub(crate) fn lane_at(visible_lanes: &[VisibleLane], local_y: f32) -> Option<&VisibleLane> {
+    lane_under(visible_lanes, local_y).or_else(|| {
+        let first = visible_lanes.first()?;
+        if local_y < first.y_top {
+            Some(first)
+        } else {
+            visible_lanes.last()
+        }
+    })
+}
+
 /// Hit-test a local `(local_x, local_y)` point against `visible_lanes`.
 pub(crate) fn hit_test(
     visible_lanes: &[VisibleLane],
@@ -105,17 +126,17 @@ pub(crate) fn hit_test(
     pps: f32,
     scroll_x: f32,
 ) -> Option<HitTarget> {
-    let lane = visible_lanes
-        .iter()
-        .find(|l| local_y >= l.y_top && local_y <= l.y_bottom)
-        .or_else(|| {
-            if local_y < 0.0 {
-                visible_lanes.first()
-            } else {
-                visible_lanes.last()
-            }
-        })?;
     let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
+    // The room above or below every lane holds no bar: a point there is on the
+    // nearest lane's empty space.
+    let Some(lane) = lane_under(visible_lanes, local_y) else {
+        let lane = lane_at(visible_lanes, local_y)?;
+        return Some(HitTarget::EmptyLane {
+            track_id: lane.track_id,
+            row: lane.row,
+            tick,
+        });
+    };
 
     if local_y >= lane.clip_y_bottom && !lane.outline_rows.is_empty() {
         let idx = ((local_y - lane.clip_y_bottom) / PROPERTY_ROW_H).floor() as usize;
@@ -288,16 +309,19 @@ pub(crate) fn cursor_for(tool: EditorTool, hit: Option<HitTarget>) -> CursorStyl
         Some(
             HitTarget::TransitionEdge { .. } | HitTarget::Fade { .. } | HitTarget::ClipEdge { .. },
         ) => CursorStyle::ResizeLeftRight,
-        Some(HitTarget::ClipLine { .. }) => CursorStyle::ResizeUpDown,
+        Some(HitTarget::ClipLine { key: None, .. }) => CursorStyle::ResizeUpDown,
         Some(HitTarget::ClipBody { locked: false, .. }) => match tool.body_drag() {
             Some(BodyDrag::Slip | BodyDrag::Slide) => CursorStyle::ResizeLeftRight,
             None => CursorStyle::PointingHand,
         },
         Some(HitTarget::ClipBody { locked: true, .. }) => CursorStyle::OperationNotAllowed,
         Some(HitTarget::TransitionBody { .. }) => CursorStyle::PointingHand,
-        Some(HitTarget::Keyframe { .. } | HitTarget::MaskPathKey { .. }) => {
-            CursorStyle::PointingHand
-        }
+        // A keyframe moves along the lane and, on a clip's line, up or down.
+        Some(
+            HitTarget::Keyframe { .. }
+            | HitTarget::MaskPathKey { .. }
+            | HitTarget::ClipLine { key: Some(_), .. },
+        ) => CursorStyle::PointingHand,
         _ => CursorStyle::Arrow,
     }
 }

@@ -8,7 +8,7 @@ use aria_models::{ClipId, ClipParam, Easing, ParamKind, ParamValue, RationalTime
 
 use super::{CopiedKeyframe, KeyBand, KeyframeTimeDrag, SelectedKeyframe};
 use crate::app::AppState;
-use crate::app::clip_keys::key_params_of;
+use crate::app::clip_keys::{key_magnets, key_params_of, key_span};
 
 impl AppState {
     /// Select a property row for display in the timeline graph editor.
@@ -215,34 +215,30 @@ impl AppState {
         let Some((clip_model, audio_lane)) = self.clip_and_lane_kind(drag.anchor_clip) else {
             return false;
         };
-        let clip_start = clip_model.timeline.start.value;
-        let clip_end = clip_model.timeline.end_tick();
-        let mut target_tick =
-            (drag.anchor_origin_tick + raw_delta_ticks).clamp(clip_start, clip_end);
-        let mut guide = None;
-
-        if !alt_disable_snap && threshold_ticks > 0 {
-            let mut candidates = vec![(self.playhead.value, crate::snap::SnapKind::Playhead)];
-            let rows = key_params_of(&clip_model, audio_lane);
-            for row in rows.iter() {
-                for mark in row.marks.iter() {
-                    let is_dragged = drag.origins.iter().any(|(c, p, t, _, _, _)| {
-                        *c == drag.anchor_clip && *p == row.param() && *t == mark.tick
-                    });
-                    if !is_dragged {
-                        candidates.push((mark.tick, crate::snap::SnapKind::Keyframe));
-                    }
-                }
-            }
-            if let Some((best_tick, kind)) = candidates
-                .into_iter()
-                .filter(|(t, _)| (*t - target_tick).abs() <= threshold_ticks)
-                .min_by_key(|(t, _)| (*t - target_tick).abs())
-            {
-                target_tick = best_tick.clamp(clip_start, clip_end);
-                guide = Some(crate::snap::SnapCandidate::new(target_tick, kind));
-            }
-        }
+        let span = key_span(
+            clip_model.timeline.start.value,
+            clip_model.timeline.end_tick(),
+        );
+        let magnets = if alt_disable_snap {
+            Vec::new()
+        } else {
+            key_magnets(
+                &clip_model,
+                audio_lane,
+                self.playhead.value,
+                |param, tick| {
+                    drag.origins.iter().any(|(c, p, t, _, _, _)| {
+                        *c == drag.anchor_clip && *p == param && *t == tick
+                    })
+                },
+            )
+        };
+        let (target_tick, guide) = crate::snap::pull_within(
+            drag.anchor_origin_tick + raw_delta_ticks,
+            threshold_ticks,
+            &magnets,
+            span,
+        );
         self.snap_guide = guide;
         let next_delta = target_tick - drag.anchor_origin_tick;
         self.with_prop_rows_mut(|s| {
@@ -278,7 +274,7 @@ impl AppState {
             for (clip, param, origin_tick, value, easing, tangents) in drag.origins {
                 let (lo, hi) = this
                     .ui_clip_ref(clip)
-                    .map(|c| (c.timeline_start_ticks, c.timeline_end_ticks))
+                    .map(|c| key_span(c.timeline_start_ticks, c.timeline_end_ticks))
                     .unwrap_or((0, i64::MAX));
                 let next_tick = (origin_tick + drag.delta_ticks).clamp(lo, hi);
                 this.apply_command(Command::Edit(EditCommand::SetParamKeyframe {

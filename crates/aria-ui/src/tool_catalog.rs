@@ -488,7 +488,8 @@ impl EditorTool {
         self.spec().zooms
     }
 
-    /// A click cuts every selected lane at the playhead.
+    /// A click cuts the clip under the pointer on its lane; a Shift+click cuts
+    /// every unlocked lane at that frame.
     pub const fn cuts(self) -> bool {
         self.spec().cuts
     }

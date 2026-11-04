@@ -8,7 +8,8 @@
 //! server with `SIGKILL`, which leaves such a lock behind. This test
 //! holds a display with a lock naming PID 1, which `Xvfb` reports as an
 //! active server, checks the server starts on another display that answers,
-//! and checks dropping the guard removes that server's lock within 1 s.
+//! and checks dropping the guard removes that server's lock before the
+//! guard's `SIGKILL` fallback is due.
 //!
 //! Not covered: hosts without `Xvfb` or `xdpyinfo` skip the test, the
 //! lock-file fallback used when `xdpyinfo` cannot run, and the `SIGKILL`
@@ -17,9 +18,9 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use super::{display_unanswered, start_private_xvfb};
+use super::{XVFB_STOP_FALLBACK, display_unanswered, start_private_xvfb};
 
 /// A lock file this test created, removed on drop so a failing assertion
 /// leaves no display held.
@@ -92,10 +93,13 @@ fn a_display_xvfb_rejects_is_skipped_and_a_stopped_server_frees_its_display() {
     let stopping = Instant::now();
     drop(xvfb);
     let stopped_in = stopping.elapsed();
+    // Xvfb exits on SIGTERM in milliseconds on an idle host and in about a
+    // second on one running a parallel test build; a guard that waited out
+    // its fallback takes at least the fallback.
     assert!(
-        stopped_in < Duration::from_secs(1),
-        "Xvfb exits on SIGTERM in milliseconds, so the guard must return once it \
-         exits rather than at its 2 s fallback; stopping took {stopped_in:?}"
+        stopped_in < XVFB_STOP_FALLBACK,
+        "the guard must return once Xvfb exits rather than at its {XVFB_STOP_FALLBACK:?} \
+         fallback; stopping took {stopped_in:?}"
     );
     assert!(
         !Path::new(&started_lock).exists(),

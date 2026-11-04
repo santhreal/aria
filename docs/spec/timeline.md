@@ -44,7 +44,8 @@ shows the tracks above V1, and a wheel down over the audio side shows the
 tracks below A1. A side fades its top or bottom edge while tracks continue
 past that edge, as deep as the tracks past it up to 24 px, as every scrolling
 list fades its edges. A media drag over the spare height above the video
-tracks lands on the top one.
+tracks lands on the top one. A press there lands on no clip: a marquee started
+there takes the top track as its corner, and a Razor click there cuts nothing.
 A side with no tracks is one 22 px strip labeled "No video tracks" or "No
 audio tracks", and the divider above or below it does not drag.
 
@@ -137,7 +138,7 @@ audio clips the volume line.
 | fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
 | Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default, one bar per 3 px of the clip at every zoom. Generators: their name and a solid swatch. |
 | Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line up or down changes the volume, and a drag from it along the lane moves the clip; Ctrl+click adds a keyframe. |
-| Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. |
+| Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. Dragging a dot moves its keyframe up or down and along the lane, inside the clip, pulled to the playhead and to the clip's other keyframes; Alt passes them. The readout states the keyframe's time. |
 | Fade handles | A square at each top corner of an unlocked bar 28 px or wider, at the end of its fade. Each shows while the pointer is over the bar, and at all times once its fade is set. Dragging one sets the fade. The name strip keeps clear of their place, so it holds still as they show. |
 | Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. The name strips of the clips under it start after it and end before it. The bar draws and takes presses while any part of it is in view, with its cut in view or not. |
 | Offline | Red fill with "Media Offline" and the file name. |

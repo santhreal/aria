@@ -96,7 +96,10 @@ moved to the other kind of lane draws that lane's default.
 
 Drag the line up or down to set a property that is one number. The value reads
 out as it moves, Escape puts it back, and the drag is one undo step. A drag
-between two keyframes moves both; a drag on a keyframe dot moves that keyframe.
+between two keyframes moves both up or down. A drag on a keyframe dot moves
+that keyframe up or down and along the lane, inside the clip, and pulls it to
+the playhead and to the clip's other keyframes; hold Alt to pass them. The
+readout states its time, and a guide marks the time it is pulled to.
 Ctrl+click on the line adds a keyframe at that time. On Medium and taller lanes
 the bar draws a dot at each keyframe of the property. A vector property draws
 its first axis, and a color or a rectangle draws a level line; neither is

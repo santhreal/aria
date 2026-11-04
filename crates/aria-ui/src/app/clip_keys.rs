@@ -26,6 +26,7 @@ use aria_models::{
 
 use super::AppState;
 use super::property_rows::KeyframeIconShape;
+use crate::snap::{SnapCandidate, SnapKind};
 use gpui::SharedString;
 
 /// The multi-keyframe easing presets, with a label each. These expand one
@@ -194,6 +195,34 @@ pub(crate) fn key_params_of(clip: &Clip, audio_lane: bool) -> std::sync::Arc<[Ke
             }
         })
         .collect()
+}
+
+/// The magnets a keyframe dragged along `clip` pulls to: the playhead at
+/// `playhead`, then every keyframe `clip`'s rows draw that `dragged` does
+/// not hold, given its property and its absolute timeline tick.
+pub(crate) fn key_magnets(
+    clip: &Clip,
+    audio_lane: bool,
+    playhead: i64,
+    dragged: impl Fn(ClipParam, i64) -> bool,
+) -> Vec<SnapCandidate> {
+    let dragged = &dragged;
+    let rows = key_params_of(clip, audio_lane);
+    std::iter::once(SnapCandidate::new(playhead, SnapKind::Playhead))
+        .chain(rows.iter().flat_map(move |row| {
+            row.marks
+                .iter()
+                .filter(move |mark| !dragged(row.param(), mark.tick))
+                .map(|mark| SnapCandidate::new(mark.tick, SnapKind::Keyframe))
+        }))
+        .collect()
+}
+
+/// The first and the last timeline tick a keyframe of a clip on
+/// `start..end` may sit on. The model keys a clip on its half-open span, so a
+/// keyframe dragged past the end stops on the clip's last tick.
+pub(crate) fn key_span(start: i64, end: i64) -> (i64, i64) {
+    (start, (end - 1).max(start))
 }
 
 impl AppState {

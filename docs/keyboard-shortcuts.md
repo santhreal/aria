@@ -120,12 +120,12 @@ replaced by the finished text rather than appended to it.
 | Shortcut | Tool |
 | --- | --- |
 | V | Select |
-| A | Track Select Forward. Click to select from that point forward; Shift-click selects on one track. |
-| Shift+A | Track Select Backward. Click to select up to that point; Shift-click selects on one track. |
+| A | Track Select Forward. Click to select from that point forward on every unlocked track; Shift+click selects on the clicked track only. |
+| Shift+A | Track Select Backward. Click to select up to that point on every unlocked track; Shift+click selects on the clicked track only. |
 | B | Ripple Trim. Drag an edge and the rest of the lane follows. |
 | N | Rolling Edit. Drag a cut to move it, keeping both clips' total length. |
 | R | Rate Stretch. Drag a clip edge to retime it instead of trimming. |
-| C | Razor |
+| C | Razor. Click to split the clip under the pointer; Shift+click splits every unlocked track at that frame. |
 | Y | Slip. Drag inside a clip to change what it shows without moving it. |
 | U | Slide. Drag a clip between its neighbors; they absorb the move. |
 | H | Hand. Drag the timeline to pan. |

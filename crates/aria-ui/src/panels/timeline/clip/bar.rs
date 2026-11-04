@@ -761,3 +761,7 @@ mod strip_cover_tests;
 #[cfg(test)]
 #[path = "grip_tests.rs"]
 mod grip_tests;
+
+#[cfg(test)]
+#[path = "lane_tool_tests.rs"]
+mod lane_tool_tests;

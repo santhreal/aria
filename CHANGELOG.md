@@ -794,6 +794,12 @@ Notes for the latest release. For previous releases, see the
 - Q and W remove from the previous cut on the targeted tracks to the playhead, or from the playhead to the next cut, on every targeted track and close the gap, instead of trimming the top clip under the playhead and sliding only its track, and Sequence > Ripple Trim In and Ripple Trim Out run the same edit and show Q and W instead of trimming the selected clip and leaving the gap.
 - Lift, Extract, Q and W appear in the history as Lift, Extract and Ripple trim instead of as the first command they send.
 - With no source open, the Viewer key reports "No source has been opened in the Viewer" instead of "No source has been open in the Viewer".
+- A drag on a keyframe dot on a clip's line moves the keyframe along the lane inside the clip as well as up or down, pulled to the playhead and to the clip's other keyframes unless Alt is held and with its time in the readout, instead of only changing its value.
+- A keyframe dragged past the end of its clip in a property row lands on the clip's last frame instead of the move being refused.
+- A Razor or Track Select click acts on the track under the pointer wherever it lands on a clip, on its keyframe line, a fade handle, a transition or a property row, instead of on the top video or audio track; a Razor click above the tracks cuts nothing.
+- A Track Select click selects on every unlocked track and a Shift+click on the clicked track only, instead of the reverse.
+- A marquee started or dragged above the video tracks takes the top track as its corner instead of the bottom one.
+- The editor builds on santh-gpui `96e3ffe8`, so a tooltip stays closed while a drag passes over its element and opens above the element when it does not fit below the pointer, a control draws its pressed style only while the press is over it and stays hovered while the press moves over it, an image drawn smaller than its pixels averages the pixels under each screen pixel instead of aliasing, a window whose image atlas dropped an image repaints the views and the region that drew it instead of presenting freed tiles, and on X11 the hover is set where the pointer enters a window and a window that never set a cursor shows the arrow.
 
 ### Fixed
 

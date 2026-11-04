@@ -19,13 +19,13 @@ The editor tool strip (`crates/aria-ui/src/chrome/tool_strip.rs` and `crates/ari
 | `tool-pen` | Pen | Adds keyframes on timeline curves or draws and edits Bézier mask points in the Viewer. | `P` |
 | `tool-pointer` | Select | Selects, moves, and trims clips on the timeline and handles in the Viewer. | `V` |
 | `tool-rate` | Rate Stretch | Drags a clip edge to change playback speed while preserving the source in point. | `R` |
-| `tool-razor` | Razor | Splits the targeted clip at the clicked frame on the timeline. | `C` |
+| `tool-razor` | Razor | Splits the clip under the pointer at the clicked frame; Shift+click splits every unlocked track at that frame. | `C` |
 | `tool-ripple` | Ripple Trim | Trims a clip edge and shifts downstream clips on the track to close or open the gap. | `B` |
 | `tool-roll` | Rolling Edit | Moves the cut point between two adjacent clips without changing the combined duration. | `N` |
 | `tool-slide` | Slide | Moves a clip along the track while trimming the neighboring clips to keep their outer bounds fixed. | `U` |
 | `tool-slip` | Slip | Shifts the source media in and out points inside a clip without moving its timeline bounds. | `Y` |
-| `tool-track-backward` | Track Select Backward | Selects every clip on the targeted track or all unlocked tracks up to the clicked frame. | `Shift+A` |
-| `tool-track-forward` | Track Select Forward | Selects every clip on the targeted track or all unlocked tracks from the clicked frame forward. | `A` |
+| `tool-track-backward` | Track Select Backward | Selects every clip on all unlocked tracks up to the clicked frame; Shift+click selects on the clicked track only. | `Shift+A` |
+| `tool-track-forward` | Track Select Forward | Selects every clip on all unlocked tracks from the clicked frame forward; Shift+click selects on the clicked track only. | `A` |
 | `tool-type` | Type | Creates a new title clip or enters inline text editing in the Viewer. | `T` |
 | `tool-zoom` | Zoom | Zooms the Timeline horizontally in on click or out on Alt-click around the clicked position. | `Z` |
 | `workspace-tab` (per row) | Workspace name | Arranges the editor as the workspace states (Editing, Animation, Color, Audio, Effects, a plugin workspace, or the saved custom layout) and underlines its tab. | None |

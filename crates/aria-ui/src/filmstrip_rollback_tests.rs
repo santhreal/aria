@@ -21,7 +21,7 @@ use aria_plugin::{Origin, Reverted};
 
 use super::{FilmstripStore, JOURNAL, test_cell as cell, test_key as key};
 use crate::app::AppState;
-use crate::app::clip_line::LinePress;
+use crate::app::clip_line::{LinePress, LineTravel};
 use crate::app::grade_controls::WheelControl;
 use crate::app::premiere_tests::with_clip;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
@@ -149,7 +149,7 @@ impl Gesture {
         let step = f32::from(step);
         let moved = match self {
             Self::ValueScrub => state.drag_value(-10.0, false, false),
-            Self::ClipLine => state.drag_clip_line(5.0 * step),
+            Self::ClipLine => state.drag_clip_line(LineTravel::down(5.0 * step)),
             Self::Wheel => state.drag_wheel([CENTER[0] + 6.0 * step, CENTER[1]]),
         };
         assert!(moved, "{self:?}: move {step} wrote nothing");

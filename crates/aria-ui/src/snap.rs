@@ -233,6 +233,40 @@ fn keep(best: &mut Option<(i64, u8, SnapCandidate)>, dist: i64, candidate: SnapC
     }
 }
 
+/// `desired` held inside `lo..=hi` and pulled onto the nearest of `magnets`
+/// within `threshold_ticks`, by the precedence [`SnapIndex::nearest`] applies.
+/// A threshold of zero pulls onto none. Returns the tick and the magnet it
+/// lands on, at that tick.
+///
+/// For a drag whose magnets are its own rather than the sequence's: a
+/// keyframe dragged along its clip pulls to the playhead and to the clip's
+/// other keyframes, and stays inside the clip.
+pub fn pull_within(
+    desired: i64,
+    threshold_ticks: i64,
+    magnets: &[SnapCandidate],
+    (lo, hi): (i64, i64),
+) -> (i64, Option<SnapCandidate>) {
+    let held = desired.clamp(lo, hi);
+    if threshold_ticks <= 0 {
+        return (held, None);
+    }
+    let mut best = None;
+    for &magnet in magnets {
+        let dist = held.saturating_sub(magnet.tick).abs();
+        if dist <= threshold_ticks {
+            keep(&mut best, dist, magnet);
+        }
+    }
+    match best {
+        Some((_, _, magnet)) => {
+            let tick = magnet.tick.clamp(lo, hi);
+            (tick, Some(SnapCandidate { tick, ..magnet }))
+        }
+        None => (held, None),
+    }
+}
+
 /// Convert an 8px magnet into ticks at the current pixels-per-second / fps.
 pub fn threshold_ticks(pps: f32, fps: f32) -> i64 {
     let pps = pps.max(1.0);
@@ -423,5 +457,21 @@ mod tests {
     fn threshold_ticks_scales_with_zoom() {
         assert_eq!(threshold_ticks(80.0, 24.0), 2);
         assert!(threshold_ticks(8.0, 24.0) > threshold_ticks(80.0, 24.0));
+    }
+
+    /// A drag with magnets of its own stays inside its span, pulls by the
+    /// precedence the index applies, and with no threshold pulls to none.
+    #[test]
+    fn pull_within_holds_the_span_and_ranks_its_magnets() {
+        let key = |tick| SnapCandidate::new(tick, SnapKind::Keyframe);
+        let playhead = SnapCandidate::new(40, SnapKind::Playhead);
+        let magnets = [key(44), playhead, key(90)];
+        assert_eq!(pull_within(42, 4, &magnets, (0, 80)), (40, Some(playhead)));
+        assert_eq!(pull_within(43, 4, &magnets, (0, 80)), (44, Some(key(44))));
+        assert_eq!(pull_within(43, 0, &magnets, (0, 80)), (43, None));
+        assert_eq!(pull_within(44, 0, &magnets, (0, 80)), (44, None));
+        assert_eq!(pull_within(-9, 4, &magnets, (0, 80)), (0, None));
+        // A magnet past the span pulls a value held at its edge onto the edge.
+        assert_eq!(pull_within(500, 12, &magnets, (0, 80)), (80, Some(key(80))));
     }
 }

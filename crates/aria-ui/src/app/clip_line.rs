@@ -3,11 +3,12 @@
 //! badge menu.
 //!
 //! A press on a constant line moves the constant. A press on a keyframe dot
-//! moves that keyframe, and a press on the line between two keyframes moves
-//! both, so the segment keeps its slope. Before the first keyframe and after
-//! the last the line is level with it, so a press there moves that keyframe.
-//! The travel is measured in the scale the bar draws, so a gain moves in
-//! decibels.
+//! moves that keyframe up or down and along the lane, inside the clip, pulled
+//! to the playhead and to the clip's other keyframes. A press on the line
+//! between two keyframes moves both up or down, so the segment keeps its
+//! slope. Before the first keyframe and after the last the line is level with
+//! it, so a press there moves that keyframe. The travel is measured in the
+//! scale the bar draws, so a gain moves in decibels.
 //!
 //! A drag is one undo step: every move rolls back what the previous move wrote
 //! and writes the whole travel again. Escape puts the line back.
@@ -20,6 +21,8 @@ use aria_plugin::EditGroup;
 use gpui::SharedString;
 
 use super::AppState;
+use super::clip_keys::{key_magnets, key_span};
+use crate::snap::{SnapCandidate, pull_within};
 use crate::types::{Taper, TrimFeedback, UiTrackKind};
 
 /// Where a press on a clip's line landed.
@@ -29,6 +32,30 @@ pub enum LinePress {
     Key(i64),
     /// The line at this timeline tick.
     Line(i64),
+}
+
+/// Where the pointer is from a press on a clip's line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineTravel {
+    /// Pixels below the press.
+    pub down: f32,
+    /// Timeline ticks after the press. Only a keyframe pressed on its dot
+    /// travels along the lane.
+    pub along: i64,
+    /// Ticks within which a keyframe travelling along the lane pulls to the
+    /// playhead or to another keyframe of the clip. Zero pulls to none.
+    pub magnet: i64,
+}
+
+impl LineTravel {
+    /// `px` pixels below the press, and nowhere along the lane.
+    pub const fn down(px: f32) -> Self {
+        Self {
+            down: px,
+            along: 0,
+            magnet: 0,
+        }
+    }
 }
 
 /// A press held on a clip's line.
@@ -48,10 +75,25 @@ pub(crate) struct LineDrag {
     /// Shown in the drag's readout.
     label: SharedString,
     clip_name: SharedString,
+    /// The keyframe a press on its dot holds, which travels along the lane
+    /// too. `None` for a press on the line, which keeps every keyframe's tick.
+    along: Option<Along>,
     /// What the open group holds.
     group: Option<EditGroup>,
     /// The travel, in pixels, the open group holds.
     applied: f32,
+    /// The ticks along the lane the open group holds the keyframe moved.
+    shifted: i64,
+}
+
+/// A keyframe held by its dot.
+struct Along {
+    /// Its timeline tick when pressed.
+    origin: i64,
+    /// The first and the last tick of the clip the keyframe may sit on.
+    span: (i64, i64),
+    /// The playhead and the clip's other keyframes, which it pulls to.
+    magnets: Vec<SnapCandidate>,
 }
 
 /// What a press found under it.
@@ -130,6 +172,7 @@ impl AppState {
                 Some((model.param_timeline_tick(local), scalar(local)?, easing))
             })
             .collect();
+        let mut along = None;
         let held = if keys.is_empty() {
             let Some(value) = scalar(model.param_tick(model.timeline.start.value)) else {
                 return false;
@@ -137,7 +180,16 @@ impl AppState {
             Held::Constant(value)
         } else {
             let moved: Vec<(i64, f32, Easing)> = match at {
-                LinePress::Key(tick) => keys.iter().filter(|key| key.0 == tick).copied().collect(),
+                LinePress::Key(tick) => {
+                    along = Some(Along {
+                        origin: tick,
+                        span: key_span(model.timeline.start.value, model.timeline.end_tick()),
+                        magnets: key_magnets(model, audio, self.playhead.value, |row, key| {
+                            row == param && key == tick
+                        }),
+                    });
+                    keys.iter().filter(|key| key.0 == tick).copied().collect()
+                }
                 LinePress::Line(tick) => {
                     let after = keys.partition_point(|key| key.0 <= tick);
                     match after {
@@ -165,29 +217,56 @@ impl AppState {
             spec,
             label,
             clip_name,
+            along,
             group: None,
             applied: 0.0,
+            shifted: 0,
         });
         true
     }
 
-    /// The pointer is `travel` pixels below where the line was pressed.
+    /// The pointer has gone `travel` from where the line was pressed.
     /// Returns whether the line moved.
-    pub fn drag_clip_line(&mut self, travel: f32) -> bool {
+    pub fn drag_clip_line(&mut self, travel: LineTravel) -> bool {
         let Some(drag) = self.line_drag.as_mut() else {
             return false;
         };
-        if travel.to_bits() == drag.applied.to_bits() {
+        // The magnets pull what the pointer carries along the lane, so a drag
+        // straight up or down leaves the keyframe's tick where it was.
+        let along = drag.along.as_ref().filter(|_| travel.along != 0);
+        let (shifted, guide) = along.map_or((0, None), |along| {
+            let (tick, guide) = pull_within(
+                along.origin + travel.along,
+                travel.magnet,
+                &along.magnets,
+                along.span,
+            );
+            (tick - along.origin, guide)
+        });
+        if travel.down.to_bits() == drag.applied.to_bits() && shifted == drag.shifted {
             return false;
         }
         let (clip, param, scale) = (drag.clip, drag.param, drag.scale);
-        let writes = drag.values(travel);
+        let writes = drag.values(travel.down);
+        // A keyframe moved along the lane leaves its tick for the one it lands on.
+        let left = drag
+            .along
+            .as_ref()
+            .filter(|_| shifted != 0)
+            .map(|along| along.origin);
         if let Some(group) = drag.group.take() {
             self.roll_back(group);
             self.sync_from_engine();
         }
         let rate = self.store.sequence.frame_rate;
         let wrote = self.edit_group(|state| {
+            if let Some(tick) = left {
+                state.apply_command(Command::Edit(EditCommand::RemoveParamKeyframe {
+                    clip,
+                    param,
+                    at: RationalTime::new(tick, rate),
+                }))?;
+            }
             for &(tick, value, easing) in &writes {
                 let value = ParamValue::Scalar(value);
                 let command = match tick {
@@ -195,7 +274,7 @@ impl AppState {
                     Some(tick) => EditCommand::SetParamKeyframe {
                         clip,
                         param,
-                        at: RationalTime::new(tick, rate),
+                        at: RationalTime::new(tick + shifted, rate),
                         value,
                         easing,
                         tangents: None,
@@ -217,7 +296,12 @@ impl AppState {
         let Some(drag) = self.line_drag.as_mut() else {
             return true;
         };
-        drag.applied = if wrote.is_some() { travel } else { 0.0 };
+        (drag.applied, drag.shifted) = if wrote.is_some() {
+            (travel.down, shifted)
+        } else {
+            (0.0, 0)
+        };
+        self.snap_guide = guide.filter(|_| wrote.is_some());
         drag.group = wrote;
         let value = drag
             .values(drag.applied)
@@ -229,12 +313,24 @@ impl AppState {
             .clip(clip)
             .map_or_else(SharedString::default, |model| drag.readout(model, value));
         drop(engine);
+        let detail_label = match &drag.along {
+            Some(along) => format!(
+                "At {} · Esc puts it back",
+                crate::timecode::format_time(
+                    along.origin + drag.shifted,
+                    rate,
+                    self.store.sequence.time_display,
+                )
+            )
+            .into(),
+            None => SharedString::new_static("Esc puts it back"),
+        };
         self.trim_feedback = Some(TrimFeedback {
             tool_label: drag.label.clone(),
             clip_name: drag.clip_name.clone(),
-            delta_ticks: 0,
+            delta_ticks: drag.shifted,
             delta_label,
-            detail_label: SharedString::new_static("Esc puts it back"),
+            detail_label,
         });
         true
     }
@@ -246,6 +342,7 @@ impl AppState {
             return false;
         };
         self.trim_feedback = None;
+        self.snap_guide = None;
         if let Some(group) = drag.group {
             group.commit();
         }
@@ -262,6 +359,7 @@ impl AppState {
             return false;
         };
         self.trim_feedback = None;
+        self.snap_guide = None;
         if let Some(group) = drag.group {
             self.roll_back(group);
         }

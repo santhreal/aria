@@ -99,7 +99,7 @@ pub(super) fn v1_lane(visual: &mut VisualTestContext) -> Bounds<Pixels> {
 }
 
 /// The lane on `canvas` at the height of the track header `header`.
-fn lane_of(
+pub(super) fn lane_of(
     visual: &mut VisualTestContext,
     canvas: &'static str,
     header: &'static str,
@@ -140,7 +140,7 @@ fn opacity(visual: &mut VisualTestContext, state: &Entity<AppState>, clip: ClipI
     })
 }
 
-fn drag(visual: &mut VisualTestContext, from: Point<Pixels>, to: Point<Pixels>) {
+pub(super) fn drag(visual: &mut VisualTestContext, from: Point<Pixels>, to: Point<Pixels>) {
     visual.simulate_mouse_move(from, None, Modifiers::none());
     visual.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(to, Some(MouseButton::Left), Modifiers::none());
@@ -150,6 +150,18 @@ fn drag(visual: &mut VisualTestContext, from: Point<Pixels>, to: Point<Pixels>) 
 
 fn near(a: Pixels, b: Pixels) -> bool {
     (f32::from(a) - f32::from(b)).abs() <= 0.5
+}
+
+/// The keyframe dots the last frame painted on `lane`.
+fn key_dots(visual: &mut VisualTestContext, lane: Bounds<Pixels>) -> Vec<Painted> {
+    painted(visual, lane)
+        .into_iter()
+        .filter(|quad| {
+            quad.rounded
+                && near(quad.bounds.size.width, px(DOT))
+                && near(quad.bounds.size.height, px(DOT))
+        })
+        .collect()
 }
 
 /// The one line the bar on `lane` paints: a hairline narrower than the lane,
@@ -225,14 +237,7 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
     assert!((keys[0].value - 0.5).abs() < 1e-3);
 
     // The key is drawn as a dot on the line, and a press on the dot moves it.
-    let dots: Vec<Painted> = painted(visual, lane)
-        .into_iter()
-        .filter(|quad| {
-            quad.rounded
-                && near(quad.bounds.size.width, px(DOT))
-                && near(quad.bounds.size.height, px(DOT))
-        })
-        .collect();
+    let dots = key_dots(visual, lane);
     assert_eq!(dots.len(), 1, "one dot per keyframe: {dots:?}");
     let dot = dots[0].bounds.center();
     assert!(near(dot.y, line.center().y));
@@ -246,7 +251,7 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
     );
 
     // A press on the dot holds the key whichever way the pointer goes: a drag
-    // along the lane from where the dot now sits leaves the clip in place.
+    // along the lane carries the key in time and leaves the clip in place.
     let dot = point(dot.x, lane.top() + px(rows.line_y(0.75)));
     drag(visual, dot, point(dot.x + px(120.0), dot.y));
     assert_eq!(
@@ -257,6 +262,12 @@ fn a_press_on_the_painted_line_drags_it_and_a_ctrl_click_keys_it(cx: &mut TestAp
     let keys = opacity(visual, &state, clip).keyframes().to_vec();
     assert_eq!(keys.len(), 1);
     assert!((keys[0].value - 0.75).abs() < 1e-3);
+    // The dot lands under the pointer, give or take the pull of a magnet.
+    let landed = key_dots(visual, lane)
+        .pop()
+        .expect("the key's dot is drawn where it landed");
+    let off = f32::from(landed.bounds.center().x) - f32::from(dot.x) - 120.0;
+    assert!(off.abs() <= 9.0, "the dot landed {off} px from the pointer");
 }
 
 /// The line runs through the middle of a clip's body, where a hand grabs a clip
@@ -439,7 +450,7 @@ fn the_fx_badge_is_grey_yellow_purple_or_yellow_over_purple(cx: &mut TestAppCont
 /// Two clips of the fixture cut together, each named longer than any bar
 /// draws, with a dip to black at the cut: the outgoing clip, which holds the
 /// transition, and the incoming clip's name.
-fn a_cut_under_a_transition<'a>(
+pub(super) fn a_cut_under_a_transition<'a>(
     cx: &'a mut TestAppContext,
     tag: &str,
 ) -> (Entity<AppState>, &'a mut VisualTestContext, ClipId, String) {
@@ -482,7 +493,7 @@ fn a_cut_under_a_transition<'a>(
 }
 
 /// Align the transition `outgoing` holds and fit the sequence in the view.
-fn align(
+pub(super) fn align(
     visual: &mut VisualTestContext,
     state: &Entity<AppState>,
     outgoing: ClipId,

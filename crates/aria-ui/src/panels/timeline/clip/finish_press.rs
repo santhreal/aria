@@ -44,60 +44,53 @@ pub(super) fn on_left_down(
         this.zoom_at(origin_x, factor, cx);
         return;
     }
-    if let Some(dir) = tool.track_select() {
-        let (track_id, tick) = match hit {
-            HitTarget::ClipEdge {
-                track_id,
-                start_ticks,
-                ..
-            }
-            | HitTarget::ClipBody {
-                track_id,
-                start_ticks,
-                ..
-            } => (track_id, start_ticks),
-            HitTarget::EmptyLane { track_id, tick, .. } => (track_id, tick),
-            _ => {
-                let first_track = lanes.first().map(|l| l.track_id).unwrap_or(0);
-                (
-                    first_track,
-                    px_to_ticks((local_x + scroll_x).max(0.0), fps, pps),
-                )
-            }
+    // Razor and Track Select act on the lane under the pointer, whatever part
+    // of it the press landed on: a line, a fade handle, a transition, a row. A
+    // press off every lane acts only when it takes every lane.
+    let lane = |all: bool| {
+        let lane = if all {
+            lane_at(lanes, local_y)
+        } else {
+            lane_under(lanes, local_y)
         };
-        this.state.update(cx, |state, _| {
-            state.select_track_clips(
-                TrackId::from_raw(track_id),
-                tick,
-                dir,
-                event.modifiers.shift,
-            );
-        });
+        lane.map(|lane| TrackId::from_raw(lane.track_id))
+    };
+    let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
+    if let Some(dir) = tool.track_select() {
+        // A click selects on every unlocked lane, a Shift+click on its own.
+        let all = !event.modifiers.shift;
+        // A press on a clip's bar selects from the clip's start, so the clip
+        // is in the selection wherever on it the press landed.
+        let from = match hit {
+            HitTarget::ClipEdge { start_ticks, .. }
+            | HitTarget::ClipBody { start_ticks, .. }
+            | HitTarget::ClipLine { start_ticks, .. } => start_ticks,
+            _ => tick,
+        };
+        if let Some(track) = lane(all) {
+            this.state.update(cx, |state, _| {
+                state.select_track_clips(track, from, dir, all);
+            });
+        }
         cx.stop_propagation();
         cx.notify();
         return;
     }
     if tool.cuts() {
-        let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
-        let track_id = match hit {
-            HitTarget::ClipEdge { track_id, .. }
-            | HitTarget::ClipBody { track_id, .. }
-            | HitTarget::EmptyLane { track_id, .. } => track_id,
-            _ => lanes.first().map(|l| l.track_id).unwrap_or(0),
-        };
-        this.state.update(cx, |state, _| {
-            if let Err(err) =
-                state.split_at_tick(TrackId::from_raw(track_id), tick, event.modifiers.shift)
-            {
-                state.report_error(&err);
-            }
-        });
+        // A click cuts its own lane, a Shift+click every unlocked lane.
+        let all = event.modifiers.shift;
+        if let Some(track) = lane(all) {
+            this.state.update(cx, |state, _| {
+                if let Err(err) = state.split_at_tick(track, tick, all) {
+                    state.report_error(&err);
+                }
+            });
+        }
         cx.stop_propagation();
         cx.notify();
         return;
     }
     if tool.pens() {
-        let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
         match hit {
             HitTarget::ClipBody {
                 clip_id,
@@ -306,7 +299,7 @@ pub(super) fn on_left_down(
                 match key {
                     Some(key) => state
                         .press_clip_line(clip, LinePress::Key(key), band)
-                        .then_some(CanvasGesture::Line { origin_y }),
+                        .then_some(CanvasGesture::Line { origin_x, origin_y }),
                     None => Some(CanvasGesture::LineOrMove {
                         clip_id,
                         track_id,

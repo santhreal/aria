@@ -212,6 +212,32 @@ fn keyframe_drag_snaps_and_commits_in_one_undo_step() {
     assert_eq!(marks_after_undo, vec![0, 20]);
 }
 
+/// A keyframe dragged past its clip's end stops on the clip's last tick, which
+/// the model keys, rather than on the end, which the model refuses.
+#[test]
+fn a_keyframe_dragged_past_its_clip_stops_on_the_last_tick() {
+    let (mut state, clip) = with_clip();
+    state.set_playhead(0);
+    state
+        .add_keyframe_at_playhead(ClipParam::Opacity)
+        .expect("keyframe");
+    let end = state
+        .ui_clip_ref(clip)
+        .map(|ui| ui.timeline_end_ticks)
+        .expect("the clip is on the timeline");
+    state.begin_timeline_keyframe_drag(clip, ClipParam::Opacity, 0, false);
+    assert!(state.update_timeline_keyframe_drag(end * 4, 0, false));
+    state
+        .commit_timeline_keyframe_drag()
+        .expect("the model keys the clip's last tick");
+    let marks: Vec<i64> = state
+        .keyframes_of(ClipParam::Opacity)
+        .iter()
+        .map(|m| m.tick)
+        .collect();
+    assert_eq!(marks, [end - 1]);
+}
+
 /// A band on a property row selects what the press left and the keys it
 /// covers: drawn back past a key, it deselects that key, Shift held or not.
 /// Escape puts back what the press left, and the release keeps what the band

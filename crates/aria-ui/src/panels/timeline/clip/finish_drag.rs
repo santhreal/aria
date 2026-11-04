@@ -53,6 +53,11 @@ pub(super) fn hover(
     }
 }
 
+/// `delta_px` along the lane from a press, either way, in timeline ticks.
+fn ticks_along(delta_px: f32, fps: f32, pps: f32) -> i64 {
+    ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64
+}
+
 /// The pointer anywhere with the button held on a gesture this canvas began.
 /// `bounds`, `lanes` and the view are the canvas's as the press found them.
 #[allow(clippy::too_many_arguments)]
@@ -84,9 +89,7 @@ pub(super) fn carry(
             // A move takes the lane under the pointer when that lane's kind
             // holds the clip; over any other lane it keeps the last one.
             if matches!(kind, DragKind::Move)
-                && let Some(hovered_lane) = lanes
-                    .iter()
-                    .find(|l| local_y >= l.y_top && local_y <= l.y_bottom && !l.locked)
+                && let Some(hovered_lane) = lane_under(lanes, local_y).filter(|l| !l.locked)
                 && hovered_lane.track_id != target_track_id
                 && this.state.update(cx, |state, _| {
                     state.drag_lands_on(
@@ -146,12 +149,7 @@ pub(super) fn carry(
                     .gesture
                     .set(Some(CanvasGesture::Marquee { origin_x, moved }));
                 let tick = px_to_ticks((local_x + scroll_x).max(0.0), fps, pps);
-                let track_id = lanes
-                    .iter()
-                    .find(|l| local_y >= l.y_top && local_y <= l.y_bottom)
-                    .or_else(|| lanes.last())
-                    .map(|l| l.track_id)
-                    .unwrap_or(0);
+                let track_id = lane_at(lanes, local_y).map_or(0, |l| l.track_id);
                 this.state.update(cx, |state, _| {
                     state.selected_gap = None;
                     state.drag_marquee(track_id, tick);
@@ -160,8 +158,7 @@ pub(super) fn carry(
             }
         }
         CanvasGesture::KeyframeDrag { origin_x } => {
-            let delta_px = f32::from(event.position.x) - origin_x;
-            let raw_delta = ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64;
+            let raw_delta = ticks_along(f32::from(event.position.x) - origin_x, fps, pps);
             let threshold = crate::snap::threshold_ticks(pps, fps);
             this.state.update(cx, |state, _| {
                 state.update_timeline_keyframe_drag(raw_delta, threshold, event.modifiers.alt);
@@ -169,8 +166,7 @@ pub(super) fn carry(
             cx.notify();
         }
         CanvasGesture::MaskPathKeyDrag { origin_x } => {
-            let delta_px = f32::from(event.position.x) - origin_x;
-            let raw_delta = ((delta_px / pps.max(1.0)) * fps.max(1.0)).round() as i64;
+            let raw_delta = ticks_along(f32::from(event.position.x) - origin_x, fps, pps);
             let threshold = crate::snap::threshold_ticks(pps, fps);
             this.state.update(cx, |state, _| {
                 state.update_mask_path_key_drag(raw_delta, threshold, event.modifiers.alt);
@@ -182,8 +178,18 @@ pub(super) fn carry(
             this.state.update(cx, |state, _| state.drag_key_band(tick));
             cx.notify();
         }
-        CanvasGesture::Line { origin_y } => {
-            let travel = f32::from(event.position.y) - origin_y;
+        CanvasGesture::Line { origin_x, origin_y } => {
+            // Alt lets a keyframe held by its dot pass its magnets, as it does
+            // on a property row.
+            let travel = LineTravel {
+                down: f32::from(event.position.y) - origin_y,
+                along: ticks_along(f32::from(event.position.x) - origin_x, fps, pps),
+                magnet: if event.modifiers.alt {
+                    0
+                } else {
+                    crate::snap::threshold_ticks(pps, fps)
+                },
+            };
             if this
                 .state
                 .update(cx, |state, _| state.drag_clip_line(travel))
@@ -214,7 +220,7 @@ pub(super) fn carry(
                     state.press_clip_line(ClipId::from_raw(clip_id), LinePress::Line(tick), band)
                 });
             LanePointer::of(this).gesture.set(Some(if line {
-                CanvasGesture::Line { origin_y }
+                CanvasGesture::Line { origin_x, origin_y }
             } else {
                 // The press now holds the clip by its body.
                 LanePointer::of(this).press_cursor.set(cursor_for(

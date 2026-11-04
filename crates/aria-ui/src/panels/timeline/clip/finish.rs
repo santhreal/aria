@@ -11,8 +11,8 @@ use gpui::{
 
 use super::VisibleLane;
 use super::bar::BarRows;
-use super::hit::{HitTarget, cursor_for, hit_test};
-use crate::app::clip_line::LinePress;
+use super::hit::{HitTarget, cursor_for, hit_test, lane_at, lane_under};
+use crate::app::clip_line::{LinePress, LineTravel};
 use crate::panels::timeline::px_to_ticks;
 use crate::shell::{Hold, Shell};
 use crate::surfaces::timeline_gesture::{self as gesture, Drag, Gesture, Span};
@@ -61,8 +61,10 @@ enum CanvasGesture {
     },
     /// A band on a property row; the state holds where it began.
     KeyBand,
-    /// A clip bar's line held; the travel is measured from `origin_y`.
+    /// A clip bar's line held; the travel is measured from `origin_x` along
+    /// the lane and from `origin_y` across it.
     Line {
+        origin_x: f32,
         origin_y: f32,
     },
     /// A press on a clip bar's line away from its keyframe dots, before the

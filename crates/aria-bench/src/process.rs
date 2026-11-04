@@ -71,9 +71,13 @@ pub(crate) struct XvfbGuard {
     pub(crate) display: String,
 }
 
+/// How long dropping an [`XvfbGuard`] waits for the server to exit on
+/// `SIGTERM` before it sends `SIGKILL`.
+pub(crate) const XVFB_STOP_FALLBACK: Duration = Duration::from_secs(2);
+
 impl Drop for XvfbGuard {
     /// Stop the server with `SIGTERM`, so it removes its `/tmp/.X<n>-lock`
-    /// and socket, and fall back to `SIGKILL` after 2 s.
+    /// and socket, and fall back to `SIGKILL` after [`XVFB_STOP_FALLBACK`].
     fn drop(&mut self) {
         let signalled = Command::new("kill")
             .args(["-TERM", &self.child.id().to_string()])
@@ -82,7 +86,7 @@ impl Drop for XvfbGuard {
             .status()
             .is_ok_and(|status| status.success());
         if signalled {
-            let deadline = Instant::now() + Duration::from_secs(2);
+            let deadline = Instant::now() + XVFB_STOP_FALLBACK;
             while Instant::now() < deadline {
                 if let Ok(Some(_)) = self.child.try_wait() {
                     return;

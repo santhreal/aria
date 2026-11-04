@@ -32,7 +32,11 @@ fn handles(visual: &mut VisualTestContext, lane: Bounds<Pixels>) -> Vec<f32> {
 }
 
 /// The window x span of `clip`'s bar, and the width of one tick.
-fn card(visual: &mut VisualTestContext, state: &Entity<AppState>, clip: ClipId) -> (f32, f32, f32) {
+pub(super) fn card(
+    visual: &mut VisualTestContext,
+    state: &Entity<AppState>,
+    clip: ClipId,
+) -> (f32, f32, f32) {
     let canvas = visual
         .debug_bounds("timeline-video-canvas")
         .expect("the timeline draws its video lanes");

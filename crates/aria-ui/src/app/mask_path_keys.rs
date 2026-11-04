@@ -15,6 +15,7 @@ use super::AppState;
 use super::property_rows::{
     KeyframeIconShape, MaskPathKeyDrag, TimelineKeyMark, TimelineMaskPathRow,
 };
+use crate::snap::{SnapCandidate, SnapKind, pull_within};
 
 #[cfg(test)]
 #[path = "mask_path_keys_tests.rs"]
@@ -222,30 +223,21 @@ impl AppState {
         let Some((model, _)) = self.clip_and_lane_kind(drag.clip) else {
             return false;
         };
-        let (start, end) = (model.timeline.start.value, model.timeline.end_tick());
-        let mut target = (drag.origin + raw_delta).clamp(start, end);
-        let mut guide = None;
-        if !alt && threshold > 0 {
-            let mut candidates = vec![(self.playhead.value, crate::snap::SnapKind::Playhead)];
-            if let Some(mask) = path_mask(&model, drag.mask) {
-                candidates.extend(
-                    mask.path
-                        .keyframes()
-                        .iter()
+        let magnets: Vec<SnapCandidate> = if alt {
+            Vec::new()
+        } else {
+            let keys = path_mask(&model, drag.mask).map_or(&[][..], |mask| mask.path.keyframes());
+            std::iter::once(SnapCandidate::new(self.playhead.value, SnapKind::Playhead))
+                .chain(
+                    keys.iter()
                         .map(|key| model.param_timeline_tick(key.tick))
                         .filter(|&tick| tick != drag.origin)
-                        .map(|tick| (tick, crate::snap::SnapKind::Keyframe)),
-                );
-            }
-            let nearest = candidates
-                .into_iter()
-                .filter(|(tick, _)| (*tick - target).abs() <= threshold)
-                .min_by_key(|(tick, _)| (*tick - target).abs());
-            if let Some((tick, kind)) = nearest {
-                target = tick.clamp(start, end);
-                guide = Some(crate::snap::SnapCandidate::new(target, kind));
-            }
-        }
+                        .map(|tick| SnapCandidate::new(tick, SnapKind::Keyframe)),
+                )
+                .collect()
+        };
+        let span = (model.timeline.start.value, model.timeline.end_tick());
+        let (target, guide) = pull_within(drag.origin + raw_delta, threshold, &magnets, span);
         self.snap_guide = guide;
         let delta = target - drag.origin;
         self.with_prop_rows_mut(|s| match &mut s.mask_path_drag {
