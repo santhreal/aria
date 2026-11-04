@@ -9,6 +9,7 @@
 
 use gpui::{Div, Hsla, InteractiveElement, ParentElement, Styled, div, px, relative};
 
+use crate::theme::Theme;
 use crate::types::Reach;
 
 /// Which way a track runs from its start to its end.
@@ -41,10 +42,28 @@ impl Gauge {
 }
 
 /// The colors a track is drawn in: its rail, and its fill and thumb.
+///
+/// The rail is the same on every track and is set here: the control-outline
+/// tone at rest, brightening toward the faint text tone under the pointer.
+/// It stands off every surface a track is drawn over at least as far as a row
+/// separator does, so a track at its origin, which fills nothing, still draws
+/// the travel its thumb moves along.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ink {
-    pub rail: Hsla,
-    pub lit: Hsla,
+    rail: Hsla,
+    lit: Hsla,
+}
+
+impl Ink {
+    /// A track's colors: `lit` for its fill and thumb, and the rail lifted
+    /// toward its hover tone by `hovered`, from 0 at rest to 1 under the
+    /// pointer.
+    pub fn new(theme: &Theme, lit: Hsla, hovered: f32) -> Self {
+        Self {
+            rail: crate::motion::mix(theme.border_strong, theme.text_faint, hovered),
+            lit,
+        }
+    }
 }
 
 /// A rail along `run`, the stretch of it `reach` covers, and the thumb where
@@ -101,3 +120,7 @@ pub fn track(
             .child(knob.left_0().bottom(relative(reach.at)).mb(hang)),
     }
 }
+
+#[cfg(test)]
+#[path = "travel_tests.rs"]
+mod tests;

@@ -108,6 +108,61 @@ fn a_clip_cannot_sit_under_itself() {
     assert_eq!(clips_of(&project, &clips), before, "a refused parent wrote");
 }
 
+/// Only a clip on a picture lane has a placement. A clip on every lane kind
+/// that holds clips, read from the lane catalog, is tried as the child and as
+/// the parent of a video clip, so a new lane kind is checked by its own row.
+#[test]
+fn only_picture_lane_clips_parent_or_take_a_parent() {
+    let (mut project, clips) = stacked(&[(0, 48)]);
+    let video = clips[0];
+    let media = project.media_iter().next().unwrap().id;
+    let mut tried = Vec::new();
+    for spec in crate::track_catalog::track_kind_specs() {
+        let track = project.add_track(spec.kind, spec.default_name);
+        let generator = crate::clip::generator_catalog::generator_specs()
+            .iter()
+            .find(|row| row.lane == spec.kind && !row.needs_asset);
+        let placed = match generator {
+            _ if spec.accepts_media => project.add_clip(track, media, tr(0, 48), rt(0)),
+            Some(row) => project.add_generated(track, (row.census)(), tr(0, 48)),
+            None => continue,
+        };
+        let clip = placed.unwrap_or_else(|err| panic!("a clip on a {:?} lane: {err}", spec.kind));
+        let expected = if spec.is_visual {
+            Ok(())
+        } else {
+            Err(ModelError::ParentOffPicture(clip))
+        };
+        let before = project.clip(clip).unwrap().clone();
+        assert_eq!(
+            project.check_parent(clip, video),
+            expected,
+            "{:?} child",
+            spec.kind
+        );
+        assert_eq!(
+            project.check_parent(video, clip),
+            expected,
+            "{:?} parent",
+            spec.kind
+        );
+        if !spec.is_visual {
+            assert_eq!(
+                parent(&mut project, clip, Some(video)),
+                Err(expected.unwrap_err())
+            );
+            assert_eq!(project.clip(clip), Some(&before), "a refused parent wrote");
+        }
+        tried.push(spec.kind);
+    }
+    for kind in [TrackKind::Video, TrackKind::Audio, TrackKind::Text] {
+        assert!(
+            tried.contains(&kind),
+            "no {kind:?} clip was tried: {tried:?}"
+        );
+    }
+}
+
 /// A chain may be [`MAX_PARENT_DEPTH`] parents deep and no deeper, and the
 /// check that says so ends.
 #[test]

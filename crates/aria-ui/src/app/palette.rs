@@ -35,6 +35,7 @@ use aria_plugin::CommandSpec;
 use gpui::SharedString;
 
 use super::AppState;
+use crate::chrome::menu_items::RowBlocked;
 use crate::commands::host::{CommandBody, CommandRun, WindowedRun, host_of};
 use crate::types::AppMenu;
 
@@ -46,9 +47,10 @@ pub enum Offered {
     /// A registered command that starts work. Needs the entity context, so the
     /// caller runs it.
     Windowed(WindowedRun),
-    /// A menu row, named by the menu it lives in and its id. Needs the entity
-    /// context, so the caller runs it.
-    Menu(AppMenu, &'static str),
+    /// A menu row, named by the menu it lives in and its id, with the guard
+    /// its menu draws it disabled by. Needs the entity context, so the caller
+    /// runs it.
+    Menu(AppMenu, &'static str, RowBlocked),
     /// A generator in the effect catalog, by its id: the row places it as a
     /// clip at the playhead.
     Generator(SharedString),
@@ -103,6 +105,22 @@ pub struct PaletteOffer {
     /// Where the row came from: `None` for a command, the menu for a menu row.
     pub source: Option<AppMenu>,
     pub action: Offered,
+}
+
+impl PaletteOffer {
+    /// Whether choosing the row runs it against `state` now: a menu row its
+    /// guard does not withhold, a plugin command whose condition holds under
+    /// `keys`, a clip type that can be placed, and every other row. A row that
+    /// does not run is drawn faint, as the menu bar draws it, and choosing it
+    /// reports why.
+    pub fn runs_now(&self, state: &AppState, keys: aria_plugin::ContextKeys) -> bool {
+        match &self.action {
+            Offered::Menu(_, id, blocked) => blocked(id, state).is_none(),
+            Offered::Plugin(spec) => spec.enabled(keys),
+            Offered::ClipType { placeable, .. } => *placeable,
+            Offered::Command(_) | Offered::Windowed(_) | Offered::Generator(_) => true,
+        }
+    }
 }
 
 /// What the palette shows for a menu row: its label, after its submenu's
@@ -246,7 +264,7 @@ impl AppState {
                         id: SharedString::new_static(item.id),
                         label,
                         source: Some(menu),
-                        action: Offered::Menu(menu, item.id),
+                        action: Offered::Menu(menu, item.id, item.blocked),
                     });
                 }
             }
@@ -369,7 +387,7 @@ impl AppState {
                 None
             }
             Offered::Windowed(run) => Some(Pending::Windowed(run)),
-            Offered::Menu(menu, id) => Some(Pending::Menu(menu, id)),
+            Offered::Menu(menu, id, _) => Some(Pending::Menu(menu, id)),
             Offered::Generator(id) => {
                 if let Err(err) = self.add_effect_generator(id.as_str()) {
                     self.report_error(&err);

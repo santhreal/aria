@@ -13,7 +13,7 @@ use crate::theme::Theme;
 use crate::types::HomeRail;
 use gpui::prelude::FluentBuilder;
 
-use super::cards::{card_action, hero_tile, learn_line, press, recents_grid, section_title};
+use super::cards::{banner_action, hero_tile, learn_line, press, recents_grid, section_title};
 
 /// Render the main content body of Home based on the selected rail tab.
 ///
@@ -82,14 +82,14 @@ pub(super) fn recovery_banner(
             .border_1()
             .border_color(theme.accent)
             .child(div().flex_1().text_size(Theme::TEXT_UI).child(line))
-            .child(card_action(
+            .child(banner_action(
                 crate::motion::MotionKey::new("recovery", "restore"),
                 "Restore",
                 theme,
                 cx,
                 |state| press(state, Pick::RestoreRecovery),
             ))
-            .child(card_action(
+            .child(banner_action(
                 crate::motion::MotionKey::new("recovery", "discard"),
                 "Discard",
                 theme,

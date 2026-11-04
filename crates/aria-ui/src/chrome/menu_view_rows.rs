@@ -26,8 +26,11 @@ static VIEW_ITEMS: &[MenuItem] = &[
         s.zoom_around_playhead(1.0 / crate::transport::ZOOM_STEP);
     })
     .key("key-zoom-out"),
-    MenuItem::new("seq-fit", "Fit", |_, s, _| s.zoom_fit_sequence()).key("key-fit"),
-    MenuItem::new("seq-fit-selection", "Fit Selection", |_, s, _| {
+    MenuItem::new("seq-fit", "Zoom to Sequence", |_, s, _| {
+        s.zoom_fit_sequence()
+    })
+    .key("key-fit"),
+    MenuItem::new("seq-fit-selection", "Zoom to Selection", |_, s, _| {
         s.zoom_fit_selection()
     })
     .key("key-fit-selection")

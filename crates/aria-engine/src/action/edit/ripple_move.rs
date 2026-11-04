@@ -90,13 +90,7 @@ pub(crate) fn execute(
     if primary.from_track == primary.to_track && drop.value >= primary.from_end.value {
         drop = RationalTime::new(drop.value - primary.duration.value, drop.rate);
     }
-    let rider_lanes: Vec<TrackId> = ctx
-        .project
-        .timeline()
-        .tracks_ordered()
-        .filter(|t| t.sync_lock && !lanes.contains(&t.id))
-        .map(|t| t.id)
-        .collect();
+    let rider_lanes = shift_clips::rider_lanes(ctx.project.timeline(), &lanes);
     for lane in rider_lanes {
         if let Err(err) = shift_clips::execute(ctx, lane, drop, primary.duration)
             .map(|action| inverses.push(action))

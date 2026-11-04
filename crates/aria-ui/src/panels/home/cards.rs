@@ -1,5 +1,5 @@
-//! The Home cards: the hero tiles, the recents grid, and the small actions on
-//! them.
+//! The Home cards: the hero tiles, the recents grid, and the recovery banner's
+//! actions.
 //!
 //! Home is the first surface of a session, so it is the one that has to look
 //! designed rather than assembled. Three things do that here and nowhere else in
@@ -24,7 +24,7 @@ use crate::app::recents::RecentView;
 
 /// Press one Home row, reporting a refusal rather than dropping it.
 ///
-/// What a tile or a card action does is a row in
+/// What a tile, a recent card or a banner action does is a row in
 /// [`crate::surfaces::home_pick`], and this is the only place the route runs
 /// one: the closures below carry a `Pick` and nothing else.
 pub(super) fn press(state: &mut AppState, pick: Pick) {
@@ -220,8 +220,8 @@ fn recent_card(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let missing = recent.missing;
-    // Which row a moved project offers is the card's own answer: the label
-    // and the row change together, so a Relink can never run an Open.
+    // Which row a press runs is the card's own answer: the status line and the
+    // row change together, so a moved project's card never runs an Open.
     let open = move |path: &std::sync::Arc<std::path::PathBuf>| {
         if missing {
             Pick::RelinkRecent((**path).clone())
@@ -229,13 +229,12 @@ fn recent_card(
             Pick::OpenRecent((**path).clone())
         }
     };
-    let path = recent.path.clone();
-    let card_path = path.clone();
-    let open_path = path.clone();
-    let reveal_path = path.clone();
-    let menu_path = path;
+    let card_path = recent.path.clone();
+    let menu_path = recent.path.clone();
+    // A press on the card is its only action, so a moved project's card states
+    // what the press does in place of the time it was opened.
     let status = if missing {
-        SharedString::new_static("Missing")
+        SharedString::new_static("Missing · click to relink")
     } else {
         recent.opened.clone()
     };
@@ -293,32 +292,9 @@ fn recent_card(
                 .text_color(theme.text_muted)
                 .child(status),
         )
-        .child(
-            div()
-                .flex()
-                .flex_row()
-                .gap(px(Theme::SPACE_SM))
-                .mt(px(Theme::SPACE_XS))
-                .child(card_action(
-                    motion::MotionKey::new("recent-open", index),
-                    if missing { "Relink" } else { "Open" },
-                    theme,
-                    cx,
-                    move |state| press(state, open(&open_path)),
-                ))
-                .child(
-                    card_action(
-                        motion::MotionKey::new("recent-reveal", index),
-                        "Reveal",
-                        theme,
-                        cx,
-                        move |state| press(state, Pick::Reveal((*reveal_path).clone())),
-                    )
-                    .debug_selector(move || format!("recent-reveal-{index}")),
-                ),
-        )
-        // The whole card opens the project, as a hero tile runs its row; the
-        // actions on it stop the press, so Reveal does not open it too.
+        // The whole card opens the project, as a hero tile runs its row. Reveal,
+        // Remove from List and Delete File… are on its menu, as in a file
+        // browser, so the card draws its facts and no buttons.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -350,9 +326,9 @@ fn recent_card(
     .into_any_element()
 }
 
-/// A small action on a card: a ghost button whose press stops at it, so the
-/// card under it does not run its own row as well.
-pub(super) fn card_action(
+/// A small action on a Home banner: a ghost button that runs one Home row, its
+/// press stopping at it.
+pub(super) fn banner_action(
     key: motion::MotionKey,
     label: &'static str,
     theme: &Theme,

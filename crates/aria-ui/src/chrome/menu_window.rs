@@ -56,10 +56,14 @@ fn panel_row_open(id: &str, state: &AppState) -> bool {
         .is_some_and(|&(_, panel, _)| state.dock_tree.is_open(panel))
 }
 
-/// The binding that brings a panel forward, drawn beside its Window row.
+/// The binding that brings a panel forward, drawn beside its Window row and on
+/// no other row, so Keyboard Shortcuts names it as that row.
 const PANEL_KEYS: &[(crate::dock::PanelId, &str)] = &[
-    (crate::dock::PANEL_EFFECTS, "key-pane-effects"),
+    (crate::dock::PANEL_PROJECT, "key-pane-project"),
+    (crate::dock::PANEL_VIEWER, "key-pane-viewer"),
     (crate::dock::PANEL_TIMELINE, "key-pane-timeline"),
+    (crate::dock::PANEL_INSPECTOR, "key-pane-effect-controls"),
+    (crate::dock::PANEL_EFFECTS, "key-pane-effects"),
     (crate::dock::PANEL_ASSISTANT, "key-assistant"),
     (crate::dock::PANEL_MIXER, "key-mixer"),
     (crate::dock::PANEL_INFO, "key-pane-info"),
@@ -164,3 +168,7 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
     }
     Cow::Owned(items)
 }
+
+#[cfg(test)]
+#[path = "menu_window_tests.rs"]
+mod tests;

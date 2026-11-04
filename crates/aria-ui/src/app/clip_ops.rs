@@ -15,6 +15,7 @@ use aria_models::{
 use gpui::SharedString;
 
 use super::clip_speed::RAMP_POINTS;
+use super::decline::Decline;
 use super::{AppState, DialogKind, describe_engine_error};
 use crate::types::ActivePanel;
 use crate::waveforms::{Waveform, bars};
@@ -98,6 +99,16 @@ impl AudioGainMode {
         }
     }
 
+    /// The noun for the mode's number: the label of the dialog's field and the
+    /// subject of the reason a value is refused.
+    pub fn quantity(self) -> &'static str {
+        match self {
+            Self::SetGain => "Gain",
+            Self::AdjustGain => "Adjustment",
+            Self::NormalizeMaxPeak | Self::NormalizeAllPeaks => "Peak target",
+        }
+    }
+
     /// The values the mode's number takes: dB for a gain, dBFS for a peak
     /// target.
     pub fn span(self) -> RangeInclusive<f32> {
@@ -113,17 +124,18 @@ impl AudioGainMode {
         if db.is_finite() && self.span().contains(&db) {
             return Ok(db);
         }
+        let quantity = self.quantity();
         Err(match self {
             Self::SetGain => {
-                format!("Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB")
+                format!("{quantity} must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB")
             }
             Self::AdjustGain => {
                 format!(
-                    "Adjustment must be between -{MAX_ADJUST_DB:.0} dB and +{MAX_ADJUST_DB:.0} dB"
+                    "{quantity} must be between -{MAX_ADJUST_DB:.0} dB and +{MAX_ADJUST_DB:.0} dB"
                 )
             }
             Self::NormalizeMaxPeak | Self::NormalizeAllPeaks => {
-                format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS")
+                format!("{quantity} must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS")
             }
         })
     }
@@ -254,10 +266,15 @@ impl AppState {
         true
     }
 
-    /// Group the selected clips (2+ clips) as one undo step (`Ctrl+G`).
+    /// Group the selected clips (2+ clips) as one undo step (`Ctrl+G`). A
+    /// selection that is already one group has nothing to group.
     pub fn group_selected(&mut self) -> Result<(), EngineError> {
         if self.selection.len() < 2 {
             self.status_message = Some("Select two or more clips to group".into());
+            return Ok(());
+        }
+        if self.selection_is_grouped() {
+            self.decline(Decline::AlreadyGrouped);
             return Ok(());
         }
         let clips = self.selection.to_vec();
@@ -289,7 +306,7 @@ impl AppState {
             return Ok(());
         };
         if !self.selected_can_ramp() {
-            self.status_message = Some("Time remap requires a media clip".into());
+            self.decline(Decline::NoSourceToRemap);
             return Ok(());
         }
         if self.selected_has_ramp() {
@@ -590,10 +607,10 @@ impl AppState {
     pub fn open_audio_gain(&mut self) {
         let clips = self.selected_audio_clips();
         if clips.is_empty() {
-            self.status_message = Some(if self.selection.is_empty() {
-                "Select an audio clip to adjust gain".into()
+            self.decline(if self.selection.is_empty() {
+                Decline::NoSelection
             } else {
-                "Selected clip carries no audio".into()
+                Decline::NoSound
             });
             return;
         }

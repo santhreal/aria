@@ -511,7 +511,15 @@ fn menus_doc_matches_registry() {
                 | Decline::AnglesStillDecoding
                 | Decline::NoAngleSound
                 | Decline::AnglesDoNotMatch
-                | Decline::AnglesRepeat => {}
+                | Decline::AnglesRepeat
+                | Decline::AlreadyLinked
+                | Decline::AlreadyGrouped
+                | Decline::NoSourceToRemap
+                | Decline::NoFrameToHold
+                | Decline::NoSoundToExtract
+                | Decline::NoSound
+                | Decline::NoMarkers
+                | Decline::NoMarkerAtPlayhead => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
@@ -570,20 +578,9 @@ fn menus_doc_matches_registry() {
             ));
         }
     }
-    let clip_facts = ClipMenu {
-        clip: 0,
-        multi: false,
-        linked: false,
-        grouped: false,
-        enabled: true,
-        can_time_remap: false,
-        remapped: false,
-        has_audio: false,
-        can_extract_audio: false,
-        can_freeze_frame: false,
-        parented: false,
-        transition_alignment: None,
-    };
+    // An enabled clip at flat speed, selected alone, with no transition.
+    let (state, clip) = crate::app::premiere_tests::with_clip();
+    let clip_facts = ClipMenu::of(&state, clip.raw());
     let track_facts = TrackMenu {
         track: 0,
         muted: false,

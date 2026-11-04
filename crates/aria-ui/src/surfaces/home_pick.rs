@@ -1,9 +1,9 @@
 //! The controls pressed on the Home screen: the tiles that start or replace
-//! a session, one recent project's two actions, and the recovery offer.
+//! a session, a recent project's card, and the recovery offer.
 //!
 //! `Load project` claimed this screen and nothing could press it. The recovery
 //! banner's Restore is the only control in the product that sends that command,
-//! and it lived in a `card_action` closure, so a banner wired to the discard
+//! and it was a closure on a banner button, so a banner wired to the discard
 //! path would have thrown away the crashed session's work with nothing red. The
 //! reach row also claimed a cloud panel action that does not exist: the cloud
 //! panel loads catalogs, never a project.
@@ -29,9 +29,9 @@ pub enum Pick {
     NewProject,
     /// The Open tile, which asks for a `.aria` file.
     PickProject,
-    /// A recent card's Open.
+    /// A press on a recent card.
     OpenRecent(PathBuf),
-    /// A recent card's Relink, drawn in place of Open when the file has moved.
+    /// A press on a recent card whose file has moved, which asks for the file.
     RelinkRecent(PathBuf),
     /// The bundled sample, so a first run is not an empty timeline.
     OpenSample,
@@ -41,8 +41,6 @@ pub enum Pick {
     RestoreRecovery,
     /// The recovery banner's Discard: throw the copy away.
     DiscardRecovery,
-    /// A recent card's Reveal, which hands the path to the desktop.
-    Reveal(PathBuf),
 }
 
 impl Pick {
@@ -57,7 +55,6 @@ impl Pick {
             Self::UseTemplate => "a template bundle applied",
             Self::RestoreRecovery => "the recovered work restored",
             Self::DiscardRecovery => "the recovered work discarded",
-            Self::Reveal(_) => "a project shown in the file manager",
         }
     }
 
@@ -78,20 +75,6 @@ impl Pick {
             | Self::UseTemplate
             | Self::RestoreRecovery => Lands::Command,
             Self::DiscardRecovery => Lands::Recovery,
-            Self::Reveal(_) => Lands::Outside,
-        }
-    }
-
-    /// Whether pressing this leaves the editor for another application.
-    ///
-    /// Declared at the row rather than listed in the census, so the default for
-    /// a new row is to be measured. A suite that pressed [`Pick::Reveal`] would
-    /// open a file manager window on whoever ran it, which is the one thing a
-    /// test here must never do.
-    pub fn leaves_the_editor(&self) -> bool {
-        match self.lands() {
-            Lands::Outside => true,
-            Lands::Command | Lands::Session | Lands::Recovery => false,
         }
     }
 }
@@ -106,8 +89,6 @@ pub enum Lands {
     Session,
     /// The recovery copy on disk, and nothing in the project.
     Recovery,
-    /// Another application, which is why a test must not press it.
-    Outside,
 }
 
 /// Press one row.
@@ -126,7 +107,6 @@ pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {
         Pick::UseTemplate => state.pick_and_apply_template(),
         Pick::RestoreRecovery => return state.restore_recovery(),
         Pick::DiscardRecovery => state.discard_recovery(),
-        Pick::Reveal(path) => crate::app::recents::reveal_in_folder(&path),
     }
     Ok(())
 }

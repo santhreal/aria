@@ -239,6 +239,9 @@ pub(super) fn zoom_btn(
             theme.element_hover,
         ))
         .on_hover(motion::hover_listener(key))
+        .when_some(id.fixed_name(), |el, name| {
+            el.debug_selector(move || name.to_owned())
+        })
         .when_some(tip, |el, tip| el.with_tip(tip))
         .on_mouse_down(
             MouseButton::Left,

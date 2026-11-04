@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::app::clip_ops::SPEED_PERCENT_SPAN;
-use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
 use crate::components::{self, ChipSize};
@@ -27,24 +27,6 @@ const SPEED_PRESETS: &[(f32, &str, &str)] = &[
     (150.0, "speed-preset-150", "150%"),
     (200.0, "speed-preset-200", "200%"),
     (400.0, "speed-preset-400", "400%"),
-];
-
-const SPEED_STEPS: &[(f32, &str, &str)] = &[
-    (-25.0, "speed-step-m25", "-25%"),
-    (-5.0, "speed-step-m5", "-5%"),
-    (-1.0, "speed-step-m1", "-1%"),
-    (1.0, "speed-step-p1", "+1%"),
-    (5.0, "speed-step-p5", "+5%"),
-    (25.0, "speed-step-p25", "+25%"),
-];
-
-const DURATION_STEPS: &[(i64, &str, &str)] = &[
-    (-24, "dur-step-m24", "-24f"),
-    (-5, "dur-step-m5", "-5f"),
-    (-1, "dur-step-m1", "-1f"),
-    (1, "dur-step-p1", "+1f"),
-    (5, "dur-step-p5", "+5f"),
-    (24, "dur-step-p24", "+24f"),
 ];
 
 pub fn render(
@@ -102,45 +84,6 @@ pub fn render(
                         cx.notify();
                     }),
                 )
-            }));
-
-    let speed_steppers =
-        div()
-            .flex()
-            .wraps()
-            .gap(px(Theme::SPACE_XS))
-            .children(SPEED_STEPS.iter().map(|&(delta, id, label)| {
-                let current = form.speed_percent;
-                components::ghost_button(("speed-duration-speed-step", id), label, &theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                let next = clamp_into(&SPEED_PERCENT_SPAN, current + delta);
-                                let _ = state.set_speed_duration_percent(next);
-                            });
-                            cx.notify();
-                        }),
-                    )
-            }));
-
-    let duration_steppers =
-        div()
-            .flex()
-            .wraps()
-            .gap(px(Theme::SPACE_XS))
-            .children(DURATION_STEPS.iter().map(|&(delta, id, label)| {
-                let next = clamp_into(&duration_span, (form.duration_ticks + delta) as f32);
-                components::ghost_button(("speed-duration-length-step", id), label, &theme)
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                let _ = state.set_speed_duration_ticks(next as i64);
-                            });
-                            cx.notify();
-                        }),
-                    )
             }));
 
     let reverse = toggle_row(
@@ -235,43 +178,32 @@ pub fn render(
                         )
                         .child(speed),
                 )
-                .child(speed_presets)
-                .child(speed_steppers),
+                .child(speed_presets),
         )
         .child(
             div()
                 .flex()
-                .flex_col()
-                .gap(px(Theme::SPACE_XS))
+                .justify_between()
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_TITLE)
+                        .text_color(theme.text_muted)
+                        .child("Duration"),
+                )
                 .child(
                     div()
                         .flex()
-                        .justify_between()
+                        .items_baseline()
+                        .gap(px(Theme::SPACE_XS))
+                        .child(duration)
                         .child(
                             div()
-                                .text_size(Theme::TEXT_TITLE)
+                                .text_size(Theme::TEXT_UI)
                                 .text_color(theme.text_muted)
-                                .child("Duration"),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .items_baseline()
-                                .gap(px(Theme::SPACE_XS))
-                                .child(duration)
-                                .child(
-                                    div()
-                                        .text_size(Theme::TEXT_UI)
-                                        .text_color(theme.text_muted)
-                                        .font_features(crate::theme::tabular_figures())
-                                        .child(
-                                            counted(form.duration_ticks, "frame", "frames")
-                                                .to_string(),
-                                        ),
-                                ),
+                                .font_features(crate::theme::tabular_figures())
+                                .child(counted(form.duration_ticks, "frame", "frames").to_string()),
                         ),
-                )
-                .child(duration_steppers),
+                ),
         )
         .child(
             div()

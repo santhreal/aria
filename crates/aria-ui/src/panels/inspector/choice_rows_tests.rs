@@ -11,7 +11,12 @@
 //! one file drew chips no reader could tell apart. No two chips of a recorded
 //! choice row read alike.
 //!
-//! The walks of `columns_tests` hold every choice row they draw to both, and
+//! Also closes the class "a value that reads as disabled". Every choice row
+//! drew the choice its value column shows in the faint tone, which marks a
+//! disabled control, so the Parent row's `None` read as grayed out beside the
+//! lit chip stating the same. No recorded choice row draws its value faint.
+//!
+//! The walks of `columns_tests` hold every choice row they draw to these, and
 //! draw the Transform tab with two clips of the selected clip's file on the
 //! lanes above it, so its Parent row offers both. Not covered: a picker drawn
 //! outside a choice row.
@@ -60,6 +65,18 @@ pub(super) fn no_two_choices_read_alike(tab: &str, choices: &[DrawnChoice]) {
             "{tab}: {} draws chips that read alike: {alike:?} among {:?}",
             choice.row,
             choice.chips
+        );
+    }
+}
+
+/// No choice row draws the choice it shows in the faint tone of a disabled
+/// control.
+pub(super) fn no_choice_reads_as_disabled(tab: &str, choices: &[DrawnChoice]) {
+    for choice in choices {
+        assert!(
+            !choice.faint,
+            "{tab}: {} shows {:?} in the faint tone of a disabled control",
+            choice.row, choice.current
         );
     }
 }

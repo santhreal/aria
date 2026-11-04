@@ -89,8 +89,8 @@ impl KeyHost {
         self.plugin_revision.store(0, Ordering::Relaxed);
     }
 
-    /// What a binding is called in Settings and the status line: a plugin
-    /// command's title, or a shipped id read as words.
+    /// A plugin command's title, or a shipped id read as words: the name
+    /// [`crate::app::AppState::binding_name`] gives a binding no menu row draws.
     pub fn label_of(&self, id: &str) -> String {
         self.plugin_keys
             .read()

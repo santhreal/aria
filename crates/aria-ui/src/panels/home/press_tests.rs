@@ -1,24 +1,28 @@
-//! A press on a recent card runs the card's row, and a press on an action on
-//! the card runs that action and stops there.
+//! A recent card is one control: a press anywhere on it runs the card's row,
+//! a right-click opens its project's menu, and it draws its facts and no
+//! buttons.
 //!
-//! The class closed here: a card that only its small Open action opened, so a
-//! press on the project's name, folder or time did nothing, and an action whose
-//! press also reached the card under it, which would have Reveal open the
-//! project as well. Both rows a card runs are pressed through the drawn card:
-//! Open on a project still where it was remembered, and Relink on one that
-//! moved, which asks for the new file instead of opening the old path.
+//! The classes closed here: a card that only its small Open action opened, so
+//! a press on the project's name, folder or time did nothing; a card that drew
+//! Open and Reveal buttons on every project, a second Open beside the card's
+//! own press and a Reveal its menu already offers; and a card whose menu, the
+//! only place Reveal is left, could not be opened from it. Both rows a press
+//! runs are pressed through the drawn card: Open on a project still where it
+//! was remembered, and Relink on one that moved, which asks for the new file
+//! instead of opening the old path.
 //!
-//! Not covered: the file manager Reveal starts, which a test may not start, so
-//! Reveal is measured by what it leaves alone.
+//! Not covered: the file manager Reveal starts, which a test may not start.
 
 use std::path::PathBuf;
 
-use gpui::{Bounds, Modifiers, Pixels, TestAppContext, VisualTestContext, point, px, size};
+use gpui::{
+    Bounds, Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px, size,
+};
 
 use crate::app::AppState;
 use crate::app::picker::Answer;
 use crate::test_support::drawn_shell_at;
-use crate::types::{HomeRail, UiRoute};
+use crate::types::{ContextTarget, HomeRail, UiRoute};
 
 /// Home on its Recents rail with no project open, listing one saved project,
 /// and that project's path.
@@ -99,19 +103,21 @@ fn session(
     })
 }
 
-/// Press the first card inside its top padding, clear of its name and of the
-/// actions along its bottom.
-fn press_card(visual: &mut VisualTestContext) {
+/// A point inside the first card's top padding, clear of its lines.
+fn on_card(visual: &mut VisualTestContext) -> gpui::Point<Pixels> {
     let card = bounds(visual, "recent-card-0");
-    visual.simulate_click(
-        point(card.center().x, card.origin.y + px(4.)),
-        Modifiers::none(),
-    );
+    point(card.center().x, card.origin.y + px(4.))
+}
+
+/// Press the first card inside its top padding.
+fn press_card(visual: &mut VisualTestContext) {
+    let at = on_card(visual);
+    visual.simulate_click(at, Modifiers::none());
     visual.run_until_parked();
 }
 
 #[gpui::test]
-fn a_press_on_a_recent_card_away_from_its_actions_opens_its_project(cx: &mut TestAppContext) {
+fn a_press_on_a_recent_card_opens_its_project(cx: &mut TestAppContext) {
     let (state, mut visual, path) = home_with_one_recent(cx, "home-card-open");
     press_card(&mut visual);
     assert_eq!(
@@ -145,6 +151,17 @@ fn a_press_on_a_moved_projects_card_relinks_it_to_the_file_chosen(cx: &mut TestA
         Some((path.clone(), true)),
         "the card of a project moved away does not read as missing"
     );
+    // The press is the card's only action, so the card states what it does.
+    let card = bounds(&mut visual, "recent-card-0");
+    let states_relink = visual.update(|window, _| {
+        window.rendered_text_runs().iter().any(|run| {
+            card.contains(&run.bounds.center()) && run.text.as_ref() == "Missing · click to relink"
+        })
+    });
+    assert!(
+        states_relink,
+        "a moved project's card does not state that a press relinks it"
+    );
     press_card(&mut visual);
     assert_eq!(
         visual.read(|app| state.read(app).picks_asked()),
@@ -171,23 +188,70 @@ fn a_press_on_a_moved_projects_card_relinks_it_to_the_file_chosen(cx: &mut TestA
 }
 
 #[gpui::test]
-fn a_press_on_a_cards_action_runs_that_action_and_not_the_card(cx: &mut TestAppContext) {
-    let (state, mut visual, _) = home_with_one_recent(cx, "home-card-reveal");
+fn a_recent_card_draws_its_name_folder_and_time_and_nothing_else(cx: &mut TestAppContext) {
+    let (state, mut visual, _) = home_with_one_recent(cx, "home-card-facts");
     let card = bounds(&mut visual, "recent-card-0");
-    let reveal = bounds(&mut visual, "recent-reveal-0");
-    assert!(
-        card.contains(&reveal.center()),
-        "Reveal at {reveal:?} is not drawn on its card at {card:?}"
+    let (label, detail, opened) = visual.read(|app| {
+        let recent = state.read(app).recents().first().cloned();
+        let recent = recent.expect("the fixture lists one project");
+        (recent.label, recent.detail, recent.opened)
+    });
+    let mut lines: Vec<(f32, String)> = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .filter(|run| card.contains(&run.bounds.center()))
+            .map(|run| (f32::from(run.bounds.top()), run.text.to_string()))
+            .collect()
+    });
+    lines.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let lines: Vec<String> = lines.into_iter().map(|(_, text)| text).collect();
+    assert_eq!(
+        lines.len(),
+        3,
+        "the card draws {lines:?}, not its name, folder and time"
     );
-    visual.simulate_click(reveal.center(), Modifiers::none());
+    assert_eq!(lines[0], label.as_ref(), "the first line is not the name");
+    // The folder gives up its start to stay on one line.
+    let folder = lines[1].trim_start_matches('…');
+    assert!(
+        !folder.is_empty() && detail.ends_with(folder),
+        "the second line `{}` is not the end of the folder `{detail}`",
+        lines[1]
+    );
+    assert_eq!(lines[2], opened.as_ref(), "the last line is not the time");
+}
+
+#[gpui::test]
+fn a_right_click_on_a_recent_card_opens_its_projects_menu(cx: &mut TestAppContext) {
+    let (state, mut visual, path) = home_with_one_recent(cx, "home-card-menu");
+    let at = on_card(&mut visual);
+    visual.simulate_mouse_down(at, MouseButton::Right, Modifiers::none());
+    visual.simulate_mouse_up(at, MouseButton::Right, Modifiers::none());
     visual.run_until_parked();
+    assert_eq!(
+        visual.read(|app| state.read(app).context_menu.clone()),
+        Some(ContextTarget::Recent { path }),
+        "a right-click on the card did not open its project's menu"
+    );
     assert_eq!(
         session(&mut visual, &state),
         (UiRoute::Home, None),
-        "a press on Reveal reached the card under it and opened the project"
+        "a right-click on the card opened the project"
     );
-    assert!(
-        visual.read(|app| state.read(app).pending_intent().is_none()),
-        "a press on Reveal asked to replace the session"
-    );
+    let drawn: Vec<String> = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .map(|run| run.text.to_string())
+            .collect()
+    });
+    // Open is also a Start tile, so only the rows nothing else on Home draws
+    // prove the menu is up.
+    for row in ["Reveal", "Remove from List", "Delete File…"] {
+        assert!(
+            drawn.iter().any(|text| text == row),
+            "the card's menu draws no {row}: {drawn:?}"
+        );
+    }
 }

@@ -17,6 +17,7 @@ use aria_engine::EngineError;
 use aria_models::{MarkerColor, MarkerId, MarkerKind, RationalTime};
 use gpui::SharedString;
 
+use super::decline::Decline;
 use super::line_text::{LineRule, LineText};
 use super::menu_keys::step;
 use super::{AppState, DialogKind};
@@ -122,12 +123,14 @@ impl AppState {
         MarkerColor::cycle(self.store.sequence.markers.len())
     }
 
-    /// The number of ticks in one second at the sequence rate.
+    /// The number of ticks in one timecode second of the sequence: 24 at
+    /// 23.976 fps, 30 at 29.97 fps.
     ///
     /// The window every "near the playhead" marker action uses, so zoom never
-    /// changes which marker a keypress reaches.
-    fn marker_window(&self) -> i64 {
-        i64::from(self.store.sequence.frame_rate.num.max(1))
+    /// changes which marker a keypress reaches, and the step of every "by a
+    /// second" action, so the gesture is the same size at 24 and 60 fps.
+    pub(crate) fn one_second(&self) -> i64 {
+        self.store.sequence.frame_rate.nominal_fps()
     }
 
     /// The marker row for `marker`, or `None` when it is gone.
@@ -151,13 +154,9 @@ impl AppState {
 
     /// The marker under the playhead, within the standard one-second window.
     pub fn marker_at_playhead(&self) -> Option<&UiMarker> {
-        self.marker_near(self.playhead.value, self.marker_window())
+        self.marker_near(self.playhead.value, self.one_second())
     }
 
-    /// Rewrite one marker in full.
-    ///
-    /// `SetMarker` replaces the whole row, so every caller passes all four
-    /// fields and changes only the one it owns. Inert when the marker is gone.
     /// Resolve the model-space tick (`RationalTime`) for `marker` when moving to
     /// `timeline_tick` (`Some`) or keeping its current position (`None`).
     fn marker_model_tick(&self, marker: u64, timeline_tick: Option<i64>) -> Option<RationalTime> {
@@ -289,16 +288,10 @@ impl AppState {
         true
     }
 
-    /// Open [`DialogKind::MarkerEdit`] for the marker at the playhead (or the
-    /// nearest marker when the menu is invoked with markers on the sequence).
+    /// Open [`DialogKind::MarkerEdit`] for the marker at the playhead.
     pub fn edit_marker_at_playhead(&mut self) {
-        let at = self.playhead.value;
-        let target = self
-            .marker_at_playhead()
-            .or_else(|| self.marker_near(at, i64::MAX / 4))
-            .map(|row| row.id);
-        let Some(id) = target else {
-            self.status_message = Some("No marker at the playhead".into());
+        let Some(id) = self.marker_at_playhead().map(|row| row.id) else {
+            self.decline(Decline::NoMarkerAtPlayhead);
             return;
         };
         self.open_marker_edit(id);
@@ -482,7 +475,7 @@ impl AppState {
     /// Delete the marker under the playhead. Inert when none is near.
     pub fn remove_marker_at_playhead(&mut self) -> Result<(), EngineError> {
         let Some(marker) = self.marker_at_playhead().map(|row| row.id) else {
-            self.status_message = Some("No marker at the playhead".into());
+            self.decline(Decline::NoMarkerAtPlayhead);
             return Ok(());
         };
         self.remove_marker(marker)
@@ -491,16 +484,10 @@ impl AppState {
     /// Move the playhead to the next marker after it. Stops at the last.
     pub fn go_to_next_marker(&mut self) {
         let at = self.playhead.value;
-        let next = self
-            .store
-            .sequence
-            .markers
-            .iter()
-            .map(|marker| marker.tick)
-            .filter(|tick| *tick > at)
-            .min();
-        match next {
+        let ticks = self.store.sequence.markers.iter().map(|marker| marker.tick);
+        match ticks.filter(|tick| *tick > at).min() {
             Some(tick) => self.set_playhead(tick),
+            None if self.store.sequence.markers.is_empty() => self.decline(Decline::NoMarkers),
             None => self.status_message = Some("No later marker".into()),
         }
     }
@@ -508,16 +495,10 @@ impl AppState {
     /// Move the playhead to the previous marker. Stops at the first.
     pub fn go_to_prev_marker(&mut self) {
         let at = self.playhead.value;
-        let previous = self
-            .store
-            .sequence
-            .markers
-            .iter()
-            .map(|marker| marker.tick)
-            .filter(|tick| *tick < at)
-            .max();
-        match previous {
+        let ticks = self.store.sequence.markers.iter().map(|marker| marker.tick);
+        match ticks.filter(|tick| *tick < at).max() {
             Some(tick) => self.set_playhead(tick),
+            None if self.store.sequence.markers.is_empty() => self.decline(Decline::NoMarkers),
             None => self.status_message = Some("No earlier marker".into()),
         }
     }
@@ -546,11 +527,15 @@ impl AppState {
 
     /// Link every selected clip, so selecting one gathers them all.
     ///
-    /// A single clip is not a group: inert rather than an error, because the
-    /// menu offering it cannot know the selection size at build time.
+    /// A single clip is not a group, and a selection that is already one link
+    /// group has nothing to link: both are inert rather than an error.
     pub fn link_selected(&mut self) -> Result<(), EngineError> {
         if self.selection.len() < 2 {
             self.status_message = Some("Select two or more clips to link".into());
+            return Ok(());
+        }
+        if self.selection_is_linked() {
+            self.decline(Decline::AlreadyLinked);
             return Ok(());
         }
         let clips = self.selection.to_vec();
@@ -595,7 +580,7 @@ impl AppState {
             return Ok(());
         };
         if !self.selected_can_extract_audio() {
-            self.status_message = Some("This clip has no audio to extract".into());
+            self.decline(Decline::NoSoundToExtract);
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::ExtractAudio {
@@ -612,12 +597,12 @@ impl AppState {
             return Ok(());
         };
         if !self.selected_can_freeze_frame() {
-            self.status_message = Some("This clip cannot be frozen".into());
+            self.decline(Decline::NoFrameToHold);
             return Ok(());
         }
         let rate = self.playhead.rate;
         let at = self.playhead;
-        let duration = RationalTime::new(self.marker_window(), rate);
+        let duration = RationalTime::new(self.one_second(), rate);
         self.apply_command(Command::Edit(EditCommand::FreezeFrame {
             clip,
             at,

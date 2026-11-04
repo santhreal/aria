@@ -65,6 +65,56 @@ pub(crate) fn grouped(_: &str, state: &AppState) -> Option<&'static str> {
     (!state.selection_is_grouped()).then_some("The selected clips are not a group")
 }
 
+/// The row links two or more selected clips that are not already one link
+/// group.
+pub(crate) fn linkable(id: &str, state: &AppState) -> Option<&'static str> {
+    several(id, state).or_else(|| {
+        state
+            .selection_is_linked()
+            .then_some(Decline::AlreadyLinked.reason())
+    })
+}
+
+/// The row groups two or more selected clips that are not already one clip
+/// group.
+pub(crate) fn groupable(id: &str, state: &AppState) -> Option<&'static str> {
+    several(id, state).or_else(|| {
+        state
+            .selection_is_grouped()
+            .then_some(Decline::AlreadyGrouped.reason())
+    })
+}
+
+/// The row remaps the time of a selected clip that plays source media.
+pub(crate) fn remappable(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state)
+        .or_else(|| (!state.selected_can_ramp()).then_some(Decline::NoSourceToRemap.reason()))
+}
+
+/// The row holds a frame of a selected clip that has video frames.
+pub(crate) fn freezable(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state)
+        .or_else(|| (!state.selected_can_freeze_frame()).then_some(Decline::NoFrameToHold.reason()))
+}
+
+/// The row moves a selected clip's sound to a lane of its own.
+pub(crate) fn extractable(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        (!state.selected_can_extract_audio()).then_some(Decline::NoSoundToExtract.reason())
+    })
+}
+
+/// The row sets the gain of the selected clips and their linked or grouped
+/// companions that carry sound.
+pub(crate) fn gain(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .selected_audio_clips()
+            .is_empty()
+            .then_some(Decline::NoSound.reason())
+    })
+}
+
 /// The row pastes what Copy or Cut put on the clipboard.
 pub(crate) fn clipboard(_: &str, state: &AppState) -> Option<&'static str> {
     state
@@ -106,7 +156,15 @@ pub(crate) fn markers(_: &str, state: &AppState) -> Option<&'static str> {
         .sequence
         .markers
         .is_empty()
-        .then_some("The sequence has no markers")
+        .then_some(Decline::NoMarkers.reason())
+}
+
+/// The row acts on the marker within a second of the playhead.
+pub(crate) fn marker_at_playhead(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .marker_at_playhead()
+        .is_none()
+        .then_some(Decline::NoMarkerAtPlayhead.reason())
 }
 
 /// The row acts on the clips of the sequence.

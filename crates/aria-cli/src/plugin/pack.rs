@@ -14,16 +14,9 @@ pub(crate) const FLAGS: &[&str] = &["out", "no-build"];
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let dir = args.required_path(1, "a plugin directory")?;
-    if let Some(extra) = args.positional.get(2) {
-        return Err(Failure::Usage(format!("unexpected argument \"{extra}\"")));
-    }
-    if let Ok(Some(unexpected)) = args.value("no-build") {
-        return Err(Failure::Usage(format!(
-            "--no-build takes no value, got \"{unexpected}\""
-        )));
-    }
+    args.reject_extra_positional(2)?;
+    let no_build = args.flag("no-build")?;
     let out = args.value("out")?.map(PathBuf::from);
-    let no_build = args.present("no-build");
 
     pack_dir(&dir, out.as_deref(), no_build).map(drop)
 }

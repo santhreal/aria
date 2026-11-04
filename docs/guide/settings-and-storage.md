@@ -2,11 +2,13 @@
 
 ## Canvas
 
-Settings holds a Canvas section while a project is open. Pick an aspect:
+Settings holds a Canvas section while a project is open. The section holds five
+groups of choices, each under a row that reads the value in force: **Aspect**,
+**Size**, **Frame rate**, **Audio layout**, and **Time display**. Pick an aspect:
 `auto` follows the largest video on the timeline; the rest are fixed shapes.
 Preview and export both follow the choice, and it is undoable.
 
-The section also shows the size the project renders at and where it came from,
+The **Size** row reads the size the project renders at and where it came from,
 `explicit` or `derived`. Pick **Derived** to hand the size back to the aspect
 (1080 on the shorter edge) or, under `auto`, to the largest video on the
 timeline. Pick a baseline row, 720p through 4320p, to set the size in pixels.

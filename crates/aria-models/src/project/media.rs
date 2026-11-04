@@ -74,14 +74,24 @@ impl Project {
             .map(|m| m.id)
     }
 
-    /// Whether any clip or multicam group currently references `media_id`.
+    /// Whether any clip (on the root timeline, inside any secondary sequence,
+    /// or inside a baked clip snapshot) or multicam group currently references
+    /// `media_id`.
     pub fn is_media_referenced(&self, media_id: MediaId) -> bool {
-        let in_timeline = self
-            .timeline()
-            .tracks_ordered()
+        fn clip_references_media(clip: &crate::clip::Clip, media_id: MediaId) -> bool {
+            clip.media() == Some(media_id)
+                || clip
+                    .bake
+                    .as_deref()
+                    .is_some_and(|baked| clip_references_media(baked, media_id))
+        }
+
+        let in_timelines = std::iter::once(self.root_timeline())
+            .chain(self.sequences.values().map(|s| &s.timeline))
+            .flat_map(|tl| tl.tracks_ordered())
             .flat_map(Track::clips)
-            .any(|c| c.media() == Some(media_id));
-        if in_timeline {
+            .any(|c| clip_references_media(c, media_id));
+        if in_timelines {
             return true;
         }
         self.multicam_groups

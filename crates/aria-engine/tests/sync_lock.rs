@@ -431,3 +431,78 @@ fn clearing_sync_lock_pins_a_lane_against_a_ripple_move() {
         .expect("ripple move");
     assert_eq!(span(&engine, sound), (0, 24), "pinned lane did not move");
 }
+
+/// When a ripple edit on one lane cuts or removes material on a sync-locked
+/// rider lane and breaks a transition abutment on that rider lane, the engine
+/// prunes the dead transition on the rider lane and restores it on undo.
+#[test]
+fn ripple_edits_prune_and_undo_restore_transitions_on_sync_locked_rider_lanes() {
+    // 1. RippleDelete on `video` cuts a straddling clip on sync-locked `v2`
+    // where `v2` holds a transition at the far end of the straddler.
+    let (_dir, mut engine, media, video, _audio, rate) = lanes();
+    let v2 = match engine
+        .apply(Command::Edit(EditCommand::AddTrack {
+            kind: TrackKind::Video,
+            name: "V2".into(),
+            index: None,
+            pinned: false,
+        }))
+        .expect("add V2")
+    {
+        ApplyOutcome::Edited(EditOutcome::CreatedTrack(id)) => id,
+        other => panic!("unexpected {other:?}"),
+    };
+    let shot = add_media_clip(&mut engine, video, media, src(rate, 1), rt(0));
+    let rider_left = add_media_clip(&mut engine, v2, media, src(rate, 1), rt(0));
+    let _rider_right = add_media_clip(&mut engine, v2, media, src(rate, 1), rt(24));
+    engine
+        .apply(Command::Edit(EditCommand::AddTransition {
+            clip: rider_left,
+            transition_id: "crossfade".into(),
+        }))
+        .expect("transition on rider lane V2");
+    assert!(engine.project().has_transitions());
+
+    // RippleDelete `shot` [0..24) on `video` removes `rider_left` [0..24) on `v2`
+    // and shifts `_rider_right` to [0..24), breaking the transition on `v2`.
+    engine
+        .apply(Command::Edit(EditCommand::RippleDelete { clip: shot }))
+        .expect("ripple delete");
+    assert!(
+        !engine.project().has_transitions(),
+        "dead transition on sync-locked rider lane V2 must be pruned"
+    );
+
+    assert!(engine.undo(), "undo ripple delete");
+    assert!(
+        engine.project().has_transitions(),
+        "undo of ripple delete must restore the transition on sync-locked rider lane V2"
+    );
+
+    assert!(engine.redo(), "redo ripple delete");
+    assert!(
+        !engine.project().has_transitions(),
+        "redo of ripple delete must prune the rider lane transition again"
+    );
+    assert!(engine.undo(), "restore state for next case");
+
+    // 2. RippleInsert at tick 24 on `video` splits/shifts `v2` at the junction
+    // [0..24) | [24..48), breaking `v2`'s transition; undo restores it.
+    engine
+        .apply(Command::Edit(EditCommand::RippleInsert {
+            track: video,
+            media,
+            source: src(rate, 1),
+            at: rt(24),
+        }))
+        .expect("ripple insert at 24");
+    assert!(
+        !engine.project().has_transitions(),
+        "ripple insert at 24 opened a gap on V2, breaking its transition at 24"
+    );
+    assert!(engine.undo(), "undo ripple insert");
+    assert!(
+        engine.project().has_transitions(),
+        "undo of ripple insert must restore V2's transition"
+    );
+}

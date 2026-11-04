@@ -13,7 +13,7 @@ pub use command::{Command, EditOutcome, EditTargets, ProjectCommand, TemplatePic
 pub use edit_command::EditCommand;
 pub use reach::Reach;
 pub use samples::{every_edit_command, every_project_command};
-pub use spec::{EditSpec, Inverse, ProjectSpec, edit_specs, project_specs};
+pub use spec::{EditSpec, Inverse, Junctions, ProjectSpec, edit_specs, project_specs};
 // Every model type a command field carries, so callers (shell FFI, the AI
 // agent, tests) can build any command from this crate alone.
 pub use aria_models::{

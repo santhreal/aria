@@ -1,17 +1,25 @@
-//! The Color panel's section table, held to the catalog's `grade` group.
+//! The Color panel's section table, held to the catalog's `grade` group, and
+//! its rows' value tracks, held to the rows' columns.
 //!
 //! The class closed: a grade property the model gains reaches the panel under
 //! "Other" instead of vanishing, and its section is a decision, so the table is
 //! checked against the catalog in both directions and for rows placed twice.
-//! Not caught: whether a row sits in the section a colourist expects; that is a
+//! Not caught: whether a row sits in the section a colorist expects; that is a
 //! reading of the table.
 
 use std::collections::BTreeSet;
 
+use gpui::{SharedString, TestAppContext};
+
 use super::{SECTIONS, section_of};
 use crate::app::grade_controls::{COLOR_SECTIONS, GradeControls};
+use crate::interned::intern;
 use crate::panels::inspector::blocks::wheels::WHEEL_RADIUS;
 use crate::test_support::doc_tables::{heading_body, read_doc, strip_ticks, table_rows};
+use crate::test_support::{drawn_shell, select_a_still};
+
+/// How far apart, in pixels, two edges laid out on one column may be drawn.
+const EPS: f32 = 0.51;
 
 #[test]
 fn every_grade_row_has_a_section() {
@@ -106,4 +114,65 @@ fn the_color_reference_lists_every_section_and_its_rows() {
         wheel_sec.contains(&format!("WHEEL_RADIUS = {WHEEL_RADIUS:.1}")),
         "color.md must document WHEEL_RADIUS = {WHEEL_RADIUS:.1}"
     );
+}
+
+/// Every grade row the panel draws runs its value track from where its label
+/// starts to where its value ends.
+///
+/// The class closed here: a value track under a row that draws a stopwatch
+/// and a keyframe navigator but no time area. Each grade row's track spanned
+/// the row, from left of the stopwatch to past the reset button, where an
+/// Effect Controls row's track stands under its label and its value. The rows
+/// are the catalog's `grade` group, and every one in a section the panel
+/// opens is measured on the drawn frame.
+///
+/// Not covered: a row in a section that starts closed, a row drawn with no
+/// track, and a panel narrow enough to move a value under its label.
+#[gpui::test]
+fn every_grade_track_spans_its_label_and_value(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "color-panel-tracks");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let shown: Vec<SharedString> = visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            assert!(state.apply_workspace("win-workspace-colour", cx));
+            select_a_still(state);
+            state
+                .param_rows("grade")
+                .into_iter()
+                .filter(|row| {
+                    section_of(&row.id).is_none_or(|index| state.color_section_open(index))
+                })
+                .map(|row| row.label)
+                .collect()
+        })
+    });
+    assert!(
+        !shown.is_empty(),
+        "the still draws no grade row in an open section"
+    );
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let (mut measured, mut off) = (0, Vec::new());
+    for label in &shown {
+        let cell = |cell: &str| intern(&format!("insp-{cell}-free-{label}"));
+        let Some(track) = visual.debug_bounds(cell("track")) else {
+            continue;
+        };
+        let [name, value] = ["label", "value"].map(|part| {
+            visual
+                .debug_bounds(cell(part))
+                .unwrap_or_else(|| panic!("{label}: the row draws a track and no {part}"))
+        });
+        let (left, start) = (f32::from(track.left()), f32::from(name.left()));
+        let (right, end) = (f32::from(track.right()), f32::from(value.right()));
+        if (left - start).abs() > EPS || (right - end).abs() > EPS {
+            off.push(format!(
+                "{label}: the track spans {left}..{right}, its label and value {start}..{end}"
+            ));
+        }
+        measured += 1;
+    }
+    assert!(measured > 0, "no grade row drew a track: {shown:?}");
+    assert!(off.is_empty(), "{}", off.join("\n"));
 }

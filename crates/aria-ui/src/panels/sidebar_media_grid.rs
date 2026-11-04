@@ -297,8 +297,8 @@ pub(super) fn media_tile(
     // it under the picture in a frame too narrow for both. It wraps as a flex
     // row, not as a `Wraps` row of labels: the text beside the picture is a
     // block whose facts run onto further lines. The compact view reads left
-    // to right, so the name and the facts share one line. A cell stacks its
-    // name under its picture.
+    // to right, so the name and the facts share one line, as far apart as a
+    // picture and the text beside it. A cell stacks its name under its picture.
     let tile = if view.picture_beside() {
         tile.flex_row()
             .flex_wrap()
@@ -318,6 +318,7 @@ pub(super) fn media_tile(
         tile.flex_row()
             .items_center()
             .justify_between()
+            .gap_x(px(Theme::SPACE_SM))
             .children(slot)
             .children(text)
     } else {

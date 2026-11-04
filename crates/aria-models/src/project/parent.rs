@@ -64,8 +64,10 @@ impl Project {
         })
     }
 
-    /// Whether `parent` may parent `child`: both on one sequence, overlapping
-    /// in time, and `parent` neither `child` nor a clip parented to it.
+    /// Whether `parent` may parent `child`: both on one sequence and on picture
+    /// lanes, overlapping in time, and `parent` neither `child` nor a clip
+    /// parented to it. A clip on a sound lane has no placement, so it neither
+    /// takes a parent nor lends one.
     pub fn check_parent(&self, child: ClipId, parent: ClipId) -> Result<(), ModelError> {
         let timeline = self
             .timeline_with_clip(child)
@@ -77,6 +79,12 @@ impl Project {
                 None => ModelError::UnknownClip(parent),
             });
         };
+        for id in [child, parent] {
+            let track = timeline.track_of(id).ok_or(ModelError::UnknownClip(id))?;
+            if !timeline.require_track(track)?.kind.is_visual() {
+                return Err(ModelError::ParentOffPicture(id));
+            }
+        }
         let mut ancestor = Some(parent);
         for _ in 0..MAX_PARENT_DEPTH {
             let Some(id) = ancestor else {

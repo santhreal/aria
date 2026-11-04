@@ -16,7 +16,7 @@ narrow Viewer the row wraps onto a second line before the transport or before
 the handle toggles.
 
 The Viewer fits the frame to the panel by default. The control row holds
-`−`, the zoom menu, and `+`. The zoom menu shows `Fit` or the zoom level and
+`−`, `+`, and the zoom menu. The zoom menu shows `Fit` or the zoom level and
 opens the list of levels: Fit, then 10, 25, 50, 75, 100, 150, 200, 400, and
 800 per cent. At 100 per cent one pixel of the sequence covers one pixel of the
 display. `−` and `+` step to the next level below or above the zoom on screen,

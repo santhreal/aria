@@ -1,10 +1,17 @@
 //! Regression tests for sequence and clip markers, the Marker Edit dialog,
 //! range marker ruler geometry, and the Markers panel colour filter.
 
-use aria_models::{ClipId, MarkerColor, MarkerKind};
+use std::collections::BTreeSet;
 
+use aria_engine::EngineError;
+use aria_models::{ClipId, MarkerColor, MarkerKind, RationalTime};
+
+use super::decline::Decline;
 use super::premiere_tests::with_clip;
-use super::{DialogKind, MarkerEditField};
+use super::{AppState, DialogKind, MarkerEditField};
+use crate::chrome::menu_items::items_of;
+use crate::surfaces::settings_pick::RATES;
+use crate::types::AppMenu;
 
 #[test]
 fn pressing_m_twice_opens_marker_edit_dialog_and_commits_in_one_undo_step() {
@@ -170,4 +177,161 @@ fn markers_list_colour_filter_hides_other_colours() {
 
     state.set_marker_color_filter(None);
     assert_eq!(state.visible_markers().len(), 2);
+}
+
+/// A marker row that acts on the marker under the playhead is offered exactly
+/// when its command acts, and the window it reaches is one second of wall
+/// clock at every rate the Sequence Settings dialog offers.
+///
+/// The class closed: Clear Marker, Edit Marker… and Move Nearest Marker to
+/// Playhead were offered whenever the sequence held any marker while their
+/// commands act only on one within a second of the playhead, so a live row did
+/// nothing; and a second counted as the rate's numerator, which at 29.97 fps
+/// reached a marker 1001 seconds away and held a frozen frame as long. The rows
+/// are found by the reason they give with a marker out of reach, so a Markers
+/// row that takes the playhead guard without a command here is red. Not
+/// covered: the Markers panel's buttons, which act on a marker by id.
+#[test]
+fn a_playhead_marker_row_is_offered_exactly_when_its_command_acts() {
+    type Run = fn(&mut AppState) -> Result<(), EngineError>;
+    let runs: [(&str, Run); 3] = [
+        ("seq-marker-remove", |state| {
+            state.remove_marker_at_playhead()
+        }),
+        ("seq-marker-rename", |state| {
+            state.edit_marker_at_playhead();
+            Ok(())
+        }),
+        ("seq-marker-snap", |state| {
+            crate::commands::reach::snap_marker(state);
+            Ok(())
+        }),
+    ];
+    let reason = Decline::NoMarkerAtPlayhead.reason();
+    for rate in RATES {
+        let (mut probe, _) = with_clip();
+        probe
+            .set_sequence_rate(rate)
+            .expect("the dialog's rate applies");
+        let second = probe.one_second();
+        let wall = RationalTime::new(second, rate).seconds();
+        let frame = RationalTime::new(1, rate).seconds();
+        assert!(
+            (1.0..1.0 + frame).contains(&wall),
+            "one second at {rate:?} is {second} ticks, {wall} s"
+        );
+        // A marker two seconds in, on the five-second still, with the playhead
+        // `offset` ticks from it.
+        let dress = |offset: i64| {
+            let (mut state, _) = with_clip();
+            state.clear_selection();
+            state
+                .set_sequence_rate(rate)
+                .expect("the dialog's rate applies");
+            let mark = 2 * second;
+            state.set_playhead(mark);
+            state.add_marker_at_playhead().expect("a marker lands");
+            state.set_playhead(mark + offset);
+            assert_eq!(
+                state.playhead.value,
+                mark + offset,
+                "the still is too short to hold the playhead {offset} ticks from the marker at {rate:?}"
+            );
+            state
+        };
+        let far = dress(second + 1);
+        let guarded: BTreeSet<&str> = items_of(AppMenu::Markers, &far)
+            .iter()
+            .filter(|row| row.blocked_by(&far) == Some(reason))
+            .map(|row| row.id)
+            .collect();
+        assert_eq!(
+            guarded,
+            runs.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>(),
+            "the Markers rows that wait for a marker at the playhead drifted from the commands here"
+        );
+        for (id, run) in runs {
+            for offset in [-second - 1, -second, -1, 1, second, second + 1] {
+                let mut state = dress(offset);
+                let row = items_of(AppMenu::Markers, &state)
+                    .into_iter()
+                    .find(|row| row.id == id)
+                    .unwrap_or_else(|| panic!("the Markers menu lost {id}"));
+                let offered = row.blocked_by(&state).is_none();
+                assert_eq!(
+                    offered,
+                    offset.abs() <= second,
+                    "{id} at {rate:?}, {offset} ticks from the marker"
+                );
+                let before = (state.history_depth(), state.dialog);
+                state.status_message = None;
+                run(&mut state).unwrap_or_else(|err| panic!("{id} failed: {err}"));
+                let acted = (state.history_depth(), state.dialog) != before;
+                assert_eq!(
+                    acted, offered,
+                    "{id} at {rate:?}, {offset} ticks from the marker: offered {offered}, acted {acted}"
+                );
+                if !offered {
+                    assert_eq!(
+                        state.status_message.as_deref(),
+                        Some(reason),
+                        "{id} declined in other words than its row"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// A Markers row withheld because the sequence holds no marker declines in
+/// that row's words when it runs anyway, as from a key, and changes nothing.
+///
+/// The class closed: Clear All Markers said "No markers to clear" and Go to
+/// Next Marker "No later marker" under a row whose tooltip said the sequence
+/// has no markers. The rows are found by the reason they give on a sequence
+/// with no marker, so a row that takes the guard without a command here is red.
+/// Not covered: a row offered over markers that still finds none to act on,
+/// such as Go to Next Marker past the last.
+#[test]
+fn a_markers_row_withheld_for_no_markers_declines_in_its_rows_words() {
+    type Run = fn(&mut AppState) -> Result<(), EngineError>;
+    let runs: [(&str, Run); 3] = [
+        ("seq-marker-next", |state| {
+            state.go_to_next_marker();
+            Ok(())
+        }),
+        ("seq-marker-prev", |state| {
+            state.go_to_prev_marker();
+            Ok(())
+        }),
+        ("marker-clear-all", |state| state.clear_all_markers()),
+    ];
+    let (mut state, _) = with_clip();
+    state.set_playhead(state.store.sequence.duration_ticks / 2);
+    let reason = Decline::NoMarkers.reason();
+    let withheld: BTreeSet<&str> = items_of(AppMenu::Markers, &state)
+        .iter()
+        .filter(|row| row.blocked_by(&state) == Some(reason))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        withheld,
+        runs.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>(),
+        "the Markers rows withheld for no markers drifted from the commands here"
+    );
+    for (id, run) in runs {
+        let before = (state.history_depth(), state.dialog, state.playhead.value);
+        state.status_message = None;
+        run(&mut state).unwrap_or_else(|err| panic!("{id} failed instead of declining: {err}"));
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(reason),
+            "{id} declined in other words than its row"
+        );
+        assert_eq!(
+            (state.history_depth(), state.dialog, state.playhead.value),
+            before,
+            "{id} changed the project, the playhead or the dialog"
+        );
+    }
 }

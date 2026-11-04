@@ -22,17 +22,9 @@
 use aria_models::ClipParam;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 
 use super::host::CommandEntry;
-
-/// One second of the sequence, in ticks.
-///
-/// Every "by a second" action below asks the sequence rather than assuming a
-/// rate, which is what keeps the gesture the same size on a 24 and a 60 fps
-/// timeline.
-fn one_second(state: &AppState) -> i64 {
-    i64::from(state.store.sequence.frame_rate.num.max(1))
-}
 
 /// Pin one property's current value at the playhead.
 ///
@@ -51,7 +43,7 @@ pub(crate) fn shift_lane(state: &mut AppState, later: bool) {
         state.status_message = Some("Select a clip on the lane to shift".into());
         return;
     };
-    let second = one_second(state);
+    let second = state.one_second();
     let delta = if later { second } else { -second };
     if let Err(err) = state.shift_track(track, delta) {
         state.report_error(&err);
@@ -73,10 +65,9 @@ pub(crate) fn ripple_insert(state: &mut AppState) {
 /// uses, so a marker two lanes of zoom away is not dragged across the sequence by
 /// a keypress.
 pub(crate) fn snap_marker(state: &mut AppState) {
-    let within = one_second(state);
     let at = state.playhead.value;
-    let Some(marker) = state.marker_near(at, within).map(|marker| marker.id) else {
-        state.status_message = Some("No marker near the playhead".into());
+    let Some(marker) = state.marker_at_playhead().map(|marker| marker.id) else {
+        state.decline(Decline::NoMarkerAtPlayhead);
         return;
     };
     if let Err(err) = state.move_marker(marker, at) {

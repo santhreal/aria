@@ -39,6 +39,16 @@ const DUCKING: &str = "Ducking";
 /// The id prefix of a Sequence > Analyze row for one registered sequence analyzer.
 pub(crate) const SEQ_ANALYZE_PREFIX: &str = "seq-analyze:";
 const ANALYZE: &str = "Analyze";
+
+/// Sequence > Add Edit, which the clip context menu mirrors.
+pub(crate) const ADD_EDIT: MenuItem = MenuItem::new("seq-add-edit", "Add Edit", |_, s, _| {
+    let added = s.add_edit(false);
+    report(s, added)
+})
+.key("key-split")
+.when(guards::clips)
+.rule();
+
 static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-settings", "Sequence Settings…", |_, s, _| {
         s.open_settings_at(SettingsSection::Canvas)
@@ -66,13 +76,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
             }
         },
     ),
-    MenuItem::new("seq-add-edit", "Add Edit", |_, s, _| {
-        let added = s.add_edit(false);
-        report(s, added)
-    })
-    .key("key-split")
-    .when(guards::clips)
-    .rule(),
+    ADD_EDIT,
     MenuItem::new("seq-add-edit-all", "Add Edit to All Tracks", |_, s, _| {
         let added = s.add_edit(true);
         report(s, added)

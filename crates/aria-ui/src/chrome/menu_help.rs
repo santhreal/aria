@@ -1,4 +1,4 @@
-//! The Help menu: the shortcut sheet, the plugin guide, the data folder,
+//! The Help menu: Home's Learn rail, the plugin guide, the data folder,
 //! updates, and the about card.
 //!
 //! [`super::menu_items::items_for`] dispatches here, so the bar, the palette
@@ -12,7 +12,7 @@ use crate::types::HomeRail;
 use super::menu_items::{MenuItem, MenuItems};
 
 static HELP_ITEMS: &[MenuItem] = &[
-    MenuItem::new("help-learn", "Keyboard Shortcuts", |_, s, _| {
+    MenuItem::new("help-learn", "Learn", |_, s, _| {
         s.set_home_rail(HomeRail::Learn);
         s.request_go_home();
     }),

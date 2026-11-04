@@ -226,6 +226,8 @@ use drawn::{drawn_target, items, plugin_items};
 #[cfg(test)]
 mod grid_tests;
 #[cfg(test)]
+mod label_tests;
+#[cfg(test)]
 mod place_tests;
 #[cfg(test)]
 mod rule_tests;

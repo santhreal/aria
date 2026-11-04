@@ -560,6 +560,14 @@ fn open_ahead_reports_a_failed_or_panicking_open() {
     assert!(error.to_string().contains("panicked"), "{error}");
 }
 
+/// Dropping an [`OpeningDecoder`] while its open is in flight cancels the open
+/// and returns only once the job has dropped the decoder it opened, without
+/// decoding ahead for a caller that is gone.
+///
+/// The drop runs on its own thread, and the open is released only after the
+/// cancel flag is set. Released first, the open could finish and start
+/// decoding before the drop reached the flag, and whether it did was up to
+/// the scheduler.
 #[test]
 fn dropping_an_opening_decoder_waits_for_an_in_flight_open_to_drop_the_decoder() {
     let (mock, counts) = Mock::new(30, 10);
@@ -577,8 +585,17 @@ fn dropping_an_opening_decoder_waits_for_an_in_flight_open_to_drop_the_decoder()
     entered_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("open started on pool");
+    let canceled = Arc::clone(&opening.canceled);
+    let dropping = std::thread::spawn(move || drop(opening));
+    within_deadline("the drop setting the cancel flag", || {
+        canceled.load(Atomic::Acquire)
+    });
+    assert!(
+        !dropping.is_finished(),
+        "dropping OpeningDecoder returned while its open was still in flight"
+    );
     let _ = release_tx.send(());
-    drop(opening);
+    dropping.join().expect("the drop did not panic");
     assert_eq!(
         counts.dropped(),
         1,

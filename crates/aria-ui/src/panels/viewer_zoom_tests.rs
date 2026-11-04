@@ -3,8 +3,8 @@
 //! The class closed here: a control in the Viewer's row whose width follows
 //! the zoom, so the controls after it move as the zoom changes and a second
 //! press on `+` lands on whatever slid under the pointer. The zoom readout
-//! was such a control: it grew from `Fit` to `150%` and pushed `+` and the
-//! resolution menu along. Every `CONTROL_TIPS` control the row draws is
+//! was such a control: it grew from `Fit` to `150%` and pushed the controls
+//! after it along. Every `CONTROL_TIPS` control the row draws is
 //! measured at Fit and at every level, so a control added to the row is held
 //! in place without an edit here. The zoom menu is pressed through: its list
 //! sets the level it reads and closes.
@@ -18,6 +18,7 @@ use gpui::{Modifiers, Pixels, TestAppContext, VisualTestContext, px};
 use super::viewer_row_height_tests::{measure, press, viewer_with_take};
 use crate::app::AppState;
 use crate::app::preview_view::{ZOOM_STEPS, zoom_label};
+use crate::theme::Theme;
 
 const EPS: f32 = 0.5;
 
@@ -58,6 +59,38 @@ fn every_row_control_holds_its_place_at_every_zoom(cx: &mut TestAppContext) {
                 "at {level} {name} stands at {at:?}, not {was:?} as at Fit"
             );
         }
+    }
+}
+
+/// The class: room a control keeps for a wider state standing inside its
+/// cluster, as the zoom chip's room for `000%` stood between the level and
+/// `+` while the level read `Fit`. `+` stands one group gap after `−` and the
+/// chip one gap after `+`, so the chip's room trails the zoom controls.
+///
+/// Not covered: where the chevron stands inside the chip, which
+/// `components::sized_list_chip` places after the label.
+#[gpui::test]
+fn the_zoom_steps_stand_together_before_the_level(cx: &mut TestAppContext) {
+    let (_, visual) = viewer_with_take(cx, "viewer-zoom-pair");
+    let (_, drawn) = measure(visual);
+    let at = |name: &str| {
+        drawn
+            .iter()
+            .find(|(control, _)| *control == name)
+            .map(|(_, bounds)| *bounds)
+            .unwrap_or_else(|| panic!("the row draws no {name}: {drawn:?}"))
+    };
+    let order = [
+        at("preview-zoom-out"),
+        at("preview-zoom-in"),
+        at("preview-zoom"),
+    ];
+    for (pair, what) in order.windows(2).zip(["− to +", "+ to the zoom chip"]) {
+        let gap = pair[1].left() - pair[0].right();
+        assert!(
+            (gap - px(Theme::SPACE_XS)).abs() < px(EPS),
+            "{what} is {gap:?} apart, not one group gap"
+        );
     }
 }
 

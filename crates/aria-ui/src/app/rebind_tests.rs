@@ -135,7 +135,7 @@ fn a_taken_chord_is_refused_and_the_row_stays_armed() {
     );
     let said = state.status_message.clone().expect("a refusal is reported");
     assert!(
-        said.contains(&chord.label()) && said.contains(&keys::binding_label(holder.id)),
+        said.contains(&chord.label()) && said.contains(&state.binding_name(holder.id)),
         "the refusal does not name the chord and what holds it: {said}"
     );
     assert!(
@@ -345,7 +345,7 @@ fn the_list_is_the_registry() {
         assert_eq!(row.chord, Some(shipped.chord));
         assert!(!row.overridden);
         assert!(
-            !keys::binding_label(row.binding.id).is_empty(),
+            !state.binding_name(row.binding.id).is_empty(),
             "{} reads as nothing",
             row.binding.id
         );
@@ -481,4 +481,52 @@ fn every_bindable_key_survives_being_saved() {
         Chord::parse(&saved),
         state.chord_label(id).and_then(|label| Chord::parse(&label))
     );
+}
+
+/// The class closed here: one command under two names. Keyboard Shortcuts
+/// named every binding by its id read as words, so Ctrl+K read "Split" there
+/// and "Add Edit" in the Sequence menu, and Enter read "Render in to out"
+/// beside a menu row reading "Render In to Out". Enumerated over every row the
+/// bar draws a chord on, so a row given a key later is covered, and read on
+/// the listed row and on the status line of an armed capture. A binding two
+/// rows draw fails too, since which row named it would rest on table order.
+/// Not covered: bindings no menu row draws, which read as their id.
+#[test]
+fn a_binding_a_menu_row_draws_is_named_as_that_row() {
+    let mut state = state("rebind-names");
+    let listed = state
+        .listed_binding_rows()
+        .expect("an empty Settings filter lists every binding");
+    let mut drawn: Vec<(&'static str, String)> = Vec::new();
+    for menu in crate::types::AppMenu::ALL {
+        for item in crate::chrome::menu_items::items_of(menu, &state) {
+            let Some(key) = item.key else {
+                continue;
+            };
+            assert!(
+                drawn.iter().all(|(held, _)| *held != key),
+                "{key} is drawn by two menu rows"
+            );
+            drawn.push((key, crate::app::palette::offered_label(&item).to_string()));
+        }
+    }
+    assert!(!drawn.is_empty(), "no menu row draws a chord");
+    for (key, name) in drawn {
+        let (_, label) = listed
+            .rows
+            .iter()
+            .find(|(row, _)| row.binding.id == key)
+            .unwrap_or_else(|| panic!("{key} is drawn by a menu row and listed by none"));
+        assert_eq!(
+            label, &name,
+            "Keyboard Shortcuts names {key} apart from its row"
+        );
+        state.begin_rebind(key);
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(format!("Press a key for {name} · Esc to cancel").as_str()),
+            "an armed capture names {key} apart from its row"
+        );
+        state.cancel_rebind();
+    }
 }

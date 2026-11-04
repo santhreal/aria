@@ -10,10 +10,11 @@
 //!
 //! A row here carries what the command layer knows about one command: its wire
 //! id, its history label, which UI surface reaches it, which clips and lanes it
-//! addresses, whether a lock may refuse it, whether it can break an abutment,
-//! and what undoing it puts back. `aria-engine` holds the other half — the
-//! handler that applies it — keyed by the same id, and its own table is the
-//! only other place a command is described.
+//! addresses, whether a lock may refuse it, which abutments it can break and
+//! whether it ripples the sync-locked lanes, and what undoing it puts back.
+//! `aria-engine` holds the other half — the handler that applies it — keyed by
+//! the same id, and its own table is the only other place a command is
+//! described.
 //!
 //! ## Fail by default
 //!
@@ -72,6 +73,20 @@ impl Inverse {
     }
 }
 
+/// Which transition junctions an edit can break, and so which lanes the engine
+/// snapshots before it and prunes after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Junctions {
+    /// The edit changes no clip's extent or placement.
+    Keeps,
+    /// The edit can change the extent or placement of clips on the lanes it
+    /// addresses and of their move companions.
+    Breaks,
+    /// As [`Junctions::Breaks`], and the edit also shifts every sync-locked
+    /// lane it does not address by the span it opens or closes.
+    Ripples,
+}
+
 /// One timeline edit.
 pub struct EditSpec {
     /// The variant name, which is also its wire tag.
@@ -80,10 +95,10 @@ pub struct EditSpec {
     pub label: &'static str,
     /// Whether a shipped operator surface sends it.
     pub reach: Reach,
-    /// Whether the edit can change a clip's extent or placement, and so break
-    /// an abutment a transition sits on. The engine snapshots the timeline's
-    /// junctions before a `true` row and prunes the dead ones after.
-    pub structural: bool,
+    /// Which transition junctions the edit can break. The engine snapshots the
+    /// junctions of the lanes this names before a breaking row and prunes the
+    /// dead ones after.
+    pub junctions: Junctions,
     /// Whether the edit must be allowed even on a locked lane. Unlocking is the
     /// way out of a lock, so the lock cannot guard it.
     pub ignores_track_lock: bool,
@@ -104,7 +119,7 @@ impl std::fmt::Debug for EditSpec {
             .field("id", &self.id)
             .field("label", &self.label)
             .field("reach", &self.reach)
-            .field("structural", &self.structural)
+            .field("junctions", &self.junctions)
             .field("ignores_track_lock", &self.ignores_track_lock)
             .field("inverse", &self.inverse)
             .finish_non_exhaustive()
@@ -195,7 +210,7 @@ macro_rules! edit_registry {
                 id: stringify!($variant),
                 label: $label,
                 reach: $reach,
-                structural: edit_registry!(@junctions $junctions),
+                junctions: edit_registry!(@junctions $junctions),
                 ignores_track_lock: edit_registry!(@lock $lock),
                 inverse: $undo,
                 targets: edit_registry!(@reader_name $shape),
@@ -225,8 +240,9 @@ macro_rules! edit_registry {
         }
     };
 
-    (@junctions keeps) => { false };
-    (@junctions breaks) => { true };
+    (@junctions keeps) => { Junctions::Keeps };
+    (@junctions breaks) => { Junctions::Breaks };
+    (@junctions ripples) => { Junctions::Ripples };
 
     (@lock guarded) => { false };
     (@lock ignored) => { true };

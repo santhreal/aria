@@ -7,11 +7,11 @@ use std::collections::VecDeque;
 use aria_core::{DecodeError, FrameData, Rational, RationalTime, VideoDecoder, VideoFrame};
 
 use super::{AHEAD_FRAMES, BEHIND_BYTES, BEHIND_SURFACES};
-use crate::seek::{frame_covers, is_after, is_frame_before, seek_walk};
+use crate::seek::{frame_covers, is_after, is_frame_before, seek_walk, seek_walk_while};
 
-/// Held backward frames below which a parked reverse decoder pre-walks the
-/// preceding GOP on the decode pool.
-const BEHIND_FILL_FRAMES: usize = 16;
+/// Default held backward frame threshold below which a parked reverse decoder
+/// pre-walks the preceding GOP on the decode pool.
+pub(super) const BEHIND_FILL_FRAMES: usize = 16;
 
 /// Frames detached from [`State`] to return their planes to the pool outside
 /// the state lock.
@@ -124,6 +124,8 @@ impl Behind {
         older.bytes += self.bytes;
         older.surfaces += self.surfaces;
         older.frames.append(&mut self.frames);
+        self.bytes = 0;
+        self.surfaces = 0;
         *self = older;
     }
 
@@ -171,6 +173,12 @@ impl Behind {
     }
 }
 
+impl Drop for Behind {
+    fn drop(&mut self) {
+        self.clear();
+    }
+}
+
 /// One frame period before `floor` on `floor.rate`, or `None` at or before
 /// the start of the stream.
 pub(super) fn step_before(floor: RationalTime, frame_rate: Rational) -> Option<RationalTime> {
@@ -211,7 +219,12 @@ pub(super) struct Outcome {
 }
 
 /// Run `op` on the wrapped decoder. Called without the state lock.
-pub(super) fn run(decoder: &mut dyn VideoDecoder, op: Op, frame_rate: Rational) -> Outcome {
+pub(super) fn run(
+    decoder: &mut dyn VideoDecoder,
+    shared: &Shared,
+    op: Op,
+    frame_rate: Rational,
+) -> Outcome {
     let mut behind = Behind::default();
     let result = match op {
         Op::Exact(target) => decoder.frame_at(target),
@@ -223,15 +236,37 @@ pub(super) fn run(decoder: &mut dyn VideoDecoder, op: Op, frame_rate: Rational) 
         // the walk passes.
         Op::Back(target) => seek_walk(decoder, target, frame_rate, |frame| behind.push(frame)),
         Op::BackFill { target, floor } => {
-            let found = seek_walk(decoder, target, frame_rate, |frame| {
-                if is_frame_before(frame.pts, floor, frame_rate) {
-                    behind.push(frame);
-                }
-            });
-            match found {
-                Ok(Some(frame)) => {
+            let mut canceled = false;
+            let found = seek_walk_while(
+                decoder,
+                target,
+                frame_rate,
+                || {
+                    canceled = shared.back_fill_canceled(floor);
+                    !canceled
+                },
+                |frame| {
                     if is_frame_before(frame.pts, floor, frame_rate) {
                         behind.push(frame);
+                    } else {
+                        let mut frame = frame;
+                        crate::recycle_frame_planes(&mut frame);
+                    }
+                },
+            );
+            if canceled || shared.back_fill_canceled(floor) {
+                behind.clear();
+                return Outcome {
+                    result: Ok(None),
+                    behind,
+                };
+            }
+            match found {
+                Ok(Some(mut frame)) => {
+                    if is_frame_before(frame.pts, floor, frame_rate) {
+                        behind.push(frame);
+                    } else {
+                        crate::recycle_frame_planes(&mut frame);
                     }
                     Ok(None)
                 }
@@ -251,6 +286,11 @@ pub(super) struct State {
     pub(super) behind: Behind,
     /// Earliest PTS covered by the current backward run, for reverse look-ahead.
     pub(super) behind_floor: Option<RationalTime>,
+    /// Held backward frame count below which [`State::back_fill_op`] starts
+    /// pre-walking the preceding GOP; adapts to the last backward walk length
+    /// so the pool starts pre-walking as soon as the playhead steps into a
+    /// pre-walked GOP.
+    pub(super) behind_fill_frames: usize,
     pub(super) reach: Reach,
     /// A request for the pool to decode.
     pub(super) want: Option<Want>,
@@ -279,6 +319,7 @@ impl State {
             ahead: VecDeque::new(),
             behind: Behind::default(),
             behind_floor: None,
+            behind_fill_frames: BEHIND_FILL_FRAMES,
             reach: Reach::Unknown,
             want: None,
             answer: None,
@@ -351,6 +392,7 @@ impl State {
         if let Some(frame) = self.take_ahead(want.target, frame_rate) {
             self.behind.clear();
             self.behind_floor = None;
+            self.behind_fill_frames = BEHIND_FILL_FRAMES;
             self.parked = false;
             return Some(Ok(Some(frame)));
         }
@@ -386,6 +428,7 @@ impl State {
         }
         self.behind.clear();
         self.behind_floor = None;
+        self.behind_fill_frames = BEHIND_FILL_FRAMES;
         self.discard_answer();
         self.parked = false;
         self.ended = false;
@@ -433,6 +476,16 @@ impl State {
                 self.behind_floor = matches!(op, Op::Back(_))
                     .then(|| outcome.behind.frames.front().map(|f| f.pts).or(found_pts))
                     .flatten();
+                self.behind_fill_frames = if matches!(op, Op::Back(_)) {
+                    outcome
+                        .behind
+                        .frames
+                        .len()
+                        .saturating_add(1)
+                        .max(BEHIND_FILL_FRAMES)
+                } else {
+                    BEHIND_FILL_FRAMES
+                };
                 self.behind = outcome.behind;
             }
             Op::BackFill { .. } => {}
@@ -443,15 +496,23 @@ impl State {
     /// Record a frame or backward GOP walk a fill decoded.
     pub(super) fn settle_fill(&mut self, op: Op, outcome: Outcome) {
         if let Op::BackFill { floor, .. } = op {
-            if !self.parked || self.behind_floor != Some(floor) {
+            if !self.parked
+                || self.behind_floor != Some(floor)
+                || self.stop
+                || self.closed
+                || self.want.is_some()
+            {
                 return;
             }
             if outcome.result.is_err() || outcome.behind.frames.is_empty() {
                 self.behind_floor = None;
                 return;
             }
+            let kept_newer = self.behind.frames.len();
             let oldest = outcome.behind.frames.front().map(|frame| frame.pts);
             self.behind.prepend(outcome.behind);
+            let prewalked = self.behind.frames.len().saturating_sub(kept_newer);
+            self.behind_fill_frames = prewalked.max(BEHIND_FILL_FRAMES);
             self.behind_floor = self.behind.frames.front().map(|f| f.pts).or(oldest);
             return;
         }
@@ -468,7 +529,7 @@ impl State {
             || !self.parked
             || self.ended
             || self.failure.is_some()
-            || self.behind.frames.len() >= BEHIND_FILL_FRAMES
+            || self.behind.frames.len() >= self.behind_fill_frames
             || self.behind.bytes > BEHIND_BYTES / 2
             || self.behind.surfaces > BEHIND_SURFACES / 2
         {
@@ -496,10 +557,31 @@ impl State {
         self.fill_op(frame_rate).is_some()
     }
 
-    /// Whether an active forward fill is within two frames of `want`.
-    pub(super) fn fills_toward(&self, want: Want, frame_rate: Rational) -> bool {
-        if want.ask != Ask::Exact || self.parked || !self.fills(frame_rate) {
+    /// Whether a backward fill below `floor` covers `want`: `want` asks for an
+    /// exact frame within two steps before `floor`.
+    pub(super) fn fills_toward_back(
+        &self,
+        want: Want,
+        floor: RationalTime,
+        frame_rate: Rational,
+    ) -> bool {
+        if want.ask != Ask::Exact || !is_frame_before(want.target, floor, frame_rate) {
             return false;
+        }
+        step_before(floor, frame_rate)
+            .and_then(|prev| step_before(prev, frame_rate))
+            .is_none_or(|two_back| !is_frame_before(want.target, two_back, frame_rate))
+    }
+
+    /// Whether an active fill (forward or backward) is within two frames of `want`.
+    pub(super) fn fills_toward(&self, want: Want, frame_rate: Rational) -> bool {
+        if want.ask != Ask::Exact || !self.fills(frame_rate) {
+            return false;
+        }
+        if self.parked {
+            return self
+                .behind_floor
+                .is_some_and(|floor| self.fills_toward_back(want, floor, frame_rate));
         }
         let last = match self.ahead.back() {
             Some(frame) => frame.pts,
@@ -561,6 +643,15 @@ impl Shared {
             self.wait(&mut state);
         }
     }
+
+    pub(super) fn back_fill_canceled(&self, floor: RationalTime) -> bool {
+        let state = self.lock();
+        state.stop
+            || state.closed
+            || !state.parked
+            || state.behind_floor != Some(floor)
+            || state.want.is_some()
+    }
 }
 
 pub(super) fn broken() -> DecodeError {
@@ -579,7 +670,7 @@ impl<'a> Claim<'a> {
     /// Run `op` on the claimed decoder.
     pub(super) fn run(&mut self, op: Op, frame_rate: Rational) -> Outcome {
         match self.decoder.as_deref_mut() {
-            Some(decoder) => run(decoder, op, frame_rate),
+            Some(decoder) => run(decoder, self.shared, op, frame_rate),
             None => Outcome {
                 result: Err(broken()),
                 behind: Behind::default(),

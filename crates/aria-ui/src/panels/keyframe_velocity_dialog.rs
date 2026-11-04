@@ -11,23 +11,13 @@ use gpui::{
 };
 
 use crate::app::animation_verbs::{INFLUENCE_PERCENT_SPAN, KeyframeVelocityForm, VelocitySide};
-use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
-
-/// Speed steps in property units per second.
-const SPEED_STEPS: &[(f32, &str)] = &[
-    (-100.0, "-100"),
-    (-10.0, "-10"),
-    (-1.0, "-1"),
-    (1.0, "+1"),
-    (10.0, "+10"),
-    (100.0, "+100"),
-];
 
 /// Influence presets in per cent.
 const INFLUENCE_PRESETS: &[(f32, &str)] = &[
@@ -37,10 +27,6 @@ const INFLUENCE_PRESETS: &[(f32, &str)] = &[
     (75.0, "75%"),
     (100.0, "100%"),
 ];
-
-/// Influence steps in per cent.
-const INFLUENCE_STEPS: &[(f32, &str)] =
-    &[(-10.0, "-10%"), (-1.0, "-1%"), (1.0, "+1%"), (10.0, "+10%")];
 
 fn side_id(side: VelocitySide) -> &'static str {
     match side {
@@ -106,77 +92,31 @@ fn side_block(
             cx.notify();
         }),
     );
-    let speed_steps = div()
-        .flex()
-        .wraps()
-        .gap(px(Theme::SPACE_XS))
-        .child(zero)
-        .children(SPEED_STEPS.iter().enumerate().map(|(i, &(delta, label))| {
-            components::ghost_button(
-                MotionKey::new("velocity-speed-step", tag).with(i),
-                label,
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        let _ = state.set_keyframe_velocity_speed(side, speed + delta);
-                    });
-                    cx.notify();
-                }),
-            )
-        }));
-    let influence_presets = div()
-        .flex()
-        .wraps()
-        .gap(px(Theme::SPACE_XS))
-        .children(
-            INFLUENCE_PRESETS
-                .iter()
-                .enumerate()
-                .map(|(i, &(percent, label))| {
-                    let active = (influence - percent).abs() < 0.01;
-                    components::chip(
-                        MotionKey::new("velocity-influence-preset", tag).with(i),
-                        label,
-                        active,
-                        ChipSize::Compact,
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                let _ = state.set_keyframe_velocity_influence(side, percent);
-                            });
-                            cx.notify();
-                        }),
-                    )
-                }),
-        )
-        .children(
-            INFLUENCE_STEPS
-                .iter()
-                .enumerate()
-                .map(|(i, &(delta, label))| {
-                    components::ghost_button(
-                        MotionKey::new("velocity-influence-step", tag).with(i),
-                        label,
-                        theme,
-                    )
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state.update(cx, |state, _| {
-                                let next = clamp_into(&INFLUENCE_PERCENT_SPAN, influence + delta);
-                                let _ = state.set_keyframe_velocity_influence(side, next);
-                            });
-                            cx.notify();
-                        }),
-                    )
-                }),
-        );
+    let speed_presets = div().flex().child(zero);
+    let influence_presets = div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
+        INFLUENCE_PRESETS
+            .iter()
+            .enumerate()
+            .map(|(i, &(percent, label))| {
+                let active = (influence - percent).abs() < 0.01;
+                components::chip(
+                    MotionKey::new("velocity-influence-preset", tag).with(i),
+                    label,
+                    active,
+                    ChipSize::Compact,
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            let _ = state.set_keyframe_velocity_influence(side, percent);
+                        });
+                        cx.notify();
+                    }),
+                )
+            }),
+    );
 
     let key = MotionKey::new("keyframe-velocity", tag);
     let speed_row = number_row(
@@ -232,7 +172,7 @@ fn side_block(
                 }),
         )
         .child(speed_row)
-        .child(speed_steps)
+        .child(speed_presets)
         .child(influence_row)
         .child(influence_presets)
 }

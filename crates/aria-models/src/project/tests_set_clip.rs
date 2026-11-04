@@ -98,6 +98,52 @@ fn slip_is_refused_where_there_is_no_take_to_slip_within() {
     );
 }
 
+#[test]
+fn slip_multicam_moves_window_and_clamps_within_group_span() {
+    let mut project = Project::new("multicam_slip", R24);
+    let m1 = project.add_media(sample_media(R24, 200));
+    let m2 = project.add_media(sample_media(R24, 200));
+    let group = project
+        .create_multicam_group(
+            "Rig",
+            vec![
+                crate::multicam::MulticamAngle::new(m1, 0),
+                crate::multicam::MulticamAngle::new(m2, 40),
+            ],
+        )
+        .unwrap();
+    let track = project.add_track(TrackKind::Video, "V1");
+    let clip = project
+        .add_multicam_clip(track, group, tr(20, 100), rt(48))
+        .unwrap();
+
+    project.slip_clip(clip, 30).unwrap();
+    assert_eq!(project.clip(clip).unwrap().timeline, tr(48, 100));
+    assert_eq!(
+        project.clip(clip).unwrap().source_range(),
+        Some(tr(50, 100))
+    );
+
+    project.slip_clip(clip, -5_000).unwrap();
+    assert_eq!(project.clip(clip).unwrap().source_range(), Some(tr(0, 100)));
+
+    // Group span is max(0 + 200, 40 + 200) = 240, so max start for a 100-tick window is 140.
+    project.slip_clip(clip, 5_000).unwrap();
+    assert_eq!(
+        project.clip(clip).unwrap().source_range(),
+        Some(tr(140, 100))
+    );
+
+    let track2 = project.add_track(TrackKind::Video, "V2");
+    let full = project
+        .add_multicam_clip(track2, group, tr(0, 240), rt(0))
+        .unwrap();
+    assert!(
+        project.slip_clip(full, 1).is_err(),
+        "a multicam clip spanning the whole group span has nowhere to slip"
+    );
+}
+
 // --- trim_clip --------------------------------------------------------
 
 #[test]
@@ -401,10 +447,114 @@ fn set_clip_speed_rejects_overlap_with_neighbor() {
         project.set_clip_speed(clip, Rational::new(1, 2), false),
         Err(ModelError::Overlap(track))
     );
+
     // The clip is untouched after the rejection.
     let c = project.clip(clip).unwrap();
     assert_eq!(c.timeline, tr(0, 100));
     assert_eq!(c.speed, Rational::new(1, 1));
+}
+
+#[test]
+fn retiming_or_clearing_time_remapping_prunes_broken_transitions() {
+    // 1. set_clip_speed breaking a right-hand transition abutment.
+    let (mut project, media_id, track) = project_with_media(500);
+    let left = project.add_clip(track, media_id, tr(0, 48), rt(0)).unwrap();
+    let _right = project
+        .add_clip(track, media_id, tr(48, 48), rt(48))
+        .unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    assert!(project.has_transitions());
+    project
+        .set_clip_speed(left, Rational::new(2, 1), false)
+        .unwrap();
+    assert!(
+        !project.has_transitions(),
+        "set_clip_speed shrank left to 0..24 and broke the abutment at 48"
+    );
+
+    // 2. set_clip_speed_curve breaking a right-hand transition abutment.
+    let (mut project, media_id, track) = project_with_media(500);
+    let left = project.add_clip(track, media_id, tr(0, 48), rt(0)).unwrap();
+    let _right = project
+        .add_clip(track, media_id, tr(48, 48), rt(48))
+        .unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    let ramp = crate::clip::speed_preset("montage").unwrap();
+    project.set_clip_speed_curve(left, Some(ramp)).unwrap();
+    assert!(
+        !project.has_transitions(),
+        "set_clip_speed_curve changed left's duration and broke the abutment at 48"
+    );
+
+    // 3. remove_clip_attributes(TimeRemapping) breaking a right-hand transition abutment.
+    let (mut project, media_id, track) = project_with_media(500);
+    let left = project.add_clip(track, media_id, tr(0, 24), rt(0)).unwrap();
+    project
+        .set_clip_speed_curve(left, Some(Param::Constant(0.5)))
+        .unwrap();
+    assert_eq!(project.clip(left).unwrap().timeline, tr(0, 48));
+    let _right = project
+        .add_clip(track, media_id, tr(48, 48), rt(48))
+        .unwrap();
+    project.add_transition(left, "crossfade").unwrap();
+    project
+        .remove_clip_attributes(left, &[crate::ClipAttribute::TimeRemapping])
+        .unwrap();
+    assert_eq!(project.clip(left).unwrap().timeline, tr(0, 24));
+    assert!(
+        !project.has_transitions(),
+        "remove_clip_attributes(TimeRemapping) shrank left to 0..24 and broke the abutment at 48"
+    );
+}
+
+#[test]
+fn is_media_referenced_covers_all_sequences_and_baked_snapshots() {
+    // 1. Media referenced inside a secondary sequence while root is active,
+    // and media referenced on the root timeline while the secondary sequence is active.
+    let (mut project, root_media, root_track) = project_with_media(500);
+    let nested_media = project.add_media(sample_media(R24, 500));
+    project
+        .add_clip(root_track, root_media, tr(0, 48), rt(0))
+        .unwrap();
+    let seq_id = project.create_sequence("Scene 1", R24);
+    project.set_active_sequence(Some(seq_id)).unwrap();
+    let seq_track = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_clip(seq_track, nested_media, tr(0, 48), rt(0))
+        .unwrap();
+
+    // While inside `seq_id`, `root_media` on the root timeline is still referenced.
+    assert!(project.is_media_referenced(root_media));
+    assert_eq!(
+        project.remove_media(root_media),
+        Err(ModelError::MediaReferenced(root_media))
+    );
+
+    // Switch back to the root timeline: `nested_media` inside `seq_id` is still referenced.
+    project.set_active_sequence(None).unwrap();
+    assert!(project.is_media_referenced(nested_media));
+    assert_eq!(
+        project.remove_media(nested_media),
+        Err(ModelError::MediaReferenced(nested_media))
+    );
+
+    // 2. Media held inside `clip.bake` of a baked clip is still referenced
+    // so `restore_baked_clip` never restores a dangling MediaId.
+    let (mut project, raw_media, track) = project_with_media(500);
+    let rendered_media = project.add_media(sample_media(R24, 48));
+    let clip = project
+        .add_clip(track, raw_media, tr(0, 48), rt(0))
+        .unwrap();
+    project.add_effect(clip, "gaussian_blur").unwrap();
+    project.bake_clip(clip, rendered_media).unwrap();
+    assert!(
+        project.is_media_referenced(raw_media),
+        "baked snapshot still references original media for restore_baked_clip"
+    );
+    assert_eq!(
+        project.remove_media(raw_media),
+        Err(ModelError::MediaReferenced(raw_media))
+    );
 }
 
 // --- set_clip_beats (M8 Phase 6) -----------------------------------------

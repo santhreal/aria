@@ -57,16 +57,31 @@ pub(super) fn affordances(
 /// and narrow with theirs; on a free row, nothing.
 pub(super) fn blanks(columns: Columns) -> Affordances {
     match columns {
-        Columns::Keyed => Affordances {
-            dot: Some(div().flex_none().w(px(WATCH_SLOT)).into_any_element()),
-            controls: Some(div().flex_none().w(px(CONTROLS_W)).into_any_element()),
-            strip: Some(blank_strip().into_any_element()),
-        },
+        Columns::Keyed => keyed_blanks(true),
         Columns::Free => Affordances {
             dot: None,
             controls: None,
             strip: None,
         },
+    }
+}
+
+/// Blanks as wide as the affordances `keys` draws on its row's line, for a
+/// line under it that stands in the row's label and value columns.
+pub(super) fn blanks_like(keys: &Keys) -> Affordances {
+    match keys {
+        Keys::Watch(watch) => keyed_blanks(watch.strip.is_some()),
+        Keys::Unkeyed(columns) => blanks(*columns),
+    }
+}
+
+/// Blanks as wide as a keyed row's stopwatch and navigator, and as its time
+/// area when `strip`.
+fn keyed_blanks(strip: bool) -> Affordances {
+    Affordances {
+        dot: Some(div().flex_none().w(px(WATCH_SLOT)).into_any_element()),
+        controls: Some(div().flex_none().w(px(CONTROLS_W)).into_any_element()),
+        strip: strip.then(|| blank_strip().into_any_element()),
     }
 }
 

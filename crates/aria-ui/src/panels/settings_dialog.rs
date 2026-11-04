@@ -320,8 +320,10 @@ fn size_label(baseline: u32, size: [u32; 2]) -> String {
     format!("{baseline}p · {}×{}", size[0], size[1])
 }
 
-/// The aspect presets, then the render size: what it is now, "Derived", and one
-/// row per delivery baseline. Sizes are read from the project rather than
+/// Five single-choice groups, each under the row that reads its value now and
+/// a hairline from the group before: the aspect presets, the render size
+/// ("Derived" and one row per delivery baseline), the frame rate, the audio
+/// layout, and the time display. Sizes are read from the project rather than
 /// recomputed here, so the dialog and the exporter cannot name different pixels.
 fn canvas_rows(
     theme: &Theme,
@@ -336,10 +338,12 @@ fn canvas_rows(
     } else {
         "derived"
     };
-    let mut rows = vec![kv(theme, "Size", format!("{w}×{h} ({origin})")).into_any_element()];
+    let mut rows = vec![kv(theme, "Aspect", canvas.aspect.label()).into_any_element()];
     rows.extend(CanvasAspect::ALL.into_iter().map(|candidate| {
         pickers::canvas_row(theme, candidate, canvas.aspect, cx).into_any_element()
     }));
+    rows.push(group_divider(theme));
+    rows.push(kv(theme, "Size", format!("{w}×{h} ({origin})")).into_any_element());
     rows.push(
         pickers::resolution_row(
             theme,
@@ -363,6 +367,7 @@ fn canvas_rows(
         .into_any_element()
     }));
     // Frame rate and pool mismatch
+    rows.push(group_divider(theme));
     let current_rate = state.read(cx).store.sequence.frame_rate;
     rows.push(kv(theme, "Frame rate", format_fps(current_rate)).into_any_element());
 
@@ -382,6 +387,7 @@ fn canvas_rows(
     }
 
     // Audio layout
+    rows.push(group_divider(theme));
     let current_layout = state.read(cx).audio_layout();
     rows.push(kv(theme, "Audio layout", current_layout.label()).into_any_element());
     for layout in AudioLayout::ALL {
@@ -389,6 +395,7 @@ fn canvas_rows(
     }
 
     // Time display
+    rows.push(group_divider(theme));
     let current_display = state.read(cx).store.sequence.time_display;
     rows.push(kv(theme, "Time display", current_display.label()).into_any_element());
     for display in TimeDisplay::ALL {
@@ -411,3 +418,7 @@ mod choice_fit_tests;
 #[cfg(test)]
 #[path = "settings_dialog/choice_chips_tests.rs"]
 mod choice_chips_tests;
+
+#[cfg(test)]
+#[path = "settings_dialog/canvas_groups_tests.rs"]
+mod canvas_groups_tests;

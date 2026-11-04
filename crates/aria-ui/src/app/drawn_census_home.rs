@@ -1,4 +1,4 @@
-//! Driving the Home screen: the tiles, a recent project's actions, and the
+//! Driving the Home screen: the tiles, a recent project's card, and the
 //! recovery offer.
 //!
 //! # Why
@@ -90,7 +90,6 @@ impl Dressed {
             Pick::UseTemplate,
             Pick::RestoreRecovery,
             Pick::DiscardRecovery,
-            Pick::Reveal(self.remembered.clone()),
         ]
     }
 
@@ -126,9 +125,6 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
     for index in 0..count {
         let mut home = at_home();
         let pick = home.picks().swap_remove(index);
-        if pick.leaves_the_editor() {
-            continue;
-        }
         let watch = Watch::on(&home.state);
         home.press(pick);
         out.extend(watch.take());
@@ -154,29 +150,6 @@ fn every_control_the_screen_draws_is_pressed() {
 }
 
 #[test]
-fn only_a_row_that_leaves_the_editor_goes_unpressed() {
-    // Fail by default: a new row that opts out turns this red until somebody
-    // records why a test must not press it. Nothing else may opt out.
-    const DECLARED: [(&str, &str); 1] = [(
-        "a project shown in the file manager",
-        "hands the path to the desktop's file manager, which would open a window \
-         on whoever ran the suite",
-    )];
-    let home = at_home();
-    let outside: Vec<&'static str> = home
-        .picks()
-        .iter()
-        .filter(|pick| pick.leaves_the_editor())
-        .map(Pick::what)
-        .collect();
-    let declared: Vec<&str> = DECLARED.iter().map(|(what, _)| *what).collect();
-    assert_eq!(
-        outside, declared,
-        "a Home row opts out of the census without a recorded reason"
-    );
-}
-
-#[test]
 fn every_row_lands_what_it_says_it_lands() {
     // Not every row is an edit: a new project resets the session and the discard
     // deletes a file beside the app's data, so holding both to "sends a command"
@@ -187,9 +160,6 @@ fn every_row_lands_what_it_says_it_lands() {
     for index in 0..count {
         let mut home = at_home();
         let pick = home.picks().swap_remove(index);
-        if pick.leaves_the_editor() {
-            continue;
-        }
         let what = pick.what();
         let lands = pick.lands();
         let watch = Watch::on(&home.state);
@@ -204,7 +174,6 @@ fn every_row_lands_what_it_says_it_lands() {
                 sent.is_empty(),
                 "{what} sent {sent:?}, so it is an edit rather than a session change"
             ),
-            Lands::Outside => unreachable!("an outside row is skipped above"),
         }
     }
 }

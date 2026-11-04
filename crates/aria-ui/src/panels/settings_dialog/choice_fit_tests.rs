@@ -13,8 +13,8 @@
 //! the card is 192 px and the longest labels end in an ellipsis.
 //!
 //! Not caught: glyph shapes, which the test text system does not raster, and
-//! the value rows (Size, Frame rate, Audio layout, Time display), which state
-//! the current value rather than offer a choice.
+//! the value rows (Aspect, Size, Frame rate, Audio layout, Time display), which
+//! state the current value rather than offer a choice.
 
 use aria_models::{AudioLayout, CanvasAspect, TimeDisplay};
 use gpui::{Bounds, Pixels, TestAppContext, px, size};

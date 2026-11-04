@@ -298,8 +298,9 @@ impl Chip {
 /// A row whose value is one of a set: the label and the `current` choice on
 /// one line, the choice where a number row's value stands, and the `chips` that
 /// pick another on the line under it, as a color row's palette is. The choice
-/// is cut to the value column's width, with the whole of it in a tooltip. The
-/// caller sets the row's id and tooltip.
+/// is cut to the value column's width, with the whole of it in a tooltip, and
+/// drawn in the text color: it is a value, and faint text marks a disabled
+/// control. The caller sets the row's id and tooltip.
 pub fn chip_row(
     theme: &Theme,
     key: motion::MotionKey,
@@ -311,10 +312,12 @@ pub fn chip_row(
     let label = label.into();
     let current = current.into();
     let column = columns.column(&label);
+    let tone = theme.text;
     #[cfg(test)]
-    let (row, shown, mut marks) = (
+    let (row, shown, faint, mut marks) = (
         cell_selector(column.as_ref(), &label, "label"),
         current.clone(),
+        tone == theme.text_faint,
         Vec::new(),
     );
     let value = value_cell(column.as_ref(), &label).child(
@@ -323,7 +326,7 @@ pub fn chip_row(
             .max_w(px(VALUE_MIN))
             .truncate()
             .text_size(Theme::TEXT_UI)
-            .text_color(theme.text_faint)
+            .text_color(tone)
             .with_tip(crate::tooltip::text_builder(current.clone()))
             .child(current),
     );
@@ -349,6 +352,7 @@ pub fn chip_row(
                 choices.push(DrawnChoice {
                     row,
                     current: shown,
+                    faint,
                     chips: marks,
                 });
             }

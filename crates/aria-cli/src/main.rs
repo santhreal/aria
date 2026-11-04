@@ -57,8 +57,11 @@ fn run(args: &Args) -> Result<(), Failure> {
         .mount(&aria_plugin::ExpressionsPlugin)
         .map_err(|err| Failure::Failed(err.to_string()))?;
     if args.verb != Verb::Plugin {
-        // `aria plugin` checks the flags of its sub-command instead.
+        // `aria plugin` checks the flags and arity of its sub-command instead.
         args.reject_unknown(args.verb.flags())?;
+        if let Some(max) = args.verb.max_positionals() {
+            args.reject_extra_positional(max)?;
+        }
     }
     match args.verb {
         Verb::Demo => demo::run(args.positional.first().map(Into::into)).map_err(Failure::Failed),

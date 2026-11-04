@@ -171,3 +171,54 @@ fn an_inward_trim_of_a_nested_sequence_keeps_the_edge_it_leaves() {
         }
     }
 }
+
+#[test]
+fn an_inward_trim_of_a_multicam_clip_keeps_the_edge_it_leaves() {
+    for sequence in RATES {
+        for (speed, reversed) in PLAYS {
+            let mut project = Project::new("test", sequence);
+            let m1 = project.add_media(sample_media(sequence, second(sequence) * 2));
+            let m2 = project.add_media(sample_media(sequence, second(sequence) * 2));
+            let group = project
+                .create_multicam_group(
+                    "Rig",
+                    vec![
+                        crate::multicam::MulticamAngle::new(m1, 0),
+                        crate::multicam::MulticamAngle::new(m2, 6),
+                    ],
+                )
+                .unwrap();
+            let track = project.add_track(TrackKind::Video, "V1");
+            let clip = project
+                .add_multicam_clip(
+                    track,
+                    group,
+                    TimeRange::at_rate(0, second(sequence), sequence),
+                    RationalTime::new(second(sequence), sequence),
+                )
+                .unwrap();
+            project.set_clip_speed(clip, speed, reversed).unwrap();
+            holds_each_inward_trim(
+                &project,
+                clip,
+                &format!("{sequence:?} multicam, {speed:?} {reversed}"),
+            );
+
+            let tl = project.clip(clip).unwrap().timeline;
+            let before_zero = if reversed {
+                TimeRange::at_rate(
+                    tl.start.value,
+                    tl.duration.value + second(sequence),
+                    sequence,
+                )
+            } else {
+                TimeRange::at_rate(0, tl.end_tick(), sequence)
+            };
+            assert_eq!(
+                project.trim_clip(clip, before_zero),
+                Err(ModelError::SourceOutOfBounds),
+                "{sequence:?} multicam {speed:?} {reversed} trimmed before source 0"
+            );
+        }
+    }
+}

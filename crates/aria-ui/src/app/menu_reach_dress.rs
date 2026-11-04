@@ -52,6 +52,9 @@ pub(super) enum Dress {
     Blended,
     /// A marker under the playhead.
     Marked,
+    /// A marker one frame off the playhead, inside the one-second window the
+    /// playhead's marker rows act on, so moving it onto the playhead is an edit.
+    Nearby,
     /// A source loaded in the monitor with an in and an out marked, so a
     /// three-point edit has a range to take.
     Source,
@@ -188,6 +191,12 @@ impl Dress {
                 state
                     .add_marker_at_playhead()
                     .expect("a marker lands at the playhead");
+                state
+            }
+            Self::Nearby => {
+                let mut state = Self::Marked.state();
+                let at = state.playhead.value;
+                state.set_playhead(at + 1);
                 state
             }
             Self::Source => {

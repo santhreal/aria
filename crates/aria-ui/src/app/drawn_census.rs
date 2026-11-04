@@ -219,6 +219,8 @@ mod labels;
 mod markers;
 #[path = "drawn_census_menu.rs"]
 mod menu;
+#[path = "drawn_census_mirror.rs"]
+mod mirror;
 #[path = "drawn_census_mixer.rs"]
 mod mixer;
 #[path = "drawn_census_overlay.rs"]

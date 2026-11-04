@@ -76,7 +76,8 @@ use super::blocks::widgets::{
     DrawnChoice, DrawnLine, LABEL_RESERVE, drawn_choices, drawn_lines, record_lines,
 };
 use super::choice_rows_tests::{
-    every_choice_marks_what_it_shows, no_two_choices_read_alike, shows_and_marks,
+    every_choice_marks_what_it_shows, no_choice_reads_as_disabled, no_two_choices_read_alike,
+    shows_and_marks,
 };
 use super::strip_tests::{drawn_with, middle, narrow_the_inspector};
 use crate::app::AppState;
@@ -388,6 +389,7 @@ fn every_line_stands_in_the_columns(
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
     no_two_choices_read_alike(tab, &choices);
+    no_choice_reads_as_disabled(tab, &choices);
     let controls = recorded_controls(tab);
     let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let free: Vec<&str> = lines
@@ -507,6 +509,7 @@ fn every_line_stands_in_the_free_columns(
     let (lines, choices) = (drawn_lines(), drawn_choices());
     every_choice_marks_what_it_shows(tab, &choices);
     no_two_choices_read_alike(tab, &choices);
+    no_choice_reads_as_disabled(tab, &choices);
     let controls = recorded_controls(tab);
     let held = every_control_hugs_what_it_draws(visual, tab, &controls);
     let keyed: Vec<&str> = lines

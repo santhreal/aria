@@ -87,11 +87,11 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers these v
 
 | ID | Label | Summary |
 | --- | --- | --- |
-| `New` | New | Project creation card with canvas aspect, resolution, frame rate, and template options. |
-| `Open` | Open | Project file picker and recent `.aria` project opener (`Ctrl+O` on Home). |
-| `Recents` | Recents | Default start view with quick-start actions (**New Project**, **Open Project**, **Use Template**) and recent projects list. |
-| `Samples` | Samples | Cloud template bundles that download and prompt for each replaceable slot. |
-| `Learn` | Learn | Interactive keyboard shortcut reference and onboarding guide (**Help > Keyboard Shortcuts**). |
+| `New` | New | The **New Project** tile, which starts an empty project. |
+| `Open` | Open | The **Open** tile, which picks a `.aria` project (`Ctrl+O` on Home). |
+| `Recents` | Recents | Default start view: the **New Project**, **Open**, and **Sample Project** tiles, then a card per recent project. A press on a card opens the project; a right-click opens its menu. |
+| `Samples` | Samples | The **Sample Project** and **Use Template…** tiles, then the cloud template catalog, whose bundles download and prompt for each replaceable slot. |
+| `Learn` | Learn | The Home and editor keyboard shortcuts, read from the key map (**Help > Learn**). |
 
 ## Effect Controls inspector tabs
 

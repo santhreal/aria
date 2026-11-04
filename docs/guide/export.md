@@ -53,10 +53,11 @@ choice, the one in force lit. Click a chip to choose it. A row with one choice
 states it as text. None of the choices is an edit or is saved with the
 project:
 
+- **Size** states the pixel size the file is written at: the canvas at the
+  chosen **Scale**.
 - **Format** is the platform encoder or a plugin encoder. The row is drawn as
   chips when a plugin registers an encoder.
-- **Scale** renders at 100, 75, 50, or 25 per cent of the canvas. The resulting
-  pixel size is shown after the last chip.
+- **Scale** renders at 100, 75, 50, or 25 per cent of the canvas.
 - **Frame rate** is the project's rate or a fixed 24, 25, 30, 50, or 60.
 - **Codec** is H.264 or H.265. The row offers only the codecs this machine can
   write: on Linux that is probed from the installed GStreamer encoders when the

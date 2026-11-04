@@ -670,6 +670,9 @@ impl AppState {
         self.selection.first().copied()
     }
 
+    /// Cut the first selected clip at the playhead: the one-clip cut a test
+    /// sets up with. The surfaces cut through [`Self::add_edit`].
+    #[cfg(test)]
     pub fn split_at_playhead(&mut self) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {
             return Ok(());

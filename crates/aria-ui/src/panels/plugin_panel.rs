@@ -469,14 +469,15 @@ fn slider(
                 reach,
                 Run::Across,
                 Gauge::ROW,
-                Ink {
-                    rail: theme.border,
-                    lit: if held.is_some() {
+                Ink::new(
+                    theme,
+                    if held.is_some() {
                         theme.accent
                     } else {
                         theme.text_muted
                     },
-                },
+                    0.0,
+                ),
                 move || format!("plugin-slider-{fill}-fill"),
             )
             .w_full(),

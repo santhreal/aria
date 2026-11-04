@@ -102,7 +102,9 @@ parent, and the pick whip, a link icon lit while armed. A parent is named by
 its lane badge and clip name, as in `V2 Interview`. Dragging the pick whip
 onto another clip, clicking it and then a clip, or choosing a clip's chip makes
 this clip's transform relative to the parent's. The parent must overlap the
-child in time; outside the overlap the child uses its own transform. Parenting
+child in time; outside the overlap the child uses its own transform. Parent
+and child are both clips on picture lanes: a clip on an audio lane has no
+transform, so the row never offers one and the pick whip rejects one. Parenting
 keeps the child's current world position: setting or clearing a parent
 rewrites the child's transform so the frame does not change. Shift+parent
 snaps the child to the parent's transform instead.

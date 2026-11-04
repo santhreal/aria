@@ -105,8 +105,10 @@ in full text over the accent underline. The focused frame is outlined in the
 accent at 55 % strength.
 
 A choice from a short set is a row of chips. The chip in force has a faint
-wash and full-strength text; the others have muted text on no plate. A solid
-button is an action, such as Done or Export, and never marks a choice.
+wash and full-strength text; the others have muted text on no plate. In the
+Effect Controls, a choice row also states the choice in force in its value
+column, in the text color. A solid button is an action, such as Done or
+Export, and never marks a choice.
 
 Keyboard focus draws a 1 px accent ring around the focused control. A pointer
 click does not leave a focus ring.

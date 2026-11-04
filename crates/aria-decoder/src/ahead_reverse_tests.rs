@@ -328,3 +328,345 @@ fn schedule_queues_pool_serves_without_per_call_heap_allocation() {
         "expected at most 4 channel-block allocations across 64 schedule calls, got {total_allocs}"
     );
 }
+
+/// Wrapper around [`Mock`] that pauses its first decode-pool visit to
+/// `pause_at` until the test thread signals `resume`.
+struct GateMock {
+    inner: Mock,
+    pause_at: i64,
+    entered: mpsc::SyncSender<()>,
+    resume: Mutex<Option<Receiver<()>>>,
+}
+
+impl GateMock {
+    fn new(inner: Mock, pause_at: i64) -> (Self, Receiver<()>, mpsc::SyncSender<()>) {
+        let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+        let (resume_tx, resume_rx) = mpsc::sync_channel(1);
+        (
+            Self {
+                inner,
+                pause_at,
+                entered: entered_tx,
+                resume: Mutex::new(Some(resume_rx)),
+            },
+            entered_rx,
+            resume_tx,
+        )
+    }
+}
+
+impl VideoDecoder for GateMock {
+    fn info(&self) -> &SourceInfo {
+        self.inner.info()
+    }
+
+    fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+        self.inner.seek(target)
+    }
+
+    fn next_frame(&mut self) -> Result<Option<VideoFrame>, DecodeError> {
+        let on_pool = std::thread::current()
+            .name()
+            .is_some_and(|name| name.starts_with(DECODE_THREAD_PREFIX));
+        let frame = self.inner.next_frame()?;
+        if on_pool
+            && frame.as_ref().is_some_and(|f| f.pts.value == self.pause_at)
+            && let Some(rx) = self.resume.lock().take()
+        {
+            let _ = self.entered.try_send(());
+            let _ = rx.recv_timeout(std::time::Duration::from_secs(5));
+        }
+        Ok(frame)
+    }
+
+    fn frame_at(&mut self, target: RationalTime) -> Result<Option<VideoFrame>, DecodeError> {
+        self.inner.frame_at(target)
+    }
+
+    fn frame_at_nearest(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<VideoFrame>, DecodeError> {
+        self.inner.frame_at_nearest(target)
+    }
+}
+
+/// WHY: Closes the defect class where 60-frame GOPs (`h264-1080p60`,
+/// `hevc-2160p60`, `stack-4k`) delay `Op::BackFill` until only 15 frames
+/// remain in `Behind` (45 frames into a 60-frame GOP) or evict pre-walked
+/// 1080p frames because two 60-frame 1080p GOPs (`356 MiB`) exceed a 256 MiB
+/// `BEHIND_BYTES` cap. Verifies that `Op::Back` near the end of a 60-frame
+/// 1080p GOP immediately pre-walks the preceding 60-frame GOP without frame
+/// eviction, and that stepping across the GOP boundary (`120 -> 119`)
+/// immediately starts pre-walking the next preceding GOP (`0..=59`). Does not
+/// cover hardware decoder surface pool exhaustion on GPU frames.
+#[test]
+fn reverse_60_frame_gops_prewalk_immediately_and_fit_two_1080p_gops() {
+    const NV12_1080P_BYTES: usize = 1920 * 1080 * 3 / 2;
+    let (mock, counts) = Mock::new(180, 60);
+    let mut decoder = ahead(mock.with_planes(NV12_1080P_BYTES));
+
+    assert_eq!(pts(decoder.frame_at(rt(179))), Some(179));
+    assert_eq!(pts(decoder.frame_at(rt(178))), Some(178));
+    decoder.idle();
+    assert_eq!(
+        decoder.behind(),
+        118,
+        "58 frames of 120..=177 plus all 60 pre-walked frames of 60..=119 must fit in Behind"
+    );
+    assert_eq!(counts.seeks(), 3, "seeks for 179, 178, and pre-walk 119");
+
+    let caller_decodes = || {
+        counts
+            .threads()
+            .into_iter()
+            .filter(|name| !name.starts_with(DECODE_THREAD_PREFIX))
+            .count()
+    };
+    let caller_after_start = caller_decodes();
+
+    for frame in (120..=177).rev() {
+        assert_eq!(pts(decoder.frame_at(rt(frame))), Some(frame));
+    }
+    assert_eq!(
+        decoder.behind(),
+        60,
+        "all 60 frames of 60..=119 remain held"
+    );
+    assert_eq!(counts.seeks(), 3);
+
+    // Crossing the GOP boundary 120 -> 119 drops Behind from 60 to 59 frames
+    // and must immediately schedule Op::BackFill for 0..=59.
+    assert_eq!(pts(decoder.frame_at(rt(119))), Some(119));
+    decoder.idle();
+    assert_eq!(
+        decoder.behind(),
+        119,
+        "59 frames of 60..=118 plus all 60 pre-walked frames of 0..=59 must be held after stepping to 119"
+    );
+    assert_eq!(
+        counts.seeks(),
+        4,
+        "fourth seek pre-walked 0..=59 on the pool"
+    );
+
+    for frame in (0..119).rev() {
+        assert_eq!(pts(decoder.frame_at(rt(frame))), Some(frame));
+    }
+    decoder.idle();
+    assert_eq!(counts.seeks(), 4, "each 60-frame GOP was walked once");
+    assert_eq!(
+        caller_decodes(),
+        caller_after_start,
+        "every frame after the initial reverse step was served from Behind without caller-thread decodes"
+    );
+}
+
+/// WHY: Closes two coupled reverse-playback defect classes:
+/// 1. `State::fills_toward` returned `false` while `parked`, so a reverse
+///    `request` or `frame_at` for `behind_floor - 1` while `Op::BackFill` was
+///    in flight canceled or superseded the active `Op::BackFill`.
+/// 2. `Op::BackFill` had no cancellation check in `seek_walk` and `Behind`
+///    dropped partial/stale walks without recycling planes to `plane_pool`,
+///    so repositioning during a 300-frame GOP walk decoded the full GOP before
+///    yielding the decoder and leaked the walk's plane buffers.
+/// Does not cover codec-internal packet queue flushing inside GStreamer.
+#[test]
+fn reverse_backfill_in_flight_serves_boundary_step_and_cancels_on_reposition() {
+    use std::time::Duration;
+
+    // Part 1: fills_toward while parked and boundary step during in-flight BackFill.
+    let (mock, counts) = Mock::new(40, 10);
+    let (gated, entered_rx, resume_tx) = GateMock::new(mock, 22);
+    let mut decoder = AheadDecoder::new(Box::new(gated));
+
+    assert_eq!(pts(decoder.frame_at(rt(35))), Some(35));
+    assert_eq!(pts(decoder.frame_at(rt(34))), Some(34));
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("Op::BackFill for 20..=29 must enter next_frame(22) on the pool");
+
+    for frame in [33, 32, 31] {
+        assert_eq!(pts(decoder.frame_at(rt(frame))), Some(frame));
+    }
+    {
+        let state = decoder.shared.lock();
+        assert!(state.parked);
+        assert_eq!(state.behind_floor, Some(rt(30)));
+        for (target, ask, expected) in [
+            (29, Ask::Exact, true),
+            (28, Ask::Exact, true),
+            (27, Ask::Exact, false),
+            (30, Ask::Exact, false),
+            (31, Ask::Exact, false),
+            (29, Ask::Nearest, false),
+            (28, Ask::Nearest, false),
+        ] {
+            assert_eq!(
+                state.fills_toward(
+                    Want {
+                        target: rt(target),
+                        ask
+                    },
+                    R30
+                ),
+                expected,
+                "fills_toward({target}, {ask:?})"
+            );
+        }
+    }
+
+    // request(29, false) and request(28, false) must recognize the active
+    // BackFill and leave state.want as None.
+    decoder.request(rt(29), false);
+    decoder.request(rt(28), false);
+    {
+        let state = decoder.shared.lock();
+        assert!(
+            state.want.is_none(),
+            "request within two steps before behind_floor must not queue a competing want"
+        );
+        assert!(!state.stop);
+    }
+
+    let ungate = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(15));
+        let _ = resume_tx.send(());
+    });
+    assert_eq!(pts(decoder.frame_at(rt(29))), Some(29));
+    ungate.join().unwrap();
+    assert!(
+        decoder.behind() >= 9,
+        "frames 20..=28 from the in-flight BackFill must remain in Behind after taking 29"
+    );
+
+    // Part 2: Every reposition mode cancels an in-flight 300-frame BackFill
+    // within a few frames and recycles the partial Behind planes.
+    #[derive(Clone, Copy, Debug)]
+    enum CancelOp {
+        Release,
+        Seek,
+        ForwardJump,
+        ScrubNearest,
+    }
+
+    const PLANE_LEN: usize = 73_728;
+    for op in [
+        CancelOp::Release,
+        CancelOp::Seek,
+        CancelOp::ForwardJump,
+        CancelOp::ScrubNearest,
+    ] {
+        while crate::take_plane_vec(PLANE_LEN).iter().any(|&b| b != 0) {}
+
+        let (mock, counts) = Mock::new(600, 300);
+        let (gated, entered_rx, resume_tx) = GateMock::new(mock.with_planes(PLANE_LEN), 5);
+        let mut decoder = AheadDecoder::new(Box::new(gated));
+
+        assert_eq!(pts(decoder.frame_at(rt(305))), Some(305));
+        assert_eq!(pts(decoder.frame_at(rt(304))), Some(304));
+        entered_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("Op::BackFill for 0..=299 must enter next_frame(5) on the pool");
+        let decoded_at_pause = counts.decoded();
+
+        match op {
+            CancelOp::Release => {
+                decoder.release();
+                let _ = resume_tx.send(());
+                decoder.idle();
+                assert!(
+                    counts.decoded() <= decoded_at_pause + 1,
+                    "{op:?}: BackFill must stop immediately after release, decoded {} vs {decoded_at_pause}",
+                    counts.decoded()
+                );
+            }
+            CancelOp::Seek => {
+                let ungate = std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(15));
+                    let _ = resume_tx.send(());
+                });
+                decoder.seek(rt(590)).unwrap();
+                ungate.join().unwrap();
+                decoder.idle();
+                assert!(
+                    counts.decoded() <= decoded_at_pause + AHEAD_FRAMES + 5,
+                    "{op:?}: BackFill must abort without walking the 300-frame GOP, decoded {} vs {decoded_at_pause}",
+                    counts.decoded()
+                );
+            }
+            CancelOp::ForwardJump => {
+                let ungate = std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(15));
+                    let _ = resume_tx.send(());
+                });
+                assert_eq!(pts(decoder.frame_at(rt(310))), Some(310));
+                ungate.join().unwrap();
+                decoder.idle();
+                assert!(
+                    counts.decoded() <= decoded_at_pause + 11 + AHEAD_FRAMES + 5,
+                    "{op:?}: BackFill must abort on forward jump without walking 300 frames, decoded {} vs {decoded_at_pause}",
+                    counts.decoded()
+                );
+            }
+            CancelOp::ScrubNearest => {
+                let ungate = std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(15));
+                    let _ = resume_tx.send(());
+                });
+                assert_eq!(pts(decoder.frame_at_nearest(rt(310))), Some(300));
+                ungate.join().unwrap();
+                decoder.idle();
+                assert!(
+                    counts.decoded() < decoded_at_pause + 20,
+                    "{op:?}: BackFill must abort on nearest scrub without walking 300 frames, decoded {} vs {decoded_at_pause}",
+                    counts.decoded()
+                );
+            }
+        }
+        decoder.release();
+        let mut saw_backfill_plane = false;
+        for _ in 0..64 {
+            let buf = crate::take_plane_vec(PLANE_LEN);
+            if buf.iter().all(|&b| b == 0) {
+                break;
+            }
+            if (0..=20).any(|pts_val| buf[0] == super::tests::plane_fill(pts_val)) {
+                saw_backfill_plane = true;
+                break;
+            }
+        }
+        assert!(
+            saw_backfill_plane,
+            "{op:?}: planes from frames 0..=5 of the canceled BackFill must return to plane_pool"
+        );
+    }
+
+    // Part 3: A stale or errored BackFill outcome dropped in settle_fill
+    // recycles its Behind planes via Drop.
+    while crate::take_plane_vec(PLANE_LEN).iter().any(|&b| b != 0) {}
+    let (mock, _) = Mock::new(20, 10);
+    let mut state = State::new(Box::new(mock));
+    let mut stale_behind = Behind::default();
+    let mut stale_frame = cpu_frame(77, 0);
+    if let aria_core::FrameData::Cpu(img) = &mut stale_frame.data {
+        img.planes[0].data = vec![super::tests::plane_fill(77); PLANE_LEN];
+    }
+    stale_behind.push(stale_frame);
+    state.settle_fill(
+        Op::BackFill {
+            target: rt(9),
+            floor: rt(10),
+        },
+        state::Outcome {
+            result: Ok(None),
+            behind: stale_behind,
+        },
+    );
+    let recycled = crate::take_plane_vec(PLANE_LEN);
+    assert_eq!(
+        recycled[0],
+        super::tests::plane_fill(77),
+        "stale BackFill outcome dropped by settle_fill must recycle its Behind planes"
+    );
+}

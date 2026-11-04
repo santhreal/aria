@@ -108,7 +108,7 @@ fn every_effect_is_offered_once_as_its_effect_menu_row() {
                 }
                 let menu_row = matches!(
                     row.action,
-                    Offered::Menu(AppMenu::Effect, at) if at == effect.row
+                    Offered::Menu(AppMenu::Effect, at, _) if at == effect.row
                 );
                 if !menu_row || row.source != Some(AppMenu::Effect) {
                     wrong.push(format!(

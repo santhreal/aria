@@ -41,7 +41,7 @@ pub const AHEAD_FRAMES: usize = 25;
 /// returning its first frame.
 const START_FRAMES: usize = AHEAD_FRAMES;
 /// CPU frame bytes a backward request keeps before its target.
-pub const BEHIND_BYTES: usize = 256 << 20;
+pub const BEHIND_BYTES: usize = 384 << 20;
 
 /// GPU surfaces a backward request keeps before its target. Decoder surface
 /// pools are bounded (the Windows shared NV12 pool holds 16), so a held
@@ -294,6 +294,7 @@ impl AheadDecoder {
             state.stop = true;
             state.want = None;
             state.behind_floor = None;
+            state.behind_fill_frames = state::BEHIND_FILL_FRAMES;
             state.reach = Reach::Unknown;
             state.take_held_frames()
         };
@@ -426,6 +427,7 @@ impl VideoDecoder for AheadDecoder {
                     state.discard_answer();
                     state.behind.clear();
                     state.behind_floor = None;
+                    state.behind_fill_frames = state::BEHIND_FILL_FRAMES;
                     state.parked = false;
                     return Some(Ok(Some(frame)));
                 }
@@ -445,6 +447,7 @@ impl VideoDecoder for AheadDecoder {
                 state.discard_answer();
                 state.behind.clear();
                 state.behind_floor = None;
+                state.behind_fill_frames = state::BEHIND_FILL_FRAMES;
                 state.parked = false;
                 self.decode(state, decoder, Op::Next)
             }

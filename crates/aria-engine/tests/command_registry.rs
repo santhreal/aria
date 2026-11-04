@@ -1,8 +1,8 @@
 //! The command registry against the engine that runs it.
 //!
 //! A command is a row in two tables: `aria-commands` describes it (label,
-//! reach, target shape, whether it can break an abutment, what its undo
-//! restores) and `aria-engine` applies it. The compiler already refuses a
+//! reach, target shape, which abutments it can break, what its undo restores)
+//! and `aria-engine` applies it. The compiler already refuses a
 //! variant with no row in either — both dispatchers are generated from the
 //! tables and are the only exhaustive matches over the axis. What the compiler
 //! cannot check is whether a row describes what its handler *does*, which is
@@ -27,22 +27,27 @@
 //!   `junctions: keeps` and a transition survives on an abutment whose clips no
 //!   longer meet — which is what this checks, for every edit, not for the
 //!   twelve someone remembered.
+//! - **Every junction back on undo.** Each fixture holds a second, sync-locked
+//!   lane with its own junction, which a ripple on the addressed lane shifts.
+//!   A row that ripples but says `junctions: breaks` prunes that junction
+//!   without capturing it first, and undo leaves the lane short of it.
 //!
 //! ## What it does not catch
 //!
 //! A retargeted census sample is rejected when its payload does not fit the
-//! fixture (a media id that was never imported, a time outside the clip). Those
-//! cases only prove that a refusal changes nothing, which is worth asserting
-//! but is not the row's behaviour. Undo *correctness* per command lives in
-//! `inverse_edits.rs`; this file only checks that an undo step exists when the
-//! row says it should.
+//! fixture (a media sample against the text fixture, which imports none; a
+//! time outside the clip). Those cases only prove that a refusal changes
+//! nothing, which is worth asserting but is not the row's behaviour. Undo
+//! *correctness* per command lives in `inverse_edits.rs`; this file only
+//! checks that an undo step exists when the row says it should.
 
 use aria_commands::{
     Command, EditCommand, EditOutcome, Inverse, every_edit_command, every_project_command,
 };
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{
-    AudioInsertTarget, ClipId, Generator, Project, Rational, TimeRange, TrackId, TrackKind,
+    AudioInsertTarget, ClipId, Generator, MediaId, Project, Rational, TimeRange, TrackId,
+    TrackKind, Transition,
 };
 
 /// The census builds its samples at this rate, so the fixture has to use it:
@@ -58,58 +63,157 @@ fn engine_at_census_rate() -> Engine {
     .expect("engine")
 }
 
+/// The fixture's own ids a census sample is pointed at.
+#[derive(Clone, Copy)]
+struct Target {
+    clip: ClipId,
+    track: TrackId,
+    /// The imported source, when the fixture holds one. Media ids come from a
+    /// process-wide counter, so a census media id names nothing in a fixture
+    /// and every placement sample would take the unknown-media refusal.
+    media: Option<MediaId>,
+}
+
 /// A session holding a transition on a real abutment, plus the clip and the
-/// lane every census sample is retargeted onto.
+/// lane every census sample is retargeted onto, and a second lane with its own
+/// junction that rides a ripple on the first.
 ///
 /// Text lanes take generated clips and support transitions, so the fixture
 /// needs no media asset and no case can skip itself for want of one.
-fn fixture() -> (Engine, ClipId, TrackId) {
+fn fixture() -> (Engine, Target) {
     let mut engine = engine_at_census_rate();
+    let (track, clip) = lane_with_junction(&mut engine, "T1");
+    // Sync lock is on for a new lane, so T2 rides every ripple on T1.
+    let _rider = lane_with_junction(&mut engine, "T2");
+    let target = Target {
+        clip,
+        track,
+        media: None,
+    };
+    (engine, target)
+}
+
+/// A text lane holding `0..60` abutting `60..90`, with a transition at 60.
+/// Returns the lane and its left clip.
+fn lane_with_junction(engine: &mut Engine, name: &str) -> (TrackId, ClipId) {
     let track = match engine.apply(Command::Edit(EditCommand::AddTrack {
         kind: TrackKind::Text,
-        name: "T1".to_string(),
+        name: name.to_string(),
         index: None,
         pinned: true,
     })) {
         Ok(ApplyOutcome::Edited(EditOutcome::CreatedTrack(id))) => id,
         other => panic!("expected a new lane, got {other:?}"),
     };
-    let left = generated(&mut engine, track, 0);
-    let _right = generated(&mut engine, track, 24);
+    let left = generated(engine, track, 0, 60);
+    let _right = generated(engine, track, 60, 30);
     engine
         .apply(Command::Edit(EditCommand::AddTransition {
             clip: left,
             transition_id: "dip_to_black".to_string(),
         }))
         .expect("a transition on an abutting pair");
-    assert!(
-        engine.project().has_transitions(),
-        "the fixture has to hold a junction for a structural edit to break"
-    );
-    (engine, left, track)
+    (track, left)
 }
 
-fn generated(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
+fn generated(engine: &mut Engine, track: TrackId, start: i64, duration: i64) -> ClipId {
     match engine.apply(Command::Edit(EditCommand::AddGenerated {
         track,
         generator: Generator::text("t"),
-        timeline: TimeRange::at_rate(start, 24, RATE),
+        timeline: TimeRange::at_rate(start, duration, RATE),
     })) {
         Ok(ApplyOutcome::Edited(EditOutcome::Created(id))) => id,
         other => panic!("expected a generated clip, got {other:?}"),
     }
 }
 
-/// Point a census sample at the fixture's real clip and lane.
+/// A media-backed session holding a speed-ramped clip `0..60` abutting a right
+/// neighbor `60..90` with a transition at tick 60, so media-only edits
+/// (`SetClipSpeed`, `SetSpeedCurve`, `RemoveAttributes`, `SlipClip`) run
+/// against a real junction instead of taking the generated-clip refusal path,
+/// and placement edits put the pool's own source at the junction.
+/// V2 holds its own junction at 60 and rides a ripple on V1.
+fn media_fixture() -> (Engine, Target) {
+    let mut project = Project::new("registry_media", RATE);
+    let _m1 = project.add_media(aria_models::MediaSource::new(
+        "/media/a.mp4",
+        1920,
+        1080,
+        RATE,
+        300,
+        true,
+    ));
+    let m2 = project.add_media(aria_models::MediaSource::new(
+        "/media/b.mp4",
+        1920,
+        1080,
+        RATE,
+        300,
+        true,
+    ));
+    let track = project.add_track(TrackKind::Video, "V1");
+    let track2 = project.add_track(TrackKind::Video, "V2");
+    let left = project
+        .add_clip(
+            track,
+            m2,
+            TimeRange::at_rate(15, 30, RATE),
+            aria_models::RationalTime::new(0, RATE),
+        )
+        .expect("left clip");
+    project
+        .set_clip_speed_curve(left, Some(aria_models::Param::Constant(0.5)))
+        .expect("half-speed curve stretches 30 source ticks to 0..60");
+    let _right = project
+        .add_clip(
+            track,
+            m2,
+            TimeRange::at_rate(0, 30, RATE),
+            aria_models::RationalTime::new(60, RATE),
+        )
+        .expect("right clip");
+    project
+        .add_transition(left, "dip_to_black")
+        .expect("transition on media abutment");
+    let rider = project
+        .add_clip(
+            track2,
+            m2,
+            TimeRange::at_rate(0, 60, RATE),
+            aria_models::RationalTime::new(0, RATE),
+        )
+        .expect("rider left clip");
+    project
+        .add_clip(
+            track2,
+            m2,
+            TimeRange::at_rate(60, 30, RATE),
+            aria_models::RationalTime::new(60, RATE),
+        )
+        .expect("rider right clip");
+    project
+        .add_transition(rider, "dip_to_black")
+        .expect("transition on the rider abutment");
+    let engine = Engine::with_project(EngineConfig { undo_limit: 64 }, project).expect("engine");
+    let target = Target {
+        clip: left,
+        track,
+        media: Some(m2),
+    };
+    (engine, target)
+}
+
+/// Point a census sample at the fixture's real clip, lane and media.
 ///
 /// The census fabricates ids so it can name every command without a session.
 /// Dispatched as-is, every id-bearing command takes the unknown-entity path and
-/// no row's behaviour is ever reached. The clip and lane fields are named the
-/// same way on the wire by every command that has them, and an insert chain's
-/// `target` holds its clip or lane under one key, so the rewrite is one rule
-/// rather than a per-variant table: a new command is retargeted by the same
-/// rule, with no row to add here.
-fn retarget(command: &EditCommand, clip: ClipId, track: TrackId) -> EditCommand {
+/// no row's behaviour is ever reached. The clip, lane and media fields are
+/// named the same way on the wire by every command that has them, and an
+/// insert chain's `target` holds its clip or lane under one key, so the rewrite
+/// is one rule rather than a per-variant table: a new command is retargeted by
+/// the same rule, with no row to add here.
+fn retarget(command: &EditCommand, target: Target) -> EditCommand {
+    let Target { clip, track, media } = target;
     let mut wire = serde_json::to_value(command).expect("a command serializes");
     let fields = wire
         .as_object_mut()
@@ -119,6 +223,10 @@ fn retarget(command: &EditCommand, clip: ClipId, track: TrackId) -> EditCommand 
             "clip" => serde_json::to_value(clip),
             "clips" => serde_json::to_value([clip]),
             "track" | "to_track" => serde_json::to_value(track),
+            "media" => match media {
+                Some(media) => serde_json::to_value(media),
+                None => continue,
+            },
             "target" => match value.as_object().and_then(|chain| chain.keys().next()) {
                 Some(kind) if kind == "Clip" => serde_json::to_value(AudioInsertTarget::Clip(clip)),
                 Some(kind) if kind == "Track" => {
@@ -141,6 +249,17 @@ fn retarget(command: &EditCommand, clip: ClipId, track: TrackId) -> EditCommand 
 fn holds_a_dead_transition(project: &Project) -> bool {
     let mut probe = project.clone();
     probe.prune_dead_transitions()
+}
+
+/// Every lane's transitions, by lane id: what an undo has to put back.
+fn junctions(project: &Project) -> Vec<(TrackId, Vec<Transition>)> {
+    let mut lanes: Vec<_> = project
+        .timeline()
+        .tracks_ordered()
+        .map(|track| (track.id, track.transitions().to_vec()))
+        .collect();
+    lanes.sort_unstable_by_key(|(id, _)| *id);
+    lanes
 }
 
 fn edited(outcome: &ApplyOutcome, id: &str) -> EditOutcome {
@@ -214,49 +333,79 @@ fn names_the_entity_it_claims(engine: &Engine, outcome: EditOutcome) -> bool {
 #[test]
 fn every_edit_does_what_its_row_says_or_nothing() {
     for sample in every_edit_command() {
-        let (mut engine, clip, track) = fixture();
-        let command = retarget(&sample, clip, track);
-        // `spec` is `&'static`, so it outlives the command that dispatch eats.
-        let spec = command.spec();
-        let before = engine.history_depth();
+        for (kind, (mut engine, target)) in [("text", fixture()), ("media", media_fixture())] {
+            let command = retarget(&sample, target);
+            // `spec` is `&'static`, so it outlives the command that dispatch eats.
+            let spec = command.spec();
+            let before = engine.history_depth();
+            let junctions_before = junctions(engine.project());
 
-        match engine.apply(Command::Edit(command)) {
-            Ok(outcome) => {
-                assert_eq!(
-                    engine.history_depth(),
-                    before + 1,
-                    "{} applied but recorded no undo step, though its row says undo {}",
-                    spec.id,
-                    spec.inverse.reason(),
-                );
-                assert_eq!(
-                    newest_label(&engine),
-                    spec.label,
-                    "{} recorded a history step under another row's name",
-                    spec.id,
-                );
-                let outcome = edited(&outcome, spec.id);
-                assert!(
-                    names_the_entity_it_claims(&engine, outcome),
-                    "{} reported {outcome:?}, which is not what the session holds: \
-                     is it wired to another row's handler?",
-                    spec.id,
-                );
-                assert!(
-                    !holds_a_dead_transition(engine.project()),
-                    "{} left a transition on a broken abutment; its row says \
-                     junctions: {}",
-                    spec.id,
-                    if spec.structural { "breaks" } else { "keeps" },
-                );
-            }
-            Err(_) => {
-                assert_eq!(
-                    engine.history_depth(),
-                    before,
-                    "{} was refused but left a step on the undo stack",
-                    spec.id,
-                );
+            match engine.apply(Command::Edit(command)) {
+                Ok(outcome) => {
+                    assert_eq!(
+                        engine.history_depth(),
+                        before + 1,
+                        "{} ({kind}) applied but recorded no undo step, though its row says undo {}",
+                        spec.id,
+                        spec.inverse.reason(),
+                    );
+                    assert_eq!(
+                        newest_label(&engine),
+                        spec.label,
+                        "{} ({kind}) recorded a history step under another row's name",
+                        spec.id,
+                    );
+                    let outcome = edited(&outcome, spec.id);
+                    assert!(
+                        names_the_entity_it_claims(&engine, outcome),
+                        "{} ({kind}) reported {outcome:?}, which is not what the session holds: \
+                         is it wired to another row's handler?",
+                        spec.id,
+                    );
+                    assert!(
+                        !holds_a_dead_transition(engine.project()),
+                        "{} ({kind}) left a transition on a broken abutment; its row says \
+                         junctions: {:?}",
+                        spec.id,
+                        spec.junctions,
+                    );
+                    assert!(
+                        engine.undo(),
+                        "{} ({kind}) recorded a history step that could not be undone",
+                        spec.id,
+                    );
+                    assert!(
+                        !holds_a_dead_transition(engine.project()),
+                        "{} ({kind}) left a dead transition after undo",
+                        spec.id,
+                    );
+                    assert_eq!(
+                        junctions(engine.project()),
+                        junctions_before,
+                        "{} ({kind}) undo did not put back every lane's junctions; its row says \
+                         junctions: {:?}",
+                        spec.id,
+                        spec.junctions,
+                    );
+                    assert!(
+                        engine.redo(),
+                        "{} ({kind}) undone step could not be redone",
+                        spec.id,
+                    );
+                    assert!(
+                        !holds_a_dead_transition(engine.project()),
+                        "{} ({kind}) left a dead transition after redo",
+                        spec.id,
+                    );
+                }
+                Err(_) => {
+                    assert_eq!(
+                        engine.history_depth(),
+                        before,
+                        "{} ({kind}) was refused but left a step on the undo stack",
+                        spec.id,
+                    );
+                }
             }
         }
     }
@@ -307,13 +456,13 @@ fn every_project_action_records_the_undo_its_row_declares() {
 
 /// A session editing *inside* a sequence, with content left on the root.
 ///
-/// Returns the engine, the clip and lane every sample is retargeted onto (both
-/// inside the open sequence), and the root timeline as it stood before any
-/// sample ran.
+/// Returns the engine, the clip, lane and media every sample is retargeted onto
+/// (the clip and lane inside the open sequence), and the root timeline as it
+/// stood before any sample ran.
 ///
 /// The root content is a media clip on a video lane, because a nest is a
 /// sequence clip and only a lane that takes media accepts one.
-fn fixture_inside_a_sequence() -> (Engine, ClipId, TrackId, serde_json::Value) {
+fn fixture_inside_a_sequence() -> (Engine, Target, serde_json::Value) {
     let mut project = Project::new("nested", RATE);
     let media = project.add_media(aria_models::MediaSource::new(
         "/media/nested.mp4",
@@ -361,9 +510,14 @@ fn fixture_inside_a_sequence() -> (Engine, ClipId, TrackId, serde_json::Value) {
         Ok(ApplyOutcome::Edited(EditOutcome::CreatedTrack(id))) => id,
         other => panic!("expected a new lane, got {other:?}"),
     };
-    let clip = generated(&mut engine, lane, 0);
+    let clip = generated(&mut engine, lane, 0, 24);
     let root = serde_json::to_value(engine.project().root_timeline()).expect("root serializes");
-    (engine, clip, lane, root)
+    let target = Target {
+        clip,
+        track: lane,
+        media: Some(media),
+    };
+    (engine, target, root)
 }
 
 /// A lane added while a sequence is open belongs to that sequence, and holds
@@ -375,7 +529,13 @@ fn fixture_inside_a_sequence() -> (Engine, ClipId, TrackId, serde_json::Value) {
 /// Half of nested-sequence editing was unreachable.
 #[test]
 fn a_lane_added_inside_a_sequence_holds_the_clips_placed_on_it() {
-    let (engine, clip, lane, _root) = fixture_inside_a_sequence();
+    let (
+        engine,
+        Target {
+            clip, track: lane, ..
+        },
+        _root,
+    ) = fixture_inside_a_sequence();
     let sequence = engine
         .active_sequence()
         .expect("the fixture leaves the sequence open");
@@ -410,8 +570,8 @@ fn a_lane_added_inside_a_sequence_holds_the_clips_placed_on_it() {
 #[test]
 fn no_edit_touches_the_root_timeline_while_a_sequence_is_open() {
     for sample in every_edit_command() {
-        let (mut engine, clip, lane, root_before) = fixture_inside_a_sequence();
-        let command = retarget(&sample, clip, lane);
+        let (mut engine, target, root_before) = fixture_inside_a_sequence();
+        let command = retarget(&sample, target);
         let label = format!("{command:?}");
         let _ = engine.apply(Command::Edit(command));
         let root_after =

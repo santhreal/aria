@@ -1,5 +1,6 @@
 //! Every dialog card fits the window it is drawn in, every dialog title is in
-//! Title Case, and every line a dialog draws starts in sentence case.
+//! Title Case, every line a dialog draws starts in sentence case, and the
+//! Audio Gain dialog draws each line once in every mode.
 //!
 //! The class closed here: a card as tall as its body. A body taller than the
 //! window put the title, the header controls and the action row outside the
@@ -20,6 +21,7 @@ use std::collections::HashSet;
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
 use crate::app::DialogKind;
+use crate::app::clip_ops::AudioGainMode;
 use crate::app::status::lowercase_start;
 use crate::commands::casing_tests::check_title_case;
 use crate::plugins::overlay_host::host_of;
@@ -132,35 +134,18 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
             select_a_still(state);
         })
     });
-    visual.update(|window, _| window.refresh());
-    visual.run_until_parked();
+    let behind = runs_behind(visual);
     let project = visual.read(|app| project_text(state.read(app)));
-    let behind: HashSet<(String, u32, u32)> =
-        visual.update(|window, _| window.rendered_text_runs().iter().map(placed).collect());
     let mut read = Vec::new();
     let mut offenders = Vec::new();
     for kind in registered(&state, visual) {
         open(&state, visual, kind);
         visual.update(|window, _| window.refresh());
         visual.run_until_parked();
-        let Some(card) = visual.debug_bounds("dialog-card") else {
+        let Some(lines) = card_lines(visual, &behind) else {
             offenders.push(format!("{kind:?} drew no dialog-card"));
             continue;
         };
-        // The content scrolls, and a run is recorded unclipped, so a line below
-        // the card's edge is still the card's.
-        let lines: Vec<String> = visual.update(|window, _| {
-            window
-                .rendered_text_runs()
-                .iter()
-                .filter(|run| {
-                    let center = run.bounds.center();
-                    center.x >= card.left() && center.x <= card.right() && center.y >= card.top()
-                })
-                .filter(|run| !behind.contains(&placed(run)))
-                .map(|run| run.text.to_string())
-                .collect()
-        });
         if lines.is_empty() {
             offenders.push(format!("{kind:?} drew no line"));
         }
@@ -176,6 +161,84 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
     }
     assert!(read.len() >= 7, "the walk read only {read:?}");
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// The Audio Gain dialog draws each line once, in every mode.
+///
+/// The class closed here: a dialog row that repeats a row above it. The field
+/// under the mode chips was labelled with the selected chip's label, so `Set
+/// Gain to` was drawn twice, and a row of step buttons drew `-3 dB`, `-1 dB`
+/// and `+3 dB` under presets with the same labels, where a preset set the gain
+/// to the value and a step moved it by the value. Every mode in
+/// [`AudioGainMode::ALL`] is selected in turn, and every run inside the card is
+/// read from the frame.
+///
+/// Not covered: the other dialogs, where a column repeats its rows' labels, as
+/// the In and Out columns of Keyframe Velocity do.
+#[gpui::test]
+fn the_audio_gain_dialog_draws_each_line_once_in_every_mode(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "audio-gain-lines");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let behind = runs_behind(visual);
+    open(&state, visual, DialogKind::AudioGain);
+    let mut offenders = Vec::new();
+    for mode in AudioGainMode::ALL {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                state.set_audio_gain_mode(mode);
+                cx.notify();
+            })
+        });
+        visual.update(|window, _| window.refresh());
+        visual.run_until_parked();
+        let Some(lines) = card_lines(visual, &behind) else {
+            panic!("{mode:?}: the Audio Gain dialog drew no dialog-card");
+        };
+        assert!(
+            lines.iter().any(|line| line == mode.label()),
+            "{mode:?}: the walk read no `{}` chip in {lines:?}",
+            mode.label()
+        );
+        let mut seen = HashSet::new();
+        for line in &lines {
+            if !seen.insert(line) {
+                offenders.push(format!("{mode:?}: {line:?} is drawn twice"));
+            }
+        }
+    }
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// Every run on a frame drawn with no dialog open, by text and place.
+fn runs_behind(visual: &mut VisualTestContext) -> HashSet<(String, u32, u32)> {
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    visual.update(|window, _| window.rendered_text_runs().iter().map(placed).collect())
+}
+
+/// The text of every run inside the card on the frame just drawn, less the
+/// runs in `behind`, which the editor behind the card drew at the same place,
+/// or `None` when no card was drawn.
+fn card_lines(
+    visual: &mut VisualTestContext,
+    behind: &HashSet<(String, u32, u32)>,
+) -> Option<Vec<String>> {
+    let card = visual.debug_bounds("dialog-card")?;
+    // The content scrolls, and a run is recorded unclipped, so a line below
+    // the card's edge is still the card's.
+    Some(visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .filter(|run| {
+                let center = run.bounds.center();
+                center.x >= card.left() && center.x <= card.right() && center.y >= card.top()
+            })
+            .filter(|run| !behind.contains(&placed(run)))
+            .map(|run| run.text.to_string())
+            .collect()
+    }))
 }
 
 /// A run's text and where it was drawn.

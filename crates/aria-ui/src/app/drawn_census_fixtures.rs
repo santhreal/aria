@@ -191,6 +191,20 @@ pub(super) fn parented_pair() -> (AppState, ClipId) {
     (state, lower)
 }
 
+/// [`with_video`] with its clip playing through a time remap and disabled, so
+/// the rows whose check marks follow those facts draw both marks unlike every
+/// other state.
+pub(super) fn disabled_remap() -> (AppState, ClipId) {
+    let (mut state, clip) = with_video();
+    state.toggle_time_remap().expect("the video takes a remap");
+    state.toggle_enabled_selected().expect("the video disables");
+    assert!(
+        state.selection_is_remapped() && !state.selection_is_enabled(),
+        "the video is remapped and disabled"
+    );
+    (state, clip)
+}
+
 /// Key `param` of the selected clip at `tick` frames into the clip to `value`,
 /// linear, with `tangents` shaping a motion path through the keyframe.
 pub(super) fn key_point(

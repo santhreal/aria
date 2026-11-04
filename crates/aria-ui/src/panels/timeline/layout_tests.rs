@@ -647,15 +647,14 @@ fn a_ruler_label_reads_clear_of_every_marker(cx: &mut gpui::TestAppContext) {
             state.add_marker_at_playhead().expect("add a marker");
         }
         let first = state.store.sequence.markers[0].clone();
-        let second = i64::from(state.store.sequence.frame_rate.num)
-            / i64::from(state.store.sequence.frame_rate.den).max(1);
+        let second = state.one_second();
         state
             .edit_marker_full(
                 first.id,
                 first.name.to_string(),
                 first.comment.to_string(),
                 first.color,
-                second.max(1),
+                second,
                 first.kind,
             )
             .expect("turn the first marker into a range");

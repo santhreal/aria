@@ -30,7 +30,7 @@ outline and no colored fill.
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
 | `border` | `#050506` | `#f1f1f1` | Splitters and frame edges |
-| `border_strong` | white 14 % | black 17 % | Control outlines |
+| `border_strong` | white 14 % | black 17 % | Control outlines, and the rail of a slider, a fader or a pan |
 | `hairline` | white 6 % | black 6 % | Row separators |
 
 ## Text

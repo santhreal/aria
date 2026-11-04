@@ -17,7 +17,7 @@ use super::AppState;
 use super::settings_form::SettingsSection;
 use crate::keys::keyboard_image::{CommandKind, Modifier, Mods};
 use crate::keys::keymap_sets::{self, KeySet, KeySetSkip, SkipReason};
-use crate::keys::{self, BindingRow, Chord, KeyOverrideError};
+use crate::keys::{BindingRow, Chord, KeyOverrideError};
 
 /// The Keyboard Shortcuts section's own state. Session state: none of it is
 /// saved.
@@ -79,23 +79,20 @@ impl AppState {
     /// lists the bindings whose name or chord contains it, without regard to
     /// case, so `razor` and `ctrl+k` both find a row.
     pub fn listed_binding_rows(&self) -> Option<KeyListing> {
-        let host = self.key_host();
-        let rows = host.as_ref().map(|host| host.rows()).unwrap_or_default();
-        let named = rows.into_iter().map(|row| {
-            let label = host.as_ref().map_or_else(
-                || keys::binding_label(row.binding.id),
-                |host| host.label_of(row.binding.id),
-            );
-            (row, label)
-        });
-        if self.settings_section_visible(SettingsSection::KeyboardShortcuts.title()) {
+        let whole = self.settings_section_visible(SettingsSection::KeyboardShortcuts.title());
+        if !whole && self.settings_filter_names_a_section() {
+            return None;
+        }
+        let names = self.binding_names();
+        let named = self
+            .binding_rows()
+            .into_iter()
+            .map(|row| (row, names.of(row.binding.id)));
+        if whole {
             return Some(KeyListing {
                 rows: named.collect(),
-                whole: true,
+                whole,
             });
-        }
-        if self.settings_filter_names_a_section() {
-            return None;
         }
         let filter = self.settings_form.filter.trim().to_lowercase();
         let rows: Vec<(BindingRow, String)> = named
@@ -113,6 +110,7 @@ impl AppState {
     /// down, for its tooltip: the chord, then each binding on it and its kind.
     pub fn key_cap_tip(&self, key: &'static str) -> String {
         let chord = self.key_form.image.chord(key);
+        let names = self.binding_names();
         let held: Vec<String> = self
             .binding_rows()
             .into_iter()
@@ -120,7 +118,7 @@ impl AppState {
             .map(|row| {
                 format!(
                     "{} ({})",
-                    self.binding_name(row.binding.id),
+                    names.of(row.binding.id),
                     CommandKind::of(&row.binding).label()
                 )
             })

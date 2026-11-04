@@ -75,6 +75,9 @@ pub enum ModelError {
     #[error("the parent clip {parent} does not overlap clip {child} in time")]
     ParentApart { child: ClipId, parent: ClipId },
 
+    #[error("clip {0} is not on a picture lane, so it has no placement to parent")]
+    ParentOffPicture(ClipId),
+
     #[error("the parent clip {0} is scaled to zero, so its child cannot keep its place")]
     ParentFlattened(ClipId),
 

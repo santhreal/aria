@@ -10,11 +10,39 @@
 //! override that names neither is dropped with a reason instead of quietly
 //! rebinding nothing.
 
+use std::sync::Arc;
+
 use aria_core::count::counted;
+use gpui::SharedString;
 
 use super::AppState;
+use super::palette::offered_label;
+use crate::chrome::menu_items::items_for;
 use crate::keys::keymap_sets::KeySet;
-use crate::keys::{self, BindingRow, Chord, KeyOverrideError};
+use crate::keys::{self, BindingRow, Chord, KeyHost, KeyOverrideError};
+use crate::types::AppMenu;
+
+/// What each binding is called, read once for a surface that names many.
+#[derive(Debug)]
+pub(crate) struct BindingNames {
+    host: Option<Arc<KeyHost>>,
+    /// `(binding id, name)` for every menu row that draws a chord, sorted by
+    /// binding id.
+    menu: Vec<(&'static str, SharedString)>,
+}
+
+impl BindingNames {
+    /// What `id` is called, as [`AppState::binding_name`] states it.
+    pub(crate) fn of(&self, id: &str) -> String {
+        match self.menu.binary_search_by_key(&id, |&(key, _)| key) {
+            Ok(at) => self.menu[at].1.to_string(),
+            Err(_) => self
+                .host
+                .as_ref()
+                .map_or_else(|| keys::binding_label(id), |host| host.label_of(id)),
+        }
+    }
+}
 
 impl AppState {
     /// Every binding with the chord it answers to now, in registration order.
@@ -30,17 +58,38 @@ impl AppState {
     /// is mounted. Every reader of the registry in the window goes through
     /// this, so a plugin key that registered since the last read is listed and
     /// dispatched.
-    pub(crate) fn key_host(&self) -> Option<std::sync::Arc<keys::KeyHost>> {
+    pub(crate) fn key_host(&self) -> Option<Arc<KeyHost>> {
         let host = keys::host_of(&self.ctx)?;
         host.sync_plugin_keys(&self.ctx);
         Some(host)
     }
 
-    /// What a binding is called: a plugin command's title, or a shipped id read
-    /// as words.
+    /// What a binding is called: the menu row that draws its chord, as the
+    /// palette offers it, so one command reads the same in the bar, the
+    /// palette and Keyboard Shortcuts; else a plugin command's title; else the
+    /// shipped id read as words.
     pub fn binding_name(&self, id: &str) -> String {
-        self.key_host()
-            .map_or_else(|| keys::binding_label(id), |host| host.label_of(id))
+        self.binding_names().of(id)
+    }
+
+    /// The names of every binding, for a surface that names many at once.
+    ///
+    /// Only the shipped menu rows draw a chord, so the plugin rows the bar adds
+    /// are not read.
+    pub(crate) fn binding_names(&self) -> BindingNames {
+        let mut menu = Vec::new();
+        for kind in AppMenu::ALL {
+            for item in items_for(kind, self).iter() {
+                if let Some(key) = item.key {
+                    menu.push((key, offered_label(item)));
+                }
+            }
+        }
+        menu.sort_unstable_by_key(|&(key, _)| key);
+        BindingNames {
+            host: self.key_host(),
+            menu,
+        }
     }
 
     /// Bindings a plugin asked for and did not get, in the order they were

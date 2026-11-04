@@ -194,12 +194,12 @@ pub enum KeyOverrideError {
     Taken(KeyConflict),
 }
 
-/// How a binding reads in Settings: `key-shuttle-back` becomes "Shuttle back".
+/// A shipped id read as words: `key-shuttle-back` becomes "Shuttle back".
 ///
 /// Derived rather than a fifth column on [`Binding`]: the id is the only name
 /// the registry holds, and a label table would be a second list to keep in step.
-/// A plugin's binding reads as its command's title, through
-/// [`KeyHost::label_of`].
+/// A binding a menu row draws reads as that row, and a plugin's binding as its
+/// command's title, through [`crate::app::AppState::binding_name`].
 pub fn binding_label(id: &str) -> String {
     let stem = id.strip_prefix("key-").unwrap_or(id);
     let mut out = String::with_capacity(stem.len());

@@ -345,8 +345,8 @@ fn chevron_down() -> crate::icons::Icon {
 /// How wide a [`switch`]'s track is.
 pub const SWITCH_WIDTH: f32 = 28.0;
 
-/// How tall a [`switch`]'s track is. The knob is a circle this tall less
-/// [`SWITCH_KNOB_INSET`] on each side.
+/// How tall a [`switch`]'s track is. The knob is a square this tall less
+/// [`SWITCH_KNOB_INSET`] on each side, with a control's corner radius.
 pub const SWITCH_HEIGHT: f32 = 16.0;
 
 /// How far a [`switch`]'s knob stands inside its track.

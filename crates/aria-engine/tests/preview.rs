@@ -538,7 +538,8 @@ fn preview_transparency_clears_the_background_only_in_the_viewer_entries() {
 /// timeline asks for the exact frame only of a cell marked snapped. A cell
 /// snapped between sync frames but marked exact kept the wrong frame on
 /// screen; one that landed on its sync frame but was marked snapped rendered
-/// twice. Not covered: a snap that rolls forward onto its time.
+/// twice. Not covered: a snap that rolls forward onto its time, or one that
+/// frames a decoder already holds answer exactly.
 #[test]
 fn a_cell_is_marked_snapped_only_when_it_shows_a_frame_before_its_time() {
     use aria_engine::CellRenderer;
@@ -554,17 +555,18 @@ fn a_cell_is_marked_snapped_only_when_it_shows_a_frame_before_its_time() {
     let track = common::add_track(&mut engine, TrackKind::Video, "V1");
     common::add_media_clip(&mut engine, track, media, tr(0, 72), rt(0));
     let source = engine.cell_source();
-    let mut cells = CellRenderer::default();
-    // The fixture's sync frames are 12 frames apart. The first snap finds no
-    // decoder and each later one lands behind the last frame decoded, so
-    // every snap seeks rather than rolls forward.
+    // The fixture's sync frames are 12 frames apart. Each cell renders on a
+    // renderer of its own, so every snap opens a decoder and seeks. On a shared
+    // one, a frame decoded ahead, or a GOP walked behind, for an earlier cell
+    // can answer a later snap exactly, and whether it has yet is up to the
+    // decode pool's timing.
     for (tick, policy, snapped) in [
         (30, SeekPolicy::NearestSync, true),
         (24, SeekPolicy::NearestSync, false),
         (17, SeekPolicy::Exact, false),
         (5, SeekPolicy::NearestSync, true),
     ] {
-        let frame = cells
+        let frame = CellRenderer::default()
             .render_fit(&source, track, rt(tick), 160, 90, policy)
             .unwrap_or_else(|error| panic!("the cell at {tick} under {policy:?}: {error}"));
         assert_eq!(

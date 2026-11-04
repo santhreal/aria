@@ -18,10 +18,10 @@
 //! head, and the feet under them fill the frame. Every fader so starts and
 //! ends level with its neighbours' and runs as tall as the frame allows.
 //!
-//! Motion is the shared vocabulary. The panel fades in on the pane switch and
-//! every chip's background is `motion::hover_blend` on its own key, so the fade
-//! is per chip. A fader's thumb follows the pointer with no easing: on a drag
-//! an animation is lag, not polish.
+//! Motion is the shared vocabulary. The panel fades in on the pane switch, and
+//! every chip is the app's [`crate::components::chip`], which fades on its own
+//! key, so the fade is per chip. A fader's thumb follows the pointer with no
+//! easing: on a drag an animation is lag, not polish.
 //!
 //! A pan and a fader draw the value track every bounded control draws
 //! ([`crate::components::travel`]): a rail, the stretch the value covers and a
@@ -31,8 +31,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::components::Wraps as _;
 use crate::components::travel::{self, Gauge, Ink, Run};
+use crate::components::{ChipSize, Wraps as _};
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, canvas, div, px, relative,
@@ -348,15 +348,11 @@ fn channel(
         cx,
     ))
     .child(label_row(theme, "Inserts"))
-    .child(insert_chain::render(
+    .child(inserts(
         theme,
-        Chain {
-            target: AudioInsertTarget::Track(track),
-            inserts: &strip.inserts,
-            keys: &strip.keys,
-            expanded: false,
-            columns: Columns::Free,
-        },
+        AudioInsertTarget::Track(track),
+        &strip.inserts,
+        &strip.keys,
         state,
         cx,
     ))
@@ -414,15 +410,11 @@ fn master(
         )
         .child(automation_row(theme, None, 0, chain.automation, cx))
         .child(label_row(theme, "Inserts"))
-        .child(insert_chain::render(
+        .child(inserts(
             theme,
-            Chain {
-                target: AudioInsertTarget::Master,
-                inserts: &chain.inserts,
-                keys: &chain.keys,
-                expanded: false,
-                columns: Columns::Free,
-            },
+            AudioInsertTarget::Master,
+            &chain.inserts,
+            &chain.keys,
             state,
             cx,
         ))
@@ -443,6 +435,35 @@ fn master(
     Strip { head, foot }
 }
 
+/// A strip's insert chain. The chain lays its rows out as the Effect Controls
+/// rows it shares: each row's box at the row's edge and its labels and
+/// controls [`Theme::SPACE_XS`] in. Standing that far out on each side puts
+/// them in the strip's column, where its own labels and chips start.
+fn inserts(
+    theme: &Theme,
+    target: AudioInsertTarget,
+    inserts: &[crate::types::UiInsert],
+    keys: &[crate::types::UiKeyChoice],
+    state: &Entity<AppState>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::AnyElement {
+    div()
+        .mx(px(-Theme::SPACE_XS))
+        .child(insert_chain::render(
+            theme,
+            Chain {
+                target,
+                inserts,
+                keys,
+                expanded: false,
+                columns: Columns::Free,
+            },
+            state,
+            cx,
+        ))
+        .into_any_element()
+}
+
 /// Where this lane goes: the master, or a bus. One chip each, the live one lit.
 fn outputs(
     theme: &Theme,
@@ -457,7 +478,7 @@ fn outputs(
             let to = target.to.map(TrackId::from_raw);
             let label = target.name.to_string();
             let live = target.current;
-            chip(
+            strip_chip(
                 theme,
                 motion::MotionKey::new("mixer-out", strip.track)
                     .with(&label)
@@ -528,7 +549,7 @@ fn sends(
                 (Some(level), true) => format!("{} pre {level}", target.name),
                 (Some(level), false) => format!("{} {level}", target.name),
             };
-            chip(
+            strip_chip(
                 theme,
                 motion::MotionKey::new("mixer-send", strip.track)
                     .with(target.to)
@@ -568,7 +589,7 @@ fn mute_button(
     muted: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    chip(
+    strip_chip(
         theme,
         motion::MotionKey::new("mixer-mute", raw_id).into(),
         "M".to_string(),
@@ -590,7 +611,7 @@ fn solo_button(
     solo: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    chip(
+    strip_chip(
         theme,
         motion::MotionKey::new("mixer-solo", raw_id).into(),
         "S".to_string(),
@@ -617,7 +638,7 @@ fn automation_row(
         .copied()
         .map(|mode| {
             let text = mode.label().to_string();
-            chip(
+            strip_chip(
                 theme,
                 motion::MotionKey::new("mixer-auto", raw_id)
                     .with(mode.label())
@@ -814,14 +835,12 @@ fn drag_track(
     horizontal: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let ink = Ink {
-        rail: theme.border,
-        lit: if audible {
-            theme.accent
-        } else {
-            theme.text_muted
-        },
+    let lit = if audible {
+        theme.accent
+    } else {
+        theme.text_muted
     };
+    let ink = Ink::new(theme, lit, 0.0);
     let fill = move || format!("{name}-{raw_id}-fill");
     let (run, cursor) = if horizontal {
         (Run::Across, CursorStyle::ResizeLeftRight)
@@ -892,9 +911,11 @@ fn label_row(theme: &Theme, text: &'static str) -> gpui::AnyElement {
         .into_any_element()
 }
 
-/// One clickable chip. `live` lights it; `alt` marks the second state a
-/// three-state chip can be in, which is a pre-fader send.
-fn chip(
+/// One clickable chip, a [`crate::components::chip`] lit while `live`. `alt`
+/// marks a lit chip whose state cuts or overwrites sound: a mute, an
+/// automation mode that writes the envelope, or a pre-fader send. Its label
+/// stands in the warning tone.
+fn strip_chip(
     theme: &Theme,
     id: motion::ControlId,
     text: String,
@@ -903,28 +924,8 @@ fn chip(
     click: impl Fn(&mut AppState) + 'static,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let key = id.motion("mixer.chip");
-    let resting = match (live, alt) {
-        (false, _) => theme.input_bg,
-        (true, false) => theme.selection,
-        (true, true) => theme.warning_muted,
-    };
-    div()
-        .id(id.element("mixer.chip"))
-        .px(px(Theme::SPACE_XS))
-        .py(px(1.))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(
-            key,
-            resting,
-            theme.surface_raised_hover,
-        ))
-        .text_size(Theme::TEXT_UI)
-        .text_color(if live { theme.text } else { theme.text_muted })
-        .cursor(CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(motion::hover_listener(key))
-        .child(SharedString::from(text))
+    crate::components::chip(id, text, live, ChipSize::Compact, theme)
+        .when(live && alt, |el| el.text_color(theme.warning))
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -942,3 +943,7 @@ mod tests;
 #[cfg(test)]
 #[path = "mixer_travel_tests.rs"]
 mod travel_tests;
+
+#[cfg(test)]
+#[path = "mixer_head_tests.rs"]
+mod head_tests;

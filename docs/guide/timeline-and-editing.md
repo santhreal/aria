@@ -300,9 +300,10 @@ view.
 A label color groups clips that belong together. The sixteen labels are
 Violet, Iris, Caribbean, Lavender, Cerulean, Forest, Rose, Mango, Purple, Blue,
 Teal, Magenta, Tan, Green, Brown, and Yellow. Right-click a clip: the menu
-holds their swatches and an `×`. **Edit > Label** lists the same sixteen and
-**None**. Clicking a swatch labels every selected clip, `×` clears the label,
-and each is one undo entry per clip.
+holds their swatches and a clear swatch, an outline with a cross in it.
+**Edit > Label** lists the same sixteen and **None**. Clicking a swatch labels
+every selected clip, the clear swatch clears the label, and each is one undo
+entry per clip.
 
 A clip bar is filled with its label color. A clip with no label takes its
 kind's label: Teal for video, Forest for audio, Mango for generators, titles
@@ -334,8 +335,11 @@ to the first row whenever the query changes.
 The palette offers every registered command and every row the menus would draw,
 including rows contributed by a plugin. A row that came from a menu states that
 menu on its right. A row a menu hides because it cannot run now is not offered by
-name either. With nothing typed, the menu rows come first, in menu bar order, and
-the commands no menu holds follow them.
+name either. A row the menu draws disabled is drawn faint, as are a plugin
+command whose enablement condition does not hold and a clip type that cannot be
+placed; choosing a faint row reports why it cannot run. With nothing typed, the
+menu rows come first, in menu bar order, and the commands no menu holds follow
+them.
 
 Filtering ranks in four tiers: labels starting with what you typed, then labels
 with a word starting with it, then labels containing it, then labels whose
@@ -359,7 +363,7 @@ Cut a short clip from a longer recording with In/Out and ripple delete:
 3. Move the playhead to the end of the keep range and press <kbd>O</kbd> (`key-mark-out`) or click [`program-mark-out`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark Out**). The work area bar highlights the span between In and Out on the timeline ruler.
 4. Press <kbd>Ctrl+K</kbd> (`key-split`) at the Out point to cut the tail off the keep clip, then select the unwanted tail clip on `V1`. The tail clip highlights with a white selection border.
 5. Press <kbd>Shift+Backspace</kbd> (`key-ripple-delete`) or choose **Edit > Ripple Delete**. Aria removes the unwanted clip and shifts all later clips on sync-locked lanes left to close the gap, leaving the short cut clip on `V1`.
-6. Press <kbd>\</kbd> (`key-fit`) or click [`fit-timeline`](../reference/controls.md#timeline) (or choose **View > Fit**) to fit the edited sequence across the timeline viewport. The timeline zooms to show the shortened sequence end to end.
+6. Press <kbd>\</kbd> (`key-fit`) or click [`fit-timeline`](../reference/controls.md#timeline) (or choose **View > Zoom to Sequence**) to fit the edited sequence across the timeline viewport. The timeline zooms to show the shortened sequence end to end.
 
 ## Reference
 

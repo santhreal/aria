@@ -249,7 +249,9 @@ fn a_tiles_row_reads_beside_its_picture_and_under_it_when_narrow(cx: &mut TestAp
 /// now draws each line of them on one line: whole beside a picture at the
 /// launch width, and cut with an ellipsis in the narrowest frame. The views
 /// are read from [`PoolView::ALL`], so a view added later is held to the same
-/// rule.
+/// rule. In a view that reads a row left to right, the facts also stand at
+/// least [`Theme::SPACE_SM`] clear of the name, as a picture stands clear of
+/// its text; they stood the tile's 4 px from it, cramped against a long name.
 ///
 /// Not covered: which facts a line holds, which `codec_tests` asserts.
 #[gpui::test]
@@ -336,6 +338,14 @@ fn every_line_of_a_rows_facts_stays_one_line(cx: &mut TestAppContext) {
                     assert!(
                         text == line || (!whole && cut),
                         "{tag} draws `{text}`, the line is `{line}`"
+                    );
+                }
+                if view.inline() {
+                    let block = bounds(visual, &format!("pool-facts-{index}-0"));
+                    let gap = f32::from(block.left() - name.right());
+                    assert!(
+                        gap >= Theme::SPACE_SM - EPS,
+                        "{view:?} in {frame}: item {index}'s facts stand {gap} px from its name"
                     );
                 }
             }

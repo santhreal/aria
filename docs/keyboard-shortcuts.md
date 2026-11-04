@@ -299,7 +299,10 @@ These keys apply while the Viewer has focus and outrank the timeline's.
 ## Rebinding
 
 Settings > Keyboard Shortcuts lists every binding the registry holds, with the chord it
-answers to now. Click a row and press the key you want; Esc cancels. A chord
+answers to now. A binding a menu row draws is listed under that row's name, as
+the Command Palette offers it: `Ctrl+K` is Add Edit. A plugin's binding is listed
+under its command's title, and any other binding under its id read as words:
+`key-shuttle-back` is Shuttle back. Click a row and press the key you want; Esc cancels. A chord
 another binding on the same surface already answers prompts before it moves: the
 row names the holder and offers Move and Keep. Enter moves the chord and leaves
 the holder with no key; Esc leaves the chord with the holder and ends the

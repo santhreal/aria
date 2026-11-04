@@ -124,7 +124,7 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 0,
     },
     Forwarder {
-        name: "card_action",
+        name: "banner_action",
         arg: 0,
     },
     Forwarder {
@@ -141,6 +141,10 @@ const FORWARDERS: &[Forwarder] = &[
     },
     Forwarder {
         name: "chip_line",
+        arg: 1,
+    },
+    Forwarder {
+        name: "strip_chip",
         arg: 1,
     },
 ];

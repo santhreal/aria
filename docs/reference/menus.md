@@ -86,24 +86,24 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-rename` | `none` | Rename… | `none` | No clip is selected (`guards::selection`) | Opens `aria.overlay.rename` to edit the selected clip's name. |
 | `clip-subclip` | `none` | Make Subclip | `none` | Open a source in the Source monitor first (`guards::source_range`) | Creates a subclip media item in the pool from the active Source monitor range. |
 | `clip-speed-duration` | `none` | Speed/Duration… | `Ctrl+R` | No clip is selected (`guards::selection`) | Opens `aria.dialog.speed-duration`. |
-| `clip-time-remap` | `none` | Time Remapping | `Ctrl+Alt+T` | No clip is selected (`guards::selection`) | Toggles variable-speed time remapping on the selected clip. |
+| `clip-time-remap` | `none` | Time Remapping | `Ctrl+Alt+T` | No clip is selected, or the selected clip plays no source media (`guards::remappable`) | Toggles variable-speed time remapping on the selected clip. |
 | `clip-enable` | `none` | Enable | `Shift+E` | No clip is selected (`guards::selection`) | Toggles `enabled` on every selected clip. |
-| `seq-link` | `none` | Link | `none` | Select two or more clips (`guards::several`) | Links selected clips into a shared `link_group`. |
+| `seq-link` | `none` | Link | `none` | Fewer than two clips are selected, or they are already linked (`guards::linkable`) | Links selected clips into a shared `link_group`. |
 | `seq-unlink` | `none` | Unlink | `none` | Selected clips are not linked (`guards::linked`) | Clears the `link_group` on selected clips. |
-| `clip-group` | `none` | Group | `Ctrl+G` | Select two or more clips (`guards::several`) | Assigns a shared group ID to all selected clips. |
+| `clip-group` | `none` | Group | `Ctrl+G` | Fewer than two clips are selected, or they are already a group (`guards::groupable`) | Assigns a shared group ID to all selected clips. |
 | `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | Selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
 | `seq-nest` | `none` | Nest… | `none` | No clip is selected (`guards::selection`) | Moves selected clips into a new nested sequence and replaces them with a compound clip. |
 | `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first (`guards::source`) | Replaces the selected clip's media source with the active Source monitor item. |
-| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected (`guards::selection`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
+| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame (`guards::freezable`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
 | `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected (`guards::selection`) | Renders the selected clip with its effects to a media file and replaces its source. |
 | `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected (`guards::selection`) | Restores a rendered-and-replaced clip back to its original source and effects. |
-| `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected (`guards::selection`) | Opens `aria.dialog.audio-gain`. |
+| `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected, or no selected clip or linked or grouped companion carries sound (`guards::gain`) | Opens `aria.dialog.audio-gain`. |
 | `clip-channels-stereo` | `Audio Channels` | Stereo | `none` | Select a clip with sound (`guards::sound`) | Routes the clip's left and right source channels as normal stereo (`AudioChannels::Stereo`). |
 | `clip-channels-swap` | `Audio Channels` | Swap Channels | `none` | Select a clip with sound (`guards::sound`) | Swaps the clip's left and right audio channels (`AudioChannels::Swap`). |
 | `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::LeftToBoth`). |
 | `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::RightToBoth`). |
 | `clip-channels-mono` | `Audio Channels` | Mono | `none` | Select a clip with sound (`guards::sound`) | Sums the clip's left and right channels to mono (`AudioChannels::Mono`). |
-| `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected (`guards::selection`) | Extracts the selected video clip's audio stream onto an audio lane. |
+| `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected, or the selected clip has no sound to extract (`guards::extractable`) | Extracts the selected video clip's audio stream onto an audio lane. |
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
 | `seq-flip-v` | `Transform` | Flip Vertical | `none` | No clip is selected (`guards::selection`) | Toggles vertical mirror flip on the selected clips. |
 | `seq-crop-reset` | `Transform` | Reset Framing | `none` | No clip is selected (`guards::selection`) | Clears all four crop edges on the selected clips. |
@@ -168,16 +168,16 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-marker` | `none` | Add Marker | `M` | Always enabled | Adds a sequence marker at the playhead, or opens `aria.dialog.marker-edit` when a marker is already at the playhead. |
 | `seq-marker-next` | `none` | Go to Next Marker | `Shift+M` | The sequence has no markers (`guards::markers`) | Seeks the playhead to the next sequence marker. |
 | `seq-marker-prev` | `none` | Go to Previous Marker | `Ctrl+Shift+M` | The sequence has no markers (`guards::markers`) | Seeks the playhead to the previous sequence marker. |
-| `seq-marker-remove` | `none` | Clear Marker | `Ctrl+Alt+M` | The sequence has no markers (`guards::markers`) | Removes the sequence marker at the playhead. |
+| `seq-marker-remove` | `none` | Clear Marker | `Ctrl+Alt+M` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Removes the marker nearest the playhead within one second. |
 | `marker-clear-all` | `none` | Clear All Markers | `Ctrl+Shift+Alt+M` | The sequence has no markers (`guards::markers`) | Removes every sequence marker from the active sequence. |
-| `seq-marker-rename` | `none` | Edit Marker… | `none` | The sequence has no markers (`guards::markers`) | Opens `aria.dialog.marker-edit` for the marker at the playhead. |
-| `seq-marker-snap` | `none` | Move Nearest Marker to Playhead | `none` | The sequence has no markers (`guards::markers`) | Moves the nearest sequence marker within one second onto the playhead tick. |
+| `seq-marker-rename` | `none` | Edit Marker… | `none` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Opens `aria.dialog.marker-edit` for the marker nearest the playhead within one second. |
+| `seq-marker-snap` | `none` | Move Nearest Marker to Playhead | `none` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Moves the marker nearest the playhead within one second onto the playhead tick. |
 
 ## Effect menu
 
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
-| `fx-controls` | `none` | Effect Controls | `Shift+4` | Always enabled | Opens and focuses `aria.panel.inspector`. |
+| `fx-controls` | `none` | Effect Controls | `none` | Always enabled | Opens and focuses `aria.panel.inspector`. |
 | `fx-last` | `none` | Apply Last Effect | `none` | No effect has been applied yet or no clip is selected (`guards::last_effect`) | Applies the most recently applied video effect (`last_effect`) to the selected clips. |
 | `fx-paste` | `none` | Paste Effect | `none` | No effect has been copied or no clip is selected (`guards::copied_effect`) | Pastes the copied effect onto the selected clips. |
 | `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video effects from the selected clips. |
@@ -215,8 +215,8 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 | --- | --- | --- | --- | --- | --- |
 | `seq-in` | `none` | Zoom In | `=` | Always enabled | Multiplies timeline horizontal zoom by `ZOOM_STEP`. |
 | `seq-out` | `none` | Zoom Out | `-` | Always enabled | Divides timeline horizontal zoom by `ZOOM_STEP`. |
-| `seq-fit` | `none` | Fit | `\` | Always enabled | Fits the entire sequence horizontally inside the timeline viewport. |
-| `seq-fit-selection` | `none` | Fit Selection | `Shift+F` | No clip is selected (`guards::selection`) | Fits the selected clips horizontally inside the timeline viewport. |
+| `seq-fit` | `none` | Zoom to Sequence | `\` | Always enabled | Fits the entire sequence horizontally inside the timeline viewport. |
+| `seq-fit-selection` | `none` | Zoom to Selection | `Shift+F` | No clip is selected (`guards::selection`) | Fits the selected clips horizontally inside the timeline viewport. |
 | `view-playback-resolution` | `Resolution` | Playback Resolution | `none` | Always enabled | Cycles the Viewer playback raster resolution (`Full`, `1/2`, `1/4`). |
 | `view-paused-resolution` | `Resolution` | Paused Resolution | `none` | Always enabled | Toggles the Viewer paused raster resolution (`Full` or `Match Playback`). |
 | `view-split` | `Viewer Display Settings` | Split Viewer | `none` | Always enabled | Toggles the side-by-side Source and Program split in the Viewer. |
@@ -267,11 +267,11 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 | `win-workspace-effects` | `Workspaces` | Effects | `none` | Always enabled | Applies the `Effects` workspace layout. |
 | `win-workspace-save` | `Workspaces` | Save Workspace | `none` | Always enabled | Saves the current arrangement to the active workspace file and the `Custom` slot. |
 | `win-workspace-reset` | `Workspaces` | Reset to Saved Layout | `none` | Always enabled | Resets the active workspace to its saved or shipped layout. |
-| `win-media` | `none` | Project | `none` | Always enabled | Toggles the `aria.panel.media` dock panel. |
+| `win-media` | `none` | Project | `Shift+1` | Always enabled | Toggles the `aria.panel.media` dock panel. |
 | `win-effects` | `none` | Effects & Presets | `Shift+5` | Always enabled | Opens and focuses `aria.panel.effects`. |
-| `win-program` | `none` | Viewer | `none` | Always enabled | Focuses the Viewer (`ActivePanel::Preview`). |
+| `win-program` | `none` | Viewer | `Shift+2` | Always enabled | Focuses the Viewer (`ActivePanel::Preview`). |
 | `win-timeline` | `none` | Timeline | `Shift+3` | Always enabled | Focuses the Timeline (`ActivePanel::Timeline`). |
-| `win-inspector` | `none` | Effect Controls | `none` | Always enabled | Toggles the `aria.panel.inspector` dock panel. |
+| `win-inspector` | `none` | Effect Controls | `Shift+4` | Always enabled | Toggles the `aria.panel.inspector` dock panel. |
 | `win-assistant` | `none` | Assistant | `Shift+0` | Always enabled | Toggles the Assistant tab (`ActivePanel::Ai`). |
 | `win-mixer` | `none` | Audio Track Mixer | `Shift+6` | Always enabled | Toggles the Audio Track Mixer tab (`ActivePanel::Mixer`). |
 | `win-jobs` | `none` | Jobs | `none` | Always enabled | Toggles the `aria.panel.jobs` dock panel. |
@@ -291,7 +291,7 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
-| `help-learn` | `none` | Keyboard Shortcuts | `none` | Always enabled | Switches the Home rail to `HomeRail::Learn` and opens the Home route. |
+| `help-learn` | `none` | Learn | `none` | Always enabled | Switches the Home rail to `HomeRail::Learn` and opens the Home route. |
 | `help-plugins` | `none` | Plugin Development | `none` | Always enabled | Opens the repository plugin development guide (`docs/plugins/README.md`) in the system browser. |
 | `help-data` | `none` | Open Data Folder | `none` | Always enabled | Reveals the profile data directory (`state.data_dir`) in the system file manager. |
 | `help-updates` | `none` | Check for Updates | `none` | Always enabled | Checks the configured update manifest URL (`updates.manifest_url`) for a newer release. |
@@ -321,9 +321,10 @@ Defined in `crates/aria-ui/src/app/clip_ops.rs` (`AudioGainMode::ALL`, opened by
 | `NormalizeMaxPeak` | `Normalize Max Peak to` | `no` | Shifts all selected clips by a single dB offset so the loudest clip peak across the selection lands at the target dB ceiling (`-60.0..=0.0` dBFS). |
 | `NormalizeAllPeaks` | `Normalize All Peaks to` | `no` | Shifts each selected clip independently so every clip's own maximum sample peak lands at the target dB ceiling (`-60.0..=0.0` dBFS). |
 
-The dialog's number is a value readout over the active mode's range: a drag
-stops at either end, and a typed value outside it is rejected with the reason
-under the number while its field stays open.
+The number under the mode chips is labeled with the mode's `quantity()`:
+`Gain`, `Adjustment`, or `Peak target`. It is a value readout over the active
+mode's range: a drag stops at either end, and a typed value outside it is
+rejected with the reason under the number while its field stays open.
 
 ## Audio Channels routing presets (`AudioChannels::ALL`)
 
@@ -363,24 +364,34 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoAngleSound` | `An angle has no sound to sync by` |
 | `AnglesDoNotMatch` | `The angles' sound does not match` |
 | `AnglesRepeat` | `The angles' sound repeats, so it cannot say where it is` |
+| `AlreadyLinked` | `The selected clips are already linked` |
+| `AlreadyGrouped` | `The selected clips are already a group` |
+| `NoSourceToRemap` | `The selected clip plays no source media to remap` |
+| `NoFrameToHold` | `The selected clip has no video frame to hold` |
+| `NoSoundToExtract` | `The selected clip has no sound to extract` |
+| `NoSound` | `No selected clip carries sound` |
+| `NoMarkers` | `The sequence has no markers` |
+| `NoMarkerAtPlayhead` | `No marker is within a second of the playhead` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 
 Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src/surfaces/context_menu/*.rs`. Each context menu target draws its rows in slice order; `Labels`, `Blends`, and `Properties` expand inline from the label swatch list, transition catalog, and clip line-parameter list. A `Rule` draws a hairline between the group above it and the group below it; a rule with no drawn row above it, or none below it, is not drawn, and two rules in a row draw as one. A row whose `checked` is set draws a check mark in its lead column while that state holds; `Default check` is `on` or `off` for such a row against the default facts (an enabled clip, a Medium lane, no transition alignment, a keyframe that neither holds nor roves), and `none` for a row that draws no check mark. The applied blend and the drawn property are checked the same way.
 
+A `CLIP_ITEMS` row that runs a menu bar command mirrors that bar row (`MIRRORED` in `crates/aria-ui/src/surfaces/context_menu/clip.rs`): it draws the bar row's label and check mark and is drawn while the bar row's guard lets it run. `ctx-split` mirrors Sequence > Add Edit and `ctx-delete` mirrors Edit > Clear.
+
 | Target slice | Entry kind | Row ID | Default label | Default check |
 | --- | --- | --- | --- | --- |
 | `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` | `none` |
 | `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-split` | `Split` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Delete` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-split` | `Add Edit` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Clear` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` | `none` |
 | `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |
-| `CLIP_ITEMS` | `Row` | `ctx-link` | `Link Clips` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink Clips` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-link` | `Link` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-group` | `Group` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-ungroup` | `Ungroup` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-release-parent` | `Release Parent` | `none` |
@@ -394,7 +405,7 @@ Defined in `crates/aria-ui/src/surfaces/context_menu.rs` and `crates/aria-ui/src
 | `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Labels` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename Clip` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-rename-clip` | `Rename…` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-properties` | `Properties` | `none` |
 | `TRANSITION_ITEMS` | `Row` | `ctx-transition-remove` | `Remove Transition` | `none` |
 | `TRANSITION_ITEMS` | `Rule` | `none` | `none` | `none` |

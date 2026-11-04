@@ -43,19 +43,24 @@ pub(super) fn label_row(
                     cx.notify();
                 }),
             );
-        // The clear reads as an absence: an outline with a cross in it, rather
-        // than a tenth colour that would look like one more label to pick.
+        // The clear reads as an absence: an outline with a cross centered in
+        // it, rather than a tenth color that would look like one more label to
+        // pick. The cross is the muted tone of a live control, not the faint
+        // one that marks a disabled control.
         swatches.push(match label {
             Some(color) => swatch
                 .bg(theme.label(color, false))
                 .when(chosen, |el| el.border_2().border_color(theme.text))
                 .into_any_element(),
             None => swatch
+                .debug_selector(move || format!("{prefix}-clear"))
+                .flex()
+                .items_center()
+                .justify_center()
                 .border_1()
                 .border_color(theme.border)
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child("×")
+                .text_color(theme.text_muted)
+                .child(crate::icons::icon(crate::icons::CLOSE).size(Theme::TEXT_SMALL))
                 .into_any_element(),
         });
     }
@@ -131,7 +136,7 @@ pub(super) fn label_groups(
             .child(
                 div()
                     .text_size(Theme::TEXT_SMALL)
-                    .text_color(theme.text_faint)
+                    .text_color(theme.text_muted)
                     .child("Select"),
             )
             .children(chips)

@@ -43,7 +43,7 @@ pub use controls::{
     Chip, chip_row, choice_chip, control_line, fact_row, filing, label_note, pick_button, picked,
     switch_line, under_labels,
 };
-use keys::{Affordances, WATCH_SLOT, affordances, blanks};
+use keys::{Affordances, WATCH_SLOT, affordances, blanks, blanks_like};
 
 /// Diameter of the stopwatch's ring.
 const DOT: f32 = 8.0;
@@ -407,13 +407,14 @@ pub(crate) struct DrawnLine {
 }
 
 /// A [`chip_row`] drawn into the Inspector: its label's debug selector, the
-/// choice its value column shows, and each choice under it with whether it is
-/// marked in force.
+/// choice its value column shows and whether that choice is drawn faint, and
+/// each choice under it with whether it is marked in force.
 #[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DrawnChoice {
     pub row: String,
     pub current: SharedString,
+    pub faint: bool,
     pub chips: Vec<(SharedString, bool)>,
 }
 
@@ -553,7 +554,16 @@ pub fn stepper_row(
             },
             cx,
         ));
-    let track = reach.map(|reach| value_track(theme, reach, hovered, column.as_ref(), &label));
+    let track = reach.map(|reach| {
+        value_track(
+            theme,
+            reach,
+            hovered,
+            blanks_like(&keys),
+            column.as_ref(),
+            &label,
+        )
+    });
     let head = line(
         key,
         label,
@@ -740,15 +750,20 @@ fn driver_source(
         .children(whip)
 }
 
-/// Where the value sits in its range, under the row's line. On a row in the
-/// keyed rows' columns, `column` is set and the track spans the label and the
-/// value columns, between blanks where the stopwatch, the keyframe navigator
-/// and the time area stand, so it leaves the time area clear. On a free row
-/// it spans the row.
+/// Where the value sits in its range, under the row's line. The track spans
+/// the label and the value columns, between `blanks` as wide as the stopwatch,
+/// the keyframe navigator and the time area the line draws, so it leaves the
+/// time area clear and stands under the label and the value. On a row that
+/// draws none of them it spans the row.
 fn value_track(
     theme: &Theme,
     reach: Reach,
     hovered: f32,
+    Affordances {
+        dot,
+        controls,
+        strip,
+    }: Affordances,
     column: Option<&Column>,
     label: &SharedString,
 ) -> gpui::AnyElement {
@@ -756,14 +771,9 @@ fn value_track(
         cell_selector(column, label, "fill")
     })
     .debug_selector(|| cell_selector(column, label, "track"));
-    if column.is_none() {
+    if dot.is_none() && controls.is_none() && strip.is_none() {
         return track.w_full().into_any_element();
     }
-    let Affordances {
-        dot,
-        controls,
-        strip,
-    } = blanks(Columns::Keyed);
     div()
         .flex()
         .flex_row()
@@ -793,10 +803,11 @@ fn track(
     hovered: f32,
     fill_selector: impl FnOnce() -> String,
 ) -> gpui::Div {
-    let ink = Ink {
-        rail: motion::mix(theme.border, theme.border_strong, hovered),
-        lit: motion::mix(theme.accent, theme.accent_strong, hovered),
-    };
+    let ink = Ink::new(
+        theme,
+        motion::mix(theme.accent, theme.accent_strong, hovered),
+        hovered,
+    );
     travel::track(reach, Run::Across, Gauge::ROW, ink, fill_selector)
 }
 

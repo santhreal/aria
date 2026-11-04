@@ -22,9 +22,9 @@ pub mod dialog;
 #[path = "chrome/menu_animation.rs"]
 mod menu_animation;
 #[path = "chrome/menu_clip.rs"]
-mod menu_clip;
+pub(crate) mod menu_clip;
 #[path = "chrome/menu_edit.rs"]
-mod menu_edit;
+pub(crate) mod menu_edit;
 #[path = "chrome/menu_effect.rs"]
 pub(crate) mod menu_effect;
 #[path = "chrome/menu_file.rs"]

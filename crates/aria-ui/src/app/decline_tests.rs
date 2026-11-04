@@ -18,8 +18,13 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use aria_engine::EngineError;
+
+use super::super::AppState;
 use super::super::premiere_tests::with_clip;
 use super::Decline;
+use crate::chrome::menu_clip::{AUDIO_GAIN, EXTRACT_AUDIO, FREEZE, GROUP, LINK, TIME_REMAP};
+use crate::chrome::menu_items::MenuItem as BarRow;
 use crate::test_support::collect_rs;
 use crate::test_support::sources::{string_literals, without_test_items};
 
@@ -134,4 +139,60 @@ fn only_the_registry_words_an_empty_selection() {
         "state an empty selection through Decline::NoSelection:\n{}",
         offenders.join("\n")
     );
+}
+
+/// A clip command whose menu bar row is withheld declines in that row's words
+/// when it runs anyway, as from a key, and leaves no undo step and no dialog.
+///
+/// The class closed: a guard and its command that disagree, so the bar drew a
+/// row disabled for one reason while the command, run past it, linked a linked
+/// pair again or sent the engine an edit it rejects. Covered: Link on a linked
+/// pair, Group on a group, and Time Remapping, Freeze Frame, Extract Audio and
+/// Audio Gain on a title. Not covered: a guard and command pair not listed.
+#[test]
+fn a_withheld_clip_command_declines_in_its_rows_words() {
+    type Dress = fn() -> AppState;
+    type Run = fn(&mut AppState) -> Result<(), EngineError>;
+    let linked: Dress = crate::app::fixtures::linked_pair;
+    let grouped: Dress = || {
+        let mut state = crate::app::fixtures::linked_pair();
+        state.unlink_selected().expect("the pair comes apart");
+        state.group_selected().expect("the pair forms a group");
+        state
+    };
+    let title: Dress = || crate::app::clip_text::text_caret::tests::typing().0;
+    let cases: [(&BarRow, Dress, Run); 6] = [
+        (&LINK, linked, |state| state.link_selected()),
+        (&GROUP, grouped, |state| state.group_selected()),
+        (&TIME_REMAP, title, |state| state.toggle_time_remap()),
+        (&FREEZE, title, |state| state.freeze_selected_frame()),
+        (&EXTRACT_AUDIO, title, |state| {
+            state.extract_selected_audio()
+        }),
+        (&AUDIO_GAIN, title, |state| {
+            state.open_audio_gain();
+            Ok(())
+        }),
+    ];
+    for (row, dress, run) in cases {
+        let mut state = dress();
+        let id = row.id;
+        let reason = row
+            .blocked_by(&state)
+            .unwrap_or_else(|| panic!("{id} is offered on its dressed state"));
+        let before = (state.history_depth(), state.dialog);
+        state.status_message = None;
+        run(&mut state).unwrap_or_else(|err| panic!("{id} failed instead of declining: {err}"));
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(reason),
+            "{id} declined in other words than its row"
+        );
+        assert_eq!(
+            (state.history_depth(), state.dialog),
+            before,
+            "{id} changed the project or opened a dialog"
+        );
+        assert_eq!(state.last_error, None, "{id} reported an error");
+    }
 }

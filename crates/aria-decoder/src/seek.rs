@@ -240,8 +240,23 @@ pub(crate) fn seek_walk<D: VideoDecoder + ?Sized>(
     decoder: &mut D,
     target: RationalTime,
     frame_rate: Rational,
+    before: impl FnMut(VideoFrame),
+) -> Result<Option<VideoFrame>, DecodeError> {
+    seek_walk_while(decoder, target, frame_rate, || true, before)
+}
+
+/// [`seek_walk`] that stops early and returns `Ok(None)` once `keep_going`
+/// returns `false`.
+pub(crate) fn seek_walk_while<D: VideoDecoder + ?Sized>(
+    decoder: &mut D,
+    target: RationalTime,
+    frame_rate: Rational,
+    mut keep_going: impl FnMut() -> bool,
     mut before: impl FnMut(VideoFrame),
 ) -> Result<Option<VideoFrame>, DecodeError> {
+    if !keep_going() {
+        return Ok(None);
+    }
     let fps = frames_per_sec(frame_rate);
     let mut backoff = Backoff::new(target);
     let mut walk_limit = MAX_SEEK_WALK;
@@ -251,23 +266,40 @@ pub(crate) fn seek_walk<D: VideoDecoder + ?Sized>(
         .as_ref()
         .is_none_or(|frame| is_frame_before(target, frame.pts, frame_rate))
     {
+        if !keep_going() {
+            if let Some(mut skipped) = frame.take() {
+                crate::recycle_frame_planes(&mut skipped);
+            }
+            return Ok(None);
+        }
         let Some((point, secs)) = backoff.next() else {
             break;
         };
+        if let Some(mut skipped) = frame.take() {
+            crate::recycle_frame_planes(&mut skipped);
+        }
         decoder.seek(point)?;
         walk_limit = MAX_SEEK_WALK.saturating_add((secs as f64 * fps).ceil() as u32);
         frame = decoder.next_frame()?;
     }
     let mut decoded = 0u32;
-    while let Some(next) = frame {
+    while let Some(mut next) = frame {
+        if !keep_going() {
+            crate::recycle_frame_planes(&mut next);
+            return Ok(None);
+        }
         decoded += 1;
         if frame_covers(next.pts, target, frame_rate) {
             return Ok(Some(next));
         }
         if decoded >= walk_limit {
+            crate::recycle_frame_planes(&mut next);
             break;
         }
         before(next);
+        if !keep_going() {
+            return Ok(None);
+        }
         frame = decoder.next_frame()?;
     }
     Ok(None)

@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::app::clip_ops::AudioGainMode;
-use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components::{self, ChipSize};
@@ -34,15 +34,6 @@ const NORMALIZE_PRESETS: &[(f32, &str, &str)] = &[
     (-3.0, "norm-preset-m3", "-3 dBFS"),
     (-1.0, "norm-preset-m1", "-1 dBFS"),
     (0.0, "norm-preset-0", "0 dBFS"),
-];
-
-const DB_STEPS: &[(f32, &str, &str)] = &[
-    (-3.0, "gain-step-m3", "-3 dB"),
-    (-1.0, "gain-step-m1", "-1 dB"),
-    (-0.5, "gain-step-m05", "-0.5 dB"),
-    (0.5, "gain-step-p05", "+0.5 dB"),
-    (1.0, "gain-step-p1", "+1 dB"),
-    (3.0, "gain-step-p3", "+3 dB"),
 ];
 
 pub fn render(
@@ -134,23 +125,6 @@ pub fn render(
             )
         }));
 
-    let step_row = div()
-        .flex()
-        .wraps()
-        .gap(px(Theme::SPACE_XS))
-        .children(DB_STEPS.iter().map(|&(delta, id, label)| {
-            let next = clamp_into(&span, active_db + delta);
-            components::ghost_button(("audio-gain-step", id), label, &theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        let _ = state.set_audio_gain_db(next);
-                    });
-                    cx.notify();
-                }),
-            )
-        }));
-
     let peak_text = match form.max_peak_dbfs {
         Some(peak) => format!(
             "Peak Amplitude: {peak:.1} dBFS ({})",
@@ -207,12 +181,11 @@ pub fn render(
                             div()
                                 .text_size(Theme::TEXT_TITLE)
                                 .text_color(theme.text_muted)
-                                .child(form.mode.label()),
+                                .child(form.mode.quantity()),
                         )
                         .child(value),
                 )
-                .child(preset_row)
-                .child(step_row),
+                .child(preset_row),
         );
 
     if let Some(err) = form.error {

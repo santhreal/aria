@@ -366,7 +366,7 @@ impl AppState {
             .map(|marker| marker.id)
             .collect();
         if markers.is_empty() {
-            self.status_message = Some("No markers to clear".into());
+            self.decline(Decline::NoMarkers);
             return Ok(());
         }
         let count = markers.len();
@@ -570,18 +570,24 @@ impl AppState {
         }
     }
 
-    /// Bring a dock panel forward by id, opening its tab in its default frame
-    /// when closed and setting `active_panel` to its focus route.
-    pub fn focus_dock_panel(&mut self, panel: crate::dock::PanelId) {
-        let default_frame = if let Some(host) = crate::plugins::panel_host::host_of(&self.ctx)
+    /// The frame `panel` opens in when it is closed: a plugin panel's declared
+    /// default frame, else the built-in placement.
+    fn panel_default_frame(&self, panel: crate::dock::PanelId) -> crate::dock::DefaultFrame {
+        if let Some(host) = crate::plugins::panel_host::host_of(&self.ctx)
             && let Some(entry) = host.get(panel)
             && let Some(dock) = entry.dock
         {
             dock.default_frame
         } else {
             crate::dock::default_frame_for(panel)
-        };
-        self.dock_tree.open_in(panel, default_frame);
+        }
+    }
+
+    /// Bring a dock panel forward by id, opening its tab in its default frame
+    /// when closed and setting `active_panel` to its focus route.
+    pub fn focus_dock_panel(&mut self, panel: crate::dock::PanelId) {
+        let frame = self.panel_default_frame(panel);
+        self.dock_tree.open_in(panel, frame);
         self.sync_panes_from_dock_tree();
     }
 
@@ -590,15 +596,8 @@ impl AppState {
         if self.dock_tree.is_open(panel) {
             self.dock_tree.close(panel);
         } else {
-            let default_frame = if let Some(host) = crate::plugins::panel_host::host_of(&self.ctx)
-                && let Some(entry) = host.get(panel)
-                && let Some(dock) = entry.dock
-            {
-                dock.default_frame
-            } else {
-                crate::dock::default_frame_for(panel)
-            };
-            self.dock_tree.open_in(panel, default_frame);
+            let frame = self.panel_default_frame(panel);
+            self.dock_tree.open_in(panel, frame);
         }
         self.sync_panes_from_dock_tree();
     }

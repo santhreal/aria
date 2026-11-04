@@ -48,11 +48,28 @@ pub enum Decline {
     /// The cameras' sound matches equally well in more than one place, so the
     /// best match is a guess: a repeating sound cannot say where it was.
     AnglesRepeat,
+    /// Link sent to a selection that is already one link group.
+    AlreadyLinked,
+    /// Group sent to a selection that is already one clip group.
+    AlreadyGrouped,
+    /// Time remapping sent to a clip that plays no source media.
+    NoSourceToRemap,
+    /// Freeze Frame sent to a clip with no video frame to hold.
+    NoFrameToHold,
+    /// Extract Audio sent to a clip whose sound cannot move to its own lane.
+    NoSoundToExtract,
+    /// Audio Gain sent to a selection that carries no sound.
+    NoSound,
+    /// A marker command sent to a sequence that holds no marker.
+    NoMarkers,
+    /// A marker command that acts on the marker under the playhead, sent with
+    /// none within a second of it.
+    NoMarkerAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 11] = [
+    pub const ALL: [Decline; 19] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -64,6 +81,14 @@ impl Decline {
         Decline::NoAngleSound,
         Decline::AnglesDoNotMatch,
         Decline::AnglesRepeat,
+        Decline::AlreadyLinked,
+        Decline::AlreadyGrouped,
+        Decline::NoSourceToRemap,
+        Decline::NoFrameToHold,
+        Decline::NoSoundToExtract,
+        Decline::NoSound,
+        Decline::NoMarkers,
+        Decline::NoMarkerAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -81,6 +106,14 @@ impl Decline {
             Decline::NoAngleSound => "An angle has no sound to sync by",
             Decline::AnglesDoNotMatch => "The angles' sound does not match",
             Decline::AnglesRepeat => "The angles' sound repeats, so it cannot say where it is",
+            Decline::AlreadyLinked => "The selected clips are already linked",
+            Decline::AlreadyGrouped => "The selected clips are already a group",
+            Decline::NoSourceToRemap => "The selected clip plays no source media to remap",
+            Decline::NoFrameToHold => "The selected clip has no video frame to hold",
+            Decline::NoSoundToExtract => "The selected clip has no sound to extract",
+            Decline::NoSound => "No selected clip carries sound",
+            Decline::NoMarkers => "The sequence has no markers",
+            Decline::NoMarkerAtPlayhead => "No marker is within a second of the playhead",
         }
     }
 }

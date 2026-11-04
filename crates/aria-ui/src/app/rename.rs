@@ -18,6 +18,7 @@ use aria_engine::EngineError;
 use aria_models::TrackId;
 
 use super::AppState;
+use super::decline::Decline;
 use super::line_text::{LineRule, LineText};
 use crate::types::RenameTarget;
 
@@ -45,7 +46,7 @@ impl AppState {
     /// Begin renaming the marker under the playhead. Inert when there is none.
     pub fn begin_rename_marker_at_playhead(&mut self) {
         let Some(id) = self.marker_at_playhead().map(|marker| marker.id) else {
-            self.status_message = Some("No marker at the playhead".into());
+            self.decline(Decline::NoMarkerAtPlayhead);
             return;
         };
         self.begin_rename(RenameTarget::Marker(id));

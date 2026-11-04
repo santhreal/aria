@@ -37,7 +37,6 @@ pub fn render(
     // Where the button would write, from the one owner of that rule: the label
     // the sheet prints and the path the press sends cannot disagree.
     let dest_label = app.export_destination().display().to_string();
-    let [canvas_w, canvas_h] = app.canvas_size();
     let encoder_label = app.export_encoder_label();
     let show_codec_bitrate = app.export_shows_codec_and_bitrate();
     let show_audio = app.export_shows_audio_toggle();
@@ -98,9 +97,11 @@ pub fn render(
     // The rows are built before the spinner: the spinner's element borrows the
     // context for as long as it lives, so anything else that needs `cx` has to
     // be finished first.
+    // The pixel size the file is written at stands as a fact of its own: muted
+    // text after the Scale chips reads as one more chip.
     let mut rows: Vec<gpui::Div> = vec![
         fact(&theme, "Encoder", encoder_label),
-        fact(&theme, "Canvas", format!("{canvas_w}×{canvas_h}")),
+        fact(&theme, "Size", format!("{out_w}×{out_h}")),
     ];
     rows.push(if format_choices.len() > 1 {
         line(
@@ -131,17 +132,6 @@ pub fn render(
             &options.scale,
             AppState::set_export_scale,
             cx,
-        )
-        // The size the scale gives, read beside the choice that sets it: the
-        // chip line's gap and this margin make the gap a label keeps to its value.
-        .child(
-            div()
-                .debug_selector(|| "export-scale-size".into())
-                .ml(px(Theme::SPACE_MD - Theme::SPACE_XS))
-                .line_height(px(CHIP.height()))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(format!("{out_w}×{out_h}")),
         ),
     ));
     rows.push(line(

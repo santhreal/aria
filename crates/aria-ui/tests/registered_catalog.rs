@@ -65,7 +65,7 @@ fn mounted_state(name: &str) -> AppState {
 fn offered(state: &AppState, spec: &EffectSpec) -> bool {
     let label = format!("{}: {}", spec.category(), spec.label);
     state.palette_catalog().iter().any(|offer| {
-        let Offered::Menu(AppMenu::Effect, row) = offer.action else {
+        let Offered::Menu(AppMenu::Effect, row, _) = offer.action else {
             return false;
         };
         offer.label == label.as_str() && row.ends_with(spec.id.as_str())

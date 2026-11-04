@@ -338,6 +338,33 @@ fn transition_guard_snapshots_only_tracks_named_by_the_edit() {
     assert_eq!(snapshot.len(), 1, "an unrelated track was cloned");
     assert_eq!(snapshot[0].0, touched);
     assert_eq!(snapshot[0].1.len(), 1);
+
+    // A ripple shifts every sync-locked lane by the span it closes, so the
+    // other lane's junction is in reach and has to be captured as well.
+    let snapshot =
+        dispatch::transitions_guard(&ctx, &EditCommand::RippleDelete { clip: touched_clip })
+            .expect("the touched track has a transition");
+    let mut lanes: Vec<TrackId> = snapshot.iter().map(|(track, _)| *track).collect();
+    lanes.sort_unstable();
+    let mut expected = vec![touched, untouched];
+    expected.sort_unstable();
+    assert_eq!(
+        lanes, expected,
+        "a ripple left a sync-locked rider uncaptured"
+    );
+
+    // Clearing the lock pins the lane, so the ripple no longer reaches it.
+    project
+        .timeline_mut()
+        .track_mut(untouched)
+        .expect("the untouched lane")
+        .sync_lock = false;
+    let ctx = test_ctx(&mut project, &mut project_path, &mut history);
+    let snapshot =
+        dispatch::transitions_guard(&ctx, &EditCommand::RippleDelete { clip: touched_clip })
+            .expect("the touched track has a transition");
+    assert_eq!(snapshot.len(), 1, "a pinned lane was cloned for a ripple");
+    assert_eq!(snapshot[0].0, touched);
 }
 
 #[test]

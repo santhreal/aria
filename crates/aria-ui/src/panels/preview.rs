@@ -95,6 +95,10 @@ pub fn render(
                 .border_color(theme.border)
                 .bg(theme.surface)
                 .child(
+                    // − and + stand together before the zoom chip, as a pair,
+                    // and the room the chip keeps for its widest level trails
+                    // its glyph, so it parts the zoom from the resolution menu
+                    // instead of standing between the level and +.
                     row_group("viewer-row-picture")
                         .flex_1()
                         .child(clock_field(state, &theme, cx))
@@ -104,13 +108,13 @@ pub fn render(
                             cx,
                             |state| state.preview_zoom_out(),
                         ))
-                        .child(zoom::picker(state, &theme, cx))
                         .child(zoom_btn(
                             "preview-zoom-in",
                             crate::icons::ZOOM_IN,
                             cx,
                             |state| state.preview_zoom_in(),
                         ))
+                        .child(zoom::picker(state, &theme, cx))
                         .child(resolution::picker(state, &theme, cx))
                         .child(resolution::proxy_toggle(state, &theme, cx)),
                 )

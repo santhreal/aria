@@ -119,10 +119,10 @@ impl Reread for PathBuf {
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
 /// it would have gathered.
-struct Stage<F> {
+pub(super) struct Stage<F> {
     /// What the state holds, so a failure can name it.
-    what: &'static str,
-    dress: fn() -> (AppState, F),
+    pub(super) what: &'static str,
+    pub(super) dress: fn() -> (AppState, F),
 }
 
 /// Every command the context menu's rows dispatched.
@@ -285,9 +285,10 @@ fn fingerprint(state: &AppState) -> String {
     )
 }
 
-/// A clip menu opens over a still, over a clip with a picture, and over a linked
-/// pair: three states between them offer every clip row.
-const CLIP_STAGES: &[Stage<ClipMenu>] = &[
+/// A clip menu opens over a still, in both edit modes, a clip with a picture
+/// and sound, a linked pair, a parented clip, a group, and a disabled, remapped
+/// clip: between them they offer every clip row and draw each mark both ways.
+pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
     Stage {
         what: "a still image on the timeline",
         dress: || {
@@ -347,6 +348,14 @@ const CLIP_STAGES: &[Stage<ClipMenu>] = &[
                 .first()
                 .copied()
                 .expect("the group is selected");
+            let facts = ClipMenu::of(&state, clip.raw());
+            (state, facts)
+        },
+    },
+    Stage {
+        what: "a disabled clip playing through a time remap",
+        dress: || {
+            let (state, clip) = fixtures::disabled_remap();
             let facts = ClipMenu::of(&state, clip.raw());
             (state, facts)
         },
@@ -807,11 +816,11 @@ fn a_row_is_offered_only_when_its_edit_is_possible() {
     let rows = offered(CLIP_ITEMS, &clip);
     assert!(
         !rows.contains(&"ctx-link"),
-        "a single-clip selection was offered Link Clips"
+        "a single-clip selection was offered Link"
     );
     assert!(
         !rows.contains(&"ctx-unlink"),
-        "an unlinked selection was offered Unlink Clips"
+        "an unlinked selection was offered Unlink"
     );
     assert!(
         !rows.contains(&"ctx-group"),
@@ -825,7 +834,7 @@ fn a_row_is_offered_only_when_its_edit_is_possible() {
         !rows.contains(&"ctx-release-parent"),
         "a clip with no parent was offered Release Parent"
     );
-    assert!(rows.contains(&"ctx-split"), "Split was withheld");
+    assert!(rows.contains(&"ctx-split"), "Add Edit was withheld");
 
     let pool = PoolMenu::of(&state, first_media(&state));
     assert!(pool.in_use, "the fixture's clip holds the pool item");

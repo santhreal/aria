@@ -17,6 +17,28 @@ use super::menu_items::{MenuItem, MenuItems, report};
 /// name in lowercase, or `none`.
 const LABEL_PREFIX: &str = "edit-label-";
 
+/// Edit > Copy, which the clip context menu mirrors.
+pub(crate) const COPY: MenuItem = MenuItem::new("edit-copy", "Copy", |_, s, _| s.copy_selected())
+    .key("key-copy")
+    .when(super::menu_guards::selection);
+
+/// Edit > Clear, which the clip context menu mirrors.
+pub(crate) const CLEAR: MenuItem = MenuItem::new("edit-clear", "Clear", |_, s, _| {
+    let cleared = s.clear_selected();
+    report(s, cleared)
+})
+.key("key-delete")
+.when(super::menu_guards::selection)
+.rule();
+
+/// Edit > Duplicate, which the clip context menu mirrors.
+pub(crate) const DUPLICATE: MenuItem = MenuItem::new("edit-dup", "Duplicate", |_, s, _| {
+    let duplicated = s.duplicate_selected();
+    report(s, duplicated)
+})
+.key("key-duplicate")
+.when(super::menu_guards::selection);
+
 static EDIT_ITEMS: &[MenuItem] = &[
     MenuItem::new("edit-undo", "Undo", |_, s, _| {
         s.undo();
@@ -35,9 +57,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
     .key("key-cut")
     .when(super::menu_guards::selection)
     .rule(),
-    MenuItem::new("edit-copy", "Copy", |_, s, _| s.copy_selected())
-        .key("key-copy")
-        .when(super::menu_guards::selection),
+    COPY,
     MenuItem::new("edit-paste", "Paste", |_, s, _| {
         let pasted = s.paste_clipboard();
         report(s, pasted)
@@ -67,25 +87,14 @@ static EDIT_ITEMS: &[MenuItem] = &[
         report(s, pasted)
     })
     .when(super::menu_guards::clipboard),
-    MenuItem::new("edit-clear", "Clear", |_, s, _| {
-        let cleared = s.clear_selected();
-        report(s, cleared)
-    })
-    .key("key-delete")
-    .when(super::menu_guards::selection)
-    .rule(),
+    CLEAR,
     MenuItem::new("edit-ripple", "Ripple Delete", |_, s, _| {
         let deleted = s.ripple_delete_selected();
         report(s, deleted)
     })
     .key("key-ripple-delete")
     .when(super::menu_guards::selection),
-    MenuItem::new("edit-dup", "Duplicate", |_, s, _| {
-        let duplicated = s.duplicate_selected();
-        report(s, duplicated)
-    })
-    .key("key-duplicate")
-    .when(super::menu_guards::selection),
+    DUPLICATE,
     MenuItem::new("edit-select-all", "Select All", |_, s, _| {
         s.select_all_unlocked()
     })

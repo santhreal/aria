@@ -126,7 +126,7 @@ fn an_empty_query_lists_the_menu_rows_first_in_menu_order() {
     let leading: Vec<(AppMenu, &str)> = hits
         .iter()
         .map_while(|offer| match offer.action {
-            Offered::Menu(menu, id) => Some((menu, id)),
+            Offered::Menu(menu, id, _) => Some((menu, id)),
             Offered::Command(_)
             | Offered::Windowed(_)
             | Offered::Generator(_)
@@ -270,7 +270,7 @@ fn a_menu_only_row_names_the_menu_it_came_from() {
     for offer in derived {
         let menu = offer.source.expect("filtered on it");
         assert!(
-            matches!(offer.action, Offered::Menu(at, _) if at == menu),
+            matches!(offer.action, Offered::Menu(at, ..) if at == menu),
             "{} names {} but runs elsewhere",
             offer.label,
             menu.label()
@@ -415,7 +415,7 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
         .iter()
         .enumerate()
         .find_map(|(at, offer)| match offer.action {
-            Offered::Menu(menu, id) => Some((at, Pending::Menu(menu, id))),
+            Offered::Menu(menu, id, _) => Some((at, Pending::Menu(menu, id))),
             Offered::Command(_)
             | Offered::Windowed(_)
             | Offered::Generator(_)

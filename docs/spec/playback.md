@@ -77,10 +77,13 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    decoders and the `P010_10LE` of hardware decoders through, and the decoder
    packs them to NV12 in one pass (`crates/aria-decoder/src/nv12_pack.rs`).
    The plane buffers of a frame that is shown, skipped, or dropped by a seek, a stale request
-   answer, or a closed decoder return to a process-wide pool of at most 128 buffers and 256 MiB,
-   and the next decode of the same plane size reuses them
-   (`crates/aria-decoder/src/plane_pool.rs`). Reverse playback decodes each
-   GOP forward once and serves its frames backward from the cache. A paused
+   answer, a canceled backward GOP walk, or a closed decoder return to a process-wide pool of at
+   most 128 buffers and 256 MiB, and the next decode of the same plane size reuses them
+   (`crates/aria-decoder/src/plane_pool.rs`). Reverse playback decodes each GOP forward once into a
+   backward store bounded at 384 MiB of CPU frames or 25 GPU surfaces (`BEHIND_BYTES = 384 << 20`,
+   `BEHIND_SURFACES = 25`), pre-walks the preceding GOP on the decode pool as soon as the playhead
+   steps into the current GOP walk, and aborts an in-flight backward GOP walk when a seek, scrub,
+   forward step, or release supersedes it. A paused
    frame redrawn at the same source time, for a parameter drag or a selection
    change, shows the CPU frame its last draw decoded; a GPU surface and a new
    source time decode again. A scrub snaps to the sync frame before the target

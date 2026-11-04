@@ -46,8 +46,8 @@ enum Kind {
 }
 use Dress::{
     Baked, Blended, Clip, Copied, Cut, Edged, EffectCopied, Effected, Fitted, Grouped, Inside,
-    Keyed, Labelled, Lanes, Linked, Marked, Masked, Nest, Pair, Picked, Ranged, Rendered, Sound,
-    Source, Sourced, Spanned,
+    Keyed, Labelled, Lanes, Linked, Marked, Masked, Nearby, Nest, Pair, Picked, Ranged, Rendered,
+    Sound, Source, Sourced, Spanned,
 };
 use Kind::{Edits, NoEdit};
 /// Every menu row, what it does, and the state it is driven against. Checked
@@ -89,6 +89,7 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-source-overwrite", Edits, Source),
     ("seq-ripple-insert", Edits, Source),
     ("seq-marker-remove", Edits, Marked),
+    ("seq-marker-snap", Edits, Nearby),
     ("seq-link", Edits, Pair),
     ("seq-unlink", Edits, Linked),
     ("clip-group", Edits, Pair),
@@ -230,7 +231,6 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-effect-reset", NoEdit, Clip),
     ("seq-lane-shift-earlier", NoEdit, Clip),
     ("seq-lane-shift-later", Edits, Clip),
-    ("seq-marker-snap", NoEdit, Clip),
     ("seq-render-in-to-out", NoEdit, Clip),
     ("seq-render-selection", NoEdit, Clip),
     ("clip-analyze:aria.beats", NoEdit, Sound),

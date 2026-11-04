@@ -140,9 +140,9 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Zoom In | `=` | View > Zoom In | `seq-in` | `=` |
 | Premiere Pro | Zoom In (Plus) | `+` | View > Zoom In | `key-zoom-in-plus` | `+` |
 | Premiere Pro | Zoom Out | `-` | View > Zoom Out | `seq-out` | `-` |
-| Premiere Pro | Zoom to Sequence | `\` | View > Fit | `seq-fit` | `\` |
-| Premiere Pro | Zoom to Frame | `Shift+F` | View > Fit Selection | `seq-fit-selection` | `Shift+F` |
-| Premiere Pro | Zoom to Selection | `Shift+Z` | View > Fit Selection | `key-fit-selection-z` | `Shift+Z` |
+| Premiere Pro | Zoom to Sequence | `\` | View > Zoom to Sequence | `seq-fit` | `\` |
+| Premiere Pro | Zoom to Frame | `Shift+F` | View > Zoom to Selection | `seq-fit-selection` | `Shift+F` |
+| Premiere Pro | Zoom to Selection | `Shift+Z` | View > Zoom to Selection | `key-fit-selection-z` | `Shift+Z` |
 | Premiere Pro | Increase Video Track Height | `Ctrl+=` | Tracks taller | `key-tracks-taller` | `Ctrl+=` |
 | Premiere Pro | Decrease Video Track Height | `Ctrl+-` | Tracks shorter | `key-tracks-shorter` | `Ctrl+-` |
 | Premiere Pro | Hand tool | `H` | Hand tool | `key-tool-hand` | `H` |
@@ -336,8 +336,8 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Window > Project | `Shift+1` | Window > Project | `key-pane-project` | `Shift+1` |
 | Premiere Pro | Window > Source Monitor | `Shift+2` | Window > Viewer | `key-pane-viewer` | `Shift+2` |
 | Premiere Pro | Window > Timeline | `Shift+3` | Window > Timeline | `win-timeline` | `Shift+3` |
-| Premiere Pro | Window > Program Monitor | `Shift+4` | Window > Viewer | `win-program` | `none` |
-| Premiere Pro | Window > Effect Controls | `Shift+5` | Effect > Effect Controls | `fx-controls` | `Shift+4` |
+| Premiere Pro | Window > Program Monitor | `Shift+4` | Window > Viewer | `win-program` | `Shift+2` |
+| Premiere Pro | Window > Effect Controls | `Shift+5` | Window > Effect Controls | `win-inspector` | `Shift+4` |
 | Premiere Pro | Window > Audio Track Mixer | `Shift+6` | Window > Audio Track Mixer | `win-mixer` | `Shift+6` |
 | Premiere Pro | Window > Effects | `Shift+7` | Window > Effects & Presets | `win-effects` | `Shift+5` |
 | Premiere Pro | Window > Lumetri Scopes | `none` | Window > Scopes | `win-panel:aria.panel.scopes` | `Shift+7` |

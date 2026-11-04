@@ -27,33 +27,36 @@
 //! one meant reading all seventy-seven. It is now the `junctions:` column of
 //! the command's row, read once in [`dispatch_edit`].
 
-use aria_commands::{Command, EditCommand, EditOutcome, Inverse, ProjectCommand};
+use aria_commands::{Command, EditCommand, EditOutcome, Inverse, Junctions, ProjectCommand};
 
 use super::edit::add_track::RemoveTrackAction;
 use super::edit::audio_effects::InsertEdit;
 use super::edit::remove_media::RemoveMediaAction;
-use super::edit::restore_transitions::RestoreTransitionsAction;
+use super::edit::restore_transitions::WithTransitionsAction;
 use super::edit::set_track_flags::FlagPatch;
 use super::edit::set_track_routing::RouteEdit;
 use super::edit::{self, remove_clip::RemoveClipAction};
 use super::project;
-use super::{ApplyContext, CompoundAction, EditAction};
+use super::{ApplyContext, EditAction};
 use crate::error::EngineError;
 use aria_models::{
     AudioInsertTarget, BinId, ClipId, MarkerId, MediaId, ModelError, TrackId, TrackOutput,
     Transition,
 };
 
-/// Capture transitions only on tracks the structural edit can touch.
+/// Capture transitions only on tracks the edit's row says it can touch.
 ///
-/// Clip targets resolve through the timeline index; lane targets include move
-/// destinations. Unrelated tracks retain their transition storage without a
-/// clone on every structural edit.
+/// A row that keeps junctions captures nothing. Clip targets resolve through
+/// the timeline index; lane targets include move destinations; a rippling row
+/// adds every sync-locked lane, which the edit shifts along with its own.
+/// Unrelated tracks retain their transition storage without a clone on every
+/// structural edit.
 pub(super) fn transitions_guard(
     ctx: &ApplyContext<'_>,
     edit: &EditCommand,
 ) -> Option<Vec<(TrackId, Vec<Transition>)>> {
-    if !ctx.project.has_transitions() {
+    let junctions = edit.spec().junctions;
+    if junctions == Junctions::Keeps || !ctx.project.has_transitions() {
         return None;
     }
     let timeline = ctx.project.timeline();
@@ -66,6 +69,10 @@ pub(super) fn transitions_guard(
             .flat_map(|clip| ctx.project.move_companions(clip))
             .filter_map(|clip| timeline.track_of(clip)),
     );
+    if junctions == Junctions::Ripples {
+        let riders = edit::shift_clips::rider_lanes(timeline, &tracks);
+        tracks.extend(riders);
+    }
     tracks.sort_unstable();
     tracks.dedup();
 
@@ -98,9 +105,7 @@ fn finalize_structural(
             .is_none_or(|track| track.transitions() != before.as_slice())
     });
     if changed {
-        Box::new(CompoundAction {
-            actions: vec![primary, Box::new(RestoreTransitionsAction { snapshot })],
-        })
+        Box::new(WithTransitionsAction { primary, snapshot })
     } else {
         primary
     }
@@ -178,11 +183,7 @@ fn dispatch_project(
 fn dispatch_edit(edit: EditCommand, ctx: &mut ApplyContext<'_>) -> Result<Dispatched, EngineError> {
     // A structural edit can leave a transition sitting on an abutment that no
     // longer exists. Which edits those are is the row's `junctions:` column.
-    let guard = if edit.spec().structural {
-        transitions_guard(ctx, &edit)
-    } else {
-        None
-    };
+    let guard = transitions_guard(ctx, &edit);
     let Applied { outcome, inverse } = rows::apply_edit(ctx, edit)?;
     let inverse = finalize_structural(ctx, guard, inverse);
     Ok((ApplyOutcome::Edited(outcome), Some(inverse)))

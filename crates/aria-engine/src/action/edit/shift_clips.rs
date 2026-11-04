@@ -1,4 +1,4 @@
-use aria_models::{RationalTime, TrackId};
+use aria_models::{RationalTime, Timeline, TrackId};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -39,14 +39,27 @@ impl EditAction for ShiftClipsAction {
     }
 }
 
+/// The lanes that ride along with a ripple on `addressed`: every sync-locked
+/// lane `addressed` does not name, in stack order. A lane follows an edit
+/// elsewhere exactly while its sync lock is set. The single definition of that
+/// rule: inserts, ripple deletes, ripple moves, and the transitions guard of a
+/// rippling command all select their riders here.
+pub(crate) fn rider_lanes(timeline: &Timeline, addressed: &[TrackId]) -> Vec<TrackId> {
+    timeline
+        .tracks_ordered()
+        .filter(|track| track.sync_lock && !addressed.contains(&track.id))
+        .map(|track| track.id)
+        .collect()
+}
+
 /// Open a hole of `delta` at `from` on `track` and on every other sync-locked
 /// lane, so an insert keeps picture and sound in step.
 ///
 /// The target lane always shifts — that *is* the insert. Another lane shifts
-/// only while its sync lock is set; clearing the lock is how a lane is pinned
-/// against inserts elsewhere. This is the one owner of that rule: ripple
-/// insert and a rippled four-point edit both go through it rather than each
-/// deciding for itself which lanes ride along.
+/// only while it is one of the [`rider_lanes`]; clearing its sync lock is how a
+/// lane is pinned against inserts elsewhere. Ripple insert and a rippled
+/// four-point edit both go through here rather than each deciding for itself
+/// which lanes ride along.
 ///
 /// A lane whose clip straddles `from` is cut there first. Shifting selects
 /// clips by start tick, so without the cut an insert landing inside a clip
@@ -78,13 +91,7 @@ pub(crate) fn open_lanes_for_insert(
     delta: RationalTime,
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
-    let riders: Vec<TrackId> = ctx
-        .project
-        .timeline()
-        .tracks_ordered()
-        .filter(|t| t.sync_lock && !lanes.contains(&t.id))
-        .map(|t| t.id)
-        .collect();
+    let riders = rider_lanes(ctx.project.timeline(), lanes);
     for &lane in lanes.iter().chain(&riders) {
         cut_at(ctx, lane, from, inverses)?;
         inverses.push(execute(ctx, lane, from, delta)?);
@@ -95,11 +102,11 @@ pub(crate) fn open_lanes_for_insert(
 /// Close the span `from`..`to` on every sync-locked lane other than `track`, so
 /// a ripple delete keeps picture and sound in step.
 ///
-/// This is the delete-side half of [`open_for_insert`] and owns the same rider
-/// rule: a lane rides along only while its sync lock is set, and the lanes in
-/// `excluded` are handled by their own callers. Ripple delete and a rippled
-/// four-point edit both come through here rather than each deciding which lanes
-/// follow.
+/// This is the delete-side half of [`open_for_insert`] and takes its riders
+/// from the same [`rider_lanes`]: a lane rides along only while its sync lock
+/// is set, and the lanes in `excluded` are handled by their own callers. Ripple
+/// delete and a rippled four-point edit both come through here rather than
+/// each deciding which lanes follow.
 ///
 /// Closing a span is not the mirror image of opening one. Opening a hole moves
 /// material aside and preserves all of it; closing a span removes that stretch of
@@ -124,13 +131,7 @@ pub(crate) fn close_for_ripple_delete(
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
     let span = RationalTime::new(from.value - to.value, from.rate);
-    let riders: Vec<TrackId> = ctx
-        .project
-        .timeline()
-        .tracks_ordered()
-        .filter(|t| !excluded.contains(&t.id) && t.sync_lock)
-        .map(|t| t.id)
-        .collect();
+    let riders = rider_lanes(ctx.project.timeline(), excluded);
     for lane in riders {
         cut_at(ctx, lane, from, inverses)?;
         cut_at(ctx, lane, to, inverses)?;

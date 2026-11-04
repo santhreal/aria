@@ -57,17 +57,13 @@ impl Project {
                     Some(split_source_window(&clip, source, at, tl_rate, media_fps)?)
                 }
             }
-            ClipSource::Multicam { source, .. } => {
-                let tl_rate = self.timeline().frame_rate;
-                let split_ticks = at.value - tl.start.value;
-                let left_source = TimeRange::at_rate(source.start.value, split_ticks, tl_rate);
-                let right_source = TimeRange::at_rate(
-                    source.start.value + split_ticks,
-                    source.duration.value.saturating_sub(split_ticks),
-                    tl_rate,
-                );
-                Some((left_source, right_source))
-            }
+            ClipSource::Multicam { source, .. } => Some(split_source_window(
+                &clip,
+                source,
+                at,
+                tl_rate,
+                source.start.rate,
+            )?),
             ClipSource::Sequence { sequence, source } => {
                 let seq_fps = self
                     .sequences
@@ -254,7 +250,6 @@ impl Project {
         clip: &Clip,
         new_timeline: TimeRange,
     ) -> Result<Option<TimeRange>, ModelError> {
-        let old_tl = clip.timeline;
         let tl_rate = self.timeline().frame_rate;
         check_same_rate(new_timeline.start.rate, tl_rate)?;
         Ok(match &clip.content {
@@ -281,13 +276,16 @@ impl Project {
                     Some(TimeRange::at_rate(start, duration, media.frame_rate))
                 }
             }
-            ClipSource::Multicam { source, .. } => {
-                let offset = (new_timeline.start.value - old_tl.start.value).max(0);
-                Some(TimeRange::at_rate(
-                    source.start.value + offset,
-                    new_timeline.duration.value,
-                    source.start.rate,
-                ))
+            ClipSource::Multicam { group, source } => {
+                if !self.multicam_groups.contains_key(group) {
+                    return Err(ModelError::UnknownMulticamGroup(*group));
+                }
+                let rate = source.start.rate;
+                let (start, duration) = trimmed_window(clip, *source, new_timeline, rate);
+                if start < 0 {
+                    return Err(ModelError::SourceOutOfBounds);
+                }
+                Some(TimeRange::at_rate(start, duration, rate))
             }
             ClipSource::Sequence { sequence, source } => {
                 let seq = self
@@ -380,9 +378,32 @@ impl Project {
                 }
                 Ok(())
             }
-            ClipSource::Multicam { .. } | ClipSource::Generated(_) => Err(
-                ModelError::InvalidParam("a generated clip has no source to slip".into()),
-            ),
+            ClipSource::Multicam { group, source } => {
+                let span = self.multicam_group_span(group)?.duration.value;
+                let limit = span - source.duration.value;
+                if limit <= 0 {
+                    return Err(ModelError::InvalidParam(
+                        "the clip already spans its whole source".into(),
+                    ));
+                }
+                let start = (source.start.value + by).clamp(0, limit);
+                if start == source.start.value {
+                    return Ok(());
+                }
+                let rate = source.start.rate;
+                let duration = source.duration.value;
+                let clip = self
+                    .timeline_mut()
+                    .clip_mut(clip_id)
+                    .expect("clip existence checked above");
+                if let ClipSource::Multicam { source, .. } = &mut clip.content {
+                    *source = TimeRange::at_rate(start, duration, rate);
+                }
+                Ok(())
+            }
+            ClipSource::Generated(_) => Err(ModelError::InvalidParam(
+                "a generated clip has no source to slip".into(),
+            )),
         }
     }
 
@@ -419,7 +440,11 @@ impl Project {
         self.timeline_mut()
             .clip_timeline_mut(clip_id)
             .expect("clip existence checked above")
-            .retime(speed, reversed, tl_rate)
+            .retime(speed, reversed, tl_rate)?;
+        if let Some(track) = self.timeline_mut().track_mut(track_id) {
+            track.prune_dead_transitions();
+        }
+        Ok(())
     }
 
     /// Set (or clear) a media clip's playback-rate ramp (CapCut speed curves,
@@ -474,6 +499,9 @@ impl Project {
                 .expect("clip existence checked above");
             clip.speed_curve = new_curve;
             clip.timeline = new_timeline;
+        }
+        if let Some(track) = self.timeline_mut().track_mut(track_id) {
+            track.prune_dead_transitions();
         }
         Ok(())
     }

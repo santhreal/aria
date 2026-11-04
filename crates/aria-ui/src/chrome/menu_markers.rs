@@ -57,7 +57,7 @@ static MARKER_ITEMS: &[MenuItem] = &[
         report(s, removed)
     })
     .key("key-marker-remove")
-    .when(guards::markers)
+    .when(guards::marker_at_playhead)
     .rule(),
     MenuItem::new("marker-clear-all", "Clear All Markers", |_, s, _| {
         let cleared = s.clear_all_markers();
@@ -68,14 +68,14 @@ static MARKER_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-marker-rename", "Edit Marker…", |_, s, _| {
         s.edit_marker_at_playhead()
     })
-    .when(guards::markers)
+    .when(guards::marker_at_playhead)
     .rule(),
     MenuItem::new(
         "seq-marker-snap",
         "Move Nearest Marker to Playhead",
         |_, s, _| crate::commands::reach::snap_marker(s),
     )
-    .when(guards::markers),
+    .when(guards::marker_at_playhead),
 ];
 
 pub(super) fn marker_items(_state: &AppState) -> MenuItems {

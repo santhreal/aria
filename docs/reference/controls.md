@@ -226,7 +226,7 @@ The Effects Browser panel (`crates/aria-ui/src/panels/effects_browser.rs`) rende
 
 ## Audio Mixer
 
-The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) render per-slot effect adding, bypass, key lane, ordering, and removal controls for track, clip, and master insert racks.
+The Audio Mixer strips (`crates/aria-ui/src/panels/mixer.rs`) render each strip's mute, solo, automation mode, output, and send chips. The shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) renders per-slot effect adding, bypass, key lane, ordering, and removal controls for track, clip, and master insert racks.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -238,6 +238,11 @@ The Audio Mixer and shared audio insert chain (`crates/aria-ui/src/panels/insert
 | `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
 | `insert-up` | Move earlier | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
+| `mixer-auto` (per row) | Off / Read / Write / Touch / Latch | Sets the strip's automation mode; the lit mode that writes the envelope draws its label in the warning color. | None |
+| `mixer-mute` (per row) | M | Toggles the mute of the lane or the master; a lit mute draws its label in the warning color. | None |
+| `mixer-out` (per row) | Master / bus name | Points the lane's output at the master or at a submix bus. | None |
+| `mixer-send` (per row) | Bus name and level | Cycles the lane's send to the bus from off to post-fader to pre-fader and back to off; a pre-fader send draws its label in the warning color. | None |
+| `mixer-solo` (per row) | S | Toggles the lane's solo in place. | None |
 
 ## Captions
 
@@ -439,13 +444,11 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 
 ## Project Home
 
-The Project Home surface (`crates/aria-ui/src/panels/home/*.rs` and `crates/aria-ui/src/panels/cloud.rs`) renders the remote catalog loader for cloud templates and stock feeds alongside the Home route tiles (`home-new`, `home-open`, `home-sample`, `home-template`), the recent-project card actions, and the recovery banner. A press on a recent card away from its actions runs the card's `recent-open` action.
+The Project Home surface (`crates/aria-ui/src/panels/home/*.rs` and `crates/aria-ui/src/panels/cloud.rs`) renders the remote catalog loader for cloud templates and stock feeds alongside the Home route tiles (`home-new`, `home-open`, `home-sample`, `home-template`), the recent-project cards, and the recovery banner. A press on a recent card opens its project, or prompts for its new location when the file is missing. A right-click on a recent card opens its menu: Open, Reveal, Remove from List, and Delete File….
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
 | `cloud-load` | Load catalog | Fetches the remote cloud template or stock media catalog for the active feed. | None |
-| `recent-open` (per row) | Open or Relink | Opens the recent project, or prompts for its new location when the file is missing. | None |
-| `recent-reveal` (per row) | Reveal | Shows the recent project's file in the system file manager. | None |
 | `recovery` (per row) | Restore or Discard | Opens the recovered copy of the last session, or deletes the copy. | None |
 
 ## Window & Dock Chrome
@@ -478,7 +481,6 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `audio-gain-cancel` | Cancel | Closes the Audio Gain dialog without modifying clip gain. | None |
 | `audio-gain-mode` (per row) | Set Gain to / Adjust Gain by / Normalize Max Peak to / Normalize All Peaks to | Selects how the Audio Gain dialog changes the gain of the selected clips. | None |
 | `audio-gain-preset` (per row) | -12 dB … +6 dB / -12 dBFS … 0 dBFS | Sets the gain or the normalization target in the Audio Gain dialog to the preset value. | None |
-| `audio-gain-step` (per row) | -3 dB / -1 dB / -0.5 dB / +0.5 dB / +1 dB / +3 dB | Steps the gain or the normalization target in the Audio Gain dialog by the value. | None |
 | `install-plugin-cancel` | Cancel | Cancels the pending plugin archive installation and closes the confirmation dialog. | None |
 | `install-plugin-confirm` | Install / Update | Confirms permissions and installs or updates the selected plugin package. | None |
 | `job-reveal` (per row) | Reveal | Reveals the output file of a completed background job in the system file manager. | None |
@@ -504,16 +506,12 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `remove-attr-cancel` | Cancel | Closes the Remove Attributes dialog without modifying selected clips. | None |
 | `speed-duration-apply` | Apply | Applies the configured playback speed percentage, duration, reverse, and pitch settings to the selected clip. | None |
 | `speed-duration-cancel` | Cancel | Closes the Speed / Duration dialog without modifying the clip. | None |
-| `speed-duration-length-step` (per row) | -24f / -5f / -1f / +1f / +5f / +24f | Steps the clip duration in the Speed / Duration dialog by the number of frames. | None |
 | `speed-duration-pitch` | Switch | Toggles audio pitch preservation in the Speed / Duration dialog; drawn on the Maintain Audio Pitch line. | None |
 | `speed-duration-preset` (per row) | 25% … 400% | Sets the speed in the Speed / Duration dialog to the preset percentage. | None |
 | `speed-duration-reverse` | Switch | Toggles reverse playback in the Speed / Duration dialog; drawn on the Reverse Speed line. | None |
-| `speed-duration-speed-step` (per row) | -25% / -5% / -1% / +1% / +5% / +25% | Steps the speed in the Speed / Duration dialog by the percentage. | None |
 | `timeline-report-close` | Close | Closes the Timeline File dialog and drops its report. | None |
 | `unsaved-cancel` | Stay | Cancels the pending close, quit, or project switch and returns to the open project. | None |
 | `unsaved-discard` | Discard | Discards unsaved project modifications and proceeds with the pending action. | None |
 | `unsaved-save` | Save | Saves the current project and proceeds with the pending close, quit, or project switch. | None |
 | `velocity-influence-preset` (per row) | Influence preset | Sets incoming or outgoing Bézier handle influence to a preset percentage. | None |
-| `velocity-influence-step` (per row) | Influence step | Steps incoming or outgoing Bézier handle influence down or up by a fixed delta. | None |
-| `velocity-speed-step` (per row) | Speed step | Steps incoming or outgoing keyframe velocity down or up by a fixed delta. | None |
 | `velocity-speed-zero` (per row) | 0 | Sets incoming or outgoing keyframe velocity to zero. | None |

@@ -26,11 +26,10 @@ use crate::app::export_options::{
 use crate::app::{AppState, DialogKind};
 use crate::interned::intern;
 use crate::test_support::drawn_shell;
-use crate::theme::Theme;
 
 const LABELS: [&str; 11] = [
     "Encoder",
-    "Canvas",
+    "Size",
     "Format",
     "Scale",
     "Frame rate",
@@ -144,28 +143,14 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
     }
     // A chip's label stands on the text edge a fact's value starts at.
     let fact = visual
-        .debug_bounds("export-row-Canvas")
-        .expect("the Canvas row is a fact");
+        .debug_bounds("export-row-Size")
+        .expect("the Size row is a fact");
     let chip_text = run(ExportScale::Full.label());
     assert!(
         (chip_text.bounds.left() - fact.left()).abs() < px(EPS),
         "the first chip's label starts at {:?}, a fact's value at {:?}",
         chip_text.bounds.left(),
         fact.left()
-    );
-    let last = ExportScale::ALL[ExportScale::ALL.len() - 1].label();
-    let last_chip = visual
-        .debug_bounds(intern(&format!("export-scale-{last}")))
-        .expect("the Scale row draws its last chip");
-    let size = visual
-        .debug_bounds("export-scale-size")
-        .expect("the Scale row draws the size it gives");
-    assert!(
-        (size.left() - last_chip.right() - px(Theme::SPACE_MD)).abs() < px(EPS)
-            && (size.center().y - last_chip.center().y).abs() < px(EPS),
-        "the size stands at {:?}, the {last} chip ends at {:?}",
-        size.origin,
-        last_chip.right()
     );
     // Each row's value stands on its label's line, a fact's as a chip's. A
     // line box centers its text, so two runs stand on one line when their
@@ -267,6 +252,82 @@ fn every_chip_sets_the_choice_it_names(cx: &mut TestAppContext) {
         visual.read(|app| state.read(app).dialog),
         DialogKind::Export
     );
+}
+
+/// The ids of the sheet's chip rows: a chip is drawn under
+/// `export-<id>-<choice>`.
+const CHIP_ROWS: [&str; 8] = [
+    "format", "scale", "rate", "codec", "bitrate", "gop", "audio", "range",
+];
+
+/// The class closed here: text in a chip row that is not a choice reads as
+/// one. The pixel size the Scale chips give stood after the last of them in
+/// muted text, the look of an unlit chip. Every drawn row is read: each run of
+/// text in it is its label, its fact, or the label of the chip under it, so a
+/// readout added to any chip row fails, as does a chip row whose id is not in
+/// [`CHIP_ROWS`]. The size is the Size fact, read at every scale. A run the
+/// editor draws under the sheet, such as the Viewer's In mark, is drawn with
+/// the sheet closed at the same place, and is not the sheet's. Not covered:
+/// text a row draws outside its line's bounds, or at the place and in the words
+/// of a run the editor draws under it.
+#[gpui::test]
+fn a_row_draws_its_label_and_choices_and_the_size_fact_follows_the_scale(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "export-size");
+    visual.run_until_parked();
+    let behind = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let sheet_runs = |visual: &mut VisualTestContext| {
+        let mut runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+        runs.retain(|run| {
+            !behind
+                .iter()
+                .any(|under| under.text == run.text && under.bounds == run.bounds)
+        });
+        runs
+    };
+    open_sheet(&state, visual);
+    for scale in ExportScale::ALL {
+        press(visual, &format!("export-scale-{}", scale.label()));
+        let (w, h) = visual.read(|app| state.read(app).export_size());
+        let size = visual
+            .debug_bounds("export-row-Size")
+            .expect("the Size row is a fact");
+        let runs = sheet_runs(visual);
+        let drawn: Vec<&str> = runs
+            .iter()
+            .filter(|run| size.contains(&run.bounds.center()))
+            .map(|run| run.text.as_ref())
+            .collect();
+        let expected = format!("{w}×{h}");
+        assert_eq!(drawn, [expected.as_str()], "at {}", scale.label());
+    }
+
+    let runs = sheet_runs(visual);
+    let mut read = 0;
+    for label in LABELS {
+        let Some(line) = visual.debug_bounds(intern(&format!("export-line-{label}"))) else {
+            continue;
+        };
+        read += 1;
+        let fact = visual.debug_bounds(intern(&format!("export-row-{label}")));
+        for run in runs
+            .iter()
+            .filter(|run| line.contains(&run.bounds.center()))
+        {
+            let (text, center) = (run.text.as_ref(), run.bounds.center());
+            let placed = text == label
+                || fact.is_some_and(|fact| fact.contains(&center))
+                || CHIP_ROWS.iter().any(|id| {
+                    visual
+                        .debug_bounds(intern(&format!("export-{id}-{text}")))
+                        .is_some_and(|chip| chip.contains(&center))
+                });
+            assert!(
+                placed,
+                "the {label} row draws {text:?}, which is not its label, its fact or a chip"
+            );
+        }
+    }
+    assert!(read >= 9, "the sheet draws {read} rows");
 }
 
 /// The Range row: the marked choice is refused with a sentence until a range

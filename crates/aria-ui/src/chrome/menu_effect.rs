@@ -11,10 +11,11 @@ use crate::types::ActivePanel;
 use super::menu_guards as guards;
 use super::menu_items::{MenuItem, MenuItems, report};
 
+/// Brings Effect Controls forward. Its key, Shift+4, is drawn on the Window
+/// row of the panel, as every pane key is.
 static EFFECT_HEAD: MenuItem = MenuItem::new("fx-controls", "Effect Controls", |_, s, _| {
     s.focus_pane(ActivePanel::Inspector)
-})
-.key("key-pane-effect-controls");
+});
 
 static EFFECT_ITEMS: &[MenuItem] = &[
     MenuItem::new("fx-paste", "Paste Effect", |_, s, _| {

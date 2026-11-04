@@ -373,10 +373,10 @@ fn equivalents_doc_matches_registries() {
                     "docs/reference/equivalents.md:{line_no}: Aria palette label `{cmd_label}` for `{aria_id}` does not exist in BUILTIN_COMMANDS or BUILTIN_JOB_COMMANDS"
                 );
             } else {
-                let expected_label = crate::keys::binding_label(aria_id);
+                let expected_label = state.binding_name(aria_id);
                 assert_eq!(
                     aria, expected_label,
-                    "docs/reference/equivalents.md:{line_no}: Aria label `{aria}` for `{aria_id}` does not match binding_label `{expected_label}`"
+                    "docs/reference/equivalents.md:{line_no}: Aria label `{aria}` for `{aria_id}` does not match the name Settings > Keyboard Shortcuts gives it, `{expected_label}`"
                 );
             }
             covered_bindings.insert(shipped_id);

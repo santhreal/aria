@@ -15,8 +15,10 @@ thread_local! {
     /// [`NotingControls`] stands.
     static CONTROLS: std::cell::RefCell<Option<ControlRecord>> =
         const { std::cell::RefCell::new(None) };
-    /// Whether a [`NotingControls`] stands.
-    static NOTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// How many [`NotingControls`] stand. A surface stands one of its own
+    /// while it builds, inside a test's, so the inner one dropping leaves the
+    /// test's standing.
+    static NOTING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     /// The kind and id of each control built since the standing
     /// [`NotingControls`] began.
     static BUILT: std::cell::RefCell<std::collections::HashSet<(&'static str, motion::ControlId)>> =
@@ -58,12 +60,13 @@ pub(crate) struct DrawnControl {
 /// The ghost buttons, chips and switches built until this drops are the ones
 /// [`drawn_controls`] returns, and no other surface's. Two of one kind built
 /// with one id share one hover, so each lights whenever the pointer is on
-/// either.
+/// either. One stood while another stands nests in it: controls stay noted
+/// until the outermost drops.
 pub(crate) struct NotingControls(());
 
 impl NotingControls {
     pub(crate) fn start() -> Self {
-        NOTING.set(true);
+        NOTING.set(NOTING.get() + 1);
         BUILT.with_borrow_mut(std::collections::HashSet::clear);
         Self(())
     }
@@ -71,7 +74,7 @@ impl NotingControls {
 
 impl Drop for NotingControls {
     fn drop(&mut self) {
-        NOTING.set(false);
+        NOTING.set(NOTING.get() - 1);
     }
 }
 
@@ -106,7 +109,7 @@ pub(super) fn note(
     id: motion::ControlId,
     drawn: Drawn,
 ) -> Stateful<Div> {
-    if !NOTING.get() {
+    if NOTING.get() == 0 {
         return control;
     }
     let selector = control_selector(kind, id, &drawn);
@@ -131,5 +134,44 @@ pub(crate) fn control_selector(kind: &str, id: motion::ControlId, drawn: &Drawn)
     match drawn {
         Drawn::Labelled { label, .. } => format!("{kind}-{id:?}-{label}"),
         Drawn::Switch => format!("{kind}-{id:?}"),
+    }
+}
+
+mod tests {
+    use gpui::div;
+
+    use super::*;
+
+    /// The class: a surface standing its own [`NotingControls`] while it
+    /// builds, as the Inspector does on every frame, inside a test's, and
+    /// ending the test's when it drops, so every control built after the
+    /// surface in that frame went unrecorded and drew under no selector.
+    /// Not covered: a guard leaked with `std::mem::forget`, which leaves
+    /// noting on for the thread.
+    #[test]
+    fn a_noting_stood_inside_another_ends_with_the_outer_one() {
+        let id = motion::ControlId::from("noted-nest");
+        let build = || note(div().id("noted-nest"), "switch", id, Drawn::Switch);
+        let outer = NotingControls::start();
+        record_controls();
+        drop(NotingControls::start());
+        let _ = build();
+        let (built, _) = drawn_controls();
+        assert_eq!(
+            built,
+            vec![DrawnControl {
+                selector: control_selector("switch", id, &Drawn::Switch),
+                drawn: Drawn::Switch,
+            }],
+            "a control built after an inner noting dropped is recorded"
+        );
+        drop(outer);
+        record_controls();
+        let _ = build();
+        assert_eq!(
+            drawn_controls().0,
+            Vec::new(),
+            "no control is recorded once the outer noting drops"
+        );
     }
 }

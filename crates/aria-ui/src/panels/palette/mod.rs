@@ -43,8 +43,9 @@ pub fn render(
     let keys = state.read(cx).ctx.context_keys();
     let mut rows = Vec::with_capacity(hits.len());
     for (at, offer) in hits.iter().enumerate() {
+        let live = offer.runs_now(state.read(cx), keys);
         rows.push(
-            row(&theme, offer.clone(), keys, at, highlight == Some(at), cx).into_any_element(),
+            row(&theme, offer.clone(), live, at, highlight == Some(at), cx).into_any_element(),
         );
     }
     if rows.is_empty() {
@@ -75,27 +76,24 @@ pub fn render(
     )
 }
 
-/// One offer. A plugin command draws its icon, and is dimmed while its
-/// enablement condition is false under `keys`; choosing it then reports the
-/// condition it needs.
+/// One offer, drawn faint while it does not run now
+/// ([`PaletteOffer::runs_now`]): a menu row its menu draws disabled, a plugin
+/// command whose enablement condition is false, a clip type that cannot be
+/// placed. Choosing it then reports why. A plugin command and a clip type draw
+/// their icon.
 fn row(
     theme: &Theme,
     offer: PaletteOffer,
-    keys: aria_plugin::ContextKeys,
+    live: bool,
     index: usize,
     highlighted: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let source = offer.source.map(|menu| menu.label());
-    let (icon, enabled) = match &offer.action {
-        Offered::Plugin(spec) => (
-            spec.icon.as_ref().map(crate::icons::plugin_icon_path),
-            spec.enabled(keys),
-        ),
-        Offered::ClipType {
-            icon, placeable, ..
-        } => (*icon, *placeable),
-        _ => (None, true),
+    let icon = match &offer.action {
+        Offered::Plugin(spec) => spec.icon.as_ref().map(crate::icons::plugin_icon_path),
+        Offered::ClipType { icon, .. } => *icon,
+        _ => None,
     };
     // The palette is drawn by the Shell: a gpui hover style here would notify
     // it and rebuild every panel body, where a fade redraws the chrome alone.
@@ -105,6 +103,7 @@ fn row(
     } else {
         theme.wash(0.0)
     };
+    let withheld = (!live).then(|| offer.id.clone());
     div()
         .id(offer.id)
         .flex()
@@ -119,13 +118,13 @@ fn row(
             el.debug_selector(|| "palette-highlight".into())
         })
         .text_size(Theme::TEXT_UI)
-        .text_color(if enabled {
-            theme.text
+        .text_color(if live { theme.text } else { theme.text_faint })
+        .cursor(if live {
+            CursorStyle::PointingHand
         } else {
-            theme.text_faint
+            CursorStyle::Arrow
         })
-        .cursor(CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
+        .when(live, |el| el.active(|style| style.opacity(0.92)))
         .bg(crate::motion::hover_blend(key, rest, theme.glass_hover()))
         .on_hover(crate::motion::hover_listener(key))
         .on_mouse_down(
@@ -141,7 +140,15 @@ fn row(
                 .min_w_0()
                 .gap(px(Theme::SPACE_SM))
                 .children(icon.map(crate::icons::icon))
-                .child(div().min_w_0().truncate().child(offer.label)),
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .when_some(withheld, |el, id| {
+                            el.debug_selector(move || format!("palette-withheld-{id}"))
+                        })
+                        .child(offer.label),
+                ),
         )
         .children(source.map(|menu| {
             div()
@@ -155,3 +162,7 @@ fn row(
 #[cfg(test)]
 #[path = "rows_tests.rs"]
 mod rows_tests;
+
+#[cfg(test)]
+#[path = "withheld_tests.rs"]
+mod withheld_tests;
