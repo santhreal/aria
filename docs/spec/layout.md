@@ -67,7 +67,7 @@ The menu button and a right-click on a tab open the frame menu under the tab row
 | --- | --- |
 | Click a tab | That panel becomes the frame's visible panel. |
 | Drag a tab inside its row | Reorders the tabs. |
-| Drag a tab over another frame | Shows drop zones: center (add as tab), top, bottom, left, right (split the frame). Releasing on a zone docks the panel there. |
+| Drag a tab over another frame | Shows the drop zone under the pointer: center (add as tab), top, bottom, left, right (split the frame). Releasing on a zone docks the panel there. |
 | Drag a tab outside the window | Opens the panel in a floating window. |
 | Drag a floating window's tab back over a frame | Docks it, with the same drop zones. |
 | Close a floating window (Close Window, or the window manager's close) | Closes its panels. The Window menu opens each one again in its default frame. |

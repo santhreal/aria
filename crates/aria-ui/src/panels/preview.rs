@@ -12,6 +12,7 @@ use crate::app::{AppState, spawn_preview, start_playback};
 use crate::components::Wraps as _;
 use crate::motion;
 use crate::shell::PreviewPan;
+use crate::surfaces::overlay_gesture;
 use crate::theme::Theme;
 use crate::timecode;
 use crate::tooltip::WithTip as _;
@@ -192,10 +193,11 @@ pub fn render(
 
 /// The Program picture: the sequence frame with its safe guides, handles,
 /// plugin overlays, rulers, and viewer guides. A left press picks the clip
-/// under the pointer; a left or middle press held pans a zoomed frame, and
-/// the shell carries the pan and a held guide wherever the pointer goes
-/// (`Shell::carry_gesture`). Ctrl+wheel (Cmd on macOS) zooms about the
-/// pointer.
+/// under the pointer and takes hold of it to move (`overlay_gesture::press`);
+/// a left press that takes hold of nothing, the Hand's, and a middle press
+/// held pan a zoomed frame, and the shell carries the pan and a held guide
+/// wherever the pointer goes (`Shell::carry_gesture`). Ctrl+wheel (Cmd on
+/// macOS) zooms about the pointer.
 ///
 /// The picture area stands half a handle inside the pane on every side. A
 /// fitted frame touches the picture area on two sides, and a handle on the
@@ -229,10 +231,11 @@ fn program_pane(
                 cx.notify();
             }),
         )
-        // One press does two things, and they do not conflict: it holds a pan,
-        // and it picks the clip under the pointer. A miss leaves the
-        // selection alone — a click on the letterbox while nudging a title
-        // should not throw the title's selection away.
+        // A left press holds a pan and picks the clip under the pointer. A
+        // press that takes hold of the clip moves it instead: the shell carries
+        // a held layer before a pan. A miss leaves the selection alone — a
+        // click on the letterbox while nudging a title should not throw the
+        // title's selection away.
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, event: &MouseDownEvent, _, cx| {
@@ -242,7 +245,7 @@ fn program_pane(
                     button: MouseButton::Left,
                 });
                 this.state.update(cx, |state, _| {
-                    state.select_layer_at(at, event.modifiers.shift);
+                    overlay_gesture::press(state, at, event.modifiers.shift);
                 });
                 cx.notify();
             }),

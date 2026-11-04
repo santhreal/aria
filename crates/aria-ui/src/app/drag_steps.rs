@@ -1,4 +1,5 @@
-//! The edits an edge drag and a slide send, as steps.
+//! The edits an edge drag and a slide send, as steps, and what each clip
+//! drag that changes clips in place draws while the button is down.
 //!
 //! A trim, a ripple trim, a roll, a slide and a rate stretch each send one or
 //! more of four edits, in order: a trim, a move, a shift of the rest of a lane
@@ -6,16 +7,28 @@
 //! While the button is down the frame runs the same steps on the clips they
 //! reach, with the model's own trim and retime arithmetic, on the project as
 //! the drag found it: the drag draws what its release leaves.
+//!
+//! A transition at a cut the steps move is judged once, by where the steps
+//! leave its clips ([`kept`]): it stays while they meet, shortened to the
+//! longest window they hold, and goes once they part. The engine judges each
+//! edit alone, and an edit that opens a cut drops its transition, so a roll
+//! or a slide, whose first trim opens the cut its last one closes, would drop
+//! the transition it carries.
+//!
+//! A slip, a transition window drag and a fade drag each send one
+//! [`Setting`]. The held frame draws the clips it changes with it: a slip's
+//! clips playing their slipped takes, through the model's own slip, and a
+//! transition's window or a fade at the length the release sets.
 
 use std::sync::Arc;
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{Clip, ClipId, Project, Rational, RationalTime, TimeRange, TrackId};
+use aria_models::{Clip, ClipId, Project, Rational, RationalTime, TimeRange, TrackId, Transition};
 
 use crate::app::AppState;
 use crate::projection::Placement;
-use crate::surfaces::timeline_gesture::{self, Drag, Gesture};
+use crate::surfaces::timeline_gesture::{self, Drag, Gesture, Setting};
 use crate::types::{HeldCard, HeldEdge, HeldEdit, LaneShift, TakeSpan, UiClip};
 
 /// One edit of a drag's release, in timeline ticks.
@@ -43,15 +56,64 @@ pub(crate) struct Plan {
 }
 
 impl AppState {
-    /// Send `steps` as one undo entry. A refused step rolls back the steps
-    /// before it.
+    /// Send `steps` as one undo entry, and settle each transition at a cut
+    /// they move ([`kept`]). A refused step rolls back the steps before it.
     pub(crate) fn run_steps(&mut self, steps: &[Step]) -> Result<(), EngineError> {
         self.snap_guide = None;
-        match steps {
-            [] => Ok(()),
-            [step] => self.run_step(*step),
-            _ => self.one_step(|this| steps.iter().try_for_each(|step| this.run_step(*step))),
+        if steps.is_empty() {
+            return Ok(());
         }
+        let cuts = Cut::all(self.engine.lock().project());
+        match steps {
+            [step] if cuts.is_empty() => self.run_step(*step),
+            _ => self.one_step(|this| {
+                steps.iter().try_for_each(|step| this.run_step(*step))?;
+                this.settle_cuts(&cuts)
+            }),
+        }
+    }
+
+    /// Keep, shorten or drop each transition in `cuts` whose clips the steps
+    /// moved, as [`kept`] reads where they left them.
+    fn settle_cuts(&mut self, cuts: &[Cut]) -> Result<(), EngineError> {
+        for cut in cuts {
+            let clip = cut.transition.left;
+            let (now, held) = {
+                let engine = self.engine.lock();
+                let project = engine.project();
+                let span = |id: ClipId| project.clip(id).map(|clip| clip.timeline);
+                (
+                    span(clip).zip(span(cut.transition.right)),
+                    project.transition_at(clip).map(|held| held.duration),
+                )
+            };
+            if now == Some((cut.left, cut.right)) {
+                continue;
+            }
+            let keep = now.and_then(|(left, right)| kept(&cut.transition, left, right));
+            let edit = match (keep, held) {
+                (Some(duration), None) => {
+                    self.apply_command(Command::Edit(EditCommand::AddTransition {
+                        clip,
+                        transition_id: cut.transition.transition_id.clone(),
+                    }))?;
+                    EditCommand::SetTransitionState {
+                        clip,
+                        transition: Transition {
+                            duration,
+                            ..cut.transition.clone()
+                        },
+                    }
+                }
+                (Some(duration), Some(held)) if held != duration => {
+                    EditCommand::SetTransition { clip, duration }
+                }
+                (None, Some(_)) => EditCommand::RemoveTransition { clip },
+                _ => continue,
+            };
+            self.apply_command(Command::Edit(edit))?;
+        }
+        Ok(())
     }
 
     fn run_step(&mut self, step: Step) -> Result<(), EngineError> {
@@ -87,17 +149,19 @@ impl AppState {
 
     /// Hold what the drag in flight draws while the button is down: its
     /// room, its readout, the magnet it lands on, the clips a move takes and
-    /// the clips an edge drag or a slide changes. The press reads the session
-    /// and every move after it reads what the press read, so a move never
-    /// waits for a preview decode.
+    /// the clips an edge drag, a slide, a slip, a transition window drag or a
+    /// fade drag changes. The press reads the session and every move after it
+    /// reads what the press read, so a move never waits for a preview decode.
     pub(crate) fn hold_drag(&mut self, gesture: Gesture, drag: Drag) {
         let project = self.drag_project();
         self.snap_guide = None;
         self.hold_room(gesture.room(), drag.clip, &project);
-        self.trim_feedback = self.compute_trim_feedback(gesture, drag);
+        self.trim_feedback = self.compute_trim_feedback(&project, gesture, drag);
         self.hold_move(gesture, drag, &project);
         let Some(held) = timeline_gesture::held(self, gesture, &drag) else {
-            self.held_edit = None;
+            self.held_edit = timeline_gesture::setting(self, &project, gesture, &drag)
+                .and_then(|set| settled(self, &project, drag.clip, set))
+                .map(Arc::new);
             return;
         };
         self.snap_guide = held.guide;
@@ -157,6 +221,7 @@ fn preview(state: &AppState, project: &Project, plan: &Plan) -> HeldEdit {
     for &step in &plan.steps {
         build.step(step);
     }
+    build.settle_cuts();
     let Build {
         reached,
         shifts,
@@ -178,6 +243,107 @@ fn preview(state: &AppState, project: &Project, plan: &Plan) -> HeldEdit {
         shifts,
         edge: plan.edge,
     }
+}
+
+/// The clips `set` changes on `clip`, as its release leaves them, built from
+/// the store's cards and from `project`, the project as the drag found it.
+/// `None` when it changes no card: a transition drag at a junction with no
+/// transition, or a slip the model refuses for any clip it reaches, which the
+/// engine refuses whole.
+fn settled(state: &AppState, project: &Project, clip: ClipId, set: Setting) -> Option<HeldEdit> {
+    let rate = project.timeline().frame_rate;
+    let card = |id: ClipId| {
+        let ui = state.ui_clip_ref(id)?;
+        Some((ui.clone(), TakeSpan::of(ui)))
+    };
+    let cards: Vec<HeldCard> = match set {
+        // Each clip the slip reaches, slipped by its own share in the ticks
+        // of its own take, as the engine slips it.
+        Setting::Slip(by) => project
+            .slip_reach(clip, by)
+            .ok()?
+            .into_iter()
+            .map(|(member, by)| {
+                let mut held = project.clip(member)?.clone();
+                let window = project.slip_source(&held, by).ok()?;
+                let timeline = held.timeline;
+                held.trim_to(timeline, Some(window));
+                let (mut ui, was) = card(member)?;
+                Placement::of(&held, rate, on_audio_lane(project, member)).write(&mut ui);
+                Some(HeldCard { clip: ui, was })
+            })
+            .collect::<Option<_>>()?,
+        Setting::Transition(ticks) => {
+            let (mut ui, was) = card(clip)?;
+            ui.transition.as_mut()?.duration_ticks = ticks;
+            vec![HeldCard { clip: ui, was }]
+        }
+        Setting::Fade { left, ticks } => {
+            let (mut ui, was) = card(clip)?;
+            if left {
+                ui.fade_in_ticks = ticks;
+            } else {
+                ui.fade_out_ticks = ticks;
+            }
+            vec![HeldCard { clip: ui, was }]
+        }
+    };
+    (!cards.is_empty()).then_some(HeldEdit {
+        cards,
+        shifts: Vec::new(),
+        edge: None,
+    })
+}
+
+/// Whether `clip` is on a sound lane of `project`.
+fn on_audio_lane(project: &Project, clip: ClipId) -> bool {
+    let lanes = project.timeline();
+    lanes
+        .track_of(clip)
+        .and_then(|lane| lanes.track(lane))
+        .is_some_and(|lane| lane.kind.is_audio())
+}
+
+/// A transition at a cut, with the spans its clips held when the steps
+/// began.
+struct Cut {
+    track: TrackId,
+    transition: Transition,
+    left: TimeRange,
+    right: TimeRange,
+}
+
+impl Cut {
+    /// Every transition in `project`, with the spans of its clips.
+    fn all(project: &Project) -> Vec<Self> {
+        project
+            .timeline()
+            .tracks_ordered()
+            .flat_map(|track| {
+                track.transitions().iter().filter_map(move |transition| {
+                    Some(Self {
+                        track: track.id,
+                        left: track.clip(transition.left)?.timeline,
+                        right: track.clip(transition.right)?.timeline,
+                        transition: transition.clone(),
+                    })
+                })
+            })
+            .collect()
+    }
+}
+
+/// The window `transition` keeps once its clips span `left` and `right`:
+/// its own while they meet, shortened to the longest window they hold
+/// ([`aria_models::TransitionAlignment::junction_limit`]), and none once
+/// they part.
+fn kept(transition: &Transition, left: TimeRange, right: TimeRange) -> Option<i64> {
+    (left.end_tick() == right.start.value).then(|| {
+        let limit = transition
+            .alignment
+            .junction_limit(left.duration.value, right.duration.value);
+        transition.duration.min(limit)
+    })
 }
 
 /// A clip a step reaches: the model clip as the steps so far leave it, the
@@ -303,11 +469,7 @@ impl Build<'_> {
             return Some(at);
         }
         let ui = self.state.ui_clip_ref(clip)?.clone();
-        let lanes = self.project.timeline();
-        let audio = lanes
-            .track_of(clip)
-            .and_then(|lane| lanes.track(lane))
-            .is_some_and(|lane| lane.kind.is_audio());
+        let audio = on_audio_lane(self.project, clip);
         let mut reached = Reached {
             clip: self.project.clip(clip)?.clone(),
             was: TakeSpan::of(&ui),
@@ -325,6 +487,41 @@ impl Build<'_> {
         match self.project.clip(clip).and_then(|held| held.link) {
             Some(link) => self.project.linked_clips(link),
             None => vec![clip],
+        }
+    }
+
+    /// Draw each transition at a cut the steps moved as the release leaves
+    /// it ([`kept`]): shortened to the window its clips hold, or gone once
+    /// they part.
+    fn settle_cuts(&mut self) {
+        for cut in Cut::all(self.project) {
+            let left = self.span_after(cut.transition.left, cut.track, cut.left);
+            let right = self.span_after(cut.transition.right, cut.track, cut.right);
+            if (left, right) == (cut.left, cut.right) {
+                continue;
+            }
+            let keep = kept(&cut.transition, left, right);
+            let Some(at) = self.reach(cut.transition.left) else {
+                continue;
+            };
+            let card = &mut self.reached[at].ui;
+            match (keep, card.transition.as_mut()) {
+                (Some(duration), Some(drawn)) => drawn.duration_ticks = duration,
+                (Some(_), None) => {}
+                (None, _) => card.transition = None,
+            }
+        }
+    }
+
+    /// Where the steps leave `clip`, which spanned `found` on `track` when
+    /// the drag found it.
+    fn span_after(&self, clip: ClipId, track: TrackId, found: TimeRange) -> TimeRange {
+        match self.reached.iter().find(|reached| reached.clip.id == clip) {
+            Some(reached) => reached.clip.timeline,
+            None => {
+                let by = LaneShift::total(&self.shifts, track.raw(), found.start.value);
+                TimeRange::at_rate(found.start.value + by, found.duration.value, self.rate)
+            }
         }
     }
 }

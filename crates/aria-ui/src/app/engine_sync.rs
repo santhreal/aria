@@ -272,9 +272,9 @@ impl AppState {
 /// `project_to_ui_with` is a pure function of the project plus the playhead,
 /// the selection, the dirty flag, the history list, and the effect, transition
 /// and clip type catalogs it reads names and parameter layouts from, and the
-/// proxy pass
-/// that follows it reads only the proxy table. So two equal keys describe the same store,
-/// byte for byte, and the second projection is work with no output.
+/// proxy pass that follows it reads only the proxy table. So two equal keys
+/// describe the same store, byte for byte, and the second projection is work
+/// with no output.
 ///
 /// The key is built beside the projection, from the same values in the same
 /// order, because a projection input missing from this list would make the memo

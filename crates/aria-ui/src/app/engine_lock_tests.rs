@@ -86,6 +86,16 @@ const DECLARED: &[(&str, &str, &str)] = &[
          the sheet's own rows read export_size, which is projected",
     ),
     (
+        "app/media.rs",
+        "lane_kind_for",
+        "reads the kind of lane a drop on a new lane is about to add",
+    ),
+    (
+        "app/media.rs",
+        "media_placement",
+        "reads a pool item's full range for a drop about to land",
+    ),
+    (
         "app/media_reach_report.rs",
         "build_coverage",
         "writes the requested media-support report",

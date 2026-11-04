@@ -26,7 +26,9 @@
   corners. A press with no drag clears the selection. Esc abandons the band and
   leaves the selection as it was.
 - Arrow keys nudge one frame. Shift+Arrow nudges ten.
-- Delete or Backspace ripple-deletes the selection.
+- Delete or Backspace removes the selected clips and leaves their gaps; with a
+  gap selected, it closes the gap. Shift+Delete or Shift+Backspace
+  ripple-deletes the selection.
 - Ctrl+Z / Ctrl+Y undo and redo.
 - Double-click a media clip to open its take in a Source tab linked to the
   clip (see [Previewing a source](media-pool-and-bins.md#previewing-a-source)). Double-click a nested
@@ -228,9 +230,10 @@ the pointer is over the card, and a square whose fade is set at all times. The
 square sits where the fade currently ends, so its position is the fade length.
 Drag it along the card to set the fade in or the fade out; Effect Controls shows
 the same numbers. A drag past either end of the card stops at zero or at the
-whole clip. One drag is one undo entry, and a drag that ends where it started
-changes nothing. A locked clip, or a card narrower than 28 pixels, draws no
-handles.
+whole clip. While the button is down the card and its wave draw the fade the
+release sets, and the readout states its length. One drag is one undo entry,
+and a drag that ends where it started changes nothing. A locked clip, or a
+card narrower than 28 pixels, draws no handles.
 
 ## Filmstrips
 

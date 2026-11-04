@@ -178,6 +178,10 @@ name = "template"
 path = "tests/template.rs"
 
 [[test]]
+name = "linked_slip"
+path = "tests/linked_slip.rs"
+
+[[test]]
 name = "unlink_clips"
 path = "tests/unlink_clips.rs"
 

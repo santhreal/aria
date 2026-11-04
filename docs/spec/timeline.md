@@ -83,7 +83,10 @@ columns, 49 px tall with its bottom border, the height of the ruler beside it.
   without easing.
 - Markers: a point marker is a flag 6 px wide and a range marker a bar across
   its duration, both 10 px tall and standing on the bottom edge of the ticks,
-  below the labels. Clicking a marker moves the playhead to it.
+  below the labels. Clicking a marker moves the playhead to it. Dragging a
+  marker moves it by whole frames at the timeline's zoom, as one `Move marker`
+  undo step: a sequence marker stays inside the sequence and a clip marker on
+  its clip. Escape during the drag puts the marker back.
 - Work area: the In to Out range, drawn as a bar under the ruler. Dragging the
   bar moves both points; dragging an end moves one; double-clicking it sets it
   to the sequence length.

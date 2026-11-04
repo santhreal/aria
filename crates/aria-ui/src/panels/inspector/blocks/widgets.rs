@@ -50,10 +50,10 @@ const DOT: f32 = 8.0;
 
 /// The room a label holds on a row with a time area before it shrinks, in
 /// pixels: the width of Anchor point X at `TEXT_UI` in Inter (77.4 px) plus a
-/// little air. The label grows into any room the row has past it. In a frame
-/// too narrow for every control, the strip narrows first and is left blank
-/// below its minimum, and the label ends in an ellipsis only once the strip has
-/// no width left.
+/// little air. Of any room the row has past its controls, the label takes one
+/// part and the strip `STRIP_GROW` parts. In a frame too narrow for every
+/// control, the strip narrows first and is left blank below its minimum, and
+/// the label ends in an ellipsis only once the strip has no width left.
 pub const LABEL_RESERVE: f32 = 80.0;
 
 /// A keyed row label's flex shrink factor. Shrink is shared in proportion to
@@ -812,9 +812,10 @@ fn track(
 }
 
 /// A row's label. On a row in the keyed rows' columns, `column` is set: the
-/// label's basis is `LABEL_RESERVE` and it takes any room the row has past
-/// that, and it shrinks at `LABEL_YIELD`, so the strip has no width left
-/// before the label ends in an ellipsis, with the full name in a tooltip.
+/// label's basis is `LABEL_RESERVE`, it takes one part of any room the row
+/// has past that and the strip beside it the rest, and it shrinks at
+/// `LABEL_YIELD`, so the strip has no width left before the label ends in an
+/// ellipsis, with the full name in a tooltip.
 /// Elsewhere its basis is its unwrapped width, so the line breaks before the
 /// label is squeezed, and at zero minimum a label wider than the row wraps at
 /// the width it is given.

@@ -1,5 +1,5 @@
-//! A dock frame's tab row and the drop zones drawn over a frame while a tab is
-//! dragged onto it.
+//! A dock frame's tab row and the drop zone drawn over the frame a tab is
+//! dragged onto.
 
 use super::*;
 use crate::shell::panel_view::TabRow;
@@ -391,115 +391,41 @@ impl Shell {
             .into_any_element()
     }
 
-    pub(super) fn render_drop_zones(
+    /// The drop zone over the frame a dragged tab is over: a translucent accent
+    /// rectangle on the half of the frame, or the whole frame, the panel takes
+    /// when let go in `zone`. It follows the pointer between zones.
+    pub(super) fn render_drop_zone(
         &self,
         frame_id: FrameId,
-        hovered: Option<Zone>,
+        zone: Zone,
         theme: &Theme,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let reduced = cx.reduce_motion();
-        let preview_overlay = hovered.map(|zone| {
-            let (tl, tt, tw, th) = drop_zone_preview_fractions(zone);
-            let base_key = MotionKey::new("dock-drop-follow", frame_id);
-            let left_f =
-                motion::glide::glide(base_key.with(0usize), tl, DROP_ZONE_FOLLOW_SPEC, reduced);
-            let top_f =
-                motion::glide::glide(base_key.with(1usize), tt, DROP_ZONE_FOLLOW_SPEC, reduced);
-            let width_f =
-                motion::glide::glide(base_key.with(2usize), tw, DROP_ZONE_FOLLOW_SPEC, reduced)
-                    .clamp(0.05, 1.0);
-            let height_f =
-                motion::glide::glide(base_key.with(3usize), th, DROP_ZONE_FOLLOW_SPEC, reduced)
-                    .clamp(0.05, 1.0);
-            let preview_key = MotionKey::new("dock-drop-preview", frame_id);
-            div()
-                .id(preview_key.element_id("preview"))
-                .absolute()
-                .left(relative(left_f))
-                .top(relative(top_f))
-                .w(relative(width_f))
-                .h(relative(height_f))
-                .bg(theme.accent.opacity(0.10))
-                .border_1()
-                .border_color(theme.accent)
-                .with_animation(
-                    preview_key.element_id("preview-anim"),
-                    motion::animation(DROP_ZONE_SPEC),
-                    |el, t| el.opacity(t),
-                )
-        });
-
-        let zone_box = |zone: Zone, label: &'static str| {
-            let active = hovered == Some(zone);
-            let bg = if active {
-                theme.accent.opacity(0.28)
-            } else {
-                theme.surface_card.opacity(0.68)
-            };
-            let border = if active {
-                theme.accent
-            } else {
-                theme.border_strong
-            };
-            let base = div()
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(bg)
-                .border_1()
-                .border_color(border)
-                .text_size(Theme::TEXT_SMALL)
-                .text_color(theme.text)
-                .child(label);
-            match zone {
-                Zone::Left => base
-                    .absolute()
-                    .left(px(8.0))
-                    .top(relative(0.25))
-                    .w(px(44.0))
-                    .h(relative(0.5)),
-                Zone::Right => base
-                    .absolute()
-                    .right(px(8.0))
-                    .top(relative(0.25))
-                    .w(px(44.0))
-                    .h(relative(0.5)),
-                Zone::Top => base
-                    .absolute()
-                    .top(px(8.0))
-                    .left(relative(0.25))
-                    .w(relative(0.5))
-                    .h(px(32.0)),
-                Zone::Bottom => base
-                    .absolute()
-                    .bottom(px(8.0))
-                    .left(relative(0.25))
-                    .w(relative(0.5))
-                    .h(px(32.0)),
-                Zone::Center => base
-                    .absolute()
-                    .left(relative(0.32))
-                    .top(relative(0.32))
-                    .w(relative(0.36))
-                    .h(relative(0.36)),
-            }
+        let (tl, tt, tw, th) = drop_zone_preview_fractions(zone);
+        let base_key = MotionKey::new("dock-drop-follow", frame_id);
+        let glide = |part: usize, to: f32| {
+            motion::glide::glide(base_key.with(part), to, DROP_ZONE_FOLLOW_SPEC, reduced)
         };
-
-        motion::fade_quick(
-            MotionKey::new("dock-zones", frame_id),
-            div()
-                .debug_selector(|| "dock-drop-zones".into())
-                .absolute()
-                .size_full()
-                .when_some(preview_overlay, |el, preview| el.child(preview))
-                .child(zone_box(Zone::Left, "Left"))
-                .child(zone_box(Zone::Right, "Right"))
-                .child(zone_box(Zone::Top, "Top"))
-                .child(zone_box(Zone::Bottom, "Bottom"))
-                .child(zone_box(Zone::Center, "Tab")),
-        )
-        .into_any_element()
+        let (left, top) = (glide(0, tl), glide(1, tt));
+        let (width, height) = (glide(2, tw).clamp(0.05, 1.0), glide(3, th).clamp(0.05, 1.0));
+        let preview_key = MotionKey::new("dock-drop-preview", frame_id);
+        div()
+            .id(preview_key.element_id("preview"))
+            .debug_selector(move || format!("dock-drop-zone-{}", frame_id.0))
+            .absolute()
+            .left(relative(left))
+            .top(relative(top))
+            .w(relative(width))
+            .h(relative(height))
+            .bg(theme.accent.opacity(0.10))
+            .border_1()
+            .border_color(theme.accent)
+            .with_animation(
+                preview_key.element_id("preview-anim"),
+                motion::animation(DROP_ZONE_SPEC),
+                |el, t| el.opacity(t),
+            )
+            .into_any_element()
     }
 }

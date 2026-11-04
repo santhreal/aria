@@ -15,7 +15,7 @@
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
-use aria_models::{ClipId, Rational};
+use aria_models::{ClipId, Project, Rational, RationalTime};
 
 use crate::app::AppState;
 use crate::app::drag_steps::Step;
@@ -29,7 +29,8 @@ pub struct Neighbour {
 }
 
 impl AppState {
-    /// Move the clip's source window by `by` timeline ticks' worth of source.
+    /// Move the clip's take inside it by `by` ticks of the take's own rate,
+    /// the units [`aria_models::Clip::slip_for`] converts a drag into.
     ///
     /// One command, so no group: nothing else on the timeline moves.
     pub fn slip_clip(&mut self, clip: ClipId, by: i64) -> Result<(), EngineError> {
@@ -237,13 +238,15 @@ impl AppState {
         out
     }
 
-    /// Compute live on-screen trim feedback for an in-flight timeline gesture.
+    /// Compute live on-screen trim feedback for an in-flight timeline gesture,
+    /// read off `project`, the project as the drag found it.
     pub fn compute_trim_feedback(
         &self,
+        project: &Project,
         gesture: crate::surfaces::timeline_gesture::Gesture,
         drag: crate::surfaces::timeline_gesture::Drag,
     ) -> Option<crate::types::TrimFeedback> {
-        use crate::surfaces::timeline_gesture::Gesture;
+        use crate::surfaces::timeline_gesture::{Gesture, Setting, setting};
         use crate::tool_catalog::{BodyDrag, EdgeDrag};
         let ui = self.ui_clip_ref(drag.clip)?;
         let rate = self.store.sequence.frame_rate;
@@ -313,15 +316,35 @@ impl AppState {
                 drag: Some(BodyDrag::Slip),
                 ..
             } => {
-                let shift = -drag.delta;
-                let new_in = (ui.source_start_ticks + shift).max(0);
-                let span = (ui.timeline_end_ticks - ui.timeline_start_ticks).max(1);
+                let held = project.clip(drag.clip)?;
+                let source = held.source_range()?;
+                let Some(Setting::Slip(by)) = setting(self, project, gesture, &drag) else {
+                    return None;
+                };
+                // This clip's share of the slip, stopped where the first take
+                // it reaches runs out. A slip the model refuses leaves the
+                // take where it is.
+                let window = project
+                    .slip_reach(drag.clip, by)
+                    .ok()
+                    .and_then(|reach| reach.into_iter().find(|&(clip, _)| clip == drag.clip))
+                    .and_then(|(_, by)| project.slip_source(held, by).ok())
+                    .unwrap_or(source);
+                let at = |ticks: i64| {
+                    aria_models::resample(RationalTime::new(ticks, source.start.rate), rate).value
+                };
+                let shift = at(window.start.value - source.start.value);
                 Some(crate::types::TrimFeedback {
                     tool_label: "Slip".into(),
                     clip_name: ui.name.clone(),
                     delta_ticks: shift,
                     delta_label: signed_tc(shift).into(),
-                    detail_label: format!("In {} · Out {}", tc(new_in), tc(new_in + span)).into(),
+                    detail_label: format!(
+                        "In {} · Out {}",
+                        tc(at(window.start.value)),
+                        tc(at(window.end_tick()))
+                    )
+                    .into(),
                 })
             }
             Gesture::Body {
@@ -365,15 +388,10 @@ impl AppState {
                     detail_label: format!("At {}", tc(to)).into(),
                 })
             }
-            Gesture::Transition { duration, right } => {
-                let alignment = ui
-                    .transition
-                    .as_ref()
-                    .map(|t| t.alignment)
-                    .unwrap_or_default();
-                let next = crate::app::clip_transitions::transition_ticks_after_drag(
-                    duration, drag.delta, right, alignment,
-                );
+            Gesture::Transition { duration, .. } => {
+                let Some(Setting::Transition(next)) = setting(self, project, gesture, &drag) else {
+                    return None;
+                };
                 Some(crate::types::TrimFeedback {
                     tool_label: "Transition".into(),
                     clip_name: ui.name.clone(),
@@ -383,10 +401,10 @@ impl AppState {
                 })
             }
             Gesture::Fade { left, current } => {
-                let next = if left {
-                    (current + drag.delta).max(0)
-                } else {
-                    (current - drag.delta).max(0)
+                let Some(Setting::Fade { ticks: next, .. }) =
+                    setting(self, project, gesture, &drag)
+                else {
+                    return None;
                 };
                 Some(crate::types::TrimFeedback {
                     tool_label: if left { "Fade In" } else { "Fade Out" }.into(),

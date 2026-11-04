@@ -21,8 +21,14 @@ use crate::motion::MotionKey;
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::theme::Theme;
 
-/// Width of a strip, in pixels, where its row has the room.
+/// Width of a strip, in pixels, before its row has room to spare.
 pub const STRIP_W: f32 = 112.0;
+
+/// A strip's flex grow factor, three times the row label's: of the room a
+/// row has past its controls, the strip takes three parts and the label one,
+/// so a wide Effect Controls panel spreads the clip's keyframes across most of
+/// its width and the value stays near its name.
+pub const STRIP_GROW: f32 = 3.0;
 
 /// The narrowest a strip is drawn. A frame too narrow for every control on a
 /// row narrows the strip first; below this width the strip is left blank and
@@ -106,14 +112,14 @@ pub fn key_strip(
         )
 }
 
-/// A strip's box with nothing in it: `STRIP_W` wide where its row has the
-/// room, narrowing at `STRIP_YIELD` before the label beside it. A row that
-/// cannot be keyed among rows that can draws it bare, so its label and value
-/// narrow with theirs.
+/// A strip's box with nothing in it: `STRIP_W` wide, taking `STRIP_GROW` parts
+/// of the room its row has to spare, and narrowing at `STRIP_YIELD` before the
+/// label beside it. A row that cannot be keyed among rows that can draws it
+/// bare, so its label and value narrow and grow with theirs.
 pub fn blank_strip() -> gpui::Div {
     div()
         .relative()
-        .flex_grow_0()
+        .flex_grow(STRIP_GROW)
         .flex_shrink(STRIP_YIELD)
         .w(px(STRIP_W))
         .min_w_0()

@@ -303,32 +303,60 @@ impl Project {
         })
     }
 
-    /// Slip a media clip's source window by `by` source ticks, keeping its
-    /// timeline placement and length.
+    /// Slip a clip's source window by `by` source ticks, keeping its
+    /// timeline placement and length: the window [`Self::slip_source`] gives.
     ///
     /// Trimming derives the source window from the timeline, so it cannot
     /// express "same place on the timeline, different part of the take". A slip
     /// is that gesture and nothing else: neighbours are untouched, so no overlap
     /// is possible and no other clip moves.
-    ///
-    /// Clamped to the media rather than refused at the ends: a slip is a drag,
-    /// and a drag that hits the head of the take should stop there instead of
-    /// failing. Refused for a generated clip (no source), a freeze frame (one
-    /// held frame), and a still (whose window is duration bookkeeping, not a
-    /// position in a take).
     pub fn slip_clip(&mut self, clip_id: ClipId, by: i64) -> Result<(), ModelError> {
-        let clip = self.timeline().require_clip(clip_id)?;
+        let window = self.slip_source(self.timeline().require_clip(clip_id)?, by)?;
+        let clip = self
+            .timeline_mut()
+            .clip_mut(clip_id)
+            .expect("clip existence checked above");
+        let timeline = clip.timeline;
+        clip.trim_to(timeline, Some(window));
+        Ok(())
+    }
+
+    /// The source window a slip of `clip` by `by` source ticks gives it. `clip`
+    /// is read as it is, so it may be one the caller has already edited.
+    ///
+    /// Clamped to the take rather than refused at the ends: a drag that hits
+    /// the head of the take stops there. Refused for a generated clip, a freeze
+    /// frame, a still, and a clip that already spans its whole take.
+    pub fn slip_source(&self, clip: &Clip, by: i64) -> Result<TimeRange, ModelError> {
+        let (source, (back, on)) = self.slip_room(clip)?;
+        Ok(TimeRange::at_rate(
+            source.start.value.saturating_add(by.clamp(back, on)),
+            source.duration.value,
+            source.start.rate,
+        ))
+    }
+
+    /// `clip`'s source window, and how far its take may slip, in the ticks of
+    /// the take: back to the head of the take and on to its tail. A nested
+    /// sequence shorter than the window has no tail, and `i64::MAX` is how far
+    /// it slips on.
+    ///
+    /// Refused for a generated clip (no source), a freeze frame (one held
+    /// frame), a still (whose window is duration bookkeeping, not a position
+    /// in a take), and a clip that already spans its whole take.
+    fn slip_room(&self, clip: &Clip) -> Result<(TimeRange, (i64, i64)), ModelError> {
         if clip.freeze_frame {
             return Err(ModelError::InvalidParam(
                 "a freeze frame holds one frame; there is nothing to slip".into(),
             ));
         }
-        match clip.content.clone() {
+        let whole = || ModelError::InvalidParam("the clip already spans its whole source".into());
+        let (source, limit) = match &clip.content {
             ClipSource::Media { media, source } => {
                 let media = self
                     .media
-                    .get(&media)
-                    .ok_or(ModelError::UnknownMedia(media))?;
+                    .get(media)
+                    .ok_or(ModelError::UnknownMedia(*media))?;
                 if media.is_image {
                     return Err(ModelError::InvalidParam(
                         "a still shows one frame throughout; there is nothing to slip".into(),
@@ -336,75 +364,82 @@ impl Project {
                 }
                 let limit = media.duration.value - source.duration.value;
                 if limit <= 0 {
-                    return Err(ModelError::InvalidParam(
-                        "the clip already spans its whole source".into(),
-                    ));
+                    return Err(whole());
                 }
-                let start = (source.start.value + by).clamp(0, limit);
-                if start == source.start.value {
-                    return Ok(());
-                }
-                let rate = source.start.rate;
-                let duration = source.duration.value;
-                let clip = self
-                    .timeline_mut()
-                    .clip_mut(clip_id)
-                    .expect("clip existence checked above");
-                if let ClipSource::Media { source, .. } = &mut clip.content {
-                    *source = TimeRange::at_rate(start, duration, rate);
-                }
-                Ok(())
+                (*source, limit)
             }
             ClipSource::Sequence { sequence, source } => {
                 let seq = self
                     .sequences
-                    .get(&sequence)
-                    .ok_or(ModelError::UnknownSequence(sequence))?;
-                let seq_duration = seq.timeline.duration().value;
-                let limit = (seq_duration - source.duration.value).max(0);
-                let start = (source.start.value + by).max(0);
-                let start = if limit > 0 { start.min(limit) } else { start };
-                if start == source.start.value {
-                    return Ok(());
-                }
-                let rate = source.start.rate;
-                let duration = source.duration.value;
-                let clip = self
-                    .timeline_mut()
-                    .clip_mut(clip_id)
-                    .expect("clip existence checked above");
-                if let ClipSource::Sequence { source, .. } = &mut clip.content {
-                    *source = TimeRange::at_rate(start, duration, rate);
-                }
-                Ok(())
+                    .get(sequence)
+                    .ok_or(ModelError::UnknownSequence(*sequence))?;
+                let limit = seq.timeline.duration().value - source.duration.value;
+                (*source, if limit > 0 { limit } else { i64::MAX })
             }
             ClipSource::Multicam { group, source } => {
-                let span = self.multicam_group_span(group)?.duration.value;
-                let limit = span - source.duration.value;
+                let limit =
+                    self.multicam_group_span(*group)?.duration.value - source.duration.value;
                 if limit <= 0 {
-                    return Err(ModelError::InvalidParam(
-                        "the clip already spans its whole source".into(),
-                    ));
+                    return Err(whole());
                 }
-                let start = (source.start.value + by).clamp(0, limit);
-                if start == source.start.value {
-                    return Ok(());
-                }
-                let rate = source.start.rate;
-                let duration = source.duration.value;
-                let clip = self
-                    .timeline_mut()
-                    .clip_mut(clip_id)
-                    .expect("clip existence checked above");
-                if let ClipSource::Multicam { source, .. } = &mut clip.content {
-                    *source = TimeRange::at_rate(start, duration, rate);
-                }
-                Ok(())
+                (*source, limit)
             }
-            ClipSource::Generated(_) => Err(ModelError::InvalidParam(
-                "a generated clip has no source to slip".into(),
-            )),
-        }
+            ClipSource::Generated(_) => {
+                return Err(ModelError::InvalidParam(
+                    "a generated clip has no source to slip".into(),
+                ));
+            }
+        };
+        let back = source.start.value.saturating_neg();
+        let on = if limit == i64::MAX {
+            limit
+        } else {
+            limit - source.start.value
+        };
+        Ok((source, (back, on.max(back))))
+    }
+
+    /// Each clip a slip of `clip` by `by` of its source ticks moves, and the
+    /// source ticks it moves by. Each clip linked to `clip` moves by the same
+    /// stretch of source time in the ticks of its own take, and the slip stops
+    /// where the first of their takes runs out, so a linked pair placing files
+    /// of different rates and lengths keeps its sync. Refused as
+    /// [`Self::slip_source`] refuses any clip it reaches.
+    pub fn slip_reach(&self, clip: ClipId, by: i64) -> Result<Vec<(ClipId, i64)>, ModelError> {
+        let primary = self.timeline().require_clip(clip)?;
+        let Some(link) = primary.link else {
+            return Ok(vec![(clip, by)]);
+        };
+        let from = self.slip_room(primary)?.0.start.rate;
+        let members = self
+            .linked_clips(link)
+            .into_iter()
+            .map(|member| {
+                let (source, room) = self.slip_room(self.timeline().require_clip(member)?)?;
+                Ok((member, source.start.rate, room))
+            })
+            .collect::<Result<Vec<_>, ModelError>>()?;
+        // Each member's room in `clip`'s ticks, rounded toward zero so the
+        // share a member takes back stays inside its take.
+        let (back, on) = members.iter().fold(
+            (i64::MIN, i64::MAX),
+            |(back, on), &(_, rate, (low, high))| {
+                let shared = |ticks| RationalTime::new(ticks, rate).within(from).value;
+                (back.max(shared(low)), on.min(shared(high)))
+            },
+        );
+        let by = by.clamp(back, on.max(back));
+        Ok(members
+            .into_iter()
+            .map(|(member, rate, _)| {
+                let ticks = if member == clip {
+                    by
+                } else {
+                    resample(RationalTime::new(by, from), rate).value
+                };
+                (member, ticks)
+            })
+            .collect())
     }
 
     /// Retime a media clip (CapCut speed, M1): keep its timeline start and

@@ -10,8 +10,8 @@
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
-    AudioTransition, Catalog, ClipId, TransitionAlignment, TransitionMedia, TransitionSpec,
-    transition_catalog,
+    AudioTransition, Catalog, ClipId, ModelError, Project, TransitionAlignment, TransitionMedia,
+    TransitionSpec, transition_catalog,
 };
 
 use super::AppState;
@@ -69,6 +69,19 @@ pub(crate) fn transition_ticks_after_drag(
     current
         .saturating_add(step)
         .clamp(MIN_TRANSITION_TICKS, MAX_TRANSITION_TICKS)
+}
+
+/// The length the window at `clip`'s right junction takes for `ticks`: inside
+/// the UI's bounds and inside what the clips at the cut can cover, as
+/// `project` holds them. The drag readout, the held frame and the release
+/// read it alike.
+pub(crate) fn transition_ticks_within(
+    project: &Project,
+    clip: ClipId,
+    ticks: i64,
+) -> Result<i64, ModelError> {
+    let upper = MAX_TRANSITION_TICKS.min(project.transition_duration_limit(clip)?);
+    Ok(ticks.clamp(MIN_TRANSITION_TICKS.min(upper), upper))
 }
 
 impl AppState {
@@ -192,14 +205,8 @@ impl AppState {
             self.decline(Decline::NoTransitionAtCut);
             return Ok(());
         };
-        let adjacent_limit = self
-            .engine
-            .lock()
-            .project()
-            .transition_duration_limit(clip)
+        let duration = transition_ticks_within(self.engine.lock().project(), clip, ticks)
             .map_err(EngineError::Model)?;
-        let upper = MAX_TRANSITION_TICKS.min(adjacent_limit);
-        let duration = ticks.clamp(MIN_TRANSITION_TICKS.min(upper), upper);
         if duration == current {
             return Ok(());
         }

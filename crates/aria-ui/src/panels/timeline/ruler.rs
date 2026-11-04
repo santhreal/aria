@@ -203,7 +203,6 @@ fn ruler_body(
                             left,
                             width,
                             is_range,
-                            marker.tick,
                             marker.id,
                             marker.color,
                         ))
@@ -226,7 +225,7 @@ fn ruler_body(
                 (visible, beats)
             };
             let mut flags = Vec::with_capacity(visible.len() + beats.len());
-            for (left, width, is_range, tick, id, color) in visible {
+            for (left, width, is_range, id, color) in visible {
                 let swatch = theme.marker(color);
                 flags.push(
                     div()
@@ -245,13 +244,41 @@ fn ruler_body(
                         .when(is_range, |el| el.border_1().border_color(swatch))
                         .cursor(CursorStyle::PointingHand)
                         .active(|style| style.opacity(0.92))
+                        // A click moves the playhead to the marker and a drag
+                        // moves the marker; the shell carries the drag past
+                        // the ruler.
                         .on_mouse_down(
                             MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                                 cx.stop_propagation();
-                                this.state.update(cx, |state, _| state.set_playhead(tick));
-                                crate::app::spawn_preview(this.state.clone(), cx);
-                                cx.notify();
+                                let x = f32::from(event.position.x);
+                                if !this.state.update(cx, |state, _| state.press_marker(id, x)) {
+                                    return;
+                                }
+                                this.hold(crate::shell::Hold::new(
+                                    |this, event, cx| {
+                                        let x = f32::from(event.position.x);
+                                        if this.state.update(cx, |state, _| state.drag_marker(x)) {
+                                            cx.notify();
+                                        }
+                                    },
+                                    |this, _, cx| {
+                                        let from = this.state.read(cx).playhead.value;
+                                        this.state.update(cx, |state, _| state.release_marker());
+                                        if this.state.read(cx).playhead.value != from {
+                                            crate::app::spawn_preview(this.state.clone(), cx);
+                                        }
+                                        cx.notify();
+                                    },
+                                    |this, cx| {
+                                        if this
+                                            .state
+                                            .update(cx, |state, _| state.cancel_marker_drag())
+                                        {
+                                            cx.notify();
+                                        }
+                                    },
+                                ));
                             }),
                         )
                         .into_any_element(),

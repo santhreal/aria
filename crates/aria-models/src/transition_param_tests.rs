@@ -189,6 +189,30 @@ fn a_transition_needs_a_positive_duration_before_anything_else() {
     assert_eq!(t.validate(), Ok(()));
 }
 
+/// An audio transition has no catalog slots: it validates with none set and
+/// refuses any it is given, and an id neither catalog has is refused.
+#[test]
+fn an_audio_transition_validates_with_no_slot_set() {
+    let (left, right) = (ClipId::from_raw(1), ClipId::from_raw(2));
+    for audio in crate::AudioTransition::ALL {
+        let mut t = Transition::new(left, right, audio.id(), 12);
+        assert_eq!(t.validate(), Ok(()), "{}", audio.id());
+        t.params.insert("mix".into(), 0.5);
+        assert_eq!(
+            t.validate(),
+            refused(format!(
+                "transition '{}' has no parameter 'mix'",
+                audio.id()
+            ))
+        );
+    }
+    let unknown = Transition::new(left, right, "test.typed.tr.unknown", 12);
+    assert_eq!(
+        unknown.validate(),
+        refused("unknown transition 'test.typed.tr.unknown'")
+    );
+}
+
 #[test]
 fn param_values_reach_exactly_the_shaped_kinds() {
     let id = "test.typed.tr.param_values";

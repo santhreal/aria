@@ -117,4 +117,4 @@ impl AppState {
 
 #[cfg(test)]
 #[path = "work_area_tests.rs"]
-mod tests;
+pub(crate) mod tests;

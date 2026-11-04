@@ -1,22 +1,27 @@
-//! Every drag a room holds draws, while the button is down, the timeline its
-//! release leaves.
+//! Every drag that changes clips in place draws, while the button is down,
+//! the timeline its release leaves.
 //!
 //! # Why
 //!
-//! An edge drag and a slide drew nothing until the button came up: the clip
-//! kept its edges while the pointer moved, a ripple left the rest of the lane
-//! where it was, and a slide left its neighbors whole. The class closed here
-//! is a drag that draws something other than what its release leaves.
+//! An edge drag, a slide, a slip, a transition window drag and a fade drag
+//! drew nothing until the button came up: the clip kept its edges while the
+//! pointer moved, a ripple left the rest of the lane where it was, a slide
+//! left its neighbors whole, a slip left the take where it was, and a window
+//! or a fade kept its length. The class closed here is a drag that draws
+//! something other than what its release leaves.
 //!
-//! Each census drag a room holds, each edge drag on both edges, is held at
+//! Each census drag but a move, each edge drag on both edges, is held at
 //! travels short of its limit and far past it, in each dressing of the room
 //! census and with linked selection on and off. The lanes the held frame
 //! draws, clip for clip and in order, are the lanes the store holds after the
 //! release. A clip is compared by where it sits, which part of its take it
-//! plays and how fast, and the marks and beats drawn on it.
+//! plays and how fast, the marks and beats drawn on it, its fades and the
+//! window of the transition at its tail. A drag whose release is refused
+//! draws the lanes as the store holds them.
 //!
-//! Not covered: the filmstrip cells and waveform bars drawn on a card, the
-//! property rows of a twirled-open clip, and a drag whose release is refused.
+//! Not covered: the filmstrip cells and waveform bars drawn on a card, and
+//! the property rows of a twirled-open clip. A move draws through
+//! [`crate::types::HeldMove`], which `drag_session_tests` holds.
 
 use aria_models::ClipId;
 
@@ -26,9 +31,12 @@ use crate::app::AppState;
 use crate::projection::Placement;
 use crate::surfaces::timeline_gesture::{self, Drag};
 
-/// Each lane as the frame draws it, in timeline order: each clip's id and
-/// where it plays its take.
-fn drawn(state: &AppState) -> Vec<Vec<(u64, Placement)>> {
+/// How the frame draws one clip: where it plays its take, its fade in and
+/// fade out, and the window of the transition at its tail.
+type Drawn = (u64, Placement, (i64, i64), Option<(i64, i64)>);
+
+/// Each lane as the frame draws it, in timeline order.
+fn drawn(state: &AppState) -> Vec<Vec<Drawn>> {
     let rate = state.store.sequence.frame_rate;
     state
         .store
@@ -46,20 +54,29 @@ fn drawn(state: &AppState) -> Vec<Vec<(u64, Placement)>> {
             };
             clips
                 .iter()
-                .map(|clip| (clip.id, Placement::of_card(clip)))
+                .map(|clip| {
+                    (
+                        clip.id,
+                        Placement::of_card(clip),
+                        (clip.fade_in_ticks, clip.fade_out_ticks),
+                        clip.transition
+                            .as_ref()
+                            .map(|tr| tr.window(clip.timeline_end_ticks)),
+                    )
+                })
                 .collect()
         })
         .collect()
 }
 
-/// Hold every drag a room holds in `dress` at each travel, with linked
+/// Hold every drag but a move in `dress` at each travel, with linked
 /// selection on and off, and let it go: the held frame draws what the
 /// release leaves.
 fn held_as_released(dress: fn() -> Junction) {
     let held: Vec<usize> = drags(&dress())
         .iter()
         .enumerate()
-        .filter(|(_, (gesture, _))| gesture.room().is_some())
+        .filter(|(_, (gesture, _))| gesture.lane().is_none())
         .map(|(index, _)| index)
         .collect();
     for index in held {
@@ -74,8 +91,13 @@ fn held_as_released(dress: fn() -> Junction) {
                 state.hold_drag(gesture, drag);
                 let shown = drawn(state);
                 state.end_drag();
-                timeline_gesture::apply(state, gesture, drag)
-                    .unwrap_or_else(|err| panic!("{name} was refused: {err}"));
+                // A drag a room holds lands. One that sets a length or a slip
+                // may be refused, as a slip of a take with no room is.
+                if let Err(err) = timeline_gesture::apply(state, gesture, drag)
+                    && gesture.room().is_some()
+                {
+                    panic!("{name} was refused: {err}");
+                }
                 state.sync_from_engine();
                 assert_eq!(
                     shown,

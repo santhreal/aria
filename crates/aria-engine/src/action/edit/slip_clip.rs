@@ -5,7 +5,8 @@ use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
 
 /// Move a clip's source window without moving the clip. Linked companions slip
-/// by the same tick delta as one history entry.
+/// by the same stretch of source time, each in the ticks of its own take, as
+/// one history entry.
 ///
 /// The inverse restores the whole clip rather than slipping back by `-by`: a
 /// slip clamps at the ends of the take, so the opposite slip is not always the
@@ -15,18 +16,13 @@ pub(crate) fn execute(
     clip: ClipId,
     by: i64,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    let primary = ctx.project.require_clip(clip)?;
-    let ids = match primary.link {
-        Some(link) => ctx.project.linked_clips(link),
-        None => vec![clip],
-    };
-
-    if ids.len() == 1 {
-        return slip_one(ctx, clip, by);
+    let reach = ctx.project.slip_reach(clip, by)?;
+    if let [(only, by)] = reach[..] {
+        return slip_one(ctx, only, by);
     }
 
-    let mut inverses: Vec<Box<dyn EditAction>> = Vec::with_capacity(ids.len());
-    for id in ids {
+    let mut inverses: Vec<Box<dyn EditAction>> = Vec::with_capacity(reach.len());
+    for (id, by) in reach {
         match slip_one(ctx, id, by) {
             Ok(inverse) => inverses.push(inverse),
             Err(err) => {

@@ -27,10 +27,12 @@ place: scrolling up zooms in. A trackpad steps a level for each notch's worth
 of travel.
 
 A frame larger than the Viewer can be panned: the cursor becomes an open hand,
-dragging with the left or middle button moves the picture until its edge meets
-the Viewer's edge, and the drag keeps going when the pointer leaves the
-Viewer. The pan ends when that button comes up. A middle-button drag selects
-nothing. A frame no larger than the Viewer stays centered.
+and a drag with the middle button, with the Hand tool, or with the left button
+where the press takes hold of no clip moves the picture until its edge meets
+the Viewer's edge. The drag keeps going when the pointer leaves the Viewer and
+ends when that button comes up. A middle-button or Hand drag selects nothing
+and moves no clip or handle, wherever on the picture it starts.
+A frame no larger than the Viewer stays centered.
 
 The Scopes toggle opens a strip beside the Viewer with the waveform, the vectorscope,
 and the histogram of the frame on screen; the Scopes panel lays the same
@@ -182,7 +184,10 @@ it live, or choose one under **View > Canvas Handles**. Only one set is drawn at
 crop corner and a scale corner sit on the same pixel when the crop is full.
 **Cycle Canvas Handles** (`pal-handles`) in the palette makes the next set live.
 
-In Transform mode, dragging the picture moves it and dragging a corner scales it.
+A press on the picture selects the topmost clip under the pointer. In Transform
+mode, dragging the picture moves it and dragging a corner scales it. The press
+that selects a clip also starts its move, and a press inside the selected clip
+moves that clip even where another clip lies on top.
 A corner scale is uniform: both axes keep their ratio. Use the Transform tab rows
 for a per-axis scale. The scale stops at 0.02 and at 20. Releasing without moving
 writes nothing. A drag on the picture or on any handle follows the pointer off

@@ -442,6 +442,15 @@ Notes for the latest release. For previous releases, see the
 - Ghost buttons draw a border, and the Inspector's chips and ghost buttons stand their frames on the label column.
 - Audio Track Mixer strips are 140 px wide, so the outlined **+ Audio effect** button stays inside its strip.
 - The Editing and Animation workspaces open the left frame 400 px wide instead of 320 px, so every Effect Controls row draws its whole 112 px keyframe strip.
+- A wide Effect Controls panel gives three quarters of its spare width to each property's time area and a quarter to its name, instead of all of it to the name, so a maximized panel spreads the clip's keyframes across its width and draws each value near its name.
+- A drag on a marker on the timeline ruler moves the marker by whole frames as one `Move marker` undo step that Esc puts back, instead of leaving the marker in place, and a click on it moves the playhead to it on release instead of on the press.
+- In Transform mode, a press on a clip's picture in the Viewer selects the clip and the drag that follows moves it, instead of selecting it and moving nothing, and a press inside the selected clip moves that clip instead of selecting a clip on top of it.
+- A slip moves the take by the time the pointer travels at the clip's speed, so a take at another frame rate or speed stays under the pointer, instead of by the pointer's timeline ticks counted as the take's own.
+- A slip moves the take of each clip linked to the slipped one by the same time in its own take's ticks and stops where the first of their takes runs out, so linked picture and sound stay in sync, instead of moving each by one tick count and stopping each at its own end.
+- While a slip, a transition band edge, or a fade handle is dragged, the timeline draws the clips as the release leaves them and the readout states the In and Out, window length, or fade length the release sets, instead of drawing nothing until the release.
+- A roll, a slide, or a ripple trim that leaves the clips at a cut touching keeps the transition at the cut, shortened to the longest window the clips hold, instead of dropping it, and the timeline draws it so while the button is down.
+- `SetTransitionState` applies an audio crossfade instead of refusing it as an unknown transition.
+- With the Hand tool, a press on a picture in the Viewer selects nothing and the drag that follows pans the frame, instead of selecting the clip under the pointer, moving the selected clip, or dragging one of its handles.
 - The shipped workspaces draw their side frames and Audio Meters at their stated pixel widths instead of a few pixels narrower.
 - A splitter drag moves the frame edge with the pointer instead of falling slightly behind it, and a window resize holds frames at their minimum widths measured against the space the frames share.
 - The media pool's Tiles view draws each item's picture at the left with its name beside it and its facts under the name, the frame size and length over the codecs, so a row is one picture tall, and in Tiles and List a facts line with no room ends in an ellipsis instead of wrapping onto a line that starts with `·`.
@@ -481,6 +490,7 @@ Notes for the latest release. For previous releases, see the
 - The frame menu lists the panels a frame does not hold under one Add Panel row.
 - A tab in a narrow frame reads the start of its title, and every tab shows its full name in a tooltip.
 - A dock tab row keeps the active tab first down to a 160 px frame and lists the tabs it has no room for in a More panels menu.
+- A tab carried over a frame draws one accent rectangle over the half or the whole of that frame the panel lands on, instead of five labeled zone boxes on every frame.
 - Warm scrubbing of 1080p60 media takes at most 11 ms per frame on software Vulkan, down from 104 ms.
 - The first play after opening media on an NVIDIA GPU starts in 230 ms instead of 2.3 s.
 - Dragging an effect parameter while paused updates the Viewer within one display frame.
@@ -656,6 +666,7 @@ Notes for the latest release. For previous releases, see the
 - A soloed track silences the other audio tracks or drops the other video tracks out of the composite in preview and export, never crosses between audio and video, and never overrides a track's own mute.
 - The track context menu moves a track up or down the stack, marks an audio track as the auto-duck source, and opens or closes a one-second gap at the playhead.
 - A drop onto the timeline in Ripple mode inserts the clip and pushes the clips after it right instead of being rejected for overlapping them.
+- A drop on the strip above the top lane adds its video lane under the text lanes and a drop on the strip below the bottom lane adds it over the main track, and Undo takes the new lane back with the clips, instead of the top strip seating the lane over the main track, the bottom strip seating it under the text lanes, and Undo leaving an empty lane.
 - Settings shows the project canvas aspect while a project is open, and a change to it applies to preview and export and can be undone.
 - A pool item can be removed from the project, and a removal is rejected with a reason while a clip still references the item.
 - The File menu saves the current project as a `.ariat` template bundle and applies one by prompting for media per slot in fill order with each slot's hint, and Home shows a Use Template tile.

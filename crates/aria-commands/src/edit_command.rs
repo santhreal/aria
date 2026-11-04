@@ -491,9 +491,11 @@ pub enum EditCommand {
     /// Re-place / trim one clip to occupy `timeline`, leaving its linked
     /// companions where they are: the trim sent with linked selection off.
     TrimClipUnlinked { clip: ClipId, timeline: TimeRange },
-    /// Move a media clip's source window by `by` source ticks, keeping its
-    /// timeline placement. Clamped at the ends of the take; refused on a
-    /// generated clip, a freeze frame, or a still.
+    /// Move a clip's source window by `by` ticks of its take, keeping its
+    /// timeline placement. Linked companions move by the same stretch of
+    /// source time in the ticks of their own takes. Clamped where the first
+    /// of the takes runs out; refused on a generated clip, a freeze frame, a
+    /// still, or a clip that already spans its whole take.
     SlipClip { clip: ClipId, by: i64 },
     /// Move a clip to `to_track` starting at `start`, keeping its duration.
     /// Linked companions take the same time delta on their own lanes.

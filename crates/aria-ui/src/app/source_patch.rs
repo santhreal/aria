@@ -143,34 +143,45 @@ impl AppState {
         tick: i64,
         insert: bool,
     ) -> Result<(), EngineError> {
-        let Some(view) = self.sources.focused() else {
+        let Some(placement) = self.source_drop(aimed, tick, insert) else {
             return Ok(());
         };
-        let media = MediaId::from_raw(view.media);
+        let placed = self.place_source(placement)?;
+        self.source_dropped(placed, insert);
+        Ok(())
+    }
+
+    /// The open Source tab's marked range placed at `tick` on `aimed`,
+    /// covering unless `insert`. `None` when no Source tab is open, and when
+    /// its marked range is empty, with the status line stating so.
+    pub(super) fn source_drop(
+        &mut self,
+        aimed: Option<TrackId>,
+        tick: i64,
+        insert: bool,
+    ) -> Option<SourcePlacement> {
+        let media = MediaId::from_raw(self.sources.focused()?.media);
         let Some((start, end)) = self.source_range() else {
             self.status_message = Some("The source's marked range is empty".into());
-            return Ok(());
+            return None;
         };
-        let Some(rate) = self
-            .engine
-            .lock()
-            .project()
-            .media(media)
-            .map(|item| item.frame_rate)
-        else {
-            return Ok(());
-        };
-        if self.place_source(SourcePlacement {
+        let rate = self.engine.lock().project().media(media)?.frame_rate;
+        Some(SourcePlacement {
             media,
             source: TimeRange::at_rate(start, end - start, rate),
             at: RationalTime::new(tick.max(0), self.playhead.rate),
             fill: None,
             ripple: insert,
             aimed,
-        })? {
+        })
+    }
+
+    /// State on the status line which edit a Source tab drop made, when
+    /// `placed`.
+    pub(super) fn source_dropped(&mut self, placed: bool, insert: bool) {
+        if placed {
             self.status_message = Some(if insert { "Insert" } else { "Overwrite" }.into());
         }
-        Ok(())
     }
 
     /// Whether `media` has a picture and whether it has sound; `None` when it

@@ -153,6 +153,8 @@ pub mod launch;
 pub(crate) mod layouts;
 #[path = "app/line_text.rs"]
 pub mod line_text;
+#[path = "app/marker_drag.rs"]
+pub mod marker_drag;
 #[path = "app/marquee.rs"]
 pub mod marquee;
 #[path = "app/mask_path.rs"]
@@ -714,6 +716,9 @@ mod pan_release_tests;
 #[cfg(test)]
 #[path = "app/panel_focus_tests.rs"]
 mod panel_focus_tests;
+#[cfg(test)]
+#[path = "app/picture_press_tests.rs"]
+mod picture_press_tests;
 #[cfg(test)]
 #[path = "app/playhead_line_tests.rs"]
 mod playhead_line_tests;

@@ -180,6 +180,8 @@ fn functions(text: &str) -> Vec<(usize, &str, &str, &str)> {
 fn no_draw_binds_an_identity_to_a_formatted_string() {
     let mut bound = Vec::new();
     for (name, text) in draw_sources() {
+        // Prose such as "when let go" is not a binding.
+        let text = without_comments(&text);
         for (at, _) in text.match_indices("let ") {
             let bound_at = statement(&text, at);
             let Some((head, value)) = bound_at.split_once('=') else {

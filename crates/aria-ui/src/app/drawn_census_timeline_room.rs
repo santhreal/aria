@@ -13,7 +13,9 @@
 //! Each drag here goes far both ways and must land. A drag with a room must
 //! land at its edge: the edit the drag sends one tick further, with no room
 //! holding it, is refused or changes nothing. The readout during the drag
-//! states the travel the release sends.
+//! states the travel the release sends. A slip, a transition window drag and
+//! a fade drag stop where their edits stop, and the readout states the change
+//! the release makes.
 //!
 //! The drags are the census rows, each edge drag on both edges, so a new drag
 //! is sent here too. Every row is sent on the census junction, and each row a
@@ -34,6 +36,7 @@ use aria_models::{ClipId, MediaId, RationalTime, TimeRange, TrackId};
 use super::{Junction, junction, rows, span_of};
 use crate::app::AppState;
 use crate::surfaces::timeline_gesture::{self, Drag, Gesture, Span};
+use crate::tool_catalog::BodyDrag;
 use crate::types::{EditMode, EditorTool, HeldEdit, TrimSide};
 
 #[path = "drag_session_tests.rs"]
@@ -272,8 +275,30 @@ pub(super) fn at_the_start() -> Junction {
     )
 }
 
-/// Send every drag `dress` offers far both ways: each lands, and one a room
-/// holds lands at the room's edge with the readout stating its travel. With
+/// What a drag that sets a value leaves set on `clip`, in the sequence's
+/// ticks: where in its take a slip starts it, the length of the window at its
+/// tail, or the length of a fade. `None` for a drag that sets none. A take
+/// at another rate starts between two ticks, so the value is not rounded.
+fn set_on(state: &AppState, gesture: Gesture, clip: ClipId) -> Option<f64> {
+    let card = state.ui_clip_ref(clip)?;
+    match gesture {
+        Gesture::Body {
+            drag: Some(BodyDrag::Slip),
+            ..
+        } => {
+            let rate = state.store.sequence.frame_rate;
+            Some(card.source_start * f64::from(rate.num) / f64::from(rate.den))
+        }
+        Gesture::Transition { .. } => card.transition.as_ref().map(|tr| tr.duration_ticks as f64),
+        Gesture::Fade { left: true, .. } => Some(card.fade_in_ticks as f64),
+        Gesture::Fade { left: false, .. } => Some(card.fade_out_ticks as f64),
+        Gesture::Body { .. } | Gesture::RippleBody { .. } | Gesture::Edge { .. } => None,
+    }
+}
+
+/// Send every drag `dress` offers far both ways: each lands, one a room holds
+/// lands at the room's edge with the readout stating its travel, and one that
+/// sets a value has the readout state the change its release makes. With
 /// `held` only the drags a room holds are sent.
 fn far_both_ways(dress: fn() -> Junction, held: bool) {
     // The rows come off a state that is dropped before the loop starts: two
@@ -294,11 +319,15 @@ fn far_both_ways(dress: fn() -> Junction, held: bool) {
                 clip,
                 delta: sign * FAR,
             };
+            // Snapshotted as a press does: the readout reads the room off
+            // the session, so the engine stays unlocked while it runs.
+            let project = state.engine().lock().snapshot();
             let readout = state
-                .compute_trim_feedback(gesture, drag)
+                .compute_trim_feedback(&project, gesture, drag)
                 .map(|shown| shown.delta_ticks);
             let was = span_of(state, clip);
             let before = order(state);
+            let was_set = set_on(state, gesture, clip);
             timeline_gesture::apply(state, gesture, drag)
                 .unwrap_or_else(|err| panic!("{name} was refused: {err}"));
             state.sync_from_engine();
@@ -307,6 +336,13 @@ fn far_both_ways(dress: fn() -> Junction, held: bool) {
                     placed(state).iter().all(|&(start, ..)| start >= 0),
                     "{name} placed a clip before the sequence start"
                 );
+                if let (Some(was_set), Some(now_set)) = (was_set, set_on(state, gesture, clip)) {
+                    assert_eq!(
+                        readout,
+                        Some((now_set - was_set).round() as i64),
+                        "{name}: the readout states a change the release did not make"
+                    );
+                }
                 continue;
             }
             assert_in_room(state, &before, &name);

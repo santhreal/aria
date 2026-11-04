@@ -140,6 +140,18 @@ impl TransitionAlignment {
     pub const fn is_center(&self) -> bool {
         matches!(self, Self::Center)
     }
+
+    /// The longest window this alignment fits at a cut between a clip of
+    /// `left` ticks and one of `right` ticks: a centered window takes from
+    /// both sides, one that starts at the cut only from the right, and one
+    /// that ends there only from the left.
+    pub fn junction_limit(self, left: i64, right: i64) -> i64 {
+        match self {
+            Self::Center => left.min(right),
+            Self::Start => right,
+            Self::End => left,
+        }
+    }
 }
 
 /// Timeline tick window `[start, end)` for a transition of `duration` ticks at `cut`.
@@ -633,7 +645,8 @@ impl Transition {
     }
 
     /// `Ok` iff the transition id is known and every set parameter names a
-    /// real slot of the matching kind with values in range.
+    /// real slot of the matching kind with values in range. An audio
+    /// transition has no slots, so it is valid with none set.
     pub fn validate(&self) -> Result<(), ModelError> {
         if self.duration <= 0 {
             return Err(ModelError::InvalidParam(format!(
@@ -641,10 +654,15 @@ impl Transition {
                 self.duration
             )));
         }
-        let spec = self.spec()?;
+        let spec = match self.spec() {
+            Ok(spec) => Some(spec),
+            Err(_) if crate::AudioTransition::from_id(&self.transition_id).is_some() => None,
+            Err(err) => return Err(err),
+        };
+        let params = spec.as_ref().map_or(&[][..], |spec| &spec.params[..]);
         let slot = |name: &str, store: &str, holds: fn(EffectParamKind) -> bool| {
             stored_slot(
-                &spec.params,
+                params,
                 "transition",
                 &self.transition_id,
                 name,

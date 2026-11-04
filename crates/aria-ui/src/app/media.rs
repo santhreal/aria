@@ -12,6 +12,7 @@ use aria_engine::{ApplyOutcome, EngineError};
 use aria_models::{Generator, MediaId, RationalTime, TimeRange, TrackId, TrackKind};
 
 use super::AppState;
+use super::source_patch::SourcePlacement;
 use gpui::SharedString;
 
 impl AppState {
@@ -109,56 +110,83 @@ impl AppState {
         }
     }
 
+    /// Drop `media` at `at` on a new lane at the top or the bottom edge of the
+    /// lanes, as one undo step with the lane.
     pub fn drop_media_on_new_lane(
         &mut self,
         media: MediaId,
         top: bool,
         at: i64,
     ) -> Result<(), EngineError> {
-        let Some(track) = self.new_lane_for(media, top)? else {
+        let Some(placement) = self.media_placement(media, None, at) else {
             return Ok(());
         };
-        self.drop_media_on_timeline(media, Some(track), at)
+        self.place_on_new_lane(placement, top)?;
+        Ok(())
     }
 
-    /// Drop the open Source tab's marked range on a new lane above or below
-    /// every other, covering unless `insert`.
+    /// Drop the open Source tab's marked range on a new lane at the top or the
+    /// bottom edge of the lanes, covering unless `insert`, as one undo step
+    /// with the lane.
     pub fn drop_source_on_new_lane(
         &mut self,
         top: bool,
         at: i64,
         insert: bool,
     ) -> Result<(), EngineError> {
-        let Some(media) = self
-            .sources
-            .focused()
-            .map(|view| MediaId::from_raw(view.media))
-        else {
+        let Some(placement) = self.source_drop(None, at, insert) else {
             return Ok(());
         };
-        let Some(track) = self.new_lane_for(media, top)? else {
-            return Ok(());
-        };
-        self.drop_source_on_timeline(Some(track), at, insert)
+        let placed = self.place_on_new_lane(placement, top)?;
+        self.source_dropped(placed, insert);
+        Ok(())
     }
 
-    /// A new lane for `media` at the top or the bottom: an audio lane for a
-    /// sound file, a video lane for anything with a picture. `None` when the
-    /// media is not in the pool.
-    fn new_lane_for(&mut self, media: MediaId, top: bool) -> Result<Option<TrackId>, EngineError> {
-        let kind = {
-            let engine = self.engine.lock();
-            let Some(item) = engine.project().media(media) else {
-                return Ok(None);
-            };
-            if item.kind() == aria_models::MediaKind::Audio {
-                TrackKind::Audio
-            } else {
-                TrackKind::Video
-            }
+    /// Place `placement` on a new lane for its media at the top or the bottom
+    /// edge of the lanes, as one `Source edit` undo step: Undo takes the lane
+    /// back with the clips, and a placement that lands nothing leaves no lane.
+    /// Returns whether anything landed.
+    fn place_on_new_lane(
+        &mut self,
+        mut placement: SourcePlacement,
+        top: bool,
+    ) -> Result<bool, EngineError> {
+        let Some(kind) = self.lane_kind_for(placement.media) else {
+            return Ok(false);
         };
-        let index = if top { Some(0) } else { None };
-        self.add_lane_of_kind(kind, index).map(Some)
+        let landed = self
+            .edit_group(|state| {
+                let lane = state.add_lane_of_kind(kind, edge_lane_index(kind, top))?;
+                placement.aimed = Some(lane);
+                let Some(lanes) = state.source_lanes(placement.media, placement.aimed)? else {
+                    return Ok(None);
+                };
+                state.place_source_on(placement, lanes).map(Some)
+            })
+            .map(|(group, label)| match label {
+                Some(label) => {
+                    group.commit_as(label);
+                    true
+                }
+                None => {
+                    self.roll_back(group);
+                    false
+                }
+            });
+        self.sync_from_engine();
+        landed
+    }
+
+    /// The kind of lane `media` lands on: audio for a sound file, video for
+    /// anything with a picture. `None` when the media is not in the pool.
+    fn lane_kind_for(&self, media: MediaId) -> Option<TrackKind> {
+        let engine = self.engine.lock();
+        let item = engine.project().media(media)?;
+        Some(if item.kind() == aria_models::MediaKind::Audio {
+            TrackKind::Audio
+        } else {
+            TrackKind::Video
+        })
     }
 
     pub(crate) fn add_lane_of_kind(
@@ -200,26 +228,31 @@ impl AppState {
         track: Option<TrackId>,
         start_ticks: i64,
     ) -> Result<(), EngineError> {
-        let Some(source) = self
-            .engine
-            .lock()
-            .project()
-            .media(media)
-            .map(|item| item.full_range())
-        else {
+        let Some(placement) = self.media_placement(media, track, start_ticks) else {
             return Ok(());
         };
-        // Ripple opens a hole on the patched and sync-locked lanes first;
-        // Overwrite covers whatever is already in the span.
-        self.place_source(super::source_patch::SourcePlacement {
+        self.place_source(placement)?;
+        Ok(())
+    }
+
+    /// All of `media` placed at `start_ticks` on `aimed`: Ripple opens a hole
+    /// on the patched and sync-locked lanes first, Overwrite covers whatever is
+    /// already in the span. `None` when `media` is not in the pool.
+    fn media_placement(
+        &self,
+        media: MediaId,
+        aimed: Option<TrackId>,
+        start_ticks: i64,
+    ) -> Option<SourcePlacement> {
+        let source = self.engine.lock().project().media(media)?.full_range();
+        Some(SourcePlacement {
             media,
             source,
             at: RationalTime::new(start_ticks.max(0), self.playhead.rate),
             fill: None,
             ripple: self.edit_mode == crate::types::EditMode::Ripple,
-            aimed: track,
-        })?;
-        Ok(())
+            aimed,
+        })
     }
 
     pub fn focus_media_search(&mut self, focused: bool) {
@@ -340,14 +373,27 @@ impl AppState {
     }
 }
 
-// Further methods live in sibling files; inherent methods keep their paths. The
-// import module is public because the format list it owns is read by the drop
-// claim and by three file dialogs.
+/// Where in the stack a lane of `kind` added at the top or the bottom edge of
+/// the lanes goes: `None` for the top of the stack, `Some(0)` for the bottom.
+/// Visual lanes are drawn upward from the A/V divider and audio lanes downward
+/// from it, so the top of the stack is the top of the video side and the
+/// bottom of the audio side. The lane-zone invariant then seats the lane at
+/// that end of its zone: a video lane under the text lanes at the top and over
+/// the main track at the bottom, an audio lane against the divider at the top
+/// and under the last audio lane at the bottom.
+fn edge_lane_index(kind: TrackKind, top: bool) -> Option<usize> {
+    let stack_top = top != kind.is_audio();
+    if stack_top { None } else { Some(0) }
+}
+
+// Further methods are defined in sibling files; inherent methods keep their
+// paths. The import module is public because the drop claim and three file
+// dialogs read its format list.
 #[path = "media_import.rs"]
 pub(crate) mod import;
 
-/// A codec name, or an honest statement that the platform did not report one.
-/// A guess from the file extension would name the container, not the codec.
+/// A codec name, or `Unknown` when the platform reported none. A guess from
+/// the file extension would name the container, not the codec.
 pub(crate) fn codec_label(codec: Option<&str>) -> String {
     match codec {
         Some(name) if !name.trim().is_empty() => name.trim().to_string(),

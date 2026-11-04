@@ -65,17 +65,19 @@ field narrower than its placeholder ends it in an ellipsis.
 
 The properties of the selected clip, one group per property group, in the
 order of the timeline's property rows. To the right of the value column, a
-small time area spans the clip's range with its own playhead and keyframes, as
-in Premiere's Effect Controls. Dragging an effect from Effects & Presets onto
+time area spans the clip's range with its own playhead and keyframes, as in
+Premiere's Effect Controls. Dragging an effect from Effects & Presets onto
 this panel adds it to the selected clip at the drop position in the stack.
 
-A property row stays on one line. In a narrow panel the time area narrows
-first. Below 32 px it is left blank and a press there does nothing, and once it
-has no width left the property's name is shortened with an ellipsis and shown
-in full on hover. Once the name has no width left, the value column narrows,
-down to the width of the value it shows. The tabs above the properties share
-the panel's width in proportion to the width of their names and shorten a long
-name the same way.
+A property row stays on one line. Past the width its controls need, a row
+gives three parts of its spare width to the time area for each part it gives
+the property's name. In a narrow panel the time area narrows first. Below
+32 px it is left blank and a press there does nothing, and once it has no width
+left the property's name is shortened with an ellipsis and shown in full on
+hover. Once the name has no width left, the value column narrows, down to the
+width of the value it shows. The tabs above the properties share the panel's
+width in proportion to the width of their names and shorten a long name the
+same way.
 
 A row that cannot be keyed, such as a fade, a switch, a crop inset, or a
 transition or insert parameter, stands in the same columns as a property row:

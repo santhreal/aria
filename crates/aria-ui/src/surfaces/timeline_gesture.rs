@@ -18,9 +18,11 @@
 //! panel filters it before a gesture exists.
 
 use aria_engine::EngineError;
-use aria_models::{ClipId, TrackId};
+use aria_models::{ClipId, Project, RationalTime, TrackId};
 
 use crate::app::AppState;
+use crate::app::clip_audio::fade_within;
+use crate::app::clip_transitions::{transition_ticks_after_drag, transition_ticks_within};
 use crate::app::drag_room::RoomKind;
 use crate::app::drag_steps::{Plan, Step};
 use crate::app::trim_gestures::{Neighbour, roll_steps, slide_steps, stretch_steps};
@@ -272,6 +274,72 @@ pub(crate) fn landing(state: &AppState, drag: &Drag, span: &Span) -> (i64, Optio
     snapped(state, drag, span, span.start + drag.delta)
 }
 
+/// What a slip, a transition window drag or a fade drag sets on release,
+/// inside the bounds its edit keeps. The release sends it, the readout states
+/// it and the held frame draws it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Setting {
+    /// The take moves inside the clip by this many of its own source ticks.
+    Slip(i64),
+    /// The window at the clip's right junction takes this many ticks.
+    Transition(i64),
+    /// The fade in, or the fade out, takes this many ticks.
+    Fade { left: bool, ticks: i64 },
+}
+
+/// What `gesture` sets on release for the pointer's `drag`, read off
+/// `project`, the project as the drag found it. `None` for a drag that sets
+/// nothing this way, a move, an edge drag or a slide, and for a clip `project`
+/// does not hold.
+///
+/// A slip of a clip that plays no take moves it by nothing, and the release
+/// still sends it, so the model states why the clip does not slip.
+pub(crate) fn setting(
+    state: &AppState,
+    project: &Project,
+    gesture: Gesture,
+    drag: &Drag,
+) -> Option<Setting> {
+    match gesture {
+        Gesture::Body {
+            drag: Some(BodyDrag::Slip),
+            ..
+        } => {
+            let travel = RationalTime::new(drag.delta, project.timeline().frame_rate);
+            let by = project.clip(drag.clip)?.slip_for(travel).unwrap_or(0);
+            Some(Setting::Slip(by))
+        }
+        // A junction with no window to bound keeps the length the drag asks
+        // for, and the release says there is no transition there.
+        Gesture::Transition { right, duration } => {
+            let alignment = state
+                .clip_transition_alignment(drag.clip)
+                .unwrap_or_default();
+            let ticks = transition_ticks_after_drag(duration, drag.delta, right, alignment);
+            Some(Setting::Transition(
+                transition_ticks_within(project, drag.clip, ticks).unwrap_or(ticks),
+            ))
+        }
+        // A fade in grows to the right and a fade out grows to the left, so
+        // one pointer direction lengthens one and shortens the other.
+        Gesture::Fade { left, current } => {
+            let desired = if left {
+                current + drag.delta
+            } else {
+                current - drag.delta
+            };
+            let ticks = fade_within(state.ui_clip_ref(drag.clip)?, desired);
+            Some(Setting::Fade { left, ticks })
+        }
+        Gesture::Body {
+            drag: None | Some(BodyDrag::Slide),
+            ..
+        }
+        | Gesture::RippleBody { .. }
+        | Gesture::Edge { .. } => None,
+    }
+}
+
 /// The edits an edge drag or a slide of `clip` sends when what it holds
 /// travels `travel` ticks, in the order the release sends them. Empty for no
 /// travel, for a roll with no clip abutting the edge, and for a drag no room
@@ -394,12 +462,30 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
             let (to, _) = landing(state, &drag, &span);
             state.ripple_move_clip(drag.clip, track, to)
         }
-        // The content follows the pointer, so the source window moves the other
-        // way, and nothing else on the timeline moves: no magnet.
         Gesture::Body {
             drag: Some(BodyDrag::Slip),
             ..
-        } => state.slip_clip(drag.clip, -drag.delta),
+        }
+        | Gesture::Transition { .. }
+        | Gesture::Fade { .. } => {
+            let set = {
+                let engine = state.engine().lock();
+                setting(state, engine.project(), gesture, &drag)
+            };
+            match set {
+                Some(Setting::Slip(by)) => state.slip_clip(drag.clip, by),
+                Some(Setting::Transition(ticks)) => {
+                    state.set_clip_transition_ticks(drag.clip, ticks)
+                }
+                Some(Setting::Fade { left: true, ticks }) => {
+                    state.set_clip_fade_in(drag.clip.raw(), ticks)
+                }
+                Some(Setting::Fade { left: false, ticks }) => {
+                    state.set_clip_fade_out(drag.clip.raw(), ticks)
+                }
+                None => Ok(()),
+            }
+        }
         Gesture::Body {
             drag: Some(BodyDrag::Slide),
             ..
@@ -407,33 +493,6 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
         | Gesture::Edge { .. } => {
             let travel = held(state, gesture, &drag).map_or(0, |held| held.travel);
             state.run_steps(&steps(state, gesture, drag.clip, travel))
-        }
-        Gesture::Transition { right, duration } => {
-            let alignment = state
-                .clip_transition_alignment(drag.clip)
-                .unwrap_or_default();
-            let ticks = crate::app::clip_transitions::transition_ticks_after_drag(
-                duration, drag.delta, right, alignment,
-            );
-            state.set_clip_transition_ticks(drag.clip, ticks)
-        }
-        // A fade in grows to the right and a fade out grows to the left, so one
-        // pointer direction lengthens one and shortens the other. The model
-        // clamps to the card: a drag past either end stalls at zero or at the
-        // whole clip rather than being refused, because the gesture has no way
-        // to know the limit.
-        Gesture::Fade { left, current } => {
-            let desired = if left {
-                current + drag.delta
-            } else {
-                current - drag.delta
-            }
-            .max(0);
-            if left {
-                state.set_clip_fade_in(drag.clip.raw(), desired)
-            } else {
-                state.set_clip_fade_out(drag.clip.raw(), desired)
-            }
         }
     }
 }

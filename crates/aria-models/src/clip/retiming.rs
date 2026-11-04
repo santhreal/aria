@@ -223,6 +223,22 @@ impl Clip {
         src_ticks * i64::from(self.speed.den) / i64::from(self.speed.num)
     }
 
+    /// The source ticks a slip moves this clip's take by so the picture
+    /// travels `travel` along the timeline with the pointer: the travel at
+    /// the clip's speed, in the ticks of its take, against the pointer on a
+    /// clip played forward and with it on a clip played backward. `None` for
+    /// generated content, which plays no take.
+    pub fn slip_for(&self, travel: RationalTime) -> Option<i64> {
+        let rate = self.source_range()?.start.rate;
+        let scaled = RationalTime::new(self.scale_by_speed(travel.value), travel.rate);
+        let by = resample(scaled, rate).value;
+        Some(if self.reversed {
+            by
+        } else {
+            by.saturating_neg()
+        })
+    }
+
     /// Clip-relative animation tick for an absolute timeline position: the
     /// offset from the clip's start. Positions outside the clip clamp into
     /// `[0, duration)` so callers sampling at a stale playhead still get the

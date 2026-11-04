@@ -13,12 +13,24 @@ use aria_models::{ClipParam, Rational, RationalTime};
 
 use super::AppState;
 use super::param_units::Scale;
+use crate::types::UiClip;
 
 /// The level silence counts as when a gain is moved: one decibel under
 /// [`GAIN_FLOOR_DB`], the quietest fader position that still reads as a level,
 /// so a 1 dB step up from silence lands on the floor rather than seventy steps
 /// under unity, and any level under the floor mutes.
 pub(crate) const SILENT_DB: f32 = GAIN_FLOOR_DB - 1.0;
+
+/// The length a fade on `card` takes for `ticks`: between nothing and the
+/// whole clip, so a drag past either end of the card stalls there rather
+/// than being refused. The drag readout, the held frame and the release read
+/// it alike.
+pub(crate) fn fade_within(card: &UiClip, ticks: i64) -> i64 {
+    ticks.clamp(
+        0,
+        (card.timeline_end_ticks - card.timeline_start_ticks).max(0),
+    )
+}
 
 impl AppState {
     /// Set the selected clip's gain.
@@ -73,9 +85,8 @@ impl AppState {
         let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
-        let duration = (ui.timeline_end_ticks - ui.timeline_start_ticks).max(0);
-        let fade_in = fade_in.unwrap_or(ui.fade_in_ticks).clamp(0, duration);
-        let fade_out = fade_out.unwrap_or(ui.fade_out_ticks).clamp(0, duration);
+        let fade_in = fade_within(&ui, fade_in.unwrap_or(ui.fade_in_ticks));
+        let fade_out = fade_within(&ui, fade_out.unwrap_or(ui.fade_out_ticks));
         self.apply_command(Command::Edit(EditCommand::SetClipAudio {
             clip,
             volume: None,
@@ -96,8 +107,7 @@ impl AppState {
         self.set_clip_fades(clip, None, Some(ticks))
     }
 
-    /// Clamped so a drag past either end of the card stalls at the whole clip
-    /// rather than being refused: the gesture has no way to know the limit.
+    /// Set one clip's fades, each held to the card by [`fade_within`].
     fn set_clip_fades(
         &mut self,
         clip: u64,
@@ -115,9 +125,8 @@ impl AppState {
         else {
             return Ok(());
         };
-        let duration = (ui.timeline_end_ticks - ui.timeline_start_ticks).max(0);
-        let fade_in = fade_in.unwrap_or(ui.fade_in_ticks).clamp(0, duration);
-        let fade_out = fade_out.unwrap_or(ui.fade_out_ticks).clamp(0, duration);
+        let fade_in = fade_within(&ui, fade_in.unwrap_or(ui.fade_in_ticks));
+        let fade_out = fade_within(&ui, fade_out.unwrap_or(ui.fade_out_ticks));
         if fade_in == ui.fade_in_ticks && fade_out == ui.fade_out_ticks {
             return Ok(());
         }

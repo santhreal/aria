@@ -110,24 +110,82 @@ fn a_lane_that_cannot_hold_the_media_is_not_used() {
     assert_eq!(on_video, 1, "the still did not fall back to a video lane");
 }
 
-#[test]
-fn an_edge_drop_adds_one_lane_and_places_on_it() {
-    let (mut state, media) = state();
+/// The lane-zone rank of each drawn lane, top row first.
+fn zones(state: &AppState) -> Vec<(u64, u8)> {
+    let engine = state.engine().lock();
+    let timeline = engine.project().timeline();
     state
-        .drop_media_on_timeline(media, None, 0)
-        .expect("a lane to sit beside");
-    let before = lanes(&state);
-    state
-        .drop_media_on_new_lane(media, true, 24)
-        .expect("edge drop");
-    let after = lanes(&state);
-    assert_eq!(after.len(), before.len() + 1, "the edge drop added no lane");
-    let new_lane = after
+        .store
+        .sequence
+        .tracks
         .iter()
-        .find(|(id, _, _)| !before.iter().any(|(old, _, _)| old == id))
-        .expect("no new lane");
-    assert_eq!(new_lane.2, 1, "the clip did not land on the new lane");
-    assert_eq!(new_lane.1, UiTrackKind::Video);
+        .map(|lane| {
+            let track = timeline
+                .track(TrackId::from_raw(lane.id))
+                .expect("a drawn lane is in the timeline");
+            (lane.id, track.kind.spec().zone_rank(track.main))
+        })
+        .collect()
+}
+
+/// An edge drop adds one lane of the media's kind, places the media on it,
+/// and seats it at the strip's end of the lane's zone: the top strip's lane is
+/// the top row of its zone and the bottom strip's the bottom row, for a
+/// picture and a sound file alike. Each zone the new lane can join holds two
+/// other lanes, so the end it takes is asserted.
+///
+/// Closes the class where the top strip added a video lane at the bottom of
+/// the stack, which the lane zones lifted to just over the main track, under
+/// every overlay and adjustment lane the drop was aimed above, and the bottom
+/// strip added it over them. Not covered: the drop strip's hit area, which
+/// needs a window.
+#[test]
+fn an_edge_drop_seats_its_lane_at_the_strips_end_of_its_zone() {
+    let sound = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-sine-48k-2s.wav");
+    for (file, kind) in [(fixture(), UiTrackKind::Video), (sound, UiTrackKind::Audio)] {
+        for top in [true, false] {
+            let case = format!(
+                "{kind:?} at the {} strip",
+                if top { "top" } else { "bottom" }
+            );
+            let (mut state, _) = state();
+            let media = state.import_media(file.clone()).expect("import");
+            for lane in [
+                TrackKind::Text,
+                TrackKind::Adjustment,
+                TrackKind::Video,
+                TrackKind::Audio,
+                TrackKind::Audio,
+            ] {
+                state.add_lane_of_kind(lane, None).expect("a lane");
+            }
+            let before = lanes(&state);
+            state
+                .drop_media_on_new_lane(media, top, 24)
+                .expect("edge drop");
+            let after = lanes(&state);
+            assert_eq!(after.len(), before.len() + 1, "{case}: one lane added");
+            let added = after
+                .iter()
+                .find(|(id, _, _)| !before.iter().any(|(old, _, _)| old == id))
+                .expect("no new lane");
+            assert_eq!((added.1, added.2), (kind, 1), "{case}: the media on it");
+            let rows = zones(&state);
+            let zone = rows
+                .iter()
+                .find(|(id, _)| *id == added.0)
+                .map(|(_, zone)| *zone);
+            let run: Vec<u64> = rows
+                .iter()
+                .filter(|(_, rank)| Some(*rank) == zone)
+                .map(|(id, _)| *id)
+                .collect();
+            assert_eq!(run.len(), 3, "{case}: the zone's lanes, top row first");
+            let end = if top { run.first() } else { run.last() };
+            assert_eq!(end, Some(&added.0), "{case}: the zone's rows {run:?}");
+        }
+    }
 }
 
 #[test]

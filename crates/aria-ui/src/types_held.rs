@@ -1,5 +1,5 @@
 //! A clip drag in flight, read for the frame that draws it where its release
-//! leaves it: a move, and an edge drag or a slide.
+//! leaves it: a move, and a drag that changes clips in place.
 
 use super::*;
 
@@ -55,15 +55,16 @@ impl HeldMove {
     }
 }
 
-/// An edge drag or a slide in flight, read for the frame that draws it where
-/// its release leaves it.
+/// A drag that changes clips in place, in flight: an edge drag, a slide, a
+/// slip, a transition window drag or a fade drag, read for the frame that
+/// draws it where its release leaves it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeldEdit {
     /// Each clip the release changes, as the release leaves it.
     pub cards: Vec<HeldCard>,
     /// The lane shifts the release sends, in the order it sends them.
     pub shifts: Vec<LaneShift>,
-    /// The edge the drag holds. `None` for a slide.
+    /// The edge the drag holds. `None` for a drag that holds no edge.
     pub edge: Option<HeldEdge>,
 }
 
@@ -131,7 +132,7 @@ impl HeldEdit {
     }
 }
 
-/// A clip an edge drag or a slide changes, as the release leaves it.
+/// A clip a drag in flight changes, as the release leaves it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeldCard {
     pub clip: UiClip,

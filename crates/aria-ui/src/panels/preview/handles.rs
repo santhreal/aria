@@ -7,8 +7,8 @@
 //! picture area during paint, and the handles are placed from that record.
 
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    StatefulInteractiveElement, Styled, WeakEntity, canvas, div, px,
+    Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    Stateful, StatefulInteractiveElement, Styled, WeakEntity, canvas, div, px,
 };
 
 use crate::app::AppState;
@@ -128,7 +128,7 @@ pub(super) fn overlay(
         .active_ui_mask()
         .is_some_and(|mask| mask.kind == aria_models::MaskKind::Path);
     // The picture under the Type tool takes a caret, and under the Pen a
-    // vertex; with any other tool it moves.
+    // vertex; under the Hand it pans, and with any other tool it moves.
     let move_cursor = if read.tool.types() {
         gpui::CursorStyle::IBeam
     } else if read.tool.pens() {
@@ -136,6 +136,7 @@ pub(super) fn overlay(
     } else {
         gpui::CursorStyle::OpenHand
     };
+    let hand = read.tool.pans();
     let type_handles = read.overlay_type_handles();
     let type_colour = read
         .selected_ui_clip_ref()
@@ -168,8 +169,7 @@ pub(super) fn overlay(
                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                             // The Type tool places a title and the Pen draws a
                             // mask path; neither moves the picture.
-                            let tool = this.state.read(cx).tool;
-                            if tool.types() || tool.pens() {
+                            if !this.state.read(cx).tool.moves_pictures() {
                                 return;
                             }
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
@@ -187,6 +187,7 @@ pub(super) fn overlay(
                     point,
                     theme.accent,
                     theme,
+                    hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
@@ -206,6 +207,7 @@ pub(super) fn overlay(
                     point,
                     type_colour,
                     theme,
+                    hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
@@ -237,6 +239,7 @@ pub(super) fn overlay(
                     point,
                     theme.accent,
                     theme,
+                    hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
@@ -273,6 +276,7 @@ pub(super) fn overlay(
                         point,
                         theme.playhead,
                         theme,
+                        hand,
                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
                             this.state.update(cx, |state, _| {
@@ -293,18 +297,15 @@ pub(super) fn overlay(
 }
 
 /// One draggable dot, centered on `point`.
-///
-/// A press on a dot is the dot's alone. It lies over the move surface and the
-/// picture, whose own presses start a move and pick the layer under the
-/// pointer, and either would replace the drag the dot just started.
 fn handle_dot(
     id: crate::motion::ControlId,
     point: [f32; 2],
     color: gpui::Hsla,
     theme: &Theme,
+    hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
-    div()
+    let dot = div()
         .id(id.element("handle"))
         .absolute()
         .left(px(point[0] - HANDLE * 0.5))
@@ -314,8 +315,26 @@ fn handle_dot(
         .rounded(px(HANDLE * 0.5))
         .bg(color)
         .border_1()
-        .border_color(theme.on_solid)
-        .cursor(gpui::CursorStyle::PointingHand)
+        .border_color(theme.on_solid);
+    pressable(dot, hand, on_down)
+}
+
+/// `dot` with the pointing cursor, the pressed look, and a left press that is
+/// the dot's alone. Every dot on the picture takes its press here.
+///
+/// A dot lies over the move surface and the picture, whose own presses start a
+/// move and pick the layer under the pointer, and either would replace the drag
+/// the dot started. Under the Hand (`hand`) the dot takes no press: the press
+/// reaches the picture, which pans.
+pub(super) fn pressable(
+    dot: Stateful<Div>,
+    hand: bool,
+    on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
+) -> Stateful<Div> {
+    if hand {
+        return dot;
+    }
+    dot.cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_mouse_down(MouseButton::Left, move |event, window, cx| {
             cx.stop_propagation();

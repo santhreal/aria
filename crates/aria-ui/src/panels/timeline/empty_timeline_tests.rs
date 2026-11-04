@@ -453,49 +453,54 @@ fn trim_feedback_formats_live_deltas_for_all_trim_and_move_gestures() {
         clip: c1,
         delta: -12,
     };
+    // The project as a press snapshots it: the readout reads the room off the
+    // session when no drag holds one, so the engine stays unlocked meanwhile.
+    let feedback = |gesture: Gesture, drag: Drag| {
+        let project = state.engine().lock().snapshot();
+        state.compute_trim_feedback(&project, gesture, drag)
+    };
 
-    let ripple_fb = state
-        .compute_trim_feedback(
-            Gesture::Edge {
-                drag: Some(EdgeDrag::Ripple),
-                left: false,
-                span,
-            },
-            drag,
-        )
-        .expect("ripple feedback");
+    let ripple_fb = feedback(
+        Gesture::Edge {
+            drag: Some(EdgeDrag::Ripple),
+            left: false,
+            span,
+        },
+        drag,
+    )
+    .expect("ripple feedback");
     assert_eq!(ripple_fb.tool_label.as_ref(), "Ripple Trim");
     assert!(ripple_fb.delta_label.contains("-12f"));
     assert!(ripple_fb.detail_label.contains("00:00:04:12"));
 
-    let rate_fb = state
-        .compute_trim_feedback(
-            Gesture::Edge {
-                drag: Some(EdgeDrag::Rate),
-                left: false,
-                span,
-            },
-            Drag {
-                clip: c1,
-                delta: -60,
-            },
-        )
-        .expect("rate feedback");
+    let rate_fb = feedback(
+        Gesture::Edge {
+            drag: Some(EdgeDrag::Rate),
+            left: false,
+            span,
+        },
+        Drag {
+            clip: c1,
+            delta: -60,
+        },
+    )
+    .expect("rate feedback");
     assert_eq!(rate_fb.tool_label.as_ref(), "Rate Stretch");
     assert!(rate_fb.detail_label.contains("200.0%"));
 
-    let slip_fb = state
-        .compute_trim_feedback(
-            Gesture::Body {
-                drag: Some(BodyDrag::Slip),
-                track: track_id,
-                span,
-            },
-            drag,
-        )
-        .expect("slip feedback");
+    let slip_fb = feedback(
+        Gesture::Body {
+            drag: Some(BodyDrag::Slip),
+            track: track_id,
+            span,
+        },
+        drag,
+    )
+    .expect("slip feedback");
     assert_eq!(slip_fb.tool_label.as_ref(), "Slip");
-    assert!(slip_fb.delta_label.contains("+12f"));
+    // The clip is a still, whose slip the model refuses: the readout states
+    // the take the release leaves, which is where it was.
+    assert_eq!(slip_fb.delta_ticks, 0, "{}", slip_fb.delta_label);
 }
 
 #[test]

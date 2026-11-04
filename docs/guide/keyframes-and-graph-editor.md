@@ -81,9 +81,11 @@ timeline property row:
   rest of the curve. It is dimmed when the property holds its default there.
 
 In Effect Controls, a time area follows the reset button. It spans the selected
-clip and draws the playhead and the property's keyframes. In a narrow Effect
-Controls panel the time area narrows, and is left blank below 32 px, before the
-property's name is shortened; hover a shortened name to read it in full.
+clip and draws the playhead and the property's keyframes. A wider Effect
+Controls panel gives three quarters of its added width to the time area and the
+rest to the property's name. In a narrow panel the time area narrows, and is
+left blank below 32 px, before the property's name is shortened; hover a
+shortened name to read it in full.
 
 - Click a keyframe to select it; Shift+click adds it to the selection. Drag to
   move every selected keyframe. The drag snaps to the playhead and to the

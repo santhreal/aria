@@ -373,6 +373,34 @@ fn a_press_that_never_moved_is_a_click_rather_than_an_edit() {
 }
 
 #[test]
+fn the_hand_takes_hold_of_no_handle() {
+    // Under the Hand a press on the picture pans. Every handle the preview
+    // draws is pressed where it is drawn, carried and released with the Hand
+    // armed, and none takes hold or writes an edit. With its own tool each of
+    // these drags writes its set's command (`a_handle_sends_the_command_its_own_set_owns`).
+    for gesture in gestures() {
+        let mut state = dressed(gesture);
+        state.tool = EditorTool::Hand;
+        let watch = Watch::on(&state);
+        state.set_overlay_mode(gesture.mode());
+        let from = grab(&state, gesture);
+        step(&mut state, Step::Grab(gesture, from));
+        assert!(
+            !state.overlay_dragging(),
+            "the Hand took hold of {}",
+            gesture.what()
+        );
+        step(&mut state, Step::Carry(release(from)));
+        step(&mut state, Step::Release);
+        assert!(
+            watch.take().is_empty(),
+            "a Hand drag on {} wrote an edit",
+            gesture.what()
+        );
+    }
+}
+
+#[test]
 fn a_type_handle_drafts_the_preview_and_commits_one_undoable_value() {
     // The handle and the picture both follow the pointer before the release,
     // the release writes the value the handle drew, and the whole drag is one

@@ -144,6 +144,100 @@ fn slip_multicam_moves_window_and_clamps_within_group_span() {
     );
 }
 
+/// The source ticks a slip drag moves a take by: the pointer's travel at the
+/// clip's speed, in the ticks of its take, against the pointer on a clip
+/// played forward and with it on one played backward. The class this closes:
+/// a slip drag sent the pointer's timeline ticks as source ticks, so a take at
+/// another rate, or played at another speed, slid under the pointer at the
+/// wrong pace.
+#[test]
+fn a_slip_drag_moves_the_take_by_the_travel_at_its_speed_and_rate() {
+    let mut project = Project::new("slip", R24);
+    let picture = project.add_media(sample_media(R30, 900));
+    let video = project.add_track(TrackKind::Video, "V1");
+    let clip = project
+        .add_clip(video, picture, tr_at(300, 300, R30), rt(0))
+        .unwrap();
+    let travel = |ticks| RationalTime::new(ticks, R24);
+
+    // Half a second on a 24 fps timeline is fifteen frames of a 30 fps take,
+    // which goes the other way under the pointer.
+    assert_eq!(project.clip(clip).unwrap().slip_for(travel(12)), Some(-15));
+    assert_eq!(project.clip(clip).unwrap().slip_for(travel(-12)), Some(15));
+
+    // At twice the speed, played backward, half a second of timeline is a
+    // second of take, which goes with the pointer.
+    project
+        .set_clip_speed(clip, Rational::new(2, 1), true)
+        .unwrap();
+    assert_eq!(project.clip(clip).unwrap().slip_for(travel(12)), Some(30));
+
+    let stickers = project.add_track(TrackKind::Sticker, "S1");
+    let solid = project
+        .add_generated(
+            stickers,
+            Generator::SolidColor {
+                rgba: [255, 0, 0, 255],
+            },
+            tr(0, 48),
+        )
+        .unwrap();
+    assert_eq!(
+        project.clip(solid).unwrap().slip_for(travel(12)),
+        None,
+        "a generated clip plays no take"
+    );
+}
+
+/// A slip of one of a linked pair moves each take by the same stretch of
+/// source time, each in the ticks of its own take, and stops where the first
+/// take runs out. The class this closes: a linked pair slipped by one tick
+/// count whatever each take's rate, and each member stopped at its own end,
+/// so a slip of a picture over a sound file pulled the pair apart. Covers a
+/// slip sent from either member, both ways, inside and past the room, and a
+/// sound whose tail falls between two frames. Does not cover the engine
+/// applying the shares, which `slip_clip` does one clip at a time.
+#[test]
+fn a_linked_slip_moves_each_take_by_the_same_time_and_stops_at_the_first_end() {
+    let (mut project, picture_media, video) = project_with_media(500);
+    let ms = Rational::new(1000, 1);
+    let sound_media = project.add_media(MediaSource::new("/tmp/slip.wav", 0, 0, ms, 10_030, true));
+    let audio = project.add_track(TrackKind::Audio, "A1");
+    // Two seconds each: frames 48 to 96 of a 500-frame take, which has 2 s
+    // behind the window and 16.8 s after it, and 2 s to 4 s of a 10.03 s
+    // sound, which has 2 s behind and 6.03 s after.
+    let picture = project
+        .add_clip(video, picture_media, tr(48, 48), rt(0))
+        .unwrap();
+    let sound = project
+        .add_clip(audio, sound_media, tr_at(2_000, 2_000, ms), rt(0))
+        .unwrap();
+    project.link_clips(&[picture, sound]).unwrap();
+    let shares = |from: ClipId, by: i64| {
+        let reach = project.slip_reach(from, by).unwrap();
+        let share = |clip: ClipId| {
+            reach
+                .iter()
+                .find(|(member, _)| *member == clip)
+                .map(|&(_, by)| by)
+        };
+        (share(picture), share(sound))
+    };
+
+    // Inside the room: twelve frames are half a second.
+    assert_eq!(shares(picture, 12), (Some(12), Some(500)));
+    assert_eq!(shares(sound, -500), (Some(-12), Some(-500)));
+    // Past the head: both takes have two seconds behind them.
+    assert_eq!(shares(picture, -1_000), (Some(-48), Some(-2_000)));
+    assert_eq!(shares(sound, -1_000_000), (Some(-48), Some(-2_000)));
+    // Past the tail: the sound runs out after 6.03 s, before the picture. A
+    // slip led by the picture stops at the last whole frame inside it, 144
+    // frames, since 145 would carry the sound 6.042 s past its 6.03 s; one
+    // led by the sound takes all of it and the picture the nearest frame.
+    assert_eq!(shares(picture, 1_000), (Some(144), Some(6_000)));
+    assert_eq!(shares(sound, 1_000_000), (Some(145), Some(6_030)));
+}
+
 // --- trim_clip --------------------------------------------------------
 
 #[test]

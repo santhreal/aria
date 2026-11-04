@@ -13,13 +13,17 @@
 //! release of the other button mid-drag leaves the pan going; after the end,
 //! Escape, a drag with the same button on the other view pressed with no move
 //! between, and a move with no button down each leave the view where the pan
-//! put it.
+//! put it. No pan picks a clip or takes hold of the selected one: the Hand's
+//! press on the Viewer once selected the clip under it and took hold of it, so
+//! the drag moved the clip and the frame stayed put, and a press on one of the
+//! selected clip's handles dragged the handle.
 //!
 //! Not covered: the splitters', a lane border's and a tab's drags, which only
 //! the left button presses (`DragKind::button` must name a button for each
 //! kind) and whose releases are in `held_drag_tests` and
 //! `held_drag_panel_tests`.
 
+use aria_models::{ClipId, MaskKind};
 use gpui::{
     Entity, Modifiers, MouseButton, Pixels, Point, ScrollDelta, ScrollWheelEvent, TouchPhase,
     VisualTestContext, point, px,
@@ -28,10 +32,10 @@ use gpui::{
 use super::held_drag_panel_tests::{hover, settle};
 use super::held_drag_tests::bounds;
 use crate::app::AppState;
-use crate::app::canvas_overlay::Rect;
+use crate::app::canvas_overlay::{MaskHandle, Rect, mask_handle_anchor};
 use crate::app::preview_view::ZOOM_STEPS;
 use crate::app::viewer_row_tests::{change, shell_with_take};
-use crate::types::EditorTool;
+use crate::types::{EditorTool, OverlayMode, UiTrackKind};
 
 /// Where a pan starts the timeline's scroll: far enough from the start that
 /// a pan either way moves it.
@@ -167,6 +171,11 @@ fn each_pan_ends_on_the_release_of_the_button_that_pressed_it(cx: &mut gpui::Tes
             press(visual, from, button);
             carry(visual, mid, button);
             assert_eq!(view(visual, &state, surface), at_mid, "{label}: the carry");
+            assert_eq!(
+                visual.read(|app| state.read(app).selected_clip()),
+                None,
+                "{label}: the press picked a clip"
+            );
             // A button whose press went elsewhere comes up mid-drag.
             release(visual, mid, stray);
             carry(visual, to, button);
@@ -219,6 +228,83 @@ fn each_pan_ends_on_the_release_of_the_button_that_pressed_it(cx: &mut gpui::Tes
                 "{label}: a move with no button down after it ended"
             );
         }
+    }
+}
+
+#[gpui::test]
+fn the_hands_press_on_the_selected_clip_pans_whichever_handle_it_lands_on(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (state, visual, _) = shell_with_take(cx, "pan-handles");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    // The take selected and masked, so each handle set draws something at the
+    // picture's center: the Transform set its move surface, the Crop set its
+    // window, the Mask set its center dot.
+    let take = visual.read(|app| {
+        state
+            .read(app)
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| lane.kind == UiTrackKind::Video)
+            .flat_map(|lane| lane.clips.iter())
+            .next()
+            .map(|clip| ClipId::from_raw(clip.id))
+            .expect("the take has a picture clip")
+    });
+    change(visual, &state, |state| {
+        state.select_clip(take);
+        state
+            .add_selected_mask(MaskKind::Rectangle)
+            .expect("a mask on the take");
+    });
+    for mode in OverlayMode::ALL {
+        change(visual, &state, |state| {
+            state.set_overlay_mode(mode);
+            state.tool = EditorTool::Hand;
+            state.preview_view.zoom = ZOOM_STEPS.last().copied();
+            state.preview_view.pan = (0.0, 0.0);
+        });
+        settle(visual);
+        let ([from, _, to], [_, at_to]) = path(visual, &state, Surface::Viewer);
+        let (center_dot, edits) = visual.read(|app| {
+            let state = state.read(app);
+            let layer = state.overlay_frame.layer.expect("the take draws a layer");
+            let (center, size, _) = state.overlay_mask().expect("the take's mask");
+            (
+                layer.at(mask_handle_anchor(center, size, MaskHandle::Center)),
+                state.history_entries().len(),
+            )
+        });
+        assert!(
+            (center_dot[0] - f32::from(from.x)).abs() < 0.5
+                && (center_dot[1] - f32::from(from.y)).abs() < 0.5,
+            "{mode:?}: the press lands beside the mask's center dot at {center_dot:?}"
+        );
+
+        press(visual, from, MouseButton::Left);
+        assert!(
+            !visual.read(|app| state.read(app).overlay_dragging()),
+            "{mode:?}: the press took hold of the take"
+        );
+        carry(visual, to, MouseButton::Left);
+        assert_eq!(
+            view(visual, &state, Surface::Viewer),
+            at_to,
+            "{mode:?}: the carry"
+        );
+        release(visual, to, MouseButton::Left);
+        let (selected, after) = visual.read(|app| {
+            let state = state.read(app);
+            (state.selected_clip(), state.history_entries().len())
+        });
+        assert_eq!(
+            selected,
+            Some(take),
+            "{mode:?}: the press changed the selection"
+        );
+        assert_eq!(after, edits, "{mode:?}: the drag wrote an edit");
     }
 }
 

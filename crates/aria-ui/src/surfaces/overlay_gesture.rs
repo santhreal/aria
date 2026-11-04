@@ -144,8 +144,12 @@ pub enum Step {
 }
 
 /// Run one step of a drag on the picture.
+///
+/// Under the Hand a press pans the frame and takes hold of nothing, whichever
+/// handle it lands on.
 pub fn apply(state: &mut AppState, step: Step) -> Result<(), EngineError> {
     match step {
+        Step::Grab(..) if state.tool.pans() => {}
         Step::Grab(Gesture::Move, at) => state.begin_transform_drag(None, at),
         Step::Grab(Gesture::Scale(handle), at) => state.begin_transform_drag(Some(handle), at),
         Step::Grab(Gesture::Crop(handle), _) => state.begin_crop_drag(handle),
@@ -178,4 +182,31 @@ pub fn run(state: &mut AppState, step: Step) {
     if let Err(err) = apply(state, step) {
         state.report_error(&err);
     }
+}
+
+/// A left press on the picture, after the selected layer's handles and move
+/// surface have had it.
+///
+/// A press they took belongs to the selected layer: picking the clip on top of
+/// it would hand that drag to another clip. Under the Hand the press pans and
+/// picks nothing, as on the timeline. Any other press picks the topmost clip
+/// under the pointer. With the transform handles up and a tool that moves
+/// pictures, the same press takes hold of the picked clip, so one drag selects
+/// a layer and moves it.
+pub fn press(state: &mut AppState, at: [f32; 2], extend: bool) {
+    if state.tool.pans() || state.overlay_dragging() || !state.select_layer_at(at, extend) {
+        return;
+    }
+    let moves = state.overlay_mode() == OverlayMode::Transform
+        && state.tool.moves_pictures()
+        && state.selected_has_framing();
+    if !moves {
+        return;
+    }
+    // The quad the panel recorded is the old selection's until the next
+    // paint, and a move arriving before it would measure nothing.
+    if let Some(container) = state.overlay_frame.container {
+        state.record_overlay_frame(container);
+    }
+    run(state, Step::Grab(Gesture::Move, at));
 }

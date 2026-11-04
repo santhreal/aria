@@ -154,6 +154,58 @@ fn every_placement_adds_the_sound_lane_in_its_own_undo_step() {
     }
 }
 
+/// An edge drop, of a pool item or a Source tab's marked range, at the top or
+/// the bottom strip: the lane it adds for the picture, the lane the sound
+/// lands on and the clips are one `Source edit`, and one Undo leaves the lanes
+/// as they were.
+///
+/// Closes the class where an edge drop added its lane as an undo step of its
+/// own, so Undo took the clips back and left an empty lane. Not covered: a
+/// Source tab dragged with an empty marked range, which stops before a lane
+/// is added.
+#[test]
+fn an_edge_drop_and_the_lanes_it_adds_are_one_undo_step() {
+    let drawn = |state: &AppState| -> Vec<u64> {
+        state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .map(|lane| lane.id)
+            .collect()
+    };
+    for (what, from_source) in [("a pool item", false), ("a Source tab", true)] {
+        for top in [true, false] {
+            let case = format!("{what} at the {} strip", if top { "top" } else { "bottom" });
+            let (mut state, media, _) = state();
+            if from_source {
+                open_marked(&mut state, media);
+            }
+            let (before, steps) = (drawn(&state), state.history_entries().len());
+            if from_source {
+                state.drop_source_on_new_lane(top, 0, false)
+            } else {
+                state.drop_media_on_new_lane(media, top, 0)
+            }
+            .unwrap_or_else(|err| panic!("{case}: {err}"));
+            assert_eq!(
+                drawn(&state).len(),
+                before.len() + 2,
+                "{case}: a lane for the picture and one for the sound"
+            );
+            let history = state.history_entries();
+            assert_eq!(history.len(), steps + 1, "{case}: one undo step");
+            assert_eq!(
+                history.last().map(|step| step.label.as_str()),
+                Some("Source edit"),
+                "{case}: the undo step is named for the edit"
+            );
+            assert!(state.undo(), "{case}: Undo");
+            assert_eq!(drawn(&state), before, "{case}: Undo keeps a lane");
+        }
+    }
+}
+
 #[test]
 fn an_audio_lane_takes_the_sound_as_a_linked_clip() {
     let (mut state, media, picture) = state();

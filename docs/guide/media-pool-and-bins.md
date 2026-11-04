@@ -105,7 +105,10 @@ Drag an item onto the timeline to place it where you drop it:
   it to a lane of the right kind at the same tick.
 - Dropped on the thin strip above the top lane or below the bottom one, it
   creates a lane of its own kind and lands there. This is the only drop that
-  adds a lane.
+  adds a lane. From the top strip a video lane goes under the text lanes and
+  an audio lane against the A/V divider; from the bottom strip a video lane
+  goes over the main track and an audio lane under the last audio lane. The
+  new lane and the placement are one undo step.
 
 With Program focused in the Viewer, `,` inserts the selected items at the
 playhead, end to end in the order you clicked them, and `.` overwrites with them.

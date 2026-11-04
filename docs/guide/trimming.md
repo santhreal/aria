@@ -7,8 +7,14 @@ edges the way a plain drag does. Each keeps something fixed:
 
 - **Slip (Y)** keeps the clip where it is and moves the take inside it. Drag the
   clip body: the content follows the pointer and the timeline does not change.
-  A slip stops at either end of the source. A still, a freeze frame, a generated
-  clip, and a clip already using its whole take have nothing to slip.
+  The take moves by the time the pointer travels, at the clip's speed, so a
+  take at another frame rate or speed stays under the pointer. Each clip
+  linked to it moves its own take by the same time, and the slip stops where
+  the first of their takes runs out, so linked picture and sound stay in sync.
+  While the button is down the clip draws the part of the take the release
+  leaves, and the readout states the new In and Out. A still, a freeze frame,
+  a generated clip, and a clip already using its whole take have nothing to
+  slip, and a linked clip slips only when every clip linked to it can.
 - **Slide (U)** keeps the clip's length and gives the difference to the clips
   either side of it. Drag the clip body. A neighbor keeps at least one frame, so
   the slide stops rather than deleting it. Sliding into empty space is a move.

@@ -45,21 +45,49 @@ fn drawn_frames(
     })
 }
 
-/// Press the first tab of `frame`, carry it to `over`, and let go at
-/// `release`. Returns the panel the tab showed. Fails when the drop zones
-/// are not drawn while the tab is carried, or are still drawn once it is let
-/// go.
-fn carry_first_tab(
-    state: &gpui::Entity<AppState>,
-    visual: &mut VisualTestContext,
-    (frame, [fx, fy, _, _]): (FrameId, [f32; 4]),
-    over: Point<Pixels>,
-    release: Point<Pixels>,
-) -> PanelId {
+/// Where `frame` draws its drop zone, if it draws one.
+fn zone_of(visual: &mut VisualTestContext, frame: FrameId) -> Option<Bounds<Pixels>> {
+    visual.debug_bounds(crate::interned::intern(&format!(
+        "dock-drop-zone-{}",
+        frame.0
+    )))
+}
+
+/// The frames among `frames` that draw a drop zone.
+fn zoned(visual: &mut VisualTestContext, frames: &[(FrameId, [f32; 4])]) -> Vec<FrameId> {
+    frames
+        .iter()
+        .map(|(frame, _)| *frame)
+        .filter(|frame| zone_of(visual, *frame).is_some())
+        .collect()
+}
+
+/// Press the first tab of the frame drawn at `rect`.
+fn press_first_tab(visual: &mut VisualTestContext, [fx, fy, _, _]: [f32; 4]) {
     // The first tab, inside the frame's border and its tab row.
     let tab = point(px(fx + 16.), px(fy + 1. + Theme::TAB_ROW_HEIGHT / 2.));
     visual.simulate_mouse_down(tab, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
+}
+
+/// Carry the pressed tab to `over`.
+fn carry_to(visual: &mut VisualTestContext, over: Point<Pixels>) {
+    visual.simulate_mouse_move(over, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+}
+
+/// Press the first tab of `frame`, carry it to `over`, and let go at
+/// `release`. Returns the panel the tab showed. Fails when no drop zone is
+/// drawn while the tab is carried, or one is still drawn once it is let go.
+fn carry_first_tab(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    (frame, rect): (FrameId, [f32; 4]),
+    over: Point<Pixels>,
+    release: Point<Pixels>,
+) -> PanelId {
+    let frames = drawn_frames(state, visual);
+    press_first_tab(visual, rect);
     let panel = visual.read(|app| {
         state
             .read(app)
@@ -68,17 +96,17 @@ fn carry_first_tab(
             .map(|f| f.active_panel())
             .expect("the pressed frame is still docked")
     });
-    visual.simulate_mouse_move(over, MouseButton::Left, Modifiers::none());
-    visual.run_until_parked();
+    carry_to(visual, over);
     assert!(
-        visual.debug_bounds("dock-drop-zones").is_some(),
-        "{panel} carried over a frame draws no drop zones"
+        !zoned(visual, &frames).is_empty(),
+        "{panel} carried over a frame draws no drop zone"
     );
     visual.simulate_mouse_up(release, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
+    let left = zoned(visual, &frames);
     assert!(
-        visual.debug_bounds("dock-drop-zones").is_none(),
-        "{panel} let go at {release:?}: the drop zones are still drawn"
+        left.is_empty(),
+        "{panel} let go at {release:?}: {left:?} still draw a drop zone"
     );
     panel
 }
@@ -156,5 +184,60 @@ fn a_tab_docked_on_another_frame_leaves_no_drop_zones_drawn(cx: &mut gpui::TestA
     assert!(
         home.is_some_and(|frame| frame != pressed.0 && frame != target),
         "{panel} let go on the right zone of {target:?} is in {home:?}, not a frame of its own"
+    );
+}
+
+/// A tab carried over a frame's right zone draws one drop zone: on that frame,
+/// over the right half of its body, where the panel lands when let go.
+///
+/// Closes the class where every frame drew five labelled zone boxes while a
+/// tab was carried, sized unlike the regions that take the drop, so the box
+/// under the pointer was rarely the zone in force. Not covered: the 80 ms
+/// delay and the fade between zones, which reduced motion skips.
+#[gpui::test]
+fn a_carried_tab_draws_the_zone_under_the_pointer_and_no_other(cx: &mut gpui::TestAppContext) {
+    const EPS: f32 = 0.51;
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "drop-zone-one");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let frames = drawn_frames(&state, visual);
+    let pressed = *frames
+        .first()
+        .expect("the shell draws a docked frame with a tab");
+    let (target, [tx, ty, tw, th]) = *frames
+        .last()
+        .filter(|(id, _)| *id != pressed.0)
+        .expect("the shell draws a second docked frame with a tab");
+    press_first_tab(visual, pressed.1);
+    carry_to(visual, point(px(tx + tw * 0.9), px(ty + th * 0.5)));
+    let drawing = zoned(visual, &frames);
+    let zone = zone_of(visual, target);
+    visual.simulate_mouse_up(
+        point(px(-10.), px(-10.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    visual.run_until_parked();
+    assert_eq!(drawing, vec![target], "the frames that draw a drop zone");
+    let zone = zone.expect("the target draws its zone");
+    // The frame's body: inside its 1 px border, under its tab row.
+    let (body_left, body_right, body_bottom) = (tx + 1., tx + tw - 1., ty + th - 1.);
+    let drawn = [
+        f32::from(zone.left()),
+        f32::from(zone.right()),
+        f32::from(zone.bottom()),
+    ];
+    let half = [(body_left + body_right) / 2., body_right, body_bottom];
+    assert!(
+        drawn
+            .iter()
+            .zip(half)
+            .all(|(at, want)| (at - want).abs() <= EPS),
+        "the right zone spans {drawn:?} (left, right, bottom), not the body's right half {half:?}"
+    );
+    assert!(
+        f32::from(zone.top()) >= ty + Theme::TAB_ROW_HEIGHT,
+        "the zone starts at {:?}, over the tab row",
+        zone.top()
     );
 }

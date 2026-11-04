@@ -10,8 +10,7 @@ use std::sync::Arc;
 
 use gpui::{
     ContentMask, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    MouseMoveEvent, ParentElement, PathBuilder, StatefulInteractiveElement, Styled, canvas, div,
-    point, px,
+    MouseMoveEvent, ParentElement, PathBuilder, Styled, canvas, div, point, px,
 };
 
 use crate::app::AppState;
@@ -21,6 +20,8 @@ use crate::motion::MotionKey;
 use crate::surfaces::overlay_gesture::{self, Gesture, Step};
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
+
+use super::handles::pressable;
 
 /// A vertex square's side, in pixels.
 const VERTEX: f32 = 8.0;
@@ -80,6 +81,7 @@ pub(super) fn overlay(
         return None;
     }
     let pen = read.tool.pens();
+    let hand = read.tool.pans();
     let holding = read.mask_path_holding();
     let drawing = read.mask_path_drawing();
     let frame = read.overlay_frame;
@@ -136,6 +138,7 @@ pub(super) fn overlay(
                     frame.local(handle),
                     colour,
                     theme,
+                    hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                         let at = [f32::from(event.position.x), f32::from(event.position.y)];
                         this.state.update(cx, |state, _| {
@@ -160,6 +163,7 @@ pub(super) fn overlay(
                 frame.local(vertex.at),
                 fill,
                 colour,
+                hand,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                     let at = [f32::from(event.position.x), f32::from(event.position.y)];
                     let gesture = this.state.read(cx).mask_vertex_gesture(
@@ -197,9 +201,10 @@ fn vertex_square(
     point: [f32; 2],
     fill: gpui::Hsla,
     border: gpui::Hsla,
+    hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
-    div()
+    let square = div()
         .id(MotionKey::new("mask-vertex", index).element_id("handle"))
         .absolute()
         .left(px(point[0] - VERTEX * 0.5))
@@ -208,13 +213,8 @@ fn vertex_square(
         .h(px(VERTEX))
         .bg(fill)
         .border_1()
-        .border_color(border)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-            cx.stop_propagation();
-            on_down(event, window, cx);
-        })
+        .border_color(border);
+    pressable(square, hand, on_down)
 }
 
 /// One tangent handle of a smooth vertex, centred on `point`.
@@ -224,9 +224,10 @@ fn tangent_dot(
     point: [f32; 2],
     colour: gpui::Hsla,
     theme: &Theme,
+    hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
-    div()
+    let dot = div()
         .id(MotionKey::new("mask-vertex", index)
             .with(side.id())
             .element_id("tangent"))
@@ -238,11 +239,6 @@ fn tangent_dot(
         .rounded(px(TANGENT * 0.5))
         .bg(colour)
         .border_1()
-        .border_color(theme.on_solid)
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-            cx.stop_propagation();
-            on_down(event, window, cx);
-        })
+        .border_color(theme.on_solid);
+    pressable(dot, hand, on_down)
 }

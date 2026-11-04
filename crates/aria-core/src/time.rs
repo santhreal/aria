@@ -183,6 +183,21 @@ impl RationalTime {
         units.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
     }
 
+    /// This time in whole ticks of `to`, rounded toward zero and saturated to
+    /// `i64`: the most ticks of `to` that reach no further from zero than this
+    /// time. A span measured this way and taken back with [`resample`] stays
+    /// inside the span it measures. A rate that is not [`Rational::is_valid`]
+    /// gives 0.
+    pub fn within(self, to: Rational) -> RationalTime {
+        if !self.rate.is_valid() || !to.is_valid() {
+            return RationalTime::zero(to);
+        }
+        let numer = i128::from(self.value) * i128::from(to.num) * i128::from(self.rate.den);
+        let denom = i128::from(to.den) * i128::from(self.rate.num);
+        let ticks = (numer / denom).clamp(i128::from(i64::MIN), i128::from(i64::MAX));
+        RationalTime::new(ticks as i64, to)
+    }
+
     /// This time as `(ticks, timescale)` with `seconds = ticks / timescale`,
     /// the shape of CoreMedia's `CMTime`. Exact at timescale `rate.num` when
     /// `value · den` fits `i64`; past that, truncated to microseconds at
@@ -543,6 +558,65 @@ mod tests {
         assert_eq!(rt(24, Rational::new(-24, 1)).in_units(NS), 0);
         assert_eq!(rt(24, Rational::new(24, 0)).in_units(NS), 0);
         assert_eq!(rt(24, Rational::new(24, -1)).in_units(NS), 0);
+    }
+
+    /// A span converted with `within` never reaches past the one it measures,
+    /// is the longest that does not, and survives the trip back through
+    /// `resample` (which rounds to nearest) without growing. A linked slip
+    /// clamps each take's room this way, so the closed class is a take moved
+    /// one rounding past its end while its companion stops short of it.
+    #[test]
+    fn within_rounds_toward_zero_and_round_trips_inside_the_span() {
+        let rates = [
+            R24,
+            R30,
+            Rational::FPS_29_97,
+            Rational::new(48_000, 1),
+            Rational::new(1_000, 1),
+            Rational::new(25, 1),
+        ];
+        for from in rates {
+            for to in rates {
+                for value in (-2_000..=2_000).step_by(37).chain([-1, 0, 1]) {
+                    let span = rt(value, from);
+                    let inside = span.within(to);
+                    assert_eq!(inside.rate, to);
+                    let away = RationalTime::new(inside.value + value.signum(), to);
+                    if value >= 0 {
+                        assert_ne!(
+                            inside.compare(span),
+                            Ordering::Greater,
+                            "{span:?} at {to:?}"
+                        );
+                        assert_ne!(resample(inside, from).compare(span), Ordering::Greater);
+                    } else {
+                        assert_ne!(inside.compare(span), Ordering::Less, "{span:?} at {to:?}");
+                        assert_ne!(resample(inside, from).compare(span), Ordering::Less);
+                    }
+                    if value != 0 {
+                        assert_eq!(
+                            away.compare(span),
+                            value.cmp(&0),
+                            "one more tick reaches past {span:?}"
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(rt(25_000, Rational::new(48_000, 1)).within(R24).value, 12);
+        assert_eq!(rt(-25_000, Rational::new(48_000, 1)).within(R24).value, -12);
+        assert_eq!(
+            rt(i64::MAX, R24).within(Rational::new(48_000, 1)).value,
+            i64::MAX
+        );
+        assert_eq!(
+            rt(i64::MIN, R24).within(Rational::new(48_000, 1)).value,
+            i64::MIN
+        );
+        assert_eq!(
+            rt(24, Rational::new(0, 1)).within(R24),
+            RationalTime::zero(R24)
+        );
     }
 
     #[test]

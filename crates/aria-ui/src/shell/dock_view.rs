@@ -204,7 +204,8 @@ fn small_window_timeline_span(state: &crate::app::AppState) -> (f32, f32) {
 }
 
 /// Fractional `(left, top, width, height)` in `[0.0, 1.0]` of the region a
-/// docked panel will occupy when dropped onto `zone` (`docs/spec/layout.md:38-41`).
+/// docked panel will occupy when dropped onto `zone` (`docs/spec/layout.md`,
+/// Frames and panels).
 pub fn drop_zone_preview_fractions(zone: Zone) -> (f32, f32, f32, f32) {
     match zone {
         Zone::Left => (0.0, 0.0, 0.5, 1.0),
@@ -756,11 +757,9 @@ impl Shell {
             }
             _ => None,
         };
-        let zones_overlay = if tab_drag_active {
-            Some(self.render_drop_zones(frame_id, hovered_zone, theme, cx))
-        } else {
-            None
-        };
+        let zone_overlay = hovered_zone
+            .filter(|_| tab_drag_active)
+            .map(|zone| self.render_drop_zone(frame_id, zone, theme, cx));
 
         div()
             .id(frame_slot.element_id("box"))
@@ -806,7 +805,7 @@ impl Shell {
                     .overflow_hidden()
                     .children(body_children)
                     .when_some(menu_overlay, |el, menu| el.child(menu))
-                    .when_some(zones_overlay, |el, zones| el.child(zones)),
+                    .when_some(zone_overlay, |el, zone| el.child(zone)),
             )
             .into_any_element()
     }

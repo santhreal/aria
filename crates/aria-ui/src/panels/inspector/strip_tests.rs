@@ -42,6 +42,10 @@ const TRANSFORM: [ClipParam; 5] = [
     ClipParam::Opacity,
 ];
 
+/// The parts of a wide row's spare width the time area takes for each part its
+/// label takes, as `docs/spec/panels.md` states them.
+const STRIP_PARTS: f32 = 3.0;
+
 /// The test fixture `name`.
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -543,26 +547,30 @@ fn inked(visual: &mut VisualTestContext, strip: Bounds<Pixels>) -> bool {
     })
 }
 
-/// The width a frame too narrow for every control takes from the strip first:
-/// while a strip has any width, every label holds `LABEL_RESERVE`, while a
-/// label has any width, its value column holds `VALUE_MIN`, and a strip
-/// narrower than `STRIP_MIN` paints nothing and leaves a press to its row. At
-/// every width the strips stay in one column on their stopwatches' lines,
-/// inside the frame.
+/// A frame wider than every control gives the strip [`STRIP_PARTS`] parts of its
+/// spare room for each part it gives the label. The width a frame too narrow
+/// for every control takes from the strip first: while a strip has any width,
+/// every label holds `LABEL_RESERVE`, while a label has any width, its value
+/// column holds `VALUE_MIN`, and a strip narrower than `STRIP_MIN` paints
+/// nothing and leaves a press to its row. At every width the strips stay in
+/// one column on their stopwatches' lines, inside the frame.
 ///
 /// Closes the class "a label truncated while the time area beside it still had
 /// room to give", where Anchor point X ended in an ellipsis beside a full
-/// strip, then beside a strip too narrow to read. The Inspector's column is
-/// narrowed a step at a time from wide to narrower than the controls, and the
-/// steps are asserted to reach all four regimes: a full strip, a narrowing
-/// one, a blank one, and none beside a shrinking label. Does not cover the
-/// ellipsis, which the test text system does not draw, a value wider than the
-/// value column, the cursor over a strip, or a frame narrower than the
-/// controls that never narrow.
+/// strip, then beside a strip too narrow to read, and the class "a wide frame
+/// that gives its room to the label", where a maximized Effect Controls drew
+/// its values hundreds of pixels from their names beside a 112 px time area.
+/// The Inspector's column is narrowed a step at a time from wide to narrower
+/// than the controls, and the steps are asserted to reach all five regimes: a
+/// grown strip, a full one, a narrowing one, a blank one, and none beside a
+/// shrinking label. Does not cover the ellipsis, which the test text system
+/// does not draw, a value wider than the value column, the cursor over a
+/// strip, or a frame narrower than the controls that never narrow.
 #[gpui::test]
 async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &mut TestAppContext) {
     let (state, visual) = drawn_on(cx, "effect-controls-narrow", "transform", |_| {});
-    let (mut full, mut narrowing, mut blank, mut shrinking) = (false, false, false, false);
+    let (mut grown, mut full, mut narrowing, mut blank, mut shrinking) =
+        (false, false, false, false, false);
     narrow_the_inspector(&state, visual, |visual, frame| {
         let first = painted(visual, "strip", TRANSFORM[0]);
         for param in TRANSFORM {
@@ -586,10 +594,15 @@ async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &m
                 f32::from(strip.right()) <= frame + 0.5,
                 "{at}: past the frame's right edge"
             );
+            // Past their bases, the strip takes `STRIP_PARTS` parts of the
+            // spare room for every part the label takes. Each edge is rounded
+            // to a device pixel, so the share holds to a pixel and a half.
+            let spare = (label - LABEL_RESERVE).max(0.0);
             assert!(
-                (0.0..=STRIP_W + 0.1).contains(&wide),
-                "{at}: a strip outside its range"
+                (wide.min(STRIP_W) + STRIP_PARTS * spare - wide).abs() < 1.5,
+                "{at}: the strip took other than {STRIP_PARTS} parts to the label's {spare} px"
             );
+            grown |= spare > 8.0;
             if wide > 0.5 {
                 assert!(
                     label >= LABEL_RESERVE - 0.2,
@@ -626,8 +639,9 @@ async fn a_narrow_frame_takes_its_width_from_the_strips_before_the_labels(cx: &m
         shrinking
     });
     assert!(
-        full && narrowing && blank && shrinking,
-        "the steps reached full {full}, narrowing {narrowing}, blank {blank}, shrinking {shrinking}"
+        grown && full && narrowing && blank && shrinking,
+        "the steps reached grown {grown}, full {full}, narrowing {narrowing}, blank {blank}, \
+         shrinking {shrinking}"
     );
 }
 

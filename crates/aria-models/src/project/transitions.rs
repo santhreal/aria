@@ -110,15 +110,10 @@ impl Project {
             ModelError::InvalidParam("clip has no abutting clip to its right".into())
         })?;
         let right_clip = self.timeline().require_clip(right_id)?;
-        let limit = match alignment {
-            TransitionAlignment::Center => left_clip
-                .timeline
-                .duration
-                .value
-                .min(right_clip.timeline.duration.value),
-            TransitionAlignment::Start => right_clip.timeline.duration.value,
-            TransitionAlignment::End => left_clip.timeline.duration.value,
-        };
+        let limit = alignment.junction_limit(
+            left_clip.timeline.duration.value,
+            right_clip.timeline.duration.value,
+        );
         Ok((track_id, limit))
     }
 

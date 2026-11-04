@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use aria_plugin::{HandleLook, OverlayColor, OverlayShape};
 use gpui::{
-    ContentMask, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, StatefulInteractiveElement, Styled, canvas, div, px,
+    ContentMask, Entity, InteractiveElement, IntoElement, MouseDownEvent, ParentElement, Styled,
+    canvas, div, px,
 };
 
 use crate::app::AppState;
@@ -22,8 +22,8 @@ use crate::motion::MotionKey;
 use crate::theme::{Theme, ThemeHandle};
 use crate::types::ActivePanel;
 
-/// Handle hit size in pixels, the same as the transform handles.
-const HANDLE: f32 = 12.0;
+use super::handles::{HANDLE, pressable};
+
 /// The thickness of a cross handle's bars.
 const BAR: f32 = 2.0;
 
@@ -59,6 +59,7 @@ pub(super) fn overlay(
     let view = read.preview_view;
     let size = read.canvas_size();
     let frame = read.overlay_frame;
+    let hand = read.tool.pans();
     let map = read.overlay_map();
     let shown = Arc::clone(read.plugin_overlays.shown());
 
@@ -137,10 +138,8 @@ pub(super) fn overlay(
                         hsla(theme, *color),
                         *look,
                         theme,
+                        hand,
                         cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                            // The press is the handle's: no pan anchor, and no
-                            // pick of the clip under it.
-                            cx.stop_propagation();
                             let at = [f32::from(event.position.x), f32::from(event.position.y)];
                             this.state.update(cx, |state, _| {
                                 state.active_panel = ActivePanel::Preview;
@@ -168,6 +167,7 @@ fn handle_mark(
     color: gpui::Hsla,
     look: HandleLook,
     theme: &Theme,
+    hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
     let hit = div()
@@ -176,10 +176,8 @@ fn handle_mark(
         .left(px(point[0] - HANDLE * 0.5))
         .top(px(point[1] - HANDLE * 0.5))
         .w(px(HANDLE))
-        .h(px(HANDLE))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_mouse_down(MouseButton::Left, on_down);
+        .h(px(HANDLE));
+    let hit = pressable(hit, hand, on_down);
     match look {
         HandleLook::Dot => hit
             .rounded(px(HANDLE * 0.5))

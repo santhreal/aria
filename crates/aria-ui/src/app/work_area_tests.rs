@@ -18,7 +18,8 @@ use crate::interned::intern;
 use crate::transport::TIMELINE_BASE_PPS;
 
 /// The window pixels `frames` span on the timeline at the state's zoom.
-fn travel(state: &AppState, frames: i64) -> f32 {
+/// Shared with the ruler marker drag contracts.
+pub(crate) fn travel(state: &AppState, frames: i64) -> f32 {
     frames as f32 * TIMELINE_BASE_PPS * state.zoom / state.store.sequence.ticks_per_second()
 }
 
@@ -138,7 +139,10 @@ fn a_double_click_sets_the_work_area_to_the_sequence() {
 }
 
 /// The centre of the element drawn under `selector`.
-fn centre(visual: &mut VisualTestContext, selector: &'static str) -> gpui::Point<gpui::Pixels> {
+pub(crate) fn centre(
+    visual: &mut VisualTestContext,
+    selector: &'static str,
+) -> gpui::Point<gpui::Pixels> {
     visual
         .debug_bounds(intern(selector))
         .unwrap_or_else(|| panic!("the timeline draws {selector}"))

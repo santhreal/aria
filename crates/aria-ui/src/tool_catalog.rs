@@ -518,6 +518,13 @@ impl EditorTool {
         self.spec().types
     }
 
+    /// In the Viewer, a press on a picture takes hold of it to move, unless the
+    /// tool places something there: the Type tool a caret, the Pen a vertex.
+    /// Under the Hand the press takes hold of nothing (`overlay_gesture::apply`).
+    pub const fn moves_pictures(self) -> bool {
+        !self.types() && !self.pens()
+    }
+
     /// The tool bar button this tool shares with its siblings.
     pub const fn group(self) -> ToolGroup {
         self.spec().group

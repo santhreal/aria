@@ -14,6 +14,11 @@ or the clip's source range are rejected with a reason. `Shift+M` and
 `Ctrl+Shift+M` step to the next and previous marker, `Ctrl+Alt+M` removes the
 marker at the playhead, and `Ctrl+Shift+Alt+M` clears all sequence markers.
 
+Click a marker on the timeline ruler to move the playhead to it. Drag it to
+move the marker; the drag is one undo step, a sequence marker stays inside the
+sequence, and a clip marker stays on its clip. Esc during the drag puts the
+marker back.
+
 The **Markers** panel (**Window > Markers**) lists sequence and clip markers in time order with
 color filter chips (`All` plus the eight palette colors). Each row shows the
 marker's color, timecode, duration when positive, clip badge for clip markers,

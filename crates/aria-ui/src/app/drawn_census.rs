@@ -97,16 +97,26 @@ fn arms_of(registry: &str) -> BTreeSet<String> {
 }
 
 /// Every `AppState` method one registry's `apply` calls.
+///
+/// The body is read to the line that closes `apply`, so a registry's other
+/// functions are not read as its setters, and a field read such as
+/// `state.tool` is not read as a call.
 fn setters_of(registry: &str) -> BTreeSet<String> {
     let source = surface_source(registry);
     let body = source
         .split_once("pub fn apply(")
         .unwrap_or_else(|| panic!("`{registry}` applies a row"))
         .1;
+    let body = body.split_once("\n}\n").map_or(body, |(apply, _)| apply);
     let mut out = BTreeSet::new();
     for rest in body.split("state.").skip(1) {
-        let (name, _) = rest.split_once('(').expect("a call is a call");
-        out.insert(name.to_string());
+        let name = rest
+            .split(|c: char| !c.is_alphanumeric() && c != '_')
+            .next()
+            .unwrap_or_default();
+        if rest[name.len()..].starts_with('(') {
+            out.insert(name.to_string());
+        }
     }
     assert!(!out.is_empty(), "`{registry}`'s `apply` calls nothing");
     out

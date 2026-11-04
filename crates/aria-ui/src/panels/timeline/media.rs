@@ -45,8 +45,8 @@ pub(crate) struct WaveBars {
     pub heights: Vec<f32>,
 }
 
-/// Waveform bars per visible clip, keyed by clip id. A clip an edge drag or a
-/// slide in flight changes, `held`, plays the take its release leaves it.
+/// Waveform bars per visible clip, keyed by clip id. A clip a drag in flight
+/// changes, `held`, plays the take and the fades its release leaves it.
 ///
 /// Only the bars on screen are built, on the grid that tiles the whole clip,
 /// so a scroll moves the bars with the clip instead of resampling them, and a
@@ -197,8 +197,8 @@ impl Owed {
 /// Filmstrip cells per visible media clip, each the part of the clip card it
 /// covers and the image drawn there: the frame of the clip's own lane at the
 /// cell's tick. Only cells that overlap the visible ticks are built or asked
-/// for. A clip an edge drag or a slide in flight changes, `held`, draws each
-/// cell where its frame plays once the release lands, and none past its ends.
+/// for. A clip a drag in flight changes, `held`, draws each cell where its
+/// frame plays once the release lands, and none past its ends.
 ///
 /// A cell not rendered yet draws the last rendered cell of the same clip at
 /// or before its tick, or else the first after it, within [`STAND_IN_CELLS`]
