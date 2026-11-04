@@ -30,8 +30,11 @@ curve. A ramp that would push the clip into its neighbor is refused.
 **Clip > Speed/Duration…** sets constant speed (`5%` to `10000%`), duration,
 **Reverse Speed**, and **Maintain Audio Pitch** across the selected clips as one
 undo step. Editing speed updates the resulting duration; editing duration
-updates the speed. Values outside the supported range are rejected with the
-reason shown in the dialog.
+updates the speed. Drag the speed or the duration to scrub it, or click it and
+type a value; the duration takes a frame count or timecode. A drag stops at
+either end of the range. A typed value outside the range is rejected with the
+reason shown in the dialog, and its field stays open until Esc puts back the
+value it opened on.
 
 **Clip > Time Remapping** toggles keyframed speed mapping (`Clip::speed_curve`) on
 the selected media clip and opens the Speed tab. While Time Remap is active, the

@@ -1,6 +1,7 @@
 //! Clip operations: enable/disable, clip groups, time remap, Speed/Duration,
 //! and Audio Gain.
 
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -24,8 +25,14 @@ pub const MIN_SPEED_PERCENT: f32 = MIN_SPEED * 100.0;
 /// Maximum allowed speed percentage in the Speed/Duration dialog (`MAX_SPEED * 100`).
 pub const MAX_SPEED_PERCENT: f32 = MAX_SPEED * 100.0;
 
+/// The Speed/Duration dialog's speed, in per cent.
+pub const SPEED_PERCENT_SPAN: RangeInclusive<f32> = MIN_SPEED_PERCENT..=MAX_SPEED_PERCENT;
+
 /// Maximum allowed gain in dB (`20 * log10(MAX_CLIP_VOLUME)` rounded to 12 dB).
 pub const MAX_GAIN_DB: f32 = 12.0;
+
+/// The largest change Adjust Gain makes, up or down, in dB.
+const MAX_ADJUST_DB: f32 = 60.0;
 
 /// State of the Speed/Duration dialog (`Ctrl+R`).
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +57,17 @@ impl Default for SpeedDurationForm {
             duration_label: SharedString::new_static("00:00:01:00"),
             error: None,
         }
+    }
+}
+
+impl SpeedDurationForm {
+    /// The durations, in frames, whose speed stays inside
+    /// [`SPEED_PERCENT_SPAN`].
+    pub fn duration_span(&self) -> RangeInclusive<f32> {
+        let base = self.base_ticks as f64 * 100.0;
+        let shortest = (base / f64::from(MAX_SPEED_PERCENT)).ceil().max(1.0);
+        let longest = (base / f64::from(MIN_SPEED_PERCENT)).floor().max(shortest);
+        shortest as f32..=longest as f32
     }
 }
 
@@ -79,6 +97,36 @@ impl AudioGainMode {
             Self::NormalizeAllPeaks => "Normalize All Peaks to",
         }
     }
+
+    /// The values the mode's number takes: dB for a gain, dBFS for a peak
+    /// target.
+    pub fn span(self) -> RangeInclusive<f32> {
+        match self {
+            Self::SetGain => GAIN_FLOOR_DB..=MAX_GAIN_DB,
+            Self::AdjustGain => -MAX_ADJUST_DB..=MAX_ADJUST_DB,
+            Self::NormalizeMaxPeak | Self::NormalizeAllPeaks => GAIN_FLOOR_DB..=0.0,
+        }
+    }
+
+    /// `db` when the mode takes it, or the reason it does not.
+    fn check(self, db: f32) -> Result<f32, String> {
+        if db.is_finite() && self.span().contains(&db) {
+            return Ok(db);
+        }
+        Err(match self {
+            Self::SetGain => {
+                format!("Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB")
+            }
+            Self::AdjustGain => {
+                format!(
+                    "Adjustment must be between -{MAX_ADJUST_DB:.0} dB and +{MAX_ADJUST_DB:.0} dB"
+                )
+            }
+            Self::NormalizeMaxPeak | Self::NormalizeAllPeaks => {
+                format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS")
+            }
+        })
+    }
 }
 
 /// State of the Audio Gain dialog (`G`).
@@ -103,6 +151,27 @@ impl Default for AudioGainForm {
             max_peak_dbfs: None,
             clip_count: 0,
             error: None,
+        }
+    }
+}
+
+impl AudioGainForm {
+    /// The number the active mode applies.
+    pub fn db(&self) -> f32 {
+        match self.mode {
+            AudioGainMode::SetGain => self.set_db,
+            AudioGainMode::AdjustGain => self.adjust_db,
+            AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => self.target_db,
+        }
+    }
+
+    fn db_mut(&mut self) -> &mut f32 {
+        match self.mode {
+            AudioGainMode::SetGain => &mut self.set_db,
+            AudioGainMode::AdjustGain => &mut self.adjust_db,
+            AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
+                &mut self.target_db
+            }
         }
     }
 }
@@ -276,7 +345,7 @@ impl AppState {
     /// resulting duration. Refuses out-of-range or non-finite values with a
     /// stated reason.
     pub fn set_speed_duration_percent(&mut self, percent: f32) -> Result<(), String> {
-        if !percent.is_finite() || !(MIN_SPEED_PERCENT..=MAX_SPEED_PERCENT).contains(&percent) {
+        if !percent.is_finite() || !SPEED_PERCENT_SPAN.contains(&percent) {
             let reason = format!(
                 "Speed must be between {MIN_SPEED_PERCENT:.0}% and {MAX_SPEED_PERCENT:.0}%"
             );
@@ -307,7 +376,7 @@ impl AppState {
             return Err(reason);
         }
         let percent = ((self.speed_duration.base_ticks as f64) * 100.0 / (ticks as f64)) as f32;
-        if !percent.is_finite() || !(MIN_SPEED_PERCENT..=MAX_SPEED_PERCENT).contains(&percent) {
+        if !percent.is_finite() || !SPEED_PERCENT_SPAN.contains(&percent) {
             let reason = format!(
                 "Duration requires a speed outside {MIN_SPEED_PERCENT:.0}% to {MAX_SPEED_PERCENT:.0}%"
             );
@@ -350,12 +419,16 @@ impl AppState {
 
     /// Commit the Speed/Duration dialog across all selected clips as one undo step.
     pub fn apply_speed_duration(&mut self) {
+        // A field still open holds a value typed and not yet committed.
+        if !self.settle_draft_entry() {
+            return;
+        }
         if let Some(err) = &self.speed_duration.error {
             self.status_message = Some(err.to_string());
             return;
         }
         let percent = self.speed_duration.speed_percent;
-        if !percent.is_finite() || !(MIN_SPEED_PERCENT..=MAX_SPEED_PERCENT).contains(&percent) {
+        if !percent.is_finite() || !SPEED_PERCENT_SPAN.contains(&percent) {
             let reason = format!(
                 "Speed must be between {MIN_SPEED_PERCENT:.0}% and {MAX_SPEED_PERCENT:.0}%"
             );
@@ -546,56 +619,41 @@ impl AppState {
         self.open_dialog(DialogKind::AudioGain);
     }
 
-    /// Select the active mode in the Audio Gain dialog.
+    /// Select the active mode in the Audio Gain dialog. A field open on the
+    /// previous mode's number closes uncommitted.
     pub fn set_audio_gain_mode(&mut self, mode: AudioGainMode) {
+        self.drop_draft_entry();
         self.audio_gain.mode = mode;
         self.audio_gain.error = None;
     }
 
-    /// Set the target gain in dB for `AudioGainMode::SetGain` (`-60..=+12 dB`).
-    pub fn set_audio_gain_set_db(&mut self, db: f32) -> Result<(), String> {
-        if !db.is_finite() || !(GAIN_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
-            let reason =
-                format!("Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB");
-            self.audio_gain.error = Some(reason.clone().into());
-            self.status_message = Some(reason.clone());
-            return Err(reason);
-        }
-        self.audio_gain.set_db = db;
+    /// Set the active mode's number: the gain or the adjustment in dB, or the
+    /// peak target in dBFS. A value outside the mode's
+    /// [`span`](AudioGainMode::span) is refused with the reason.
+    pub fn set_audio_gain_db(&mut self, db: f32) -> Result<(), String> {
+        let db = self
+            .audio_gain
+            .mode
+            .check(db)
+            .map_err(|reason| self.audio_gain_refused(reason))?;
+        *self.audio_gain.db_mut() = db;
         self.audio_gain.error = None;
         Ok(())
     }
 
-    /// Set the relative dB delta for `AudioGainMode::AdjustGain` (`-60..=+60 dB`).
-    pub fn set_audio_gain_adjust_db(&mut self, db: f32) -> Result<(), String> {
-        if !db.is_finite() || !(-60.0..=60.0).contains(&db) {
-            let reason = "Adjustment must be between -60 dB and +60 dB".to_string();
-            self.audio_gain.error = Some(reason.clone().into());
-            self.status_message = Some(reason.clone());
-            return Err(reason);
-        }
-        self.audio_gain.adjust_db = db;
-        self.audio_gain.error = None;
-        Ok(())
-    }
-
-    /// Set the normalization target in dBFS for `NormalizeMaxPeak` / `NormalizeAllPeaks`
-    /// (`-60..=0 dBFS`).
-    pub fn set_audio_gain_target_db(&mut self, db: f32) -> Result<(), String> {
-        if !db.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&db) {
-            let reason = format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
-            self.audio_gain.error = Some(reason.clone().into());
-            self.status_message = Some(reason.clone());
-            return Err(reason);
-        }
-        self.audio_gain.target_db = db;
-        self.audio_gain.error = None;
-        Ok(())
+    fn audio_gain_refused(&mut self, reason: String) -> String {
+        self.audio_gain.error = Some(reason.clone().into());
+        self.status_message = Some(reason.clone());
+        reason
     }
 
     /// Commit the Audio Gain dialog across all selected audio-bearing clips as
     /// one undo step.
     pub fn apply_audio_gain(&mut self) {
+        // A field still open holds a value typed and not yet committed.
+        if !self.settle_draft_entry() {
+            return;
+        }
         if let Some(err) = &self.audio_gain.error {
             self.status_message = Some(err.to_string());
             return;
@@ -605,47 +663,30 @@ impl AppState {
             self.open_dialog(DialogKind::None);
             return;
         }
+        let mode = self.audio_gain.mode;
+        let db = match mode.check(self.audio_gain.db()) {
+            Ok(db) => db,
+            Err(reason) => {
+                self.audio_gain_refused(reason);
+                return;
+            }
+        };
         let mut plan: Vec<(ClipId, f32)> = Vec::with_capacity(clips.len());
-        match self.audio_gain.mode {
+        match mode {
             AudioGainMode::SetGain => {
-                let db = self.audio_gain.set_db;
-                if !db.is_finite() || !(GAIN_FLOOR_DB..=MAX_GAIN_DB).contains(&db) {
-                    let reason = format!(
-                        "Gain must be between {GAIN_FLOOR_DB:.0} dB and +{MAX_GAIN_DB:.0} dB"
-                    );
-                    self.audio_gain.error = Some(reason.clone().into());
-                    self.status_message = Some(reason);
-                    return;
-                }
                 let linear = linear_for_db(db);
                 for clip in clips {
                     plan.push((clip, linear));
                 }
             }
             AudioGainMode::AdjustGain => {
-                let delta = self.audio_gain.adjust_db;
-                if !delta.is_finite() || !(-60.0..=60.0).contains(&delta) {
-                    let reason = "Adjustment must be between -60 dB and +60 dB".to_string();
-                    self.audio_gain.error = Some(reason.clone().into());
-                    self.status_message = Some(reason);
-                    return;
-                }
                 for clip in clips {
                     let cur = self.ui_clip_ref(clip).map_or(1.0, |c| c.volume);
                     let cur_db = db_from_linear(cur).unwrap_or(GAIN_FLOOR_DB);
-                    let next_db = cur_db + delta;
-                    plan.push((clip, linear_for_db(next_db)));
+                    plan.push((clip, linear_for_db(cur_db + db)));
                 }
             }
             AudioGainMode::NormalizeMaxPeak => {
-                let target = self.audio_gain.target_db;
-                if !target.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&target) {
-                    let reason =
-                        format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
-                    self.audio_gain.error = Some(reason.clone().into());
-                    self.status_message = Some(reason);
-                    return;
-                }
                 let mut max_peak: Option<f32> = None;
                 for &clip in &clips {
                     if let Some(p) = self.clip_audio_peak_dbfs(clip) {
@@ -653,34 +694,23 @@ impl AppState {
                     }
                 }
                 let Some(max_peak) = max_peak else {
-                    let reason = "Selected clips have no measurable audio peak".to_string();
-                    self.audio_gain.error = Some(reason.clone().into());
-                    self.status_message = Some(reason);
+                    self.audio_gain_refused("Selected clips have no measurable audio peak".into());
                     return;
                 };
-                let linear = linear_for_db(target - max_peak);
+                let linear = linear_for_db(db - max_peak);
                 for clip in clips {
                     plan.push((clip, linear));
                 }
             }
             AudioGainMode::NormalizeAllPeaks => {
-                let target = self.audio_gain.target_db;
-                if !target.is_finite() || !(GAIN_FLOOR_DB..=0.0).contains(&target) {
-                    let reason =
-                        format!("Peak target must be between {GAIN_FLOOR_DB:.0} dBFS and 0 dBFS");
-                    self.audio_gain.error = Some(reason.clone().into());
-                    self.status_message = Some(reason);
-                    return;
-                }
                 for clip in clips {
                     let Some(peak) = self.clip_audio_peak_dbfs(clip) else {
-                        let reason = "Selected clip has no measurable audio peak".to_string();
-                        self.audio_gain.error = Some(reason.clone().into());
-                        self.status_message = Some(reason);
+                        self.audio_gain_refused(
+                            "Selected clip has no measurable audio peak".into(),
+                        );
                         return;
                     };
-                    let linear = linear_for_db(target - peak);
-                    plan.push((clip, linear));
+                    plan.push((clip, linear_for_db(db - peak)));
                 }
             }
         }
@@ -841,7 +871,7 @@ mod tests {
 
         // Mode 1: Set Gain to -6 dB.
         state.set_audio_gain_mode(AudioGainMode::SetGain);
-        state.set_audio_gain_set_db(-6.0).expect("valid set dB");
+        state.set_audio_gain_db(-6.0).expect("valid set dB");
         state.apply_audio_gain();
         assert_eq!(state.dialog, DialogKind::None);
         let vol_after_set = state.ui_clip_ref(clip_id).expect("clip").volume;
@@ -850,9 +880,7 @@ mod tests {
         // Mode 2: Adjust Gain by +3 dB.
         state.open_audio_gain();
         state.set_audio_gain_mode(AudioGainMode::AdjustGain);
-        state
-            .set_audio_gain_adjust_db(3.0)
-            .expect("valid adjust dB");
+        state.set_audio_gain_db(3.0).expect("valid adjust dB");
         state.apply_audio_gain();
         let vol_after_adj = state.ui_clip_ref(clip_id).expect("clip").volume;
         assert!((vol_after_adj - linear_from_db(-3.0)).abs() < 1e-2);
@@ -860,9 +888,7 @@ mod tests {
         // Mode 3: Normalize Max Peak to -1 dBFS.
         state.open_audio_gain();
         state.set_audio_gain_mode(AudioGainMode::NormalizeMaxPeak);
-        state
-            .set_audio_gain_target_db(-1.0)
-            .expect("valid target dBFS");
+        state.set_audio_gain_db(-1.0).expect("valid target dBFS");
         state.apply_audio_gain();
         let vol_norm_max = state.ui_clip_ref(clip_id).expect("clip").volume;
         let expected_norm = linear_from_db(-1.0 - peak_dbfs).min(MAX_CLIP_VOLUME);
@@ -871,9 +897,7 @@ mod tests {
         // Mode 4: Normalize All Peaks to -3 dBFS.
         state.open_audio_gain();
         state.set_audio_gain_mode(AudioGainMode::NormalizeAllPeaks);
-        state
-            .set_audio_gain_target_db(-3.0)
-            .expect("valid target dBFS");
+        state.set_audio_gain_db(-3.0).expect("valid target dBFS");
         state.apply_audio_gain();
         let vol_norm_all = state.ui_clip_ref(clip_id).expect("clip").volume;
         let expected_all = linear_from_db(-3.0 - peak_dbfs).min(MAX_CLIP_VOLUME);

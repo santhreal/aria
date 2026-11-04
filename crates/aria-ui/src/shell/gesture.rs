@@ -162,7 +162,10 @@ impl Shell {
                     window.lock_pointer();
                 }
                 if changed {
-                    spawn_preview(self.state.clone(), cx);
+                    // A dialog's draft changes no picture.
+                    if state.read(cx).value_scrubs().redraws() {
+                        spawn_preview(self.state.clone(), cx);
+                    }
                     cx.notify();
                 }
             } else if state.update(cx, |state, _| state.release_value()) {

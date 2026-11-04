@@ -98,21 +98,19 @@ pub(super) fn ai_rows(
         )
         .into_any_element()
     });
-    let mut rows = vec![
-        choice_row(
-            theme,
-            "ai-source",
-            "Source",
-            &AiSource::ALL,
-            AiSource::label,
-            config.ai.source,
-            cx,
-            |state, source, _| state.set_ai_source(source),
-        ),
-        field_row(theme, state, SettingsField::AiBaseUrl, cx),
-        field_row(theme, state, SettingsField::AiModel, cx),
-        field_row(theme, state, SettingsField::AiKey, cx),
-        field_row(theme, state, SettingsField::AiKeyEnv, cx),
+    let mut rows = vec![choice_row(
+        theme,
+        "ai-source",
+        "Source",
+        &AiSource::ALL,
+        AiSource::label,
+        config.ai.source,
+        cx,
+        |state, source, _| state.set_ai_source(source),
+    )];
+    // The order Tab walks the typed fields is the order they are drawn in.
+    rows.extend(SettingsField::AI.map(|field| field_row(theme, state, field, cx)));
+    rows.extend([
         choice_row(
             theme,
             "ai-protocol",
@@ -148,7 +146,7 @@ pub(super) fn ai_rows(
         kv(theme, "Limits", state.read(cx).agent_limits()).into_any_element(),
         kv(theme, "Can do", state.read(cx).agent_capabilities()).into_any_element(),
         kv(theme, "Active", state.read(cx).agent_phases()).into_any_element(),
-    ];
+    ]);
     // The model list and the probes sit under the typed fields, because they
     // answer the question those fields raise: whether this endpoint has this
     // model and will accept this key.

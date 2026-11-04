@@ -862,6 +862,9 @@ mod param_rows_tests;
 #[cfg(test)]
 #[path = "app/field_paste_tests.rs"]
 mod field_paste_tests;
+#[cfg(test)]
+#[path = "app/field_tab_tests.rs"]
+mod field_tab_tests;
 
 #[cfg(test)]
 #[path = "app/picker_tests.rs"]

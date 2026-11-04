@@ -193,7 +193,9 @@ curve and no value axis, and shows "Select a clip to graph its properties."
 - **Keyframe Velocity…**, or a double-click on a keyframe, sets the incoming and
   outgoing speed (property units per second) and influence (per cent of the
   segment) of the selected keyframes, or of the keyframes under the playhead.
-  **Continuous** keeps both sides at one speed. A Hold keyframe stays Hold.
+  Drag a speed or an influence to scrub it, or click it and type a value; an
+  influence stays between `0.1%` and `100%`. **Continuous** keeps both sides at
+  one speed. A Hold keyframe stays Hold.
 - **Animation > Keyframe Assistant > Time-Reverse Keyframes** mirrors two or more selected
   keyframes of one property across their span, so the animation between the
   first and the last plays backwards.

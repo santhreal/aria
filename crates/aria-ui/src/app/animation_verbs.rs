@@ -3,6 +3,7 @@
 //! dialog. Every edit is one undo step.
 
 use std::collections::BTreeMap;
+use std::ops::RangeInclusive;
 
 use aria_commands::{Command, EditCommand};
 use aria_core::count::counted;
@@ -16,6 +17,10 @@ use gpui::SharedString;
 use super::clip_keys::{KeyParam, key_params_of};
 use super::property_rows::SelectedKeyframe;
 use super::{AppState, DialogKind};
+
+/// A Keyframe Velocity influence, in per cent of the segment.
+pub const INFLUENCE_PERCENT_SPAN: RangeInclusive<f32> =
+    MIN_TEMPORAL_INFLUENCE * 100.0..=MAX_TEMPORAL_INFLUENCE * 100.0;
 
 /// Which side of a keyframe a Keyframe Velocity field edits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -389,9 +394,8 @@ impl AppState {
         side: VelocitySide,
         percent: f32,
     ) -> Result<(), String> {
-        let low = MIN_TEMPORAL_INFLUENCE * 100.0;
-        let high = MAX_TEMPORAL_INFLUENCE * 100.0;
-        if !percent.is_finite() || !(low..=high).contains(&percent) {
+        if !percent.is_finite() || !INFLUENCE_PERCENT_SPAN.contains(&percent) {
+            let (low, high) = INFLUENCE_PERCENT_SPAN.into_inner();
             return Err(self.velocity_error(format!(
                 "Influence must be between {low:.1}% and {high:.0}%"
             )));
@@ -421,6 +425,10 @@ impl AppState {
     /// Apply: both handles on every target keyframe, as one undo step, and
     /// close the dialog. A Hold keyframe stays Hold.
     pub fn apply_keyframe_velocity(&mut self) {
+        // A field still open holds a value typed and not yet committed.
+        if !self.settle_draft_entry() {
+            return;
+        }
         if let Some(err) = &self.keyframe_velocity.error {
             self.status_message = Some(err.to_string());
             return;

@@ -640,6 +640,10 @@ impl AppState {
         if self.dialog == DialogKind::TimelineReport && kind == DialogKind::None {
             self.timeline_report = None;
         }
+        // A dialog's open value field goes with the dialog, uncommitted.
+        if kind != self.dialog {
+            self.drop_draft_entry();
+        }
         self.dialog = kind;
         // The report's counts are walks of the whole project, so they are taken
         // on request and refreshed on any edit that lands

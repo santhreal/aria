@@ -283,3 +283,78 @@ fn a_field_leaves_with_its_registration() {
     );
     assert_eq!(served(&state, key), None, "a default outlived its field");
 }
+
+/// Whether the dialog draws `kind` as a text box, which Tab walks. Matched
+/// without a wildcard, so a kind added later decides here.
+fn typed(kind: &SettingKind) -> bool {
+    match kind {
+        SettingKind::Text | SettingKind::Secret | SettingKind::Number { .. } => true,
+        SettingKind::Toggle | SettingKind::Choice(_) => false,
+    }
+}
+
+/// Tab walks a section's text boxes in declaration order, passing over its
+/// switches and chips, saves each box on its way out, and wraps; Shift+Tab
+/// walks back across the wrap. A value the kind refuses keeps the focus, the
+/// typed text, and the saved value.
+#[test]
+fn tab_walks_a_sections_text_boxes_and_saves_each() {
+    let (mut state, path) = state();
+    let fields = every_kind();
+    let _section = declare(&state, fields.clone());
+    let ring: Vec<&str> = fields
+        .iter()
+        .filter(|spec| typed(&spec.kind))
+        .map(|spec| spec.key.as_str())
+        .collect();
+    let at = |index: usize| Some(SettingsField::Plugin(crate::interned::intern(ring[index])));
+    let values = ["~/notes", "tok", "0.5"];
+    assert_eq!(ring.len(), values.len());
+
+    state.focus_setting(at(0));
+    for (index, value) in values.iter().enumerate() {
+        state.settings_form.draft.set(*value);
+        assert!(!state.tab_setting(false), "a setting asked for a frame");
+        let next = (index + 1) % ring.len();
+        assert_eq!(
+            state.settings_form.focused,
+            at(next),
+            "Tab from {}",
+            ring[index]
+        );
+        assert_eq!(on_disk(&path, ring[index]).as_deref(), Some(*value));
+        // A box seeds with its saved value: on the first lap only the wrap
+        // reaches a box already saved, and no field here declares a default.
+        let saved = if next <= index { values[next] } else { "" };
+        assert_eq!(
+            state.settings_form.draft, saved,
+            "{} was not seeded",
+            ring[next]
+        );
+        assert_eq!(
+            state.settings_form.draft.selection(),
+            (0, saved.chars().count())
+        );
+    }
+
+    assert!(!state.tab_setting(true));
+    let last = ring.len() - 1;
+    assert_eq!(
+        state.settings_form.focused,
+        at(last),
+        "Shift+Tab across the wrap"
+    );
+    assert!(!state.tab_setting(true));
+    assert_eq!(state.settings_form.focused, at(last - 1));
+
+    state.focus_setting(at(last));
+    state.settings_form.draft.set("7");
+    assert!(!state.tab_setting(false));
+    assert_eq!(
+        state.settings_form.focused,
+        at(last),
+        "a refused value moved on"
+    );
+    assert_eq!(state.settings_form.draft, "7");
+    assert_eq!(on_disk(&path, ring[last]).as_deref(), Some("0.5"));
+}

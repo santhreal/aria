@@ -415,7 +415,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `quota-inc` | +512 MiB | Increases the download cache quota by 512 MiB. | None |
 | `settings-audio-scrubbing` | Switch | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged; drawn on the Audio scrubbing line. | None |
 | `settings-done` | Done | Closes the Settings dialog. | None |
-| `settings-field` (per row) | Field label | Edits the row's text setting: the AI provider's base URL, model, key, or key variable, the cloud base URL, the section filter, the keymap set name, or a plugin's text setting. Enter saves it and Esc leaves the saved value. | None |
+| `settings-field` (per row) | Field label | Edits the row's text setting: the AI provider's base URL, model, key, or key variable, the cloud base URL, the section filter, the keymap set name, or a plugin's text setting. Enter saves it and Esc leaves the saved value. Tab and Shift+Tab save it and select the next or previous typed field of an AI or plugin section. | None |
 | `settings-key-clear` (per row) | Clear | Unbinds the keyboard shortcut from the command row; drawn on the row under the pointer and on the armed row. | None |
 | `settings-key-keep` | Keep | Keeps the existing binding when a newly pressed chord conflicts with another command. | None |
 | `settings-key-move` | Move | Reassigns a conflicting keyboard chord to the newly selected command. | None |
@@ -488,7 +488,7 @@ Modal dialogs (`crates/aria-ui/src/panels/*_dialog.rs`, `crates/aria-ui/src/pane
 | `keyframe-velocity-cancel` | Cancel | Closes the Keyframe Velocity dialog without changing keyframe tangents. | None |
 | `keyframe-velocity-continuous` | Switch | Toggles continuous Bézier tangent coupling between incoming and outgoing keyframe handles; drawn on the Continuous line. | None |
 | `marker-edit-cancel` | Cancel | Closes the Marker Edit dialog without saving changes. | None |
-| `marker-edit-field` (per row) | Name / Comment / Duration (timecode) | Edits the marker's name, comment, or duration in the Marker Edit dialog; Enter saves the marker. | None |
+| `marker-edit-field` (per row) | Name / Comment / Duration (timecode) | Edits the marker's name, comment, or duration in the Marker Edit dialog; Tab and Shift+Tab move to the next or previous box; Enter saves the marker. | None |
 | `marker-edit-kind` (per row) | Comment / Chapter / Segmentation | Sets the kind of the marker in the Marker Edit dialog. | None |
 | `marker-edit-save` | Save | Saves the edited marker name, notes, duration, color, and kind. | None |
 | `media-exposure` | Measure exposure | Measures the exposure of the frame on screen and keeps the readout. | None |

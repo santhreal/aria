@@ -35,35 +35,16 @@ pub fn render(
         }),
     );
 
-    let name_field = field_row(
-        "Name",
-        &form.name,
-        "Marker name",
-        form.focused == Some(MarkerEditField::Name),
-        MarkerEditField::Name,
-        &theme,
-        cx,
-    );
-
-    let comment_field = field_row(
-        "Comment",
-        &form.comment,
-        "Note or review comment",
-        form.focused == Some(MarkerEditField::Comment),
-        MarkerEditField::Comment,
-        &theme,
-        cx,
-    );
-
-    let duration_field = field_row(
-        "Duration (timecode)",
-        &form.duration,
-        "00:00:00:00",
-        form.focused == Some(MarkerEditField::Duration),
-        MarkerEditField::Duration,
-        &theme,
-        cx,
-    );
+    // The order Tab walks the boxes is the order they are drawn in.
+    let fields = MarkerEditField::ORDER.map(|field| {
+        field_row(
+            field,
+            form.line(field),
+            form.focused == Some(field),
+            &theme,
+            cx,
+        )
+    });
 
     let color_row = div()
         .flex()
@@ -160,9 +141,7 @@ pub fn render(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_MD))
-        .child(name_field)
-        .child(comment_field)
-        .child(duration_field)
+        .children(fields)
         .child(color_row)
         .child(kind_row);
 
@@ -186,16 +165,14 @@ pub fn render(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn field_row(
-    label: &'static str,
-    value: &crate::app::line_text::LineText,
-    placeholder: &'static str,
-    focused: bool,
     field: MarkerEditField,
+    value: &crate::app::line_text::LineText,
+    focused: bool,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
+    let (label, placeholder) = field.caption();
     div()
         .flex()
         .flex_col()

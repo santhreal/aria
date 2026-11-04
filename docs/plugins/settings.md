@@ -49,7 +49,9 @@ Editing a field checks the value against its kind, writes it through
 saved: the status bar shows `{label}: {reason}`, such as `Strength: 7 is above
 1`, and the field keeps the focus. Clearing a field stores nothing, and the key
 reads as its declared default again, through `SettingsService::get` as well as
-in the row. A section drops when its plugin unmounts.
+in the row. Tab and Shift+Tab save the focused field and select the next or
+previous `Text`, `Secret`, or `Number` field of the section, in declaration
+order, wrapping. A section drops when its plugin unmounts.
 
 `SettingsService::get` and `set` load a package waiting for the key's
 `setting:` event first ([Activation](activation.md)). `peek` reads as `get`

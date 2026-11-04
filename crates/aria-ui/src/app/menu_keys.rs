@@ -244,9 +244,10 @@ fn next_starting(captions: &[&str], from: Option<usize>, letter: char) -> Option
     })
 }
 
-/// The row `by` steps from `from` in a drop of `len` rows, wrapping at both
-/// ends. From no lit row, Down lights the first and Up the last.
-fn step(from: Option<usize>, len: usize, by: isize) -> Option<usize> {
+/// The index `by` steps from `from` in a list of `len`, wrapping at both ends:
+/// a drop's rows, or the boxes Tab walks. From no index, a step forward lands
+/// on the first and a step back on the last.
+pub(super) fn step(from: Option<usize>, len: usize, by: isize) -> Option<usize> {
     if len == 0 {
         return None;
     }

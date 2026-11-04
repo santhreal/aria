@@ -1,7 +1,7 @@
 //! Scrubbable values: a number a press either drags or opens as text.
 //!
-//! One gesture for every numeric readout, in the inspector and in the timeline
-//! property rows. A press arms it. Moving the pointer more than
+//! One gesture for every numeric readout: in the inspector, in the timeline
+//! property rows, and in the dialogs. A press arms it. Moving the pointer more than
 //! [`CLICK_SLOP_PX`] turns it into a drag that moves the value one unit per
 //! [`PX_PER_UNIT`] pixels, ten units with Shift and a tenth of one with Ctrl.
 //! Travel is relative motion: the shell locks the pointer for the drag, so the
@@ -14,7 +14,14 @@
 //! write that reads the clip's current value and one that adds to the value the
 //! row was drawn with land at the same place, and Escape restores the value
 //! exactly.
+//!
+//! A dialog's readout writes the dialog's draft, which reaches the project
+//! only when the dialog applies: each move sets the value the travel reaches,
+//! stopping at either end of the draft's span, no write is an undo step,
+//! Escape during a drag sets the value the press found, and a typed value the
+//! dialog refuses keeps its field open.
 
+use std::ops::RangeInclusive;
 use std::rc::Rc;
 
 use aria_engine::EngineError;
@@ -39,9 +46,44 @@ pub const FINE: f32 = 0.1;
 /// The longest draft a value field holds.
 const DRAFT_CAP: usize = 24;
 
-/// Moves the value by a delta, in the units the readout prints, from the state
-/// the gesture started on.
-pub type Write = Rc<dyn Fn(&mut AppState, f32) -> Result<(), EngineError>>;
+/// Moves a project value by a delta, in the units the readout prints, from the
+/// state the gesture started on.
+pub type ProjectWrite = Rc<dyn Fn(&mut AppState, f32) -> Result<(), EngineError>>;
+
+/// Sets a dialog's draft value. A refused value leaves the draft unchanged and
+/// returns the reason, which the dialog prints.
+pub type DraftWrite = Rc<dyn Fn(&mut AppState, f32) -> Result<(), String>>;
+
+/// `value` moved into `span`: the end it passed, or itself.
+pub fn clamp_into(span: &RangeInclusive<f32>, value: f32) -> f32 {
+    value.clamp(*span.start(), *span.end())
+}
+
+/// Where a readout's value goes.
+#[derive(Clone)]
+pub enum Write {
+    /// Into the project. Every write is an edit, so a drag rolls each move
+    /// back before the next and keeps the last as one undo step.
+    Project(ProjectWrite),
+    /// Into a dialog's draft, which reaches the project only when the dialog
+    /// applies. No write is an undo step, and Escape during a drag writes the
+    /// value the press found.
+    Draft {
+        set: DraftWrite,
+        /// The values the draft takes. A drag stops at either end; a typed
+        /// value outside is refused by `set`, with its reason.
+        span: RangeInclusive<f32>,
+    },
+}
+
+impl std::fmt::Debug for Write {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Project(_) => "Write::Project",
+            Self::Draft { .. } => "Write::Draft",
+        })
+    }
+}
 
 /// How a value is printed into, and read back out of, its text field.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -122,6 +164,13 @@ impl std::fmt::Debug for ScrubTarget {
     }
 }
 
+impl ScrubTarget {
+    /// Whether the readout writes a dialog's draft rather than the project.
+    pub fn drafts(&self) -> bool {
+        matches!(self.write, Write::Draft { .. })
+    }
+}
+
 /// A press on a readout, until it is released.
 struct Press {
     target: ScrubTarget,
@@ -149,6 +198,11 @@ pub struct ValueEntry {
 /// can open them. Rows report themselves while they paint.
 #[derive(Default)]
 struct Neighbours {
+    /// The first readout painted since the field opened: Tab's next past the
+    /// last readout of the frame.
+    first: Option<ScrubTarget>,
+    /// The readout painted most recently: Shift+Tab's next before the first
+    /// readout of the frame.
     last: Option<ScrubTarget>,
     before: Option<ScrubTarget>,
     after: Option<ScrubTarget>,
@@ -185,6 +239,13 @@ impl ValueScrubs {
         self.entry.is_some()
     }
 
+    /// Whether the open field writes a dialog's draft rather than the project.
+    pub fn entry_drafts(&self) -> bool {
+        self.entry
+            .as_ref()
+            .is_some_and(|entry| entry.target.drafts())
+    }
+
     /// Whether the readout `key` is being dragged.
     pub fn dragging(&self, key: MotionKey) -> bool {
         self.press
@@ -197,6 +258,17 @@ impl ValueScrubs {
         self.press.is_some()
     }
 
+    /// Whether the readout pressed or open writes the project, so a value it
+    /// changes needs a new frame of the Viewer. A dialog's draft changes no
+    /// picture.
+    pub fn redraws(&self) -> bool {
+        self.press
+            .as_ref()
+            .map(|press| &press.target)
+            .or(self.entry.as_ref().map(|entry| &entry.target))
+            .is_some_and(|target| !target.drafts())
+    }
+
     /// Whether a held press has passed the click slop. The shell locks the
     /// pointer while one is.
     pub fn drag_held(&self) -> bool {
@@ -204,11 +276,21 @@ impl ValueScrubs {
     }
 
     /// A readout painted. While a field is open this records the readouts
-    /// either side of it in paint order, wrapping from the last to the first.
+    /// either side of it in paint order, and the first and the last painted,
+    /// which Tab wraps to past either end. Only readouts that write where the
+    /// open one writes count: a dialog's Tab stays among the dialog's
+    /// readouts, and never reaches a panel readout painted behind the dialog.
     pub fn painted(&mut self, target: &ScrubTarget) {
-        let Some(open) = self.entry.as_ref().map(|entry| entry.target.key) else {
+        let Some((open, drafts)) = self
+            .entry
+            .as_ref()
+            .map(|entry| (entry.target.key, entry.target.drafts()))
+        else {
             return;
         };
+        if target.drafts() != drafts {
+            return;
+        }
         let neighbours = &mut self.neighbours;
         if neighbours
             .last
@@ -220,6 +302,9 @@ impl ValueScrubs {
         }
         if target.key == open {
             neighbours.before = neighbours.last.take().filter(|last| last.key != open);
+        }
+        if neighbours.first.is_none() {
+            neighbours.first = Some(target.clone());
         }
         neighbours.last = Some(target.clone());
     }
@@ -288,7 +373,19 @@ impl AppState {
         if delta.to_bits() == press.applied.to_bits() {
             return false;
         }
-        let write = Rc::clone(&press.target.write);
+        let (from, write) = (press.target.value, press.target.write.clone());
+        let write = match write {
+            Write::Project(write) => write,
+            Write::Draft { set, span } => {
+                // A draft holds no edit to roll back: each move sets the value
+                // the travel reaches, held at the end of the span it passed.
+                if set(self, clamp_into(&span, from + delta)).is_ok() {
+                    let press = self.value_scrubs.press.as_mut().expect("held above");
+                    press.applied = delta;
+                }
+                return true;
+            }
+        };
         if let Some(group) = press.group.take() {
             self.roll_back(group);
             self.sync_from_engine();
@@ -348,6 +445,11 @@ impl AppState {
             self.roll_back(group);
             self.sync_from_engine();
         }
+        if let (true, Write::Draft { set, .. }) = (press.dragging, &press.target.write)
+            && let Err(reason) = set(self, press.target.value)
+        {
+            self.report_error(reason);
+        }
         true
     }
 
@@ -376,9 +478,37 @@ impl AppState {
             .map_or(LineRule::chars(DRAFT_CAP), |entry| entry.target.kind.rule())
     }
 
-    /// Escape: close the field and keep the value it opened on.
+    /// Escape: close the field and keep the value it opened on. A dialog's
+    /// field writes that value back, which clears a refusal the typed text
+    /// drew, so the dialog states no reason its values no longer have.
     pub fn cancel_value_entry(&mut self) {
-        self.value_scrubs.entry = None;
+        let Some(entry) = self.value_scrubs.entry.take() else {
+            return;
+        };
+        if let Write::Draft { set, .. } = &entry.target.write
+            && let Err(reason) = set(self, entry.target.value)
+        {
+            self.report_error(reason);
+        }
+    }
+
+    /// Commit a dialog field still open, so the dialog applies what was
+    /// typed. Returns false when the text is refused; the field stays open
+    /// and the reason is reported.
+    pub fn settle_draft_entry(&mut self) -> bool {
+        if !self.value_scrubs.entry_drafts() {
+            return true;
+        }
+        self.commit_value_entry()
+    }
+
+    /// Close a dialog's open field, uncommitted. A press held on a dialog
+    /// readout stays until the button comes up, so the release gives the
+    /// pointer back; the dialog's next open fills its form anew.
+    pub fn drop_draft_entry(&mut self) {
+        if self.value_scrubs.entry_drafts() {
+            self.value_scrubs.entry = None;
+        }
     }
 
     /// Enter: write the typed value and close the field. Text that states no
@@ -400,10 +530,22 @@ impl AppState {
             return false;
         };
         let delta = typed - entry.target.value;
+        let write = match entry.target.write.clone() {
+            Write::Project(write) => write,
+            Write::Draft { set, .. } => {
+                // A value the dialog refuses keeps the field open, as text
+                // that states no value does, so it can be fixed.
+                if let Err(reason) = set(self, typed) {
+                    self.value_scrubs.entry = Some(entry);
+                    self.report_error(reason);
+                    return false;
+                }
+                return true;
+            }
+        };
         if delta == 0.0 {
             return true;
         }
-        let write = entry.target.write;
         if let Err(err) = self.one_step(|state| write(state, delta)) {
             self.report_error(&err);
         }
@@ -411,21 +553,39 @@ impl AppState {
     }
 
     /// Tab: commit, then open the readout painted after this one, or before it
-    /// with Shift.
-    pub fn tab_value_entry(&mut self, back: bool) {
+    /// with Shift. Past the last readout painted Tab opens the first, and
+    /// before the first Shift+Tab opens the last, on the frame the field
+    /// opened in. Returns whether a project value was committed, which
+    /// changes the picture.
+    pub fn tab_value_entry(&mut self, back: bool) -> bool {
+        let redraws = self.value_scrubs.redraws();
+        let Some(open) = self
+            .value_scrubs
+            .entry
+            .as_ref()
+            .map(|entry| entry.target.key)
+        else {
+            return false;
+        };
         // A draft that states no value keeps its field, and its neighbours.
         if !self.commit_value_entry() {
-            return;
+            return false;
         }
-        let neighbours = std::mem::take(&mut self.value_scrubs.neighbours);
+        let Neighbours {
+            first,
+            last,
+            before,
+            after,
+        } = std::mem::take(&mut self.value_scrubs.neighbours);
         let next = if back {
-            neighbours.before
+            before.or(last)
         } else {
-            neighbours.after
+            after.or(first)
         };
-        if let Some(target) = next {
+        if let Some(target) = next.filter(|target| target.key != open) {
             let draft = LineText::selecting_all(target.kind.format(target.value));
             self.value_scrubs.entry = Some(ValueEntry { target, draft });
         }
+        redraws
     }
 }

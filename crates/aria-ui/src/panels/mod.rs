@@ -43,5 +43,9 @@ pub mod unsaved_dialog;
 pub mod value_readout;
 
 #[cfg(test)]
+#[path = "dialog_readout_tests.rs"]
+mod dialog_readout_tests;
+
+#[cfg(test)]
 #[path = "panel_casing_tests.rs"]
 mod panel_casing_tests;

@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use aria_models::{ClipId, ClipParam};
 use aria_ui::app::AppState;
-use aria_ui::app::value_scrub::{CLICK_SLOP_PX, ScrubTarget, ValueKind};
+use aria_ui::app::value_scrub::{CLICK_SLOP_PX, ScrubTarget, ValueKind, Write};
 use aria_ui::motion::MotionKey;
 use aria_ui::shell::Moved;
 use aria_ui::transport::TIMELINE_BASE_PPS;
@@ -173,9 +173,9 @@ pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
                 value: drawn,
                 unit: 0.01,
                 kind: ValueKind::Number { decimals: 2 },
-                write: Rc::new(move |s: &mut AppState, delta| {
+                write: Write::Project(Rc::new(move |s: &mut AppState, delta| {
                     s.set_param_scalar(ClipParam::Opacity, None, drawn + delta)
-                }),
+                })),
             });
         })
     });

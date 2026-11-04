@@ -488,9 +488,11 @@ impl Shell {
             };
             state.update(cx, |state, _| crate::keys::fields::insert(state, &text));
         } else if let Some(tab) = field.tab.filter(|_| key == "tab" && !ctrl) {
-            // Tab commits the box before it moves, so the picture changes.
-            state.update(cx, |state, _| tab(state, mods.shift));
-            spawn_preview(state, cx);
+            // A value Tab commits on its way out changes the picture; a move
+            // between dialog boxes does not.
+            if state.update(cx, |state, _| tab(state, mods.shift)) {
+                spawn_preview(state, cx);
+            }
             return true;
         } else {
             match crate::popover::classify_key(key, mods.platform, ctrl) {

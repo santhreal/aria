@@ -18,7 +18,7 @@ use gpui::{
 use aria_models::ClipParam;
 
 use crate::app::grade_controls::WheelControl;
-use crate::app::value_scrub::{ScrubTarget, ValueKind};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, spawn_preview};
 use crate::components;
 use crate::motion::MotionKey;
@@ -90,7 +90,7 @@ fn single_wheel_widget(
         value: master,
         unit: 0.01,
         kind: ValueKind::Number { decimals: 2 },
-        write: Rc::new(move |state: &mut AppState, delta| {
+        write: Write::Project(Rc::new(move |state: &mut AppState, delta| {
             state.nudge_shared_param(
                 ClipParam::Look {
                     param: master_param,
@@ -98,7 +98,7 @@ fn single_wheel_widget(
                 None,
                 delta,
             )
-        }),
+        })),
     };
 
     div()

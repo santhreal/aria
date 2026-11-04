@@ -18,7 +18,9 @@ use aria_models::{MarkerColor, MarkerId, MarkerKind, RationalTime};
 use gpui::SharedString;
 
 use super::line_text::{LineRule, LineText};
+use super::menu_keys::step;
 use super::{AppState, DialogKind};
+use crate::keys::fields::CaretKey;
 use crate::types::UiMarker;
 
 /// What the Marker Edit dialog's Name field takes.
@@ -37,6 +39,21 @@ pub enum MarkerEditField {
     Name,
     Comment,
     Duration,
+}
+
+impl MarkerEditField {
+    /// The dialog's boxes in the order it draws them, top to bottom, which is
+    /// the order Tab walks them.
+    pub const ORDER: [Self; 3] = [Self::Name, Self::Comment, Self::Duration];
+
+    /// The box's label and what its empty value reads as.
+    pub fn caption(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Name => ("Name", "Marker name"),
+            Self::Comment => ("Comment", "Note or review comment"),
+            Self::Duration => ("Duration (timecode)", "00:00:00:00"),
+        }
+    }
 }
 
 /// Draft state for [`DialogKind::MarkerEdit`].
@@ -63,6 +80,17 @@ impl Default for MarkerEditForm {
             kind: MarkerKind::Comment,
             focused: None,
             error: None,
+        }
+    }
+}
+
+impl MarkerEditForm {
+    /// The text of the box `field`.
+    pub fn line(&self, field: MarkerEditField) -> &LineText {
+        match field {
+            MarkerEditField::Name => &self.name,
+            MarkerEditField::Comment => &self.comment,
+            MarkerEditField::Duration => &self.duration,
         }
     }
 }
@@ -323,11 +351,7 @@ impl AppState {
     /// The dialog field that holds the keys, `None` with none focused.
     pub fn marker_edit_line(&self) -> Option<&LineText> {
         let form = &self.marker_edit;
-        Some(match form.focused? {
-            MarkerEditField::Name => &form.name,
-            MarkerEditField::Comment => &form.comment,
-            MarkerEditField::Duration => &form.duration,
-        })
+        Some(form.line(form.focused?))
     }
 
     pub fn marker_edit_line_mut(&mut self) -> Option<&mut LineText> {
@@ -354,6 +378,24 @@ impl AppState {
 
     pub fn focus_marker_edit_field(&mut self, field: Option<MarkerEditField>) {
         self.marker_edit.focused = field;
+    }
+
+    /// Tab: focus the dialog's next box, or the one before it with Shift,
+    /// wrapping, with its text selected so typing replaces it. Nothing is
+    /// applied before Save, so the picture is unchanged: returns `false`.
+    pub fn tab_marker_edit(&mut self, back: bool) -> bool {
+        let order = MarkerEditField::ORDER;
+        let at = self
+            .marker_edit
+            .focused
+            .and_then(|field| order.iter().position(|&each| each == field));
+        if let Some(next) = step(at, order.len(), if back { -1 } else { 1 }) {
+            self.focus_marker_edit_field(Some(order[next]));
+            if let Some(line) = self.marker_edit_line_mut() {
+                line.key(CaretKey::SelectAll, false);
+            }
+        }
+        false
     }
 
     pub fn set_marker_edit_color(&mut self, color: MarkerColor) {

@@ -317,9 +317,13 @@ Defined in `crates/aria-ui/src/app/clip_ops.rs` (`AudioGainMode::ALL`, opened by
 | Variant | Label (`label()`) | Default | Summary |
 | --- | --- | --- | --- |
 | `SetGain` | `Set Gain to` | `yes` | Sets `ClipParam::Volume` on selected audio clips to the linear gain for the target dB value (`-60.0..=+12.0` dB). |
-| `AdjustGain` | `Adjust Gain by` | `no` | Adds the signed dB delta to each selected clip's existing `gain_db`. |
-| `NormalizeMaxPeak` | `Normalize Max Peak to` | `no` | Shifts all selected clips by a single dB offset so the loudest clip peak across the selection lands at the target dB ceiling. |
-| `NormalizeAllPeaks` | `Normalize All Peaks to` | `no` | Shifts each selected clip independently so every clip's own maximum sample peak lands at the target dB ceiling. |
+| `AdjustGain` | `Adjust Gain by` | `no` | Adds the signed dB delta (`-60.0..=+60.0` dB) to each selected clip's existing `gain_db`. |
+| `NormalizeMaxPeak` | `Normalize Max Peak to` | `no` | Shifts all selected clips by a single dB offset so the loudest clip peak across the selection lands at the target dB ceiling (`-60.0..=0.0` dBFS). |
+| `NormalizeAllPeaks` | `Normalize All Peaks to` | `no` | Shifts each selected clip independently so every clip's own maximum sample peak lands at the target dB ceiling (`-60.0..=0.0` dBFS). |
+
+The dialog's number is a value readout over the active mode's range: a drag
+stops at either end, and a typed value outside it is rejected with the reason
+under the number while its field stays open.
 
 ## Audio Channels routing presets (`AudioChannels::ALL`)
 

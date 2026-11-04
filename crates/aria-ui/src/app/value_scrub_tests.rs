@@ -23,7 +23,7 @@ use aria_models::ClipParam;
 
 use super::AppState;
 use super::premiere_tests::with_clip;
-use super::value_scrub::{ScrubTarget, ValueKind, Write};
+use super::value_scrub::{ProjectWrite, ScrubTarget, ValueKind, Write};
 use crate::motion::MotionKey;
 
 /// The two shapes of write a row hands a readout.
@@ -51,7 +51,7 @@ fn entry(state: &AppState) -> &str {
 /// An opacity readout as a row draws it at the current value.
 fn opacity_target(state: &AppState, name: &str, shape: Shape) -> ScrubTarget {
     let drawn = opacity(state);
-    let write: Write = match shape {
+    let write: ProjectWrite = match shape {
         Shape::Incremental => Rc::new(|state: &mut AppState, delta| {
             state.nudge_param(ClipParam::Opacity, None, delta)
         }),
@@ -64,7 +64,7 @@ fn opacity_target(state: &AppState, name: &str, shape: Shape) -> ScrubTarget {
         value: drawn,
         unit: 0.01,
         kind: ValueKind::Number { decimals: 2 },
-        write,
+        write: Write::Project(write),
     }
 }
 
@@ -241,7 +241,9 @@ fn backspace_on_the_selected_draft_clears_it() {
 }
 
 /// Tab commits and opens the readout painted after the open one, Shift+Tab the
-/// one painted before it, and the last readout wraps to the first.
+/// one painted before it, and both wrap past either end on the frame the
+/// field opened in. A commit asks for a new frame; a draft that states no
+/// value asks for none and keeps its field.
 #[test]
 fn tab_commits_and_opens_the_neighbouring_readout() {
     let mut state = start(0.5);
@@ -254,10 +256,27 @@ fn tab_commits_and_opens_the_neighbouring_readout() {
     for target in [&first, &second, &third] {
         state.value_painted(target);
     }
+    for ch in "-.".chars() {
+        state.type_key(ch);
+    }
+    assert!(
+        !state.tab_value_entry(false),
+        "a refused draft asked for a frame"
+    );
+    assert!(
+        state.value_scrubs().entry_for(second.key).is_some(),
+        "a refused draft closed its field"
+    );
+    for _ in 0..2 {
+        state.press_backspace();
+    }
     for ch in "0.4".chars() {
         state.type_key(ch);
     }
-    state.tab_value_entry(false);
+    assert!(
+        state.tab_value_entry(false),
+        "a committed value asked for no frame"
+    );
     assert!(close(opacity(&state), 0.4), "read {}", opacity(&state));
     let open = state.value_scrubs().entry_for(third.key);
     assert!(open.is_some(), "Tab did not open the next readout");
@@ -268,15 +287,30 @@ fn tab_commits_and_opens_the_neighbouring_readout() {
     state.tab_value_entry(true);
     assert!(state.value_scrubs().entry_for(second.key).is_some());
 
-    // The last readout's next is the first painted in the following frame.
-    state.cancel_value_entry();
-    state.press_value(third.clone());
-    state.release_value();
-    for target in [&first, &second, &third, &first] {
-        state.value_painted(target);
+    // Past the last readout painted Tab opens the first, and before the first
+    // Shift+Tab opens the last, on the one frame the field opened in: a solid
+    // caret asks for no second frame.
+    for (open, back, lands) in [(&third, false, &first), (&first, true, &third)] {
+        state.cancel_value_entry();
+        state.press_value(open.clone());
+        state.release_value();
+        for target in [&first, &second, &third] {
+            state.value_painted(target);
+        }
+        state.tab_value_entry(back);
+        assert!(
+            state.value_scrubs().entry_for(lands.key).is_some(),
+            "Tab with back {back} did not wrap"
+        );
     }
+
+    // A readout painted alone has no neighbour: Tab commits and closes it.
+    state.cancel_value_entry();
+    state.press_value(second.clone());
+    state.release_value();
+    state.value_painted(&second);
     state.tab_value_entry(false);
-    assert!(state.value_scrubs().entry_for(first.key).is_some());
+    assert!(!state.value_entry_open(), "Tab reopened the only readout");
 }
 
 /// Open an opacity readout as text, the way a click on it does. The paste
@@ -311,10 +345,10 @@ fn a_frame_count_drags_by_whole_frames() {
         value: 10.0,
         unit: 1.0,
         kind: ValueKind::Frames { num: 24, den: 1 },
-        write: Rc::new(move |_: &mut AppState, delta| {
+        write: Write::Project(Rc::new(move |_: &mut AppState, delta| {
             log.borrow_mut().push(delta);
             Ok(())
-        }),
+        })),
     };
     state.press_value(target);
     for x in [104.0, 105.0, 107.0, 109.0] {
@@ -339,10 +373,10 @@ fn recording_target(wrote: &Rc<Cell<f32>>) -> ScrubTarget {
         value: 0.0,
         unit: 1.0,
         kind: ValueKind::Number { decimals: 0 },
-        write: Rc::new(move |_: &mut AppState, delta| {
+        write: Write::Project(Rc::new(move |_: &mut AppState, delta| {
             sink.set(delta);
             Ok(())
-        }),
+        })),
     }
 }
 

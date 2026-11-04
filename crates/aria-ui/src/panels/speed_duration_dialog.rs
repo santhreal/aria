@@ -1,5 +1,7 @@
 //! The Speed/Duration dialog (`Ctrl+R`).
 
+use std::rc::Rc;
+
 use crate::components::Wraps as _;
 use aria_core::count::counted;
 use gpui::{
@@ -7,9 +9,13 @@ use gpui::{
     div, px,
 };
 
+use crate::app::clip_ops::SPEED_PERCENT_SPAN;
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
 use crate::components::{self, ChipSize};
+use crate::motion::MotionKey;
+use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 
 const SPEED_PRESETS: &[(f32, &str, &str)] = &[
@@ -46,10 +52,15 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    let (form, selected_count) = {
+    let (form, selected_count, rate) = {
         let s = state.read(cx);
-        (s.speed_duration.clone(), s.selection.len())
+        (
+            s.speed_duration.clone(),
+            s.selection.len(),
+            s.store.sequence.frame_rate,
+        )
     };
+    let duration_span = form.duration_span();
 
     let cancel = components::ghost_button("speed-duration-cancel", "Cancel", &theme).on_mouse_down(
         MouseButton::Left,
@@ -105,7 +116,8 @@ pub fn render(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             this.state.update(cx, |state, _| {
-                                let _ = state.set_speed_duration_percent(current + delta);
+                                let next = clamp_into(&SPEED_PERCENT_SPAN, current + delta);
+                                let _ = state.set_speed_duration_percent(next);
                             });
                             cx.notify();
                         }),
@@ -118,13 +130,13 @@ pub fn render(
             .wraps()
             .gap(px(Theme::SPACE_XS))
             .children(DURATION_STEPS.iter().map(|&(delta, id, label)| {
-                let current = form.duration_ticks;
+                let next = clamp_into(&duration_span, (form.duration_ticks + delta) as f32);
                 components::ghost_button(("speed-duration-length-step", id), label, &theme)
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             this.state.update(cx, |state, _| {
-                                let _ = state.set_speed_duration_ticks(current + delta);
+                                let _ = state.set_speed_duration_ticks(next as i64);
                             });
                             cx.notify();
                         }),
@@ -145,6 +157,54 @@ pub fn render(
         "Maintain Audio Pitch",
         form.preserve_pitch,
         AppState::toggle_speed_duration_preserve_pitch,
+        cx,
+    );
+
+    let speed = value_readout::readout(
+        &theme,
+        state,
+        ScrubTarget {
+            key: MotionKey::new("speed-duration", "speed"),
+            value: form.speed_percent,
+            unit: 1.0,
+            kind: ValueKind::Number { decimals: 1 },
+            write: Write::Draft {
+                set: Rc::new(|state: &mut AppState, percent| {
+                    state.set_speed_duration_percent(percent)
+                }),
+                span: SPEED_PERCENT_SPAN,
+            },
+        },
+        format!("{:.1}%", form.speed_percent),
+        Look {
+            size: Theme::TEXT_UI,
+            ink: theme.value,
+        },
+        cx,
+    );
+    let duration = value_readout::readout(
+        &theme,
+        state,
+        ScrubTarget {
+            key: MotionKey::new("speed-duration", "duration"),
+            value: form.duration_ticks as f32,
+            unit: 1.0,
+            kind: ValueKind::Frames {
+                num: rate.num,
+                den: rate.den,
+            },
+            write: Write::Draft {
+                set: Rc::new(|state: &mut AppState, frames: f32| {
+                    state.set_speed_duration_ticks(frames.round() as i64)
+                }),
+                span: duration_span,
+            },
+        },
+        form.duration_label.clone(),
+        Look {
+            size: Theme::TEXT_UI,
+            ink: theme.value,
+        },
         cx,
     );
 
@@ -173,12 +233,7 @@ pub fn render(
                                 .text_color(theme.text_muted)
                                 .child("Speed"),
                         )
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text)
-                                .child(format!("{:.1}%", form.speed_percent)),
-                        ),
+                        .child(speed),
                 )
                 .child(speed_presets)
                 .child(speed_steppers),
@@ -200,12 +255,20 @@ pub fn render(
                         )
                         .child(
                             div()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text)
-                                .child(format!(
-                                    "{} ({} frames)",
-                                    form.duration_label, form.duration_ticks
-                                )),
+                                .flex()
+                                .items_baseline()
+                                .gap(px(Theme::SPACE_XS))
+                                .child(duration)
+                                .child(
+                                    div()
+                                        .text_size(Theme::TEXT_UI)
+                                        .text_color(theme.text_muted)
+                                        .font_features(crate::theme::tabular_figures())
+                                        .child(
+                                            counted(form.duration_ticks, "frame", "frames")
+                                                .to_string(),
+                                        ),
+                                ),
                         ),
                 )
                 .child(duration_steppers),

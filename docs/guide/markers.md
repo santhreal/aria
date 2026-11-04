@@ -7,7 +7,9 @@ a selected clip spans the playhead, or on the sequence ruler otherwise. Pressing
 `M` when a marker is already at the playhead, or choosing **Markers > Edit
 Marker…**, opens the Edit Marker dialog to set its name, comment, color
 swatch, duration timecode, and kind (`Comment`, `Chapter`, or `Segmentation`) as
-one undo step. Negative durations and durations that run past the sequence end
+one undo step. Tab and Shift+Tab move between the Name, Comment, and Duration
+boxes and select the text of the box moved to; nothing applies before Save.
+Negative durations and durations that run past the sequence end
 or the clip's source range are rejected with a reason. `Shift+M` and
 `Ctrl+Shift+M` step to the next and previous marker, `Ctrl+Alt+M` removes the
 marker at the playhead, and `Ctrl+Shift+Alt+M` clears all sequence markers.

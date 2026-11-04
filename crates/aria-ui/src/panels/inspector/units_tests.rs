@@ -47,7 +47,7 @@ use super::strip_tests::drawn_with;
 use super::tabs::effects::effects_params::vec2_axes;
 use crate::app::AppState;
 use crate::app::property_rows::{PropertyGroup, TimelineOutlineRow};
-use crate::app::value_scrub::ValueKind;
+use crate::app::value_scrub::{ValueKind, Write};
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{DrawnReadout, drawn_readouts, record_readouts};
 
@@ -204,7 +204,11 @@ fn assert_each_moves_by_its_unit(
         let recorded = visual.update(|_, app| {
             state.update(app, |state, cx| {
                 let depth = state.history_depth();
-                (target.write)(state, delta).unwrap_or_else(|err| {
+                let wrote = match &target.write {
+                    Write::Project(write) => write(state, delta).map_err(|err| err.to_string()),
+                    Write::Draft { set, .. } => set(state, target.value + delta),
+                };
+                wrote.unwrap_or_else(|err| {
                     panic!(
                         "{surface}: writing {delta} through `{}`: {err}",
                         readout.text

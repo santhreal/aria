@@ -26,6 +26,8 @@ use aria_settings::{
 use gpui::SharedString;
 
 use super::AppState;
+use super::menu_keys::step;
+use crate::keys::fields::CaretKey;
 
 /// One typed settings value.
 ///
@@ -74,6 +76,10 @@ impl SettingsField {
         Self::KeymapName,
         Self::Filter,
     ];
+
+    /// The AI section's typed fields, in the order the section draws them and
+    /// Tab walks them.
+    pub const AI: [Self; 4] = [Self::AiBaseUrl, Self::AiModel, Self::AiKey, Self::AiKeyEnv];
 
     /// The stable name the field's text box is keyed by, also the
     /// palette-facing name.
@@ -413,6 +419,61 @@ impl AppState {
             self.settings_form.filter.clear();
         }
         self.focus_setting(None);
+    }
+
+    /// The typed fields drawn in `field`'s section, in draw order: the AI
+    /// fields, or a plugin section's text, secret and number fields. Any other
+    /// field is alone in its section.
+    fn setting_ring(&self, field: SettingsField) -> Vec<SettingsField> {
+        if SettingsField::AI.contains(&field) {
+            return SettingsField::AI.to_vec();
+        }
+        let SettingsField::Plugin(key) = field else {
+            return vec![field];
+        };
+        let sections = self.plugin_settings_sections();
+        let Some(section) = sections
+            .iter()
+            .find(|section| section.fields.iter().any(|spec| spec.key == key))
+        else {
+            return vec![field];
+        };
+        section
+            .fields
+            .iter()
+            .filter(|spec| {
+                matches!(
+                    spec.kind,
+                    SettingKind::Text | SettingKind::Secret | SettingKind::Number { .. }
+                )
+            })
+            .map(|spec| SettingsField::Plugin(crate::interned::intern(&spec.key)))
+            .collect()
+    }
+
+    /// Tab: save the focused field and focus the next typed field of its
+    /// section, or the one before it with Shift, wrapping, with its saved
+    /// value selected. A refused value keeps the focus and the draft and is
+    /// reported, as on Enter. A field alone in its section keeps the focus.
+    /// Settings draw no picture: returns `false`.
+    pub fn tab_setting(&mut self, back: bool) -> bool {
+        let Some(field) = self.settings_form.focused else {
+            return false;
+        };
+        let ring = self.setting_ring(field);
+        if ring.len() < 2 {
+            return false;
+        }
+        if let Err(err) = self.commit_setting() {
+            self.report_error(err);
+            return false;
+        }
+        let at = ring.iter().position(|&each| each == field);
+        if let Some(next) = step(at, ring.len(), if back { -1 } else { 1 }) {
+            self.focus_setting(Some(ring[next]));
+            self.settings_form.draft.key(CaretKey::SelectAll, false);
+        }
+        false
     }
 
     /// Persist the focused field.

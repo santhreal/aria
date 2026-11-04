@@ -1,5 +1,7 @@
 //! The Audio Gain dialog (`G`).
 
+use std::rc::Rc;
+
 use crate::components::Wraps as _;
 use aria_core::count::counted;
 use gpui::{
@@ -8,9 +10,12 @@ use gpui::{
 };
 
 use crate::app::clip_ops::AudioGainMode;
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components::{self, ChipSize};
+use crate::motion::MotionKey;
+use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 
 const DB_PRESETS: &[(f32, &str, &str)] = &[
@@ -93,12 +98,11 @@ pub fn render(
                 )
             }));
 
-    let (active_db, unit) = match form.mode {
-        AudioGainMode::SetGain => (form.set_db, "dB"),
-        AudioGainMode::AdjustGain => (form.adjust_db, "dB"),
-        AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
-            (form.target_db, "dBFS")
-        }
+    let active_db = form.db();
+    let span = form.mode.span();
+    let unit = match form.mode {
+        AudioGainMode::SetGain | AudioGainMode::AdjustGain => "dB",
+        AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => "dBFS",
     };
 
     let presets = match form.mode {
@@ -106,7 +110,6 @@ pub fn render(
         AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => NORMALIZE_PRESETS,
     };
 
-    let mode = form.mode;
     let preset_row = div()
         .flex()
         .wraps()
@@ -123,16 +126,8 @@ pub fn render(
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| match mode {
-                        AudioGainMode::SetGain => {
-                            let _ = state.set_audio_gain_set_db(val);
-                        }
-                        AudioGainMode::AdjustGain => {
-                            let _ = state.set_audio_gain_adjust_db(val);
-                        }
-                        AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
-                            let _ = state.set_audio_gain_target_db(val);
-                        }
+                    this.state.update(cx, |state, _| {
+                        let _ = state.set_audio_gain_db(val);
                     });
                     cx.notify();
                 }),
@@ -144,20 +139,12 @@ pub fn render(
         .wraps()
         .gap(px(Theme::SPACE_XS))
         .children(DB_STEPS.iter().map(|&(delta, id, label)| {
-            let next = active_db + delta;
+            let next = clamp_into(&span, active_db + delta);
             components::ghost_button(("audio-gain-step", id), label, &theme).on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| match mode {
-                        AudioGainMode::SetGain => {
-                            let _ = state.set_audio_gain_set_db(next);
-                        }
-                        AudioGainMode::AdjustGain => {
-                            let _ = state.set_audio_gain_adjust_db(next);
-                        }
-                        AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => {
-                            let _ = state.set_audio_gain_target_db(next);
-                        }
+                    this.state.update(cx, |state, _| {
+                        let _ = state.set_audio_gain_db(next);
                     });
                     cx.notify();
                 }),
@@ -174,6 +161,27 @@ pub fn render(
             counted(form.clip_count, "audio clip", "audio clips")
         ),
     };
+
+    let value = value_readout::readout(
+        &theme,
+        state,
+        ScrubTarget {
+            key: MotionKey::new("audio-gain", "db"),
+            value: active_db,
+            unit: 0.1,
+            kind: ValueKind::Number { decimals: 1 },
+            write: Write::Draft {
+                set: Rc::new(|state: &mut AppState, db| state.set_audio_gain_db(db)),
+                span,
+            },
+        },
+        format!("{active_db:+.1} {unit}"),
+        Look {
+            size: Theme::TEXT_UI,
+            ink: theme.value,
+        },
+        cx,
+    );
 
     let mut content = div()
         .flex()
@@ -201,12 +209,7 @@ pub fn render(
                                 .text_color(theme.text_muted)
                                 .child(form.mode.label()),
                         )
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text)
-                                .child(format!("{active_db:+.1} {unit}")),
-                        ),
+                        .child(value),
                 )
                 .child(preset_row)
                 .child(step_row),

@@ -1,18 +1,22 @@
 //! The Keyframe Velocity dialog: incoming and outgoing speed and influence of
 //! the selected keyframes, with Continuous to keep one speed on both sides.
 
+use std::rc::Rc;
+
 use crate::components::Wraps as _;
 use aria_core::count::counted;
 use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
-    div, px,
+    Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
+    SharedString, Styled, div, px,
 };
 
-use crate::app::animation_verbs::{KeyframeVelocityForm, VelocitySide};
+use crate::app::animation_verbs::{INFLUENCE_PERCENT_SPAN, KeyframeVelocityForm, VelocitySide};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, clamp_into};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
-use crate::components::{self, ChipSize, readout};
+use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
+use crate::panels::value_readout::{self, Look};
 use crate::theme::Theme;
 
 /// Speed steps in property units per second.
@@ -45,10 +49,41 @@ fn side_id(side: VelocitySide) -> &'static str {
     }
 }
 
+/// A label and a readout in one row, laid out as
+/// [`components::readout`] lays out a fixed value: the label at the left in
+/// `text_muted`, the number at the right edge.
+fn number_row(
+    theme: &Theme,
+    state: &Entity<AppState>,
+    label: &'static str,
+    target: ScrubTarget,
+    text: impl Into<SharedString>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Div {
+    let look = Look {
+        size: Theme::TEXT_UI,
+        ink: theme.value,
+    };
+    div()
+        .flex()
+        .flex_row()
+        .flex_wrap()
+        .gap_x(px(Theme::SPACE_SM))
+        .text_size(Theme::TEXT_UI)
+        .child(div().max_w_full().text_color(theme.text_muted).child(label))
+        .child(
+            div()
+                .ml_auto()
+                .max_w_full()
+                .child(value_readout::readout(theme, state, target, text, look, cx)),
+        )
+}
+
 fn side_block(
     side: VelocitySide,
     form: &KeyframeVelocityForm,
     theme: &Theme,
+    state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let tag = side_id(side);
@@ -134,7 +169,7 @@ fn side_block(
                         MouseButton::Left,
                         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                             this.state.update(cx, |state, _| {
-                                let next = (influence + delta).clamp(0.1, 100.0);
+                                let next = clamp_into(&INFLUENCE_PERCENT_SPAN, influence + delta);
                                 let _ = state.set_keyframe_velocity_influence(side, next);
                             });
                             cx.notify();
@@ -142,6 +177,46 @@ fn side_block(
                     )
                 }),
         );
+
+    let key = MotionKey::new("keyframe-velocity", tag);
+    let speed_row = number_row(
+        theme,
+        state,
+        "Speed",
+        ScrubTarget {
+            key: key.with("speed"),
+            value: speed,
+            unit: 1.0,
+            kind: ValueKind::Number { decimals: 2 },
+            write: Write::Draft {
+                set: Rc::new(move |state: &mut AppState, per_second| {
+                    state.set_keyframe_velocity_speed(side, per_second)
+                }),
+                span: f32::MIN..=f32::MAX,
+            },
+        },
+        format!("{speed:.2} {}", form.unit),
+        cx,
+    );
+    let influence_row = number_row(
+        theme,
+        state,
+        "Influence",
+        ScrubTarget {
+            key: key.with("influence"),
+            value: influence,
+            unit: 1.0,
+            kind: ValueKind::Number { decimals: 2 },
+            write: Write::Draft {
+                set: Rc::new(move |state: &mut AppState, percent| {
+                    state.set_keyframe_velocity_influence(side, percent)
+                }),
+                span: INFLUENCE_PERCENT_SPAN,
+            },
+        },
+        format!("{influence:.2}%"),
+        cx,
+    );
 
     div()
         .flex()
@@ -156,9 +231,9 @@ fn side_block(
                     VelocitySide::Outgoing => "Outgoing Velocity",
                 }),
         )
-        .child(readout(theme, "Speed", format!("{speed:.2} {}", form.unit)))
+        .child(speed_row)
         .child(speed_steps)
-        .child(readout(theme, "Influence", format!("{influence:.2}%")))
+        .child(influence_row)
         .child(influence_presets)
 }
 
@@ -206,8 +281,8 @@ pub fn render(
                 .text_color(theme.text_muted)
                 .child(counted(count, "keyframe", "keyframes").to_string()),
         )
-        .child(side_block(VelocitySide::Incoming, &form, &theme, cx))
-        .child(side_block(VelocitySide::Outgoing, &form, &theme, cx))
+        .child(side_block(VelocitySide::Incoming, &form, &theme, state, cx))
+        .child(side_block(VelocitySide::Outgoing, &form, &theme, state, cx))
         .child(continuous);
     if let Some(err) = form.error {
         content = content.child(

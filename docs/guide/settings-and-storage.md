@@ -146,9 +146,11 @@ Settings holds an AI section.
   **OpenRouter**, or **Custom** for any other endpoint.
 - **AI base URL**, **AI model**, **AI key**, and **AI key variable** are typed
   fields. Click one to edit it, press Enter to save, and Escape to leave the saved
-  value alone. A URL must start with `http://` or `https://`. A key variable specifies an
-  environment variable holding the key, which is preferred over storing the key
-  itself; a stored key is shown as its length, never its text.
+  value alone. Tab saves the field and selects the next one, Shift+Tab the one
+  before; a refused value keeps the focus. A URL must start with `http://` or
+  `https://`. A key variable specifies an environment variable holding the key,
+  which is preferred over storing the key itself; a stored key is shown as its
+  length, never its text.
 - **Protocol** picks **Chat Completions** or **Responses**, and **Reasoning** picks
   **Auto** or **Off** for whether a Responses model requests a reasoning summary.
   Local and OpenRouter always use Chat Completions.

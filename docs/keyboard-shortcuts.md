@@ -34,8 +34,8 @@ field, a plugin panel's field, and the command palette.
 | Ctrl+A | Select all of the text |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy, cut, or paste over the selection |
 | Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y | Put back the text the box held before typing, or put the typing back |
-| Tab / Shift+Tab | In a value readout, commit and move to the next or previous value |
-| Enter | Commit: rename, run the search, send the prompt, run the highlighted command |
+| Tab / Shift+Tab | In a value readout, commit and move to the next or previous value, wrapping past either end; in a dialog, only to the dialog's own values. In the Marker dialog, move to the next or previous box, applying nothing before Save; in a Settings section with several typed fields, save the field and move to the next or previous one. The text of the box moved to is selected |
+| Enter | Commit: rename, run the search, send the prompt, run the highlighted command; in a dialog's value readout, apply the dialog with the typed value |
 | Esc | Leave the box without committing |
 
 A paste follows the rules typing follows. The timecode box takes digits, the

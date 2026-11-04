@@ -14,7 +14,7 @@ use crate::app::clip_params::{ColorRow, ParamRow};
 use crate::app::drivers::DriverDraft;
 use crate::app::key_strip::KeyStrip;
 use crate::app::param_units::Units;
-use crate::app::value_scrub::{ScrubTarget, ValueKind};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::components::Wraps as _;
 use crate::components::travel::{self, Gauge, Ink, Run};
 use crate::motion::{self, glide};
@@ -536,7 +536,7 @@ pub fn stepper_row(
                 value: readout.value,
                 unit: readout.unit,
                 kind: readout.kind,
-                write: std::rc::Rc::new(write),
+                write: Write::Project(std::rc::Rc::new(write)),
             },
             readout.text,
             Look {

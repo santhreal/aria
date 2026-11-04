@@ -15,7 +15,7 @@ use crate::app::AppState;
 use crate::app::property_rows::{
     PROPERTY_ROW_H, TimelineKeyMark, TimelineMaskPathRow, TimelineOutlineRow, TimelinePropertyRow,
 };
-use crate::app::value_scrub::ScrubTarget;
+use crate::app::value_scrub::{ScrubTarget, Write};
 use crate::motion::MotionKey;
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::panels::value_readout;
@@ -571,9 +571,9 @@ fn value_readout(
         value: scale.shown(stored),
         unit: number.drag,
         kind: number.kind(),
-        write: Rc::new(move |state: &mut AppState, delta| {
+        write: Write::Project(Rc::new(move |state: &mut AppState, delta| {
             state.write_property_scalar_at_playhead(clip, param, scale.moved(stored, delta))
-        }),
+        })),
     };
     value_readout::readout(theme, state, target, row.value_label.clone(), look, cx)
 }

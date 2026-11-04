@@ -34,9 +34,11 @@ pub struct TextField {
     /// the ends of the line.
     pub step: Option<fn(&mut AppState, i32)>,
     /// Tab and Shift+Tab (`true`): move to the next or previous box of the
-    /// same kind. `None` for a box that has no neighbours, and then Tab is
-    /// not consumed.
-    pub tab: Option<fn(&mut AppState, bool)>,
+    /// same form, in the order the form draws them. Returns whether the
+    /// picture can have changed, so the Viewer renders a new frame: a value
+    /// committed on the way out does. `None` for a box that has no
+    /// neighbours, and then Tab is not consumed.
+    pub tab: Option<fn(&mut AppState, bool) -> bool>,
     /// Where the box's text is held.
     pub store: Store,
 }
@@ -248,8 +250,14 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
         focused: AppState::value_entry_open,
         escape: AppState::cancel_value_entry,
         submit: Submit::State(|state, cx| {
+            // In a dialog, Enter is the dialog's Enter: its primary action
+            // applies the typed value with the rest of the form.
+            if state.value_scrubs().entry_drafts() && state.run_dialog_primary() {
+                return;
+            }
             // Under playback the next frame presented carries the edit.
-            if state.commit_value_entry() && !state.playing {
+            let redraws = state.value_scrubs().redraws() && !state.playing;
+            if state.commit_value_entry() && redraws {
                 let state = cx.entity();
                 cx.defer(move |app| crate::app::spawn_preview(state, app));
             }
@@ -426,7 +434,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
         escape: AppState::escape_marker_edit,
         submit: Submit::State(|state, _| state.apply_marker_edit()),
         step: None,
-        tab: None,
+        tab: Some(AppState::tab_marker_edit),
         store: Store::Line(Line {
             get: AppState::marker_edit_line,
             get_mut: AppState::marker_edit_line_mut,
@@ -449,7 +457,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
             }
         }),
         step: None,
-        tab: None,
+        tab: Some(AppState::tab_setting),
         store: Store::Line(Line {
             get: |state| Some(&state.settings_form.draft),
             get_mut: |state| Some(&mut state.settings_form.draft),

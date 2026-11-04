@@ -24,7 +24,7 @@ use crate::app::AppState;
 use crate::app::clip_line::LinePress;
 use crate::app::grade_controls::WheelControl;
 use crate::app::premiere_tests::with_clip;
-use crate::app::value_scrub::{ScrubTarget, ValueKind};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::motion::MotionKey;
 
 /// Two pictures on the timeline: `a`, selected, and `b` a second after it,
@@ -131,9 +131,9 @@ impl Gesture {
                     value: drawn,
                     unit: 0.01,
                     kind: ValueKind::Number { decimals: 2 },
-                    write: Rc::new(move |state: &mut AppState, delta| {
+                    write: Write::Project(Rc::new(move |state: &mut AppState, delta| {
                         state.set_param_scalar(ClipParam::Opacity, None, drawn + delta)
-                    }),
+                    })),
                 });
             }
             Self::ClipLine => {
