@@ -174,27 +174,7 @@ fn generator_exhaustive_variant_deserialization_roundtrip() {
         let generator = (spec.census)();
         let json = serde_json::to_string(&generator).expect("serialize");
         let deserialized: Generator = serde_json::from_str(&json).expect("deserialize");
-        match (&generator, &deserialized) {
-            (Generator::Text { content: c1, .. }, Generator::Text { content: c2, .. }) => {
-                assert_eq!(c1, c2);
-            }
-            (Generator::SolidColor { rgba: r1 }, Generator::SolidColor { rgba: r2 }) => {
-                assert_eq!(r1, r2);
-            }
-            (Generator::Shape { shape: s1, .. }, Generator::Shape { shape: s2, .. }) => {
-                assert_eq!(s1, s2);
-            }
-            (Generator::Sticker { asset: a1 }, Generator::Sticker { asset: a2 }) => {
-                assert_eq!(a1, a2);
-            }
-            (Generator::Lottie { path: p1, .. }, Generator::Lottie { path: p2, .. }) => {
-                assert_eq!(p1, p2);
-            }
-            (Generator::Effect, Generator::Effect)
-            | (Generator::Filter, Generator::Filter)
-            | (Generator::Adjustment, Generator::Adjustment) => {}
-            _ => panic!("variant mismatch between {generator:?} and {deserialized:?}"),
-        }
+        assert_eq!(deserialized, generator, "{}", spec.id);
     }
 }
 

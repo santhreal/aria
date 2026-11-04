@@ -295,18 +295,30 @@ mod tests {
 
     #[test]
     fn trilinear_sample_interpolates_between_grid_points() {
-        // 2³ LUT that doubles green: g_out = min(2*g, 1) sampled at corners
-        // {0,1} is g_out = g at 0, 1 at 1 — halfway in, expect 0.5..1 blend.
-        let lut = CubeLut::from_fn(2, |[r, g, b]| [r, (2.0 * g).min(1.0), b]);
-        let got = lut.sample([0.0, 0.5, 0.0]);
+        // 3³ LUT that doubles green and clamps at 1.0: grid points are g in {0.0, 0.5, 1.0}
+        // with values {0.0, 1.0, 1.0}, so g = 0.25 interpolates to 0.5 and g = 0.75 stays 1.0.
+        let lut = CubeLut::from_fn(3, |[r, g, b]| [r, (2.0 * g).min(1.0), b]);
+        let low = lut.sample([0.0, 0.25, 0.0]);
+        assert!((low[1] - 0.5).abs() < 1e-5, "{low:?}");
+        let high = lut.sample([0.0, 0.75, 0.0]);
+        assert!((high[1] - 1.0).abs() < 1e-5, "{high:?}");
+
+        // Non-separable 2³ LUT interpolated across all three axes simultaneously.
+        let trilinear = CubeLut::from_fn(2, |[r, g, b]| [r * g * b, r + 0.5 * g, b]);
+        let got = trilinear.sample([0.25, 0.5, 0.75]);
+        assert!((got[0] - 0.09375).abs() < 1e-5, "{got:?}");
         assert!((got[1] - 0.5).abs() < 1e-5, "{got:?}");
+        assert!((got[2] - 0.75).abs() < 1e-5, "{got:?}");
     }
 
     #[test]
     fn rejects_wrong_row_counts_and_bad_sizes() {
         assert!(matches!(
             CubeLut::parse("LUT_3D_SIZE 2\n0 0 0\n"),
-            Err(LutError::WrongRowCount { .. })
+            Err(LutError::WrongRowCount {
+                expected: 8,
+                found: 1,
+            })
         ));
         assert!(matches!(
             CubeLut::parse("LUT_3D_SIZE 1\n0 0 0\n"),

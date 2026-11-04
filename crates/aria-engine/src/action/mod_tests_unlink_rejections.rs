@@ -120,14 +120,14 @@ fn set_track_flags_unknown_track_errors() {
     let mut history = History::new(32);
     let mut ctx = test_ctx(&mut project, &mut project_path, &mut history);
     let missing = aria_models::TrackId::from_raw(999);
-    assert!(
+    assert!(matches!(
         set_track_flags::execute(
             &mut ctx,
             missing,
             set_track_flags::FlagPatch::enabled(false)
-        )
-        .is_err()
-    );
+        ),
+        Err(EngineError::Model(ModelError::UnknownTrack(id))) if id == missing
+    ));
 }
 
 #[test]

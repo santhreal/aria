@@ -262,32 +262,6 @@ mod tests {
         assert_eq!(TemplateId::from_raw(5).to_string(), "TemplateId#5");
     }
 
-    // --- Copy / Clone / Eq ------------------------------------------------
-
-    #[test]
-    fn copy_and_clone_preserve_raw_value() {
-        let original = MediaId::from_raw(77);
-        let copied = original;
-        let cloned = original;
-        assert_eq!(original, copied);
-        assert_eq!(original, cloned);
-        assert_eq!(copied.raw(), 77);
-        assert_eq!(cloned.raw(), 77);
-    }
-
-    #[test]
-    fn equal_ids_have_same_raw_value() {
-        let a = ClipId::from_raw(10);
-        let b = ClipId::from_raw(10);
-        assert_eq!(a, b);
-        assert_eq!(a.raw(), b.raw());
-    }
-
-    #[test]
-    fn different_raw_values_are_not_equal() {
-        assert_ne!(ClipId::from_raw(1), ClipId::from_raw(2));
-    }
-
     // --- Ord ----------------------------------------------------------------
 
     #[test]
@@ -340,14 +314,5 @@ mod tests {
         assert!(!set.insert(a)); // duplicate
         assert_eq!(set.len(), 2);
         assert!(set.contains(&ProjectId::from_raw(1)));
-    }
-
-    // --- Debug ------------------------------------------------------------
-
-    #[test]
-    fn debug_includes_type_and_value() {
-        let s = format!("{:?}", ClipId::from_raw(5));
-        assert!(s.contains("ClipId"));
-        assert!(s.contains('5'));
     }
 }

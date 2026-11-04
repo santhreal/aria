@@ -269,14 +269,18 @@ fn every_command_census_roundtrips_json() {
         let json = serde_json::to_string(&cmd).expect("serialize edit command");
         let deserialized: EditCommand =
             serde_json::from_str(&json).expect("deserialize edit command");
-        assert_eq!(cmd.spec().id, deserialized.spec().id);
-        assert_eq!(cmd.label(), deserialized.label());
+        assert_eq!(deserialized, cmd);
+        let untagged: crate::Command =
+            serde_json::from_str(&json).expect("deserialize untagged edit command");
+        assert_eq!(untagged, crate::Command::Edit(cmd));
     }
     for cmd in every_project_command() {
         let json = serde_json::to_string(&cmd).expect("serialize project command");
         let deserialized: ProjectCommand =
             serde_json::from_str(&json).expect("deserialize project command");
-        assert_eq!(cmd.spec().id, deserialized.spec().id);
-        assert_eq!(cmd.label(), deserialized.label());
+        assert_eq!(deserialized, cmd);
+        let untagged: crate::Command =
+            serde_json::from_str(&json).expect("deserialize untagged project command");
+        assert_eq!(untagged, crate::Command::Project(cmd));
     }
 }

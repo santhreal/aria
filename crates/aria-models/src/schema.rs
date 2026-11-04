@@ -107,6 +107,34 @@ mod tests {
         assert!(schema.is_supported());
         assert_eq!(schema.version, PROJECT_SCHEMA_VERSION);
         assert_eq!(schema.kind, PROJECT_SCHEMA_KIND);
+        for version in 1..=PROJECT_SCHEMA_VERSION {
+            let valid = ProjectSchema {
+                version,
+                ..ProjectSchema::current()
+            };
+            assert!(valid.is_supported(), "version {version} must be supported");
+        }
+        assert!(
+            !ProjectSchema {
+                version: 0,
+                ..ProjectSchema::current()
+            }
+            .is_supported()
+        );
+        assert!(
+            !ProjectSchema {
+                version: PROJECT_SCHEMA_VERSION + 1,
+                ..ProjectSchema::current()
+            }
+            .is_supported()
+        );
+        assert!(
+            !ProjectSchema {
+                kind: "aria.template".into(),
+                ..ProjectSchema::current()
+            }
+            .is_supported()
+        );
     }
 
     #[test]

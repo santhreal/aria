@@ -154,9 +154,12 @@ mod tests {
 
     #[test]
     fn try_new_validates_length_and_overflow() {
-        // Matching length succeeds
-        let img = RgbaImage::try_new(2, 2, vec![0; 16]);
-        assert!(img.is_ok());
+        // Matching length succeeds and retains width, height, and pixel bytes
+        let img = RgbaImage::try_new(2, 2, vec![7; 16]).expect("valid 2x2 rgba8");
+        assert_eq!(
+            (img.width, img.height, img.pixels.as_slice()),
+            (2, 2, &[7; 16][..])
+        );
 
         // Mismatched length fails with typed error
         let err = RgbaImage::try_new(2, 2, vec![0; 10]).unwrap_err();

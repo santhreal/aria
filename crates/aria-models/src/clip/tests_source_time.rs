@@ -306,17 +306,6 @@ fn generated_clip_accessors_are_none() {
     assert_eq!(clip.end().unwrap().value, 15);
 }
 
-#[test]
-fn clip_clone_and_eq() {
-    let media = MediaId::from_raw(1);
-    let source = tr(0, 10, R24);
-    let timeline = tr(0, 10, R24);
-    let a = media_clip(media, source, timeline);
-    let b = a.clone();
-    assert_eq!(a, b);
-    assert_eq!(a.id, b.id);
-}
-
 // --- source_time_at: same-rate media ----------------------------------
 
 #[test]

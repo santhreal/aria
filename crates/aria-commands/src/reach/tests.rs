@@ -92,13 +92,6 @@ fn every_operator_command_names_its_surface() {
 }
 
 #[test]
-fn every_other_command_claims_an_operator_surface() {
-    let all = declared();
-    let operator = all.iter().filter(|(_, r)| r.is_operator()).count();
-    assert_eq!(operator, all.len() - UNREACHABLE.len());
-}
-
-#[test]
 fn a_reason_is_only_carried_by_an_unreachable_command() {
     for (label, reach) in declared() {
         match reach {

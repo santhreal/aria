@@ -137,7 +137,13 @@ mod tests {
         let plugin = DummyPlugin {
             manifest: PluginManifest::new("test.dep", "Dep", "0.1.0", &["missing.plugin"], &[]),
         };
-        assert!(ctx.mount(&plugin).is_err());
+        let err = ctx.mount(&plugin).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "missing dependency: test.dep requires missing.plugin"
+        );
+        assert!(!ctx.is_mounted("test.dep"));
+        assert!(ctx.try_get::<DummyService>().is_none());
     }
 
     /// A package's owned manifest mounts, scopes and orders like a static one.

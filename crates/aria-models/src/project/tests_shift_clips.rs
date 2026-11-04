@@ -149,34 +149,6 @@ fn ripple_delete_shifts_later_clips() {
     assert_eq!(project.clip(c).unwrap().start().value, 100);
 }
 
-// --- timeline accessors -----------------------------------------------
-
-#[test]
-fn timeline_mut_allows_direct_timeline_edits() {
-    let mut project = Project::new("test", R24);
-    let track = project.add_track(TrackKind::Audio, "A1");
-    assert_eq!(project.timeline_mut().track_count(), 1);
-    assert_eq!(
-        project.timeline().track(track).unwrap().kind,
-        TrackKind::Audio
-    );
-}
-
-// --- Clone ------------------------------------------------------------
-
-#[test]
-fn project_clone_is_independent_snapshot() {
-    let (mut project, media_id, track) = project_with_media(100);
-    let clip = project.add_clip(track, media_id, tr(0, 50), rt(0)).unwrap();
-
-    let mut cloned = project.clone();
-    assert_eq!(cloned.clip(clip).unwrap().timeline, tr(0, 50));
-
-    cloned.remove_clip(clip);
-    assert!(cloned.clip(clip).is_none());
-    assert!(project.clip(clip).is_some());
-}
-
 #[test]
 fn look_setters_persist_on_a_media_clip() {
     let (mut project, media_id, track) = project_with_media(100);

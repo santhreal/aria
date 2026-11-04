@@ -195,14 +195,16 @@ fn memory_hungry_guest_is_stopped_at_limit_and_faults_plugin() {
         panic!("expected CommandError::Failed, got {err:?}");
     };
     assert!(
-        reason.contains("wasm trap"),
-        "expected wasm trap on OOM, got: {reason}"
+        reason.contains("wasm trap") && reason.contains("unreachable"),
+        "expected unreachable wasm trap on OOM, got: {reason}"
     );
     assert!(!ctx.is_mounted("com.example.wasm-tools"));
     assert!(ctx.commands().is_empty());
     assert!(audio_effect_spec("example.gain").is_none());
-    assert_eq!(ctx.failures().len(), 1);
-    assert_eq!(ctx.failures()[0].id, "com.example.wasm-tools");
+    let failures = ctx.failures();
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].id, "com.example.wasm-tools");
+    assert_eq!(failures[0].reason, reason);
 }
 
 /// `Reloader::poll` mounts discovered packages, hot-reloads a package when `plugin.wasm`

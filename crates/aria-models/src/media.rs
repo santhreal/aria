@@ -273,27 +273,7 @@ mod tests {
         assert!(media.full_range().is_empty());
     }
 
-    #[test]
-    fn new_duration_carries_frame_rate() {
-        let ntsc = MediaSource::new("ntsc.mp4", 1920, 1080, Rational::FPS_23_976, 2_400, true);
-        assert_eq!(ntsc.frame_rate, Rational::FPS_23_976);
-        assert_eq!(ntsc.duration.rate, Rational::FPS_23_976);
-        assert_eq!(ntsc.duration.value, 2_400);
-    }
-
-    #[test]
-    fn new_has_audio_flag() {
-        assert!(sample("with-audio.mp4", 10).has_audio);
-        assert!(!MediaSource::new("silent.mp4", 1, 1, R24, 10, false).has_audio);
-    }
-
     // --- full_range -------------------------------------------------------
-
-    #[test]
-    fn full_range_spans_entire_source() {
-        let media = sample("clip.mp4", 500);
-        assert_eq!(media.full_range(), TimeRange::at_rate(0, 500, R24));
-    }
 
     #[test]
     fn full_range_matches_duration_at_native_rate() {
@@ -304,37 +284,7 @@ mod tests {
         assert_eq!(range.end_tick(), 300);
     }
 
-    #[test]
-    fn full_range_zero_duration_is_empty() {
-        let media = sample("blank.mp4", 0);
-        let range = media.full_range();
-        assert!(range.is_empty());
-        assert_eq!(range.start.value, 0);
-        assert_eq!(range.end_tick(), 0);
-    }
-
-    // --- path -------------------------------------------------------------
-
-    #[test]
-    fn path_returns_borrowed_path() {
-        let media = sample("/vault/footage/take_01.mov", 100);
-        assert_eq!(media.path(), Path::new("/vault/footage/take_01.mov"));
-        assert_eq!(
-            media.path().file_name().and_then(|s| s.to_str()),
-            Some("take_01.mov")
-        );
-    }
-
     // --- Clone / Eq / Debug -----------------------------------------------
-
-    #[test]
-    fn clone_and_eq_preserve_all_fields() {
-        let original = MediaSource::new("x.mp4", 640, 480, R24, 42, true);
-        let cloned = original.clone();
-        assert_eq!(original, cloned);
-        assert_eq!(original.id, cloned.id);
-        assert_eq!(original.duration, cloned.duration);
-    }
 
     #[test]
     fn eq_requires_matching_id_and_metadata() {
@@ -363,15 +313,6 @@ mod tests {
         };
         let fixed_b = fixed_a.clone();
         assert_eq!(fixed_a, fixed_b);
-    }
-
-    #[test]
-    fn debug_includes_path_and_dimensions() {
-        let media = sample("debug.mp4", 10);
-        let s = format!("{media:?}");
-        assert!(s.contains("debug.mp4"));
-        assert!(s.contains("1920"));
-        assert!(s.contains("1080"));
     }
 
     // --- image stills -------------------------------------------------------

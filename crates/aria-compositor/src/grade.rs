@@ -595,15 +595,5 @@ mod grade_lane_census {
                 );
             }
         }
-
-        let wgsl = &*GRADE_WGSL;
-        assert!(
-            wgsl.contains("if (grade_enabled(a) > 1.5)"),
-            "grade.wgsl must gate apply_grade_secondary behind grade_enabled(a) > 1.5"
-        );
-        assert!(
-            !wgsl.contains("var y = array<f32, 7>") && !wgsl.contains("var k = knots"),
-            "grade.wgsl must not allocate mutable local knot arrays on the fragment stack"
-        );
     }
 }

@@ -596,9 +596,23 @@ mod tests {
         });
         assert_eq!(encoder_audio_rate_and_channels(&cfg), (44_100, 1));
 
-        assert!(validate_driver_source(" \t\n ").is_err());
-        assert!(validate_driver_source("value + 1").is_ok());
-        assert!(parse_analyzer_result("{bad").is_err());
+        assert_eq!(
+            validate_driver_source(" \t\n "),
+            Err("driver expression is empty".to_owned())
+        );
+        assert_eq!(validate_driver_source("value + 1"), Ok(()));
+        assert!(
+            parse_analyzer_result("{bad")
+                .unwrap_err()
+                .starts_with("invalid analyzer result JSON:")
+        );
+        assert_eq!(
+            parse_analyzer_result(r#"{"beats":[10,20]}"#).unwrap(),
+            AnalyzerResult {
+                beats: vec![10, 20],
+                ..Default::default()
+            }
+        );
         assert!(clip_type_icon(None).is_none());
         assert_eq!(
             clip_type_icon(Some("<svg/>".into()))

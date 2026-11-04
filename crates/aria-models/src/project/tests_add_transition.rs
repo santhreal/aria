@@ -366,12 +366,6 @@ fn new_creates_empty_project_at_frame_rate() {
     assert!(project.id.raw() >= 1);
 }
 
-#[test]
-fn new_accepts_string_name() {
-    let owned = Project::new(String::from("owned"), R24);
-    assert_eq!(owned.name, "owned");
-}
-
 // --- media pool -------------------------------------------------------
 
 #[test]

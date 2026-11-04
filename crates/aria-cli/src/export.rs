@@ -167,9 +167,25 @@ mod tests {
         let rate = aria_core::Rational::FPS_24;
         let duration = aria_core::RationalTime::new(240, rate); // 10s
 
-        // Valid range
-        let res = resolve_export_range(Some(1.0), Some(5.0), duration, rate).unwrap();
-        assert!(res.is_some());
+        assert_eq!(resolve_export_range(None, None, duration, rate), Ok(None));
+        assert_eq!(
+            resolve_export_range(Some(1.0), Some(5.0), duration, rate),
+            Ok(Some((
+                aria_core::RationalTime::new(24, rate),
+                aria_core::RationalTime::new(120, rate),
+            )))
+        );
+        assert_eq!(
+            resolve_export_range(Some(2.0), None, duration, rate),
+            Ok(Some((aria_core::RationalTime::new(48, rate), duration)))
+        );
+        assert_eq!(
+            resolve_export_range(None, Some(5.0), duration, rate),
+            Ok(Some((
+                aria_core::RationalTime::new(0, rate),
+                aria_core::RationalTime::new(120, rate),
+            )))
+        );
 
         // at >= duration
         let err = resolve_export_range(Some(10.0), None, duration, rate).unwrap_err();
@@ -179,9 +195,15 @@ mod tests {
         let err = resolve_export_range(Some(6.0), Some(4.0), duration, rate).unwrap_err();
         assert!(err.contains("must be after --at"), "{err}");
 
-        // negative at
-        let err = resolve_export_range(Some(-1.0), Some(4.0), duration, rate).unwrap_err();
-        assert!(err.contains("cannot be negative"), "{err}");
+        // negative at / to
+        assert_eq!(
+            resolve_export_range(Some(-1.0), Some(4.0), duration, rate),
+            Err("--at cannot be negative".to_owned())
+        );
+        assert_eq!(
+            resolve_export_range(Some(1.0), Some(-4.0), duration, rate),
+            Err("--to cannot be negative".to_owned())
+        );
     }
 
     /// The class closed here is "a codec name nobody writes is silently

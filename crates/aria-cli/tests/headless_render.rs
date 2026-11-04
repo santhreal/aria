@@ -134,11 +134,19 @@ fn a_fit_render_scales_down_and_never_up() {
     let small = renderer
         .render_frame_fit(&project, RationalTime::new(0, rate), 640, 360)
         .expect("fit render");
-    assert!(
-        small.width <= 640 && small.height <= 360,
-        "a fit render exceeded its box: {}x{}",
-        small.width,
-        small.height
+    assert_eq!(
+        (small.width, small.height),
+        (640, 360),
+        "a 16:9 canvas fitted to 640x360 must land at 640x360"
+    );
+
+    let height_constrained = renderer
+        .render_frame_fit(&project, RationalTime::new(0, rate), 640, 180)
+        .expect("height-constrained fit render");
+    assert_eq!(
+        (height_constrained.width, height_constrained.height),
+        (320, 180),
+        "a 16:9 canvas fitted to 640x180 must preserve aspect ratio at 320x180"
     );
 
     // A box larger than the canvas leaves the canvas alone: a preview never

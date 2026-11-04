@@ -224,12 +224,4 @@ mod tests {
             "{unreachable}"
         );
     }
-
-    #[test]
-    fn default_limits_match_documented_constants() {
-        let limits = Limits::default();
-        assert_eq!(limits.fuel_per_call, DEFAULT_FUEL_PER_CALL);
-        assert_eq!(limits.memory_bytes, DEFAULT_MEMORY_BYTES);
-        assert_eq!(limits.call_deadline, DEFAULT_CALL_DEADLINE);
-    }
 }

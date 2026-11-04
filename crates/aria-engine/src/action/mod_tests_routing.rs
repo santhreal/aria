@@ -170,14 +170,17 @@ fn a_refused_gesture_records_no_change() {
     let mut history = History::new(32);
     let mut ctx = test_ctx(&mut project, &mut project_path, &mut history);
 
-    // Out of range, a cycle, and an index that names no send: each refuses, and
-    // none of them leaves the lane touched.
-    assert!(set_track_routing::execute(&mut ctx, lane, RouteEdit::Gain(9.0)).is_err());
-    assert!(
-        set_track_routing::execute(&mut ctx, bus, RouteEdit::Output(TrackOutput::Bus(bus)))
-            .is_err()
-    );
-    assert!(
+    // Out of range, a cycle, and an index that names no send: each refuses with
+    // its specific ModelError variant, and none of them leaves the lane touched.
+    assert!(matches!(
+        set_track_routing::execute(&mut ctx, lane, RouteEdit::Gain(9.0)),
+        Err(EngineError::Model(ModelError::InvalidParam(_)))
+    ));
+    assert!(matches!(
+        set_track_routing::execute(&mut ctx, bus, RouteEdit::Output(TrackOutput::Bus(bus))),
+        Err(EngineError::Model(ModelError::RoutingCycle(id))) if id == bus
+    ));
+    assert!(matches!(
         set_track_routing::execute(
             &mut ctx,
             lane,
@@ -186,13 +189,13 @@ fn a_refused_gesture_records_no_change() {
                 level: Some(0.5),
                 pre_fader: None,
             },
-        )
-        .is_err()
-    );
-    assert!(
-        set_track_routing::execute(&mut ctx, lane, RouteEdit::RemoveSend { index: 0 }).is_err()
-    );
-
+        ),
+        Err(EngineError::Model(ModelError::UnknownSend { track, index: 0 })) if track == lane
+    ));
+    assert!(matches!(
+        set_track_routing::execute(&mut ctx, lane, RouteEdit::RemoveSend { index: 0 }),
+        Err(EngineError::Model(ModelError::UnknownSend { track, index: 0 })) if track == lane
+    ));
     let track = ctx.project.timeline().track(lane).unwrap();
     assert_eq!(track.gain, 1.0);
     assert_eq!(track.output, TrackOutput::Master);
@@ -212,9 +215,12 @@ fn routing_an_unknown_lane_errors() {
     let mut history = History::new(32);
     let mut ctx = test_ctx(&mut project, &mut project_path, &mut history);
 
-    assert!(set_track_routing::execute(&mut ctx, missing, RouteEdit::Gain(0.5)).is_err());
-    assert!(
-        set_track_routing::execute(&mut ctx, lane, RouteEdit::Output(TrackOutput::Bus(missing)))
-            .is_err()
-    );
+    assert!(matches!(
+        set_track_routing::execute(&mut ctx, missing, RouteEdit::Gain(0.5)),
+        Err(EngineError::Model(ModelError::UnknownTrack(id))) if id == missing
+    ));
+    assert!(matches!(
+        set_track_routing::execute(&mut ctx, lane, RouteEdit::Output(TrackOutput::Bus(missing))),
+        Err(EngineError::Model(ModelError::UnknownTrack(id))) if id == missing
+    ));
 }

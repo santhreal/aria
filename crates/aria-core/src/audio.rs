@@ -77,16 +77,22 @@ mod tests {
         let stereo = AudioEncoderConfig::new(48_000, 2);
         assert_eq!(stereo.sample_rate, 48_000);
         assert_eq!(stereo.channels, 2);
-        assert!(stereo.validate().is_ok());
+        assert_eq!(stereo.validate(), Ok(()));
+        assert_eq!(AudioEncoderConfig::new(44_100, 1).validate(), Ok(()));
+        assert_eq!(AudioEncoderConfig::new(48_000, 8).validate(), Ok(()));
 
-        let invalid_rate = AudioEncoderConfig::new(0, 2);
-        assert!(invalid_rate.validate().is_err());
-
-        let invalid_ch = AudioEncoderConfig::new(44_100, 0);
-        assert!(invalid_ch.validate().is_err());
-
-        let excessive_ch = AudioEncoderConfig::new(48_000, 16);
-        assert!(excessive_ch.validate().is_err());
+        assert_eq!(
+            AudioEncoderConfig::new(0, 2).validate(),
+            Err("audio sample_rate must be non-zero")
+        );
+        assert_eq!(
+            AudioEncoderConfig::new(44_100, 0).validate(),
+            Err("audio channels must be non-zero")
+        );
+        assert_eq!(
+            AudioEncoderConfig::new(48_000, 9).validate(),
+            Err("audio channels must not exceed 8")
+        );
     }
 
     #[cfg(feature = "serde")]

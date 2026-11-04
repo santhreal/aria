@@ -389,14 +389,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encoder_config_roundtrips_fields() {
-        let cfg = EncoderConfig::new((1920, 1080), Rational::FPS_30, ColorSpace::BT709);
-        assert_eq!(cfg.size, (1920, 1080));
-        assert_eq!(cfg.frame_rate, Rational::FPS_30);
-        assert_eq!(cfg.color, ColorSpace::BT709);
-    }
-
-    #[test]
     fn encode_error_unsupported_helper() {
         let e = EncodeError::unsupported("prores not wired up");
         assert_eq!(e.to_string(), "unsupported: prores not wired up");
@@ -405,28 +397,49 @@ mod tests {
     #[test]
     fn encoder_config_validate_catches_invalid_configurations() {
         let valid = EncoderConfig::new((1920, 1080), Rational::FPS_30, ColorSpace::BT709);
-        assert!(valid.validate().is_ok());
+        assert_eq!(valid.size, (1920, 1080));
+        assert_eq!(valid.frame_rate, Rational::FPS_30);
+        assert_eq!(valid.color, ColorSpace::BT709);
+        valid.validate().expect("1920x1080@30 is valid");
+        EncoderConfig::new((2, 2), Rational::FPS_24, ColorSpace::BT709)
+            .validate()
+            .expect("2x2@24 is valid");
 
-        // Odd dimensions
         let odd_w = EncoderConfig::new((1921, 1080), Rational::FPS_30, ColorSpace::BT709);
-        assert!(odd_w.validate().is_err());
+        assert_eq!(
+            odd_w.validate().unwrap_err().to_string(),
+            "unsupported: invalid dimensions 1921x1080: dimensions must be even and >= 2"
+        );
         let odd_h = EncoderConfig::new((1920, 1081), Rational::FPS_30, ColorSpace::BT709);
-        assert!(odd_h.validate().is_err());
-
-        // Less than 2
+        assert_eq!(
+            odd_h.validate().unwrap_err().to_string(),
+            "unsupported: invalid dimensions 1920x1081: dimensions must be even and >= 2"
+        );
         let zero_dim = EncoderConfig::new((0, 1080), Rational::FPS_30, ColorSpace::BT709);
-        assert!(zero_dim.validate().is_err());
-
-        // Zero bitrate
+        assert_eq!(
+            zero_dim.validate().unwrap_err().to_string(),
+            "unsupported: invalid dimensions 0x1080: dimensions must be even and >= 2"
+        );
         let zero_bitrate = valid.clone().with_bitrate_kbps(0);
-        assert!(zero_bitrate.validate().is_err());
-
-        // Invalid frame rate
+        assert_eq!(
+            zero_bitrate.validate().unwrap_err().to_string(),
+            "unsupported: bitrate_kbps must be greater than zero"
+        );
         let invalid_rate = EncoderConfig::new((1920, 1080), Rational::new(0, 1), ColorSpace::BT709);
-        assert!(invalid_rate.validate().is_err());
-
-        // Zero keyframe interval
-        let zero_gop = valid.with_keyframe_interval(0);
-        assert!(zero_gop.validate().is_err());
+        assert_eq!(
+            invalid_rate.validate().unwrap_err().to_string(),
+            "unsupported: invalid frame rate Rational { num: 0, den: 1 }: frame rate must be positive and valid"
+        );
+        let zero_gop = valid.clone().with_keyframe_interval(0);
+        assert_eq!(
+            zero_gop.validate().unwrap_err().to_string(),
+            "unsupported: keyframe_interval must be greater than zero"
+        );
+        let mut invalid_audio = valid;
+        invalid_audio.audio = Some(crate::AudioEncoderConfig::new(0, 2));
+        assert_eq!(
+            invalid_audio.validate().unwrap_err().to_string(),
+            "unsupported: audio sample_rate must be non-zero"
+        );
     }
 }

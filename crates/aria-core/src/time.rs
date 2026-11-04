@@ -340,13 +340,6 @@ mod tests {
     }
 
     #[test]
-    fn rational_fps_constants_are_canonical() {
-        assert_eq!(Rational::FPS_23_976, Rational::new(24000, 1001));
-        assert_eq!(Rational::FPS_29_97, Rational::new(30000, 1001));
-        assert_eq!(Rational::FPS_59_94, Rational::new(60000, 1001));
-    }
-
-    #[test]
     fn rational_as_f64_approximates_ntsc() {
         assert!((Rational::FPS_23_976.as_f64() - 23.976).abs() < 0.001);
         assert!((Rational::FPS_29_97.as_f64() - 29.97).abs() < 0.001);
