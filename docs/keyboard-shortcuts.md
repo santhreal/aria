@@ -177,7 +177,7 @@ clock stops the other, and focusing another tab stops the source.
 | Shift+I / Shift+O | Playhead to In / Out point |
 | Ctrl+Shift+I / Ctrl+Shift+O | Clear In / Out point, or the source's when one is loaded |
 | Ctrl+Shift+X | Clear In and Out |
-| M | Add marker at playhead, named and colored automatically. On an existing marker, rename it. |
+| M | Add marker at playhead, named and colored automatically. On a marker already at the playhead's frame, open its Edit Marker dialog. |
 | Shift+M / Ctrl+Shift+M | Playhead to next / previous marker |
 | Ctrl+Alt+M | Delete the marker at the playhead |
 | Ctrl+Shift+Alt+M | Delete every marker, as one undo step |

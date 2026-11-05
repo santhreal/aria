@@ -126,14 +126,12 @@ static EDIT_TAIL: &[MenuItem] = &[
 
 /// The Label row for `color`, or for no color.
 fn label_row(color: Option<LabelColor>) -> MenuItem {
-    let (id, name) = match color {
-        Some(color) => (
-            crate::interned::intern(&format!("{LABEL_PREFIX}{}", color.id())),
-            color.name(),
-        ),
-        None => ("edit-label-none", "None"),
+    let name = LabelColor::name_of(color);
+    let item = match color {
+        Some(color) => crate::interned::intern(&format!("{LABEL_PREFIX}{}", color.id())),
+        None => "edit-label-none",
     };
-    MenuItem::new(id, name, |id, s, _| {
+    MenuItem::new(item, name, |id, s, _| {
         let color = label_of(id);
         let labelled = s.set_selection_label(color);
         report(s, labelled)
@@ -146,13 +144,13 @@ fn label_row(color: Option<LabelColor>) -> MenuItem {
     .under("Label")
 }
 
-/// The colour an Edit > Label row sets, by its id.
+/// The color an Edit > Label row sets, by its id.
 fn label_of(id: &str) -> Option<LabelColor> {
     let name = id.strip_prefix(LABEL_PREFIX)?;
     LabelColor::ALL.into_iter().find(|color| color.id() == name)
 }
 
-/// The Edit menu, built once: its Label rows come from the model's colours,
+/// The Edit menu, built once: its Label rows come from the model's colors,
 /// which are fixed for the process.
 static EDIT_MENU: std::sync::LazyLock<Vec<MenuItem>> = std::sync::LazyLock::new(|| {
     let mut items =

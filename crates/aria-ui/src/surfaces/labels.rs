@@ -1,7 +1,7 @@
 //! The label palette: what a swatch is, and what pressing one writes.
 //!
 //! A swatch is not a text row, so the panel owns the drawing. What it must not
-//! own is the action: a colour click and a clear click are the only way an
+//! own is the action: a color click and a clear click are the only way an
 //! operator sets a label, and while both lived inside a gpui closure nothing
 //! could check that either still wrote anything.
 
@@ -50,9 +50,9 @@ impl LabelTarget {
     }
 }
 
-/// Every swatch the palette draws, in order: one per colour, then the clear.
+/// Every swatch the palette draws, in order: one per color, then the clear.
 ///
-/// The clear is `None` rather than a seventeenth colour: clearing returns the
+/// The clear is `None` rather than a seventeenth color: clearing returns the
 /// clip to the label its kind is drawn in.
 pub fn swatches() -> impl Iterator<Item = Option<LabelColor>> {
     LabelColor::ALL
@@ -62,7 +62,30 @@ pub fn swatches() -> impl Iterator<Item = Option<LabelColor>> {
         .chain(std::iter::once(None))
 }
 
+/// The tip a group chip shows: the selection its click makes.
+pub fn group_tip(color: LabelColor, count: usize) -> String {
+    match count {
+        1 => format!("Select the {} clip", color.name()),
+        n => format!("Select the {n} {} clips", color.name()),
+    }
+}
+
 /// Select every clip drawn in `color`, which is what a group chip asks for.
 pub fn select_group(state: &mut AppState, color: LabelColor) {
     state.select_by_label(color);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WHY: a group chip is a bare count, so its tip is the only place it
+    /// reads as words. Closes "a chip that counts one clip in the plural" and
+    /// "a chip tip naming another color". Does not check the hover delay or
+    /// that the panel attaches the tip.
+    #[test]
+    fn a_chip_tip_states_the_selection_its_click_makes() {
+        assert_eq!(group_tip(LabelColor::Teal, 1), "Select the Teal clip");
+        assert_eq!(group_tip(LabelColor::Tan, 11), "Select the 11 Tan clips");
+    }
 }

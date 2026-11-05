@@ -1,19 +1,19 @@
-//! Clip and media label colours.
+//! Clip and media label colors.
 //!
-//! Sixteen named colours, the set Premiere Pro labels clips with, so a label
+//! Sixteen named colors, the set Premiere Pro labels clips with, so a label
 //! survives a round trip through an editor that uses the same names. A label is
 //! visual only: the timeline, the Project panel and the inspector draw it, and
 //! nothing composites it.
 //!
 //! Saved by snake-case name. Files saved when labels shared the eight marker
-//! colours load through aliases: `pink` reads as Magenta, `red` as Rose, and
+//! colors load through aliases: `pink` reads as Magenta, `red` as Rose, and
 //! `orange` as Mango; the other five names exist in both sets.
 
 use serde::{Deserialize, Serialize};
 
 use crate::MarkerColor;
 
-/// A clip or pool entry label colour.
+/// A clip or pool entry label color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LabelColor {
@@ -114,6 +114,12 @@ impl LabelColor {
         }
     }
 
+    /// The name menus show for `label`: the color's name, or `None` for no
+    /// label.
+    pub fn name_of(label: Option<Self>) -> &'static str {
+        label.map_or("None", Self::name)
+    }
+
     /// The label whose saved name or menu name is `name`, ignoring case. The
     /// three marker names the label set lacks resolve as their aliases do.
     pub fn from_name(name: &str) -> Option<Self> {
@@ -161,7 +167,7 @@ impl LabelColor {
     }
 }
 
-/// The label a marker colour reads as: the same name where both sets have it.
+/// The label a marker color reads as: the same name where both sets have it.
 impl From<MarkerColor> for LabelColor {
     fn from(color: MarkerColor) -> Self {
         match color {

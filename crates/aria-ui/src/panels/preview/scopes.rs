@@ -30,6 +30,10 @@ use gpui::prelude::FluentBuilder;
 #[path = "scopes_scroll_tests.rs"]
 mod scroll_tests;
 
+#[cfg(test)]
+#[path = "scopes_frame_tests.rs"]
+mod frame_tests;
+
 /// Strip width. Holds a 192px scope plus the panel's own padding.
 const STRIP_W: f32 = 216.0;
 
@@ -349,27 +353,16 @@ fn plugin_scope(reading: &PluginScopeTexture, theme: &Theme) -> gpui::AnyElement
 
 /// One scope texture, drawn at the strip's width and a fixed height so the
 /// graticule keeps its position between frames.
+///
+/// The height is the frame's, border included. The picture fills the frame's
+/// inside, so the bottom border clips none of the rows for code 0.
 fn scope_image(
     id: impl Into<crate::motion::ControlId>,
     image: std::sync::Arc<gpui::RenderImage>,
     height: f32,
     theme: &Theme,
 ) -> impl IntoElement {
-    let id = id.into();
-    div()
-        .w_full()
-        .h(px(height))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .overflow_hidden()
-        .border_1()
-        .border_color(theme.border)
-        .child(crate::components::picture(
-            img(image)
-                .id(id.element("scope-image"))
-                .object_fit(ObjectFit::Fill)
-                .w_full()
-                .h(px(height)),
-        ))
+    framed(id.into(), image, theme).h(px(height))
 }
 
 /// The vectorscope in the panel: square at the card's width, `PANEL_SCOPE_H`
@@ -380,20 +373,37 @@ fn square_scope_image(
     image: std::sync::Arc<gpui::RenderImage>,
     theme: &Theme,
 ) -> impl IntoElement {
-    let id = id.into();
+    framed(id.into(), image, theme).aspect_ratio(1.0)
+}
+
+/// A scope texture in a rounded, bordered frame the full width of its column,
+/// filling the frame's inside. The caller sets the frame's height.
+///
+/// A scope with a fixed name is found in a test by that name, and its picture
+/// by the name and `-image`.
+fn framed(
+    id: crate::motion::ControlId,
+    image: std::sync::Arc<gpui::RenderImage>,
+    theme: &Theme,
+) -> gpui::Div {
+    let name = id.fixed_name();
+    let picture = img(image)
+        .id(id.element("scope-image"))
+        .object_fit(ObjectFit::Fill)
+        .size_full()
+        .when_some(name, |el, name| {
+            el.debug_selector(move || format!("{name}-image"))
+        });
     div()
+        .flex()
         .w_full()
-        .aspect_ratio(1.0)
+        .flex_none()
         .rounded(px(Theme::CONTROL_RADIUS))
         .overflow_hidden()
         .border_1()
         .border_color(theme.border)
-        .child(crate::components::picture(
-            img(image)
-                .id(id.element("scope-image"))
-                .object_fit(ObjectFit::Fill)
-                .size_full(),
-        ))
+        .when_some(name, |el, name| el.debug_selector(move || name.into()))
+        .child(crate::components::picture(picture))
 }
 
 /// The Viewer row's Scopes toggle, lit while the scope strip is open, because a

@@ -70,6 +70,20 @@ impl MarkerColor {
             MarkerColor::Green => "green",
         }
     }
+
+    /// The name the editor shows: `"Teal"`, `"Blue"`, ...
+    pub fn label(self) -> &'static str {
+        match self {
+            MarkerColor::Teal => "Teal",
+            MarkerColor::Blue => "Blue",
+            MarkerColor::Purple => "Purple",
+            MarkerColor::Pink => "Pink",
+            MarkerColor::Red => "Red",
+            MarkerColor::Orange => "Orange",
+            MarkerColor::Yellow => "Yellow",
+            MarkerColor::Green => "Green",
+        }
+    }
 }
 
 /// Canvas aspect-ratio presets (M1 canvas settings, the CapCut ratio list).

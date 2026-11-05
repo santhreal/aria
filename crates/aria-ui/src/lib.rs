@@ -49,6 +49,7 @@ pub mod settings;
 pub mod shell;
 pub mod snap;
 pub mod surfaces;
+pub(crate) mod swatch;
 pub mod theme;
 pub mod timecode;
 pub mod timeline_display;

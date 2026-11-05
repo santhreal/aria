@@ -1,8 +1,8 @@
-//! Label colours: the saved names, the names files from the eight-colour set
+//! Label colors: the saved names, the names files from the eight-color set
 //! load as, and the two fills.
 //!
 //! Closes the class "a label that does not survive a save": every label is
-//! round-tripped through JSON by its own name, every marker colour a file may
+//! round-tripped through JSON by its own name, every marker color a file may
 //! hold as a label loads as the label the alias names, and an unknown name is
 //! rejected rather than read as a default. Not caught: whether two hues read as
 //! distinct on screen, which no arithmetic settles.
@@ -31,12 +31,13 @@ fn the_sixteen_labels_are_distinct() {
 }
 
 #[test]
-fn a_label_saved_as_a_marker_colour_loads_as_the_label_of_that_name() {
+fn a_label_saved_as_a_marker_color_loads_as_the_label_of_that_name() {
     for marker in MarkerColor::ALL {
         let saved = serde_json::to_string(&marker).expect("save");
         let loaded: LabelColor = serde_json::from_str(&saved).expect("an old label loads");
         assert_eq!(loaded, LabelColor::from(marker), "{marker:?}");
         assert_eq!(LabelColor::from_name(marker.name()), Some(loaded));
+        assert_eq!(marker.label().to_ascii_lowercase(), marker.name());
     }
     assert_eq!(LabelColor::from(MarkerColor::Pink), LabelColor::Magenta);
     assert_eq!(LabelColor::from(MarkerColor::Red), LabelColor::Rose);
@@ -48,6 +49,18 @@ fn an_unknown_name_is_rejected() {
     assert!(serde_json::from_str::<LabelColor>("\"chartreuse\"").is_err());
     assert_eq!(LabelColor::from_name("chartreuse"), None);
     assert_eq!(LabelColor::from_name(""), None);
+}
+
+/// WHY: Edit > Label's clear row and the palette's clear swatch print the same
+/// name, and a clear named after a color would read as one more label to pick.
+/// Closes "no label named as a color" and "a color named as another".
+#[test]
+fn no_label_is_named_none_and_names_no_color() {
+    assert_eq!(LabelColor::name_of(None), "None");
+    assert_eq!(LabelColor::from_name(LabelColor::name_of(None)), None);
+    for label in LabelColor::ALL {
+        assert_eq!(LabelColor::name_of(Some(label)), label.name(), "{label:?}");
+    }
 }
 
 #[test]

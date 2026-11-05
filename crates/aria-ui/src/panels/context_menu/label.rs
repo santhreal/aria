@@ -1,16 +1,18 @@
 //! Label: the swatch palette and the group chips.
 //!
-//! Two blocks the panel draws itself, because a colour is recognized by sight
-//! and a row of colour *names* is what a label is meant to replace. What each
+//! Two blocks the panel draws itself, because a color is recognized by sight
+//! and a row of color *names* is what a label is meant to replace. What each
 //! press asks for is declared in [`crate::surfaces::labels`], so the palette can
 //! be driven by `app::drawn_census` even though its controls are not text rows.
 
 use super::*;
 use crate::components::Wraps as _;
 use crate::surfaces::labels::{self, LabelTarget};
+use crate::swatch;
+use crate::tooltip::WithTip as _;
 use gpui::StatefulInteractiveElement;
 
-/// The sixteen label colours plus a clear, as rows of swatches.
+/// The sixteen label colors plus a clear, as rows of swatches.
 ///
 /// The current label is ringed, so the palette says what is set as well as what
 /// can be set.
@@ -23,36 +25,18 @@ pub(super) fn label_row(
     let prefix = target.id_prefix();
     let mut swatches: Vec<gpui::AnyElement> = Vec::new();
     for (index, label) in labels::swatches().enumerate() {
-        let chosen = current == label && label.is_some();
-        let swatch = div()
-            .id((prefix, index as u64))
-            .w(px(16.))
-            .h(px(16.))
-            .rounded(px(Theme::CONTROL_RADIUS))
-            .cursor(CursorStyle::PointingHand)
-            .active(|style| style.opacity(0.92))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = target.write(state, label) {
-                            state.report_error(&err);
-                        }
-                        state.close_context();
-                    });
-                    cx.notify();
-                }),
-            );
+        let name = aria_models::LabelColor::name_of(label);
+        let id = (prefix, index);
         // The clear reads as an absence: an outline with a cross centered in
         // it, rather than a tenth color that would look like one more label to
         // pick. The cross is the muted tone of a live control, not the faint
         // one that marks a disabled control.
-        swatches.push(match label {
-            Some(color) => swatch
-                .bg(theme.label(color, false))
-                .when(chosen, |el| el.border_2().border_color(theme.text))
-                .into_any_element(),
-            None => swatch
+        let drawn = match label {
+            Some(color) => {
+                let fill = theme.label(color, false);
+                swatch::swatch(id, fill, current == label, theme)
+            }
+            None => swatch::frame(id)
                 .debug_selector(move || format!("{prefix}-clear"))
                 .flex()
                 .items_center()
@@ -60,9 +44,25 @@ pub(super) fn label_row(
                 .border_1()
                 .border_color(theme.border)
                 .text_color(theme.text_muted)
-                .child(crate::icons::icon(crate::icons::CLOSE).size(Theme::TEXT_SMALL))
+                .child(crate::icons::icon(crate::icons::CLOSE).size(Theme::TEXT_SMALL)),
+        };
+        swatches.push(
+            drawn
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state.update(cx, |state, _| {
+                            if let Err(err) = target.write(state, label) {
+                                state.report_error(&err);
+                            }
+                            state.close_context();
+                        });
+                        cx.notify();
+                    }),
+                )
+                .with_tip(crate::tooltip::text_builder(name))
                 .into_any_element(),
-        });
+        );
     }
     div()
         .debug_selector(|| "ctx-labels".into())
@@ -96,6 +96,7 @@ pub(super) fn label_groups(
     let mut chips: Vec<gpui::AnyElement> = Vec::with_capacity(groups.len());
     for (index, (color, count)) in groups.iter().enumerate() {
         let color = *color;
+        let tip = labels::group_tip(color, *count);
         chips.push(
             div()
                 .id(("ctx-label-group", index as u64))
@@ -120,6 +121,7 @@ pub(super) fn label_groups(
                         cx.notify();
                     }),
                 )
+                .with_tip(crate::tooltip::text_builder(tip))
                 .child(count.to_string())
                 .into_any_element(),
         );

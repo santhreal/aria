@@ -5,7 +5,7 @@ use aria_models::{SourceChannel, TrackId};
 
 use super::Glyph;
 use crate::app::AppState;
-use crate::types::UiTrack;
+use crate::types::{UiTrack, UiTrackKind};
 
 /// One toggle in a lane header.
 ///
@@ -86,6 +86,8 @@ pub struct LaneFlags {
     pub channel: Option<SourceChannel>,
     /// A Source tab's edit lands the lane's channel here.
     pub patched: bool,
+    /// The lane holds sound or sums it, so a mute has something to silence.
+    pub sound: bool,
 }
 
 impl LaneFlags {
@@ -102,8 +104,19 @@ impl LaneFlags {
             sync_lock: lane.sync_lock,
             channel: lane.channel,
             patched: lane.patched,
+            sound: carries_sound(lane.kind),
         }
     }
+}
+
+/// Whether a lane of `kind` holds sound or sums it: the lanes the mixer draws,
+/// read from the model's lane catalog. The header's mute and the track menu's
+/// Mute row are drawn only where this holds.
+pub fn carries_sound(kind: UiTrackKind) -> bool {
+    aria_models::track_kind_specs()
+        .iter()
+        .filter(|spec| spec.in_mixer())
+        .any(|spec| UiTrackKind::from_model(spec.kind) == kind)
 }
 
 /// A button every lane draws.
@@ -124,9 +137,12 @@ pub const LANE_TOGGLES: &[LaneToggle] = &[
         flagged: |lane| lane.patched,
         run: |state, lane| state.toggle_source_patch(lane),
     },
+    // A title, graphics or adjustment lane has no sound, so it draws no mute.
+    // Solo stays on every lane: a soloed picture lane hides the others of its
+    // kind.
     LaneToggle {
         id: "mute",
-        shown: every_lane,
+        shown: |lane| lane.sound,
         lit: |lane| lane.muted,
         glyph: Glyph::Icons {
             on: crate::icons::VOLUME_X,

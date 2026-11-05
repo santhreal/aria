@@ -419,6 +419,7 @@ fn each_toggle_lights_on_one_lane_flag() {
         sync_lock: false,
         channel: Some(aria_models::SourceChannel::Video),
         patched: false,
+        sound: true,
     };
     let flags: [(&str, fn(&mut LaneFlags)); 8] = [
         ("muted", |lane| lane.muted = true),
@@ -463,6 +464,7 @@ fn a_hidden_lane_lights_the_visibility_toggle() {
         sync_lock: false,
         channel: None,
         patched: false,
+        sound: false,
     };
     let vis = LANE_TOGGLES
         .iter()
@@ -474,6 +476,46 @@ fn a_hidden_lane_lights_the_visibility_toggle() {
     );
     lane.enabled = false;
     assert!((vis.lit)(lane), "a hidden lane draws no mark on its header");
+}
+
+#[test]
+fn a_lane_draws_a_mute_only_when_it_has_sound() {
+    // A mute on a title or adjustment lane silences nothing: it draws, it
+    // lights, it shows at rest from then on, and the lane is unchanged. One
+    // lane of every kind in the model's catalog is added and projected. The
+    // match names every kind with no wildcard, so a new kind fails to build
+    // here until its row is written.
+    use aria_models::TrackKind as K;
+
+    let (mut state, _) = with_clip();
+    let mute = LANE_TOGGLES
+        .iter()
+        .find(|row| row.id == "mute")
+        .expect("the header has a mute toggle");
+    for spec in aria_models::track_kind_specs() {
+        let name = format!("census-{}", spec.id);
+        if let Err(err) = state.add_track(spec.kind, name.clone()) {
+            panic!("a {} lane was refused: {err}", spec.label);
+        }
+        state.sync_from_engine();
+        let lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|lane| *lane.name == *name)
+            .unwrap_or_else(|| panic!("the {} lane is not projected", spec.label));
+        let sound = match spec.kind {
+            K::Video | K::Audio | K::Submix => true,
+            K::Text | K::Sticker | K::Effect | K::Filter | K::Adjustment => false,
+        };
+        assert_eq!(
+            (mute.shown)(LaneFlags::of(lane)),
+            sound,
+            "a {} lane draws the wrong mute",
+            spec.label
+        );
+    }
 }
 
 #[test]

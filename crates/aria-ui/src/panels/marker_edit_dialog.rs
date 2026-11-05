@@ -10,7 +10,9 @@ use gpui::{
 use crate::app::{AppState, DialogKind, MarkerEditField};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components::{self, ChipSize};
+use crate::swatch;
 use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 
 pub fn render(
     state: &Entity<AppState>,
@@ -46,6 +48,25 @@ pub fn render(
         )
     });
 
+    // The colors are swatches, as the label palette's are: the chosen one is
+    // ringed, and its name follows the row so the choice reads as words too.
+    let swatches = MarkerColor::ALL
+        .into_iter()
+        .enumerate()
+        .map(|(index, color)| {
+            let id = ("marker-edit-color", index);
+            let chosen = form.color == color;
+            swatch::swatch(id, theme.marker(color), chosen, &theme)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state
+                            .update(cx, |state, _| state.set_marker_edit_color(color));
+                        cx.notify();
+                    }),
+                )
+                .with_tip(crate::tooltip::text_builder(color.label()))
+        });
     let color_row = div()
         .flex()
         .flex_col()
@@ -56,50 +77,21 @@ pub fn render(
                 .text_color(theme.text_muted)
                 .child("Color"),
         )
-        .child(div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
-            MarkerColor::ALL.into_iter().map(|color| {
-                let active = form.color == color;
-                let (id, label) = color_meta(color);
-                let border = if active { theme.accent } else { theme.border };
-                div()
-                    .id(id)
-                    .px(px(Theme::SPACE_SM))
-                    .py(px(Theme::SPACE_XXS))
-                    .rounded(px(Theme::CONTROL_RADIUS))
-                    .border_1()
-                    .border_color(border)
-                    .bg(if active {
-                        theme.selection
-                    } else {
-                        theme.input_bg
-                    })
-                    .cursor_pointer()
-                    .flex()
-                    .items_center()
-                    .gap(px(Theme::SPACE_XS))
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                            this.state
-                                .update(cx, |state, _| state.set_marker_edit_color(color));
-                            cx.notify();
-                        }),
-                    )
-                    .child(
-                        div()
-                            .w(px(10.))
-                            .h(px(10.))
-                            .rounded(px(Theme::CONTROL_RADIUS))
-                            .bg(theme.marker(color)),
-                    )
-                    .child(
-                        div()
-                            .text_size(Theme::TEXT_UI)
-                            .text_color(if active { theme.text } else { theme.text_muted })
-                            .child(label),
-                    )
-            }),
-        ));
+        .child(
+            div()
+                .debug_selector(|| "marker-edit-colors".into())
+                .flex()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .children(swatches)
+                .child(
+                    div()
+                        .pl(px(Theme::SPACE_XS))
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text)
+                        .child(form.color.label()),
+                ),
+        );
 
     let kind_row = div()
         .flex()
@@ -203,15 +195,6 @@ fn field_row(
         .into_any_element()
 }
 
-fn color_meta(color: MarkerColor) -> (&'static str, &'static str) {
-    match color {
-        MarkerColor::Teal => ("marker-edit-color-teal", "Teal"),
-        MarkerColor::Blue => ("marker-edit-color-blue", "Blue"),
-        MarkerColor::Green => ("marker-edit-color-green", "Green"),
-        MarkerColor::Yellow => ("marker-edit-color-yellow", "Yellow"),
-        MarkerColor::Orange => ("marker-edit-color-orange", "Orange"),
-        MarkerColor::Red => ("marker-edit-color-red", "Red"),
-        MarkerColor::Pink => ("marker-edit-color-pink", "Pink"),
-        MarkerColor::Purple => ("marker-edit-color-purple", "Purple"),
-    }
-}
+#[cfg(test)]
+#[path = "marker_edit_dialog_tests.rs"]
+mod tests;
