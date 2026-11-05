@@ -339,21 +339,24 @@ impl AppState {
             .unwrap_or_else(|| Rect::new(0.0, 0.0, cw.max(1) as f32, ch.max(1) as f32));
         let [fx, fy] = canvas.fraction_of(point);
         let position = [fx - 0.5, fy - 0.5];
-        let clip = self.one_step(|state| {
-            let clip = state.place_generated(
-                Generator::text(PLACEHOLDER),
-                None,
-                state.playhead.value.max(0),
-            )?;
-            if position != [0.0, 0.0] {
-                state.apply_command(Command::Edit(EditCommand::SetParamConstant {
-                    clip,
-                    param: ClipParam::Position,
-                    value: ParamValue::Vec2(position),
-                }))?;
-            }
-            Ok(clip)
-        })?;
+        let (clip, _) = self.one_step_named(
+            |placed: &(ClipId, &'static str)| Some(placed.1),
+            |state| {
+                let placed = state.place_generated(
+                    Generator::text(PLACEHOLDER),
+                    None,
+                    state.playhead.value.max(0),
+                )?;
+                if position != [0.0, 0.0] {
+                    state.apply_command(Command::Edit(EditCommand::SetParamConstant {
+                        clip: placed.0,
+                        param: ClipParam::Position,
+                        value: ParamValue::Vec2(position),
+                    }))?;
+                }
+                Ok(placed)
+            },
+        )?;
         self.select_clip(clip);
         self.tool_session.text_edit = Some(super::text_caret::TextEdit {
             anchor: 0,

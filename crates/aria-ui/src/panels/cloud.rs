@@ -197,7 +197,11 @@ pub(crate) fn cloud_card_row(
         )
         .on_mouse_down(
             MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                // The second press of a double-click is the same click.
+                if event.click_count > 1 {
+                    return;
+                }
                 let card = card.clone();
                 this.state.update(cx, |state, cx| {
                     if let Err(err) = state.import_cloud_card(feed, card, cx) {

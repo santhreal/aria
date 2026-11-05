@@ -138,7 +138,7 @@ fn every_fixture_clip_graphs_its_curve_and_stale_targets_fall_back_to_selection(
     let mut state = linked_pair();
     let kept = ClipId::from_raw(state.store.sequence.tracks[0].clips[0].id);
     let first_end = state.store.sequence.tracks[0].clips[0].timeline_end_ticks;
-    let lone = state
+    let (lone, _) = state
         .place_generated(aria_models::Generator::text("Title"), None, first_end)
         .expect("place the lone clip");
     let clips: Vec<ClipId> = state

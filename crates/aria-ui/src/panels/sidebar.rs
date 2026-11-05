@@ -315,3 +315,7 @@ mod body_tests;
 #[cfg(test)]
 #[path = "sidebar_tiles_tests.rs"]
 mod tiles_tests;
+
+#[cfg(test)]
+#[path = "sidebar_press_tests.rs"]
+mod press_tests;

@@ -51,7 +51,7 @@ const EPS: f32 = 0.51;
 
 /// The tabs that list entries to place or apply, with the selector of each
 /// list.
-const LISTS: [(SidebarTab, &str); 7] = [
+pub(super) const LISTS: [(SidebarTab, &str); 7] = [
     (SidebarTab::Titles, "sidebar-titles"),
     (SidebarTab::Shapes, "sidebar-shapes"),
     (SidebarTab::Stickers, "sidebar-stickers"),
@@ -87,7 +87,11 @@ const FORMS: [(SidebarTab, &[&str]); 2] = [
 
 /// Opens `tab` and moves the clock past the rows' arrival, so every row is
 /// read where it rests.
-fn open(state: &gpui::Entity<AppState>, visual: &mut VisualTestContext, tab: SidebarTab) {
+pub(super) fn open(
+    state: &gpui::Entity<AppState>,
+    visual: &mut VisualTestContext,
+    tab: SidebarTab,
+) {
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             state.sidebar_tab = tab;

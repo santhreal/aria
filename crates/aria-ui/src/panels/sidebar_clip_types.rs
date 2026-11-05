@@ -78,7 +78,11 @@ fn clip_type_row(
         )
         .on_mouse_down(
             MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                // The second press of a double-click is the same click.
+                if event.click_count > 1 {
+                    return;
+                }
                 this.state.update(cx, |state, _| {
                     if let Err(err) = state.add_clip_type(&click_id) {
                         state.report_error(&err);

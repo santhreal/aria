@@ -168,24 +168,29 @@ impl AppState {
         track: Option<TrackId>,
         at: i64,
     ) -> Result<(), EngineError> {
-        self.one_step(|state| {
-            let clip = state.place_generated(Generator::SolidColor { rgba: [0; 4] }, track, at)?;
-            state.apply_command(Command::Edit(EditCommand::AddEffect {
-                clip,
-                effect_id: effect_id.to_owned(),
-            }))?;
-            state.apply_command(Command::Edit(EditCommand::SetClipName {
-                clip,
-                name: Some(name.to_owned()),
-            }))?;
-            if let Some(clip_type) = clip_type {
-                state.apply_command(Command::Edit(EditCommand::SetClipType {
+        self.one_step_named(
+            |label: &&'static str| Some(*label),
+            |state| {
+                let (clip, label) =
+                    state.place_generated(Generator::SolidColor { rgba: [0; 4] }, track, at)?;
+                state.apply_command(Command::Edit(EditCommand::AddEffect {
                     clip,
-                    clip_type: Some(clip_type.to_owned()),
+                    effect_id: effect_id.to_owned(),
                 }))?;
-            }
-            Ok(())
-        })
+                state.apply_command(Command::Edit(EditCommand::SetClipName {
+                    clip,
+                    name: Some(name.to_owned()),
+                }))?;
+                if let Some(clip_type) = clip_type {
+                    state.apply_command(Command::Edit(EditCommand::SetClipType {
+                        clip,
+                        clip_type: Some(clip_type.to_owned()),
+                    }))?;
+                }
+                Ok(label)
+            },
+        )
+        .map(|_| ())
     }
 
     /// Detach the selected clip from its clip type: the clip keeps its chain
@@ -212,13 +217,16 @@ impl AppState {
     }
 
     /// Place `generator` on `track`, or on the first lane of its kind free at
-    /// `at` (a new lane when none is), and return the new clip.
+    /// `at` (a new lane when none is), as one undo step named after the
+    /// placement. Returns the new clip and that name: a caller that adds to the
+    /// placement in a step of its own names the step with it, so a lane the
+    /// placement needed never names the step `Add track`.
     pub(crate) fn place_generated(
         &mut self,
         generator: Generator,
         track: Option<TrackId>,
         at: i64,
-    ) -> Result<aria_models::ClipId, EngineError> {
+    ) -> Result<(aria_models::ClipId, &'static str), EngineError> {
         // The generator's own row names the one lane that accepts it. A match
         // here defaulted every non-title generator to the sticker lane, so a new
         // generator landed there whatever its row said.
@@ -227,26 +235,36 @@ impl AppState {
         let rate = self.playhead.rate;
         let duration = ((5 * i64::from(rate.num.max(1))) / i64::from(rate.den.max(1))).max(1);
         let at = at.max(0);
-        let track = match track.filter(|id| {
-            self.store
-                .sequence
-                .tracks
-                .iter()
-                .any(|lane| lane.id == id.raw() && lane.kind == ui_kind)
-        }) {
-            Some(id) => id,
-            None => self.free_kind_track(kind, at, at + duration)?,
-        };
-        match self.apply_command(Command::Edit(EditCommand::AddGenerated {
-            track,
-            generator,
-            timeline: TimeRange::at_rate(at, duration, rate),
-        }))? {
-            ApplyOutcome::Edited(aria_commands::EditOutcome::Created(clip)) => Ok(clip),
-            other => Err(EngineError::Refused(format!(
-                "placing a generated clip produced {other:?}, not a clip"
-            ))),
-        }
+        self.one_step_named(
+            |placed: &(aria_models::ClipId, &'static str)| Some(placed.1),
+            |state| {
+                let track = match track.filter(|id| {
+                    state
+                        .store
+                        .sequence
+                        .tracks
+                        .iter()
+                        .any(|lane| lane.id == id.raw() && lane.kind == ui_kind)
+                }) {
+                    Some(id) => id,
+                    None => state.free_kind_track(kind, at, at + duration)?,
+                };
+                let edit = EditCommand::AddGenerated {
+                    track,
+                    generator,
+                    timeline: TimeRange::at_rate(at, duration, rate),
+                };
+                let label = edit.label();
+                match state.apply_command(Command::Edit(edit))? {
+                    ApplyOutcome::Edited(aria_commands::EditOutcome::Created(clip)) => {
+                        Ok((clip, label))
+                    }
+                    other => Err(EngineError::Refused(format!(
+                        "placing a generated clip produced {other:?}, not a clip"
+                    ))),
+                }
+            },
+        )
     }
 
     /// Place `items` end to end from the playhead on the first lane of
