@@ -155,8 +155,8 @@ pub(super) fn hero_tile(
         .rounded(px(Theme::PANEL_RADIUS))
         .bg(motion::hover_blend(
             fade,
-            theme.surface,
-            theme.glass_hover(),
+            theme.surface_raised,
+            theme.surface_raised_hover,
         ))
         .border_1()
         .border_color(theme.border)
@@ -257,9 +257,9 @@ fn recent_card(
             if missing {
                 theme.warning_muted
             } else {
-                theme.surface
+                theme.surface_raised
             },
-            theme.glass_hover(),
+            theme.surface_raised_hover,
         ))
         .border_1()
         .border_color(if missing { theme.danger } else { theme.border })

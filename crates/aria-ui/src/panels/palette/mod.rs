@@ -99,11 +99,6 @@ fn row(
     // The palette is drawn by the Shell: a gpui hover style here would notify
     // it and rebuild every panel body, where a fade redraws the chrome alone.
     let key = crate::motion::MotionKey::new("palette-row", index);
-    let rest = if highlighted {
-        theme.surface_raised_hover
-    } else {
-        theme.wash(0.0)
-    };
     let withheld = (!live).then(|| offer.id.clone());
     div()
         .id(offer.id)
@@ -126,7 +121,7 @@ fn row(
             CursorStyle::Arrow
         })
         .when(live, |el| el.active(|style| style.opacity(0.92)))
-        .bg(crate::motion::hover_blend(key, rest, theme.glass_hover()))
+        .bg(crate::motion::row_fill(key, highlighted, theme))
         .on_hover(crate::motion::hover_listener(key))
         .on_mouse_down(
             MouseButton::Left,

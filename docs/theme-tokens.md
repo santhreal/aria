@@ -17,11 +17,11 @@ stands apart from the hovered one.
 | `bg` | `#0e0e10` | `#ebebeb` | Viewer pasteboard, timeline track area, the gaps between docked frames |
 | `surface` | `#161618` | `#e3e3e3` | Panel bodies |
 | `surface_header` | `#19191b` | `#dcdcdc` | Tab rows, track headers, property name column |
-| `surface_raised` | `#232326` | `#d5d5d5` | Solid plates: a card, a key cap |
-| `surface_raised_hover` | `#2b2b2e` | `#cccccc` | A raised plate under the pointer |
+| `surface_raised` | `#232326` | `#f8f8f8` | Solid plates: a card, a key cap |
+| `surface_raised_hover` | `#2b2b2e` | `#f0f0f0` | A raised plate under the pointer |
 | `surface_card` | `#131315` | `#e7e7e7` | Cards and tooltips |
-| `surface_dialog` | `#1c1c1f` | `#d9d9d9` | Dialogs |
-| `surface_overlay` | `#202023` | `#d1d1d1` | Menus, popovers |
+| `surface_dialog` | `#1c1c1f` | `#f3f3f3` | Dialogs |
+| `surface_overlay` | `#202023` | `#f6f6f6` | Menus, popovers |
 | `element_hover` | ink 0.08 | ink 0.06 | The wash a control fades to under the pointer |
 | `element_active` | ink 0.13 | ink 0.10 | The wash a control shows while it is pressed |
 | `input_bg` | black 32 % | `#ffffff` | Text box fill, recessed into the surface under it |
@@ -31,7 +31,7 @@ stands apart from the hovered one.
 
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
-| `border` | `#050506` | `#f1f1f1` | Splitters and frame edges |
+| `border` | `#050506` | `#cbcbcb` | Splitters and frame edges |
 | `border_strong` | white 14 % | black 17 % | Control outlines, and the rail of a slider, a fader or a pan |
 | `hairline` | white 6 % | black 6 % | Row separators |
 
@@ -42,7 +42,7 @@ stands apart from the hovered one.
 | `text` | `#d8d8db` | `#262626` | Body text |
 | `text_muted` | `#9e9ea4` | `#525252` | Labels, column headers, a control at rest |
 | `text_faint` | `#67676d` | `#7d7d7d` | Disabled, hints |
-| `text_dim` | `#97979d` | `neutral(0.50)` | Context rather than content: file paths |
+| `text_dim` | `#828288` | `#636363` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The caret in a text box, solid, and in the rename bar, blinking |
 | `on_solid` | `#0e0e0e` | `neutral(0.985)` | Glyph and label color on `solid` |

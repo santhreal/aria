@@ -127,6 +127,8 @@ pub struct Theme {
     pub text: Hsla,
     pub text_muted: Hsla,
     pub text_faint: Hsla,
+    /// Context rather than content, such as a file path: one step under
+    /// `text_muted` and one over `text_faint`.
     pub text_dim: Hsla,
     /// Editable numbers: a value that scrubs under a drag.
     pub value: Hsla,
@@ -312,7 +314,7 @@ impl Theme {
             text,
             text_muted,
             text_faint,
-            text_dim: hex(0x97979d),
+            text_dim: hex(0x828288),
             value: gpui::rgb(0x5aa8ff).into(),
             solid: neutral(0.922),
             on_solid: grey(0x0e),
@@ -349,7 +351,10 @@ impl Theme {
         }
     }
 
-    /// The dark neutral ramp inverted, with the same hues.
+    /// The dark hues on a light ramp. The base surfaces step darker from `bg`
+    /// to `surface_header`, where dark's step lighter; dialogs, menus and
+    /// raised plates draw lighter than every base surface, and `border` darker
+    /// than every surface, as in dark.
     pub fn light() -> Self {
         let text = grey(0x26);
         let text_muted = grey(0x52);
@@ -363,13 +368,13 @@ impl Theme {
             bg: grey(0xeb),
             surface: grey(0xe3),
             surface_header: grey(0xdc),
-            surface_raised: grey(0xd5),
+            surface_raised: grey(0xf8),
             surface_card: grey(0xe7),
-            surface_dialog: grey(0xd9),
-            surface_overlay: grey(0xd1),
+            surface_dialog: grey(0xf3),
+            surface_overlay: grey(0xf6),
             element_hover: hsla(0.0, 0.0, 0.10, 0.06),
             element_active: hsla(0.0, 0.0, 0.10, 0.10),
-            border: grey(0xf1),
+            border: grey(0xcb),
             border_strong: hsla(0.0, 0.0, 0.0, 0.17),
             hairline: hsla(0.0, 0.0, 0.0, 0.06),
             text,
@@ -389,7 +394,7 @@ impl Theme {
             success: oklch(0.596, 0.145, 163.225),
             busy: oklch(0.592, 0.249, 0.584),
             success_muted: oklch(0.508, 0.118, 165.612),
-            surface_raised_hover: grey(0xcc),
+            surface_raised_hover: grey(0xf0),
             band: band_for(Appearance::Light),
             input_bg: grey(0xff),
             selection: accent.selection,

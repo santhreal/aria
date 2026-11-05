@@ -174,7 +174,7 @@ fn target_chip(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let key = motion::MotionKey::new("media-support", "target");
-    let background = motion::hover_blend(key, theme.input_bg, theme.surface_raised_hover);
+    let background = motion::hover_blend(key, theme.input_bg, theme.glass_hover());
     div()
         .id("media-target")
         .flex()

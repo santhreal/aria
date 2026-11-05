@@ -26,8 +26,11 @@ tokens and each family's values.
 | `value` | `#5aa8ff` | Editable numbers (scrubbable values) |
 | `accent` | Blue: oklch 0.71 0.15 253 (`#57a5fc`) | Playhead, focus outline, selection, active tool |
 
-Light inverts the neutral ramp and keeps the hues. No accent, label default, or
-track tint is violet. Graphite has no accent hue; its playhead is red.
+Light keeps the hues. Its base surfaces step darker from `bg` to
+`surface_header`, where dark's step lighter. In both looks, dialogs, menus and
+raised plates draw lighter than every base surface, and `border` draws darker
+than every surface. No accent, label default, or track tint is violet.
+Graphite has no accent hue; its playhead is red.
 
 Clip colors come from the label set (Violet, Iris, Caribbean, Lavender,
 Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green, Brown,

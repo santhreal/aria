@@ -834,6 +834,10 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls color swatches ring the color in force, draw Clear as an outline with a cross, and name their color on hover, and every color swatch keeps a visible edge on a dark panel.
 - Settings draws the download timeouts, WASM limits, download quota, cache and plugin actions, a missing model's Install and each plugin's switch on the label and controls columns, with each row's actions at its end, and labels the timeouts Connect timeout, Read timeout and Total timeout.
 - An empty text box draws its placeholder, such as Search, in the dimmer hint color so it no longer reads as a typed value.
+- In the dark look, Home's recent-project folder lines draw one visible step dimmer than labels, as they do in the light look.
+- In the light look, dialogs, menus and raised plates draw lighter than the panels under them, and splitters draw darker than every panel.
+- Home's Start tiles and recent-project cards draw as raised plates over the page in both looks instead of sinking into it in the light look.
+- The command palette's highlighted row draws the selected-row plate, and a row under the pointer the one hover fill, in both looks.
 
 ### Fixed
 

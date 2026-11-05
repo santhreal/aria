@@ -36,6 +36,7 @@ fn text_contrast_is_paired_across_appearances() {
     for (name, dark_fg, light_fg) in [
         ("text", d.text, l.text),
         ("text_muted", d.text_muted, l.text_muted),
+        ("text_dim", d.text_dim, l.text_dim),
         ("text_faint", d.text_faint, l.text_faint),
         ("track_video", d.track_video, l.track_video),
         ("track_audio", d.track_audio, l.track_audio),
@@ -48,6 +49,36 @@ fn text_contrast_is_paired_across_appearances() {
             (dr - lr).abs() < 1.0,
             "{name}: dark {dr:.2}:1 vs light {lr:.2}:1 — not a matched pair"
         );
+    }
+}
+
+/// **The text tiers step down in contrast in the same order in both looks,
+/// each a step an eye separates from the next.**
+///
+/// The defect: dark `text_dim` stood at 6.6:1 beside `text_muted` at 7.2:1, a
+/// difference no viewer reads, so a home card's folder line read as the label
+/// tier in dark and one tier lower in light. Not covered: a token drawn in the
+/// wrong tier for its role.
+#[test]
+fn text_tiers_step_down_apart_in_both_looks() {
+    // The least ratio between two neighboring tiers' contrasts on `bg`.
+    const STEP: f32 = 1.25;
+    for theme in [Theme::dark(), Theme::light()] {
+        let tiers = [
+            ("text", theme.text),
+            ("text_muted", theme.text_muted),
+            ("text_dim", theme.text_dim),
+            ("text_faint", theme.text_faint),
+        ]
+        .map(|(name, color)| (name, contrast_ratio(color, theme.bg)));
+        for pair in tiers.windows(2) {
+            let ((upper, above), (lower, below)) = (pair[0], pair[1]);
+            assert!(
+                above >= below * STEP,
+                "{:?}: {upper} {above:.2}:1 over {lower} {below:.2}:1, under a {STEP}x step",
+                theme.appearance
+            );
+        }
     }
 }
 
@@ -150,6 +181,65 @@ fn light_is_not_a_simple_inversion() {
     let l = Theme::light();
     assert!(d.bg.l < d.surface.l);
     assert!(l.surface.l < l.bg.l);
+}
+
+/// A plate that floats above a panel draws lighter than every panel it can
+/// float over, and the frame edge darker than every surface, in every look.
+///
+/// The class closed here: an elevated surface drawn darker than the base it
+/// sits on, as the light look's dialogs, menus and raised plates were, which
+/// reads as a hole in the panel instead of a sheet over it; and a `border`
+/// lighter than the panels it separates, which drew the light look's
+/// splitters as white seams.
+///
+/// Not covered: a component that paints a base token where an elevated one
+/// belongs, and translucent fills composited over these surfaces.
+#[test]
+fn elevated_surfaces_draw_above_every_base_surface() {
+    // A new appearance stops this match compiling until it joins the list.
+    let theme = |appearance: Appearance| match appearance {
+        Appearance::Dark | Appearance::Light => Theme::for_appearance(appearance),
+    };
+    for appearance in [Appearance::Dark, Appearance::Light] {
+        let t = theme(appearance);
+        let base = [
+            ("bg", t.bg),
+            ("surface", t.surface),
+            ("surface_header", t.surface_header),
+            ("surface_card", t.surface_card),
+        ];
+        let elevated = [
+            ("surface_dialog", t.surface_dialog),
+            ("surface_overlay", t.surface_overlay),
+            ("surface_raised", t.surface_raised),
+            ("surface_raised_hover", t.surface_raised_hover),
+        ];
+        for (high, top) in elevated {
+            for (low, under) in base {
+                assert!(
+                    top.l > under.l,
+                    "{appearance:?}: {high} ({:.3}) must draw lighter than {low} ({:.3})",
+                    top.l,
+                    under.l
+                );
+            }
+        }
+        // Dark lifts a raised plate under the pointer and light presses it,
+        // as each look's rows do; either way it moves an eye-visible step.
+        let hover_step = (t.surface_raised_hover.l - t.surface_raised.l).abs() * 255.0;
+        assert!(
+            hover_step >= 5.0,
+            "{appearance:?}: surface_raised_hover {hover_step:.1} levels from surface_raised"
+        );
+        for (name, fill) in base.into_iter().chain(elevated) {
+            assert!(
+                t.border.l < fill.l,
+                "{appearance:?}: border ({:.3}) must draw darker than {name} ({:.3})",
+                t.border.l,
+                fill.l
+            );
+        }
+    }
 }
 
 /// A selected plate reads apart from the hover plate in every appearance.
