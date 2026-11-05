@@ -72,7 +72,6 @@ pub(super) fn track_header(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let track_id = track.id;
-    let name = track.name.clone();
     let collapsed = track.collapsed;
     let is_drop = drop_row == Some(row);
     let audio = matches!(
@@ -125,13 +124,7 @@ pub(super) fn track_header(
         lead.push(slot().into_any_element());
     }
     let debug_badge = badge.clone();
-    // A lane named for its badge, as a new one is ("V1"), states the name
-    // once: the name's room stays, so a double click there still renames it.
-    let name = if *name == *badge {
-        gpui::SharedString::default()
-    } else {
-        name
-    };
+    let name = shown_name(track, &badge);
     div()
         .id(gpui::ElementId::named_usize(
             "track-header",
@@ -308,6 +301,26 @@ pub(super) fn track_header(
         })
 }
 
+/// The name a header draws beside `badge`: none while the lane keeps the name
+/// it was made with, so a new lane states its badge once ("V1", not "V1 V1";
+/// "G1", not "G1 S1"). The default follows the lane kind, and the badge follows
+/// the lane's place in the stack, so the two part when lanes are reordered or
+/// when a kind's badge is not its name's stem; either way the default name adds
+/// nothing to the badge. The name's room stays, so a double click there still
+/// renames the lane.
+fn shown_name(track: &UiTrack, badge: &str) -> gpui::SharedString {
+    let by_default = *track.name == *badge
+        || aria_models::track_kind_specs().iter().any(|spec| {
+            crate::types::UiTrackKind::from_model(spec.kind) == track.kind
+                && spec.names_by_default(&track.name)
+        });
+    if by_default {
+        gpui::SharedString::default()
+    } else {
+        track.name.clone()
+    }
+}
+
 /// An empty control slot: keeps the badge and the name on one edge across
 /// lanes that draw no patch or have no clip to twirl.
 fn slot() -> impl IntoElement {
@@ -411,3 +424,7 @@ fn lane_toggle(
 #[cfg(test)]
 #[path = "headers_indent_tests.rs"]
 mod indent_tests;
+
+#[cfg(test)]
+#[path = "headers_name_tests.rs"]
+mod name_tests;

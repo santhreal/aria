@@ -106,7 +106,9 @@ columns, 49 px tall with its bottom border, the height of the ruler beside it.
 | Height | Drag the bottom edge; Ctrl+= and Ctrl+- resize all tracks | Same; tall audio tracks show a level meter and a volume knob |
 
 A track header is one row of 20 px controls: the source indicator, the
-track badge, the name, then the toggles. Mute and solo show at all times on
+track badge, the name, then the toggles. A track that keeps the name it was
+made with, such as `V2`, `S1` or `FX1`, draws the badge alone; the name
+shows once the track is renamed. Mute and solo show at all times on
 audio tracks. Every other toggle shows while the pointer is over the header,
 and at all times while its track departs from a new track: collapsed,
 locked, hidden, untargeted, sync lock off, muted or soloed. A hidden toggle

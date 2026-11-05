@@ -143,6 +143,21 @@ impl TrackKindSpec {
     pub const fn in_mixer(&self) -> bool {
         self.is_audio || self.carries_audio || self.is_bus
     }
+
+    /// [`TrackKindSpec::default_name`] without its ordinal: `V` for `V1`,
+    /// `Bus ` for `Bus 1`. A later lane of this kind is this plus its ordinal.
+    pub fn name_stem(&self) -> &'static str {
+        self.default_name
+            .trim_end_matches(|c: char| c.is_ascii_digit())
+    }
+
+    /// Whether `name` is one a new lane of this kind gets: the stem and an
+    /// ordinal, as in `V3`.
+    pub fn names_by_default(&self, name: &str) -> bool {
+        name.strip_prefix(self.name_stem()).is_some_and(|ordinal| {
+            !ordinal.is_empty() && ordinal.bytes().all(|b| b.is_ascii_digit())
+        })
+    }
 }
 
 /// Which kind of intermediate a clip on a lane bakes to.
