@@ -17,6 +17,7 @@ mod plugins;
 mod providers;
 mod storage;
 mod transcription;
+mod value_row;
 mod widgets;
 
 #[cfg(test)]
@@ -426,3 +427,7 @@ mod canvas_groups_tests;
 #[cfg(test)]
 #[path = "settings_dialog/label_line_tests.rs"]
 mod label_line_tests;
+
+#[cfg(test)]
+#[path = "settings_dialog/value_row_tests.rs"]
+mod value_row_tests;

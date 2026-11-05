@@ -9,17 +9,14 @@
 //! doing that while the dialog renders would turn opening Settings into a disk scan.
 
 use aria_core::count::counted;
-use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
-    div, px,
-};
+use gpui::{Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent};
 
 use crate::app::AppState;
 use crate::app::caches::UiCache;
 use crate::components;
 use crate::theme::Theme;
 
-use super::widgets::kv;
+use super::widgets::{chip_row, kv};
 
 /// One row's whole story on a line: what it is, what losing it costs, where it
 /// lives, and why it is not living where the config says.
@@ -57,39 +54,29 @@ pub(super) fn cache_rows(
 ) -> Vec<gpui::AnyElement> {
     let rows = state.read(cx).cache_rows();
     let measured = state.read(cx).caches.measured;
-    let mut elements: Vec<gpui::AnyElement> = vec![
-        div()
-            .flex()
-            .flex_row()
-            .gap(px(Theme::SPACE_SM))
-            .child(
-                components::ghost_button("caches-measure", "Measure", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = state.measure_caches() {
-                                state.report_error(err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-            .child(
-                components::ghost_button("caches-copy-paths", "Copy paths", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        let report = this.state.read(cx).storage_report();
-                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(report));
-                        this.state.update(cx, |state, _| {
-                            state.status_message = Some("Storage paths copied".into());
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-            .into_any_element(),
-    ];
+    let measure = components::ghost_button("caches-measure", "Measure", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| {
+                if let Err(err) = state.measure_caches() {
+                    state.report_error(err);
+                }
+            });
+            cx.notify();
+        }),
+    );
+    let copy = components::ghost_button("caches-copy-paths", "Copy paths", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            let report = this.state.read(cx).storage_report();
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(report));
+            this.state.update(cx, |state, _| {
+                state.status_message = Some("Storage paths copied".into());
+            });
+            cx.notify();
+        }),
+    );
+    let mut elements: Vec<gpui::AnyElement> = vec![chip_row(theme, "", [measure, copy])];
     if !measured {
         elements.push(
             kv(
@@ -113,8 +100,7 @@ pub(super) fn cache_rows(
         if !row.on_disk() {
             continue;
         }
-        let mut actions = div().flex().flex_row().gap(px(Theme::SPACE_SM));
-        actions = actions.child(
+        let mut actions = vec![
             components::ghost_button(
                 crate::motion::MotionKey::new("cache-clear", key),
                 "Clear",
@@ -130,9 +116,8 @@ pub(super) fn cache_rows(
                     });
                     cx.notify();
                 }),
-            ),
-        );
-        actions = actions.child(
+            )
+            .into_any_element(),
             components::ghost_button(
                 crate::motion::MotionKey::new("cache-move", key),
                 "Move…",
@@ -144,9 +129,8 @@ pub(super) fn cache_rows(
                     this.state.update(cx, |state, _| state.pick_cache_move(key));
                     cx.notify();
                 }),
-            ),
-        );
-        actions = actions.child(
+            )
+            .into_any_element(),
             components::ghost_button(
                 crate::motion::MotionKey::new("cache-redirect", key),
                 "Redirect…",
@@ -159,14 +143,15 @@ pub(super) fn cache_rows(
                         .update(cx, |state, _| state.pick_cache_redirect(key));
                     cx.notify();
                 }),
-            ),
-        );
+            )
+            .into_any_element(),
+        ];
         // A refused override is exactly the case that needs the button: the
         // config names a path the layout will not take, and clearing it is the
         // fix. Gating on `overridden` alone hid the button on the only row that
         // was broken.
         if row.overridden || row.override_error.is_some() {
-            actions = actions.child(
+            actions.push(
                 components::ghost_button(
                     crate::motion::MotionKey::new("cache-reset", key),
                     "Use default",
@@ -182,10 +167,11 @@ pub(super) fn cache_rows(
                         });
                         cx.notify();
                     }),
-                ),
+                )
+                .into_any_element(),
             );
         }
-        elements.push(actions.into_any_element());
+        elements.push(chip_row(theme, "", actions));
     }
     elements
 }

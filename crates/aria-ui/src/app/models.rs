@@ -31,9 +31,9 @@ impl TimeoutField {
     /// The fields, as the settings rows. A data table so a new timeout shows up as a
     /// missing row rather than as one nobody can edit.
     pub const ALL: [(Self, &'static str, &'static str); 3] = [
-        (Self::Connect, "model-timeout-connect", "Connect"),
-        (Self::Read, "model-timeout-read", "Read"),
-        (Self::Total, "model-timeout-total", "Total"),
+        (Self::Connect, "model-timeout-connect", "Connect timeout"),
+        (Self::Read, "model-timeout-read", "Read timeout"),
+        (Self::Total, "model-timeout-total", "Total timeout"),
     ];
 
     /// The configured value for this field.

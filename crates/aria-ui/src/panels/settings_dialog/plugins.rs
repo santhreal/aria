@@ -3,11 +3,12 @@
 //!
 //! The rows are `AppState::plugin_rows`, built from the plugin host itself and
 //! the plugin folder, so a plugin added to either appears here with nothing to
-//! update. A plugin that can be turned off ends its action line in a switch; a
+//! update. A plugin that can be turned off ends its row in a switch; a
 //! plugin the shell cannot run without has none. An installed package also
-//! offers Reload, Uninstall and Open folder; the development package offers
-//! Reload and Open folder. A plugin that logged offers Log, which shows its
-//! lines, newest last, coloured by level, with Copy.
+//! offers Reload, Uninstall and Open folder on the line below, on the
+//! controls column; the development package offers Reload and Open folder. A
+//! plugin that logged offers Log, which shows its lines, newest last, colored
+//! by level, with Copy.
 
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
@@ -26,7 +27,8 @@ use crate::motion::MotionKey;
 use crate::theme::Theme;
 use crate::types::{UiCatalogRow, UiPluginRow};
 
-use super::widgets::kv;
+use super::value_row::value_row;
+use super::widgets::{chip_row, kv};
 
 /// One line describing a plugin: version, tier, state, then what it
 /// registered, what it may reach and what it cost.
@@ -139,36 +141,28 @@ pub(super) fn plugin_rows(
         .dir()
         .display()
         .to_string();
+    let install = components::ghost_button("plugin-install", "Install Plugin…", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| state.pick_plugin_archive());
+                cx.notify();
+            }),
+        );
+    let open = components::ghost_button("plugin-folder", "Open Folder", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state
+                .update(cx, |state, _| state.open_plugin_folder(None));
+            cx.notify();
+        }),
+    );
     let mut elements: Vec<gpui::AnyElement> = vec![
         kv(theme, "Plugin folder", folder).into_any_element(),
-        div()
-            .flex()
-            .flex_row()
-            .gap(px(Theme::SPACE_SM))
-            .child(
-                components::ghost_button("plugin-install", "Install Plugin…", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.pick_plugin_archive());
-                        cx.notify();
-                    }),
-                ),
-            )
-            .child(
-                components::ghost_button("plugin-folder", "Open Folder", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state
-                            .update(cx, |state, _| state.open_plugin_folder(None));
-                        cx.notify();
-                    }),
-                ),
-            )
-            .into_any_element(),
+        chip_row(theme, "", [install, open]),
     ];
     for row in rows {
-        elements.push(kv(theme, &row.name, describe(&row)).into_any_element());
         let toggle = row.can_toggle.then(|| {
             let id = row.id.clone();
             let enabled = row.enabled;
@@ -189,6 +183,12 @@ pub(super) fn plugin_rows(
                 }),
             )
         });
+        elements.push(value_row(
+            theme,
+            row.name.clone(),
+            describe(&row),
+            toggle.map(IntoElement::into_any_element),
+        ));
         let mut actions = Vec::new();
         if row.installed {
             actions.push(("plugin-reload", "Reload", RowAction::Reload));
@@ -201,13 +201,10 @@ pub(super) fn plugin_rows(
             let label = if row.log_open { "Hide Log" } else { "Log" };
             actions.push(("plugin-log", label, RowAction::ToggleLog));
         }
-        if actions.is_empty() && toggle.is_none() {
-            continue;
-        }
-        let mut buttons = div().flex().flex_row().gap(px(Theme::SPACE_SM));
-        for (key, label, action) in actions {
-            let id = row.id.clone();
-            buttons = buttons.child(
+        let buttons: Vec<_> = actions
+            .into_iter()
+            .map(|(key, label, action)| {
+                let id = row.id.clone();
                 components::ghost_button(
                     ("plugin-row-action", MotionKey::new(key, &row.id)),
                     label,
@@ -219,19 +216,12 @@ pub(super) fn plugin_rows(
                         this.state.update(cx, |state, _| action.run(state, &id));
                         cx.notify();
                     }),
-                ),
-            );
+                )
+            })
+            .collect();
+        if !buttons.is_empty() {
+            elements.push(chip_row(theme, "", buttons));
         }
-        elements.push(
-            div()
-                .flex()
-                .flex_row()
-                .items_center()
-                .justify_between()
-                .child(buttons)
-                .children(toggle)
-                .into_any_element(),
-        );
         if row.log_open && row.log_lines > 0 {
             elements.push(log_block(theme, state, &row.id, cx));
         }
@@ -239,7 +229,7 @@ pub(super) fn plugin_rows(
     elements
 }
 
-/// The colour a log line of `level` is drawn in.
+/// The color a log line of `level` is drawn in.
 fn level_color(theme: &Theme, level: LogLevel) -> gpui::Hsla {
     match level {
         LogLevel::Trace | LogLevel::Debug => theme.text_faint,

@@ -250,7 +250,7 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, one undo entry per caption. | None |
+| `caption-commit` | Commit | Writes the transcript into the project as the text clips or markers `caption-target` selects, as one `Commit captions` undo entry. | None |
 | `caption-language` | Language | Edits the language code transcription runs in, such as `en`; an empty box detects the language. Enter starts transcription. | None |
 | `caption-models` | Open Settings | Opens Settings at the Transcription section while no transcription model is installed. | None |
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
@@ -407,14 +407,14 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `cache-reset` (per row) | Use default | Resets the selected cache category path back to the default storage root. | None |
 | `caches-copy-paths` | Copy paths | Copies the formatted report of all cache directory paths and sizes to the clipboard. | None |
 | `caches-measure` | Measure | Scans disk usage across all registered cache directories and updates their byte totals. | None |
-| `model-install` (per row) | Install / Reinstall | Downloads and installs the selected local transcription model. | None |
+| `model-install` (per row) | Install / Re-download | Downloads, verifies, and installs the row's Whisper model; drawn at the end of the model's row while the model is missing or corrupt. | None |
 | `plugin-folder` | Open Folder | Opens the installed plugins directory in the system file manager. | None |
 | `plugin-install` | Install Plugin… | Opens a file picker to install an `.ariaplugin` plugin archive. | None |
 | `plugin-log-copy` (per row) | Copy | Copies the diagnostic log output of the selected plugin to the clipboard. | None |
 | `plugin-row-action` (per row) | Reload / Uninstall / Open Folder / Log / Hide Log | Reloads or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
 | `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's choice setting. | None |
 | `plugin-setting-switch` (per row) | Switch | Saves `true` or `false` for a plugin's toggle setting. | None |
-| `plugin-toggle` (per row) | Switch | Enables or disables the plugin; drawn at the right end of the plugin's action line, and absent for a plugin the shell cannot run without. | None |
+| `plugin-toggle` (per row) | Switch | Enables or disables the plugin; drawn at the right end of the plugin's row, and absent for a plugin the shell cannot run without. | None |
 | `quota-dec` | −512 MiB | Decreases the download cache quota by 512 MiB. | None |
 | `quota-inc` | +512 MiB | Increases the download cache quota by 512 MiB. | None |
 | `settings-audio-scrubbing` | Switch | Toggles a 40 ms audio grain at each pointer position while the playhead, the ruler, or a timeline scrub is dragged; drawn on the Audio scrubbing line. | None |
@@ -436,10 +436,10 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-zoom-knobs` (per row) | Hold playhead / Hold other end | Sets what a drag on a knob of the timeline's zoom bar holds still: the playhead's pixel while the playhead is inside the view, or the view's other end; drawn on the Zoom bar knobs line. | None |
 | `storage-clear` | Clear cache | Clears downloaded cloud and stock media assets from the download cache. | None |
 | `storage-relocate` | Move storage… | Opens the Move Storage folder picker and moves the root storage directory to the chosen folder. | None |
-| `timeout-dec` (per row) | Halve | Halves the execution timeout in seconds for the selected transcription step. | None |
-| `timeout-inc` (per row) | Double | Doubles the execution timeout in seconds for the selected transcription step. | None |
-| `wasm-limit-dec` (per row) | Halve | Halves the WASM fuel per call or the WASM memory limit for plugins. | None |
-| `wasm-limit-inc` (per row) | Double | Doubles the WASM fuel per call or the WASM memory limit for plugins. | None |
+| `timeout-dec` (per row) | Halve | Halves the row's model download timeout: Connect, Read, or Total, down to 1 s. | None |
+| `timeout-inc` (per row) | Double | Doubles the row's model download timeout: Connect, Read, or Total. | None |
+| `wasm-limit-dec` (per row) | Halve | Halves the row's plugin limit: WASM fuel per call or WASM memory. | None |
+| `wasm-limit-inc` (per row) | Double | Doubles the row's plugin limit: WASM fuel per call or WASM memory. | None |
 
 ## Project Home
 

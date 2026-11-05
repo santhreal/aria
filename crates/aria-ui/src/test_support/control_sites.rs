@@ -112,7 +112,11 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 1,
     },
     Forwarder {
-        name: "stepper",
+        name: "doubling_row",
+        arg: 1,
+    },
+    Forwarder {
+        name: "doubling_row",
         arg: 2,
     },
     Forwarder {

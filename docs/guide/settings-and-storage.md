@@ -128,7 +128,7 @@ did not mount shows the reason instead: a missing GPU, an unreadable config file
 dependency that failed first. A failed plugin does not stop the app: the rest mount
 and the capability is absent, not broken.
 
-The switch at the right of a plugin's action line turns it off or on. Off drops
+The switch at the right end of a plugin's row turns it off or on. Off drops
 the plugin's services from the registry, and the surfaces that need them
 disappear; on mounts it again. Storage, settings, and the engine have no
 switch: Aria cannot run without them.

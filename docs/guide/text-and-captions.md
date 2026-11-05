@@ -51,11 +51,11 @@ progress and can be cancelled. A file that fails size or checksum verification
 reads as `Corrupt` with the reason, and the action becomes **Re-download**.
 
 Three timeouts govern the download, each with **Halve** and **Double** steppers
-in the same section: `Connect` (15 s), `Read` (30 s), and `Total` (1800 s). They
-persist to the `[transcription]` table in `config.toml`. Values are clamped to
-between 1 second and 24 hours, so a stepper cannot write a value the downloader
-rejects. A slow link needs a larger `Read`; a large model on a slow link needs a
-larger `Total`.
+in the same section: `Connect timeout` (15 s), `Read timeout` (30 s), and
+`Total timeout` (1800 s). They persist to the `[transcription]` table in
+`config.toml`. Values are clamped to between 1 second and 24 hours, so a stepper
+cannot write a value the downloader rejects. A slow link needs a larger
+`Read timeout`; a large model on a slow link needs a larger `Total timeout`.
 
 With no model installed, the Project panel's **Captions** tab offers **Open
 Settings**, which opens the **Transcription** section. With a model installed,
@@ -73,8 +73,8 @@ offline, no model is installed, or the language is one Whisper does not support.
 The **Output** chips, **Text clips** and **Markers**, choose what a commit
 writes. **One clip per word** in the **Split** row splits each segment by its
 word timings; a segment the model gave no word timings for stays whole.
-**Commit** writes the units at their own times: caption clips
-onto the text lane, markers onto the timeline. Each unit is its own undo entry.
+**Commit** writes the units at their own times as one `Commit captions` undo
+entry: caption clips onto the text lane, markers onto the timeline.
 
 Limits: audio longer than 30 minutes is refused, the window comes from the clip's
 source range rather than its speed-warped output, and no model ships with the

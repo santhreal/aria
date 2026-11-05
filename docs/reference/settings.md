@@ -191,9 +191,9 @@ When `Settings::from_document` encounters a field in `config.toml` that fails va
 | `CloudBaseUrl` | `cloud-base-url` | `Cloud base URL` |
 | `KeymapName` | `keymap-name` | `Save keys as` |
 | `Filter` | `settings-filter` | `Filter` |
-| `Connect` | `model-timeout-connect` | `Connect` |
-| `Read` | `model-timeout-read` | `Read` |
-| `Total` | `model-timeout-total` | `Total` |
+| `Connect` | `model-timeout-connect` | `Connect timeout` |
+| `Read` | `model-timeout-read` | `Read timeout` |
+| `Total` | `model-timeout-total` | `Total timeout` |
 | `Fuel` | `wasm-limit-fuel` | `WASM fuel per call` |
 | `Memory` | `wasm-limit-memory` | `WASM memory` |
 

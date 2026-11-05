@@ -32,7 +32,7 @@ pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
 /// line too.
 pub(super) fn chip_row(
     theme: &Theme,
-    label: &'static str,
+    label: impl Into<SharedString>,
     controls: impl IntoIterator<Item = impl IntoElement>,
 ) -> gpui::AnyElement {
     div()

@@ -1,18 +1,18 @@
 //! The Storage section: the download cache, the registered caches, and their paths.
 
 use aria_core::count::counted;
-use gpui::{
-    Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, Styled, div, px,
-};
+use gpui::{Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent};
 
 use crate::app::AppState;
 use crate::components;
 use crate::theme::Theme;
 
+use super::value_row::value_row;
 use super::widgets::kv;
 
-/// Cache size against quota, the quota steppers, Clear, and Relocate.
+/// The storage root with Move storage…, the download cache's size against its
+/// quota with Clear cache, the quota steppers, and the analysis cache with
+/// Clear analysis: each action at the end of the row it acts on.
 ///
 /// The size is read once per render rather than polled: it walks the cache tree, so
 /// a per-frame reading would be a disk scan per frame.
@@ -33,9 +33,33 @@ pub(super) fn storage_rows(
         read.analysis_cache_root().display()
     );
 
+    let relocate = components::ghost_button("storage-relocate", "Move storage…", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| state.pick_storage_root());
+                cx.notify();
+            }),
+        );
+    let clear = components::ghost_button("storage-clear", "Clear cache", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| {
+                if let Err(err) = state.clear_download_cache() {
+                    state.report_error(err);
+                }
+            });
+            cx.notify();
+        }),
+    );
     let mut rows = vec![
-        kv(theme, "Storage root", root).into_any_element(),
-        kv(theme, "Download cache", format!("{used} of {quota} MiB")).into_any_element(),
+        value_row(theme, "Storage root", root, [relocate.into_any_element()]),
+        value_row(
+            theme,
+            "Download cache",
+            format!("{used} of {quota} MiB"),
+            [clear.into_any_element()],
+        ),
     ];
     if protected > 0 {
         rows.push(
@@ -47,36 +71,7 @@ pub(super) fn storage_rows(
             .into_any_element(),
         );
     }
-    rows.push(quota_row(theme, quota, cx).into_any_element());
-    rows.push(
-        div()
-            .flex()
-            .flex_row()
-            .gap(px(Theme::SPACE_SM))
-            .child(
-                components::ghost_button("storage-clear", "Clear cache", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = state.clear_download_cache() {
-                                state.report_error(err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-            .child(
-                components::ghost_button("storage-relocate", "Move storage…", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| state.pick_storage_root());
-                        cx.notify();
-                    }),
-                ),
-            )
-            .into_any_element(),
-    );
+    rows.push(quota_row(theme, quota, cx));
     rows.push(
         kv(
             theme,
@@ -89,32 +84,34 @@ pub(super) fn storage_rows(
         )
         .into_any_element(),
     );
-    rows.push(kv(theme, "Analysis cache", analysis_cache).into_any_element());
-    rows.push(
-        components::ghost_button("analysis-cache-clear", "Clear analysis", theme)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        if let Err(err) = state.clear_analysis_cache() {
-                            state.report_error(err);
-                        }
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element(),
-    );
+    let clear_analysis = components::ghost_button("analysis-cache-clear", "Clear analysis", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = state.clear_analysis_cache() {
+                        state.report_error(err);
+                    }
+                });
+                cx.notify();
+            }),
+        );
+    rows.push(value_row(
+        theme,
+        "Analysis cache",
+        analysis_cache,
+        [clear_analysis.into_any_element()],
+    ));
     rows
 }
 
-/// The quota steppers. A quota is a number set in GiB, so the
+/// The quota and its steppers. A quota is a number set in GiB, so the
 /// step is 512 MiB rather than one.
 fn quota_row(
     theme: &Theme,
     quota: u64,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
+) -> gpui::AnyElement {
     const STEP: u64 = 512;
     let dec = components::ghost_button("quota-dec", "−512 MiB", theme).on_mouse_down(
         MouseButton::Left,
@@ -140,18 +137,10 @@ fn quota_row(
             cx.notify();
         }),
     );
-    div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(Theme::SPACE_SM))
-        .child(
-            div()
-                .flex_1()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(SharedString::from(format!("Quota {quota} MiB"))),
-        )
-        .child(dec)
-        .child(inc)
+    value_row(
+        theme,
+        "Quota",
+        format!("{quota} MiB"),
+        [dec.into_any_element(), inc.into_any_element()],
+    )
 }
