@@ -85,7 +85,8 @@ apart print the offset in frames, such as `+3`, on both bars.
 
 The content strip draws thumbnails on a video clip, as the timeline display
 settings choose, and a rectified waveform on an audio clip. A generated clip
-draws its name and, for a color generator, a swatch of its color. A clip whose
+draws a dot of its fill color, then the generator's name when the clip is
+renamed: a shape renamed `Logo` reads `Shape` under `Logo`. A clip whose
 media file is missing fills red and reads **Media Offline** with the file name.
 A disabled clip is drawn at 40 % opacity.
 

@@ -485,6 +485,7 @@ fn paint_clip(
             paint_calls,
             theme,
             generator,
+            &clip.name,
             ink.opacity(alpha),
             strip,
             content_top,

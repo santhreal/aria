@@ -29,6 +29,8 @@ const FX_W: f32 = 16.0;
 const FX_H: f32 = 10.0;
 /// Space between the items of the name strip.
 const GAP: f32 = 4.0;
+/// Side of the dot a generated clip's content strip draws its fill color as.
+const SWATCH: f32 = 8.0;
 const NAME_PX: f32 = 11.0;
 const BADGE_PX: f32 = 9.0;
 
@@ -468,8 +470,9 @@ pub(crate) fn paint_offline(
     });
 }
 
-/// Paint a generated clip's content strip: the swatch of the colour it fills
-/// with, when it has one, then the generator's name.
+/// Paint a generated clip's content strip: a [`SWATCH`] dot of the color it
+/// fills with, when it has one, then the generator's name, unless the name
+/// strip above already reads `name`, as a title named after its text does.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn paint_generator(
     window: &mut Window,
@@ -477,6 +480,7 @@ pub(crate) fn paint_generator(
     paint_calls: &mut usize,
     theme: &Theme,
     generator: &UiGenerator,
+    name: &str,
     ink: Hsla,
     strip: Strip,
     top: f32,
@@ -484,33 +488,30 @@ pub(crate) fn paint_generator(
 ) {
     const LINE: f32 = 12.0;
     let room = bottom - top;
-    if room < 6.0 || strip.right - strip.left < 8.0 {
+    if room < SWATCH || strip.right - strip.left < SWATCH {
         return;
     }
     let mask = ContentMask::from(rect(strip.left, top, strip.right - strip.left, room));
     window.with_content_mask(Some(mask), |window| {
         let mut x = strip.left;
-        let side = (room - 2.0).min(LINE);
         if let Some([r, g, b, a]) = generator.swatch {
             let fill: Hsla = gpui::rgba(u32::from_be_bytes([r, g, b, a])).into();
-            window.paint_quad(quad(
-                rect(x, top + (room - side) * 0.5, side, side),
-                Corners::all(px(Theme::CONTROL_RADIUS)),
+            rounded(
+                window,
+                paint_calls,
+                rect(x, top + (room - SWATCH) * 0.5, SWATCH, SWATCH),
+                SWATCH * 0.5,
                 fill.opacity(ink.a),
-                Edges::all(px(1.0)),
-                ink.opacity(0.5 * ink.a),
-                gpui::BorderStyle::default(),
-            ));
-            *paint_calls += 1;
-            x += side + GAP;
+            );
+            x += SWATCH + GAP;
         }
-        if room >= LINE && !generator.label.is_empty() {
-            let name = shape(window, generator.label.clone(), NAME_PX - 1.0, ink, theme);
+        if room >= LINE && !generator.label.is_empty() && generator.label.as_ref() != name {
+            let label = shape(window, generator.label.clone(), NAME_PX - 1.0, ink, theme);
             paint_shaped(
                 window,
                 cx,
                 paint_calls,
-                &name,
+                &label,
                 x,
                 top + (room - LINE) * 0.5,
                 LINE,
@@ -765,3 +766,7 @@ mod grip_tests;
 #[cfg(test)]
 #[path = "lane_tool_tests.rs"]
 mod lane_tool_tests;
+
+#[cfg(test)]
+#[path = "content_strip_tests.rs"]
+mod content_strip_tests;
