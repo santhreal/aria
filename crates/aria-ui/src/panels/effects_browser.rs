@@ -267,7 +267,7 @@ fn folder_row(
         .pr(px(Theme::SPACE_XS))
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(row, theme.wash(0.0), theme.wash(0.06)))
+        .bg(motion::row_fill(row, false, theme))
         .on_hover(motion::hover_listener(row))
         // A search holds every folder with a match open, so a click there
         // would change a choice that is not on screen.
@@ -335,7 +335,6 @@ fn entry_row(
         theme.text,
         lit,
     );
-    let rest = theme.wash(if place.picked { 0.11 } else { 0.0 });
     let tip_state = state.clone();
     let tip_entry = entry.id.clone();
     let click_entry = entry.id.clone();
@@ -351,7 +350,7 @@ fn entry_row(
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
-        .bg(motion::hover_blend(row, rest, theme.wash(0.06)))
+        .bg(motion::row_fill(row, place.picked, theme))
         .on_hover(motion::hover_listener(row))
         // Resolved when the pointer rests, not per frame: the origin walks the
         // mounted plugins' registrations.
@@ -414,7 +413,7 @@ fn star(
 ) -> impl IntoElement {
     let hover = row.with("star");
     let lit = motion::hover_t(hover);
-    let colour = if favorite {
+    let color = if favorite {
         theme.accent
     } else {
         motion::mix(theme.text_faint, theme.text, lit)
@@ -430,7 +429,7 @@ fn star(
         .child(
             crate::icons::icon(crate::icons::STAR)
                 .size(px(12.))
-                .text_color(colour),
+                .text_color(color),
         )
         .on_mouse_down(
             MouseButton::Left,

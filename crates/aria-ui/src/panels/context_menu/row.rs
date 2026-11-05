@@ -61,11 +61,7 @@ fn row(
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .bg(motion::hover_blend(
-            fade,
-            theme.wash(0.0),
-            theme.glass_hover(),
-        ))
+        .bg(motion::row_fill(fade, false, theme))
         .on_hover(motion::hover_listener(fade))
         .child(crate::components::menu_lead(checked, icon, theme))
         .child(label)

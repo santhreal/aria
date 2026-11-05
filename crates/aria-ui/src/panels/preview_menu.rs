@@ -99,8 +99,8 @@ pub(super) fn heading(text: &'static str, theme: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-/// One choice. The selected one holds the selected wash. A press closes the
-/// list and runs `choose`.
+/// One choice. The selected one holds the selected plate, which the pointer
+/// leaves in place. A press closes the list and runs `choose`.
 pub(super) fn row(
     id: (&'static str, usize),
     label: impl Into<SharedString>,
@@ -111,11 +111,6 @@ pub(super) fn row(
 ) -> AnyElement {
     let id = gpui::ElementId::from(id);
     let key = crate::motion::MotionKey::new("viewer-menu-row", &id);
-    let (rest, hot) = if selected {
-        (theme.glass_selected_bg(), theme.element_active)
-    } else {
-        (theme.wash(0.0), theme.element_hover)
-    };
     div()
         .id(id)
         .px(px(Theme::SPACE_SM))
@@ -127,7 +122,7 @@ pub(super) fn row(
         } else {
             theme.text_muted
         })
-        .bg(crate::motion::hover_blend(key, rest, hot))
+        .bg(crate::motion::row_fill(key, selected, theme))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(crate::motion::hover_listener(key))

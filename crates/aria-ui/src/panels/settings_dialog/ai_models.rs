@@ -137,11 +137,7 @@ fn model_row(
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .bg(crate::motion::hover_blend(
-            key,
-            theme.wash(if row.selected { 0.09 } else { 0.0 }),
-            theme.wash(0.06),
-        ))
+        .bg(crate::motion::row_fill(key, row.selected, theme))
         .on_hover(crate::motion::hover_listener(key))
         .child(
             div()

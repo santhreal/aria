@@ -1,5 +1,5 @@
 //! Hover fades: the toggle behind every hovered control, its listener, and the
-//! colour blend it feeds.
+//! color blend it feeds.
 //!
 //! A hover is not a one-shot transition: the pointer can leave halfway. So it
 //! is a toggle in the shared hover store rather than a [`gpui::Animation`],
@@ -14,6 +14,7 @@ use gpui::{
 };
 
 use super::{CHROME, MotionKey, with_frame};
+use crate::theme::Theme;
 
 /// Turns the hover toggle of `key` on or off at `now` under `policy`, fading
 /// from its current value.
@@ -97,8 +98,8 @@ pub fn hover_t(key: MotionKey) -> f32 {
     })
 }
 
-/// Blends two colours through [`mix_premultiplied`], so a fade out of a
-/// transparent colour does not travel through that colour's hue. `t <= 0`
+/// Blends two colors through [`mix_premultiplied`], so a fade out of a
+/// transparent color does not travel through that color's hue. `t <= 0`
 /// returns `from` and `t >= 1` returns `to` unchanged.
 pub fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
     if t <= 0.0 {
@@ -119,4 +120,15 @@ pub fn mix(from: Hsla, to: Hsla, t: f32) -> Hsla {
 /// `rest` blended toward `hover` by the hover fade of `key`.
 pub fn hover_blend(key: MotionKey, rest: Hsla, hover: Hsla) -> Hsla {
     mix(rest, hover, hover_t(key))
+}
+
+/// The fill of a pressable row, menu item or list entry under the hover fade
+/// of `key`. A row at rest has none and fades to [`Theme::element_hover`]. A
+/// `selected` row holds [`Theme::glass_selected_bg`] under the pointer, so the
+/// hover fill, which is weaker, never replaces the selected plate.
+pub fn row_fill(key: MotionKey, selected: bool, theme: &Theme) -> Hsla {
+    if selected {
+        return theme.glass_selected_bg();
+    }
+    hover_blend(key, theme.wash(0.0), theme.element_hover)
 }

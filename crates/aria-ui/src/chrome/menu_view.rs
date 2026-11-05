@@ -154,12 +154,9 @@ pub(super) fn menu_drop(
         .text_color(theme.text)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        // An open title holds the selected wash; a shut one fades into it.
-        .bg(if open {
-            theme.glass_selected_bg()
-        } else {
-            motion::hover_blend(key, theme.wash(0.0), theme.element_hover)
-        })
+        // An open title holds the selected plate; a shut one fades to the
+        // hover fill under the pointer.
+        .bg(motion::row_fill(key, open, theme))
         .on_hover(motion::hover_listener(key))
         .child(label)
         .on_mouse_down(

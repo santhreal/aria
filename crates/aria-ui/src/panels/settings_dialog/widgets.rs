@@ -27,8 +27,8 @@ pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
 /// with the one in force lit, a switch, or buttons.
 ///
 /// The row is at least one control row high, and the label stands on the
-/// centre line of the first line of controls however many lines they wrap
-/// onto. A line shorter than a control row, a switch's, stands on that centre
+/// center line of the first line of controls however many lines they wrap
+/// onto. A line shorter than a control row, a switch's, stands on that center
 /// line too.
 pub(super) fn chip_row(
     theme: &Theme,
@@ -158,8 +158,8 @@ pub(super) fn group_divider(theme: &Theme) -> gpui::AnyElement {
 }
 
 /// A row a click picks or arms: its text at the left and any actions at the
-/// right, on the plate every selected row draws while `selected`, fading to
-/// the hover wash under the pointer over `fade`. The plate steps out by its
+/// right, on the plate every selected row holds while `selected`, or fading to
+/// the hover fill under the pointer over `fade`. The plate steps out by its
 /// inset on each side, so the row's text stands on the section title's edge
 /// and its last action ends on the card's column, as every other settings
 /// row's do.
@@ -169,11 +169,6 @@ pub(super) fn row_plate(
     fade: crate::motion::MotionKey,
     selected: bool,
 ) -> Stateful<Div> {
-    let rest = if selected {
-        theme.glass_selected_bg()
-    } else {
-        theme.wash(0.0)
-    };
     div()
         .id(id.element("row-plate"))
         .flex()
@@ -184,7 +179,7 @@ pub(super) fn row_plate(
         .px(px(Theme::SPACE_XS))
         .mx(px(-Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(crate::motion::hover_blend(fade, rest, theme.glass_hover()))
+        .bg(crate::motion::row_fill(fade, selected, theme))
         .cursor(gpui::CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(crate::motion::hover_listener(fade))

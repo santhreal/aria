@@ -186,11 +186,7 @@ pub(crate) fn cloud_card_row(
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .bg(crate::motion::hover_blend(
-            key,
-            theme.wash(0.0),
-            theme.wash(0.06),
-        ))
+        .bg(crate::motion::row_fill(key, false, theme))
         .on_hover(crate::motion::hover_listener(key))
         .child(div().text_size(Theme::TEXT_UI).text_color(text).child(name))
         .child(

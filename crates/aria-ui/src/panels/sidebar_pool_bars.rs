@@ -251,11 +251,6 @@ fn sort_list(
         let selected = order == sort;
         let id = gpui::ElementId::named_usize("pool-sort-row", index);
         let key = motion::MotionKey::new("pool-sort-row", &id);
-        let (rest, hot) = if selected {
-            (theme.glass_selected_bg(), theme.element_active)
-        } else {
-            (theme.wash(0.0), theme.element_hover)
-        };
         rows.push(
             div()
                 .id(id)
@@ -269,7 +264,7 @@ fn sort_list(
                 } else {
                     theme.text_muted
                 })
-                .bg(motion::hover_blend(key, rest, hot))
+                .bg(motion::row_fill(key, selected, theme))
                 .cursor(gpui::CursorStyle::PointingHand)
                 .active(|style| style.opacity(0.92))
                 .on_hover(motion::hover_listener(key))

@@ -1,5 +1,5 @@
 //! Tests for [`super`]: the hover store, the identities every animated control
-//! is keyed by, the colour blend, and the motion choice in Settings.
+//! is keyed by, the color blend, and the motion choice in Settings.
 //!
 //! Curves, specs, loader waveforms and release velocity are `gpui::motion` and
 //! are tested there.
@@ -10,6 +10,7 @@ use gpui::motion::MotionPolicy;
 use gpui::{AppContext as _, InteractiveElement as _, ParentElement as _, Rgba};
 
 use super::*;
+use crate::theme::{Appearance, Theme};
 
 /// A key for one test control. The tests care about a key's identity, not its
 /// text, so every case names its own.
@@ -69,6 +70,34 @@ fn hover_fade_reduced_motion_snaps() {
     hover(&frames, row, false);
     assert_eq!(hover_t(row), 0.0, "leave snaps to 0");
     assert!(!frames.end(), "and no frame was requested for either");
+}
+
+/// A selected row keeps its plate under the pointer, and a row at rest fades
+/// from no fill to the hover fill, in every look.
+///
+/// Closes the class of a selected row, menu title or list entry whose plate
+/// fades to the weaker hover fill when the pointer crosses it, for every row
+/// drawn through [`row_fill`]. Not covered: a row that blends its own fill
+/// instead of calling `row_fill`.
+#[test]
+fn row_fill_holds_the_selected_plate_under_the_pointer() {
+    let frames = TestFrames::new();
+    frames.update(|cx| cx.set_reduce_motion(true));
+    // A new appearance stops this match compiling until it joins the list.
+    let theme = |appearance: Appearance| match appearance {
+        Appearance::Dark | Appearance::Light => Theme::for_appearance(appearance),
+    };
+    for theme in [theme(Appearance::Dark), theme(Appearance::Light)] {
+        let row = key("row-fill");
+        let look = theme.appearance;
+        hover(&frames, row, false);
+        let rest = (row_fill(row, true, &theme), row_fill(row, false, &theme));
+        hover(&frames, row, true);
+        let lit = (row_fill(row, true, &theme), row_fill(row, false, &theme));
+        let selected = theme.glass_selected_bg();
+        assert_eq!(rest, (selected, theme.wash(0.0)), "{look:?} at rest");
+        assert_eq!(lit, (selected, theme.element_hover), "{look:?} hovered");
+    }
 }
 
 /// A hover no element reads is dropped, so a menu row that was closed mid-fade

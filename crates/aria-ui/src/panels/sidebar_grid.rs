@@ -213,11 +213,7 @@ pub(super) fn entry_frame(
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
-        .bg(motion::hover_blend(
-            key,
-            theme.wash(if chosen { 0.11 } else { 0.0 }),
-            theme.wash(0.06),
-        ))
+        .bg(motion::row_fill(key, chosen, theme))
         .text_size(Theme::TEXT_UI)
 }
 

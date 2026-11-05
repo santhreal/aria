@@ -99,11 +99,6 @@ fn row(
     // The hover key holds the depth: one key per row, or every row would fade
     // together with whichever one the pointer is on.
     let key = motion::MotionKey::new("history-row", depth);
-    let rest = if current {
-        theme.surface_raised
-    } else {
-        theme.wash(0.0)
-    };
     div()
         .id(("history-row", depth))
         .debug_selector(move || format!("history-row-{depth}"))
@@ -115,7 +110,7 @@ fn row(
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(key, rest, theme.glass_hover()))
+        .bg(motion::row_fill(key, current, theme))
         .on_hover(motion::hover_listener(key))
         .child(
             div()

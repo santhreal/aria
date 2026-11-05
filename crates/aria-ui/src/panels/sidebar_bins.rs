@@ -311,7 +311,7 @@ fn row(
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
         .cursor(CursorStyle::PointingHand)
-        .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
+        .bg(motion::row_fill(key, false, theme))
         .on_hover(motion::hover_listener(key))
         .drag_over::<MediaDrag>(move |style, _, _, _| style.border_color(accent).border_1())
         .on_drop(cx.listener(move |this, drag: &MediaDrag, _, cx| {

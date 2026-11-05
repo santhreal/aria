@@ -92,9 +92,10 @@ An icon control draws no plate at rest: its glyph stands in muted text on the
 surface, and a wash fades in under the pointer. A toggle that is on, an armed
 tool in the tool bar and a lit track header toggle draw the glyph in the
 accent color, with no plate. Play draws its glyph in full text color. A
-selected row in a list of choices holds the selected fill and shadow. A
-control that is shown only under the pointer keeps its place while hidden, so
-nothing moves when the pointer arrives.
+selected row in a list of choices holds the selected plate under the pointer;
+an unselected row fades in the hover wash. A control that is shown only under
+the pointer keeps its place while hidden, so nothing moves when the pointer
+arrives.
 
 A text box is recessed into the surface under it, with no border until the
 pointer arrives; while it holds focus its border is the accent. The playhead
