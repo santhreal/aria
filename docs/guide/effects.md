@@ -107,8 +107,9 @@ value at the playhead.
   in percent, an angle in degrees. A point parameter is two rows, x and y, and a
   3D point is three.
 - A color parameter prints its value beside the label, a preset's name or a
-  hex such as `#ff0000`, with its swatches on the line under it. Click a
-  swatch to set the color.
+  hex such as `#ff0000`, with its swatches on the line under it. The color in
+  force is ringed, and **Clear** is an outline with a cross. Hover a swatch
+  for its color's name; click it to set the color.
 - A parameter that can be animated has the stopwatch, the keyframe navigator,
   the reset button, and the time area described in
   [Property controls](keyframes-and-graph-editor.md#property-controls). Editing an animated parameter writes

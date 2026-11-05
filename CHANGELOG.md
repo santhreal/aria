@@ -831,6 +831,7 @@ Notes for the latest release. For previous releases, see the
 - Every workspace docks Audio Meters at 64 px right of the Timeline; the Audio workspace no longer shows them as a wide frame in the upper right.
 - The Markers panel's color filter draws the Edit Marker dialog's swatches, rings the color in force, and names each color in a tooltip.
 - Effect Controls with no clip selected reads `Select a clip to edit its properties.` instead of offering a gap press that edits the sequence, and the Effects tab over a clip with no effects states where an effect comes from under its Effects heading.
+- Effect Controls color swatches ring the color in force, draw Clear as an outline with a cross, and name their color on hover, and every color swatch keeps a visible edge on a dark panel.
 
 ### Fixed
 

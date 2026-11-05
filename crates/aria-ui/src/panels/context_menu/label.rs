@@ -27,24 +27,12 @@ pub(super) fn label_row(
     for (index, label) in labels::swatches().enumerate() {
         let name = aria_models::LabelColor::name_of(label);
         let id = (prefix, index);
-        // The clear reads as an absence: an outline with a cross centered in
-        // it, rather than a tenth color that would look like one more label to
-        // pick. The cross is the muted tone of a live control, not the faint
-        // one that marks a disabled control.
+        let chosen = current == label;
         let drawn = match label {
-            Some(color) => {
-                let fill = theme.label(color, false);
-                swatch::swatch(id, fill, current == label, theme)
+            Some(color) => swatch::swatch(id, theme.label(color, false), chosen, theme),
+            None => {
+                swatch::clear(id, chosen, theme).debug_selector(move || format!("{prefix}-clear"))
             }
-            None => swatch::frame(id)
-                .debug_selector(move || format!("{prefix}-clear"))
-                .flex()
-                .items_center()
-                .justify_center()
-                .border_1()
-                .border_color(theme.border)
-                .text_color(theme.text_muted)
-                .child(crate::icons::icon(crate::icons::CLOSE).size(Theme::TEXT_SMALL)),
         };
         swatches.push(
             drawn

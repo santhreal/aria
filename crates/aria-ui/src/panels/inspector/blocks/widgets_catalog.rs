@@ -6,10 +6,11 @@ use crate::app::param_units::Units;
 use crate::motion;
 use crate::surfaces::clip_pick;
 use crate::theme::Theme;
+use crate::tooltip::WithTip as _;
 use aria_engine::EngineError;
 use gpui::{
-    CursorStyle, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, div, px,
+    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, SharedString,
+    Styled,
 };
 
 use super::controls::stacked;
@@ -209,8 +210,9 @@ pub fn color_rows(
 
 /// One color row: the stopwatch, the label, the color's name, the keyframe
 /// navigator, the reset button and the time area on one line, laid out as a
-/// number row's, and the palette on the line under it. `pick` writes the
-/// swatch pressed. `value` is `None` where the selected clips read different
+/// number row's, and the palette on the line under it, drawn through
+/// `crate::swatch` with a tip naming each color. `pick` writes the swatch
+/// pressed. `value` is `None` where the selected clips read different
 /// colors: the row names none and marks no swatch. The stopwatch is the dot a
 /// stepper row draws, so a color is keyed the same way a number is; a color
 /// that cannot be animated stands in the columns `keys` sets, with its name
@@ -227,22 +229,16 @@ pub fn swatch_row(
     let pick = std::rc::Rc::new(pick);
     let swatches: Vec<_> = crate::app::clip_effects::PARAM_COLORS
         .iter()
-        .map(|(name, _, rgba)| {
+        .map(|(name, shown, rgba)| {
             let rgba = *rgba;
             let pick = std::rc::Rc::clone(&pick);
-            div()
-                .id(key.with(name).element_id("insp-swatch"))
-                .size(px(16.))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(swatch(rgba))
-                .border_1()
-                .border_color(if Some(rgba) == value {
-                    theme.accent
-                } else {
-                    theme.border
-                })
-                .cursor(CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
+            let (id, chosen) = (key.with(name), Some(rgba) == value);
+            // A color with no alpha draws nothing, so it draws as the clear.
+            let drawn = match rgba[3] {
+                0 => crate::swatch::clear(id, chosen, theme),
+                _ => crate::swatch::swatch(id, swatch(rgba), chosen, theme),
+            };
+            drawn
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -255,6 +251,7 @@ pub fn swatch_row(
                         cx.notify();
                     }),
                 )
+                .with_tip(crate::tooltip::text_builder(*shown))
                 .into_any_element()
         })
         .collect();
