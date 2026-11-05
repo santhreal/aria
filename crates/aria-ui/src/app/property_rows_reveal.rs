@@ -21,6 +21,7 @@ impl AppState {
                 s.clip_modes.clear();
             });
             self.refresh_expanded_models();
+            self.clamp_video_scroll();
             return;
         }
         let targets: Vec<ClipId> = if !self.selection.is_empty() {
@@ -42,7 +43,7 @@ impl AppState {
             return;
         }
 
-        for clip_id in targets {
+        for &clip_id in &targets {
             let raw = clip_id.raw();
             let prev_animated_u = self.with_prop_rows(|s| {
                 matches!(
@@ -137,6 +138,9 @@ impl AppState {
             }
         }
         self.refresh_expanded_models();
+        for clip_id in targets {
+            self.reveal_clip_lane(clip_id.raw());
+        }
     }
 }
 

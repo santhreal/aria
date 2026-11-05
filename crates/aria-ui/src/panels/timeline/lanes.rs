@@ -10,7 +10,6 @@ use gpui::{
     ScrollWheelEvent, Styled, canvas, div, px,
 };
 
-use super::COLLAPSED_H;
 use super::clip::{self, LaneGroupPaint, VisibleLane};
 use super::glide;
 use super::headers::track_header;
@@ -66,13 +65,7 @@ pub(super) fn lane_group(
         let track = &store.sequence.tracks[row];
         group_total_clips += track.clips.len();
         let previewed = state.read(cx).lane_preview(track.id);
-        let target_h = if track.collapsed {
-            COLLAPSED_H
-        } else {
-            previewed
-                .unwrap_or(track.height)
-                .max(*aria_models::TrackDisplay::HEIGHT.start() as f32)
-        };
+        let target_h = state.read(cx).lane_clip_height(track);
         let clip_h = glide::glide(
             motion::MotionKey::new("lane-h", track.id),
             target_h,

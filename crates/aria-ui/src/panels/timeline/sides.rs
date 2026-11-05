@@ -14,47 +14,9 @@ use gpui::{Div, IntoElement, ParentElement, Styled, div, px};
 use super::EMPTY_SIDE_H;
 use crate::theme::Theme;
 
-/// The smallest share of the stack either side takes while both have lanes.
-const MIN_SHARE: f32 = 0.15;
-
-/// A side's height in the stack.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) enum Side {
-    /// This fraction of the stack.
-    Share(f32),
-    /// The stack less the other side's empty-lane strip.
-    Rest,
-    /// The empty-lane strip.
-    Empty,
-}
-
-/// The video and audio sides for the lanes on each and the A/V `split`.
-pub(super) fn sides(video_lanes: usize, audio_lanes: usize, split: f32) -> (Side, Side) {
-    match (video_lanes, audio_lanes) {
-        (1.., 0) => (Side::Rest, Side::Empty),
-        (0, 1..) => (Side::Empty, Side::Rest),
-        _ => {
-            let video = split.clamp(MIN_SHARE, 1.0 - MIN_SHARE);
-            (Side::Share(video), Side::Share(1.0 - video))
-        }
-    }
-}
-
-impl Side {
-    /// The lane viewport this side gives its group in a stack `stack_h` tall.
-    pub(super) fn viewport(self, stack_h: f32) -> f32 {
-        let stack_h = stack_h.max(0.0);
-        match self {
-            Side::Share(share) => stack_h * share,
-            Side::Rest => (stack_h - EMPTY_SIDE_H).max(0.0),
-            Side::Empty => EMPTY_SIDE_H,
-        }
-    }
-
-    pub(super) fn is_empty(self) -> bool {
-        self == Side::Empty
-    }
-}
+pub(super) use crate::app::property_rows::DEFAULT_PANEL_H;
+#[cfg(test)]
+pub(super) use crate::app::property_rows::{MIN_SHARE, Side, sides};
 
 /// The box a side's lane group draws in, `viewport` high: the height
 /// [`Side::viewport`] gave the group.

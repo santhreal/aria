@@ -28,6 +28,8 @@ mod empty_timeline_tests;
 mod offscreen_tests;
 #[cfg(test)]
 mod strip_ask_tests;
+#[cfg(test)]
+mod vertical_reveal_tests;
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
@@ -65,7 +67,7 @@ pub(super) const BAR_STEP: f32 = 3.0;
 pub(super) const CELL_W: f32 = 60.0;
 /// Height of a collapsed lane: enough to read the cut pattern, not enough for
 /// a clip label.
-pub(super) const COLLAPSED_H: f32 = 20.0;
+pub(super) use crate::app::property_rows::COLLAPSED_H;
 
 /// The spec the drawn scroll offset travels on: the release spec after a pan
 /// was let go, and otherwise the zoom's, so a tick held in place across an
@@ -102,20 +104,21 @@ pub fn render(
         tool,
         track_dragging,
         drop_row,
-        av_split,
         video_scroll_y,
         audio_scroll_y,
         panel_h,
     ) = {
         let app = state.read(cx);
-        let h = app.timeline_frame.map(|f| f[3]).unwrap_or(320.0);
+        let h = app
+            .timeline_frame
+            .map(|f| f[3])
+            .unwrap_or(sides::DEFAULT_PANEL_H);
         (
             app.snap_guide,
             app.timeline_viewport_px(),
             app.tool,
             app.track_dragging(),
             app.track_drop_row,
-            app.timeline_av_split,
             app.video_scroll_y,
             app.audio_scroll_y,
             h,
@@ -145,22 +148,11 @@ pub fn render(
     } else {
         0.0
     };
-    // `panel_h` is the panel inside its top border. The sides share what the
-    // header, the two drop strips, the divider, the graph editor and the
-    // overview leave of it; a frame too short for those leaves the sides
-    // nothing, never a stack taller than the panel.
-    let stack_h =
-        (panel_h - RULER_H - 2.0 * Theme::SPACE_SM - AV_DIVIDER_H - graph_h - overview::OVERVIEW_H)
-            .max(0.0);
     // A frame too short for any of the stack puts the graph editor straight
     // under the ruler, and its top rule would stand on the ruler's bottom rule
     // as one doubled line. The ruler's rule then separates the two alone.
     let graph_ruled = panel_h - RULER_H - graph_h - overview::OVERVIEW_H >= 2.0;
-    let (video_side, audio_side) = sides::sides(
-        visual_rows,
-        total_rows.saturating_sub(visual_rows),
-        av_split,
-    );
+    let (stack_h, video_side, audio_side) = state.read(cx).timeline_sides();
     let video_viewport_h = video_side.viewport(stack_h);
     let audio_viewport_h = audio_side.viewport(stack_h);
 

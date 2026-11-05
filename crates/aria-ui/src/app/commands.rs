@@ -505,6 +505,9 @@ impl AppState {
             self.landed = Some((*clip, std::time::Instant::now()));
         }
         self.sync_from_engine();
+        if let ApplyOutcome::Edited(aria_commands::EditOutcome::CreatedTrack(track)) = &outcome {
+            self.reveal_video_lane(track.raw());
+        }
         // An error is stale the moment something works: a failure that has been
         // superseded must not keep the strip red.
         self.clear_error();

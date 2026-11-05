@@ -23,6 +23,9 @@ mod tests;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+pub(crate) use super::lanes::{COLLAPSED_H, DEFAULT_PANEL_H};
+#[cfg(test)]
+pub(crate) use super::lanes::{MIN_SHARE, Side, sides};
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
@@ -419,6 +422,7 @@ impl AppState {
             });
         }
         self.refresh_expanded_models();
+        self.reveal_clip_lane(clip_id);
     }
 
     /// Toggle one outline group (`Transform`, `Effects`, `Masks`, `Audio`) on an
@@ -448,6 +452,7 @@ impl AppState {
             }
         });
         self.refresh_expanded_models();
+        self.reveal_clip_lane(raw);
     }
 
     /// Re-read the model of every clip whose property rows are open.
