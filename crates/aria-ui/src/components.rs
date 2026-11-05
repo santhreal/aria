@@ -570,8 +570,8 @@ pub fn form_row(
 /// differently in two panels. The caller attaches the click that takes focus,
 /// since the field a click focuses is the caller's. `editing` is the box's
 /// `(anchor, caret)` in characters while it holds focus. An empty box keeps
-/// its placeholder while it holds focus, with the caret before it, so a
-/// clicked box still states what it takes.
+/// its placeholder, a hint in `text_faint`, while it holds focus, with the
+/// caret before it, so a clicked box still states what it takes.
 pub fn text_box(
     id: impl Into<motion::ControlId>,
     value: &str,
@@ -582,7 +582,7 @@ pub fn text_box(
     let frame = field_frame(id, editing.is_some(), theme);
     if value.is_empty() {
         return frame
-            .text_color(theme.text_muted)
+            .text_color(theme.text_faint)
             .children(editing.map(|_| text_caret(Theme::TEXT_UI, 1.0, theme)))
             .child(clipped(placeholder.into()).text_ellipsis());
     }

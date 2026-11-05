@@ -833,6 +833,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls with no clip selected reads `Select a clip to edit its properties.` instead of offering a gap press that edits the sequence, and the Effects tab over a clip with no effects states where an effect comes from under its Effects heading.
 - Effect Controls color swatches ring the color in force, draw Clear as an outline with a cross, and name their color on hover, and every color swatch keeps a visible edge on a dark panel.
 - Settings draws the download timeouts, WASM limits, download quota, cache and plugin actions, a missing model's Install and each plugin's switch on the label and controls columns, with each row's actions at its end, and labels the timeouts Connect timeout, Read timeout and Total timeout.
+- An empty text box draws its placeholder, such as Search, in the dimmer hint color so it no longer reads as a typed value.
 
 ### Fixed
 

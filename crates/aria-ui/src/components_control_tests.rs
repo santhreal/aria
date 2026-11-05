@@ -1,4 +1,5 @@
-//! Worded controls stand one control tall, and a choice at rest reads muted.
+//! Worded controls stand one control tall, a choice at rest reads muted, and
+//! a text box's placeholder reads as a hint.
 //!
 //! WHY: a text box was 20 px tall and a solid button 26 px, so a box with its
 //! action beside it stood on two heights; a ghost button and a regular chip
@@ -12,6 +13,11 @@
 //!
 //! Not covered: a caller that overrides the height or the color after the
 //! call.
+//!
+//! The placeholder case: an empty box drew its placeholder in `text_muted`,
+//! the color of a row label, so "Search" in a field read as a typed value.
+//! It checks the box's text color in both looks, empty with and without
+//! focus and filled. Not covered: a caller that sets the color after.
 
 use gpui::{
     Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, TestAppContext,
@@ -126,6 +132,34 @@ fn an_inactive_chip_or_tab_rests_at_muted_text_in_every_size(cx: &mut TestAppCon
                 Some(theme.text_muted),
                 "a tab that is not open rests at another color in {appearance:?}"
             );
+        });
+    }
+}
+
+#[gpui::test]
+fn a_placeholder_reads_as_a_hint_and_a_value_as_text(cx: &mut TestAppContext) {
+    for appearance in [Appearance::Dark, Appearance::Light] {
+        install(cx, appearance);
+        cx.update(|app| {
+            crate::motion::begin_frame(app);
+            let theme = Theme::of(app);
+            assert_ne!(
+                theme.text_faint, theme.text_muted,
+                "the theme draws hints and labels alike in {appearance:?}"
+            );
+            for (value, editing, color, case) in [
+                ("", None, theme.text_faint, "an empty box"),
+                ("", Some((0, 0)), theme.text_faint, "an empty focused box"),
+                ("a query", None, theme.text, "a filled box"),
+                ("a query", Some((7, 7)), theme.text, "a filled focused box"),
+            ] {
+                let mut field = text_box("box", value, "Search", editing, &theme);
+                assert_eq!(
+                    field.style().text.color,
+                    Some(color),
+                    "{case} draws its text at another color in {appearance:?}"
+                );
+            }
         });
     }
 }
