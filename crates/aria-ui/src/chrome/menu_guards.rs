@@ -31,6 +31,26 @@ pub(crate) fn mask(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some("The selected clip has no mask")
 }
 
+/// The row acts on the selected clip's color grade.
+pub(crate) fn grade(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .selected_model()
+            .is_none_or(|clip| clip.adjust == aria_models::ColorAdjustments::default())
+            .then_some("The selected clip has no grade")
+    })
+}
+
+/// The row acts on the selected clip's chroma key.
+pub(crate) fn chroma(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .selected_model()
+            .is_none_or(|clip| clip.chroma_key.is_none())
+            .then_some("The selected clip has no chroma key")
+    })
+}
+
 /// The row acts on selected clips that carry sound.
 pub(crate) fn sound(_: &str, state: &AppState) -> Option<&'static str> {
     (!state.selection_has_sound()).then_some("Select a clip with sound")

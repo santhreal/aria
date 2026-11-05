@@ -38,7 +38,7 @@ static EFFECT_ITEMS: &[MenuItem] = &[
         let reset = s.clear_selected_adjustments();
         report(s, reset)
     })
-    .when(guards::selection),
+    .when(guards::grade),
     MenuItem::new("seq-mask-clear", "Remove Mask", |_, s, _| {
         let cleared = s.clear_selected_mask();
         report(s, cleared)
@@ -48,7 +48,7 @@ static EFFECT_ITEMS: &[MenuItem] = &[
         let cleared = s.clear_selected_chroma();
         report(s, cleared)
     })
-    .when(guards::selection),
+    .when(guards::chroma),
 ];
 
 /// The row that applies the effect applied last, captioned with its name.

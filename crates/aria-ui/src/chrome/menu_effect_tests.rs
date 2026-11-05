@@ -1,4 +1,4 @@
-//! Effect menu category submenus.
+//! Effect menu category submenus and clear guards.
 //!
 //! # Why
 //!
@@ -191,4 +191,123 @@ fn an_audio_row_applies_the_effect_it_names_to_every_clip_with_sound() {
             assert!(chain(state).is_empty(), "one Undo removes {id}");
         });
     }
+}
+
+#[test]
+fn reset_grade_and_remove_chroma_key_require_a_grade_or_key_and_write_no_noop_edit() {
+    use aria_models::{ClipParam, ColorAdjustments, LookParam};
+
+    let (mut state, clip) = with_clip();
+    let row = |state: &AppState, id: &str| -> MenuItem {
+        items_of(AppMenu::Effect, state)
+            .into_iter()
+            .find(|item| item.id == id)
+            .unwrap_or_else(|| panic!("{id} is not offered"))
+    };
+
+    state.clear_selection();
+    assert_eq!(
+        row(&state, "seq-grade-reset").blocked_by(&state),
+        Some("No clip is selected")
+    );
+    assert_eq!(
+        row(&state, "seq-chroma-clear").blocked_by(&state),
+        Some("No clip is selected")
+    );
+
+    state.select_clip(clip);
+    assert_eq!(
+        row(&state, "seq-grade-reset").blocked_by(&state),
+        Some("The selected clip has no grade")
+    );
+    assert_eq!(
+        row(&state, "seq-chroma-clear").blocked_by(&state),
+        Some("The selected clip has no chroma key")
+    );
+
+    let depth = state.history_depth();
+    state.status_message = None;
+    state
+        .clear_selected_adjustments()
+        .expect("clearing an ungraded clip succeeds");
+    state
+        .clear_selected_chroma()
+        .expect("clearing an unkeyed clip succeeds");
+    assert_eq!(state.history_depth(), depth);
+    assert_eq!(state.status_message, None);
+
+    let cx = gpui::TestAppContext::single();
+    let entity = cx.update(|app| app.new(|_| state));
+    cx.update(|app| {
+        entity.update(app, |state: &mut AppState, cx| {
+            for id in ["seq-grade-reset", "seq-chroma-clear"] {
+                let item = row(state, id);
+                (item.run)(item.id, state, cx);
+            }
+            assert_eq!(state.history_depth(), depth);
+            assert_eq!(state.status_message, None);
+
+            state
+                .set_param_scalar(
+                    ClipParam::Look {
+                        param: LookParam::AdjustExposure,
+                    },
+                    None,
+                    0.75,
+                )
+                .expect("grade exposure lands");
+            state
+                .set_selected_chroma_color([0, 177, 64])
+                .expect("chroma key lands");
+            assert_eq!(row(state, "seq-grade-reset").blocked_by(state), None);
+            assert_eq!(row(state, "seq-chroma-clear").blocked_by(state), None);
+
+            let grade_item = row(state, "seq-grade-reset");
+            (grade_item.run)(grade_item.id, state, cx);
+            assert_eq!(
+                state.selected_model().expect("selected clip").adjust,
+                ColorAdjustments::default()
+            );
+            assert_eq!(state.status_message.as_deref(), Some("Cleared grade"));
+            assert_eq!(
+                row(state, "seq-grade-reset").blocked_by(state),
+                Some("The selected clip has no grade")
+            );
+            assert!(state.undo());
+            assert_eq!(
+                state
+                    .selected_model()
+                    .expect("selected clip")
+                    .adjust
+                    .exposure
+                    .constant(),
+                Some(0.75)
+            );
+
+            let chroma_item = row(state, "seq-chroma-clear");
+            (chroma_item.run)(chroma_item.id, state, cx);
+            assert!(
+                state
+                    .selected_model()
+                    .expect("selected clip")
+                    .chroma_key
+                    .is_none()
+            );
+            assert_eq!(state.status_message.as_deref(), Some("Cleared chroma key"));
+            assert_eq!(
+                row(state, "seq-chroma-clear").blocked_by(state),
+                Some("The selected clip has no chroma key")
+            );
+            assert!(state.undo());
+            assert_eq!(
+                state
+                    .selected_model()
+                    .expect("selected clip")
+                    .chroma_key
+                    .as_ref()
+                    .map(|key| key.rgb),
+                Some([0, 177, 64])
+            );
+        });
+    });
 }

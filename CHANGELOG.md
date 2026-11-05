@@ -1165,6 +1165,7 @@ Notes for the latest release. For previous releases, see the
 - Settings section titles and AI tools group titles draw in the heading weight and color instead of the dimmed tone of a disabled control.
 - Effects & Presets entries start one indent right of their folder's name instead of a chevron's width left of it.
 - A dock frame short of room keeps the visible panel's tab title whole while the other tabs fit beside it.
+- Disable Effect > Reset Grade and Remove Chroma Key when the selected clip has no grade or chroma key to clear, and skip no-op clear edits.
 
 ## [alpha-0.7.0] - 2026-07-22
 

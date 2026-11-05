@@ -11,7 +11,7 @@
 //!
 //! The numeric knobs are *not* here. A scalar edit goes through
 //! `clip_params.rs`, which addresses the one property. What is left is the
-//! structural part — which shape, which mode, which key colour, which stencil.
+//! structural part — which shape, which mode, which key color, which stencil.
 //!
 //! One mask of the selected clip is active: the Viewer handles, the Pen, and
 //! the tracker edit it. A new mask becomes active; removing or moving masks
@@ -87,7 +87,7 @@ impl AppState {
         Some(self.selected_model()?.param_tick(self.playhead.value))
     }
 
-    /// The active mask's centre, size, and rotation at the playhead, which is
+    /// The active mask's center, size, and rotation at the playhead, which is
     /// where the Viewer draws its handles and where a drag of them starts.
     pub fn active_mask_pose(&self) -> Option<([f32; 2], [f32; 2], f32)> {
         let mask = self.active_model_mask()?;
@@ -248,7 +248,7 @@ impl AppState {
     /// Reshape the active mask to the path `points` and `closed` state at the
     /// playhead: the keyframe there when the path is keyframed, added when none
     /// sits there, or the path itself when it is not. The mask keeps everything
-    /// else: its feather, centre, rotation and their keyframes, its other path
+    /// else: its feather, center, rotation and their keyframes, its other path
     /// keyframes, its mode, and its invert.
     pub fn set_selected_mask_path(
         &mut self,
@@ -292,7 +292,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Key on a colour, seeding a usable tolerance so the first click does
+    /// Key on a color, seeding a usable tolerance so the first click does
     /// something visible.
     pub fn set_selected_chroma_color(&mut self, rgb: [u8; 3]) -> Result<(), EngineError> {
         let Some(model) = self.selected_model() else {
@@ -309,7 +309,10 @@ impl AppState {
     }
 
     pub fn clear_selected_chroma(&mut self) -> Result<(), EngineError> {
-        if self.selected_clip().is_none() {
+        if self
+            .selected_model()
+            .is_none_or(|model| model.chroma_key.is_none())
+        {
             return Ok(());
         }
         self.send_chroma(None)?;

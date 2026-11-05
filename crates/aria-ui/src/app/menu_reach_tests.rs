@@ -45,9 +45,9 @@ enum Kind {
     NoEdit,
 }
 use Dress::{
-    Baked, Blended, Clip, Copied, Cut, Edged, EffectCopied, Effected, Fitted, Grouped, Inside,
-    Keyed, Labelled, Lanes, Linked, Marked, Masked, Nearby, Nest, Pair, Picked, Ranged, Rendered,
-    Sound, Source, Sourced, Spanned,
+    Baked, Blended, Chroma, Clip, Copied, Cut, Edged, EffectCopied, Effected, Fitted, Graded,
+    Grouped, Inside, Keyed, Labelled, Lanes, Linked, Marked, Masked, Nearby, Nest, Pair, Picked,
+    Ranged, Rendered, Sound, Source, Sourced, Spanned,
 };
 use Kind::{Edits, NoEdit};
 /// Every menu row, what it does, and the state it is driven against. Checked
@@ -70,15 +70,15 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-flip-h", Edits, Clip),
     ("seq-flip-v", Edits, Clip),
     ("seq-crop-reset", Edits, Clip),
-    ("seq-grade-reset", Edits, Clip),
-    ("seq-chroma-clear", Edits, Clip),
     ("seq-matte-luma", Edits, Clip),
     ("seq-matte-alpha", Edits, Clip),
     ("seq-matte-clear", Edits, Clip),
     // Acts on state the fixture has to be dressed with first: a copy on the
     // clipboard, a marker under the playhead, a second clip to link to, a
     // junction, a source range, a nest, a mask, or a render already on disk.
+    ("seq-grade-reset", Edits, Graded),
     ("seq-mask-clear", Edits, Masked),
+    ("seq-chroma-clear", Edits, Chroma),
     ("edit-paste", Edits, Copied),
     ("edit-paste-insert", Edits, Copied),
     ("edit-paste-attributes", Edits, Copied),

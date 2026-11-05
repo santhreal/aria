@@ -69,9 +69,13 @@ pub(super) enum Dress {
     Baked,
     /// The clip with a keyframe under the playhead.
     Keyed,
+    /// The clip with a color grade adjustment.
+    Graded,
     /// The clip with two masks, so a row acting on the active mask has one to
     /// act on.
     Masked,
+    /// The clip with a chroma key.
+    Chroma,
     /// The clip with its first property row selected in the timeline outline,
     /// and a driver language installed.
     Picked,
@@ -81,7 +85,7 @@ pub(super) enum Dress {
     Effected,
     /// That clip with its effect copied, for a paste to add.
     EffectCopied,
-    /// The clip with a label colour.
+    /// The clip with a label color.
     Labelled,
     /// The clip, and an empty video lane above it.
     Lanes,
@@ -257,11 +261,31 @@ impl Dress {
                     .expect("a keyframe lands at the playhead");
                 state
             }
+            Self::Graded => {
+                let mut state = Self::Clip.state();
+                state
+                    .set_param_scalar(
+                        aria_models::ClipParam::Look {
+                            param: aria_models::LookParam::AdjustExposure,
+                        },
+                        None,
+                        0.5,
+                    )
+                    .expect("the grade lands");
+                state
+            }
             Self::Masked => {
                 let mut state = Self::Clip.state();
                 for kind in [aria_models::MaskKind::Circle, aria_models::MaskKind::Star] {
                     state.add_selected_mask(kind).expect("the mask lands");
                 }
+                state
+            }
+            Self::Chroma => {
+                let mut state = Self::Clip.state();
+                state
+                    .set_selected_chroma_color([0, 177, 64])
+                    .expect("the chroma key lands");
                 state
             }
             Self::Picked => {

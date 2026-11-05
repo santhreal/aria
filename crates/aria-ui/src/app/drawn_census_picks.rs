@@ -6,7 +6,7 @@
 //!
 //! The numbers in a block are generated from the property catalog, so a property
 //! the model gains is drawn without anyone editing a panel. The picks were the
-//! other half and had no such floor: a filter chip, a mask shape, a key colour,
+//! other half and had no such floor: a filter chip, a mask shape, a key color,
 //! a matte source, a style toggle, a blend mode, a stabilization level, the two
 //! flips, motion blur, noise reduction and seven clears were each a `div()` with
 //! its setter sealed inside a gpui listener. Twelve of the model's commands were
@@ -96,7 +96,7 @@ fn staged() -> Vec<Staged> {
         push(Pick::Stabilize(Some(level)), a_moving_clip);
     }
     push(Pick::Stabilize(None), a_stabilized_clip);
-    push(Pick::ClearGrade, a_clip);
+    push(Pick::ClearGrade, a_graded_clip);
     push(Pick::ToggleDenoise, a_clip);
 
     push(Pick::FlipHorizontal, a_clip);
@@ -402,6 +402,15 @@ fn a_graded_clip() -> AppState {
     state
         .set_selected_lut("/luts/warm.cube")
         .expect("the LUT lands");
+    state
+        .set_param_scalar(
+            ClipParam::Look {
+                param: aria_models::LookParam::AdjustExposure,
+            },
+            None,
+            0.5,
+        )
+        .expect("the grade lands");
     state
 }
 

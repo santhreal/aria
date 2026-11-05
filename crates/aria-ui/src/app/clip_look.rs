@@ -5,7 +5,7 @@
 //! module because they all read the selected clip, mutate one field of its look,
 //! and dispatch one command.
 //!
-//! The eleven colour adjustments are not here. `SetClipAdjustments` carries all
+//! The eleven color adjustments are not here. `SetClipAdjustments` carries all
 //! of them, so a per-slider setter had to rebuild the block from the projection
 //! and flattened every grade keyframe on the way; a slider edit now addresses
 //! its own property through `clip_params.rs`.
@@ -81,9 +81,13 @@ impl AppState {
 
     /// Return every slider to neutral, which is also how the grade is cleared.
     pub fn clear_selected_adjustments(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
+        let Some(model) = self.selected_model() else {
             return Ok(());
         };
+        if model.adjust == ColorAdjustments::default() {
+            return Ok(());
+        }
+        let clip = model.id;
         self.apply_command(Command::Edit(EditCommand::SetClipAdjustments {
             clip,
             adjust: ColorAdjustments::default(),
