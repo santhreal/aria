@@ -94,15 +94,9 @@ pub fn render(
             cx.notify();
         }),
     );
-    // The rows are built before the spinner: the spinner's element borrows the
-    // context for as long as it lives, so anything else that needs `cx` has to
-    // be finished first.
-    // The pixel size the file is written at stands as a fact of its own: muted
-    // text after the Scale chips reads as one more chip.
-    let mut rows: Vec<gpui::Div> = vec![
-        fact(&theme, "Encoder", encoder_label),
-        fact(&theme, "Size", format!("{out_w}×{out_h}")),
-    ];
+    // The file first, as a save sheet opens on its name, then what writes it,
+    // the picture, the encoding, the sound and the span.
+    let mut rows: Vec<gpui::Div> = vec![fact(&theme, "Destination", dest_label)];
     rows.push(if format_choices.len() > 1 {
         line(
             &theme,
@@ -122,6 +116,7 @@ pub fn render(
         let (_, label) = format_choices.into_iter().next().unwrap_or_default();
         fact(&theme, "Format", label)
     });
+    rows.push(fact(&theme, "Encoder", encoder_label));
     rows.push(line(
         &theme,
         "Scale",
@@ -134,6 +129,10 @@ pub fn render(
             cx,
         ),
     ));
+    // The pixel size the file is written at stands as a fact of its own under
+    // the chips that set it: muted text after the Scale chips reads as one
+    // more chip.
+    rows.push(fact(&theme, "Size", format!("{out_w}×{out_h}")));
     rows.push(line(
         &theme,
         "Frame rate",
@@ -208,8 +207,8 @@ pub fn render(
             ),
         ));
     }
-    // The marked choice names the span it renders; with nothing marked, its
-    // press says how to mark one.
+    // The marked choice names the span it renders; with nothing marked, a
+    // press on it reports how to mark one.
     rows.push(line(
         &theme,
         "Range",
@@ -225,7 +224,6 @@ pub fn render(
             cx,
         ),
     ));
-    rows.push(fact(&theme, "Destination", dest_label));
     // What is already rendering. Pressing Export twice is otherwise invisible
     // from this sheet until the Jobs board is opened, and the loader is what
     // separates a render that is still working from one that wedged.
@@ -235,9 +233,8 @@ pub fn render(
     let running: Vec<&crate::app::jobs::UiJob> = board.iter().filter(|job| !job.terminal).collect();
     let mut in_flight: Vec<gpui::AnyElement> = Vec::new();
     if !running.is_empty() {
-        // The same row every other wait draws. It was the big gradient spinner
-        // with a line beside it, which is a third loader shape for a wait the
-        // rows underneath already describe.
+        // The same row every other wait draws, for a wait the rows under it
+        // describe.
         in_flight.push(
             crate::loaders::pending_row(
                 "export-inflight",

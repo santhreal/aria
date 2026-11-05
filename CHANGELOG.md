@@ -826,6 +826,7 @@ Notes for the latest release. For previous releases, see the
 - The Speed tab's ramp graph draws the curve as a line over a shaded area instead of a row of bars.
 - Settings > Keyboard Shortcuts draws each shortcut on a shorter row, so more of the list fits on screen.
 - A dock frame short of room for its tab titles shortens the longest titles first, so short titles such as Align and Jobs stay whole.
+- The Export sheet opens on the Destination row, then Format and Encoder, then Scale with the Size it gives directly under it, then Frame rate, Codec, Bitrate, Keyframes, Audio and Range.
 
 ### Fixed
 

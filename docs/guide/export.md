@@ -53,11 +53,14 @@ choice, the one in force lit. Click a chip to choose it. A row with one choice
 states it as text. None of the choices is an edit or is saved with the
 project:
 
-- **Size** states the pixel size the file is written at: the canvas at the
-  chosen **Scale**.
+- **Destination** shows the file **Export** writes. A path wider than the
+  sheet loses its start to an ellipsis, and the file name stays in view.
 - **Format** is the platform encoder or a plugin encoder. The row is drawn as
   chips when a plugin registers an encoder.
+- **Encoder** states the backend that writes the file.
 - **Scale** renders at 100, 75, 50, or 25 per cent of the canvas.
+- **Size** states the pixel size the file is written at: the canvas at the
+  chosen **Scale**.
 - **Frame rate** is the project's rate or a fixed 24, 25, 30, 50, or 60.
 - **Codec** is H.264 or H.265. The row offers only the codecs this machine can
   write: on Linux that is probed from the installed GStreamer encoders when the
@@ -74,11 +77,9 @@ project:
   its In and Out timecodes. With no In and Out set, clicking the marked range
   reports how to set them and keeps the whole timeline.
 
-The **Destination** row shows the file **Export** writes. A path wider than the
-sheet loses its start to an ellipsis, and the file name stays in view.
 **Export As…** prompts for another path and starts the export there. **Export
-Frames…** prompts for a folder and writes the frames as an image sequence, with
-the same scale, rate, and range.
+Frames…** prompts for a folder and writes the frames as an image sequence,
+with the same scale, rate, and range.
 
 The status line states the size, whether audio is included, and the span when the
 export starts.

@@ -27,18 +27,19 @@ use crate::app::{AppState, DialogKind};
 use crate::interned::intern;
 use crate::test_support::drawn_shell;
 
+/// Every row label, in the order the sheet draws them.
 const LABELS: [&str; 11] = [
-    "Encoder",
-    "Size",
+    "Destination",
     "Format",
+    "Encoder",
     "Scale",
+    "Size",
     "Frame rate",
     "Codec",
     "Bitrate",
     "Keyframes",
     "Audio",
     "Range",
-    "Destination",
 ];
 
 const EPS: f32 = 0.51;
@@ -92,6 +93,14 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
         lines.iter().map(|(label, _)| *label).collect::<Vec<_>>()
     );
     lines.sort_by(|a, b| a.1.top().partial_cmp(&b.1.top()).unwrap());
+    // The file first, then what writes it, the picture with its size under
+    // the Scale chips that set it, the encoding, the sound and the span.
+    let order: Vec<&str> = lines.iter().map(|(label, _)| *label).collect();
+    let sheet: Vec<&str> = LABELS
+        .into_iter()
+        .filter(|label| order.contains(label))
+        .collect();
+    assert_eq!(order, sheet, "the sheet draws its rows out of order");
     let (first_label, first) = lines[0];
     for (label, line) in &lines {
         assert!(
