@@ -845,6 +845,9 @@ Notes for the latest release. For previous releases, see the
 - The Audio workspace gives the Viewer 34 % of the upper row instead of 22 %, so the Viewer's controls take at most two lines.
 - Each Audio Track Mixer strip draws its automation mode as one list chip that opens the five modes, in place of five chips that wrapped to two lines.
 - Opening a drop-down list (Viewer zoom, Viewer resolution, Project sort, mixer automation) closes the one that was open.
+- A secondary button such as Cancel or Add at playhead draws a light control outline at rest in the dark look instead of a near-black groove.
+- Easy Ease and Hold in the timeline graph, and the Assistant's Send while the prompt box is empty, draw at 40 % opacity with the arrow cursor, as every disabled control does.
+- The Assistant's Plan only draws as a labeled switch in place of a button that gained a check mark while on.
 
 ### Fixed
 
@@ -1180,6 +1183,7 @@ Notes for the latest release. For previous releases, see the
 - Group lane creation with clip placement into one undo step named after the edit when committing captions, placing a multicam group or nested sequence, or adding an adjustment layer.
 - The selected Home rail row keeps its selected fill under the pointer instead of dimming to the hover fill.
 - The vectorscope draws its 100 % red, yellow, blue and cyan target boxes whole instead of cut off at the edge of the scope.
+- Send on an empty Assistant prompt reports on the status line instead of adding an Error entry to the transcript.
 
 ## [alpha-0.7.0] - 2026-07-22
 

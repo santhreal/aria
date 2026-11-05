@@ -104,8 +104,12 @@ pub(super) fn render_graph_editor(
     };
     let value_chip = graph_mode_chip("graph-mode-value", "Value", GraphMode::Value);
     let speed_chip = graph_mode_chip("graph-mode-speed", "Speed", GraphMode::Speed);
+    // Easy Ease and Hold act on the keys the Animation menu's rows act on.
+    // With none, the tools draw blocked, and a press puts the reason on the
+    // status line.
+    let blocked = crate::chrome::menu_guards::keyframes("", state.read(cx)).is_some();
     let graph_tool = |id: &'static str, label: &'static str| {
-        components::ghost_button(id, label, theme)
+        components::blocked::blocked(components::ghost_button(id, label, theme), blocked)
             .debug_selector(move || id.into())
             .px(px(Theme::SPACE_XS))
             .py(px(Theme::SPACE_XXS))

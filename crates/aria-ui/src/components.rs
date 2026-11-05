@@ -12,6 +12,7 @@ use crate::motion;
 use crate::motion::glide;
 use crate::theme::Theme;
 
+pub mod blocked;
 pub mod drawn;
 pub use drawn::{Picture, Wraps, picture};
 #[cfg(test)]
@@ -90,9 +91,12 @@ pub fn button(
 
 /// A ghost button: a secondary action, such as Cancel or Measure. A border on
 /// no fill at rest, so it reads as a button beside a solid one and apart from a
-/// chip, which marks a choice with a fill. One control tall, its label
-/// [`GHOST_INSET`] inside its outer edge. Under the pointer the border and the
-/// label brighten and a wash fills it.
+/// chip, which marks a choice with a fill. The border is a control outline,
+/// `border_strong` at `GHOST_REST_EDGE` of its strength, never the splitter
+/// `border`, which draws darker than the ground in the dark appearance and so
+/// reads as a groove. One control tall, its label [`GHOST_INSET`] inside its
+/// outer edge. Under the pointer the border and the label brighten and a wash
+/// fills it.
 pub fn ghost_button(
     id: impl Into<motion::ControlId>,
     label: impl Into<SharedString>,
@@ -102,7 +106,7 @@ pub fn ghost_button(
     let lit = motion::hover_t(id.motion("ghost"));
     let button = ghost_frame(id, theme)
         .border_1()
-        .border_color(motion::mix(theme.border, theme.border_strong, lit))
+        .border_color(ghost_edge(lit, theme))
         .px(px(GHOST_INSET.0 - GHOST_BORDER))
         .py(px(GHOST_INSET.1 - GHOST_BORDER));
     #[cfg(test)]
@@ -149,6 +153,17 @@ pub const GHOST_INSET: (f32, f32) = (Theme::SPACE_SM, Theme::SPACE_XS);
 
 /// The width of a [`ghost_button`]'s border, inside [`GHOST_INSET`].
 const GHOST_BORDER: f32 = 1.0;
+
+/// A [`ghost_button`]'s border at hover `lit`: `border_strong` at
+/// [`GHOST_REST_EDGE`] of its strength at rest, the whole token under the
+/// pointer.
+fn ghost_edge(lit: f32, theme: &Theme) -> gpui::Hsla {
+    let rest = theme.border_strong.opacity(GHOST_REST_EDGE);
+    motion::mix(rest, theme.border_strong, lit)
+}
+
+/// How much of `border_strong` a [`ghost_button`]'s border draws at rest.
+const GHOST_REST_EDGE: f32 = 0.6;
 
 /// The frame of a [`ghost_button`] and a [`disclosure_button`]: its padding,
 /// its wash and text color, which fade in under the pointer, and its press

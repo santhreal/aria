@@ -260,13 +260,15 @@ fn plan_card(
 /// key table (`aria.field.ai-prompt`), like every other box in the app; clicking
 /// it only takes focus. Send becomes Stop for the duration of a turn, because a
 /// model that runs for a minute needs one obvious way out and a second Send
-/// during a turn has nothing to do.
+/// during a turn has nothing to do. While the box is empty Send draws blocked,
+/// and a press puts the reason on the status line.
 fn composer(
     theme: &Theme,
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let running = state.read(cx).assistant.running;
+    let empty = state.read(cx).assistant.prompt.as_str().trim().is_empty();
     let prompt = {
         let assistant = &state.read(cx).assistant;
         crate::components::text_box(
@@ -319,25 +321,30 @@ fn composer(
                         .gap(px(Theme::SPACE_XS))
                         .child(
                             // Plan only is a switch, not a menu: it changes what
-                            // Send does, so it belongs next to Send.
-                            crate::components::ghost_button(
-                                "ai-plan-only",
-                                if plan_only {
-                                    "Plan only \u{2713}"
-                                } else {
-                                    "Plan only"
-                                },
-                                theme,
-                            )
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                                    this.state.update(cx, |state, _| {
-                                        state.set_assistant_plan_only(!plan_only);
-                                    });
-                                    cx.notify();
-                                }),
-                            ),
+                            // Send does, so it belongs next to Send. The label
+                            // presses it too.
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(Theme::SPACE_XS))
+                                .cursor(gpui::CursorStyle::PointingHand)
+                                .text_size(Theme::TEXT_UI)
+                                .text_color(theme.text_muted)
+                                .child("Plan only")
+                                .child(crate::components::switch(
+                                    "ai-plan-only",
+                                    Some(plan_only),
+                                    theme,
+                                ))
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                                        this.state.update(cx, |state, _| {
+                                            state.set_assistant_plan_only(!plan_only);
+                                        });
+                                        cx.notify();
+                                    }),
+                                ),
                         )
                         .when(has_transcript && !running, |el| {
                             el.child(
@@ -400,16 +407,19 @@ fn composer(
                         )
                         .into_any_element()
                 } else {
-                    crate::components::button("ai-send", "Send", theme)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                this.state
-                                    .update(cx, |state, cx| state.send_composer_prompt(cx));
-                                cx.notify();
-                            }),
-                        )
-                        .into_any_element()
+                    crate::components::blocked::blocked(
+                        crate::components::button("ai-send", "Send", theme),
+                        empty,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                            this.state
+                                .update(cx, |state, cx| state.send_composer_prompt(cx));
+                            cx.notify();
+                        }),
+                    )
+                    .into_any_element()
                 }),
         )
 }

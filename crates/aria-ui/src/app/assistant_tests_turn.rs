@@ -461,3 +461,33 @@ fn discarding_a_plan_changes_nothing() {
         Some("There is no plan to apply")
     );
 }
+/// An empty box asked nothing, so Send on it answers on the status line and
+/// writes no Error bubble: the transcript holds prompts and their answers. A
+/// typed prompt that is refused still shows as asked and refused, so the
+/// refusal stands next to what it refused.
+#[gpui::test]
+fn an_empty_box_refuses_on_the_status_line_alone(cx: &mut gpui::TestAppContext) {
+    use gpui::AppContext as _;
+
+    cx.executor().allow_parking();
+    let state = cx.new(|_| state());
+    for typed in ["", "   ", "\t"] {
+        state.update(cx, |state, cx| state.send_agent_prompt(typed.into(), cx));
+        state.read_with(cx, |state, _| {
+            assert_eq!(
+                kinds(state),
+                Vec::new(),
+                "Send on {typed:?} wrote the transcript"
+            );
+            assert_eq!(state.status_message.as_deref(), Some("Type a prompt first"));
+        });
+    }
+    state.update(cx, |state, cx| state.send_agent_prompt("cut it".into(), cx));
+    state.read_with(cx, |state, _| {
+        assert_eq!(
+            kinds(state),
+            vec![AgentEntryKind::You, AgentEntryKind::Error],
+            "a refused prompt shows as asked and refused"
+        );
+    });
+}

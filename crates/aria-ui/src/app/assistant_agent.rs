@@ -98,12 +98,15 @@ impl AppState {
             Err(refusal) => {
                 // An unconfigured provider is the one refusal with somewhere to
                 // go, so it opens the place that fixes it. The others are about
-                // this panel and stay in it.
+                // this panel and stay in it. An empty box asked nothing, so its
+                // refusal goes to the status line and the transcript holds only
+                // prompts and their answers.
                 let unconfigured = refusal.contains("Settings");
-                if !prompt.trim().is_empty() {
-                    self.push_agent_message(AgentEntryKind::You, prompt.trim());
+                let asked = prompt.trim();
+                if !asked.is_empty() {
+                    self.push_agent_message(AgentEntryKind::You, asked);
+                    self.push_agent_message(AgentEntryKind::Error, refusal.clone());
                 }
-                self.push_agent_message(AgentEntryKind::Error, refusal.clone());
                 self.status_message = Some(refusal);
                 if unconfigured {
                     self.open_settings_at(crate::app::settings_form::SettingsSection::Ai);
