@@ -1,12 +1,12 @@
 //! The controls pressed in the markers panel: add one at the playhead, step
-//! one's colour, delete one.
+//! one's color, delete one.
 //!
 //! `Remove marker` claimed the panel's delete button and nothing could press it,
 //! so the button could have been wired to the wrong id, or deleted, without
 //! turning anything red. The three edits the panel offers are declared here and
 //! the panel builds each control from one of them.
 //!
-//! Two neighbours in the same row stay out, and for different reasons:
+//! Two neighbors in the same row stay out, and for different reasons:
 //!
 //! - The row body seeks: it moves the playhead and asks for a frame, which needs
 //!   the window. Nothing in the project changes, so there is no command to
@@ -25,7 +25,7 @@ use crate::app::AppState;
 pub enum Pick {
     /// Drop a marker where the playhead stands.
     AddAtPlayhead,
-    /// Step one marker to the next colour in the ring.
+    /// Step one marker to the next color in the ring.
     CycleColour(u64),
     /// Delete one marker by id.
     Remove(u64),

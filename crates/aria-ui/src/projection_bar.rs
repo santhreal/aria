@@ -16,7 +16,7 @@ use crate::types::{Taper, UiClipLine, UiFxBadge};
 /// the frame before it.
 const LINE_SAMPLES: usize = 48;
 
-/// The level a property with no number on a line (a colour, a rectangle)
+/// The level a property with no number on a line (a color, a rectangle)
 /// draws at: halfway up the bar.
 const LEVEL: f32 = 0.5;
 
@@ -31,7 +31,7 @@ pub(super) fn speed_label(clip: &Clip) -> Option<SharedString> {
     Some(format!("{sign}{}", Units::SPEED.print(speed as f32)).into())
 }
 
-/// Which colour the fx badge draws: whether anything is applied to the clip,
+/// Which color the fx badge draws: whether anything is applied to the clip,
 /// and whether a property every clip has was changed.
 pub(super) fn fx_badge(clip: &Clip) -> UiFxBadge {
     let mut badge = UiFxBadge::default();

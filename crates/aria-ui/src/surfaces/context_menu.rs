@@ -10,7 +10,7 @@
 //! each row's `run` against a fixture and reports what it asked for. Rows whose
 //! text is data, not code, stay where their data is: the transition blends come
 //! from `app::clip_transitions`, and the label swatches are a [`MenuItem::Labels`]
-//! block, because a colour swatch is not a text row and the panel owns drawing
+//! block, because a color swatch is not a text row and the panel owns drawing
 //! it. The position of that block is declared here so one place still holds the
 //! menu's order.
 //!
@@ -82,7 +82,7 @@ pub enum MenuItem<F> {
     /// it. Declared at the row rather than listed in the census, so the default
     /// for a new row is to be measured.
     Outside(MenuRow<F>),
-    /// The label palette: one swatch per colour, plus the groups already in use.
+    /// The label palette: one swatch per color, plus the groups already in use.
     /// The panel draws it, because a swatch row is not a text row.
     Labels,
     /// Every blend the transition catalog offers, with the applied one checked.

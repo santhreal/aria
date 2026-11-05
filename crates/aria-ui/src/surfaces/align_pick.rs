@@ -15,7 +15,7 @@ use crate::app::align::{AlignAxis, AlignEdge};
 pub enum Pick {
     /// Line every selected clip's bounds up on this edge of the target.
     Align(AlignEdge),
-    /// Space the selected clips' centres evenly along this axis.
+    /// Space the selected clips' centers evenly along this axis.
     Distribute(AlignAxis),
 }
 

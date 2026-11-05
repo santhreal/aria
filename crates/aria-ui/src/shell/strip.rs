@@ -82,7 +82,7 @@ pub(super) fn status_strip(
         .items_center()
         .px(px(Theme::SPACE_MD))
         .gap(px(Theme::SPACE_MD))
-        // The strip is washed for an error rather than only coloured: a
+        // The strip is washed for an error rather than only colored: a
         // one-line message in a 22px strip is easy to miss.
         .bg(if has_err {
             theme.danger_muted
@@ -115,7 +115,7 @@ pub(super) fn status_strip(
                     )),
                 ),
         )
-        // Centre: the work in flight.
+        // Center: the work in flight.
         .when_some(job, |el, job| el.child(job))
         // Right: how playback is keeping up, and on what.
         .child(

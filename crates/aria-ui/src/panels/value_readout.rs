@@ -1,6 +1,6 @@
 //! The scrubbable readout: a number a press drags or opens as text.
 //!
-//! Drawn in the `value` colour, with a dotted underline while the pointer is
+//! Drawn in the `value` color, with a dotted underline while the pointer is
 //! over it. A press hands the readout's [`ScrubTarget`] to the state, and the
 //! shell routes the pointer from there: the drag is the state's, so it keeps
 //! going when the pointer leaves the readout. Once open, the readout draws the
@@ -21,7 +21,7 @@ use crate::theme::Theme;
 #[derive(Debug)]
 pub struct Look {
     pub size: gpui::Pixels,
-    /// The colour the number is printed in.
+    /// The color the number is printed in.
     pub ink: Hsla,
 }
 
@@ -135,7 +135,7 @@ pub fn readout(
         .on_hover(motion::hover_listener(hover))
         .child(text)
         // The underline hangs below the text, outside the readout's box, so the
-        // box is the text's line and the number centres on its row like the
+        // box is the text's line and the number centers on its row like the
         // label and the keyframe navigator beside it.
         .child(
             div()

@@ -3,7 +3,7 @@
 //!
 //! # Why
 //!
-//! The ramp canvas kept its behaviour in four gpui listeners. Each one held a
+//! The ramp canvas kept its behavior in four gpui listeners. Each one held a
 //! decision nothing else could see: a press grabs a nearby point or adds one
 //! where it landed, a move is inert unless a point is grabbed, a release that
 //! moved nothing writes nothing, and a right-click drops the point under the

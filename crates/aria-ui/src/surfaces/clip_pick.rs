@@ -1,6 +1,6 @@
 //! The picks in the inspector's remaining clip blocks: audio,
 //! animation, speed, template, text and transition, the Transform tab's Parent
-//! row, the swatches of every colour property row, and the Character and
+//! row, the swatches of every color property row, and the Character and
 //! Paragraph panels.
 //!
 //! The picture blocks became a registry first
@@ -42,7 +42,7 @@ pub enum TransitionSlotEdit {
     ToggleBool,
     /// Pick a choice option by id.
     Choice(String),
-    /// Pick an 8-bit RGBA colour swatch.
+    /// Pick an 8-bit RGBA color swatch.
     Color([u8; 4]),
     /// Step one axis (`0` = X, `1` = Y) of a 2D vector or size slot.
     NudgeVec2 { axis: usize, by: f32 },
@@ -117,7 +117,7 @@ pub enum Pick {
     TextAlignH(TextAlignH),
     /// Where the title's block sits down the frame.
     TextAlignV(TextAlignV),
-    /// A swatch on a colour property's row.
+    /// A swatch on a color property's row.
     ParamColor {
         param: ClipParam,
         rgba: [u8; 4],

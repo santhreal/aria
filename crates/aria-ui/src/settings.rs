@@ -101,7 +101,7 @@ pub struct UiSettings {
     /// reads the originals either way.
     pub use_proxies: bool,
     /// Whether the Viewer draws a transparency grid where no layer covers
-    /// the canvas, instead of the sequence's background colour.
+    /// the canvas, instead of the sequence's background color.
     pub transparency_grid: bool,
     /// Play a 40 ms audio grain at each new pointer position while dragging
     /// the playhead, the ruler, or a timeline scrub.

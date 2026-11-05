@@ -45,7 +45,7 @@ pub struct Drag {
 /// Where the clip sat before the drag, and what the magnet may do to the edge
 /// that moves.
 ///
-/// A transition window carries none of this: it is centred on a cut, so nothing
+/// A transition window carries none of this: it is centered on a cut, so nothing
 /// about it is lane-relative and no magnet applies to it.
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
@@ -86,7 +86,7 @@ pub enum Gesture {
         left: bool,
         span: Span,
     },
-    /// A drag on one edge of the blend window at a cut. The window is centred on
+    /// A drag on one edge of the blend window at a cut. The window is centered on
     /// the junction, so both edges lengthen it and neither moves the cut.
     Transition {
         /// The right-hand edge rather than the left.
@@ -385,7 +385,7 @@ pub(crate) fn steps(state: &AppState, gesture: Gesture, clip: ClipId, travel: i6
                 start: span.start,
                 end: span.end,
             };
-            // Only an abutting neighbour has a shared cut to roll. Without one
+            // Only an abutting neighbor has a shared cut to roll. Without one
             // the gesture does nothing, rather than silently trimming.
             let pair = if left {
                 before.map(|prev| (prev, me))

@@ -2,7 +2,7 @@
 //! lane sides, footer and graph editor, measured on the drawn shell.
 //!
 //! The class closed here is a control or a label drawn off its grid: a toggle
-//! at another size than its neighbours, a label that runs into a control or
+//! at another size than its neighbors, a label that runs into a control or
 //! past its column, two rows of a column that disagree about an edge, a value
 //! axis label at a y the curve does not map its value to, a graph with no curve
 //! drawing an axis of placeholder numbers, a side of the stack drawn as an
@@ -12,7 +12,7 @@
 //! width where the timecode steps down to the maximum, so a layout that holds
 //! at the default and breaks narrow goes red.
 //!
-//! Not caught: colours, glyph shapes inside a hit box, and text measured by a
+//! Not caught: colors, glyph shapes inside a hit box, and text measured by a
 //! real font: the test text system lays every glyph 0.6 em wide, which is wider
 //! than the shipped figures, so a width that fits here fits on screen. Which
 //! lane toggles show at rest is checked on the registry's rule, not on the
@@ -139,7 +139,7 @@ fn assert_clear(runs: &[TextRunLayout], area: Bounds<Pixels>, what: &str) {
 }
 
 /// The header column is two rows by two columns at every outline width: the
-/// timecode alone in the left column, centred on the two rows with its first
+/// timecode alone in the left column, centered on the two rows with its first
 /// digit on the column's text edge; the search field on the toggles' two
 /// edges; every toggle a 20 px row control, one even step from the next; the
 /// stack of field and toggles as far under the header's top as over its
@@ -278,7 +278,7 @@ fn a_playhead_field_closes_on_a_press_elsewhere(cx: &mut gpui::TestAppContext) {
     }
 }
 
-/// Every control in a track header is one size and on the header's centre
+/// Every control in a track header is one size and on the header's center
 /// line; the name sits between the twirl and the first toggle and never
 /// reaches either; the patch leads the row.
 #[gpui::test]
@@ -425,10 +425,10 @@ fn a_track_header_at_rest_draws_only_what_its_lane_calls_for() {
     assert_eq!(lead, ["patch"]);
 }
 
-/// A sequence with no audio lanes draws the audio side as one labelled strip,
+/// A sequence with no audio lanes draws the audio side as one labeled strip,
 /// and the video side takes the rest of the stack.
 #[gpui::test]
-fn a_side_without_lanes_is_one_labelled_strip(cx: &mut gpui::TestAppContext) {
+fn a_side_without_lanes_is_one_labeled_strip(cx: &mut gpui::TestAppContext) {
     let (state, visual) = shell_with_still(cx, "timeline-empty-side");
     let audio_lanes = visual.read(|app| {
         let state = state.read(app);

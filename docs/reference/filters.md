@@ -173,7 +173,7 @@ Declared in `crates/aria-models/src/look/adjust_rows.rs` (`ColorAdjustments::SLI
 | `adjust-hue-luma-cyan` | `hue_luma_cyan` | Cyan Luma | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Luma offset at the Cyan (`180°`) hue knot. |
 | `adjust-hue-luma-blue` | `hue_luma_blue` | Blue Luma | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Luma offset at the Blue (`240°`) hue knot. |
 | `adjust-hue-luma-magenta` | `hue_luma_magenta` | Magenta Luma | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Luma offset at the Magenta (`300°`) hue knot. |
-| `adjust-hsl-key-hue` | `hsl_key_hue` | Key Hue | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Selects the target hue center (`centre = 0.5 * hsl_key_hue`, wrapping across `0..1`). |
+| `adjust-hsl-key-hue` | `hsl_key_hue` | Key Hue | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Selects the target hue center (`center = 0.5 * hsl_key_hue`, wrapping across `0..1`). |
 | `adjust-hsl-key-width` | `hsl_key_width` | Key Range | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Sets the hue key half-width (`reach = (1.0 + hsl_key_width) * (30 / 360)` with `0.04` feather). |
 | `adjust-hsl-hue` | `hsl_hue` | Secondary Hue | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Rotates hue inside the HSL secondary key window (`±60°` at `±1`). |
 | `adjust-hsl-saturation` | `hsl_saturation` | Secondary Saturation | `scalar` | `-1.0` | `1.0` | `0.0` | `yes` | Scales saturation inside the HSL secondary key window. |

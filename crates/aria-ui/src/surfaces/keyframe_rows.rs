@@ -5,7 +5,7 @@
 //! route as a shipped one. The buttons on each row were six gpui listeners, and
 //! one of them carried a decision the panel should never have owned: the key
 //! button adds a keyframe or removes the one already under the playhead, and that
-//! choice is product behaviour rather than a detail of how a row is drawn.
+//! choice is product behavior rather than a detail of how a row is drawn.
 //!
 //! Two of them move the playhead instead of editing the project.
 //! [`Row::edits`] says which, so a census can hold an editing button to sending a

@@ -159,7 +159,7 @@ use aria_compositor::{CpuFrameOut, EffectParams};
 use aria_models::{ClipTypeSpec, EffectParamKind, EffectParamSpec, MarkerColor};
 use aria_plugin::{ClipTypeDefinition, ClipTypeRender, PluginContext, PluginError};
 
-fn grey(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
+fn gray(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
     let level = fields.scalar("level").ok_or("no level field")?;
     for y in 0..frame.height() {
         for x in 0..frame.width() {
@@ -181,7 +181,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
     ctx.define_clip_type(ClipTypeDefinition::new(
         ClipTypeSpec::new("com.example.meters.meter", "Meter", "", MarkerColor::Green),
         vec![level],
-        ClipTypeRender::cpu(grey),
+        ClipTypeRender::cpu(gray),
     ))?;
     Ok(())
 }

@@ -100,7 +100,7 @@ fn no_element_identity_is_built_from_a_formatted_string() {
 
 /// The span of `text` from `at` up to the first `;` outside every bracket.
 ///
-/// A statement rather than a line, so an initialiser that runs over four lines
+/// A statement rather than a line, so an initializer that runs over four lines
 /// is read as one expression and a `;` inside a closure does not end it early.
 fn statement(text: &str, at: usize) -> &str {
     let mut depth = 0i32;
@@ -172,9 +172,9 @@ fn functions(text: &str) -> Vec<(usize, &str, &str, &str)> {
 ///
 /// The rule above matches the construction, so a `format!` bound to a name and
 /// handed over afterwards would slip past it — which is the shape both the
-/// colour wheels and the timeline's grips had: `let side_id = if left {
+/// color wheels and the timeline's grips had: `let side_id = if left {
 /// format!("trim-l-{id}") } else { … }`, four of them per clip per frame, on the
-/// hottest surface in the app. The initialiser is read to its `;`, so the
+/// hottest surface in the app. The initializer is read to its `;`, so the
 /// `format!` does not have to sit on the line the name is on.
 #[test]
 fn no_draw_binds_an_identity_to_a_formatted_string() {
@@ -230,7 +230,7 @@ fn no_draw_helper_names_its_control_with_text() {
     for (name, text) in draw_sources() {
         for (line, function, parameters, body) in functions(&text) {
             // `.id()` with nothing between the parentheses is a getter, such as
-            // a label colour's `color.id()`, and assigns no element id.
+            // a label color's `color.id()`, and assigns no element id.
             let assigns_id = body
                 .match_indices(".id(")
                 .any(|(at, needle)| !body[at + needle.len()..].starts_with(')'));

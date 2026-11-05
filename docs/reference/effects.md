@@ -44,7 +44,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 | --- | --- | --- | --- | --- |
 | `gaussian_blur` | Gaussian Blur | Blur & Sharpen | `effect_blur_h.wgsl` + `effect_blur_v.wgsl` | Two-pass separable box blur using bilinear midpoint pairing (`MAX_RADIUS = 32` texels per pass). |
 | `vignette` | Vignette | Stylize | `effect_vignette.wgsl` | Radial edge darkening via `1.0 - amount * smoothstep(0.35, 1.0, length(uv - 0.5) * 1.41421356)`. |
-| `sharpen` | Sharpen | Blur & Sharpen | `effect_sharpen.wgsl` | 5-tap cross Laplacian unsharp mask (`centre.rgb + (4 * centre.rgb - neighbours) * amount`). |
+| `sharpen` | Sharpen | Blur & Sharpen | `effect_sharpen.wgsl` | 5-tap cross Laplacian unsharp mask (`center.rgb + (4 * center.rgb - neighbors) * amount`). |
 | `pixelate` | Pixelate | Stylize | `effect_pixelate.wgsl` | Quantizes UV coordinates into square cells of `max(size, 1.0)` pixels. |
 | `glitch` | Glitch | Stylize | `effect_glitch.wgsl` | 24-band horizontal scanline tear (`MAX_SLIDE = 0.08`) with `35%` red/blue channel slip. |
 | `chromatic_aberration` | Chromatic Aberration | Distort | `effect_chromatic_aberration.wgsl` | Radial red/blue channel separation from frame center (`MAX_SHIFT = 0.02`). |
@@ -77,7 +77,7 @@ UI location: **Effects & Presets > Video Effects > Stylize > Vignette**, **Proje
 
 ### Sharpen (`sharpen`)
 
-Evaluates a 5-tap cross Laplacian unsharp mask (`effect_sharpen.wgsl`) over the center texel and its four cardinal neighbors (`±step.x`, `±step.y`): `laplacian = centre.rgb * 4.0 - (l.rgb + r.rgb + u.rgb + d.rgb)`. Clamps `centre.rgb + laplacian * max(amount, 0.0)` to `0.0..=centre.a` so premultiplied channels stay within alpha coverage.
+Evaluates a 5-tap cross Laplacian unsharp mask (`effect_sharpen.wgsl`) over the center texel and its four cardinal neighbors (`±step.x`, `±step.y`): `laplacian = center.rgb * 4.0 - (l.rgb + r.rgb + u.rgb + d.rgb)`. Clamps `center.rgb + laplacian * max(amount, 0.0)` to `0.0..=center.a` so premultiplied channels stay within alpha coverage.
 
 UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Sharpen**, **Project > Effects > Effects > Sharpen**, and **Effect > Blur & Sharpen > Sharpen**.
 

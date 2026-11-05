@@ -183,7 +183,7 @@ UI location: **Effects & Presets > Generators > Fractal Noise** and **Project > 
 ### Color Bars (`color_bars`)
 
 Synthesizes the three-band SMPTE color bar test pattern (`effect_color_bars.wgsl`):
-- Top `2/3` (`uv.y < 2/3`): 7 vertical bars (`Grey`, `Yellow`, `Cyan`, `Green`, `Magenta`, `Red`, `Blue`) scaled by `clamp(level, 0.0, 1.0)`.
+- Top `2/3` (`uv.y < 2/3`): 7 vertical bars (`Gray`, `Yellow`, `Cyan`, `Green`, `Magenta`, `Red`, `Blue`) scaled by `clamp(level, 0.0, 1.0)`.
 - Middle strip (`2/3 <= uv.y < 3/4`): reverse blue castellations (`Blue`, `Black`, `Magenta`, `Black`, `Cyan`, `Black`, `White`) scaled by `level`.
 - Bottom `1/4` (`uv.y >= 3/4`): `-I` (`[0.0, 0.129, 0.298]`), `100%` white, `+Q` (`[0.196, 0.0, 0.416]`), black, and a `+4%` PLUGE step (`0.04` for `16/21 <= uv.x < 17/21`).
 

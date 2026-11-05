@@ -442,7 +442,7 @@ fn ruler_ticks(
             let scale = ruler_scale(time.rate, time.display, px_per_tick, label_px);
             let width = f32::from(bounds.size.width);
             let height = f32::from(bounds.size.height);
-            // From the labelled tick at or before the left edge, so a label
+            // From the labeled tick at or before the left edge, so a label
             // that straddles the edge still draws its visible part.
             let first = (scroll_x / px_per_tick).floor() as i64;
             let mut tick = (first.div_euclid(scale.major) * scale.major).max(0);

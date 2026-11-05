@@ -3,7 +3,7 @@
 //!
 //! A stepper row is generated from the property catalog, so the numbers in a
 //! block were already declared. The picks were not: a filter chip, a mask shape,
-//! a key colour, a matte source, a style toggle, a blend mode, a stabilization
+//! a key color, a matte source, a style toggle, a blend mode, a stabilization
 //! level, the flips and the clears were each a `div()` with its call sealed in a
 //! gpui listener. A dozen of the model's commands were reachable only through
 //! those, so nothing could enumerate them and a chip wired to the wrong setter
@@ -23,7 +23,7 @@ use crate::app::AppState;
 use crate::app::clip_styles::style_enabled;
 use crate::types::UiStyles;
 
-/// Keying presets: the two screen colours a shoot actually uses, plus blue's
+/// Keying presets: the two screen colors a shoot actually uses, plus blue's
 /// paler variant. A picker widget is a separate concern.
 ///
 /// The palette lives here rather than in the block that draws it, so a census
@@ -56,7 +56,7 @@ pub enum Pick {
     },
     /// The mask at this index, removed.
     RemoveMask(u32),
-    /// A key colour from the swatch row.
+    /// A key color from the swatch row.
     Chroma([u8; 3]),
     ClearChroma,
     /// Which channel of the layer above cuts this clip.

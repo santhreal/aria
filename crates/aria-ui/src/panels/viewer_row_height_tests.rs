@@ -4,7 +4,7 @@
 //! The class closed here: a control that changes the row's height when it is
 //! drawn, lit, or swapped, so the picture above jumps during editing. A
 //! Viewer with room draws the row as one 40 px line, and every control in it is
-//! `Theme::ICON_HIT` high on the centre of the line under the row's top border.
+//! `Theme::ICON_HIT` high on the center of the line under the row's top border.
 //! The row is measured at rest and after each toggle in it is pressed, and
 //! with a Source tab in front, which drops the marks. The controls are every
 //! `CONTROL_TIPS` control the row draws, so a control added to the row is
@@ -75,10 +75,10 @@ pub(super) fn measure(
 }
 
 /// The row is one `ROW_H` line and every control in it is `ICON_HIT` high on
-/// the line's centre.
+/// the line's center.
 fn assert_line(visual: &mut VisualTestContext, what: &str) -> Vec<&'static str> {
     let (row, controls) = measure(visual);
-    let line_centre = (row.top() + px(BORDER_T) + row.bottom()) / 2.0;
+    let line_center = (row.top() + px(BORDER_T) + row.bottom()) / 2.0;
     assert!(
         (f32::from(row.size.height) - ROW_H).abs() < EPS,
         "{what}: the control row is {:?} high, not {ROW_H} px",
@@ -92,8 +92,8 @@ fn assert_line(visual: &mut VisualTestContext, what: &str) -> Vec<&'static str> 
             Theme::ICON_HIT
         );
         assert!(
-            (drawn.center().y - line_centre).abs() < px(EPS),
-            "{what}: {control} {drawn:?} is off the line's center {line_centre:?}"
+            (drawn.center().y - line_center).abs() < px(EPS),
+            "{what}: {control} {drawn:?} is off the line's center {line_center:?}"
         );
     }
     controls.into_iter().map(|(control, _)| control).collect()

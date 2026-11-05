@@ -108,7 +108,7 @@ impl Drag {
         self.sampled_at = now;
     }
 
-    /// How far the release of this drag keeps travelling, in pixels. Zero for
+    /// How far the release of this drag keeps traveling, in pixels. Zero for
     /// every kind but a pan: a splitter that was let go is where it was let go.
     pub(super) fn throw(&self, reduced: bool) -> f32 {
         if !matches!(self.kind, DragKind::Pan { .. }) {

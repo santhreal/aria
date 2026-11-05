@@ -29,7 +29,7 @@ pub enum WaveformScale {
     Logarithmic,
     /// Bar height proportional to the sample peak.
     Linear,
-    /// No waveform: the clip draws its name and colour only, and its peaks
+    /// No waveform: the clip draws its name and color only, and its peaks
     /// are not decoded.
     Hidden,
 }
@@ -41,7 +41,7 @@ pub enum Follow {
     /// The view jumps a page when the playhead nears an edge.
     #[default]
     Page,
-    /// The view scrolls with the playhead held at its centre.
+    /// The view scrolls with the playhead held at its center.
     Smooth,
 }
 
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn page_follow_jumps_at_the_margin_and_smooth_follow_centres() {
+    fn page_follow_jumps_at_the_margin_and_smooth_follow_centers() {
         let page = Follow::Page;
         assert_eq!(page.target(500.0, 0.0, 1000.0), None, "inside the view");
         assert_eq!(page.target(950.0, 0.0, 1000.0), Some(800.0));

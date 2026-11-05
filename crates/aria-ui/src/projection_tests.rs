@@ -242,7 +242,7 @@ fn project_to_ui_projects_clip_audio() {
 /// gives its kind: Teal picture, Forest sound, Mango generators, Tan nested
 /// sequences, Yellow adjustments.
 ///
-/// The class this closes: a clip kind drawn in a colour the look chapter does
+/// The class this closes: a clip kind drawn in a color the look chapter does
 /// not give it, such as every unlabelled clip falling back to one hue. Not
 /// caught: the hue values themselves, which `theme_tests` pins.
 #[test]

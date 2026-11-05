@@ -36,7 +36,7 @@ const DEVICE_OWNERS: &[(&str, &str)] = &[
 
 /// **One GPU device per process, owned where it is brought up.**
 ///
-/// Source-derived, because the defect was invisible in behaviour: three
+/// Source-derived, because the defect was invisible in behavior: three
 /// devices render exactly like one, only slower to start and three times the
 /// video memory, which is why it survived until a start was measured. A
 /// fourth caller is what this refuses.

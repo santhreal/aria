@@ -14,7 +14,7 @@
 //! least one change, so a panel added to the registry whose drawing no change
 //! here reaches fails until a change it draws is added to [`CHANGES`].
 //!
-//! A frame is compared by its quads (bounds, clip, colours, corners, borders),
+//! A frame is compared by its quads (bounds, clip, colors, corners, borders),
 //! its text runs (text, bounds, size) and its images (bounds, clip, the atlas
 //! tile sampled, opacity). Not caught: a stale path.
 

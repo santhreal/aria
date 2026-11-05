@@ -25,7 +25,7 @@ pub struct UiClipLine {
     pub label: SharedString,
     pub scale: Taper,
     /// Whether a drag on the line writes the value. True for a property that
-    /// is one number; a vector property draws its first axis and a colour or
+    /// is one number; a vector property draws its first axis and a color or
     /// a rectangle draws a level line, and neither is dragged.
     pub draggable: bool,
     /// The line left to right as `(timeline tick, value)`, from the clip's

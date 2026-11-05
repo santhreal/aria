@@ -52,7 +52,7 @@ fn frame_rects(
     })
 }
 
-/// The centre of every text run, then of every quad, the last frame drew, in
+/// The center of every text run, then of every quad, the last frame drew, in
 /// logical pixels.
 fn drawn_points(visual: &mut VisualTestContext) -> Vec<Point<Pixels>> {
     visual.update(|window, _| {
@@ -149,7 +149,7 @@ fn sweep(
     failures
 }
 
-/// The centre of every dock tab's close control the last frame drew. A close
+/// The center of every dock tab's close control the last frame drew. A close
 /// paints a glyph on no wash at rest, which no quad or text run reaches.
 fn tab_closes(state: &Entity<AppState>, visual: &mut VisualTestContext) -> Vec<Point<Pixels>> {
     let panels: Vec<PanelId> = visual.read(|app| {

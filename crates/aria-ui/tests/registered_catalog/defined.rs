@@ -28,8 +28,8 @@ fn level_field() -> EffectParamSpec {
     }
 }
 
-/// Fill the frame with opaque grey at the `level` field.
-fn grey(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
+/// Fill the frame with opaque gray at the `level` field.
+fn gray(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
     let level = fields
         .scalar("level")
         .ok_or_else(|| "no level field".to_owned())?;
@@ -70,14 +70,14 @@ fn field_row(state: &mut AppState) -> TimelinePropertyRow {
         .expect("the timeline rows draw the field")
 }
 
-/// The centre pixel of the frame at the playhead.
-fn centre(state: &AppState) -> [u8; 4] {
+/// The center pixel of the frame at the playhead.
+fn center(state: &AppState) -> [u8; 4] {
     let mut engine = state.engine().lock();
     let frame = engine.get_frame(state.playhead).expect("the frame renders");
     frame.pixel(frame.width / 2, frame.height / 2)
 }
 
-fn assert_grey(pixel: [u8; 4], level: u8) {
+fn assert_gray(pixel: [u8; 4], level: u8) {
     assert!(
         pixel[..3].iter().all(|c| c.abs_diff(level) <= 2) && pixel[3] == 255,
         "expected opaque gray {level}, drew {pixel:?}"
@@ -94,7 +94,7 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
     let definition = ClipTypeDefinition::new(
         ClipTypeSpec::new(id, "Meter", "", MarkerColor::Green),
         vec![level_field()],
-        ClipTypeRender::cpu(grey),
+        ClipTypeRender::cpu(gray),
     );
     let registration = plugin
         .define_clip_type(definition)
@@ -146,7 +146,7 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
         "the field's default"
     );
     assert_eq!(field_row(&mut state).label.as_ref(), "Meter Level");
-    assert_grey(centre(&state), 64);
+    assert_gray(center(&state), 64);
 
     // The inspector's stepper, one undo step.
     let step = Gesture::NudgeScalar {
@@ -165,7 +165,7 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
     );
     assert!(state.redo(), "the edit cannot be redone");
     assert_eq!(state.selected_effect_param(0, 0), Some(0.5));
-    assert_grey(centre(&state), 128);
+    assert_gray(center(&state), 128);
 
     state.save_project().expect("saves");
     let path = state.project_path.clone().expect("a saved path");
@@ -180,7 +180,7 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
         Some(0.5),
         "the saved field value did not come back"
     );
-    assert_grey(centre(&state), 128);
+    assert_gray(center(&state), 128);
 
     // The field keys like any effect parameter.
     state

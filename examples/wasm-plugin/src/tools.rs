@@ -14,7 +14,7 @@ pub(crate) const LUMA_SCOPE: &str = "example.luma-histogram";
 pub(crate) const LUMA_BINS: u32 = 64;
 /// Rows of the luma histogram.
 pub(crate) const LUMA_HEIGHT: u32 = 32;
-/// The colour of a luma histogram bar.
+/// The color of a luma histogram bar.
 const LUMA_BAR: [u8; 4] = [64, 200, 190, 255];
 
 /// A 1x1 RGBA PNG, returned by the `example_swatch` AI tool.

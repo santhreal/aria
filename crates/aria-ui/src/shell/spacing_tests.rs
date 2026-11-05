@@ -6,20 +6,20 @@
 //!
 //! - A docked frame off the gutter grid: two frames closer or farther apart
 //!   than [`DOCK_GUTTER`], or a frame at another distance from the bars and the
-//!   window's edges than from its neighbours.
+//!   window's edges than from its neighbors.
 //! - A frame drawn at another width than its share of the width
 //!   [`DockTree::frame_pool`] gives its row's frames, the width the shipped
 //!   layouts state in pixels.
-//! - A doubled rule: two parallel grey lines of different elements that touch
+//! - A doubled rule: two parallel gray lines of different elements that touch
 //!   or stand one pixel apart, which reads as one thick line or as a line with
 //!   a sliver beside it. A panel border against its frame's border, a divider
 //!   against a ruler's edge, a ruler tick against the outline column's divider
 //!   and the graph editor's rule against the ruler's are all members.
-//! - A tab label off its tab's centre line: an active tab whose underline
-//!   takes layout and lifts its label above its neighbours'.
+//! - A tab label off its tab's center line: an active tab whose underline
+//!   takes layout and lifts its label above its neighbors'.
 //! - A property value off its row's line: a readout whose underline takes
 //!   layout and lifts the number above the keyframe navigator beside it.
-//! - A centred control off its bar's centre line while both side groups fit
+//! - A centered control off its bar's center line while both side groups fit
 //!   their halves: the workspace switcher, the breadcrumb and the transport.
 //! - A round control cut by the box that clips it: a handle on a fitted
 //!   picture's edge drawn as half a dot. A control cut at an edge that a
@@ -33,7 +33,7 @@
 //! them and may meet any line, for example a clip at time zero against the
 //! outline column's divider.
 //!
-//! Not caught: a colour that is neither grey nor clear, spacing inside one
+//! Not caught: a color that is neither gray nor clear, spacing inside one
 //! canvas's own paint, text measured by a real font (the test text system lays
 //! every glyph 0.6 em wide), and window sizes other than the three below.
 
@@ -240,7 +240,7 @@ enum Axis {
     Vertical,
 }
 
-/// One straight grey line: the band it covers across its axis and its extent
+/// One straight gray line: the band it covers across its axis and its extent
 /// along it, both inside the box that clips it.
 struct Rule {
     axis: Axis,
@@ -249,14 +249,14 @@ struct Rule {
     quad: usize,
 }
 
-/// A colour that reads as a rule: grey, and not faded to nothing. An accent
+/// A color that reads as a rule: gray, and not faded to nothing. An accent
 /// line (a tab's underline, the playhead, a focus ring) is a mark, not a rule.
-fn rule_colour(color: Hsla) -> bool {
+fn rule_color(color: Hsla) -> bool {
     color.s < 0.2 && color.a > 0.03
 }
 
-/// Every rule painted outside the content canvases: each side of a grey
-/// border, without the corners it rounds, and each grey fill at most 3 px
+/// Every rule painted outside the content canvases: each side of a gray
+/// border, without the corners it rounds, and each gray fill at most 3 px
 /// thick.
 fn rules(quads: &[Painted], exempt: &[Edges]) -> Vec<Rule> {
     let mut out = Vec::new();
@@ -285,7 +285,7 @@ fn rules(quads: &[Painted], exempt: &[Edges]) -> Vec<Rule> {
         };
         let [top, right, bottom, left] = quad.widths;
         let [top_left, top_right, bottom_right, bottom_left] = quad.radii;
-        if rule_colour(quad.border) {
+        if rule_color(quad.border) {
             if top > 0.0 {
                 push(
                     Axis::Horizontal,
@@ -316,7 +316,7 @@ fn rules(quads: &[Painted], exempt: &[Edges]) -> Vec<Rule> {
             }
         }
         let square = quad.radii.iter().all(|radius| *radius <= 0.5);
-        if quad.fill.is_some_and(rule_colour) && square {
+        if quad.fill.is_some_and(rule_color) && square {
             let (w, h) = (r - l, b - t);
             if h <= 3.0 && w >= 8.0 {
                 push(Axis::Horizontal, [t, b], [l, r]);
@@ -384,7 +384,7 @@ fn no_two_rules_run_side_by_side(cx: &mut TestAppContext) {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Every docked frame stands [`DOCK_GUTTER`] from each neighbour and from the
+/// Every docked frame stands [`DOCK_GUTTER`] from each neighbor and from the
 /// edges of the dock area, which are the bars and the window's sides, and no
 /// two frames overlap.
 #[gpui::test]
@@ -560,13 +560,13 @@ fn label_in<'a>(
     })
 }
 
-/// Every tab's label stands on its tab's centre line, the tab in front and the
+/// Every tab's label stands on its tab's center line, the tab in front and the
 /// others alike: dock tabs and Viewer tabs. The Viewer draws its tabs only
 /// while a Source tab is open, so each case opens one with Program in front.
 /// The Inspector's tabs are walked at every strip width by
-/// `panels::inspector::strip_tests`, which also centres each label across.
+/// `panels::inspector::strip_tests`, which also centers each label across.
 #[gpui::test]
-fn every_tab_label_stands_on_its_tab_centre_line(cx: &mut TestAppContext) {
+fn every_tab_label_stands_on_its_tab_center_line(cx: &mut TestAppContext) {
     let mut failures = Vec::new();
     let mut checked = [0usize; 2];
     walk(cx, &[false], |case, state, visual| {
@@ -653,8 +653,8 @@ fn every_tab_label_stands_on_its_tab_centre_line(cx: &mut TestAppContext) {
 const PREVIOUS_KEY: &str = "\u{2039}";
 
 /// Every property value stands on the line of the keyframe navigator beside
-/// it. Each child of the row is centred on the row and each box's top lands on
-/// the device pixel grid, so the two centres stand within half a device pixel
+/// it. Each child of the row is centered on the row and each box's top lands on
+/// the device pixel grid, so the two centers stand within half a device pixel
 /// of each other; a value whose box is taller than its text on one side stands
 /// a whole device pixel off.
 #[gpui::test]
@@ -705,11 +705,11 @@ fn every_value_stands_on_the_line_of_its_keyframe_navigator(cx: &mut TestAppCont
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// How far `item` stands right of `bar`'s centre, when both side groups'
+/// How far `item` stands right of `bar`'s center, when both side groups'
 /// contents fit the halves the item leaves them. `left_end` is where the left
 /// group's content ends and `right_start` where the right group's begins;
 /// `pad` is the bar's side padding and `gap` the gap on each side of the item.
-fn off_centre(
+fn off_center(
     bar: Bounds<Pixels>,
     pad: f32,
     gap: f32,
@@ -725,11 +725,11 @@ fn off_centre(
 }
 
 /// The workspace switcher, the breadcrumb and the transport each stand on
-/// their bar's centre line whenever the groups beside them fit their halves.
+/// their bar's center line whenever the groups beside them fit their halves.
 /// A bar too narrow for that is not checked; the walk has to check each bar at
 /// least once.
 #[gpui::test]
-fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
+fn centered_controls_stand_on_their_bar_center_line(cx: &mut TestAppContext) {
     let mut failures = Vec::new();
     let mut checked = [0usize; 3];
     walk(cx, &[false], |case, _, visual| {
@@ -750,7 +750,7 @@ fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
         verdict(
             0,
             "workspace switcher",
-            off_centre(bar, Theme::SPACE_MD, Theme::SPACE_XS, left, item, right),
+            off_center(bar, Theme::SPACE_MD, Theme::SPACE_XS, left, item, right),
         );
 
         let bar = bounds(visual, case, "menu-bar");
@@ -760,11 +760,11 @@ fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
         verdict(
             1,
             "breadcrumb",
-            off_centre(bar, Theme::SPACE_MD, Theme::SPACE_XS, left, item, right),
+            off_center(bar, Theme::SPACE_MD, Theme::SPACE_XS, left, item, right),
         );
 
         // The Viewer's row wraps between groups when it is too narrow; the
-        // transport centres only on a row of one line.
+        // transport centers only on a row of one line.
         if let Some(bar) = visual.debug_bounds("viewer-row") {
             let picture = bounds(visual, case, "viewer-row-picture");
             let item = bounds(visual, case, "viewer-row-transport");
@@ -778,7 +778,7 @@ fn centred_controls_stand_on_their_bar_centre_line(cx: &mut TestAppContext) {
                 verdict(
                     2,
                     "transport",
-                    off_centre(bar, Theme::SPACE_MD, Theme::SPACE_SM, left, item, right),
+                    off_center(bar, Theme::SPACE_MD, Theme::SPACE_SM, left, item, right),
                 );
             }
         }

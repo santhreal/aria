@@ -1,4 +1,4 @@
-//! Theme files: the token tables, colour values, parse errors, the directory
+//! Theme files: the token tables, color values, parse errors, the directory
 //! scan, and what applying a file changes.
 
 use gpui::Hsla;
@@ -36,11 +36,11 @@ fn hex(value: u32) -> Hsla {
     Hsla::from(gpui::rgb(value))
 }
 
-/// Every colour and font field of [`Theme`] is a token a file can set, once.
+/// Every color and font field of [`Theme`] is a token a file can set, once.
 ///
 /// The fields are read from the theme's `Debug` output, so a field added to
 /// `Theme` without a row in `COLOR_TOKENS` or `FONT_TOKENS` turns this red
-/// instead of being a colour no theme file can reach. A field of another type
+/// instead of being a color no theme file can reach. A field of another type
 /// fails too, until it is listed here as not a token.
 #[test]
 fn every_theme_field_is_a_theme_file_token() {
@@ -129,7 +129,7 @@ fn a_file_changes_only_the_appearances_it_covers() {
 }
 
 #[test]
-fn colour_values_parse_to_the_colour_they_name() {
+fn color_values_parse_to_the_color_they_name() {
     let cases: [(&str, Hsla); 8] = [
         ("#fff", hex(0xffffff)),
         ("#336699", hex(0x336699)),
@@ -154,7 +154,7 @@ fn colour_values_parse_to_the_colour_they_name() {
 }
 
 #[test]
-fn malformed_colour_values_are_errors() {
+fn malformed_color_values_are_errors() {
     for text in [
         "",
         "fff",

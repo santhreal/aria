@@ -45,7 +45,7 @@ pub enum Gesture {
     Scale(TransformHandle),
     /// One edge or corner of the crop window.
     Crop(CropHandle),
-    /// The mask's centre, its size, or its rotation.
+    /// The mask's center, its size, or its rotation.
     Mask(MaskHandle),
     /// The selected clip's clip type handle at this index, which moves a vec2
     /// parameter of the type's generator.

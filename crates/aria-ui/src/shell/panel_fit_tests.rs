@@ -17,7 +17,7 @@
 //! adds the bin's actions to its action row; and the Viewer twice more with
 //! the long name open in a Source tab, which adds the marks and edits row.
 //!
-//! A line of text is the frame's when its vertical centre is in the frame and
+//! A line of text is the frame's when its vertical center is in the frame and
 //! its right end is past the frame's left edge. A one-line run must stand
 //! inside the frame across its whole width. A wrapped paragraph is recorded
 //! with its unwrapped width; it must have at least as many lines as the text

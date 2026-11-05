@@ -2,19 +2,19 @@
 //!
 //! The class of defect this closes: a scope drawn upside down, mirrored, or
 //! scaled to nothing still looks like a scope. These pin the orientation (code
-//! 255 at the top, neutral chroma at the centre) and that a trace is actually
+//! 255 at the top, neutral chroma at the center) and that a trace is actually
 //! laid down, so a rewrite of the painter cannot silently flip it.
 
 use aria_analysis::{Rgba8Frame, ScopeConfig, measure_scopes};
 
 use super::*;
 
-/// Measure a flat frame of one colour.
+/// Measure a flat frame of one color.
 fn flat_scopes(rgba: [u8; 4]) -> FrameScopes {
     traced_scopes(rgba, WaveformTrace::Luma)
 }
 
-/// Measure a flat frame of one colour with the waveform counting `trace`.
+/// Measure a flat frame of one color with the waveform counting `trace`.
 fn traced_scopes(rgba: [u8; 4], trace: WaveformTrace) -> FrameScopes {
     let bytes: Vec<u8> = rgba.iter().copied().cycle().take(16 * 8 * 4).collect();
     let frame = Rgba8Frame::new(&bytes, 16, 8, 16 * 4, 0.0).expect("frame");
@@ -73,15 +73,15 @@ fn a_black_frame_traces_the_bottom_of_the_waveform() {
 }
 
 #[test]
-fn a_mid_grey_frame_traces_the_middle() {
+fn a_mid_gray_frame_traces_the_middle() {
     let scopes = flat_scopes([128, 128, 128, 255]);
     let image = waveform_image(&scopes.waveform);
     let rows = lit_rows(&image, 1);
     let mean = rows.iter().sum::<u32>() as f32 / rows.len() as f32;
-    let centre = (SCOPE_PX - 1) as f32 / 2.0;
+    let center = (SCOPE_PX - 1) as f32 / 2.0;
     assert!(
-        (mean - centre).abs() < 6.0,
-        "mid gray traced at {mean}, expected near {centre}"
+        (mean - center).abs() < 6.0,
+        "mid gray traced at {mean}, expected near {center}"
     );
 }
 
@@ -93,14 +93,14 @@ fn the_waveform_keeps_one_column_per_measured_column() {
 }
 
 #[test]
-fn a_monochrome_frame_lands_on_the_vectorscope_centre() {
+fn a_monochrome_frame_lands_on_the_vectorscope_center() {
     let scopes = flat_scopes([90, 90, 90, 255]);
     let image = vectorscope_image(&scopes.vectorscope);
     assert_eq!(image.width, SCOPE_PX);
     assert_eq!(image.height, SCOPE_PX);
     let (x, y) = brightest_trace(&image);
-    let centre = (SCOPE_PX - 1) as f32 / 2.0;
-    let distance = (x as f32 - centre).hypot(y as f32 - centre);
+    let center = (SCOPE_PX - 1) as f32 / 2.0;
+    let distance = (x as f32 - center).hypot(y as f32 - center);
     assert!(
         distance <= 2.0,
         "neutral chroma traced {distance} px from the center of the grid"
@@ -124,10 +124,10 @@ fn brightest_trace(image: &RgbaImage) -> (u32, u32) {
 }
 
 #[test]
-fn saturated_colour_leaves_the_vectorscope_centre() {
+fn saturated_color_leaves_the_vectorscope_center() {
     let scopes = flat_scopes([255, 0, 0, 255]);
     let image = vectorscope_image(&scopes.vectorscope);
-    let centre = (SCOPE_PX - 1) / 2;
+    let center = (SCOPE_PX - 1) / 2;
     let mut brightest = (0u32, 0u32, 0u16);
     for y in 0..image.height {
         for x in 0..image.width {
@@ -139,13 +139,13 @@ fn saturated_colour_leaves_the_vectorscope_centre() {
         }
     }
     let (x, y, _) = brightest;
-    let distance = (x as f32 - centre as f32).hypot(y as f32 - centre as f32);
+    let distance = (x as f32 - center as f32).hypot(y as f32 - center as f32);
     assert!(
         distance > 20.0,
         "primary red traced {distance} px from neutral, which is not saturated"
     );
-    assert!(x < centre, "red draws left of neutral on Cb");
-    assert!(y < centre, "red draws above neutral on Cr");
+    assert!(x < center, "red draws left of neutral on Cb");
+    assert!(y < center, "red draws above neutral on Cr");
 }
 
 #[test]
@@ -287,13 +287,13 @@ fn a_parade_lays_each_channel_in_its_own_third() {
         "red traced outside its third"
     );
 
-    // A grey's chroma is neutral: Cb and Cr trace the middle of their thirds.
-    let grey =
+    // A gray's chroma is neutral: Cb and Cr trace the middle of their thirds.
+    let gray =
         waveform_image(&traced_scopes([90, 90, 90, 255], WaveformTrace::YcbcrParade).waveform);
-    assert_eq!(grey.width, 3 * columns + 2);
+    assert_eq!(gray.width, 3 * columns + 2);
     let middle = (SCOPE_PX - 1) as f32 / 2.0;
     for (third, channel) in [(1, 2), (2, 0)] {
-        let rows = lit_rows_in(&grey, channel, thirds[third].clone());
+        let rows = lit_rows_in(&gray, channel, thirds[third].clone());
         assert!(!rows.is_empty(), "third {third} traced nothing");
         assert!(
             rows.iter().all(|y| (*y as f32 - middle).abs() < 2.0),
@@ -306,7 +306,7 @@ fn a_parade_lays_each_channel_in_its_own_third() {
 /// box, and the skin tone line runs from neutral at its angle. Enumerated from
 /// the target tables, so a target added without a box fails here.
 #[test]
-fn every_colour_target_holds_its_colour_and_the_skin_line_is_drawn() {
+fn every_color_target_holds_its_color_and_the_skin_line_is_drawn() {
     let empty = {
         let bytes = vec![0u8; 8 * 8 * 4];
         let frame = Rgba8Frame::new(&bytes, 8, 8, 32, 0.0).expect("frame");
@@ -343,10 +343,10 @@ fn every_colour_target_holds_its_colour_and_the_skin_line_is_drawn() {
             assert!(drawn, "the box of {rgba:?} is not drawn");
         }
     }
-    let centre = cell_pixel(64, 128) as f32;
+    let center = cell_pixel(64, 128) as f32;
     let (sin, cos) = SKIN_TONE_DEGREES.to_radians().sin_cos();
     for step in [10.0, 40.0, 80.0] {
-        let (x, y) = (centre + step * cos, centre - step * sin);
+        let (x, y) = (center + step * cos, center - step * sin);
         assert!(
             graticule(x.round() as u32, y.round() as u32),
             "the skin tone line misses ({x}, {y})"

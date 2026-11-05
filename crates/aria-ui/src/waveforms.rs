@@ -126,7 +126,7 @@ pub fn bars(waveform: &Waveform, from_secs: f64, to_secs: f64, bars: usize) -> V
     out
 }
 
-/// Paint one bar per entry, mirrored around the strip's centre line.
+/// Paint one bar per entry, mirrored around the strip's center line.
 ///
 /// Here rather than in the panel that first needed it, because the peaks and
 /// the pixels are one concern: a second painter would be free to disagree about
@@ -158,7 +158,7 @@ pub fn wave(bars: Vec<f32>, theme: &crate::theme::Theme) -> impl IntoElement {
                     },
                     peak,
                 ));
-                // A second, shorter bar in the quieter colour reads as the body
+                // A second, shorter bar in the quieter color reads as the body
                 // of the wave, so a transient stands out from sustained level.
                 let body = h * 0.45;
                 window.paint_quad(fill(

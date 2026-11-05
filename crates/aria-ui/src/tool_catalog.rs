@@ -21,7 +21,7 @@ use crate::types::EditorTool;
 pub enum BodyDrag {
     /// Move the take inside the clip. The clip's edges do not move.
     Slip,
-    /// Move the clip and give the difference to its neighbours.
+    /// Move the clip and give the difference to its neighbors.
     Slide,
 }
 

@@ -150,7 +150,7 @@ pub fn splitter_motion_key(path: &[usize], index: usize) -> MotionKey {
 }
 
 /// The gap between two docked frames as a splitter draws it: a gutter-wide
-/// strip with the resize cursor for `axis`, whose centre line takes the accent
+/// strip with the resize cursor for `axis`, whose center line takes the accent
 /// while the pointer is over it. The dock's splitters and the small-window
 /// view's splitter are both drawn by this function.
 fn splitter_strip(axis: Axis, key: MotionKey, theme: &Theme) -> gpui::Stateful<gpui::Div> {

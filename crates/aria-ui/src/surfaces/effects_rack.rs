@@ -3,7 +3,7 @@
 //! The rack's rows come from the model: the inspector walks each effect's
 //! `EffectSpec::params` in display order, so a plugin's effect draws its own
 //! fields. The writes did not. Add, remove, reorder, apply a
-//! preset, pick a colour and step a number were six gpui listeners, so five of
+//! preset, pick a color and step a number were six gpui listeners, so five of
 //! the model's commands were reachable only from inside a closure and nothing
 //! could enumerate them.
 //!
@@ -70,7 +70,7 @@ pub enum Gesture {
     TogglePresetProperty(String),
     /// Forget a saved user preset by name.
     DeletePreset(String),
-    /// A swatch in one effect's colour slot.
+    /// A swatch in one effect's color slot.
     Color {
         index: usize,
         slot: usize,

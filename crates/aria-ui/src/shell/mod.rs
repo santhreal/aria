@@ -295,7 +295,7 @@ impl Shell {
     /// holds, and the drag of whichever button came up.
     fn on_release(&mut self, event: &MouseUpEvent, window: &mut Window, cx: &mut Context<Self>) {
         if event.button == MouseButton::Left {
-            // A press on the bar that never travelled moves nothing.
+            // A press on the bar that never traveled moves nothing.
             self.window_move = false;
             self.release_gestures(event, window, cx);
         }
@@ -784,7 +784,7 @@ impl Render for Shell {
             .child(alt_watch)
             // Nothing to paint: ends the motion frame after every element that
             // read the stores, and requests the next frame while a value is
-            // still travelling, so a hover, a collapse, a ripple or a follow
+            // still traveling, so a hover, a collapse, a ripple or a follow
             // runs to its end. Mounted here because the shell is the one element
             // drawn in every route.
             .child(motion_driver())

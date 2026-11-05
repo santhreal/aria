@@ -78,7 +78,7 @@ pub(super) fn lane_group(
             state.read(cx).track_outline_rows(track.id)
         };
         // A twirl opens and closes over the lane beat rather than in one step;
-        // the rows past the travelling edge are not drawn until it reaches them.
+        // the rows past the traveling edge are not drawn until it reaches them.
         // The twirl button shows where the rows are going, not where they are.
         let twirled = !outline_rows.is_empty();
         let outline_h = glide::glide(

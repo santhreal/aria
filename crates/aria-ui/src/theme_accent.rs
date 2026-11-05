@@ -1,7 +1,7 @@
 //! The accent families an [`aria_settings::ThemeChoice`] selects.
 //!
-//! Each family states its colours per appearance in OKLCH, with lightness and
-//! chroma tuned for that appearance's surfaces. A hue swap on one shared colour
+//! Each family states its colors per appearance in OKLCH, with lightness and
+//! chroma tuned for that appearance's surfaces. A hue swap on one shared color
 //! keeps neither perceived lightness nor contrast, so no family is derived
 //! from another. The contrast rules every family meets are tested in
 //! `theme_accent_tests.rs`.
@@ -9,7 +9,7 @@
 use super::*;
 use aria_settings::ThemeChoice;
 
-/// The colours one accent family paints in one appearance.
+/// The colors one accent family paints in one appearance.
 pub(super) struct AccentTokens {
     pub accent: Hsla,
     pub accent_strong: Hsla,
@@ -20,7 +20,7 @@ pub(super) struct AccentTokens {
 }
 
 /// One family in one appearance: accent, strong fill, and caret as
-/// `(l, c, h)`, the selection as `(l, c, h, alpha)`, and a playhead colour
+/// `(l, c, h)`, the selection as `(l, c, h, alpha)`, and a playhead color
 /// when the playhead does not follow the accent.
 struct Family {
     accent: (f32, f32, f32),
@@ -85,7 +85,7 @@ fn family_for(choice: ThemeChoice, appearance: Appearance) -> Family {
             (0.72, 0.09, 195.0, 0.28),
         ),
         // No hue: the accent is the neutral ramp's brightest step, and only
-        // the playhead carries colour.
+        // the playhead carries color.
         (ThemeChoice::Graphite, Dark) => Family {
             playhead: Some((0.66, 0.21, 27.0)),
             ..family(
@@ -111,7 +111,7 @@ fn paint((l, c, h): (f32, f32, f32)) -> Hsla {
     oklch(l, c, h)
 }
 
-/// The accent colours `choice` paints in `appearance`.
+/// The accent colors `choice` paints in `appearance`.
 pub(super) fn accent_tokens(choice: ThemeChoice, appearance: Appearance) -> AccentTokens {
     let family = family_for(choice, appearance);
     let accent = paint(family.accent);
@@ -129,7 +129,7 @@ pub(super) fn accent_tokens(choice: ThemeChoice, appearance: Appearance) -> Acce
 impl Theme {
     /// This theme with the accent family of `choice` for its appearance.
     ///
-    /// The neutrals, track tints, and status colours stay as they are; the
+    /// The neutrals, track tints, and status colors stay as they are; the
     /// accent, its strong fill and ink, the caret, the selection, and the
     /// playhead move together.
     pub fn with_choice(mut self, choice: ThemeChoice) -> Self {

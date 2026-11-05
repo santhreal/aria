@@ -11,7 +11,7 @@ fn interaction_dock_keys_maximize_cycle_and_close_tabs(cx: &mut gpui::TestAppCon
 
     let (state, visual) = editing!(cx, "dock-keys");
 
-    // Shift+6 activates Audio Track Mixer in the centre frame.
+    // Shift+6 activates Audio Track Mixer in the center frame.
     visual.simulate_keystrokes("shift-6");
     visual.run_until_parked();
     assert!(
@@ -144,7 +144,7 @@ fn interaction_dock_tab_drag_splits_frame_and_floating_window_shares_state(
 
 /// Pointer gestures on the frame tab bar: middle-clicking the only tab in the
 /// left frame closes it and collapses the frame, and dragging a tab from the
-/// centre frame's tab bar into the bottom zone of the right frame splits the
+/// center frame's tab bar into the bottom zone of the right frame splits the
 /// right frame.
 #[gpui::test]
 fn interaction_dock_pointer_middle_close_and_drag_to_zone(cx: &mut gpui::TestAppContext) {
@@ -180,7 +180,7 @@ fn interaction_dock_pointer_middle_close_and_drag_to_zone(cx: &mut gpui::TestApp
         "closing the last tab in the left frame collapses the frame"
     );
 
-    // Drag the active Viewer tab from the centre frame's tab bar to the bottom
+    // Drag the active Viewer tab from the center frame's tab bar to the bottom
     // drop zone of the right frame.
     let [cx_x, cx_y, _, _] = visual
         .read(|app| state.read(app).dock_frame_rect(FrameId::CENTER))
@@ -208,7 +208,7 @@ fn interaction_dock_pointer_middle_close_and_drag_to_zone(cx: &mut gpui::TestApp
 }
 
 /// Editing arrangement matches `docs/spec/layout.md`:
-/// - Upper row: Left (`Project | Effect Controls`, 320 px), Centre (`Viewer`),
+/// - Upper row: Left (`Project | Effect Controls`, 320 px), Center (`Viewer`),
 ///   Right (`Effects & Presets` active, 300 px; unregistered `Info`/`Character`
 ///   filtered from drawn tabs).
 /// - Lower row: `Timeline` on the left, `Audio Meters` (64 px) on the right.

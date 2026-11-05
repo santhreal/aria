@@ -8,7 +8,7 @@
 //! rows the dialog offers, including the frame rates, are declared here and the
 //! panel builds each row from one of them.
 //!
-//! Two neighbours in the same dialog stay out, because neither is a project
+//! Two neighbors in the same dialog stay out, because neither is a project
 //! edit:
 //!
 //! - The appearance and motion rows, which write the settings file and repaint

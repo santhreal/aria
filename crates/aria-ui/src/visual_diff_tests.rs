@@ -43,7 +43,7 @@ fn frame() -> RgbaImage {
                     let v = (x * 255 / (FRAME_W - 1)) as u8;
                     [v, v, v]
                 }
-                // Colour bars: six points off the vectorscope's centre.
+                // Color bars: six points off the vectorscope's center.
                 1 => BARS[(x as usize * BARS.len() / FRAME_W as usize).min(BARS.len() - 1)],
                 // One channel at a time, so the histogram draws three traces at
                 // three different code values.

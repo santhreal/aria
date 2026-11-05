@@ -41,8 +41,8 @@ fn docked(state: &Entity<AppState>, visual: &mut VisualTestContext) -> Vec<Frame
     })
 }
 
-/// The centre of what `selector` painted in the last frame.
-fn centre(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
+/// The center of what `selector` painted in the last frame.
+fn center(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
     visual
         .debug_bounds(crate::interned::intern(selector))
         .unwrap_or_else(|| panic!("the last frame painted no {selector}"))
@@ -50,7 +50,7 @@ fn centre(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
 }
 
 fn click(visual: &mut VisualTestContext, selector: &str) {
-    let at = centre(visual, selector);
+    let at = center(visual, selector);
     visual.simulate_click(at, gpui::Modifiers::none());
     visual.run_until_parked();
 }
@@ -201,7 +201,7 @@ fn make_chrome(
             );
         }
         ChromeChange::CloseHover => {
-            let close = centre(visual, &format!("dock-tab-close-{}", first.active_panel()));
+            let close = center(visual, &format!("dock-tab-close-{}", first.active_panel()));
             hover(visual, close);
         }
         ChromeChange::CloseRest => {
@@ -310,7 +310,7 @@ fn a_hover_on_a_tab_row_builds_that_row_alone(cx: &mut TestAppContext) {
         .next()
         .expect("the layout docks a frame");
     let tab = active_tab_start(visual, &frame);
-    let close = centre(visual, &format!("dock-tab-close-{}", frame.active_panel()));
+    let close = center(visual, &format!("dock-tab-close-{}", frame.active_panel()));
     hover(visual, tab);
     settle(visual);
     builds::take();

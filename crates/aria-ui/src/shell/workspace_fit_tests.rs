@@ -238,7 +238,7 @@ fn a_drag_moves_every_fader_and_pan_by_the_distance_over_its_drawn_track(cx: &mu
             ] {
                 let drawn = strip_part(visual, part, id, &win);
                 // A quarter of the track: down a fader, which sits near its
-                // top at unity, and right of a pan, which sits at its centre.
+                // top at unity, and right of a pan, which sits at its center.
                 let from = drawn.center();
                 let to = if horizontal {
                     point(from.x + drawn.size.width / 4., from.y)

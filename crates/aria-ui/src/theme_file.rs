@@ -4,7 +4,7 @@
 //! A file holds a `[dark]` table, a `[light]` table, or both, mapping token
 //! names to values. A token the file leaves out keeps the shipped value for
 //! that appearance, and an appearance with no table is the shipped one, so a
-//! file that sets one accent is a whole theme. Colours are `#rgb`, `#rrggbb`,
+//! file that sets one accent is a whole theme. Colors are `#rgb`, `#rrggbb`,
 //! `#rrggbbaa`, or `oklch(l c h)` with an optional `/ alpha`; the font tokens
 //! take a family name. A plugin theme is the same text, registered with
 //! `PluginContext::register_theme` or shipped in a package's `themes/`.
@@ -38,7 +38,7 @@ macro_rules! slots {
     };
 }
 
-/// Every colour token a theme file sets, by its field name.
+/// Every color token a theme file sets, by its field name.
 pub(super) const COLOR_TOKENS: &[(&str, ColorSlot)] = slots!(Hsla;
     bg,
     surface,
@@ -233,7 +233,7 @@ impl Theme {
     }
 }
 
-/// A colour value: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or
+/// A color value: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or
 /// `oklch(l c h)` / `oklch(l c h / alpha)` with `l` and `alpha` in `0..=1`.
 pub(super) fn parse_color(text: &str) -> Result<Hsla, String> {
     let text = text.trim();
