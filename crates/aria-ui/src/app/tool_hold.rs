@@ -339,8 +339,7 @@ impl AppState {
             .unwrap_or_else(|| Rect::new(0.0, 0.0, cw.max(1) as f32, ch.max(1) as f32));
         let [fx, fy] = canvas.fraction_of(point);
         let position = [fx - 0.5, fy - 0.5];
-        let mut created = None;
-        self.one_step(|state| {
+        let clip = self.one_step(|state| {
             let clip = state.place_generated(
                 Generator::text(PLACEHOLDER),
                 None,
@@ -353,10 +352,8 @@ impl AppState {
                     value: ParamValue::Vec2(position),
                 }))?;
             }
-            created = Some(clip);
-            Ok(())
+            Ok(clip)
         })?;
-        let clip = created.expect("one_step created clip");
         self.select_clip(clip);
         self.tool_session.text_edit = Some(super::text_caret::TextEdit {
             anchor: 0,

@@ -16,6 +16,7 @@ use gpui::SharedString;
 
 use super::clip_speed::RAMP_POINTS;
 use super::decline::Decline;
+use super::param_units::Units;
 use super::{AppState, DialogKind, describe_engine_error};
 use crate::types::ActivePanel;
 use crate::waveforms::{Waveform, bars};
@@ -504,9 +505,12 @@ impl AppState {
         });
         match res {
             Ok(()) => {
+                let units = Units::SPEED;
+                let speed = units.number.scale.stored(self.speed_duration.speed_percent);
                 let summary = format!(
-                    "Speed {:.0}% ({})",
-                    self.speed_duration.speed_percent, self.speed_duration.duration_label
+                    "Speed {} ({})",
+                    units.print(speed),
+                    self.speed_duration.duration_label
                 );
                 self.open_dialog(DialogKind::None);
                 self.status_message = Some(summary);
@@ -836,6 +840,11 @@ mod tests {
         state.apply_speed_duration();
         assert_eq!(state.dialog, DialogKind::None);
         assert_eq!(applied_steps(&state), depth_before + 1);
+        let status = state.status_message.as_deref().unwrap_or_default();
+        assert!(
+            status.starts_with("Speed 200.0% ("),
+            "the status line prints the speed in another unit: {status}"
+        );
 
         let after = state.ui_clip_ref(clip_id).expect("clip");
         assert_eq!((after.speed_num, after.speed_den), (2, 1));

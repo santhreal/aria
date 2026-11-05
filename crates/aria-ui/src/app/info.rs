@@ -12,9 +12,12 @@ use std::sync::Arc;
 
 use aria_core::RgbaImage;
 use aria_engine::frame_stages;
+use aria_models::{ClipParam, MaskParam};
 
 use super::AppState;
 use super::canvas_overlay::OverlayDrag;
+use super::param_units::Units;
+use super::value_scrub::write_number;
 use crate::preview_worker::{ProbeAsk, Probed};
 use crate::timecode::format_ticks;
 use crate::types::UiClipKind;
@@ -325,14 +328,27 @@ impl AppState {
             return Vec::new();
         };
         let [width, height] = self.canvas_size().map(|side| side as f32);
-        let pixels =
-            |delta: [f32; 2]| format!("{:+.0} px, {:+.0} px", delta[0] * width, delta[1] * height);
-        let percent =
-            |pair: [f32; 2]| format!("{:.1} %, {:.1} %", pair[0] * 100.0, pair[1] * 100.0);
+        // An axis the drag left at rest prints 0 px, with no sign.
+        let pixels = |delta: [f32; 2]| {
+            let mut out = String::new();
+            for (at, (axis, side)) in delta.into_iter().zip([width, height]).enumerate() {
+                if at > 0 {
+                    out.push_str(", ");
+                }
+                write_number(&mut out, axis * side, 0, true);
+                out.push_str(" px");
+            }
+            out
+        };
+        // A property reads in the units its rows print it in. A mask's units
+        // do not depend on its place in the stack.
+        let print =
+            |param: ClipParam, axes: &[f32]| Units::of(param, &param.range()).print_all(axes);
+        let mask = |param| ClipParam::Mask { mask: 0, param };
         match drag {
             OverlayDrag::Crop { draft, .. } => vec![
-                InfoRow::new("Crop at", percent([draft.x, draft.y])),
-                InfoRow::new("Crop size", percent([draft.w, draft.h])),
+                InfoRow::new("Crop at", print(ClipParam::Crop, &[draft.x, draft.y])),
+                InfoRow::new("Crop size", print(ClipParam::Crop, &[draft.w, draft.h])),
             ],
             OverlayDrag::Mask {
                 center,
@@ -340,9 +356,12 @@ impl AppState {
                 rotation,
                 ..
             } => vec![
-                InfoRow::new("Mask center", percent(center)),
-                InfoRow::new("Mask size", percent(size)),
-                InfoRow::new("Mask rotation", format!("{rotation:.1}°")),
+                InfoRow::new("Mask center", print(mask(MaskParam::Center), &center)),
+                InfoRow::new("Mask size", print(mask(MaskParam::Size), &size)),
+                InfoRow::new(
+                    "Mask rotation",
+                    print(mask(MaskParam::Rotation), &[rotation]),
+                ),
             ],
             OverlayDrag::Transform {
                 handle: None,
@@ -364,9 +383,9 @@ impl AppState {
             } => vec![InfoRow::new(
                 "Scale",
                 format!(
-                    "{:.1} % to {:.1} %",
-                    start.scale_x * 100.0,
-                    draft.scale_x * 100.0
+                    "{} to {}",
+                    print(ClipParam::Scale, &[start.scale_x]),
+                    print(ClipParam::Scale, &[draft.scale_x])
                 ),
             )],
             OverlayDrag::TypeHandle { start, draft, .. } => vec![InfoRow::new(

@@ -163,6 +163,7 @@ In `aria-ui`, `CROP_EDGES` (`crates/aria-ui/src/app/clip_frame.rs`) defines the 
 | `crop-right` | Right | `1.0 - (crop.x + crop.w)` |
 | `crop-bottom` | Bottom | `1.0 - (crop.y + crop.h)` |
 
+Each inset prints and drags through `Units::of(ClipParam::Crop, &ClipParam::Crop.range())` (`crates/aria-ui/src/app/param_units.rs`): percent to one decimal, `0.001` of the frame per unit of drag.
 
 ### On-canvas transform and crop handles (`TransformHandle::ALL` and `CropHandle::ALL`)
 

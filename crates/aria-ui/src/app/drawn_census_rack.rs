@@ -20,7 +20,7 @@ use aria_models::Preset;
 
 use crate::app::AppState;
 use crate::app::clip_effects::{PARAM_COLORS, color_params, scalar_params, vec2_params};
-use crate::app::fixtures::{the_pair, twin_selected};
+use crate::app::fixtures::{a_clip, the_pair, twin_selected};
 use crate::app::sent_census::Watch;
 use crate::surfaces::effects_rack::{self, Gesture};
 
@@ -428,10 +428,6 @@ fn a_move_that_goes_nowhere_does_nothing() {
 }
 
 // --- dressed states ------------------------------------------------------
-
-fn a_clip() -> AppState {
-    crate::app::premiere_tests::with_clip().0
-}
 
 /// The first effect the browse list offers, on the selected clip.
 fn one_effect() -> AppState {

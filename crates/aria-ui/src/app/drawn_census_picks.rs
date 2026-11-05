@@ -32,7 +32,7 @@ use aria_models::{
 };
 
 use crate::app::AppState;
-use crate::app::fixtures::{the_pair, twin_selected};
+use crate::app::fixtures::{a_clip, the_pair, twin_selected};
 use crate::app::sent_census::Watch;
 use crate::surfaces::inspector_pick::{self, KEY_COLORS, Pick};
 
@@ -390,10 +390,6 @@ fn every_catalog_the_blocks_loop_over_has_members() {
 // Each returns a project with one clip selected, holding whatever the pick acts
 // on. A clear is pressed on a clip that has the thing, because that is the only
 // press that proves the clear reached the model.
-
-fn a_clip() -> AppState {
-    crate::app::premiere_tests::with_clip().0
-}
 
 fn a_filtered_clip() -> AppState {
     let mut state = a_clip();

@@ -25,7 +25,8 @@ Each strip holds:
 - **Pan**, read as `C`, `L50` or `R50` beside it. Its track is lit from the
   center to the thumb, so a centered pan lights none of it. Drag it: right pans
   right, and it snaps to center near it.
-- The fader, read in decibels below it, lit from its foot to the thumb. The
+- The fader, read below it in decibels as a clip's volume row reads them, and
+  `Silent` at the foot of the travel. It is lit from its foot to the thumb. The
   faders of every strip stand level and take the height of the panel. Drag
   one: up is louder, the travel runs from silence through -60 dB to +12 dB over
   the fader's drawn height, even in decibels above -60 dB, and it snaps to 0 dB

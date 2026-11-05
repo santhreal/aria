@@ -38,7 +38,7 @@ use std::time::Duration;
 
 use aria_models::{
     ClipId, ClipParam, EffectParamDisplay, EffectParamKind, EffectParamSpec, EffectSpec,
-    TransitionSpec, clip_param_catalog,
+    SPEED_CURVE_SCALE, TransitionSpec, clip_param_catalog,
 };
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
@@ -46,6 +46,10 @@ use super::blocks::widgets::MIXED;
 use super::strip_tests::drawn_with;
 use super::tabs::effects::effects_params::vec2_axes;
 use crate::app::AppState;
+use crate::app::clip_frame::{CROP_EDGES, crop_inset};
+use crate::app::clip_speed::RAMP_POINTS;
+use crate::app::grade_controls::WheelControl;
+use crate::app::param_units::Units;
 use crate::app::property_rows::{PropertyGroup, TimelineOutlineRow};
 use crate::app::value_scrub::{ValueKind, Write};
 use crate::motion::MotionKey;
@@ -510,4 +514,122 @@ async fn every_transition_readout_reads_in_the_units_it_prints(cx: &mut TestAppC
             0,
         );
     });
+}
+
+/// Every crop row prints and drags in the units of a crop, which the Info panel
+/// prints a crop drag in: a percent of the picture to a tenth, a tenth of a
+/// percent per unit of drag. The rows once printed their own whole percent
+/// and dragged a whole percent per unit, ten times as far as a place on the
+/// frame moves. Not covered: the Viewer's crop handles, which drag in pixels.
+#[gpui::test]
+async fn every_crop_row_reads_in_the_units_of_a_crop(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_with(cx, "units-crop", "texture.png", "transform", |state| {
+        state
+            .set_selected_crop_inset("crop-left", 0.125)
+            .expect("crop the left edge");
+    });
+    let drawn = redraw(visual);
+    let crop = visual.read(|app| {
+        state
+            .read(app)
+            .selected_ui_clip()
+            .expect("the fixture is selected")
+            .crop
+    });
+    let units = Units::of(ClipParam::Crop, &ClipParam::Crop.range());
+    for (edge, ..) in CROP_EDGES {
+        let readout = drawn_under(&drawn, MotionKey::new("insp.row", edge))
+            .unwrap_or_else(|| panic!("the Inspector drew no readout for {edge}"));
+        let inset = crop_inset(&crop, edge);
+        assert_eq!(&*readout.text, units.print(inset), "{edge} at {inset}");
+        assert_eq!(readout.target.unit, units.number.drag, "{edge}");
+    }
+    let left = drawn_under(&drawn, MotionKey::new("insp.row", "crop-left"))
+        .expect("the Inspector drew the left crop row");
+    assert_eq!(&*left.text, "12.5%");
+}
+
+/// Each color wheel's master prints, opens and drags as the Grade row of the
+/// same property does. The masters once dragged a hundredth per unit: half the
+/// Lift Master row's rate and a quarter of the Gamma and Gain Master rows'.
+/// Not covered: the Color panel's wheels, drawn outside the Inspector.
+#[gpui::test]
+async fn every_wheel_master_reads_as_its_grade_row(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_with(cx, "units-wheels", "texture.png", "look", |_| {});
+    let drawn = redraw(visual);
+    for control in WheelControl::ALL {
+        let param = ClipParam::Look {
+            param: control.master_param(),
+        };
+        let row = visual
+            .read(|app| inspector_key(state.read(app), param))
+            .and_then(|key| drawn_under(&drawn, key))
+            .unwrap_or_else(|| panic!("the Inspector drew no Grade row for {param:?}"));
+        let wheel = drawn_under(
+            &drawn,
+            MotionKey::new("inspector", control.label()).with("master"),
+        )
+        .unwrap_or_else(|| panic!("the Inspector drew no {} master", control.label()));
+        assert_eq!(wheel.text, row.text, "{param:?}");
+        assert_eq!(wheel.target.value, row.target.value, "{param:?}");
+        assert_eq!(wheel.target.unit, row.target.unit, "{param:?}");
+        assert_eq!(wheel.target.kind, row.target.kind, "{param:?}");
+    }
+}
+
+/// Every speed the Speed tab and the Speed/Duration dialog print reads in
+/// [`Units::SPEED`]: a percent to a tenth, a field opened on the percent, one
+/// percent per unit of drag. The ramp rows once printed a multiplier to a
+/// hundredth, `1.50x`, and dragged five hundredths of it per unit, five times
+/// the dialog's drag on the same speed; the note above the graph printed the
+/// base speed as `1.00x`. Not covered: the name strip and the Rate Stretch
+/// readout, held in `projection_bar_tests` and `empty_timeline_tests`, and the
+/// graph, whose drag follows the pointer.
+#[gpui::test]
+async fn every_speed_readout_reads_in_the_units_of_a_speed(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_with(cx, "units-speed", "texture.png", "speed", |state| {
+        state
+            .set_selected_ramp_point(SPEED_CURVE_SCALE / 2, 1.5)
+            .expect("ramp the clip");
+        state.open_speed_duration();
+    });
+    let drawn = redraw(visual);
+    let speed = Units::SPEED;
+    let surfaces = RAMP_POINTS
+        .iter()
+        .map(|&(id, ..)| (id, MotionKey::new("insp.row", id)))
+        .chain([("the dialog", MotionKey::new("speed-duration", "speed"))]);
+    let mut speeds = Vec::new();
+    for (name, key) in surfaces {
+        let readout = drawn_under(&drawn, key)
+            .unwrap_or_else(|| panic!("no speed readout was drawn for {name}"));
+        let target = &readout.target;
+        assert_eq!(
+            &*readout.text,
+            speed.print(speed.number.scale.stored(target.value)),
+            "{name} prints a speed other than the one its field opens on"
+        );
+        assert_eq!(
+            target.unit, speed.number.drag,
+            "{name} drags by another unit"
+        );
+        assert_eq!(
+            target.kind,
+            speed.number.kind(),
+            "{name} is typed in another unit"
+        );
+        speeds.push(readout.clone());
+    }
+    let middle = drawn_under(&drawn, MotionKey::new("insp.row", "ramp-mid"))
+        .expect("the Speed tab drew the middle of the ramp");
+    assert_eq!(&*middle.text, "150.0%");
+    let note = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .any(|run| &*run.text == "Ramp on a 100.0% base")
+    });
+    assert!(note, "the Speed tab printed the base speed in another unit");
+    assert_each_reads_back("speed", &speeds);
+    assert_each_moves_by_its_unit("speed", &state, visual, &speeds);
 }

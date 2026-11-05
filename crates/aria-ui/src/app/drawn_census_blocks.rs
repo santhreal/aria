@@ -19,14 +19,14 @@
 use std::collections::BTreeSet;
 
 use aria_models::{
-    AnimationSlot, AudioRole, ClipId, Generator, MediaId, ParentKeep, SlotMedia, TextAlignH,
-    TextAlignV, TextCase, TextStyle,
+    AnimationSlot, AudioRole, ClipId, MediaId, ParentKeep, SlotMedia, TextAlignH, TextAlignV,
+    TextCase, TextStyle,
 };
 
 use crate::app::AppState;
 use crate::app::clip_effects::PARAM_COLORS;
 use crate::app::clip_text::TextSwitch;
-use crate::app::fixtures::{the_pair, twin_selected};
+use crate::app::fixtures::{a_clip, a_title, the_pair, twin_selected};
 use crate::app::sent_census::Watch;
 use crate::surfaces::clip_pick::{self, Pick};
 
@@ -491,10 +491,6 @@ fn every_catalog_these_blocks_loop_over_has_members() {
 
 // --- dressed states ------------------------------------------------------
 
-fn a_clip() -> AppState {
-    crate::app::premiere_tests::with_clip().0
-}
-
 /// A clip with sound, on a lane that can hold it: an audio role is a property of
 /// an audio track, so the model refuses one on a clip that landed on a video
 /// lane. The fades, the role chips, reverse and pitch lock are all drawn here.
@@ -642,24 +638,6 @@ fn a_labelled_slot() -> AppState {
     state
         .set_selected_slot_label("Logo here")
         .expect("the hint lands");
-    state
-}
-
-fn a_title() -> AppState {
-    let mut state = a_clip();
-    state
-        .add_generated(Generator::text("Title"))
-        .expect("the title lands on the timeline");
-    let placed = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .flat_map(|lane| lane.clips.iter())
-        .find(|clip| clip.generator.is_some())
-        .expect("the title is on the timeline")
-        .id;
-    state.select_clip(aria_models::ClipId::from_raw(placed));
     state
 }
 

@@ -10,6 +10,7 @@ use gpui::{
 };
 
 use crate::app::clip_ops::SPEED_PERCENT_SPAN;
+use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
@@ -103,14 +104,15 @@ pub fn render(
         cx,
     );
 
+    let units = Units::SPEED;
     let speed = value_readout::readout(
         &theme,
         state,
         ScrubTarget {
             key: MotionKey::new("speed-duration", "speed"),
             value: form.speed_percent,
-            unit: 1.0,
-            kind: ValueKind::Number { decimals: 1 },
+            unit: units.number.drag,
+            kind: units.number.kind(),
             write: Write::Draft {
                 set: Rc::new(|state: &mut AppState, percent| {
                     state.set_speed_duration_percent(percent)
@@ -118,7 +120,7 @@ pub fn render(
                 span: SPEED_PERCENT_SPAN,
             },
         },
-        format!("{:.1}%", form.speed_percent),
+        units.print(units.number.scale.stored(form.speed_percent)),
         Look {
             size: Theme::TEXT_UI,
             ink: theme.value,

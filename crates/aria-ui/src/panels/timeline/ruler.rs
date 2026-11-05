@@ -33,6 +33,8 @@ const WORK_AREA_H: f32 = 8.0;
 const WORK_AREA_GRIP_W: f32 = 4.0;
 /// How deep the ruler fades at an edge with content past it.
 pub(super) const RULER_FADE: f32 = Theme::SPACE_LG;
+/// How far the snap guide's label stands below the ruler's top.
+const SNAP_LABEL_INSET: f32 = 2.0;
 
 /// The magnet's confirmation, as a 0..1 breath.
 pub(super) fn snap_glow(cx: &mut gpui::Context<crate::shell::Shell>) -> f32 {
@@ -533,13 +535,14 @@ pub(super) fn snap_guide_line(
             guide.guide_key().with("label"),
             div()
                 .absolute()
-                .top(px(2.))
+                .top(px(SNAP_LABEL_INSET))
                 .left(px(3.))
                 .px(px(3.))
                 .rounded(px(Theme::CONTROL_RADIUS))
                 .bg(theme.surface_card)
                 .text_size(Theme::TEXT_SMALL)
                 .text_color(theme.snap_guide)
+                .whitespace_nowrap()
                 .child(guide.kind.label()),
         ));
     motion::fade_quick(guide.guide_key(), line)
@@ -565,6 +568,10 @@ pub(crate) fn marker_ruler_span(
         (x0 - 3.0, 6.0, false)
     }
 }
+
+#[cfg(test)]
+#[path = "snap_label_tests.rs"]
+mod snap_label_tests;
 
 #[cfg(test)]
 mod tests {

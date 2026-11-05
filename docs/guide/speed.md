@@ -9,7 +9,7 @@ nothing to retime.
   None. The chips under it list every built-in ramp, the active one lit,
   matched by the ramp's shape.
 - The graph draws the ramp. Time runs left to right across the clip; speed runs
-  up, logarithmically, so 1x sits near the middle and the guide line marks it.
+  up, logarithmically, so 100% sits near the middle and the guide line marks it.
   Every point of the ramp is a dot.
 - Drag a dot to move it. The first and last dot keep their position in time and
   change only their speed. The dot follows the pointer past the graph's edge,
@@ -20,12 +20,17 @@ nothing to retime.
   Use **Clear ramp** to go back to flat speed.
 - **Length** under the graph is the length the ramp implies, updated while you
   drag.
-- Start, Middle, and End set the speed multiplier at those points of the clip. A
-  flat clip gains a 1x ramp on the first edit, so only the point you touch moves.
+- Start, Middle, and End set the speed at those points of the clip. A flat clip
+  gains a 100% ramp on the first edit, so only the point you touch moves.
 - **Clear ramp** returns the clip to flat speed and its original length.
 
 A ramp changes the clip's timeline length: the engine re-derives it from the
 curve. A ramp that would push the clip into its neighbor is refused.
+
+Every speed prints as a percent to a tenth: the ramp rows, the note above the
+graph, the Speed/Duration dialog, the clip's name strip, and the Rate Stretch
+readout. A drag moves a speed one percent per unit, and a typed value is read in
+percent.
 
 **Clip > Speed/Duration…** sets constant speed (`5%` to `10000%`), duration,
 **Reverse Speed**, and **Maintain Audio Pitch** across the selected clips as one
@@ -47,9 +52,9 @@ multipliers across the clip.
 Retime a clip with constant Speed/Duration and a keyframed speed ramp:
 
 1. Select a video clip on `V1` and press <kbd>Ctrl+R</kbd> (`key-speed-duration`) or choose **Clip > Speed/Duration…**. The Speed/Duration dialog opens with the clip's current speed percentage and duration.
-2. Set the speed to `150%`, toggle [`speed-duration-pitch`](../reference/controls.md#modal-dialogs) to preserve audio pitch (or toggle [`speed-duration-reverse`](../reference/controls.md#modal-dialogs) to play the take in reverse), and click [`speed-duration-apply`](../reference/controls.md#modal-dialogs). The clip shortens on the timeline and its name strip displays `150%`.
+2. Set the speed to `150%`, toggle [`speed-duration-pitch`](../reference/controls.md#modal-dialogs) to preserve audio pitch (or toggle [`speed-duration-reverse`](../reference/controls.md#modal-dialogs) to play the take in reverse), and click [`speed-duration-apply`](../reference/controls.md#modal-dialogs). The clip shortens on the timeline and its name strip displays `150.0%`.
 3. Press <kbd>Ctrl+Alt+T</kbd> (`key-time-remap`) or choose **Clip > Time Remapping** to open the Effect Controls **Speed** tab, then click the **Hero** speed-ramp preset or drag dots on the logarithmic speed graph. The clip's timeline length updates to match the integrated speed curve and the Viewer plays fast into a slow-motion middle before ramping back up.
-4. Click [`speed-clear`](../reference/controls.md#inspector) in the **Speed** tab to return the clip to flat 1x speed and its unwarped duration. The speed ramp clears and the timeline bar restores its original length.
+4. Click [`speed-clear`](../reference/controls.md#inspector) in the **Speed** tab to return the clip to flat 100% speed and its unwarped duration. The speed ramp clears and the timeline bar restores its original length.
 
 ## Reference
 

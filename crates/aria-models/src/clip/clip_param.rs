@@ -206,13 +206,14 @@ pub enum TextParam {
     Fill,
     /// Extra space between glyphs (reference px). Scalar.
     LetterSpacing,
-    /// Extra space between lines (reference px). Scalar.
+    /// Line height as a multiple of the glyph size (`1.2` is 120%). Scalar.
     LineSpacing,
     /// Glyph stroke width (reference px). Scalar.
     StrokeWidth,
     /// Glyph stroke color. Color.
     StrokeColor,
-    /// Text shadow blur radius (reference px). Scalar.
+    /// Text shadow blur radius as a fraction of the glyph size (`0` … `1`).
+    /// Scalar.
     ShadowBlur,
     /// Text shadow offset distance (reference px). Scalar.
     ShadowDistance,

@@ -1,7 +1,7 @@
 //! What a clip bar's name strip prints for the clip's speed.
 //!
 //! Closes the class "the strip prints a speed the clip does not play at": a
-//! percentage at 100 % forwards, a reversed clip read as forwards, a fraction
+//! percentage at 100% forwards, a reversed clip read as forwards, a fraction
 //! printed from the wrong side of the ratio, or one number for a ramp whose
 //! speed changes along the clip. Not covered: where the strip draws it, which
 //! the canvas tests in `panels/timeline/clip/bar_tests.rs` own.
@@ -23,11 +23,11 @@ fn the_strip_prints_the_speed_only_when_it_is_not_100_percent_forwards() {
     let cases: [((i32, i32, bool), Option<&str>); 7] = [
         ((1, 1, false), None),
         ((2, 2, false), None),
-        ((6, 5, false), Some("120%")),
-        ((1, 2, false), Some("50%")),
-        ((1, 1, true), Some("-100%")),
-        ((3, 1, true), Some("-300%")),
-        ((1, 3, false), Some("33%")),
+        ((6, 5, false), Some("120.0%")),
+        ((1, 2, false), Some("50.0%")),
+        ((1, 1, true), Some("-100.0%")),
+        ((3, 1, true), Some("-300.0%")),
+        ((1, 3, false), Some("33.3%")),
     ];
     for ((num, den, reversed), expected) in cases {
         let label = speed_label(&clip(num, den, reversed));

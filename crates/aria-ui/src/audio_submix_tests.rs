@@ -284,7 +284,7 @@ fn the_fader_snaps_to_unity_and_bottoms_out_at_silence() {
     assert_eq!(frac_to_gain(unity - 0.002), 1.0);
     // The bottom is silence itself, not a level that is merely quiet.
     assert_eq!(frac_to_gain(0.0), 0.0);
-    assert_eq!(gain_label(0.0), "-inf");
+    assert_eq!(gain_label(0.0), crate::app::param_units::SILENT);
     assert_eq!(gain_label(1.0), "0.0 dB");
     // Outside the detent a position round-trips through the scale, and the
     // top of the travel is the model's own send ceiling.

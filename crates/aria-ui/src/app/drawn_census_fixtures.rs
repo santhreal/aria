@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use aria_commands::{Command, EditCommand, EditOutcome, SoundPlacement};
 use aria_engine::ApplyOutcome;
 use aria_models::{
-    ClipId, ClipParam, Easing, MediaId, ParamValue, RationalTime, SpatialTangents, TimeRange,
-    TrackId,
+    ClipId, ClipParam, Easing, Generator, MediaId, ParamValue, RationalTime, SpatialTangents,
+    TimeRange, TrackId,
 };
 use aria_plugin::PluginContext;
 
@@ -83,6 +83,39 @@ pub(crate) fn video_in_picture(state: &mut AppState, lane: TrackId) -> ClipId {
 /// lane, which is the only lane a duck source can be.
 pub(super) fn with_audio() -> (AppState, ClipId) {
     with_media(asset("fixture-sine-48k-2s.wav"))
+}
+
+/// A project holding the still image, its clip selected.
+pub(super) fn a_clip() -> AppState {
+    with_clip().0
+}
+
+/// A project holding the still image and a clip `generator` makes, the
+/// generated clip selected.
+///
+/// Found by content rather than by `landing_clip`, which expires: a census that
+/// raced a settling animation would dress nothing under load.
+pub(super) fn generated(generator: Generator) -> AppState {
+    let mut state = a_clip();
+    state
+        .add_generated(generator)
+        .expect("the generated clip lands on the timeline");
+    let placed = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .find(|clip| clip.generator.is_some())
+        .expect("the generated clip is on the timeline")
+        .id;
+    state.select_clip(ClipId::from_raw(placed));
+    state
+}
+
+/// A title, selected.
+pub(super) fn a_title() -> AppState {
+    generated(Generator::text("Title"))
 }
 
 /// A selection of two clips, linked, so the rows that join and separate a

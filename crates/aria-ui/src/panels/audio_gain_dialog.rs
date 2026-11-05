@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::app::clip_ops::AudioGainMode;
-use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
+use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, write_number};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components::{self, ChipSize};
@@ -95,6 +95,10 @@ pub fn render(
         AudioGainMode::SetGain | AudioGainMode::AdjustGain => "dB",
         AudioGainMode::NormalizeMaxPeak | AudioGainMode::NormalizeAllPeaks => "dBFS",
     };
+    let mut level = String::new();
+    write_number(&mut level, active_db, 1, true);
+    level.push(' ');
+    level.push_str(unit);
 
     let presets = match form.mode {
         AudioGainMode::SetGain | AudioGainMode::AdjustGain => DB_PRESETS,
@@ -149,7 +153,7 @@ pub fn render(
                 span,
             },
         },
-        format!("{active_db:+.1} {unit}"),
+        level,
         Look {
             size: Theme::TEXT_UI,
             ink: theme.value,

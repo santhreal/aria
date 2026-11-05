@@ -29,14 +29,14 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    ClipId, ClipParam, Generator, MaskKind, MatteSource, Param, ParamKind, Shape, ShapeStroke,
+    ClipParam, Generator, MaskKind, MatteSource, Param, ParamKind, Shape, ShapeStroke,
     clip_param_catalog, mask_param_group,
 };
 
 use crate::app::AppState;
 use crate::app::clip_params::ParamRow;
+use crate::app::fixtures::{a_clip, a_title, generated};
 use crate::app::param_units::{Scale, Units};
-use crate::app::premiere_tests::with_clip;
 use crate::app::sent_census::Watch;
 
 /// One property group, with a project dressed so that group owns rows.
@@ -452,10 +452,6 @@ fn every_row_of_every_mask_edits_its_own_mask() {
 // rows belong to. Nothing here writes a property: a census that set up its rows
 // by hand would measure the setter it is about to test.
 
-fn a_clip() -> AppState {
-    with_clip().0
-}
-
 /// A clip on an audio lane. The audio properties are media-only, and the lane
 /// also drops every visual row, which is the state the audio block draws in.
 fn a_clip_with_sound() -> AppState {
@@ -516,10 +512,6 @@ fn a_clip_with_a_card() -> AppState {
     with_style("background")
 }
 
-fn a_title() -> AppState {
-    generated(Generator::text("Title"))
-}
-
 /// A star with an outline, because two shape properties only exist on a shape
 /// that has them: the inner ratio belongs to a star and the stroke width to a
 /// shape that is stroked.
@@ -535,26 +527,4 @@ pub(super) fn a_shape() -> AppState {
         corner_radius: Param::Constant(4.0),
         stroke: Some(ShapeStroke::new([0, 0, 0, 255], 2.0)),
     })
-}
-
-/// Place a generated clip and select it.
-///
-/// Found by content rather than by `landing_clip`, which expires: a census that
-/// raced a settling animation would dress nothing under load.
-fn generated(generator: Generator) -> AppState {
-    let mut state = a_clip();
-    state
-        .add_generated(generator)
-        .expect("the generated clip lands on the timeline");
-    let placed = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .flat_map(|lane| lane.clips.iter())
-        .find(|clip| clip.generator.is_some())
-        .expect("the generated clip is on the timeline")
-        .id;
-    state.select_clip(ClipId::from_raw(placed));
-    state
 }

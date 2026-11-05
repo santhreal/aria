@@ -19,8 +19,8 @@ use gpui::motion::{
     TweenStore, loaders, presets,
 };
 use gpui::{
-    Animation, AnimationElement, AnimationExt as _, App, EntityId, Global, IntoElement, Styled,
-    Window, px,
+    Animation, AnimationElement, AnimationExt as _, App, EntityId, Global, IntoElement, Position,
+    Styled, Window, px,
 };
 
 const PULSE_TICK: Duration = Duration::from_millis(33);
@@ -378,6 +378,19 @@ pub const CARET_BLINK: MotionSpec = MotionSpec::new(1000, Easing::Standard);
 /// place in the list.
 pub const ROW_STAGGER_MS: u64 = 16;
 
+/// Offsets `el` `dy` px down from where layout puts it, for an entrance or an
+/// exit. An element in flow moves by a relative offset. An absolutely
+/// positioned element stays at its own inset: a relative position would put it
+/// back in flow inside its parent's width, and an offset would replace the
+/// inset.
+fn nudged<E: Styled>(mut el: E, dy: f32) -> E {
+    if el.style().position == Some(Position::Absolute) {
+        el
+    } else {
+        el.relative().top(px(dy))
+    }
+}
+
 pub fn fade_in<E>(id: impl Into<ControlId>, element: E) -> AnimationElement<E>
 where
     E: Styled + IntoElement + 'static,
@@ -385,7 +398,7 @@ where
     element.with_animation(
         id.into().element("fade-in"),
         animation(presets::FADE_IN),
-        |el, t| el.relative().opacity(t).top(px(4.0 * (1.0 - t))),
+        |el, t| nudged(el.opacity(t), 4.0 * (1.0 - t)),
     )
 }
 
@@ -407,11 +420,7 @@ where
     element.with_animation(
         id.into().element("menu-in"),
         animation(presets::MENU_IN),
-        |el, t| {
-            el.relative()
-                .opacity(0.3 + 0.7 * t)
-                .top(px(-2.0 * (1.0 - t)))
-        },
+        |el, t| nudged(el.opacity(0.3 + 0.7 * t), -2.0 * (1.0 - t)),
     )
 }
 
@@ -422,7 +431,7 @@ where
     element.with_animation(
         id.into().element("menu-out"),
         animation(presets::MENU_OUT),
-        move |el, _| el.relative().opacity(1.0 - t).top(px(-2.0 * t)),
+        move |el, _| nudged(el.opacity(1.0 - t), -2.0 * t),
     )
 }
 
@@ -433,7 +442,7 @@ where
     element.with_animation(
         id.into().element("dialog-in"),
         animation(presets::DIALOG_IN),
-        |el, t| el.relative().opacity(t).top(px(2.0 * (1.0 - t))),
+        |el, t| nudged(el.opacity(t), 2.0 * (1.0 - t)),
     )
 }
 

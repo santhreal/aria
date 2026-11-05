@@ -62,14 +62,15 @@ fn a_crop_edge_stops_at_the_frame_instead_of_being_refused() {
 /// the frame. With the far edge on the frame's, the margin landed a left or top
 /// inset short of its value and moved the far edge in by the margin, which a
 /// tolerance of 1e-3 did not see. The values run from the smallest step the
-/// Inspector writes (1%) to the widest crop the model keeps, on every edge in
-/// `CROP_EDGES`. Not caught: an error under 1e-6 of the frame, or one that
-/// shows only with the other edges already moved.
+/// Inspector writes (a tenth of a percent) to the widest crop the model keeps,
+/// on every edge in `CROP_EDGES`. Not caught: an error under 1e-6 of the frame,
+/// or one that shows only with the other edges already moved.
 #[test]
 fn a_crop_edge_lands_where_it_is_set_and_moves_no_other() {
     use crate::app::clip_frame::{CROP_EDGES, crop_inset};
     let (mut state, _) = with_clip();
     for value in [
+        0.001,
         0.01,
         0.1,
         0.25,

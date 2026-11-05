@@ -72,8 +72,8 @@ sound land on.
 A clip bar has a 14-pixel name strip at the top, the content strip under it,
 and a line across the bar.
 
-The name strip holds the clip's name, its speed when it is not 100 % (`120%`,
-`-100%` for a reversed clip; a speed ramp prints none), and its badges. The fx
+The name strip holds the clip's name, its speed when it is not 100 % (`120.0%`,
+`-100.0%` for a reversed clip; a speed ramp prints none), and its badges. The fx
 badge is gray on a clip with no changes, purple when a clip property such as
 Opacity, Position, Crop, Time Remapping, Volume, or Pan differs from a new
 clip, yellow when an effect, a grade, a mask, or a key is applied, and yellow

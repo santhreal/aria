@@ -167,11 +167,12 @@ prints the Last frame rows on the status line.
 
 The Transform tab holds the framing block below the transform rows:
 
-- Crop insets for the left, top, right, and bottom edges. Each stops at the
-  frame rather than rejecting the edit, and the kept region never collapses.
-  On an animated crop the insets read the rect under the playhead, and an
-  edit there, or a crop handle drag in the Viewer, sets a keyframe at the
-  playhead and keeps the others.
+- Crop insets for the left, top, right, and bottom edges, in percent of the
+  picture to a tenth. Two pixels of drag move an inset a tenth of a percent.
+  Each stops at the frame rather than rejecting the edit, and the kept region
+  never collapses. On an animated crop the insets read the rect under the
+  playhead, and an edit there, or a crop handle drag in the Viewer, sets a
+  keyframe at the playhead and keeps the others.
 - The Mirror section's **Horizontal** and **Vertical** switches mirror the
   content after the crop and keep an animated crop's keyframes. **Reset
   framing** restores the whole frame, clears both mirrors, and removes the

@@ -134,7 +134,7 @@ audio clips the volume line.
 | Element | Detail |
 | --- | --- |
 | Fill | The clip's label color. Selected clips use the label's selected fill and a 1 px white border. |
-| Name strip | Clip name, then the speed when it is not 100 % (`120%`, `-100%` reversed), then badges. |
+| Name strip | Clip name, then the speed when it is not 100 % (`120.0%`, `-100.0%` reversed), then badges. |
 | fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
 | Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default, one bar per 3 px of the clip at every zoom. Generators: their name and a solid swatch. |
 | Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line up or down changes the volume, and a drag from it along the lane moves the clip; Ctrl+click adds a keyframe. |

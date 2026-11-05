@@ -5,9 +5,11 @@
 //! cannot drift from the rect the model validates. They read the rect in force
 //! under the playhead, which is where an edit lands.
 
+use aria_models::ClipParam;
 use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::clip_frame::{CROP_EDGES, crop_inset};
+use crate::app::param_units::Units;
 use crate::components::{self, section_label};
 use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
@@ -28,20 +30,24 @@ pub fn framing_block(
         .read(cx)
         .selected_framing_here()
         .map_or(clip.crop, |(crop, ..)| crop);
+    // A crop inset reads, drags and types in the units a crop prints in.
+    let units = Units::of(ClipParam::Crop, &ClipParam::Crop.range());
+    let scale = units.number.scale;
     let crops: Vec<_> = CROP_EDGES
         .iter()
         .map(|(id, label, ..)| {
             let edge = *id;
             let current = crop_inset(&here, edge);
-            let percent = current * 100.0;
             unkeyed_row(
                 theme,
                 state,
                 MotionKey::new("insp.row", edge),
                 *label,
-                Readout::printed(format!("{percent:.0}%"), percent, 0, 1.0),
+                Readout::of(units, current),
                 Columns::Keyed,
-                move |state, by| state.nudge_selected_crop_inset(edge, by / 100.0),
+                move |state, by| {
+                    state.nudge_selected_crop_inset(edge, scale.stored_delta(current, by))
+                },
                 cx,
             )
             .into_any_element()

@@ -8,8 +8,8 @@
 //! The graph is the ramp's real keyframes, not samples of it: a point is drawn
 //! where it sits. The rectangle it occupies is measured during paint (`gpui`
 //! canvas), because that is the only place the drawn geometry is known, and the
-//! pointer is read against that rectangle. Values run logarithmically so 1x is
-//! near the middle instead of the bottom two percent.
+//! pointer is read against that rectangle. Values run logarithmically so 100%
+//! is near the middle instead of the bottom two percent.
 //!
 //! A drag is one edit: pointer moves update a draft on `AppState`, the release
 //! commits, Esc abandons. The press lands on the graph; the moves and the
@@ -24,6 +24,7 @@ use gpui::{
 };
 
 use crate::app::clip_speed::{RAMP_POINTS, ramp_tick_to_frac, ramp_value_to_frac, speed_presets};
+use crate::app::param_units::Units;
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::surfaces::ramp_gesture::{self, Gesture};
@@ -118,9 +119,12 @@ pub fn speed_block(
                 &state,
                 MotionKey::new("insp.row", id),
                 label,
-                Readout::printed(format!("{value:.2}x"), value, 2, 0.05),
+                Readout::of(Units::SPEED, value),
                 Columns::Free,
-                move |state, by| state.nudge_selected_ramp_point(tick, by),
+                move |state, by| {
+                    let by = Units::SPEED.number.scale.stored_delta(value, by);
+                    state.nudge_selected_ramp_point(tick, by)
+                },
                 cx,
             )
             .into_any_element()
@@ -136,9 +140,9 @@ pub fn speed_block(
             Columns::Free,
             theme.text_faint,
             if has_ramp {
-                format!("Ramp on a {flat:.2}x base")
+                format!("Ramp on a {} base", Units::SPEED.print(flat))
             } else {
-                format!("Flat {flat:.2}x")
+                format!("Flat {}", Units::SPEED.print(flat))
             },
         ))
         .child(chip_row(
@@ -187,7 +191,7 @@ fn measure(state: &gpui::Entity<crate::app::AppState>) -> impl IntoElement {
     .size_full()
 }
 
-/// The curve graph: a measured box, a 1x guide, the curve as columns, and one
+/// The curve graph: a measured box, a 100% guide, the curve as columns, and one
 /// draggable dot per keyframe.
 ///
 /// A press is routed on the box rather than on the dots, because a press has to
@@ -244,7 +248,7 @@ fn graph(
         .border_1()
         .border_color(theme.border)
         .child(
-            // The 1x guide, so a point above or below unit speed is obvious.
+            // The 100% guide, so a point above or below unit speed is obvious.
             div()
                 .absolute()
                 .left(px(0.))
@@ -303,7 +307,7 @@ fn run(
 }
 
 /// The curve's value at a graph x fraction, interpolated between the keyframes
-/// either side. Empty curve reads as flat 1x.
+/// either side. Empty curve reads as flat 100%.
 ///
 /// Linear, matching the easing every ramp point is written with.
 fn sample_points(points: &[(i64, f32)], frac: f32) -> f32 {

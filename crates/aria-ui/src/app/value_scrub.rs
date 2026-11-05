@@ -21,6 +21,7 @@
 //! Escape during a drag sets the value the press found, and a typed value the
 //! dialog refuses keeps its field open.
 
+use std::fmt::Write as _;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
@@ -57,6 +58,27 @@ pub type DraftWrite = Rc<dyn Fn(&mut AppState, f32) -> Result<(), String>>;
 /// `value` moved into `span`: the end it passed, or itself.
 pub fn clamp_into(span: &RangeInclusive<f32>, value: f32) -> f32 {
     value.clamp(*span.start(), *span.end())
+}
+
+/// Writes `value` to `out` with `decimals` digits after the point, with `+`
+/// before a value above zero when `signed`. A value that rounds to zero at
+/// those digits prints with no sign, so a drag back to rest reads `0.0`, never
+/// `-0.0`.
+pub fn write_number(out: &mut String, value: f32, decimals: u8, signed: bool) {
+    let digits = usize::from(decimals);
+    let start = out.len();
+    // `fmt::Write` for a `String` cannot fail.
+    let _ = if signed {
+        write!(out, "{value:+.digits$}")
+    } else {
+        write!(out, "{value:.digits$}")
+    };
+    let printed = &out.as_bytes()[start..];
+    if let [b'-' | b'+', rest @ ..] = printed
+        && rest.iter().all(|&byte| matches!(byte, b'0' | b'.'))
+    {
+        out.remove(start);
+    }
 }
 
 /// Where a readout's value goes.
@@ -98,7 +120,11 @@ impl ValueKind {
     /// The text a field opens with.
     pub fn format(self, value: f32) -> String {
         match self {
-            Self::Number { decimals } => format!("{value:.*}", usize::from(decimals)),
+            Self::Number { decimals } => {
+                let mut out = String::new();
+                write_number(&mut out, value, decimals, false);
+                out
+            }
             Self::Frames { num, den } => {
                 crate::timecode::format_ticks(value.round() as i64, num, den)
             }

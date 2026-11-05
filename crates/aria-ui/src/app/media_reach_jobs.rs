@@ -16,9 +16,8 @@ impl AppState {
     /// Decode the selected clip's still or animation both ways and compare.
     ///
     /// A path decode and a byte decode take different catalog columns, so a
-    /// container that reads from disk and not from memory is possible and has
-    /// been shipped before. The export path uses the byte column for embedded
-    /// content; this is the only way to find out before the export does.
+    /// container can read from disk and fail from memory. Export reads
+    /// embedded content through the byte column.
     pub fn verify_selected_decode(&mut self) {
         let Some(item) = self.selected_media_item() else {
             self.status_message = Some("Select a clip that plays a pool entry".into());

@@ -407,17 +407,13 @@ pub fn frac_to_gain(frac: f32) -> f32 {
     gain
 }
 
-/// What a fader reads beside it. Silence is named, not printed as -60.0.
+/// What a fader reads beside it: [`Units::GAIN`](super::param_units::Units::GAIN),
+/// as a clip's volume row reads, with a level under the fader's floor read at
+/// the floor. Silence reads [`SILENT`](super::param_units::SILENT).
 pub fn gain_label(gain: f32) -> String {
-    if gain <= 0.0 {
-        return "-inf".to_string();
-    }
-    let floor = aria_analysis::GAIN_FLOOR_DB;
-    let db = aria_analysis::db_from_linear(gain).map_or(floor, |db| db.max(floor));
-    if db.abs() < 0.05 {
-        return "0.0 dB".to_string();
-    }
-    format!("{db:+.1} dB")
+    let floor = aria_analysis::linear_from_db(aria_analysis::GAIN_FLOOR_DB);
+    let level = if gain > 0.0 { gain.max(floor) } else { 0.0 };
+    super::param_units::Units::GAIN.print(level)
 }
 
 impl AppState {

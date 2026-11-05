@@ -10,12 +10,12 @@ grade:
   its puck under the pointer, then drag. The drag follows the pointer off the
   wheel and stops at the rim. A wheel moves the balance between its red, green
   and blue channels and leaves their level where the press found it; the
-  **Master** value under the wheel sets the level and drags or types like any
-  other value. The rim moves a channel a quarter for Lift and a half for Gamma
-  and Gain. Releasing keeps the drag as one undo step, and Escape during the
-  drag returns the wheel to where the press found it. The reset button beside
-  the wheel's name returns its channels and master to neutral as one undo
-  step.
+  **Master** value under the wheel sets the level and prints, drags and types
+  as its Grade row does. The rim moves a channel a quarter for Lift and a half
+  for Gamma and Gain. Releasing keeps the drag as one undo step, and Escape
+  during the drag returns the wheel to where the press found it. The reset
+  button beside the wheel's name returns its channels and master to neutral as
+  one undo step.
 - One row per grade property the catalog holds: the basic correction
   (temperature, tint, exposure, contrast, highlights, shadows, whites, blacks,
   brightness, saturation), the creative values (faded film, vibrance,

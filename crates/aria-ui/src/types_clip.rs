@@ -446,8 +446,9 @@ pub struct UiClip {
     pub missing_plugin: Option<SharedString>,
     /// Markers attached to this clip, projected into timeline ticks.
     pub markers: Vec<UiMarker>,
-    /// The speed the name strip prints after the name, when it is not 100 %:
-    /// `120%`, or `-100%` for a clip played backwards.
+    /// The speed the name strip prints after the name, when it is not 100%,
+    /// in [`Units::SPEED`](crate::app::param_units::Units::SPEED): `120.0%`,
+    /// or `-100.0%` for a clip played backwards.
     pub speed_label: Option<SharedString>,
     /// Frames this clip sits from a linked clip placing the same file, while
     /// the link has drifted out of sync. Drawn on the bar as `+3` or `-3`.

@@ -639,6 +639,8 @@ fn paint_clip(
     }
 }
 
+/// The trim readout: the parts of `fb` that hold text, joined by ` · `, in a
+/// pill 8 px wider than the text on each side, centered on the view.
 fn paint_trim_hud(
     window: &mut Window,
     cx: &mut App,
@@ -649,13 +651,23 @@ fn paint_trim_hud(
     origin_y: f32,
     view_w: f32,
 ) {
-    let text = format!(
-        "{} · {} · {} · {}",
-        fb.tool_label, fb.clip_name, fb.delta_label, fb.detail_label
-    );
-    let pill_w = (text.len() as f32 * 6.8 + 20.0)
-        .min(view_w - 16.0)
-        .max(140.0);
+    let mut text = String::new();
+    for part in [
+        &fb.tool_label,
+        &fb.clip_name,
+        &fb.delta_label,
+        &fb.detail_label,
+    ] {
+        if part.is_empty() {
+            continue;
+        }
+        if !text.is_empty() {
+            text.push_str(" · ");
+        }
+        text.push_str(part);
+    }
+    let line = shape(window, text.into(), 11.0, theme.text, theme);
+    let pill_w = (f32::from(line.width()) + 16.0).min(view_w - 16.0);
     let pill_x = origin_x + ((view_w - pill_w) * 0.5).max(8.0);
     let pill_y = origin_y + 6.0;
     paint_bordered(
@@ -670,16 +682,14 @@ fn paint_trim_hud(
         1.0,
         theme.accent,
     );
-    paint_label(
+    paint_shaped(
         window,
         cx,
         paint_calls,
-        &text,
+        &line,
         pill_x + 8.0,
         pill_y + 4.0,
-        11.0,
-        theme.text,
-        theme,
+        15.0,
     );
 }
 
@@ -728,24 +738,16 @@ fn paint_bordered(
     *paint_calls += 1;
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn paint_label(
+/// Shape `text` in the theme's sans face.
+pub(super) fn shape(
     window: &mut Window,
-    cx: &mut App,
-    paint_calls: &mut usize,
-    text: &str,
-    x: f32,
-    y: f32,
+    text: SharedString,
     font_px: f32,
     color: Hsla,
     theme: &Theme,
-) {
-    if text.is_empty() {
-        return;
-    }
-    let shared = SharedString::from(text.to_owned());
+) -> gpui::ShapedLine {
     let run = TextRun {
-        len: shared.len(),
+        len: text.len(),
         font: theme.ui_font(gpui::FontWeight::NORMAL),
         color,
         background_color: None,
@@ -753,12 +755,24 @@ pub(super) fn paint_label(
         strikethrough: None,
         tracking: Default::default(),
     };
-    let shaped = window
+    window
         .text_system()
-        .shape_line(shared, px(font_px), &[run], None);
-    let _ = shaped.paint(
+        .shape_line(text, px(font_px), &[run], None)
+}
+
+/// Paint `line` with its top left at `x`, `y` in a line box `height` tall.
+pub(super) fn paint_shaped(
+    window: &mut Window,
+    cx: &mut App,
+    paint_calls: &mut usize,
+    line: &gpui::ShapedLine,
+    x: f32,
+    y: f32,
+    height: f32,
+) {
+    let _ = line.paint(
         point(px(x), px(y)),
-        px(font_px + 4.0),
+        px(height),
         TextAlign::Left,
         None,
         window,
@@ -771,3 +785,5 @@ mod bar;
 pub(crate) mod finish;
 pub(crate) mod hit;
 mod state;
+#[cfg(test)]
+mod trim_hud_tests;

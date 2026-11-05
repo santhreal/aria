@@ -18,7 +18,8 @@ use gpui::{
 use aria_models::ClipParam;
 
 use crate::app::grade_controls::WheelControl;
-use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
+use crate::app::param_units::Units;
+use crate::app::value_scrub::{ScrubTarget, Write};
 use crate::app::{AppState, spawn_preview};
 use crate::components;
 use crate::motion::MotionKey;
@@ -84,20 +85,19 @@ fn single_wheel_widget(
     .absolute()
     .size_full();
 
-    let master_param = control.master_param();
+    // The master reads, drags and types as its slider row does.
+    let master_param = ClipParam::Look {
+        param: control.master_param(),
+    };
+    let units = Units::of(master_param, &master_param.range());
+    let scale = units.number.scale;
     let target = ScrubTarget {
         key: key.with("master"),
-        value: master,
-        unit: 0.01,
-        kind: ValueKind::Number { decimals: 2 },
+        value: scale.shown(master),
+        unit: units.number.drag,
+        kind: units.number.kind(),
         write: Write::Project(Rc::new(move |state: &mut AppState, delta| {
-            state.nudge_shared_param(
-                ClipParam::Look {
-                    param: master_param,
-                },
-                None,
-                delta,
-            )
+            state.nudge_shared_param_in(master_param, None, scale, delta)
         })),
     };
 
@@ -219,7 +219,7 @@ fn single_wheel_widget(
                     theme,
                     state,
                     target,
-                    format!("{master:.2}"),
+                    units.print(master),
                     Look {
                         size: Theme::TEXT_UI,
                         ink: theme.value,

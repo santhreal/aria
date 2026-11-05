@@ -20,15 +20,15 @@ const LINE_SAMPLES: usize = 48;
 /// draws at: halfway up the bar.
 const LEVEL: f32 = 0.5;
 
-/// The speed the name strip prints: `None` at 100 % forwards, and for a speed
-/// ramp, whose speed is not one number.
+/// The speed the name strip prints, in [`Units::SPEED`]: `None` at 100%
+/// forwards, and for a speed ramp, whose speed is not one number.
 pub(super) fn speed_label(clip: &Clip) -> Option<SharedString> {
     if clip.has_speed_curve() || (clip.speed.num == clip.speed.den && !clip.reversed) {
         return None;
     }
-    let percent = f64::from(clip.speed.num) / f64::from(clip.speed.den.max(1)) * 100.0;
+    let speed = f64::from(clip.speed.num) / f64::from(clip.speed.den.max(1));
     let sign = if clip.reversed { "-" } else { "" };
-    Some(format!("{sign}{percent:.0}%").into())
+    Some(format!("{sign}{}", Units::SPEED.print(speed as f32)).into())
 }
 
 /// Which colour the fx badge draws: whether anything is applied to the clip,

@@ -1,35 +1,26 @@
-//! Media support: what this build can decode, and what the selected source is.
+//! The Media Support dialog: what this build decodes, and what the selected
+//! source is.
 //!
-//! Six backend capabilities shipped without a way to reach them. Each one
-//! answers a question to settle before an export, and each one had to be
-//! answered by guessing:
+//! - The report lists the decoder backend (`aria_decoder::decoder_capability`),
+//!   whether it returns GPU surfaces or CPU planes, and the image and pixel
+//!   formats the decoder dispatches on (`every_image_format`,
+//!   `every_pixel_format`). It flags a clip whose source range falls outside
+//!   its file (`TimeRange::intersection`, `rate_eq`).
+//! - Verify decodes the selected still or animation from its path and from its
+//!   bytes (`sniff_bytes`, `decode_image`, `decode_image_bytes`,
+//!   `decode_animation`, `decode_animation_file`) and fails when the two
+//!   disagree.
+//! - The loudness overview folds the whole audio stream into
+//!   `OVERVIEW_BUCKETS` buckets with `audio_peaks`, so a bucket covers the same
+//!   fraction of every source.
+//! - Normalize sets the selected clip's gain from the Analysis panel's
+//!   loudness contour through `normalisation_gain`, `db_from_linear` and
+//!   `linear_from_db`.
+//! - Exposure measures the frame on screen with `measure_scopes`.
 //!
-//! - `aria_decoder::decoder_capability` names the backend this build dispatches
-//!   to and whether it hands back GPU surfaces or CPU planes. Nothing drew it,
-//!   so "why is playback on the slow path here" had no answer in the editor.
-//! - `every_image_format` / `every_pixel_format` enumerate the two catalogs the
-//!   decoder actually dispatches on. Absent a listing, the only way to find out
-//!   whether a build reads HEIC or 10-bit 4:2:2 was to import a file and see.
-//! - `sniff_bytes`, `decode_image`, `decode_image_bytes`, `decode_animation` and
-//!   `decode_animation_file` are five entry points onto the same file. A still
-//!   that opens from a path and fails from memory is a real defect (the two go
-//!   through different catalog columns) and it used to surface at export time.
-//! - `audio_peaks` folds a whole stream into a fixed number of buckets, so the
-//!   overview costs the same for a ten-second clip and a two-hour interview.
-//!   The timeline uses the per-second twin, which is proportional to duration
-//!   and therefore useless as a "where is the loud part" answer.
-//! - `normalisation_gain` with `db_from_linear` / `linear_from_db` turns a
-//!   measured level into a clip gain. The measurement was drawn by the Analysis
-//!   panel and then went nowhere.
-//! - `TimeRange::intersection` and `rate_eq` prove a clip's source range still
-//!   lies inside the file it points at. Relinking to a shorter file leaves a
-//!   clip reaching past the end, which used to fail at render time only.
-//!
-//! Everything here is either cheap enough for the draw thread (a header read, a
-//! catalog walk, one index query with a short lock wait) or it goes to the job
-//! board. `verify_selected_decode` and `file_loudness_overview` decode whole
-//! files, so they are jobs: the completion detail is the answer, and the jobs
-//! panel is where it lands.
+//! Header reads, catalog walks and index queries run on the draw thread.
+//! `verify_selected_decode` and `file_loudness_overview` decode whole files
+//! and run as jobs; the job's completion detail holds the answer.
 
 use std::path::PathBuf;
 
@@ -224,9 +215,10 @@ impl AppState {
         let landed = applied.min(MAX_CLIP_VOLUME);
         let wanted = target - measured;
         let capped = wanted > MAX_NORMALISATION_BOOST_DB;
-        let level = db_from_linear(landed)
-            .map(|db| format!("{db:+.1} dB"))
-            .unwrap_or_else(|| "silence".to_string());
+        let level = match db_from_linear(landed) {
+            Some(_) => super::param_units::Units::GAIN.print(landed),
+            None => "silence".to_string(),
+        };
         self.status_message = Some(if capped {
             format!(
                 "Normalized to {level}; the {wanted:+.1} dB this needed is over the \

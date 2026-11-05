@@ -18,6 +18,7 @@ use gpui::{
 use aria_models::{AudioInsertTarget, ParamRange, TrackId};
 
 use crate::app::AppState;
+use crate::app::value_scrub::write_number;
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::panels::inspector::blocks::widgets::{
@@ -404,12 +405,12 @@ fn digits(param: &UiInsertParam) -> u8 {
 
 /// A parameter's value at the chain's first tick, marked when it is keyed.
 fn reading(param: &UiInsertParam) -> String {
-    let digits = usize::from(digits(param));
+    let mut text = String::new();
+    write_number(&mut text, param.value, digits(param), false);
     if param.automated {
-        format!("{:.digits$} keyed", param.value)
-    } else {
-        format!("{:.digits$}", param.value)
+        text.push_str(" keyed");
     }
+    text
 }
 
 /// One unit of drag: a hundredth of the parameter's range.

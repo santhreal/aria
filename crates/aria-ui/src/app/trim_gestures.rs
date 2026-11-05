@@ -290,10 +290,10 @@ impl AppState {
                             (span.end + delta - span.start).max(1)
                         };
                         let current = Rational::new(ui.speed_num.max(1), ui.speed_den.max(1));
-                        let pct = stretch_speed(current, old_dur, new_dur)
-                            .map(|s| s.as_f64() * 100.0)
-                            .unwrap_or_else(|| current.as_f64() * 100.0);
-                        ("Rate Stretch", format!("{pct:.1}% · Dur {}", tc(new_dur)))
+                        let speed = stretch_speed(current, old_dur, new_dur)
+                            .map_or_else(|| current.as_f64(), |s| s.as_f64());
+                        let speed = super::param_units::Units::SPEED.print(speed as f32);
+                        ("Rate Stretch", format!("{speed} · Dur {}", tc(new_dur)))
                     }
                     None => {
                         let edge_tc = if left {

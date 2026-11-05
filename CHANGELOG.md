@@ -803,6 +803,10 @@ Notes for the latest release. For previous releases, see the
 - `TextRenderer::new` defers loading and cloning the system font database until text is shaped or font data is loaded, which cuts the cold first interactive frame from 170.2 ms to 161.5 ms on an RTX 3080 Ti and from 96.3 ms to 90.5 ms on software Vulkan.
 - Filmstrip cells and media pool tile pictures decode after the session's first Viewer frame lands instead of beside it, and a cancelled multi-layer render returns its decoded CPU frames to their decoder slots for reuse.
 - `aria_plugin` re-exports `MAX_MANIFEST_BYTES`, `MAX_SHADER_BYTES`, `MAX_TEXTURE_BYTES`, `DeclaredClipType`, `CLIP_TYPE_ID_MAX_BYTES`, `CLIP_TYPE_NAME_MAX_BYTES`, `CLIP_TYPE_MAX_HANDLES`, `MAX_SHAPES`, `MAX_PATH_POINTS`, `MAX_COORDINATE`, `MAX_STROKE`, `TEXT_SIZE_RANGE`, and `viewer_overlay::Problem`.
+- Position, anchor point, and a mask's center and size print as a percent of the frame or picture, and text, shape, style and mask-expansion lengths print in reference pixels.
+- The Info panel prints a crop, mask or scale drag in the units the Inspector prints the property in.
+- A crop inset in Effect Controls prints a percent of the picture to a tenth and moves a tenth of a percent per two pixels of drag instead of a whole percent.
+- A clip's speed prints as a percent to a tenth on every surface: the Speed tab's ramp rows and base-speed note, the Speed/Duration dialog, the clip's name strip, the Rate Stretch readout and the status line, and a ramp row drags one percent per unit instead of five hundredths of a multiplier.
 
 ### Fixed
 
@@ -1085,6 +1089,12 @@ Notes for the latest release. For previous releases, see the
 - `PackageManifest::shader_file()` and the shader errors of `aria plugin check` include the `draws` passes of `[[clip_types]]` entries, so a broken clip type WGSL shader reports its file path, line, and column.
 - Single-line `OverlayShape::Text` validation rejects a carriage return (`\r`) as well as a newline (`\n`), and path point and text byte totals add with `saturating_add`.
 - `docs/plugins/packages.md`, `docs/plugins/drivers.md`, `crates/aria-plugin/src/expressions.rs`, and `crates/aria-sdk/src/overlays.rs` state the archive limits (`MAX_ARCHIVE_ENTRIES = 10,000`, `MAX_UNPACKED_BYTES = 1 GiB`), the staging directory name (`.install-<pid>-<n>`), the disabled plugin directory (`<data dir>/plugins/.disabled`), `DriverScope::property`, the `aria plugin check` output sections, and the positive overlay stroke width rule.
+- A snap guide's label on the ruler draws on one line beside its guide instead of one letter per line down the ruler.
+- A value that rounds to zero prints `0.0` with no sign in every readout, field, fader label, Info panel move and Audio Gain dialog, instead of `-0.0`, `+0.0 dB` or `+0 px`.
+- A color wheel's master in Effect Controls drags and prints as its Grade row does instead of a hundredth per unit, half the Lift Master rate and a quarter of the Gamma and Gain Master rates.
+- A mixer fader and a send at silence read `Silent`, as a clip's volume row reads, instead of `-inf`.
+- The trim readout on the timeline fits its pill to the shaped text, 8 pixels each side, instead of a byte count with a 140-pixel floor that left empty pill beside the text, and drops an empty part instead of printing a bare ` · `.
+- Dragging a position, a mask, a title's size or line spacing, or a shape's dimensions moves the value one printed unit per two pixels of travel instead of a hundredth of the model's limit, which stepped a title 41 pixels and a mask 72 degrees at a time.
 
 ## [alpha-0.7.0] - 2026-07-22
 

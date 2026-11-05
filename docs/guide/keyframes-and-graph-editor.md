@@ -55,10 +55,15 @@ drawn.
 A property that can be animated has these controls, in Effect Controls and on a
 timeline property row:
 
-- The value prints in the same units on both: opacity and scale in percent,
-  rotation in degrees, volume in decibels, and a volume of zero as Silent.
-  Drag the value to scrub it, or click it and type a number in the units it
-  prints.
+- The value prints in the same units on both: opacity, scale and line spacing
+  in percent; position, anchor point, and a mask's center and size in percent
+  of the frame or of the picture; rotation in degrees; sizes and distances in
+  reference pixels; volume in decibels, and a volume of zero as Silent. Drag
+  the value to scrub it, or click it and type a number in the units it prints.
+- Two pixels of drag move the value one printed unit: a percent, a degree, a
+  pixel. Position, anchor point, and a mask's center and size move a tenth of a
+  percent, volume half a decibel, and any other value a hundredth of its range.
+  Shift moves ten times as far and Ctrl a tenth as far.
 - In Effect Controls, a property bounded at both ends draws a track under its
   name and value, with a thumb where the value stands between the bounds. The
   track is lit from zero to the thumb when the bounds run from below zero to

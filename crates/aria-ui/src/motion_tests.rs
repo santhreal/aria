@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use gpui::motion::MotionPolicy;
-use gpui::{AppContext as _, Rgba};
+use gpui::{AppContext as _, InteractiveElement as _, ParentElement as _, Rgba};
 
 use super::*;
 
@@ -411,4 +411,69 @@ fn every_opening_stage_is_read_off_the_route_and_lands_with_it() {
         "and start right after it"
     );
     assert_eq!(OPEN_STAGE_LAG, 0.25);
+}
+
+/// Where each placed mark stands inside its parent, left and top.
+const PLACED: (f32, f32) = (10.0, 6.0);
+
+/// The entrances and exits that move an element, by the selector of the mark
+/// each one draws.
+const NUDGES: [&str; 4] = ["fade-in", "menu-in", "menu-out", "dialog-in"];
+
+/// One absolutely placed mark per entrance and exit, in a parent one pixel
+/// wide, as the snap guide's label stands in its line.
+struct Placed;
+
+impl gpui::Render for Placed {
+    fn render(&mut self, _: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        begin_frame(cx);
+        let mark = |name: &'static str| {
+            gpui::div()
+                .debug_selector(move || name.into())
+                .absolute()
+                .left(px(PLACED.0))
+                .top(px(PLACED.1))
+                .w(px(40.0))
+                .h(px(10.0))
+        };
+        gpui::div()
+            .debug_selector(|| "placed-parent".into())
+            .relative()
+            .w(px(1.0))
+            .h(px(100.0))
+            .child(fade_in(NUDGES[0], mark(NUDGES[0])))
+            .child(menu_in(NUDGES[1], mark(NUDGES[1])))
+            .child(menu_out(NUDGES[2], 0.0, mark(NUDGES[2])))
+            .child(dialog_in(NUDGES[3], mark(NUDGES[3])))
+    }
+}
+
+/// An entrance or exit leaves an absolutely placed element at its own inset.
+/// Closes the class where one set such an element to a relative position: the
+/// element went back in flow inside its parent's width and took the motion's
+/// offset for its inset, as the snap guide's label did inside its one pixel
+/// line. Each helper is drawn at rest.
+///
+/// Not covered: the distance an element in flow travels, which is a curve
+/// value, and a helper added without a mark here.
+#[gpui::test]
+fn an_entrance_or_exit_leaves_an_absolute_element_at_its_inset(cx: &mut gpui::TestAppContext) {
+    let (_, visual) = crate::test_support::window_view(cx, |_, _| Placed);
+    visual.executor().advance_clock(Duration::from_secs(2));
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let parent = visual
+        .debug_bounds("placed-parent")
+        .expect("the parent was drawn");
+    for name in NUDGES {
+        let at = visual
+            .debug_bounds(name)
+            .unwrap_or_else(|| panic!("the {name} mark was not drawn"));
+        let offset = (at.left() - parent.left(), at.top() - parent.top());
+        assert!(
+            (offset.0 - px(PLACED.0)).abs() < px(0.51)
+                && (offset.1 - px(PLACED.1)).abs() < px(0.51),
+            "the {name} mark stands at {offset:?} in its parent, its inset is {PLACED:?}"
+        );
+    }
 }

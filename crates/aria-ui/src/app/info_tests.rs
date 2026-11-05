@@ -17,7 +17,7 @@ use aria_models::RationalTime;
 use gpui::GpuDevice;
 
 use super::*;
-use crate::app::canvas_overlay::Rect;
+use crate::app::canvas_overlay::{CropHandle, MaskHandle, Rect, TransformHandle};
 use crate::app::premiere_tests::with_clip;
 
 /// A colour unique to texel `(x, y)` of any frame under 4096 pixels a side.
@@ -393,6 +393,87 @@ fn a_viewer_move_reads_its_offset_in_canvas_pixels() {
         drag[0].value,
         format!("{:+.0} px, {:+.0} px", 0.25 * width, -0.1 * height)
     );
+    // A move along one axis prints the other as 0 px with no sign, whatever
+    // hair of travel the drag left on it.
+    for hair in [0.0, -1e-6, 1e-6] {
+        draft.position_y = start.position_y + hair;
+        state.overlay_drag = Some(OverlayDrag::Transform {
+            handle: None,
+            start,
+            grab: [0.0, 0.0],
+            draft,
+        });
+        assert_eq!(
+            state.info_readout().drag[0].value,
+            format!("{:+.0} px, 0 px", 0.25 * width),
+            "{hair}"
+        );
+    }
+}
+
+/// A Viewer drag reads in the units the property's rows print: a place, an
+/// extent and a scale as a percent against the number, an angle in degrees.
+/// The panel once printed its own percents, so a mask center read `4.0 %`
+/// here and `4.0%` in the Inspector.
+#[test]
+fn a_viewer_drag_reads_in_the_units_its_rows_print() {
+    let (mut state, _) = with_clip();
+    let mut read = |drag| {
+        state.overlay_drag = Some(drag);
+        state
+            .info_readout()
+            .drag
+            .into_iter()
+            .map(|row| (row.label, row.value))
+            .collect::<Vec<_>>()
+    };
+    let mask = OverlayDrag::Mask {
+        handle: MaskHandle::Center,
+        center: [0.04, -0.1],
+        size: [0.5, 0.25],
+        rotation: 12.5,
+    };
+    let crop = OverlayDrag::Crop {
+        handle: CropHandle::TopLeft,
+        draft: aria_models::CropRect {
+            x: 0.1,
+            y: 0.05,
+            w: 0.8,
+            h: 0.9,
+        },
+    };
+    let start = crate::types::UiClipTransform::default();
+    let scale = OverlayDrag::Transform {
+        handle: Some(TransformHandle::ALL[0]),
+        start,
+        grab: [0.0, 0.0],
+        draft: crate::types::UiClipTransform {
+            scale_x: 1.25,
+            ..start
+        },
+    };
+    let row = |label: &'static str, value: &str| (label, value.to_string());
+    let cases = [
+        (
+            mask,
+            vec![
+                row("Mask center", "4.0%, -10.0%"),
+                row("Mask size", "50.0%, 25.0%"),
+                row("Mask rotation", "12.5°"),
+            ],
+        ),
+        (
+            crop,
+            vec![
+                row("Crop at", "10.0%, 5.0%"),
+                row("Crop size", "80.0%, 90.0%"),
+            ],
+        ),
+        (scale, vec![row("Scale", "100.0% to 125.0%")]),
+    ];
+    for (drag, rows) in cases {
+        assert_eq!(read(drag), rows, "{drag:?}");
+    }
 }
 
 #[test]

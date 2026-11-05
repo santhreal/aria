@@ -425,17 +425,21 @@ fn paint_graph_canvas(
                 calls += 1;
 
                 let pct = (h.influence * 100.0).clamp(0.1, 100.0);
-                let pct_text = format!("{pct:.0}%");
-                super::clip::paint_label(
+                let label = super::clip::shape(
                     window,
-                    cx,
-                    &mut calls,
-                    &pct_text,
-                    ox + h.handle_x - 10.0,
-                    oy + (h.handle_y - 13.0).max(2.0),
+                    format!("{pct:.0}%").into(),
                     9.0,
                     theme.warning,
                     theme,
+                );
+                super::clip::paint_shaped(
+                    window,
+                    cx,
+                    &mut calls,
+                    &label,
+                    ox + h.handle_x - 10.0,
+                    oy + (h.handle_y - 13.0).max(2.0),
+                    13.0,
                 );
             }
 
