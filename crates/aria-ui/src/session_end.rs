@@ -12,9 +12,21 @@ use gpui::{App, Entity, Window, WindowBounds};
 use crate::app::AppState;
 use crate::settings::WindowPlacement;
 
-/// Save the window's placement, then quit the app.
+/// Stop background workers and close every video decode session held by `state`.
+pub(crate) fn close_decode_sessions(state: &mut AppState) {
+    state.playing = false;
+    state.audio.publish_stop();
+    state.preview_worker.stop();
+    state.filmstrips = crate::filmstrips::FilmstripStore::default();
+    state.engine().lock().new_session();
+}
+
+/// Save the window's placement, close decode sessions, then quit the app.
 pub(crate) fn quit(window: &Window, state: &Entity<AppState>, cx: &mut App) {
-    state.update(cx, |state, cx| save_placement(window, state, cx));
+    state.update(cx, |state, cx| {
+        save_placement(window, state, cx);
+        close_decode_sessions(state);
+    });
     cx.quit();
 }
 
@@ -26,18 +38,18 @@ pub(crate) fn quit(window: &Window, state: &Entity<AppState>, cx: &mut App) {
 pub(crate) fn close_on_request(window: &mut Window, state: &Entity<AppState>, cx: &mut App) {
     let closing = state.clone();
     window.on_window_should_close(cx, move |window, cx| {
-        closing.update(cx, |state, cx| {
+        let closes = closing.update(cx, |state, _| {
             if !state.quit_requested() {
                 state.request_quit();
             }
-            let closes = state.quit_requested();
-            if closes {
-                save_placement(window, state, cx);
-            } else {
-                cx.notify();
-            }
-            closes
-        })
+            state.quit_requested()
+        });
+        if closes {
+            quit(window, &closing, cx);
+        } else {
+            closing.update(cx, |_, cx| cx.notify());
+        }
+        closes
     });
 }
 

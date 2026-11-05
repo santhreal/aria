@@ -626,3 +626,111 @@ fn context_menu_stores_click_position() {
         Some(crate::types::ContextTarget::Preview)
     );
 }
+/// Every `first_run` shell workflow that opens a video decoder releases its
+/// decode sessions when its shell drops, and a child test binary running
+/// `app::first_run_tests` exits within 5 s of printing its test verdict.
+#[test]
+fn each_first_run_shell_closes_decode_sessions_on_drop_and_exits_within_bound() {
+    for (index, workflow) in ["drop_on_home", "import_and_place", "drop_in_free_space"]
+        .into_iter()
+        .enumerate()
+    {
+        let dir = scratch();
+        let video = dir.join(format!("first-run-{index}.mp4"));
+        std::fs::copy(fixture_at("fixture-640x360-24fps-3s-av.mp4"), &video).unwrap();
+        let mut state = AppState::new(PluginContext::new(), dir).unwrap();
+        match workflow {
+            "drop_on_home" => {
+                state.drop_on_home(vec![video.clone()]).unwrap();
+            }
+            "import_and_place" => {
+                state.new_project().unwrap();
+                let media = state.import_media(video.clone()).unwrap();
+                state.drop_media_on_timeline(media, None, 0).unwrap();
+            }
+            _ => {
+                state.new_project().unwrap();
+                state.import_dropped_paths(vec![video.clone()]).unwrap();
+            }
+        }
+        let media = aria_models::MediaId::from_raw(state.store.media[0].id);
+        state
+            .engine()
+            .lock()
+            .media_frame_fit(media, 0, 160, 90)
+            .expect("decode video frame");
+        let engine = std::sync::Arc::clone(state.engine());
+        state.preview_worker.occupy(move || {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let _ = engine.lock().media_frame_fit(media, 1, 160, 90);
+        });
+        assert_eq!(
+            aria_decoder::open_decode_sessions_for(&video),
+            1,
+            "{workflow}: expected one open decode session before shell drop"
+        );
+        drop(state);
+        assert_eq!(
+            aria_decoder::open_decode_sessions_for(&video),
+            0,
+            "{workflow}: decode session remained open after shell drop"
+        );
+    }
+
+    let exe = std::env::current_exe().expect("test binary path");
+    let started = std::time::Instant::now();
+    let mut child = std::process::Command::new(exe)
+        .args([
+            "app::first_run_tests::",
+            "--skip",
+            "each_first_run_shell_closes_decode_sessions_on_drop_and_exits_within_bound",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn child test binary");
+    let mut stdout = child.stdout.take().expect("child stdout");
+    let (verdict_tx, verdict_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        use std::io::{BufRead, BufReader};
+        for line in BufReader::new(&mut stdout).lines().map_while(Result::ok) {
+            if line.starts_with("test result: ok.") {
+                let _ = verdict_tx.send(std::time::Instant::now());
+            }
+        }
+    });
+    let run_bound = std::time::Duration::from_secs(30);
+    let exit_bound = std::time::Duration::from_secs(5);
+    let mut verdict_at = None;
+    let status = loop {
+        if verdict_at.is_none()
+            && let Ok(at) = verdict_rx.try_recv()
+        {
+            verdict_at = Some(at);
+        }
+        if let Some(status) = child.try_wait().expect("poll child") {
+            break status;
+        }
+        if let Some(at) = verdict_at
+            && at.elapsed() >= exit_bound
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("child running app::first_run_tests hung at exit past {exit_bound:?}");
+        }
+        if started.elapsed() >= run_bound {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("child running app::first_run_tests exceeded {run_bound:?}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    };
+    assert!(
+        status.success(),
+        "child running app::first_run_tests failed with {status}"
+    );
+    assert!(
+        verdict_at.is_some() || verdict_rx.try_recv().is_ok(),
+        "child running app::first_run_tests exited without printing test result: ok."
+    );
+}

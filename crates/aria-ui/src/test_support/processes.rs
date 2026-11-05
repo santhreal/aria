@@ -6,7 +6,7 @@ use super::collect_rs;
 
 /// A file allowed to start another program, and why.
 ///
-/// Seven entries and a self-reference. Everything else that trips this is a
+/// Eight entries and a self-reference. Everything else that trips this is a
 /// defect: a second spawn site is a second policy, and the policy here is
 /// that a launch needs the application's permission.
 const SPAWN_OWNERS: &[(&str, &str)] = &[
@@ -36,6 +36,11 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
         "crates/aria-ui/src/test_support/catalogs.rs",
         "re-runs its own test binary as the child a catalog-changing test runs in; starts \
          no other program",
+    ),
+    (
+        "crates/aria-ui/src/app/first_run_tests.rs",
+        "re-runs its own test binary as the child whose exit a test times; starts no other \
+         program",
     ),
     (
         "apps/aria-desktop/tests/no_display.rs",

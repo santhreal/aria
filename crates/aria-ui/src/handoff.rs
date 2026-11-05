@@ -40,6 +40,36 @@ use gpui::{BackgroundExecutor, Task};
 /// reader sleeps until a writer sends.
 pub const CHECK: Duration = Duration::from_millis(16);
 
+static IN_FLIGHT: (parking_lot::Mutex<usize>, parking_lot::Condvar) =
+    (parking_lot::Mutex::new(0), parking_lot::Condvar::new());
+
+struct FlightGuard;
+
+impl FlightGuard {
+    fn enter() -> Self {
+        *IN_FLIGHT.0.lock() += 1;
+        Self
+    }
+}
+
+impl Drop for FlightGuard {
+    fn drop(&mut self) {
+        let mut count = IN_FLIGHT.0.lock();
+        *count -= 1;
+        if *count == 0 {
+            IN_FLIGHT.1.notify_all();
+        }
+    }
+}
+
+/// Wait for every thread started by [`on_a_thread`] to finish.
+pub fn wait_for_threads() {
+    let mut count = IN_FLIGHT.0.lock();
+    while *count > 0 {
+        IN_FLIGHT.1.wait(&mut count);
+    }
+}
+
 /// Run `work` on its own thread and await what it returns.
 ///
 /// For work that finishes: a decode, a render, a request with a timeout. The
@@ -55,9 +85,13 @@ pub fn on_a_thread<T: Send + 'static>(
     label: &str,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Task<Option<T>> {
+    let guard = FlightGuard::enter();
     let started = std::thread::Builder::new()
         .name(label.to_owned())
-        .spawn(work);
+        .spawn(move || {
+            let _guard = guard;
+            work()
+        });
     executor.spawn(async move {
         // A thread that could not be started, and a thread that panicked, are
         // the same answer: there is no result.

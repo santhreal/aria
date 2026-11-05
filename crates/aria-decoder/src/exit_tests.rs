@@ -62,3 +62,72 @@ fn exit_process_runs_no_exit_handler() {
     );
     assert!(ran.took < BOUND);
 }
+#[test]
+#[ignore = "child process of closed_decode_session_skips_library_destructor_on_exit"]
+fn closed_session_exit_child() {
+    #[allow(unsafe_code)]
+    // SAFETY: registers a stand-in destructor before a decode session closes.
+    let registered = unsafe { libc::atexit(never_returns) };
+    assert_eq!(registered, 0, "atexit did not register the handler");
+    let guard = crate::SessionGuard::new(std::path::Path::new("closed.mp4"));
+    assert_eq!(crate::open_decode_sessions(), 1);
+    drop(guard);
+    assert_eq!(crate::open_decode_sessions(), 0);
+    print!("{UNFLUSHED}");
+    std::process::exit(i32::from(CODE));
+}
+
+#[test]
+fn closed_decode_session_skips_library_destructor_on_exit() {
+    let ran = crate::test_child::run("exit::tests::closed_session_exit_child", BOUND);
+    let status = ran.status.unwrap_or_else(|| {
+        panic!(
+            "the child ran the destructor after closing its decode session and did not end within {BOUND:?}\n{}",
+            ran.transcript()
+        )
+    });
+    assert_eq!(status.code(), Some(i32::from(CODE)));
+    assert!(ran.stdout.contains(UNFLUSHED));
+    assert!(ran.took < BOUND);
+}
+
+extern "C" fn finish_from_destructor() {
+    #[allow(unsafe_code)]
+    // SAFETY: ends the child with `CODE` to prove this handler ran when a
+    // decode session remained open at exit.
+    unsafe {
+        libc::_exit(i32::from(CODE));
+    }
+}
+
+#[test]
+#[ignore = "child process of open_decode_session_does_not_skip_exit_handlers"]
+fn leaked_session_exit_child() {
+    #[allow(unsafe_code)]
+    // SAFETY: registers a stand-in handler before a decode session closes.
+    let registered = unsafe { libc::atexit(finish_from_destructor) };
+    assert_eq!(registered, 0, "atexit did not register the handler");
+    let closed = crate::SessionGuard::new(std::path::Path::new("closed.mp4"));
+    drop(closed);
+    let leaked = crate::SessionGuard::new(std::path::Path::new("leaked.mp4"));
+    std::mem::forget(leaked);
+    assert_eq!(crate::open_decode_sessions(), 1);
+    std::process::exit(0);
+}
+
+#[test]
+fn open_decode_session_does_not_skip_exit_handlers() {
+    let ran = crate::test_child::run("exit::tests::leaked_session_exit_child", BOUND);
+    let status = ran.status.unwrap_or_else(|| {
+        panic!(
+            "the child did not end within {BOUND:?}\n{}",
+            ran.transcript()
+        )
+    });
+    assert_eq!(
+        status.code(),
+        Some(i32::from(CODE)),
+        "an unclosed decode session bypassed the exit handler instead of leaving it active\n{}",
+        ran.transcript()
+    );
+}

@@ -304,6 +304,84 @@ pub fn open_video_decoder(
     open_video_decoder_at(path, mode, RationalTime::new(0, Rational::new(1, 1)))
 }
 
+static OPEN_DECODE_SESSIONS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+static OPEN_SESSION_PATHS: parking_lot::Mutex<Vec<std::path::PathBuf>> =
+    parking_lot::Mutex::new(Vec::new());
+
+/// Number of video decode sessions currently open or opening.
+pub fn open_decode_sessions() -> usize {
+    OPEN_DECODE_SESSIONS.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Number of video decode sessions currently open or opening for `path`.
+pub fn open_decode_sessions_for(path: &Path) -> usize {
+    OPEN_SESSION_PATHS
+        .lock()
+        .iter()
+        .filter(|open| open.as_path() == path)
+        .count()
+}
+
+struct SessionGuard(std::path::PathBuf);
+
+impl SessionGuard {
+    fn new(path: &Path) -> Self {
+        let owned = path.to_path_buf();
+        OPEN_SESSION_PATHS.lock().push(owned.clone());
+        OPEN_DECODE_SESSIONS.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        Self(owned)
+    }
+}
+
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        let prev = OPEN_DECODE_SESSIONS.fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
+        let mut paths = OPEN_SESSION_PATHS.lock();
+        if let Some(pos) = paths.iter().position(|open| *open == self.0) {
+            paths.swap_remove(pos);
+        }
+        drop(paths);
+        #[cfg(target_os = "linux")]
+        if prev == 1 {
+            exit::arm_after_decode_close();
+        }
+    }
+}
+
+struct TrackedDecoder {
+    inner: Box<dyn VideoDecoder>,
+    _session: SessionGuard,
+}
+
+impl VideoDecoder for TrackedDecoder {
+    fn info(&self) -> &aria_core::SourceInfo {
+        self.inner.info()
+    }
+
+    fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+        self.inner.seek(target)
+    }
+
+    fn next_frame(&mut self) -> Result<Option<aria_core::VideoFrame>, DecodeError> {
+        self.inner.next_frame()
+    }
+
+    fn frame_at(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<aria_core::VideoFrame>, DecodeError> {
+        self.inner.frame_at(target)
+    }
+
+    fn frame_at_nearest(
+        &mut self,
+        target: RationalTime,
+    ) -> Result<Option<aria_core::VideoFrame>, DecodeError> {
+        self.inner.frame_at_nearest(target)
+    }
+}
+
 /// [`open_video_decoder`] for a caller whose first request is for the frame
 /// at `start`. The Linux backend prerolls its pipeline at the sync sample at
 /// or before `start` instead of at stream start, so that first
@@ -315,11 +393,16 @@ pub fn open_video_decoder_at(
     mode: OutputMode,
     start: RationalTime,
 ) -> Result<Box<dyn VideoDecoder>, DecodeError> {
-    external::dispatch(
+    let inner = external::dispatch(
         path,
         |decoder| decoder.open_video(path),
         || open_native_video_decoder(path, mode, start),
-    )
+    )?;
+    let session = SessionGuard::new(path);
+    Ok(Box::new(TrackedDecoder {
+        inner,
+        _session: session,
+    }))
 }
 
 fn open_native_video_decoder(

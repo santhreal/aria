@@ -260,3 +260,35 @@ impl FrameCache {
         out
     }
 }
+impl super::PreviewWorker {
+    /// Stop the worker thread after its current job, cancel any render-ahead
+    /// frame in flight, release cached textures and devices, and wait for
+    /// background handoff threads to finish.
+    pub fn stop(&mut self) {
+        self.shared.ahead.lock().cancel();
+        let (closed_jobs, _) = crossbeam_channel::unbounded();
+        let (closed_pictures, _) = crossbeam_channel::unbounded();
+        let first_lane = std::mem::replace(&mut self.first_lane, closed_jobs);
+        let pictures = std::mem::replace(&mut self.pictures, closed_pictures);
+        drop(first_lane);
+        drop(pictures);
+        if std::thread::current().name() != Some(super::THREAD_NAME) {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while std::sync::Arc::strong_count(&self.shared) > 1
+                && std::time::Instant::now() < deadline
+            {
+                std::thread::sleep(std::time::Duration::from_micros(250));
+            }
+        }
+        self.shared.cache.lock().clear();
+        *self.shared.shown_texture.lock() = None;
+        *self.shared.gpu_device.lock() = None;
+        crate::handoff::wait_for_threads();
+    }
+}
+
+impl Drop for super::PreviewWorker {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}

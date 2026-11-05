@@ -31,6 +31,46 @@ pub fn exit_process(code: u8) -> ! {
     std::process::exit(i32::from(code))
 }
 
+#[cfg(target_os = "linux")]
+static ARMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Register an `on_exit` hook once all open decode sessions have closed so a
+/// normal process exit flushes standard streams and ends through `_exit` when
+/// `open_decode_sessions() == 0`, bypassing `libnvcuvid`'s duplicate thread
+/// join in `_dl_fini`.
+#[cfg(target_os = "linux")]
+pub(crate) fn arm_after_decode_close() {
+    if ARMED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return;
+    }
+    #[allow(unsafe_code)]
+    unsafe extern "C" {
+        fn on_exit(
+            function: extern "C" fn(libc::c_int, *mut libc::c_void),
+            arg: *mut libc::c_void,
+        ) -> libc::c_int;
+    }
+    #[allow(unsafe_code)]
+    // SAFETY: `finish_if_all_sessions_closed` has C ABI, touches only atomic
+    // counters and stdio flush before `_exit`, and does not unwind.
+    unsafe {
+        let _ = on_exit(finish_if_all_sessions_closed, std::ptr::null_mut());
+    }
+}
+
+#[cfg(target_os = "linux")]
+extern "C" fn finish_if_all_sessions_closed(status: libc::c_int, _arg: *mut libc::c_void) {
+    if crate::open_decode_sessions() == 0 {
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+        #[allow(unsafe_code)]
+        // SAFETY: every decode session is closed; `_exit` preserves
+        // `status` and skips `libnvcuvid`'s `.fini_array` destructor.
+        unsafe {
+            libc::_exit(status);
+        }
+    }
+}
 #[cfg(all(test, target_os = "linux"))]
 #[path = "exit_tests.rs"]
 mod tests;

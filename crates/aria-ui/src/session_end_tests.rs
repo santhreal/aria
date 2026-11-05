@@ -89,6 +89,63 @@ fn every_way_a_session_ends_saves_the_window_placement(cx: &mut TestAppContext) 
     }
 }
 
+#[gpui::test]
+fn every_way_a_session_ends_closes_decode_sessions(cx: &mut TestAppContext) {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
+    for (index, ending) in Ending::ALL.into_iter().enumerate() {
+        let at = Bounds::new(point(px(120.), px(80.)), size(px(1280.), px(760.)));
+        let (state, mut visual) = drawn_shell_at(cx, &format!("session-end-decode-{index}"), at);
+        let video = visual.update(|_, app| {
+            let dir = state.read(app).data_dir.clone();
+            let copy = dir.join(format!("end-{index}.mp4"));
+            std::fs::copy(&fixture, &copy).expect("copy video fixture");
+            state.update(app, |state, cx| {
+                state.new_project().expect("new project");
+                let media = state.import_media(copy.clone()).expect("import video");
+                state.project_path = Some(dir.join(format!("end-{index}.aria")));
+                state.save_project().expect("save clean session");
+                state
+                    .engine()
+                    .lock()
+                    .media_frame_fit(media, 0, 160, 90)
+                    .expect("decode first frame");
+                let engine = std::sync::Arc::clone(state.engine());
+                crate::handoff::on_a_thread(
+                    cx.background_executor(),
+                    "panels::sidebar",
+                    move || {
+                        let _ = engine.lock().media_frame_fit(media, 1, 160, 90);
+                    },
+                )
+                .detach();
+            });
+            copy
+        });
+        assert_eq!(
+            aria_decoder::open_decode_sessions_for(&video),
+            1,
+            "{ending:?}: video decode session was not open before ending the session"
+        );
+        match ending {
+            Ending::Quit => {
+                visual.update(|_, app| state.update(app, |state, _| state.request_quit()));
+                visual.update(|window, _| window.refresh());
+                visual.run_until_parked();
+            }
+            Ending::CloseRequest => {
+                visual.update(|window, app| super::close_on_request(window, &state, app));
+                assert!(visual.simulate_close());
+            }
+        }
+        assert_eq!(
+            aria_decoder::open_decode_sessions_for(&video),
+            0,
+            "{ending:?}: video decode session stayed open after ending the session"
+        );
+    }
+}
+
 /// **Every quit in the crate goes through [`super::quit`].**
 ///
 /// A quit anywhere else ends the session without saving the placement. Read
