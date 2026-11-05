@@ -152,6 +152,170 @@ fn travel_past_either_end_of_the_sequence_is_not_banked() {
 }
 
 #[test]
+fn the_viewer_clock_field_follows_the_tab_in_front_at_its_own_rate() {
+    let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let (mut state, _) = crate::app::premiere_tests::with_media(shot);
+    let media = state.store.media[0].id;
+    state.set_playhead(24);
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer),
+        (false, "00:00:01:00".into())
+    );
+    assert_eq!(
+        state.clock_field(ClockSite::Timeline),
+        (false, "00:00:01:00".into())
+    );
+
+    assert!(state.open_source(media), "the Source tab opens");
+    state.sources.focused_mut().expect("source tab").tick = 12;
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer),
+        (false, "00:00:00:12".into()),
+        "a Source tab in front displays its take's frame"
+    );
+    assert_eq!(state.clock_text(), gpui::SharedString::from("00:00:00:12"));
+    assert_eq!(
+        state.clock_field(ClockSite::Timeline),
+        (false, "00:00:01:00".into()),
+        "the timeline header clock stays on sequence time"
+    );
+
+    // A 30 fps take in a 24 fps sequence formats at 30 fps, not 24 fps.
+    std::sync::Arc::make_mut(&mut state.store)
+        .media
+        .iter_mut()
+        .find(|item| item.id == media)
+        .expect("media item")
+        .frame_rate = aria_models::Rational::FPS_30;
+    state.sources.focused_mut().expect("source tab").tick = 45;
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer).1,
+        gpui::SharedString::from("00:00:01:15")
+    );
+    std::sync::Arc::make_mut(&mut state.store)
+        .sequence
+        .time_display = aria_models::TimeDisplay::Frames;
+    state.refresh_clock_text();
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer).1,
+        gpui::SharedString::from("45")
+    );
+    assert_eq!(
+        state.clock_field(ClockSite::Timeline).1,
+        gpui::SharedString::from("24")
+    );
+    std::sync::Arc::make_mut(&mut state.store)
+        .sequence
+        .time_display = aria_models::TimeDisplay::FeetFrames;
+    state.refresh_clock_text();
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer).1,
+        gpui::SharedString::from("0002+13")
+    );
+    assert_eq!(
+        state.clock_field(ClockSite::Timeline).1,
+        gpui::SharedString::from("0001+08")
+    );
+
+    // A still on millisecond ticks resamples to the sequence frame rate instead
+    // of printing milliseconds as frames.
+    let store = std::sync::Arc::make_mut(&mut state.store);
+    store.sequence.time_display = aria_models::TimeDisplay::Timecode;
+    let item = store
+        .media
+        .iter_mut()
+        .find(|item| item.id == media)
+        .expect("media item");
+    item.still = true;
+    item.frame_rate = aria_models::Rational::new(1000, 1);
+    state.refresh_clock_text();
+    state.sources.focused_mut().expect("source tab").tick = 500;
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer).1,
+        gpui::SharedString::from("00:00:00:12")
+    );
+
+    state.show_program();
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer),
+        (false, "00:00:01:00".into())
+    );
+}
+
+#[test]
+fn a_drag_on_the_viewer_field_over_a_source_tab_moves_the_take_and_escape_restores_it() {
+    let (mut state, _) = with_clip();
+    let media = state.store.media[0].id;
+    state.set_playhead(40);
+    assert!(state.open_source(media), "the Source tab opens");
+    let last = state.sources.focused().expect("source tab").duration_ticks - 1;
+    state.sources.focused_mut().expect("source tab").tick = 30;
+
+    state.press_clock(ClockSite::Viewer);
+    assert!(
+        state.viewer_drag_moves_take(),
+        "a Viewer clock press over a Source tab moves the take"
+    );
+    assert!(!state.drag_viewer(2.0, 0.0, false, false));
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(30));
+    assert_eq!(state.playhead.value, 40);
+
+    assert!(state.drag_viewer(10.0, 0.0, false, false));
+    assert_eq!(
+        state.sources.focused().map(|view| view.tick),
+        Some(36),
+        "12 px is six frames of the take"
+    );
+    assert_eq!(state.pool_hover, Some((media, 36)));
+    assert_eq!(
+        state.playhead.value, 40,
+        "scrubbing the Source tab's clock moved the sequence playhead"
+    );
+    assert!(state.drag_viewer(2.0, 0.0, true, false));
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(46));
+    assert!(state.drag_viewer(20.0, 0.0, false, true));
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(47));
+
+    // Travel past either end of the take is clamped and never banked.
+    state.drag_viewer(-10_000.0, 0.0, false, false);
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(0));
+    assert!(state.drag_viewer(4.0, 0.0, false, false));
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(2));
+    state.drag_viewer(10_000.0, 0.0, false, false);
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+    assert!(state.drag_viewer(-4.0, 0.0, false, false));
+    assert_eq!(
+        state.sources.focused().map(|view| view.tick),
+        Some(last - 2)
+    );
+    assert_eq!(state.playhead.value, 40);
+
+    assert!(state.cancel_viewer_drag(), "the press was held");
+    assert_eq!(
+        state.sources.focused().map(|view| view.tick),
+        Some(30),
+        "Escape put the take back where the press found it"
+    );
+    assert_eq!(state.playhead.value, 40);
+    assert!(!state.clock_focused());
+
+    // The timeline header clock still scrubs and restores the sequence playhead
+    // while a Source tab is in front of the Viewer.
+    state.press_clock(ClockSite::Timeline);
+    assert!(
+        !state.viewer_drag_moves_take(),
+        "the timeline clock always moves the sequence playhead"
+    );
+    assert!(state.drag_viewer(12.0, 0.0, false, false));
+    assert_eq!(state.playhead.value, 46);
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(30));
+    assert!(state.cancel_viewer_drag());
+    assert_eq!(state.playhead.value, 40);
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(30));
+}
+
+#[test]
 fn the_ruler_spans_the_sequence_from_its_left_edge_to_its_right() {
     let mut state = parked(40);
     let end = state.store.sequence.duration_ticks;
@@ -206,7 +370,7 @@ fn locked(visual: &mut VisualTestContext) -> bool {
 /// leaves the field closed, and a click opens the field clicked and no other.
 #[gpui::test]
 fn the_drawn_playhead_fields_scrub_on_a_drag_and_open_on_a_click(cx: &mut gpui::TestAppContext) {
-    let (state, visual, _) = shell_with_take(cx, "viewer-scrub-field");
+    let (state, visual, media) = shell_with_take(cx, "viewer-scrub-field");
     let at = |visual: &mut VisualTestContext| visual.read(|app| state.read(app).playhead.value);
     for (selector, site, other) in [
         ("playhead-tc", ClockSite::Viewer, ClockSite::Timeline),
@@ -214,6 +378,36 @@ fn the_drawn_playhead_fields_scrub_on_a_drag_and_open_on_a_click(cx: &mut gpui::
     ] {
         drag_and_click(visual, &state, &at, selector, site, other);
     }
+
+    // With a Source tab in front, the drawn Viewer field scrubs and opens the
+    // take while the sequence playhead stays where it was.
+    change(visual, &state, |state| {
+        assert!(state.open_source(media.raw()), "the Source tab opens");
+        state.set_playhead(44);
+    });
+    let source_at = |visual: &mut VisualTestContext| {
+        visual.read(|app| {
+            state
+                .read(app)
+                .sources
+                .focused()
+                .expect("a Source tab is in front")
+                .tick
+        })
+    };
+    drag_and_click(
+        visual,
+        &state,
+        &source_at,
+        "playhead-tc",
+        ClockSite::Viewer,
+        ClockSite::Timeline,
+    );
+    assert_eq!(
+        visual.read(|app| state.read(app).playhead.value),
+        44,
+        "scrubbing the drawn Viewer field on a Source tab moved the sequence playhead"
+    );
 }
 
 fn drag_and_click(
@@ -225,7 +419,15 @@ fn drag_and_click(
     other: ClockSite,
 ) {
     for end in ["release", "escape"] {
-        change(visual, state, |state| state.set_playhead(30));
+        change(visual, state, |state| {
+            if site == ClockSite::Viewer
+                && let Some(view) = state.sources.focused_mut()
+            {
+                view.tick = 30;
+            } else {
+                state.set_playhead(30);
+            }
+        });
         let field = center(visual, selector);
         visual.simulate_mouse_down(field, MouseButton::Left, Modifiers::none());
         visual.simulate_mouse_move(
@@ -272,14 +474,11 @@ fn drag_and_click(
             visual.simulate_keystrokes("escape");
         }
         visual.run_until_parked();
-        let (playhead, typing, pressed) = visual.read(|app| {
+        let (typing, pressed) = visual.read(|app| {
             let state = state.read(app);
-            (
-                state.playhead.value,
-                state.clock_focused(),
-                state.viewer_scrub.press().is_some(),
-            )
+            (state.clock_focused(), state.viewer_scrub.press().is_some())
         });
+        let playhead = at(visual);
         assert!(
             !locked(visual),
             "{selector} {end}: the pointer stayed locked"

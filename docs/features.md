@@ -64,9 +64,9 @@ Anything not listed here is not in the build.
 ## Preview
 
 - A control row with the playhead field, the transport, and In and Out. The
-  transport moves the tab in front of the Viewer: Program or a Source tab, and
-  a held step button repeats once per frame. Drag the playhead field to scrub
-  it, or click it to type a timecode.
+  playhead field and the transport act on the tab in front of the Viewer:
+  Program or a Source tab, and a held step button repeats once per frame. Drag
+  the playhead field to scrub that tab, or click it to type a timecode.
 - A mini ruler under the control row spanning the tab in front, with its In
   and Out range, the sequence markers, and a playhead to drag.
 - Fit, 100%, and a zoom ladder with pan while zoomed.

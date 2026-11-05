@@ -49,8 +49,10 @@ Scopes toggle, and `[wr]` the display wrench.
 
 The control row, left to right:
 
-- Playhead timecode, scrubbable and editable. Typing `+12` moves 12 frames
-  forward, `-1.00` moves one second back.
+- Playhead timecode of the tab in front, scrubbable and editable at that tab's
+  frame rate. Typing `+12` moves 12 frames forward, `-1.00` moves one second
+  back; on a Source tab a signed offset moves the take rather than the timeline
+  selection.
 - Magnification: Fit, 10 % to 800 %. Ctrl+scroll (Cmd+scroll on macOS) zooms
   a level a notch around the pointer; a middle drag, a Hand drag, or a left
   drag that takes hold of no clip pans a zoomed frame; Shift+/ (`?`) fits.
@@ -96,9 +98,9 @@ draws the In/Out range, markers, and a draggable playhead. A press puts the tab
 in front on the frame under the pointer; the drag continues off the ruler, and
 Escape puts the frame back.
 
-Dragging the playhead timecode moves the playhead one frame per two pixels, ten
-with Shift and a tenth of one with Ctrl. A click without a drag opens the field
-for typing.
+Dragging the playhead timecode moves the tab in front one frame per two pixels,
+ten with Shift and a tenth of one with Ctrl; Escape during the drag puts the
+frame back. A click without a drag opens the field for typing.
 
 ## Overlays
 

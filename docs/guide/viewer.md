@@ -8,9 +8,11 @@ field, the zoom controls, the resolution menu, the Proxies toggle, the transport
 shuttle readout, **In** and **Out** while Program is in front, the Transform,
 Crop and Mask handle toggles, the Scopes toggle, and the peak meter, which
 shows while the output plays sound or holds a clip. The toggles
-are icons; hover one for its name, and a lit icon is on. The transport acts on
-the tab in front of the Viewer: with a Source tab in front, the buttons move its
-take and the sequence playhead stays where it was. **In** and **Out** mark the
+are icons; hover one for its name, and a lit icon is on. The playhead timecode
+field and the transport act on the tab in front of the Viewer: with a Source
+tab in front, dragging the field, typing a timecode or a signed offset into it,
+or pressing the transport buttons moves its take at the take's frame rate and
+the sequence playhead stays where it was. **In** and **Out** mark the
 sequence at the playhead; a Source tab marks its take from its own bar. In a
 narrow Viewer the row wraps onto a second line before the transport or before
 the handle toggles.

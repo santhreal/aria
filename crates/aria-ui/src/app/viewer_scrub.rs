@@ -1,9 +1,10 @@
 //! Drags that start on a playhead field or the Viewer's mini ruler and outlast
 //! the element pressed.
 //!
-//! A playhead field is the one in the Viewer's control row or the one in the
-//! timeline header, and both are scrubbable. A press arms it; travel past
-//! [`CLICK_SLOP_PX`] moves the playhead one frame per
+//! A playhead field is the one in the Viewer's control row, which follows the
+//! tab in front, or the one in the timeline header, which follows the sequence
+//! playhead, and both are scrubbable. A press arms it; travel past
+//! [`CLICK_SLOP_PX`] moves that tab or the playhead one frame per
 //! [`PX_PER_UNIT`](super::value_scrub::PX_PER_UNIT) pixels,
 //! ten with Shift and a tenth of one with Ctrl, and letting go without moving
 //! opens the field for typing. The travel is relative, so the shell locks the
@@ -29,7 +30,7 @@ pub enum ViewerPress {
     Clock {
         /// The field pressed, which opens for typing on a click.
         site: ClockSite,
-        /// The playhead when the press landed.
+        /// The frame the field was on when the press landed.
         from: i64,
         /// Pointer travel, in pixels, until the drag passes the click slop.
         offset: f32,
@@ -82,9 +83,13 @@ impl AppState {
             }
             self.focus_clock(false);
         }
+        let from = match site {
+            ClockSite::Viewer => self.ruler_frame(),
+            ClockSite::Timeline => self.playhead.value,
+        };
         self.viewer_scrub.press = Some(ViewerPress::Clock {
             site,
-            from: self.playhead.value,
+            from,
             offset: 0.0,
             travel: 0.0,
             dragging: false,
@@ -101,18 +106,22 @@ impl AppState {
     }
 
     /// The pointer moved `dx` pixels with the press held, and is now at window
-    /// `x`. Returns whether the tab in front moved.
+    /// `x`. Returns whether the tab in front or the playhead moved.
     pub fn drag_viewer(&mut self, dx: f32, x: f32, shift: bool, ctrl: bool) -> bool {
-        let end = self.store.sequence.duration_ticks.max(0);
-        let to = match self.viewer_scrub.press.as_mut() {
+        let source_end = self
+            .sources
+            .focused()
+            .map(|view| view.duration_ticks.saturating_sub(1).max(0));
+        let seq_end = self.store.sequence.duration_ticks.max(0);
+        let (site, to) = match self.viewer_scrub.press.as_mut() {
             None => return false,
             Some(ViewerPress::Ruler { .. }) => return self.ruler_to(x),
             Some(ViewerPress::Clock {
+                site,
                 from,
                 offset,
                 travel,
                 dragging,
-                ..
             }) => {
                 let mut moved = dx;
                 if !*dragging {
@@ -124,23 +133,36 @@ impl AppState {
                     // The travel inside the slop counts toward the move.
                     moved = *offset;
                 }
-                // Travel past either end of the sequence is not banked, so
-                // the way back moves the playhead at once.
+                let end = match (*site, source_end) {
+                    (ClockSite::Viewer, Some(end)) => end,
+                    _ => seq_end,
+                };
+                // Travel past either end of the range is not banked, so
+                // the way back moves the frame at once.
                 let low = -(*from as f32);
                 let high = ((end - *from) as f32).max(low);
                 *travel = (*travel + moved * rate(shift, ctrl)).clamp(low, high);
-                from.saturating_add(travel.round() as i64)
+                (*site, from.saturating_add(travel.round() as i64))
             }
         };
-        self.program_to(to)
+        self.clock_to(site, to)
     }
 
     /// Whether a drag of the held press moves the take of the Source tab in
-    /// front rather than the playhead: a press on the mini ruler over a Source
-    /// tab. A playhead field moves the playhead from either tab.
+    /// front rather than the playhead: a press on the Viewer's playhead field
+    /// or mini ruler over a Source tab. The timeline header's field moves the
+    /// playhead from either tab.
     pub fn viewer_drag_moves_take(&self) -> bool {
-        matches!(self.viewer_scrub.press, Some(ViewerPress::Ruler { .. }))
-            && self.sources.focused().is_some()
+        matches!(
+            self.viewer_scrub.press,
+            Some(
+                ViewerPress::Ruler { .. }
+                    | ViewerPress::Clock {
+                        site: ClockSite::Viewer,
+                        ..
+                    }
+            )
+        ) && self.sources.focused().is_some()
     }
 
     /// Let go of the press. A press on a playhead field that never moved
@@ -168,17 +190,12 @@ impl AppState {
             return false;
         };
         match press {
-            ViewerPress::Clock { from, .. } => {
-                self.program_to(from);
+            ViewerPress::Clock { site, from, .. } => {
+                self.clock_to(site, from);
             }
-            ViewerPress::Ruler { from } => match self.sources.focused().map(|view| view.media) {
-                Some(media) => {
-                    self.hover_pool_item(media, from);
-                }
-                None => {
-                    self.program_to(from);
-                }
-            },
+            ViewerPress::Ruler { from } => {
+                self.clock_to(ClockSite::Viewer, from);
+            }
         }
         true
     }
@@ -216,6 +233,19 @@ impl AppState {
                 self.program_to(scrub_tick(x - left, width, end.saturating_add(1)))
             }
         }
+    }
+
+    /// The field at `site` to `tick`: the focused Source tab's take for the
+    /// Viewer field while a Source tab is in front, the sequence playhead
+    /// otherwise. Returns whether the frame moved.
+    fn clock_to(&mut self, site: ClockSite, tick: i64) -> bool {
+        if site == ClockSite::Viewer
+            && let Some(media) = self.sources.focused().map(|view| view.media)
+        {
+            self.sources.stop();
+            return self.hover_pool_item(media, tick);
+        }
+        self.program_to(tick)
     }
 
     /// The playhead to `tick`, clamped into the sequence, with an audio grain.

@@ -1116,6 +1116,7 @@ Notes for the latest release. For previous releases, see the
 - Applying the Edit Marker, Speed/Duration, Audio Gain, or Keyframe Velocity dialog with no change closes the dialog without adding an undo step or marking the project unsaved.
 - Applying a lengthening speed ramp or slower Speed/Duration to a clip followed by a neighbor trims the retimed clip to the neighbor's start in Overwrite mode and shifts trailing clips in Ripple mode, undoing in one step.
 - A track header's menu offers **Hide Waveforms** only on audio tracks and **Hide Filmstrips** only on video tracks, and its **Add Track** adds an audio track from an audio or bus track instead of always adding a video track.
+- The Viewer's playhead timecode field displays, scrubs, and accepts typed timecodes and signed frame offsets for the focused Source tab at the take's own frame rate when a Source tab is in front.
 
 ## [alpha-0.7.0] - 2026-07-22
 

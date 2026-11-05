@@ -107,10 +107,11 @@ pub(super) fn mark_btn(
     )
 }
 
-/// The sequence playhead as a field. A drag scrubs the playhead a frame per
-/// two pixels; a click opens the field for typing, where Enter seeks to a
-/// timecode and a signed duration moves the selection or the playhead. The
-/// press is the state's, see [`crate::app::viewer_scrub`].
+/// The playhead of the tab in front as a field. A drag scrubs that tab a frame
+/// per two pixels; a click opens the field for typing, where Enter seeks to a
+/// timecode and a signed duration moves the take on a Source tab or the
+/// selection or playhead on Program. The press is the state's, see
+/// [`crate::app::viewer_scrub`].
 pub(super) fn clock_field(
     state: &Entity<AppState>,
     theme: &Theme,

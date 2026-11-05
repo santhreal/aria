@@ -1,8 +1,9 @@
 //! Typing a timecode without clicking the clock.
 //!
 //! The class these close: numeric entry is one field with three meanings. A
-//! bare timecode seeks; a leading keypad `+` or `-` moves the selected clips,
-//! trims the selected edge, or moves the playhead when nothing is selected.
+//! bare timecode seeks the tab in front or the sequence; a leading keypad `+`
+//! or `-` moves the take on a Source tab, or moves the selected clips, trims
+//! the selected edge, or moves the playhead on Program and the Timeline.
 //! Each meaning is asserted here, with the boundaries a plausible bug crosses:
 //! a companion moved twice, adjacent clips moved in the order that collides, a
 //! move pushed past the sequence start, several clips taking several undo
@@ -106,7 +107,7 @@ fn a_digit_over_the_timeline_seeks_to_the_typed_timecode() {
 }
 
 #[test]
-fn only_the_timeline_and_the_program_view_take_typed_digits() {
+fn only_the_timeline_and_the_viewer_take_typed_digits() {
     let (mut state, ..) = two_pairs();
     for (panel, key, shift, opens) in [
         (ActivePanel::Timeline, "0", false, true),
@@ -162,15 +163,121 @@ fn only_the_timeline_and_the_program_view_take_typed_digits() {
 }
 
 #[test]
-fn the_source_tab_keeps_digits_off_the_sequence_clock() {
-    let (mut state, ..) = two_pairs();
+fn a_click_or_typed_timecode_on_a_source_tab_seeks_the_take_at_its_own_rate() {
+    let (mut state, picture, _, _) = two_pairs();
+    let before = spans(&state, picture);
+    let media = state.store.media[0].id;
+    state.set_playhead(24);
+    state.select_pool_item(media);
+    state.active_panel = ActivePanel::Media;
+    assert!(state.toggle_source_monitor(), "the Source tab opens");
+    std::sync::Arc::make_mut(&mut state.store).media[0].frame_rate = aria_models::Rational::FPS_30;
+    let view = state.sources.focused_mut().expect("source tab");
+    view.duration_ticks = 90;
+    view.tick = 45;
+    state.active_panel = ActivePanel::Preview;
+
+    // A click without a drag opens the Viewer field seeded with the take's
+    // displayed timecode at the take's own 30 fps rate.
+    state.press_clock(ClockSite::Viewer);
+    assert!(state.release_viewer());
+    assert_eq!(
+        state.clock_field(ClockSite::Viewer),
+        (true, "00:00:01:15".into())
+    );
+    assert_eq!(state.clock_selection(), Some((0, 11)));
+    for ch in "00:00:02:00".chars() {
+        state.type_key(ch);
+    }
+    state.commit_clock();
+    assert_eq!(
+        state.sources.focused().map(|view| view.tick),
+        Some(60),
+        "2 s on a 30 fps take is frame 60, not frame 48"
+    );
+    assert_eq!(state.store.playhead_ticks, 24);
+
+    // Digits typed over the Viewer with a Source tab in front open the Viewer
+    // field and parse at the take's 30 fps rate (frame 29 is valid at 30 fps).
+    type_entry(&mut state, "0", "0:00:00:29");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(29));
+    assert_eq!(state.store.playhead_ticks, 24);
+
+    // Out-of-range absolute time clamps to the take's last frame.
+    let last = state.sources.focused().expect("source tab").duration_ticks - 1;
+    type_entry(&mut state, "1", "0:00:00:00");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+    assert_eq!(state.store.playhead_ticks, 24);
+
+    // An unparsable draft reports the existing error and moves nothing.
+    type_entry(&mut state, "1", ":99");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+    assert_eq!(state.store.playhead_ticks, 24);
+    assert_eq!(spans(&state, picture), before);
+    assert!(
+        state
+            .last_error
+            .as_deref()
+            .is_some_and(|err| err.contains("1:99 is not a time.")),
+        "{:?}",
+        state.last_error
+    );
+}
+
+#[test]
+fn a_signed_duration_on_a_source_tab_moves_the_take_and_not_the_selection_or_playhead() {
+    let (mut state, picture, sound, [first, second]) = two_pairs();
     let media = state.store.media[0].id;
     state.select_pool_item(media);
     state.active_panel = ActivePanel::Media;
     assert!(state.toggle_source_monitor(), "the Source tab opens");
+    state.select_clip(first);
+    state.add_clip_to_selection(second);
+    state.set_playhead(24);
+    std::sync::Arc::make_mut(&mut state.store).media[0].frame_rate = aria_models::Rational::FPS_30;
+    let view = state.sources.focused_mut().expect("source tab");
+    view.duration_ticks = 90;
+    view.tick = 20;
+    let last = 89;
     state.active_panel = ActivePanel::Preview;
-    assert!(!state.type_into_clock("1", false));
-    assert!(!state.clock_focused());
+
+    type_entry(&mut state, "add", "15");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(35));
+    assert_eq!(state.store.playhead_ticks, 24);
+    assert_eq!(spans(&state, picture), vec![(24, 72), (72, 120)]);
+    assert_eq!(spans(&state, sound), vec![(24, 72), (72, 120)]);
+
+    // `-1.00` steps back one second at the take's 30 fps rate (30 frames).
+    type_entry(&mut state, "subtract", "1.00");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(5));
+    assert_eq!(state.store.playhead_ticks, 24);
+    assert_eq!(spans(&state, picture), vec![(24, 72), (72, 120)]);
+
+    type_entry(&mut state, "subtract", "100");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(0));
+    type_entry(&mut state, "add", "500");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+
+    type_entry(&mut state, "add", "1:99");
+    assert_eq!(state.sources.focused().map(|view| view.tick), Some(last));
+    assert!(
+        state
+            .last_error
+            .as_deref()
+            .is_some_and(|err| err.contains("+1:99 is not a time.")),
+        "{:?}",
+        state.last_error
+    );
+
+    // Returning Program to the front keeps Viewer typing on the sequence
+    // playhead and timeline selection.
+    state.show_program();
+    type_entry(&mut state, "1", "8");
+    assert_eq!(state.store.playhead_ticks, 18);
+    assert_eq!(state.sources.focused(), None);
+    type_entry(&mut state, "add", "12");
+    assert_eq!(spans(&state, picture), vec![(36, 84), (84, 132)]);
+    assert_eq!(spans(&state, sound), vec![(36, 84), (84, 132)]);
 }
 
 #[test]

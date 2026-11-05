@@ -1,17 +1,17 @@
 //! The playhead clock as a typed field.
 //!
 //! The SMPTE readout at the left of the Viewer's control row is a text box
-//! like any other: clicking it seeds a draft from the current position, all of
-//! it selected so a typed timecode replaces it, keys route to it through the
-//! field table, Enter seeks, and anything that is not a timecode leaves the
-//! playhead alone. A refusal restores the displayed value rather than clearing
-//! it, so a mistyped digit keeps the playhead's place.
+//! like any other: clicking it seeds a draft from the tab in front of the
+//! Viewer, all of it selected so a typed timecode replaces it, keys route to
+//! it through the field table, Enter seeks that tab, and anything that is not
+//! a timecode leaves it alone. A refusal restores the displayed value rather
+//! than clearing it, so a mistyped digit keeps the tab's place.
 //!
-//! A digit or a keypad `+`/`-` pressed over the Timeline or the Program view
-//! opens the field with that character, so a timecode is typed without a click.
-//! A leading sign makes the typed duration relative: it moves the selected
-//! clips, trims the selected edge, or moves the playhead when nothing is
-//! selected.
+//! A digit or a keypad `+`/`-` pressed over the Timeline or the Viewer opens
+//! the field with that character, so a timecode is typed without a click. A
+//! leading sign makes the typed duration relative: on a Source tab it moves the
+//! take, and on Program or the Timeline it moves the selected clips, trims the
+//! selected edge, or moves the playhead when nothing is selected.
 
 use aria_commands::Command;
 use aria_core::count::counted;
@@ -30,9 +30,10 @@ pub(crate) const CLOCK_RULE: LineRule = LineRule::chars(16).admitting(|before, c
     sign || feet || ch.is_ascii_digit() || matches!(ch, ':' | ';' | '.')
 });
 
-/// A playhead field: the one in the Viewer's control row, or the 18 px one in
-/// the timeline header. Both read and type the same draft; the site is the one
-/// drawn with the caret.
+/// A playhead field: the one in the Viewer's control row, which follows the
+/// tab in front, or the 18 px one in the timeline header, which follows the
+/// sequence playhead. Both type the same draft; the site is the one drawn with
+/// the caret.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ClockSite {
     #[default]
@@ -41,18 +42,24 @@ pub enum ClockSite {
 }
 
 impl AppState {
-    /// Take or release the clock's focus. Taking it seeds the draft from where
-    /// the playhead is now, selected: a typed time replaces it, and an arrow
-    /// key keeps it for a partial edit that starts from the truth on screen.
+    /// Take or release the clock's focus. Taking it seeds the draft from the
+    /// time shown at `self.clock_site`, selected: a typed time replaces it, and
+    /// an arrow key keeps it for a partial edit that starts from the value on
+    /// screen.
     pub fn focus_clock(&mut self, focused: bool) {
-        self.clock_draft = focused.then(|| LineText::selecting_all(self.clock_display.to_string()));
+        if focused {
+            let seed = self.clock_idle_text(self.clock_site).to_string();
+            self.clock_draft = Some(LineText::selecting_all(seed));
+        } else {
+            self.clock_draft = None;
+            self.clock_site = ClockSite::Viewer;
+        }
     }
 
-    /// Open the field from a key pressed over the Timeline or the Program
-    /// view. `key` is the gpui key name: a digit, or the keypad's `add` and
-    /// `subtract`. Returns whether the key started the draft; any other key, a
-    /// Source tab in the Viewer, or a field already open leaves it to the
-    /// bindings.
+    /// Open the field from a key pressed over the Timeline or the Viewer. `key`
+    /// is the gpui key name: a digit, or the keypad's `add` and `subtract`.
+    /// Returns whether the key started the draft; any other key, or a field
+    /// already open, is left to the bindings.
     pub(crate) fn type_into_clock(&mut self, key: &str, shift: bool) -> bool {
         let first = match key {
             "add" => '+',
@@ -64,7 +71,7 @@ impl AppState {
         };
         let site = match crate::keys::focus_route(self) {
             crate::keys::KeyRoute::Timeline => ClockSite::Timeline,
-            crate::keys::KeyRoute::Viewer if self.sources.focused().is_none() => ClockSite::Viewer,
+            crate::keys::KeyRoute::Viewer => ClockSite::Viewer,
             _ => return false,
         };
         if self.clock_focused() {
@@ -80,12 +87,16 @@ impl AppState {
     }
 
     /// Whether the field at `site` holds the draft, and the text it shows:
-    /// the draft while it does, the playhead otherwise.
+    /// the draft while it does, the site's time otherwise.
     pub fn clock_field(&self, site: ClockSite) -> (bool, gpui::SharedString) {
-        if self.clock_focused() && self.clock_site == site {
-            (true, self.clock_text())
+        if let Some(draft) = self
+            .clock_draft
+            .as_deref()
+            .filter(|_| self.clock_site == site)
+        {
+            (true, gpui::SharedString::from(draft))
         } else {
-            (false, self.clock_display.clone())
+            (false, self.clock_idle_text(site))
         }
     }
 
@@ -94,13 +105,45 @@ impl AppState {
         self.clock_draft.as_ref().map(LineText::selection)
     }
 
-    /// The text the field shows: the draft while it is being typed, the playhead
-    /// otherwise. One owner, so the strip cannot disagree with the field.
+    /// The text the Viewer field shows: the draft while a clock field is being
+    /// typed, the tab in front otherwise.
     pub fn clock_text(&self) -> gpui::SharedString {
         self.clock_draft
             .as_deref()
             .map(gpui::SharedString::from)
-            .unwrap_or_else(|| self.clock_display.clone())
+            .unwrap_or_else(|| self.clock_idle_text(ClockSite::Viewer))
+    }
+
+    fn clock_idle_text(&self, site: ClockSite) -> gpui::SharedString {
+        if site == ClockSite::Viewer
+            && let Some(view) = self.sources.focused()
+        {
+            let (tick_rate, frame_rate) = self.source_clock_rates(view.media);
+            let frame =
+                aria_models::resample(RationalTime::new(view.tick, tick_rate), frame_rate).value;
+            return crate::timecode::format_time(
+                frame,
+                frame_rate,
+                self.store.sequence.time_display,
+            )
+            .into();
+        }
+        self.clock_display.clone()
+    }
+
+    /// `(tick_rate, frame_rate)` for `media` in a Source tab: video takes use
+    /// their own frame rate for both; stills, audio-only items, and unprojected
+    /// ids display and parse in the sequence's frame rate.
+    fn source_clock_rates(&self, media: u64) -> (aria_models::Rational, aria_models::Rational) {
+        let seq_rate = self.store.sequence.frame_rate;
+        let Some(item) = self.store.media.iter().find(|item| item.id == media) else {
+            return (seq_rate, seq_rate);
+        };
+        if item.still || item.kind == crate::types::UiClipKind::Audio {
+            (item.frame_rate, seq_rate)
+        } else {
+            (item.frame_rate, item.frame_rate)
+        }
     }
     pub(crate) fn refresh_clock_text(&mut self) {
         self.clock_display = self.sequence_time(self.store.playhead_ticks).into();
@@ -113,13 +156,24 @@ impl AppState {
         crate::timecode::format_time(ticks, sequence.frame_rate, sequence.time_display)
     }
 
-    /// Enter: seek, move by a signed duration, or refuse and put the previous
-    /// value back.
+    /// Enter: seek, move by a signed duration, or report an error and restore
+    /// the previous value.
     pub fn commit_clock(&mut self) {
+        let site = std::mem::take(&mut self.clock_site);
         let Some(draft) = self.clock_draft.take() else {
             return;
         };
-        let rate = self.store.sequence.frame_rate;
+        let source = (site == ClockSite::Viewer)
+            .then(|| self.sources.focused())
+            .flatten()
+            .map(|view| (view.media, view.tick, view.duration_ticks));
+        let (tick_rate, rate) = match source {
+            Some((media, ..)) => self.source_clock_rates(media),
+            None => (
+                self.store.sequence.frame_rate,
+                self.store.sequence.frame_rate,
+            ),
+        };
         let (sign, body) = match draft.as_bytes().first() {
             Some(b'+') => (1, &draft[1..]),
             Some(b'-') => (-1, &draft[1..]),
@@ -132,6 +186,18 @@ impl AppState {
             ));
             return;
         };
+        if let Some((media, from, duration)) = source {
+            let ticks = aria_models::resample(RationalTime::new(frames, rate), tick_rate).value;
+            let to = if sign == 0 {
+                ticks
+            } else {
+                from.saturating_add(sign * ticks)
+            };
+            let last = duration.saturating_sub(1).max(0);
+            self.sources.stop();
+            self.hover_pool_item(media, to.clamp(0, last));
+            return;
+        }
         if sign == 0 {
             self.set_playhead(frames);
             self.report_playhead();
