@@ -51,6 +51,11 @@ const PANEL_SCOPE_H: f32 = 256.0;
 /// wraps.
 const PANEL_SCOPE_MIN_W: f32 = 240.0;
 
+/// How tall a histogram is drawn against the waveform beside it, in the strip
+/// and in the panel. Its bars read along the width, so at half the height the
+/// panel's two rows fit the Color workspace's frame without scrolling.
+const HISTOGRAM_SHARE: f32 = 0.5;
+
 /// The surface name of the Scopes panel.
 const PANEL_SURFACE: &str = "scopes-panel";
 
@@ -116,7 +121,7 @@ pub(super) fn strip(
                     .child(scope_image(
                         "scope-histogram",
                         histogram.clone(),
-                        96.,
+                        SCOPE_W * HISTOGRAM_SHARE,
                         theme,
                     ))
                     .children(plugins.iter().map(|reading| plugin_scope(reading, theme))),
@@ -204,7 +209,7 @@ pub(crate) fn panel(
                         scope_image(
                             "scopes-panel-histogram",
                             histogram.clone(),
-                            PANEL_SCOPE_H,
+                            PANEL_SCOPE_H * HISTOGRAM_SHARE,
                             &theme,
                         ),
                         &theme,

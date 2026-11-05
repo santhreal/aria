@@ -79,3 +79,60 @@ fn every_scope_picture_fills_the_inside_of_its_frame(cx: &mut TestAppContext) {
         }
     }
 }
+
+/// The Color workspace's Scopes frame shows every reading with nothing cut.
+///
+/// The class closed here: the panel drew its histogram as tall as the
+/// waveform, the histogram wrapped to a second row, and at the workspace's
+/// own layout the readings ran past the frame's foot: ~40 px in a 1920x1080
+/// window under a window manager, the frame's 8 px padding in this test's
+/// window. The scroll frame then faded its foot across the histogram's plot,
+/// a light smear over a dark plot in the light look. The histogram is drawn
+/// at [`super::HISTOGRAM_SHARE`] of the waveform's height, so both rows fit.
+/// The fade assertion is the one a full-height histogram fails here; the
+/// card bounds catch a larger overrun.
+///
+/// Not covered: plugin scopes, which add rows of their own and scroll, and
+/// frames a saved or dragged layout makes shorter.
+#[gpui::test]
+fn the_color_workspace_scopes_frame_fits_every_reading(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let at = Bounds::new(point(px(0.), px(0.)), size(px(1920.), px(1080.)));
+    let (state, mut visual) = drawn_shell_at(cx, "scopes-fit", at);
+    let visual = &mut visual;
+    visual.update(|_, app| app.set_reduce_motion(true));
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            assert!(state.apply_workspace("win-workspace-colour", cx));
+            let frame = RgbaImage::new(16, 16, vec![128; 16 * 16 * 4]);
+            let mut buffers = ScopeBuffers::default();
+            let reading = measure(&frame, 0, WaveformTrace::Luma, &mut buffers);
+            state.scope_textures = Some(reading.expect("a well-formed frame measures"));
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    crate::edge_fade::take_painted();
+    visual.update(|window, _| window.refresh());
+    let fades = crate::edge_fade::take_painted();
+
+    let panel = drawn(visual, "scopes-panel");
+    for card in [
+        "scopes-panel-waveform-card",
+        "scopes-panel-vector-card",
+        "scopes-panel-histogram-card",
+    ] {
+        let bottom = f32::from(drawn(visual, card).bottom());
+        assert!(
+            bottom <= f32::from(panel.bottom()) + EPS,
+            "{card} ends at {bottom}, past the Color workspace's Scopes frame {panel:?}"
+        );
+    }
+    assert!(
+        fades
+            .iter()
+            .filter(|fade| fade.bounds == panel)
+            .all(|fade| f32::from(fade.bands.top) == 0.0 && f32::from(fade.bands.bottom) == 0.0),
+        "the Scopes panel fades an edge over readings that fit it"
+    );
+}

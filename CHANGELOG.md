@@ -1186,6 +1186,7 @@ Notes for the latest release. For previous releases, see the
 - Send on an empty Assistant prompt reports on the status line instead of adding an Error entry to the transcript.
 - The Paragraph panel draws the Wrap label at its left edge and the switch at its right edge.
 - The Character panel font list shows seven whole rows, and the panel scrolls when its controls are taller than the frame.
+- The Scopes panel draws its histogram at half the waveform's height, as the Viewer's scope strip does, so the Color workspace shows every scope whole instead of fading the histogram's foot under the frame edge.
 
 ## [alpha-0.7.0] - 2026-07-22
 
