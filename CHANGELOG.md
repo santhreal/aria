@@ -848,6 +848,7 @@ Notes for the latest release. For previous releases, see the
 - A secondary button such as Cancel or Add at playhead draws a light control outline at rest in the dark look instead of a near-black groove.
 - Easy Ease and Hold in the timeline graph, and the Assistant's Send while the prompt box is empty, draw at 40 % opacity with the arrow cursor, as every disabled control does.
 - The Assistant's Plan only draws as a labeled switch in place of a button that gained a check mark while on.
+- The Home Use Template tile reads "Choose a .ariat bundle and fill its slots with your media.", in the imperative the Open tile uses.
 
 ### Fixed
 

@@ -179,7 +179,7 @@ pub(super) fn samples_pane(
                     "home-template",
                     crate::icons::LAYOUT_TEMPLATE,
                     "Use Template…",
-                    "Opens a .ariat bundle and fills its slots with your media.",
+                    "Choose a .ariat bundle and fill its slots with your media.",
                     1,
                     theme,
                     cx,
