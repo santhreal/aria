@@ -18,8 +18,10 @@ pub use drawn::{Picture, Wraps, picture};
 pub(crate) mod noted;
 pub mod travel;
 
-/// A disclosure chevron, sized to sit beside 12px row text.
-const CHEVRON_PX: f32 = 12.;
+/// A disclosure chevron, sized to sit beside 12px row text. A tree row that
+/// draws none pads by this width and its gap, so its text stands level with
+/// the text of a row that draws one.
+pub(crate) const CHEVRON_PX: f32 = 12.;
 
 /// How wide a caret's bar is drawn.
 const CARET_WIDTH: f32 = 1.5;

@@ -240,9 +240,16 @@ struct Place {
     picked: bool,
 }
 
-/// The left padding of a row `depth` levels deep.
+/// The left padding of a folder `depth` levels deep, before its chevron.
 fn indent(depth: u8) -> f32 {
     Theme::SPACE_XS + INDENT * f32::from(depth)
+}
+
+/// The left padding of a row `depth` levels deep that draws no chevron: the
+/// folder's padding, the chevron and the gap after it. Its text stands level
+/// with a folder's text at the same depth, `INDENT` right of its own folder's.
+fn leaf_indent(depth: u8) -> f32 {
+    indent(depth) + components::CHEVRON_PX + Theme::SPACE_XS
 }
 
 fn folder_row(
@@ -345,7 +352,7 @@ fn entry_row(
         .items_center()
         .min_h(px(Theme::ROW_HEIGHT))
         .gap(px(Theme::SPACE_XS))
-        .pl(px(indent(place.depth)))
+        .pl(px(leaf_indent(place.depth)))
         .pr(px(Theme::SPACE_XS))
         .py(px(Theme::SPACE_XXS))
         .rounded(px(Theme::CONTROL_RADIUS))
@@ -450,7 +457,7 @@ fn failed_row(theme: &Theme, failed: &Failed) -> gpui::AnyElement {
     div()
         .flex()
         .flex_col()
-        .pl(px(indent(1)))
+        .pl(px(leaf_indent(1)))
         .pr(px(Theme::SPACE_XS))
         .py(px(Theme::SPACE_XXS))
         .child(

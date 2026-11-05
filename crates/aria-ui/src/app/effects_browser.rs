@@ -278,9 +278,9 @@ pub struct EffectsBrowser {
 }
 
 impl Default for EffectsBrowser {
-    /// Favorites and Failed to Load start open: the first holds what the
-    /// operator starred to keep within reach, and the second is listed so a
-    /// failure is read rather than found.
+    /// Favorites and Failed to Load start open: the first holds the entries
+    /// starred to keep within reach, and the second is listed so a failure is
+    /// read rather than found.
     fn default() -> Self {
         Self {
             query: LineText::default(),
