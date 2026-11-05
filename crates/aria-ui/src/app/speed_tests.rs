@@ -194,6 +194,7 @@ fn a_graph_drag_is_one_edit_and_lands_where_the_pointer_left_it() {
         .set_selected_ramp_point(SPEED_CURVE_SCALE / 2, 2.0)
         .expect("seed");
     let before = state.engine().lock().revision();
+    let seeded = state.selected_ramp_curve();
 
     let mid = SPEED_CURVE_SCALE / 2;
     assert!(
@@ -221,8 +222,8 @@ fn a_graph_drag_is_one_edit_and_lands_where_the_pointer_left_it() {
     state.commit_ramp_drag().expect("commit");
     assert_eq!(
         state.engine().lock().revision(),
-        before + 2,
-        "moving a point should remove the old one and set the new one"
+        before + 1,
+        "a drag reached the engine as more than one edit"
     );
     let curve = state.selected_ramp_curve();
     assert!(state.ramp_dragging().is_none());
@@ -234,6 +235,14 @@ fn a_graph_drag_is_one_edit_and_lands_where_the_pointer_left_it() {
         curve
             .iter()
             .any(|(tick, value)| *tick == mid + 80 && (*value - 6.0).abs() < 1e-3)
+    );
+
+    // One undo puts the ramp back as it was before the press.
+    assert!(state.undo(), "the drag left nothing to undo");
+    assert_eq!(
+        state.selected_ramp_curve(),
+        seeded,
+        "one undo left the drag half undone"
     );
 }
 
@@ -397,6 +406,80 @@ fn the_readout_shows_the_length_the_drafted_ramp_implies() {
     );
     state.cancel_ramp_drag();
     assert_eq!(state.selected_ramp_length_ticks(), Some(fast));
+}
+
+/// The length readout under every catalog preset is the length the clip takes
+/// once the preset is applied.
+///
+/// Closes "the readout reads a straightened copy of the ramp": the readout
+/// rebuilt the curve with linear easing while the presets ease, so the length
+/// it showed was not the length the clip took.
+#[test]
+fn the_readout_matches_the_commit_under_every_preset() {
+    let (mut state, _) = with_clip();
+    for spec in speed_preset_catalog() {
+        state
+            .set_selected_speed_preset(&spec.id)
+            .unwrap_or_else(|err| panic!("{}: {err:?}", spec.id));
+        let committed = {
+            let ui = state.selected_ui_clip().expect("clip");
+            ui.timeline_end_ticks - ui.timeline_start_ticks
+        };
+        assert_eq!(
+            state.selected_ramp_length_ticks(),
+            Some(committed),
+            "{} reads a length the clip does not take",
+            spec.id
+        );
+    }
+}
+
+/// A release lands the ramp the drag drew, under every catalog preset: a point
+/// moved along time and up keeps its easing, so the eased stretch it leaves
+/// keeps its shape and the curve does not change when the pointer lets go.
+///
+/// Closes "a release straightens the stretch it ends": the commit rewrote the
+/// moved point with linear easing, so a preset's eased stretch went straight
+/// on release.
+#[test]
+fn a_release_lands_the_ramp_the_drag_drew_under_every_preset() {
+    let (mut state, _) = with_clip();
+    for spec in speed_preset_catalog() {
+        state
+            .set_selected_speed_preset(&spec.id)
+            .unwrap_or_else(|err| panic!("{}: {err:?}", spec.id));
+        let curve = state.selected_ramp();
+        let frames = curve.keyframes();
+        // The second point: interior on a preset of three or more, the end on
+        // a two-point one, which keeps its tick.
+        let grabbed = frames[1];
+        let gap = frames
+            .get(2)
+            .map_or(0, |next| (next.tick - grabbed.tick) / 4);
+        assert!(state.begin_ramp_drag(grabbed.tick), "{}", spec.id);
+        assert!(
+            state.update_ramp_drag(grabbed.tick + gap, grabbed.value * 1.5),
+            "{}",
+            spec.id
+        );
+        let drawn = state.selected_ramp();
+        let moved = state.ramp_dragging().expect("held").tick;
+        assert_eq!(
+            drawn.keyframe_at(moved).map(|frame| frame.easing),
+            Some(grabbed.easing),
+            "{} drew the moved point with another easing",
+            spec.id
+        );
+        state
+            .commit_ramp_drag()
+            .unwrap_or_else(|err| panic!("{}: {err:?}", spec.id));
+        assert_eq!(
+            state.selected_ramp(),
+            drawn,
+            "{} changed shape on release",
+            spec.id
+        );
+    }
 }
 
 /// Graph arithmetic: the axes round-trip and a press only grabs what is near it.

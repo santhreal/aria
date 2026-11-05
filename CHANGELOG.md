@@ -823,6 +823,7 @@ Notes for the latest release. For previous releases, see the
 - Selecting an audio clip opens Effect Controls on the Audio tab instead of Speed, and the Audio tab sits before Speed for video clips.
 - A selected row, rail tab or tile draws a stronger plate than a row under the pointer in both the light and dark looks.
 - The Text tab, the Character panel and an effect's Font parameter list every installed family in one scrolling list that opens on the family in use, instead of a window of nine families with Next font and Previous font buttons or four font chips.
+- The Speed tab's ramp graph draws the curve as a line over a shaded area instead of a row of bars.
 
 ### Fixed
 
@@ -1132,6 +1133,9 @@ Notes for the latest release. For previous releases, see the
 - The Samples pane on Home lays the Sample Project and Use Template… tiles side by side, as the Start row does, instead of one under the other.
 - Next Font on Title and Previous Font on Title in the Command Palette step every selected title instead of only the first.
 - Clicking a transition on the timeline opens Effect Controls on the Look tab, or the Audio tab for an audio crossfade, scrolled to the Transition block, instead of leaving the Transform tab in front.
+- A speed-ramp point stays highlighted while it is dragged along time, and each point is drawn centered on the place a click grabs it.
+- The Speed tab's ramp graph draws each preset with the easing the clip plays, and its Length readout matches the length an eased ramp gives the clip.
+- Dragging a speed-ramp point keeps the point's easing and adds one undo step instead of two.
 
 ## [alpha-0.7.0] - 2026-07-22
 

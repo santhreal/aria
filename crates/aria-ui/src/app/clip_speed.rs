@@ -6,11 +6,10 @@
 //! address it by fraction of the clip rather than by tick: that is what survives a
 //! trim.
 //!
-//! The engine re-derives the clip's timeline duration from the ramp, and refuses a
-//! ramp that would overlap a neighbour, so a refusal here is a real overlap and is
-//! reported rather than swallowed.
+//! The engine re-derives the clip's timeline duration from the ramp, clamping its
+//! out point to the next clip in Overwrite mode or shifting trailing clips in
+//! Ripple mode.
 
-use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;
 use aria_models::{
     Easing, Keyframe, MAX_SPEED, MIN_SPEED, Param, SPEED_CURVE_SCALE, SpeedPresetSpec,
@@ -153,11 +152,7 @@ impl AppState {
         let Some(curve) = speed_preset(preset) else {
             return Ok(());
         };
-        self.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
-            clip,
-            curve: Some(curve),
-        }))?;
-        Ok(())
+        self.apply_speed_curve_edit(clip, Some(curve))
     }
 
     /// Clear the ramp back to flat speed. Inert when there is none.
@@ -168,11 +163,7 @@ impl AppState {
         if !self.selected_has_ramp() {
             return Ok(());
         }
-        self.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
-            clip,
-            curve: None,
-        }))?;
-        Ok(())
+        self.apply_speed_curve_edit(clip, None)
     }
 
     /// Set the ramp's multiplier at one normalized point, clamped to the model's
@@ -201,11 +192,7 @@ impl AppState {
             },
         };
         curve.set_keyframe(tick, value, Easing::Linear);
-        self.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
-            clip,
-            curve: Some(curve),
-        }))?;
-        Ok(())
+        self.apply_speed_curve_edit(clip, Some(curve))
     }
 
     /// Nudge the multiplier at one normalized point.
@@ -218,29 +205,32 @@ impl AppState {
         self.set_selected_ramp_point(tick, current + step)
     }
 
-    /// The ramp's real keyframes in tick order, with a drag draft applied. Empty
-    /// when the clip has flat speed and nothing is being dragged.
-    ///
-    /// This is what the graph draws: sampled values would hide where the points
-    /// actually sit.
-    pub fn selected_ramp_curve(&self) -> Vec<(i64, f32)> {
-        let mut points: Vec<(i64, f32)> = self
-            .selected_curve()
-            .filter(Param::is_animated)
-            .map(|curve| {
-                curve
-                    .keyframes()
-                    .iter()
-                    .map(|frame| (frame.tick, frame.value))
-                    .collect()
-            })
-            .unwrap_or_default();
+    /// The ramp as the graph draws it and a release commits it: the selected
+    /// clip's keyframes with a drag draft applied. The dragged point keeps its
+    /// easing, so a preset's eased stretches keep their shape through a drag.
+    /// Flat unit speed when the clip has no ramp.
+    pub fn selected_ramp(&self) -> Param<f32> {
+        let Some(mut curve) = self.selected_curve().filter(Param::is_animated) else {
+            return Param::Constant(1.0);
+        };
         if let Some(drag) = self.ramp_drag {
-            points.retain(|(tick, _)| *tick != drag.origin && *tick != drag.tick);
-            points.push((drag.tick, drag.value));
-            points.sort_by_key(|(tick, _)| *tick);
+            let easing = curve
+                .keyframe_at(drag.origin)
+                .map_or(Easing::Linear, |frame| frame.easing);
+            curve.remove_keyframe(drag.origin);
+            curve.set_keyframe(drag.tick, drag.value, easing);
         }
-        points
+        curve
+    }
+
+    /// The points of [`Self::selected_ramp`] in tick order. Empty when the clip
+    /// has flat speed.
+    pub fn selected_ramp_curve(&self) -> Vec<(i64, f32)> {
+        self.selected_ramp()
+            .keyframes()
+            .iter()
+            .map(|frame| (frame.tick, frame.value))
+            .collect()
     }
 
     /// The point being dragged, if any.
@@ -299,25 +289,21 @@ impl AppState {
         true
     }
 
-    /// Commit the dragged point. A release that moved nothing writes nothing.
+    /// Commit the drafted ramp as one edit, so one drag is one undo step. A
+    /// release that moved nothing writes nothing.
     pub fn commit_ramp_drag(&mut self) -> Result<(), EngineError> {
-        let Some(drag) = self.ramp_drag.take() else {
+        if self.ramp_drag.is_none() {
+            return Ok(());
+        }
+        let drafted = self.selected_ramp();
+        self.ramp_drag = None;
+        let Some(clip) = self.selected_clip() else {
             return Ok(());
         };
-        let committed = self
-            .selected_ramp_curve()
-            .into_iter()
-            .find(|(tick, _)| *tick == drag.origin);
-        if let Some((_, value)) = committed
-            && drag.tick == drag.origin
-            && (value - drag.value).abs() < f32::EPSILON
-        {
+        if !self.selected_can_ramp() || self.selected_curve().as_ref() == Some(&drafted) {
             return Ok(());
         }
-        if drag.tick != drag.origin {
-            self.remove_selected_ramp_point(drag.origin)?;
-        }
-        self.set_selected_ramp_point(drag.tick, drag.value)
+        self.apply_speed_curve_edit(clip, Some(drafted))
     }
 
     /// Abandon the drag at no cost.
@@ -343,31 +329,17 @@ impl AppState {
             return Ok(());
         }
         curve.remove_keyframe(tick);
-        self.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
-            clip,
-            curve: Some(curve),
-        }))?;
-        Ok(())
+        self.apply_speed_curve_edit(clip, Some(curve))
     }
 
     /// Timeline ticks the selected clip would occupy under the ramp as drawn,
-    /// draft included. `None` on a clip that cannot be retimed.
+    /// draft and easing included. `None` on a clip that cannot be retimed.
     ///
-    /// The model owns the rule, so the readout cannot drift from the commit.
+    /// [`aria_models::Clip::duration_under`] is the single definition of the
+    /// rule, so the readout cannot drift from the commit.
     pub fn selected_ramp_length_ticks(&self) -> Option<i64> {
-        let points = self.selected_ramp_curve();
-        let curve = if points.is_empty() {
-            Param::Constant(1.0)
-        } else {
-            Param::Keyframed {
-                keyframes: points
-                    .into_iter()
-                    .map(|(tick, value)| Keyframe::new(tick, value, Easing::Linear))
-                    .collect(),
-            }
-        };
         self.selected_model()?
-            .duration_under(&curve, self.store.sequence.frame_rate)
+            .duration_under(&self.selected_ramp(), self.store.sequence.frame_rate)
     }
 
     /// Record the graph rectangle the Speed tab painted, in window pixels
