@@ -123,14 +123,6 @@ pub fn render(
     };
     let view_start = ((scroll_x / pps.max(1.0)) * fps).floor() as i64;
     let view_end = (((scroll_x + visible_width) / pps.max(1.0)) * fps).ceil() as i64;
-    let next_video = store
-        .sequence
-        .tracks
-        .iter()
-        .filter(|t| matches!(t.kind, crate::types::UiTrackKind::Video))
-        .count()
-        + 1;
-    let add_name = format!("V{next_video}");
     let no_clips = store
         .sequence
         .tracks
@@ -323,7 +315,6 @@ pub fn render(
             &store,
             scroll_x,
             visible_width,
-            add_name,
             zoom,
             state,
             cx,

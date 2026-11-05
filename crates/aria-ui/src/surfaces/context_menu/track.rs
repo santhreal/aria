@@ -6,7 +6,7 @@
 use aria_models::{TrackDisplay, TrackId, TrackKind};
 
 use crate::app::AppState;
-use crate::types::RenameTarget;
+use crate::types::{RenameTarget, UiTrackKind};
 
 use super::{MenuItem, MenuRow, always};
 
@@ -15,8 +15,10 @@ use super::{MenuItem, MenuRow, always};
 pub struct TrackMenu {
     pub track: u64,
     pub muted: bool,
-    /// The lane carries sound, which is the only kind a duck source can be.
-    pub audio: bool,
+    /// The lane's kind. A sound lane is the only kind a duck source can be and
+    /// the only one whose clips draw waveforms; a video lane is the only one
+    /// whose clips draw filmstrips.
+    pub kind: UiTrackKind,
     /// The lane is the voice auto-duck listens to, which Duck Source's check
     /// mark shows.
     pub duck_source: bool,
@@ -38,7 +40,7 @@ impl TrackMenu {
         Some(Self {
             track,
             muted: lane.muted,
-            audio: lane.kind == crate::types::UiTrackKind::Audio,
+            kind: lane.kind,
             duck_source: lane.duck_source,
             row,
             lanes: lanes.len(),
@@ -93,20 +95,18 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         label: |_| "Add Track",
         when: always(),
         checked: None,
-        run: |state, _| {
-            // Named after the lanes that exist, so a stack of three offers V4
-            // rather than a second V2.
-            let next = state
-                .store
-                .sequence
-                .tracks
-                .iter()
-                .filter(|lane| matches!(lane.kind, crate::types::UiTrackKind::Video))
-                .count()
-                + 1;
-            state
-                .add_track(TrackKind::Video, format!("V{next}"))
-                .map(|_| ())
+        // A lane of the clicked lane's half of the stack: a sound lane from a
+        // sound or bus lane, a picture lane from any other, named after the
+        // lanes of its kind already there.
+        run: |state, lane| {
+            let kind = match lane.kind {
+                UiTrackKind::Audio | UiTrackKind::Submix => TrackKind::Audio,
+                UiTrackKind::Video
+                | UiTrackKind::Text
+                | UiTrackKind::Generator
+                | UiTrackKind::Adjustment => TrackKind::Video,
+            };
+            state.add_lane_of_kind(kind, None).map(|_| ())
         },
     }),
     MenuItem::Row(MenuRow {
@@ -140,7 +140,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-track-duck",
         label: |_| "Duck Source",
-        when: |lane| lane.audio,
+        when: |lane| lane.kind == UiTrackKind::Audio,
         checked: Some(|lane| lane.duck_source),
         run: |state, lane| state.toggle_track_duck_source(TrackId::from_raw(lane.track)),
     }),
@@ -197,6 +197,8 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         checked: None,
         run: |state, lane| state.set_lane_collapsed(lane.track, !lane.lane.collapsed),
     }),
+    // Waveforms draw on sound clips and filmstrips on picture media, so each
+    // row is offered on the one lane kind whose clips draw it.
     MenuItem::Row(MenuRow {
         id: "ctx-lane-waveform",
         label: |lane| {
@@ -206,7 +208,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
                 "Show Waveforms"
             }
         },
-        when: always(),
+        when: |lane| lane.kind == UiTrackKind::Audio,
         checked: None,
         run: |state, lane| state.set_lane_waveform(lane.track, !lane.lane.waveform),
     }),
@@ -219,7 +221,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
                 "Show Filmstrips"
             }
         },
-        when: always(),
+        when: |lane| lane.kind == UiTrackKind::Video,
         checked: None,
         run: |state, lane| state.set_lane_filmstrip(lane.track, !lane.lane.filmstrip),
     }),

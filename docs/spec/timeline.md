@@ -113,9 +113,12 @@ locked, hidden, untargeted, sync lock off, muted or soloed. A hidden toggle
 keeps its place, so no control moves when the pointer enters the header. A
 lit toggle is drawn in the accent color.
 
-Right-click on a header offers Add Track, Delete Track, Rename, Duplicate,
-Collapse, and track output routing for audio. Tracks are reordered by dragging
-the header.
+Right-click on a header offers Add Track, Rename Track, Delete Track, Mute,
+Move Track Up and Down, Open and Close Gap at Playhead, Collapse Lane, and the
+lane heights; an audio track adds Duck Source and the waveform row, a video
+track the filmstrip row. Add Track adds an audio track from an audio or bus
+header and a video track from any other. Tracks are reordered by dragging the
+header.
 
 Track heights: Mini (20 px), Small (32 px), Medium (48 px, default), Large
 (72 px). Shift+scroll over the headers changes the height of the track under

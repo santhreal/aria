@@ -1113,6 +1113,7 @@ Notes for the latest release. For previous releases, see the
 - The Keyframe Velocity dialog and the Graph Editor's influence handles print influence as a percent to a tenth, from `0.1%` to `100.0%`.
 - Applying the Edit Marker, Speed/Duration, Audio Gain, or Keyframe Velocity dialog with no change closes the dialog without adding an undo step or marking the project unsaved.
 - Applying a lengthening speed ramp or slower Speed/Duration to a clip followed by a neighbor trims the retimed clip to the neighbor's start in Overwrite mode and shifts trailing clips in Ripple mode, undoing in one step.
+- A track header's menu offers **Hide Waveforms** only on audio tracks and **Hide Filmstrips** only on video tracks, and its **Add Track** adds an audio track from an audio or bus track instead of always adding a video track.
 
 ## [alpha-0.7.0] - 2026-07-22
 

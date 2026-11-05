@@ -226,7 +226,6 @@ pub(super) fn overview(
     store: &Arc<UiEditorStore>,
     scroll_x: f32,
     view_w: f32,
-    add_name: String,
     zoom: f32,
     state: &gpui::Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
@@ -275,11 +274,11 @@ pub(super) fn overview(
                         .ml(px(-CONTROL_INSET))
                         .on_mouse_down(
                             MouseButton::Left,
-                            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
                                 cx.stop_propagation();
-                                let name = add_name.clone();
                                 this.state.update(cx, |state, _| {
-                                    if let Err(err) = state.add_track(TrackKind::Video, name) {
+                                    let added = state.add_lane_of_kind(TrackKind::Video, None);
+                                    if let Err(err) = added {
                                         state.report_error(&err);
                                     }
                                 });

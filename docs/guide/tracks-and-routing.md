@@ -13,6 +13,8 @@ does not override a track's own mute: a muted track stays silent while soloed.
 
 Right-click a track header for the rest:
 
+- **Add Track** adds an audio track from an audio or bus track's header and a
+  video track from any other, named after the tracks of its kind.
 - **Duck Source** marks an audio track as the voice that auto-duck listens to,
   and draws a check mark while the track is the voice. Only audio tracks can
   be the source.
@@ -23,8 +25,9 @@ Right-click a track header for the rest:
   shift that would collide with another clip, or move one before the start of the
   sequence, is refused.
 - **Collapse Lane** / **Expand Lane** does what the chevron does.
-- **Hide Waveforms** / **Show Waveforms** and **Hide Filmstrips** / **Show
-  Filmstrips** turn that lane's strips on or off.
+- **Hide Waveforms** / **Show Waveforms** on an audio track and **Hide
+  Filmstrips** / **Show Filmstrips** on a video track turn that lane's strips on
+  or off.
 - **Lane Height: Mini**, **Small**, **Medium**, and **Large** set the lane to
   20, 32, 48, and 72 pixels. The lane's current height draws a check mark; a
   lane at any other height draws none.

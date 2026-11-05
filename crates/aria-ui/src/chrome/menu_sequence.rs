@@ -13,24 +13,6 @@ use crate::commands::reach;
 use super::menu_guards as guards;
 use super::menu_items::{MenuItem, MenuItems, report};
 
-/// Add a lane of `kind`, named after the lanes of that kind already there.
-fn add_lane(state: &mut AppState, kind: aria_models::TrackKind) {
-    let (shown, prefix) = match kind {
-        aria_models::TrackKind::Audio => (crate::types::UiTrackKind::Audio, "A"),
-        _ => (crate::types::UiTrackKind::Video, "V"),
-    };
-    let n = state
-        .store
-        .sequence
-        .tracks
-        .iter()
-        .filter(|t| t.kind == shown)
-        .count()
-        + 1;
-    let added = state.add_track(kind, format!("{prefix}{n}"));
-    report(state, added)
-}
-
 const ADD_TRACKS: &str = "Add Tracks";
 const NESTED: &str = "Nested Sequence";
 const SOURCE: &str = "Source";
@@ -125,12 +107,14 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     })
     .checked(|_, s| s.linked_selection),
     MenuItem::new("seq-v", "Video Track", |_, s, _| {
-        add_lane(s, aria_models::TrackKind::Video)
+        let added = s.add_lane_of_kind(aria_models::TrackKind::Video, None);
+        report(s, added)
     })
     .under(ADD_TRACKS)
     .rule(),
     MenuItem::new("seq-a", "Audio Track", |_, s, _| {
-        add_lane(s, aria_models::TrackKind::Audio)
+        let added = s.add_lane_of_kind(aria_models::TrackKind::Audio, None);
+        report(s, added)
     })
     .under(ADD_TRACKS),
     MenuItem::new("seq-delete-tracks", "Delete Empty Tracks", |_, s, _| {

@@ -584,7 +584,7 @@ fn menus_doc_matches_registry() {
     let track_facts = TrackMenu {
         track: 0,
         muted: false,
-        audio: false,
+        kind: crate::types::UiTrackKind::Video,
         duck_source: false,
         row: 0,
         lanes: 1,

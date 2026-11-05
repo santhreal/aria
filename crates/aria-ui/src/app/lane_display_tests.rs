@@ -399,6 +399,69 @@ fn the_track_context_menu_offers_every_height_preset_and_marks_the_active_one() 
     }
 }
 
+/// A lane header's menu offers each strip row on the lane kind whose clips draw
+/// that strip, and its Add Track adds a lane on the clicked lane's half of the
+/// stack.
+///
+/// The class closed here: a lane row that does nothing on that lane. Waveforms
+/// draw on sound clips and filmstrips on picture media, but both rows were
+/// offered on every lane, and Add Track added a picture lane from a sound
+/// lane's header. Every lane kind the catalog lists is opened, so a new kind is
+/// read without being named here.
+///
+/// Not covered: where the menu draws, which the drawn menu tests read.
+#[test]
+fn a_lane_menu_offers_the_rows_that_act_on_that_lane() {
+    use crate::surfaces::context_menu::{MenuItem, TRACK_ITEMS, TrackMenu};
+    use crate::types::UiTrackKind;
+
+    let row = |id: &str| {
+        TRACK_ITEMS
+            .iter()
+            .filter_map(MenuItem::row)
+            .find(|row| row.id == id)
+            .unwrap_or_else(|| panic!("the lane menu has no {id} row"))
+    };
+    let (mut state, _clip) = with_clip();
+    for spec in aria_models::track_kind_specs() {
+        let lane = state
+            .add_lane_of_kind(spec.kind, None)
+            .expect("a lane of the kind")
+            .raw();
+        let facts = TrackMenu::of(&state, lane).expect("the lane is projected");
+        // Sound media on a sound lane, picture media on any other.
+        let holds = |sound: bool| spec.accepts_media && spec.is_audio == sound;
+        let offered = |id: &str| (row(id).when)(&facts);
+        assert_eq!(
+            [offered("ctx-lane-waveform"), offered("ctx-lane-filmstrip")],
+            [holds(true), holds(false)],
+            "a {} lane offered the wrong strip rows",
+            spec.id
+        );
+        let before = std::sync::Arc::clone(&state.store);
+        (row("ctx-add-track").run)(&mut state, &facts).expect("Add Track adds a lane");
+        let added = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|lane| !before.sequence.tracks.iter().any(|old| old.id == lane.id))
+            .expect("Add Track left a new lane")
+            .kind;
+        let sound = spec.is_audio || spec.is_bus;
+        assert_eq!(
+            added,
+            if sound {
+                UiTrackKind::Audio
+            } else {
+                UiTrackKind::Video
+            },
+            "Add Track from a {} lane added the wrong kind",
+            spec.id
+        );
+    }
+}
+
 #[gpui::test]
 fn shift_scrolling_a_track_header_steps_its_preset_without_scrolling_the_timeline(
     cx: &mut gpui::TestAppContext,
