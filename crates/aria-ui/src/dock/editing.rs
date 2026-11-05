@@ -15,8 +15,10 @@ impl DockTree {
     pub const EDITING_LEFT_PX: f32 = 400.0;
     /// Default width of the right column in the Editing workspace (`300 px`).
     pub const EDITING_RIGHT_PX: f32 = 300.0;
-    /// Default width of the Audio Meters frame in the Editing workspace (`64 px`).
-    pub const EDITING_METERS_PX: f32 = 64.0;
+    /// Default width of the Audio Meters frame in every workspace (`112 px`):
+    /// wide enough for its tab to read `Audio Meters` whole beside the frame
+    /// menu button.
+    pub const EDITING_METERS_PX: f32 = 112.0;
     /// Share of the Editing column the lower row takes (`45 %`).
     pub const EDITING_TIMELINE_SHARE: f32 = 0.45;
 
@@ -27,7 +29,7 @@ impl DockTree {
     ///   Controls`), centre frame (`Viewer`), and right column
     ///   [`Self::EDITING_RIGHT_PX`] (`Effects & Presets`).
     /// - Lower row: [`Self::lower_row_for_width`], `Timeline` on the left,
-    ///   `Audio Meters` at `64 px` on the right.
+    ///   `Audio Meters` at [`Self::EDITING_METERS_PX`] on the right.
     ///
     /// Every other panel opens from the Window menu into its
     /// [`default_frame_for`](super::default_frame_for) frame.

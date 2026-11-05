@@ -369,14 +369,14 @@ pub fn workspace_tree_for_width(
                             axis: Axis::Row,
                             children: vec![
                                 (
-                                    0.22,
+                                    0.34,
                                     Node::Frame(Frame::new(
                                         FrameId::LEFT,
                                         vec![PANEL_VIEWER, PANEL_PROJECT],
                                     )),
                                 ),
                                 (
-                                    0.50,
+                                    0.38,
                                     Node::Frame(Frame::new(
                                         FrameId::CENTER,
                                         vec![PANEL_MIXER, PANEL_ASSISTANT],

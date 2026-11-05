@@ -208,10 +208,10 @@ fn interaction_dock_pointer_middle_close_and_drag_to_zone(cx: &mut gpui::TestApp
 }
 
 /// Editing arrangement matches `docs/spec/layout.md`:
-/// - Upper row: Left (`Project | Effect Controls`, 320 px), Center (`Viewer`),
+/// - Upper row: Left (`Project | Effect Controls`, 400 px), Center (`Viewer`),
 ///   Right (`Effects & Presets` active, 300 px; unregistered `Info`/`Character`
 ///   filtered from drawn tabs).
-/// - Lower row: `Timeline` on the left, `Audio Meters` (64 px) on the right.
+/// - Lower row: `Timeline` on the left, `Audio Meters` (112 px) on the right.
 /// - Dragging the splitter between `CENTER` and `RIGHT` or between upper and
 ///   lower rows resizes the frames, and double-clicking restores the workspace's
 ///   saved `0.55 / 0.45` ratio.
@@ -245,8 +245,9 @@ fn interaction_dock_editing_arrangement_and_splitter_restore(cx: &mut gpui::Test
     assert!(bottom_rect[1] >= left_rect[1] + left_rect[3] - 2.0);
     assert!(meters_rect[0] >= bottom_rect[0] + bottom_rect[2] - 2.0);
     assert!(
-        (meters_rect[2] - 64.0).abs() <= 12.0,
-        "Audio Meters frame is 64 px wide in lower row: {meters_rect:?}"
+        (meters_rect[2] - aria_ui::dock::DockTree::EDITING_METERS_PX).abs() <= 12.0,
+        "Audio Meters frame is {} px wide in lower row: {meters_rect:?}",
+        aria_ui::dock::DockTree::EDITING_METERS_PX
     );
 
     visual.read(|app| {

@@ -49,8 +49,8 @@ const DOCK_TAB_CLOSE_GLYPH: f32 = 12.0;
 const DOCK_TAB_CLOSE_SHRINK: f32 = 64.0;
 /// Frame width under which the tab row is compact: tabs and the menu button
 /// keep `SPACE_XS` of padding instead of `SPACE_SM`, and a title stands with no
-/// gap before its close, so a frame as narrow as the 64 px Audio Meters frame
-/// still reads the start of its title.
+/// gap before its close, so a frame as narrow as Audio Meters at its 64 px
+/// minimum still reads the start of its title.
 const DOCK_TAB_COMPACT_W: f32 = 120.0;
 
 /// Drop-zone preview fade-in (`docs/spec/layout.md:51-53`: appears 80 ms after

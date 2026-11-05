@@ -23,28 +23,29 @@ use super::{DOCK_TAB_CLOSE, DOCK_TAB_COMPACT_W};
 /// Layout is in floats; an edge two boxes share lands within this.
 const EPS: f32 = 0.51;
 
-/// Each drawn tab: its title, whether the title is drawn whole, and its
-/// close's width.
+/// Each drawn tab: its title, whether its frame is compact, whether the title
+/// is drawn whole, and its close's width.
 fn drawn_tabs(
     state: &gpui::Entity<AppState>,
     visual: &mut VisualTestContext,
-) -> Vec<(&'static str, bool, Pixels)> {
-    let panels: Vec<(FrameId, Vec<&'static str>)> = visual.read(|app| {
+) -> Vec<(&'static str, bool, bool, Pixels)> {
+    let panels: Vec<(FrameId, f32, Vec<&'static str>)> = visual.read(|app| {
         let state = state.read(app);
         let rects = state.dock_frame_rects.lock();
         rects
-            .keys()
-            .filter_map(|id| {
+            .iter()
+            .filter_map(|(id, rect)| {
                 state
                     .dock_tree
                     .frame(*id)
-                    .map(|frame| (*id, frame.tabs.clone()))
+                    .map(|frame| (*id, rect[2], frame.tabs.clone()))
             })
             .collect()
     });
     let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
     let mut out = Vec::new();
-    for (_, tabs) in panels {
+    for (_, width, tabs) in panels {
+        let compact = width < DOCK_TAB_COMPACT_W;
         for panel in tabs {
             let title = visual.read(|app| state.read(app).dock_panel_title(panel));
             let selector = crate::interned::intern(&format!("dock-tab-{panel}"));
@@ -57,15 +58,15 @@ fn drawn_tabs(
             let whole = runs
                 .iter()
                 .any(|run| tab.contains(&run.bounds.center()) && run.text.as_ref() == title);
-            out.push((title, whole, close.size.width));
+            out.push((title, compact, whole, close.size.width));
         }
     }
     out
 }
 
 /// A truncated title stands beside no close.
-fn assert_close_gives_way(tabs: &[(&'static str, bool, Pixels)], when: &str) {
-    for (title, whole, close) in tabs {
+fn assert_close_gives_way(tabs: &[(&'static str, bool, bool, Pixels)], when: &str) {
+    for (title, _, whole, close) in tabs {
         if !whole {
             assert!(
                 f32::from(*close) <= EPS,
@@ -80,13 +81,14 @@ fn a_narrow_tab_keeps_its_title_before_its_close(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "dock-tab-close");
     let launch = drawn_tabs(&state, visual);
     assert!(
-        launch.iter().any(|(_, whole, _)| *whole),
+        launch.iter().any(|(_, _, whole, _)| *whole),
         "no launch tab draws its whole title: {launch:?}"
     );
-    // At launch every tab bar has room to spare, so a whole title keeps a
-    // whole close.
-    for (title, whole, close) in &launch {
-        if *whole {
+    // At launch every non-compact tab bar has room to spare, so a whole title
+    // keeps a whole close; the compact Audio Meters frame gives up its close so
+    // its title fits whole.
+    for (title, compact, whole, close) in &launch {
+        if *whole && !*compact {
             assert!(
                 (f32::from(*close) - DOCK_TAB_CLOSE).abs() <= EPS,
                 "`{title}` fits, and its close is {close:?} wide"
@@ -132,7 +134,7 @@ fn a_narrow_tab_keeps_its_title_before_its_close(cx: &mut TestAppContext) {
     visual.run_until_parked();
     let tabs = drawn_tabs(&state, visual);
     assert!(
-        tabs.iter().any(|(_, whole, _)| !whole),
+        tabs.iter().any(|(_, _, whole, _)| !whole),
         "the crowded frame truncates no title: {tabs:?}"
     );
     assert_close_gives_way(&tabs, "crowded");

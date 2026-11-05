@@ -155,3 +155,85 @@ fn the_control_row_holds_one_height_in_every_state(cx: &mut TestAppContext) {
     press(visual, "viewer-tab-source-0");
     assert_line(visual, "with the Source tab in front");
 }
+
+/// In every shipped workspace that puts the Viewer in front, at the default
+/// window width and at 1920 px, the control row takes at most two lines.
+///
+/// WHY: the Audio workspace laid the Viewer out 22 % of the row wide, about
+/// 330 px at 1440 px, so the row wrapped each of its three groups onto a line
+/// of its own and the picture lost a third of its height beside a mixer frame
+/// with room to spare. The class: a shipped frame laid out too narrow for the
+/// Viewer's controls. The lines are counted from the three groups' tops, and
+/// the workspaces are read when the test runs, so a new one is checked with
+/// no edit here.
+///
+/// Not covered: windows narrower than 1440 px, and plugin workspaces.
+#[gpui::test]
+fn every_shipped_workspace_keeps_the_viewer_row_to_two_lines(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "viewer-row-lines");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let redraw = |visual: &mut VisualTestContext| {
+        for _ in 0..2 {
+            visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
+            visual.run_until_parked();
+        }
+    };
+    const WINDOWS: [(f32, f32); 2] = [
+        (crate::dock::DockTree::DEFAULT_WINDOW_WIDTH, 900.0),
+        (1920.0, 1080.0),
+    ];
+    const GROUPS: [&str; 3] = [
+        "viewer-row-picture",
+        "viewer-row-transport",
+        "viewer-row-display",
+    ];
+    let mut checked = 0;
+    for (window_w, window_h) in WINDOWS {
+        visual.simulate_resize(gpui::size(px(window_w), px(window_h)));
+        redraw(visual);
+        for ws in &crate::layouts::WORKSPACES {
+            let what = format!("{} at {window_w} px", ws.id);
+            visual.update(|_, app| {
+                state.update(app, |state, cx| {
+                    assert!(state.apply_workspace(ws.id, cx), "{what}: not applied");
+                })
+            });
+            redraw(visual);
+            let front = visual.read(|app| {
+                state
+                    .read(app)
+                    .dock_tree
+                    .frames()
+                    .iter()
+                    .any(|frame| frame.active_panel() == crate::dock::PANEL_VIEWER)
+            });
+            if !front {
+                continue;
+            }
+            let tops: Vec<f32> = GROUPS
+                .map(|group| {
+                    let drawn = visual
+                        .debug_bounds(group)
+                        .unwrap_or_else(|| panic!("{what}: the Viewer draws no {group}"));
+                    f32::from(drawn.top())
+                })
+                .to_vec();
+            let mut lines = tops.clone();
+            lines.sort_by(f32::total_cmp);
+            lines.dedup_by(|a, b| (*a - *b).abs() < EPS);
+            let viewer = visual.debug_bounds("viewer-row").map(|row| row.size.width);
+            assert!(
+                lines.len() <= 2,
+                "{what}: the Viewer's control row, {viewer:?} wide, takes {} lines; group tops \
+                 {tops:?}",
+                lines.len()
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 2 * crate::layouts::WORKSPACES.len(),
+        "the sweep read {checked} rows"
+    );
+}

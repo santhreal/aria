@@ -841,6 +841,8 @@ Notes for the latest release. For previous releases, see the
 - A generated clip on the timeline draws its fill color as a small dot and repeats the generator's name under the clip name only after a rename, instead of a bordered square and the same name twice.
 - The clip context menu opens with Cut, Copy, Duplicate, Clear and Ripple Delete, then Add Edit and Shift Selection…, instead of opening with Add Edit and offering neither Cut nor Ripple Delete.
 - Dialog setting rows stand on one shared label column with the value or control beside the label, instead of each dialog placing its values its own way.
+- Every workspace docks Audio Meters at 112 px, so its tab reads `Audio Meters` whole instead of `Aud…`.
+- The Audio workspace gives the Viewer 34 % of the upper row instead of 22 %, so the Viewer's controls take at most two lines.
 
 ### Fixed
 

@@ -455,3 +455,69 @@ fn the_overflow_control_lists_the_tabs_a_narrow_frame_has_no_room_for(cx: &mut T
         );
     }
 }
+
+/// In every shipped workspace, at the default window width and at 1920 px,
+/// each frame's front tab reads its whole title.
+///
+/// WHY: every workspace laid the Audio Meters frame out 64 px wide, so its
+/// only tab read `Aud…`. The class: a shipped frame laid out narrower than
+/// its front tab's title. The workspaces, their frames and the panel titles
+/// are read when the test runs, so a new workspace, frame or title is checked
+/// with no edit here.
+///
+/// Not covered: the tabs behind the front one, which a row short of room cuts
+/// by design, other window widths, and plugin workspaces.
+#[gpui::test]
+fn every_shipped_workspace_reads_each_front_tab_whole(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "front-tab-whole");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let mut checked = 0;
+    for (window_w, window_h) in [(DockTree::DEFAULT_WINDOW_WIDTH, 900.0), (WINDOW_W, 1080.0)] {
+        visual.simulate_resize(size(px(window_w), px(window_h)));
+        redraw(&state, visual);
+        for ws in &crate::layouts::WORKSPACES {
+            let what = format!("{} at {window_w} px", ws.id);
+            visual.update(|_, app| {
+                state.update(app, |state, cx| {
+                    assert!(state.apply_workspace(ws.id, cx), "{what}: not applied");
+                })
+            });
+            redraw(&state, visual);
+            let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+            let fronts: Vec<(FrameId, PanelId, &str)> = visual.read(|app| {
+                let state = state.read(app);
+                state
+                    .dock_tree
+                    .frames()
+                    .iter()
+                    .map(|frame| (frame.id, frame.active_panel()))
+                    .filter(|&(_, panel)| state.is_dock_panel_registered(panel))
+                    .map(|(id, panel)| (id, panel, state.dock_panel_title(panel)))
+                    .collect()
+            });
+            assert!(!fronts.is_empty(), "{what}: no frame is drawn");
+            for (frame_id, panel, title) in fronts {
+                let frame = frame_bounds(&state, visual, frame_id);
+                let tab = visual
+                    .debug_bounds(intern(&format!("dock-tab-{panel}")))
+                    .unwrap_or_else(|| panic!("{what}: the front {panel} tab is not drawn"));
+                let text = runs
+                    .iter()
+                    .find(|run| tab.contains(&run.bounds.center()))
+                    .map(|run| run.text.to_string())
+                    .unwrap_or_else(|| panic!("{what}: the {panel} tab draws no title"));
+                assert_eq!(
+                    text, title,
+                    "{what}: the front {panel} tab reads `{text}` in a frame {:?} wide",
+                    frame.size.width
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(
+        checked >= 2 * crate::layouts::WORKSPACES.len(),
+        "the sweep read {checked} tabs"
+    );
+}

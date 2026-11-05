@@ -15,7 +15,7 @@
 +----------------------+--------------------------------+----------------------+
 | Timeline: Sequence 01 | Sequence 02                              | Audio     |
 |                                                                  | meters    |
-|                                                                  | 64 px     |
+|                                                                  | 112 px    |
 +------------------------------------------------------------------------------+
 | Status bar                                                        22 px      |
 +------------------------------------------------------------------------------+
@@ -37,7 +37,7 @@ bar. The Timeline takes the rest.
 A resized window lays out a workspace with no changes for its new size, as
 choosing the workspace again does: Editing, Animation and Effects keep their
 side frames at 400 px and 300 px, every workspace keeps Audio Meters at
-64 px, and the Viewer and the Timeline take the
+112 px, and the Viewer and the Timeline take the
 difference. A workspace with a dragged splitter or a moved panel keeps the
 shares of its frames instead.
 
@@ -50,7 +50,7 @@ Timeline. When a panel's default frame has closed, such as the right column
 after its last panel floats, opening the panel re-creates that frame at its
 shipped edge: the left or right column at that end of the Viewer's row, at
 400 px or 300 px of a 1440 px window; the Timeline frame as a lower row, left
-of Audio Meters when docked; Audio Meters at 64 px right of the Timeline. A
+of Audio Meters when docked; Audio Meters at 112 px right of the Timeline. A
 panel opens as a tab of the largest frame when its default frame is the
 Viewer's, or when its column has no docked Viewer frame to sit beside.
 
@@ -115,7 +115,8 @@ windows. The shipped workspaces are:
 | Audio | Audio Track Mixer above the Timeline, Viewer reduced, Effects & Presets filtered to audio effects on the right. |
 | Effects | Effects & Presets and Effect Controls enlarged, Viewer center. |
 
-Every workspace keeps Audio Meters at 64 px right of the Timeline.
+Every workspace keeps Audio Meters at 112 px right of the Timeline, wide
+enough for its tab to read its whole name.
 
 The workspace switcher sits in the tool bar. Changing workspace rearranges the
 frames over 180 ms; panel contents are not rebuilt. A workspace that does not

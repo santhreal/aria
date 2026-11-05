@@ -1,7 +1,7 @@
 //! The Audio Meters panel's labels stay inside the boxes they label, and its
 //! bars fill the frame they are drawn in.
 //!
-//! WHY: in the 64 px launch frame the clip light, inset to the bars' column,
+//! WHY: in a 64 px frame, the panel's minimum width, the clip light, inset to the bars' column,
 //! was 22 px wide and its `CLIP` label wider, so the label ran out of the light
 //! over the scale's `0`. The class: a meter label drawn wider than its box.
 //! And in a wide frame the bars kept a 22 px cap, so two thin bars stood at
@@ -18,9 +18,9 @@
 //! Effects workspaces drew no meters. Every shipped workspace stands them
 //! right of the Timeline, in its row.
 //!
-//! Checked in the launch layout's frame, which is also the panel's minimum
-//! width, in the frame of every shipped workspace, read from the workspace
-//! rows so a new workspace is checked with no case added here, and in the
+//! Checked in the launch layout's frame, in a frame dragged to the panel's
+//! minimum width, in the frame of every shipped workspace, read from the
+//! workspace rows so a new workspace is checked with no case added here, and in the
 //! Viewer's frame, where the meters are docked by hand: the clip light
 //! inside the frame and its label across the light, every scale mark across
 //! the scale column, which ends before the first bar, between the clip light
@@ -47,14 +47,17 @@ const EPS: f32 = 0.51;
 #[gpui::test]
 fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
-    let mut cases: Vec<(&str, Option<&str>, Option<FrameId>)> = vec![("launch", None, None)];
+    let mut cases: Vec<(&str, Option<&str>, Option<FrameId>, bool)> = vec![
+        ("launch", None, None, false),
+        ("narrowest", None, None, true),
+    ];
     cases.extend(
         crate::layouts::WORKSPACES
             .iter()
-            .map(|ws| (ws.id, Some(ws.id), None)),
+            .map(|ws| (ws.id, Some(ws.id), None, false)),
     );
-    cases.push(("docked-wide", None, Some(FrameId::CENTER)));
-    for (layout, workspace, docked) in cases {
+    cases.push(("docked-wide", None, Some(FrameId::CENTER), false));
+    for (layout, workspace, docked, narrowest) in cases {
         let tag = format!("meter-labels-{layout}");
         let (state, visual) = drawn_shell(cx, &tag);
         visual.update(|_, app| app.set_reduce_motion(true));
@@ -74,6 +77,35 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
             visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
             visual.run_until_parked();
         }
+        if narrowest {
+            // The lower row re-weighted so the frame stands at the panel's
+            // minimum width, the narrowest a dragged splitter leaves it.
+            let min_w =
+                visual.read(|app| state.read(app).dock_panel_min_size(PANEL_AUDIO_METERS).0);
+            let row: f32 = visual.read(|app| {
+                let state = state.read(app);
+                let rects = state.dock_frame_rects.lock();
+                [FrameId::BOTTOM, FrameId::METERS]
+                    .iter()
+                    .map(|frame| rects.get(frame).map_or(0.0, |rect| rect[2]))
+                    .sum()
+            });
+            visual.update(|_, app| {
+                state.update(app, |state, cx| {
+                    assert!(
+                        state
+                            .dock_tree
+                            .set_weights(&[1], &[(row - min_w) / row, min_w / row]),
+                        "{layout}: the lower row takes no weights"
+                    );
+                    cx.notify();
+                })
+            });
+            for _ in 0..2 {
+                visual.update(|_, app| state.update(app, |_, cx| cx.notify()));
+                visual.run_until_parked();
+            }
+        }
         visual.update(|window, _| window.refresh());
         visual.run_until_parked();
 
@@ -90,7 +122,14 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
             let holder = state.dock_tree.find(PANEL_TIMELINE)?;
             state.dock_frame_rects.lock().get(&holder).copied()
         });
-        if docked.is_some() {
+        if narrowest {
+            let min_w =
+                visual.read(|app| state.read(app).dock_panel_min_size(PANEL_AUDIO_METERS).0);
+            assert!(
+                w <= min_w + EPS + Theme::SPACE_SM,
+                "{layout}: the frame is {w} px, not the panel's {min_w} px minimum"
+            );
+        } else if docked.is_some() {
             assert!(
                 w > 4.0 * DockTree::EDITING_METERS_PX,
                 "{layout}: the hand-docked frame is {w} px, no wider than the launch frame"
