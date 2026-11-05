@@ -238,7 +238,7 @@ The Audio Mixer (`crates/aria-ui/src/panels/mixer.rs`) renders the submix bus bu
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
 | `insert-up` | Move earlier | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
 | `mixer-add-bus` | + Submix bus | Appends a submix bus lane to the sequence. | None |
-| `mixer-auto` (per row) | Off / Read / Write / Touch / Latch | Sets the strip's automation mode; the lit mode that writes the envelope draws its label in the warning color. | None |
+| `mixer-auto` (per row) | Off / Read / Write / Touch / Latch | States the strip's automation mode in force, in the warning color while it writes the envelope; a press opens the five modes. | None |
 | `mixer-mute` (per row) | M | Toggles the mute of the lane or the master; a lit mute draws its label in the warning color. | None |
 | `mixer-out` (per row) | Master / bus name | Points the lane's output at the master or at a submix bus. | None |
 | `mixer-send` (per row) | Bus name and level | Cycles the lane's send to the bus from off to post-fader to pre-fader and back to off; a pre-fader send draws its label in the warning color. | None |

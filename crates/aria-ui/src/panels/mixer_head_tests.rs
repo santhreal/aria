@@ -9,14 +9,18 @@
 //!   color, so its rows of choices read as another app's. Every chip each
 //!   strip's facts offer, on every lane strip the mixer draws and the master
 //!   strip, must be recorded as a compact chip under the identity the strip
-//!   draws it with: its mute, a lane's solo, each automation mode, and each
-//!   output a lane may point at. A picture lane with no sound has no strip.
+//!   draws it with: its mute, a lane's solo, its automation mode list chip, and
+//!   each output a lane may point at. While a strip's automation list is open,
+//!   every automation mode row is drawn below the chip. A picture lane with no
+//!   sound has no strip.
 //! - A control in a strip's head standing off the column the strip's labels
-//!   start in. The insert chain lays its rows out as the Effect Controls rows
-//!   it shares, its controls a few pixels in from the row's edge, and drew its
-//!   Add button that far right of the chips above and below it. On the lane
-//!   strip and the master strip, the first automation chip, the first output
-//!   chip and the Add button must each start in the strip's column.
+//!   start in, or the automation control wrapping onto a second line. The
+//!   insert chain lays its rows out as the Effect Controls rows it shares, its
+//!   controls a few pixels in from the row's edge, and drew its Add button that
+//!   far right of the chips above and below it. On the lane strip and the
+//!   master strip, the automation chip, the first output chip and the Add
+//!   button must each start in the strip's column, and the automation chip must
+//!   stand one compact chip tall with no second automation row.
 //!
 //! Not covered: the warning tone of a lit mute, a writing automation mode and a
 //! pre-fader send, which the record does not hold; a send chip, whose label
@@ -24,7 +28,7 @@
 //! same rows as a lane strip.
 
 use aria_models::{AutomationMode, TrackKind};
-use gpui::{Bounds, Pixels, SharedString, TestAppContext, VisualTestContext};
+use gpui::{Bounds, Modifiers, Pixels, SharedString, TestAppContext, VisualTestContext, px};
 
 use crate::app::mixer::MixerStrip;
 use crate::components::noted::{
@@ -67,16 +71,16 @@ fn add_button(base: MotionKey) -> String {
     )
 }
 
-/// The chips every strip keyed `raw` draws whatever its routing: its mute,
-/// and one per automation mode.
-fn every_strip(raw: u64) -> impl Iterator<Item = DrawnControl> {
-    let modes = AutomationMode::ALL.into_iter().map(move |mode| {
+/// The chips every strip keyed `raw` draws at rest whatever its routing: its
+/// mute and its automation mode list chip.
+fn every_strip(raw: u64) -> [DrawnControl; 2] {
+    [
+        compact(MotionKey::new("mixer-mute", raw), "M"),
         compact(
-            MotionKey::new("mixer-auto", raw).with(mode.label()),
-            mode.label(),
-        )
-    });
-    std::iter::once(compact(MotionKey::new("mixer-mute", raw), "M")).chain(modes)
+            MotionKey::new("mixer-auto", raw),
+            AutomationMode::Off.label(),
+        ),
+    ]
 }
 
 /// The Audio workspace drawn with an audio lane added, while the controls it
@@ -146,7 +150,7 @@ fn drawn(visual: &mut VisualTestContext, selector: &str) -> Bounds<Pixels> {
 #[gpui::test]
 fn every_mixer_chip_is_the_apps_compact_chip(cx: &mut TestAppContext) {
     let mixer = drawn_mixer(cx, "mixer-chips");
-    let mut expected: Vec<DrawnControl> = every_strip(0).collect();
+    let mut expected: Vec<DrawnControl> = every_strip(0).into_iter().collect();
     for strip in mixer.strips.iter() {
         expected.extend(every_strip(strip.track));
         expected.push(compact(MotionKey::new("mixer-solo", strip.track), "S"));
@@ -166,6 +170,55 @@ fn every_mixer_chip_is_the_apps_compact_chip(cx: &mut TestAppContext) {
         missing.is_empty(),
         "chips the mixer offers that were not drawn as the app's compact chip: {missing:?}"
     );
+    for raw in std::iter::once(0).chain(mixer.strips.iter().map(|strip| strip.track)) {
+        for mode in AutomationMode::ALL {
+            let old = compact(
+                MotionKey::new("mixer-auto", raw).with(mode.label()),
+                mode.label(),
+            );
+            assert!(
+                !mixer.built.contains(&old),
+                "strip {raw} drew a separate chip for automation mode {}: {}",
+                mode.label(),
+                old.selector
+            );
+            let row = crate::pick_list::row_selector(
+                MotionKey::new("mixer-auto", raw).with(mode.label()),
+                mode.label(),
+            );
+            assert!(
+                mixer.visual.debug_bounds(intern(&row)).is_none(),
+                "strip {raw} drew automation row {row} while its list was closed"
+            );
+        }
+    }
+    for raw in [0, mixer.lane] {
+        let chip_sel = compact(
+            MotionKey::new("mixer-auto", raw),
+            AutomationMode::Off.label(),
+        );
+        let at = drawn(mixer.visual, &chip_sel.selector).center();
+        record_controls();
+        mixer.visual.simulate_click(at, Modifiers::none());
+        mixer.visual.run_until_parked();
+        let (built, _) = drawn_controls();
+        assert!(
+            built.contains(&chip_sel),
+            "strip {raw} did not draw its automation chip while its list was open"
+        );
+        for mode in AutomationMode::ALL {
+            let row = crate::pick_list::row_selector(
+                MotionKey::new("mixer-auto", raw).with(mode.label()),
+                mode.label(),
+            );
+            assert!(
+                mixer.visual.debug_bounds(intern(&row)).is_some(),
+                "strip {raw} did not draw automation row {row} while its list was open"
+            );
+        }
+        mixer.visual.simulate_click(at, Modifiers::none());
+        mixer.visual.run_until_parked();
+    }
 }
 
 #[gpui::test]
@@ -186,14 +239,14 @@ fn every_head_control_starts_in_the_strips_column(cx: &mut TestAppContext) {
         (
             0,
             vec![
-                compact(MotionKey::new("mixer-auto", 0).with(off), off).selector,
+                compact(MotionKey::new("mixer-auto", 0), off).selector,
                 add_button(MotionKey::new("insert-master", 0)),
             ],
         ),
         (
             lane,
             vec![
-                compact(MotionKey::new("mixer-auto", lane).with(off), off).selector,
+                compact(MotionKey::new("mixer-auto", lane), off).selector,
                 add_button(MotionKey::new("insert-lane", lane)),
                 compact(
                     MotionKey::new("mixer-out", lane).with(&first_output.name),
@@ -215,6 +268,22 @@ fn every_head_control_starts_in_the_strips_column(cx: &mut TestAppContext) {
                     "{selector} starts at {left} px, and strip {raw}'s column at {column} px"
                 ));
             }
+        }
+    }
+    for raw in std::iter::once(0).chain(mixer.strips.iter().map(|strip| strip.track)) {
+        let mute = drawn(
+            visual,
+            &compact(MotionKey::new("mixer-mute", raw), "M").selector,
+        );
+        let auto = drawn(
+            visual,
+            &compact(MotionKey::new("mixer-auto", raw), off).selector,
+        );
+        if (auto.size.height - mute.size.height).abs() > px(EPS) {
+            wrong.push(format!(
+                "strip {raw}'s automation chip is {:?} tall, and its mute chip {:?}",
+                auto.size.height, mute.size.height
+            ));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));

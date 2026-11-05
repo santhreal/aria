@@ -279,7 +279,7 @@ impl AppState {
             last_present: None,
             dropped: aria_render::DroppedFrames::default(),
             auto_resolution: crate::resolution::AutoResolution::default(),
-            viewer_menu: None,
+            open_list: None,
             // Empty until playback runs, at the rate the project opens with.
             playback: aria_render::PlaybackMeter::at_rate(snapshot.playhead.rate),
             audio: crate::audio::AudioHandle::new(),
@@ -293,7 +293,6 @@ impl AppState {
             media_query: Default::default(),
             media_search_focus: false,
             media_sort: crate::types::MediaSort::default(),
-            media_sort_list_open: false,
             pool_selection: crate::app::pool_selection::PoolSelection::default(),
             current_bin: None,
             bin_rename: None,

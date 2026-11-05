@@ -4,9 +4,9 @@
 
 use gpui::{AnyElement, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent};
 
-use super::menu::{heading, row};
 use crate::app::AppState;
 use crate::app::preview_view::ViewerMenu;
+use crate::pick_list::{ListId, Opens, heading, is_open, picker as list_picker, row};
 use crate::resolution::{PausedResolution, PlaybackResolution};
 use crate::theme::Theme;
 
@@ -16,17 +16,20 @@ pub(super) fn picker(
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let open = super::menu::is_open(state, ViewerMenu::Resolution, cx);
+    let id = ListId::Viewer(ViewerMenu::Resolution);
+    let open = is_open(state, id, cx);
     let read = state.read(cx);
     let playback = read.ui_settings.playback_resolution;
     let paused = read.ui_settings.paused_resolution;
     let caption = read.playback_resolution_text();
     let chip = crate::components::list_chip("preview-resolution", caption, open, theme);
     let rows = open.then(|| choices(playback, paused, theme, cx));
-    super::menu::picker(
+    list_picker(
         "preview-resolution",
-        ViewerMenu::Resolution,
+        id,
         chip,
+        Theme::ICON_HIT,
+        Opens::AboveLeft,
         rows,
         theme,
         cx,

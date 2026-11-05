@@ -417,8 +417,8 @@ pub struct AppState {
     pub(super) dropped: aria_render::DroppedFrames,
     /// The Auto playback resolution level and the drops it steps on.
     pub(super) auto_resolution: crate::resolution::AutoResolution,
-    /// The control-row list open above the Viewer, if any.
-    pub(crate) viewer_menu: Option<super::preview_view::ViewerMenu>,
+    /// Which list picker is open across the window, if any.
+    pub(crate) open_list: Option<crate::pick_list::ListId>,
     /// What playback is actually managing, against the sequence's own rate.
     ///
     /// One counter for the session's current run: it is re-made at the rate
@@ -448,8 +448,6 @@ pub struct AppState {
     pub media_search_focus: bool,
     /// How the bin orders what it shows.
     pub media_sort: crate::types::MediaSort,
-    /// Whether the bin's order menu is open.
-    pub(crate) media_sort_list_open: bool,
     /// The picked pool items, in pick order. Its focus is the
     /// last one acted on, which is what a single-item row means; the whole set
     /// is what a multicam group is built from.

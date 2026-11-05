@@ -843,6 +843,8 @@ Notes for the latest release. For previous releases, see the
 - Dialog setting rows stand on one shared label column with the value or control beside the label, instead of each dialog placing its values its own way.
 - Every workspace docks Audio Meters at 112 px, so its tab reads `Audio Meters` whole instead of `Aud…`.
 - The Audio workspace gives the Viewer 34 % of the upper row instead of 22 %, so the Viewer's controls take at most two lines.
+- Each Audio Track Mixer strip draws its automation mode as one list chip that opens the five modes, in place of five chips that wrapped to two lines.
+- Opening a drop-down list (Viewer zoom, Viewer resolution, Project sort, mixer automation) closes the one that was open.
 
 ### Fixed
 

@@ -113,9 +113,10 @@ impl AppState {
         true
     }
 
-    /// Open `menu`, or close it when it is the open one.
-    pub fn toggle_viewer_menu(&mut self, menu: ViewerMenu) {
-        self.viewer_menu = (self.viewer_menu != Some(menu)).then_some(menu);
+    /// Open `list`, or close it when it is the open one. Opening one list
+    /// closes any other.
+    pub fn toggle_list(&mut self, list: crate::pick_list::ListId) {
+        self.open_list = (self.open_list != Some(list)).then_some(list);
     }
 
     /// Back to fitting the pane. Also drops the pan, which has no meaning once

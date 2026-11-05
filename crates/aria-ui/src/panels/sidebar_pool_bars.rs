@@ -9,8 +9,6 @@
 use super::*;
 use crate::components::lit_icon;
 use crate::icons;
-use crate::tooltip::WithTip as _;
-use gpui::deferred;
 
 /// Height of the order button, which its menu opens above.
 const SORT_H: f32 = 22.0;
@@ -203,108 +201,41 @@ fn sort_menu(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let (open, sort) = {
-        let read = state.read(cx);
-        (read.media_sort_list_open, read.media_sort)
-    };
-    let list = open.then(|| sort_list(sort, theme, cx));
-    // The outside press is the wrapper's: a press on the button toggles the
-    // menu rather than closing and reopening it.
-    div()
-        .relative()
-        .when(open, |el| {
-            el.on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, _| state.media_sort_list_open = false);
-                cx.notify();
-            }))
-        })
-        .child(
-            components::list_chip("pool-sort", sort.label(), open, theme)
-                .h(px(SORT_H))
-                .debug_selector(|| "pool-sort".into())
-                .when_some(crate::tooltip::builder("pool-sort"), |el, tip| {
-                    el.with_tip(tip)
-                })
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        this.state.update(cx, |state, _| {
-                            state.media_sort_list_open = !state.media_sort_list_open;
-                        });
-                        cx.notify();
-                    }),
-                ),
-        )
-        .when_some(list, |el, list| el.child(list))
+    let open = crate::pick_list::is_open(state, crate::pick_list::ListId::PoolSort, cx);
+    let sort = state.read(cx).media_sort;
+    let chip = components::list_chip("pool-sort", sort.label(), open, theme);
+    let rows = open.then(|| sort_list(sort, theme, cx));
+    crate::pick_list::picker(
+        "pool-sort",
+        crate::pick_list::ListId::PoolSort,
+        chip,
+        SORT_H,
+        crate::pick_list::Opens::AboveRight,
+        rows,
+        theme,
+        cx,
+    )
 }
 
-/// The open menu of orders, the current one washed.
+/// The rows of the order menu, the current order selected.
 fn sort_list(
     sort: MediaSort,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement + use<> {
-    let mut rows: Vec<gpui::AnyElement> = Vec::with_capacity(MediaSort::ALL.len());
-    for (index, order) in MediaSort::ALL.iter().copied().enumerate() {
-        let selected = order == sort;
-        let id = gpui::ElementId::named_usize("pool-sort-row", index);
-        let key = motion::MotionKey::new("pool-sort-row", &id);
-        rows.push(
-            div()
-                .id(id)
-                .debug_selector(move || format!("pool-sort-{}", order.label()))
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XXS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(if selected {
-                    theme.text
-                } else {
-                    theme.text_muted
-                })
-                .bg(motion::row_fill(key, selected, theme))
-                .cursor(gpui::CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
-                .on_hover(motion::hover_listener(key))
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        this.state.update(cx, |state, _| {
-                            state.media_sort = order;
-                            state.media_sort_list_open = false;
-                        });
-                        cx.notify();
-                    }),
-                )
-                .child(order.label())
-                .into_any_element(),
-        );
-    }
-    let menu = div()
-        .id("pool-sort-list")
-        .min_w(px(120.))
-        .rounded(px(Theme::PANEL_RADIUS))
-        .bg(theme.surface_overlay)
-        .border_1()
-        .border_color(theme.border)
-        .p(px(Theme::SPACE_XS))
-        .flex()
-        .flex_col()
-        // A press on the menu is the menu's, not the items' drawn under it.
-        .occlude()
-        .children(rows);
-    // Deferred so the menu paints over the items above the footer.
-    deferred(
-        div()
-            .absolute()
-            .bottom(px(SORT_H + Theme::SPACE_XS))
-            .right(px(0.))
-            .child(crate::frost::frost(motion::menu_in(
-                motion::MotionKey::new("menu", "pool-sort"),
-                menu,
-            ))),
-    )
+) -> Vec<gpui::AnyElement> {
+    MediaSort::ALL
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, order)| {
+            crate::pick_list::row(
+                ("pool-sort-row", index),
+                order.label(),
+                order == sort,
+                theme,
+                cx,
+                move |state, _| state.media_sort = order,
+            )
+        })
+        .collect()
 }

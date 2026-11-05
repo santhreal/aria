@@ -334,8 +334,6 @@ fn row_group(selector: &'static str) -> gpui::Div {
 mod compare;
 #[path = "preview_controls.rs"]
 mod controls;
-#[path = "preview_menu.rs"]
-mod menu;
 #[path = "preview_peak.rs"]
 mod peak;
 #[path = "preview_resolution.rs"]

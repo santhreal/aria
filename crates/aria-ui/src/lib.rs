@@ -39,6 +39,7 @@ pub mod motion;
 pub mod os_drop;
 pub mod panels;
 pub mod pending;
+pub mod pick_list;
 pub mod plugins;
 pub mod popover;
 pub mod preview_worker;

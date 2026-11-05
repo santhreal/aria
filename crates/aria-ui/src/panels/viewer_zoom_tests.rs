@@ -141,7 +141,7 @@ fn the_zoom_menu_sets_the_level_it_lists(cx: &mut TestAppContext) {
     let zoom = |visual: &mut VisualTestContext| {
         visual.read(|app| {
             let state = state.read(app);
-            (state.preview_view.zoom, state.viewer_menu)
+            (state.preview_view.zoom, state.open_list)
         })
     };
 

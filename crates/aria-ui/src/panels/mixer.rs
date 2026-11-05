@@ -4,8 +4,8 @@
 //!
 //! Everything a lane has in the mix is on its strip and nowhere else: its
 //! insert chain, the fader, where the lane goes, and which buses get a copy of
-//! it. There is no dialog and no dropdown — a send is a chip that cycles off →
-//! post → pre, and a level is a drag on the fader whose level it is.
+//! it. A send cycles off, post, and pre on its chip; the automation mode is a
+//! list chip; a level is a drag on the fader whose level it is.
 //!
 //! The strips are drawn left to right in feed order, which the model hands over
 //! ([`aria_models::Timeline::audio_buses`]), so a bus is always to the right of
@@ -305,6 +305,7 @@ fn channel(
         )
     })
     .child(automation_row(
+        state,
         theme,
         Some(track),
         strip.track,
@@ -372,7 +373,7 @@ fn master(
                 )
                 .child(mute_button(theme, None, 0, chain.muted, cx)),
         )
-        .child(automation_row(theme, None, 0, chain.automation, cx))
+        .child(automation_row(state, theme, None, 0, chain.automation, cx))
         .child(label_row(theme, "Inserts"))
         .child(inserts(
             theme,
@@ -591,42 +592,60 @@ fn solo_button(
 }
 
 fn automation_row(
+    state: &Entity<AppState>,
     theme: &Theme,
     track: Option<TrackId>,
     raw_id: u64,
     current: AutomationMode,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let chips: Vec<gpui::AnyElement> = AutomationMode::ALL
-        .iter()
-        .copied()
-        .map(|mode| {
-            let text = mode.label().to_string();
-            strip_chip(
-                theme,
-                motion::MotionKey::new("mixer-auto", raw_id)
-                    .with(mode.label())
-                    .into(),
-                text,
-                mode == current,
-                mode.writes_envelope() && mode == current,
-                move |state| {
-                    if let Err(err) =
-                        mixer_strip::apply(state, Gesture::SetAutomation { track, mode })
-                    {
-                        state.report_error(&err);
-                    }
-                },
-                cx,
-            )
-        })
-        .collect();
+    let list_id = crate::pick_list::ListId::MixerAuto(raw_id);
+    let open = crate::pick_list::is_open(state, list_id, cx);
+    let chip = crate::components::list_chip(
+        motion::MotionKey::new("mixer-auto", raw_id),
+        current.label(),
+        open,
+        theme,
+    )
+    .when(current.writes_envelope(), |el| el.text_color(theme.warning));
+    let rows = open.then(|| {
+        AutomationMode::ALL
+            .iter()
+            .copied()
+            .map(|mode| {
+                crate::pick_list::row(
+                    motion::MotionKey::new("mixer-auto", raw_id).with(mode.label()),
+                    mode.label(),
+                    mode == current,
+                    theme,
+                    cx,
+                    move |state, _| {
+                        if let Err(err) =
+                            mixer_strip::apply(state, Gesture::SetAutomation { track, mode })
+                        {
+                            state.report_error(&err);
+                        }
+                    },
+                )
+            })
+            .collect()
+    });
     div()
         .flex()
         .flex_col()
+        .items_start()
         .gap(px(Theme::SPACE_XXS))
         .child(label_row(theme, "Auto"))
-        .child(div().flex().flex_row().wraps().gap(px(2.)).children(chips))
+        .child(crate::pick_list::picker(
+            "mixer-auto",
+            list_id,
+            chip,
+            ChipSize::Compact.height(),
+            crate::pick_list::Opens::BelowLeft,
+            rows,
+            theme,
+            cx,
+        ))
         .into_any_element()
 }
 
@@ -876,9 +895,8 @@ fn label_row(theme: &Theme, text: &'static str) -> gpui::AnyElement {
 }
 
 /// One clickable chip, a [`crate::components::chip`] lit while `live`. `alt`
-/// marks a lit chip whose state cuts or overwrites sound: a mute, an
-/// automation mode that writes the envelope, or a pre-fader send. Its label
-/// stands in the warning tone.
+/// marks a lit chip whose state cuts or redirects sound before the fader: a
+/// mute or a pre-fader send. Its label stands in the warning tone.
 fn strip_chip(
     theme: &Theme,
     id: motion::ControlId,
