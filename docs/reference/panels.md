@@ -117,7 +117,7 @@ Defined in `crates/aria-ui/src/types_pool.rs` (`PoolView::ALL`, `PoolLayout`, `P
 | `Icons` | `icons` | Icons | `true` | `false` | `false` | `false` | `true` | `false` | `96.0` | `Wrap` | `no` |
 | `Freeform` | `freeform` | Freeform | `true` | `false` | `false` | `false` | `false` | `true` | `96.0` | `Freeform` | `no` |
 
-**Beside** (`PoolView::picture_beside`) is `true` for a view that draws pictures and has no cell width. Its items draw the 120 px picture at the left and the name and facts beside it, and wrap the name and facts under the picture in a row narrower than the picture, an 8 px gap, and 96 px of text.
+**Beside** (`PoolView::picture_beside`) is `true` for a view that draws pictures and has no cell width. Its items draw the 120 px picture at the left and the name and facts beside it, and wrap the name and facts under the picture in a row narrower than the picture, an 8 px gap, and 96 px of text. A view with a cell width draws its picture as wide as the cell, in the 120 x 68 thumbnail's shape, with the name under it.
 
 ## Media pool sort orders
 

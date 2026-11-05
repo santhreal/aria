@@ -1139,6 +1139,7 @@ Notes for the latest release. For previous releases, see the
 - The Speed tab's ramp graph draws each preset with the easing the clip plays, and its Length readout matches the length an eased ramp gives the clip.
 - Dragging a speed-ramp point keeps the point's easing and adds one undo step instead of two.
 - An edit the project rejects now states the obstacle and the fix, such as a speed ramp that would overlap the next clip, instead of a generic message to undo and try again.
+- The Project panel's Icons and Freeform views draw each picture in a 16:9 box as wide as its cell, so a frame no longer sits between bands of empty plate.
 
 ## [alpha-0.7.0] - 2026-07-22
 

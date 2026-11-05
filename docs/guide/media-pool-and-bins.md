@@ -65,7 +65,8 @@ it; in a frame too narrow for both, the name and facts wrap under the picture.
 **List** drops the picture
 and reads each item as one line, name on the left and facts on the right, which
 is the view to use on a pool of hundreds: no picture means no decode. **Icons**
-wraps the pictures into a 96px grid with the name underneath and no facts.
+wraps the items into a grid of 96 px cells, each a 16:9 picture with the name
+underneath and no facts.
 **Freeform** places the pictures where you drag them. In the three picture
 views, an audio file shows a waveform glyph and a file that is gone shows a
 broken-link glyph where its picture would be. The

@@ -405,7 +405,8 @@ fn facts_block(
 }
 
 /// The box a picture or its stand-in fills: `width` wide, or the cell's
-/// whole width when the view gives none, and a thumbnail tall.
+/// whole width when the view gives none, in the thumbnail's shape, so a 16:9
+/// frame fills it rather than standing between bands of plate.
 fn picture_box(theme: &Theme, width: Option<f32>) -> gpui::Div {
     div()
         .relative()
@@ -413,7 +414,7 @@ fn picture_box(theme: &Theme, width: Option<f32>) -> gpui::Div {
             Some(width) => el.flex_none().w(px(width)),
             None => el.w_full(),
         })
-        .h(px(pool_preview::THUMB_H as f32))
+        .aspect_ratio(pool_preview::THUMB_W as f32 / pool_preview::THUMB_H as f32)
         .rounded(px(Theme::CONTROL_RADIUS))
         .overflow_hidden()
         .bg(theme.surface_raised)

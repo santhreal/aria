@@ -119,8 +119,10 @@ fn text_of(
 /// WHY: Tiles drew its picture in a box as wide as the panel, so a 16:9 frame
 /// sat between two bands of empty plate, and an audio file or a missing file
 /// drew no box at all, so its name started where the pictures of its
-/// neighbours did. Every item of a view that draws pictures now draws one slot,
-/// the same size as every other item's, and a view whose items fill the rail
+/// neighbours did. A cell drew its box the thumbnail's height at the cell's
+/// narrower width, so its frame sat between bands of plate too. Every item of
+/// a view that draws pictures now draws one slot in the thumbnail's shape, the
+/// same size as every other item's, and a view whose items fill the rail
 /// draws it at the thumbnail's size. A view that draws no pictures draws no
 /// slot, because a slot is what costs a decode.
 #[gpui::test]
@@ -148,7 +150,10 @@ fn every_item_of_a_picture_view_draws_one_slot_of_one_size(cx: &mut TestAppConte
             .collect();
         let size = match view.width() {
             None => gpui::size(px(THUMB_W as f32), px(THUMB_H as f32)),
-            Some(_) => slots[0].size,
+            Some(_) => {
+                let wide = slots[0].size.width;
+                gpui::size(wide, wide * (THUMB_H as f32 / THUMB_W as f32))
+            }
         };
         for (index, slot) in slots.iter().enumerate() {
             assert!(
