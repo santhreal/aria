@@ -1095,6 +1095,7 @@ Notes for the latest release. For previous releases, see the
 - A mixer fader and a send at silence read `Silent`, as a clip's volume row reads, instead of `-inf`.
 - The trim readout on the timeline fits its pill to the shaped text, 8 pixels each side, instead of a byte count with a 140-pixel floor that left empty pill beside the text, and drops an empty part instead of printing a bare ` · `.
 - Dragging a position, a mask, a title's size or line spacing, or a shape's dimensions moves the value one printed unit per two pixels of travel instead of a hundredth of the model's limit, which stepped a title 41 pixels and a mask 72 degrees at a time.
+- The Info panel prints the alpha under the pointer as Opacity prints, `100%`, instead of `100 %`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

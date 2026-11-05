@@ -5,10 +5,12 @@
 //!
 //! It draws [`AppState::info_readout`] and sends nothing.
 
+use aria_models::ClipParam;
 use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
 use crate::app::info::{InfoFault, InfoPlayback, InfoRow};
+use crate::app::param_units::Units;
 use crate::components::{readout, readout_tinted, section_label};
 use crate::panels::inspector::blocks::widgets::swatch;
 use crate::theme::Theme;
@@ -84,8 +86,9 @@ fn rows(theme: &Theme, rows: Vec<InfoRow>) -> impl Iterator<Item = AnyElement> +
         .map(move |row| readout(theme, row.label, row.value).into_any_element())
 }
 
-/// The colour under the pointer: a swatch, its channels and its hex, or a dash
-/// until the frame on screen has been read there.
+/// The color under the pointer: a swatch, its channels and its hex, and its
+/// alpha as Opacity prints, or a dash until the frame on screen has been read
+/// there.
 fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
     let Some([r, g, b, a]) = color else {
         return readout(theme, "Color", "–").into_any_element();
@@ -126,7 +129,7 @@ fn color_row(theme: &Theme, color: Option<[u8; 4]>) -> AnyElement {
         .child(readout(
             theme,
             "Alpha",
-            format!("{:.0} %", f32::from(a) * 100.0 / 255.0),
+            Units::of(ClipParam::Opacity, &ClipParam::Opacity.range()).print(f32::from(a) / 255.0),
         ))
         .into_any_element()
 }
@@ -165,3 +168,7 @@ fn hint(theme: &Theme, text: &'static str) -> AnyElement {
         .child(text)
         .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "info_panel_tests.rs"]
+mod tests;

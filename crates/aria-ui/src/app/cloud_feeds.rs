@@ -14,8 +14,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use aria_cloud::dto::StockKind;
-use aria_cloud::{CloudClient, DirectStockProvider, StockProvider, stock::BackendStockProvider};
+use aria_cloud::dto::{CatalogResponse, StockKind};
+use aria_cloud::{
+    CloudClient, CloudError, DirectStockProvider, StockProvider, stock::BackendStockProvider,
+};
 use aria_core::count::counted;
 use gpui::Context;
 
@@ -151,10 +153,19 @@ impl AppState {
     /// Fetch a catalog feed in the background.
     ///
     /// A feed already loading is left alone, so repeated clicks do not multiply
-    /// requests. The search feed is refused here: it has no catalog endpoint, and
-    /// silently fetching the wrong one would be a bug with no symptom.
+    /// requests. The stock feed is a search with no catalog endpoint and is left
+    /// alone too.
     pub fn fetch_feed(&mut self, feed: CloudFeed, cx: &mut Context<Self>) {
-        if feed.is_search() || self.feed(feed) == FeedState::Loading {
+        let fetch: fn(&CloudClient) -> Result<CatalogResponse, CloudError> = match feed {
+            CloudFeed::Stock => return,
+            CloudFeed::Templates => CloudClient::templates,
+            CloudFeed::Sfx => CloudClient::sfx,
+            CloudFeed::Luts => CloudClient::luts,
+            CloudFeed::TextPresets => CloudClient::text_presets,
+            CloudFeed::Skills => CloudClient::skills,
+            CloudFeed::Lottie => CloudClient::lottie,
+        };
+        if self.feed(feed) == FeedState::Loading {
             return;
         }
         self.cloud_feeds.insert(feed, FeedState::Loading);
@@ -163,15 +174,7 @@ impl AppState {
             let fetched = crate::handoff::on_a_thread(
                 cx.background_executor(),
                 "aria-cloud-feed",
-                move || match feed {
-                    CloudFeed::Templates => client.templates(),
-                    CloudFeed::Sfx => client.sfx(),
-                    CloudFeed::Luts => client.luts(),
-                    CloudFeed::TextPresets => client.text_presets(),
-                    CloudFeed::Skills => client.skills(),
-                    CloudFeed::Lottie => client.lottie(),
-                    CloudFeed::Stock => unreachable!("refused above"),
-                },
+                move || fetch(&client),
             )
             .await;
             let _ = this.update(cx, |state, _| {
