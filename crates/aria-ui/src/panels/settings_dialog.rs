@@ -38,7 +38,7 @@ use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
 use crate::theme::Theme;
 
-use widgets::{chip_row, choice_row, group_divider, kv, section};
+use widgets::{chip_row, choice_row, group_divider, kv};
 
 pub fn render(
     state: &Entity<AppState>,
@@ -149,7 +149,7 @@ pub fn render(
     );
     let mut body = div().flex().flex_col().gap(px(Theme::SPACE_MD));
     for (title, rows) in visible {
-        body = body.child(section(&theme, title, rows));
+        body = body.child(crate::card::card(&theme, title).children(rows));
     }
     let body = body.when(!matched, |el| {
         el.child(kv(&theme, "No section", "Nothing matches that filter"))

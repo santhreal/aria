@@ -1156,6 +1156,7 @@ Notes for the latest release. For previous releases, see the
 - A double-click on a Project panel title, shape, sticker, generator, animation, mask, transition, clip type or stock result places or applies it once instead of twice.
 - Placing a title, shape, sticker or generator that needs a new lane is one undo step named after the placement instead of two steps, the first named `Add track`.
 - Scroll the timeline video side to show newly added visual tracks and keep a track's header in view when its clip property rows or collapse state toggle.
+- Settings section titles and AI tools group titles draw in the heading weight and color instead of the dimmed tone of a disabled control.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -75,26 +75,11 @@ pub fn render(
 /// prettier one invented here, so a refusal that names a group and this list
 /// name the same thing.
 fn group_block(theme: &Theme, name: &SharedString, tools: &[SharedString]) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .p(px(Theme::SPACE_SM))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(theme.surface_raised)
-        .border_1()
-        .border_color(theme.border)
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .text_color(theme.text_faint)
-                .child(SharedString::from(format!("{name} · {}", tools.len()))),
-        )
-        .children(tools.iter().map(|tool| {
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(tool.clone())
-        }))
+    let rows = tools.iter().map(|tool| {
+        div()
+            .text_size(Theme::TEXT_TITLE)
+            .text_color(theme.text_muted)
+            .child(tool.clone())
+    });
+    crate::card::card(theme, format!("{name} · {}", tools.len())).children(rows)
 }

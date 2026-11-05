@@ -14,6 +14,7 @@ use aria_plugin::PluginContext;
 pub mod app;
 pub mod appearance;
 pub mod audio;
+pub(crate) mod card;
 pub mod catalog_text;
 pub mod chrome;
 pub mod cloud;
