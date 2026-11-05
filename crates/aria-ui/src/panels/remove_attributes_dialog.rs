@@ -9,7 +9,7 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_row};
 use crate::components::{self, ChipSize};
 use crate::theme::Theme;
 
@@ -84,14 +84,14 @@ pub fn render(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
                 .child(format!(
                     "Return the lit attributes of {} to their defaults, keyframes included.",
                     counted(clips, "clip", "clips")
                 )),
         )
-        .child(toggles);
+        .child(setting_row(&theme, "Attributes", toggles.min_w_0()));
     let body = DialogBody::new(body).action(cancel).action(apply);
     dialog_surface(
         "remove-attributes",

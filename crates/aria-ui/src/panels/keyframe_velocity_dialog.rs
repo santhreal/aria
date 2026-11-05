@@ -14,7 +14,7 @@ use crate::app::animation_verbs::{INFLUENCE_PERCENT_SPAN, KeyframeVelocityForm, 
 use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_heading, setting_row, toggle_row};
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{self, Look};
@@ -36,34 +36,30 @@ fn side_id(side: VelocitySide) -> &'static str {
     }
 }
 
-/// A label and a readout in one row, laid out as
-/// [`components::readout`] lays out a fixed value: the label at the left in
-/// `text_muted`, the number at the right edge.
+/// A label and, beside it, a readout over its preset chips, in one setting row.
 fn number_row(
     theme: &Theme,
     state: &Entity<AppState>,
     label: &'static str,
     target: ScrubTarget,
     text: impl Into<SharedString>,
+    presets: impl IntoElement,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Div {
     let look = Look {
         size: Theme::TEXT_UI,
         ink: theme.value,
     };
-    div()
-        .flex()
-        .flex_row()
-        .flex_wrap()
-        .gap_x(px(Theme::SPACE_SM))
-        .text_size(Theme::TEXT_UI)
-        .child(div().max_w_full().text_color(theme.text_muted).child(label))
-        .child(
-            div()
-                .ml_auto()
-                .max_w_full()
-                .child(value_readout::readout(theme, state, target, text, look, cx)),
-        )
+    setting_row(
+        theme,
+        label,
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(Theme::SPACE_XS))
+            .child(value_readout::readout(theme, state, target, text, look, cx))
+            .child(presets),
+    )
 }
 
 fn side_block(
@@ -137,6 +133,7 @@ fn side_block(
             },
         },
         format!("{speed:.2} {}", form.unit),
+        speed_presets,
         cx,
     );
     let units = Units::INFLUENCE;
@@ -157,6 +154,7 @@ fn side_block(
             },
         },
         form.influence_label(side),
+        influence_presets,
         cx,
     );
 
@@ -164,19 +162,15 @@ fn side_block(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(match side {
-                    VelocitySide::Incoming => "Incoming Velocity",
-                    VelocitySide::Outgoing => "Outgoing Velocity",
-                }),
-        )
+        .child(setting_heading(
+            theme,
+            match side {
+                VelocitySide::Incoming => "Incoming Velocity",
+                VelocitySide::Outgoing => "Outgoing Velocity",
+            },
+        ))
         .child(speed_row)
-        .child(speed_presets)
         .child(influence_row)
-        .child(influence_presets)
 }
 
 pub fn render(
@@ -203,15 +197,6 @@ pub fn render(
             cx.notify();
         }),
     );
-    let continuous = toggle_row(
-        &theme,
-        "keyframe-velocity-continuous",
-        "Continuous",
-        form.continuous,
-        AppState::toggle_keyframe_velocity_continuous,
-        cx,
-    );
-
     let count = form.targets.len();
     let mut content = div()
         .flex()
@@ -219,17 +204,24 @@ pub fn render(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(counted(count, "keyframe", "keyframes").to_string()),
         )
         .child(side_block(VelocitySide::Incoming, &form, &theme, state, cx))
         .child(side_block(VelocitySide::Outgoing, &form, &theme, state, cx))
-        .child(continuous);
+        .child(toggle_row(
+            &theme,
+            "keyframe-velocity-continuous",
+            "Continuous",
+            form.continuous,
+            AppState::toggle_keyframe_velocity_continuous,
+            cx,
+        ));
     if let Some(err) = form.error {
         content = content.child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(err),
         );

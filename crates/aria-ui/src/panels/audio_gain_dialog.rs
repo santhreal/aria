@@ -12,7 +12,7 @@ use gpui::{
 use crate::app::clip_ops::AudioGainMode;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, write_number};
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_row};
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{self, Look};
@@ -167,7 +167,7 @@ pub fn render(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(peak_text),
         )
@@ -177,25 +177,14 @@ pub fn render(
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_TITLE)
-                                .text_color(theme.text_muted)
-                                .child(form.mode.quantity()),
-                        )
-                        .child(value),
-                )
+                .child(setting_row(&theme, form.mode.quantity(), value))
                 .child(preset_row),
         );
 
     if let Some(err) = form.error {
         content = content.child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(err),
         );

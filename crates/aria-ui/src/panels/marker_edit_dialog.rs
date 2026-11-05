@@ -8,7 +8,7 @@ use gpui::{
 };
 
 use crate::app::{AppState, DialogKind, MarkerEditField};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_row};
 use crate::components::{self, ChipSize};
 use crate::swatch;
 use crate::theme::Theme;
@@ -67,44 +67,34 @@ pub fn render(
                 )
                 .with_tip(crate::tooltip::text_builder(color.label()))
         });
-    let color_row = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child("Color"),
-        )
-        .child(
-            div()
-                .debug_selector(|| "marker-edit-colors".into())
-                .flex()
-                .items_center()
-                .gap(px(Theme::SPACE_XS))
-                .children(swatches)
-                .child(
-                    div()
-                        .pl(px(Theme::SPACE_XS))
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text)
-                        .child(form.color.label()),
-                ),
-        );
+    let color_row = setting_row(
+        &theme,
+        "Color",
+        div()
+            .debug_selector(|| "marker-edit-colors".into())
+            .min_h(px(Theme::CONTROL_HEIGHT))
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_XS))
+            .children(swatches)
+            .child(
+                div()
+                    .pl(px(Theme::SPACE_XS))
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text)
+                    .child(form.color.label()),
+            ),
+    );
 
-    let kind_row = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child("Kind"),
-        )
-        .child(div().flex().wraps().gap(px(Theme::SPACE_XS)).children(
-            MarkerKind::ALL.into_iter().map(|kind| {
+    let kind_row = setting_row(
+        &theme,
+        "Kind",
+        div()
+            .min_w_0()
+            .flex()
+            .wraps()
+            .gap(px(Theme::SPACE_XS))
+            .children(MarkerKind::ALL.into_iter().map(|kind| {
                 let active = form.kind == kind;
                 let id = match kind {
                     MarkerKind::Comment => "marker-edit-kind-comment",
@@ -126,8 +116,8 @@ pub fn render(
                         cx.notify();
                     }),
                 )
-            }),
-        ));
+            })),
+    );
 
     let mut content = div()
         .flex()
@@ -140,7 +130,7 @@ pub fn render(
     if let Some(err) = form.error {
         content = content.child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(err),
         );
@@ -163,36 +153,29 @@ fn field_row(
     focused: bool,
     theme: &Theme,
     cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
+) -> gpui::Div {
     let (label, placeholder) = field.caption();
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XXS))
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(label),
+    setting_row(
+        theme,
+        label,
+        components::text_box(
+            ("marker-edit-field", label),
+            value,
+            placeholder,
+            value.editing(focused),
+            theme,
         )
-        .child(
-            components::text_box(
-                ("marker-edit-field", label),
-                value,
-                placeholder,
-                value.editing(focused),
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.focus_marker_edit_field(Some(field)));
-                    cx.notify();
-                }),
-            ),
-        )
-        .into_any_element()
+        .debug_selector(move || format!("marker-edit-field-{label}"))
+        .flex_1()
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| state.focus_marker_edit_field(Some(field)));
+                cx.notify();
+            }),
+        ),
+    )
 }
 
 #[cfg(test)]

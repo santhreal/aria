@@ -1,7 +1,7 @@
 //! Every dialog card fits the window it is drawn in, every dialog title is in
-//! Title Case, every line a dialog draws starts in sentence case, and the
-//! Audio Gain dialog draws each line once in every mode.
-//!
+//! Title Case, every line a dialog draws starts in sentence case, the Audio
+//! Gain dialog draws each line once in every mode, and every dialog setting
+//! row stands its label and its value on one grid.
 //! The class closed here: a card as tall as its body. A body taller than the
 //! window put the title, the header controls and the action row outside the
 //! window, where no pointer reaches them and no scroll brings them back.
@@ -18,15 +18,20 @@
 
 use std::collections::HashSet;
 
+use aria_commands::{Command, EditCommand};
+use aria_models::{ClipId, ClipParam, ParamValue};
 use gpui::{Bounds, Pixels, Size, TestAppContext, VisualTestContext, point, px, size};
 
+use super::{LABEL_WIDTH, drawn_setting_rows, record_setting_rows};
 use crate::app::DialogKind;
 use crate::app::clip_ops::AudioGainMode;
 use crate::app::status::lowercase_start;
 use crate::commands::casing_tests::check_title_case;
+use crate::components::noted::{NotingControls, drawn_controls, record_controls};
+use crate::interned::intern;
 use crate::plugins::overlay_host::host_of;
 use crate::test_support::{bounds_inside, drawn_shell, project_text, select_a_still};
-
+use crate::theme::Theme;
 /// A window narrower and shorter than a dialog card.
 const SHORT: Size<Pixels> = size(px(480.), px(320.));
 
@@ -208,6 +213,358 @@ fn the_audio_gain_dialog_draws_each_line_once_in_every_mode(cx: &mut TestAppCont
         }
     }
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+/// The setting rows `kind` draws, in draw order. Matched exhaustively over
+/// [`DialogKind`] so a new dialog does not compile until its rows are stated.
+fn setting_rows(kind: DialogKind) -> &'static [&'static str] {
+    match kind {
+        DialogKind::Export => &[
+            "Destination",
+            "Format",
+            "Encoder",
+            "Scale",
+            "Size",
+            "Frame rate",
+            "Codec",
+            "Bitrate",
+            "Keyframes",
+            "Audio",
+            "Range",
+        ],
+        DialogKind::SpeedDuration => {
+            &["Speed", "Duration", "Reverse Speed", "Maintain Audio Pitch"]
+        }
+        DialogKind::AudioGain => &["Gain"],
+        DialogKind::MarkerEdit => &["Name", "Comment", "Duration (timecode)", "Color", "Kind"],
+        DialogKind::RemoveAttributes => &["Attributes"],
+        DialogKind::KeyframeVelocity => &["Speed", "Influence", "Speed", "Influence", "Continuous"],
+        DialogKind::None
+        | DialogKind::Settings
+        | DialogKind::Palette
+        | DialogKind::Jobs
+        | DialogKind::ProjectReport
+        | DialogKind::MediaSupport
+        | DialogKind::TimelineReport
+        | DialogKind::UnsavedChanges
+        | DialogKind::InstallPlugin
+        | DialogKind::About
+        | DialogKind::Plugin(_) => &[],
+    }
+}
+
+/// WHY: Each setting-row dialog built its own row layout, so Export stood its
+/// values beside a 72 px label column while Speed/Duration, Audio Gain, Edit
+/// Marker, Remove Attributes, Keyframe Velocity and `toggle_row` pushed their
+/// values or switches to the far edge of the card or stacked them under
+/// title-sized labels.
+///
+/// Walks every registered [`DialogKind`], matched exhaustively by
+/// [`setting_rows`], plus every [`AudioGainMode`], and checks the drawn frame:
+/// every setting row is built through [`super::setting_row`], every dialog's
+/// label column has width [`LABEL_WIDTH`] starting on the dialog title's left
+/// edge, and every row's value or control starts at the same x beside the
+/// label column. Does not catch pixel colors or font rasterization, which the
+/// test text system lays out at fixed glyph advance.
+#[gpui::test]
+fn every_setting_row_dialog_stands_its_labels_and_values_on_one_grid(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    aria_encoder::available_codecs();
+    let (state, visual) = drawn_shell(cx, "dialog-setting-rows");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            select_a_still(state);
+            let clip = ClipId::from_raw(state.store.selection[0]);
+            state
+                .apply_command(Command::Edit(EditCommand::SetParamConstant {
+                    clip,
+                    param: ClipParam::Opacity,
+                    value: ParamValue::Scalar(0.5),
+                }))
+                .expect("opacity lands on the selected clip");
+            state.sync_from_engine();
+            state.select_clip(clip);
+            state.open_remove_attributes();
+            state.add_marker_at_playhead().expect("a marker lands");
+            let marker = state.store.sequence.markers[0].id;
+            assert!(state.open_marker_edit(marker), "the marker's dialog opens");
+            state.open_dialog(DialogKind::None);
+        })
+    });
+    let behind = runs_behind(visual);
+    let _noting = NotingControls::start();
+    let mut checked_dialogs = 0usize;
+    let mut first_dialog_label_width: Option<Pixels> = None;
+    let mut offenders = Vec::new();
+
+    for kind in registered(&state, visual) {
+        let expected = setting_rows(kind);
+        open(&state, visual, kind);
+        check_setting_rows_frame(
+            &format!("{kind:?}"),
+            kind,
+            expected,
+            &behind,
+            visual,
+            &mut checked_dialogs,
+            &mut first_dialog_label_width,
+            &mut offenders,
+        );
+        if kind == DialogKind::AudioGain {
+            for mode in AudioGainMode::ALL {
+                visual.update(|_, app| {
+                    state.update(app, |state, cx| {
+                        state.set_audio_gain_mode(mode);
+                        cx.notify();
+                    })
+                });
+                visual.run_until_parked();
+                let mode_expected = [mode.quantity()];
+                check_setting_rows_frame(
+                    &format!("{kind:?}({mode:?})"),
+                    kind,
+                    &mode_expected,
+                    &behind,
+                    visual,
+                    &mut checked_dialogs,
+                    &mut first_dialog_label_width,
+                    &mut offenders,
+                );
+            }
+        }
+    }
+    assert!(
+        checked_dialogs >= 9,
+        "expected all six setting-row dialogs and four Audio Gain modes, checked {checked_dialogs}"
+    );
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_setting_rows_frame(
+    scope: &str,
+    kind: DialogKind,
+    expected: &[&'static str],
+    behind: &HashSet<(String, u32, u32)>,
+    visual: &mut VisualTestContext,
+    checked_dialogs: &mut usize,
+    first_dialog_label_width: &mut Option<Pixels>,
+    offenders: &mut Vec<String>,
+) {
+    const EPS: f32 = 0.51;
+    record_setting_rows();
+    record_controls();
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    let drawn = drawn_setting_rows();
+    let (controls, _) = drawn_controls();
+
+    if expected.is_empty() {
+        if !drawn.is_empty() {
+            offenders.push(format!(
+                "{scope}: drew setting rows {drawn:?} without listing them in setting_rows"
+            ));
+        }
+        return;
+    }
+    *checked_dialogs += 1;
+
+    if kind == DialogKind::Export {
+        let filtered: Vec<&'static str> = expected
+            .iter()
+            .copied()
+            .filter(|label| drawn.contains(label))
+            .collect();
+        if drawn.len() < 9 || drawn != filtered {
+            offenders.push(format!(
+                "{scope}: drew setting rows {drawn:?}, expected at least 9 in-order rows from {expected:?}"
+            ));
+            return;
+        }
+    } else if drawn != expected {
+        offenders.push(format!(
+            "{scope}: drew setting rows {drawn:?}, expected {expected:?}"
+        ));
+        return;
+    }
+
+    let Some(card) = visual.debug_bounds("dialog-card") else {
+        offenders.push(format!("{scope}: drew no dialog-card"));
+        return;
+    };
+    let Some(title) = visual.debug_bounds("dialog-title") else {
+        offenders.push(format!("{scope}: drew no dialog-title"));
+        return;
+    };
+
+    let runs: Vec<gpui::TextRunLayout> = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .filter(|run| {
+                let c = run.bounds.center();
+                c.x >= card.left() && c.x <= card.right() && c.y >= card.top()
+            })
+            .filter(|run| !behind.contains(&placed(run)))
+            .cloned()
+            .collect()
+    });
+
+    let mut control_boxes: Vec<Bounds<Pixels>> = controls
+        .iter()
+        .filter_map(|control| visual.debug_bounds(intern(&control.selector)))
+        .collect();
+    for extra in [
+        "speed-duration-reverse",
+        "speed-duration-pitch",
+        "keyframe-velocity-continuous",
+        "marker-edit-colors",
+        "marker-edit-field-Name",
+        "marker-edit-field-Comment",
+        "marker-edit-field-Duration (timecode)",
+    ] {
+        if let Some(bounds) = visual.debug_bounds(extra) {
+            control_boxes.push(bounds);
+        }
+    }
+
+    let expected_value_x = title.left() + px(LABEL_WIDTH + Theme::SPACE_MD);
+    let mut first_value_x: Option<Pixels> = None;
+    let mut unique_labels: Vec<&'static str> = Vec::new();
+    for &label in &drawn {
+        if !unique_labels.contains(&label) {
+            unique_labels.push(label);
+        }
+    }
+
+    for label in unique_labels {
+        if visual
+            .debug_bounds(intern(&format!("dialog-setting-{label}")))
+            .is_none()
+        {
+            offenders.push(format!("{scope}: missing dialog-setting-{label}"));
+            continue;
+        }
+        let Some(label_bounds) = visual.debug_bounds(intern(&format!("dialog-label-{label}")))
+        else {
+            offenders.push(format!("{scope}: missing dialog-label-{label}"));
+            continue;
+        };
+        if (label_bounds.left() - title.left()).abs() >= px(EPS) {
+            offenders.push(format!(
+                "{scope} `{label}`: label starts at {:?}, title at {:?}",
+                label_bounds.left(),
+                title.left()
+            ));
+        }
+        if (label_bounds.size.width - px(LABEL_WIDTH)).abs() >= px(EPS) {
+            offenders.push(format!(
+                "{scope} `{label}`: label width is {:?}, expected {:?}",
+                label_bounds.size.width,
+                px(LABEL_WIDTH)
+            ));
+        }
+        let ref_width = *first_dialog_label_width.get_or_insert(label_bounds.size.width);
+        if (label_bounds.size.width - ref_width).abs() >= px(EPS) {
+            offenders.push(format!(
+                "{scope} `{label}`: label width {:?} differs from first dialog label width {ref_width:?}",
+                label_bounds.size.width
+            ));
+        }
+
+        let count = drawn.iter().filter(|&&each| each == label).count();
+        let mut label_runs: Vec<&gpui::TextRunLayout> = runs
+            .iter()
+            .filter(|run| {
+                run.text.as_ref() == label && (run.bounds.left() - title.left()).abs() < px(EPS)
+            })
+            .collect();
+        label_runs.sort_by(|a, b| a.bounds.top().partial_cmp(&b.bounds.top()).unwrap());
+        if label_runs.len() != count {
+            offenders.push(format!(
+                "{scope} `{label}`: expected {count} label text runs at {:?}, found {}",
+                title.left(),
+                label_runs.len()
+            ));
+            continue;
+        }
+
+        for (idx, label_run) in label_runs.into_iter().enumerate() {
+            let y = label_run.bounds.center().y;
+            let on_line = |b: &Bounds<Pixels>| {
+                (b.center().y - y).abs() < px(Theme::CONTROL_HEIGHT * 0.5)
+                    && b.left() > label_bounds.right() - px(Theme::SPACE_SM + EPS)
+            };
+            let box_x = (kind != DialogKind::Export)
+                .then(|| {
+                    control_boxes
+                        .iter()
+                        .filter(|b| on_line(b))
+                        .map(Bounds::left)
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                })
+                .flatten();
+            let text_x = runs
+                .iter()
+                .filter(|run| on_line(&run.bounds))
+                .map(|run| run.bounds.left())
+                .min_by(|a, b| a.partial_cmp(b).unwrap());
+            let Some(value_x) = box_x.or(text_x) else {
+                offenders.push(format!(
+                    "{scope} `{label}` #{idx}: found no value or control on its line"
+                ));
+                continue;
+            };
+            let first_x = *first_value_x.get_or_insert(value_x);
+            if (value_x - first_x).abs() >= px(EPS) {
+                offenders.push(format!(
+                    "{scope} `{label}` #{idx}: value starts at {value_x:?}, first row at {first_x:?}"
+                ));
+            }
+            if (value_x - expected_value_x).abs() >= px(EPS) {
+                offenders.push(format!(
+                    "{scope} `{label}` #{idx}: value starts at {value_x:?}, expected {expected_value_x:?}"
+                ));
+            }
+        }
+    }
+
+    // Text between the first setting row and the last belongs to a row or to a
+    // heading over a group of rows: it is a row's label in the label column, a
+    // part of a value beside it, or a `setting_heading`, never a line hung in
+    // the label column, such as a value's presets under it.
+    let is_label = |run: &gpui::TextRunLayout| {
+        drawn.iter().any(|label| *label == run.text.as_ref())
+            && (run.bounds.left() - title.left()).abs() < px(EPS)
+    };
+    let label_tops = || {
+        runs.iter()
+            .filter(|run| is_label(run))
+            .map(|run| run.bounds.top())
+    };
+    let (Some(first), Some(last)) = (
+        label_tops().min_by(|a, b| a.partial_cmp(b).unwrap()),
+        label_tops().max_by(|a, b| a.partial_cmp(b).unwrap()),
+    ) else {
+        return;
+    };
+    for run in runs.iter().filter(|run| !is_label(run)) {
+        let heading = visual
+            .debug_bounds(intern(&format!("dialog-heading-{}", run.text)))
+            .is_some_and(|bounds| bounds.contains(&run.bounds.center()));
+        if heading {
+            continue;
+        }
+        let top = run.bounds.top();
+        if top >= first && top <= last && run.bounds.left() < expected_value_x - px(EPS) {
+            offenders.push(format!(
+                "{scope}: `{}` starts at {:?}, in the label column left of {expected_value_x:?}",
+                run.text,
+                run.bounds.left()
+            ));
+        }
+    }
 }
 
 /// Every run on a frame drawn with no dialog open, by text and place.

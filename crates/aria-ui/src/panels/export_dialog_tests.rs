@@ -83,7 +83,7 @@ fn every_export_row_stands_on_one_grid(cx: &mut TestAppContext) {
         .iter()
         .filter_map(|&label| {
             visual
-                .debug_bounds(intern(&format!("export-line-{label}")))
+                .debug_bounds(intern(&format!("dialog-setting-{label}")))
                 .map(|bounds| (label, bounds))
         })
         .collect();
@@ -313,7 +313,7 @@ fn a_row_draws_its_label_and_choices_and_the_size_fact_follows_the_scale(cx: &mu
     let runs = sheet_runs(visual);
     let mut read = 0;
     for label in LABELS {
-        let Some(line) = visual.debug_bounds(intern(&format!("export-line-{label}"))) else {
+        let Some(line) = visual.debug_bounds(intern(&format!("dialog-setting-{label}"))) else {
             continue;
         };
         read += 1;
@@ -417,7 +417,7 @@ fn the_format_chips_select_the_encoder(cx: &mut TestAppContext) {
     for gone in ["Codec", "Bitrate", "Audio"] {
         assert!(
             visual
-                .debug_bounds(intern(&format!("export-line-{gone}")))
+                .debug_bounds(intern(&format!("dialog-setting-{gone}")))
                 .is_none(),
             "the {gone} row stays drawn for an encoder it does not govern"
         );
@@ -429,7 +429,7 @@ fn the_format_chips_select_the_encoder(cx: &mut TestAppContext) {
         None
     );
     assert!(
-        visual.debug_bounds("export-line-Codec").is_some(),
+        visual.debug_bounds("dialog-setting-Codec").is_some(),
         "the platform encoder's Codec row returns"
     );
 }

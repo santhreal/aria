@@ -164,8 +164,8 @@ estimated file size, and either exports now or queues. Formats come from
 encoder plugin contributions. The shipped set is H.264, HEVC, ProRes on macOS,
 AV1 where the platform encoder exists, image sequences (PNG, TIFF, EXR), WAV,
 and AAC; exporters for EDL, FCPXML, and OTIO export the timeline itself. Each
-setting is one 22 px row with its label at the left and its value at the right;
-a click on a setting's row steps to its next value.
+setting is one row with its label in the left column and its choices or value
+beside the label; a click on a choice chip selects that value.
 
 ## Plugins
 

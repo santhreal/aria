@@ -13,7 +13,7 @@ use crate::app::clip_ops::SPEED_PERCENT_SPAN;
 use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_row, toggle_row};
 use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{self, Look};
@@ -87,23 +87,6 @@ pub fn render(
                 )
             }));
 
-    let reverse = toggle_row(
-        &theme,
-        "speed-duration-reverse",
-        "Reverse Speed",
-        form.reverse,
-        AppState::toggle_speed_duration_reverse,
-        cx,
-    );
-    let pitch = toggle_row(
-        &theme,
-        "speed-duration-pitch",
-        "Maintain Audio Pitch",
-        form.preserve_pitch,
-        AppState::toggle_speed_duration_preserve_pitch,
-        cx,
-    );
-
     let units = Units::SPEED;
     let speed = value_readout::readout(
         &theme,
@@ -159,67 +142,63 @@ pub fn render(
         .gap(px(Theme::SPACE_MD))
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
                 .child(counted(selected_count, "selected clip", "selected clips").to_string()),
         )
-        .child(
+        .child(setting_row(
+            &theme,
+            "Speed",
             div()
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_TITLE)
-                                .text_color(theme.text_muted)
-                                .child("Speed"),
-                        )
-                        .child(speed),
-                )
+                .child(speed)
                 .child(speed_presets),
-        )
-        .child(
+        ))
+        .child(setting_row(
+            &theme,
+            "Duration",
             div()
                 .flex()
-                .justify_between()
+                .items_center()
+                .gap(px(Theme::SPACE_XS))
+                .child(duration)
                 .child(
                     div()
-                        .text_size(Theme::TEXT_TITLE)
+                        .text_size(Theme::TEXT_UI)
                         .text_color(theme.text_muted)
-                        .child("Duration"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_baseline()
-                        .gap(px(Theme::SPACE_XS))
-                        .child(duration)
-                        .child(
-                            div()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text_muted)
-                                .font_features(crate::theme::tabular_figures())
-                                .child(counted(form.duration_ticks, "frame", "frames").to_string()),
-                        ),
+                        .font_features(crate::theme::tabular_figures())
+                        .child(counted(form.duration_ticks, "frame", "frames").to_string()),
                 ),
-        )
+        ))
         .child(
             div()
                 .flex()
                 .flex_col()
                 .gap(px(Theme::SPACE_XS))
-                .child(reverse)
-                .child(pitch),
+                .child(toggle_row(
+                    &theme,
+                    "speed-duration-reverse",
+                    "Reverse Speed",
+                    form.reverse,
+                    AppState::toggle_speed_duration_reverse,
+                    cx,
+                ))
+                .child(toggle_row(
+                    &theme,
+                    "speed-duration-pitch",
+                    "Maintain Audio Pitch",
+                    form.preserve_pitch,
+                    AppState::toggle_speed_duration_preserve_pitch,
+                    cx,
+                )),
         );
 
     if let Some(err) = form.error {
         content = content.child(
             div()
-                .text_size(Theme::TEXT_TITLE)
+                .text_size(Theme::TEXT_UI)
                 .text_color(theme.danger)
                 .child(err),
         );

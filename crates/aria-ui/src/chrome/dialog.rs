@@ -28,7 +28,36 @@ mod dialog_tests;
 
 /// Width of a dialog card. One number, so a dialog opened over another lands on
 /// the same edges instead of resizing under the pointer.
-const DIALOG_WIDTH: f32 = 480.0;
+const DIALOG_WIDTH: f32 = 528.0;
+
+/// Width of the label column in [`setting_row`]. The widest label, Maintain
+/// Audio Pitch, measures 106.5 px at [`Theme::TEXT_UI`].
+pub(crate) const LABEL_WIDTH: f32 = 120.0;
+
+#[cfg(test)]
+thread_local! {
+    static SETTING_ROWS: std::cell::RefCell<Option<Vec<&'static str>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn record_setting_row(label: &'static str) {
+    SETTING_ROWS.with_borrow_mut(|rows| {
+        if let Some(rows) = rows {
+            rows.push(label);
+        }
+    });
+}
+
+#[cfg(test)]
+pub(super) fn record_setting_rows() {
+    SETTING_ROWS.set(Some(Vec::new()));
+}
+
+#[cfg(test)]
+pub(super) fn drawn_setting_rows() -> Vec<&'static str> {
+    SETTING_ROWS.with_borrow_mut(|rows| rows.take().unwrap_or_default())
+}
 
 /// Space kept clear between a card and each window edge. A window smaller than
 /// the card plus this margin shrinks the card; the margin stays.
@@ -123,9 +152,40 @@ pub fn dialog_surface(
     dialog_layer(id, title, exit, cx, body)
 }
 
-/// A dialog's line for one setting that is on or off: `label` at the left, as
-/// a dialog's section headings stand, and the switch `id`, on for `on`, at
-/// the right. A press runs `toggle`.
+/// One setting row in a dialog body: `label` in a `LABEL_WIDTH` column on
+/// one line, then `value` beside it.
+pub fn setting_row(theme: &Theme, label: &'static str, value: impl IntoElement) -> Div {
+    #[cfg(test)]
+    record_setting_row(label);
+    div()
+        .debug_selector(move || format!("dialog-setting-{label}"))
+        .flex()
+        .flex_row()
+        .items_start()
+        .gap(px(Theme::SPACE_MD))
+        .line_height(px(Theme::CONTROL_HEIGHT))
+        .child(
+            crate::components::row_label(theme, label, LABEL_WIDTH)
+                .debug_selector(move || format!("dialog-label-{label}"))
+                .line_height(px(Theme::CONTROL_HEIGHT))
+                .whitespace_nowrap(),
+        )
+        .child(value)
+}
+
+/// A heading over a group of [`setting_row`]s, on the label column's left
+/// edge.
+pub fn setting_heading(theme: &Theme, text: &'static str) -> Div {
+    div()
+        .debug_selector(move || format!("dialog-heading-{text}"))
+        .text_size(Theme::TEXT_UI)
+        .text_color(theme.text_muted)
+        .child(text)
+}
+
+/// One boolean setting row in a dialog body: `label` in the [`setting_row`]
+/// label column and the switch `id`, on for `on`, beside it. A press runs
+/// `toggle`.
 pub fn toggle_row(
     theme: &Theme,
     id: &'static str,
@@ -134,27 +194,25 @@ pub fn toggle_row(
     toggle: fn(&mut AppState),
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Div {
-    div()
-        .flex()
-        .justify_between()
-        .items_center()
-        .child(
-            div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_muted)
-                .child(label),
-        )
-        .child(
-            crate::components::switch(id, Some(on), theme)
-                .debug_selector(|| id.to_owned())
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| toggle(state));
-                        cx.notify();
-                    }),
-                ),
-        )
+    setting_row(
+        theme,
+        label,
+        div()
+            .h(px(Theme::CONTROL_HEIGHT))
+            .flex()
+            .items_center()
+            .child(
+                crate::components::switch(id, Some(on), theme)
+                    .debug_selector(|| id.to_owned())
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| toggle(state));
+                            cx.notify();
+                        }),
+                    ),
+            ),
+    )
 }
 
 /// The scrim and the frosted card for a dialog that is `exit` of the way

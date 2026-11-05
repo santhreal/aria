@@ -15,15 +15,11 @@ use crate::app::export_options::{
     AUDIO_CHOICES, ExportBitrate, ExportGop, ExportRate, ExportScale, WHOLE_TIMELINE,
 };
 use crate::app::{AppState, DialogKind};
-use crate::chrome::dialog::{DialogBody, dialog_surface};
+use crate::chrome::dialog::{DialogBody, dialog_surface, setting_row};
 use crate::components::Wraps as _;
 use crate::components::{self, ChipSize};
 use crate::motion;
 use crate::theme::Theme;
-
-/// Width of the label column. The widest label, Destination, measures 58.5 px
-/// at [`Theme::TEXT_UI`].
-pub(crate) const LABEL_WIDTH: f32 = 72.0;
 
 /// The chip every choice is drawn as.
 const CHIP: ChipSize = ChipSize::Regular;
@@ -98,7 +94,7 @@ pub fn render(
     // the picture, the encoding, the sound and the span.
     let mut rows: Vec<gpui::Div> = vec![fact(&theme, "Destination", dest_label)];
     rows.push(if format_choices.len() > 1 {
-        line(
+        setting_row(
             &theme,
             "Format",
             chip_line(
@@ -117,7 +113,7 @@ pub fn render(
         fact(&theme, "Format", label)
     });
     rows.push(fact(&theme, "Encoder", encoder_label));
-    rows.push(line(
+    rows.push(setting_row(
         &theme,
         "Scale",
         chip_line(
@@ -133,7 +129,7 @@ pub fn render(
     // the chips that set it: muted text after the Scale chips reads as one
     // more chip.
     rows.push(fact(&theme, "Size", format!("{out_w}×{out_h}")));
-    rows.push(line(
+    rows.push(setting_row(
         &theme,
         "Frame rate",
         chip_line(
@@ -147,7 +143,7 @@ pub fn render(
     ));
     if show_codec_bitrate {
         rows.push(if codecs.len() > 1 {
-            line(
+            setting_row(
                 &theme,
                 "Codec",
                 chip_line(
@@ -165,7 +161,7 @@ pub fn render(
             fact(&theme, "Codec", options.codec.label().to_string())
         });
         rows.push(if encoder.bitrate {
-            line(
+            setting_row(
                 &theme,
                 "Bitrate",
                 chip_line(
@@ -181,7 +177,7 @@ pub fn render(
             fact(&theme, "Bitrate", format!("Set by {}", encoder.backend))
         });
     }
-    rows.push(line(
+    rows.push(setting_row(
         &theme,
         "Keyframes",
         chip_line(
@@ -194,7 +190,7 @@ pub fn render(
         ),
     ));
     if show_audio {
-        rows.push(line(
+        rows.push(setting_row(
             &theme,
             "Audio",
             chip_line(
@@ -209,7 +205,7 @@ pub fn render(
     }
     // The marked choice names the span it renders; with nothing marked, a
     // press on it reports how to mark one.
-    rows.push(line(
+    rows.push(setting_row(
         &theme,
         "Range",
         chip_line(
@@ -292,33 +288,12 @@ pub fn render(
     dialog_surface("export", DialogKind::Export, "Export", state, cx, body)
 }
 
-/// One row: `label` in the label column, on one line, then `value`.
-fn line(theme: &Theme, label: &'static str, value: impl IntoElement) -> gpui::Div {
-    div()
-        .debug_selector(move || format!("export-line-{label}"))
-        .flex()
-        .flex_row()
-        .items_start()
-        .gap(px(Theme::SPACE_MD))
-        .child(
-            div()
-                .flex_none()
-                .w(px(LABEL_WIDTH))
-                .line_height(px(CHIP.height()))
-                .whitespace_nowrap()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(label),
-        )
-        .child(value)
-}
-
 /// A setting with nothing to choose here, as one line of text a chip tall, so
 /// its text stands on the chips' line. A value wider than the card gives up
 /// its start, so a destination keeps its file name in view and an encoder its
 /// codec.
 fn fact(theme: &Theme, label: &'static str, value: String) -> gpui::Div {
-    line(
+    setting_row(
         theme,
         label,
         div()
