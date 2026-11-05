@@ -5,14 +5,14 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use aria_render::{EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary};
 use crossbeam_channel::{Receiver, Sender};
 use parking_lot::Mutex;
 
 use super::meters::LaneMeters;
-use super::scrub_grain_frames;
+use super::{SCRUB_GRAIN_MS, scrub_grain_frames};
 
 const MIX_FRAMES: usize = 1024;
 /// Block buffers the mix thread allocates once and the device callback recycles.
@@ -70,10 +70,16 @@ pub(super) fn feed_mixer(
     // times in a row is bypassed rather than starving the device.
     mixer.set_realtime(true);
     if let Some(slot) = scrub_slot {
+        let grain_dur = Duration::from_millis(u64::from(SCRUB_GRAIN_MS));
+        let mut silence_at: Option<Instant> = None;
         let mut grain = Vec::new();
         while !stop.load(Ordering::Acquire) {
             let _ = recycle.try_recv();
             let Some((tick, fps_num, fps_den)) = slot.lock().take() else {
+                if silence_at.is_some_and(|at| Instant::now() >= at) {
+                    meters.silence();
+                    silence_at = None;
+                }
                 thread::sleep(Duration::from_millis(4));
                 continue;
             };
@@ -82,6 +88,7 @@ pub(super) fn feed_mixer(
                 break;
             }
             meters.publish(mixer.lane_peaks());
+            silence_at = Some(Instant::now() + grain_dur);
             if tx.send(grain.clone()).is_err() {
                 break;
             }
@@ -171,102 +178,5 @@ pub(super) fn fill_output(
 }
 
 #[cfg(test)]
-mod tests {
-    use crossbeam_channel::bounded;
-
-    use super::*;
-
-    #[test]
-    fn consumed_mix_blocks_return_to_the_feeder_pool() {
-        let (tx, rx) = bounded(1);
-        let (recycle_tx, recycle_rx) = bounded(1);
-        let block = vec![0.25, -0.25, 0.5, -0.5];
-        let allocation = block.as_ptr();
-        tx.send(block).expect("queue block");
-        let mut pending = Vec::new();
-        let mut pending_at = 0;
-        let mut output = [0.0; 4];
-
-        fill_output(
-            &mut output,
-            2,
-            &rx,
-            &mut pending,
-            &mut pending_at,
-            &recycle_tx,
-        );
-        assert_eq!(output, [0.25, -0.25, 0.5, -0.5]);
-
-        fill_output(
-            &mut output,
-            2,
-            &rx,
-            &mut pending,
-            &mut pending_at,
-            &recycle_tx,
-        );
-        let returned = recycle_rx.try_recv().expect("block returned");
-        assert_eq!(
-            returned.as_ptr(),
-            allocation,
-            "the callback allocated a replacement block"
-        );
-    }
-
-    #[test]
-    fn fill_output_empty_receiver_underflow_zero_fills() {
-        let (_tx, rx) = bounded(1);
-        let (recycle_tx, _recycle_rx) = bounded(1);
-        let mut pending = Vec::new();
-        let mut pending_at = 0;
-        let mut output = [1.0f32; 8];
-
-        fill_output(
-            &mut output,
-            2,
-            &rx,
-            &mut pending,
-            &mut pending_at,
-            &recycle_tx,
-        );
-        assert_eq!(output, [0.0; 8]);
-    }
-
-    #[test]
-    fn fill_output_mono_and_multichannel_alignment() {
-        let (tx, rx) = bounded(1);
-        let (recycle_tx, _recycle_rx) = bounded(1);
-        let block = vec![0.3, -0.4, 0.7, -0.8]; // 2 stereo frames: (0.3, -0.4) and (0.7, -0.8)
-        tx.send(block).expect("send block");
-        let mut pending = Vec::new();
-        let mut pending_at = 0;
-
-        // Mono output (1 channel): reads left channel of each frame
-        let mut mono_out = [0.0f32; 2];
-        fill_output(
-            &mut mono_out,
-            1,
-            &rx,
-            &mut pending,
-            &mut pending_at,
-            &recycle_tx,
-        );
-        assert_eq!(mono_out, [0.3, 0.7]);
-
-        // 6-channel output (5.1): maps L/R to first two channels, zeros remaining
-        let (tx6, rx6) = bounded(1);
-        tx6.send(vec![0.5, -0.5]).expect("send stereo frame");
-        let mut pending6 = Vec::new();
-        let mut pending_at6 = 0;
-        let mut out6 = [9.0f32; 6];
-        fill_output(
-            &mut out6,
-            6,
-            &rx6,
-            &mut pending6,
-            &mut pending_at6,
-            &recycle_tx,
-        );
-        assert_eq!(out6, [0.5, -0.5, 0.0, 0.0, 0.0, 0.0]);
-    }
-}
+#[path = "feed_tests.rs"]
+mod tests;

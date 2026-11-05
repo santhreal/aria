@@ -1121,6 +1121,7 @@ Notes for the latest release. For previous releases, see the
 - A track header's menu offers **Hide Waveforms** only on audio tracks and **Hide Filmstrips** only on video tracks, and its **Add Track** adds an audio track from an audio or bus track instead of always adding a video track.
 - The Viewer's playhead timecode field displays, scrubs, and accepts typed timecodes and signed frame offsets for the focused Source tab at the take's own frame rate when a Source tab is in front.
 - The waveform in the Scopes panel and in the Viewer's scope strip draws the trace for black, which the bottom of the scope's frame cut off.
+- Audio Track Mixer strips fall to silence after a scrub once the 40 ms scrub grain finishes playing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

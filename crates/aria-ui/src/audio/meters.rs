@@ -42,6 +42,15 @@ impl LaneMeters {
         }
     }
 
+    /// Zero every lane's peak, so the strips fall on the repaint clock once a
+    /// scrub grain has finished playing. Takes no lock and allocates nothing.
+    pub fn silence(&self) {
+        for (_, slot) in &self.lanes {
+            slot[0].store(0, Ordering::Relaxed);
+            slot[1].store(0, Ordering::Relaxed);
+        }
+    }
+
     /// The lane's last peak, per channel. Silence for a lane the mix is not
     /// carrying, so a strip outside the mix draws no level rather than someone
     /// else's.
