@@ -420,6 +420,11 @@ impl FilmstripStore {
         out.append(&mut self.retired);
     }
 
+    /// Whether cells are queued waiting for the renderer.
+    pub(crate) fn has_queued(&self) -> bool {
+        !self.queue.is_empty()
+    }
+
     /// Store `cell` at `key` as rendered at the store's revision and landed.
     #[cfg(test)]
     pub(crate) fn hold(&mut self, key: CellKey, cell: Cell) {
@@ -508,12 +513,15 @@ pub fn ask(
 }
 
 /// Start the next queued cell when the renderer is free.
-fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
+pub(crate) fn pump(state: &mut AppState, cx: &mut Context<AppState>) {
     // The revision the drawn timeline was projected from. An engine edit not
     // yet projected reaches the store through `sync_from_engine`, which drops
     // what was rendered before it.
     let revision = state.revision;
     state.filmstrips.sync_revision(revision);
+    if state.initial_viewer_frame_pending() {
+        return;
+    }
     let Some((key, policy)) = state.filmstrips.next_flight() else {
         return;
     };

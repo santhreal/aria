@@ -63,6 +63,8 @@ struct SystemFonts {
 
 #[cfg(test)]
 static SYSTEM_FONT_SCANS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static FONT_SYSTEM_CLONES: AtomicUsize = AtomicUsize::new(0);
 
 /// The installed font catalog, parsed once for every text renderer in the
 /// process.
@@ -91,6 +93,8 @@ static SYSTEM_FONTS: LazyLock<SystemFonts> = LazyLock::new(|| {
 
 /// A font system with isolated shaping state over the one parsed host catalog.
 fn font_system() -> FontSystem {
+    #[cfg(test)]
+    FONT_SYSTEM_CLONES.fetch_add(1, Ordering::Relaxed);
     FontSystem::new_with_locale_and_db(SYSTEM_FONTS.locale.clone(), SYSTEM_FONTS.database.clone())
 }
 
@@ -173,7 +177,7 @@ pub struct CaretStop {
 /// lookup plus a copy-out of the cached bitmap(s) — no re-shaping. That keeps
 /// per-frame callers (preview scrub, export loops) off the shaping path.
 pub struct TextRenderer {
-    font_system: FontSystem,
+    font_system: Option<FontSystem>,
     swash_cache: SwashCache,
     /// Memoized [`shape`](Self::shape) results, keyed by (text, style).
     /// Cleared by [`load_font`](Self::load_font) — a new face can change

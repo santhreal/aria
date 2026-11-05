@@ -838,11 +838,7 @@ fn decode_preview(state: Entity<AppState>, cx: &mut App) {
             ))
         });
         let Ok(again) = state.update(cx, |state, cx| {
-            let again = state.release_preview();
-            if state.preview_generation == generation {
-                commit_preview(state, cx, rendered);
-            }
-            again
+            land_preview(state, cx, generation, rendered)
         }) else {
             return;
         };
@@ -851,6 +847,26 @@ fn decode_preview(state: Entity<AppState>, cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// The decode asked for at `generation` has landed with `rendered`: show it if
+/// no newer frame was asked for since, and start the decodes held for the
+/// first frame when no decode follows. True when a frame was asked for while
+/// it ran, which is the caller's turn to start that one.
+pub(crate) fn land_preview(
+    state: &mut AppState,
+    cx: &mut gpui::Context<AppState>,
+    generation: u64,
+    rendered: Result<PreviewFrame, EngineError>,
+) -> bool {
+    let again = state.release_preview();
+    if state.preview_generation == generation {
+        commit_preview(state, cx, rendered);
+    }
+    if !again {
+        state.start_held_decodes(cx);
+    }
+    again
 }
 
 /// Put a rendered frame on screen, or say why there is none.

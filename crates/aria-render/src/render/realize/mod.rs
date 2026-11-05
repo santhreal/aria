@@ -374,7 +374,7 @@ impl Renderer {
                 Ok(pending)
             }
             Err(error) => {
-                self.realize_scratch = scratch;
+                self.return_scratch(scratch);
                 Err(error)
             }
         }

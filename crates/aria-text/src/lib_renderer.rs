@@ -11,7 +11,7 @@ impl TextRenderer {
     /// parsed host font catalog.
     pub fn new() -> Self {
         Self {
-            font_system: font_system(),
+            font_system: None,
             swash_cache: SwashCache::new(),
             shape_memo: HashMap::new(),
             raster_memo: HashMap::new(),
@@ -27,18 +27,23 @@ impl TextRenderer {
     /// more than one). Invalidates the memo caches, since a new face can
     /// change shaping or fallback for any string.
     pub fn load_font(&mut self, data: Vec<u8>) -> usize {
-        let before = self.font_system.db().len();
-        self.font_system.db_mut().load_font_data(data);
+        let font_system = self.font_system.get_or_insert_with(font_system);
+        let before = font_system.db().len();
+        font_system.db_mut().load_font_data(data);
+        let after = font_system.db().len();
         self.shape_memo.clear();
         self.raster_memo.clear();
         self.caret_memo.clear();
-        self.font_system.db().len().saturating_sub(before)
+        after.saturating_sub(before)
     }
 
     /// Number of font faces available for shaping. Zero means no glyphs can be
     /// produced (no system fonts and none loaded).
     pub fn font_count(&self) -> usize {
-        self.font_system.db().len()
+        match &self.font_system {
+            Some(fs) => fs.db().len(),
+            None => SYSTEM_FONTS.database.len(),
+        }
     }
 
     /// Shape `text` with `style` into positioned per-cluster bitmaps.
@@ -64,6 +69,7 @@ impl TextRenderer {
 
     pub(crate) fn shape_uncached(&mut self, text: &str, style: &TextStyle) -> ShapedText {
         let buffer = self.layout(text, style);
+        let font_system = self.font_system.get_or_insert_with(font_system);
 
         // Source byte offset of each buffer line. `LineIter` is the exact
         // split `Buffer::set_text` uses, so indices line up with `line_i`.
@@ -104,7 +110,7 @@ impl TextRenderer {
                 let phys = glyph.physical((0., run.line_y), 1.0);
                 let ink = self
                     .swash_cache
-                    .get_image(&mut self.font_system, phys.cache_key)
+                    .get_image(font_system, phys.cache_key)
                     .as_ref()
                     .filter(|img| img.placement.width > 0 && img.placement.height > 0)
                     .map(|img| InkBox {
@@ -173,11 +179,7 @@ impl TextRenderer {
                     let mut pixels = vec![0u8; (w as usize) * (h as usize) * 4];
                     for g in &c.glyphs {
                         let Some(ink) = g.ink else { continue };
-                        if let Some(img) = self
-                            .swash_cache
-                            .get_image(&mut self.font_system, g.key)
-                            .as_ref()
-                        {
+                        if let Some(img) = self.swash_cache.get_image(font_system, g.key).as_ref() {
                             write_glyph(
                                 &mut pixels,
                                 w,
@@ -314,13 +316,13 @@ impl TextRenderer {
     /// Build and lay out a buffer for `text` + `style` (the single shaping
     /// path both `shape` and `rasterize` go through).
     fn layout(&mut self, text: &str, style: &TextStyle) -> Buffer {
+        let font_system = self.font_system.get_or_insert_with(font_system);
         let metrics = Metrics::new(style.font_size.max(1.0), style.line_height.max(1.0));
-        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        let mut buffer = Buffer::new(font_system, metrics);
 
         // Width constraint drives word wrapping; height is unbounded so every
         // line is laid out (and thus measurable).
-        buffer.set_size(&mut self.font_system, style.max_width, None);
-
+        buffer.set_size(font_system, style.max_width, None);
         let family = match &style.family {
             FontFamily::SansSerif => Family::SansSerif,
             FontFamily::Serif => Family::Serif,
@@ -359,17 +361,11 @@ impl TextRenderer {
             TextAlign::Justify => Align::Justified,
         };
         if style.runs.is_empty() {
-            buffer.set_text(
-                &mut self.font_system,
-                text,
-                &attrs,
-                Shaping::Advanced,
-                Some(align),
-            );
+            buffer.set_text(font_system, text, &attrs, Shaping::Advanced, Some(align));
         } else {
             let spans = build_rich_spans(text, style, &attrs);
             buffer.set_rich_text(
-                &mut self.font_system,
+                font_system,
                 spans.iter().map(|(s, a)| (*s, a.as_attrs())),
                 &attrs,
                 Shaping::Advanced,
@@ -390,7 +386,7 @@ impl TextRenderer {
                 .map(|run| run.line_w)
                 .fold(0.0f32, f32::max);
             if widest > 0.0 && buffer.layout_runs().count() > 1 {
-                buffer.set_size(&mut self.font_system, Some(widest.ceil() + 1.0), None);
+                buffer.set_size(font_system, Some(widest.ceil() + 1.0), None);
             }
         }
 
@@ -504,4 +500,57 @@ fn build_rich_spans<'a>(
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod lazy_font_tests {
+    use super::*;
+
+    const BUNDLED_FONT: &[u8] = include_bytes!("../assets/Micro5-Regular.ttf");
+
+    /// **Idle text renderers do not clone the system font database.**
+    ///
+    /// Every scene renderer (main engine, preview worker, filmstrip worker, and
+    /// pool thumbnail worker) constructs a `TextRenderer`, while video-only
+    /// timelines never rasterize a text layer. Materializing `FontSystem` on
+    /// first text operation avoids cloning the host font database into renderers
+    /// that never shape or load fonts.
+    ///
+    /// Not caught: per-face memory inside `cosmic_text` once a renderer shapes
+    /// text.
+    #[test]
+    fn idle_text_renderers_defer_font_database_clone_until_first_text_use() {
+        let _ = system_font_families();
+        let before = FONT_SYSTEM_CLONES.load(Ordering::Relaxed);
+        let idle_a = TextRenderer::new();
+        let idle_b = TextRenderer::new();
+        let mut active = TextRenderer::new();
+        assert!(
+            idle_a.font_system.is_none()
+                && idle_b.font_system.is_none()
+                && active.font_system.is_none(),
+            "constructing a TextRenderer must not materialize FontSystem before text is used"
+        );
+        assert_eq!(
+            FONT_SYSTEM_CLONES.load(Ordering::Relaxed),
+            before,
+            "constructing idle TextRenderers must not clone the system font database"
+        );
+        assert!(
+            idle_a.font_count() > 0,
+            "font_count on an unmaterialized renderer still reports the shared catalog size"
+        );
+        assert!(
+            idle_a.font_system.is_none(),
+            "querying font_count must not materialize a private FontSystem clone"
+        );
+
+        assert!(active.load_font(BUNDLED_FONT.to_vec()) > 0);
+        assert!(
+            active.font_system.is_some(),
+            "loading a font must materialize the renderer's FontSystem"
+        );
+        let img = active.rasterize("Aria", &TextStyle::new(32.0));
+        assert!(img.width > 0 && img.height > 0);
+    }
 }

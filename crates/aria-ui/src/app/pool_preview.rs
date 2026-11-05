@@ -58,6 +58,9 @@ pub struct PoolPreviewStore {
     thumbs: BTreeMap<(u64, i64), Arc<RenderImage>>,
     /// The one thumbnail being rendered, if any.
     in_flight: Option<(u64, i64)>,
+    /// Whether a tile asked for its picture while the session's first Viewer
+    /// frame decoded. The tiles are drawn again, and ask again, once it lands.
+    deferred: bool,
     /// Requests that produced no frame, so a source that cannot be decoded is
     /// not retried on every repaint for as long as its tile is on screen.
     empty: Vec<(u64, i64)>,
@@ -195,6 +198,14 @@ impl PoolPreviewStore {
 
     fn start(&mut self, media: u64, tick: i64) {
         self.in_flight = Some((media, tick));
+    }
+
+    const fn defer(&mut self) {
+        self.deferred = true;
+    }
+
+    const fn take_deferred(&mut self) -> bool {
+        std::mem::replace(&mut self.deferred, false)
     }
 
     fn finish(&mut self, stamp: u64, media: u64, tick: i64, image: Option<Arc<RenderImage>>) {
@@ -524,6 +535,9 @@ pub fn request_thumb(state: &Entity<AppState>, cx: &mut App, media: u64, tick: i
 pub fn request_source(state: &Entity<AppState>, cx: &mut App, media: u64, tick: i64) {
     render_into(state, cx, media, tick, SOURCE_MAX_W, SOURCE_MAX_H, true);
 }
+#[cfg(test)]
+#[path = "pool_preview_held_tests.rs"]
+mod held_tests;
 #[cfg(test)]
 #[path = "pool_preview_tests.rs"]
 mod pool_preview_tests;

@@ -800,6 +800,8 @@ Notes for the latest release. For previous releases, see the
 - A Track Select click selects on every unlocked track and a Shift+click on the clicked track only, instead of the reverse.
 - A marquee started or dragged above the video tracks takes the top track as its corner instead of the bottom one.
 - The editor builds on santh-gpui `96e3ffe8`, so a tooltip stays closed while a drag passes over its element and opens above the element when it does not fit below the pointer, a control draws its pressed style only while the press is over it and stays hovered while the press moves over it, an image drawn smaller than its pixels averages the pixels under each screen pixel instead of aliasing, a window whose image atlas dropped an image repaints the views and the region that drew it instead of presenting freed tiles, and on X11 the hover is set where the pointer enters a window and a window that never set a cursor shows the arrow.
+- `TextRenderer::new` defers loading and cloning the system font database until text is shaped or font data is loaded, which cuts the cold first interactive frame from 170.2 ms to 161.5 ms on an RTX 3080 Ti and from 96.3 ms to 90.5 ms on software Vulkan.
+- Filmstrip cells and media pool tile pictures decode after the session's first Viewer frame lands instead of beside it, and a cancelled multi-layer render returns its decoded CPU frames to their decoder slots for reuse.
 
 ### Fixed
 

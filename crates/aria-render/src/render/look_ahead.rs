@@ -654,3 +654,7 @@ impl Renderer {
 #[cfg(test)]
 #[path = "look_ahead_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "cancel_scratch_tests.rs"]
+mod cancel_scratch_tests;

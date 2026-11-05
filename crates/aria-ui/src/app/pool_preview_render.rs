@@ -6,6 +6,32 @@
 
 use super::*;
 
+impl AppState {
+    /// Whether the session's first Viewer frame of a sequence with clips is
+    /// still decoding. Filmstrip cells and pool tile pictures wait for it, so
+    /// they neither contend with it nor queue ahead of it on the preview
+    /// worker while the boot cover waits on it.
+    pub(crate) fn initial_viewer_frame_pending(&self) -> bool {
+        self.preview_decoding
+            && self.store.sequence.clip_count() > 0
+            && self.last_render.is_none()
+            && self.preview_worker.shown_texture().is_none()
+    }
+
+    /// Start the decodes held while the first Viewer frame decoded: the
+    /// queued filmstrip cells, and the pictures of the pool tiles that asked
+    /// for one, which draw again to ask again. Called when a Viewer decode
+    /// lands with no other after it.
+    pub(crate) fn start_held_decodes(&mut self, cx: &mut gpui::Context<AppState>) {
+        if self.filmstrips.has_queued() {
+            crate::filmstrips::pump(self, cx);
+        }
+        if self.pool_preview.take_deferred() {
+            cx.emit(crate::app::PoolTileChanged);
+        }
+    }
+}
+
 pub(super) fn render_into(
     state: &Entity<AppState>,
     cx: &mut App,
@@ -22,6 +48,10 @@ pub(super) fn render_into(
     };
     let wanted = state.update(cx, |state, _| {
         state.pool_preview.sync_media(media, stamp);
+        if !monitor && state.initial_viewer_frame_pending() {
+            state.pool_preview.defer();
+            return false;
+        }
         let store = &mut state.pool_preview;
         if monitor {
             if !store.wants_source(media, tick) {
