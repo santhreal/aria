@@ -142,7 +142,7 @@ pub(super) fn layer_covers(
     if size[0] <= 0.0 || size[1] <= 0.0 {
         return false;
     }
-    // The compositor spins the quad about its own centre, so the point is
+    // The compositor spins the quad about its own center, so the point is
     // unrotated about it before it is compared to an axis-aligned box.
     let local = unrotate(point, center, layer.rotation);
     let offset = [local[0] - center[0], local[1] - center[1]];
@@ -154,7 +154,7 @@ pub(super) fn layer_covers(
     // outline to consult, and their quad is their ink.
     match &layer.source {
         // The fill is named and ignored: a transparent shape is still a
-        // hitbox, so colour cannot decide a hit, and a variant that grows a
+        // hitbox, so color cannot decide a hit, and a variant that grows a
         // field has to come back through here.
         LayerSource::Shape {
             params,

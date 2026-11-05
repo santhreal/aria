@@ -2,9 +2,9 @@
 //! camera sits on the group's clock.
 //!
 //! Defect class: "multicam appears nowhere in the workspace. There is no
-//! multi-angle clip, no angle switching, no synchronised camera group." And,
+//! multi-angle clip, no angle switching, no synchronized camera group." And,
 //! after those shipped, the half of it nothing wrote: an angle's sync offset was
-//! honoured by the resolver and serialised with the project while no control on
+//! honored by the resolver and serialized with the project while no control on
 //! any surface could move one, so a group of cameras that did not start rolling
 //! together cut to the wrong moment and the only fix was to rebuild the group.
 //!

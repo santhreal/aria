@@ -413,7 +413,7 @@ fn a_vector_property_carries_its_component_row_text() {
                 let axes: Vec<_> = row.axes().iter().collect();
                 assert_eq!(axes.len(), 3);
             }
-            // A colour needs a picker and a rectangle needs handles, so neither
+            // A color needs a picker and a rectangle needs handles, so neither
             // is drawn as a stepper either.
             ParamKind::Scalar | ParamKind::Color | ParamKind::Rect => {
                 scalars += 1;

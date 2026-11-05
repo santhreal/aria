@@ -324,7 +324,7 @@ struct Run {
 }
 
 /// One scene's shapes cut into [`Batch`]es. Consecutive shapes painted the
-/// same way share a path, so a scene of guides in one colour paints as one
+/// same way share a path, so a scene of guides in one color paints as one
 /// path, and painting order follows the scene.
 struct Tessellator<'a> {
     map: &'a CanvasMap,

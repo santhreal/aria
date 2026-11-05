@@ -178,7 +178,7 @@ fn menu_bar(
         })
         // The menus and the window controls stand in two side groups that
         // split the room the crumb leaves evenly, so the crumb stands on the
-        // window's centre line whenever the menus fit their half. The empty
+        // window's center line whenever the menus fit their half. The empty
         // stretch of each group is where the window is moved from.
         .child(
             div()

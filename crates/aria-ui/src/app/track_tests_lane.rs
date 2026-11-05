@@ -403,7 +403,7 @@ fn the_typed_offset_parses_a_signed_frame_count_and_nothing_else() {
 ///
 /// The class closed here is "a routing flag exists in the model but the panel
 /// and the drop path never consult it". Both flags default to set, so every
-/// assertion below also pins the pre-existing behaviour: a default sequence
+/// assertion below also pins the pre-existing behavior: a default sequence
 /// must behave exactly as it did before routing was a thing.
 #[test]
 fn both_routing_flags_start_set_on_a_new_lane() {

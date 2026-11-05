@@ -789,7 +789,7 @@ fn catalog_counts_finds_member_counts_and_skips_measures() {
 
 /// WHY: a number that counts catalog members in a manual page goes stale
 /// when the catalog grows, and no registry test reads it: the reference
-/// landing page once counted 17 animations and 16 colour filter presets
+/// landing page once counted 17 animations and 16 color filter presets
 /// against catalogs of 31 and 10. Each chapter lists its members, so prose
 /// and table cells state no count of them. This walks the repository README
 /// and every file under `docs/` outside fenced blocks and inline code spans

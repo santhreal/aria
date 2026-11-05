@@ -3,7 +3,7 @@
 //! The class closed here: a menu row whose height, caption or shortcut moves
 //! with its content. A row with a check mark, a plugin icon, a submenu arrow or
 //! a long caption drew its caption or its chord at another x than its
-//! neighbours, so the column the eye runs down broke.
+//! neighbors, so the column the eye runs down broke.
 //!
 //! Each menu of [`AppMenu::ALL`] is opened in a drawn shell. Its rows must be
 //! one row height tall at one pitch, or one pitch and one rule apart where a
@@ -216,7 +216,7 @@ fn a_plugin_row_draws_its_icon_in_the_lead_column(cx: &mut TestAppContext) {
             )),
         }
         // Every caption, the plugin row's among them, starts one gap past the
-        // lead column, and every check mark is centred in it.
+        // lead column, and every check mark is centered in it.
         let caption_x = column + px(Theme::ICON_SIZE + Theme::SPACE_SM);
         for (id, caption, checked) in &entries {
             let row = row_of(id);
@@ -229,10 +229,10 @@ fn a_plugin_row_draws_its_icon_in_the_lead_column(cx: &mut TestAppContext) {
                 None => faults.push(format!("{menu:?}: `{caption}` drew no caption")),
             }
             if *checked == Some(true) {
-                let centre = column + px(Theme::ICON_SIZE / 2.0);
+                let center = column + px(Theme::ICON_SIZE / 2.0);
                 match run_in(&row, "✓") {
-                    Some(at) if (at.center().x - centre).abs() > px(EPS) => faults.push(format!(
-                        "{menu:?}: `{caption}`'s check is centered at {:?}, the column at {centre:?}",
+                    Some(at) if (at.center().x - center).abs() > px(EPS) => faults.push(format!(
+                        "{menu:?}: `{caption}`'s check is centered at {:?}, the column at {center:?}",
                         at.center().x
                     )),
                     Some(_) => {}

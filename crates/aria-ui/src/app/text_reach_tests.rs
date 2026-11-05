@@ -11,7 +11,7 @@ use super::shapes::{canvas_pixel, layer_covers};
 use crate::app::canvas_overlay::Rect;
 
 /// The pick for a fixed-size layer on the quad the renderer measures for it:
-/// the anchor folded into the centre, the size as resolved.
+/// the anchor folded into the center, the size as resolved.
 fn covers(layer: &SceneLayer, point: [f32; 2]) -> bool {
     let SizeSpec::Fixed(size) = layer.size else {
         panic!("the samples here are fixed-size layers");
@@ -149,7 +149,7 @@ fn a_rotated_quad_is_picked_where_it_is_drawn() {
         [100.0, 100.0],
         [200.0, 20.0],
     );
-    // A point 60 px right of centre is inside the unrotated bar.
+    // A point 60 px right of center is inside the unrotated bar.
     assert!(covers(&bar, [160.0, 100.0]));
     assert!(!covers(&bar, [100.0, 160.0]));
     // Quarter turn: the same offsets swap.

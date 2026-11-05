@@ -111,7 +111,7 @@ fn a_press_on_a_clip_not_selected_selects_it_and_the_drag_moves_it(cx: &mut gpui
             .canvas
             .expect("the Viewer draws the canvas")
     });
-    // Off the anchor point at the centre of the frame the take fills.
+    // Off the anchor point at the center of the frame the take fills.
     let grab = canvas.at([0.35, 0.35]);
 
     let moved = drag_picture(visual, &state, grab, start);

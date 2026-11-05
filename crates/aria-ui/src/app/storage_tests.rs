@@ -1,7 +1,7 @@
 //! Contracts for the download-cache surface.
 //!
 //! The class closed here is "a setting that can be changed but the running
-//! session does not honour". A quota that is written to the config and not applied to
+//! session does not honor". A quota that is written to the config and not applied to
 //! the live cache, or applied and not written, both look like the control worked and
 //! fail at the next eviction or the next launch, so every setter is asserted in both
 //! places. Bounds come from `aria_settings` at run time, so widening the accepted

@@ -8,7 +8,7 @@
 //! launch. The rows are read from the View menu at run time and every enum
 //! variant is mapped to its row by an exhaustive match, so a new choice
 //! without a row fails to compile and a new row without a choice fails here.
-//! The follow cases pin the smooth centring and the hold a hand scroll puts
+//! The follow cases pin the smooth centering and the hold a hand scroll puts
 //! on the follow.
 //!
 //! What they do not catch: whether the strip and the waveform draw the chosen
@@ -155,7 +155,7 @@ fn playhead_px(state: &AppState) -> f32 {
 }
 
 #[test]
-fn a_smooth_follow_holds_the_playhead_centred_without_a_glide() {
+fn a_smooth_follow_holds_the_playhead_centered_without_a_glide() {
     let mut state = ten_minutes(Follow::Smooth);
     let fps = state.store.sequence.frame_rate.nominal_fps();
     let width = state.timeline_viewport_px();

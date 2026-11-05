@@ -16,7 +16,7 @@ fn key(byte: u8) -> MediaContentKey {
 
 fn picture(width: u32, height: u32) -> RgbaImage {
     let mut pixels = vec![0u8; (width * height * 4) as usize];
-    // A recognisable first pixel, so a round trip proves the bytes and not just
+    // A recognizable first pixel, so a round trip proves the bytes and not just
     // the dimensions.
     pixels[0] = 200;
     pixels[3] = 255;

@@ -23,7 +23,7 @@ pub enum CloudFeed {
     Templates,
     /// Sound effects.
     Sfx,
-    /// Colour LUTs.
+    /// Color LUTs.
     Luts,
     /// Animated text presets.
     TextPresets,

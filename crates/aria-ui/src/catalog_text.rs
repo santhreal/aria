@@ -135,7 +135,7 @@ pub struct ClipTypeChoice {
     pub id: SharedString,
     /// The type's name.
     pub label: SharedString,
-    /// The timeline colour, which the row's swatch shows.
+    /// The timeline color, which the row's swatch shows.
     pub colour: aria_models::MarkerColor,
     /// The icon's asset path.
     pub icon: Option<&'static str>,

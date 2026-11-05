@@ -17,13 +17,13 @@ impl DockTree {
     /// - `Left` becomes the first and `Right` the last child of the outermost
     ///   row holding [`FrameId::CENTER`], at the Editing layout's share of that
     ///   row ([`DockTree::EDITING_LEFT_PX`] and [`DockTree::EDITING_RIGHT_PX`]
-    ///   of [`DockTree::DEFAULT_WINDOW_WIDTH`]). With no row around the centre
-    ///   frame, the centre frame splits.
+    ///   of [`DockTree::DEFAULT_WINDOW_WIDTH`]). With no row around the center
+    ///   frame, the center frame splits.
     /// - `Bottom` splits [`FrameId::METERS`] with the new frame on its left at
     ///   the Editing lower-row share, or adds a lower row under the whole root
     ///   at [`DockTree::EDITING_TIMELINE_SHARE`] when Audio Meters is not docked.
     ///
-    /// Returns `None` for `Center`, and for `Left` or `Right` when the centre
+    /// Returns `None` for `Center`, and for `Left` or `Right` when the center
     /// frame is not docked; the caller then opens `panel` in the largest frame.
     /// The caller has checked that no frame holds `preferred.frame()`.
     pub(super) fn restore_frame(
@@ -76,8 +76,8 @@ impl DockTree {
     }
 
     /// Add a frame `id` holding `panel` at the `zone` edge of the outermost row
-    /// holding the centre frame, taking `share` of that row. Returns `None`
-    /// when the centre frame is not docked.
+    /// holding the center frame, taking `share` of that row. Returns `None`
+    /// when the center frame is not docked.
     fn insert_beside_center(
         &mut self,
         id: FrameId,

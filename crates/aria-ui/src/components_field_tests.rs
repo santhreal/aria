@@ -14,7 +14,7 @@
 //! the same value without focus gives up its end, and a box without focus
 //! draws no caret.
 //!
-//! Not covered: the caret's colour and the rename bar's blink, which the test
+//! Not covered: the caret's color and the rename bar's blink, which the test
 //! renderer does not read.
 
 use gpui::{

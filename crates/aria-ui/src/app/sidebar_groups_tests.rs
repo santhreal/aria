@@ -16,7 +16,7 @@
 use crate::interned::intern;
 use crate::types::{SidebarGroup, SidebarTab};
 
-/// Click the centre of the element drawn under `selector`.
+/// Click the center of the element drawn under `selector`.
 fn click(visual: &mut gpui::VisualTestContext, selector: &str) {
     let bounds = visual
         .debug_bounds(intern(selector))

@@ -105,7 +105,7 @@ fn every_dialog_title_is_in_title_case(cx: &mut TestAppContext) {
 /// prose beside it do.
 ///
 /// The class closed here: a value or a description that starts in lower case
-/// among capitalised ones, as the Export sheet's `included`, the motion rows'
+/// among capitalized ones, as the Export sheet's `included`, the motion rows'
 /// `every transition at its designed speed`, the Keyboard Shortcuts section's `unbound`,
 /// the Project Report's `none` and the Media Support report's `available`
 /// were. Every run drawn inside the card of each registered kind is read from
@@ -166,7 +166,7 @@ fn every_line_a_dialog_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
 /// The Audio Gain dialog draws each line once, in every mode.
 ///
 /// The class closed here: a dialog row that repeats a row above it. The field
-/// under the mode chips was labelled with the selected chip's label, so `Set
+/// under the mode chips was labeled with the selected chip's label, so `Set
 /// Gain to` was drawn twice, and a row of step buttons drew `-3 dB`, `-1 dB`
 /// and `+3 dB` under presets with the same labels, where a preset set the gain
 /// to the value and a step moved it by the value. Every mode in

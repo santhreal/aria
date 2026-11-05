@@ -59,7 +59,7 @@ pub fn resolve(mode: AppearanceMode, system: Appearance) -> Appearance {
 /// The appearance `mode` would resolve to right now.
 ///
 /// A control that offers a mode can then draw the palette the click would
-/// install, rather than naming it: "System" is not a colour, and which one it
+/// install, rather than naming it: "System" is not a color, and which one it
 /// means is not visible from the word.
 pub fn preview(mode: AppearanceMode, cx: &App) -> Appearance {
     let system = cx
@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn mode_serialises_stably() {
+    fn mode_serializes_stably() {
         for (mode, json) in [
             (AppearanceMode::System, "\"system\""),
             (AppearanceMode::Light, "\"light\""),

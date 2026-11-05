@@ -190,7 +190,7 @@ fn a_tab_docked_on_another_frame_leaves_no_drop_zones_drawn(cx: &mut gpui::TestA
 /// A tab carried over a frame's right zone draws one drop zone: on that frame,
 /// over the right half of its body, where the panel lands when let go.
 ///
-/// Closes the class where every frame drew five labelled zone boxes while a
+/// Closes the class where every frame drew five labeled zone boxes while a
 /// tab was carried, sized unlike the regions that take the drop, so the box
 /// under the pointer was rarely the zone in force. Not covered: the 80 ms
 /// delay and the fade between zones, which reduced motion skips.

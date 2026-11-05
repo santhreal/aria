@@ -93,7 +93,7 @@ fn landing(button: &str, from: i64, end: i64) -> i64 {
     }
 }
 
-/// Click the centre of the element drawn under `selector`.
+/// Click the center of the element drawn under `selector`.
 fn click(visual: &mut gpui::VisualTestContext, selector: &str) {
     let bounds = bounds_of(visual, selector);
     visual.simulate_click(bounds.center(), gpui::Modifiers::none());

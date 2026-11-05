@@ -239,7 +239,7 @@ mod tests {
     /// on Linux sends Shift+6 as `^` and Shift+, as `<`, both with shift
     /// cleared, so the mixer and ripple-insert keys never fired. Enumerated
     /// from the table, so a new Shift chord on a key no US keystroke produces,
-    /// such as Shift+=, fails here. Layouts other than US are not modelled.
+    /// such as Shift+=, fails here. Layouts other than US are not modeled.
     #[test]
     fn every_shipped_chord_fires_from_the_keystroke_linux_reports() {
         let host = KeyHost::default();

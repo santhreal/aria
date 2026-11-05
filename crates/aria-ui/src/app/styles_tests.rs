@@ -159,7 +159,7 @@ fn style_edits_need_their_block_and_an_unknown_id_is_inert() {
 }
 
 #[test]
-fn a_style_colour_edit_keeps_that_block_and_its_rows() {
+fn a_style_color_edit_keeps_that_block_and_its_rows() {
     let (mut state, _) = with_clip();
     state.toggle_selected_style("outline").expect("outline on");
     let width = state

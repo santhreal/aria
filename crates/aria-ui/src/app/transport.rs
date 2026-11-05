@@ -576,7 +576,7 @@ impl AppState {
     }
 
     /// Apply what the preview worker left in its mailbox: a scope reading for
-    /// the frame on screen, the colour under the pointer, the reason a
+    /// the frame on screen, the color under the pointer, the reason a
     /// render-ahead frame failed, a finished render bar, and the codec probe's
     /// answer.
     pub(crate) fn take_preview_mail(&mut self) -> Mail {
@@ -619,7 +619,7 @@ impl AppState {
         self.playback.report()
     }
 
-    /// Whether the mixer can honour the transport as it stands.
+    /// Whether the mixer can honor the transport as it stands.
     ///
     /// The mixer plays a project forward at the sequence rate: it neither
     /// resamples nor reads backwards, and its own clock only counts up. At any
@@ -778,7 +778,7 @@ impl AppState {
         true
     }
 
-    /// The token the decode that is starting should honour. Minted here, so the
+    /// The token the decode that is starting should honor. Minted here, so the
     /// one that cancels it and the one the frame reads are the same object.
     pub(crate) fn arm_preview_cancel(&mut self) -> aria_core::Cancel {
         self.preview_cancel = aria_core::Cancel::new();

@@ -245,7 +245,7 @@ fn backspace_on_the_selected_draft_clears_it() {
 /// field opened in. A commit asks for a new frame; a draft that states no
 /// value asks for none and keeps its field.
 #[test]
-fn tab_commits_and_opens_the_neighbouring_readout() {
+fn tab_commits_and_opens_the_neighboring_readout() {
     let mut state = start(0.5);
     let first = opacity_target(&state, "first", Shape::Incremental);
     let second = opacity_target(&state, "second", Shape::Incremental);
@@ -304,7 +304,7 @@ fn tab_commits_and_opens_the_neighbouring_readout() {
         );
     }
 
-    // A readout painted alone has no neighbour: Tab commits and closes it.
+    // A readout painted alone has no neighbor: Tab commits and closes it.
     state.cancel_value_entry();
     state.press_value(second.clone());
     state.release_value();

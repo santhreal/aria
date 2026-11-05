@@ -32,10 +32,10 @@ fn every_menu_entry_has_a_unique_id() {
     assert_eq!(ids.len(), items.len(), "duplicate menu entry id");
 }
 
-/// Each menu populates at least one entry, and every entry is labelled. An
+/// Each menu populates at least one entry, and every entry is labeled. An
 /// empty menu draws as a bare rectangle with nothing in it.
 #[test]
-fn every_menu_is_populated_and_labelled() {
+fn every_menu_is_populated_and_labeled() {
     let state = state();
     for menu in AppMenu::ALL {
         let items = items_for(menu, &state);

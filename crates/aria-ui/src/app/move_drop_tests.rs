@@ -6,7 +6,7 @@
 //! drag carried straight up or down to another lane was taken for a click and
 //! dropped nothing. The drag sends the overwrite move, which covers what it
 //! lands on, and a release on another lane lands there however little the
-//! pointer travelled along the lane. A slip or a slide keeps its lane, so the
+//! pointer traveled along the lane. A slip or a slide keeps its lane, so the
 //! same release with either tool edits nothing. A move carried over a lane
 //! whose kind refuses the clip keeps the last lane that holds it, so its
 //! release sends no edit the engine refuses; a lane of every kind the model

@@ -145,7 +145,7 @@ impl AppState {
 }
 
 /// `clip` with every property that has a defined rest value put back at it:
-/// the transform, the crop, gain and pan, the colour adjustments, and each
+/// the transform, the crop, gain and pan, the color adjustments, and each
 /// effect's parameters (an unwritten effect parameter reads its catalog
 /// default). Blocks without a rest value (mask, key, matte, filter, LUT, layer
 /// styles, generator geometry) keep their values, so their properties count as

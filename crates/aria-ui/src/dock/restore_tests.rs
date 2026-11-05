@@ -5,7 +5,7 @@
 //! (the Timeline's, as the largest) after their own frame closed or floated
 //! away. Covers every [`DefaultFrame`] variant, Audio Meters and its own frame,
 //! every shipped workspace tree in both its shipped and pane-layout forms, a
-//! split inside the centre column, and the fallbacks when no anchor frame is
+//! split inside the center column, and the fallbacks when no anchor frame is
 //! docked. Does not cover a frame dragged elsewhere before it closed: the
 //! re-created frame returns to its edge of the shipped layout, not to the
 //! dragged position.
@@ -178,7 +178,7 @@ fn a_panel_floated_out_of_its_frame_and_closed_reopens_in_the_re_created_frame()
 }
 
 #[test]
-fn a_side_frame_returns_to_the_upper_row_not_into_a_split_inside_the_centre_column() {
+fn a_side_frame_returns_to_the_upper_row_not_into_a_split_inside_the_center_column() {
     let shipped = DockTree::editing();
     let mut tree = shipped.clone();
     let below = tree
@@ -210,7 +210,7 @@ fn a_side_frame_returns_to_the_upper_row_not_into_a_split_inside_the_centre_colu
 }
 
 #[test]
-fn a_side_frame_beside_a_lone_centre_frame_splits_it_at_the_editing_share() {
+fn a_side_frame_beside_a_lone_center_frame_splits_it_at_the_editing_share() {
     let (left, _, right) =
         DockTree::upper_row_weights_for_width(DockTree::DEFAULT_WINDOW_WIDTH, true);
     let upper = 1.0 - DockTree::EDITING_TIMELINE_SHARE;
@@ -354,14 +354,14 @@ fn in_every_shipped_workspace_reopened_audio_meters_leave_the_timeline_visible()
 
 #[test]
 fn with_no_anchor_frame_docked_a_panel_opens_in_the_largest_frame() {
-    // The centre frame has no re-created position of its own.
+    // The center frame has no re-created position of its own.
     let mut tree = DockTree::editing();
     close_frame(&mut tree, FrameId::CENTER);
     let largest = tree.largest_frame();
     assert_eq!(tree.open(PANEL_VIEWER), largest);
     assert!(tree.frame(FrameId::CENTER).is_none());
 
-    // A side column re-creates beside the centre frame only.
+    // A side column re-creates beside the center frame only.
     let mut tree = DockTree::editing();
     close_frame(&mut tree, FrameId::CENTER);
     close_frame(&mut tree, FrameId::RIGHT);

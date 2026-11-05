@@ -4,7 +4,7 @@
 //! here keep something fixed instead:
 //!
 //! - **Slip** keeps the placement and moves the take inside it.
-//! - **Slide** keeps the clip's length and gives the delta to its neighbours.
+//! - **Slide** keeps the clip's length and gives the delta to its neighbors.
 //! - **Roll** keeps both clips' outer edges and moves the cut between them.
 //! - **Rate stretch** keeps the source window and changes how long it plays.
 //!
@@ -20,7 +20,7 @@ use aria_models::{ClipId, Project, Rational, RationalTime};
 use crate::app::AppState;
 use crate::app::drag_steps::Step;
 
-/// A neighbour of the clip being dragged, in timeline ticks.
+/// A neighbor of the clip being dragged, in timeline ticks.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Neighbour {
     pub clip: ClipId,
@@ -75,11 +75,11 @@ impl AppState {
         )
     }
 
-    /// Move `clip` by `delta` ticks and give the delta to its neighbours: the
+    /// Move `clip` by `delta` ticks and give the delta to its neighbors: the
     /// clip keeps its length and the sequence keeps its total length.
     ///
     /// A slide with no room is refused before anything is applied rather than
-    /// half-done: `delta` is clamped to what the neighbours can give, and a
+    /// half-done: `delta` is clamped to what the neighbors can give, and a
     /// clamp to zero is a no-op.
     pub fn slide_clip(
         &mut self,
@@ -434,9 +434,9 @@ impl AppState {
 }
 
 /// The edits a slide of `clip`, which starts at `start`, by `delta` sends:
-/// the neighbour on the giving side trimmed first, so the move never lands
+/// the neighbor on the giving side trimmed first, so the move never lands
 /// on ticks another clip still holds, then the clip moved, then the
-/// neighbour on the other side grown into the ticks the clip left.
+/// neighbor on the other side grown into the ticks the clip left.
 pub(crate) fn slide_steps(
     clip: ClipId,
     start: i64,
@@ -520,9 +520,9 @@ pub(crate) fn stretch_steps(
     }
 }
 
-/// How much of `delta` the neighbours can absorb.
+/// How much of `delta` the neighbors can absorb.
 ///
-/// A neighbour must keep at least one tick, and a side with no neighbour is
+/// A neighbor must keep at least one tick, and a side with no neighbor is
 /// unbounded in that direction: sliding into empty space is a plain move.
 pub fn slide_room(
     start: i64,

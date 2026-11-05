@@ -33,7 +33,7 @@ use crate::interned::intern;
 use crate::scopes::WaveformMode;
 use crate::settings::UiSettings;
 
-/// A frame of one colour, straight alpha.
+/// A frame of one color, straight alpha.
 fn frame(width: u32, height: u32, rgba: [u8; 4]) -> Arc<RgbaImage> {
     let pixels = rgba
         .iter()
@@ -56,7 +56,7 @@ fn reading(frame: &RgbaImage, tick: i64) -> ScopeTextures {
 }
 
 /// Register a 2 by 1 host scope `id` in `ctx` that paints its first pixel
-/// in the frame's top-left colour and reads that red value back.
+/// in the frame's top-left color and reads that red value back.
 fn first_pixel_scope(ctx: &PluginContext, id: &str) -> Registration {
     let spec = ScopeSpec {
         id: id.to_owned(),

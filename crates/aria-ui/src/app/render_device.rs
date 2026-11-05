@@ -10,7 +10,7 @@
 //! PNG sequence and an assistant screenshot each want their own decoders, their
 //! own proxy substitutions and their own cancellation, and they run on job
 //! threads while the preview renders on the UI thread — one renderer between
-//! them would serialise exactly the work that was moved off the UI thread. Each
+//! them would serialize exactly the work that was moved off the UI thread. Each
 //! gets a renderer of its own; none of them gets a device of its own.
 //!
 //! `test_support::tests::one_module_brings_up_the_gpu` is what keeps a fifth

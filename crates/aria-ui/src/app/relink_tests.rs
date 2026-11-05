@@ -2,7 +2,7 @@
 //!
 //! What these defend: an entry is bound only when exactly one same-named file
 //! agrees on every fact the project remembers, and every entry that is not
-//! bound carries a reason. The old behaviour — bind the first file whose name
+//! bound carries a reason. The old behavior — bind the first file whose name
 //! matched — passes none of `two_matches_are_ambiguous`,
 //! `a_different_size_is_refused`, `a_different_duration_is_refused` or
 //! `a_different_audio_track_is_refused`.

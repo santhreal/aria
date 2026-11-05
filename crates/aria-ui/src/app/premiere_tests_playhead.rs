@@ -285,7 +285,7 @@ fn markers_and_marks_are_snap_candidates() {
     assert_eq!(guide.expect("fired").kind, crate::snap::SnapKind::Marker);
 }
 #[test]
-fn new_markers_carry_a_name_and_a_colour() {
+fn new_markers_carry_a_name_and_a_color() {
     let (mut state, _) = with_clip();
     state.set_playhead(10);
     state.add_marker_at_playhead().expect("add");

@@ -82,7 +82,7 @@ impl AppState {
 
     /// Bake every shipped look into the LUT cache at once.
     ///
-    /// A `.cube` on disk is what the LUT field loads and what a colourist hands
+    /// A `.cube` on disk is what the LUT field loads and what a colorist hands
     /// to another tool.
     pub fn install_starter_looks(&mut self) {
         let mut written = 0usize;

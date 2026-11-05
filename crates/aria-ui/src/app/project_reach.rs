@@ -226,7 +226,7 @@ impl AppState {
 
     /// The step Undo would take back, by name.
     ///
-    /// The engine has always labelled its steps and the history dialog has
+    /// The engine has always labeled its steps and the history dialog has
     /// always drawn them; a keystroke with the dialog closed was still a step
     /// into the dark, because nothing named the pending one anywhere else.
     pub fn next_undo_label(&self) -> Option<String> {

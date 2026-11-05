@@ -216,7 +216,7 @@ impl AppState {
     /// is a glide toward the committed one, and a draw that moved its own input
     /// would chase itself for as long as the glide lasted. How the view moves is
     /// the Timeline Display Settings follow: a page jump near an edge, or a
-    /// scroll that holds the playhead centred. A view moved by any other writer
+    /// scroll that holds the playhead centered. A view moved by any other writer
     /// since the last follow holds still until the playhead leaves it.
     pub(crate) fn follow_playhead(&mut self) -> bool {
         let width = self.timeline_viewport_px();

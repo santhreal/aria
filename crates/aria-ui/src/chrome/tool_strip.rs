@@ -2,9 +2,9 @@
 //! Export. Snapping, linked selection and the timeline display settings are
 //! the Timeline header's (`panels/timeline/header.rs`), drawn there only.
 //!
-//! Every control here fades between its rest and hover colours through
+//! Every control here fades between its rest and hover colors through
 //! [`crate::motion::hover_blend`], keyed by the element id, so the strip never
-//! flips a colour under the pointer.
+//! flips a color under the pointer.
 
 use gpui::{
     AnyElement, Context, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton,
@@ -61,7 +61,7 @@ pub(super) fn tool_bar(
 
     // The tools and the Export button stand in two side groups that split the
     // room the switcher leaves evenly, so the switcher stands on the window's
-    // centre line rather than midway between the two groups' inner edges.
+    // center line rather than midway between the two groups' inner edges.
     div()
         .id("tool-bar")
         .debug_selector(|| "tool-bar".into())

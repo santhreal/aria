@@ -79,7 +79,7 @@ fn the_view_follows_a_playhead_that_has_run_past_it() {
         state.scroll_x,
         state.scroll_x + width
     );
-    // It rests near the left, not centred: what plays next is what has to be
+    // It rests near the left, not centered: what plays next is what has to be
     // visible.
     assert!(at - state.scroll_x < width * 0.5);
     assert!(state.scroll_eased, "a view the editor chose arrives eased");

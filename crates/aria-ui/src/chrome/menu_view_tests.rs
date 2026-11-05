@@ -9,7 +9,7 @@
 //! Each case drives the shell's own key handler in a drawn window and reads
 //! the frame just drawn.
 //!
-//! Not covered: the ring's colour and width, and focus outside the menu bar.
+//! Not covered: the ring's color and width, and focus outside the menu bar.
 
 use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext};
 

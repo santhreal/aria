@@ -3,7 +3,7 @@
 //! The class closed here is the recurring one: `SetGenerator` carries the whole
 //! generator, so an edit that rebuilds it from scratch silently discards every
 //! sibling field. Retyping a title used to send `Generator::text(content)`, which
-//! dropped the font, size, colour, alignment, stroke, shadow, background, and
+//! dropped the font, size, color, alignment, stroke, shadow, background, and
 //! preset. Both directions are asserted — a content edit keeps the preset, and a
 //! preset edit keeps the content — because only asserting one lets the other rot.
 //!
@@ -139,7 +139,7 @@ fn text_controls_are_inert_on_a_clip_that_is_not_a_title() {
 
 /// Every switch the Character and Paragraph panels draw flips its own property
 /// and no other, and flips it back, read off the projected style. A switch
-/// wired to the wrong field reads back a neighbour changed. Enumerated from
+/// wired to the wrong field reads back a neighbor changed. Enumerated from
 /// `TextSwitch::ALL`, so a new switch is covered here with no edit.
 #[test]
 fn every_type_switch_flips_its_own_property_and_flips_back() {
@@ -212,13 +212,13 @@ fn case_and_alignment_read_back_and_a_repeat_is_inert() {
     );
 }
 
-/// A swatch writes the colour through the catalog's property path and reads
-/// back through the rows the panel draws; the colour in force is inert, and the
-/// stroke's colour row arrives with the stroke.
+/// A swatch writes the color through the catalog's property path and reads
+/// back through the rows the panel draws; the color in force is inert, and the
+/// stroke's color row arrives with the stroke.
 #[test]
-fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
+fn a_color_swatch_sets_the_color_and_a_repeat_is_inert() {
     let mut state = with_title();
-    let colour = |state: &AppState, param: ClipParam| {
+    let color = |state: &AppState, param: ClipParam| {
         state
             .param_colors("text")
             .into_iter()
@@ -231,19 +231,19 @@ fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
     let stroke = ClipParam::Text {
         param: TextParam::StrokeColor,
     };
-    let held = colour(&state, fill).expect("a title draws its fill");
-    assert_eq!(colour(&state, stroke), None, "no stroke, no stroke color");
+    let held = color(&state, fill).expect("a title draws its fill");
+    assert_eq!(color(&state, stroke), None, "no stroke, no stroke color");
     let picked = crate::app::clip_effects::PARAM_COLORS
         .iter()
         .map(|(_, _, rgba)| *rgba)
         .find(|rgba| *rgba != held)
         .expect("a swatch other than the fill");
     state.set_param_color(fill, picked).unwrap();
-    assert_eq!(colour(&state, fill), Some(picked));
+    assert_eq!(color(&state, fill), Some(picked));
     state.set_param_color(fill, picked).unwrap();
     assert!(state.undo());
     assert_eq!(
-        colour(&state, fill),
+        color(&state, fill),
         Some(held),
         "a repeated swatch pushed an undo entry"
     );
@@ -251,7 +251,7 @@ fn a_colour_swatch_sets_the_colour_and_a_repeat_is_inert() {
         .toggle_selected_text_switch(TextSwitch::Stroke)
         .unwrap();
     assert!(
-        colour(&state, stroke).is_some(),
+        color(&state, stroke).is_some(),
         "switching the stroke on drew no stroke color"
     );
 }

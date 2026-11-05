@@ -209,7 +209,7 @@ fn a_recovered_fault_and_a_failure_after_mount_show_on_the_row() {
 /// WHY: a plugin's log is read in the Plugins list. The row counts the lines a
 /// plugin logged, opens its log by default once the plugin has an error or a
 /// fault, keeps the Log toggle's choice over that default, and Copy holds every
-/// line with its level. Not covered: the drawn colours.
+/// line with its level. Not covered: the drawn colors.
 #[test]
 fn a_row_counts_its_log_and_opens_it_on_a_failure_until_toggled() {
     let mut state = state();

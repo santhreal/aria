@@ -130,7 +130,7 @@ fn every_offered_canvas_size_applies_and_reads_back() {
 }
 
 /// Changing the shape keeps the delivery baseline and drops the explicit size
-/// only for `Auto`, which means "follow the footage" and cannot honour one.
+/// only for `Auto`, which means "follow the footage" and cannot honor one.
 #[test]
 fn changing_the_aspect_reshapes_an_explicit_size_and_auto_clears_it() {
     let (mut state, _) = with_clip();

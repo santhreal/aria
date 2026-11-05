@@ -261,7 +261,7 @@ impl AppState {
     ///
     /// The registry owns them; the file is a projection of it. Kept that way so
     /// there is one place a rebinding can be refused, and so a reset cannot
-    /// leave a row in the file that the running app no longer honours.
+    /// leave a row in the file that the running app no longer honors.
     pub(super) fn mirror_overrides(&mut self) {
         let Some(host) = self.key_host() else {
             return;

@@ -5,7 +5,7 @@
 //! bar showing the same number. The master peak is already published, so a strip
 //! that read it would draw a plausible, moving, wrong level. Each case here
 //! publishes a different level per lane and reads them back one strip at a time,
-//! so a reading that came from the master, from a neighbour, or from a lane that
+//! so a reading that came from the master, from a neighbor, or from a lane that
 //! is not in the mix goes red.
 //!
 //! What they do not cover: the fold that produces the numbers. That is

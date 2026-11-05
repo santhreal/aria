@@ -203,7 +203,7 @@ struct Press {
     /// Pointer travel, in pixels, from the press until the drag passes the
     /// click slop.
     offset: f32,
-    /// Units travelled so far, rate changes included.
+    /// Units traveled so far, rate changes included.
     travel: f32,
     /// Past the click slop: this press is a drag and will not open a field.
     dragging: bool,
@@ -223,7 +223,7 @@ pub struct ValueEntry {
 /// The readouts drawn on either side of the open field, so Tab and Shift+Tab
 /// can open them. Rows report themselves while they paint.
 #[derive(Default)]
-struct Neighbours {
+struct Neighbors {
     /// The first readout painted since the field opened: Tab's next past the
     /// last readout of the frame.
     first: Option<ScrubTarget>,
@@ -239,7 +239,7 @@ struct Neighbours {
 pub struct ValueScrubs {
     press: Option<Press>,
     entry: Option<ValueEntry>,
-    neighbours: Neighbours,
+    neighbors: Neighbors,
 }
 
 impl std::fmt::Debug for ValueScrubs {
@@ -317,22 +317,17 @@ impl ValueScrubs {
         if target.drafts() != drafts {
             return;
         }
-        let neighbours = &mut self.neighbours;
-        if neighbours
-            .last
-            .as_ref()
-            .is_some_and(|last| last.key == open)
-            && target.key != open
-        {
-            neighbours.after = Some(target.clone());
+        let neighbors = &mut self.neighbors;
+        if neighbors.last.as_ref().is_some_and(|last| last.key == open) && target.key != open {
+            neighbors.after = Some(target.clone());
         }
         if target.key == open {
-            neighbours.before = neighbours.last.take().filter(|last| last.key != open);
+            neighbors.before = neighbors.last.take().filter(|last| last.key != open);
         }
-        if neighbours.first.is_none() {
-            neighbours.first = Some(target.clone());
+        if neighbors.first.is_none() {
+            neighbors.first = Some(target.clone());
         }
-        neighbours.last = Some(target.clone());
+        neighbors.last = Some(target.clone());
     }
 }
 
@@ -453,7 +448,7 @@ impl AppState {
             return true;
         }
         let draft = LineText::selecting_all(press.target.kind.format(press.target.value));
-        self.value_scrubs.neighbours = Neighbours::default();
+        self.value_scrubs.neighbors = Neighbors::default();
         self.value_scrubs.entry = Some(ValueEntry {
             target: press.target,
             draft,
@@ -593,16 +588,16 @@ impl AppState {
         else {
             return false;
         };
-        // A draft that states no value keeps its field, and its neighbours.
+        // A draft that states no value keeps its field, and its neighbors.
         if !self.commit_value_entry() {
             return false;
         }
-        let Neighbours {
+        let Neighbors {
             first,
             last,
             before,
             after,
-        } = std::mem::take(&mut self.value_scrubs.neighbours);
+        } = std::mem::take(&mut self.value_scrubs.neighbors);
         let next = if back {
             before.or(last)
         } else {

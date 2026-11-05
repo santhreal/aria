@@ -65,14 +65,14 @@ fn clips(state: &AppState) -> Vec<(u64, i64, i64)> {
 // --- slide_room ---
 
 #[test]
-fn a_slide_with_no_neighbour_is_unbounded_in_that_direction() {
+fn a_slide_with_no_neighbor_is_unbounded_in_that_direction() {
     // Empty space costs nobody anything: the whole delta is available.
     assert_eq!(slide_room(100, 200, 40, None, None), 40);
     assert_eq!(slide_room(100, 200, -40, None, None), -40);
 }
 
 #[test]
-fn a_slide_stops_where_the_neighbour_would_vanish() {
+fn a_slide_stops_where_the_neighbor_would_vanish() {
     let after = hood(9, 200, 210);
     // The next clip is ten ticks long, so it can give nine and keep one.
     assert_eq!(slide_room(100, 200, 40, None, Some(after)), 9);
@@ -89,7 +89,7 @@ fn a_slide_of_nothing_or_of_a_degenerate_clip_is_nothing() {
 }
 
 #[test]
-fn a_neighbour_already_at_one_tick_gives_nothing() {
+fn a_neighbor_already_at_one_tick_gives_nothing() {
     // The boundary case the clamp exists for: a further drag must be inert
     // rather than asking the model for an empty clip.
     let after = hood(9, 200, 201);
@@ -153,7 +153,7 @@ fn a_stretch_beyond_what_a_speed_can_say_is_refused_rather_than_rounded() {
 // --- the gestures, through the real state ---
 
 #[test]
-fn neighbours_are_the_clips_that_touch_and_nothing_further_away() {
+fn neighbors_are_the_clips_that_touch_and_nothing_further_away() {
     let (state, placed) = pair();
     let (first, second) = (placed[0], placed[1]);
     let (before, after) = state.abutting(aria_models::ClipId::from_raw(first.0));
@@ -169,7 +169,7 @@ fn neighbours_are_the_clips_that_touch_and_nothing_further_away() {
 }
 
 #[test]
-fn a_clip_that_is_no_longer_there_has_no_neighbours() {
+fn a_clip_that_is_no_longer_there_has_no_neighbors() {
     let (state, _) = pair();
     let (before, after) = state.abutting(aria_models::ClipId::from_raw(9999));
     assert_eq!((before, after), (None, None));
@@ -227,7 +227,7 @@ fn a_roll_with_no_room_leaves_the_timeline_alone() {
 }
 
 #[test]
-fn a_slide_keeps_the_clip_length_and_trades_with_the_neighbour() {
+fn a_slide_keeps_the_clip_length_and_trades_with_the_neighbor() {
     let (mut state, placed) = pair();
     let (first, second) = (placed[0], placed[1]);
     let length = second.2 - second.1;

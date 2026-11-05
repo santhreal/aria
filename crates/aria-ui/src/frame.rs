@@ -37,8 +37,8 @@ pub fn rgba_bytes_to_render(width: u32, height: u32, rgba: &[u8]) -> Option<Arc<
 /// Edge of one square of the transparency grid, in frame pixels.
 pub const GRID_CELL: usize = 8;
 
-/// The transparency grid's two greys as RGB: the square at the frame's
-/// top-left corner, then its neighbours.
+/// The transparency grid's two grays as RGB: the square at the frame's
+/// top-left corner, then its neighbors.
 pub const GRID_GREYS: [[u8; 3]; 2] = [[102, 102, 102], [153, 153, 153]];
 
 /// [`rgba_bytes_to_render`] for a frame rendered over a transparent canvas.
@@ -62,16 +62,16 @@ pub fn rgba_over_grid_to_render(width: u32, height: u32, rgba: &[u8]) -> Option<
             continue;
         }
         let (x, y) = (index % row, index / row);
-        let grey = GRID_GREYS[(x / GRID_CELL + y / GRID_CELL) % 2];
+        let gray = GRID_GREYS[(x / GRID_CELL + y / GRID_CELL) % 2];
         let uncovered = u16::from(u8::MAX - alpha);
-        let over = |colour: u8, under: u8| {
-            let shown = u16::from(colour) + (u16::from(under) * uncovered + 127) / 255;
+        let over = |color: u8, under: u8| {
+            let shown = u16::from(color) + (u16::from(under) * uncovered + 127) / 255;
             shown.min(u16::from(u8::MAX)) as u8
         };
         bgra.extend_from_slice(&[
-            over(b, grey[2]),
-            over(g, grey[1]),
-            over(r, grey[0]),
+            over(b, gray[2]),
+            over(g, gray[1]),
+            over(r, gray[0]),
             u8::MAX,
         ]);
     }
@@ -109,8 +109,8 @@ mod tests {
 
     /// A pixel shows the grid in proportion to how transparent it is: none
     /// through an opaque pixel, all of it through a transparent one, and a
-    /// premultiplied half-covered pixel adds about half the grey to its
-    /// colour. The squares alternate along the row.
+    /// premultiplied half-covered pixel adds about half the gray to its
+    /// color. The squares alternate along the row.
     #[test]
     fn a_transparent_frame_shows_the_grid_in_proportion_to_its_alpha() {
         let (w, h) = (2 * GRID_CELL as u32, 1);
@@ -132,7 +132,7 @@ mod tests {
         assert_eq!(at(0), [first[2], first[1], first[0], 255]);
         assert_eq!(at(GRID_CELL), [second[2], second[1], second[0], 255]);
         assert_eq!(at(1), [20, 10, 200, 255], "an opaque pixel showed the grid");
-        let under = |grey: u8| ((u16::from(grey) * 127 + 127) / 255) as u8;
+        let under = |gray: u8| ((u16::from(gray) * 127 + 127) / 255) as u8;
         assert_eq!(
             at(GRID_CELL + 1),
             [

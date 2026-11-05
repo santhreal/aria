@@ -79,7 +79,7 @@ impl AppState {
     }
 
     /// Show the transparency grid where no layer covers the canvas, or the
-    /// sequence's background colour; save the choice and render the frame
+    /// sequence's background color; save the choice and render the frame
     /// again. Export, thumbnails, and Export Frame keep the background.
     pub fn toggle_transparency_grid(&mut self, cx: &mut gpui::Context<Self>) {
         let on = !self.ui_settings.transparency_grid;

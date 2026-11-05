@@ -7,7 +7,7 @@
 //! sent, so a strip that shows a value it never writes, or writes a value it
 //! never shows, goes red.
 //!
-//! What they do not cover: the drawing itself. A strip's colours, its layout and
+//! What they do not cover: the drawing itself. A strip's colors, its layout and
 //! its hover fades need a render surface, and the panel is exercised through
 //! `plugins::ui`'s panel census instead.
 

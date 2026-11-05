@@ -7,7 +7,7 @@
 //! row showing one value over clips that read differently". Each path a row's
 //! write takes outside the drawn registries is driven against a second clip
 //! that holds what the first does: the catalog stepper and its scrub, the gain
-//! row, the colour wheels' drag and reset, an effect dropped on the panel, a
+//! row, the color wheels' drag and reset, an effect dropped on the panel, a
 //! driver toggled with Alt+click, and every verb of an effect header's menu.
 //! Each is checked to give every clip the value the first one landed on, as one
 //! undo step that one undo takes back whole, and to leave alone a clip without
@@ -227,7 +227,7 @@ fn a_row_reads_as_mixed_where_the_clips_differ_at_the_playhead() {
 /// The reset button of a row lights where any selected clip sharing the row
 /// holds something other than its default, and a press puts each of them back,
 /// so a dash over a drawn clip already at its default keeps a reset that does
-/// something. Driven on a number row and on a colour row, which are projected
+/// something. Driven on a number row and on a color row, which are projected
 /// apart.
 #[test]
 fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
@@ -263,7 +263,7 @@ fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
     state
         .drop_catalog_on_effect_controls(&effect("color_overlay"), None)
         .expect("the drop lands on both");
-    let colour = ClipParam::Effect {
+    let color = ClipParam::Effect {
         effect: 0,
         param: 0,
     };
@@ -275,7 +275,7 @@ fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
     assert_eq!(swatch(&state), (false, false), "two default colors");
     on(&mut state, twin, &both, |state| {
         state
-            .set_param_color(colour, [0, 0, 255, 255])
+            .set_param_color(color, [0, 0, 255, 255])
             .expect("the copy turns blue")
     });
     assert_eq!(
@@ -283,7 +283,7 @@ fn a_rows_reset_lights_for_a_copy_off_its_default_and_puts_it_back() {
         (true, true),
         "a copy off its default color left the reset dim"
     );
-    keyframe_rows::apply(&mut state, Row::Reset(colour)).expect("the reset lands");
+    keyframe_rows::apply(&mut state, Row::Reset(color)).expect("the reset lands");
     assert_eq!(swatch(&state), (false, false), "the copy kept its color");
 }
 

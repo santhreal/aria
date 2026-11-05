@@ -9,7 +9,7 @@
 //! A card is never larger than the window less `EDGE_CLEARANCE` on each side.
 //! The title row and the header controls stay at the top of the card, the action
 //! row stays at the bottom, and the content between them scrolls when it does
-//! not fit. A card stands centred in the window, or, with
+//! not fit. A card stands centered in the window, or, with
 //! [`DialogBody::anchored_top`], at a fixed share of the height under its top.
 
 use gpui::{
@@ -97,7 +97,7 @@ impl DialogBody {
     }
 
     /// Stands the card's top at a fixed height in the window rather than
-    /// centring the card, so the card grows and shrinks downward. A dialog
+    /// centering the card, so the card grows and shrinks downward. A dialog
     /// whose content changes as the query changes, such as the palette's list,
     /// keeps its query field under the caret.
     pub fn anchored_top(mut self) -> Self {
