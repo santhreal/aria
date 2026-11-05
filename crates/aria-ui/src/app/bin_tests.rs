@@ -179,7 +179,6 @@ fn properties_describe_the_selected_item_and_nothing_otherwise() {
             "Frame size",
             "Frame rate",
             "Duration",
-            "Video codec",
             "Audio",
             "Imported",
             "Status",

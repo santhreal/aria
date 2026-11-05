@@ -211,13 +211,9 @@ impl AppState {
             .iter()
             .filter(|lane| lane.kind == ui_kind)
             .count();
-        // The prefix is the lane kind's own default name with its ordinal
-        // removed, so one column decides both the first lane's name and every
-        // later one's. The match this replaced named effect and filter lanes
-        // "V", because they fell through to the video arm.
-        let prefix = kind
-            .default_name()
-            .trim_end_matches(|c: char| c.is_ascii_digit());
+        // The prefix is the lane kind's default name with its ordinal removed,
+        // so one column sets both the first lane's name and every later one's.
+        let prefix = kind.spec().name_stem();
         let name = format!("{prefix}{}", existing + 1);
         let outcome = self.apply_command(Command::Edit(EditCommand::AddTrack {
             kind,
@@ -352,7 +348,7 @@ impl AppState {
             ));
         }
         rows.push(("Duration", item.duration_label.clone()));
-        if item.kind != crate::types::UiClipKind::Audio {
+        if item.kind != crate::types::UiClipKind::Audio && !item.still {
             rows.push((
                 "Video codec",
                 codec_label(item.video_codec.as_deref()).into(),

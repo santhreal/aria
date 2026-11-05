@@ -145,10 +145,14 @@ fn the_properties_block_names_the_codecs_it_has() {
             .map(|(_, value)| value.clone())
             .unwrap_or_else(|| panic!("no {label} row"))
     };
-    // A still carries no codec track, so the row states unknown rather than
-    // naming PNG, which is the container. Nor does it have a frame rate: the
-    // rate it was probed with is the tick base, which read as 1000.000 fps.
-    assert_eq!(value("Video codec"), "Unknown");
+    // A still has no codec track, so the block omits the Video codec row
+    // rather than printing Unknown or naming PNG, which is the container. Nor
+    // does it have a frame rate: the rate it was probed with is the tick base,
+    // which read as 1000.000 fps.
+    assert!(
+        rows.iter().all(|(name, _)| *name != "Video codec"),
+        "a still should omit the Video codec row: {rows:?}"
+    );
     assert_eq!(value("Frame rate"), "Still image");
     assert_eq!(value("Audio"), "No");
 
@@ -176,4 +180,60 @@ fn the_properties_block_names_the_codecs_it_has() {
     assert_eq!(value("Video codec"), "H.264");
     assert_eq!(value("Frame rate"), "23.976 fps");
     assert_eq!(value("Audio"), "MPEG-4 AAC");
+
+    // A moving picture whose demuxer named no codec states Unknown.
+    if let Some(entry) = state
+        .store_mut()
+        .media
+        .iter_mut()
+        .find(|entry| entry.id == media.raw())
+    {
+        entry.video_codec = None;
+    }
+    let rows = state.media_properties();
+    let value = |label: &str| {
+        rows.iter()
+            .find(|(name, _)| *name == label)
+            .map(|(_, value)| value.clone())
+            .unwrap_or_else(|| panic!("no {label} row"))
+    };
+    assert_eq!(value("Video codec"), "Unknown");
+}
+
+#[test]
+fn add_lane_of_kind_names_every_catalog_kind_from_its_stem() {
+    use aria_plugin::PluginContext;
+
+    use crate::app::AppState;
+    use crate::scratch_pool::scratch;
+
+    let mut state = AppState::new(PluginContext::new(), scratch("lane-stem")).expect("state");
+    state.new_project().expect("project");
+    for spec in aria_models::track_kind_specs() {
+        let ui_kind = crate::types::UiTrackKind::from_model(spec.kind);
+        let ordinal = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|track| track.kind == ui_kind)
+            .count()
+            + 1;
+        let lane = state
+            .add_lane_of_kind(spec.kind, None)
+            .expect("add lane of kind");
+        let track = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|track| track.id == lane.raw())
+            .expect("added track exists");
+        assert_eq!(
+            track.name,
+            format!("{}{ordinal}", spec.name_stem()),
+            "lane of kind {} did not use its catalog stem",
+            spec.id
+        );
+    }
 }

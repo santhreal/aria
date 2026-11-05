@@ -1167,6 +1167,7 @@ Notes for the latest release. For previous releases, see the
 - A dock frame short of room keeps the visible panel's tab title whole while the other tabs fit beside it.
 - Disable Effect > Reset Grade and Remove Chroma Key when the selected clip has no grade or chroma key to clear, and skip no-op clear edits.
 - Quitting the application or closing the window stops background preview and thumbnail decode workers and releases open media decode sessions before the process exits.
+- Omit the Video codec property row for still images in the Project panel instead of reporting `Unknown`.
 
 ## [alpha-0.7.0] - 2026-07-22
 
