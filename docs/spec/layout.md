@@ -35,8 +35,9 @@ The upper area takes 55 % of the height between the tool bar and the status
 bar. The Timeline takes the rest.
 
 A resized window lays out a workspace with no changes for its new size, as
-choosing the workspace again does: Editing keeps its side frames at 400 px and
-300 px and Audio Meters at 64 px, and the Viewer and the Timeline take the
+choosing the workspace again does: Editing, Animation and Effects keep their
+side frames at 400 px and 300 px, Editing keeps Audio Meters at 64 px, and the
+Viewer and the Timeline take the
 difference. A workspace with a dragged splitter or a moved panel keeps the
 shares of its frames instead.
 
@@ -162,7 +163,9 @@ aimed. F10 or a lone Alt opens File with its first row lit. Up and Down move
 the light, a letter lights the next row starting with it, Right opens a lit
 submenu and Left closes it, Left and Right on
 a plain row move to the neighboring menu, Enter runs the lit row, and Escape
-closes the drop. Opening a dialog, the command palette, or the unsaved-changes
+closes the drop. A drop the pointer opens lights no row, and neither does the
+submenu under a display button; Down then lights the first row and Up the
+last. Opening a dialog, the command palette, or the unsaved-changes
 prompt, or returning to Home, closes an open drop, flyout, or popover, so the
 keys typed next reach the dialog. On macOS the bar is the native menu bar, with
 the same submenus, separators, check marks and disabled rows. After the menu titles, centered, the

@@ -625,6 +625,81 @@ fn either_edge_of_a_wedge_lengthens_the_window_and_neither_moves_the_cut() {
     }
 }
 
+/// The readout of a wedge drag states the blend it lengthens and the cut it
+/// sits on, outgoing clip first.
+///
+/// The class closed here: a readout that states the gesture rather than what
+/// it acts on. A wedge drag read `Transition` and the outgoing clip alone, so
+/// a drag on a Cross Fade between two clips read as a drag on the left clip.
+/// Both edges of a picture blend and the edge of a sound crossfade are read,
+/// each named off the catalog its lane takes, with every clip at both cuts
+/// named apart.
+///
+/// Not covered: where the readout draws, which `trim_hud_tests` reads.
+#[test]
+fn a_wedge_readout_states_its_blend_and_the_cut_it_sits_on() {
+    use aria_commands::{Command, EditCommand};
+
+    let mut dressed = sound_junction();
+    let state = &mut dressed.state;
+    let sounds = [dressed.left, dressed.subject].map(|clip| {
+        takes(state, clip)
+            .into_iter()
+            .map(|(id, ..)| ClipId::from_raw(id))
+            .find(|linked| *linked != clip)
+            .expect("each clip's sound is linked to it")
+    });
+    let named = [
+        (dressed.left, "bridge"),
+        (dressed.subject, "dome"),
+        (sounds[0], "bridge sound"),
+        (sounds[1], "dome sound"),
+    ];
+    for (clip, name) in named {
+        let name = Some(name.to_owned());
+        state
+            .apply_command(Command::Edit(EditCommand::SetClipName { clip, name }))
+            .expect("name the clip");
+    }
+    state
+        .set_clip_transition(sounds[0], AudioTransition::DEFAULT.id())
+        .expect("cross-fade the sound's cut");
+    state.sync_from_engine();
+    let blend = crate::app::clip_transitions::transition_choices()
+        .first()
+        .expect("the catalog offers a blend")
+        .label
+        .clone();
+    let cases = [
+        (dressed.left, true, blend.as_str(), "bridge → dome"),
+        (dressed.left, false, blend.as_str(), "bridge → dome"),
+        (
+            sounds[0],
+            true,
+            AudioTransition::DEFAULT.label(),
+            "bridge sound → dome sound",
+        ),
+    ];
+    for (clip, right, label, cut) in cases {
+        let duration = state
+            .clip_transition_ticks(clip)
+            .expect("the cut carries a window");
+        let gesture = Gesture::Transition { right, duration };
+        // Outward on either edge, so the window grows.
+        let delta = if right { STEP } else { -STEP };
+        let project = state.engine().lock().snapshot();
+        let shown = state
+            .compute_trim_feedback(&project, gesture, Drag { clip, delta })
+            .expect("a wedge drag shows a readout");
+        assert_eq!(
+            (&*shown.tool_label, &*shown.clip_name),
+            (label, cut),
+            "`{}` read as the wrong blend or cut",
+            gesture.what()
+        );
+    }
+}
+
 #[test]
 fn each_fade_handle_lengthens_its_own_end_of_the_clip() {
     // The two handles sit at opposite ends and the same pointer direction has to

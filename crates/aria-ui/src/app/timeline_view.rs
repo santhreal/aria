@@ -16,10 +16,10 @@ use crate::timeline_display::{Follow, Thumbnails, WaveformScale, ZoomBarKnobs};
 use crate::types::AppMenu;
 
 impl AppState {
-    /// Open the View menu's submenu `caption` under the button `owner`, the
-    /// first choice lit so the arrows and Enter walk the choices, or close it
-    /// when `owner` already holds it out. The Timeline header's and the
-    /// Viewer's display buttons run this.
+    /// Open the View menu's submenu `caption` under the button `owner` with
+    /// nothing lit, as a drop the pointer opens, or close it when `owner`
+    /// already holds it out. Down then lights the first choice and Up the
+    /// last. The Timeline header's and the Viewer's display buttons run this.
     pub fn toggle_display_menu(&mut self, owner: &'static str, caption: &'static str) {
         if self.menu_owner == Some(owner) {
             self.close_menu();
@@ -34,8 +34,8 @@ impl AppState {
         };
         self.close_context();
         self.open_menu = Some(AppMenu::View);
-        self.menu_row = Some(at);
-        self.menu_flyout = Some((at, Some(0)));
+        self.menu_row = None;
+        self.menu_flyout = Some((at, None));
         self.menu_owner = Some(owner);
     }
 

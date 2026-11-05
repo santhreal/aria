@@ -43,7 +43,7 @@ pub(super) static ANCHOR_POINT: ClipParamSpec = ClipParamSpec {
     class: ClipParamClass::Direct("anchor-point"),
     scope: ParamScope::Visual,
     browse: Some(Browse {
-        label: "Anchor point",
+        label: "Anchor Point",
         group: "transform",
         kind: ParamKind::Vec2,
         range: ParamRange::ANY,

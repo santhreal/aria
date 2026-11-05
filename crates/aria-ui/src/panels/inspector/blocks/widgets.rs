@@ -49,7 +49,7 @@ use keys::{Affordances, WATCH_SLOT, affordances, blanks, blanks_like};
 const DOT: f32 = 8.0;
 
 /// The room a label holds on a row with a time area before it shrinks, in
-/// pixels: the width of Anchor point X at `TEXT_UI` in Inter (77.4 px) plus a
+/// pixels: the width of Anchor Point X at `TEXT_UI` in Inter (77.7 px) plus a
 /// little air. Of any room the row has past its controls, the label takes one
 /// part and the strip `STRIP_GROW` parts. In a frame too narrow for every
 /// control, the strip narrows first and is left blank below its minimum, and

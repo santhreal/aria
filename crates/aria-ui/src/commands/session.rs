@@ -38,12 +38,12 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
     CommandEntry {
         id: "pal-captions",
         label: "Captions",
-        run: |state| state.sidebar_tab = crate::types::SidebarTab::Captions,
+        run: |state| state.show_sidebar_tab(crate::types::SidebarTab::Captions),
     },
     CommandEntry {
         id: "pal-analysis",
         label: "Analysis",
-        run: |state| state.sidebar_tab = crate::types::SidebarTab::Analysis,
+        run: |state| state.show_sidebar_tab(crate::types::SidebarTab::Analysis),
     },
     CommandEntry {
         id: "pal-next-moment",

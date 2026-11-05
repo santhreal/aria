@@ -576,6 +576,13 @@ impl AppState {
         self.sync_scope_demand();
     }
 
+    /// Bring the Project panel forward on `tab`, whichever panel was in front
+    /// of its frame: a command that names a tab shows that tab.
+    pub fn show_sidebar_tab(&mut self, tab: SidebarTab) {
+        self.focus_pane(ActivePanel::Media);
+        self.sidebar_tab = tab;
+    }
+
     /// Toggle a dock panel tab (`Shift+6` for Mixer, `Shift+0` for Assistant):
     /// focuses and activates the panel when not active, or returns to the
     /// Viewer when already active.

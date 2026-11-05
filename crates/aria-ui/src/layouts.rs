@@ -419,24 +419,24 @@ pub fn workspace_tree_for_width(
                             axis: Axis::Row,
                             children: vec![
                                 (
-                                    0.32,
+                                    left_w,
                                     Node::Frame(Frame::new(
                                         FrameId::LEFT,
-                                        vec![PANEL_EFFECTS, PANEL_PROJECT],
+                                        vec![PANEL_INSPECTOR, PANEL_PROJECT],
                                     )),
                                 ),
                                 (
-                                    0.36,
+                                    center_w,
                                     Node::Frame(Frame::new(
                                         FrameId::CENTER,
                                         vec![PANEL_VIEWER, PANEL_MIXER, PANEL_ASSISTANT],
                                     )),
                                 ),
                                 (
-                                    0.32,
+                                    right_w,
                                     Node::Frame(Frame::new(
                                         FrameId::RIGHT,
-                                        vec![PANEL_INSPECTOR, PANEL_INFO],
+                                        vec![PANEL_EFFECTS, PANEL_INFO],
                                     )),
                                 ),
                             ],
@@ -450,7 +450,7 @@ pub fn workspace_tree_for_width(
             },
             floating: Vec::new(),
             maximized: None,
-            focused: FrameId::RIGHT,
+            focused: FrameId::LEFT,
         },
         _ => return None,
     };

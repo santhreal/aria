@@ -325,7 +325,7 @@ fn each_viewer_display_row_flips_the_state_it_is_checked_from(cx: &mut gpui::Tes
         let before = checked(visual, id);
         for pass in [!before, before] {
             click(visual, "viewer-display-settings");
-            for _ in 0..at {
+            for _ in 0..=at {
                 visual.simulate_keystrokes("down");
             }
             visual.run_until_parked();

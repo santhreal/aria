@@ -333,7 +333,8 @@ color name, so typing `teal` in the filter box lists the teal group.
 
 Ctrl+Shift+P opens the palette. Type to filter, Up and Down move the highlight,
 Enter runs it, and Escape closes it. The highlight wraps at both ends and returns
-to the first row whenever the query changes.
+to the first row whenever the query changes. The palette's top stays in place
+while the list grows and shrinks under the query field.
 
 The palette offers every registered command and every row the menus would draw,
 including rows contributed by a plugin. A row that came from a menu states that

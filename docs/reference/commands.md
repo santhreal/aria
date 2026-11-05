@@ -19,8 +19,8 @@ Mask a clip, keyframe its opacity, and cut it at the playhead from the Command P
 | `pal-handles` | Cycle Canvas Handles | `none` | Always enabled | Cycles the Viewer on-canvas handle mode (`Transform`, `Crop`, `Mask`). |
 | `pal-bin-new` | New Bin | `none` | Always enabled | Creates a new bin inside the current media pool folder. |
 | `pal-bin-up` | Leave Bin | `none` | Already at the root bin | Navigates up one folder level in the media pool. |
-| `pal-captions` | Captions | `none` | Always enabled | Switches the Project panel to the `Captions` tab (`SidebarTab::Captions`). |
-| `pal-analysis` | Analysis | `none` | Always enabled | Switches the Project panel to the `Analysis` tab (`SidebarTab::Analysis`). |
+| `pal-captions` | Captions | `none` | Always enabled | Brings the Project panel forward on its `Captions` tab (`SidebarTab::Captions`). |
+| `pal-analysis` | Analysis | `none` | Always enabled | Brings the Project panel forward on its `Analysis` tab (`SidebarTab::Analysis`). |
 | `pal-next-moment` | Next Detected Moment | `none` | No detected analysis moments exist | Seeks the playhead to the next detected shot, silence, or beat moment. |
 | `pal-previous-moment` | Previous Detected Moment | `none` | No detected analysis moments exist | Seeks the playhead to the previous detected shot, silence, or beat moment. |
 | `pal-motion-blur` | Toggle Motion Blur | `none` | No clip is selected | Toggles transform shutter motion blur on the selected clips. |

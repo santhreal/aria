@@ -122,7 +122,7 @@ transform bounds:
 | Corner square | Scale | Shift keeps aspect; Alt scales from the anchor |
 | Edge square | Scale one axis | Shift keeps aspect |
 | Outside a corner | Rotation | Shift steps 45 degrees |
-| Anchor point (crosshair) | Moves the anchor with the Pan Behind tool (Y in Animation workspace) | Ctrl snaps to bounds |
+| Anchor Point (crosshair) | Moves the anchor with the Pan Behind tool (Y in Animation workspace) | Ctrl snaps to bounds |
 
 Arrow keys nudge the selected clip by 1 px, Shift+arrow by 10 px. Each drag or
 nudge burst is one undo step. When the property being dragged has keyframes,

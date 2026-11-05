@@ -392,9 +392,13 @@ impl AppState {
                 let Some(Setting::Transition(next)) = setting(self, project, gesture, &drag) else {
                     return None;
                 };
+                // The blend by its own name, and the cut it sits on, outgoing
+                // clip first.
+                let blend = ui.transition.as_ref()?;
+                let incoming = self.ui_clip_ref(project.transition_at(drag.clip)?.right)?;
                 Some(crate::types::TrimFeedback {
-                    tool_label: "Transition".into(),
-                    clip_name: ui.name.clone(),
+                    tool_label: blend.label.clone(),
+                    clip_name: format!("{} → {}", ui.name, incoming.name).into(),
                     delta_ticks: next - duration,
                     delta_label: signed_tc(next - duration).into(),
                     detail_label: format!("Len {}", tc(next)).into(),

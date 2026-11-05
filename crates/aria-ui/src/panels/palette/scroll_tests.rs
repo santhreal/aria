@@ -1,4 +1,5 @@
-//! The highlighted palette row is on screen after every key that moves it.
+//! The highlighted palette row is on screen after every key that moves it, and
+//! the query field stands still while the list changes under it.
 //!
 //! The class closed here: a highlight that moves while the list stays where it
 //! is. Down past the last visible row walked the highlight off the bottom of the
@@ -9,6 +10,10 @@
 //! highlighted row lies inside the card's scrolling region. The keys are every
 //! one that moves the highlight: Down, Up, a typed character, Backspace, and
 //! closing and reopening the palette.
+//!
+//! A second case types a query with a few hits, then one with none, and reads
+//! the header holding the query field after each: it stands where it stood
+//! over the full list.
 //!
 //! Not covered: the pointer wheel, which scrolls the list and leaves the
 //! highlight alone; a paste, which types through the same entry point as a
@@ -129,4 +134,35 @@ fn reopening_the_palette_starts_at_the_first_hit(cx: &mut TestAppContext) {
     );
     press(visual, "ctrl-shift-p");
     expect_shown(&state, visual, 0, "reopening after Up");
+}
+
+/// WHY: the card stood centred in the window, so each key that changed how
+/// many rows matched moved the query field being typed in up or down. The
+/// header holding the field stands where it stood over the full list, through
+/// a query with a few hits and one with none.
+#[gpui::test]
+fn the_query_field_stands_still_as_the_list_changes(cx: &mut TestAppContext) {
+    let (state, visual) = open_palette(cx, "palette-anchor");
+    let header = |visual: &mut VisualTestContext| {
+        visual
+            .debug_bounds("dialog-header")
+            .expect("the palette drew no header")
+    };
+    let full = (hit_count(&state, visual), header(visual));
+    let mut counts = vec![full.0];
+    for keys in ["h i s t o r y", "z z z z"] {
+        press(visual, keys);
+        let count = hit_count(&state, visual);
+        counts.push(count);
+        assert_eq!(
+            header(visual),
+            full.1,
+            "the query field moved when {count} rows matched instead of {}",
+            full.0
+        );
+    }
+    assert!(
+        counts[0] > counts[1] && counts[1] > 0 && counts[2] == 0,
+        "the queries did not narrow the list to a few rows, then none: {counts:?}"
+    );
 }

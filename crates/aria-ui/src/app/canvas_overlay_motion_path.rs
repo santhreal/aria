@@ -1,6 +1,6 @@
 //! Motion paths in the Viewer.
 //!
-//! A point property with keyframes, Position or Anchor point, draws its path
+//! A point property with keyframes, Position or Anchor Point, draws its path
 //! over the picture: one dot per frame from its first keyframe to its last,
 //! spaced by speed, the keyframes as squares, and the spatial tangents of a
 //! smooth keyframe as handles. Dragging a square moves the keyframe's value,
@@ -8,7 +8,7 @@
 //! Alt+click turns a keyframe between corner and smooth, and Ctrl+click on the
 //! path adds a keyframe at the frame under the pointer.
 //!
-//! The model keeps spatial tangents on Position alone, so an Anchor point path
+//! The model keeps spatial tangents on Position alone, so an Anchor Point path
 //! is straight between its keyframes and draws no tangent handles.
 //!
 //! The path in the property's own units is part of the selection's projection
@@ -18,7 +18,7 @@
 //! and a parent's frame at the playhead move it without changing the project.
 //!
 //! Position is drawn on the canvas, through the parent's frame at the playhead
-//! for a child clip. Anchor point is a point inside the layer, so its path is
+//! for a child clip. Anchor Point is a point inside the layer, so its path is
 //! drawn across the layer's quad, where the anchor itself sits.
 
 use std::borrow::Cow;

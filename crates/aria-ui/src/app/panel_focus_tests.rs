@@ -14,7 +14,7 @@
 //! These tests start from the state those clicks leave behind.
 
 use crate::app::AppState;
-use crate::dock::{PANEL_PROJECT, PANEL_TIMELINE};
+use crate::dock::{PANEL_MARKERS, PANEL_PROJECT, PANEL_TIMELINE};
 use crate::plugins::builtin_dock_panel_ids;
 use crate::scratch_pool::scratch;
 use crate::types::{ActivePanel, SidebarTab};
@@ -129,4 +129,49 @@ fn ctrl_w_closes_the_panel_in_front_and_no_other() {
             );
         }
     }
+}
+
+/// WHY: the palette's Captions and Analysis rows set the Project panel's tab
+/// and left whichever panel was in front of its frame there, so the row ran and
+/// nothing on screen changed. Each palette row named for a sidebar tab runs
+/// with Markers in front of the Project panel's frame and the sidebar
+/// collapsed, and must leave the Project panel in front, open, on that tab and
+/// holding the keys. The rows are read off the registry, so a row added under a
+/// tab's label is covered. Not covered: a row that shows a tab under another
+/// label.
+#[test]
+fn a_palette_row_named_for_a_sidebar_tab_shows_that_tab() {
+    let mut state = with_selection();
+    let mut rows = 0;
+    for command in crate::commands::BUILTIN_COMMANDS {
+        let Some(&tab) = SidebarTab::ALL
+            .iter()
+            .find(|tab| tab.label() == command.label)
+        else {
+            continue;
+        };
+        state.focus_dock_panel(PANEL_MARKERS);
+        state.ui_settings.sidebar_collapsed = true;
+        assert!(
+            !state.dock_tree.is_active(PANEL_PROJECT),
+            "Markers shares the Project panel's frame and stands in front of it"
+        );
+        (command.run)(&mut state);
+        let label = command.label;
+        assert!(
+            state.dock_tree.is_active(PANEL_PROJECT),
+            "{label} left the Project panel behind Markers"
+        );
+        assert!(
+            !state.ui_settings.sidebar_collapsed,
+            "{label} left the sidebar collapsed"
+        );
+        assert_eq!(state.keyed_panel(), PANEL_PROJECT, "{label}");
+        assert_eq!(state.sidebar_tab, tab, "{label}");
+        rows += 1;
+    }
+    assert!(
+        rows >= 2,
+        "the Captions and Analysis rows are read off the registry"
+    );
 }

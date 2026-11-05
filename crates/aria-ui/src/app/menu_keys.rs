@@ -85,7 +85,9 @@ impl AppState {
     ///
     /// The light walks the drop's entries, a submenu counting as one. Right or
     /// Enter on a submenu opens its flyout with the first row lit, and the light
-    /// then walks the flyout until Left or Escape closes it.
+    /// then walks the flyout until Left or Escape closes it. A flyout a button
+    /// holds out is the only list drawn, so the keys walk it from the start:
+    /// with nothing lit, Down lights its first row and Up its last.
     pub fn menu_key(&mut self, nav: MenuNav, cx: &mut gpui::Context<AppState>) -> bool {
         let Some(menu) = self.open_menu else {
             return false;
@@ -93,17 +95,19 @@ impl AppState {
         let rows = self.menu_rows(menu);
         let entries = drop_entries(&rows);
         let inside = match self.menu_flyout {
-            Some((at, Some(child))) => match entries.get(at) {
-                Some(DropEntry::Sub { rows: held, .. }) => Some((at, child, held.as_slice())),
-                _ => None,
-            },
+            Some((at, child)) if child.is_some() || self.menu_owner.is_some() => {
+                match entries.get(at) {
+                    Some(DropEntry::Sub { rows: held, .. }) => Some((at, child, held.as_slice())),
+                    _ => None,
+                }
+            }
             _ => None,
         };
         if let Some((at, child, held)) = inside {
             let len = held.len();
             match nav {
-                MenuNav::Down => self.menu_flyout = Some((at, step(Some(child), len, 1))),
-                MenuNav::Up => self.menu_flyout = Some((at, step(Some(child), len, -1))),
+                MenuNav::Down => self.menu_flyout = Some((at, step(child, len, 1))),
+                MenuNav::Up => self.menu_flyout = Some((at, step(child, len, -1))),
                 MenuNav::Home => self.menu_flyout = Some((at, Some(0))),
                 MenuNav::End => self.menu_flyout = Some((at, len.checked_sub(1))),
                 // A flyout a button opened is drawn without its drop, so
@@ -114,12 +118,12 @@ impl AppState {
                 MenuNav::Right => self.open_neighbour(menu, 1),
                 MenuNav::Letter(letter) => {
                     let captions: Vec<&str> = held.iter().map(|row| rows[*row].label).collect();
-                    let next = next_starting(&captions, Some(child), letter);
-                    self.menu_flyout = Some((at, next.or(Some(child))));
+                    let next = next_starting(&captions, child, letter);
+                    self.menu_flyout = Some((at, next.or(child)));
                 }
                 MenuNav::Run => {
-                    if let Some(item) = held.get(child).map(|row| rows[*row]) {
-                        self.press_lit(&item, cx);
+                    if let Some(&row) = child.and_then(|child| held.get(child)) {
+                        self.press_lit(&rows[row], cx);
                     }
                 }
             }

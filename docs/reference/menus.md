@@ -258,6 +258,8 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 
 ## Window menu
 
+The panel rows are listed by title in alphabetical order, plugin panels among them.
+
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
 | `win-workspace-editing` | `Workspaces` | Editing | `none` | Always enabled | Applies the `Editing` workspace layout (`docs/reference/workspaces.md`). |
@@ -267,23 +269,23 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 | `win-workspace-effects` | `Workspaces` | Effects | `none` | Always enabled | Applies the `Effects` workspace layout. |
 | `win-workspace-save` | `Workspaces` | Save Workspace | `none` | Always enabled | Saves the current arrangement to the active workspace file and the `Custom` slot. |
 | `win-workspace-reset` | `Workspaces` | Reset to Saved Layout | `none` | Always enabled | Resets the active workspace to its saved or shipped layout. |
-| `win-media` | `none` | Project | `Shift+1` | Always enabled | Toggles the `aria.panel.media` dock panel. |
-| `win-effects` | `none` | Effects & Presets | `Shift+5` | Always enabled | Opens and focuses `aria.panel.effects`. |
-| `win-program` | `none` | Viewer | `Shift+2` | Always enabled | Focuses the Viewer (`ActivePanel::Preview`). |
-| `win-timeline` | `none` | Timeline | `Shift+3` | Always enabled | Focuses the Timeline (`ActivePanel::Timeline`). |
-| `win-inspector` | `none` | Effect Controls | `Shift+4` | Always enabled | Toggles the `aria.panel.inspector` dock panel. |
-| `win-assistant` | `none` | Assistant | `Shift+0` | Always enabled | Toggles the Assistant tab (`ActivePanel::Ai`). |
-| `win-mixer` | `none` | Audio Track Mixer | `Shift+6` | Always enabled | Toggles the Audio Track Mixer tab (`ActivePanel::Mixer`). |
-| `win-jobs` | `none` | Jobs | `none` | Always enabled | Toggles the `aria.panel.jobs` dock panel. |
-| `win-panel:aria.panel.audio_meters` | `none` | Audio Meters | `Shift+9` | Always enabled | Toggles the `aria.panel.audio_meters` dock panel. |
-| `win-panel:aria.panel.character` | `none` | Character | `none` | Always enabled | Toggles the `aria.panel.character` dock panel. |
-| `win-panel:aria.panel.paragraph` | `none` | Paragraph | `none` | Always enabled | Toggles the `aria.panel.paragraph` dock panel. |
-| `win-panel:aria.panel.info` | `none` | Info | `Shift+8` | Always enabled | Toggles the `aria.panel.info` dock panel. |
 | `win-panel:aria.panel.align` | `none` | Align | `none` | Always enabled | Toggles the `aria.panel.align` dock panel. |
-| `win-panel:aria.panel.history` | `none` | History | `Ctrl+Shift+H` | Always enabled | Toggles the `aria.panel.history` dock panel. |
-| `win-panel:aria.panel.markers` | `none` | Markers | `none` | Always enabled | Toggles the `aria.panel.markers` dock panel. |
-| `win-panel:aria.panel.scopes` | `none` | Scopes | `Shift+7` | Always enabled | Toggles the `aria.panel.scopes` dock panel. |
+| `win-assistant` | `none` | Assistant | `Shift+0` | Always enabled | Toggles the Assistant tab (`ActivePanel::Ai`). |
+| `win-panel:aria.panel.audio_meters` | `none` | Audio Meters | `Shift+9` | Always enabled | Toggles the `aria.panel.audio_meters` dock panel. |
+| `win-mixer` | `none` | Audio Track Mixer | `Shift+6` | Always enabled | Toggles the Audio Track Mixer tab (`ActivePanel::Mixer`). |
+| `win-panel:aria.panel.character` | `none` | Character | `none` | Always enabled | Toggles the `aria.panel.character` dock panel. |
 | `win-panel:aria.panel.color` | `none` | Color | `none` | Always enabled | Toggles the `aria.panel.color` dock panel. |
+| `win-inspector` | `none` | Effect Controls | `Shift+4` | Always enabled | Toggles the `aria.panel.inspector` dock panel. |
+| `win-effects` | `none` | Effects & Presets | `Shift+5` | Always enabled | Opens and focuses `aria.panel.effects`. |
+| `win-panel:aria.panel.history` | `none` | History | `Ctrl+Shift+H` | Always enabled | Toggles the `aria.panel.history` dock panel. |
+| `win-panel:aria.panel.info` | `none` | Info | `Shift+8` | Always enabled | Toggles the `aria.panel.info` dock panel. |
+| `win-jobs` | `none` | Jobs | `none` | Always enabled | Toggles the `aria.panel.jobs` dock panel. |
+| `win-panel:aria.panel.markers` | `none` | Markers | `none` | Always enabled | Toggles the `aria.panel.markers` dock panel. |
+| `win-panel:aria.panel.paragraph` | `none` | Paragraph | `none` | Always enabled | Toggles the `aria.panel.paragraph` dock panel. |
+| `win-media` | `none` | Project | `Shift+1` | Always enabled | Toggles the `aria.panel.media` dock panel. |
+| `win-panel:aria.panel.scopes` | `none` | Scopes | `Shift+7` | Always enabled | Toggles the `aria.panel.scopes` dock panel. |
+| `win-timeline` | `none` | Timeline | `Shift+3` | Always enabled | Focuses the Timeline (`ActivePanel::Timeline`). |
+| `win-program` | `none` | Viewer | `Shift+2` | Always enabled | Focuses the Viewer (`ActivePanel::Preview`). |
 | `win-palette` | `none` | Command Palette | `Ctrl+Shift+P` | Always enabled | Opens the searchable Command Palette (`aria.dialog.palette`). |
 | `win-home` | `none` | Home | `none` | Always enabled | Switches the window route to Home (`UiRoute::Home`). |
 

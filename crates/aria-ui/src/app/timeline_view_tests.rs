@@ -208,6 +208,8 @@ fn a_hand_scroll_holds_the_follow_until_the_playhead_leaves_the_view() {
     }
 }
 
+/// The button opens the submenu with nothing lit, as the pointer opens a
+/// drop, and the arrows then walk its choices from either end.
 #[test]
 fn the_display_button_opens_the_submenu_and_the_keys_pick_a_choice() {
     let ctx = PluginContext::new();
@@ -216,6 +218,11 @@ fn the_display_button_opens_the_submenu_and_the_keys_pick_a_choice() {
         AppState::new(ctx, crate::scratch_pool::scratch("timeline-display")).expect("state");
     state.enter_editor();
     assert_eq!(state.display_menu(), None);
+    let choices = state
+        .menu_rows(AppMenu::View)
+        .iter()
+        .filter(|item| item.under == Some(TIMELINE_DISPLAY))
+        .count();
     let cx = gpui::TestAppContext::single();
     let entity = cx.update(|app| app.new(|_| state));
     let picked = cx.update(|app| {
@@ -228,7 +235,17 @@ fn the_display_button_opens_the_submenu_and_the_keys_pick_a_choice() {
                 "the submenu is out"
             );
             assert_eq!(state.menu_owner, Some("timeline-display-settings"));
-            // The first choice is lit, so Down then Enter picks the second.
+            let lit = |state: &AppState| state.menu_flyout.and_then(|(_, child)| child);
+            assert_eq!(lit(state), None, "the press lit a choice");
+            // Enter with nothing lit runs nothing and leaves the submenu out.
+            assert!(state.menu_key(MenuNav::Run, cx));
+            assert_eq!(state.display_menu(), Some(TIMELINE_DISPLAY));
+            // Up from nothing lights the last choice, and Down wraps to the
+            // first, so Down twice more and Enter pick the second.
+            assert!(state.menu_key(MenuNav::Up, cx));
+            assert_eq!(lit(state), Some(choices - 1));
+            assert!(state.menu_key(MenuNav::Down, cx));
+            assert_eq!(lit(state), Some(0));
             assert!(state.menu_key(MenuNav::Down, cx));
             assert!(state.menu_key(MenuNav::Run, cx));
             state.ui_settings.timeline_display.thumbnails

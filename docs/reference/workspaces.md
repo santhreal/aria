@@ -48,9 +48,9 @@ workspace is chosen.
 | `win-workspace-audio` | Upper | 66% | Center | 50% | `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.mixer` | no |
 | `win-workspace-audio` | Upper | 66% | Right | 28% | `aria.panel.audio_meters`, `aria.panel.effects`, `aria.panel.inspector` | `aria.panel.audio_meters` | no |
 | `win-workspace-audio` | Lower | 34% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |
-| `win-workspace-effects` | Upper | 60% | Left | 32% | `aria.panel.effects`, `aria.panel.media` | `aria.panel.effects` | no |
-| `win-workspace-effects` | Upper | 60% | Center | 36% | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
-| `win-workspace-effects` | Upper | 60% | Right | 32% | `aria.panel.inspector`, `aria.panel.info` | `aria.panel.inspector` | yes |
+| `win-workspace-effects` | Upper | 60% | Left | 400 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | yes |
+| `win-workspace-effects` | Upper | 60% | Center | Rest | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
+| `win-workspace-effects` | Upper | 60% | Right | 300 px | `aria.panel.effects`, `aria.panel.info` | `aria.panel.effects` | no |
 | `win-workspace-effects` | Lower | 40% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | no |
 
 ## Custom and plugin workspaces

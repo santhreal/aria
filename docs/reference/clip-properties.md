@@ -35,7 +35,7 @@ Every animatable clip property in Aria is registered in `crates/aria-models/src/
 | Catalog ID | Label | Group | `ClipParam` | Kind | Scope | Range |
 | --- | --- | --- | --- | --- | --- | --- |
 | `position` | Position | `transform` | `Position` | `Vec2` | `Visual` | `any` |
-| `anchor-point` | Anchor point | `transform` | `AnchorPoint` | `Vec2` | `Visual` | `any` |
+| `anchor-point` | Anchor Point | `transform` | `AnchorPoint` | `Vec2` | `Visual` | `any` |
 | `scale` | Scale | `transform` | `Scale` | `Vec2` | `Visual` | `> 0` |
 | `rotation` | Rotation | `transform` | `Rotation` | `Scalar` | `Visual` | `any` |
 | `opacity` | Opacity | `transform` | `Opacity` | `Scalar` | `Visual` | `0..=1` |

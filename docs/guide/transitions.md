@@ -29,9 +29,10 @@ Drag either edge of the band to set the length: a centered band moves both
 edges symmetrically around the cut, and a start-aligned or end-aligned band
 changes length 1:1 with the dragged edge. The length stops at the longest
 window the two clips at the cut can hold. While the button is down the band
-draws at the length the release sets, and the readout states it. Right-click
-the band for **Remove Transition**, **Center at Cut**, **Start at Cut**,
-**End at Cut**, and the blend catalog. All act on that cut whatever is
+draws at the length the release sets, and the readout states the blend, the
+cut as `outgoing → incoming`, and the length. Right-click the band for
+**Remove Transition**, **Center at Cut**, **Start at Cut**, **End at Cut**,
+and the blend catalog. All act on that cut whatever is
 selected. The band's current alignment and the blend already on the cut draw
 a check mark.
 

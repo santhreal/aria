@@ -556,7 +556,7 @@ fn inked(visual: &mut VisualTestContext, strip: Bounds<Pixels>) -> bool {
 /// one column on their stopwatches' lines, inside the frame.
 ///
 /// Closes the class "a label truncated while the time area beside it still had
-/// room to give", where Anchor point X ended in an ellipsis beside a full
+/// room to give", where Anchor Point X ended in an ellipsis beside a full
 /// strip, then beside a strip too narrow to read, and the class "a wide frame
 /// that gives its room to the label", where a maximized Effect Controls drew
 /// its values hundreds of pixels from their names beside a 112 px time area.

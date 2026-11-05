@@ -1,5 +1,5 @@
-//! The Window menu: one row per dock panel, the workspaces, and the palette,
-//! home and report rows.
+//! The Window menu: one row per dock panel in alphabetical order, the
+//! workspaces, and the palette, home and report rows.
 //!
 //! [`super::menu_items::items_for`] dispatches here, so the bar, the palette
 //! and the tests reach these rows through the one registry.
@@ -22,29 +22,29 @@ pub(crate) const PANEL_PREFIX: &str = "win-panel:";
 /// panel is open, front tab or not. Every other registered panel, built in or
 /// declared by a plugin, gets a generated row.
 pub(crate) const PANEL_ROWS: &[(&str, crate::dock::PanelId, RowRun)] = &[
-    ("win-media", crate::dock::PANEL_PROJECT, |_, s, _| {
-        s.toggle_dock_panel(crate::dock::PANEL_PROJECT);
-    }),
-    ("win-effects", crate::dock::PANEL_EFFECTS, |_, s, _| {
-        s.open_effects_panel()
-    }),
-    ("win-program", crate::dock::PANEL_VIEWER, |_, s, _| {
-        s.focus_pane(ActivePanel::Preview)
-    }),
-    ("win-timeline", crate::dock::PANEL_TIMELINE, |_, s, _| {
-        s.focus_pane(ActivePanel::Timeline)
-    }),
-    ("win-inspector", crate::dock::PANEL_INSPECTOR, |_, s, _| {
-        s.toggle_dock_panel(crate::dock::PANEL_INSPECTOR);
-    }),
     ("win-assistant", crate::dock::PANEL_ASSISTANT, |_, s, _| {
         s.toggle_pane_tab(ActivePanel::Ai);
     }),
     ("win-mixer", crate::dock::PANEL_MIXER, |_, s, _| {
         s.toggle_pane_tab(ActivePanel::Mixer);
     }),
+    ("win-inspector", crate::dock::PANEL_INSPECTOR, |_, s, _| {
+        s.toggle_dock_panel(crate::dock::PANEL_INSPECTOR);
+    }),
+    ("win-effects", crate::dock::PANEL_EFFECTS, |_, s, _| {
+        s.open_effects_panel()
+    }),
     ("win-jobs", crate::dock::PANEL_JOBS, |_, s, _| {
         s.toggle_dock_panel(crate::dock::PANEL_JOBS);
+    }),
+    ("win-media", crate::dock::PANEL_PROJECT, |_, s, _| {
+        s.toggle_dock_panel(crate::dock::PANEL_PROJECT);
+    }),
+    ("win-timeline", crate::dock::PANEL_TIMELINE, |_, s, _| {
+        s.focus_pane(ActivePanel::Timeline)
+    }),
+    ("win-program", crate::dock::PANEL_VIEWER, |_, s, _| {
+        s.focus_pane(ActivePanel::Preview)
     }),
 ];
 
@@ -97,6 +97,13 @@ static WINDOW_TOOLS: &[MenuItem] = &[
     MenuItem::new("win-home", "Home", |_, s, _| s.request_go_home()),
 ];
 
+/// Two panel titles in reading order, letter case ignored.
+fn by_title(a: &str, b: &str) -> std::cmp::Ordering {
+    a.bytes()
+        .map(|byte| byte.to_ascii_lowercase())
+        .cmp(b.bytes().map(|byte| byte.to_ascii_lowercase()))
+}
+
 pub(super) fn window_items(state: &AppState) -> MenuItems {
     let mut items = Vec::new();
     // One row per workspace from the list Settings draws: the shipped ones,
@@ -126,15 +133,13 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
         )
         .under(WORKSPACES),
     );
-    // The panels are a group of the drop.
+    // The panels are a group of the drop, listed by title in alphabetical
+    // order, so a panel is found by its name and not by when it was registered.
+    let panels = items.len();
     items.extend(
         PANEL_ROWS
             .iter()
-            .enumerate()
-            .map(|(index, &(id, panel, run))| {
-                let row = panel_row(state, id, panel, run).checked(panel_row_open);
-                if index == 0 { row.rule() } else { row }
-            }),
+            .map(|&(id, panel, run)| panel_row(state, id, panel, run).checked(panel_row_open)),
     );
     // One row per other registered dock panel, so a panel added to the registry
     // or declared by a plugin is opened from the menu with no row written for
@@ -155,6 +160,10 @@ pub(super) fn window_items(state: &AppState) -> MenuItems {
                     .is_some_and(|panel| s.dock_tree.is_open(panel))
             }),
         );
+    }
+    items[panels..].sort_by(|a, b| by_title(a.label, b.label));
+    if let Some(first) = items.get_mut(panels) {
+        first.rule = true;
     }
     items.extend_from_slice(WINDOW_TOOLS);
     // A report on a project with no sources and no clips is a column of zeroes,

@@ -180,6 +180,10 @@ highlighted. With no clip selected and no property chosen, the graph draws no
 curve and no value axis, and shows "Select a clip to graph its properties."
 
 - **Value** plots the property's value; **Speed** plots its rate of change.
+  The value axis prints the graph's top, middle and bottom in the units the
+  property's row prints, per second in Speed; a level's rate prints as a
+  percent of unity per second. Curves in different units share an axis of
+  stored numbers.
 - Drag a keyframe to change its value and time. The drag follows the pointer
   past the graph's edges, and a release above or below the graph writes the
   top or bottom value of the graph. Escape during the drag writes nothing.

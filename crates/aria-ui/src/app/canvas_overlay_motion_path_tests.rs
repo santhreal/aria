@@ -1,4 +1,4 @@
-//! Motion paths in the Viewer: the path a keyframed Position or Anchor point
+//! Motion paths in the Viewer: the path a keyframed Position or Anchor Point
 //! draws, its keyframes and tangent handles, and the edits made on it.
 //!
 //! Closes the class where the drawn path disagrees with the curve the renderer

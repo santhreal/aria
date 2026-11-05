@@ -1,14 +1,24 @@
-//! The Window menu's panel rows against the keys that bring panels forward.
+//! The Window menu's panel rows: their order, and the keys that bring panels
+//! forward.
 //!
-//! The class closed here: a pane key whose panel's Window row draws no chord,
-//! which hides the shortcut from the menu that opens the same panel. The pane
-//! keys are read off the shipped bindings, every Editor binding on Shift and a
-//! digit, and the panel each one brings forward is measured by running it, so a
-//! new pane key is red here until its panel's row draws it.
+//! Classes closed here:
+//! - A panel row placed by the order its panel was written or registered,
+//!   which scatters the names a reader scans the menu for. The rows and the
+//!   panels are read off the registry, so a new panel is in the check with no
+//!   edit here.
+//! - A pane key whose panel's Window row draws no chord, which hides the
+//!   shortcut from the menu that opens the same panel. The pane keys are read
+//!   off the shipped bindings, every Editor binding on Shift and a digit, and
+//!   the panel each one brings forward is measured by running it, so a new
+//!   pane key is red here until its panel's row draws it.
 //!
 //! Not covered: a panel key on another chord, such as Ctrl+Shift+H for History,
-//! which `dock_panels_tests` lists by hand.
+//! which `dock_panels_tests` lists by hand. A plugin panel is not registered
+//! here; its row is generated as the Info row is, through the same sort.
 
+use aria_plugin::PluginContext;
+
+use crate::app::AppState;
 use crate::chrome::menu_items::items_of;
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::keys::{Binding, KeyBody, KeyRoute};
@@ -35,6 +45,61 @@ fn is_pane_key(binding: &Binding) -> bool {
         && !chord.alt
         && chord.key.len() == 1
         && chord.key.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// The panel rows are one group of the drop holding every registered panel
+/// once, in alphabetical order of their titles, with the group's rule above
+/// the first row and no other.
+#[test]
+fn the_panel_rows_are_listed_by_title() {
+    let state = AppState::new(
+        PluginContext::new(),
+        crate::scratch_pool::scratch("window-panel-order"),
+    )
+    .expect("build headless AppState");
+    let rows = items_of(AppMenu::Window, &state);
+    let at: Vec<usize> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.under.is_none() && row_panel(item.id).is_some())
+        .map(|(index, _)| index)
+        .collect();
+    assert!(at.len() >= 2, "Window lists {} panel rows", at.len());
+    assert!(
+        at.windows(2).all(|pair| pair[1] == pair[0] + 1),
+        "the panel rows are split by other rows at {at:?}"
+    );
+
+    let mut listed: Vec<&str> = at
+        .iter()
+        .filter_map(|&index| row_panel(rows[index].id))
+        .collect();
+    let mut registered = state.registered_panel_ids();
+    listed.sort_unstable();
+    registered.sort_unstable();
+    assert_eq!(
+        listed, registered,
+        "the panel rows and the registered panels differ"
+    );
+
+    let titles: Vec<&str> = at.iter().map(|&index| rows[index].label).collect();
+    let mut alphabetical = titles.clone();
+    alphabetical.sort_by_key(|title| title.to_lowercase());
+    assert_eq!(
+        titles, alphabetical,
+        "the panel rows are out of alphabetical order"
+    );
+
+    let rules: Vec<&str> = at
+        .iter()
+        .filter(|&&index| rows[index].rule)
+        .map(|&index| rows[index].label)
+        .collect();
+    assert_eq!(
+        rules,
+        [titles[0]],
+        "the panel group's rule sits on the wrong rows"
+    );
 }
 
 /// Each pane key, run in turn, brings a panel forward, and that panel's Window

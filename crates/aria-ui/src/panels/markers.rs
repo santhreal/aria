@@ -2,10 +2,11 @@
 //!
 //! Markers used to exist only as flags on the ruler, so a marker off screen was
 //! a marker nothing could find, and its colour and note were data
-//! nothing showed. A row here names the time, the label, the colour, and the
+//! nothing showed. A row here states the time, the label, the colour, and the
 //! note, and every control on it is an existing marker command: click seeks,
-//! the swatch cycles the palette, Rename edits the label, Note edits the
-//! comment, and Remove deletes it.
+//! the swatch cycles the palette, Edit… opens the marker's dialog, Rename edits
+//! the label, Note edits the comment, and Remove deletes it. The four commands
+//! after the swatch are drawn on the row under the pointer.
 //!
 //! Nothing is computed here that the state does not already own: the rows are
 //! the projected markers in projection order (by tick), which is the order the
@@ -82,9 +83,18 @@ fn markers_panel(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(count_line(theme, rows.len(), held))
+        // The count and the panel's one action share the head line, as the
+        // Mixer's head row holds its action.
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(Theme::SPACE_SM))
+                .child(count_line(theme, rows.len(), held))
+                .child(add_button(theme, cx)),
+        )
         .child(filter_bar(theme, active_filter, cx))
-        .child(add_button(theme, cx))
         .children(rows)
         .into_any_element()
 }
@@ -199,8 +209,11 @@ fn press(state: &mut AppState, pick: Pick) {
     }
 }
 
-/// One marker. The whole row seeks; the controls stop propagation so a click on
-/// Remove is not also a seek.
+/// One marker: one line of what it is, and its note under it. The whole row
+/// seeks; the controls stop propagation so a click on Remove is not also a
+/// seek. The controls stand over the end of the first line while the pointer
+/// is on the row, so a list of markers reads as a list rather than as a grid
+/// of buttons, and no row's name is covered while nothing points at it.
 fn row(
     theme: &Theme,
     marker: &UiMarker,
@@ -220,24 +233,60 @@ fn row(
         marker.name.clone()
     };
     let comment = marker.comment.clone();
+    let lit = motion::hover_t(key);
+    let fill = motion::mix(
+        if at_playhead {
+            theme.wash(0.11)
+        } else {
+            crate::components::band_fill(theme, index)
+        },
+        theme.wash(if at_playhead { 0.17 } else { 0.06 }),
+        lit,
+    );
+    // Drawn only while seen: a control at no opacity would still take a click.
+    let actions = (lit > 0.0).then(|| {
+        div()
+            .absolute()
+            .top(px(Theme::SPACE_XS))
+            .right(px(Theme::SPACE_SM))
+            .h(px(Theme::CONTROL_HEIGHT))
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_XS))
+            .pl(px(Theme::SPACE_SM))
+            .bg(fill)
+            .opacity(lit)
+            .debug_selector(move || format!("marker-actions-{id}"))
+            .child(edit_dialog_action(theme, id, cx))
+            .child(marker_action(
+                theme,
+                "marker-rename",
+                "Rename",
+                id,
+                RenameTarget::Marker(id),
+                cx,
+            ))
+            .child(marker_action(
+                theme,
+                "marker-note",
+                "Note",
+                id,
+                RenameTarget::MarkerComment(id),
+                cx,
+            ))
+            .child(remove(theme, id, cx))
+    });
 
     let card = div()
         .id(gpui::ElementId::named_usize("marker-row", id as usize))
+        .debug_selector(move || format!("marker-row-{id}"))
+        .relative()
         .flex()
         .flex_col()
-        .gap(px(Theme::SPACE_XXS))
         .px(px(Theme::SPACE_SM))
         .py(px(Theme::SPACE_XS))
         .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(motion::hover_blend(
-            key,
-            if at_playhead {
-                theme.wash(0.11)
-            } else {
-                crate::components::band_fill(theme, index)
-            },
-            theme.wash(if at_playhead { 0.17 } else { 0.06 }),
-        ))
+        .bg(fill)
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .on_hover(motion::hover_listener(key))
@@ -251,6 +300,7 @@ fn row(
         )
         .child(
             div()
+                .h(px(Theme::CONTROL_HEIGHT))
                 .flex()
                 .items_center()
                 .gap(px(Theme::SPACE_XS))
@@ -275,6 +325,8 @@ fn row(
                 .child(
                     div()
                         .flex_1()
+                        .min_w_0()
+                        .truncate()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
                         .child(name),
@@ -304,29 +356,7 @@ fn row(
                     .child(comment),
             )
         })
-        .child(
-            div()
-                .flex()
-                .gap(px(Theme::SPACE_XS))
-                .child(edit_dialog_action(theme, id, cx))
-                .child(marker_action(
-                    theme,
-                    "marker-rename",
-                    "Rename",
-                    id,
-                    RenameTarget::Marker(id),
-                    cx,
-                ))
-                .child(marker_action(
-                    theme,
-                    "marker-note",
-                    "Note",
-                    id,
-                    RenameTarget::MarkerComment(id),
-                    cx,
-                ))
-                .child(remove(theme, id, cx)),
-        );
+        .when_some(actions, |el, actions| el.child(actions));
     // The rows arrive in their own order rather than all at once: a list that
     // blinks into place says nothing about how long it is.
     crate::pending::arriving(crate::motion::MotionKey::new("marker-in", id), index, card)

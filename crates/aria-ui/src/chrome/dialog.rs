@@ -9,11 +9,12 @@
 //! A card is never larger than the window less `EDGE_CLEARANCE` on each side.
 //! The title row and the header controls stay at the top of the card, the action
 //! row stays at the bottom, and the content between them scrolls when it does
-//! not fit.
+//! not fit. A card stands centred in the window, or, with
+//! [`DialogBody::anchored_top`], at a fixed share of the height under its top.
 
 use gpui::{
     AnyElement, App, Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, ScrollHandle, Styled, div, px,
+    ParentElement, ScrollHandle, Styled, div, px, relative,
 };
 
 use crate::app::{AppState, DialogKind};
@@ -33,6 +34,10 @@ const DIALOG_WIDTH: f32 = 480.0;
 /// the card plus this margin shrinks the card; the margin stays.
 const EDGE_CLEARANCE: f32 = 2.0 * Theme::SPACE_LG;
 
+/// Where the top of a [`DialogBody::anchored_top`] card stands: this share of
+/// the height inside the edge clearance lies above it.
+const ANCHORED_TOP: f32 = 0.15;
+
 /// What a dialog puts on its card, by region.
 ///
 /// The title row and [`DialogBody::header`] are pinned to the top of the card,
@@ -43,6 +48,7 @@ pub struct DialogBody {
     header: Option<AnyElement>,
     actions: Vec<AnyElement>,
     scroll: Option<ScrollHandle>,
+    anchored_top: bool,
 }
 
 /// Elements have no `Debug`; this prints which regions the body has.
@@ -52,6 +58,7 @@ impl std::fmt::Debug for DialogBody {
             .field("header", &self.header.is_some())
             .field("actions", &self.actions.len())
             .field("scroll", &self.scroll.is_some())
+            .field("anchored_top", &self.anchored_top)
             .finish_non_exhaustive()
     }
 }
@@ -65,6 +72,7 @@ impl DialogBody {
             header: None,
             actions: Vec::new(),
             scroll: None,
+            anchored_top: false,
         }
     }
 
@@ -85,6 +93,15 @@ impl DialogBody {
     /// row of `content` into view by its index among `content`'s children.
     pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
         self.scroll = Some(handle.clone());
+        self
+    }
+
+    /// Stands the card's top at a fixed height in the window rather than
+    /// centring the card, so the card grows and shrinks downward. A dialog
+    /// whose content changes as the query changes, such as the palette's list,
+    /// keeps its query field under the caret.
+    pub fn anchored_top(mut self) -> Self {
+        self.anchored_top = true;
         self
     }
 }
@@ -166,6 +183,7 @@ pub fn dialog_layer(
         header,
         actions,
         scroll,
+        anchored_top,
     } = body;
     let header = div()
         .flex_none()
@@ -221,7 +239,10 @@ pub fn dialog_layer(
         .debug_selector(|| "dialog-card".into())
         .child(header)
         .child(content)
-        .children(footer);
+        .children(footer)
+        // Under the anchored spacer the card shrinks into the height left; its
+        // automatic minimum would hold it at its content's height instead.
+        .when(anchored_top, |card| card.min_h_0());
     // Entry and exit take different element ids. GPUI keys animation state by
     // id, so a shared one would hand the exit the finished entry's clock and the
     // exit would never draw a frame. The two helpers name their own kind, so one
@@ -233,15 +254,22 @@ pub fn dialog_layer(
     // The padding is the edge clearance, and the card's `max_*_full` resolves
     // against the box inside it. The scrim takes the pointer: a dialog is
     // modal, so neither a hover nor a press reaches the editor behind it.
-    div()
+    let layer = div()
         .absolute()
         .inset_0()
         .flex()
-        .items_center()
-        .justify_center()
         .p(px(EDGE_CLEARANCE))
         .bg(theme.scrim().opacity(1.0 - exit.unwrap_or(0.0)))
-        .occlude()
-        .child(crate::frost::frost(card))
-        .into_any_element()
+        .occlude();
+    let layer = if anchored_top {
+        // A column: the spacer takes its share of the height, and the card
+        // shrinks into the rest, its scrolling content giving up the height.
+        layer
+            .flex_col()
+            .items_center()
+            .child(div().flex_none().h(relative(ANCHORED_TOP)))
+    } else {
+        layer.items_center().justify_center()
+    };
+    layer.child(crate::frost::frost(card)).into_any_element()
 }

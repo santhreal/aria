@@ -807,6 +807,10 @@ Notes for the latest release. For previous releases, see the
 - The Info panel prints a crop, mask or scale drag in the units the Inspector prints the property in.
 - A crop inset in Effect Controls prints a percent of the picture to a tenth and moves a tenth of a percent per two pixels of drag instead of a whole percent.
 - A clip's speed prints as a percent to a tenth on every surface: the Speed tab's ramp rows and base-speed note, the Speed/Duration dialog, the clip's name strip, the Rate Stretch readout and the status line, and a ramp row drags one percent per unit instead of five hundredths of a multiplier.
+- The Markers panel draws each marker on one line, shows its **Edit…**, **Rename**, **Note** and **Remove** controls on the row under the pointer, and puts **Add at playhead** on the marker count's line.
+- The Command Palette stands near the top of the window and keeps its query field in place while the list grows and shrinks.
+- The Window menu lists its panels in alphabetical order.
+- The Effects workspace puts Effect Controls in the left column and Effects & Presets in the right, where Editing has them, at 400 px and 300 px, and gives the Viewer the rest of the row, so its controls fit on one line.
 
 ### Fixed
 
@@ -1099,6 +1103,11 @@ Notes for the latest release. For previous releases, see the
 - The Audio Track Mixer no longer repeats its tab's title above its strips, and its **+ Submix bus** button draws as the outlined button every other panel head uses.
 - The Assistant no longer heads its conversation with its tab's title, and its **Copy** row draws only while there is a conversation to copy; the Align panel no longer heads its edge buttons with its tab's title.
 - A Settings row whose value or chips wrap keeps its label on their first line instead of between their lines.
+- The graph editor's value axis prints in the units its property's row prints, such as `112%` and `-6.0 dB`, and in Speed mode per second, instead of the stored number.
+- The Command Palette's **Captions** and **Analysis** rows bring the Project panel forward on that tab instead of switching a tab hidden behind another panel.
+- The Timeline's and the Viewer's display buttons open their menu with no row lit, as a menu opened from the menu bar does; Down lights the first row and Up the last.
+- Effect Controls and the timeline's property rows name the property **Anchor Point**, as the Command Palette does, instead of **Anchor point**.
+- The readout of a transition edge drag shows the blend's name and the cut, such as `Cross Fade · bridge → dome`, instead of `Transition` and the outgoing clip's name.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -9,11 +9,12 @@ use aria_models::{
 };
 use gpui::SharedString;
 
-use super::{KeyframeIconShape, SelectedKeyframe};
+use super::{KeyframeIconShape, SelectedKeyframe, with_row_units};
 use crate::app::AppState;
 use crate::app::clip_keys::key_params_of;
 use crate::app::curve_geometry::{CurveBounds, build_curve_polyline, sample_param_scalar};
 use crate::app::key_strip::KEY_HIT_PX;
+use crate::app::param_units::{Scale, Units};
 
 /// Which graph the timeline graph editor draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -266,6 +267,9 @@ impl AppState {
             }
             max_y += margin;
         }
+        let mid_y = (min_y + max_y) * 0.5;
+        let [top_label, mid_label, bottom_label] =
+            axis_labels(&resolved, mode, [max_y, mid_y, min_y]);
 
         let y_of = |v: f32| -> f32 {
             let frac = ((v - min_y) / (max_y - min_y).max(1e-5)).clamp(0.0, 1.0);
@@ -429,18 +433,13 @@ impl AppState {
             });
         }
 
-        let unit = match mode {
-            GraphMode::Value => "",
-            GraphMode::Speed => "/s",
-        };
-        let mid_y = (min_y + max_y) * 0.5;
         TimelineGraphModel {
             mode,
             min_y,
             max_y,
-            top_label: format!("{max_y:.1}{unit}").into(),
-            mid_label: format!("{mid_y:.1}{unit}").into(),
-            bottom_label: format!("{min_y:.1}{unit}").into(),
+            top_label,
+            mid_label,
+            bottom_label,
             curves,
         }
     }
@@ -719,6 +718,52 @@ fn nearest(hits: impl Iterator<Item = (f32, GraphHit)>, reach: f32) -> Option<Gr
         .map(|(_, hit)| hit)
 }
 
+/// What the value axis prints at `values`, stored values, in the units the
+/// rows of the graphed `curves` print. In Speed mode each value is a rate,
+/// the change per second of the number a row prints. A gain prints in
+/// decibels, which are not linear in the multiplier it stores, so its rate
+/// prints as the multiplier's, in the units of a multiplier
+/// ([`Units::SPEED`]). Curves whose rows print in different units share the
+/// axis, so it prints the stored numbers.
+fn axis_labels(
+    curves: &[(Clip, ParamSpec, SharedString)],
+    mode: GraphMode,
+    values: [f32; 3],
+) -> [SharedString; 3] {
+    let stored = |value: f32| -> SharedString {
+        match mode {
+            GraphMode::Value => format!("{value:.1}"),
+            GraphMode::Speed => format!("{value:.1}/s"),
+        }
+        .into()
+    };
+    let Some(((clip, spec, _), rest)) = curves.split_first() else {
+        return values.map(stored);
+    };
+    with_row_units(clip, spec, |units| {
+        let shared = rest.iter().all(|(clip, spec, _)| {
+            with_row_units(clip, spec, |other| {
+                other.number.scale == units.number.scale && other.suffix == units.suffix
+            })
+        });
+        if !shared {
+            return values.map(stored);
+        }
+        let rate = match units.number.scale {
+            Scale::Linear(_) => units,
+            Scale::Gain => Units::SPEED,
+        };
+        values.map(|value| match mode {
+            GraphMode::Value => units.print(value).into(),
+            GraphMode::Speed => {
+                let mut printed = rate.print(value);
+                printed.push_str("/s");
+                printed.into()
+            }
+        })
+    })
+}
+
 fn sample_speed_at(
     spec: &ParamSpec,
     clip: &Clip,
@@ -733,3 +778,7 @@ fn sample_speed_at(
     let vb = sample_param_scalar(spec, clip, component, local_b).unwrap_or(0.0);
     ((vb - va) as f64 / dt) as f32
 }
+
+#[cfg(test)]
+#[path = "property_rows_graph_tests.rs"]
+mod tests;

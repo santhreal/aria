@@ -275,7 +275,7 @@ The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panel
 
 ## Markers
 
-The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, color filter reset, and per-marker edit, rename, note, and removal controls.
+The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead marker creation, color filter reset, and per-marker edit, rename, note, and removal controls. The per-row controls are drawn on the row under the pointer.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |

@@ -10,6 +10,8 @@
 //! - The scopes measure while the Scopes tab is in front of its frame or the
 //!   strip is open, and stop measuring and drop the reading once neither is.
 //! - A click on a History row moves the project to that step.
+//! - A Markers row is one line and draws its controls only under the pointer,
+//!   over the end of that line, and Remove there deletes without seeking.
 //! - The Color panel draws for a selected clip, and Reset grade returns the
 //!   grade to neutral.
 //!
@@ -337,5 +339,122 @@ fn the_color_panel_resets_the_selected_clips_grade(cx: &mut gpui::TestAppContext
         visual.read(|app| state.read(app).param_scalar(exposure, None)),
         neutral,
         "Reset grade left the grade on"
+    );
+}
+
+/// WHY: each Markers row drew a second line of four boxed buttons, and Add at
+/// playhead spanned the panel as a box of its own, so the list read as a grid
+/// of buttons and showed half as many markers. Each row is one line at rest,
+/// the row at the playhead included, and draws no controls; Add at playhead is
+/// sized to its label above the rows; under the pointer the controls draw
+/// inside that row's line and the row keeps its height, and a click on Remove
+/// there deletes that marker and does not also seek to it. Not covered: the
+/// fade of the controls, which needs pixels.
+#[gpui::test]
+fn a_marker_row_is_one_line_and_draws_its_controls_under_the_pointer(
+    cx: &mut gpui::TestAppContext,
+) {
+    use crate::surfaces::markers_pick::{self, Pick};
+    use crate::theme::Theme;
+    use gpui::{Modifiers, point, px};
+
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "markers-rows");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let (first, second, later) = visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            let media = state.import_media(fixture()).expect("import fixture");
+            state
+                .drop_media_on_timeline(media, None, 0)
+                .expect("place clip");
+            let later = state.store.sequence.duration_ticks / 2;
+            assert!(later > 0, "the clip gives the sequence a length");
+            for tick in [0, later] {
+                state.set_playhead(tick);
+                markers_pick::apply(state, Pick::AddAtPlayhead).expect("a marker at the playhead");
+            }
+            // The rows the panel draws, in its order (by time), clip markers
+            // included, whichever the selection made of the two.
+            let drawn = state.visible_markers();
+            assert_eq!(drawn.len(), 2, "two markers on the ruler");
+            let ids = (drawn[0].id, drawn[1].id, state.playhead.value);
+            state.focus_dock_panel(PANEL_MARKERS);
+            cx.notify();
+            ids
+        })
+    });
+    visual.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    visual.run_until_parked();
+
+    let one_line = Theme::CONTROL_HEIGHT + 2.0 * Theme::SPACE_XS;
+    let bounds = |visual: &mut gpui::VisualTestContext, name: &str| {
+        visual.debug_bounds(crate::interned::intern(name))
+    };
+    let row = |visual: &mut gpui::VisualTestContext, id: u64| {
+        bounds(visual, &format!("marker-row-{id}"))
+            .unwrap_or_else(|| panic!("Markers draws no row for marker {id}"))
+    };
+    let controls = |visual: &mut gpui::VisualTestContext, id: u64| {
+        bounds(visual, &format!("marker-actions-{id}"))
+    };
+    for id in [first, second] {
+        let height = f32::from(row(visual, id).size.height);
+        assert!(
+            (height - one_line).abs() < 0.5,
+            "marker {id}'s row is {height}px tall at rest, not one line of {one_line}px"
+        );
+        assert!(
+            controls(visual, id).is_none(),
+            "marker {id}'s row draws its controls with nothing pointing at it"
+        );
+    }
+    // The panel's own action stands on the head line, sized to its label,
+    // rather than as a box across the panel.
+    let panel = bounds(visual, "markers-panel").expect("the Markers panel is not drawn");
+    let add = bounds(visual, "marker-add").expect("Markers draws no Add at playhead");
+    assert!(
+        add.size.width < panel.size.width / 2.,
+        "Add at playhead is {add:?} across a panel {panel:?}"
+    );
+    assert!(
+        add.bottom() <= row(visual, first).top(),
+        "Add at playhead is not above the rows"
+    );
+
+    let hovered = row(visual, first);
+    visual.simulate_mouse_move(hovered.center(), None, Modifiers::none());
+    visual.run_until_parked();
+    let shown = controls(visual, first).expect("the row under the pointer draws no controls");
+    let row_now = row(visual, first);
+    assert_eq!(row_now, hovered, "the controls moved or resized their row");
+    assert!(
+        shown.left() >= row_now.left()
+            && shown.right() <= row_now.right()
+            && shown.top() >= row_now.top()
+            && shown.bottom() <= row_now.bottom(),
+        "the controls {shown:?} draw outside their row {row_now:?}"
+    );
+    assert!(
+        controls(visual, second).is_none(),
+        "a row the pointer is not on draws its controls"
+    );
+
+    // Remove is the last control, flush with the right of the group.
+    let remove = point(shown.right() - px(4.), shown.center().y);
+    visual.simulate_click(remove, Modifiers::none());
+    visual.run_until_parked();
+    let (left, playhead) = visual.read(|app| {
+        let state = state.read(app);
+        let left: Vec<u64> = state.visible_markers().iter().map(|m| m.id).collect();
+        (left, state.playhead.value)
+    });
+    assert_eq!(
+        left,
+        vec![second],
+        "Remove under the pointer deleted the wrong marker"
+    );
+    assert_eq!(
+        playhead, later,
+        "the click on Remove also seeked to the marker"
     );
 }

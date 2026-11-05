@@ -270,6 +270,15 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
             None,
             "{owner} opened the View title's drop as well"
         );
+        // The press lights nothing, as a drop the pointer opens. Down lights
+        // the first choice, inside the submenu.
+        assert_eq!(
+            visual.debug_bounds("focus-ring"),
+            None,
+            "{owner}'s press lit a row"
+        );
+        visual.simulate_keystrokes("down");
+        visual.run_until_parked();
         let ring = bounds_of(visual, "focus-ring");
         assert!(
             bounds_inside(ring, panel),
@@ -327,7 +336,7 @@ fn a_display_button_holds_its_submenu_under_itself(cx: &mut gpui::TestAppContext
             .position(|checked| !checked)
             .expect("a display choice that is off");
         click(visual, button.center());
-        for _ in 0..choice {
+        for _ in 0..=choice {
             visual.simulate_keystrokes("down");
         }
         visual.run_until_parked();

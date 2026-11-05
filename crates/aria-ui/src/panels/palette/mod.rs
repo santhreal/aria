@@ -72,7 +72,8 @@ pub fn render(
         cx,
         DialogBody::new(list)
             .header(query_row)
-            .track_scroll(&scroll),
+            .track_scroll(&scroll)
+            .anchored_top(),
     )
 }
 

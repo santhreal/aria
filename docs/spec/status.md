@@ -44,7 +44,7 @@ Scopes, Color, Info, Effects & Presets, Align, Character, Paragraph, Audio
 Meters, Jobs, History, and Markers are dock panels (`BUILTIN_PANELS` in
 `crates/aria-ui/src/plugins/ui.rs`). The Editing workspace opens with six of them
 (`DockTree::editing_for_width`). The Window menu holds
-one row per registered dock panel, plugin panels included, checked while the
+one row per registered dock panel in alphabetical order, plugin panels included, checked while the
 panel is open. The tool bar draws one button per `ToolGroup`, showing the
 group's armed tool or its first tool, and none of the Timeline header's
 toggles (`crates/aria-ui/src/tool_catalog.rs`,

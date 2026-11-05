@@ -777,26 +777,14 @@ fn group_header_label(clip: &Clip, group: PropertyGroup) -> SharedString {
 
 /// What a row prints, the scalar its readout moves (the first component of a
 /// pair), and how that readout drags and types: in the units
-/// [`param_units`](super::param_units) defines for the property, the units
-/// its Effect Controls row prints.
+/// [`with_row_units`] resolves for the property, the units its Effect
+/// Controls row prints.
 pub(super) fn format_param_value(
     clip: &Clip,
     spec: &ParamSpec,
     value: Option<ParamValue>,
 ) -> (SharedString, f32, Option<Number>) {
-    let effect = match spec.param {
-        ClipParam::Effect { effect, param } => clip
-            .effects
-            .get(effect as usize)
-            .and_then(|instance| aria_models::effect_spec(&instance.effect_id))
-            .map(|effect| (effect, param as usize)),
-        _ => None,
-    };
-    let units = effect
-        .as_ref()
-        .and_then(|(effect, slot)| effect.param_at(*slot))
-        .map_or_else(|| Units::of(spec.param, &spec.range), Units::of_effect);
-    match value {
+    with_row_units(clip, spec, |units| match value {
         Some(ParamValue::Scalar(v)) => (units.print(v).into(), v, Some(units.number)),
         Some(ParamValue::Vec2(axes)) => {
             (units.print_all(&axes).into(), axes[0], Some(units.number))
@@ -811,7 +799,31 @@ pub(super) fn format_param_value(
             (format!("{x:.2}, {y:.2} {w:.2}×{h:.2}").into(), x, None)
         }
         None => (SharedString::new_static("—"), 0.0, None),
-    }
+    })
+}
+
+/// Runs `f` with the units `spec`'s row on `clip` prints in, as
+/// [`param_units`](super::param_units) defines them: an effect parameter's
+/// as its effect declares it, any other property's as its catalog row
+/// measures it. A property's timeline row and the graph editor's value axis
+/// print through it.
+pub(super) fn with_row_units<R>(
+    clip: &Clip,
+    spec: &ParamSpec,
+    f: impl FnOnce(Units<'_>) -> R,
+) -> R {
+    let effect = match spec.param {
+        ClipParam::Effect { effect, param } => clip
+            .effects
+            .get(effect as usize)
+            .and_then(|instance| aria_models::effect_spec(&instance.effect_id))
+            .map(|effect| (effect, param as usize)),
+        _ => None,
+    };
+    f(effect
+        .as_ref()
+        .and_then(|(effect, slot)| effect.param_at(*slot))
+        .map_or_else(|| Units::of(spec.param, &spec.range), Units::of_effect))
 }
 
 /// `clip_id`'s model and whether it sits on an audio lane. The lane, not the
