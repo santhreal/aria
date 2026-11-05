@@ -8,8 +8,8 @@ use aria_analysis::{
 };
 
 use crate::scopes::{
-    HISTOGRAM_H, HISTOGRAM_W, SCOPE_PX, SKIN_TONE_DEGREES, TARGET_COLOURS, TARGET_LEVELS,
-    WaveformMode, channel_color,
+    GRID_INSET, HISTOGRAM_H, HISTOGRAM_W, SCOPE_PX, SKIN_TONE_DEGREES, TARGET_COLOURS,
+    TARGET_LEVELS, WaveformMode, channel_color,
 };
 
 fn unquote(cell: &str) -> &str {
@@ -267,6 +267,7 @@ fn scopes_doc_matches_registries() {
         .map(|r| (unquote(r[0]), unquote(r[1])))
         .collect();
     let scope_px_s = SCOPE_PX.to_string();
+    let inset_s = GRID_INSET.to_string();
     let hist_w_s = HISTOGRAM_W.to_string();
     let hist_h_s = HISTOGRAM_H.to_string();
     let skin_s = format!("{SKIN_TONE_DEGREES:.1}");
@@ -277,6 +278,7 @@ fn scopes_doc_matches_registries() {
         .join(", ");
     let expected_consts: Vec<(&str, &str)> = vec![
         ("SCOPE_PX", scope_px_s.as_str()),
+        ("GRID_INSET", inset_s.as_str()),
         ("HISTOGRAM_W", hist_w_s.as_str()),
         ("HISTOGRAM_H", hist_h_s.as_str()),
         ("SKIN_TONE_DEGREES", skin_s.as_str()),

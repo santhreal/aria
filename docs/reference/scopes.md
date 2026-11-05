@@ -49,6 +49,7 @@ Defined in `crates/aria-ui/src/scopes.rs`. Drawn cell intensity scales by `(coun
 | Constant | Value | Meaning |
 | --- | --- | --- |
 | `SCOPE_PX` | `192` | Edge length in pixels of the vectorscope bitmap and height of the waveform bitmap |
+| `GRID_INSET` | `8` | Pixels between the vectorscope grid and the edge of its bitmap, so a 100% target on the grid's last cell draws whole |
 | `HISTOGRAM_W` | `256` | Width in pixels of the histogram bitmap and single-trace waveform bitmap |
 | `HISTOGRAM_H` | `96` | Height in pixels of the histogram bitmap |
 | `SKIN_TONE_DEGREES` | `123.0` | Vectorscope skin-tone line angle in degrees counter-clockwise from the positive Cb axis |

@@ -1177,6 +1177,7 @@ Notes for the latest release. For previous releases, see the
 - Focus the Viewer when double-clicking a pool card to open a Source tab so viewer shortcuts act immediately.
 - Group lane creation with clip placement into one undo step named after the edit when committing captions, placing a multicam group or nested sequence, or adding an adjustment layer.
 - The selected Home rail row keeps its selected fill under the pointer instead of dimming to the hover fill.
+- The vectorscope draws its 100 % red, yellow, blue and cyan target boxes whole instead of cut off at the edge of the scope.
 
 ## [alpha-0.7.0] - 2026-07-22
 

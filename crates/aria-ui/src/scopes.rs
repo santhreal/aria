@@ -24,6 +24,11 @@ use std::sync::{Arc, LazyLock};
 /// Edge length of the drawn vectorscope, and the height of the waveform.
 pub const SCOPE_PX: u32 = 192;
 
+/// Pixels between the vectorscope's grid and the edge of its bitmap. A 100 %
+/// red, yellow, blue or cyan sits on the grid's last cell, so its target box
+/// needs this room to draw whole.
+pub const GRID_INSET: u32 = 8;
+
 /// Width of the drawn histogram.
 pub const HISTOGRAM_W: u32 = 256;
 
@@ -247,15 +252,16 @@ static VECTORSCOPE_GRATICULES: LazyLock<Mutex<HashMap<usize, Arc<[usize]>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// The drawn pixel of vectorscope grid cell `cell` on a grid `size` cells
-/// wide. The graticule is placed through the same mapping as the trace, so
-/// neutral chroma lands on the cross and a primary on its target rather than a
-/// pixel beside them.
+/// wide, [`GRID_INSET`] in from the bitmap's edge. The graticule is placed
+/// through the same mapping as the trace, so neutral chroma lands on the cross
+/// and a primary on its target rather than a pixel beside them.
 fn cell_pixel(cell: usize, size: usize) -> u32 {
-    let last = SCOPE_PX - 1;
-    match size {
-        0 | 1 => last / 2,
-        _ => ((cell as u32 * last) / (size as u32 - 1)).min(last),
-    }
+    let span = SCOPE_PX - 1 - 2 * GRID_INSET;
+    GRID_INSET
+        + match size {
+            0 | 1 => span / 2,
+            _ => ((cell as u32 * span) / (size as u32 - 1)).min(span),
+        }
 }
 
 /// Pixel offsets of the graticule for a grid `size` cells wide: the neutral
@@ -278,14 +284,17 @@ fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
             mark(middle, i as f32);
             mark(i as f32, middle);
         }
-        let radius = middle * 0.75;
+        // The distance from neutral to the grid's edge, which full chroma
+        // reaches.
+        let reach = (cell_pixel(size.saturating_sub(1), size) - cell_pixel(0, size)) as f32 / 2.0;
+        let radius = reach * 0.75;
         for degrees in 0..360 {
             let angle = (degrees as f32).to_radians();
             mark(middle + radius * angle.cos(), middle + radius * angle.sin());
         }
         // Cr is up, so a counter-clockwise angle climbs the canvas.
         let (sin, cos) = SKIN_TONE_DEGREES.to_radians().sin_cos();
-        for step in 0..=center {
+        for step in 0..=reach.round() as u32 {
             let t = step as f32;
             mark(middle + t * cos, middle - t * sin);
         }

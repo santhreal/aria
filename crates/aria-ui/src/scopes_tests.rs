@@ -303,8 +303,11 @@ fn a_parade_lays_each_channel_in_its_own_third() {
 }
 
 /// Each primary and secondary at 75 % and at 100 % traces inside its target
-/// box, and the skin tone line runs from neutral at its angle. Enumerated from
-/// the target tables, so a target added without a box fails here.
+/// box, every box draws whole inside the bitmap, and the skin tone line runs
+/// from neutral at its angle. Enumerated from the target tables, so a target
+/// added without a box fails here. The class closed: the 100 % red, yellow,
+/// blue and cyan sit on the grid's last cell, and with the grid run to the
+/// bitmap's edge their boxes drew half cut off.
 #[test]
 fn every_color_target_holds_its_color_and_the_skin_line_is_drawn() {
     let empty = {
@@ -328,19 +331,22 @@ fn every_color_target_holds_its_color_and_the_skin_line_is_drawn() {
                 x.abs_diff(box_x) <= half && y.abs_diff(box_y) <= half,
                 "{rgba:?} traced at ({x}, {y}), outside its box at ({box_x}, {box_y})"
             );
-            // The box's edge is drawn wherever it is on the canvas.
+            // Each edge's middle is the box's reach on its side, so all four
+            // inside the bitmap and drawn is the whole box drawn.
             let edges = [
                 (box_x.checked_sub(half), Some(box_y)),
                 (Some(box_x + half), Some(box_y)),
                 (Some(box_x), box_y.checked_sub(half)),
                 (Some(box_x), Some(box_y + half)),
             ];
-            let drawn = edges
-                .into_iter()
-                .filter_map(|(x, y)| Some((x?, y?)))
-                .filter(|(x, y)| *x < SCOPE_PX && *y < SCOPE_PX)
-                .all(|(x, y)| graticule(x, y));
-            assert!(drawn, "the box of {rgba:?} is not drawn");
+            let whole = edges.into_iter().all(|edge| match edge {
+                (Some(x), Some(y)) => x < SCOPE_PX && y < SCOPE_PX && graticule(x, y),
+                _ => false,
+            });
+            assert!(
+                whole,
+                "the box of {rgba:?} at ({box_x}, {box_y}) is not drawn whole inside the bitmap"
+            );
         }
     }
     let center = cell_pixel(64, 128) as f32;
