@@ -29,9 +29,7 @@ pub(crate) struct FileStamp {
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let dir = args.required_path(1, "a plugin directory")?;
-    if let Some(extra) = args.positional.get(2) {
-        return Err(Failure::Usage(format!("unexpected argument \"{extra}\"")));
-    }
+    args.reject_extra_positional(2)?;
     let editor_arg = args.value("editor")?.map(PathBuf::from);
     let data_dir_arg = args.value("data-dir")?.map(PathBuf::from);
 

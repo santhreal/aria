@@ -257,6 +257,14 @@ fn every_rule_refuses_its_scene_with_the_reason() {
 
     let control = scene(vec![handle("a\u{7}", [0.0, 0.0])]).check();
     assert_eq!(control, Err(shape(Problem::HandleId(2))));
+    let cr = scene(vec![OverlayShape::Text {
+        at: [0.0, 0.0],
+        text: "one\rtwo".into(),
+        color: OverlayColor::Text,
+        size: 12.0,
+    }])
+    .check();
+    assert_eq!(cr, Err(shape(Problem::MultilineText)));
 }
 
 #[test]

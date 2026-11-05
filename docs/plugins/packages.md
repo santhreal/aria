@@ -757,30 +757,29 @@ Packages are stored at `<data dir>/plugins/<id>/`.
 1. Install an `.ariaplugin` archive from **File > Install Plugin…**, from
    **Install Plugin…** (`plugin-install`) in **Settings > Plugins**, or by dragging and dropping the
    `.ariaplugin` file onto the editor window.
-2. `stage` unpacks the archive (at most `MAX_ARCHIVE_ENTRIES` = 1,024 entries
-   and `MAX_UNPACKED_BYTES` = 64 MiB uncompressed) into a sibling
-   `.staging-<pid>-<n>` directory and runs `Package::open` before modifying an
+2. `stage` unpacks the archive (at most `MAX_ARCHIVE_ENTRIES` = 10,000 entries
+   and `MAX_UNPACKED_BYTES` = 1 GiB uncompressed) into a sibling
+   `.install-<pid>-<n>` directory and runs `Package::open` before modifying an
    existing installation.
-3. If a new package requests any permission in `[permissions]` or is
-   `Tier::Native`, the editor opens a confirmation dialog listing the requested
-   capabilities and, for native packages, an unsandboxed-code warning. Data and
-   WASM packages with empty `[permissions]` install without a prompt.
+3. New installs always open a confirmation dialog listing any requested
+   `[permissions]` capabilities and, for `Tier::Native` packages, an
+   unsandboxed-code warning (`Staged::needs_confirmation()`).
 4. When installing a newer version of an already-installed package, the editor
    compares the existing `Permissions` against the incoming manifest with
-   `Permissions::covers`. If the update requests wider permissions or switches
-   from data/WASM to `Tier::Native`, the confirmation dialog prompts again for
-   the added capabilities; otherwise the staged directory replaces the existing
-   package and reloads in place.
+   `Permissions::beyond`. If the update requests wider permissions or switches
+   from data or WASM to `Tier::Native`, the confirmation dialog prompts again;
+   otherwise the staged directory replaces the existing package and reloads in
+   place.
 
 In **Settings > Plugins**, each installed package row provides:
 
 - **The switch** at the right end of the row: toggles the package ID in
-  `<data dir>/plugins/disabled.json` and mounts or unmounts the package
-  immediately.
+  `<data dir>/plugins/.disabled` (one plugin ID per line) and mounts or unmounts
+  the package immediately.
 - **Reload**: unmounts the package, re-reads its directory on disk, and mounts
   (or defers) the updated package. Shown when files on disk changed since the
   last mount or when the package is in a failed or faulted state.
-- **Uninstall**: unmounts the package, removes its ID from `disabled.json`, and
+- **Uninstall**: unmounts the package, removes its ID from `.disabled`, and
   deletes `<data dir>/plugins/<id>/`. Stored files under
   `<data dir>/plugin-data/<id>/` remain on disk.
 
@@ -805,7 +804,8 @@ aria plugin pack com.example.color-tools
   editor with `ARIA_PLUGIN_DEV=<dir>`, and polls `Cargo.toml`, `src/`, and
   `wit/` every 500 ms to rebuild on change.
 - `aria plugin check <dir|file.ariaplugin>`: validates `manifest`, `shaders`,
-  `permissions`, and `abi` without launching the editor.
+  `textures`, `presets`, `contributes`, `permissions`, and `abi` without
+  launching the editor.
 - `aria plugin pack <dir> [--out FILE] [--no-build]`: builds the crate in
   release mode, runs `check`, and writes `<dir>/<id>-<version>.ariaplugin` with
   source and build entries (`Cargo.toml`, `Cargo.lock`, `src`, `wit`, `target`)

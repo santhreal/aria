@@ -18,10 +18,10 @@ use crate::registration::Registration;
 use crate::settings_schema::SettingsSection;
 
 /// Largest WGSL file read, in bytes.
-const MAX_SHADER_BYTES: u64 = 1 << 20;
+pub const MAX_SHADER_BYTES: u64 = 1 << 20;
 
 /// Largest image file read for a texture, in bytes.
-const MAX_TEXTURE_BYTES: u64 = 64 << 20;
+pub const MAX_TEXTURE_BYTES: u64 = 64 << 20;
 
 /// Register the textures, effects, generators, transitions, clip types, menu
 /// entries, key defaults, settings, workspaces, presets and themes `package`

@@ -331,14 +331,41 @@ fn a_minimal_manifest_asks_for_nothing() {
             ),
             ("", "", "")
         );
+        let PackageManifest {
+            id: _,
+            name: _,
+            version: _,
+            api: _,
+            publisher: _,
+            description: _,
+            license: _,
+            requires: _,
+            activation: _,
+            permissions: _,
+            effects,
+            transitions,
+            generators,
+            commands,
+            panels,
+            menus,
+            keys,
+            settings,
+            workspaces,
+            clip_types,
+            textures,
+        } = manifest;
         assert!(
-            manifest.effects.is_empty()
-                && manifest.generators.is_empty()
-                && manifest.transitions.is_empty()
-                && manifest.commands.is_empty()
-                && manifest.menus.is_empty()
-                && manifest.keys.is_empty()
-                && manifest.settings.is_empty()
+            effects.is_empty()
+                && generators.is_empty()
+                && transitions.is_empty()
+                && commands.is_empty()
+                && panels.is_empty()
+                && menus.is_empty()
+                && keys.is_empty()
+                && settings.is_empty()
+                && workspaces.is_empty()
+                && clip_types.is_empty()
+                && textures.is_empty()
         );
     }
 }

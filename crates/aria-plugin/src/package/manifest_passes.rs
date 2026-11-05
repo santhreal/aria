@@ -1,12 +1,12 @@
 //! The render-graph fields of `plugin.toml`: the pass tables of an effect's
 //! `passes`, and the `[[textures]]` those passes read.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use aria_models::{GraphPass, OutputSize, PassInput, PassStage};
 use serde::Deserialize;
 
-use super::{catalog_id, package_path};
+use super::{PackageManifest, catalog_id, package_path};
 
 /// One pass of a declared effect: the fields of a [`GraphPass`], with its
 /// WGSL in a package file.
@@ -158,4 +158,31 @@ fn declared_pass(
         inputs,
         output: raw.output,
     })
+}
+
+impl PackageManifest {
+    /// The WGSL file for pass `pass_index` of the declared effect, generator,
+    /// clip type, or transition `id`.
+    pub fn shader_file(&self, id: &str, pass_index: usize) -> Option<&Path> {
+        for effect in self
+            .effects
+            .iter()
+            .chain(&self.generators)
+            .chain(self.clip_types.iter().filter_map(|ct| ct.draws.as_ref()))
+        {
+            if effect.id == id {
+                return effect
+                    .passes
+                    .get(pass_index)
+                    .or_else(|| effect.passes.first())
+                    .map(|pass| pass.file.as_path());
+            }
+        }
+        for transition in &self.transitions {
+            if transition.id == id {
+                return Some(transition.shader.as_path());
+            }
+        }
+        None
+    }
 }

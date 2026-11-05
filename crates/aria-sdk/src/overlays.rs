@@ -79,7 +79,7 @@ pub enum OverlayShape {
         /// Stroke color.
         #[serde(default)]
         color: OverlayColor,
-        /// Stroke width in screen pixels (`0` for fill-only).
+        /// Stroke width in screen pixels (above `0`, at most `32`).
         #[serde(default = "hairline")]
         width: f32,
         /// Optional interior fill color.
@@ -95,7 +95,7 @@ pub enum OverlayShape {
         /// Stroke color.
         #[serde(default)]
         color: OverlayColor,
-        /// Stroke width in screen pixels (`0` for fill-only).
+        /// Stroke width in screen pixels (above `0`, at most `32`).
         #[serde(default = "hairline")]
         width: f32,
         /// Optional interior fill color.

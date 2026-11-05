@@ -413,3 +413,114 @@ fn settings_doc_matches_setting_kind_variants_and_plugin_toml_types() {
         &parsed_variants,
     );
 }
+
+#[test]
+fn clip_types_drivers_and_viewer_overlays_docs_and_source_links_match_registries() {
+    // 1. Every `docs/plugins/<file>.md` referenced in `crates/aria-plugin/src/` must exist on disk.
+    let src_dir = workspace_root().join("crates/aria-plugin/src");
+    for entry in std::fs::read_dir(&src_dir).expect("read crates/aria-plugin/src") {
+        let path = entry.expect("entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).expect("read rs");
+        for token in extract_backticked_tokens(&text) {
+            if token.starts_with("docs/plugins/") && token.ends_with(".md") {
+                let target = workspace_root().join(&token);
+                assert!(
+                    target.is_file(),
+                    "{} references non-existent documentation file `{token}`",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    // 2. `docs/plugins/clip-types.md`: CLIP_TYPE_* limits and MarkerColor variants.
+    let clip_types_doc = read_workspace_file("docs/plugins/clip-types.md");
+    let clip_types_sdk_src = read_workspace_file("crates/aria-sdk/src/clip_types.rs");
+    assert!(clip_types_doc.contains(&format!(
+        "`CLIP_TYPE_MAX_HANDLES` ({})",
+        aria_plugin::CLIP_TYPE_MAX_HANDLES
+    )));
+    assert!(clip_types_doc.contains(&format!(
+        "`CLIP_TYPE_ID_MAX_BYTES` ({})",
+        aria_plugin::CLIP_TYPE_ID_MAX_BYTES
+    )));
+    assert!(clip_types_doc.contains(&format!(
+        "`CLIP_TYPE_NAME_MAX_BYTES` ({})",
+        aria_plugin::CLIP_TYPE_NAME_MAX_BYTES
+    )));
+    let doc_colours = listed_after(&clip_types_doc, "`aria_sdk::MarkerColor` is ", ", the");
+    let sdk_colours = extract_enum_variants(&clip_types_sdk_src, "MarkerColor");
+    assert_key_parity(
+        "docs/plugins/clip-types.md MarkerColor variants",
+        &sdk_colours,
+        &doc_colours,
+    );
+    let model_colours: Vec<String> = aria_plugin::MarkerColor::ALL
+        .iter()
+        .map(|c| format!("{c:?}"))
+        .collect();
+    assert_key_parity(
+        "aria_sdk::MarkerColor against aria_plugin::MarkerColor::ALL",
+        &model_colours,
+        &sdk_colours,
+    );
+
+    // 3. `docs/plugins/drivers.md`: DriverScope trait methods and no banned `refused` verb.
+    let drivers_doc = read_workspace_file("docs/plugins/drivers.md");
+    let render_drivers_src = read_workspace_file("crates/aria-render/src/driver.rs");
+    assert!(
+        !drivers_doc.contains("refused") && !drivers_doc.contains("refuses"),
+        "docs/plugins/drivers.md must use `rejected`/`rejects` instead of `refused`/`refuses`"
+    );
+    let driver_tables = parse_markdown_tables(extract_heading_section(&drivers_doc, "## Program"));
+    assert_eq!(driver_tables.len(), 1);
+    let mut doc_scope_calls = Vec::new();
+    for row in &driver_tables[0].rows {
+        doc_scope_calls.extend(extract_backticked_tokens(&row[0]));
+    }
+    assert_key_parity(
+        "docs/plugins/drivers.md DriverScope trait methods",
+        &extract_trait_fns(&render_drivers_src, "DriverScope"),
+        &doc_scope_calls,
+    );
+
+    // 4. `docs/plugins/viewer-overlays.md` and `crates/aria-sdk/src/overlays.rs`:
+    // shape/color/handle/phase parity, constants, and stroke width > 0 requirement.
+    let overlays_doc = read_workspace_file("docs/plugins/viewer-overlays.md");
+    let host_overlays_src = read_workspace_file("crates/aria-plugin/src/viewer_overlay.rs");
+    let sdk_overlays_src = read_workspace_file("crates/aria-sdk/src/overlays.rs");
+    for ty in [
+        "OverlayShape",
+        "OverlayColor",
+        "HandleLook",
+        "DragPhase",
+        "OverlayEvent",
+    ] {
+        assert_key_parity(
+            &format!("aria_sdk::{ty} against aria_plugin::viewer_overlay::{ty}"),
+            &extract_enum_variants(&host_overlays_src, ty),
+            &extract_enum_variants(&sdk_overlays_src, ty),
+        );
+    }
+    assert!(
+        !sdk_overlays_src.contains("0 for fill-only"),
+        "crates/aria-sdk/src/overlays.rs must not claim `width = 0` is valid when check_stroke requires width > 0"
+    );
+    assert!(overlays_doc.contains(&format!("`MAX_SHAPES` ({})", aria_plugin::MAX_SHAPES)));
+    assert!(overlays_doc.contains(&format!(
+        "`MAX_STROKE` ({})",
+        aria_plugin::MAX_STROKE as u32
+    )));
+    assert_eq!(aria_plugin::MAX_PATH_POINTS, 65_536);
+    assert!(overlays_doc.contains("`MAX_PATH_POINTS` (65 536)"));
+    assert_eq!(aria_plugin::MAX_COORDINATE, 1_000_000.0);
+    assert!(overlays_doc.contains("`MAX_COORDINATE` (1 000 000)"));
+    let [min_text, max_text] = aria_plugin::TEXT_SIZE_RANGE;
+    assert!(overlays_doc.contains(&format!(
+        "`TEXT_SIZE_RANGE` ({} to {})",
+        min_text as u32, max_text as u32
+    )));
+}

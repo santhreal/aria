@@ -98,7 +98,7 @@ stopwatch attaches it. Source that returns the property's own value, such as
 edited. The default is empty.
 
 The id contains ASCII letters, digits, `.`, `-` and `_`. A second registration
-of an id in one host is refused. When two hosts in one process register the
+of an id in one host is rejected. When two hosts in one process register the
 same id, the latest live registration compiles the code.
 
 ## Program
@@ -120,6 +120,7 @@ scope supplies:
 | Call | Value |
 | --- | --- |
 | `time` | Sequence seconds being evaluated |
+| `property` | The `ClipParam` the driver replaces |
 | `clip_time` | Seconds since the clip's first frame |
 | `frame_rate`, `duration`, `canvas` | Sequence rate, length in seconds, canvas pixels |
 | `value`, `value_at` | The property's keyframed value |

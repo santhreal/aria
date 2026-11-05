@@ -34,11 +34,11 @@ pub use archive::{
     ARCHIVE_EXTENSION, MAX_ARCHIVE_ENTRIES, MAX_UNPACKED_BYTES, SOURCE_ENTRIES, is_archive, pack,
     unpack,
 };
-pub use declared::{DataPlugin, register_declared};
+pub use declared::{DataPlugin, MAX_SHADER_BYTES, MAX_TEXTURE_BYTES, register_declared};
 pub use install::{Staged, stage, uninstall};
 pub use manifest::{
-    Access, DeclaredCommand, DeclaredEffect, DeclaredPanel, DeclaredPass, DeclaredTexture,
-    DeclaredTransition, FsScope, PackageManifest, Permissions, Requirement,
+    Access, DeclaredClipType, DeclaredCommand, DeclaredEffect, DeclaredPanel, DeclaredPass,
+    DeclaredTexture, DeclaredTransition, FsScope, PackageManifest, Permissions, Requirement,
 };
 
 /// The plugin API major version this host loads.
@@ -60,7 +60,7 @@ pub const PRESETS_DIR: &str = "presets";
 pub const THEMES_DIR: &str = "themes";
 
 /// Largest `plugin.toml` read, in bytes.
-const MAX_MANIFEST_BYTES: u64 = 1 << 20;
+pub const MAX_MANIFEST_BYTES: u64 = 1 << 20;
 
 /// How a package's code runs.
 #[derive(Debug, Clone, PartialEq, Eq)]

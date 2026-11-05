@@ -46,9 +46,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let Some(id) = args.positional.get(1) else {
         return Err(Failure::Usage("a plugin id is required".into()));
     };
-    if let Some(extra) = args.positional.get(2) {
-        return Err(Failure::Usage(format!("unexpected argument \"{extra}\"")));
-    }
+    args.reject_extra_positional(2)?;
 
     let tier = match args.value("tier")? {
         Some(raw) => NewTier::parse(raw)?,

@@ -3,12 +3,12 @@
 //!
 //! Source is lexed, parsed, and bound once per text: binding turns every
 //! property reference into a declared input, so the renderer orders drivers
-//! and refuses cycles before a frame is drawn. Evaluation walks the bound tree
+//! and rejects cycles before a frame is drawn. Evaluation walks the bound tree
 //! against the renderer's [`DriverScope`], checks the scope's clock every few
 //! hundred steps, and stops after [`MAX_STEPS`](eval::MAX_STEPS) steps under
 //! any clock.
 //!
-//! The language reference is `docs/plugins/expressions.md`.
+//! The language reference is `docs/plugins/drivers.md`.
 
 mod bind;
 mod eval;

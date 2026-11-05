@@ -207,7 +207,12 @@ const IDS: [(&str, &str); 4] = [
 
 /// British words a file writes as the subject of its literals: the file, the
 /// word in lower case, and why. A row no literal matches fails the test.
-const EXEMPT: [(&str, &str, &str); 5] = [
+const EXEMPT: [(&str, &str, &str); 6] = [
+    (
+        "crates/aria-cli/src/plugin/tests.rs",
+        "colour",
+        "the clip type manifest key, which published manifests write",
+    ),
     (
         "crates/aria-models/src/effects/params.rs",
         "colour",

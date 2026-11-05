@@ -197,7 +197,7 @@ impl OverlayScene {
                     if path.len() < 2 {
                         return Err(at(Problem::ShortPath(path.len())));
                     }
-                    points += path.len();
+                    points = points.saturating_add(path.len());
                     if points > MAX_PATH_POINTS {
                         return Err(SceneError::TooManyPoints(points));
                     }
@@ -216,14 +216,14 @@ impl OverlayScene {
                     if line.len() > MAX_TEXT_BYTES {
                         return Err(at(Problem::LongText(line.len())));
                     }
-                    if line.contains('\n') {
+                    if line.contains(['\n', '\r']) {
                         return Err(at(Problem::MultilineText));
                     }
                     let [low, high] = TEXT_SIZE_RANGE;
                     if !(low..=high).contains(size) {
                         return Err(at(Problem::TextSize(*size)));
                     }
-                    text += line.len();
+                    text = text.saturating_add(line.len());
                     if text > MAX_TREE_TEXT_BYTES {
                         return Err(SceneError::TooMuchText(text));
                     }

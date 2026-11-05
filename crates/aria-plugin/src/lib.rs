@@ -117,8 +117,9 @@ pub use ui_tree::{
     Tone, TreeError, UiNode, snap,
 };
 pub use viewer_overlay::{
-    DragPhase, HandleLook, OverlayColor, OverlayError, OverlayEvent, OverlayScene, OverlayShape,
-    OverlaySpec, OverlayState, SceneError, ViewerOverlay,
+    DragPhase, HandleLook, MAX_COORDINATE, MAX_PATH_POINTS, MAX_SHAPES, MAX_STROKE, OverlayColor,
+    OverlayError, OverlayEvent, OverlayScene, OverlayShape, OverlaySpec, OverlayState, Problem,
+    SceneError, TEXT_SIZE_RANGE, ViewerOverlay,
 };
 pub use workspaces::{
     PluginWorkspace, WORKSPACE_ID_MAX_BYTES, WORKSPACE_MAX_SIZE, WORKSPACE_NAME_MAX_BYTES,
@@ -156,8 +157,11 @@ pub use aria_jobs::{JobContext, JobId, JobManager, JobSnapshot, JobState};
 /// an external plugin needs one dependency, not several.
 pub use aria_commands::{Command, EditCommand, EditTargets};
 pub use aria_engine::{ApplyOutcome, EngineError};
+pub use aria_models::{
+    CLIP_TYPE_ID_MAX_BYTES, CLIP_TYPE_MAX_HANDLES, CLIP_TYPE_NAME_MAX_BYTES, ClipTypeIcon,
+    ClipTypeSpec, MarkerColor,
+};
 pub use aria_models::{ClipId, Marker, MarkerId, Project, SequenceId, TrackId};
-pub use aria_models::{ClipTypeIcon, ClipTypeSpec, MarkerColor};
 pub use aria_models::{
     PRESET_FILE_EXTENSION, PRESET_MAX_BYTES, PRESET_VERSION, Preset, PresetParts, PresetProperty,
 };

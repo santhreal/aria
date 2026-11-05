@@ -228,6 +228,46 @@ fn a_native_package_is_reported_as_native() {
 }
 
 #[test]
+fn an_update_switching_to_native_needs_confirmation_across_all_tiers() {
+    let library = format!("lib/{}", library_name());
+    let initial_tiers = [
+        Tier::Data,
+        Tier::Wasm {
+            component: "plugin.wasm".into(),
+        },
+        Tier::Native {
+            library: library.as_str().into(),
+        },
+    ];
+    for initial_tier in initial_tiers {
+        let fixture = Fixture::new();
+        let permissions = "[permissions]\ngpu = true\n";
+        let v1_manifest = manifest("1.0.0", permissions);
+        let v1_files: Vec<(&str, &str)> = match &initial_tier {
+            Tier::Data => vec![("plugin.toml", &v1_manifest)],
+            Tier::Wasm { .. } => vec![("plugin.toml", &v1_manifest), ("plugin.wasm", "wasm")],
+            Tier::Native { .. } => vec![("plugin.toml", &v1_manifest), (&library, "native")],
+        };
+        let installed = fixture.install("v1.ariaplugin", &v1_files);
+        let was_native = matches!(installed.tier, Tier::Native { .. });
+
+        let v2_manifest = manifest("2.0.0", permissions);
+        let v2_path = fixture.archive(
+            "v2-native.ariaplugin",
+            &[("plugin.toml", &v2_manifest), (&library, "native-v2")],
+        );
+        let staged = stage(&v2_path, &fixture.plugins()).expect("stages native update");
+        assert!(staged.is_native());
+        assert!(staged.asks().is_empty());
+        assert_eq!(
+            staged.needs_confirmation(),
+            !was_native,
+            "updating from {initial_tier:?} to Tier::Native with unchanged permissions"
+        );
+    }
+}
+
+#[test]
 fn a_folder_in_the_way_refuses_the_install_and_is_left_alone() {
     let fixture = Fixture::new();
     let blocker = fixture.plugins().join(ID);

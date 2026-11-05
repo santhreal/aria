@@ -505,3 +505,68 @@ fn workspaces_doc_table_matches_manifest_workspace_parser() {
     );
     assert_key_parity("docs/plugins/workspaces.md", &parser_keys, &doc_keys);
 }
+
+#[test]
+fn packages_doc_limits_and_install_lifecycle_match_source_constants_and_methods() {
+    let doc = read_workspace_file("docs/plugins/packages.md");
+    let grants_src = read_workspace_file("crates/aria-plugin/src/package/grants.rs");
+    let install_src = read_workspace_file("crates/aria-plugin/src/package/install.rs");
+
+    assert!(
+        doc.contains("`MAX_ARCHIVE_ENTRIES` = 10,000"),
+        "docs/plugins/packages.md MAX_ARCHIVE_ENTRIES drifted from {}",
+        aria_plugin::package::MAX_ARCHIVE_ENTRIES
+    );
+    assert_eq!(aria_plugin::package::MAX_ARCHIVE_ENTRIES, 10_000);
+    assert!(
+        doc.contains("`MAX_UNPACKED_BYTES` = 1 GiB"),
+        "docs/plugins/packages.md MAX_UNPACKED_BYTES drifted from {}",
+        aria_plugin::package::MAX_UNPACKED_BYTES
+    );
+    assert_eq!(aria_plugin::package::MAX_UNPACKED_BYTES, 1 << 30);
+    assert_eq!(aria_plugin::package::MAX_MANIFEST_BYTES, 1 << 20);
+    assert_eq!(aria_plugin::package::MAX_SHADER_BYTES, 1 << 20);
+    assert_eq!(aria_plugin::package::MAX_TEXTURE_BYTES, 64 << 20);
+    assert!(
+        install_src.contains("hidden_name(\"install\")") && doc.contains("`.install-<pid>-<n>`"),
+        "docs/plugins/packages.md staging directory pattern drifted from install.rs"
+    );
+    assert!(
+        !doc.contains("disabled.json") && doc.contains("`<data dir>/plugins/.disabled`"),
+        "docs/plugins/packages.md disabled package file drifted from `.disabled`"
+    );
+
+    let permissions_fns: BTreeSet<String> = extract_impl_pub_fns(&grants_src, "Permissions")
+        .into_iter()
+        .collect();
+    for token in extract_backticked_tokens(&doc) {
+        if let Some(method) = token.strip_prefix("Permissions::") {
+            let method = method.split('(').next().unwrap_or(method);
+            assert!(
+                permissions_fns.contains(method),
+                "docs/plugins/packages.md references unknown `Permissions::{method}` (defined: {permissions_fns:?})"
+            );
+        }
+    }
+
+    let check_line = doc
+        .lines()
+        .find(|line| line.contains("`aria plugin check <dir|file.ariaplugin>`:"))
+        .expect("aria plugin check bullet in docs/plugins/packages.md");
+    let check_idx = doc.find(check_line).expect("check line index");
+    let check_window = &doc[check_idx..(check_idx + 240).min(doc.len())];
+    for section in [
+        "manifest",
+        "shaders",
+        "textures",
+        "presets",
+        "contributes",
+        "permissions",
+        "abi",
+    ] {
+        assert!(
+            check_window.contains(&format!("`{section}`")),
+            "docs/plugins/packages.md `aria plugin check` summary is missing `{section}`"
+        );
+    }
+}

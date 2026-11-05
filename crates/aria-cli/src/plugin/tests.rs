@@ -367,32 +367,40 @@ fn check_reports_unbuilt_source_broken_shader_and_bad_native_objects() {
         unbuilt_err.message()
     );
 
-    // 2. Broken shader reports effect id, WGSL file path, line, and column.
+    // 2. Broken shader reports id, WGSL file path, line, and column across all
+    // four declared shader carriers (effects, generators, transitions, clip_types).
     let broken_dir = root.join("broken-shader");
     fs::create_dir_all(broken_dir.join("shaders")).expect("shaders dir");
-    fs::write(
-        broken_dir.join(MANIFEST_FILE),
-        "[plugin]\nid = \"com.example.broken\"\nname = \"Broken\"\nversion = \"0.1.0\"\napi = 1\n\n\
-         [[effects]]\nid = \"tint\"\nname = \"Tint\"\nshader = \"shaders/broken.wgsl\"\n",
-    )
-    .expect("manifest");
     fs::write(
         broken_dir.join("shaders/broken.wgsl"),
         "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {\n    return unknown_ident;\n}\n",
     )
     .expect("broken wgsl");
-
-    let shader_err = parse_and_run(["plugin", "check", &broken_dir.to_string_lossy()])
-        .expect_err("broken shader must fail check");
-    assert_eq!(shader_err.code(), 1);
-    assert!(
-        shader_err
-            .message()
-            .starts_with("com.example.broken.tint: shaders/broken.wgsl:3:12:"),
-        "expected effect id, file, line, and column, got: {}",
-        shader_err.message()
-    );
-
+    for (section, extra) in [
+        ("[[effects]]", ""),
+        ("[[generators]]", ""),
+        ("[[transitions]]", ""),
+        ("[[clip_types]]", "colour = \"orange\"\n"),
+    ] {
+        fs::write(
+            broken_dir.join(MANIFEST_FILE),
+            format!(
+                "[plugin]\nid = \"com.example.broken\"\nname = \"Broken\"\nversion = \"0.1.0\"\napi = 1\n\n\
+                 {section}\nid = \"tint\"\nname = \"Tint\"\n{extra}shader = \"shaders/broken.wgsl\"\n"
+            ),
+        )
+        .expect("manifest");
+        let shader_err = parse_and_run(["plugin", "check", &broken_dir.to_string_lossy()])
+            .expect_err("broken shader must fail check");
+        assert_eq!(shader_err.code(), 1, "{section}");
+        assert!(
+            shader_err
+                .message()
+                .starts_with("com.example.broken.tint: shaders/broken.wgsl:3:12:"),
+            "{section}: expected id, file, line, and column, got: {}",
+            shader_err.message()
+        );
+    }
     // 3. Native library object checks: wrong binary format (PE and Mach-O in linux-x86_64.so),
     // wrong architecture (aarch64 in linux-x86_64.so), and missing `aria_plugin_entry`.
     let native_dir = root.join("bad-native");

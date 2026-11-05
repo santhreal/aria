@@ -97,9 +97,15 @@ impl Staged {
     }
 
     /// Whether the install needs a confirmation prompt: always for a new
-    /// install, and for an update that asks for more.
+    /// install, and for an update that asks for more or switches from data or
+    /// WASM to native code.
     pub fn needs_confirmation(&self) -> bool {
-        self.previous.is_none() || !self.asks.is_empty()
+        let switches_to_native = self.is_native()
+            && self
+                .previous
+                .as_ref()
+                .is_some_and(|installed| !matches!(installed.tier, Tier::Native { .. }));
+        self.previous.is_none() || !self.asks.is_empty() || switches_to_native
     }
 
     /// Whether the package runs native code, which reaches the system beyond

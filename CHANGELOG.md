@@ -802,6 +802,7 @@ Notes for the latest release. For previous releases, see the
 - The editor builds on santh-gpui `96e3ffe8`, so a tooltip stays closed while a drag passes over its element and opens above the element when it does not fit below the pointer, a control draws its pressed style only while the press is over it and stays hovered while the press moves over it, an image drawn smaller than its pixels averages the pixels under each screen pixel instead of aliasing, a window whose image atlas dropped an image repaints the views and the region that drew it instead of presenting freed tiles, and on X11 the hover is set where the pointer enters a window and a window that never set a cursor shows the arrow.
 - `TextRenderer::new` defers loading and cloning the system font database until text is shaped or font data is loaded, which cuts the cold first interactive frame from 170.2 ms to 161.5 ms on an RTX 3080 Ti and from 96.3 ms to 90.5 ms on software Vulkan.
 - Filmstrip cells and media pool tile pictures decode after the session's first Viewer frame lands instead of beside it, and a cancelled multi-layer render returns its decoded CPU frames to their decoder slots for reuse.
+- `aria_plugin` re-exports `MAX_MANIFEST_BYTES`, `MAX_SHADER_BYTES`, `MAX_TEXTURE_BYTES`, `DeclaredClipType`, `CLIP_TYPE_ID_MAX_BYTES`, `CLIP_TYPE_NAME_MAX_BYTES`, `CLIP_TYPE_MAX_HANDLES`, `MAX_SHAPES`, `MAX_PATH_POINTS`, `MAX_COORDINATE`, `MAX_STROKE`, `TEXT_SIZE_RANGE`, and `viewer_overlay::Problem`.
 
 ### Fixed
 
@@ -1080,6 +1081,10 @@ Notes for the latest release. For previous releases, see the
 - A plugin panel slider whose range overflows, runs backward, or has a non-finite step is rejected when the panel is validated, instead of panicking the editor or returning NaN on the next drag.
 - A shape with a negative, zero, or non-finite size, corner radius, or stroke width renders on the CPU and GPU paths without panicking or drawing NaN pixels.
 - A splitter drag in a dock nested more than four levels deep no longer redirects a later drag on a shallower or sibling splitter to the deep splitter.
+- An update that moves a data or WASM plugin package to `Tier::Native` with unchanged permissions requires confirmation in `Staged::needs_confirmation()`.
+- `PackageManifest::shader_file()` and the shader errors of `aria plugin check` include the `draws` passes of `[[clip_types]]` entries, so a broken clip type WGSL shader reports its file path, line, and column.
+- Single-line `OverlayShape::Text` validation rejects a carriage return (`\r`) as well as a newline (`\n`), and path point and text byte totals add with `saturating_add`.
+- `docs/plugins/packages.md`, `docs/plugins/drivers.md`, `crates/aria-plugin/src/expressions.rs`, and `crates/aria-sdk/src/overlays.rs` state the archive limits (`MAX_ARCHIVE_ENTRIES = 10,000`, `MAX_UNPACKED_BYTES = 1 GiB`), the staging directory name (`.install-<pid>-<n>`), the disabled plugin directory (`<data dir>/plugins/.disabled`), `DriverScope::property`, the `aria plugin check` output sections, and the positive overlay stroke width rule.
 
 ## [alpha-0.7.0] - 2026-07-22
 

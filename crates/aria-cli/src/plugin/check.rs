@@ -31,9 +31,7 @@ pub(crate) const CHECK_SECTIONS: [&str; 7] = [
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(1, "a plugin directory or .ariaplugin archive")?;
-    if let Some(extra) = args.positional.get(2) {
-        return Err(Failure::Usage(format!("unexpected argument \"{extra}\"")));
-    }
+    args.reject_extra_positional(2)?;
     check_path(&path).map(drop)
 }
 
@@ -154,7 +152,7 @@ fn format_shader_error(package: &Package, err: PluginError) -> String {
     match err {
         PluginError::RegisterRefused(refusal) => {
             let pass_index = refusal.pass.unwrap_or(0);
-            let shader_file = find_shader_file(&package.manifest, &refusal.id, pass_index);
+            let shader_file = package.manifest.shader_file(&refusal.id, pass_index);
             match (shader_file, refusal.location) {
                 (Some(file), Some((line, column))) => format!(
                     "{}: {}:{line}:{column}: {}",
@@ -174,28 +172,6 @@ fn format_shader_error(package: &Package, err: PluginError) -> String {
         PluginError::MountFailed(_, detail) => detail,
         other => other.to_string(),
     }
-}
-
-fn find_shader_file<'a>(
-    manifest: &'a PackageManifest,
-    id: &str,
-    pass_index: usize,
-) -> Option<&'a Path> {
-    for effect in manifest.effects.iter().chain(manifest.generators.iter()) {
-        if effect.id == id {
-            return effect
-                .passes
-                .get(pass_index)
-                .or_else(|| effect.passes.first())
-                .map(|pass| pass.file.as_path());
-        }
-    }
-    for transition in &manifest.transitions {
-        if transition.id == id {
-            return Some(transition.shader.as_path());
-        }
-    }
-    None
 }
 
 fn print_permissions(p: &Permissions) {
