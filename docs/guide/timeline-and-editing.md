@@ -353,7 +353,8 @@ them.
 
 Filtering ranks in four tiers: labels starting with what you typed, then labels
 with a word starting with it, then labels containing it, then labels whose
-letters appear in order, so `fs` finds **Fullscreen Preview**.
+words start with what you typed in order, one or more letters from each, so
+`fp` and `fupr` find **Fullscreen Preview**.
 
 ## Control labels
 

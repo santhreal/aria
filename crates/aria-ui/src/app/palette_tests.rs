@@ -531,3 +531,48 @@ fn registry_changes_invalidate_the_palette_catalog() {
         "a state-dependent plugin menu was cached without a state key"
     );
 }
+
+/// Every row a query offers holds the query, or holds a word that starts with
+/// the query's first letter. The class: letters matched wherever they fall in
+/// a label, so `info` offered **Audio Channels: Left to Both** and five more
+/// rows a reader cannot connect to what was typed.
+///
+/// The queries are the first four letters of every word of four letters or
+/// more in the live catalog, so a row added to a menu or a command adds its
+/// queries here. Not caught: a row offered for letters at word starts that
+/// still reads as unrelated.
+#[test]
+fn every_offered_row_holds_the_query_or_a_word_starting_with_it() {
+    let mut state = state();
+    state.open_dialog(DialogKind::Palette);
+    let mut queries = std::collections::BTreeMap::new();
+    for offer in state.palette_catalog().iter() {
+        let label = offer.label.to_lowercase();
+        for word in label.split(|c: char| !c.is_alphanumeric()) {
+            if word.chars().count() >= 4 && word.chars().all(char::is_alphabetic) {
+                let query: String = word.chars().take(4).collect();
+                queries
+                    .entry(query)
+                    .or_insert_with(|| offer.label.to_string());
+            }
+        }
+    }
+    assert!(queries.contains_key("info"), "no row reads Info");
+    for (query, source) in &queries {
+        state.palette_query = query.clone().into();
+        let hits = state.palette_hits();
+        assert!(
+            hits.iter().any(|hit| hit.label.as_str() == source.as_str()),
+            "{query} does not offer {source}, the row it was read from"
+        );
+        let first = query.chars().next().expect("a query of four letters");
+        for hit in hits.iter() {
+            let label = hit.label.to_lowercase();
+            let reads = label.contains(query.as_str())
+                || label
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|word| word.starts_with(first));
+            assert!(reads, "{query} offers {}", hit.label);
+        }
+    }
+}

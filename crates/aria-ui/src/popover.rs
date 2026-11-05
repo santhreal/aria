@@ -135,47 +135,102 @@ pub fn menu_step(active: Option<usize>, count: usize, delta: isize) -> Option<us
 ///
 /// Four tiers, because a palette that ranks only prefix and substring buries the
 /// intended row: typing `sav` should offer **Save** before **Autosave
-/// interval**, and typing `fs` should still find **Fullscreen preview**.
+/// interval**, and typing `fp` should still find **Fullscreen preview**.
 ///
 /// 0. the label starts with the query,
 /// 1. a word in the label starts with the query,
 /// 2. the query appears anywhere in the label,
-/// 3. the query's characters appear in order, as initials or otherwise.
+/// 3. the query runs through the starts of the label's words in order, each
+///    word giving one or more of its first letters: `fp` and `fupr` find
+///    **Fullscreen preview**. Letters that only appear in order do not match,
+///    so `info` does not offer **Audio Channels: Left to Both**.
 pub fn match_rank(query: &str, label: &str) -> Option<usize> {
-    let query = query.trim().to_lowercase();
-    if query.is_empty() {
+    rank(&Query::new(query), label)
+}
+
+/// A query lowered once for every label it is ranked against.
+struct Query {
+    /// The trimmed, lowercase query.
+    text: String,
+    /// [`Self::text`] without the spaces and punctuation that separate words,
+    /// which tier 3 reads across.
+    letters: String,
+}
+
+impl Query {
+    fn new(query: &str) -> Self {
+        let text = query.trim().to_lowercase();
+        let letters = text.chars().filter(|c| c.is_alphanumeric()).collect();
+        Self { text, letters }
+    }
+}
+
+fn rank(query: &Query, label: &str) -> Option<usize> {
+    if query.text.is_empty() {
         return Some(1);
     }
     let label = label.to_lowercase();
-    if label.starts_with(&query) {
+    if label.starts_with(&query.text) {
         return Some(0);
     }
-    let word_start = label
-        .split(|c: char| !c.is_alphanumeric())
-        .any(|word| word.starts_with(&query));
-    if word_start {
+    if words(&label).any(|word| word.starts_with(&query.text)) {
         return Some(1);
     }
-    if label.contains(&query) {
+    if label.contains(&query.text) {
         return Some(2);
     }
-    if is_subsequence(&query, &label) {
+    if runs_through_word_starts(&query.letters, &label) {
         return Some(3);
     }
     None
 }
 
-/// Whether every character of `needle` appears in `haystack`, in order.
-fn is_subsequence(needle: &str, haystack: &str) -> bool {
-    let mut chars = haystack.chars();
-    needle.chars().all(|want| chars.any(|have| have == want))
+/// The words of `label`: its runs of letters and digits.
+fn words(label: &str) -> impl Iterator<Item = &str> {
+    label
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+}
+
+/// Whether `query` is the first letters of some of `label`'s words, in order,
+/// at least one letter from each word used.
+///
+/// `reach[at]` holds whether the words read so far can spell `query[..at]`, so
+/// the work is bounded by words times query length times a word's shared
+/// prefix, however many ways a query splits.
+fn runs_through_word_starts(query: &str, label: &str) -> bool {
+    if query.is_empty() {
+        return false;
+    }
+    let mut reach = vec![false; query.len() + 1];
+    reach[0] = true;
+    for word in words(label) {
+        // Downward, so a position this word reaches is not extended by the
+        // same word again.
+        for from in (0..query.len()).rev() {
+            if !reach[from] {
+                continue;
+            }
+            for ((at, want), have) in query[from..].char_indices().zip(word.chars()) {
+                if want != have {
+                    break;
+                }
+                reach[from + at + want.len_utf8()] = true;
+            }
+        }
+        if reach[query.len()] {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn filter_indices<S: AsRef<str>>(query: &str, labels: &[S]) -> Vec<usize> {
+    let query = Query::new(query);
     let mut ranked: Vec<(usize, usize)> = labels
         .iter()
         .enumerate()
-        .filter_map(|(ix, label)| match_rank(query, label.as_ref()).map(|rank| (rank, ix)))
+        .filter_map(|(ix, label)| rank(&query, label.as_ref()).map(|rank| (rank, ix)))
         .collect();
     ranked.sort_by_key(|&(rank, ix)| (rank, ix));
     ranked.into_iter().map(|(_, ix)| ix).collect()
@@ -257,12 +312,58 @@ mod tests {
     }
 
     #[test]
-    fn match_rank_orders_prefix_word_substring_then_subsequence() {
+    fn match_rank_orders_prefix_word_substring_then_word_starts() {
         assert_eq!(match_rank("split", "SplitClip"), Some(0));
         assert_eq!(match_rank("clip", "Split Clip"), Some(1), "a word start");
         assert_eq!(match_rank("clip", "SplitClip"), Some(2), "mid-label");
-        assert_eq!(match_rank("fs", "Fullscreen preview"), Some(3), "in order");
+        assert_eq!(match_rank("fp", "Fullscreen preview"), Some(3), "initials");
+        assert_eq!(
+            match_rank("fupr", "Fullscreen preview"),
+            Some(3),
+            "word starts"
+        );
+        assert_eq!(match_rank("fu pr", "Fullscreen preview"), Some(3), "spaced");
         assert_eq!(match_rank("zzz", "SplitClip"), None);
+    }
+
+    /// Tier 3 reads letters only at the starts of words. Letters scattered
+    /// through a label in order matched once, so typing `info` offered seven
+    /// rows, six of them unrelated. Not caught here: a match through a
+    /// camel-cased word, which reads as one word.
+    #[test]
+    fn scattered_letters_in_order_do_not_match() {
+        for (query, label) in [
+            ("info", "Audio Channels: Left to Both"),
+            ("info", "Decode Everything from Originals"),
+            ("info", "Transcription: Verify Installed Models"),
+            ("fs", "Fullscreen preview"),
+            ("fpx", "Fullscreen preview"),
+            ("pf", "Fullscreen preview"),
+        ] {
+            assert_eq!(match_rank(query, label), None, "{query} offered {label}");
+        }
+        // A word skipped between two used ones still matches, and one word may
+        // give letters past its first.
+        assert_eq!(
+            match_rank("tdh", "Timeline Display Settings: Hide"),
+            Some(3)
+        );
+        assert_eq!(
+            match_rank("disehi", "Timeline Display Settings: Hide"),
+            Some(3)
+        );
+    }
+
+    /// A query that splits many ways across repeated letters ends: the match
+    /// is bounded by words times query length, not by the ways it splits.
+    #[test]
+    fn a_query_with_many_splits_is_bounded() {
+        let label = ["a"; 64].join(" ") + " ab";
+        let query = "a".repeat(64) + "b";
+        let started = std::time::Instant::now();
+        assert_eq!(match_rank(&query, &label), Some(3));
+        assert_eq!(match_rank(&("a".repeat(66)), &label), None);
+        assert!(started.elapsed() < Duration::from_millis(100));
     }
 
     #[test]
@@ -276,9 +377,9 @@ mod tests {
     }
 
     #[test]
-    fn a_subsequence_is_offered_last() {
-        let labels = ["Fullscreen preview", "Fit preview"];
-        assert_eq!(filter_indices("fi", &labels), vec![1, 0]);
+    fn initials_are_offered_last() {
+        let labels = ["Fullscreen preview", "FP meter"];
+        assert_eq!(filter_indices("fp", &labels), vec![1, 0]);
     }
 
     #[test]

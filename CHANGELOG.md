@@ -1146,6 +1146,7 @@ Notes for the latest release. For previous releases, see the
 - The Project panel's Icons and Freeform views draw each picture in a 16:9 box as wide as its cell, so a frame no longer sits between bands of empty plate.
 - A selected row in History, Effects & Presets, the Project panel, the Viewer menus, the menu bar and Settings keeps its selected plate under the pointer instead of fading to the weaker hover fill, and every row fades to one hover fill.
 - An effect, preset, animation, mask or transition dropped from Effects & Presets on a timeline clip applies to that clip instead of changing nothing.
+- The command palette matches typed letters against the starts of words, so `info` offers Info instead of six unrelated rows whose letters appear in order.
 
 ## [alpha-0.7.0] - 2026-07-22
 
