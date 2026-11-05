@@ -1172,6 +1172,7 @@ Notes for the latest release. For previous releases, see the
 - Omit the Video codec property row for still images in the Project panel instead of reporting `Unknown`.
 - Follow the pressed clip of a linked pair in Effect Controls when clicking its line or right-clicking, and toggle selection on Shift-clicking a clip line.
 - Focus the Viewer when double-clicking a pool card to open a Source tab so viewer shortcuts act immediately.
+- Group lane creation with clip placement into one undo step named after the edit when committing captions, placing a multicam group or nested sequence, or adding an adjustment layer.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -22,16 +22,24 @@ impl AppState {
     /// whole sequence, on the topmost adjustment lane that is free there.
     pub fn add_adjustment_layer(&mut self) -> Result<TrackId, EngineError> {
         let (start, duration) = self.adjustment_span();
-        let track = match self.free_adjustment_lane(start, start + duration) {
-            Some(id) => id,
-            None => self.add_lane_of_kind(TrackKind::Adjustment, None)?,
-        };
         let rate = self.playhead.rate;
-        self.apply_command(Command::Edit(EditCommand::AddGenerated {
-            track,
-            generator: Generator::Adjustment,
-            timeline: TimeRange::at_rate(start, duration, rate),
-        }))?;
+        let (track, _) = self.one_step_named(
+            |(_, label): &(TrackId, &'static str)| Some(*label),
+            |state| {
+                let track = match state.free_adjustment_lane(start, start + duration) {
+                    Some(id) => id,
+                    None => state.add_lane_of_kind(TrackKind::Adjustment, None)?,
+                };
+                let edit = EditCommand::AddGenerated {
+                    track,
+                    generator: Generator::Adjustment,
+                    timeline: TimeRange::at_rate(start, duration, rate),
+                };
+                let label = edit.label();
+                state.apply_command(Command::Edit(edit))?;
+                Ok((track, label))
+            },
+        )?;
         self.status_message = Some("Added adjustment layer".into());
         Ok(track)
     }

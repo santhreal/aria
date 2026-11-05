@@ -78,24 +78,32 @@ impl AppState {
             engine.project().multicam_group_span(group)?
         };
         let at = self.store.playhead_ticks.max(0);
-        let target = self.drop_target_track(aria_models::TrackKind::Video, None)?;
-        let end = at + source.duration.value;
-        let occupied = self
-            .spans_on(target)
-            .into_iter()
-            .any(|(from, to)| from < end && at < to);
-        let track = if occupied {
-            self.add_lane_of_kind(aria_models::TrackKind::Video, Some(0))?
-        } else {
-            target
-        };
-        let start = aria_models::RationalTime::new(at, self.playhead.rate);
-        self.apply_command(Command::Edit(EditCommand::AddMulticamClip {
-            track,
-            group,
-            source,
-            start,
-        }))?;
+        self.one_step_named(
+            |label: &&'static str| Some(*label),
+            |state| {
+                let target = state.drop_target_track(aria_models::TrackKind::Video, None)?;
+                let end = at + source.duration.value;
+                let occupied = state
+                    .spans_on(target)
+                    .into_iter()
+                    .any(|(from, to)| from < end && at < to);
+                let track = if occupied {
+                    state.add_lane_of_kind(aria_models::TrackKind::Video, Some(0))?
+                } else {
+                    target
+                };
+                let start = aria_models::RationalTime::new(at, state.playhead.rate);
+                let edit = EditCommand::AddMulticamClip {
+                    track,
+                    group,
+                    source,
+                    start,
+                };
+                let label = edit.label();
+                state.apply_command(Command::Edit(edit))?;
+                Ok(label)
+            },
+        )?;
         Ok(())
     }
 

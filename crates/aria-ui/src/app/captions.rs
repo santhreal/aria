@@ -321,10 +321,7 @@ impl AppState {
             .sum()
     }
 
-    /// Write the transcript into the project.
-    ///
-    /// Each unit is its own command, so each is its own undo entry: the engine has no
-    /// batch, and inventing one here would put a second history model in the surface.
+    /// Write the transcript into the project as one undo step.
     pub fn commit_captions(&mut self) -> Result<(), EngineError> {
         let units = self.caption_units();
         if units.is_empty() {
@@ -334,29 +331,35 @@ impl AppState {
         let target = self.captions.commit;
         let rate = self.playhead.rate;
         let written = units.len();
-        match target {
-            CaptionCommit::Markers => {
-                for (start, _, text) in units {
-                    let color = self.next_marker_color();
-                    self.apply_command(Command::Edit(EditCommand::AddMarker {
-                        at: RationalTime::new(start.max(0), rate),
-                        name: text,
-                        color: Some(color),
-                    }))?;
+        self.one_step_named(
+            |label: &&'static str| Some(*label),
+            |state| {
+                match target {
+                    CaptionCommit::Markers => {
+                        for (start, _, text) in units {
+                            let color = state.next_marker_color();
+                            state.apply_command(Command::Edit(EditCommand::AddMarker {
+                                at: RationalTime::new(start.max(0), rate),
+                                name: text,
+                                color: Some(color),
+                            }))?;
+                        }
+                    }
+                    CaptionCommit::TextClips => {
+                        let track = state.ensure_kind_track(TrackKind::Text)?;
+                        for (start, end, text) in units {
+                            let duration = end.saturating_sub(start).max(1);
+                            state.apply_command(Command::Edit(EditCommand::AddGenerated {
+                                track,
+                                generator: Generator::text(text),
+                                timeline: TimeRange::at_rate(start.max(0), duration, rate),
+                            }))?;
+                        }
+                    }
                 }
-            }
-            CaptionCommit::TextClips => {
-                let track = self.ensure_kind_track(TrackKind::Text)?;
-                for (start, end, text) in units {
-                    let duration = end.saturating_sub(start).max(1);
-                    self.apply_command(Command::Edit(EditCommand::AddGenerated {
-                        track,
-                        generator: Generator::text(text),
-                        timeline: TimeRange::at_rate(start.max(0), duration, rate),
-                    }))?;
-                }
-            }
-        }
+                Ok("Commit captions")
+            },
+        )?;
         self.status_message = Some(match target {
             CaptionCommit::Markers => format!("Wrote {}", counted(written, "marker", "markers")),
             CaptionCommit::TextClips => {

@@ -113,15 +113,23 @@ impl AppState {
         if duration <= 0 {
             return Err(EngineError::Model(ModelError::InvalidRange));
         }
-        // A nest carries a picture, so the lane that takes it is the one a
+        // A nest holds a picture, so the lane that takes it is the one a
         // media drop would land on.
-        let track = self.drop_target_track(aria_models::TrackKind::Video, None)?;
-        self.apply_command(Command::Edit(EditCommand::PlaceNestedSequence {
-            track,
-            sequence,
-            source: TimeRange::at_rate(0, duration, rate),
-            start: RationalTime::new(self.playhead.value, rate),
-        }))?;
+        self.one_step_named(
+            |label: &&'static str| Some(*label),
+            |state| {
+                let track = state.drop_target_track(aria_models::TrackKind::Video, None)?;
+                let edit = EditCommand::PlaceNestedSequence {
+                    track,
+                    sequence,
+                    source: TimeRange::at_rate(0, duration, rate),
+                    start: RationalTime::new(state.playhead.value, rate),
+                };
+                let label = edit.label();
+                state.apply_command(Command::Edit(edit))?;
+                Ok(label)
+            },
+        )?;
         Ok(())
     }
 

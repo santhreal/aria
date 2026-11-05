@@ -149,15 +149,233 @@ fn the_layer_is_one_undoable_step() {
     let (mut state, _) = with_clip();
     let before = state.history_depth();
     state.add_adjustment_layer().expect("place the layer");
-    assert!(state.history_depth() > before, "the layer is an edit");
-
-    while state.history_depth() > before {
-        assert!(state.undo(), "undo must walk back to the opening state");
-    }
-    assert!(
-        lanes(&state).iter().all(|(_, spans)| spans.is_empty()),
-        "undo left a bar behind"
+    assert_eq!(
+        state.history_depth(),
+        before + 1,
+        "adding a layer and its lane is one undo step"
     );
+    assert_ne!(
+        state.next_undo_label().as_deref(),
+        Some("Add track"),
+        "the undo step is named after the layer placement, not the lane add"
+    );
+    assert!(state.undo(), "undo must walk back to the opening state");
+    assert!(
+        lanes(&state).is_empty(),
+        "one undo removes both the bar and the lane it created"
+    );
+}
+
+/// Every public `AppState` verb that can call `ensure_kind_track`,
+/// `free_kind_track`, `drop_target_track`, or `add_lane_of_kind` and then edits
+/// runs in one `one_step_named` step named after the edit: `history_depth`
+/// rises by 1, the step is never named `Add track`, and one undo leaves no
+/// newly created lane behind.
+#[test]
+fn every_placement_verb_that_adds_a_lane_is_one_step_named_after_the_edit() {
+    use aria_commands::{Command, EditCommand};
+    use aria_models::{Generator, MediaId, MulticamAngle, SequenceId, TrackId};
+
+    use super::captions::{CaptionCommit, UiCaption};
+
+    let track_ids = |state: &AppState| -> Vec<u64> {
+        state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .map(|lane| lane.id)
+            .collect()
+    };
+    let remove_kind = |state: &mut AppState, kind: UiTrackKind| {
+        let ids: Vec<u64> = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| lane.kind == kind)
+            .map(|lane| lane.id)
+            .collect();
+        for id in ids {
+            state
+                .apply_command(Command::Edit(EditCommand::RemoveTrack {
+                    track: TrackId::from_raw(id),
+                }))
+                .expect("remove track");
+        }
+    };
+    let assert_one_step = |state: &mut AppState,
+                           name: &str,
+                           expected_label: &str,
+                           run: &mut dyn FnMut(&mut AppState)| {
+        let before_depth = state.history_depth();
+        let before_tracks = track_ids(state);
+        run(state);
+        assert_eq!(
+            state.history_depth(),
+            before_depth + 1,
+            "{name} took more than one undo step"
+        );
+        let label = state.next_undo_label();
+        assert_ne!(
+            label.as_deref(),
+            Some("Add track"),
+            "{name} named its undo step after the lane add"
+        );
+        assert_eq!(
+            label.as_deref(),
+            Some(expected_label),
+            "{name} named its undo step {label:?}"
+        );
+        assert!(state.undo(), "{name} must undo");
+        assert_eq!(
+            track_ids(state),
+            before_tracks,
+            "{name} left a lane behind after one undo"
+        );
+    };
+
+    // 1. commit_captions (TextClips and Markers) with multiple captions and no Text lane.
+    {
+        let (mut state, _) = with_clip();
+        state.captions.segments = vec![
+            UiCaption {
+                start_tick: 0,
+                end_tick: 24,
+                text: "first".into(),
+                confidence: None,
+                words: Vec::new(),
+            },
+            UiCaption {
+                start_tick: 24,
+                end_tick: 48,
+                text: "second".into(),
+                confidence: None,
+                words: Vec::new(),
+            },
+        ];
+        state.set_caption_commit(CaptionCommit::TextClips);
+        assert_one_step(
+            &mut state,
+            "commit_captions(TextClips)",
+            "Commit captions",
+            &mut |s| s.commit_captions().expect("commit text clips"),
+        );
+        state.set_caption_commit(CaptionCommit::Markers);
+        assert_one_step(
+            &mut state,
+            "commit_captions(Markers)",
+            "Commit captions",
+            &mut |s| s.commit_captions().expect("commit markers"),
+        );
+    }
+
+    // 2. place_multicam_group when no Video lane exists, and when V1 is occupied.
+    {
+        let (mut state, _) = with_clip();
+        let media = MediaId::from_raw(state.store.media[0].id);
+        let group = state
+            .create_multicam_group("Cam group", vec![MulticamAngle::new(media, 0)])
+            .expect("create group")
+            .expect("group id");
+        state.set_playhead(0);
+        // V1 is occupied at tick 0, so place_multicam_group adds V2 on top.
+        assert_one_step(
+            &mut state,
+            "place_multicam_group(occupied)",
+            "Place multicam clip",
+            &mut |s| s.place_multicam_group(group).expect("place multicam"),
+        );
+        // Remove all Video lanes so drop_target_track must create V1.
+        remove_kind(&mut state, UiTrackKind::Video);
+        assert_one_step(
+            &mut state,
+            "place_multicam_group(no_video_lane)",
+            "Place multicam clip",
+            &mut |s| s.place_multicam_group(group).expect("place multicam"),
+        );
+    }
+
+    // 3. place_nested_sequence when no Video lane exists.
+    {
+        let (mut state, clip) = with_clip();
+        state.select_clip(clip);
+        state.nest_selection("Sub").expect("nest selection");
+        let seq = SequenceId::from_raw(state.store.sequences[0].id);
+        remove_kind(&mut state, UiTrackKind::Video);
+        assert_one_step(
+            &mut state,
+            "place_nested_sequence(no_video_lane)",
+            "Place nested sequence",
+            &mut |s| s.place_nested_sequence(seq).expect("place nest"),
+        );
+    }
+
+    // 4. add_adjustment_layer when no Adjustment lane exists, and when FX1 is occupied.
+    {
+        let (mut state, _) = with_clip();
+        assert_one_step(
+            &mut state,
+            "add_adjustment_layer(no_adjustment_lane)",
+            "Add generated clip",
+            &mut |s| {
+                s.add_adjustment_layer().expect("add adjustment layer");
+            },
+        );
+        state
+            .add_adjustment_layer()
+            .expect("first adjustment layer");
+        assert_one_step(
+            &mut state,
+            "add_adjustment_layer(occupied)",
+            "Add generated clip",
+            &mut |s| {
+                s.add_adjustment_layer().expect("second adjustment layer");
+            },
+        );
+    }
+
+    // 5. Generated, text tool, and media drop verbs when no lane of their kind exists.
+    {
+        let (mut state, _) = with_clip();
+        assert_one_step(
+            &mut state,
+            "add_generated(Text)",
+            "Add generated clip",
+            &mut |s| {
+                s.add_generated(Generator::text("Title".to_string()))
+                    .expect("add title");
+            },
+        );
+        assert_one_step(
+            &mut state,
+            "create_text_at",
+            "Add generated clip",
+            &mut |s| {
+                s.create_text_at([100.0, 100.0]).expect("create text at");
+            },
+        );
+        let media = MediaId::from_raw(state.store.media[0].id);
+        assert_one_step(
+            &mut state,
+            "drop_media_on_new_lane",
+            "Source edit",
+            &mut |s| {
+                s.drop_media_on_new_lane(media, true, 0)
+                    .expect("drop on new lane");
+            },
+        );
+        remove_kind(&mut state, UiTrackKind::Video);
+        assert_one_step(
+            &mut state,
+            "drop_media_on_timeline(no_video_lane)",
+            "Source edit",
+            &mut |s| {
+                s.drop_media_on_timeline(media, None, 0)
+                    .expect("drop on timeline");
+            },
+        );
+    }
 }
 
 #[test]
