@@ -23,11 +23,13 @@ use super::menu::CLIP_STAGES;
 
 /// Each clip menu row and the bar row whose command it runs, in the order the
 /// menu draws them.
-const TWINS: [(&str, Option<&str>); 18] = [
-    ("ctx-split", Some("seq-add-edit")),
-    ("ctx-delete", Some("edit-clear")),
-    ("ctx-duplicate", Some("edit-dup")),
+const TWINS: [(&str, Option<&str>); 20] = [
+    ("ctx-cut", Some("edit-cut")),
     ("ctx-copy", Some("edit-copy")),
+    ("ctx-duplicate", Some("edit-dup")),
+    ("ctx-delete", Some("edit-clear")),
+    ("ctx-ripple-delete", Some("edit-ripple")),
+    ("ctx-split", Some("seq-add-edit")),
     // Opens the frame-count bar, which no bar row opens.
     ("ctx-shift-selection", None),
     ("ctx-enable", Some("clip-enable")),

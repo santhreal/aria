@@ -385,10 +385,13 @@ A `CLIP_ITEMS` row that runs a menu bar command mirrors that bar row (`MIRRORED`
 | --- | --- | --- | --- | --- |
 | `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` | `none` |
 | `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-split` | `Add Edit` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Clear` | `none` |
-| `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-cut` | `Cut` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-duplicate` | `Duplicate` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-delete` | `Clear` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-ripple-delete` | `Ripple Delete` | `none` |
+| `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-split` | `Add Edit` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-shift-selection` | `Shift Selection…` | `none` |
 | `CLIP_ITEMS` | `Rule` | `none` | `none` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |

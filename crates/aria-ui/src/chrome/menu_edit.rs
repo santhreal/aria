@@ -17,6 +17,15 @@ use super::menu_items::{MenuItem, MenuItems, report};
 /// name in lowercase, or `none`.
 const LABEL_PREFIX: &str = "edit-label-";
 
+/// Edit > Cut, which the clip context menu mirrors.
+pub(crate) const CUT: MenuItem = MenuItem::new("edit-cut", "Cut", |_, s, _| {
+    let cut = s.cut_selected();
+    report(s, cut)
+})
+.key("key-cut")
+.when(super::menu_guards::selection)
+.rule();
+
 /// Edit > Copy, which the clip context menu mirrors.
 pub(crate) const COPY: MenuItem = MenuItem::new("edit-copy", "Copy", |_, s, _| s.copy_selected())
     .key("key-copy")
@@ -30,6 +39,15 @@ pub(crate) const CLEAR: MenuItem = MenuItem::new("edit-clear", "Clear", |_, s, _
 .key("key-delete")
 .when(super::menu_guards::selection)
 .rule();
+
+/// Edit > Ripple Delete, which the clip context menu mirrors.
+pub(crate) const RIPPLE_DELETE: MenuItem =
+    MenuItem::new("edit-ripple", "Ripple Delete", |_, s, _| {
+        let deleted = s.ripple_delete_selected();
+        report(s, deleted)
+    })
+    .key("key-ripple-delete")
+    .when(super::menu_guards::selection);
 
 /// Edit > Duplicate, which the clip context menu mirrors.
 pub(crate) const DUPLICATE: MenuItem = MenuItem::new("edit-dup", "Duplicate", |_, s, _| {
@@ -50,13 +68,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
     })
     .key("key-redo")
     .when(super::menu_guards::redo),
-    MenuItem::new("edit-cut", "Cut", |_, s, _| {
-        let cut = s.cut_selected();
-        report(s, cut)
-    })
-    .key("key-cut")
-    .when(super::menu_guards::selection)
-    .rule(),
+    CUT,
     COPY,
     MenuItem::new("edit-paste", "Paste", |_, s, _| {
         let pasted = s.paste_clipboard();
@@ -88,12 +100,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
     })
     .when(super::menu_guards::clipboard),
     CLEAR,
-    MenuItem::new("edit-ripple", "Ripple Delete", |_, s, _| {
-        let deleted = s.ripple_delete_selected();
-        report(s, deleted)
-    })
-    .key("key-ripple-delete")
-    .when(super::menu_guards::selection),
+    RIPPLE_DELETE,
     DUPLICATE,
     MenuItem::new("edit-select-all", "Select All", |_, s, _| {
         s.select_all_unlocked()

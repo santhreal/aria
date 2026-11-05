@@ -839,6 +839,7 @@ Notes for the latest release. For previous releases, see the
 - Home's Start tiles and recent-project cards draw as raised plates over the page in both looks instead of sinking into it in the light look.
 - The command palette's highlighted row draws the selected-row plate, and a row under the pointer the one hover fill, in both looks.
 - A generated clip on the timeline draws its fill color as a small dot and repeats the generator's name under the clip name only after a rename, instead of a bordered square and the same name twice.
+- The clip context menu opens with Cut, Copy, Duplicate, Clear and Ripple Delete, then Add Edit and Shift Selection…, instead of opening with Add Edit and offering neither Cut nor Ripple Delete.
 
 ### Fixed
 

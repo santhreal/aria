@@ -14,7 +14,7 @@ use crate::chrome::menu_clip::{
     AUDIO_GAIN, ENABLE, EXTRACT_AUDIO, FREEZE, GROUP, LINK, RENAME, SPEED_DURATION, TIME_REMAP,
     UNGROUP, UNLINK,
 };
-use crate::chrome::menu_edit::{CLEAR, COPY, DUPLICATE};
+use crate::chrome::menu_edit::{CLEAR, COPY, CUT, DUPLICATE, RIPPLE_DELETE};
 use crate::chrome::menu_items::MenuItem as BarRow;
 use crate::chrome::menu_sequence::ADD_EDIT;
 use crate::types::{ActivePanel, RenameTarget};
@@ -23,11 +23,13 @@ use super::{MenuItem, MenuRow, always};
 
 /// The menu bar rows the clip menu mirrors, in the order [`ClipMenu`] records
 /// them.
-const MIRRORED: [&BarRow; 15] = [
-    &ADD_EDIT,
-    &CLEAR,
-    &DUPLICATE,
+const MIRRORED: [&BarRow; 17] = [
+    &CUT,
     &COPY,
+    &DUPLICATE,
+    &CLEAR,
+    &RIPPLE_DELETE,
+    &ADD_EDIT,
     &ENABLE,
     &LINK,
     &UNLINK,
@@ -40,7 +42,7 @@ const MIRRORED: [&BarRow; 15] = [
     &EXTRACT_AUDIO,
     &RENAME,
 ];
-const _: () = assert!(MIRRORED.len() <= u16::BITS as usize);
+const _: () = assert!(MIRRORED.len() <= u32::BITS as usize);
 
 /// The clip facts a row reads, gathered once when the menu opens.
 #[derive(Debug, Clone, Copy)]
@@ -49,9 +51,9 @@ pub struct ClipMenu {
     pub clip: u64,
     /// Bit `i` is set while the bar row `MIRRORED[i]` would run on the
     /// selection.
-    run_bits: u16,
+    run_bits: u32,
     /// Bit `i` is set while the bar row `MIRRORED[i]` draws its check mark.
-    check_bits: u16,
+    check_bits: u32,
     /// Whether the clip under the pointer has a parent to release.
     pub parented: bool,
     /// How the transition at `clip`'s right junction sits relative to the cut.
@@ -95,7 +97,7 @@ impl ClipMenu {
         Self::holds(self.check_bits, bar)
     }
 
-    fn holds(bits: u16, bar: &BarRow) -> bool {
+    fn holds(bits: u32, bar: &BarRow) -> bool {
         MIRRORED
             .iter()
             .position(|row| row.id == bar.id)
@@ -103,29 +105,16 @@ impl ClipMenu {
     }
 }
 
-/// A clip menu, in the order it draws: the edits, the selection's links, its
-/// time, its sound, its label, then its name and properties.
+/// A clip menu, in the order it draws: the clipboard and deletions, the
+/// edits, the selection's links, its time, its sound, its label, then its
+/// name and properties.
 pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
     MenuItem::Row(MenuRow {
-        id: "ctx-split",
-        label: |_| ADD_EDIT.label,
-        when: |clip| clip.runs(&ADD_EDIT),
+        id: "ctx-cut",
+        label: |_| CUT.label,
+        when: |clip| clip.runs(&CUT),
         checked: None,
-        run: |state, _| state.add_edit(false),
-    }),
-    MenuItem::Row(MenuRow {
-        id: "ctx-delete",
-        label: |_| CLEAR.label,
-        when: |clip| clip.runs(&CLEAR),
-        checked: None,
-        run: |state, _| state.clear_selected(),
-    }),
-    MenuItem::Row(MenuRow {
-        id: "ctx-duplicate",
-        label: |_| DUPLICATE.label,
-        when: |clip| clip.runs(&DUPLICATE),
-        checked: None,
-        run: |state, _| state.duplicate_selected(),
+        run: |state, _| state.cut_selected(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-copy",
@@ -136,6 +125,35 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
             state.copy_selected();
             Ok(())
         },
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-duplicate",
+        label: |_| DUPLICATE.label,
+        when: |clip| clip.runs(&DUPLICATE),
+        checked: None,
+        run: |state, _| state.duplicate_selected(),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-delete",
+        label: |_| CLEAR.label,
+        when: |clip| clip.runs(&CLEAR),
+        checked: None,
+        run: |state, _| state.clear_selected(),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-ripple-delete",
+        label: |_| RIPPLE_DELETE.label,
+        when: |clip| clip.runs(&RIPPLE_DELETE),
+        checked: None,
+        run: |state, _| state.ripple_delete_selected(),
+    }),
+    MenuItem::Rule,
+    MenuItem::Row(MenuRow {
+        id: "ctx-split",
+        label: |_| ADD_EDIT.label,
+        when: |clip| clip.runs(&ADD_EDIT),
+        checked: None,
+        run: |state, _| state.add_edit(false),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-shift-selection",
