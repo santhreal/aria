@@ -67,20 +67,32 @@ fn visible(state: &AppState, tab: SidebarTab) -> Vec<u64> {
     state.pool_rows(tab).ids()
 }
 
-/// Run one click on a card. An item that cannot be shown in the Viewer, such
-/// as a missing file or an audio-only source, stays selected and the status
-/// line reports why it did not open.
-pub fn apply(state: &mut AppState, reach: Reach, media: u64, tab: SidebarTab) {
+/// Run one click on a card, returning whether it opened or focused a Source
+/// tab in the Viewer. An item that cannot be shown in the Viewer, such as a
+/// missing file or an audio-only source, stays selected and the status line
+/// reports why it did not open.
+pub fn apply(state: &mut AppState, reach: Reach, media: u64, tab: SidebarTab) -> bool {
     match reach {
-        Reach::Replace => state.pool_selection.replace(media),
-        Reach::Toggle => state.pool_selection.toggle(media),
+        Reach::Replace => {
+            state.pool_selection.replace(media);
+            false
+        }
+        Reach::Toggle => {
+            state.pool_selection.toggle(media);
+            false
+        }
         Reach::Span => {
             let list = visible(state, tab);
             state.pool_selection.span(media, &list);
+            false
         }
         Reach::Open => {
             state.pool_selection.replace(media);
-            state.open_source(media);
+            let opened = state.open_source(media);
+            if opened {
+                state.focus_pane(crate::types::ActivePanel::Preview);
+            }
+            opened
         }
     }
 }

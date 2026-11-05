@@ -21,8 +21,9 @@ use std::collections::BTreeSet;
 
 use crate::app::AppState;
 use crate::app::sent_census::Watch;
+use crate::dock::{PANEL_PROJECT, PANEL_VIEWER};
 use crate::surfaces::pool_pick::{self, Reach};
-use crate::types::{EditMode, SidebarTab};
+use crate::types::{ActivePanel, EditMode, SidebarTab};
 
 /// This registry's file, for the shared parsers in the parent module.
 const REGISTRY: &str = "pool_pick.rs";
@@ -68,8 +69,8 @@ fn reaches() -> Vec<Reach> {
 }
 
 /// Click one card.
-fn click(state: &mut AppState, reach: Reach, card: u64) {
-    pool_pick::apply(state, reach, card, TAB);
+fn click(state: &mut AppState, reach: Reach, card: u64) -> bool {
+    pool_pick::apply(state, reach, card, TAB)
 }
 
 /// The clips on the sequence as (start, end) timeline ticks, in start order.
@@ -214,9 +215,12 @@ fn a_plain_click_picks_one_card() {
 #[test]
 fn a_double_click_opens_one_source_tab_per_card() {
     let mut pool = stocked();
+    pool.state.focus_pane(ActivePanel::Media);
     let focused = |state: &AppState| state.sources.focused().map(|view| view.media);
-    click(&mut pool.state, Reach::Open, pool.cards[0]);
+    assert!(click(&mut pool.state, Reach::Open, pool.cards[0]));
     assert_eq!(focused(&pool.state), Some(pool.cards[0]));
+    assert_eq!(pool.state.active_panel, ActivePanel::Preview);
+    assert_eq!(pool.state.keyed_panel(), PANEL_VIEWER);
     if let Some(view) = pool.state.sources.focused_mut() {
         view.mark_in = Some(1);
     }
@@ -280,9 +284,12 @@ fn a_card_whose_file_is_gone_is_picked_and_not_opened() {
     // button are on the card, so it has to be selectable. What it must not do
     // is open a Source tab with nothing behind it to decode.
     let (mut state, card) = with_offline_card();
+    state.focus_pane(ActivePanel::Media);
     let watch = Watch::on(&state);
-    pool_pick::apply(&mut state, Reach::Open, card, TAB);
+    assert!(!pool_pick::apply(&mut state, Reach::Open, card, TAB));
     assert_eq!(watch.take(), Vec::<&'static str>::new());
+    assert_eq!(state.active_panel, ActivePanel::Media);
+    assert_eq!(state.keyed_panel(), PANEL_PROJECT);
     assert!(
         state.pool_selection.contains(card),
         "an offline card cannot be selected, so its relink button is unreachable"
@@ -369,4 +376,49 @@ fn insert_with_nothing_to_place_says_so() {
 #[test]
 fn the_pool_panel_calls_no_setter_itself() {
     super::no_setter_escapes(REGISTRY, "sidebar_media");
+}
+
+#[gpui::test]
+fn double_clicking_a_drawn_pool_card_hands_the_viewer_the_keys(cx: &mut gpui::TestAppContext) {
+    use gpui::{Modifiers, MouseButton, MouseDownEvent};
+
+    let (state, visual) = crate::test_support::drawn_shell(cx, "pool-card-open-focus");
+    visual.update(|window, app| {
+        app.set_reduce_motion(true);
+        state.update(app, |s, _| {
+            s.import_media(crate::app::fixtures::asset("fixture-640x360-24fps-3s.mp4"))
+                .expect("import video");
+            s.focus_pane(ActivePanel::Media);
+        });
+        window.refresh();
+    });
+    visual.run_until_parked();
+
+    let card = visual
+        .debug_bounds("pool-item-0")
+        .expect("pool-item-0 is drawn")
+        .center();
+    visual.simulate_event(MouseDownEvent {
+        position: card,
+        modifiers: Modifiers::none(),
+        button: MouseButton::Left,
+        click_count: 2,
+        first_mouse: false,
+    });
+    visual.simulate_mouse_up(card, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+
+    visual.simulate_keystrokes("i");
+    visual.run_until_parked();
+
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.active_panel, ActivePanel::Preview);
+        assert_eq!(s.keyed_panel(), PANEL_VIEWER);
+        assert_eq!(
+            s.sources.focused().and_then(|view| view.mark_in),
+            Some(0),
+            "pressing I after double-clicking a pool card marks In on the Source tab"
+        );
+    });
 }

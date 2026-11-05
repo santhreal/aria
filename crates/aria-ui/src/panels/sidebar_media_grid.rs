@@ -73,7 +73,7 @@ pub(super) fn media_grid(
                         this.set_freeform_drop(pos.0, pos.1);
                     },
                 ))
-                // The colour, not the theme: a drag-over closure outlives this
+                // The color, not the theme: a drag-over closure outlives this
                 // call, and a borrowed theme cannot escape into it.
                 .drag_over::<crate::types::MediaDrag>({
                     let wash = theme.wash(0.04);
@@ -280,7 +280,7 @@ pub(super) fn media_tile(
         .bg(motion::hover_blend(key, theme.wash(0.0), theme.wash(0.06)))
         // A picked card is drawn picked, which is what makes a
         // selection of several visible at all. The border is always drawn and
-        // only its colour changes, so picking a card cannot shift the row it
+        // only its color changes, so picking a card cannot shift the row it
         // sits in by a pixel.
         .border_1()
         .border_color(if picked {
@@ -291,7 +291,7 @@ pub(super) fn media_tile(
         .when(picked, |el| el.bg(theme.glass_selected_bg()))
         // The tile rises under the pointer. A pool of near-identical
         // thumbnails needs the one that is about to be placed to stand out
-        // from the ones beside it, and colour alone does not do it.
+        // from the ones beside it, and color alone does not do it.
         .rise_on_hover(2.0, lit, motion::hover_listener(key));
     // A row that fills the rail stands its text beside the picture, and wraps
     // it under the picture in a frame too narrow for both. It wraps as a flex
@@ -350,8 +350,12 @@ pub(super) fn media_tile(
                     event.modifiers.shift,
                     event.click_count,
                 );
-                this.state
+                let opened = this
+                    .state
                     .update(cx, |state, _| pool_pick::apply(state, reach, id, tab));
+                if opened {
+                    cx.stop_propagation();
+                }
                 cx.notify();
             }),
         )
