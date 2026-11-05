@@ -18,6 +18,8 @@ use super::{
     Columns, Keys, MIXED, Readout, Travel, Watching, color_name, color_stopwatch, line,
     stepper_row, swatch, value_cell,
 };
+#[cfg(test)]
+use super::{DrawnChoice, cell_selector, record_choice};
 
 /// A number row that cannot be keyed, whose caller has the write and no
 /// declared range: crop insets, fades, motion blur, transition durations, ramp
@@ -257,13 +259,27 @@ pub fn swatch_row(
         })
         .collect();
     // The line above the palette is a number row's line with the color's name
-    // for its value, so its time area starts and ends where theirs do.
+    // for its value, so its time area starts and ends where theirs do. The
+    // name is a value, drawn in the text color as a choice row's is: faint
+    // text marks a disabled control.
     let column = keys.column(&label);
     let keyed = column.is_some();
+    let current = value.map_or(SharedString::new_static(MIXED), color_name);
+    let tone = theme.text;
+    #[cfg(test)]
+    record_choice(DrawnChoice {
+        row: cell_selector(column.as_ref(), &label, "label"),
+        current: current.clone(),
+        faint: tone == theme.text_faint,
+        chips: crate::app::clip_effects::PARAM_COLORS
+            .iter()
+            .map(|(_, name, rgba)| (SharedString::new_static(*name), Some(*rgba) == value))
+            .collect(),
+    });
     let name = value_cell(column.as_ref(), &label)
         .text_size(Theme::TEXT_UI)
-        .text_color(theme.text_faint)
-        .child(value.map_or(SharedString::new_static(MIXED), color_name));
+        .text_color(tone)
+        .child(current);
     let head = line(
         key,
         label,

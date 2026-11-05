@@ -14,12 +14,15 @@
 //! Also closes the class "a value that reads as disabled". Every choice row
 //! drew the choice its value column shows in the faint tone, which marks a
 //! disabled control, so the Parent row's `None` read as grayed out beside the
-//! lit chip stating the same. No recorded choice row draws its value faint.
+//! lit chip stating the same. A color row drew its color's name faint after
+//! the choice rows were fixed, because it recorded nothing; it records its
+//! name and its palette as a choice row does. No recorded row draws its value
+//! faint.
 //!
-//! The walks of `columns_tests` hold every choice row they draw to these, and
-//! draw the Transform tab with two clips of the selected clip's file on the
-//! lanes above it, so its Parent row offers both. Not covered: a picker drawn
-//! outside a choice row.
+//! The walks of `columns_tests` hold every choice and color row they draw to
+//! these, and draw the Transform tab with two clips of the selected clip's
+//! file on the lanes above it, so its Parent row offers both. Not covered: a
+//! picker drawn outside a choice or color row.
 
 use super::blocks::widgets::{DrawnChoice, MIXED, picked};
 

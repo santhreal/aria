@@ -22,9 +22,9 @@ use crate::motion;
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
 
-#[cfg(test)]
-use super::{CHOICES, DrawnChoice, IN_INSPECTOR, cell_selector};
 use super::{Columns, VALUE_MIN, WATCH_SLOT, blanks, line, value_cell};
+#[cfg(test)]
+use super::{DrawnChoice, cell_selector, record_choice};
 
 /// The controls `under` a line, `gap` apart, on a wrapping line of their own.
 /// In the keyed rows' columns, `keyed`, each line starts where the label does.
@@ -346,17 +346,11 @@ pub fn chip_row(
     });
     let drawn = stacked(head, keyed, Theme::SPACE_XS, controls);
     #[cfg(test)]
-    if IN_INSPECTOR.get() {
-        CHOICES.with_borrow_mut(|choices| {
-            if let Some(choices) = choices {
-                choices.push(DrawnChoice {
-                    row,
-                    current: shown,
-                    faint,
-                    chips: marks,
-                });
-            }
-        });
-    }
+    record_choice(DrawnChoice {
+        row,
+        current: shown,
+        faint,
+        chips: marks,
+    });
     drawn
 }

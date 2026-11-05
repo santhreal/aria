@@ -406,9 +406,9 @@ pub(crate) struct DrawnLine {
     pub line: String,
 }
 
-/// A [`chip_row`] drawn into the Inspector: its label's debug selector, the
-/// choice its value column shows and whether that choice is drawn faint, and
-/// each choice under it with whether it is marked in force.
+/// A [`chip_row`] or a [`swatch_row`] drawn into the Inspector: its label's
+/// debug selector, the choice its value column shows and whether that choice
+/// is drawn faint, and each choice under it with whether it is marked in force.
 #[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DrawnChoice {
@@ -416,6 +416,19 @@ pub(crate) struct DrawnChoice {
     pub current: SharedString,
     pub faint: bool,
     pub chips: Vec<(SharedString, bool)>,
+}
+
+/// Note `choice` as drawn into the Inspector, while one is being built and a
+/// record is open.
+#[cfg(test)]
+fn record_choice(choice: DrawnChoice) {
+    if IN_INSPECTOR.get() {
+        CHOICES.with_borrow_mut(|choices| {
+            if let Some(choices) = choices {
+                choices.push(choice);
+            }
+        });
+    }
 }
 
 /// The Inspector's body being built, until this drops: the lines

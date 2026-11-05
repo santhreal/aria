@@ -1151,6 +1151,7 @@ Notes for the latest release. For previous releases, see the
 - The timeline graph editor plots the selected clip's curve across clip switches, linked video/audio pairs, and deleted or undone clips instead of keeping the clip selected when the graph opened or showing an empty state.
 - A menu submenu whose every command is unavailable draws faint with the reason on hover and opens no flyout, so the Clip menu with no clip selected no longer offers Transform, Track Matte, and the other submenus as live entries.
 - A new graphics or adjustment track header shows its badge alone instead of the badge beside a second default name, such as `G1 S1`.
+- A color property's name in Effect Controls draws in the text color instead of the dimmed tone of a disabled control.
 
 ## [alpha-0.7.0] - 2026-07-22
 
