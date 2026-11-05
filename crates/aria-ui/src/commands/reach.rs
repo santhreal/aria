@@ -117,10 +117,12 @@ pub(crate) fn reset_canvas_background(state: &mut AppState) {
     }
 }
 
-/// Step the selected title's typeface. Inert off a title, which is where the
-/// inspector hides the picker too.
+/// Step the typeface of every selected title through the pick registry the
+/// Character list files through, so a step reaches the titles a press on the
+/// list reaches. Inert off a title.
 pub(crate) fn cycle_font(state: &mut AppState, forward: bool) {
-    if let Err(err) = state.cycle_selected_font(forward) {
+    let pick = crate::surfaces::clip_pick::Pick::CycleFont { forward };
+    if let Err(err) = crate::surfaces::clip_pick::apply(state, pick) {
         state.report_error(&err);
     }
 }

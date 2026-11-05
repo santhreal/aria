@@ -284,7 +284,7 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | --- | --- | --- | --- | --- | --- |
 | Premiere Pro | Type tool | `T` | Type tool | `key-tool-type` | `T` |
 | After Effects | Horizontal Type tool | `Ctrl+T` | Type tool | `key-tool-type` | `T` |
-| After Effects | Character panel > Font Size | `none` | Text: − / + | `font-step` | `none` |
+| After Effects | Character panel > Font Size | `none` | `none` | `none` | `none` |
 | After Effects | Character panel > Bold / Italic / Underline / Stroke / Shadow | `none` | Text: Bold / Italic / Underline / Kerning / Stroke / Shadow / Card / Wrap switch | `text-switch` | `none` |
 | After Effects | Character panel > All Caps / Small Caps | `none` | Text: As typed / Upper / Lower / Title | `text-case` | `none` |
 | After Effects | Paragraph panel > Align Left / Center / Right / Justify | `none` | Text: Left / Center / Right / Justify | `text-align-h` | `none` |
@@ -393,6 +393,7 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | After Effects | Animation > Keyframe Assistant > Convert Audio to Keyframes | covered by Command Palette: Duck Under Voice |
 | After Effects | Roto Brush tool | not in Aria |
 | After Effects | Puppet Position Pin tool | not in Aria |
+| After Effects | Character panel > Font Size | covered by the Text size row |
 | After Effects | Vertical Type tool | not in Aria |
 | Premiere Pro | Clip > Synchronize... | not in Aria |
 | Premiere Pro | Audio Track Mixer > Record Voiceover | not in Aria |

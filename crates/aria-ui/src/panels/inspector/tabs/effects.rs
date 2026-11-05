@@ -38,7 +38,6 @@ pub fn effects_tab(
         .filter(|c| c.id != clip.id)
         .map(|c| (aria_models::ClipId::from_raw(c.id), c.name.clone()))
         .collect();
-    let font_families = state.read(cx).font_families();
     let clip_id = clip.id;
     let remove_rows: Vec<_> = clip
         .effects
@@ -57,15 +56,8 @@ pub fn effects_tab(
                 index,
                 label: name.clone(),
             };
-            let params = effects_params::effect_param_rows(
-                theme,
-                state,
-                index,
-                effect,
-                &sequence_clips,
-                font_families,
-                cx,
-            );
+            let params =
+                effects_params::effect_param_rows(theme, state, index, effect, &sequence_clips, cx);
             div()
                 .id(gpui::ElementId::named_usize("inspector-fx", index))
                 // A dragged effect lands above the effect it is dropped on.

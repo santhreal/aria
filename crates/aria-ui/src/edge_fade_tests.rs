@@ -8,39 +8,47 @@
 //! rows with nothing to show that more lay below.
 //!
 //! The census reads every production source in the crate and fails on a frame
-//! made to scroll anywhere but [`scroll_y`] and [`scroll_x`], and on fewer
-//! frames made there than the crate has. The draw cases scroll a column and a
-//! row of cells to their start, a few pixels off it, their middle, a few pixels
-//! short of their end, and their end by a caller's handle, and read how deep
-//! each edge fades at each: an edge fades only while the content continues past
-//! it, as deep as the content past it up to the band, so a frame scrolled a few
-//! pixels off its first cell fades those pixels and not a band over the cell,
-//! and a frame whose content fits fades none. A column turned by the wheel with
-//! no caller's handle keeps its place on the next draw.
+//! made to scroll anywhere but [`scroll_y`], [`scroll_x`] and [`scroll_list`],
+//! and on fewer frames made there than the crate has. The draw cases scroll a
+//! column and a row of cells to their start, a few pixels off it, their middle,
+//! a few pixels short of their end, and their end by a caller's handle, and read
+//! how deep each edge fades at each: an edge fades only while the content
+//! continues past it, as deep as the content past it up to the band, so a frame
+//! scrolled a few pixels off its first cell fades those pixels and not a band
+//! over the cell, and a frame whose content fits fades none. A column turned by
+//! the wheel with no caller's handle keeps its place on the next draw.
+//!
+//! Also closes the class "a list that hides the row in force". A list of rows
+//! brings the row it reveals into view on its first draw and when that row
+//! changes, and keeps the place the wheel left it at in between, so a font list
+//! opens on the family in use and the wheel can still leave it.
 //!
 //! Not covered: the fade's pixels, which the test platform does not raster on
 //! Linux.
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Axis, Context, EdgeFade, InteractiveElement, IntoElement, Modifiers, ParentElement, Render,
     ScrollDelta, ScrollHandle, ScrollWheelEvent, Styled, TestAppContext, TouchPhase,
     VisualTestContext, Window, div, point, px,
 };
 
-use super::{SCROLL_FADE, scroll_x, scroll_y};
+use super::{SCROLL_FADE, scroll_list, scroll_x, scroll_y};
 use crate::test_support::sources::production_sources;
 
-/// The calls and the style that make a `div` scroll, as a method or by path.
-const SCROLLS: [&str; 4] = [
+/// The calls and the style that make a view scroll, as a method or by path.
+const SCROLLS: [&str; 5] = [
     "overflow_scroll(",
     "overflow_x_scroll(",
     "overflow_y_scroll(",
     "Overflow::Scroll",
+    "uniform_list(",
 ];
 
-/// Fewest scroll frames the crate makes through [`scroll_y`] and [`scroll_x`].
-/// A frame moved to another way of scrolling drops the count below this.
-const FRAME_FLOOR: usize = 22;
+/// Fewest scroll frames the crate makes through [`scroll_y`], [`scroll_x`] and
+/// [`scroll_list`]. A frame moved to another way of scrolling drops the count
+/// below this.
+const FRAME_FLOOR: usize = 23;
 
 /// **Every scroll frame the crate makes fades the edges its content continues
 /// past.**
@@ -53,7 +61,8 @@ fn every_scroll_frame_the_crate_makes_fades_its_edges() {
             continue;
         }
         made += code.matches("edge_fade::scroll_y(").count()
-            + code.matches("edge_fade::scroll_x(").count();
+            + code.matches("edge_fade::scroll_x(").count()
+            + code.matches("edge_fade::scroll_list(").count();
         for (index, line) in code.lines().enumerate() {
             for call in SCROLLS.iter().filter(|call| line.contains(*call)) {
                 bare.push(format!("{rel}:{}: {call}", index + 1));
@@ -62,7 +71,7 @@ fn every_scroll_frame_the_crate_makes_fades_its_edges() {
     }
     assert!(
         bare.is_empty(),
-        "{} scroll frames are made without `edge_fade::scroll_y` or `edge_fade::scroll_x`, \
+        "{} scroll frames are made without `edge_fade::scroll_y`, `scroll_x` or `scroll_list`, \
          so they fade no edge their content continues past:\n  {}",
         bare.len(),
         bare.join("\n  ")
@@ -254,4 +263,99 @@ fn a_frame_keeps_its_place_without_a_callers_handle(cx: &mut TestAppContext) {
         (SCROLL_FADE, SCROLL_FADE),
         "{what}: the next draw lost the place the wheel left it at"
     );
+}
+
+/// The rows a list case reads, by the debug selector each is drawn with.
+fn row_name(row: usize) -> Option<&'static str> {
+    match row {
+        0 => Some("row-0"),
+        12 => Some("row-12"),
+        15 => Some("row-15"),
+        _ => None,
+    }
+}
+
+/// `LONG` rows `CELL` px tall in a list at most `VIEW` px tall, bringing row
+/// `reveal` into view.
+struct Rows {
+    reveal: Option<usize>,
+}
+
+impl Render for Rows {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let list = scroll_list("rows", LONG, px(VIEW), self.reveal, |range, _, _| {
+            range
+                .map(|row| {
+                    div()
+                        .h(px(CELL))
+                        .when_some(row_name(row), |el, name| el.debug_selector(|| name.into()))
+                })
+                .collect()
+        });
+        div().size_full().child(
+            div()
+                .debug_selector(|| "frame".into())
+                .w(px(VIEW))
+                .child(list),
+        )
+    }
+}
+
+/// Row `row` is drawn whole inside the list's frame.
+fn assert_in_view(visual: &mut VisualTestContext, row: usize, what: &str) {
+    let name = row_name(row).unwrap_or_else(|| panic!("{what}: row {row} has no selector"));
+    let frame = visual
+        .debug_bounds("frame")
+        .unwrap_or_else(|| panic!("{what}: the list was not drawn"));
+    let drawn = visual
+        .debug_bounds(name)
+        .unwrap_or_else(|| panic!("{what}: row {row} is not drawn"));
+    assert!(
+        drawn.top() >= frame.top() && drawn.bottom() <= frame.bottom(),
+        "{what}: row {row} at {drawn:?} is not inside the list at {frame:?}"
+    );
+}
+
+#[gpui::test]
+fn a_list_reveals_its_row_when_it_changes_and_keeps_the_wheels_place(cx: &mut TestAppContext) {
+    let (rows, visual) = crate::test_support::window_view(cx, |_, _| Rows { reveal: Some(12) });
+    let what = "a list of 16 rows revealing row 12";
+    // Row 12 centered: 262.5 px of rows above the view and 37.5 below.
+    assert_eq!(
+        bands(visual, Axis::Vertical, what),
+        (SCROLL_FADE, SCROLL_FADE),
+        "{what}: the first draw did not center the row"
+    );
+    assert_in_view(visual, 12, what);
+
+    let frame = visual
+        .debug_bounds("frame")
+        .unwrap_or_else(|| panic!("{what}: the list was not drawn"));
+    let position = frame.center();
+    visual.simulate_mouse_move(position, None, Modifiers::none());
+    visual.simulate_event(ScrollWheelEvent {
+        position,
+        delta: ScrollDelta::Pixels(point(px(0.0), px(END))),
+        modifiers: Modifiers::none(),
+        touch_phase: TouchPhase::Moved,
+    });
+    assert_eq!(
+        bands(visual, Axis::Vertical, what),
+        (0.0, SCROLL_FADE),
+        "{what}: a draw with the same row took the place back from the wheel"
+    );
+    assert_in_view(visual, 0, what);
+
+    visual.update(|_, cx| {
+        rows.update(cx, |view, cx| {
+            view.reveal = Some(15);
+            cx.notify();
+        });
+    });
+    assert_eq!(
+        bands(visual, Axis::Vertical, what),
+        (SCROLL_FADE, 0.0),
+        "{what}: the last row did not come into view when it became the row revealed"
+    );
+    assert_in_view(visual, 15, what);
 }

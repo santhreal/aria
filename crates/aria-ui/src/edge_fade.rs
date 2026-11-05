@@ -2,20 +2,24 @@
 //!
 //! [`scroll_y`] and [`scroll_x`] make a scroll frame, which fades each edge on
 //! its axis while the frame's content continues past that edge, read from the
-//! frame's scroll handle. [`edge_faded`] fades the edges of a view that scrolls
-//! by its own model, such as the Timeline's ruler and lanes, where the caller
-//! states how far content continues past each edge. A fade is as deep as the
-//! content past its edge, up to the view's band: a view scrolled a few pixels
-//! off a row fades those pixels, not a band over the row's text, and a list
-//! that fits fades nothing.
+//! frame's scroll handle. [`scroll_list`] makes one over rows of one height,
+//! drawing only the rows in view. [`edge_faded`] fades the edges of a view that
+//! scrolls by its own model, such as the Timeline's ruler and lanes, where the
+//! caller states how far content continues past each edge. A fade is as deep as
+//! the content past its edge, up to the view's band: a view scrolled a few
+//! pixels off a row fades those pixels, not a band over the row's text, and a
+//! list that fits fades nothing.
 //!
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
 
+use std::ops::Range;
+
 use gpui::{
     AnyElement, App, Axis, Bounds, Div, EdgeFade, Edges, Element, ElementId, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, Stateful,
-    StatefulInteractiveElement as _, Window, div, px,
+    InspectorElementId, IntoElement, LayoutId, ListSizingBehavior, Pixels, ScrollHandle,
+    ScrollStrategy, Stateful, StatefulInteractiveElement as _, Styled as _, UniformList,
+    UniformListScrollHandle, Window, div, px, uniform_list,
 };
 
 #[cfg(test)]
@@ -81,28 +85,80 @@ impl EdgeFaded {
 /// `frame`, scrolled on the vertical axis, with its top and bottom edges faded
 /// while its content continues past them.
 ///
-/// Every scroll frame in the crate is made here or by [`scroll_x`], so a frame
-/// shows on its edges that it scrolls. The frame keeps its place from one draw
-/// to the next under its id. A caller that reads or moves the place passes its
-/// handle to [`ScrollFrame::track_scroll`], and not to the frame's own
-/// `track_scroll`, which the frame's handle replaces.
+/// Every scroll frame in the crate is made here, by [`scroll_x`] or by
+/// [`scroll_list`], so a frame shows on its edges that it scrolls. The frame
+/// keeps its place from one draw to the next under its id. A caller that reads
+/// or moves the place passes its handle to [`ScrollFrame::track_scroll`], and
+/// not to the frame's own `track_scroll`, which the frame's handle replaces.
 pub fn scroll_y(frame: Stateful<Div>) -> ScrollFrame {
-    ScrollFrame::new(frame.overflow_y_scroll(), Axis::Vertical)
+    ScrollFrame::new(Scrolled::Div(frame.overflow_y_scroll()), Axis::Vertical)
 }
 
 /// `frame`, scrolled on the horizontal axis, with its left and right edges
 /// faded while its content continues past them. See [`scroll_y`].
 pub fn scroll_x(frame: Stateful<Div>) -> ScrollFrame {
-    ScrollFrame::new(frame.overflow_x_scroll(), Axis::Horizontal)
+    ScrollFrame::new(Scrolled::Div(frame.overflow_x_scroll()), Axis::Horizontal)
+}
+
+/// `rows` rows of one height, scrolled on the vertical axis in a frame at most
+/// `tallest` px tall, with its top and bottom edges faded while rows continue
+/// past them. `render` draws the rows of a range, and only the rows in view are
+/// drawn, so a list of a thousand rows costs a draw what a list of ten does.
+///
+/// Row `reveal` is brought into view on the first draw and on each draw it
+/// differs from the row brought in last, centered when it was out of view.
+/// Between those draws the frame keeps the place the wheel moved it to, under
+/// `id`.
+pub fn scroll_list<R: IntoElement>(
+    id: impl Into<ElementId>,
+    rows: usize,
+    tallest: Pixels,
+    reveal: Option<usize>,
+    render: impl Fn(Range<usize>, &mut Window, &mut App) -> Vec<R> + 'static,
+) -> ScrollFrame {
+    let list = uniform_list(id, rows, render)
+        .with_sizing_behavior(ListSizingBehavior::Infer)
+        .w_full()
+        .max_h(tallest);
+    ScrollFrame::new(Scrolled::List { list, reveal }, Axis::Vertical)
+}
+
+/// What a scroll frame scrolls.
+enum Scrolled {
+    /// A `div` with every child laid out, scrolled by the frame's handle.
+    Div(Stateful<Div>),
+    /// Rows of one height, only those in view laid out, scrolled by the list
+    /// handle the frame keeps, and the row to bring into view.
+    List {
+        list: UniformList,
+        reveal: Option<usize>,
+    },
+}
+
+impl Scrolled {
+    fn id(&self) -> Option<ElementId> {
+        match self {
+            Self::Div(frame) => Element::id(frame),
+            Self::List { list, .. } => Element::id(list),
+        }
+    }
+}
+
+/// What a list frame keeps from one draw to the next: the list's handle and
+/// the row it last brought into view.
+#[derive(Default)]
+struct KeptList {
+    handle: UniformListScrollHandle,
+    revealed: Option<usize>,
 }
 
 /// A frame that scrolls on one axis and fades each edge on it that its content
-/// continues past. Made by [`scroll_y`] and [`scroll_x`].
+/// continues past. Made by [`scroll_y`], [`scroll_x`] and [`scroll_list`].
 pub struct ScrollFrame {
     id: Option<ElementId>,
-    /// The frame, until its layout is requested and it becomes the element
-    /// drawn.
-    frame: Option<Stateful<Div>>,
+    /// What the frame scrolls, until its layout is requested and it becomes the
+    /// element drawn.
+    frame: Option<Scrolled>,
     axis: Axis,
     /// The caller's handle, and once laid out the handle the frame scrolls by.
     handle: Option<ScrollHandle>,
@@ -118,9 +174,9 @@ impl std::fmt::Debug for ScrollFrame {
 }
 
 impl ScrollFrame {
-    fn new(frame: Stateful<Div>, axis: Axis) -> Self {
+    fn new(frame: Scrolled, axis: Axis) -> Self {
         Self {
-            id: Element::id(&frame),
+            id: frame.id(),
             frame: Some(frame),
             axis,
             handle: None,
@@ -128,8 +184,13 @@ impl ScrollFrame {
     }
 
     /// Scroll by `handle`, which the caller reads or moves, instead of the
-    /// handle the frame keeps under its id.
+    /// handle the frame keeps under its id. A frame made by [`scroll_list`]
+    /// scrolls by the list handle it keeps and takes none.
     pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
+        debug_assert!(
+            !matches!(self.frame, Some(Scrolled::List { .. })),
+            "a list frame scrolls by the list handle it keeps"
+        );
         self.handle = Some(handle.clone());
         self
     }
@@ -263,22 +324,46 @@ impl Element for ScrollFrame {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, AnyElement) {
-        let handle = match (self.handle.clone(), id) {
-            (Some(handle), _) => handle,
-            // Kept under the frame's id, as a frame keeps its own offset, so
-            // the place holds from one draw to the next.
-            (None, Some(id)) => window.with_element_state(id, |kept: Option<ScrollHandle>, _| {
-                let handle = kept.unwrap_or_default();
-                (handle.clone(), handle)
-            }),
-            (None, None) => ScrollHandle::default(),
-        };
         // A layout is requested once a draw; a second request draws nothing.
-        let mut child = self.frame.take().map_or_else(
-            || div().into_any_element(),
-            |frame| frame.track_scroll(&handle).into_any_element(),
-        );
-        self.handle = Some(handle);
+        let mut child = match self.frame.take() {
+            Some(Scrolled::Div(frame)) => {
+                let handle = match (self.handle.clone(), id) {
+                    (Some(handle), _) => handle,
+                    // Kept under the frame's id, as a frame keeps its own
+                    // offset, so the place holds from one draw to the next.
+                    (None, Some(id)) => {
+                        window.with_element_state(id, |kept: Option<ScrollHandle>, _| {
+                            let handle = kept.unwrap_or_default();
+                            (handle.clone(), handle)
+                        })
+                    }
+                    (None, None) => ScrollHandle::default(),
+                };
+                let child = frame.track_scroll(&handle).into_any_element();
+                self.handle = Some(handle);
+                child
+            }
+            Some(Scrolled::List { list, reveal }) => {
+                let list_handle = match id {
+                    // Kept under the frame's id with the row last brought into
+                    // view, so the wheel's place holds until that row changes.
+                    Some(id) => window.with_element_state(id, |kept: Option<KeptList>, _| {
+                        let mut kept = kept.unwrap_or_default();
+                        if reveal != kept.revealed {
+                            if let Some(row) = reveal {
+                                kept.handle.scroll_to_item(row, ScrollStrategy::Center);
+                            }
+                            kept.revealed = reveal;
+                        }
+                        (kept.handle.clone(), kept)
+                    }),
+                    None => UniformListScrollHandle::new(),
+                };
+                self.handle = Some(list_handle.0.borrow().base_handle.clone());
+                list.track_scroll(&list_handle).into_any_element()
+            }
+            None => div().into_any_element(),
+        };
         (child.request_layout(window, cx), child)
     }
 

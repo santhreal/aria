@@ -429,3 +429,26 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
         "these rows ask for a path and no test answers one: {undeclared:?}"
     );
 }
+
+/// Closes "a palette row that edits the drawn clip and not the other selected
+/// clips the matching Effect Controls pick reaches", for the font steps: Next
+/// Font on Title stepped the drawn title alone, so two selected titles in one
+/// family split into two. Each step runs on a title copied onto a second lane
+/// with both selected, and leaves the two alike in a new family. Does not cover
+/// a palette row whose Effect Controls counterpart is not a pick.
+#[test]
+fn the_font_steps_reach_every_selected_title() {
+    for id in ["pal-font-next", "pal-font-prev"] {
+        let mut state = super::fixtures::a_title();
+        let (drawn, twin) = super::fixtures::twin_selected(&mut state);
+        let before = state.selected_font();
+        run_row(id, &mut state);
+        assert_ne!(
+            state.selected_font(),
+            before,
+            "{id} left the title's family"
+        );
+        let (stepped, copy) = super::fixtures::the_pair(&state, drawn, twin);
+        assert_eq!(copy, stepped, "{id} stepped the drawn title alone");
+    }
+}

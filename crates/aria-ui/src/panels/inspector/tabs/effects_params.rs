@@ -22,6 +22,7 @@ use crate::app::key_strip::KeyStrip;
 use crate::app::param_units::Units;
 use crate::components;
 use crate::motion::MotionKey;
+use crate::panels::inspector::blocks::font_list::font_list;
 use crate::panels::inspector::blocks::widgets::{
     Chip, Columns, Keys, MIXED, Readout, Stopwatch, Travel, Watching, chip_row, choice_chip,
     color_stopwatch, fact_row, pick_button, stepper_row, swatch_row, switch_line, under_labels,
@@ -32,14 +33,12 @@ use crate::types::{UiEffectInstance, UiSlots as _};
 use gpui::prelude::FluentBuilder;
 
 /// Build all visible parameter rows (and collapsible group sections) for one effect instance.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn effect_param_rows(
     theme: &Theme,
     state: &gpui::Entity<crate::app::AppState>,
     index: usize,
     effect: &UiEffectInstance,
     sequence_clips: &[(ClipId, SharedString)],
-    font_families: &[String],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<AnyElement> {
     let Some(spec) = aria_models::effect_spec(&effect.id) else {
@@ -70,7 +69,6 @@ pub(crate) fn effect_param_rows(
             pspec,
             effect,
             sequence_clips,
-            font_families,
             cx,
         );
     }
@@ -131,7 +129,6 @@ pub(crate) fn effect_param_rows(
                     pspec,
                     effect,
                     sequence_clips,
-                    font_families,
                     cx,
                 );
             }
@@ -465,7 +462,6 @@ fn push_effect_slot_rows(
     pspec: &EffectParamSpec,
     effect: &UiEffectInstance,
     sequence_clips: &[(ClipId, SharedString)],
-    font_families: &[String],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) {
     let tip = pspec.tooltip.clone();
@@ -842,22 +838,19 @@ fn push_effect_slot_rows(
         EffectParamKind::Font => {
             let current = effect.text(slot).unwrap_or(pspec.default_text.as_str());
             let mixed = keys.mixed(index, slot, None);
-            let chips: Vec<Chip> = font_families
-                .iter()
-                .take(4)
-                .map(|family| {
-                    choice_chip(
-                        MotionKey::new("fx-font", index)
-                            .with(slot)
-                            .with(family.as_str()),
-                        family.clone(),
-                        family == current && !mixed,
-                        theme,
-                        cx,
-                        slot_edit(index, slot, SlotEdit::Text(family.clone())),
-                    )
-                })
-                .collect();
+            let families = state.read(cx).font_families();
+            let list = font_list(
+                theme,
+                MotionKey::new("fx-font", index).with(slot),
+                families,
+                None,
+                (!mixed).then_some(current),
+                cx,
+                move |state, family| {
+                    let edit = SlotEdit::Text(family.to_owned());
+                    effects_rack::apply(state, Gesture::EditSlot { index, slot, edit })
+                },
+            );
             out.push(
                 chip_row(
                     theme,
@@ -865,7 +858,7 @@ fn push_effect_slot_rows(
                     pspec.label.as_str(),
                     Columns::Keyed,
                     if mixed { MIXED } else { current },
-                    chips,
+                    [Chip::other(list)],
                 )
                 .into_any_element(),
             );

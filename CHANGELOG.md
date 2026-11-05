@@ -744,7 +744,7 @@ Notes for the latest release. For previous releases, see the
 - The Inspector's Look tab names the applied filter by its catalog label in a `Filter` row instead of by its id in an `Id` row.
 - The Project Report states the marker count once, in its Markers row, instead of again in a `Marker rows` row below the clip rows.
 - The Project Report opens on the dialog card, titled and closed by a Close button, instead of in a band across the bottom of the window that pushed the editor up.
-- Keyframe rows and the font list count with the noun that agrees with the count, such as `1 key` and `1 font installed`, and the template slot line separates its parts with `·` instead of dashes.
+- Keyframe rows count with the noun that agrees with the count, such as `1 key`, and the template slot line separates its parts with `·` instead of dashes.
 - Readouts, status lines, and Settings rows join two facts with `·` and set a clause off with a comma, a semicolon, or a colon instead of a spaced dash, such as `Peak -0.3 dBFS, clipping` in the Inspector's Audio tab and `Queued: <job id>` for a generation job.
 - A tool's tooltip names the tool as the tool bar's table does, such as `Select` instead of `Pointer` and `Ripple Trim` instead of `Ripple trim`, and shows what the tool does on a line under its name instead of after a dash; the popover held under a tool names the ripple tool `Ripple Trim` instead of `Ripple Edit`.
 - `ProjectHost::apply_observed` passes its `before` observer the engine instead of the project, and `EditGroup::rollback` returns the `Reverted` revisions the group spanned.
@@ -822,6 +822,7 @@ Notes for the latest release. For previous releases, see the
 - The Info panel's Last frame section and Last Frame Cost list Decode, Raster, Composite and the whole frame without a Scales with size row that repeated Raster plus Composite.
 - Selecting an audio clip opens Effect Controls on the Audio tab instead of Speed, and the Audio tab sits before Speed for video clips.
 - A selected row, rail tab or tile draws a stronger plate than a row under the pointer in both the light and dark looks.
+- The Text tab, the Character panel and an effect's Font parameter list every installed family in one scrolling list that opens on the family in use, instead of a window of nine families with Next font and Previous font buttons or four font chips.
 
 ### Fixed
 
@@ -1129,6 +1130,7 @@ Notes for the latest release. For previous releases, see the
 - The waveform in the Scopes panel and in the Viewer's scope strip draws the trace for black, which the bottom of the scope's frame cut off.
 - Audio Track Mixer strips fall to silence after a scrub once the 40 ms scrub grain finishes playing.
 - The Samples pane on Home lays the Sample Project and Use Template… tiles side by side, as the Start row does, instead of one under the other.
+- Next Font on Title and Previous Font on Title in the Command Palette step every selected title instead of only the first.
 
 ## [alpha-0.7.0] - 2026-07-22
 

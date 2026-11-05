@@ -23,8 +23,9 @@ use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
 use gpui::prelude::FluentBuilder;
 
+use crate::panels::inspector::blocks::font_list::font_list;
 use crate::panels::inspector::blocks::widgets::{
-    Columns, color_rows, param_rows, pick_button, picked, switch_line,
+    Columns, color_rows, param_rows, pick_button, switch_line,
 };
 
 use crate::components::section_label;
@@ -181,8 +182,8 @@ fn cloud_presets(
         .children(rows)
 }
 
-/// The Character controls: the font, the face switches, the case, the
-/// treatments around the glyphs, then the catalog's size, spacing and colour
+/// The Character controls: the font list, the face switches, the case, the
+/// treatments around the glyphs, then the catalog's size, spacing and color
 /// rows. Empty when the selection is not a title.
 ///
 /// `surface` names where the controls are drawn and is folded into every key.
@@ -341,124 +342,24 @@ fn pick_chip(
         .into_any_element()
 }
 
-/// The typeface picker: a window of installed families, the one in use marked,
-/// and a step either way for walking past the window.
-///
-/// A window rather than the whole list because a host has hundreds of families;
-/// `AppState::font_window` centres it on the selection, so stepping scrolls it.
-/// Clicking a name sets it, clicking the marked name is inert, and the first row
-/// is the system default, which is what an empty family means in the file.
-///
-/// The rows are the reason this is not a chip strip: each carries its own hover
-/// fade, keyed by family, so the pointer highlights one name rather than the
-/// block. The picker itself fades in with the tab.
+/// The typeface picker: the system default, which an empty family means in the
+/// file, then every installed family, the one in use on the selected plate.
+/// Clicking a name sets it on every selected title.
 fn font_picker(
     theme: &Theme,
     surface: &'static str,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
+    let families = state.read(cx).font_families();
     let current = state.read(cx).selected_font().unwrap_or_default();
-    let installed = state.read(cx).font_families().len();
-    let window = state.read(cx).font_window(9);
-    let mut rows: Vec<gpui::AnyElement> = Vec::with_capacity(window.len() + 1);
-    rows.push(font_row(
+    font_list(
         theme,
-        surface,
-        "",
-        "System default",
-        current.is_empty(),
+        MotionKey::new("font", surface),
+        families,
+        Some("System default"),
+        Some(&current),
         cx,
-    ));
-    for (family, on) in window {
-        rows.push(font_row(theme, surface, &family, &family, on, cx));
-    }
-
-    crate::motion::fade_in(
-        MotionKey::new("font-picker", surface),
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(Theme::SPACE_XXS))
-            .children(rows)
-            .child(
-                div()
-                    .flex()
-                    .gap(px(Theme::SPACE_XS))
-                    .child(step_button(theme, surface, false, cx))
-                    .child(step_button(theme, surface, true, cx)),
-            )
-            .child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child(SharedString::from(
-                        aria_core::count::counted(installed, "font installed", "fonts installed")
-                            .to_string(),
-                    )),
-            ),
+        |state, family| clip_pick::apply(state, Pick::Font(family.to_owned())),
     )
-}
-
-/// One family row. `family` is what the file stores, so the default row passes
-/// `""` and sets the style back to unset.
-fn font_row(
-    theme: &Theme,
-    surface: &'static str,
-    family: &str,
-    label: &str,
-    on: bool,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    // Keyed by family, so two rows never share a fade and the key survives the
-    // window scrolling under the pointer.
-    let key = MotionKey::new("font", family).with(surface);
-    let background = crate::motion::hover_blend(key, theme.surface, theme.surface_raised_hover);
-    let owned = family.to_string();
-    div()
-        .id(key.element_id("font"))
-        .px(px(Theme::SPACE_SM))
-        .py(px(Theme::SPACE_XXS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .bg(background)
-        .text_size(Theme::TEXT_TITLE)
-        .text_color(if on { theme.accent } else { theme.text })
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .on_hover(crate::motion::hover_listener(key))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                let family = owned.clone();
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, Pick::Font(family)) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .child(picked(label.to_string(), on))
-        .into_any_element()
-}
-
-fn step_button(
-    theme: &Theme,
-    surface: &'static str,
-    forward: bool,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    let label = if forward {
-        "Next font"
-    } else {
-        "Previous font"
-    };
-    pick_button(
-        MotionKey::new("font-step", label).with(surface),
-        label,
-        theme,
-        cx,
-        move |state| clip_pick::apply(state, Pick::CycleFont { forward }),
-    )
-    .into_any_element()
 }

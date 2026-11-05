@@ -10,9 +10,11 @@ clearing the chip stops marking the preset but leaves what it wrote; edit those
 rows to change them. A preset writes only when chosen: an edited stroke stays
 when the title is retyped or the same preset is sent again.
 
-Under **Font**, click a family to set it; **Next font** and **Previous font**
-step through the installed families. **Style** holds Bold, Italic, Underline,
-and Kerning, then the case: Normal, Upper, Lower, Title. **Treatments** switches
+Under **Font**, the list holds the system default and every installed family,
+scrolls, and opens on the family in use; click a family to set it. **Next Font
+on Title** and **Previous Font on Title** in the Command Palette step through
+the families. **Style** holds Bold, Italic, Underline, and Kerning, then the
+case: As typed, Upper, Lower, Title. **Treatments** switches
 the stroke, the shadow, and the card on and off; switching one clears the
 preset mark. **Size and spacing** holds size, tracking, leading, and the
 treatment sizes, and **Color** holds a swatch row per color: fill, then the
@@ -83,7 +85,7 @@ app.
 
 Style a title on the canvas and caption a spoken clip with offline Whisper transcription:
 
-1. Press <kbd>T</kbd> (`key-tool-type`) or click [`tool-type`](../reference/controls.md#tool-strip) in the Tool Strip, click in the Viewer to create a title clip at the playhead, type the heading text, and press Esc (or click [`text-edit`](../reference/controls.md#text) in the Effect Controls **Text** tab and step through fonts with [`font-step`](../reference/controls.md#text) or **Window > Character**). A Mango-colored title clip appears on the text track and renders in the Viewer.
+1. Press <kbd>T</kbd> (`key-tool-type`) or click [`tool-type`](../reference/controls.md#tool-strip) in the Tool Strip, click in the Viewer to create a title clip at the playhead, type the heading text, and press Esc (or click [`text-edit`](../reference/controls.md#text) in the Effect Controls **Text** tab and pick a family in its **Font** list or under **Window > Character**). A Mango-colored title clip appears on the text track and renders in the Viewer.
 2. Choose **Edit > Preferences…** or press <kbd>Ctrl+,</kbd> (`key-settings`), type `Transcription` in the box at the top to show that section alone, and click [`model-install`](../reference/controls.md#settings) beside a Whisper model to download and verify it in `models/`. The model row updates to installed once the download job finishes.
 3. Select a dialogue clip with audio on the timeline and run **Captions** (`pal-captions`) in the Command Palette (or choose **Window > Project** and open the **Captions** tab under **Analyze**). The Project panel opens the **Captions** tab for the selected clip.
 4. Click [`caption-run`](../reference/controls.md#captions) (or run **Transcribe Selected Clip** (`pal-transcribe`) in the Command Palette) to transcribe the clip's audio in a background job. Once the segments list appears with timecodes, select **Text clips** and click [`caption-commit`](../reference/controls.md#captions). Aria places timed caption clips across the text track and the Viewer renders each caption over the picture as the playhead crosses it.

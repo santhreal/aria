@@ -90,7 +90,7 @@ The Timeline pane (`crates/aria-ui/src/panels/timeline/*.rs` and `crates/aria-ui
 
 ## Inspector
 
-The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing, mask, and matte controls, animation, speed ramp, and layer style presets, audio role and ducking controls, template slot controls, clip link controls, and transition pickers. A choice is a chip, lit while it is in force; a setting that is on or off is a switch on its line.
+The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders parameter reset buttons, transform parenting chips and pick whip, effect rack row controls, preset management controls, framing, mask, and matte controls, animation, speed ramp, and layer style presets, audio role and ducking controls, template slot controls, clip link controls, and transition pickers. A choice is a chip, lit while it is in force; a setting that is on or off is a switch on its line. An effect's font parameter lists every installed family, as the Text tab's font list does.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -111,7 +111,6 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 | `fx-add` (per row) | Effect name | Appends the chosen effect from the inline picker to the selected clip's effect stack. | None |
 | `fx-choice` (per row) | Option label | Selects a discrete enum option for an effect parameter. | None |
 | `fx-curve` (per row) | Curve preset | Applies a named curve preset (Linear, S-Curve, Invert) to an effect curve parameter. | None |
-| `fx-font` (per row) | Font family | Selects the font family for an effect text parameter. | None |
 | `fx-grad` (per row) | Gradient preset | Applies a preset color stop ramp to an effect gradient parameter. | None |
 | `fx-group` (per row) | Parameter group | Expands or collapses a collapsible parameter group inside an applied effect. | None |
 | `fx-layer` (per row) | Layer clip | Selects another timeline clip as a secondary layer input for an effect parameter. | None |
@@ -261,11 +260,10 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 
 ## Text
 
-The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panels/inspector/tabs/text.rs` and `crates/aria-ui/src/panels/text_panel.rs`) render title text editing, font size stepping, alignment, letter case, text style, and text effect controls.
+The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panels/inspector/tabs/text.rs` and `crates/aria-ui/src/panels/text_panel.rs`) render title text editing, the font list, alignment, letter case, text style, and text effect controls. A press on a family in the font list sets it on every selected title.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `font-step` (per row) | − / + | Steps the selected title's font size down or up in the Character and Inspector Text panels. | None |
 | `text-align-h` (per row) | Left / Center / Right / Justify | Sets the horizontal alignment of the selected title. | None |
 | `text-align-v` (per row) | Top / Middle / Bottom | Sets the vertical alignment of the selected title block in the canvas. | None |
 | `text-case` (per row) | As typed / Upper / Lower / Title | Sets the letter case the selected title is drawn in. | None |

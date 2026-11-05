@@ -2,6 +2,7 @@
 
 pub mod animation;
 pub mod curve_editor;
+pub mod font_list;
 pub mod framing;
 pub mod grade;
 pub mod key_strip;

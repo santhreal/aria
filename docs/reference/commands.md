@@ -61,8 +61,8 @@ Mask a clip, keyframe its opacity, and cut it at the playhead from the Command P
 | `pal-key-volume` | Keyframe Volume at Playhead | `none` | Playhead does not intersect an audio-capable selected clip | Inserts a `Volume` keyframe at the playhead. |
 | `pal-key-pan` | Keyframe Pan at Playhead | `none` | Playhead does not intersect an audio-capable selected clip | Inserts a `Pan` keyframe at the playhead. |
 | `pal-media-filter-clear` | Clear Pool Filter | `none` | Always enabled | Clears the search query string in the Project panel media pool. |
-| `pal-font-next` | Next Font on Title | `none` | Selected clip is not a title clip | Cycles the selected title clip's font family forward through available fonts. |
-| `pal-font-prev` | Previous Font on Title | `none` | Selected clip is not a title clip | Cycles the selected title clip's font family backward through available fonts. |
+| `pal-font-next` | Next Font on Title | `none` | Selected clip is not a title clip | Steps the font family of every selected title clip forward through the installed fonts, wrapping at the end. |
+| `pal-font-prev` | Previous Font on Title | `none` | Selected clip is not a title clip | Steps the font family of every selected title clip backward through the installed fonts, wrapping at the start. |
 | `pal-proxy-clear-all` | Decode Everything from Originals | `none` | Always enabled | Detaches generated proxy files from all media pool items so decoding uses original files. |
 | `pal-proxy-create-all` | Proxy Every Pool Item | `none` | Media pool has no video items | Queues proxy transcode jobs for every video item in the media pool. |
 | `pal-ai-tools` | Assistant: What the Assistant Can Do | `none` | Always enabled | Opens the Assistant panel (`ActivePanel::Ai`) and displays the assistant tool catalog (`aria.panel.ai-tools`). |

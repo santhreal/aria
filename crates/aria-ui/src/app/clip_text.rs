@@ -399,30 +399,4 @@ impl AppState {
         let family = FAMILIES[next].clone();
         self.set_selected_font(&family)
     }
-
-    /// The families a picker should draw: `span` names centred on the one in use,
-    /// each with whether it is the one in use.
-    ///
-    /// A window rather than the whole list, because a host has hundreds of
-    /// families and an inspector column that drew all of them would spend a frame
-    /// laying out names nobody is looking at. Centred on the selection so
-    /// stepping through with the palette row scrolls the window, and clamped to
-    /// the ends so the last families are reachable by click too.
-    pub fn font_window(&self, span: usize) -> Vec<(String, bool)> {
-        if span == 0 || FAMILIES.is_empty() {
-            return Vec::new();
-        }
-        let current = self.selected_font().unwrap_or_default();
-        let at = FAMILIES
-            .iter()
-            .position(|name| *name == current)
-            .unwrap_or(0);
-        let span = span.min(FAMILIES.len());
-        let half = span / 2;
-        let first = at.saturating_sub(half).min(FAMILIES.len() - span);
-        FAMILIES[first..first + span]
-            .iter()
-            .map(|name| (name.clone(), *name == current))
-            .collect()
-    }
 }
