@@ -10,11 +10,13 @@
 //! layout, which has no tab rows) at every width from its minimum to 400 px
 //! in 20 px steps, and in 1 px steps at the widths around the one where every
 //! tab sits at its narrowest, with its overflow menu open and a
-//! different tab active from one width to the next. Each drawn tab must stand inside the
-//! frame and read its title's first three letters and an ellipsis, or its
-//! whole title, end before the row's controls, and the active tab's close
-//! must be whole or gone; the active
-//! tab must be drawn; and the drawn tabs and the
+//! different tab active from one width to the next. Each drawn tab must stand
+//! inside the frame and read its title's first three letters and an ellipsis,
+//! or its whole title, end before the row's controls, and the active tab's
+//! close must be whole or gone; a tab whose title is cut must stand as wide as
+//! any other in the row but one held at its least width, so a row short of
+//! room cuts its longest titles first and a short title stays whole; the
+//! active tab must be drawn; and the drawn tabs and the
 //! overflow menu's rows must hold the frame's tabs once each. The reference
 //! case, the Editing layout's left frame with five panels at 320 px and
 //! 160 px, is pressed through: the control opens the menu, and a row picked
@@ -101,6 +103,8 @@ fn check_row(
     });
     let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
     let (mut drawn, mut listed) = (Vec::new(), Vec::new());
+    // Each drawn tab: its width and whether its title is cut.
+    let mut sized: Vec<(PanelId, f32, bool)> = Vec::new();
     for &panel in &tabs {
         let tab = visual.debug_bounds(intern(&format!("dock-tab-{panel}")));
         let row = visual.debug_bounds(intern(&format!("dock-tab-more-{panel}")));
@@ -130,6 +134,7 @@ fn check_row(
             text == title || (text.ends_with('…') && text.starts_with(&lead)),
             "{what}: the {panel} tab reads `{text}`, not `{title}` or `{lead}…`"
         );
+        sized.push((panel, f32::from(tab.size.width), text != title));
         // A close is drawn whole or not at all, never a sliver of its glyph.
         if panel == active {
             let close = visual
@@ -139,6 +144,35 @@ fn check_row(
             assert!(
                 w <= EPS || (w - super::DOCK_TAB_CLOSE).abs() <= EPS,
                 "{what}: the active {panel} tab's close is {w} px wide, neither whole nor gone"
+            );
+        }
+    }
+    // Short of room, the widest tabs narrow first: a cut title stands on a tab
+    // as wide as any other in the row, but one held at its least width.
+    let (pad, gap) = if f32::from(frame.size.width) < super::DOCK_TAB_COMPACT_W {
+        (crate::theme::Theme::SPACE_XS, 0.0)
+    } else {
+        (crate::theme::Theme::SPACE_SM, crate::theme::Theme::SPACE_XS)
+    };
+    let least: Vec<f32> = visual.update(|_, cx| {
+        let cx: &gpui::App = cx;
+        let font = super::tab_fit::tab_font(&crate::theme::Theme::of(cx));
+        sized
+            .iter()
+            .map(|&(panel, ..)| {
+                let title = state.read(cx).dock_panel_title(panel);
+                super::tab_fit::least_width(title, pad, gap, &font, cx)
+            })
+            .collect()
+    });
+    for &(cut, narrow, short) in &sized {
+        if !short {
+            continue;
+        }
+        for (&(panel, width, _), &floor) in sized.iter().zip(&least) {
+            assert!(
+                width <= narrow + EPS || (width - floor).abs() <= EPS,
+                "{what}: the {cut} tab is cut to {narrow} px beside the {panel} tab at {width} px"
             );
         }
     }

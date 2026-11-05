@@ -1,9 +1,10 @@
-//! Which of a frame's tabs its tab row draws.
+//! Which of a frame's tabs its tab row draws, and how wide.
 //!
 //! A tab shrinks as far as its title's first letters and an ellipsis, never
 //! further. When the frame's tabs do not fit at that width, the row draws as
 //! many as fit, always the active one, and ends in an overflow control that
-//! lists the rest.
+//! lists the rest. A row short of room for its titles whole narrows its widest
+//! tabs first.
 
 use gpui::{App, Font, FontWeight};
 
@@ -67,17 +68,40 @@ pub(super) fn least_width(title: &str, pad: f32, gap: f32, font: &Font, cx: &App
     (2.0 * pad + gap + 1.0 + lead_width(title, font, cx) - 1.0).ceil() + 1.0
 }
 
-/// The width a tab titled `title` is drawn at with room to spare: its
-/// padding, the `gap`, its right border, its whole title and its `close`.
-pub(super) fn whole_width(
-    title: &str,
-    pad: f32,
-    gap: f32,
-    close: f32,
-    font: &Font,
-    cx: &App,
-) -> f32 {
-    (2.0 * pad + gap + 1.0 + label_width(title, font, cx) + close).ceil()
+/// The width a tab titled `title` is drawn at with its whole title and its
+/// close gone: its padding, the `gap`, its right border and its title.
+pub(super) fn whole_width(title: &str, pad: f32, gap: f32, font: &Font, cx: &App) -> f32 {
+    (2.0 * pad + gap + 1.0 + label_width(title, font, cx)).ceil()
+}
+
+/// The width each tab of a row `room` px wide is drawn at when the row has no
+/// room for every title whole, given each tab's [`whole_width`] and its
+/// [`least_width`].
+///
+/// The widest tabs narrow first, to one shared width in whole pixels, the
+/// widest at which the row fits: a short title stays whole while a longer one
+/// takes the ellipsis. A tab narrows no further than its least width, so a row
+/// too narrow for every least width draws each at its least.
+pub(super) fn squeeze(room: f32, whole: &[f32], least: &[f32]) -> Vec<f32> {
+    let widths = |cap: f32| {
+        whole
+            .iter()
+            .zip(least)
+            .map(move |(&full, &floor)| full.min(cap).max(floor))
+    };
+    let widest = whole.iter().copied().fold(0.0, f32::max).ceil();
+    // `cap` rises and `over` falls until they meet: the row fits at `cap`, or
+    // `cap` is 0, and does not fit at `over`, or `over` is past every tab.
+    let (mut cap, mut over) = (0.0_f32, widest + 1.0);
+    while over - cap > 1.0 {
+        let mid = ((cap + over) / 2.0).floor();
+        if widths(mid).sum::<f32>() <= room {
+            cap = mid;
+        } else {
+            over = mid;
+        }
+    }
+    widths(cap).collect()
 }
 
 /// Which tabs of a row `avail` px wide are drawn, given each tab's least width
@@ -134,5 +158,60 @@ mod tests {
         // Too narrow for anything but the active tab.
         assert_eq!(fit(80.0, &least, 2), vec![false, false, true, false, false]);
         assert_eq!(fit(10.0, &least, 0), vec![true, false, false, false, false]);
+    }
+
+    #[test]
+    fn a_squeezed_row_narrows_its_widest_tabs_first() {
+        let whole = [120.0, 50.0, 45.0, 75.0];
+        let least = [40.0, 40.0, 38.0, 42.0];
+        // Room for every title whole: each tab at its whole width.
+        assert_eq!(squeeze(290.0, &whole, &least), whole.to_vec());
+        // The widest narrows alone until it meets the next.
+        assert_eq!(squeeze(260.0, &whole, &least), vec![90.0, 50.0, 45.0, 75.0]);
+        // Then the two widest share one width; the short titles stay whole.
+        assert_eq!(squeeze(200.0, &whole, &least), vec![52.0, 50.0, 45.0, 52.0]);
+        // A tab held at its least width stands wider than the shared width.
+        assert_eq!(
+            squeeze(190.0, &whole, &[40.0, 40.0, 38.0, 60.0]),
+            vec![43.0, 43.0, 43.0, 60.0]
+        );
+        // Too narrow for every least width: each at its least.
+        assert_eq!(squeeze(100.0, &whole, &least), least.to_vec());
+        assert_eq!(squeeze(0.0, &[], &[]), Vec::<f32>::new());
+    }
+
+    #[test]
+    fn a_squeezed_row_fills_its_room_in_whole_pixels() {
+        let whole = [131.0, 64.0, 58.0, 97.0, 64.0];
+        let least = [44.0, 41.0, 43.0, 45.0, 41.0];
+        let floor: f32 = least.iter().sum();
+        let top: f32 = whole.iter().sum();
+        let mut room = floor;
+        while room <= top {
+            let widths = squeeze(room, &whole, &least);
+            let used: f32 = widths.iter().sum();
+            assert!(used <= room, "{room} px: the row draws {used} px");
+            // One pixel more on the shared width would not fit.
+            assert!(
+                used + whole.len() as f32 > room,
+                "{room} px: the row leaves {} px unused",
+                room - used
+            );
+            for (at, width) in widths.iter().enumerate() {
+                assert!(
+                    (least[at]..=whole[at]).contains(width) && width.fract() == 0.0,
+                    "{room} px: tab {at} at {width} px"
+                );
+                // A narrowed tab is the widest in its row, but for a tab held
+                // at its least width.
+                for (other, &beside) in widths.iter().enumerate() {
+                    assert!(
+                        *width == whole[at] || beside <= *width || beside == least[other],
+                        "{room} px: tab {at} at {width} px beside tab {other} at {beside} px"
+                    );
+                }
+            }
+            room += 0.5;
+        }
     }
 }

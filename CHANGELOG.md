@@ -825,6 +825,7 @@ Notes for the latest release. For previous releases, see the
 - The Text tab, the Character panel and an effect's Font parameter list every installed family in one scrolling list that opens on the family in use, instead of a window of nine families with Next font and Previous font buttons or four font chips.
 - The Speed tab's ramp graph draws the curve as a line over a shaded area instead of a row of bars.
 - Settings > Keyboard Shortcuts draws each shortcut on a shorter row, so more of the list fits on screen.
+- A dock frame short of room for its tab titles shortens the longest titles first, so short titles such as Align and Jobs stay whole.
 
 ### Fixed
 

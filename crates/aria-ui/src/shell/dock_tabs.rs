@@ -74,27 +74,33 @@ impl Shell {
             .map(|(&panel, _)| panel)
             .collect();
         // Short of room for the drawn tabs whole, every close gives up its
-        // width before a title gives up a letter. Shrinking in proportion, an
-        // active close would stay a sliver and a short title lose a lead letter.
-        let squeezed = avail.is_some_and(|avail| {
+        // width before a title gives up a letter, and then the widest tabs
+        // narrow to one shared width, so a short title stays whole while a
+        // longer one takes the ellipsis. Shrinking in proportion, an active
+        // close would stay a sliver and every title would lose its last
+        // letters.
+        let shown: Vec<usize> = (0..frame.tabs.len()).filter(|&at| drawn[at]).collect();
+        let narrowed: Option<Vec<f32>> = avail.and_then(|avail| {
             let more = if hidden.is_empty() {
                 0.0
             } else {
                 tab_fit::MORE_W
             };
-            let whole: f32 = titles
+            let room = avail - more;
+            let whole: Vec<f32> = shown
                 .iter()
-                .zip(&drawn)
-                .filter(|&(_, &shown)| shown)
-                .map(|(title, _)| tab_fit::whole_width(title, pad, gap, DOCK_TAB_CLOSE, &font, cx))
-                .sum();
-            whole > avail - more
+                .map(|&at| tab_fit::whole_width(titles[at], pad, gap, &font, cx))
+                .collect();
+            let closed: f32 = whole.iter().map(|width| width + DOCK_TAB_CLOSE).sum();
+            (closed > room).then(|| {
+                let narrowest: Vec<f32> = shown.iter().map(|&at| least[at]).collect();
+                tab_fit::squeeze(room, &whole, &narrowest)
+            })
         });
-        let mut tabs_out = Vec::with_capacity(frame.tabs.len() - hidden.len());
-        for (tab_idx, &panel) in frame.tabs.iter().enumerate() {
-            if !drawn[tab_idx] {
-                continue;
-            }
+        let squeezed = narrowed.is_some();
+        let mut tabs_out = Vec::with_capacity(shown.len());
+        for (slot, &tab_idx) in shown.iter().enumerate() {
+            let panel = frame.tabs[tab_idx];
             let is_active = tab_idx == active_idx;
             let title = titles[tab_idx];
             let tab_slot = MotionKey::new("dock-tab", panel);
@@ -112,6 +118,11 @@ impl Shell {
                     // narrower than that, the row lists it behind the overflow
                     // control instead.
                     .min_w(px(least[tab_idx]))
+                    // Squeezed, the tab stands at its share of the row; flex
+                    // shrink takes up what the measured widths miss.
+                    .when_some(narrowed.as_ref().map(|widths| widths[slot]), |el, width| {
+                        el.w(px(width))
+                    })
                     .flex()
                     .items_center()
                     .when(!compact, |el| el.gap(px(Theme::SPACE_XS)))

@@ -59,7 +59,7 @@ Viewer's, or when its column has no docked Viewer frame to sit beside.
 A frame holds one or more panels. Each panel has a tab. The tab row is 24 px
 high and shows the panel name, a 16 px close cross, and a panel menu button at
 its right end. The cross shows on the visible tab and under the pointer, and keeps its place while hidden. Tabs wider than the frame narrow, the menu button
-does not: when the tabs have no room for their whole names, every cross is hidden, then the names take an ellipsis, and a tab's tooltip shows its full name. A tab narrows no further than the first three letters of its name and an ellipsis.
+does not: when the tabs have no room for their whole names, every cross is hidden, then the longest names take an ellipsis first, narrowing to one shared width, so a short name stays whole, and a tab's tooltip shows its full name. A tab narrows no further than the first three letters of its name and an ellipsis.
 When the frame's tabs do not fit at that width, the row draws as many as fit, always including the visible tab, and ends in a chevron button, More panels, whose menu lists the other tabs on 22 px rows; picking one makes it the visible panel.
 In a frame narrower than 120 px the tabs and the menu button take 4 px of padding instead of 8.
 The menu button and a right-click on a tab open the frame menu under the tab row, inside the window: Close Panel, Close Other Tabs in Frame, Undock Panel, Maximize Frame, and Add Panel, whose flyout lists the panels the frame does not hold. Its rows are 22 px, as the menu bar's are.
