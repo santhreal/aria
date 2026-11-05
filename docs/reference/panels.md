@@ -83,12 +83,10 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 
 ## Home rail items
 
-When `UiRoute::Home` is active (`aria.panel.home`), the left rail offers these views (`HomeRail` in `crates/aria-ui/src/types_editor.rs`):
+When `UiRoute::Home` is active (`aria.panel.home`), the left rail starts with two actions: **New** starts an empty project (`Ctrl+Alt+N`) and **Open** picks a `.aria` project (`Ctrl+O`). The views under them are `HomeRail` in `crates/aria-ui/src/types_editor.rs`:
 
 | ID | Label | Summary |
 | --- | --- | --- |
-| `New` | New | The **New Project** tile, which starts an empty project. |
-| `Open` | Open | The **Open** tile, which picks a `.aria` project (`Ctrl+O` on Home). |
 | `Recents` | Recents | Default start view: the **New Project**, **Open**, and **Sample Project** tiles, then a card per recent project. A press on a card opens the project; a right-click opens its menu. |
 | `Samples` | Samples | The **Sample Project** and **Use Template…** tiles, then the cloud template catalog, whose bundles download and prompt for each replaceable slot. |
 | `Learn` | Learn | The Home and editor keyboard shortcuts, read from the key map (**Help > Learn**). |

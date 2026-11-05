@@ -181,22 +181,7 @@ fn panels_doc_matches_registry() {
         "docs/reference/panels.md Project panel tabs groups drifted from SidebarGroup::ALL"
     );
 
-    let all_rails = [
-        HomeRail::New,
-        HomeRail::Open,
-        HomeRail::Recents,
-        HomeRail::Samples,
-        HomeRail::Learn,
-    ];
-    for rail in all_rails {
-        match rail {
-            HomeRail::New
-            | HomeRail::Open
-            | HomeRail::Recents
-            | HomeRail::Samples
-            | HomeRail::Learn => {}
-        }
-    }
+    let all_rails = HomeRail::ALL;
     let expected_rails: Vec<(String, String)> = all_rails
         .iter()
         .map(|rail| (format!("{rail:?}"), rail.label().to_string()))

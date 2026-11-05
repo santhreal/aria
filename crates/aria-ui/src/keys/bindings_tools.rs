@@ -171,11 +171,11 @@ pub(super) const TOOL_ROWS: &[Binding] = &[
         .preview_zoom_fit()),
     bind!("key-rulers", Chord::ctrl_shift("r"), Editor, |state| state
         .toggle_rulers()),
-    // Home. A different set, because Home has no timeline: Ctrl+O opens the rail
-    // rather than a file picker.
+    // Home. A different set, because Home has no timeline. New and Open run
+    // the same picks as Home's rail rows and Start tiles.
     bind!("key-home-new", Chord::ctrl_alt("n"), Home, new_project),
     bind!("key-home-open", Chord::ctrl("o"), Home, |state| state
-        .set_home_rail(crate::types::HomeRail::Open)),
+        .request_pick_project()),
     bind!("key-home-settings", Chord::ctrl(","), Home, |state| state
         .open_settings()),
     bind!("key-home-quit", Chord::ctrl("q"), Home, |state| state

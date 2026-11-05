@@ -111,7 +111,7 @@ api_key_env = "PEXELS_API_KEY"
 | `timelineHeight` | `number` | `280.0` | `>= 120.0` px | Small-window splitter | Height of the Timeline under the Viewer in a window smaller than 1024 x 640 (`TIMELINE_MIN_HEIGHT`). |
 | `outlineWidth` | `number` | `300.0` | `240.0` to `480.0` px | Timeline outline splitter | Width of the Timeline track-header and property outline column (`OUTLINE_MIN..=OUTLINE_MAX`). |
 | `appearance` | `string` | `"system"` | `"system"`, `"light"`, `"dark"` | **Settings > Appearance** | Selects the dark or light surface palette (`AppearanceMode`). |
-| `homeRail` | `string` | `"recents"` | `"new"`, `"open"`, `"recents"`, `"samples"`, `"learn"` | Home left rail | Last selected view on the Home route (`HomeRail`). |
+| `homeRail` | `string` | `"recents"` | `"recents"`, `"samples"`, `"learn"`; `"new"` and `"open"` load as `"recents"` | Home left rail | Last selected view on the Home route (`HomeRail`). |
 | `motion` | `string` | `"full"` | `"full"`, `"brisk"`, `"relaxed"`, `"off"` | **Settings > Appearance** | Controls UI transition animation duration (`MotionPreference`). |
 | `keys` | `object` | `{}` | Map of binding ID to chord string (`"Ctrl+Shift+P"`) or `null` (unbound) | **Settings > Keyboard Shortcuts** | Per-command keyboard shortcut overrides. |
 | `keymap` | `string` | `null` | Keymap name in `<data dir>/keymaps` or `null` | **Settings > Keyboard Shortcuts** | Name of the custom keymap file last loaded or saved. |

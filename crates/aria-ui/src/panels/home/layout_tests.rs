@@ -7,6 +7,9 @@
 //! Start tile in its column, at the window size the editor opens at and at the
 //! smallest window. Only the Recents rail stacks two rows of cards.
 //!
+//! The second class: a pane that lays its tiles out in a column. Samples drew
+//! Use Template under Sample Project; every pane's tiles now share one row.
+//!
 //! Not covered: the inset of the text inside a card, which no selector reaches.
 
 use gpui::TestAppContext;
@@ -42,4 +45,51 @@ fn every_recent_card_sits_in_the_column_of_the_start_tile_above_it(cx: &mut Test
             );
         }
     }
+}
+
+/// WHY: the Samples pane stacked Use Template under Sample Project, where the
+/// Recents pane draws its Start tiles across the width. Closes "a pane lays its
+/// tiles out in a column" on every pane in `HomeRail::ALL`: at the window the
+/// editor opens at, each tile shares the top of the tile before it and starts
+/// right of it. Does not cover a window too narrow for the row, where the
+/// tiles wrap onto a second line by design.
+#[gpui::test]
+fn every_pane_draws_its_tiles_in_one_row(cx: &mut TestAppContext) {
+    let opening = UiSettings::default().resolve_window_placement(&[[0.0, 0.0, 1920.0, 1080.0]]);
+    let window = (opening.width, opening.height);
+    let (state, mut visual) = home_with_recents(cx, "home-tile-row", window, 0);
+    let visual = &mut visual;
+    let mut rows = 0;
+    for rail in crate::types::HomeRail::ALL {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                state.set_home_rail(rail);
+                cx.notify();
+            })
+        });
+        draw(visual);
+        let tiles: Vec<_> = (0..)
+            .map_while(|index| visual.debug_bounds(format!("hero-tile-{index}").leak()))
+            .collect();
+        for (index, pair) in tiles.windows(2).enumerate() {
+            let (before, after) = (pair[0], pair[1]);
+            let (top, next_top) = (f32::from(before.top()), f32::from(after.top()));
+            assert!(
+                (top - next_top).abs() <= EPS && after.left() > before.right(),
+                "{rail:?}: tile {} starts at x {}, y {next_top}; tile {index} spans x {}..{} \
+                 at y {top}, and a pane's tiles stand in one row",
+                index + 1,
+                f32::from(after.left()),
+                f32::from(before.left()),
+                f32::from(before.right())
+            );
+        }
+        if tiles.len() > 1 {
+            rows += 1;
+        }
+    }
+    assert!(
+        rows >= 2,
+        "only {rows} panes drew more than one tile; Recents and Samples each draw a row"
+    );
 }

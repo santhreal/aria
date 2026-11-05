@@ -10,10 +10,12 @@
 //! runs are pressed through the drawn card: Open on a project still where it
 //! was remembered, and Relink on one that moved, which asks for the new file
 //! instead of opening the old path.
+//! The rail's New and Open rows and Ctrl+O on Home run their action on the
+//! first press, as a card does.
 //!
 //! Not covered: the file manager Reveal starts, which a test may not start.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use gpui::{
     Bounds, Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, point, px, size,
@@ -254,4 +256,63 @@ fn a_right_click_on_a_recent_card_opens_its_projects_menu(cx: &mut TestAppContex
             "the card's menu draws no {row}: {drawn:?}"
         );
     }
+}
+
+/// Press one of the rail's rows at its center.
+fn press_rail(visual: &mut VisualTestContext, selector: &'static str) {
+    let row = bounds(visual, selector);
+    visual.simulate_click(row.center(), Modifiers::none());
+    visual.run_until_parked();
+}
+
+/// Back on Home with a clean session, a file chosen for the next pick.
+fn home_again(visual: &mut VisualTestContext, state: &gpui::Entity<AppState>, pick: &Path) {
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.new_project().expect("a clean session");
+            state.go_home();
+            state.supply_pick(Answer::Paths(vec![pick.to_path_buf()]));
+            cx.notify();
+        })
+    });
+}
+
+/// WHY: New and Open on the rail were panes holding one tile that repeated
+/// them, and Ctrl+O on Home switched to that pane, so starting or opening a
+/// project from Home took two presses. Closes "a Home entry point that only
+/// moves to another one" for the rail's two rows and the shortcut: each runs
+/// its action on the first press. Does not cover Ctrl+Alt+N, which already
+/// ran `new_project`.
+#[gpui::test]
+fn the_rails_new_and_open_and_ctrl_o_run_at_the_first_press(cx: &mut TestAppContext) {
+    let (state, mut visual, path) = home_with_one_recent(cx, "home-rail-actions");
+    let visual = &mut visual;
+    home_again(visual, &state, &path);
+    press_rail(visual, "home-rail-Open");
+    let asked = visual.read(|app| state.read(app).picks_asked());
+    assert_eq!(asked, 1, "the rail's Open asked for no file");
+    assert_eq!(
+        session(visual, &state),
+        (UiRoute::Editor, Some(path.clone())),
+        "the rail's Open did not open the file chosen"
+    );
+
+    home_again(visual, &state, &path);
+    press_rail(visual, "home-rail-New");
+    assert_eq!(
+        session(visual, &state),
+        (UiRoute::Editor, None),
+        "the rail's New did not start an empty project"
+    );
+
+    home_again(visual, &state, &path);
+    visual.simulate_keystrokes("ctrl-o");
+    visual.run_until_parked();
+    let asked = visual.read(|app| state.read(app).picks_asked());
+    assert_eq!(asked, 2, "Ctrl+O on Home asked for no file");
+    assert_eq!(
+        session(visual, &state),
+        (UiRoute::Editor, Some(path)),
+        "Ctrl+O on Home did not open the file chosen"
+    );
 }

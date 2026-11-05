@@ -453,7 +453,7 @@ fn home_and_editor_icon_controls_paint_their_glyphs() {
         &[
             icons::PLUS,
             icons::FOLDER_OPEN,
-            icons::CLAPPERBOARD,
+            icons::HISTORY,
             icons::IMAGE,
             icons::SPARKLES,
         ],

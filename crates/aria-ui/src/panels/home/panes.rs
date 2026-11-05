@@ -1,9 +1,8 @@
-//! Home route panes: New, Open, Recents, Samples, and Learn views.
+//! Home route panes: the Recents, Samples, and Learn views.
 //!
 //! Each pane corresponds to a rail selection. In addition, an active recovery
 //! offer is presented across all panes as a floating frosted banner.
 
-use crate::components::Wraps as _;
 use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
 
 use crate::app::AppState;
@@ -13,7 +12,9 @@ use crate::theme::Theme;
 use crate::types::HomeRail;
 use gpui::prelude::FluentBuilder;
 
-use super::cards::{banner_action, hero_tile, learn_line, press, recents_grid, section_title};
+use super::cards::{
+    banner_action, card_row, hero_tile, learn_line, press, recents_grid, section_title,
+};
 
 /// Render the main content body of Home based on the selected rail tab.
 ///
@@ -45,8 +46,6 @@ pub(super) fn home_body(
                 el.child(recovery_banner(theme, offer, cx))
             })
             .child(match rail {
-                HomeRail::New => new_pane(theme, cx).into_any_element(),
-                HomeRail::Open => open_pane(theme, cx).into_any_element(),
                 HomeRail::Recents => recents_pane(theme, recents, cx).into_any_element(),
                 HomeRail::Samples => samples_pane(theme, state, cx).into_any_element(),
                 HomeRail::Learn => learn_pane(theme, state.read(cx)).into_any_element(),
@@ -66,10 +65,10 @@ pub(super) fn recovery_banner(
     offer: crate::app::recovery::RecoveryOffer,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let line = format!(
-        "{} has unsaved work from a session that ended early.",
-        offer.name
-    );
+    // Quoted, as the unsaved-changes prompt quotes it: a name in lower case or
+    // one that reads as a word is not taken for part of the sentence.
+    let name = &offer.name;
+    let line = format!("“{name}” has unsaved work from a session that ended early.");
     crate::frost::frost(
         div()
             .flex()
@@ -99,48 +98,6 @@ pub(super) fn recovery_banner(
     )
 }
 
-pub(super) fn new_pane(
-    theme: &Theme,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .child(section_title(theme, "New project"))
-        .child(hero_tile(
-            "home-new",
-            crate::icons::PLUS,
-            "New Project",
-            "Empty timeline. Import media next.",
-            0,
-            theme,
-            cx,
-            |state| press(state, Pick::NewProject),
-        ))
-}
-
-pub(super) fn open_pane(
-    theme: &Theme,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .child(section_title(theme, "Open"))
-        .child(hero_tile(
-            "home-open",
-            crate::icons::FOLDER_OPEN,
-            "Open",
-            "Choose a .aria project.",
-            0,
-            theme,
-            cx,
-            |state| press(state, Pick::PickProject),
-        ))
-}
-
 pub(super) fn recents_pane(
     theme: &Theme,
     recents: &[RecentView],
@@ -152,11 +109,7 @@ pub(super) fn recents_pane(
         .gap(px(Theme::SPACE_MD))
         .child(section_title(theme, "Start"))
         .child(
-            div()
-                .flex()
-                .flex_row()
-                .wraps()
-                .gap(px(Theme::SPACE_MD))
+            card_row()
                 .child(hero_tile(
                     "home-new",
                     crate::icons::PLUS,
@@ -210,26 +163,29 @@ pub(super) fn samples_pane(
         .flex_col()
         .gap(px(Theme::SPACE_MD))
         .child(section_title(theme, "Samples"))
-        .child(hero_tile(
-            "home-sample",
-            crate::icons::CLAPPERBOARD,
-            "Sample Project",
-            "A new project with a bundled still in Media.",
-            0,
-            theme,
-            cx,
-            |state| press(state, Pick::OpenSample),
-        ))
-        .child(hero_tile(
-            "home-template",
-            crate::icons::CLAPPERBOARD,
-            "Use Template…",
-            "Opens a .ariat bundle and fills its slots with your media.",
-            1,
-            theme,
-            cx,
-            |state| press(state, Pick::UseTemplate),
-        ))
+        .child(
+            card_row()
+                .child(hero_tile(
+                    "home-sample",
+                    crate::icons::CLAPPERBOARD,
+                    "Sample Project",
+                    "A new project with a bundled still in Media.",
+                    0,
+                    theme,
+                    cx,
+                    |state| press(state, Pick::OpenSample),
+                ))
+                .child(hero_tile(
+                    "home-template",
+                    crate::icons::LAYOUT_TEMPLATE,
+                    "Use Template…",
+                    "Opens a .ariat bundle and fills its slots with your media.",
+                    1,
+                    theme,
+                    cx,
+                    |state| press(state, Pick::UseTemplate),
+                )),
+        )
         .child(section_title(theme, "Cloud templates"))
         .child(crate::panels::cloud::cloud_catalog_block(
             theme,

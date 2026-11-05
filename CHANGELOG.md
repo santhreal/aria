@@ -816,6 +816,9 @@ Notes for the latest release. For previous releases, see the
 - Hovering a label swatch in a clip's menu shows the color's name, the clear swatch shows **None** as **Edit > Label** does, and a **Select** chip shows the selection its click makes, such as "Select the 11 Teal clips".
 - A title, graphics or adjustment track's header no longer draws a mute, which silenced nothing on a track with no sound.
 - The Edit Marker dialog picks a color from one line of swatches and names the chosen color beside them.
+- The New and Open rows on Home's rail start a project and open the file picker on the first press instead of showing a pane that holds one tile, and Ctrl+O on Home opens the file picker.
+- The Recents tab on Home draws a clock instead of the clapperboard of the Sample Project tile, and the Use Template… tile draws a template layout.
+- The recovery banner on Home quotes the project's name, such as `“Trailer” has unsaved work from a session that ended early`.
 
 ### Fixed
 
@@ -1122,6 +1125,7 @@ Notes for the latest release. For previous releases, see the
 - The Viewer's playhead timecode field displays, scrubs, and accepts typed timecodes and signed frame offsets for the focused Source tab at the take's own frame rate when a Source tab is in front.
 - The waveform in the Scopes panel and in the Viewer's scope strip draws the trace for black, which the bottom of the scope's frame cut off.
 - Audio Track Mixer strips fall to silence after a scrub once the 40 ms scrub grain finishes playing.
+- The Samples pane on Home lays the Sample Project and Use Template… tiles side by side, as the Start row does, instead of one under the other.
 
 ## [alpha-0.7.0] - 2026-07-22
 

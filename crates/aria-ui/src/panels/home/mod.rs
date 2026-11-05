@@ -1,8 +1,9 @@
-//! Home route: New, Open, Recents, Samples, Learn. Owns the window.
+//! Home route: the New and Open actions, and the Recents, Samples and Learn
+//! panes. Owns the window.
 //!
 //! The route is composed of domain-named children:
-//! - `rail`: The sidebar navigation rail, brand mark, and route switching.
-//! - `panes`: The individual route panes (New, Open, Recents, Samples, Learn) and recovery banner.
+//! - `rail`: The sidebar rail: brand mark, the two actions, and pane switching.
+//! - `panes`: The Recents, Samples and Learn panes and the recovery banner.
 //! - `cards`: The action hero tiles, recents grid, card animations, and interaction dispatch.
 //!
 //! The recents list itself is not Home's: it outlives the route, is seeded before
@@ -56,26 +57,42 @@ pub fn render(
 mod tests {
     use crate::types::HomeRail;
 
-    /// Every Home rail variant maps to a distinct, non-empty label and has a
-    /// corresponding pane in the conventional module structure.
+    /// WHY: `HomeRail::ALL` is the one list of panes the rail draws and the
+    /// tests and the panels reference walk. The match stops the build on a new
+    /// variant until it is placed here, and the placement must agree with
+    /// `ALL`, so a pane drawn out of order or two panes under one label fail.
+    /// Does not catch a new variant placed here but left out of `ALL`.
     #[test]
-    fn every_home_rail_variant_has_distinct_label() {
-        let rails = [
-            HomeRail::New,
-            HomeRail::Open,
-            HomeRail::Recents,
-            HomeRail::Samples,
-            HomeRail::Learn,
-        ];
+    fn every_home_pane_stands_once_in_all_under_its_own_label() {
+        let placed = |rail: HomeRail| match rail {
+            HomeRail::Recents => 0,
+            HomeRail::Samples => 1,
+            HomeRail::Learn => 2,
+        };
         let mut labels = std::collections::BTreeSet::new();
-        for rail in rails {
+        for (index, rail) in HomeRail::ALL.into_iter().enumerate() {
+            assert_eq!(placed(rail), index, "{rail:?} stands out of rail order");
             let label = rail.label();
-            assert!(!label.is_empty(), "rail label must not be empty");
-            assert!(
-                labels.insert(label),
-                "duplicate rail label detected: {label}"
-            );
+            assert!(!label.is_empty(), "{rail:?} has no label");
+            assert!(labels.insert(label), "two panes are labeled {label}");
         }
-        assert_eq!(labels.len(), 5);
+    }
+
+    /// WHY: New and Open were panes, so a settings file can hold `"new"` or
+    /// `"open"`. Closes "a stale rail fails the whole settings file": each
+    /// loads on Recents, whose Start row holds both tiles, and every current
+    /// pane still round-trips. Does not cover a value no version wrote.
+    #[test]
+    fn a_stored_new_or_open_rail_loads_on_recents() {
+        for stale in ["\"new\"", "\"open\""] {
+            let rail: HomeRail = serde_json::from_str(stale)
+                .unwrap_or_else(|err| panic!("{stale} does not load: {err}"));
+            assert_eq!(rail, HomeRail::Recents, "{stale}");
+        }
+        for rail in HomeRail::ALL {
+            let stored = serde_json::to_string(&rail).expect("a rail serializes");
+            let loaded: HomeRail = serde_json::from_str(&stored).expect("a rail loads");
+            assert_eq!(loaded, rail, "{stored}");
+        }
     }
 }

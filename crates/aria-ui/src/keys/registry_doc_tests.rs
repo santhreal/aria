@@ -704,6 +704,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "SnapKind",
             "internal magnetic snap candidate tie-break rank in aria-ui::snap",
         ),
+        (
+            "HomeRail",
+            "internal Home screen left-rail tab selection in aria-ui::types_editor",
+        ),
     ];
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))

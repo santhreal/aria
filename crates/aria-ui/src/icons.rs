@@ -71,6 +71,12 @@ icon_assets![
     (PLUS, "plus.svg", "icon/plus.svg"),
     (FOLDER_OPEN, "folder-open.svg", "icon/folder-open.svg"),
     (CLAPPERBOARD, "clapperboard.svg", "icon/clapperboard.svg"),
+    (HISTORY, "history.svg", "icon/history.svg"),
+    (
+        LAYOUT_TEMPLATE,
+        "layout-template.svg",
+        "icon/layout-template.svg"
+    ),
     (IMAGE, "library/image.svg", "icon/image.svg"),
     (SPARKLES, "shell/sparkles.svg", "icon/sparkles.svg"),
     (EYE, "timeline/eye.svg", "icon/eye.svg"),

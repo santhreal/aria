@@ -4,8 +4,7 @@
 //! Home is the first surface of a session, so it is the one that has to look
 //! designed rather than assembled. Three things do that here and nowhere else in
 //! the route: the cards arrive one after another instead of all at once, they
-//! lift under the pointer instead of switching colour, and they sit on frosted
-//! glass instead of a flat fill.
+//! lift under the pointer, and they sit on frosted glass instead of a flat fill.
 
 use crate::components::Wraps as _;
 use gpui::motion::{loaders, presets};
@@ -195,22 +194,25 @@ pub(super) fn hero_tile(
     ))
 }
 
+/// A row of Home cards, wrapping onto further lines in a narrow window.
+///
+/// The Start tiles, the Samples tiles and the recents grid each stand in one,
+/// so every pane lays its cards out across the width with the same gap.
+pub(super) fn card_row() -> gpui::Div {
+    div().flex_row().wraps().gap(px(Theme::SPACE_MD))
+}
+
 pub(super) fn recents_grid(
     theme: &Theme,
     recents: &[RecentView],
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_row()
-        .wraps()
-        .gap(px(Theme::SPACE_MD))
-        .children(
-            recents
-                .iter()
-                .enumerate()
-                .map(|(index, recent)| recent_card(theme, index, recent, cx)),
-        )
+    card_row().children(
+        recents
+            .iter()
+            .enumerate()
+            .map(|(index, recent)| recent_card(theme, index, recent, cx)),
+    )
 }
 
 fn recent_card(

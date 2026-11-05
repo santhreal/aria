@@ -513,22 +513,26 @@ impl AppMenu {
     }
 }
 
+/// A pane of the Home route. New and Open are not panes: their rail rows run
+/// the action, as the Start tiles do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HomeRail {
-    New,
-    Open,
+    /// A settings file written while New and Open were panes loads on Recents,
+    /// whose Start row holds both tiles.
     #[default]
+    #[serde(alias = "new", alias = "open")]
     Recents,
     Samples,
     Learn,
 }
 
 impl HomeRail {
+    /// Every pane, in rail order.
+    pub const ALL: [Self; 3] = [Self::Recents, Self::Samples, Self::Learn];
+
     pub fn label(self) -> &'static str {
         match self {
-            Self::New => "New",
-            Self::Open => "Open",
             Self::Recents => "Recents",
             Self::Samples => "Samples",
             Self::Learn => "Learn",

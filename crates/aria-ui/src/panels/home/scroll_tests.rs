@@ -209,28 +209,6 @@ fn a_full_recents_list_scrolls_to_its_last_card_in_the_smallest_window(cx: &mut 
     );
 }
 
-/// Every rail. The match stops the build when a rail is added, until the rail
-/// is listed here.
-fn every_rail() -> [HomeRail; 5] {
-    let rails = [
-        HomeRail::New,
-        HomeRail::Open,
-        HomeRail::Recents,
-        HomeRail::Samples,
-        HomeRail::Learn,
-    ];
-    for rail in rails {
-        match rail {
-            HomeRail::New
-            | HomeRail::Open
-            | HomeRail::Recents
-            | HomeRail::Samples
-            | HomeRail::Learn => {}
-        }
-    }
-    rails
-}
-
 #[gpui::test]
 fn a_rail_chosen_opens_its_pane_at_the_top(cx: &mut TestAppContext) {
     let (state, mut visual) = home_with_recents(
@@ -267,7 +245,7 @@ fn a_rail_chosen_opens_its_pane_at_the_top(cx: &mut TestAppContext) {
         })
     };
     let mut long = 0;
-    for rail in every_rail()
+    for rail in HomeRail::ALL
         .into_iter()
         .filter(|rail| *rail != HomeRail::Recents)
     {

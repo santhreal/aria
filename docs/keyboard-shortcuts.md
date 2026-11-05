@@ -88,7 +88,7 @@ replaced by the finished text rather than appended to it.
 | --- | --- |
 | Ctrl+Alt+N | New project |
 | Ctrl+N | New sequence with the open sequence's frame rate, canvas, and audio layout, one video and one audio track, opened |
-| Ctrl+O | Open a project. On Home, switch to the Open rail. |
+| Ctrl+O | Open a project. |
 | Ctrl+Shift+W | Close project, return Home |
 | Ctrl+S / Ctrl+Shift+S | Save / Save As |
 | Ctrl+Alt+S | Save a Copy. The open project keeps its own path and unsaved state. |

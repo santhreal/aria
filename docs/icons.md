@@ -122,9 +122,11 @@ Defined in `crates/aria-ui/src/panels/home/rail.rs` and `panes.rs`.
 
 | Constant | File | Use |
 | --- | --- | --- |
-| `PLUS` | `assets/icon/plus.svg` | The New rail tab and the New Project tile, and Add Track at the left of the timeline zoom bar (`panels/timeline/overview.rs`). |
-| `FOLDER_OPEN` | `assets/icon/folder-open.svg` | The Open rail tab and the Open tile. |
-| `CLAPPERBOARD` | `assets/icon/clapperboard.svg` | The Recents rail tab, and the Sample Project and Use Template… tiles (`panels/home/panes.rs`). |
+| `PLUS` | `assets/icon/plus.svg` | The New rail row and the New Project tile, and Add Track at the left of the timeline zoom bar (`panels/timeline/overview.rs`). |
+| `FOLDER_OPEN` | `assets/icon/folder-open.svg` | The Open rail row and the Open tile. |
+| `CLAPPERBOARD` | `assets/icon/clapperboard.svg` | The Sample Project tile (`panels/home/panes.rs`). |
+| `HISTORY` | `assets/icon/history.svg` | The Recents rail tab. |
+| `LAYOUT_TEMPLATE` | `assets/icon/layout-template.svg` | The Use Template… tile (`panels/home/panes.rs`). |
 | `IMAGE` | `assets/icon/library/image.svg` | The Samples rail tab, the media pool's Tiles view (`panels/sidebar_pool_bars.rs`), and a pool item's picture while it decodes (`panels/sidebar_media_grid.rs`). |
 | `SPARKLES` | `assets/icon/shell/sparkles.svg` | The Learn rail tab. |
 

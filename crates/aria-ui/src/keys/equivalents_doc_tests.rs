@@ -55,7 +55,7 @@ const ARIA_ONLY_BINDINGS: &[&str] = &[
     "key-home-escape",
     // Home-route duplicate of `key-new` (`Ctrl+Alt+N`).
     "key-home-new",
-    // Home-route binding that switches the Home rail to `HomeRail::Open`.
+    // Home-route duplicate of `key-open` (`Ctrl+O`).
     "key-home-open",
     // Home-route duplicate of `key-quit` (`Ctrl+Q`).
     "key-home-quit",
