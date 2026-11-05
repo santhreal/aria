@@ -54,7 +54,7 @@ pub(super) fn square_frame(sx: i32, sy: i32) -> RgbaImage {
     RgbaImage::new(w, h, pixels)
 }
 
-/// Flat grey: no feature to correlate, so the tracker must not claim a lock.
+/// Flat gray: no feature to correlate, so the tracker must not claim a lock.
 pub(super) fn flat_frame() -> RgbaImage {
     let (w, h) = (160u32, 90u32);
     let mut pixels = vec![90u8; (w * h * 4) as usize];
@@ -121,7 +121,7 @@ pub(super) fn tracked() -> AppState {
     }
     state.set_active_mask(1);
     // The square the frames start with spans (40, 30)–(52, 42) in frame pixels,
-    // so its centre is (46, 36) and its extent 12 x 12. A mask stores both as
+    // so its center is (46, 36) and its extent 12 x 12. A mask stores both as
     // fractions of the layer it sits on.
     let ([cx, cy], [qw, qh]) = quad(&state);
     state
@@ -134,14 +134,14 @@ pub(super) fn tracked() -> AppState {
     state
 }
 
-/// The layer quad the pass will read, `(centre, size)` in canvas pixels.
+/// The layer quad the pass will read, `(center, size)` in canvas pixels.
 pub(super) fn quad(state: &AppState) -> ([f32; 2], [f32; 2]) {
     state
         .selected_layer_quad()
         .expect("the still places a quad at the playhead")
 }
 
-/// The centre keyframes of the selected clip's active mask, oldest first.
+/// The center keyframes of the selected clip's active mask, oldest first.
 ///
 /// The other masks of the stack carry none: a track that wrote to one of them
 /// fails here.

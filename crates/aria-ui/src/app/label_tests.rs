@@ -1,8 +1,8 @@
-//! Contracts for label colours.
+//! Contracts for label colors.
 //!
-//! The class closed here is "a colour is stored but nothing can find it again":
+//! The class closed here is "a color is stored but nothing can find it again":
 //! a label that only tints a card is decoration, so the assertions pair setting
-//! a colour with reaching the group it marks, and with surviving undo.
+//! a color with reaching the group it marks, and with surviving undo.
 //!
 //! Not covered: the drawn swatch row and the card tint, which need a render
 //! surface.
@@ -153,7 +153,7 @@ fn a_pool_row_takes_a_label_and_gives_it_back() {
 }
 
 #[test]
-fn the_pool_filter_matches_a_label_colour() {
+fn the_pool_filter_matches_a_label_color() {
     use crate::types::SidebarTab;
 
     let (mut state, _) = with_clip();

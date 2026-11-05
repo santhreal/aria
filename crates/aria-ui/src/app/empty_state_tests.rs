@@ -2,14 +2,14 @@
 //! have.
 //!
 //! The class closed here: one panel's empty state pinned to its top-left
-//! corner while another's stands centred, and a pool whose search hides every
+//! corner while another's stands centered, and a pool whose search hides every
 //! item offering to import files. What is asserted, for every registered dock
 //! panel in the emptiest project a session holds, a new one with its Main lane
 //! removed:
 //!
 //! - A panel recorded as drawing a line draws it with
 //!   [`empty_state`](crate::components::empty_state), inside its body.
-//! - The line is centred across its element, with as much room above the line
+//! - The line is centered across its element, with as much room above the line
 //!   and the action under it as below them.
 //! - The element fills the room the panel's content would: at least
 //!   [`FILL_HEIGHT`] of the body's height and [`FILL_WIDTH`] of its width.
@@ -99,7 +99,7 @@ fn bounds(visual: &mut gpui::VisualTestContext, selector: String) -> Option<Boun
 
 /// Asserts the geometry of the line drawn as `empty-state-{id}` in `panel`'s
 /// body.
-fn assert_centred(
+fn assert_centered(
     visual: &mut gpui::VisualTestContext,
     panel: PanelId,
     id: &str,
@@ -120,12 +120,12 @@ fn assert_centred(
             && element.3 <= body.3 + SLACK,
         "empty-state-{id} at {element:?} is outside {panel}'s body at {body:?}"
     );
-    let centre = |(left, _, right, _): (f32, f32, f32, f32)| (left + right) / 2.0;
+    let center = |(left, _, right, _): (f32, f32, f32, f32)| (left + right) / 2.0;
     assert!(
-        (centre(line) - centre(element)).abs() <= SLACK,
+        (center(line) - center(element)).abs() <= SLACK,
         "{panel}: the line's center {} is off its element's {}",
-        centre(line),
-        centre(element)
+        center(line),
+        center(element)
     );
     let bottom = match action {
         Some(action) => f32::from(
@@ -160,7 +160,7 @@ fn f32_bounds(bounds: Bounds<Pixels>) -> (f32, f32, f32, f32) {
 }
 
 #[gpui::test]
-fn every_dock_panel_centres_the_line_it_draws_when_empty(cx: &mut gpui::TestAppContext) {
+fn every_dock_panel_centers_the_line_it_draws_when_empty(cx: &mut gpui::TestAppContext) {
     cx.executor().allow_parking();
     let (state, visual) = crate::test_support::drawn_shell(cx, "empty-states");
     // The census reads every panel at rest: a panel that fades in is drawn
@@ -206,11 +206,11 @@ fn every_dock_panel_centres_the_line_it_draws_when_empty(cx: &mut gpui::TestAppC
         });
         let content = match *empty {
             Empty::Line(id, action) => {
-                assert_centred(visual, panel, id, action);
+                assert_centered(visual, panel, id, action);
                 continue;
             }
             Empty::Either(id, _) if bounds(visual, format!("empty-state-{id}")).is_some() => {
-                assert_centred(visual, panel, id, None);
+                assert_centered(visual, panel, id, None);
                 continue;
             }
             Empty::Either(_, content) | Empty::Content(content) => content,

@@ -114,7 +114,7 @@ pub struct Exposure {
     pub brightest: (f32, f32),
     /// Mean chroma of the frame on the Cb/Cr plane. Both near zero is neutral.
     pub cast: (f32, f32),
-    /// Luma of mid grey under the same BT.709 weights, as the reference the
+    /// Luma of mid gray under the same BT.709 weights, as the reference the
     /// mean is read against.
     pub neutral: u8,
     pub sampled: u32,
@@ -147,7 +147,7 @@ impl Default for MediaReachForm {
 impl MediaReachForm {
     /// The levels the target chip cycles, quietest first.
     ///
-    /// Streaming platforms normalise to a band around -14 LUFS; -23 is the EBU
+    /// Streaming platforms normalize to a band around -14 LUFS; -23 is the EBU
     /// broadcast figure; -6 is as hot as a peak target goes before a limiter is
     /// doing the work instead.
     pub const TARGETS: [f32; 5] = [-23.0, -18.0, -14.0, -9.0, -6.0];
@@ -173,7 +173,7 @@ impl AppState {
         self.store.media.iter().find(|item| item.id == media)
     }
 
-    /// Step the normalise target to the next level up, wrapping at the top.
+    /// Step the normalize target to the next level up, wrapping at the top.
     pub fn cycle_normalise_target(&mut self) {
         let at = self.media_reach.target_at().unwrap_or(0);
         let next = (at + 1) % MediaReachForm::TARGETS.len();
@@ -184,7 +184,7 @@ impl AppState {
     ///
     /// Reads the loudness contour the Analysis panel measured, rather than
     /// measuring again: the contour is the only measurement in the session that
-    /// covers the whole clip, and normalising off a single frame would be a
+    /// covers the whole clip, and normalizing off a single frame would be a
     /// different and worse answer.
     pub fn normalise_selected_clip(&mut self) {
         let Some(ui) = self.selected_ui_clip() else {
@@ -370,8 +370,8 @@ impl AppState {
 /// The bins are a distribution over code values, so the mean code per channel
 /// is the bin index weighted by its count. Feeding those three means through the
 /// same BT.709 matrix the vectorscope uses gives the frame's average cast, which
-/// is the number a colour decision is made on — a vectorscope shows the spread
-/// and hides the centre.
+/// is the number a color decision is made on — a vectorscope shows the spread
+/// and hides the center.
 fn mean_cast(histogram: &aria_analysis::Histogram) -> (f32, f32) {
     let channel = |bins: &[u32]| -> u8 {
         let count: u64 = bins.iter().map(|hits| u64::from(*hits)).sum();

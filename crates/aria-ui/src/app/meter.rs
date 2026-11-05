@@ -1,4 +1,4 @@
-//! Output level as the meter draws it: the programme mix, and every mixer lane.
+//! Output level as the meter draws it: the program mix, and every mixer lane.
 //!
 //! The audio callback publishes the peak and root mean square of the block it
 //! just handed to the device and nothing else, and the mix thread publishes each
@@ -133,7 +133,7 @@ impl AppState {
             clipped: levels.clipped,
         };
         // Both, never short-circuited: the strips advance on this clock whether
-        // or not the programme meter happened to move.
+        // or not the program meter happened to move.
         let strips = self.strip_meters_tick(elapsed);
         self.meter.drawn() != before.drawn() || strips
     }
@@ -143,7 +143,7 @@ impl AppState {
     ///
     /// A held lane the mix has dropped falls to silence rather than being
     /// forgotten at its last level: a strip whose stream stopped must empty,
-    /// which is the same rule the programme meter follows.
+    /// which is the same rule the program meter follows.
     fn strip_meters_tick(&mut self, elapsed: f32) -> bool {
         let lanes = self.audio.lane_meters();
         let mut moved = false;

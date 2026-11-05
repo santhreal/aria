@@ -17,7 +17,7 @@
 //! state and no panel block until someone writes them, and the tests below go
 //! red until they exist.
 //!
-//! A group whose properties are all colours or rectangles yields no stepper
+//! A group whose properties are all colors or rectangles yields no stepper
 //! rows at all — a swatch and the crop handles own those — so `framing` is
 //! skipped by that derivation rather than by an exception. `effect-<index>` and
 //! `mask-<index>` are a group per effect or mask instance, built per clip
@@ -136,7 +136,7 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
 
 /// Every catalog group holding at least one property a stepper can edit.
 ///
-/// The derivation, not a list: a scalar or a vector becomes a row, a colour
+/// The derivation, not a list: a scalar or a vector becomes a row, a color
 /// wants a swatch and a rectangle wants handles.
 fn groups_with_rows() -> BTreeSet<String> {
     clip_param_catalog()

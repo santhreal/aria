@@ -1,10 +1,10 @@
 //! Following a mask across frames instead of keyframing it by hand.
 //!
-//! A mask is drawn and dragged on the preview, and its centre keyframes through
+//! A mask is drawn and dragged on the preview, and its center keyframes through
 //! the property catalog, so animating one over a moving subject was possible and
 //! meant placing a keyframe on every frame. This walks the range once, correlates
 //! the patch under the mask from each frame to the next
-//! ([`aria_compositor::track_patch`]), and writes the centre keyframes the
+//! ([`aria_compositor::track_patch`]), and writes the center keyframes the
 //! operator would have placed.
 //!
 //! Three rules the pass exists to keep:
@@ -56,7 +56,7 @@ pub(crate) const SEARCH_RADIUS: i32 = 24;
 /// What a tracking pass did.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaskTrackReport {
-    /// Centre keyframes written, including the one at the starting tick.
+    /// Center keyframes written, including the one at the starting tick.
     pub written: usize,
     /// The tick where confidence fell below [`CONFIDENCE_FLOOR`], if it did.
     /// Keyframes before it stand; nothing was written at or after it.
@@ -138,7 +138,7 @@ pub(crate) struct MaskWalk {
     pub start: RationalTime,
     /// Ticks forward from `start`, at the timeline rate.
     pub span: i64,
-    /// The layer quad's centre in canvas pixels: what frames are measured in.
+    /// The layer quad's center in canvas pixels: what frames are measured in.
     pub quad_center: [f32; 2],
     /// The layer quad's size in canvas pixels.
     pub quad_size: [f32; 2],
@@ -169,7 +169,7 @@ impl MaskTarget {
     /// The index of the tracked mask in `masks`, or `None` when no mask, or
     /// more than one, matches the mask the track started from.
     ///
-    /// A mask matches when its kind, path, and centre are unchanged. Those place
+    /// A mask matches when its kind, path, and center are unchanged. Those place
     /// the mask; an edit to its feather, mode, or opacity while the track runs
     /// leaves them alone. The start index is tried first, so an unchanged stack
     /// resolves to it even when another mask in the stack is identical.
@@ -195,7 +195,7 @@ impl MaskTarget {
     }
 }
 
-/// Walk `frames` forward and return the centre keyframes the track earned.
+/// Walk `frames` forward and return the center keyframes the track earned.
 ///
 /// Writes nothing. Keyframes come back as a list so the caller decides where
 /// they land, which is what lets the shipped pass run off the UI thread and the
@@ -440,7 +440,7 @@ impl AppState {
                 span,
                 quad_center,
                 quad_size,
-                // The mask's centre is an offset from the layer centre in
+                // The mask's center is an offset from the layer center in
                 // fractions of layer size, so the patch it names is that offset
                 // scaled back into canvas pixels — the units the frames are in.
                 patch: [
@@ -458,7 +458,7 @@ impl AppState {
     ///
     /// The mask is found again by [`MaskTarget::locate`], so a mask removed or
     /// moved above it while the job ran does not send the keyframes to its
-    /// neighbour. A tracked mask that is gone or reshaped gets nothing, and the
+    /// neighbor. A tracked mask that is gone or reshaped gets nothing, and the
     /// window reports why.
     fn adopt_track(
         &mut self,
@@ -499,7 +499,7 @@ impl AppState {
         });
     }
 
-    /// Write `keys` as the centre of mask `mask` of `clip`, as one history
+    /// Write `keys` as the center of mask `mask` of `clip`, as one history
     /// entry.
     ///
     /// One gesture, one undo entry: a track that went wrong reverts in a

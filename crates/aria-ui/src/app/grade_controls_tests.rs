@@ -1,4 +1,4 @@
-//! Contracts for the colour wheels and the Color panel's sections.
+//! Contracts for the color wheels and the Color panel's sections.
 //!
 //! The class closed here is "a wheel gesture lands somewhere other than where
 //! the pointer put it": a press read against a frame other than the wheel's
@@ -12,7 +12,7 @@
 //! routed by the shell as a user's would be. A release outside the window ends
 //! the drag as one over it does.
 //!
-//! What it does not catch: whether the hue ring's colours match the direction
+//! What it does not catch: whether the hue ring's colors match the direction
 //! the grade moves on screen, which needs pixels.
 
 use std::path::PathBuf;
@@ -139,7 +139,7 @@ fn offsets_and_channel_deltas_round_trip_and_sum_to_zero() {
     );
 }
 
-/// A press at the centre of the wheel's own frame writes nothing, and one
+/// A press at the center of the wheel's own frame writes nothing, and one
 /// half way to its right rim writes half the reach toward red. Read against
 /// the window's corner instead, both presses land on the rim.
 #[test]

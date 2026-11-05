@@ -33,8 +33,8 @@ fn click(visual: &mut VisualTestContext, at: Point<Pixels>) {
     visual.run_until_parked();
 }
 
-/// The centre of the element drawn with `selector`, which must be on screen.
-fn centre(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
+/// The center of the element drawn with `selector`, which must be on screen.
+fn center(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
     let bounds = bounds_of(visual, selector);
     let window = visual.update(|window, _| window.viewport_size());
     let at = bounds.center();
@@ -88,7 +88,7 @@ fn a_press_on_a_submenu_entry_opens_its_flyout_and_keeps_the_drop(cx: &mut gpui:
             for moved_first in [false, true] {
                 open(visual, &state, menu, None);
                 let selector = format!("menu-row-menu-sub-{}-{caption}", menu.label());
-                let at_entry = centre(visual, &selector);
+                let at_entry = center(visual, &selector);
                 if moved_first {
                     visual.simulate_mouse_move(at_entry, None::<MouseButton>, Modifiers::none());
                     visual.run_until_parked();
@@ -141,7 +141,7 @@ fn a_press_on_a_disabled_row_states_why_and_keeps_the_drop(cx: &mut gpui::TestAp
         });
         for (flyout, id, reason) in blocked {
             open(visual, &state, menu, flyout);
-            let at = centre(visual, &format!("menu-row-{id}"));
+            let at = center(visual, &format!("menu-row-{id}"));
             click(visual, at);
             let seen = visual.read(|app| {
                 let state = state.read(app);

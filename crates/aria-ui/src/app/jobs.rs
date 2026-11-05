@@ -362,7 +362,7 @@ impl AppState {
     ///
     /// The request is what the sheet asked for; this is where the machine gets a
     /// say. One resolution against this host — a missing encoder, a codec or a
-    /// bitrate it will not honour, and a span with no frames in it — is refused
+    /// bitrate it will not honor, and a span with no frames in it — is refused
     /// here, by name, before a job exists. Spawning first would report the same
     /// thing a minute into a render.
     pub fn enqueue_export(&mut self, request: ExportRequest) -> Result<u64, String> {

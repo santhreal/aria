@@ -40,7 +40,7 @@ const PANELS: &[(PanelId, &str, Option<&str>)] = &[
     (PANEL_COLOR, "color-panel", None),
 ];
 
-/// A frame of one colour, straight alpha.
+/// A frame of one color, straight alpha.
 fn frame(rgba: [u8; 4]) -> Arc<RgbaImage> {
     let pixels = rgba.iter().copied().cycle().take(16 * 16 * 4).collect();
     Arc::new(RgbaImage::new(16, 16, pixels))
@@ -164,13 +164,13 @@ fn the_scopes_tab_measures_only_while_it_is_in_front() {
     assert!(state.adopt_scopes(Some(shown)));
     assert_eq!(state.scope_summary(), "Frame 00:00:00:04");
 
-    let neighbour = state
+    let neighbor = state
         .dock_tree
         .find(PANEL_SCOPES)
         .and_then(|id| state.dock_tree.frame(id))
         .and_then(|frame| frame.tabs.iter().copied().find(|tab| *tab != PANEL_SCOPES))
         .expect("the Scopes tab shares its frame");
-    state.focus_dock_panel(neighbour);
+    state.focus_dock_panel(neighbor);
     assert!(!state.scopes_wanted());
     assert!(
         !state.preview_worker.set_scopes(false),
@@ -203,13 +203,13 @@ fn the_strip_and_the_tab_share_one_reading() {
     assert!(state.scopes_open);
     assert!(state.adopt_scopes(Some(reading(&picture, 2))));
 
-    let neighbour = state
+    let neighbor = state
         .dock_tree
         .find(PANEL_SCOPES)
         .and_then(|id| state.dock_tree.frame(id))
         .and_then(|frame| frame.tabs.iter().copied().find(|tab| *tab != PANEL_SCOPES))
         .expect("the Scopes tab shares its frame");
-    state.focus_dock_panel(neighbour);
+    state.focus_dock_panel(neighbor);
     assert!(
         state.scope_textures.is_some(),
         "the open strip lost its reading when the tab went behind"
@@ -222,7 +222,7 @@ fn the_strip_and_the_tab_share_one_reading() {
         "the Scopes tab lost its reading when the strip closed"
     );
 
-    state.focus_dock_panel(neighbour);
+    state.focus_dock_panel(neighbor);
     assert!(
         state.scope_textures.is_none(),
         "the reading outlived both scopes"

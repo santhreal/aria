@@ -67,9 +67,9 @@ fn tracked_target(state: &AppState) -> MaskTarget {
         .0
 }
 
-/// Each mask of the selected clip in stack order: its kind and how many centre
+/// Each mask of the selected clip in stack order: its kind and how many center
 /// keyframes it holds.
-fn centre_keys(state: &AppState) -> Vec<(MaskKind, usize)> {
+fn center_keys(state: &AppState) -> Vec<(MaskKind, usize)> {
     let clip = state
         .selected_model()
         .expect("the fixture selects its clip");
@@ -103,7 +103,7 @@ fn edit_tracked(state: &mut AppState, edit: impl FnOnce(&mut Mask)) {
 }
 
 /// The tracked mask redrawn as a closed path through `corners`, which keeps its
-/// centre.
+/// center.
 fn as_path(state: &mut AppState, corners: &[[f32; 2]], closed: bool) {
     let points = corners
         .iter()
@@ -358,7 +358,7 @@ fn a_track_lands_on_its_mask_when_the_stack_shifts_while_it_runs() {
     ];
     for (edit, run, expected) in cases {
         let (state, depth) = adopted_after(|_| {}, run);
-        assert_eq!(centre_keys(&state), expected, "{edit}");
+        assert_eq!(center_keys(&state), expected, "{edit}");
         assert_eq!(state.last_error, None, "{edit}");
         assert_eq!(
             state.engine().lock().history_depth(),
@@ -370,7 +370,7 @@ fn a_track_lands_on_its_mask_when_the_stack_shifts_while_it_runs() {
 
 #[test]
 fn a_track_whose_mask_is_gone_or_reshaped_writes_nothing_and_says_so() {
-    // Writing to whatever sits nearest would put a moving centre on a mask the
+    // Writing to whatever sits nearest would put a moving center on a mask the
     // operator drew elsewhere or redrew; a refusal costs one more pass.
     let path: fn(&mut AppState) = |state| as_path(state, &SQUARE, true);
     let cases: [(&str, fn(&mut AppState), fn(&mut AppState)); 6] = [
@@ -407,9 +407,9 @@ fn a_track_whose_mask_is_gone_or_reshaped_writes_nothing_and_says_so() {
     for (edit, prepare, run) in cases {
         let (state, depth) = adopted_after(prepare, run);
         assert!(
-            centre_keys(&state).iter().all(|&(_, keys)| keys == 0),
+            center_keys(&state).iter().all(|&(_, keys)| keys == 0),
             "{edit}: keyframes landed on {:?}",
-            centre_keys(&state)
+            center_keys(&state)
         );
         assert_eq!(
             state.engine().lock().history_depth(),

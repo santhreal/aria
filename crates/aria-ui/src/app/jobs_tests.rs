@@ -542,7 +542,7 @@ async fn a_progress_report_reaches_the_board(cx: &mut gpui::TestAppContext) {
     release.send(()).expect("let the job finish");
 }
 
-/// A running job is drawn at the centre of the status bar, and a click on it
+/// A running job is drawn at the center of the status bar, and a click on it
 /// brings the Jobs panel forward with the board drawn in it.
 #[gpui::test]
 fn a_running_job_in_the_status_bar_opens_the_jobs_panel(cx: &mut gpui::TestAppContext) {

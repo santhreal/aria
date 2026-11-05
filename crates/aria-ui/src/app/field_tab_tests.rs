@@ -10,7 +10,7 @@
 //! text selected, so typing replaces it.
 //!
 //! The value readouts walk by what was painted, which
-//! `value_scrub_tests::tab_commits_and_opens_the_neighbouring_readout`
+//! `value_scrub_tests::tab_commits_and_opens_the_neighboring_readout`
 //! drives, and a plugin section's typed fields are walked in
 //! `plugin_settings_tests`. Not covered: the drawn order, which each form
 //! reads from the constant its ring reads (`MarkerEditField::ORDER`,
@@ -35,7 +35,7 @@ enum Tab {
     Walks(Ring),
     /// Moves to the readout painted beside the open one.
     Painted,
-    /// The box has no neighbours, so Tab is not consumed.
+    /// The box has no neighbors, so Tab is not consumed.
     Alone,
 }
 

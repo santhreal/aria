@@ -9,7 +9,7 @@
 //! ([`analysis_pick`](crate::surfaces::analysis_pick)) and this presses every one
 //! of them.
 //!
-//! Every row is pressed against a project that has already been analysed, which
+//! Every row is pressed against a project that has already been analyzed, which
 //! is the only state the panel draws most of them in. The records are written
 //! into the session's own index by
 //! [`store_moments`](crate::app::fixtures::store_moments), which is what a
@@ -34,7 +34,7 @@ use crate::surfaces::analysis_pick::{self, Pick};
 /// This registry's file, for the shared parsers in the parent module.
 const REGISTRY: &str = "analysis_pick.rs";
 
-/// A project whose selected clip has been analysed by every detector, and that
+/// A project whose selected clip has been analyzed by every detector, and that
 /// clip.
 ///
 /// The media is the audio-and-video fixture rather than the still every other
@@ -48,7 +48,7 @@ const REGISTRY: &str = "analysis_pick.rs";
 /// spans outside would draw the buttons and reach nothing. They are also at
 /// three different seconds, so a seek between rows has somewhere to go: two
 /// detectors that found the same instant are one position on the ruler.
-fn analysed() -> (AppState, ClipId) {
+fn analyzed() -> (AppState, ClipId) {
     let (mut state, clip) = with_video();
     store_moments(&state, AnalysisKind::Beats, &[(0.5, 0.5, 1.0)]);
     store_moments(&state, AnalysisKind::Shots, &[(1.0, 1.0, 0.9)]);
@@ -102,7 +102,7 @@ fn press(state: &mut AppState, pick: Pick) {
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
     let mut out = BTreeSet::new();
     for pick in picks() {
-        let (mut state, _) = analysed();
+        let (mut state, _) = analyzed();
         let watch = Watch::on(&state);
         press(&mut state, pick);
         out.extend(watch.take());
@@ -140,7 +140,7 @@ fn the_clear_beside_a_detector_drops_that_detector_and_no_other() {
     // keys its own batch. A clear that deleted the wrong batch, or all of them,
     // would leave the panel showing results for a detector that was kept.
     for kind in AnalysisKind::ALL {
-        let (mut state, _) = analysed();
+        let (mut state, _) = analyzed();
         press(&mut state, Pick::Clear(kind));
         assert!(
             !state.analysis_exists(kind),
@@ -166,7 +166,7 @@ fn clearing_the_beats_clears_the_grid_the_run_wrote() {
     // The grid is the project's copy, and it is what the timeline snaps to. A
     // clear that dropped the batch and kept the grid would leave the magnets
     // pulling toward positions the panel no longer shows.
-    let (mut state, clip) = analysed();
+    let (mut state, clip) = analyzed();
     assert!(
         !beat_ticks(&state, clip).is_empty(),
         "the fixture's clip carries a grid"
@@ -215,7 +215,7 @@ fn the_two_edits_reach_the_timeline() {
         (Pick::SplitAtShots, "Split clip"),
         (Pick::CutSilence, "Ripple delete"),
     ] {
-        let (mut state, _) = analysed();
+        let (mut state, _) = analyzed();
         let watch = Watch::on(&state);
         press(&mut state, pick);
         let sent = watch.take();
@@ -235,7 +235,7 @@ fn a_seek_moves_the_playhead_and_asks_for_nothing() {
     // Two forward seeks before the backward one: the fixture's rows are two
     // positions, and a previous-seek from the first of them has nothing behind
     // it, which is the correct answer rather than a defect.
-    let (mut state, _) = analysed();
+    let (mut state, _) = analyzed();
     state.set_playhead(0);
     let watch = Watch::on(&state);
     press(&mut state, Pick::SeekNext);
@@ -262,7 +262,7 @@ fn a_seek_moves_the_playhead_and_asks_for_nothing() {
 fn a_filter_narrows_the_rows_without_touching_the_project() {
     // Both filters are view state read back out of the index, so the
     // fingerprint is the row count and the assertion is that no command left.
-    let (mut state, _) = analysed();
+    let (mut state, _) = analyzed();
     let all = state.analysis.moments.len();
     let watch = Watch::on(&state);
     press(&mut state, Pick::Filter(Some(AnalysisKind::Shots)));

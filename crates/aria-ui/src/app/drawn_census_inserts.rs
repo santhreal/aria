@@ -4,7 +4,7 @@
 //! An insert names its chain and its place in that chain, so the census dresses
 //! each kind of chain (a clip's, a lane's, the master's) and presses the
 //! gestures on it. Every effect the Add list offers is added, and every
-//! parameter of every one is stepped: a parameter row wired to its neighbour's
+//! parameter of every one is stepped: a parameter row wired to its neighbor's
 //! slot is the defect a census of one representative would pass.
 
 use std::collections::BTreeSet;

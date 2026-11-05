@@ -407,7 +407,7 @@ fn transition_parameter_edit_restores_on_undo_and_redo() {
 /// value edit on an animated property keys it at the playhead. Before, Reset
 /// deleted the stored slot, which dropped every keyframe, and an integer edit
 /// replaced the curve with a constant. Covers the scalar and integer write paths
-/// and Reset on both, on a constant and on an animated slot; the colour, vector
+/// and Reset on both, on a constant and on an animated slot; the color, vector
 /// and point setters share the same landing and are covered by the landing test
 /// in `effect_tests_effect`.
 #[test]

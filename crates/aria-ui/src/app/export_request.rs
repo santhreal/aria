@@ -12,7 +12,7 @@
 //! A request is that value. It takes no window, holds no lock, asks no encoder
 //! and starts nothing, so a test presses the sheet's rows and reads what the
 //! button would send. Resolving it against this machine — the encoder that has
-//! to exist, the codec and bitrate it will honour, a span with frames in it —
+//! to exist, the codec and bitrate it will honor, a span with frames in it —
 //! stays with the queue, which is the step that spends the machine.
 
 use std::path::PathBuf;

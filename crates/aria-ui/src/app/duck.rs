@@ -142,7 +142,7 @@ impl AppState {
     /// Resolve a duck, or name the reason it cannot run.
     ///
     /// Split from the run so every refusal is reachable without a window, and so
-    /// the panel can grey the button with the same sentence the button would
+    /// the panel can gray the button with the same sentence the button would
     /// have produced.
     pub(crate) fn duck_precheck(&self) -> Result<DuckRequest, String> {
         if self.selection.is_empty() {

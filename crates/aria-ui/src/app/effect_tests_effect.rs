@@ -164,7 +164,7 @@ fn a_non_scalar_or_missing_slot_is_inert() {
     if let Some((id, slot)) = non_scalar {
         state.add_effect_to_selected(id).expect("add");
         let before = state.selected_effect_param(0, slot);
-        // A colour or vec2 slot is not settable through SetEffectParam: the UI
+        // A color or vec2 slot is not settable through SetEffectParam: the UI
         // must drop it rather than send a command the model refuses.
         state
             .set_selected_effect_param(0, slot, 0.5)
@@ -216,9 +216,9 @@ fn effect_commands_are_inert_with_no_selection() {
 }
 /// The Add list must be the model catalog, not the renderable subset. Hiding a
 /// catalog entry with no GPU pass made an effect the project format accepts look
-/// nonexistent; offering it labelled passthrough is the contract. The list is
+/// nonexistent; offering it labeled passthrough is the contract. The list is
 /// derived from the catalog at run time, so a new effect is covered here and a new
-/// unrenderable one is labelled rather than dropped.
+/// unrenderable one is labeled rather than dropped.
 #[test]
 fn the_add_list_offers_every_model_effect_and_marks_the_unrenderable_ones() {
     let (state, _) = with_clip();
@@ -274,15 +274,15 @@ fn with_no_effect_service_every_entry_is_marked_passthrough() {
         );
     }
 }
-// The class closed below is "a slot the inspector cannot reach": colour and vec2
+// The class closed below is "a slot the inspector cannot reach": color and vec2
 // slots were once unreachable while every other slot was a stepper. The slot list
-// is read from the catalog at run time, so a new colour or vec2 parameter is
+// is read from the catalog at run time, so a new color or vec2 parameter is
 // covered here without a second list, and a new parameter kind turns the
 // projection test red.
 
-/// Every colour and vec2 slot of every catalog effect: set, clamp, reset, undo.
+/// Every color and vec2 slot of every catalog effect: set, clamp, reset, undo.
 #[test]
-fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
+fn every_color_and_vec2_slot_sets_clamps_resets_and_undoes() {
     use crate::app::clip_effects::{PARAM_COLORS, color_params, vec2_params};
 
     let (mut state, _) = with_clip();
@@ -320,7 +320,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
                 param.name
             );
             // Only when the reset actually changed something: a default that is
-            // already the last palette colour writes nothing to undo.
+            // already the last palette color writes nothing to undo.
             if param.default_color != last {
                 assert!(state.undo(), "the reset must be undoable");
                 assert_eq!(
@@ -385,7 +385,7 @@ fn every_colour_and_vec2_slot_sets_clamps_resets_and_undoes() {
     );
 }
 /// A write keeps a constant slot constant and keys an animated one where the
-/// row reads: the playhead, held inside the clip. Before, every colour write was
+/// row reads: the playhead, held inside the clip. Before, every color write was
 /// a keyframe, so picking a swatch grew a curve on a slot that had none; and an
 /// off-clip edit of an animated property was written as a constant, which
 /// flattened its curve. Each kind of keyframeable slot is driven through its

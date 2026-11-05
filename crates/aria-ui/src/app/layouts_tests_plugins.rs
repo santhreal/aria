@@ -159,7 +159,7 @@ fn all_five_shipped_workspaces_produce_valid_dock_trees_and_remember_edits_until
     }
 
     // Switch to Editing, close the Inspector tab (`FrameId::RIGHT`), switch to
-    // Colour, and switch back to Editing: the remembered edit persists until
+    // Color, and switch back to Editing: the remembered edit persists until
     // Reset to Saved Layout (`RESET_ID`) restores the shipped Editing tree.
     assert!(apply(&subject, &cx, "win-workspace-editing"));
     cx.update(|app| {

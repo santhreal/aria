@@ -40,7 +40,7 @@ fn names(state: &AppState, clip: ClipId) -> Vec<String> {
 }
 
 /// The blurred fixture clip with a vignette after the blur, so every verb on
-/// one effect has a neighbour it must leave alone.
+/// one effect has a neighbor it must leave alone.
 fn two_effects() -> (AppState, ClipId) {
     let (mut state, clip) = blurred_clip();
     state

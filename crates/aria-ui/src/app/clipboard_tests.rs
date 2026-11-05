@@ -3,7 +3,7 @@
 //! The class closed here is "a paste variant exists as a menu label but does the
 //! same thing as plain paste". Each assertion reads the projected store after the
 //! edit, because that is what the timeline draws: Insert has to be visible as a
-//! *moved* neighbour, Attributes as a changed look on an *unmoved* clip.
+//! *moved* neighbor, Attributes as a changed look on an *unmoved* clip.
 //!
 //! Fitting is asserted as a relation between two zooms rather than an absolute
 //! number, so the test survives a change to the chrome widths it divides by.

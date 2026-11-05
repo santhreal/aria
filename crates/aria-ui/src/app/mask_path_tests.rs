@@ -145,8 +145,8 @@ fn window_and_path_space_round_trip_through_a_turn_and_a_shift() {
 fn a_vertex_is_drawn_where_the_renderer_cuts_the_picture() {
     // The stencil comes from the renderer's own call, over a layer at the
     // window origin, so a window pixel is a stencil pixel. The square sits away
-    // from the pivot: a turn the wrong way, a pivot at the layer centre rather
-    // than the mask centre, or a dropped shift each put its centre on clear
+    // from the pivot: a turn the wrong way, a pivot at the layer center rather
+    // than the mask center, or a dropped shift each put its center on clear
     // stencil.
     let (w, h) = (200_u32, 100_u32);
     let layer = Rect::new(0.0, 0.0, w as f32, h as f32);
@@ -238,7 +238,7 @@ fn a_vertex_turns_between_corner_and_smooth() {
         .map(ShapePathPoint::corner)
         .to_vec();
     toggle_smooth(&mut points, 1);
-    // Along the chord between the neighbours, a third of the way to each.
+    // Along the chord between the neighbors, a third of the way to each.
     let reach = length([0.3, 0.3]) / 3.0;
     assert!(
         near(points[1].handle_in, [0.5 - reach, 0.5], 1e-5),
@@ -547,7 +547,7 @@ fn a_path_on_another_clip_is_not_this_clips_draft() {
 
 /// A Pen press off the active path starts a new path, and closing it adds a
 /// mask. The new path draws unshifted and unturned whatever the active mask's
-/// centre and rotation are, because `Mask::from_path` gives it neither: a draft
+/// center and rotation are, because `Mask::from_path` gives it neither: a draft
 /// drawn in the active mask's space lands somewhere other than where it was
 /// clicked.
 #[test]

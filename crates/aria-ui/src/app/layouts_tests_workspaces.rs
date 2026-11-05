@@ -325,14 +325,14 @@ fn focusing_a_pane_keeps_the_workspace_active() {
 fn a_workspace_that_closes_the_scopes_drops_the_reading_with_them() {
     let cx = gpui::TestAppContext::single();
     let subject = entity(state_in(&dir()), &cx);
-    let colour = layouts::WORKSPACES
+    let color = layouts::WORKSPACES
         .iter()
         .find(|ws| {
             layouts::workspace_tree(ws.id, &[])
                 .is_some_and(|tree| tree.is_active(crate::dock::PANEL_SCOPES))
         })
         .expect("one shipped workspace puts the Scopes tab in front");
-    assert!(apply(&subject, &cx, colour.id));
+    assert!(apply(&subject, &cx, color.id));
     assert!(cx.update(|app| subject.read(app).scopes_wanted()));
     let editing = layouts::WORKSPACES[0].id;
     assert!(apply(&subject, &cx, editing));

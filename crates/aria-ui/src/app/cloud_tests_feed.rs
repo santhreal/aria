@@ -51,7 +51,7 @@ fn the_session_reports_the_route_its_own_config_implies() {
     );
 }
 #[test]
-fn every_feed_starts_idle_and_is_labelled() {
+fn every_feed_starts_idle_and_is_labeled() {
     let (state, _) = with_clip();
     let mut labels = Vec::new();
     for feed in CloudFeed::ALL {

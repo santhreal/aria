@@ -245,7 +245,7 @@ fn head(text: &str, count: usize) -> &str {
 }
 
 /// Every shipped box has a paste case. A row added without one is a box whose
-/// paste behaviour nobody decided, which is the state this row started in.
+/// paste behavior nobody decided, which is the state this row started in.
 #[test]
 fn every_shipped_field_has_a_paste_case() {
     for field in fields::SHIPPED_FIELDS {

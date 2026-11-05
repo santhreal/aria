@@ -1,8 +1,8 @@
-//! Label colours: assigning one, clearing it, and selecting by it.
+//! Label colors: assigning one, clearing it, and selecting by it.
 //!
 //! A label is organizational only — nothing renders it into a frame — so this is
 //! the whole feature: one command per clip, and a way to get back every clip
-//! drawn in a colour. The palette is [`aria_models::LabelColor`]. A clip with
+//! drawn in a color. The palette is [`aria_models::LabelColor`]. A clip with
 //! no label of its own belongs to the group it is drawn in, so "the Forest
 //! group" reaches every audio clip nobody relabelled.
 
@@ -32,7 +32,7 @@ impl AppState {
     }
 
     /// Replace the selection with every clip carrying `label`, in timeline
-    /// order. This is what makes a label useful rather than decorative: colour a
+    /// order. This is what makes a label useful rather than decorative: color a
     /// group once, then reach all of it later.
     pub fn select_by_label(&mut self, label: LabelColor) {
         let mut hits: Vec<(i64, u64)> = self
@@ -59,7 +59,7 @@ impl AppState {
     }
 
     /// How many clips are drawn in each label, in palette order, for a
-    /// surface that offers only the colours in use. One walk of the sequence.
+    /// surface that offers only the colors in use. One walk of the sequence.
     pub fn label_counts(&self) -> Vec<(LabelColor, usize)> {
         let mut counts = [0usize; LabelColor::ALL.len()];
         for clip in self

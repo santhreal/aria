@@ -137,7 +137,7 @@ fn left_and_right_walk_every_menu_and_wrap() {
             assert!(press(state, cx, "right"));
             if state.open_menu == from {
                 // A menu whose top entry is a submenu enters it first, lit at
-                // its top; the next Right leaves for the neighbour.
+                // its top; the next Right leaves for the neighbor.
                 assert_eq!(
                     state.menu_flyout,
                     Some((0, Some(0))),

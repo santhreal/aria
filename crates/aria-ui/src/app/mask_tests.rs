@@ -2,7 +2,7 @@
 //!
 //! `SetClipMask` and `SetClipChroma` each carry the whole value, so the class
 //! closed here is "editing one knob resets the shape, the offset, or the key
-//! colour", and for the mask stack, "an edit lands on a mask other than the one
+//! color", and for the mask stack, "an edit lands on a mask other than the one
 //! it names". The knob and shape lists are enumerated from the model at run
 //! time, so a new mask shape or knob fails until it is covered.
 
@@ -390,13 +390,13 @@ fn a_property_the_clip_does_not_have_is_inert() {
 }
 
 #[test]
-fn chroma_seeds_a_usable_tolerance_and_keeps_the_colour_across_rows() {
+fn chroma_seeds_a_usable_tolerance_and_keeps_the_color_across_rows() {
     use aria_models::{ClipParam, LookParam};
 
     let (mut state, _) = with_clip();
     assert!(state.selected_ui_clip().expect("clip").chroma.is_none());
 
-    // Every chroma edit is inert before a key colour exists.
+    // Every chroma edit is inert before a key color exists.
     let strength = ClipParam::Look {
         param: LookParam::ChromaStrength,
     };

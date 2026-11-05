@@ -157,7 +157,7 @@ pub(super) fn pull(vertex: &mut ShapePathPoint, to: [f32; 2]) {
 
 /// Turn vertex `index` between corner and smooth. A smooth vertex's handles
 /// return to its anchor; a corner gets handles along the line between its
-/// neighbours, a third of the way to each.
+/// neighbors, a third of the way to each.
 pub fn toggle_smooth(points: &mut [ShapePathPoint], index: usize) {
     let count = points.len();
     let Some(vertex) = points.get(index).copied() else {
@@ -192,7 +192,7 @@ pub(super) fn segment_at(a: &ShapePathPoint, b: &ShapePathPoint, t: f32) -> [f32
     lerp(lerp(p01, p12, t), lerp(p12, p23, t), t)
 }
 
-/// The segments of a path as `(from, to)` vertex indices: every neighbour pair,
+/// The segments of a path as `(from, to)` vertex indices: every neighbor pair,
 /// plus last-to-first when the path is closed.
 fn segments(count: usize, closed: bool) -> impl Iterator<Item = (usize, usize)> {
     let open = count.saturating_sub(1);

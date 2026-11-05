@@ -69,9 +69,9 @@ pub struct ParamRow {
     pub mixed: bool,
 }
 
-/// One colour property, drawn as a row of swatches.
+/// One color property, drawn as a row of swatches.
 ///
-/// A colour is not a number a stepper can carry, so it gets its own row: the
+/// A color is not a number a stepper can carry, so it gets its own row: the
 /// value it reads at the playhead, and whether it is keyed, so the row's
 /// stopwatch is the same affordance a stepper row draws.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,8 +85,8 @@ pub struct ColorRow {
     pub keys_around: (bool, bool),
     /// As on [`ParamRow::off_default`].
     pub off_default: bool,
-    /// Another selected clip that has the colour reads a different one at the
-    /// playhead, so the row names no colour.
+    /// Another selected clip that has the color reads a different one at the
+    /// playhead, so the row names no color.
     pub mixed: bool,
 }
 
@@ -116,7 +116,7 @@ impl AppState {
     ///
     /// Empty when nothing is selected, when the group owns nothing on this clip
     /// (an unmasked clip has no `mask-0` rows), or when the lane refuses the
-    /// group's scope. Colour and rectangle properties yield no rows: a swatch
+    /// group's scope. Color and rectangle properties yield no rows: a swatch
     /// and the crop handles own those, and the conformance test in
     /// `param_rows_tests.rs` holds that exemption to the two kinds.
     pub fn param_rows(&self, group: &str) -> Vec<ParamRow> {
@@ -222,7 +222,7 @@ impl AppState {
                         });
                     }
                 }
-                // A colour needs a picker and a crop needs handles; neither is a
+                // A color needs a picker and a crop needs handles; neither is a
                 // number a stepper can carry.
                 ParamValue::Color(_) | ParamValue::Rect(_) => {}
             }
@@ -230,22 +230,22 @@ impl AppState {
         rows
     }
 
-    /// The colour properties of one group for the selected clip, in catalog
+    /// The color properties of one group for the selected clip, in catalog
     /// order. The swatch twin of [`AppState::param_rows`]: empty when nothing
-    /// is selected or the group owns no colour on this clip, so a title's
-    /// stroke colour arrives with its stroke.
+    /// is selected or the group owns no color on this clip, so a title's
+    /// stroke color arrives with its stroke.
     pub fn param_colors(&self, group: &str) -> Vec<ColorRow> {
         self.param_colors_where(|spec| spec.group == group)
     }
 
-    /// The colour parameters of the effect at `index`, in slot order.
+    /// The color parameters of the effect at `index`, in slot order.
     pub fn effect_param_colors(&self, index: usize) -> Vec<ColorRow> {
         self.param_colors_where(|spec| {
             matches!(spec.param, ClipParam::Effect { effect, .. } if effect as usize == index)
         })
     }
 
-    /// The colour rows of every property `keep` accepts, in catalog order.
+    /// The color rows of every property `keep` accepts, in catalog order.
     fn param_colors_where(&self, keep: impl Fn(&aria_models::ParamSpec) -> bool) -> Vec<ColorRow> {
         let Some(detail) = self.selected.as_ref() else {
             return Vec::new();
@@ -282,12 +282,12 @@ impl AppState {
             .collect()
     }
 
-    /// Set one colour property to `rgba`, through the same keyframe-aware
-    /// write a stepper row uses: a keyframe where the row reads when the colour
+    /// Set one color property to `rgba`, through the same keyframe-aware
+    /// write a stepper row uses: a keyframe where the row reads when the color
     /// is animated, a constant otherwise.
     ///
     /// Inert with nothing selected, on a property this clip does not have, on
-    /// a property that is not a colour, and on the colour already in force.
+    /// a property that is not a color, and on the color already in force.
     pub fn set_param_color(&mut self, param: ClipParam, rgba: [u8; 4]) -> Result<(), EngineError> {
         // A title's fill over characters selected in the Viewer is theirs.
         if self.style_text_run_color(param, rgba)? {

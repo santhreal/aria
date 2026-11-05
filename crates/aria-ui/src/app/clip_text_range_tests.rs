@@ -112,7 +112,7 @@ fn size_tracking_and_fill_style_the_selection_and_read_it_back() {
             .find(|row| row.param == param)
             .map(|row| row.value)
     };
-    let colour = |state: &AppState| {
+    let color = |state: &AppState| {
         state
             .param_colors("text")
             .into_iter()
@@ -120,7 +120,7 @@ fn size_tracking_and_fill_style_the_selection_and_read_it_back() {
             .map(|row| row.value)
     };
     let whole_size = state.param_scalar(size, None).expect("a title has a size");
-    let whole_fill = colour(&state).expect("a title has a fill");
+    let whole_fill = color(&state).expect("a title has a fill");
     let red = [255, 0, 0, 255];
     assert_ne!(whole_fill, red);
 
@@ -132,7 +132,7 @@ fn size_tracking_and_fill_style_the_selection_and_read_it_back() {
     state.set_param_scalar(tracking, None, 12.0).unwrap();
     assert_eq!(row(&state, tracking), Some(12.0));
     state.set_param_color(fill, red).unwrap();
-    assert_eq!(colour(&state), Some(red));
+    assert_eq!(color(&state), Some(red));
 
     let held = style(&state, title);
     assert_eq!(held.runs.len(), 1);
@@ -147,7 +147,7 @@ fn size_tracking_and_fill_style_the_selection_and_read_it_back() {
     // collapses.
     collapse(&mut state);
     assert_eq!(state.param_scalar(size, None), Some(whole_size));
-    assert_eq!(colour(&state), Some(whole_fill));
+    assert_eq!(color(&state), Some(whole_fill));
 }
 
 #[test]

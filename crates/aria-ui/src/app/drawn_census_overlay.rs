@@ -47,9 +47,9 @@ const TRAVEL: [f32; 2] = [60.0, 30.0];
 /// Where a drag on one handle starts, in window pixels.
 ///
 /// A handle is grabbed where it is drawn. That is not decoration: scaling
-/// measures the pointer's distance from the layer's centre, so a corner grabbed
-/// at the centre has no distance to grow from and the whole gesture is a no-op.
-/// A crop or mask press carries no position at all, and the centre is as good a
+/// measures the pointer's distance from the layer's center, so a corner grabbed
+/// at the center has no distance to grow from and the whole gesture is a no-op.
+/// A crop or mask press carries no position at all, and the center is as good a
 /// place as any to start one from. A motion path is pressed where it is drawn,
 /// because a press on a path finds what it edits by where it lands.
 fn grab(state: &AppState, gesture: Gesture) -> [f32; 2] {

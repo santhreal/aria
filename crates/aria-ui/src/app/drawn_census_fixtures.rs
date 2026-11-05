@@ -458,7 +458,7 @@ pub(super) fn proxied_pool_item() -> (AppState, u64) {
 /// the row that takes one off has one to take. Returns the clip on the left,
 /// which is the one that owns the junction.
 ///
-/// A blend needs a neighbour: a lone clip has no junction, and the model is inert
+/// A blend needs a neighbor: a lone clip has no junction, and the model is inert
 /// on a request to blend into nothing.
 pub(super) fn blended_junction() -> (AppState, ClipId) {
     let (mut state, first) = with_clip();
@@ -466,7 +466,7 @@ pub(super) fn blended_junction() -> (AppState, ClipId) {
     (state, first)
 }
 
-/// Place a neighbour against the right edge of `first`, the only clip on the
+/// Place a neighbor against the right edge of `first`, the only clip on the
 /// first lane, and apply the catalog's first blend to the junction between
 /// them, for a test whose state is already open in a drawn window.
 pub(crate) fn blend_right_junction(state: &mut AppState, first: ClipId) {
@@ -663,7 +663,7 @@ pub(super) fn blurred_clip() -> (AppState, ClipId) {
 /// the copy.
 pub(super) fn twin_selected(state: &mut AppState) -> (ClipId, ClipId) {
     let drawn = state.selected_clip().expect("the dressing selects a clip");
-    let (kind, neighbour, blend) = {
+    let (kind, neighbor, blend) = {
         let engine = state.engine().lock();
         let project = engine.project();
         let timeline = project.timeline();
@@ -676,11 +676,11 @@ pub(super) fn twin_selected(state: &mut AppState) -> (ClipId, ClipId) {
             .expect("the drawn clip")
             .timeline
             .end_tick();
-        let neighbour = track
+        let neighbor = track
             .clips()
             .find(|clip| clip.id != drawn && clip.timeline.start.value == end)
             .map(|clip| clip.id);
-        (track.kind, neighbour, project.transition_at(drawn).cloned())
+        (track.kind, neighbor, project.transition_at(drawn).cloned())
     };
     state.add_track(kind, "Twin").expect("a lane for the copy");
     state.sync_from_engine();
@@ -694,7 +694,7 @@ pub(super) fn twin_selected(state: &mut AppState) -> (ClipId, ClipId) {
             .map(|track| track.id)
             .expect("an empty lane of the drawn clip's kind")
     };
-    for clip in neighbour.into_iter().chain([drawn]) {
+    for clip in neighbor.into_iter().chain([drawn]) {
         state.select_clip(clip);
         state
             .duplicate_selection_to_lane(lane.raw())

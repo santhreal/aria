@@ -194,7 +194,7 @@ fn staged() -> Vec<Staged> {
     }
     push(Pick::ToggleReplaceable, a_clip);
     push(Pick::SlotOrder(1), a_slot);
-    push(Pick::ClearSlotLabel, a_labelled_slot);
+    push(Pick::ClearSlotLabel, a_labeled_slot);
     push(Pick::ToggleTextEditable, a_title);
 
     // Text.
@@ -265,7 +265,7 @@ fn staged() -> Vec<Staged> {
         }
     }
 
-    // Transition. A junction needs a neighbour, so the fixture supplies one.
+    // Transition. A junction needs a neighbor, so the fixture supplies one.
     for spec in aria_models::transition_catalog() {
         push(Pick::Transition(spec.id.clone()), a_junction);
     }
@@ -633,7 +633,7 @@ fn a_slot() -> AppState {
     state
 }
 
-fn a_labelled_slot() -> AppState {
+fn a_labeled_slot() -> AppState {
     let mut state = a_slot();
     state
         .set_selected_slot_label("Logo here")
@@ -649,7 +649,7 @@ const COLOR_GROUPS: [(&str, fn() -> AppState); 2] = [
     ("shape", super::inspector::a_shape),
 ];
 
-/// A title wearing the outline, the shadow and the card, so every colour the
+/// A title wearing the outline, the shadow and the card, so every color the
 /// Character panel draws has a row.
 fn a_dressed_title() -> AppState {
     let mut state = a_title();
@@ -733,7 +733,7 @@ fn a_font() -> Option<String> {
 }
 
 /// Two clips abutting on one lane, the left one selected: a transition needs a
-/// junction, and a junction needs a neighbour.
+/// junction, and a junction needs a neighbor.
 fn a_junction() -> AppState {
     let (mut state, clip) = crate::app::fixtures::blended_junction();
     state.select_clip(clip);

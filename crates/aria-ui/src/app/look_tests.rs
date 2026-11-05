@@ -1,4 +1,4 @@
-//! Contracts for the look and grade surface: the eleven colour adjustments,
+//! Contracts for the look and grade surface: the eleven color adjustments,
 //! blend mode, stabilization, denoise, and pitch lock.
 //!
 //! These close the class "a one-shot command that carries every field resets
@@ -193,7 +193,7 @@ fn every_blend_mode_round_trips_through_the_projection() {
 }
 
 /// The fixture is a still, so the engine refuses stabilization on it. The
-/// contract under test is that the UI honours the projected capability instead
+/// contract under test is that the UI honors the projected capability instead
 /// of surfacing a picker the command layer would reject.
 #[test]
 fn stabilize_follows_the_projected_capability() {

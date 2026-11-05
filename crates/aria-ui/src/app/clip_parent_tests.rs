@@ -17,7 +17,7 @@ use crate::app::canvas_overlay::Rect;
 use crate::app::fixtures::{parented_pair, stacked_pair};
 use crate::app::sent_census::Watch;
 
-/// Turn `clip` a quarter and move it right of centre, so its frame differs
+/// Turn `clip` a quarter and move it right of center, so its frame differs
 /// from the canvas on every axis.
 fn turn(state: &mut AppState, clip: ClipId) {
     state

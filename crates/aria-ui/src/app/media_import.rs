@@ -194,7 +194,7 @@ impl AppState {
     }
 
     /// Detach the selected clip from its clip type: the clip keeps its chain
-    /// and its name, and stops taking the type's colour, icon, and handles.
+    /// and its name, and stops taking the type's color, icon, and handles.
     /// Inert with no selection or on a clip that holds no type.
     pub fn detach_selected_clip_type(&mut self) -> Result<(), EngineError> {
         let Some(clip) = self.selected_clip() else {

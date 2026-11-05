@@ -28,7 +28,7 @@
 //! or on a `&ProjectHost` parameter, and where it is reached through a call on
 //! `self` or on one of its fields. One reached through a closure stored in a
 //! registry, a free function taking `&AppState`, or a receiver two fields deep
-//! is not. The behavioural half of the proof is
+//! is not. The behavioral half of the proof is
 //! `shell/panel_view_session_tests.rs`, which holds the mutex on a helper
 //! thread while the window draws, and which does not care how the lock was
 //! reached.

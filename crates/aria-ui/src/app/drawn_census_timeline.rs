@@ -13,8 +13,8 @@
 //! because a gesture asserted in pixels is asserted against a zoom level.
 //!
 //! Every row is driven against its own dressed state: a clip id is read off the
-//! state it is pressed against, and a gesture that trims a neighbour must not
-//! find the neighbour already trimmed by the row before it.
+//! state it is pressed against, and a gesture that trims a neighbor must not
+//! find the neighbor already trimmed by the row before it.
 
 use std::collections::BTreeSet;
 
@@ -50,7 +50,7 @@ const THRESHOLD: i64 = 12;
 
 /// Two clips abutting on one lane, with a blend at the cut between them.
 ///
-/// The second clip is the one dragged: it has a neighbour behind it, so a roll
+/// The second clip is the one dragged: it has a neighbor behind it, so a roll
 /// and a slide have a cut to work with, and open space ahead of it, so a move
 /// lands somewhere. Its tail is trimmed in by [`SLACK`], which is what gives a
 /// slip room to move the take without the model clamping the gesture to nothing.
@@ -439,7 +439,7 @@ fn every_drag_asks_for_the_edit_its_row_claims() {
 }
 
 /// A slip moves the take of the clip and of each clip linked to it by the
-/// time the pointer travelled, and none of the clips. The class this closes:
+/// time the pointer traveled, and none of the clips. The class this closes:
 /// a slip sent the pointer's timeline ticks as each take's own ticks, so the
 /// picture and its sound, at other rates, moved by different times.
 #[test]
@@ -471,7 +471,7 @@ fn a_slip_moves_each_take_it_reaches_by_the_pointers_time_and_no_clip() {
 }
 
 #[test]
-fn a_roll_with_no_neighbour_asks_for_nothing() {
+fn a_roll_with_no_neighbor_asks_for_nothing() {
     // The subject's tail edge has open space behind it. A roll there has no
     // shared cut, and the declared answer is that the gesture does nothing
     // rather than quietly trimming one side.
@@ -600,7 +600,7 @@ fn a_ripple_takes_the_rest_of_the_lane_with_it() {
 
 #[test]
 fn either_edge_of_a_wedge_lengthens_the_window_and_neither_moves_the_cut() {
-    // The window is centred on the junction, so both edges are the same edit in
+    // The window is centered on the junction, so both edges are the same edit in
     // opposite pointer directions. A sign error here reads as a wedge that
     // shrinks when it should grow.
     for index in [7, 8] {

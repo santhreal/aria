@@ -15,7 +15,7 @@
 //! keyframe spacing, bitrate or codec stops this file compiling until someone
 //! states what the request should carry for it.
 //!
-//! What this does not catch: whether the queue honours the request, and whether
+//! What this does not catch: whether the queue honors the request, and whether
 //! the encoder writes what was asked for. Those are `export_queue_tests` and
 //! the render crate's own suite.
 

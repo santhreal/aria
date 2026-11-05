@@ -95,7 +95,7 @@ fn a_picture_moved_off_the_viewer_lands_where_the_button_comes_up(cx: &mut gpui:
             [pose.position_x, pose.position_y]
         })
     };
-    // Off the anchor point at the layer's centre, on the move surface.
+    // Off the anchor point at the layer's center, on the move surface.
     let grab = layer.at([0.35, 0.35]);
     let to = [grab[0] + 25.0, container.y + container.h + 40.0];
     let moved = [

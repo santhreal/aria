@@ -1,6 +1,6 @@
 //! Driving the label palette: every swatch, on every target it is drawn for.
 //!
-//! The palette is two blocks of coloured squares rather than a list of rows, so
+//! The palette is two blocks of colored squares rather than a list of rows, so
 //! the registry declares the write and the panel declares the picture. What is
 //! measured here is the write: press every swatch on the selection and on a pool
 //! row, and report the commands.
@@ -51,7 +51,7 @@ fn aimed(target: LabelTarget) -> (crate::app::AppState, LabelTarget) {
 
 #[test]
 fn every_swatch_writes_a_label() {
-    // A swatch that writes nothing is a coloured square: it draws, it closes the
+    // A swatch that writes nothing is a colored square: it draws, it closes the
     // menu, and the clip keeps whatever label it had.
     for target in LabelTarget::ALL {
         for swatch in labels::swatches() {
@@ -69,9 +69,9 @@ fn every_swatch_writes_a_label() {
 }
 
 #[test]
-fn the_palette_offers_every_colour_and_a_way_out() {
-    // Fail by default on a new colour: the palette is built from
-    // `LabelColor::ALL`, so a colour added to the model appears here without an
+fn the_palette_offers_every_color_and_a_way_out() {
+    // Fail by default on a new color: the palette is built from
+    // `LabelColor::ALL`, so a color added to the model appears here without an
     // edit, and a palette that stopped offering the clear would be a label an
     // operator cannot take off.
     let swatches: Vec<Option<LabelColor>> = labels::swatches().collect();
@@ -140,7 +140,7 @@ fn the_palette_is_drawn_from_the_registry() {
     // palette unless the drawn palette calls the same function over the same
     // list.
     //
-    // Not covered: a swatch drawn with the wrong colour. The picture is the
+    // Not covered: a swatch drawn with the wrong color. The picture is the
     // panel's, and no census can see a fill.
     let drawn = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/panels/context_menu/label.rs"),

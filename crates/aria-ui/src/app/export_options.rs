@@ -179,7 +179,7 @@ pub struct ExportOptions {
     /// Video codec to write. Only a codec this build's encoder offers can be
     /// selected.
     pub codec: VideoCodec,
-    /// Target video bitrate. Only selectable where the encoder honours one.
+    /// Target video bitrate. Only selectable where the encoder honors one.
     pub bitrate: ExportBitrate,
     /// Registered plugin encoder id, or `None` for the platform encoder.
     pub plugin_encoder: Option<String>,
@@ -315,7 +315,7 @@ impl AppState {
     }
 
     /// Ask for `bitrate`. The sheet offers the ladder only where the encoder
-    /// honours one; elsewhere [`ExportSettings::resolved`] refuses it by name.
+    /// honors one; elsewhere [`ExportSettings::resolved`] refuses it by name.
     pub fn set_export_bitrate(&mut self, bitrate: ExportBitrate) {
         self.export_options.bitrate = bitrate;
     }
@@ -381,7 +381,7 @@ impl AppState {
     /// The sheet's ladders resolve to overrides here and nowhere else, so the
     /// job that renders, the blocking export, and the status line all describe
     /// the same request. Resolving it against the project — and refusing a
-    /// codec or bitrate this machine cannot honour — belongs to
+    /// codec or bitrate this machine cannot honor — belongs to
     /// [`ExportSettings::resolved`].
     pub fn export_format(&self) -> ExportFormat {
         let project_rate = self.store.sequence.frame_rate;

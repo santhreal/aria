@@ -1,4 +1,4 @@
-//! The grade's drawn controls: the colour wheel a press holds, and the Color
+//! The grade's drawn controls: the color wheel a press holds, and the Color
 //! panel's open sections.
 //!
 //! One gesture on a Lift, Gamma or Gain wheel is one edit. A press hands over

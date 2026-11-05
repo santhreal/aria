@@ -1,8 +1,8 @@
 //! Path masks drawn and reshaped in the Viewer.
 //!
 //! A path mask's vertices are layer fractions, `0..1` across the clip's quad.
-//! The renderer shifts them by the mask centre and turns them by the mask
-//! rotation about `0.5 + centre` in layer pixels
+//! The renderer shifts them by the mask center and turns them by the mask
+//! rotation about `0.5 + center` in layer pixels
 //! (`aria_shapes::PathRaster::rasterize_mask`). [`PathSpace`] runs that mapping
 //! forward to place a vertex on screen and backward to read the pointer, so a
 //! dot sits where the renderer cuts the picture.
@@ -131,7 +131,7 @@ impl AppState {
     }
 
     /// The space the selected clip's mask path draws in, at the playhead: the
-    /// active path's centre and rotation, or unshifted and unturned for a new
+    /// active path's center and rotation, or unshifted and unturned for a new
     /// path, which is what `Mask::from_path` gives it.
     pub fn mask_path_space(&self) -> Option<PathSpace> {
         if self.mask_path_drawing() {

@@ -13,7 +13,7 @@
 //!
 //! Each pick is pressed against a project that does *not* already hold it. A
 //! picker is idempotent by design — choosing the aspect the project already has
-//! writes no history and sends no command, which is the right behaviour and the
+//! writes no history and sends no command, which is the right behavior and the
 //! wrong measurement — so the dressing moves the project to another member of the
 //! same catalog first. A row is only worth clicking when it is not the
 //! current one.

@@ -71,7 +71,7 @@ pub fn curve_columns(
 /// Points are graph-local `(x, y)` pixels, y down, in either order. A segment
 /// wider than a pixel is cut into one column per pixel of x, each covering the
 /// slice of the segment that crosses it. A column is never narrower than a
-/// pixel, so neighbours overlap rather than meet at a fractional x, where each
+/// pixel, so neighbors overlap rather than meet at a fractional x, where each
 /// would cover the shared pixel by half. A segment narrower than a pixel is one
 /// column centered on it, so an upright lever stands on its keyframe rather
 /// than beside it. Nothing is clamped: the painter's content mask cuts a line
@@ -98,7 +98,7 @@ struct Slice {
 }
 
 /// The slices [`segment_columns`] draws. Half the stroke goes either side of
-/// a slice's range, so a segment meets its neighbour instead of leaving a
+/// a slice's range, so a segment meets its neighbor instead of leaving a
 /// notch at a slope break.
 fn slices(from: (f32, f32), to: (f32, f32)) -> impl Iterator<Item = Slice> {
     let ((x0, y0), (x1, y1)) = if to.0 < from.0 {

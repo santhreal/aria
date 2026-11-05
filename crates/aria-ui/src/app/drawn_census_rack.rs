@@ -10,8 +10,8 @@
 //! gesture on a chain dressed to have something to act on.
 //!
 //! The scalar and vector slots are driven for every slot the effect exposes and
-//! every colour in the palette, not one representative: an effect with two
-//! colours or a vec2 whose y axis was wired to x is exactly the defect this
+//! every color in the palette, not one representative: an effect with two
+//! colors or a vec2 whose y axis was wired to x is exactly the defect this
 //! closes.
 
 use std::collections::BTreeSet;
@@ -490,10 +490,10 @@ fn a_named_draft() -> AppState {
     state
 }
 
-/// The first effect in the catalog that has a colour slot, and which slot.
+/// The first effect in the catalog that has a color slot, and which slot.
 ///
-/// Read out of the model rather than named, so an effect losing its colour or a
-/// new one gaining a second colour changes what is pressed without an edit here.
+/// Read out of the model rather than named, so an effect losing its color or a
+/// new one gaining a second color changes what is pressed without an edit here.
 fn a_color_slot() -> (fn() -> AppState, usize) {
     let slot = effect_with(|id| color_params(id).first().map(|(slot, _)| slot))
         .expect("some effect in the catalog has a color slot")

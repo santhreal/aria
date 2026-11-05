@@ -1,4 +1,4 @@
-//! Driving the markers panel: the add button, a marker's colour swatch, and its
+//! Driving the markers panel: the add button, a marker's color swatch, and its
 //! delete button.
 //!
 //! # Why

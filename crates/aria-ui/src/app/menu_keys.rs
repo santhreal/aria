@@ -2,7 +2,7 @@
 //!
 //! F10, or Alt pressed and released alone, opens File with its first row lit.
 //! While a drop is open, Up and Down walk its rows, Left and Right move to the
-//! neighbouring menu, Home and End jump to the ends, a letter jumps to the next
+//! neighboring menu, Home and End jump to the ends, a letter jumps to the next
 //! row whose label starts with it, Enter or Space runs the lit row, and Escape
 //! closes the drop. Right or Enter on a submenu opens its flyout, which the same
 //! keys then walk; Left or Escape closes it again. A disabled row is lit like
@@ -117,7 +117,7 @@ impl AppState {
                 MenuNav::Left | MenuNav::Close if self.menu_owner.is_some() => self.close_menu(),
                 MenuNav::Left | MenuNav::Close => self.menu_flyout = None,
                 MenuNav::Right if self.menu_owner.is_some() => {}
-                MenuNav::Right => self.open_neighbour(menu, 1),
+                MenuNav::Right => self.open_neighbor(menu, 1),
                 MenuNav::Letter(letter) => {
                     let captions: Vec<&str> = held.iter().map(|row| rows[*row].label).collect();
                     let next = next_starting(&captions, child, letter);
@@ -142,9 +142,9 @@ impl AppState {
             MenuNav::End => self.light_entry(len.checked_sub(1)),
             MenuNav::Right => match lit_sub(self.menu_row) {
                 Some(at) => self.open_flyout_lit(&entries[at], &rows, at),
-                None => self.open_neighbour(menu, 1),
+                None => self.open_neighbor(menu, 1),
             },
-            MenuNav::Left => self.open_neighbour(menu, -1),
+            MenuNav::Left => self.open_neighbor(menu, -1),
             MenuNav::Letter(letter) => {
                 let captions: Vec<&str> =
                     entries.iter().map(|entry| entry.caption(&rows)).collect();
@@ -245,7 +245,7 @@ impl AppState {
     }
 
     /// Open the menu `by` places along the bar from `menu`, wrapping.
-    fn open_neighbour(&mut self, menu: AppMenu, by: isize) {
+    fn open_neighbor(&mut self, menu: AppMenu, by: isize) {
         let all = AppMenu::ALL;
         let at = all.iter().position(|m| *m == menu).unwrap_or(0) as isize;
         let next = (at + by).rem_euclid(all.len() as isize) as usize;

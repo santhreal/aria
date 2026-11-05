@@ -1,7 +1,7 @@
 //! Contracts for the two shipped extension points.
 //!
 //! The class closed here is "a policy lives in one action". A track lock was
-//! honoured by exactly two model actions, and a dropped path's meaning was an
+//! honored by exactly two model actions, and a dropped path's meaning was an
 //! extension test written twice in the shell. Both are now plugin hooks: a
 //! waterfall that may refuse a command before it reaches the engine, and a serial
 //! election that asks the plugins which one owns a file type.
