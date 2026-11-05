@@ -59,7 +59,7 @@ pub use track_automation::{
 /// Where a lane's own sum leaves it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum TrackOutput {
-    /// Straight to the programme mix.
+    /// Straight to the program mix.
     #[default]
     Master,
     /// Into a bus lane, which carries it on to its own output.

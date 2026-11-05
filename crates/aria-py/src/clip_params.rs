@@ -60,7 +60,7 @@ pub(super) fn clip_param(name: &str) -> PyResult<ClipParam> {
 ///
 /// The name resolves through [`clip_param`], so the shape axis keeps no second
 /// id table, and the value's kind comes off the parameter's own registry row
-/// rather than a colour-or-scalar guess made here.
+/// rather than a color-or-scalar guess made here.
 pub(super) fn shape_style_param(
     name: &str,
     value: &Bound<'_, PyAny>,

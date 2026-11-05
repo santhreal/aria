@@ -79,7 +79,7 @@ impl Renderer {
     /// A static title is drawn from its ink box with the effect padding on
     /// every side; an animated one from the ink box alone, as
     /// `raster_size` measures them. A title with no ink
-    /// still has a caret: its empty line, centred where the title sits.
+    /// still has a caret: its empty line, centered where the title sits.
     pub fn layer_carets(
         &mut self,
         layer: &SceneLayer,

@@ -40,7 +40,7 @@ pub const MAX_STROKE: f32 = 32.0;
 /// The smallest and largest text size, in screen pixels.
 pub const TEXT_SIZE_RANGE: [f32; 2] = [6.0, 96.0];
 
-/// The colour a shape is drawn in. The named colours follow the theme.
+/// The color a shape is drawn in. The named colors follow the theme.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayColor {

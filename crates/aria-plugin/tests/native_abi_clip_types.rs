@@ -39,7 +39,7 @@ static SERIAL: Mutex<()> = Mutex::new(());
 const W: u32 = 32;
 const H: u32 = 16;
 
-/// Grey at the `level` field, opaque.
+/// Gray at the `level` field, opaque.
 const METER_FS: &str = "@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(vec3<f32>(param_level()), 1.0);
@@ -54,8 +54,8 @@ fn schema() -> ClipTypeSchema {
     )])
 }
 
-/// Fill the frame with opaque grey at the `level` field.
-fn grey(_host: &Host, input: &CpuFrameIn<'_>, output: &mut CpuFrameOut<'_>) -> Result<(), String> {
+/// Fill the frame with opaque gray at the `level` field.
+fn gray(_host: &Host, input: &CpuFrameIn<'_>, output: &mut CpuFrameOut<'_>) -> Result<(), String> {
     let level = input.scalar("level").ok_or("no level field")?;
     for y in 0..output.height() {
         for x in 0..output.width() {
@@ -72,7 +72,7 @@ impl SdkPlugin for MeterGuest {
         host.define_cpu_clip_type(
             &ClipTypeSpec::new(TYPES[0], "CPU Meter", "", MarkerColor::Green),
             &schema(),
-            grey,
+            gray,
         )?;
         host.define_clip_type(
             &ClipTypeSpec::new(TYPES[1], "WGSL Meter", TYPES[1], MarkerColor::Blue),
@@ -182,7 +182,7 @@ fn native_clip_types_list_their_fields_draw_them_and_leave_on_unmount() {
     let gpu = GpuContext::new_headless_blocking().expect("lavapipe headless GPU");
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(W, H).with_background([0, 0, 0, 255]);
-    // The generator draws over the whole layer: the plate's colour is gone.
+    // The generator draws over the whole layer: the plate's color is gone.
     let plate = RgbaImage::new(W, H, [200, 100, 50, 255].repeat((W * H) as usize));
     let pass = PassInstance::new(pass_id(TYPES[1]).expect("pass id"), vec![0.5]);
     let layer = CompositeLayer::rgba(&plate, LayerPlacement::full_canvas(&config))

@@ -1,4 +1,4 @@
-//! Mixer behaviour: span resolution, gain, pan, fades, and the streaming
+//! Mixer behavior: span resolution, gain, pan, fades, and the streaming
 //! contract the export loop relies on.
 
 use super::*;

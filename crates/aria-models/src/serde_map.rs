@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::Map;
 
 /// Above this entry count the pairs are collected and sorted instead of being
-/// selected in place. A project's maps are effect parameters, colour channels,
+/// selected in place. A project's maps are effect parameters, color channels,
 /// and vector components: single digits. Selection is `n²` comparisons of
 /// borrowed keys against one heap allocation, which is the cheaper trade only
 /// while `n` stays small.

@@ -30,7 +30,7 @@ fn interpolation_follows_its_curves_and_clamps() {
 }
 
 #[test]
-fn vector_and_colour_functions() {
+fn vector_and_color_functions() {
     let cases = [
         ("length([3, 4])", 5.0),
         ("length([1, 1], [4, 5])", 5.0),

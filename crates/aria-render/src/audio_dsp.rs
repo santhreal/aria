@@ -155,7 +155,7 @@ pub(crate) fn ola_aligned_offset(
             energy += a * a;
             i += OLA_CORR_STEP;
         }
-        // Normalised so a loud frame cannot beat a phase-aligned one, with a
+        // Normalized so a loud frame cannot beat a phase-aligned one, with a
         // tiny preference for smaller slides so silence and periodic ties stay
         // nearest the ideal anchor.
         let distance_bias = 1e-5 * (delta.abs() as f32 / OLA_SEARCH as f32);

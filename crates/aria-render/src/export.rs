@@ -86,7 +86,7 @@ impl ExportSettings {
     }
 
     /// The project's output with a chosen [`ExportFormat`] applied, or a
-    /// refusal naming the choice this machine cannot honour.
+    /// refusal naming the choice this machine cannot honor.
     ///
     /// One owner of two rules that used to live in three places — the export
     /// sheet, the CLI's flag parsing, and nowhere at all on the command path:
@@ -409,7 +409,7 @@ fn export_observed_inner(
     observer: ExportObserver<'_>,
     // First timeline frame to render, at `rate`. A ranged export renders from
     // here but writes presentation times from zero, so the file plays from its
-    // own start rather than carrying a timeline offset no player would honour.
+    // own start rather than carrying a timeline offset no player would honor.
     start: i64,
     frames: u64,
     native: bool,
@@ -493,7 +493,7 @@ fn export_observed_inner(
 ///
 /// A ranged export renders from `start` but writes presentation times from
 /// zero, so the file plays from its own start rather than carrying a timeline
-/// offset no player would honour.
+/// offset no player would honor.
 #[derive(Clone, Copy)]
 struct FrameTiming {
     start: i64,

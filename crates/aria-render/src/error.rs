@@ -98,7 +98,7 @@ impl EmptyExport {
     pub const ALL: [Self; 3] = [Self::Sequence, Self::Range, Self::Silence];
 }
 
-/// A choice an export asked for that this machine cannot honour.
+/// A choice an export asked for that this machine cannot honor.
 ///
 /// Raised while resolving an [`aria_core::ExportFormat`], before a staging file
 /// exists. Each variant names the backend it was refused by and what is

@@ -5,7 +5,7 @@
 //!
 //! Defect class closed: a graph or texture that the sdk sends and the host
 //! table drops, misparses, or keeps past unmount. Graph planning and the
-//! runtime's per-pass behaviour are covered by `aria-models` and
+//! runtime's per-pass behavior are covered by `aria-models` and
 //! `aria-compositor`.
 
 #![allow(unsafe_code)]

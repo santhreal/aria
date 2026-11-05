@@ -65,7 +65,7 @@ impl AudioReader for BufferAudioReader {
 /// - Bus 1: Music Submix (gain 0.8, output: Bus 4)
 /// - Bus 2: SFX Submix (gain 1.0, post-fader send to Bus 3, output: Bus 4)
 /// - Bus 3: Reverb Aux Bus (gain 0.7, output: Bus 4)
-/// - Bus 4: Master Bus (gain 1.0, output: None -> programme out)
+/// - Bus 4: Master Bus (gain 1.0, output: None -> program out)
 fn build_multitrack_mixer(
     track_count: usize,
     total_frames: usize,

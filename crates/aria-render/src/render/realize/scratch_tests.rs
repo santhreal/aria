@@ -506,7 +506,7 @@ fn own_context(info: &wgpu::AdapterInfo) -> aria_compositor::GpuContext {
 /// when the scene and the decoded frame need no GPU work. Closes taking the
 /// passthrough when any single `SceneLayer` field, a second layer, a
 /// reference, a non-media source, or the frame format, visible rect, rotation
-/// or colour space asks for composition. A `SceneLayer` field added later
+/// or color space asks for composition. A `SceneLayer` field added later
 /// fails to compile in the predicate. Does not cover a GPU-resident frame or
 /// a nested sequence, which need a device and a project to build.
 #[test]

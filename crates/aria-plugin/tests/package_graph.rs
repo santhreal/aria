@@ -8,7 +8,7 @@
 //! Defect class closed: a graph field, texture, or effect trait that
 //! `plugin.toml` declares and registration drops or reads differently, and a
 //! texture image decoded before its size is checked. Manifest parsing rules
-//! are rows of the package unit tests; graph planning and per-pass behaviour
+//! are rows of the package unit tests; graph planning and per-pass behavior
 //! are covered by `aria-models` and `aria-compositor`.
 
 use std::path::Path;

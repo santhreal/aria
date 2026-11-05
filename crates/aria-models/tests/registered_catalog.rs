@@ -246,8 +246,8 @@ fn every_refusal_rule_rejects_and_leaves_the_catalog_unchanged() {
 }
 
 #[test]
-fn an_inverted_colour_range_is_not_a_refusal() {
-    // Colour components carry no range, so min and max are not read.
+fn an_inverted_color_range_is_not_a_refusal() {
+    // Color components carry no range, so min and max are not read.
     let mut tint = color("tint", [255, 0, 0, 255]);
     tint.min = 1.0;
     tint.max = 0.0;

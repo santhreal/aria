@@ -19,9 +19,9 @@ pub(super) fn add_marker(
     comment: &str,
 ) -> PyResult<Marker> {
     let rate = slf.rate();
-    // An unnamed colour cycles the palette, so consecutive markers a script
+    // An unnamed color cycles the palette, so consecutive markers a script
     // drops in a loop stay distinguishable on the ruler without the script
-    // choosing colours it does not care about.
+    // choosing colors it does not care about.
     let color = match color {
         Some(name) => parse_marker_color(name)?,
         None => MarkerColor::cycle(slf.model().timeline().marker_count()),

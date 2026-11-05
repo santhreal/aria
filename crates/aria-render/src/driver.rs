@@ -75,8 +75,8 @@ pub struct DriverClipInfo {
 /// What a driver program reads while it evaluates.
 ///
 /// Times are sequence seconds. Values are in the model's units: a position
-/// is the anchor's offset from the canvas centre as a fraction of the canvas,
-/// a scale and an opacity are fractions, a rotation is in degrees, a colour
+/// is the anchor's offset from the canvas center as a fraction of the canvas,
+/// a scale and an opacity are fractions, a rotation is in degrees, a color
 /// is four bytes.
 pub trait DriverScope {
     /// The time being evaluated.

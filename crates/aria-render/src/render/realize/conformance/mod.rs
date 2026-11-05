@@ -87,7 +87,7 @@ enum Expect {
     /// derived from the asset itself.
     Coverage { rect: [u32; 4], min: f32 },
     /// Every opaque pixel in `rect` is within `tol` of `rgb`. Pins the ink
-    /// colour of content whose shape is not fixed.
+    /// color of content whose shape is not fixed.
     InkColor {
         rect: [u32; 4],
         rgb: [u8; 3],
@@ -386,7 +386,7 @@ fn animated_text_paints_glyphs_and_its_background_card() {
     scene.layers.push(layer);
     let image = render(&mut renderer, &fx.project, &scene);
 
-    // The card is opaque blue behind yellow glyphs, so both colours must be on
+    // The card is opaque blue behind yellow glyphs, so both colors must be on
     // the canvas: a missing card leaves holes, missing glyphs leave a plain
     // card.
     let mut card = 0usize;

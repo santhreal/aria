@@ -283,7 +283,7 @@ fn trim_past_source_bounds_is_rejected() {
 }
 
 #[test]
-fn trim_into_neighbour_is_rejected() {
+fn trim_into_neighbor_is_rejected() {
     let mut project = Project::new("demo", FPS_24);
     let media_id = project.add_media(sample_media(FPS_24, 1000));
     let v1 = project.add_track(TrackKind::Video, "V1");

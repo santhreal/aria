@@ -75,8 +75,8 @@ fn a_registered_audio_effect_is_listed_and_resolves_until_its_guard_drops() {
 #[test]
 fn every_refusal_rule_rejects_and_lists_nothing() {
     let (_held, held) = register_audio_effect(compressor("test.taken", false)).unwrap();
-    let mut colour = scalar("tint", 0.0, 0.0, 1.0);
-    colour.kind = EffectParamKind::Color;
+    let mut color = scalar("tint", 0.0, 0.0, 1.0);
+    color.kind = EffectParamKind::Color;
     let refusals = [
         ("no namespace", compressor("bare", false)),
         (
@@ -96,7 +96,7 @@ fn every_refusal_rule_rejects_and_lists_nothing() {
         (
             "a color parameter",
             AudioEffectSpec {
-                params: vec![colour],
+                params: vec![color],
                 ..compressor("test.color", false)
             },
         ),

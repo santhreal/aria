@@ -200,11 +200,11 @@ pub struct BusNode {
     pub volume_envelope: Param<f32>,
     /// Sequence-tick pan automation curve.
     pub pan_envelope: Param<f32>,
-    /// Where this lane's own sum goes: another bus, or the programme mix.
+    /// Where this lane's own sum goes: another bus, or the program mix.
     pub output: Option<usize>,
     /// `(bus, level, pre_fader)` for each copy of this lane.
     pub sends: Vec<(usize, f32, bool)>,
-    /// Whether anything this lane carries reaches the programme mix. A lane
+    /// Whether anything this lane carries reaches the program mix. A lane
     /// that does not, such as one behind a muted bus, is skipped by the fold
     /// and meters silence.
     pub live: bool,
@@ -250,7 +250,7 @@ pub struct ExportAudioMixer {
     scratch: Vec<f32>,
     warp_scratch: Vec<f32>,
     /// Per-output-sample window weight for a stretched block, so the overlap-add
-    /// can be normalised at the block's edges.
+    /// can be normalized at the block's edges.
     weight_scratch: Vec<f32>,
     /// Decoded timeline window reused across varispeed shuttle blocks.
     shuttle_scratch: Vec<f32>,
@@ -709,7 +709,7 @@ impl ExportAudioMixer {
     /// through `downstream`.
     fn fold_buses(&mut self, pos: i64, out: &mut [f32]) {
         for i in 0..self.buses.len() {
-            // Nothing a dead lane carries reaches the programme mix, including
+            // Nothing a dead lane carries reaches the program mix, including
             // what a live lane routed into it.
             if !self.buses[i].live {
                 self.peaks[i] = [0.0; 2];

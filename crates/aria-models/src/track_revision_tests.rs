@@ -37,7 +37,7 @@ fn fresh(track: &Track) -> u64 {
         .revision()
 }
 
-/// `lanes` lanes, each named apart and holding `clips` abutting solid-colour
+/// `lanes` lanes, each named apart and holding `clips` abutting solid-color
 /// clips.
 fn timeline(lanes: usize, clips: i64) -> (Timeline, Vec<TrackId>) {
     let rate = Rational::FPS_24;

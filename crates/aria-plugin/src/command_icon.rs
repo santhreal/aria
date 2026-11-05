@@ -3,7 +3,7 @@
 //! An icon is parsed once, when the command is registered, and kept as the SVG
 //! the parser writes back: images and text are dropped, so drawing an icon
 //! reads no file and no font. A host draws the icon as a mask in its own text
-//! colour, so only the icon's shape is kept.
+//! color, so only the icon's shape is kept.
 
 use std::fmt;
 use std::hash::{Hash, Hasher};

@@ -92,7 +92,7 @@ pub struct ResolveOverrides<'a> {
     /// the release commits it.
     pub effect_vec2: Option<(ClipId, usize, usize, [f32; 2])>,
     /// Clear the canvas to transparent black instead of the sequence's
-    /// background colour, so whatever is drawn behind the frame shows where
+    /// background color, so whatever is drawn behind the frame shows where
     /// no layer covers the canvas. The frame stays premultiplied. The
     /// Viewer's transparency grid sets it; export never does.
     pub transparent: bool,

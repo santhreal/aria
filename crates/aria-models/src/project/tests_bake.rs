@@ -438,7 +438,7 @@ fn a_sound_bake_swaps_in_and_restores_whole() {
 }
 
 /// The mapping case for sound. A quarter of a second off the head is 6 ticks of
-/// programme and 250 ticks of the file, and the original has to come back at the
+/// program and 250 ticks of the file, and the original has to come back at the
 /// former: reading the offset as the file's own number would land ten seconds
 /// into the source.
 #[test]

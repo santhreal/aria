@@ -5,7 +5,7 @@
 //! process-wide, and every id here is used by no other test.
 //!
 //! The class this closes: a registration path that adds something without
-//! labelling it, so the Plugins list shows a plugin providing nothing while its
+//! labeling it, so the Plugins list shows a plugin providing nothing while its
 //! command sits in the palette. The plugin below registers one of every
 //! [`ContributionKind::ALL`] through an exhaustive match, so a new kind does not
 //! compile until it is registered here. It does not catch a second, unlabelled

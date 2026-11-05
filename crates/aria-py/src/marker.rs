@@ -12,7 +12,7 @@ use crate::convert::{seconds, time_at};
 use crate::errors::{AriaError, model_err};
 use crate::project::Project;
 
-/// The palette name a script writes, parsed against the enum itself so a colour
+/// The palette name a script writes, parsed against the enum itself so a color
 /// added to the model is nameable here without a second list to update.
 pub fn parse_marker_color(name: &str) -> PyResult<MarkerColor> {
     let lowered = name.to_ascii_lowercase();

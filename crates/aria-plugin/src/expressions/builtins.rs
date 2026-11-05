@@ -1,4 +1,4 @@
-//! Built-in property methods, math, interpolation, colour, random, and noise
+//! Built-in property methods, math, interpolation, color, random, and noise
 //! functions for `aria.expressions`.
 
 use std::f64::consts;
@@ -375,8 +375,8 @@ impl Run<'_, '_> {
                 let rate = optional_number(name, values, 1, self.scope.frame_rate(), pos)?;
                 Ok(Value::Num(frames / rate))
             }
-            "hslToRgb" => colour(name, values, hsl_to_rgb, pos),
-            "rgbToHsl" => colour(name, values, rgb_to_hsl, pos),
+            "hslToRgb" => color(name, values, hsl_to_rgb, pos),
+            "rgbToHsl" => color(name, values, rgb_to_hsl, pos),
             "effect" => Err(format!(
                 "{pos}: effect(\"Name\") reads one parameter: effect(\"Name\")(\"Parameter\")"
             )),
@@ -642,7 +642,7 @@ fn noise_of(value: &Value, pos: Pos) -> Result<Value, String> {
     }
 }
 
-fn colour(
+fn color(
     name: &str,
     values: &[Value],
     convert: fn([f64; 3]) -> [f64; 3],
@@ -709,7 +709,7 @@ fn rgb_to_hsl([red, green, blue]: [f64; 3]) -> [f64; 3] {
     [hue / 6.0, saturation, lightness]
 }
 
-/// SplitMix64's finaliser.
+/// SplitMix64's finalizer.
 pub(super) fn mix(mut z: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);

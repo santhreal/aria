@@ -41,7 +41,7 @@ pub enum FrameSize {
     Canvas,
     /// The canvas scaled down to fit the box, aspect kept, never enlarged.
     Fit { max_width: u32, max_height: u32 },
-    /// Exactly this size: the canvas scaled to fit and centred, the remainder
+    /// Exactly this size: the canvas scaled to fit and centered, the remainder
     /// filled with the background.
     Exact { width: u32, height: u32 },
 }

@@ -770,7 +770,7 @@ where
 /// `aria_sdk::EffectParamKind::flattened_floats` over the parameters before it,
 /// and the host lays the floats out by
 /// `aria_models::EffectParamKind::shader_floats`. A kind the two count
-/// differently moves every later parameter onto its neighbour's floats: the
+/// differently moves every later parameter onto its neighbor's floats: the
 /// SDK counted `Layer` as 0 floats and the host as 1. Both enums are enumerated
 /// through serde, so a kind added to one side only, or counted differently,
 /// fails here. Not caught: a kind both sides count equally but order

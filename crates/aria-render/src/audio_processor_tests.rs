@@ -50,7 +50,7 @@ fn a_caller_built_block_hands_back_its_channels_signals_and_key() {
 }
 
 /// The mixer's table: a constant slot reads as a constant, an automated slot
-/// as its own run of `frames` values, never a neighbour's.
+/// as its own run of `frames` values, never a neighbor's.
 #[test]
 fn the_mixer_table_reads_each_slot_from_its_own_run() {
     let mut left = [0.0; 3];

@@ -1,7 +1,7 @@
 //! Tests for multicam camera groups, angle switching, cut lists, and persistence.
 //!
 //! Defect class: "multicam appears nowhere in the workspace. There is no
-//! multi-angle clip, no angle switching, no synchronised camera group."
+//! multi-angle clip, no angle switching, no synchronized camera group."
 //!
 //! Closed by proving:
 //! - a group is created from several media with sync offsets;
@@ -280,7 +280,7 @@ fn older_project_file_without_multicam_loads_with_empty_groups() {
 /// written out separately in the model and in the resolver. A group whose cut
 /// list named an angle it does not hold would answer one of those questions
 /// differently from another: a media of `None` beside a sync offset read off a
-/// neighbouring camera.
+/// neighboring camera.
 ///
 /// What this does not catch: whether the renderer calls `live_at` at all. The
 /// resolver's own suite covers which frame a cut puts on screen.
@@ -319,7 +319,7 @@ fn every_reader_of_a_live_camera_reads_the_same_angle() {
     }
 
     // A cut naming an angle the group does not hold is invalid, and every
-    // reader falls dead together rather than one of them reading a neighbour.
+    // reader falls dead together rather than one of them reading a neighbor.
     let mut broken =
         MulticamGroup::new("Broken", vec![MulticamAngle::new(m1, 48)]).expect("one angle is valid");
     broken.cuts.push(MulticamCut::new(200, 7));

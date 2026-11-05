@@ -204,7 +204,7 @@ impl TextShadow {
 
 /// Apply a `dict` of style overrides, rejecting the whole call if the result is
 /// not a style the model accepts. Applied to a copy first: a caller that passes
-/// a NaN size and a valid colour gets neither, rather than half the change and
+/// a NaN size and a valid color gets neither, rather than half the change and
 /// an error.
 pub(crate) fn apply_text_style(style: &mut TextStyle, dict: &Bound<'_, PyDict>) -> PyResult<()> {
     let mut candidate = style.clone();

@@ -199,7 +199,7 @@ fn every_shape_a_script_can_name_reaches_the_shape_it_named() {
 }
 
 #[test]
-fn a_descriptor_carries_the_size_and_colour_it_was_given() {
+fn a_descriptor_carries_the_size_and_color_it_was_given() {
     with_aria(|py, _| {
         let descriptor = Bound::new(
             py,
@@ -376,50 +376,60 @@ assert [c.text for c in t.clips] == ['first', 'second']
 
 #[test]
 fn param_coercion_rejects_nan_and_inf() {
-    let msg_nan = refused(c"
+    let msg_nan = refused(
+        c"
 p = aria.Project('test', fps=30)
 t = p.add_track('text')
 c = t.add(aria.Text('hello'), 0.0, 1.0)
 c.animate(scale=float('nan'))
-");
+",
+    );
     assert!(msg_nan.starts_with("ValueError:"));
 
-    let msg_inf = refused(c"
+    let msg_inf = refused(
+        c"
 p = aria.Project('test', fps=30)
 t = p.add_track('text')
 c = t.add(aria.Text('hello'), 0.0, 1.0)
 c.animate(position=(1.0, float('inf')))
-");
+",
+    );
     assert!(msg_inf.starts_with("ValueError:"));
 }
 
 #[test]
 fn set_style_typo_key_is_refused_with_key_name() {
-    let message = refused(c"
+    let message = refused(
+        c"
 p = aria.Project('test', fps=30)
 t = p.add_track('text')
 c = t.add(aria.Text('hello'), 0.0, 1.0)
 c.set_style(colr='#ffffff')
-");
+",
+    );
     assert!(message.starts_with("ValueError:"));
     assert!(message.contains("colr"));
 }
 
 #[test]
 fn speed_range_validation() {
-    let msg_low = refused(c"
+    let msg_low = refused(
+        c"
 p = aria.Project('test', fps=30)
 t = p.add_track('text')
 c = t.add(aria.Text('hello'), 0.0, 1.0)
 c.set_speed(0.01)
-");
+",
+    );
     assert!(msg_low.starts_with("ValueError:"));
 
-    let msg_high = refused(c"
+    let msg_high = refused(
+        c"
 p = aria.Project('test', fps=30)
 t = p.add_track('text')
 c = t.add(aria.Text('hello'), 0.0, 1.0)
 c.set_speed(200.0)
-");
+",
+    );
     assert!(msg_high.starts_with("ValueError:"));
 }

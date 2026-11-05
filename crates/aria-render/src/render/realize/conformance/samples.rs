@@ -34,10 +34,10 @@ const VIDEO_SIZE: [u32; 2] = [320, 192];
 /// The number of frames [`VIDEO_CLIP`] holds.
 const VIDEO_FRAMES: i64 = 2;
 
-/// The colour [`VIDEO_CLIP`] is filled with.
+/// The color [`VIDEO_CLIP`] is filled with.
 const VIDEO_FILL: [u8; 4] = [40, 80, 160, 255];
 
-/// Minimal Lottie: 100×100, an 80×80 red rectangle centred on a transparent
+/// Minimal Lottie: 100×100, an 80×80 red rectangle centered on a transparent
 /// field, so both the ink and the hole around it are known.
 const LOTTIE_RED_RECT: &str = r#"{
   "v": "5.7.0", "fr": 30, "ip": 0, "op": 60, "w": 100, "h": 100,
@@ -139,7 +139,7 @@ fn write_solid_png(path: &Path, width: u32, height: u32, rgba: [u8; 4]) {
 // Samples
 // ---------------------------------------------------------------------------
 
-/// A centred layer with no look attached: the neutral carrier every sample
+/// A centered layer with no look attached: the neutral carrier every sample
 /// varies from.
 pub(super) fn placed(source: LayerSource, size: SizeSpec) -> SceneLayer {
     SceneLayer {
@@ -166,15 +166,15 @@ pub(super) fn full_canvas(source: LayerSource) -> SceneLayer {
     placed(source, SizeSpec::Fixed([W as f32, H as f32]))
 }
 
-/// A 32 px quad centred on the canvas, leaving a 16 px border to probe.
+/// A 32 px quad centered on the canvas, leaving a 16 px border to probe.
 fn quad(source: LayerSource) -> SceneLayer {
     placed(source, SizeSpec::Fixed([32.0, 32.0]))
 }
 
 pub(super) const CENTER: [u32; 2] = [W / 2, H / 2];
-/// A corner square well outside a 32 px centred quad.
+/// A corner square well outside a 32 px centered quad.
 const OUTSIDE: [u32; 4] = [0, 0, 7, 7];
-/// The centred 32 px quad's own footprint.
+/// The centered 32 px quad's own footprint.
 const QUAD_RECT: [u32; 4] = [W / 2 - 15, H / 2 - 15, W / 2 + 14, H / 2 + 14];
 
 /// The text every text sample shapes, and the style it shapes with.
@@ -304,7 +304,7 @@ pub(super) fn topologies(fx: &Fixtures, renderer: &mut Renderer) -> Vec<Topology
             layer: SceneLayer {
                 effects: vec![ResolvedPass::new(
                     "color_overlay",
-                    // Catalog order: colour rgba, offset xy, amount.
+                    // Catalog order: color rgba, offset xy, amount.
                     vec![0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
                 )],
                 ..full_canvas(LayerSource::CanvasPass)
@@ -496,7 +496,7 @@ fn text_topology(renderer: &mut Renderer) -> Topology {
     }
 }
 
-/// The canvas rect a `width`×`height` bitmap centred on the canvas occupies,
+/// The canvas rect a `width`×`height` bitmap centered on the canvas occupies,
 /// inset by a pixel so bilinear edge softening is not read as missing ink.
 fn centered_rect(width: u32, height: u32) -> [u32; 4] {
     let x0 = (W - width) / 2 + 1;

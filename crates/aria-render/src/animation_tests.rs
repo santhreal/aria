@@ -1,4 +1,4 @@
-//! Easing-curve and animation-window behaviour for `animation.rs`.
+//! Easing-curve and animation-window behavior for `animation.rs`.
 
 use super::*;
 use aria_core::Rational;

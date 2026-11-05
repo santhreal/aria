@@ -544,7 +544,7 @@ impl ContextMenuRequested {
         }
     }
 
-    /// Add a row labelled `label` that runs `run` when clicked.
+    /// Add a row labeled `label` that runs `run` when clicked.
     pub fn add(&mut self, label: impl Into<String>, run: impl Fn() + Send + Sync + 'static) {
         self.entries.push(MenuEntry {
             label: label.into(),

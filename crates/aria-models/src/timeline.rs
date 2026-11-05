@@ -111,7 +111,7 @@ pub struct Timeline {
     /// it load on timecode, and a timecode sequence saves without it.
     #[serde(default, skip_serializing_if = "TimeDisplay::is_default")]
     time_display: TimeDisplay,
-    /// The master insert chain: audio effects run over the programme mix, in
+    /// The master insert chain: audio effects run over the program mix, in
     /// order, before the output clamp. Keyframes are sequence ticks. Absent
     /// from saves while empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

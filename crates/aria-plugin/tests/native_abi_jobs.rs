@@ -183,7 +183,7 @@ fn bound(guest: Guest) -> PluginRuntime<Guest> {
     runtime
 }
 
-/// The snapshot of a job labelled `label` once `done` holds for it.
+/// The snapshot of a job labeled `label` once `done` holds for it.
 fn wait_for(manager: &JobManager, label: &str, done: impl Fn(&JobSnapshot) -> bool) -> JobSnapshot {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {

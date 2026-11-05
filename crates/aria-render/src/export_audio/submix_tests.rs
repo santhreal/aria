@@ -270,7 +270,7 @@ fn a_span_is_summed_into_its_own_lanes_bus() {
 /// everything routed into it and nothing that merely sits beside it.
 ///
 /// Two lanes into one bus, each at a different level and one of them faded, so a
-/// meter that read the master, its neighbour, or the pre-fader copy reports a
+/// meter that read the master, its neighbor, or the pre-fader copy reports a
 /// different number for at least one lane.
 #[test]
 fn each_lanes_meter_reads_its_own_post_fader_level() {
@@ -406,7 +406,7 @@ fn lane_and_master_pan_mute_and_automation_envelopes_shape_the_mix_and_meters() 
     assert!(a1_peak[1].abs() < 1e-5);
 
     // Switching to Read plays the envelopes (0.25 gain, +1.0 full right pan),
-    // and muting the master silences the programme mix and master meter while
+    // and muting the master silences the program mix and master meter while
     // leaving the channel strip's own post-fader meter live.
     project
         .timeline_mut()

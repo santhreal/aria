@@ -11,7 +11,7 @@ use crate::audio_processor::{AudioBlock, AudioProcessor};
 pub(super) const LIMITER_LOOKAHEAD: u32 = 240;
 
 /// The compressor's static curve: the output level for input level `x`, all
-/// in decibels, with a soft knee `knee` dB wide centred on the threshold.
+/// in decibels, with a soft knee `knee` dB wide centered on the threshold.
 fn curve(x: f32, threshold: f32, ratio: f32, knee: f32) -> f32 {
     let over = x - threshold;
     if knee > 0.0 && 2.0 * over.abs() <= knee {

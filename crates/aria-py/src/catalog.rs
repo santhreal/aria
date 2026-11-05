@@ -1,4 +1,4 @@
-//! Effect, transition, sticker, animation, speed-ramp, and marker-colour
+//! Effect, transition, sticker, animation, speed-ramp, and marker-color
 //! catalog introspection.
 
 use aria_models::{

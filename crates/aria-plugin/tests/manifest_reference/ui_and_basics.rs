@@ -451,21 +451,21 @@ fn clip_types_drivers_and_viewer_overlays_docs_and_source_links_match_registries
         "`CLIP_TYPE_NAME_MAX_BYTES` ({})",
         aria_plugin::CLIP_TYPE_NAME_MAX_BYTES
     )));
-    let doc_colours = listed_after(&clip_types_doc, "`aria_sdk::MarkerColor` is ", ", the");
-    let sdk_colours = extract_enum_variants(&clip_types_sdk_src, "MarkerColor");
+    let doc_colors = listed_after(&clip_types_doc, "`aria_sdk::MarkerColor` is ", ", the");
+    let sdk_colors = extract_enum_variants(&clip_types_sdk_src, "MarkerColor");
     assert_key_parity(
         "docs/plugins/clip-types.md MarkerColor variants",
-        &sdk_colours,
-        &doc_colours,
+        &sdk_colors,
+        &doc_colors,
     );
-    let model_colours: Vec<String> = aria_plugin::MarkerColor::ALL
+    let model_colors: Vec<String> = aria_plugin::MarkerColor::ALL
         .iter()
         .map(|c| format!("{c:?}"))
         .collect();
     assert_key_parity(
         "aria_sdk::MarkerColor against aria_plugin::MarkerColor::ALL",
-        &model_colours,
-        &sdk_colours,
+        &model_colors,
+        &sdk_colors,
     );
 
     // 3. `docs/plugins/drivers.md`: DriverScope trait methods and no banned `refused` verb.

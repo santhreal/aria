@@ -24,7 +24,7 @@ const FPS_24: Rational = Rational::FPS_24;
 const SIZE: (u32, u32) = (64, 36);
 const FRAMES: i64 = 48;
 
-/// Reads a one-byte file as a solid grey clip of [`FRAMES`] frames whose luma
+/// Reads a one-byte file as a solid gray clip of [`FRAMES`] frames whose luma
 /// is that byte. With `panic_in_frames`, decoding a frame panics.
 struct Solid {
     panic_in_frames: &'static AtomicBool,
@@ -176,8 +176,8 @@ fn placed(path: &Path) -> Project {
     project
 }
 
-fn grey(y: u8) -> u8 {
-    // Limited-range luma to full-range grey.
+fn gray(y: u8) -> u8 {
+    // Limited-range luma to full-range gray.
     ((f32::from(y) - 16.0) * 255.0 / 219.0)
         .round()
         .clamp(0.0, 255.0) as u8
@@ -219,7 +219,7 @@ fn a_mounted_decoder_imports_and_renders_its_files_until_unmounted() {
                     .render_frame(project, RationalTime::new(5, FPS_24))
                     .expect("renders the plugin's frame");
                 let [r, g, b, a] = image.pixel(image.width / 2, image.height / 2);
-                let want = grey(*y);
+                let want = gray(*y);
                 for (channel, got) in [("r", r), ("g", g), ("b", b)] {
                     assert!(
                         got.abs_diff(want) <= 4,

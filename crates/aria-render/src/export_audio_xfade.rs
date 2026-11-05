@@ -1,7 +1,7 @@
 //! Audio crossfades at cuts.
 //!
 //! A [`Transition`](aria_models::Transition) on an audio lane stores an
-//! [`AudioTransition`] id. Its window is `duration` ticks centred on the cut.
+//! [`AudioTransition`] id. Its window is `duration` ticks centered on the cut.
 //! Across that window the outgoing span plays past the cut into its source
 //! tail and ramps out, and the incoming span starts early from its source head
 //! and ramps in, both on the transition's curve. The ramp replaces the clip's

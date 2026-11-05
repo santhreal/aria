@@ -42,7 +42,7 @@ fn statements_and_operators_follow_javascript() {
 
 #[test]
 fn values_convert_to_pixels_and_percent_at_the_model_boundary() {
-    // Position: the anchor's offset from the canvas centre as a fraction,
+    // Position: the anchor's offset from the canvas center as a fraction,
     // read as pixels from the top-left corner.
     let mut position = scope(ClipParam::Position, ParamValue::Vec2([0.25, -0.5]));
     assert_eq!(
@@ -85,19 +85,19 @@ fn values_convert_to_pixels_and_percent_at_the_model_boundary() {
         Ok(ParamValue::Vec2([0.75, 0.5]))
     );
 
-    // Colours are four channels from 0 to 1; out-of-range channels clamp and
+    // Colors are four channels from 0 to 1; out-of-range channels clamp and
     // a missing alpha is opaque.
-    let mut colour = scope(ClipParam::Rotation, ParamValue::Color([255, 0, 51, 255]));
+    let mut color = scope(ClipParam::Rotation, ParamValue::Color([255, 0, 51, 255]));
     assert_eq!(
-        run("value[2] == 0.2 ? value : [0, 0, 0, 0]", &mut colour),
+        run("value[2] == 0.2 ? value : [0, 0, 0, 0]", &mut color),
         Ok(ParamValue::Color([255, 0, 51, 255]))
     );
     assert_eq!(
-        run("[0, 1, 0]", &mut colour),
+        run("[0, 1, 0]", &mut color),
         Ok(ParamValue::Color([0, 255, 0, 255]))
     );
     assert_eq!(
-        run("[2, -1, 0.5, 0.5]", &mut colour),
+        run("[2, -1, 0.5, 0.5]", &mut color),
         Ok(ParamValue::Color([255, 0, 128, 128]))
     );
     let mut crop = scope(ClipParam::Crop, ParamValue::Rect([0.0, 0.0, 1.0, 1.0]));

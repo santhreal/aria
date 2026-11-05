@@ -9,7 +9,7 @@
 //!
 //! A clip's sound runs through the clip's chain, then its volume, fades and
 //! pan. A lane's sum runs through the lane's chain before its pre-fader sends
-//! and its fader. The programme mix runs through the master chain before the
+//! and its fader. The program mix runs through the master chain before the
 //! final clamp. A sidechain key is the key lane's sound after its own chain
 //! and before its fader.
 //!

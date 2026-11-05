@@ -108,40 +108,40 @@ fn a_sequence_frame_shows_the_sequence_asked_for_whichever_is_open() {
     let blue = solid(&mut project, lane, [0, 0, 255, 255], 0);
     project.set_active_sequence(None).expect("opens the root");
 
-    let centre = |request: FrameRequest, project: &Project| {
+    let center = |request: FrameRequest, project: &Project| {
         host.frame(project, rt(1), &request)
             .expect("a frame")
             .pixel(960, 540)
     };
     let root = [127, 128, 0, 255];
     let nested = [0, 0, 255, 255];
-    assert_near(centre(FrameRequest::open(), &project), root, "open root");
-    assert_near(centre(FrameRequest::sequence(None), &project), root, "root");
+    assert_near(center(FrameRequest::open(), &project), root, "open root");
+    assert_near(center(FrameRequest::sequence(None), &project), root, "root");
     assert_near(
-        centre(FrameRequest::sequence(Some(nest)), &project),
+        center(FrameRequest::sequence(Some(nest)), &project),
         nested,
         "nested while the root is open",
     );
     assert_near(
-        centre(FrameRequest::clip(blue), &project),
+        center(FrameRequest::clip(blue), &project),
         nested,
         "a nested clip while the root is open",
     );
 
     project.set_active_sequence(Some(nest)).expect("opens");
-    assert_near(centre(FrameRequest::open(), &project), nested, "open nest");
+    assert_near(center(FrameRequest::open(), &project), nested, "open nest");
     assert_near(
-        centre(FrameRequest::clip(blue), &project),
+        center(FrameRequest::clip(blue), &project),
         nested,
         "a clip of the open nest",
     );
     assert_near(
-        centre(FrameRequest::clip(red), &project),
+        center(FrameRequest::clip(red), &project),
         [255, 0, 0, 255],
         "a root clip while the nest is open",
     );
     assert_near(
-        centre(FrameRequest::sequence(None), &project),
+        center(FrameRequest::sequence(None), &project),
         root,
         "root while the nest is open",
     );
@@ -193,23 +193,23 @@ fn a_clip_in_a_transition_is_drawn_without_the_other_side() {
     project
         .add_transition(red, "crossfade")
         .expect("a crossfade");
-    let centre = |request: FrameRequest| {
+    let center = |request: FrameRequest| {
         host.frame(&project, rt(24), &request)
             .expect("a frame")
             .pixel(960, 540)
     };
     assert_near(
-        centre(FrameRequest::open()),
+        center(FrameRequest::open()),
         [128, 0, 128, 255],
         "the blend",
     );
     assert_near(
-        centre(FrameRequest::clip(red)),
+        center(FrameRequest::clip(red)),
         [255, 0, 0, 255],
         "outgoing alone",
     );
     assert_near(
-        centre(FrameRequest::clip(blue)),
+        center(FrameRequest::clip(blue)),
         [0, 0, 255, 255],
         "incoming alone",
     );
@@ -234,19 +234,19 @@ fn a_clip_in_a_track_matte_is_drawn_without_the_other_layer() {
             }),
         )
         .expect("a matte");
-    let centre = |request: FrameRequest| {
+    let center = |request: FrameRequest| {
         host.frame(&project, rt(1), &request)
             .expect("a frame")
             .pixel(960, 540)
     };
-    assert_near(centre(FrameRequest::open()), [0, 0, 0, 255], "red cut away");
+    assert_near(center(FrameRequest::open()), [0, 0, 0, 255], "red cut away");
     assert_near(
-        centre(FrameRequest::clip(red)),
+        center(FrameRequest::clip(red)),
         [255, 0, 0, 255],
         "red unmatted",
     );
     assert_near(
-        centre(FrameRequest::clip(stencil)),
+        center(FrameRequest::clip(stencil)),
         [0, 0, 255, 255],
         "the stencil",
     );

@@ -46,11 +46,11 @@ impl Project {
             Some(color) => rgb_of(parse_color(color)?),
             None => [0, 0, 0],
         };
-        model
-            .timeline_mut()
-            .set_canvas(CanvasSettings { aspect, background,
-    resolution: None,
-});
+        model.timeline_mut().set_canvas(CanvasSettings {
+            aspect,
+            background,
+            resolution: None,
+        });
         Ok(Self {
             model,
             renderer: None,
@@ -102,9 +102,7 @@ impl Project {
 
     fn remove_media(mut slf: PyRefMut<'_, Self>, py: Python, media: &Media) -> PyResult<()> {
         if media.project().bind(py).as_ptr() != slf.as_ptr() {
-            return Err(AriaError::new_err(
-                "media belongs to a different project",
-            ));
+            return Err(AriaError::new_err("media belongs to a different project"));
         }
         slf.model.remove_media(media.id()).map_err(model_err)?;
         Ok(())
@@ -199,11 +197,11 @@ impl Project {
     fn set_background(&mut self, color: &Bound<'_, PyAny>) -> PyResult<()> {
         let aspect = self.model.timeline().canvas().aspect;
         let background = rgb_of(parse_color(color)?);
-        self.model
-            .timeline_mut()
-            .set_canvas(CanvasSettings { aspect, background,
-    resolution: None,
-});
+        self.model.timeline_mut().set_canvas(CanvasSettings {
+            aspect,
+            background,
+            resolution: None,
+        });
         Ok(())
     }
 
@@ -256,7 +254,7 @@ impl Project {
         self.model.timeline().frame_rate.as_f64()
     }
 
-    /// Drop a marker on the ruler at `t` seconds. Without a colour the palette
+    /// Drop a marker on the ruler at `t` seconds. Without a color the palette
     /// cycles, so markers added in a loop stay distinguishable.
     #[pyo3(signature = (t, name = "", color = None, comment = ""))]
     fn add_marker(

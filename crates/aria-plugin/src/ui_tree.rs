@@ -29,7 +29,7 @@ pub const MAX_IMAGE_SIDE: u32 = 2048;
 /// All the pixel bytes in a tree.
 pub const MAX_TREE_IMAGE_BYTES: usize = 64 * 1024 * 1024;
 
-/// The colour a line of text is drawn in.
+/// The color a line of text is drawn in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tone {

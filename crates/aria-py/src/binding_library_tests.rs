@@ -99,7 +99,7 @@ fn code(body: &str) -> std::ffi::CString {
 // --- markers -------------------------------------------------------------
 
 #[test]
-fn a_marker_a_script_drops_keeps_the_time_name_colour_and_note_it_was_given() {
+fn a_marker_a_script_drops_keeps_the_time_name_color_and_note_it_was_given() {
     let (time, name, color, comment, count) = script(
         c"p = aria.Project('library', fps = 30)
 m = p.add_marker(1.5, 'beat', color = 'red', comment = 'chorus starts')
@@ -153,7 +153,7 @@ a.time = 3.0
 }
 
 #[test]
-fn an_unnamed_colour_cycles_the_palette() {
+fn an_unnamed_color_cycles_the_palette() {
     let colors = script(
         c"p = aria.Project('library', fps = 30)
 for i in range(10):
@@ -176,7 +176,7 @@ for i in range(10):
 }
 
 #[test]
-fn every_palette_colour_is_nameable_from_a_script() {
+fn every_palette_color_is_nameable_from_a_script() {
     for color in MarkerColor::ALL {
         let source = std::ffi::CString::new(format!(
             "p = aria.Project('library', fps = 30)\nm = p.add_marker(0.0, 'x', color = {:?})\n",
@@ -197,7 +197,7 @@ fn every_palette_colour_is_nameable_from_a_script() {
 }
 
 #[test]
-fn an_unknown_marker_colour_names_the_palette_it_could_have_used() {
+fn an_unknown_marker_color_names_the_palette_it_could_have_used() {
     let message = refused(
         c"p = aria.Project('library', fps = 30)
 p.add_marker(0.0, 'x', color = 'chartreuse')

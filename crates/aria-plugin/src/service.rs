@@ -31,7 +31,7 @@ pub trait EffectService: Service {
 
     /// Draw the effect `id` on `input`, a straight-alpha image, and return the
     /// result at the same size. `params` are the effect's parameters flattened
-    /// in catalog order: a colour as four floats in 0..1, a vec2 as two. An id
+    /// in catalog order: a color as four floats in 0..1, a vec2 as two. An id
     /// no pass renders is an error.
     fn render_effect(
         &self,

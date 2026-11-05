@@ -103,7 +103,7 @@ fn wait_for(manager: &JobManager, id: JobId, done: impl Fn(&JobSnapshot) -> bool
 }
 
 #[test]
-fn a_plugin_job_is_labelled_reports_progress_and_ends_on_cancel() {
+fn a_plugin_job_is_labeled_reports_progress_and_ends_on_cancel() {
     let (ctx, manager, _held) = host();
     let plugin = Starter::new("test.jobs.cancel", Work::UntilCancelled);
     ctx.mount(&plugin).expect("mounts");
