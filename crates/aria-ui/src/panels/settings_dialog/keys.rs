@@ -175,8 +175,9 @@ fn binding_row(
             ),
         );
     }
+    // One control tall: the Clear every row reserves sets the row's height,
+    // and no padding stands above or below it.
     super::widgets::row_plate(control, theme, fade, armed)
-        .py(px(Theme::SPACE_XS))
         .child(
             div()
                 .flex()

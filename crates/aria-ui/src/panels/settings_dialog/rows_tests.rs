@@ -565,6 +565,53 @@ fn a_settings_list_row_stands_on_the_section_edge_and_shows_clear_for_the_pointe
     );
 }
 
+/// WHY: Each Keyboard Shortcuts row padded its one control-tall line by
+/// `SPACE_XS` above and below, so the list stood at a 36 px pitch beside the
+/// pickers' 26, where 28 holds a row and its Clear.
+///
+/// Reads the shortcuts listed under `Shuttle` as the filter: each row's name
+/// stands one control height and the section's gap below the row before it.
+/// Not covered: a row asking Move or Keep, which draws two lines, and the
+/// whole list, which draws the keyboard image above the rows.
+#[gpui::test]
+fn the_shortcut_rows_stand_one_control_apart(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "settings-key-pitch");
+    let card = opened_on(&state, visual, "Shuttle");
+    let labels: Vec<String> = visual.read(|app| {
+        let listing = state
+            .read(app)
+            .listed_binding_rows()
+            .expect("`Shuttle` lists the shuttle bindings");
+        listing.rows.into_iter().map(|(_, label)| label).collect()
+    });
+    assert!(labels.len() >= 3, "`Shuttle` lists {labels:?}");
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let mut tops: Vec<f32> = runs
+        .iter()
+        .filter(|run| {
+            card.contains(&run.bounds.center())
+                && labels
+                    .iter()
+                    .any(|label| label.as_str() == run.text.as_ref())
+        })
+        .map(|run| f32::from(run.bounds.top()))
+        .collect();
+    tops.sort_by(f32::total_cmp);
+    assert_eq!(
+        tops.len(),
+        labels.len(),
+        "every listed row draws its name once"
+    );
+    let pitch = Theme::CONTROL_HEIGHT + Theme::SPACE_XS;
+    for pair in tops.windows(2) {
+        assert!(
+            ((pair[1] - pair[0]) - pitch).abs() < EPS,
+            "shortcut rows stand {} px apart, not one control and the gap, {pitch} px: {tops:?}",
+            pair[1] - pair[0]
+        );
+    }
+}
+
 /// WHY: Each Workspaces row drew its pane sizes twice, as the line under its
 /// name and again at its right edge, so the list read every number twice.
 ///

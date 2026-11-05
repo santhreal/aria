@@ -824,6 +824,7 @@ Notes for the latest release. For previous releases, see the
 - A selected row, rail tab or tile draws a stronger plate than a row under the pointer in both the light and dark looks.
 - The Text tab, the Character panel and an effect's Font parameter list every installed family in one scrolling list that opens on the family in use, instead of a window of nine families with Next font and Previous font buttons or four font chips.
 - The Speed tab's ramp graph draws the curve as a line over a shaded area instead of a row of bars.
+- Settings > Keyboard Shortcuts draws each shortcut on a shorter row, so more of the list fits on screen.
 
 ### Fixed
 
