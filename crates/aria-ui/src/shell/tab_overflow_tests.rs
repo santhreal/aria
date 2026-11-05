@@ -14,9 +14,11 @@
 //! inside the frame and read its title's first three letters and an ellipsis,
 //! or its whole title, end before the row's controls, and the active tab's
 //! close must be whole or gone; a tab whose title is cut must stand as wide as
-//! any other in the row but one held at its least width, so a row short of
-//! room cuts its longest titles first and a short title stays whole; the
-//! active tab must be drawn; and the drawn tabs and the
+//! any other in the row but the front one and one held at its least width, so
+//! a row short of room cuts its longest titles first and a short title stays
+//! whole; the front tab's title is cut only when the row has no room for it
+//! whole beside the others at their least widths; the active tab must be
+//! drawn; and the drawn tabs and the
 //! overflow menu's rows must hold the frame's tabs once each. The reference
 //! case, the Editing layout's left frame with five panels at 320 px and
 //! 160 px, is pressed through: the control opens the menu, and a row picked
@@ -147,23 +149,28 @@ fn check_row(
             );
         }
     }
-    // Short of room, the widest tabs narrow first: a cut title stands on a tab
-    // as wide as any other in the row, but one held at its least width.
+    // Short of room, the front tab keeps the room the others leave at their
+    // least widths, and the others' widest tabs narrow first: a cut title
+    // stands on a tab as wide as any other in the row, but the front one and
+    // one held at its least width.
     let (pad, gap) = if f32::from(frame.size.width) < super::DOCK_TAB_COMPACT_W {
         (crate::theme::Theme::SPACE_XS, 0.0)
     } else {
         (crate::theme::Theme::SPACE_SM, crate::theme::Theme::SPACE_XS)
     };
-    let least: Vec<f32> = visual.update(|_, cx| {
+    let (least, whole): (Vec<f32>, Vec<f32>) = visual.update(|_, cx| {
         let cx: &gpui::App = cx;
         let font = super::tab_fit::tab_font(&crate::theme::Theme::of(cx));
         sized
             .iter()
             .map(|&(panel, ..)| {
                 let title = state.read(cx).dock_panel_title(panel);
-                super::tab_fit::least_width(title, pad, gap, &font, cx)
+                (
+                    super::tab_fit::least_width(title, pad, gap, &font, cx),
+                    super::tab_fit::whole_width(title, pad, gap, &font, cx),
+                )
             })
-            .collect()
+            .unzip()
     });
     for &(cut, narrow, short) in &sized {
         if !short {
@@ -171,10 +178,25 @@ fn check_row(
         }
         for (&(panel, width, _), &floor) in sized.iter().zip(&least) {
             assert!(
-                width <= narrow + EPS || (width - floor).abs() <= EPS,
+                panel == active || width <= narrow + EPS || (width - floor).abs() <= EPS,
                 "{what}: the {cut} tab is cut to {narrow} px beside the {panel} tab at {width} px"
             );
         }
+    }
+    // A cut front title means the row had no room for it whole beside the
+    // others at their least widths.
+    if let Some(front) = sized.iter().position(|&(panel, ..)| panel == active)
+        && sized[front].2
+    {
+        let used: f32 = sized.iter().map(|&(_, width, _)| width).sum();
+        let others: f32 = least.iter().sum::<f32>() - least[front];
+        assert!(
+            whole[front] + others > used - EPS,
+            "{what}: the front {active} tab is cut to {} px in a row drawing {used} px, \
+             with room for its whole {} px beside the others' least {others} px",
+            sized[front].1,
+            whole[front]
+        );
     }
     assert!(
         drawn.contains(&active),

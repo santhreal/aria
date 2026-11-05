@@ -74,11 +74,12 @@ impl Shell {
             .map(|(&panel, _)| panel)
             .collect();
         // Short of room for the drawn tabs whole, every close gives up its
-        // width before a title gives up a letter, and then the widest tabs
-        // narrow to one shared width, so a short title stays whole while a
-        // longer one takes the ellipsis. Shrinking in proportion, an active
-        // close would stay a sliver and every title would lose its last
-        // letters.
+        // width before a title gives up a letter. The front tab keeps the room
+        // the others leave at their least widths, so the panel in view reads
+        // its title, and the others' widest tabs narrow to one shared width,
+        // so a short title stays whole while a longer one takes the ellipsis.
+        // Shrinking in proportion, an active close would stay a sliver and
+        // every title would lose its last letters.
         let shown: Vec<usize> = (0..frame.tabs.len()).filter(|&at| drawn[at]).collect();
         let narrowed: Option<Vec<f32>> = avail.and_then(|avail| {
             let more = if hidden.is_empty() {
@@ -94,7 +95,8 @@ impl Shell {
             let closed: f32 = whole.iter().map(|width| width + DOCK_TAB_CLOSE).sum();
             (closed > room).then(|| {
                 let narrowest: Vec<f32> = shown.iter().map(|&at| least[at]).collect();
-                tab_fit::squeeze(room, &whole, &narrowest)
+                let front = shown.iter().position(|&at| at == active_idx);
+                tab_fit::squeeze(room, &whole, &narrowest, front)
             })
         });
         let squeezed = narrowed.is_some();
