@@ -18,6 +18,8 @@ mod panes;
 mod press_tests;
 mod rail;
 #[cfg(test)]
+mod rail_tests;
+#[cfg(test)]
 mod scroll_tests;
 
 use gpui::{Entity, InteractiveElement, IntoElement, ParentElement, Styled, div};

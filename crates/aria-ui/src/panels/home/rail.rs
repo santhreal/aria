@@ -88,11 +88,6 @@ fn rail_row(
     theme: &Theme,
 ) -> gpui::Stateful<gpui::Div> {
     let fade = motion::MotionKey::new("home-tab", label);
-    let rest = if on {
-        theme.glass_selected_bg()
-    } else {
-        theme.wash(0.0)
-    };
     div()
         .id(label)
         .debug_selector(move || format!("home-rail-{label}"))
@@ -106,7 +101,7 @@ fn rail_row(
         .cursor(CursorStyle::PointingHand)
         .active(|style| style.opacity(0.92))
         .text_color(if on { theme.text } else { theme.text_muted })
-        .bg(motion::hover_blend(fade, rest, theme.element_hover))
+        .bg(motion::row_fill(fade, on, theme))
         .on_hover(motion::hover_listener(fade))
         .child(crate::icons::icon(icon))
         .child(div().text_size(Theme::TEXT_UI).child(label))
