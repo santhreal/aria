@@ -1,9 +1,11 @@
 //! Contracts for filmstrip cells.
 //!
 //! The class closed here is "a cell outlives the state it was rendered from":
-//! a cached thumbnail drawn after an edit shows a frame the project no longer
-//! produces, which is worse than showing nothing. The other half is bounding
-//! the work: a tick that renders nothing is not retried on every frame.
+//! a cell an edit invalidated is never served as the lane's picture at its
+//! tick again, and renders again. It draws as a stale stand-in only under the
+//! clip it was rendered under, until its new picture lands, as
+//! `panels::timeline::stand_in_tests` checks. The other half is bounding the
+//! work: a tick that renders nothing is not retried on every frame.
 //!
 //! Cells are asked for from the timeline's draw, so asking must never wait on
 //! the engine lock. A cell draws nothing on the session's renderer: its

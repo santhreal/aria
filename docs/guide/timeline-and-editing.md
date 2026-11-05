@@ -266,7 +266,13 @@ spans of both edits; Escape invalidates only the cells inside the spans the
 drag changed. Undo, redo, and edits from the assistant or a plugin invalidate
 every cell. Work started before an edit is rejected when it finishes.
 
-A cell with no picture of its own draws the last picture of the same clip at
+An invalidated cell renders again. Until its new picture lands it draws its
+last picture wherever the clip it was rendered under still plays at its
+point, so an edit, an undo, or a redo leaves the strip showing its last
+pictures instead of blank. Where the edit moved or replaced that clip, or
+trimmed it off that point, the cell draws no last picture.
+
+A cell with neither a picture of its own nor a last picture draws the last picture of the same clip at
 or before it, or else the first after it, within four cell widths. After a
 zoom in, that is the picture the strip showed there before. A cell never
 draws a frame of another clip or another lane; with no picture that near, its

@@ -12,8 +12,15 @@
 //! cells whose ticks intersect the picture spans it changed, and a rollback
 //! only the cells the edits it reverted changed; audio-only and
 //! organizational edits keep every rendered cell. A change the store did not
-//! follow drops every cell. The session revision still rejects a render that
-//! finishes after a newer edit.
+//! follow invalidates every cell. The session revision still rejects a
+//! render that finishes after a newer edit.
+//!
+//! An invalidated cell is stale. It renders again, and until its new picture
+//! lands the strip draws the stale one wherever the clip it was rendered
+//! under still plays at its tick, so an edit, an undo, or a redo leaves the
+//! strip showing its last pictures while it refills instead of blank. A
+//! stale cell drops when its tick lands, when a draw neither asks for it nor
+//! draws a picture there, and when a later invalidation replaces it.
 //!
 //! The timeline's draw hands the store the cells it drew without their exact
 //! frame, once for all its lane groups, and the store renders them one at a
@@ -93,12 +100,16 @@ pub struct Cell {
     /// The picture is the sync frame at or before the cell's tick, drawn until
     /// the exact frame lands.
     pub snapped: bool,
+    /// The media clip that played on the cell's lane at its tick when the cell
+    /// landed. Once invalidated, the cell draws under this clip only.
+    pub clip: Option<u64>,
 }
 
 impl std::fmt::Debug for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Cell")
             .field("snapped", &self.snapped)
+            .field("clip", &self.clip)
             .finish_non_exhaustive()
     }
 }
@@ -123,6 +134,9 @@ struct Flight {
 pub struct FilmstripStore {
     revision: u64,
     cells: BTreeMap<CellKey, Cell>,
+    /// Invalidated cells that a clip owns, drawn under that clip until their
+    /// tick lands again. See the module documentation.
+    stale: BTreeMap<CellKey, Cell>,
     /// The render in flight. A render started before an edit holds the
     /// renderer until it lands, and lands nothing.
     flight: Option<Flight>,
@@ -144,8 +158,9 @@ pub struct FilmstripStore {
     /// stand. `None` after a snap, which leaves them at a sync frame rather
     /// than at a cell.
     at: Option<CellKey>,
-    /// Images of dropped cells, for the window atlas to release. Cells drop
-    /// on an edit or a landing, and both redraw the timeline without them.
+    /// Images of cells that left the store, for the window atlas to release.
+    /// Cells leave on an edit, a landing, or a draw that no longer shows
+    /// them, and each redraws the timeline without them.
     retired: Vec<Arc<RenderImage>>,
 }
 
@@ -154,6 +169,7 @@ impl std::fmt::Debug for FilmstripStore {
         f.debug_struct("FilmstripStore")
             .field("revision", &self.revision)
             .field("cells", &self.cells.len())
+            .field("stale", &self.stale.len())
             .field("at", &self.at)
             .finish_non_exhaustive()
     }
@@ -162,6 +178,12 @@ impl std::fmt::Debug for FilmstripStore {
 impl FilmstripStore {
     pub fn get(&self, key: CellKey) -> Option<&Cell> {
         self.cells.get(&key)
+    }
+
+    /// The stale cell of `key`, while `clip` owns it: the picture the lane
+    /// showed there before the edit that invalidated it.
+    pub fn stale(&self, key: CellKey, clip: u64) -> Option<&Cell> {
+        self.stale.get(&key).filter(|cell| cell.clip == Some(clip))
     }
 
     /// The rendered cell of `key`'s lane nearest its tick inside
@@ -205,15 +227,15 @@ impl FilmstripStore {
         !self.cells.contains_key(&key) && !self.empty.contains(&key)
     }
 
-    /// Drop everything rendered against an older revision. The fallback for a
-    /// change that was not followed by span: a mutation that reports no
+    /// Invalidate everything rendered against an older revision. The fallback
+    /// for a change that was not followed by span: a mutation that reports no
     /// picture spans, an undo, or an edit made outside `apply_command`.
     pub fn sync_revision(&mut self, revision: u64) {
         if self.revision != revision {
             self.revision = revision;
-            let cells = std::mem::take(&mut self.cells);
-            self.retired
-                .extend(cells.into_values().map(|cell| cell.image));
+            for (key, cell) in std::mem::take(&mut self.cells) {
+                invalidate(&mut self.stale, &mut self.retired, key, cell);
+            }
             self.empty.clear();
             self.journal.clear();
             // A render started against the old project lands nothing: its
@@ -292,23 +314,18 @@ impl FilmstripStore {
         (cursor == opened).then_some(spans)
     }
 
-    /// Drop the cells and empty results of every lane inside `spans`. A
-    /// render in flight lands nothing: the step that follows moves the
-    /// revision past it.
+    /// Invalidate the cells and drop the empty results of every lane inside
+    /// `spans`. A render in flight lands nothing: the step that follows moves
+    /// the revision past it.
     fn drop_spans(&mut self, spans: &[(i64, i64)]) {
         let inside = |key: &CellKey| {
             spans
                 .iter()
                 .any(|&(start, end)| key.tick >= start && key.tick < end)
         };
-        let retired = &mut self.retired;
-        self.cells.retain(|key, cell| {
-            let keep = !inside(key);
-            if !keep {
-                retired.push(cell.image.clone());
-            }
-            keep
-        });
+        for (key, cell) in self.cells.extract_if(.., |key, _| inside(key)) {
+            invalidate(&mut self.stale, &mut self.retired, key, cell);
+        }
         self.empty.retain(|key| !inside(key));
     }
 
@@ -370,6 +387,9 @@ impl FilmstripStore {
         if revision != self.revision {
             return;
         }
+        if let Some(stale) = self.stale.remove(&key) {
+            self.retired.push(stale.image);
+        }
         match cell {
             Some(cell) => {
                 if !self.cells.contains_key(&key) && self.cells.len() >= MAX_CELLS {
@@ -382,6 +402,17 @@ impl FilmstripStore {
             None => {
                 self.empty.insert(key);
             }
+        }
+    }
+
+    /// Drop the stale cells the last draw neither asked for nor drew a
+    /// picture at: off screen, or no longer under the clip that owns them.
+    fn prune_stale(&mut self) {
+        let (queue, blank) = (&self.queue, &self.blank);
+        let undrawn =
+            |key: &CellKey| queue.binary_search(key).is_err() || blank.binary_search(key).is_ok();
+        for (_, cell) in self.stale.extract_if(.., |key, _| undrawn(key)) {
+            self.retired.push(cell.image);
         }
     }
 
@@ -440,6 +471,31 @@ impl FilmstripStore {
     }
 }
 
+/// Take `cell`, invalidated at `key`, out of the drawn cells: into `stale`
+/// when a clip owns it, else to `retired`. A stale cell it replaces retires.
+fn invalidate(
+    stale: &mut BTreeMap<CellKey, Cell>,
+    retired: &mut Vec<Arc<RenderImage>>,
+    key: CellKey,
+    cell: Cell,
+) {
+    if cell.clip.is_none() {
+        retired.push(cell.image);
+    } else if let Some(replaced) = stale.insert(key, cell) {
+        retired.push(replaced.image);
+    }
+}
+
+/// The clip that plays on the lane of `key` at its tick. A lane's clips are
+/// sorted by start and do not overlap, as for
+/// `panels::timeline::media::visible_range`.
+fn owner(tracks: &[crate::types::UiTrack], key: CellKey) -> Option<u64> {
+    let clips = &tracks.iter().find(|track| track.id == key.lane)?.clips;
+    let at = clips.partition_point(|clip| clip.timeline_end_ticks <= key.tick);
+    let clip = clips.get(at)?;
+    (clip.timeline_start_ticks <= key.tick).then_some(clip.id)
+}
+
 /// Ticks between filmstrip cells at a given zoom: the largest power of two no
 /// longer than one cell, so neighboring cells abut or overlap and the strip
 /// leaves no gap, while no more than two cells are asked for per cell width.
@@ -493,8 +549,9 @@ pub fn cell_spans(
 /// Render the cells at `missing`, the cells the timeline's draw drew without
 /// their exact frame, snapping first the ones of them at `blank`, the cells
 /// it drew with no picture at all. They replace the ones an earlier draw
-/// asked for. Safe to call from a render: nothing here takes the engine
-/// lock, and each render thread holds it only to take the cell's source.
+/// asked for, and stale cells the draw did not draw drop. Safe to call from
+/// a render: nothing here takes the engine lock, and each render thread
+/// holds it only to take the cell's source.
 pub fn ask(
     state: &Entity<AppState>,
     cx: &mut App,
@@ -508,6 +565,7 @@ pub fn ask(
     state.update(cx, |state, cx| {
         state.filmstrips.queue = missing;
         state.filmstrips.blank = blank;
+        state.filmstrips.prune_stale();
         pump(state, cx);
     });
 }
@@ -563,13 +621,15 @@ pub fn render_cell(
     Some(Cell {
         image: crate::frame::rgba_to_render(&frame.image)?,
         snapped: frame.snapped,
+        clip: None,
     })
 }
 
-/// Store the cell rendered for `key` at `revision`, start the next queued
-/// cell, release the cells the store dropped from the window atlas, and
-/// redraw the panel bodies that draw filmstrips, through
-/// [`crate::app::FilmstripChanged`]. Called where no window is being updated.
+/// Store the cell rendered for `key` at `revision`, owned by the clip that
+/// plays there, start the next queued cell, release the cells the store
+/// dropped from the window atlas, and redraw the panel bodies that draw
+/// filmstrips, through [`crate::app::FilmstripChanged`]. Called where no
+/// window is being updated.
 pub(crate) fn land(
     state: &mut AppState,
     revision: u64,
@@ -577,6 +637,8 @@ pub(crate) fn land(
     cell: Option<Cell>,
     cx: &mut Context<AppState>,
 ) {
+    let clip = owner(&state.store.sequence.tracks, key);
+    let cell = cell.map(|cell| Cell { clip, ..cell });
     state.filmstrips.finish(revision, key, cell);
     pump(state, cx);
     state.release_retired_images(None, cx);
@@ -593,6 +655,7 @@ pub(crate) fn test_cell() -> Cell {
             image::Frame::new(buffer),
         ]))),
         snapped: false,
+        clip: None,
     }
 }
 

@@ -15,7 +15,8 @@
 //! the one landing. And a dropped cell that stayed in the window atlas for
 //! the life of the window: every path that takes a cell out of the store
 //! hands its picture to the atlas release, and the window no longer holds it
-//! once the release ran.
+//! once the release ran. A cell that stays stale after an edit leaves the
+//! same way once its tick lands or a draw no longer draws it.
 //!
 //! Not covered: the frames a real decoder decodes, which the fill test
 //! models, and the thread a render starts on.
@@ -399,7 +400,11 @@ fn accounted(
 ) {
     store.retire_into(released);
     held_or_released_once(
-        store.cells.values().map(|cell| &cell.image),
+        store
+            .cells
+            .values()
+            .chain(store.stale.values())
+            .map(|cell| &cell.image),
         released,
         given,
         step,
@@ -443,13 +448,56 @@ fn every_cell_that_leaves_the_store_goes_to_the_atlas_release() {
     assert!(store.cells.is_empty());
 }
 
+/// WHY: an invalidated cell a clip owns stays stale to draw while its strip
+/// refills, a way out of the drawn cells that does not release its picture.
+/// A stale cell leaves for the atlas release once its tick lands, rendered
+/// or empty, and once a draw neither asks for it nor draws a picture at it;
+/// one a draw still draws stays.
+#[test]
+fn every_stale_cell_leaves_for_the_atlas_release() {
+    let mut store = FilmstripStore::default();
+    let mut given = Vec::new();
+    let mut released = Vec::new();
+    for n in 0..6 {
+        let owned = Cell {
+            clip: Some(7),
+            ..cell()
+        };
+        given.push(Arc::clone(&owned.image));
+        store.hold(key(tick(n)), owned);
+    }
+    store.advance(0, 1, vec![(tick(0), tick(6))]);
+    accounted(&mut store, &given, &mut released, "an edit");
+    assert!(released.is_empty(), "an edit released a cell its clip owns");
+    assert_eq!(store.stale.len(), 6);
+
+    let landed = cell();
+    given.push(Arc::clone(&landed.image));
+    store.hold(key(tick(0)), landed);
+    store.start(key(tick(1)), SeekPolicy::Exact);
+    store.finish(store.revision, key(tick(1)), None);
+    accounted(&mut store, &given, &mut released, "a landing");
+    assert_eq!(released.len(), 2, "both landings released the stale cell");
+
+    store.queue = vec![key(tick(2)), key(tick(3))];
+    store.blank = vec![key(tick(3))];
+    store.prune_stale();
+    accounted(&mut store, &given, &mut released, "a draw");
+    assert_eq!(
+        store.stale.keys().copied().collect::<Vec<_>>(),
+        [key(tick(2))],
+        "the draw kept a stale cell it did not draw, or dropped the one it drew"
+    );
+}
+
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png")
 }
 
 /// WHY: a dropped cell's picture stayed in the window atlas until the window
 /// closed, so every zoom, scroll, and edit added pictures the timeline never
-/// drew again. A cell drawn on the timeline and then dropped by an edit is
+/// drew again. A cell drawn on the timeline and then invalidated by an edit
+/// stays stale under its clip while the draw after the edit draws it, and is
 /// gone from the atlas once the work the edit started has settled.
 #[gpui::test]
 async fn a_cell_the_store_drops_leaves_the_window_atlas(cx: &mut TestAppContext) {
@@ -506,6 +554,15 @@ async fn a_cell_the_store_drops_leaves_the_window_atlas(cx: &mut TestAppContext)
         });
         window.refresh();
     });
+    assert!(
+        visual.read(|app| state
+            .read(app)
+            .filmstrips
+            .stale
+            .values()
+            .any(|cell| Arc::ptr_eq(&cell.image, &drawn))),
+        "the edit did not keep the cell stale under its clip while its replacement rendered"
+    );
     visual.run_until_parked();
     assert!(
         visual.read(|app| state

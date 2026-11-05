@@ -11,6 +11,11 @@
 //! what it asks for: each cell without its exact frame, a snapped one
 //! included, and, as empty, each cell it drew no picture in, all on the lane
 //! it drew. Not covered: the paint, which the test platform does not record.
+//!
+//! Also closes "a strip goes blank after an edit": an edit, an undo, or a
+//! redo invalidated every cell it reached, and the strip drew nothing there
+//! until each rendered again. An invalidated cell now draws its last picture
+//! under the clip it was rendered under, and under no other.
 
 use std::sync::Arc;
 
@@ -20,6 +25,9 @@ use crate::timeline_display::{StripCell, Thumbnails};
 
 /// The lane [`holding`] holds its cells on.
 const LANE: u64 = test_key(0).lane;
+
+/// The clip [`draw`] draws as.
+const OWNER: u64 = 11;
 
 /// The cells a continuous strip shows of `clip` at `px_per_tick`, the whole
 /// clip on screen.
@@ -44,6 +52,16 @@ fn draw(
     clip: (i64, i64),
     px_per_tick: f32,
 ) -> (Vec<(i64, Arc<gpui::RenderImage>)>, Vec<i64>) {
+    draw_as(store, (lane, OWNER), clip, px_per_tick)
+}
+
+/// [`draw`] of the clip `owner` on `lane`.
+fn draw_as(
+    store: &FilmstripStore,
+    (lane, owner): (u64, u64),
+    clip: (i64, i64),
+    px_per_tick: f32,
+) -> (Vec<(i64, Arc<gpui::RenderImage>)>, Vec<i64>) {
     let cells = strip(clip, px_per_tick);
     // A cell's left edge is unique in a strip, so a picture is matched back to
     // its cell by where it is drawn.
@@ -51,7 +69,7 @@ fn draw(
     let (mut missing, mut blank) = (Vec::new(), Vec::new());
     let pictures = cell_pictures(
         store,
-        lane,
+        (lane, owner),
         cells.into_iter(),
         clip,
         stand_in_reach(px_per_tick),
@@ -104,6 +122,19 @@ fn holding(ticks: impl IntoIterator<Item = i64>) -> FilmstripStore {
     let mut store = FilmstripStore::default();
     for tick in ticks {
         store.hold(test_key(tick), test_cell());
+    }
+    store
+}
+
+/// [`holding`], each picture rendered under [`OWNER`].
+fn owned(ticks: impl IntoIterator<Item = i64>) -> FilmstripStore {
+    let mut store = FilmstripStore::default();
+    for tick in ticks {
+        let cell = Cell {
+            clip: Some(OWNER),
+            ..test_cell()
+        };
+        store.hold(test_key(tick), cell);
     }
     store
 }
@@ -242,4 +273,60 @@ fn a_clip_never_draws_the_cells_of_another_lane() {
     let (drawn, missing) = draw(&store, LANE, clip, 1.0);
     assert_eq!(drawn.len(), strip(clip, 1.0).len(), "the lane drew its own");
     assert!(missing.is_empty());
+}
+
+/// WHY: see the module documentation's second class. Each way a cell is
+/// invalidated is checked: an edit by span, and a change the store did not
+/// follow, which is how an undo and a redo reach it.
+#[test]
+fn an_invalidated_cell_draws_its_last_picture_under_its_own_clip() {
+    let clip = (0, 480);
+    let ticks: Vec<i64> = strip(clip, 1.0).iter().map(|cell| cell.tick).collect();
+    let ways: [(&str, fn(&mut FilmstripStore)); 2] = [
+        ("an edit", |store| store.advance(0, 1, vec![(0, 480)])),
+        ("an undo", |store| store.sync_revision(1)),
+    ];
+    for (how, invalidate) in ways {
+        let mut store = owned(ticks.iter().copied());
+        let before: Vec<Arc<gpui::RenderImage>> = ticks
+            .iter()
+            .map(|&tick| Arc::clone(&store.get(test_key(tick)).expect("held").image))
+            .collect();
+        invalidate(&mut store);
+        let kept = store.get(test_key(ticks[0]));
+        assert!(kept.is_none(), "{how}: kept the cell");
+
+        let (drawn, missing) = draw(&store, LANE, clip, 1.0);
+        assert_eq!(
+            missing, ticks,
+            "{how}: an invalidated cell was not asked for"
+        );
+        assert_eq!(
+            drawn.len(),
+            ticks.len(),
+            "{how}: an invalidated cell drew nothing"
+        );
+        for ((tick, picture), (was_tick, was)) in drawn.iter().zip(ticks.iter().zip(&before)) {
+            assert_eq!(tick, was_tick);
+            assert!(
+                Arc::ptr_eq(picture, was),
+                "{how}: the cell at tick {tick} drew another picture than its last"
+            );
+        }
+
+        let (drawn, missing) = draw_as(&store, (LANE, OWNER + 1), clip, 1.0);
+        assert!(
+            drawn.is_empty(),
+            "{how}: a stale cell drew under a clip it was not rendered under"
+        );
+        assert_eq!(missing, ticks);
+
+        let fresh = test_cell();
+        store.hold(test_key(ticks[0]), fresh.clone());
+        let (drawn, _) = draw(&store, LANE, clip, 1.0);
+        assert!(
+            Arc::ptr_eq(&drawn[0].1, &fresh.image),
+            "{how}: a cell that landed drew its stale picture"
+        );
+    }
 }

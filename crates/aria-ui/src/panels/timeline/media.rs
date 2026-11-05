@@ -200,13 +200,15 @@ impl Owed {
 /// for. A clip a drag in flight changes, `held`, draws each cell where its
 /// frame plays once the release lands, and none past its ends.
 ///
-/// A cell not rendered yet draws the last rendered cell of the same clip at
-/// or before its tick, or else the first after it, within [`STAND_IN_CELLS`]
-/// cell widths: after a zoom in, the frame the strip showed there before.
-/// With none that near, the space stays empty. A stand-in never comes from
-/// outside the clip, so no frame is drawn across the clip's cut. Each cell
-/// drawn without its exact frame goes to `owed`, in the order it was drawn,
-/// and to its empty ones as well when it was drawn with no picture.
+/// A cell not rendered yet draws its stale picture while the clip still owns
+/// it, which after an edit, an undo, or a redo is the picture the cell showed
+/// before. Else it draws the last rendered cell of the same clip at or before
+/// its tick, or else the first after it, within [`STAND_IN_CELLS`] cell
+/// widths: after a zoom in, the frame the strip showed there before. With
+/// neither, the space stays empty. A stand-in never comes from outside the
+/// clip, so no frame is drawn across the clip's cut. Each cell drawn without
+/// its exact frame goes to `owed`, in the order it was drawn, and to its
+/// empty ones as well when it was drawn with no picture.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn clip_cells(
     state: &Entity<AppState>,
@@ -266,7 +268,7 @@ pub(super) fn clip_cells(
         );
         let mut cells = cell_pictures(
             filmstrips,
-            lane,
+            (lane, clip),
             shown,
             (start, end),
             reach,
@@ -324,15 +326,15 @@ pub(super) fn strip_cells(
         .filter(move |cell| cell.to > shown.0 && cell.from < shown.1)
 }
 
-/// The pictures of `cells`, the cells of the clip on `lane` from `start` to
-/// `end`: each cell's own or, while it is not rendered, the last rendered
-/// cell of the lane inside the clip at or before its tick, or else the first
-/// after it, no more than `reach` ticks away. Pushes every cell drawn without
-/// its exact frame to `missing`, and every cell drawn with no picture also to
-/// `blank`.
+/// The pictures of `cells`, the cells of `clip` on `lane` from `start` to
+/// `end`: each cell's own or, while it is not rendered, its stale picture
+/// while `clip` owns it, or else the last rendered cell of the lane inside
+/// the clip at or before its tick, or else the first after it, no more than
+/// `reach` ticks away. Pushes every cell drawn without its exact frame to
+/// `missing`, and every cell drawn with no picture also to `blank`.
 fn cell_pictures(
     filmstrips: &FilmstripStore,
-    lane: u64,
+    (lane, clip): (u64, u64),
     cells: impl Iterator<Item = StripCell>,
     (start, end): (i64, i64),
     reach: i64,
@@ -355,11 +357,14 @@ fn cell_pictures(
                         start.max(cell.tick.saturating_sub(reach)),
                         end.min(cell.tick.saturating_add(reach).saturating_add(1)),
                     );
-                    let Some(stand_in) = filmstrips.stand_in(key, within) else {
+                    let picture = filmstrips
+                        .stale(key, clip)
+                        .or_else(|| filmstrips.stand_in(key, within));
+                    let Some(picture) = picture else {
                         blank.push(key);
                         return None;
                     };
-                    stand_in
+                    picture
                 }
             };
             Some(FilmCell {

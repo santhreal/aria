@@ -827,6 +827,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > Keyboard Shortcuts draws each shortcut on a shorter row, so more of the list fits on screen.
 - A dock frame short of room for its tab titles shortens the longest titles first, so short titles such as Align and Jobs stay whole.
 - The Export sheet opens on the Destination row, then Format and Encoder, then Scale with the Size it gives directly under it, then Frame rate, Codec, Bitrate, Keyframes, Audio and Range.
+- A clip's filmstrip keeps its last pictures through an edit, an undo, or a redo until the new ones render, instead of going blank while it refills.
 
 ### Fixed
 
