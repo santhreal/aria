@@ -1,5 +1,6 @@
-//! The controls pressed in the pool sidebar: Make Subclip,
-//! the multicam button, and a group's angle chips.
+//! The controls pressed in the pool sidebar: the multicam button and a group's
+//! angle chips. Make Subclip is on the source monitor's bar
+//! ([`source_pick`](crate::surfaces::source_pick)), beside the marks it reads.
 //!
 //! Three commands claimed these buttons and nothing could press them. Two of the
 //! three also swallowed their refusal: the multicam button discarded the result,
@@ -23,8 +24,6 @@ use crate::app::AppState;
 /// One control the pool sidebar draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pick {
-    /// Make a pool entry from the source monitor's marked range.
-    Subclip,
     /// Build a camera group from the pool.
     MulticamGroup,
     /// Cut a group to one of its angles at the playhead.
@@ -48,7 +47,6 @@ impl Pick {
     /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
-            Self::Subclip => "make a subclip of the marked source",
             Self::MulticamGroup => "build a multicam group from the pool",
             Self::MulticamAngle { .. } => "cut a multicam group to an angle",
             Self::MulticamPlace { .. } => "place a multicam group on the timeline",
@@ -94,7 +92,6 @@ fn say_the_pool_is_empty(state: &mut AppState) {
 /// Press one control on the open project.
 pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {
     match pick {
-        Pick::Subclip => state.create_subclip_from_source(None).map(|_| ()),
         Pick::MulticamGroup => {
             let angles = angles_from_pool(state);
             if angles.is_empty() {

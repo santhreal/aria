@@ -61,6 +61,7 @@ The Viewer and Source Monitor (`crates/aria-ui/src/panels/preview*.rs`) render t
 | `source-mark-in` | In | Sets the source clip in point at the Source Monitor playhead. | `I` |
 | `source-mark-out` | Out | Sets the source clip out point at the Source Monitor playhead. | `O` |
 | `source-overwrite` | Overwrite | Overwrites the timeline at the sequence playhead with the marked source range. | `.` |
+| `source-subclip` | Subclip | Creates a subclip in the Project panel from the Source tab's In to Out range and leaves the marks set. | None |
 | `viewer-display-settings` | Viewer display settings | Opens the Viewer Display Settings menu for Split Viewer, Show Rulers, Show Guides, Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, and Grid. | None |
 | `viewer-tab-close` | Close source tab | Closes the corresponding source media tab in the Viewer header. | `Ctrl+W` |
 | `viewer-tab-program` | Program tab | Switches the Viewer pane to the active sequence output. | `Shift+2` |
@@ -169,7 +170,7 @@ The Inspector panel (`crates/aria-ui/src/panels/inspector/**/*.rs`) renders para
 
 ## Project Panel
 
-The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, subclip and generator actions, stock media kind chips, and media analysis controls.
+The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src/surfaces/bin_strip.rs`, `crates/aria-ui/src/panels/generate.rs`, and `crates/aria-ui/src/panels/analysis.rs`) renders bin management buttons, media pool search and layout toggles, multicam sync and angle controls, generator actions, stock media kind chips, and media analysis controls.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -189,7 +190,6 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `bin-rename` | Rename | Focuses the inline name field to rename the currently open bin. | None |
 | `cloud-feed-load` | Load catalog | Fetches the sound effect catalog in the SFX tab, before the first fetch and after a failed one. | None |
 | `create-multicam-group` | New multicam | Creates a new multicam group from the selected media pool items. | None |
-| `create-subclip` | Make Subclip | Creates a new subclip item in the media pool from the current Source Monitor in/out range. | None |
 | `generate-kind` (per row) | Generator kind | Selects the AI generation output kind (Image, Video, or Voice) in the Project panel Generate tab. | None |
 | `generate-keys` | Open Settings | Opens Settings at the Provider keys section while no generation provider key is set. | None |
 | `generate-prompt` | Describe what to generate | Edits the prompt the Generate tab submits; Enter submits it. | None |

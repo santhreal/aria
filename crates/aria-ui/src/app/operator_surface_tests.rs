@@ -56,11 +56,11 @@ use crate::keys::bindings::SHIPPED_BINDINGS;
 /// panel loops over. `markers panel` covers that panel's three edits: the add
 /// button, a marker's colour swatch and its delete button, each pressed against
 /// a marker the panel would have drawn. `source monitor's` covers the monitor's
-/// bar: both marks, the clear, and the two edits, pressed with and without a
-/// range marked on the sequence, because that range is what turns either edit
-/// into a fit. `sidebar's` covers the pool sidebar's own buttons: the subclip
-/// over a marked source, the multicam button, and one chip per angle of the
-/// group it built. `analysis panel` covers that panel's clears, filters, seeks
+/// bar: both marks, the clear, the subclip, and the two edits, pressed with and
+/// without a range marked on the sequence, because that range is what turns
+/// either edit into a fit. `sidebar's` covers the pool sidebar's own buttons:
+/// the multicam button and one chip per angle of the group it built.
+/// `analysis panel` covers that panel's clears, filters, seeks
 /// and both edits, pressed on a project whose index the fixture wrote, plus the
 /// beat run's own write, which is the surface `Set beats` names. `on the
 /// timeline` covers the clip drags: every body drag, every edge drag and both

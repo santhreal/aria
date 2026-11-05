@@ -38,7 +38,7 @@ macro_rules! project_edit_rows {
                     undo: restores("the source's previous folder"), },
                 SetPoolItemPosition { label: "Set pool item position", reach: operator("dragging a pool item within its bin"), junctions: keeps, lock: guarded,
                     undo: restores("the item's previous position in the bin"), },
-                CreateSubclip { label: "Create subclip", reach: operator("the sidebar's subclip button, over a marked source range"), junctions: keeps, lock: guarded,
+                CreateSubclip { label: "Create subclip", reach: operator("the source monitor's Subclip button and the Clip menu's Make Subclip row, over a marked source range"), junctions: keeps, lock: guarded,
                     undo: restores("the pool by deleting the subclip it created"), },
                 CreateMulticamGroup { label: "Create multicam group", reach: operator("the sidebar's multicam button, over the selected pool item or the whole pool"), junctions: keeps, lock: guarded,
                     undo: restores("the pool by deleting the multicam group it created"), },

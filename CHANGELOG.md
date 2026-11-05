@@ -811,6 +811,8 @@ Notes for the latest release. For previous releases, see the
 - The Command Palette stands near the top of the window and keeps its query field in place while the list grows and shrinks.
 - The Window menu lists its panels in alphabetical order.
 - The Effects workspace puts Effect Controls in the left column and Effects & Presets in the right, where Editing has them, at 400 px and 300 px, and gives the Viewer the rest of the row, so its controls fit on one line.
+- **Subclip** is on the Source tab's bar beside **In**, **Out** and **Clear**, and the Project panel no longer shows a **Make Subclip** row above its items while a Source tab is open.
+- The Source tab's bar of marks and edits is a row under the picture instead of a strip drawn over the picture's bottom edge.
 
 ### Fixed
 

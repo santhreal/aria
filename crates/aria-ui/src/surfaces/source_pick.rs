@@ -1,5 +1,6 @@
 //! The controls pressed on the source monitor's bar: the two marks, the
-//! clear, and the two edits that land the marked source on the timeline.
+//! clear, the subclip, and the two edits that land the marked source on the
+//! timeline.
 //!
 //! Three commands claimed this bar and nothing could press it. One of them
 //! claimed a control that does not exist: there is no fit-to-fill button. A fit
@@ -27,6 +28,8 @@ pub enum Pick {
     MarkOut,
     /// Drop both source marks.
     ClearMarks,
+    /// Make a pool item of the marked source range.
+    Subclip,
     /// Land the marked source range, pushing what follows to the right.
     Insert,
     /// Land the marked source range over whatever is already there.
@@ -40,6 +43,7 @@ impl Pick {
             Self::MarkIn => "mark the source in",
             Self::MarkOut => "mark the source out",
             Self::ClearMarks => "clear the source marks",
+            Self::Subclip => "make a subclip of the marked source",
             Self::Insert => "insert the marked source",
             Self::Overwrite => "overwrite with the marked source",
         }
@@ -63,6 +67,7 @@ pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {
             state.clear_source_marks();
             Ok(())
         }
+        Pick::Subclip => state.create_subclip_from_source(None).map(|_| ()),
         Pick::Insert => state.cut_source_in(EditMode::Ripple),
         Pick::Overwrite => state.cut_source_in(EditMode::Overwrite),
     }

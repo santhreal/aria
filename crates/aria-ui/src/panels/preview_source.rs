@@ -129,8 +129,8 @@ fn program_line(state: &AppState) -> Option<(&'static str, &'static str)> {
     }
 }
 
-/// The monitor showing a pool source: the frame it is scrubbed to, which source
-/// it is, and the way back to the sequence.
+/// The monitor showing a pool source: the frame it is scrubbed to with the
+/// corner chip over it, and the source bar under it.
 ///
 /// While a newly scrubbed tick renders, the frame already held for that source
 /// stays on screen — a scrub that blanked the pane between frames would be
@@ -148,18 +148,12 @@ pub(super) fn source_stage(
         .source(view.media, view.tick)
         .or_else(|| state.read(cx).pool_preview.source_stale(view.media))
         .cloned();
-    let frames = view.duration_ticks.max(1);
-    let mut position = format!("{} · frame {} of {}", view.name, view.tick + 1, frames);
-    // A shuttle speed is the one thing about the source clock the frame number
-    // does not show.
-    let rate = state.read(cx).sources.play_rate().filter(|rate| *rate != 1);
-    if let Some(rate) = rate {
-        position.push_str(&format!(" · {rate}x"));
-    }
-    div()
-        .id("source-stage")
-        .size_full()
+    let picture = div()
+        .debug_selector(|| "source-picture".into())
         .relative()
+        .flex_1()
+        .min_h_0()
+        .w_full()
         .flex()
         .items_center()
         .justify_center()
@@ -202,57 +196,82 @@ pub(super) fn source_stage(
                     ),
             )
         })
-        .child(
-            // As wide as its text, up to the stage's width less the inset; a
-            // longer name ends in an ellipsis before the Sequence button.
-            div()
-                .absolute()
-                .top(px(Theme::SPACE_SM))
-                .left(px(Theme::SPACE_SM))
-                .right(px(Theme::SPACE_SM))
-                .flex()
-                .child(
-                    div()
-                        .min_w_0()
-                        .flex()
-                        .items_center()
-                        .gap(px(Theme::SPACE_SM))
-                        .px(px(Theme::SPACE_SM))
-                        .py(px(Theme::SPACE_XXS))
-                        .rounded(px(Theme::CONTROL_RADIUS))
-                        .bg(theme.surface_overlay)
-                        .child(
-                            div()
-                                .min_w_0()
-                                .truncate()
-                                .text_size(Theme::TEXT_UI)
-                                .text_color(theme.text_muted)
-                                .child(gpui::SharedString::from(position)),
-                        )
-                        .child(
-                            crate::components::ghost_button("source-close", "Sequence", theme)
-                                .flex_none()
-                                .when_some(crate::tooltip::builder("source-close"), |el, tip| {
-                                    el.with_tip(tip)
-                                })
-                                .on_mouse_down(
-                                    MouseButton::Left,
-                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                                        cx.stop_propagation();
-                                        this.state.update(cx, |state, _| state.show_program());
-                                        cx.notify();
-                                    }),
-                                ),
-                        ),
-                ),
-        )
+        .child(name_chip(&view, state, theme, cx));
+    div()
+        .id("source-stage")
+        .size_full()
+        .flex()
+        .flex_col()
+        .child(picture)
         .child(source_bar(&view, theme, cx))
         .into_any_element()
 }
 
-/// The Source tab's marks and cut-in controls under the picture: the marked
-/// range, and the two edits that put that range in the sequence. The mini
-/// ruler under the control row shows the range across the take and scrubs it.
+/// The chip in the picture's top left corner: which source it is, the frame it
+/// shows, and the way back to the sequence.
+///
+/// As wide as its text, up to the stage's width less the inset; a longer name
+/// ends in an ellipsis before the Sequence button.
+fn name_chip(
+    view: &SourceView,
+    state: &Entity<AppState>,
+    theme: &Theme,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> impl IntoElement {
+    let frames = view.duration_ticks.max(1);
+    let mut position = format!("{} · frame {} of {}", view.name, view.tick + 1, frames);
+    // A shuttle speed is the one thing about the source clock the frame number
+    // does not show.
+    let rate = state.read(cx).sources.play_rate().filter(|rate| *rate != 1);
+    if let Some(rate) = rate {
+        position.push_str(&format!(" · {rate}x"));
+    }
+    div()
+        .absolute()
+        .top(px(Theme::SPACE_SM))
+        .left(px(Theme::SPACE_SM))
+        .right(px(Theme::SPACE_SM))
+        .flex()
+        .child(
+            div()
+                .min_w_0()
+                .flex()
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
+                .px(px(Theme::SPACE_SM))
+                .py(px(Theme::SPACE_XXS))
+                .rounded(px(Theme::CONTROL_RADIUS))
+                .bg(theme.surface_overlay)
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(gpui::SharedString::from(position)),
+                )
+                .child(
+                    crate::components::ghost_button("source-close", "Sequence", theme)
+                        .flex_none()
+                        .when_some(crate::tooltip::builder("source-close"), |el, tip| {
+                            el.with_tip(tip)
+                        })
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                cx.stop_propagation();
+                                this.state.update(cx, |state, _| state.show_program());
+                                cx.notify();
+                            }),
+                        ),
+                ),
+        )
+}
+
+/// The Source tab's marks and cut-in controls, a row under the picture: the
+/// marked range, a subclip of it in the pool, and the two edits that put that
+/// range in the sequence. The mini ruler under the control row shows the range
+/// across the take and scrubs it.
 pub(super) fn source_bar(
     view: &SourceView,
     theme: &Theme,
@@ -272,27 +291,24 @@ pub(super) fn source_bar(
         (end - start).max(0),
         frames,
     );
+    // A row of the Viewer's own, as the control row under it, so no control
+    // covers the picture.
     div()
-        .absolute()
-        .bottom(px(Theme::SPACE_SM))
-        .left(px(Theme::SPACE_SM))
-        .right(px(Theme::SPACE_SM))
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
+        .debug_selector(|| "source-bar".into())
+        .flex_none()
+        .px(px(Theme::SPACE_MD))
+        .py(px(Theme::SPACE_XS))
+        .border_t_1()
+        .border_color(theme.border)
+        .bg(theme.surface)
         .child(
-            // On the overlay's backing, as the name chip above, so the ghost
-            // buttons read over a bright picture. Narrower than the label and
-            // the buttons, the buttons take the next line at the right.
+            // Narrower than the label and the buttons, the buttons take the
+            // next line at the right.
             div()
                 .flex()
                 .wraps()
                 .items_center()
                 .gap(px(Theme::SPACE_SM))
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XXS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(theme.surface_overlay)
                 .child(
                     div()
                         .text_size(Theme::TEXT_UI)
@@ -349,6 +365,21 @@ pub(super) fn source_bar(
                                         cx.stop_propagation();
                                         this.state
                                             .update(cx, |state, _| press(state, Pick::ClearMarks));
+                                        cx.notify();
+                                    }),
+                                ),
+                        )
+                        .child(
+                            crate::components::ghost_button("source-subclip", "Subclip", theme)
+                                .when_some(crate::tooltip::builder("source-subclip"), |el, tip| {
+                                    el.with_tip(tip)
+                                })
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        this.state
+                                            .update(cx, |state, _| press(state, Pick::Subclip));
                                         cx.notify();
                                     }),
                                 ),
@@ -447,6 +478,7 @@ pub(super) fn safe_box(theme: &Theme, percent: f32) -> impl IntoElement {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use aria_core::RgbaImage;
@@ -454,6 +486,8 @@ mod tests {
 
     use super::program_line;
     use crate::app::AppState;
+    use crate::settings::{MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH};
+    use crate::test_support::panel_bounds;
 
     /// WHY: the Program stage told the editor to import media and place a
     /// tile whenever no frame had arrived, including while a sequence full of
@@ -480,6 +514,58 @@ mod tests {
         assert_eq!(
             program_line(&placed).map(|line| line.0),
             Some("viewer-unshown")
+        );
+    }
+
+    /// WHY: the Source tab drew its bar of marks and edits over the foot of
+    /// the picture, so its buttons covered the take's bottom lines. Closes "a
+    /// Source bar laid over the picture": with a Source tab in front, the bar
+    /// is drawn under the picture's box and the box keeps a height, at the
+    /// smallest window, where the bar wraps, and at a wide one. Does not cover
+    /// the corner chip, which stands over the picture's top left corner.
+    #[gpui::test]
+    fn a_wrapped_source_bar_stands_under_the_picture(cx: &mut gpui::TestAppContext) {
+        bar_under_picture(
+            cx,
+            "source-bar-smallest",
+            MIN_WINDOW_WIDTH,
+            MIN_WINDOW_HEIGHT,
+        );
+    }
+
+    #[gpui::test]
+    fn a_wide_source_bar_stands_under_the_picture(cx: &mut gpui::TestAppContext) {
+        bar_under_picture(cx, "source-bar-wide", 1920.0, 1080.0);
+    }
+
+    /// Open a take in a Source tab in a `width` by `height` window and check
+    /// the bar against the picture's box.
+    fn bar_under_picture(cx: &mut gpui::TestAppContext, tag: &str, width: f32, height: f32) {
+        cx.executor().allow_parking();
+        let at = gpui::Bounds::new(
+            gpui::point(gpui::px(0.), gpui::px(0.)),
+            gpui::size(gpui::px(width), gpui::px(height)),
+        );
+        let (state, mut visual) = crate::test_support::drawn_shell_at(cx, tag, at);
+        let take = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                let media = state.import_media(take).expect("import the take");
+                assert!(state.open_source(media.raw()), "the Source tab opens");
+                cx.notify();
+            })
+        });
+        let picture = panel_bounds(&mut visual, "source-picture")
+            .expect("the Source tab draws its picture box");
+        let bar = panel_bounds(&mut visual, "source-bar").expect("the Source tab draws its bar");
+        assert!(
+            picture.size.height > gpui::px(0.),
+            "{tag}: the bar leaves the picture no height: {picture:?}"
+        );
+        assert!(
+            bar.top() + gpui::px(0.5) >= picture.bottom(),
+            "{tag}: the bar {bar:?} is drawn over the picture {picture:?}"
         );
     }
 }

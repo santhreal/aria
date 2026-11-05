@@ -19,7 +19,7 @@ the playhead: a key, a menu row, a palette row, a plugin, or a scrub.
 
 A Source tab has its own playhead, In, Out, markers, zoom, and resolution. It
 keeps them while it stays open. At the foot of its picture, on a backing, a
-row shows the marked range at the left and In, Out, Clear, Insert, and
+row shows the marked range at the left and In, Out, Clear, Subclip, Insert, and
 Overwrite at the right. In a narrow Viewer the buttons move below the range.
 
 ## Anatomy

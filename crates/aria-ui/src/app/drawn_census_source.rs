@@ -1,5 +1,5 @@
-//! Driving the source monitor's bar: the two marks, the clear, and the two
-//! edits that land the marked source.
+//! Driving the source monitor's bar: the two marks, the clear, the subclip,
+//! and the two edits that land the marked source.
 //!
 //! # Why
 //!
@@ -72,6 +72,8 @@ enum Lands {
     Edit { ripple: bool, fill: bool },
     /// Nothing on the project: the monitor's own marks move.
     Marks,
+    /// One `Create subclip`: a pool item of the marked range.
+    Pool,
 }
 
 /// Every control the bar draws, with the state it is driven against and what it
@@ -84,6 +86,7 @@ const ROWS: &[(Pick, Dress, Lands)] = &[
     (Pick::MarkIn, Dress::Loaded, Lands::Marks),
     (Pick::MarkOut, Dress::Loaded, Lands::Marks),
     (Pick::ClearMarks, Dress::Loaded, Lands::Marks),
+    (Pick::Subclip, Dress::Loaded, Lands::Pool),
     (
         Pick::Insert,
         Dress::Loaded,
@@ -388,10 +391,58 @@ fn the_marks_land_on_the_ends_they_name() {
 }
 
 #[test]
+fn a_pool_row_makes_a_pool_item_of_the_marked_range() {
+    // A subclip of the whole take, or of the wrong end of it, is still one new
+    // pool item: the range is what tells the row's readings apart.
+    for (pick, dress, lands) in ROWS {
+        if *lands != Lands::Pool {
+            continue;
+        }
+        let (mut state, media) = dress.state();
+        state.hover_pool_item(media, 3);
+        state.set_source_in();
+        state.hover_pool_item(media, 12);
+        state.set_source_out();
+        let what = pick.what();
+        let (Some(start), Some(end)) = marks(&state) else {
+            panic!("the fixture marks both ends of the take");
+        };
+        let before: BTreeSet<u64> = state.store.media.iter().map(|item| item.id).collect();
+        press(&mut state, *pick);
+        let made: Vec<u64> = state
+            .store
+            .media
+            .iter()
+            .map(|item| item.id)
+            .filter(|id| !before.contains(id))
+            .collect();
+        assert_eq!(made.len(), 1, "{what} made {made:?}, not one pool item");
+        assert_eq!(
+            marks(&state),
+            (Some(start), Some(end)),
+            "{what} moved the marks the next edit reads"
+        );
+        let engine = state.engine().lock();
+        let item = engine
+            .project()
+            .media(aria_models::MediaId::from_raw(made[0]))
+            .expect("the new pool item is in the project");
+        assert_eq!(
+            (
+                item.parent.map(|id| id.raw()),
+                item.source_range
+                    .map(|range| (range.start.value, range.duration.value))
+            ),
+            (Some(media), Some((start, end - start))),
+            "{what} does not span the monitor's marks on the take it shows"
+        );
+    }
+}
+
+#[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    {
-        let label = "Source edit";
+    for label in ["Source edit", "Create subclip"] {
         assert!(
             sent.contains(label),
             "the monitor census pressed every control the bar draws and none of \

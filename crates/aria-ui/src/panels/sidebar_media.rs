@@ -62,11 +62,6 @@ pub(super) fn bin(
                 .gap(px(Theme::SPACE_SM))
                 .children(bins::strip(theme, state, cx))
                 .children(multicam::multicam_section(theme, state, cx))
-                // The source monitor's in/out marks are only worth setting if
-                // something consumes them; the button appears exactly when a
-                // range exists and lands the subclip in the same pool the rows
-                // below come from.
-                .children(subclip::subclip_button(theme, state, cx))
                 .child(grid::media_grid(theme, state, tab, rows, view, cx))
                 .when(!properties.is_empty(), |el| {
                     el.child(properties_block(theme, &properties))

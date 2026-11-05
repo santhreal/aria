@@ -134,6 +134,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("source-mark-in", "Mark the source in point").key("key-mark-in"),
     ControlTip::named("source-mark-out", "Mark the source out point").key("key-mark-out"),
     ControlTip::named("source-mark-clear", "Clear both source marks"),
+    ControlTip::named("source-subclip", "Make a subclip of the marked range"),
     ControlTip::named("source-insert", "Insert the marked range, rippling the lane").key("key-source-insert"),
     ControlTip::named("source-overwrite", "Overwrite with the marked range").key("key-source-overwrite"),
     // Timeline. The header repeats the tool bar's toggles beside the

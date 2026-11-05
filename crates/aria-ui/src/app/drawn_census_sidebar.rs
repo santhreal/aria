@@ -1,19 +1,18 @@
-//! Driving the pool sidebar's own controls: Make Subclip, the multicam button,
-//! and a group's angle chips.
+//! Driving the pool sidebar's own controls: the multicam button and a group's
+//! angle chips.
 //!
 //! # Why
 //!
-//! Three commands claimed these buttons and nothing pressed them, and two of the
-//! three threw their result away, so a refusal and a success looked the same on
-//! screen. The controls are a registry now
+//! Three commands claimed the sidebar's buttons and nothing pressed them, and
+//! two of the three threw their result away, so a refusal and a success looked
+//! the same on screen. The controls are a registry now
 //! ([`sidebar_pick`](crate::surfaces::sidebar_pick)) and this presses every one
 //! of them, reading the arms back out of the registry's own source.
 //!
 //! Each row is pressed against a project that offers it, which is what the panel
-//! does: Make Subclip is only drawn while the monitor holds a marked range, and
-//! an angle chip only exists once a group does. The group the angle rows are
-//! pressed on is built by the button above them, so the census walks the same
-//! order a click sequence does.
+//! does: an angle chip only exists once a group does. The group the angle rows
+//! are pressed on is built by the button above them, so the census walks the
+//! same order a click sequence does.
 
 use std::collections::BTreeSet;
 
@@ -88,7 +87,7 @@ fn with_sound(state: &mut AppState, media: [u64; 2]) {
 /// The angle rows come off the group the state holds rather than out of a list
 /// here: a chip the panel never drew proves nothing.
 fn picks(state: &AppState) -> Vec<Pick> {
-    let mut out = vec![Pick::Subclip, Pick::MulticamGroup];
+    let mut out = vec![Pick::MulticamGroup];
     for row in state.multicam_groups().iter() {
         let group = MulticamGroupId::from_raw(row.id);
         out.push(Pick::MulticamPlace { group });
@@ -221,7 +220,6 @@ fn the_button_says_so_rather_than_building_an_empty_group() {
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
     for label in [
-        "Create subclip",
         "Create multicam group",
         "Switch multicam angle",
         "Place multicam clip",
@@ -314,8 +312,6 @@ fn a_group_takes_a_lane_of_its_own_rather_than_being_refused() {
 }
 
 #[test]
-fn neither_sidebar_file_calls_a_setter_itself() {
-    for panel in ["sidebar_multicam.rs", "sidebar_subclip.rs"] {
-        super::no_setter_escapes(REGISTRY, panel);
-    }
+fn the_sidebar_calls_no_setter_itself() {
+    super::no_setter_escapes(REGISTRY, "sidebar_multicam.rs");
 }

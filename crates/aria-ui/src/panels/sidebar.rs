@@ -301,8 +301,6 @@ mod grid;
 mod media;
 #[path = "sidebar_multicam.rs"]
 pub(crate) mod multicam;
-#[path = "sidebar_subclip.rs"]
-mod subclip;
 use grid::{catalog_rows, cloud_grid, entry_list, generator_rows, header};
 use media::bin;
 
