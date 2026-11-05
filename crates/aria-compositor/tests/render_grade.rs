@@ -180,11 +180,11 @@ macro_rules! grade_probes {
 
 aria_models::adjust_slider_rows!(grade_probes);
 
-/// A plate with lights, darks, colour, hard edges and off-centre content.
+/// A plate with lights, darks, color, hard edges and off-center content.
 ///
 /// Every cell sits away from both 0 and 255, so a multiplier is visible
-/// before it clamps; the cell boundaries are the neighbours sharpness needs,
-/// and nothing is grey, which is what saturation and hue need. The eight
+/// before it clamps; the cell boundaries are the neighbors sharpness needs,
+/// and nothing is gray, which is what saturation and hue need. The eight
 /// cells reach every hue a hue curve has a knot at, so each knot moves one.
 fn census_plate(w: u32, h: u32) -> RgbaImage {
     let cells = [

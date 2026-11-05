@@ -16,7 +16,7 @@
 //! `index_of` is an exhaustive match over [`PixelFormat`], so a layout added to
 //! the enum cannot compile until it names a row, and
 //! `a_row_per_pixel_format_variant` proves the arm points at that layout's own
-//! row rather than reusing a neighbour's.
+//! row rather than reusing a neighbor's.
 
 use super::{ChromaSubsampling, PixelFormat};
 
@@ -204,7 +204,7 @@ mod tests {
     use super::*;
 
     /// The arm-points-at-its-own-row proof. A copy-pasted arm that returns a
-    /// neighbour's index goes red here, and a variant with no arm never compiles.
+    /// neighbor's index goes red here, and a variant with no arm never compiles.
     #[test]
     fn a_row_per_pixel_format_variant() {
         for (index, spec) in SHIPPED.iter().enumerate() {

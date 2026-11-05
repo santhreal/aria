@@ -15,7 +15,7 @@
 //! ## Where a command is described
 //!
 //! This file and `edit_command.rs` hold the shapes and nothing else. A
-//! command's label, reach, target shape, junction behaviour and undo are one
+//! command's label, reach, target shape, junction behavior and undo are one
 //! row in `spec_rows.rs`, and its handler is one row in `aria-engine`'s
 //! dispatch table. Both tables generate the only exhaustive matches over these
 //! enums, so a variant added to either file does not compile until both rows
@@ -67,8 +67,8 @@ pub enum ProjectCommand {
     /// project state to match the disk, and undoing back to a dead path is
     /// never a useful result.
     RelinkMedia { media: MediaId, path: PathBuf },
-    /// Set (or clear) a media-pool entry's label colour. Undoable: the inverse
-    /// restores the previous colour.
+    /// Set (or clear) a media-pool entry's label color. Undoable: the inverse
+    /// restores the previous color.
     SetMediaLabel {
         media: MediaId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -80,7 +80,7 @@ pub enum ProjectCommand {
     /// fields mean the project's own output, so `{"path": …}` alone still
     /// exports exactly the sequence. It is resolved and validated against the
     /// installed encoder by `aria_render::ExportSettings::resolved`, which
-    /// refuses a codec or a bitrate this machine cannot honour instead of
+    /// refuses a codec or a bitrate this machine cannot honor instead of
     /// writing a file nobody asked for.
     Export {
         path: PathBuf,

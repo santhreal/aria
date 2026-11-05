@@ -2,7 +2,7 @@
 //! fails to build.
 //!
 //! Closes the class "a failed build reports only cargo's exit status": cargo
-//! colours its diagnostics when `CARGO_TERM_COLOR=always` (set by CI toolchain
+//! colors its diagnostics when `CARGO_TERM_COLOR=always` (set by CI toolchain
 //! actions and by many shells), so an error line started with an escape
 //! sequence instead of `error` and the reason was dropped, along with the
 //! `help:` line holding the fix. Not covered: diagnostics cargo prints in a
@@ -22,7 +22,7 @@ const MISSING_TARGET: &str = "\u{1b}[1m\u{1b}[92m   Compiling\u{1b}[0m bitflags 
 \u{1b}[1m\u{1b}[91merror\u{1b}[0m\u{1b}[1m:\u{1b}[0m could not compile `bitflags` (lib) due to 1 previous error\n";
 
 #[test]
-fn a_coloured_build_failure_reports_the_error_and_its_fix() {
+fn a_colored_build_failure_reports_the_error_and_its_fix() {
     assert_eq!(
         first_error(MISSING_TARGET).as_deref(),
         Some(

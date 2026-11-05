@@ -16,7 +16,7 @@ const TARGET: &str =
 pub(crate) fn run(ctx: &BenchContext) -> Result<ScenarioReport, String> {
     // The app starts the decode device warm-up before its window opens, so an
     // export from it opens a warm device. Without this the
-    // timed export carries the process's first CUDA initialisation (1.8 s on
+    // timed export carries the process's first CUDA initialization (1.8 s on
     // the Desktop machine), a startup cost `play-start` measures cold. The
     // warm-up is awaited, not only started: a warm-up still running when the
     // timer starts contends with the encoder's own device open.

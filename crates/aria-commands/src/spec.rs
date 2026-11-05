@@ -5,7 +5,7 @@
 //! lock policy has to check, whether a structural edit can break a transition
 //! junction, and — in `aria-engine` — the handler and the inverse. Nothing tied
 //! those together, so a command could be dispatchable and unlabelled, or
-//! labelled and unreachable, and no test went red. Adding one variant meant
+//! labeled and unreachable, and no test went red. Adding one variant meant
 //! finding every match again.
 //!
 //! A row here carries what the command layer knows about one command: its wire

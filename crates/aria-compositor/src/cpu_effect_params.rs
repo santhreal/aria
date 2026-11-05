@@ -224,15 +224,15 @@ impl<'a> EffectParams<'a> {
         Some([slice[0], slice[1], slice[2]])
     }
 
-    /// Colour parameter `name` as linear RGBA `[r, g, b, a]`, or `None` if not
-    /// present or not a colour.
+    /// Color parameter `name` as linear RGBA `[r, g, b, a]`, or `None` if not
+    /// present or not a color.
     pub fn color(&self, name: &str) -> Option<[f32; 4]> {
         let index = self.specs.iter().position(|p| &*p.name == name)?;
         self.color_at(index)
     }
 
-    /// Colour parameter at slot `index` as linear RGBA `[r, g, b, a]`, or
-    /// `None` if out of bounds or not a colour.
+    /// Color parameter at slot `index` as linear RGBA `[r, g, b, a]`, or
+    /// `None` if out of bounds or not a color.
     pub fn color_at(&self, index: usize) -> Option<[f32; 4]> {
         let spec = self.specs.get(index)?;
         if spec.kind != EffectParamKind::Color {

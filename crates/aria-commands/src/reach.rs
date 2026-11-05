@@ -1,6 +1,6 @@
 //! Which UI surface reaches each command.
 //!
-//! The class closed here is "a command is added, dispatched, serialised, tested
+//! The class closed here is "a command is added, dispatched, serialized, tested
 //! at the wire, and never reachable by a person". A command that no surface
 //! sends is not a feature, and nothing about its own definition says so.
 //!

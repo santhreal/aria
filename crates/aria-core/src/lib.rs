@@ -27,7 +27,7 @@
 //!   mobile, and the Python bindings share one path.
 //! - [`cancel`] — [`Cancel`], the one-way stop a scrub uses to drop the frame it
 //!   has already moved past. Here because the decoder, the renderer and the
-//!   engine all have to honour the same signal.
+//!   engine all have to honor the same signal.
 //! - [`count`]: [`counted`](count::counted), a count written with the noun that
 //!   agrees with it, for every crate that writes a message about how many of
 //!   something it touched.

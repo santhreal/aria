@@ -7,7 +7,7 @@
 
 use super::{ColorGrade, curve, hue_chroma, hue_knots};
 
-/// Colours across the hue circle, the greys, and both ends.
+/// Colors across the hue circle, the grays, and both ends.
 const SWATCHES: &[[f32; 3]] = &[
     [0.0, 0.0, 0.0],
     [1.0, 1.0, 1.0],
@@ -110,7 +110,7 @@ fn faded_film_lifts_black_and_leaves_white() {
 }
 
 #[test]
-fn vibrance_reaches_muted_colours_further_than_saturated_ones() {
+fn vibrance_reaches_muted_colors_further_than_saturated_ones() {
     let vibrant = ColorGrade {
         vibrance: 1.0,
         ..ColorGrade::IDENTITY
@@ -124,10 +124,10 @@ fn vibrance_reaches_muted_colours_further_than_saturated_ones() {
         muted_gain > vivid_gain,
         "muted grew {muted_gain}, vivid grew {vivid_gain}"
     );
-    let grey = vibrant.apply_secondary([0.4; 3]);
+    let gray = vibrant.apply_secondary([0.4; 3]);
     assert!(
-        grey.iter().all(|ch| close(*ch, 0.4)),
-        "a gray took color: {grey:?}"
+        gray.iter().all(|ch| close(*ch, 0.4)),
+        "a gray took color: {gray:?}"
     );
 }
 
@@ -135,17 +135,17 @@ fn vibrance_reaches_muted_colours_further_than_saturated_ones() {
 fn the_secondary_reaches_only_the_keyed_hue() {
     let red = [0.8, 0.2, 0.2];
     let green = [0.2, 0.8, 0.2];
-    let grey_out = ColorGrade {
+    let gray_out = ColorGrade {
         hsl_saturation: -1.0,
         ..ColorGrade::IDENTITY
     };
-    let greyed = grey_out.apply_secondary(red);
+    let grayed = gray_out.apply_secondary(red);
     assert!(
-        close(greyed[0], greyed[1]) && close(greyed[1], greyed[2]),
-        "the keyed red kept color: {greyed:?}"
+        close(grayed[0], grayed[1]) && close(grayed[1], grayed[2]),
+        "the keyed red kept color: {grayed:?}"
     );
     assert_eq!(
-        grey_out.apply_secondary(green),
+        gray_out.apply_secondary(green),
         green,
         "a green outside the key moved"
     );
@@ -153,26 +153,26 @@ fn the_secondary_reaches_only_the_keyed_hue() {
     // Turned to green, the key reaches green and leaves red alone.
     let on_green = ColorGrade {
         hsl_key_hue: 2.0 / 3.0,
-        ..grey_out
+        ..gray_out
     };
     assert_eq!(on_green.apply_secondary(red), red);
-    let greyed = on_green.apply_secondary(green);
-    assert!(close(greyed[0], greyed[2]) && close(greyed[0], greyed[1]));
+    let grayed = on_green.apply_secondary(green);
+    assert!(close(grayed[0], grayed[2]) && close(grayed[0], grayed[1]));
 }
 
 #[test]
-fn a_wider_key_reaches_a_neighbouring_hue() {
+fn a_wider_key_reaches_a_neighboring_hue() {
     // This orange sits 45 degrees from red: outside the default window of 30
     // degrees and its soft edge, inside the widest window of 60.
     let orange = [0.9, 0.75, 0.3];
-    let grey_out = ColorGrade {
+    let gray_out = ColorGrade {
         hsl_saturation: -1.0,
         ..ColorGrade::IDENTITY
     };
-    let narrow = grey_out.apply_secondary(orange);
+    let narrow = gray_out.apply_secondary(orange);
     let wide = ColorGrade {
         hsl_key_width: 1.0,
-        ..grey_out
+        ..gray_out
     }
     .apply_secondary(orange);
     let spread = |rgb: [f32; 3]| rgb[0].max(rgb[1]).max(rgb[2]) - rgb[0].min(rgb[1]).min(rgb[2]);

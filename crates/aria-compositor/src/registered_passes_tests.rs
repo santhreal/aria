@@ -105,7 +105,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 #[test]
-fn an_error_past_the_plugin_lines_is_labelled_as_the_prelude() {
+fn an_error_past_the_plugin_lines_is_labeled_as_the_prelude() {
     let (location, message) = check_pass(PASSTHROUGH, "fn broken( {", Kind::Effect)
         .expect_err("the prelude does not parse");
     assert_eq!(location, None);
@@ -334,13 +334,13 @@ fn an_effect_needs_one_to_max_passes() {
 
 #[test]
 fn parameters_may_flatten_past_the_old_uniform_float_limit() {
-    let colours = MAX_EFFECT_FLOATS / 4 + 4;
-    let params: Vec<EffectParamSpec> = (0..colours)
+    let colors = MAX_EFFECT_FLOATS / 4 + 4;
+    let params: Vec<EffectParamSpec> = (0..colors)
         .map(|i| param(&format!("c{i}"), EffectParamKind::Color))
         .collect();
     let source = format!(
         "@fragment\nfn fs(in: VsOut) -> @location(0) vec4<f32> {{\n    return param_c0() + param_c{}();\n}}\n",
-        colours - 1
+        colors - 1
     );
     check_effect(&source, &params).expect("storage buffer handles >256 floats");
 }

@@ -96,13 +96,13 @@ impl AlignConfig {
     }
 }
 
-/// The lag that matched best, and its normalised correlation.
+/// The lag that matched best, and its normalized correlation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Alignment {
     /// Where `candidate[0]` sits on the reference's clock, in envelope samples.
     /// Positive means the candidate starts later than the reference.
     pub lag: isize,
-    /// Normalised cross-correlation over the overlap, in `-1.0..=1.0`. One is
+    /// Normalized cross-correlation over the overlap, in `-1.0..=1.0`. One is
     /// an exact match of shape, zero is no relation.
     pub score: f32,
     /// How many samples the score was computed over.
@@ -171,7 +171,7 @@ pub fn align_near(
         };
         scores[(lag - lo) as usize] = score;
         let overlap = a.len();
-        // A strictly better score wins; ties keep the lag nearest the centre, so
+        // A strictly better score wins; ties keep the lag nearest the center, so
         // an identical pair reports zero rather than whichever edge came first.
         let better = match &best {
             None => true,
@@ -275,7 +275,7 @@ fn pooled(values: &[f32], factor: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Normalised cross-correlation of two equal-length windows, or `None` when
+/// Normalized cross-correlation of two equal-length windows, or `None` when
 /// either window is flat and has nothing to correlate.
 fn correlation(a: &[f32], b: &[f32]) -> Option<f32> {
     debug_assert_eq!(a.len(), b.len());

@@ -81,8 +81,8 @@ pub(crate) fn param_value_phrase(
 ) -> String {
     // Shape first, read off the payload that arrived rather than off a table of
     // which selector carries which kind. That table was the stale part: it
-    // named every colour and every coordinate property by hand, so the next
-    // colour property added to the wire would have printed as a bare number
+    // named every color and every coordinate property by hand, so the next
+    // color property added to the wire would have printed as a bare number
     // under the fallthrough. A value cannot be wrong about its own shape.
     if let Some(r) = rect {
         return format!("[{:.2}, {:.2}, {:.2}, {:.2}]", r[0], r[1], r[2], r[3]);
@@ -91,7 +91,7 @@ pub(crate) fn param_value_phrase(
         return rgba(c);
     }
     if let Some(p) = position {
-        // Scale is a factor pair, not a normalised coordinate: 1.5 rounded to
+        // Scale is a factor pair, not a normalized coordinate: 1.5 rounded to
         // two places reads as a position, so it keeps the numbers it was given.
         return if matches!(param, wire::WireClipParam::Scale) {
             format!("[{}, {}]", p[0], p[1])

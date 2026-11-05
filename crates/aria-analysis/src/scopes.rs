@@ -1,7 +1,7 @@
 //! Video scopes over one decoded frame: histogram, waveform monitor, and
 //! vectorscope.
 //!
-//! Colour work done by eye drifts. These three read the frame the same way a
+//! Color work done by eye drifts. These three read the frame the same way a
 //! broadcast monitor does, so exposure, contrast, and saturation are numbers
 //! instead of impressions.
 //!
@@ -324,7 +324,7 @@ impl Waveform {
 }
 
 /// Chroma distribution on the Cb/Cr plane: a square grid with neutral at the
-/// centre, Cb increasing to the right and Cr upward, which is the orientation
+/// center, Cb increasing to the right and Cr upward, which is the orientation
 /// a vectorscope graticule is read in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vectorscope {
@@ -379,7 +379,7 @@ pub struct FrameScopes {
     pub timestamp_seconds: f64,
 }
 
-/// Luma weights in 16-bit fixed point. They sum to 65536, so a grey reads
+/// Luma weights in 16-bit fixed point. They sum to 65536, so a gray reads
 /// its own code value.
 const LUMA_WEIGHTS: [u32; 3] = [13_933, 46_871, 4_732];
 
@@ -471,8 +471,8 @@ pub fn luma709(red: u8, green: u8, blue: u8) -> u8 {
 /// cells wide: Cb to the right, Cr upward, neutral at [`Vectorscope::centre`].
 ///
 /// BT.709 chroma in 15-bit fixed point: Cb is `-3754 R - 12630 G + 16384 B`
-/// and Cr is `16384 R - 14882 G - 1502 B` over 32768, so every grey lands on
-/// the centre cell. Positions round half up. For every `size` up to
+/// and Cr is `16384 R - 14882 G - 1502 B` over 32768, so every gray lands on
+/// the center cell. Positions round half up. For every `size` up to
 /// [`MAX_VECTORSCOPE_SIZE`] each intermediate fits in a `u32`, which is what
 /// the GPU pass computes in.
 #[must_use]
@@ -489,7 +489,7 @@ fn offsets_cell(right: u64, up: u64, size: usize) -> (usize, usize) {
 }
 
 /// BT.709 Cb and Cr of one 8-bit RGB triple as code values: 0 at -1/2, 255 at
-/// +1/2, and 128 for every grey. The fixed point of [`vectorscope_cell`],
+/// +1/2, and 128 for every gray. The fixed point of [`vectorscope_cell`],
 /// rounded half up to 255 steps; each intermediate fits in a `u32`, which is
 /// what the GPU pass computes in.
 #[must_use]

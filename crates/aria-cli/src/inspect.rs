@@ -169,7 +169,7 @@ fn describe(project: &Project, content: &ClipSource) -> String {
 }
 
 /// The part of a generated clip its catalog row cannot name: the words in a
-/// title, the colour of a solid, the file a Lottie plays.
+/// title, the color of a solid, the file a Lottie plays.
 ///
 /// Exhaustive on purpose. Every arm extracts one variant's own payload, and the
 /// variants that carry none are named rather than absorbed by a wildcard, so a

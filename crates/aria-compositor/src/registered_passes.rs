@@ -24,7 +24,7 @@
 //! premultiplied RGBA, and a pass writes premultiplied RGBA.
 //!
 //! Each effect parameter gets an accessor named `param_<name>`: `f32` for a
-//! scalar, `vec2<f32>` for a vec2, `vec4<f32>` RGBA in 0..1 for a colour.
+//! scalar, `vec2<f32>` for a vec2, `vec4<f32>` RGBA in 0..1 for a color.
 
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};

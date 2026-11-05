@@ -150,7 +150,7 @@ fn the_reported_lag_stays_inside_the_search() {
 }
 
 #[test]
-fn the_overlap_floor_is_honoured() {
+fn the_overlap_floor_is_honored() {
     let reference = envelope(1_000, 31);
     let candidate = reference[900..].to_vec();
     let strict = AlignConfig::new(200, 64).expect("valid");
@@ -310,17 +310,17 @@ fn smooth_envelope(len: usize, seed: u32) -> Vec<f32> {
     const HALF: usize = 4;
     let mut state = seed | 1;
     let mut values = vec![0.05f32; len];
-    for centre in 0..len {
+    for center in 0..len {
         state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         if (state >> 16) as f32 / 65_535.0 <= 0.98 {
             continue;
         }
         for offset in 0..=HALF {
             let height = 1.0 - offset as f32 / (HALF + 1) as f32;
-            if let Some(value) = values.get_mut(centre + offset) {
+            if let Some(value) = values.get_mut(center + offset) {
                 *value = value.max(height);
             }
-            if let Some(value) = centre.checked_sub(offset).and_then(|i| values.get_mut(i)) {
+            if let Some(value) = center.checked_sub(offset).and_then(|i| values.get_mut(i)) {
                 *value = value.max(height);
             }
         }

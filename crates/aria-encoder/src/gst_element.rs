@@ -177,7 +177,7 @@ fn takes_frames(element: &gst::Element, frames: &gst::Caps) -> bool {
 /// The one owner of that answer: a picker offering a codec the pipeline would
 /// then refuse is worse than a picker with one entry.
 ///
-/// Initialises GStreamer first. A registry lookup on an uninitialised library
+/// Initializes GStreamer first. A registry lookup on an uninitialised library
 /// panics, and the probe may run in a process that has not encoded anything
 /// yet.
 fn can_encode(codec: VideoCodec) -> bool {

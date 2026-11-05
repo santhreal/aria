@@ -85,7 +85,7 @@ fn set_transform_recentres_ui_coordinates() {
         "the gesture rotates and scales about the clip's center"
     );
 
-    // The centre of the canvas is the origin, not (0.5, 0.5).
+    // The center of the canvas is the origin, not (0.5, 0.5).
     run(
         &mut engine,
         Intent::SetTransform {

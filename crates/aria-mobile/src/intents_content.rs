@@ -299,7 +299,7 @@ pub(super) fn freeze(
         return Err(invalid("clip is already a still"));
     }
 
-    // Which source frame sits under the playhead (speed/reverse honoured)?
+    // Which source frame sits under the playhead (speed/reverse honored)?
     // Edge hits clamp to the nearest interior frame so a freeze at a cut
     // boundary still has content to freeze.
     let s = snapshot.timeline.start.value;

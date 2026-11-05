@@ -79,7 +79,7 @@ use serde::{Deserialize, Serialize};
 /// 43: per-lane routing — `set_track_targeted` picks which lane of a kind an
 ///     edit or a media drop lands on, and `set_track_sync_lock` says which
 ///     other lanes ride along with an insert.
-/// 44: colour wheels — `adjust_lift_*`, `adjust_gamma_*`, and `adjust_gain_*`
+/// 44: color wheels — `adjust_lift_*`, `adjust_gamma_*`, and `adjust_gain_*`
 ///     on `WireLookParam`, so lift/gamma/gain (per channel and master) take
 ///     keyframes and constants by the same route as every other adjustment.
 /// 45: a mixer to route: `Submix` joins the lane kinds `add_track` creates.

@@ -196,7 +196,7 @@ pub(super) fn reject_transition_on_lane(
         .and_then(|id| timeline.track(id))
         .map(|t| t.kind)
     else {
-        // A clip on no lane has no cut; the neighbour check refuses it.
+        // A clip on no lane has no cut; the neighbor check refuses it.
         return Ok(());
     };
     let Some(media) = kind.transition_media() else {

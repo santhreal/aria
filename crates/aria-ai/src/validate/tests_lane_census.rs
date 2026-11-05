@@ -132,7 +132,7 @@ fn every_lane_answers_the_crop_guard() {
 /// Every lane takes the transitions its catalog row names: a lane that
 /// composites frames takes a picture blend, a sound lane that holds clips an
 /// audio crossfade, and any other lane neither. A lone clip has no cut, so a
-/// transition the lane takes is refused only for the missing neighbour.
+/// transition the lane takes is refused only for the missing neighbor.
 #[test]
 fn every_lane_takes_the_transitions_its_row_names() {
     let picture = ["crossfade".to_string()];

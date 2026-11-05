@@ -139,7 +139,7 @@ fn every_wire_command_has_a_registry_row() {
 fn every_registry_row_answers_its_own_name() {
     for name in tool_names() {
         // Empty arguments are wrong for almost every tool; what matters is
-        // that dispatch recognises the name rather than reporting it unknown.
+        // that dispatch recognizes the name rather than reporting it unknown.
         let refusal = WireCommand::from_tool_call(name, serde_json::json!({}))
             .err()
             .unwrap_or_default();

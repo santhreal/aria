@@ -15,7 +15,7 @@
 //! backend (`MediaCodecEncoder`) uses MediaCodec (H.264 + AAC) with
 //! `AMediaMuxer`. Linux ([`GstEncoder`]) uses GStreamer (`x264enc` / `x265enc`
 //! / VAAPI / NVENC + AAC + `mp4mux`), and is the only backend that writes
-//! H.265 or honours a requested bitrate — see [`capability`]. Other platforms
+//! H.265 or honors a requested bitrate — see [`capability`]. Other platforms
 //! return [`EncodeError::Unsupported`] from [`open_encoder`] until their
 //! backends land.
 
@@ -192,7 +192,7 @@ pub struct EncoderCapability {
     /// The codecs this backend can be asked for. A codec outside this list is
     /// refused by [`open_encoder`] rather than silently swapped for another.
     pub codecs: &'static [VideoCodec],
-    /// Whether a [`EncoderConfig::bitrate_kbps`] is honoured. When it is not,
+    /// Whether a [`EncoderConfig::bitrate_kbps`] is honored. When it is not,
     /// asking for one is refused: a file at the encoder's own rate is not the
     /// file that was asked for.
     pub bitrate: bool,
@@ -444,7 +444,7 @@ mod capability_tests {
         assert!(!path.exists(), "a refused encode created a file");
     }
 
-    /// A bitrate a backend does not honour is refused rather than ignored: a
+    /// A bitrate a backend does not honor is refused rather than ignored: a
     /// file at the encoder's own rate is not the file that was asked for.
     #[test]
     fn a_bitrate_the_backend_ignores_is_refused() {

@@ -97,15 +97,15 @@ fn assert_px(img: &RgbaImage, x: u32, y: u32, expect: [u8; 4], tol: i32, what: &
     }
 }
 
-/// A grey level, opaque.
-const fn grey(v: u8) -> [u8; 4] {
+/// A gray level, opaque.
+const fn gray(v: u8) -> [u8; 4] {
     [v, v, v, 255]
 }
 
 fn color_matte(rig: &mut Rig) {
     let img = rig.draw("color_matte", defaults("color_matte"));
     for (x, y) in [(0, 0), (W / 2, H / 2), (W - 1, H - 1)] {
-        assert_px(&img, x, y, grey(128), 1, "the default matte");
+        assert_px(&img, x, y, gray(128), 1, "the default matte");
     }
     // Half-transparent red over black: the matte keeps its alpha.
     let img = rig.draw("color_matte", vec![1.0, 0.0, 0.0, 0.5]);
@@ -122,59 +122,59 @@ fn color_matte(rig: &mut Rig) {
 fn linear_gradient(rig: &mut Rig) {
     let img = rig.draw("linear_gradient", defaults("linear_gradient"));
     // Black at the left edge to white at the right, the same down a column.
-    // Pixel centres sit half a pixel in from each edge.
+    // Pixel centers sit half a pixel in from each edge.
     let at = |x: u32| ((x as f32 + 0.5) / W as f32 * 255.0).round() as u8;
     for x in [0, W / 4, W / 2, W - 1] {
-        assert_px(&img, x, 0, grey(at(x)), 2, "along the default ramp");
-        assert_px(&img, x, H - 1, grey(at(x)), 2, "down a column of the ramp");
+        assert_px(&img, x, 0, gray(at(x)), 2, "along the default ramp");
+        assert_px(&img, x, H - 1, gray(at(x)), 2, "down a column of the ramp");
     }
     // A vertical ramp, white at the top: the points are fractions of the frame.
     let mut params = defaults("linear_gradient");
     params[8..12].copy_from_slice(&[0.5, 1.0, 0.5, 0.0]);
     let img = rig.draw("linear_gradient", params);
-    assert_px(&img, 0, 0, grey(253), 3, "the end of a vertical ramp");
+    assert_px(&img, 0, 0, gray(253), 3, "the end of a vertical ramp");
     assert_px(
         &img,
         W - 1,
         H - 1,
-        grey(2),
+        gray(2),
         3,
         "the start of a vertical ramp",
     );
-    // Start and end at one point: no direction, the start colour throughout.
+    // Start and end at one point: no direction, the start color throughout.
     let mut params = defaults("linear_gradient");
     params[8..12].copy_from_slice(&[0.5, 0.5, 0.5, 0.5]);
     let img = rig.draw("linear_gradient", params);
-    assert_px(&img, W - 1, 0, grey(0), 1, "a ramp of no length");
+    assert_px(&img, W - 1, 0, gray(0), 1, "a ramp of no length");
 }
 
 fn radial_gradient(rig: &mut Rig) {
     let img = rig.draw("radial_gradient", defaults("radial_gradient"));
-    // White at the centre, black from half the frame height out.
-    assert_px(&img, W / 2, H / 2, grey(255), 6, "the center");
-    assert_px(&img, 0, 0, grey(0), 1, "a corner past the radius");
+    // White at the center, black from half the frame height out.
+    assert_px(&img, W / 2, H / 2, gray(255), 6, "the center");
+    assert_px(&img, 0, 0, gray(0), 1, "a corner past the radius");
     // Halfway out along x: 18 px of a 36 px radius.
-    assert_px(&img, W / 2 + 18, H / 2, grey(128), 6, "half the radius out");
+    assert_px(&img, W / 2 + 18, H / 2, gray(128), 6, "half the radius out");
     // Round on a wide frame: the same distance up reads the same.
-    assert_px(&img, W / 2, H / 2 - 18, grey(128), 6, "half the radius up");
+    assert_px(&img, W / 2, H / 2 - 18, gray(128), 6, "half the radius up");
 }
 
 fn checkerboard(rig: &mut Rig) {
     let img = rig.draw("checkerboard", defaults("checkerboard"));
-    // 60 px cells of a 1080 px frame are 4 px at 72, counted from the centre.
+    // 60 px cells of a 1080 px frame are 4 px at 72, counted from the center.
     let (cx, cy) = (W / 2, H / 2);
     assert_px(
         &img,
         cx,
         cy,
-        grey(255),
+        gray(255),
         1,
         "the cell right of and below the anchor",
     );
-    assert_px(&img, cx + 4, cy, grey(0), 1, "the next cell right");
-    assert_px(&img, cx - 1, cy, grey(0), 1, "the cell left of the anchor");
-    assert_px(&img, cx, cy + 4, grey(0), 1, "the next cell down");
-    assert_px(&img, cx + 4, cy + 4, grey(255), 1, "diagonally across");
+    assert_px(&img, cx + 4, cy, gray(0), 1, "the next cell right");
+    assert_px(&img, cx - 1, cy, gray(0), 1, "the cell left of the anchor");
+    assert_px(&img, cx, cy + 4, gray(0), 1, "the next cell down");
+    assert_px(&img, cx + 4, cy + 4, gray(255), 1, "diagonally across");
     // A larger cell moves the edge.
     let mut params = defaults("checkerboard");
     params[8] = 120.0;
@@ -183,7 +183,7 @@ fn checkerboard(rig: &mut Rig) {
         &img,
         cx + 4,
         cy,
-        grey(255),
+        gray(255),
         1,
         "an 8 px cell still covers 4 px right",
     );
@@ -196,14 +196,14 @@ fn grid(rig: &mut Rig) {
     params[5] = 60.0;
     let img = rig.draw("grid", params);
     let (cx, cy) = (W / 2, H / 2);
-    assert_px(&img, cx, 5, grey(255), 1, "on the line through the anchor");
-    assert_px(&img, cx + 18, 5, grey(255), 1, "on the next vertical line");
-    assert_px(&img, 5, cy + 18, grey(255), 1, "on a horizontal line");
+    assert_px(&img, cx, 5, gray(255), 1, "on the line through the anchor");
+    assert_px(&img, cx + 18, 5, gray(255), 1, "on the next vertical line");
+    assert_px(&img, 5, cy + 18, gray(255), 1, "on a horizontal line");
     assert_px(
         &img,
         cx + 9,
         cy + 9,
-        grey(0),
+        gray(0),
         1,
         "between lines, the layer is clear",
     );
@@ -212,7 +212,7 @@ fn grid(rig: &mut Rig) {
     params[4] = 270.0;
     params[5] = 0.0;
     let img = rig.draw("grid", params);
-    assert_px(&img, cx, cy, grey(0), 1, "a line of no width");
+    assert_px(&img, cx, cy, gray(0), 1, "a line of no width");
 }
 
 fn fractal_noise(rig: &mut Rig) {
@@ -248,12 +248,12 @@ fn fractal_noise(rig: &mut Rig) {
             "{what} changes the picture"
         );
     }
-    // No contrast: every pixel is the midpoint of the two colours.
+    // No contrast: every pixel is the midpoint of the two colors.
     let mut flat = params;
     flat[11] = 0.0;
     let img = rig.draw("fractal_noise", flat);
-    assert_px(&img, 3, 3, grey(128), 1, "noise with no contrast");
-    assert_px(&img, W - 3, H - 3, grey(128), 1, "noise with no contrast");
+    assert_px(&img, 3, 3, gray(128), 1, "noise with no contrast");
+    assert_px(&img, W - 3, H - 3, gray(128), 1, "noise with no contrast");
 }
 
 fn color_bars(rig: &mut Rig) {
@@ -289,8 +289,8 @@ fn color_bars(rig: &mut Rig) {
         2,
         "the reversed row",
     );
-    assert_px(&img, bar(1), H * 17 / 24, grey(0), 1, "the reversed row");
-    assert_px(&img, W * 15 / 56, H - 2, grey(255), 1, "full white");
+    assert_px(&img, bar(1), H * 17 / 24, gray(0), 1, "the reversed row");
+    assert_px(&img, W * 15 / 56, H - 2, gray(255), 1, "full white");
     // 100% bars.
     let img = rig.draw("color_bars", vec![1.0]);
     assert_px(

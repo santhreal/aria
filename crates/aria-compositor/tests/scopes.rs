@@ -3,7 +3,7 @@
 //! and unpremultiplied into, every histogram, waveform and vectorscope cell
 //! and the sampled count, at every stride, grid size, and waveform trace.
 //!
-//! The frames cover every grey, the six saturated primaries and secondaries,
+//! The frames cover every gray, the six saturated primaries and secondaries,
 //! partly and fully transparent pixels, and a pseudo-random spread, at sizes
 //! that leave partial workgroups on both edges. A pass that drifts from the
 //! CPU fixed point, misplaces a column, keeps the last frame's counts, or
@@ -43,7 +43,7 @@ macro_rules! gpu_or_skip {
     };
 }
 
-/// Straight-alpha pixels: every grey, the primaries and secondaries, a
+/// Straight-alpha pixels: every gray, the primaries and secondaries, a
 /// transparent and a half-covered run, then a pseudo-random spread with one
 /// pixel in seven partly transparent.
 fn straight(width: u32, height: u32) -> RgbaImage {
@@ -61,8 +61,8 @@ fn straight(width: u32, height: u32) -> RgbaImage {
     let mut seed: u32 = 0x9e37_79b9;
     for i in 0..width * height {
         let px = if i < 256 {
-            let grey = i as u8;
-            [grey, grey, grey, 255]
+            let gray = i as u8;
+            [gray, gray, gray, 255]
         } else if i < 256 + 8 * 16 {
             named[((i - 256) / 16) as usize]
         } else {
@@ -229,13 +229,13 @@ fn each_run_counts_its_own_frame() {
     let (gpu, mut pass) = gpu_or_skip!();
     let (width, height) = (40, 33);
     let first = premultiplied(&straight(width, height));
-    let grey = premultiplied(&RgbaImage::new(
+    let gray = premultiplied(&RgbaImage::new(
         width,
         height,
         [77, 77, 77, 255].repeat((width * height) as usize),
     ));
     let one = upload(&gpu, width, height, &first);
-    let two = upload(&gpu, width, height, &grey);
+    let two = upload(&gpu, width, height, &gray);
     let small = ScopeConfig::new(16, 32, 4096).expect("a valid config");
     let large = ScopeConfig::new(512, 256, 4096).expect("a valid config");
     let rgb = small.with_waveform_trace(WaveformTrace::RgbParade);
@@ -243,11 +243,11 @@ fn each_run_counts_its_own_frame() {
     for (texture, frame, config) in [
         (&one, &first, small),
         (&one, &first, small),
-        (&two, &grey, small),
+        (&two, &gray, small),
         (&one, &first, rgb),
-        (&two, &grey, rgb),
+        (&two, &gray, rgb),
         (&one, &first, large),
-        (&two, &grey, large),
+        (&two, &gray, large),
         (&one, &first, ycbcr),
         (&one, &first, small),
     ] {
@@ -258,10 +258,10 @@ fn each_run_counts_its_own_frame() {
     }
 }
 
-/// A fully transparent frame counts nothing; a frame of one grey lands in
-/// that grey's bin in every histogram and on the vectorscope's centre.
+/// A fully transparent frame counts nothing; a frame of one gray lands in
+/// that gray's bin in every histogram and on the vectorscope's center.
 #[test]
-fn transparent_pixels_are_not_counted_and_greys_are_neutral() {
+fn transparent_pixels_are_not_counted_and_grays_are_neutral() {
     let (gpu, mut pass) = gpu_or_skip!();
     let (width, height) = (18, 17);
     let config = ScopeConfig::new(9, 33, 1024).expect("a valid config");
@@ -279,14 +279,14 @@ fn transparent_pixels_are_not_counted_and_greys_are_neutral() {
             .all(|n| *n == 0)
     );
 
-    let grey = upload(
+    let gray = upload(
         &gpu,
         width,
         height,
         &[198, 198, 198, 255].repeat((width * height) as usize),
     );
     let counts = pass
-        .measure(&grey, grid(width, height, config))
+        .measure(&gray, grid(width, height, config))
         .expect("the pass counts");
     let all = width * height;
     assert_eq!(counts.sampled, all);
@@ -299,10 +299,10 @@ fn transparent_pixels_are_not_counted_and_greys_are_neutral() {
         "gray left the center"
     );
 
-    // A grey is its own luma and neutral Cb and Cr, code 128, in every column.
+    // A gray is its own luma and neutral Cb and Cr, code 128, in every column.
     let ycbcr = config.with_waveform_trace(WaveformTrace::YcbcrParade);
     let counts = pass
-        .measure(&grey, grid(width, height, ycbcr))
+        .measure(&gray, grid(width, height, ycbcr))
         .expect("the pass counts");
     let plane = 9 * 256;
     for (index, code) in [(0, 198), (1, 128), (2, 128)] {

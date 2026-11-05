@@ -121,7 +121,7 @@ fn detect_shots_from_source(
 /// Convert one decoded frame into `buffer` as packed RGBA, downscaled to at most
 /// [`SAMPLE_EDGE`] on each axis. Returns the written dimensions.
 ///
-/// Nearest-neighbour by design: the detector compares a sampled grid and a histogram,
+/// Nearest-neighbor by design: the detector compares a sampled grid and a histogram,
 /// and an interpolating filter would blur exactly the edges a cut moves.
 pub fn convert_into(frame: &VideoFrame, buffer: &mut [u8]) -> Result<(usize, usize), String> {
     let FrameData::Cpu(image) = &frame.data else {
@@ -355,7 +355,7 @@ mod tests {
 
     /// The class closed here is "a decoded frame the seam misreads becomes a silent
     /// absence of cuts". Every format the decoders emit is either converted or refused
-    /// by name, and the conversion keeps a flat colour flat.
+    /// by name, and the conversion keeps a flat color flat.
     #[test]
     fn every_cpu_pixel_format_is_converted_or_refused_by_name() {
         let mut buffer = vec![0_u8; SAMPLE_EDGE * SAMPLE_EDGE * 4];
@@ -379,7 +379,7 @@ mod tests {
         convert_into(&bgra, &mut buffer).unwrap();
         assert_eq!(&buffer[0..4], &[30, 20, 10, 255]);
 
-        // Neutral chroma with mid luma is grey, not a colour cast.
+        // Neutral chroma with mid luma is gray, not a color cast.
         let nv12 = frame(
             PixelFormat::Nv12,
             vec![
@@ -390,8 +390,8 @@ mod tests {
             2,
         );
         convert_into(&nv12, &mut buffer).unwrap();
-        let grey = buffer[0];
-        assert_eq!(&buffer[0..4], &[grey, grey, grey, 255], "chroma cast");
+        let gray = buffer[0];
+        assert_eq!(&buffer[0..4], &[gray, gray, gray, 255], "chroma cast");
 
         let yuv420p = frame(
             PixelFormat::Yuv420p,
@@ -404,7 +404,7 @@ mod tests {
             2,
         );
         convert_into(&yuv420p, &mut buffer).unwrap();
-        assert_eq!(&buffer[0..4], &[grey, grey, grey, 255]);
+        assert_eq!(&buffer[0..4], &[gray, gray, gray, 255]);
 
         // 10-bit is refused with a reason rather than producing garbage.
         let p010 = frame(

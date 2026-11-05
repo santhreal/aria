@@ -98,7 +98,7 @@ fn render(gpu: &GpuContext, comp: &mut Compositor, plate: [u8; 4], effect: &str)
     comp.render(gpu, &config, &[layer]).expect("renders")
 }
 
-/// Halves the colour of `input_tex` into `output_tex`, skipping texels outside
+/// Halves the color of `input_tex` into `output_tex`, skipping texels outside
 /// the pass output.
 const HALVE_COMPUTE: &str = "@compute @workgroup_size(8, 8, 1)
 fn cs(@builtin(global_invocation_id) id: vec3<u32>) {

@@ -12,7 +12,7 @@
 //! `aria_models::shipped_effect_catalog()` does, and this crate holds no second copy.
 //! Names, order and value kinds come from that catalog — a data file a user can
 //! replace — and the uniform slots are derived from it: scalar one float, vec2
-//! two, colour four, in catalog order. There is therefore no list of slots here
+//! two, color four, in catalog order. There is therefore no list of slots here
 //! to drift from the one the inspector browses and the engine validates against.
 //!
 //! # Fail closed on a bad catalog

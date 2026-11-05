@@ -560,13 +560,13 @@ fn check_fragment(module: &naga::Module) -> Result<(), String> {
             naga::TypeInner::Vector { size: s, scalar } if s == size && scalar == naga::Scalar::F32
         )
     };
-    let returns_colour = fs.function.result.as_ref().is_some_and(|result| {
+    let returns_color = fs.function.result.as_ref().is_some_and(|result| {
         matches!(
             result.binding,
             Some(naga::Binding::Location { location: 0, .. })
         ) && is_vector(result.ty, naga::VectorSize::Quad)
     });
-    if !returns_colour {
+    if !returns_color {
         return Err("`fs` must return `@location(0) vec4<f32>`".into());
     }
     let vs_out = module

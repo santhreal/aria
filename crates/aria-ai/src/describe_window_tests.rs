@@ -100,7 +100,7 @@ fn over_the_budget_the_window_holds_the_clips_around_the_playhead() {
 }
 
 #[test]
-fn the_window_is_centred_on_the_playhead_not_on_the_lowest_ids() {
+fn the_window_is_centered_on_the_playhead_not_on_the_lowest_ids() {
     let project = packed(CLIP_BUDGET + 100);
     let front = summarize_for(
         &project,
@@ -307,7 +307,7 @@ fn every_reason_is_produced_by_a_fixture_and_reads_as_its_own_sentence() {
 }
 
 #[test]
-fn every_argument_the_tool_offers_is_an_argument_the_reader_honours() {
+fn every_argument_the_tool_offers_is_an_argument_the_reader_honors() {
     // The schema and the reader are one contract in two files: the spec says
     // what the model may send, this says what happens when it does. A property
     // added to one and not the other is a documented argument that does

@@ -2,13 +2,13 @@
 //! travel a gain control stands on, and the multiplier that moves a measured
 //! level onto a target.
 //!
-//! A fader is linear, a meter reads decibels, and a normalisation is the
+//! A fader is linear, a meter reads decibels, and a normalization is the
 //! difference between a measurement and a target. Those three conversions were
 //! being written at each call site, so a clip's gain, an export's headroom, and
-//! a normalise action could disagree about what −6 dB means. They live here
+//! a normalize action could disagree about what −6 dB means. They live here
 //! instead, next to the measurement they act on.
 //!
-//! Normalisation refuses rather than guesses. A measurement below
+//! Normalization refuses rather than guesses. A measurement below
 //! [`NORMALISATION_FLOOR_DBFS`] is silence, and lifting silence onto a target
 //! amplifies only noise, so it is an error rather than a large number. A boost
 //! is capped at [`MAX_NORMALISATION_BOOST_DB`]; an attenuation is not, since
@@ -16,14 +16,14 @@
 
 use crate::ConfigError;
 
-/// The largest boost a normalisation applies, in decibels.
+/// The largest boost a normalization applies, in decibels.
 ///
 /// A quiet take can need a lift; a take that needs more than this is either
 /// mis-measured or the wrong material, and a silent boost of 60 dB is a wall of
 /// noise rather than a fix.
 pub const MAX_NORMALISATION_BOOST_DB: f32 = 24.0;
 
-/// The quietest measurement worth normalising, in dBFS.
+/// The quietest measurement worth normalizing, in dBFS.
 pub const NORMALISATION_FLOOR_DBFS: f32 = -70.0;
 
 /// The quietest level a gain control holds apart from silence, in decibels.

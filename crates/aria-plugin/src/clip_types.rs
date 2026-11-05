@@ -1,7 +1,7 @@
 //! Clip types: a named kind of clip whose picture a generator draws.
 //!
 //! The catalog is [`aria_models::clip_type_catalog`], so the editor's
-//! projection reads a clip's type name and colour without a plugin context.
+//! projection reads a clip's type name and color without a plugin context.
 //! This module registers into it on a plugin's behalf: the entry is listed
 //! under the plugin's contributions and removed when the plugin unmounts, and
 //! an icon is parsed and rewritten here, so the catalog never holds SVG text

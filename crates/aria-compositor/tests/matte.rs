@@ -148,11 +148,11 @@ fn a_luma_matte_reads_brightness_where_an_alpha_matte_reads_nothing() {
 }
 
 #[test]
-fn a_mid_grey_luma_stencil_holds_the_content_half_way() {
+fn a_mid_gray_luma_stencil_holds_the_content_half_way() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
     let content = solid([255, 255, 255, 255]);
-    // 0.5 in linear-ish byte terms: Rec.709 luma of a neutral grey is the grey.
+    // 0.5 in linear-ish byte terms: Rec.709 luma of a neutral gray is the gray.
     let stencil = solid([128, 128, 128, 255]);
 
     let img = cut(
@@ -164,7 +164,7 @@ fn a_mid_grey_luma_stencil_holds_the_content_half_way() {
         false,
         0.0,
     );
-    // Premultiplied output: colour and alpha are both scaled by coverage.
+    // Premultiplied output: color and alpha are both scaled by coverage.
     assert_px(&img, 32, 32, [128, 128, 128, 128], 3);
 }
 

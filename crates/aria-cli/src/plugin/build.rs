@@ -132,7 +132,7 @@ pub(crate) fn build_and_stage(dir: &Path, profile: BuildProfile) -> Result<PathB
 /// `help:` lines of that diagnostic, which state the fix (a missing
 /// `wasm32-unknown-unknown` target prints the `rustup target add` line
 /// there). Terminal escape sequences are removed first:
-/// `CARGO_TERM_COLOR=always` colours the diagnostics of a piped cargo.
+/// `CARGO_TERM_COLOR=always` colors the diagnostics of a piped cargo.
 fn first_error(stderr: &str) -> Option<String> {
     let plain = strip_escapes(stderr);
     let mut lines = plain.lines().map(str::trim);

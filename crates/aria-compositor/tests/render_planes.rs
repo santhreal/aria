@@ -333,7 +333,7 @@ fn malformed_cpu_planes_are_rejected_and_the_next_frame_renders() {
 /// WHY: a 4:2:0 frame of odd width carries chroma rounded up, as the decoders
 /// emit it, so the last luma column has a chroma sample of its own. A chroma
 /// texture sized by the rounded-down width drops that sample and stretches the
-/// rest, so the right edge takes its neighbour's color. Checked for both 8-bit
+/// rest, so the right edge takes its neighbor's color. Checked for both 8-bit
 /// layouts; does not cover odd heights, which share the same rounding.
 #[test]
 fn odd_width_chroma_reaches_the_last_column() {

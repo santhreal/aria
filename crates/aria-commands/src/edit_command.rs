@@ -1,7 +1,7 @@
 //! The timeline edit shapes: [`EditCommand`].
 //!
 //! Each variant is one structured edit. Its label, reach, target shape,
-//! junction behaviour and undo are one row in `spec_rows.rs`, and its handler
+//! junction behavior and undo are one row in `spec_rows.rs`, and its handler
 //! is one row in `aria-engine`'s dispatch table.
 
 use aria_models::{
@@ -80,7 +80,7 @@ pub enum EditCommand {
     /// Return each group in `attributes` to the values a new clip starts with,
     /// keyframes and drivers included, as one atomic edit. Clearing the speed
     /// ramp re-derives the clip's duration and is refused when the longer clip
-    /// would overlap a neighbour.
+    /// would overlap a neighbor.
     RemoveAttributes {
         clip: ClipId,
         attributes: Vec<ClipAttribute>,
@@ -287,9 +287,9 @@ pub enum EditCommand {
     /// suppress steady background noise. Rejected on generated clips. The
     /// inverse restores the previous flag.
     SetClipDenoise { clip: ClipId, denoise: bool },
-    /// Set (or with `None` clear) a clip's organizational label colour
-    /// (Premiere label colours). Purely visual grouping, accepted on every
-    /// clip kind; the inverse restores the previous colour.
+    /// Set (or with `None` clear) a clip's organizational label color
+    /// (Premiere label colors). Purely visual grouping, accepted on every
+    /// clip kind; the inverse restores the previous color.
     SetClipLabel {
         clip: ClipId,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -701,7 +701,7 @@ pub enum EditCommand {
     /// it occupies exactly `duration` on the timeline. `ripple` opens the span
     /// by pushing the lane right; otherwise the span is covered the way
     /// [`Self::OverwriteClip`] covers one. The span is opened before the clip is
-    /// placed, so the retime never has to grow into a neighbour. Atomic: a
+    /// placed, so the retime never has to grow into a neighbor. Atomic: a
     /// rejected step restores everything already applied.
     FitToFill {
         track: TrackId,

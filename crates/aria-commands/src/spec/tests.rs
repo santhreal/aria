@@ -18,7 +18,7 @@ use serde_json::Value;
 use super::*;
 use crate::samples::{every_edit_command, every_project_command};
 
-/// The wire object a command serialises to, which is what a shell and the agent
+/// The wire object a command serializes to, which is what a shell and the agent
 /// actually send. Used as the independent view of a command's payload.
 fn wire(command: &impl serde::Serialize) -> BTreeMap<String, Value> {
     match serde_json::to_value(command).expect("a command serializes") {
@@ -27,7 +27,7 @@ fn wire(command: &impl serde::Serialize) -> BTreeMap<String, Value> {
     }
 }
 
-/// The `"type"` tag of a serialised command.
+/// The `"type"` tag of a serialized command.
 fn tag(command: &impl serde::Serialize) -> String {
     let mut payload = wire(command);
     match payload.remove("type") {

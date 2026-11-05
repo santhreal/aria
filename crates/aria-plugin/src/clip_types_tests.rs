@@ -214,8 +214,8 @@ fn level() -> EffectParamSpec {
     }
 }
 
-/// Fill the frame with opaque grey at the `level` field.
-fn grey(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
+/// Fill the frame with opaque gray at the `level` field.
+fn gray(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> Result<(), String> {
     let level = fields
         .scalar("level")
         .ok_or_else(|| "no level field".to_owned())?;
@@ -227,12 +227,12 @@ fn grey(fields: &EffectParams<'_>, _time: f32, frame: &mut CpuFrameOut<'_>) -> R
     Ok(())
 }
 
-/// A type with the `level` field drawn grey on the CPU.
+/// A type with the `level` field drawn gray on the CPU.
 fn meter(id: &str) -> ClipTypeDefinition {
     ClipTypeDefinition::new(
         ClipTypeSpec::new(id, "Meter", "", MarkerColor::Green),
         vec![level()],
-        ClipTypeRender::cpu(grey),
+        ClipTypeRender::cpu(gray),
     )
 }
 

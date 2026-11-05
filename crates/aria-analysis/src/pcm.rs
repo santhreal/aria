@@ -2,7 +2,7 @@
 //!
 //! [`InterleavedPcm`] is a validated view, not a copy. Construction scans once
 //! for frame alignment and non-finite samples, and every measurement then runs
-//! over the caller's own buffer, so analysing an hour of audio allocates only
+//! over the caller's own buffer, so analyzing an hour of audio allocates only
 //! the results.
 //!
 //! All three detectors share one rolling energy pass. Windows are addressed by

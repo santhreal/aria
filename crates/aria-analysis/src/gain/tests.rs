@@ -143,13 +143,13 @@ fn a_travel_whose_ceiling_is_not_above_the_floor_has_no_length() {
 }
 
 #[test]
-fn normalising_lifts_a_quiet_measurement_onto_the_target() {
+fn normalizing_lifts_a_quiet_measurement_onto_the_target() {
     let gain = normalisation_gain(-18.0, -6.0).expect("a 12 dB lift");
     assert!(close(gain, linear_from_db(12.0), 0.0001), "got {gain}");
 }
 
 #[test]
-fn normalising_attenuates_a_hot_measurement_without_a_cap() {
+fn normalizing_attenuates_a_hot_measurement_without_a_cap() {
     // Turning something down cannot clip, so the boost cap must not apply.
     let gain = normalisation_gain(-1.0, -60.0).expect("a 59 dB cut");
     assert!(close(gain, linear_from_db(-59.0), 0.0001), "got {gain}");

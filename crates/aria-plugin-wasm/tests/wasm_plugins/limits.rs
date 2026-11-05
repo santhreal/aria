@@ -208,9 +208,9 @@ fn memory_hungry_guest_is_stopped_at_limit_and_faults_plugin() {
 }
 
 /// `Reloader::poll` mounts discovered packages, hot-reloads a package when `plugin.wasm`
-/// changes on disk (swapping its runtime behaviour), and unmounts when removed.
+/// changes on disk (swapping its runtime behavior), and unmounts when removed.
 #[test]
-fn reloader_swaps_behaviour_when_wasm_fixture_changes_on_disk() {
+fn reloader_swaps_behavior_when_wasm_fixture_changes_on_disk() {
     let _serial = SERIAL.lock();
     let temp = tempfile::tempdir().expect("tempdir");
     let pkg_dir = temp.path().join("wasm-tools");

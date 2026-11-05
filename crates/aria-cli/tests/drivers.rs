@@ -47,7 +47,7 @@ fn project(driver: Option<&str>) -> Project {
     project
 }
 
-/// `aria frame` at 0.5 s: the centre pixel and what the command printed on
+/// `aria frame` at 0.5 s: the center pixel and what the command printed on
 /// stderr.
 fn frame(dir: &Path, name: &str, project: &Project) -> ([u8; 4], String) {
     let path = dir.join(format!("{name}.aria"));

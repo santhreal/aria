@@ -36,7 +36,7 @@ pub enum SummaryRequest {
     /// [`CLIP_BUDGET`], otherwise the clips nearest the playhead.
     Session {
         /// The playhead time, in seconds. A windowed description is
-        /// centred on it.
+        /// centered on it.
         playhead_seconds: f64,
     },
     /// A named span, in seconds, because someone asked for it. Ends outside the
@@ -257,8 +257,8 @@ pub(crate) fn plan(project: &Project, request: SummaryRequest) -> Option<Plan> {
                 .filter(|span| span.start < end_frames && span.end > start_frames)
                 .collect();
             let outside = total - inside.len();
-            let centre = start_frames + (end_frames - start_frames) / 2;
-            let (kept, _, _, over_budget) = nearest(inside, centre, CLIP_BUDGET);
+            let center = start_frames + (end_frames - start_frames) / 2;
+            let (kept, _, _, over_budget) = nearest(inside, center, CLIP_BUDGET);
             Some(Plan {
                 start_frames,
                 end_frames,

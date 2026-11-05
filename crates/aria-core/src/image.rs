@@ -96,7 +96,7 @@ impl RgbaImage {
 
     /// Convert premultiplied pixels to the straight alpha this type holds.
     ///
-    /// Each colour channel becomes `c * 255 / a`, rounded to nearest and
+    /// Each color channel becomes `c * 255 / a`, rounded to nearest and
     /// capped at 255. Transparent and opaque pixels are unchanged.
     pub fn unpremultiply(&mut self) {
         for px in self.pixels.as_chunks_mut::<4>().0 {
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn unpremultiply_divides_colour_by_alpha_and_keeps_the_ends() {
+    fn unpremultiply_divides_color_by_alpha_and_keeps_the_ends() {
         let mut img = RgbaImage::new(
             5,
             1,

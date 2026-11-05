@@ -37,7 +37,7 @@ fn any_clip() -> Clip {
     )
 }
 
-/// The serde name a variant serialises to, which is the name the wire member
+/// The serde name a variant serializes to, which is the name the wire member
 /// must answer to. Going through serde rather than a hand-written string keeps
 /// the two sides bound to one spelling.
 fn wire_name<T: serde::Serialize>(variant: &T) -> String {
@@ -166,7 +166,7 @@ fn the_property_census_is_the_size_the_model_declares() {
 /// `LookParam` route, a wire member, and a lowering for each. A grade field
 /// added with a slider row but no property route is settable in the panel and
 /// invisible to the assistant, which is the shape of the last two gaps here
-/// (tint/hue, then the colour wheels).
+/// (tint/hue, then the color wheels).
 #[test]
 fn every_grade_slider_is_reachable_as_a_look_property() {
     let clip = any_clip();

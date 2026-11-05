@@ -1,7 +1,7 @@
 //! Scope measurements are asserted against known pictures.
 //!
 //! Each test builds a frame whose correct scope reading is arithmetic — flat
-//! colours, a horizontal ramp, a vertical ramp — so a failure names a wrong
+//! colors, a horizontal ramp, a vertical ramp — so a failure names a wrong
 //! number rather than a changed look. The class of defect this closes: a scope
 //! that plots something plausible but not the frame it was handed, which no
 //! amount of looking at it catches.
@@ -11,7 +11,7 @@
 
 use super::*;
 
-/// A frame of one colour, no padding.
+/// A frame of one color, no padding.
 fn flat(width: usize, height: usize, rgba: [u8; 4]) -> Vec<u8> {
     rgba.iter()
         .copied()
@@ -94,8 +94,8 @@ fn primary_red_reads_its_own_luma_and_lands_upper_right() {
 #[test]
 fn the_three_primaries_land_in_three_different_places() {
     let mut seen = Vec::new();
-    for colour in [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]] {
-        let bytes = flat(4, 4, colour);
+    for color in [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]] {
+        let bytes = flat(4, 4, color);
         let scopes = measure(frame(&bytes, 4, 4), ScopeConfig::default());
         let mut at = None;
         for y in 0..scopes.vectorscope.size() {
@@ -198,7 +198,7 @@ fn a_frame_over_budget_is_strided_rather_than_read_whole() {
 }
 
 #[test]
-fn an_extreme_aspect_ratio_still_honours_the_budget() {
+fn an_extreme_aspect_ratio_still_honors_the_budget() {
     // The closed-form stride undershoots here: sqrt(pixels/budget) leaves the
     // 16-row axis reading every row.
     let (width, height) = (16_384, 16);
@@ -269,12 +269,12 @@ fn every_configuration_field_is_validated() {
     );
 }
 
-/// WHY: chroma computed in `f32` put greys one cell left of neutral, because
+/// WHY: chroma computed in `f32` put grays one cell left of neutral, because
 /// the Cb coefficients do not cancel in `f32`, so a monochrome frame drew a
-/// smear beside the centre instead of a dot on it. Every grey, through
+/// smear beside the center instead of a dot on it. Every gray, through
 /// [`measure`], on grids of both parities up to the ceiling.
 #[test]
-fn every_grey_lands_on_the_centre_of_every_grid() {
+fn every_gray_lands_on_the_center_of_every_grid() {
     let bytes: Vec<u8> = (0..=255u8).flat_map(|v| [v, v, v, 255]).collect();
     for size in [1, 2, 3, 127, 128, 129, MAX_VECTORSCOPE_SIZE] {
         let config = ScopeConfig::new(16, size, 200_000).expect("config");
@@ -289,8 +289,8 @@ fn every_grey_lands_on_the_centre_of_every_grid() {
 }
 
 /// The fixed point stays within one code of BT.709 luma and within one cell
-/// of BT.709 chroma for every colour on a 5-step lattice, so a mistyped weight
-/// or a swapped axis fails here. Greys read their own code exactly.
+/// of BT.709 chroma for every color on a 5-step lattice, so a mistyped weight
+/// or a swapped axis fails here. Grays read their own code exactly.
 #[test]
 fn fixed_point_tracks_bt709_within_one_step() {
     for v in 0..=255u8 {
@@ -321,10 +321,10 @@ fn fixed_point_tracks_bt709_within_one_step() {
     }
 }
 
-/// The corners of the colour cube stay on the grid at the largest size, where
+/// The corners of the color cube stay on the grid at the largest size, where
 /// the fixed-point products are largest.
 #[test]
-fn the_most_saturated_colours_stay_on_the_largest_grid() {
+fn the_most_saturated_colors_stay_on_the_largest_grid() {
     let last = MAX_VECTORSCOPE_SIZE - 1;
     for rgb in [
         [255, 0, 0],
@@ -491,10 +491,10 @@ fn a_parade_counts_every_channel_by_its_own_code() {
     }
 }
 
-/// Every grey is neutral chroma, the primaries reach both ends of the code
+/// Every gray is neutral chroma, the primaries reach both ends of the code
 /// range, and the fixed point agrees with the float chroma within one code.
 #[test]
-fn chroma_codes_are_neutral_for_grey_and_span_the_code_range() {
+fn chroma_codes_are_neutral_for_gray_and_span_the_code_range() {
     for value in 0..=255u8 {
         assert_eq!(
             chroma_codes709(value, value, value),

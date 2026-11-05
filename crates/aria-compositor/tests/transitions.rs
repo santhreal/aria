@@ -102,19 +102,19 @@ fn crossfade_mixes_both_frames_at_the_midpoint() {
 fn dip_to_black_passes_through_an_opaque_black_frame() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
-    let grey = solid(W, H, [200, 200, 200, 255]);
+    let gray = solid(W, H, [200, 200, 200, 255]);
     let red = solid(W, H, [255, 0, 0, 255]);
 
-    // Midpoint is the dip colour itself, not a mix of the two clips.
-    let mid = blend(&gpu, &mut comp, "dip_to_black", &grey, &red, 0.5);
+    // Midpoint is the dip color itself, not a mix of the two clips.
+    let mid = blend(&gpu, &mut comp, "dip_to_black", &gray, &red, 0.5);
     assert_px(&mid, 32, 32, [0, 0, 0, 255], 3);
 
-    // Quarter in, the outgoing frame is half way to the dip colour.
-    let early = blend(&gpu, &mut comp, "dip_to_black", &grey, &red, 0.25);
+    // Quarter in, the outgoing frame is half way to the dip color.
+    let early = blend(&gpu, &mut comp, "dip_to_black", &gray, &red, 0.25);
     assert_px(&early, 32, 32, [100, 100, 100, 255], 4);
 
     // Three quarters in, the incoming frame is half way out of it.
-    let late = blend(&gpu, &mut comp, "dip_to_black", &grey, &red, 0.75);
+    let late = blend(&gpu, &mut comp, "dip_to_black", &gray, &red, 0.75);
     assert_px(&late, 32, 32, [128, 0, 0, 255], 4);
 }
 

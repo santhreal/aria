@@ -29,7 +29,7 @@ impl ColorGrade {
             });
         }
 
-        // Vibrance: saturation weighted toward the colours that have little.
+        // Vibrance: saturation weighted toward the colors that have little.
         if self.vibrance != 0.0 {
             let luma = luma709(c);
             let hi = c[0].max(c[1]).max(c[2]);
@@ -97,20 +97,20 @@ impl ColorGrade {
             return c;
         }
         let (hue, chroma) = hue_chroma(c);
-        let colour = smoothstep(0.0, 0.1, chroma);
+        let color = smoothstep(0.0, 0.1, chroma);
 
-        // The secondary's key: a hue window around the key centre, soft at its
-        // edge, and nothing without colour.
-        let centre = 0.5 * self.hsl_key_hue;
+        // The secondary's key: a hue window around the key center, soft at its
+        // edge, and nothing without color.
+        let center = 0.5 * self.hsl_key_hue;
         let reach = (1.0 + self.hsl_key_width) * (30.0 / 360.0);
-        let around = (fract(hue - centre + 0.5) - 0.5).abs();
-        let keyed = (1.0 - smoothstep(reach, reach + 0.04, around)) * colour;
+        let around = (fract(hue - center + 0.5) - 0.5).abs();
+        let keyed = (1.0 - smoothstep(reach, reach + 0.04, around)) * color;
 
         hue_correction(
             c,
-            hue_knots(hue, sat) * colour + secondary[1] * keyed,
-            hue_knots(hue, turn) * colour + secondary[0] * keyed,
-            hue_knots(hue, luma) * colour + secondary[2] * keyed,
+            hue_knots(hue, sat) * color + secondary[1] * keyed,
+            hue_knots(hue, turn) * color + secondary[0] * keyed,
+            hue_knots(hue, luma) * color + secondary[2] * keyed,
         )
     }
 }

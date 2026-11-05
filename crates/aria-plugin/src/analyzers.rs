@@ -5,7 +5,7 @@
 //! A plugin registers an [`Analyzer`] during [`mount`](crate::Plugin::mount)
 //! with [`PluginContext::register_analyzer`]. Running an analyzer through
 //! [`PluginContext::run_analyzer`] mixes the requested [`AudioSource`] over
-//! [`AudioHost::mix`], feeds each block to [`AnalyzerRun::block`], honours
+//! [`AudioHost::mix`], feeds each block to [`AnalyzerRun::block`], honors
 //! per-block cancellation, and converts sample frames in [`AnalyzerResult`]
 //! into timeline or clip-source ticks when applied via
 //! [`PluginContext::apply_analyzer`] or [`apply_analyzer_result`].
@@ -173,7 +173,7 @@ impl AnalyzerMarker {
     }
 }
 
-/// A labelled sample-frame span (such as a detected silence region).
+/// A labeled sample-frame span (such as a detected silence region).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnalyzerRange {
     /// Inclusive start sample frame at the mix rate.
@@ -197,7 +197,7 @@ impl AnalyzerRange {
 /// Integrated loudness summary produced by an analyzer.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct AnalyzerLoudness {
-    /// Integrated programme loudness in LUFS (EBU R128 / ITU-R BS.1770).
+    /// Integrated program loudness in LUFS (EBU R128 / ITU-R BS.1770).
     pub integrated_lufs: f64,
     /// Maximum sample peak across channels in dBFS.
     pub true_peak_db: f64,

@@ -131,8 +131,8 @@ fn vertical_step(width: u32, height: u32, left: u8, right: u8) -> RgbaImage {
     RgbaImage::new(width, height, pixels)
 }
 
-/// A white block centred in an opaque black frame.
-fn centre_block(width: u32, height: u32, block: u32) -> RgbaImage {
+/// A white block centered in an opaque black frame.
+fn center_block(width: u32, height: u32, block: u32) -> RgbaImage {
     let mut pixels = Vec::with_capacity((width * height * 4) as usize);
     let (x0, x1) = (width / 2 - block / 2, width / 2 + block / 2);
     let (y0, y1) = (height / 2 - block / 2, height / 2 + block / 2);
@@ -201,8 +201,8 @@ fn chromatic_aberration_splits_channels_in_opposite_directions() {
         &[1.0],
     );
 
-    // Red samples outward from the centre, blue inward. On a dark-to-bright ramp
-    // that means red leads blue right of centre and trails it on the left.
+    // Red samples outward from the center, blue inward. On a dark-to-bright ramp
+    // that means red leads blue right of center and trails it on the left.
     let right = img.pixel(56, 8);
     let left = img.pixel(8, 8);
     assert!(
@@ -217,9 +217,9 @@ fn chromatic_aberration_splits_channels_in_opposite_directions() {
         left[0],
         left[2]
     );
-    // The centre column has nowhere to split.
-    let centre = img.pixel(32, 8);
-    assert_eq!(centre[0], centre[2], "center column split anyway");
+    // The center column has nowhere to split.
+    let center = img.pixel(32, 8);
+    assert_eq!(center[0], center[2], "center column split anyway");
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn glow_spills_light_outside_a_highlight() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
-    let bmp = centre_block(64, 64, 16);
+    let bmp = center_block(64, 64, 16);
 
     let img = render_effect(&gpu, &mut comp, &config, &bmp, "glow", &[0.5, 2.0]);
 
@@ -277,21 +277,21 @@ fn glow_spills_light_outside_a_highlight() {
 }
 
 #[test]
-fn zoom_blur_streaks_a_highlight_toward_the_centre() {
+fn zoom_blur_streaks_a_highlight_toward_the_center() {
     let gpu = gpu_or_skip!();
     let mut comp = Compositor::new(&gpu);
     let config = CompositorConfig::new(64, 64).with_background([0, 0, 0, 255]);
-    let bmp = centre_block(64, 64, 16);
+    let bmp = center_block(64, 64, 16);
 
     let img = render_effect(&gpu, &mut comp, &config, &bmp, "zoom_blur", &[1.0]);
 
     // Just outside the block, on the radius through it, samples march inward and
     // hit the block, so the streak reaches past the block's edge. The march is
-    // 30% of the distance to the centre, so the reach at two texels out is a
+    // 30% of the distance to the center, so the reach at two texels out is a
     // little under three texels.
     let outside = img.pixel(32, 22)[0];
     assert!(outside > 8, "no streak outside the block: {outside}");
-    // The centre is its own march origin and stays lit.
+    // The center is its own march origin and stays lit.
     assert!(img.pixel(32, 32)[0] > 200, "the center lost its highlight");
 }
 

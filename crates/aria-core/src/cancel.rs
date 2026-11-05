@@ -9,7 +9,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// A one-way "stop" that long work can be asked to honour.
+/// A one-way "stop" that long work can be asked to honor.
 ///
 /// Cloning shares the signal: the caller keeps a handle to cancel with, the
 /// work keeps one to check. Cancellation is one-way — a token that has been

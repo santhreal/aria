@@ -89,9 +89,9 @@ fn a_generated_project_renders_headlessly_and_deterministically() {
         "the frame is not RGBA at its own size"
     );
 
-    // The solid covers the canvas: the centre pixel is opaque and red-dominant.
-    let centre = (((canvas.1 / 2) * canvas.0 + canvas.0 / 2) * 4) as usize;
-    let pixel = &inside.pixels[centre..centre + 4];
+    // The solid covers the canvas: the center pixel is opaque and red-dominant.
+    let center = (((canvas.1 / 2) * canvas.0 + canvas.0 / 2) * 4) as usize;
+    let pixel = &inside.pixels[center..center + 4];
     assert_eq!(pixel[3], 255, "the solid did not composite opaquely");
     assert!(
         pixel[0] > pixel[1] && pixel[0] > pixel[2],

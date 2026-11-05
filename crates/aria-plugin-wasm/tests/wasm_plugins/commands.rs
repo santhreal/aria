@@ -188,7 +188,7 @@ fn event_subscriptions_handle_notifications_waterfalls_and_serial_claims() {
     ctx.unmount("com.example.wasm-tools").expect("unmount");
 }
 
-/// The job labelled `label` on `manager` once `done` holds for it, within
+/// The job labeled `label` on `manager` once `done` holds for it, within
 /// five seconds.
 fn wait_job(manager: &JobManager, label: &str, done: impl Fn(&JobSnapshot) -> bool) -> JobSnapshot {
     let deadline = Instant::now() + Duration::from_secs(5);

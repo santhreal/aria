@@ -197,7 +197,7 @@ impl EncoderConfig {
 /// "whatever the project already is", which is why this type carries no
 /// project-derived value of its own. It is what a command, a CLI invocation and
 /// an export sheet all send; resolving it against a project — and refusing a
-/// choice this machine's encoder cannot honour — happens in exactly one place,
+/// choice this machine's encoder cannot honor — happens in exactly one place,
 /// `aria_render::ExportSettings::resolved`.
 ///
 /// Serialized as part of `ProjectCommand::Export`, so an absent field must stay

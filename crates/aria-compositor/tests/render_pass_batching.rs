@@ -597,7 +597,7 @@ fn pass_batching_avoids_a_bind_group_build_per_pass_over_many_frames() {
     // effect: a workspace run alongside the render tests has read 4.92 ms
     // shared against 1.75 ms per-pass on the same binary that reads 0.56
     // against 0.69 when it has the device to itself. What sharing actually
-    // removes is counted, and a count cannot be moved by a neighbour.
+    // removes is counted, and a count cannot be moved by a neighbor.
     assert_eq!(
         avoided,
         per_frame * ROUNDS as u32,

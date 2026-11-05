@@ -25,7 +25,7 @@ pub struct Patch {
 }
 
 impl Patch {
-    /// A patch centred on `(cx, cy)` with extent `(w, h)`, rounded to pixels.
+    /// A patch centered on `(cx, cy)` with extent `(w, h)`, rounded to pixels.
     pub fn centered(cx: f32, cy: f32, w: f32, h: f32) -> Self {
         Self {
             x: (cx - w * 0.5).round() as i32,
