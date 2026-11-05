@@ -100,8 +100,8 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail starts with tw
 | `transform` | Transform | `Media, Text, Shape, Generator` |
 | `look` | Look | `Media, Text, Shape, Generator` |
 | `effects` | Effects | `Media, Text, Shape, Generator` |
-| `speed` | Speed | `Media, Audio` |
 | `audio` | Audio | `Media, Audio` |
+| `speed` | Speed | `Media, Audio` |
 | `text` | Text | `Text` |
 | `shape` | Shape | `Shape` |
 | `info` | Info | `Media, Text, Shape, Generator` |

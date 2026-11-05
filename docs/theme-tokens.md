@@ -5,8 +5,10 @@ Source: `crates/aria-ui/src/theme.rs`, ported from
 
 Helpers: `ink(alpha)` for fills, `hairline(alpha)` for borders,
 `wash(alpha)` for hover plates. A selected row, menu title, rail tab or tile
-draws one plate, `glass_selected_bg` (wash 0.11 dark, 0.06 light), with no
-outline and no colored fill.
+draws one plate, `glass_selected_bg` (wash 0.11 in both appearances), with no
+outline and no colored fill. A row, tab, card or menu item under the pointer
+fades to `element_hover`, which `glass_hover` returns, so the selected plate
+stands apart from the hovered one.
 
 ## Surfaces
 

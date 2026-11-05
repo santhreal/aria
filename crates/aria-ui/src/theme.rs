@@ -242,11 +242,11 @@ impl Theme {
         self.glass().a < 1.0
     }
 
+    /// The fill a row, a tab, a card or a menu item fades to under the
+    /// pointer: [`Self::element_hover`], so every hover is one strength, and
+    /// weaker than [`Self::glass_selected_bg`].
     pub fn glass_hover(&self) -> Hsla {
-        match self.appearance {
-            Appearance::Dark => wash_for(Appearance::Dark, 0.11),
-            Appearance::Light => wash_for(Appearance::Light, 0.06),
-        }
+        self.element_hover
     }
 
     pub fn glass_overlay(&self) -> Hsla {
@@ -470,11 +470,11 @@ impl Theme {
         wash_for(self.appearance, alpha)
     }
 
+    /// The plate of a selected row, rail tab or tile, and of an active chip:
+    /// wash 0.11 in both appearances, stronger than the hover fill, so the
+    /// selected row and the one under the pointer read apart.
     pub fn glass_selected_bg(&self) -> Hsla {
-        match self.appearance {
-            Appearance::Dark => wash_for(Appearance::Dark, 0.11),
-            Appearance::Light => wash_for(Appearance::Light, 0.06),
-        }
+        self.wash(0.11)
     }
 
     /// The screen colour of a marker flag.

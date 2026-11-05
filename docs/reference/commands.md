@@ -82,7 +82,7 @@ Mask a clip, keyframe its opacity, and cut it at the playhead from the Command P
 | `pal-media-lottie` | Import Lottie Animation… | `none` | Always enabled | Opens a file picker for `.json` and `.lottie` files, validates the first frame, and places a Lottie generator clip on the timeline at its intrinsic dimensions. |
 | `pal-mixer-add-bus` | Mixer: Add a Submix Bus | `none` | Always enabled | Appends a submix bus lane to the sequence and focuses the Audio Track Mixer. |
 | `pal-look-install` | Install Starter LUT Pack | `none` | Always enabled | Writes the shipped starter `.cube` LUT pack into the LUT cache (`<data dir>/luts`). |
-| `pal-render-cost` | Last Frame Cost | `none` | Always enabled | Reports the Info panel's Last frame rows (`aria_engine::frame_stages`, the whole frame, and the part that scales with size) on the status line, or that no frame has been rendered yet. |
+| `pal-render-cost` | Last Frame Cost | `none` | Always enabled | Reports the Info panel's Last frame rows (`aria_engine::frame_stages` and the whole frame) on the status line, or that no frame has been rendered yet. |
 | `pal-media-reload` | Reload Media from Disk | `none` | No media item is selected | Invalidates decode caches and reloads the selected media item from disk. |
 | `pal-media-reload-all` | Reload All Media from Disk | `none` | Always enabled | Invalidates decode caches and reloads every media pool item from disk. |
 | `pal-font-check` | Text: Check a Font File | `none` | Always enabled | Prompts for a `.ttf`/`.otf` font file, parses it with `fontdb`, and reports how many font faces it contains. |

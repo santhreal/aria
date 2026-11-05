@@ -2,8 +2,7 @@
 //!
 //! The class closed here: a row that sets a label and a value apart and draws
 //! either past the panel's edge once the two do not fit side by side. The Info
-//! panel at its minimum width drew the reading of `Scales with size` past its
-//! frame.
+//! panel at its minimum width drew a long label's reading past its frame.
 //!
 //! Each case draws one [`readout`] in a column as wide as the Info panel's
 //! content at its minimum width, and reads the drawn text back: a pair that
@@ -57,7 +56,7 @@ const CASES: [Case; 4] = [
     },
     // Leaves no room beside the label for the value.
     Case {
-        label: "Scales with size",
+        label: "Bind groups built",
         value: "2469.12 ms",
         beside: false,
         label_wraps: false,

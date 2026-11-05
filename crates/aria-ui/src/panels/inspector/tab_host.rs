@@ -125,8 +125,8 @@ static SHIPPED: &[ShippedTab] = &[
     ("transform", "Transform", not_audio, transform_body),
     ("look", "Look", not_audio, look_body),
     ("effects", "Effects", not_audio, effects_body),
-    ("speed", "Speed", media_or_audio, speed_body),
     ("audio", "Audio", media_or_audio, audio_body),
+    ("speed", "Speed", media_or_audio, speed_body),
     ("text", "Text", text_only, text_body),
     ("shape", "Shape", shape_only, shape_body),
     ("info", "Info", not_audio, info_body),
@@ -321,11 +321,12 @@ mod tests {
             .expect("info applies to media");
         assert_eq!(resolved.id, "info");
         // Text does not apply to an audio clip, so the strip falls back to the
-        // first row that does, which is Speed's position in the table.
+        // first row that does: Audio, the tab with the clip's volume, pan and
+        // fades, rather than Speed.
         let audio = host
             .resolve("text", UiClipKind::Audio)
             .expect("audio has a tab");
-        assert_eq!(audio.id, "speed");
+        assert_eq!(audio.id, "audio");
     }
 
     /// The Effect Controls inspector tabs table in `docs/reference/panels.md`

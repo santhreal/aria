@@ -152,6 +152,47 @@ fn light_is_not_a_simple_inversion() {
     assert!(l.surface.l < l.bg.l);
 }
 
+/// A selected plate reads apart from the hover plate in every appearance.
+///
+/// The class closed here: a selected row, rail tab or tile drawn with the
+/// fill of a row under the pointer, as the light appearance's selected plate
+/// and both of its hover fills were, and as the dark appearance's selected
+/// plate and `glass_hover` were. Each plate is composited over every surface a
+/// list is drawn on, and the selected one must stand at least 5 levels of 255
+/// further from that surface than either hover fill.
+///
+/// Not covered: a control that fades its selected plate to the hover fill
+/// under the pointer, and a plate drawn from a token other than these three.
+#[test]
+fn a_selected_plate_reads_apart_from_the_hover_plate() {
+    // A new appearance stops this match compiling until it joins the list.
+    let theme = |appearance: Appearance| match appearance {
+        Appearance::Dark | Appearance::Light => Theme::for_appearance(appearance),
+    };
+    for theme in [theme(Appearance::Dark), theme(Appearance::Light)] {
+        for (name, surface) in [
+            ("surface", theme.surface),
+            ("surface_dialog", theme.surface_dialog),
+            ("surface_overlay", theme.surface_overlay),
+        ] {
+            let lift = |plate: Hsla| (flatten(plate, surface).l - surface.l).abs() * 255.0;
+            let selected = lift(theme.glass_selected_bg());
+            for (hover_name, hover) in [
+                ("element_hover", theme.element_hover),
+                ("glass_hover", theme.glass_hover()),
+            ] {
+                let hovered = lift(hover);
+                assert!(
+                    selected - hovered >= 5.0,
+                    "{:?} on {name}: selected plate {selected:.1} levels, {hover_name} \
+                     {hovered:.1}",
+                    theme.appearance
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn busy_is_pink_not_green() {
     let d = Theme::dark();

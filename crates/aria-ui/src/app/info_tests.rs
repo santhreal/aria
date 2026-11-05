@@ -614,8 +614,8 @@ fn measured(passes: u32, built: u32) -> aria_render::FrameStats {
 }
 
 /// Every stage of the engine's catalog, in pipeline order, then the whole
-/// frame and the part a smaller preview buys back. Derived from the catalog,
-/// so a stage added to it is red here until the Info panel states it.
+/// frame. Derived from the catalog, so a stage added to it is red here until
+/// the Info panel states it.
 #[test]
 fn the_last_frame_states_every_stage_then_the_whole_frame() {
     let (mut state, _) = with_clip();
@@ -627,7 +627,6 @@ fn the_last_frame_states_every_stage_then_the_whole_frame() {
         .map(|stage| InfoRow::new(stage.label, ms((stage.read)(&stats))))
         .collect();
     expected.push(InfoRow::new("Frame", "7.00 ms"));
-    expected.push(InfoRow::new("Scales with size", "6.00 ms"));
     assert_eq!(state.info_readout().frame, expected);
 }
 
@@ -679,7 +678,7 @@ fn last_frame_cost_prints_the_rows_the_info_panel_draws() {
         state.status_message.as_deref(),
         Some(
             "Decode 1.00 ms · Raster 2.00 ms · Composite 4.00 ms · Frame 7.00 ms · \
-             Scales with size 6.00 ms · Effect passes 24 · Bind groups built 2"
+             Effect passes 24 · Bind groups built 2"
         )
     );
 }

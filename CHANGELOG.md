@@ -819,6 +819,9 @@ Notes for the latest release. For previous releases, see the
 - The New and Open rows on Home's rail start a project and open the file picker on the first press instead of showing a pane that holds one tile, and Ctrl+O on Home opens the file picker.
 - The Recents tab on Home draws a clock instead of the clapperboard of the Sample Project tile, and the Use Template… tile draws a template layout.
 - The recovery banner on Home quotes the project's name, such as `“Trailer” has unsaved work from a session that ended early`.
+- The Info panel's Last frame section and Last Frame Cost list Decode, Raster, Composite and the whole frame without a Scales with size row that repeated Raster plus Composite.
+- Selecting an audio clip opens Effect Controls on the Audio tab instead of Speed, and the Audio tab sits before Speed for video clips.
+- A selected row, rail tab or tile draws a stronger plate than a row under the pointer in both the light and dark looks.
 
 ### Fixed
 

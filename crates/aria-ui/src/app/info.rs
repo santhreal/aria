@@ -213,7 +213,6 @@ impl AppState {
             .map(|stage| InfoRow::new(stage.label, ms((stage.read)(stats))))
             .collect();
         rows.push(InfoRow::new("Frame", ms(stats.total_ms())));
-        rows.push(InfoRow::new("Scales with size", ms(stats.scaled_cost_ms())));
         // Counts, not stages: a scene without effects has none to state, and
         // "0 passes" would read as a measurement.
         if stats.effect_passes > 0 {
