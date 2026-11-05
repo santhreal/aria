@@ -48,7 +48,7 @@ pub enum ParamScope {
 /// Where a property lives on a clip, borrowed for reading.
 ///
 /// `Absent` is the whole availability rule: a mask feather has no route until a
-/// mask exists, and a stroke colour has none until the shape has a stroke.
+/// mask exists, and a stroke color has none until the shape has a stroke.
 pub(crate) enum ParamRoute<'a> {
     Scalar(&'a Param<f32>),
     Vec2(&'a Param<[f32; 2]>),
@@ -356,7 +356,21 @@ pub fn clip_param_catalog() -> &'static [ParamSpec] {
 /// An effect parameter or a mask property has no static row: it exists once per
 /// effect or mask on one clip, so it comes from [`clip_params_for`] instead.
 pub fn param_spec(param: ClipParam) -> Option<&'static ParamSpec> {
-    CATALOG.iter().find(|spec| spec.param == param)
+    let direct = match param {
+        ClipParam::Position => Some(0),
+        ClipParam::AnchorPoint => Some(1),
+        ClipParam::Scale => Some(2),
+        ClipParam::Rotation => Some(3),
+        ClipParam::Opacity => Some(4),
+        ClipParam::Crop => Some(5),
+        ClipParam::Volume => Some(6),
+        ClipParam::Pan => Some(7),
+        _ => None,
+    };
+    if let Some(index) = direct {
+        return CATALOG.get(index);
+    }
+    CATALOG.iter().skip(8).find(|spec| spec.param == param)
 }
 
 /// The row an id names without a clip at hand: a row every clip declares, or a

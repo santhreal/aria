@@ -22,14 +22,18 @@ pub(crate) fn set_speed(
         Some(link) => ctx.project.linked_clips(link),
         None => vec![clip],
     };
+    let max_duration = ids
+        .iter()
+        .filter_map(|&id| ctx.project.clip_room_after(id))
+        .min();
 
     if ids.len() == 1 {
-        return set_speed_one(ctx, clip, speed, reversed);
+        return set_speed_one(ctx, clip, speed, reversed, max_duration);
     }
 
     let mut inverses: Vec<Box<dyn EditAction>> = Vec::with_capacity(ids.len());
     for id in ids {
-        match set_speed_one(ctx, id, speed, reversed) {
+        match set_speed_one(ctx, id, speed, reversed, max_duration) {
             Ok(inverse) => inverses.push(inverse),
             Err(err) => {
                 for inverse in inverses.into_iter().rev() {
@@ -50,12 +54,14 @@ fn set_speed_one(
     clip: ClipId,
     speed: Rational,
     reversed: bool,
+    max_duration: Option<i64>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let before = ctx
         .project
         .clip(clip)
         .cloned()
         .ok_or(ModelError::UnknownClip(clip))?;
-    ctx.project.set_clip_speed(clip, speed, reversed)?;
+    ctx.project
+        .set_clip_speed_bounded(clip, speed, reversed, max_duration)?;
     Ok(Box::new(RestoreClipAction { clip: before }))
 }

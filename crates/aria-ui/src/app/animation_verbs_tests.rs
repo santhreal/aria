@@ -185,6 +185,24 @@ fn keyframe_velocity_writes_both_handles_in_one_step() {
     assert_eq!(state.dialog, DialogKind::KeyframeVelocity);
     let fps = state.keyframe_velocity.ticks_per_second;
 
+    // Applying with nothing changed closes the dialog without dirtying or
+    // adding an undo step.
+    state.save_project().expect("save");
+    let clean_depth = state.history_entries().iter().filter(|e| e.applied).count();
+    state.status_message = None;
+    state.apply_keyframe_velocity();
+    assert_eq!(state.dialog, DialogKind::None);
+    assert!(
+        !state.store.is_dirty,
+        "unchanged Keyframe Velocity must not dirty the project"
+    );
+    assert_eq!(
+        state.history_entries().iter().filter(|e| e.applied).count(),
+        clean_depth
+    );
+    assert_eq!(state.status_message, None);
+    state.open_keyframe_velocity();
+
     assert!(
         state
             .set_keyframe_velocity_influence(VelocitySide::Incoming, 0.0)

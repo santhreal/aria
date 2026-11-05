@@ -326,8 +326,8 @@ pub struct UiGenerator {
     pub kind: SharedString,
     pub content: SharedString,
     pub params: Vec<f32>,
-    /// The colour the generator fills with at the clip's first frame (RGBA,
-    /// 0-255): a solid's colour, a shape's fill, a title's text fill. The
+    /// The color the generator fills with at the clip's first frame (RGBA,
+    /// 0-255): a solid's color, a shape's fill, a title's text fill. The
     /// content strip draws it as a swatch.
     pub swatch: Option<[u8; 4]>,
 }
@@ -839,19 +839,24 @@ impl UiSequence {
     }
 
     /// The lane a Source tab's `channel` lands on: its patched lane while that
-    /// is still on the sequence, otherwise the topmost targeted lane of the
-    /// channel's kind, otherwise the topmost lane of that kind. `None` when the
-    /// channel is patched off or the sequence has no lane of its kind.
+    /// is still on the sequence, otherwise the targeted lane of the channel's
+    /// kind nearest the video/audio divide, otherwise the lane of that kind
+    /// nearest the divide. `None` when the channel is patched off or the
+    /// sequence has no lane of its kind.
     pub fn patched_lane(&self, channel: aria_models::SourceChannel) -> Option<u64> {
         let takes = |lane: &&UiTrack| lane.channel == Some(channel);
-        let auto = || {
-            self.tracks
+        let nearest = |targeted: bool| {
+            let mut lanes = self
+                .tracks
                 .iter()
                 .filter(takes)
-                .find(|lane| lane.targeted)
-                .or_else(|| self.tracks.iter().find(takes))
-                .map(|lane| lane.id)
+                .filter(|lane| !targeted || lane.targeted);
+            match channel {
+                aria_models::SourceChannel::Video => lanes.next_back(),
+                aria_models::SourceChannel::Audio => lanes.next(),
+            }
         };
+        let auto = || nearest(true).or_else(|| nearest(false)).map(|lane| lane.id);
         match self.source_patching.get(channel) {
             aria_models::Patch::Off => None,
             aria_models::Patch::Track(id) => self

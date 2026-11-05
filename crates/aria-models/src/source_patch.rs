@@ -62,8 +62,9 @@ impl MediaSource {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Patch {
-    /// The topmost targeted lane of the channel's kind, else its first lane.
-    /// A patch to a lane that no longer exists resolves the same way.
+    /// The targeted lane of the channel's kind nearest the video/audio divide,
+    /// else the lane of that kind nearest the divide. A patch to a lane that no
+    /// longer exists resolves the same way.
     #[default]
     Auto,
     /// This lane.

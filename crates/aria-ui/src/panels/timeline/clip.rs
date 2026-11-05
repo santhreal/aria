@@ -12,9 +12,10 @@ use std::sync::Arc;
 
 use gpui::{
     App, Bounds, ContentMask, Corners, Edges, Hsla, Pixels, RenderImage, SharedString, TextAlign,
-    TextRun, Window, fill, point, px, quad, size,
+    TextRun, Window, point, px, quad, size,
 };
 
+use crate::panels::timeline::property_rows::paint_rect;
 use crate::panels::timeline::{COLLAPSED_H, ticks_to_px};
 use crate::theme::Theme;
 use crate::transport::ticks_to_px_f;
@@ -103,7 +104,7 @@ pub(crate) fn tint(theme: &Theme, clip: &UiClip) -> Hsla {
     theme.label(clip.drawn_label(), clip.selected)
 }
 
-/// The colour of the name, icon, and waveform drawn on a clip bar's fill.
+/// The color of the name, icon, and waveform drawn on a clip bar's fill.
 pub(crate) fn ink(theme: &Theme, clip: &UiClip) -> Hsla {
     theme.label_ink(clip.drawn_label(), clip.selected)
 }
@@ -136,7 +137,7 @@ pub(crate) fn paint_lane_group(
 
     window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
         // 1. Background fill for the group canvas.
-        paint_solid(
+        paint_rect(
             window,
             &mut paint_calls,
             origin_x,
@@ -275,7 +276,7 @@ pub(crate) fn paint_lane_group(
             if let Some(tick) = lane.drop_tick {
                 let dx = ticks_to_px(tick, data.fps, data.pps) - data.scroll_x;
                 if dx >= 0.0 && dx <= view_w {
-                    paint_solid(
+                    paint_rect(
                         window,
                         &mut paint_calls,
                         origin_x + dx,
@@ -301,7 +302,7 @@ pub(crate) fn paint_lane_group(
             }
 
             // Bottom lane divider line (and reorder drop indicator).
-            paint_solid(
+            paint_rect(
                 window,
                 &mut paint_calls,
                 origin_x,
@@ -311,7 +312,7 @@ pub(crate) fn paint_lane_group(
                 theme.border,
             );
             if lane.is_drop_row {
-                paint_solid(
+                paint_rect(
                     window,
                     &mut paint_calls,
                     origin_x,
@@ -327,7 +328,7 @@ pub(crate) fn paint_lane_group(
         if let Some(guide) = data.snap_guide {
             let sx = ticks_to_px(guide.tick, data.fps, data.pps) - data.scroll_x;
             if sx >= 0.0 && sx <= view_w {
-                paint_solid(
+                paint_rect(
                     window,
                     &mut paint_calls,
                     origin_x + sx,
@@ -396,7 +397,7 @@ fn paint_clip(
     };
     let color = fill.opacity(alpha);
     // A selected clip takes a 1 px white border in either appearance: the
-    // label fill under it is the clip's label colour, not a theme surface.
+    // label fill under it is the clip's label color, not a theme surface.
     let border = gpui::white();
     let ring = state::selection_t(clip.id, clip.selected, data.reduced);
     if lane.collapsed {
@@ -508,7 +509,7 @@ fn paint_clip(
                 continue;
             }
             let bh = (amp.clamp(0.05, 1.0) * wave_h).max(1.5);
-            paint_solid(
+            paint_rect(
                 window,
                 paint_calls,
                 bx,
@@ -601,7 +602,7 @@ fn paint_clip(
                 );
             } else {
                 let left = (mx0 - 2.5).clamp(x, (x + w - 5.0).max(x));
-                paint_solid(window, paint_calls, left, card_y + 1.0, 5.0, 5.0, swatch);
+                paint_rect(window, paint_calls, left, card_y + 1.0, 5.0, 5.0, swatch);
             }
         }
     }
@@ -619,7 +620,7 @@ fn paint_clip(
             held.stopped && held.clip == clip.id && held.left == (edge.side == TrimSide::In)
         });
         let fill = if stopped { theme.danger } else { theme.warning };
-        paint_solid(window, paint_calls, ex, card_y, 3.0, card_h, fill);
+        paint_rect(window, paint_calls, ex, card_y, 3.0, card_h, fill);
     }
 
     if w >= 24.0 && x + w >= origin_x && x <= origin_x + view_w {
@@ -691,23 +692,6 @@ fn paint_trim_hud(
         pill_y + 4.0,
         15.0,
     );
-}
-
-fn paint_solid(
-    window: &mut Window,
-    paint_calls: &mut usize,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    bg: Hsla,
-) {
-    let bounds = Bounds {
-        origin: point(px(x), px(y)),
-        size: size(px(w.max(0.0)), px(h.max(0.0))),
-    };
-    window.paint_quad(fill(bounds, bg));
-    *paint_calls += 1;
 }
 
 #[allow(clippy::too_many_arguments)]

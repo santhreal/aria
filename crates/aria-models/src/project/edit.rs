@@ -444,64 +444,67 @@ impl Project {
             .collect())
     }
 
+    /// Maximum timeline ticks `clip_id` can occupy from its start before
+    /// reaching the next clip on its lane, or `None` when nothing follows it.
+    pub fn clip_room_after(&self, clip_id: ClipId) -> Option<i64> {
+        let track_id = self.timeline().track_of(clip_id)?;
+        let clip = self.timeline().clip(clip_id)?;
+        let end = clip.timeline.end_tick();
+        let next = self
+            .timeline()
+            .track(track_id)?
+            .clips_ordered()
+            .find(|other| other.id != clip_id && other.timeline.start.value >= end)?;
+        Some((next.timeline.start.value - clip.timeline.start.value).max(1))
+    }
+
     /// Retime a media clip (CapCut speed, M1): keep its timeline start and
     /// source window, set `speed`/`reversed`, and re-derive the timeline
-    /// duration (source duration ÷ speed — faster clips occupy less
-    /// timeline). Rejected on generated clips (no source to retime), on
-    /// non-positive speeds, and when the retimed extent would overlap a
-    /// neighbor.
+    /// duration. Rejected on generated clips, non-positive speeds, and overlap.
     pub fn set_clip_speed(
         &mut self,
         clip_id: ClipId,
         speed: Rational,
         reversed: bool,
     ) -> Result<(), ModelError> {
-        let track_id = self
-            .timeline()
-            .track_of(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
-        let tl_rate = self.timeline().frame_rate;
-        let new_timeline = self
-            .timeline()
-            .require_clip(clip_id)?
-            .retimed(speed, tl_rate)?;
+        self.set_clip_speed_bounded(clip_id, speed, reversed, None)
+    }
 
-        if self
-            .timeline()
-            .track(track_id)
-            .expect("clip is on a track")
-            .has_overlap(new_timeline, Some(clip_id))?
-        {
-            return Err(ModelError::Overlap(track_id));
-        }
-        self.timeline_mut()
-            .clip_timeline_mut(clip_id)
-            .expect("clip existence checked above")
-            .retime(speed, reversed, tl_rate)?;
-        if let Some(track) = self.timeline_mut().track_mut(track_id) {
-            track.prune_dead_transitions();
-        }
-        Ok(())
+    /// [`Self::set_clip_speed`], clamping the retimed out point to `max_duration`.
+    pub fn set_clip_speed_bounded(
+        &mut self,
+        clip_id: ClipId,
+        speed: Rational,
+        reversed: bool,
+        max_duration: Option<i64>,
+    ) -> Result<(), ModelError> {
+        let tl_rate = self.timeline().frame_rate;
+        let mut probe = self.timeline().require_clip(clip_id)?.clone();
+        probe.retime(speed, reversed, tl_rate)?;
+        self.apply_retimed_clip(clip_id, probe, max_duration)
     }
 
     /// Set (or clear) a media clip's playback-rate ramp (CapCut speed curves,
-    /// M2): keep its timeline start, base `speed`, and source window; store
-    /// the normalized `curve` (`None` clears it to a flat unit ramp); and
-    /// re-derive the timeline duration from `source ÷ (base_speed ×
-    /// average_curve)`. Rejected on generated clips, malformed curves, and
-    /// when the retimed extent would overlap a neighbor.
+    /// M2): store `curve` (`None` clears it) and re-derive duration from
+    /// `source ÷ (base_speed × average_curve)`.
     pub fn set_clip_speed_curve(
         &mut self,
         clip_id: ClipId,
         curve: Option<Param<f32>>,
     ) -> Result<(), ModelError> {
+        self.set_clip_speed_curve_bounded(clip_id, curve, None)
+    }
+
+    /// [`Self::set_clip_speed_curve`], clamping the retimed out point to `max_duration`.
+    pub fn set_clip_speed_curve_bounded(
+        &mut self,
+        clip_id: ClipId,
+        curve: Option<Param<f32>>,
+        max_duration: Option<i64>,
+    ) -> Result<(), ModelError> {
         if let Some(curve) = &curve {
             crate::clip::validate_speed_curve(curve)?;
         }
-        let track_id = self
-            .timeline()
-            .track_of(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
         let clip = self.timeline().require_clip(clip_id)?;
         if clip.freeze_frame {
             return Err(ModelError::InvalidParam(
@@ -517,9 +520,36 @@ impl Project {
         let new_dur = self
             .speed_curve_duration(clip_id, &new_curve)
             .expect("clip and source range checked above");
-        let tl_rate = self.timeline().frame_rate;
-        let new_timeline = TimeRange::at_rate(clip.timeline.start.value, new_dur, tl_rate);
+        let mut probe = clip.clone();
+        probe.speed_curve = new_curve;
+        probe.timeline = TimeRange::at_rate(
+            clip.timeline.start.value,
+            new_dur,
+            self.timeline().frame_rate,
+        );
+        self.apply_retimed_clip(clip_id, probe, max_duration)
+    }
 
+    fn apply_retimed_clip(
+        &mut self,
+        clip_id: ClipId,
+        probe: Clip,
+        max_duration: Option<i64>,
+    ) -> Result<(), ModelError> {
+        let track_id = self
+            .timeline()
+            .track_of(clip_id)
+            .ok_or(ModelError::UnknownClip(clip_id))?;
+        let full = probe.timeline;
+        let (new_timeline, clamped_source) = match max_duration.filter(|&m| full.duration.value > m)
+        {
+            Some(limit) => {
+                let clamped = TimeRange::at_rate(full.start.value, limit.max(1), full.start.rate);
+                let src = self.trim_source(&probe, clamped)?;
+                (clamped, Some(src))
+            }
+            None => (full, None),
+        };
         if self
             .timeline()
             .track(track_id)
@@ -528,14 +558,18 @@ impl Project {
         {
             return Err(ModelError::Overlap(track_id));
         }
-
         {
-            let mut clip = self
+            let mut held = self
                 .timeline_mut()
                 .clip_timeline_mut(clip_id)
                 .expect("clip existence checked above");
-            clip.speed_curve = new_curve;
-            clip.timeline = new_timeline;
+            held.speed = probe.speed;
+            held.reversed = probe.reversed;
+            held.speed_curve = probe.speed_curve;
+            held.timeline = new_timeline;
+            if let Some(src) = clamped_source {
+                held.trim_to(new_timeline, src);
+            }
         }
         if let Some(track) = self.timeline_mut().track_mut(track_id) {
             track.prune_dead_transitions();
@@ -917,7 +951,14 @@ fn trimmed_window(
     rate: Rational,
 ) -> (i64, i64) {
     let shift = |ticks: i64| {
-        let scaled = clip.scale_by_speed(ticks);
+        let scaled = if clip.has_speed_curve() {
+            ((ticks as f64)
+                * (f64::from(clip.speed.num) / f64::from(clip.speed.den))
+                * clip.speed_curve_average())
+            .round() as i64
+        } else {
+            clip.scale_by_speed(ticks)
+        };
         resample(RationalTime::new(scaled, new_timeline.start.rate), rate).value
     };
     let head = shift(new_timeline.start.value - clip.timeline.start.value);

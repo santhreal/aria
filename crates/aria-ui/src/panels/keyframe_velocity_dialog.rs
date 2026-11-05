@@ -11,6 +11,7 @@ use gpui::{
 };
 
 use crate::app::animation_verbs::{INFLUENCE_PERCENT_SPAN, KeyframeVelocityForm, VelocitySide};
+use crate::app::param_units::Units;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write};
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface, toggle_row};
@@ -138,6 +139,7 @@ fn side_block(
         format!("{speed:.2} {}", form.unit),
         cx,
     );
+    let units = Units::INFLUENCE;
     let influence_row = number_row(
         theme,
         state,
@@ -145,8 +147,8 @@ fn side_block(
         ScrubTarget {
             key: key.with("influence"),
             value: influence,
-            unit: 1.0,
-            kind: ValueKind::Number { decimals: 2 },
+            unit: units.number.drag,
+            kind: units.number.kind(),
             write: Write::Draft {
                 set: Rc::new(move |state: &mut AppState, percent| {
                     state.set_keyframe_velocity_influence(side, percent)
@@ -154,7 +156,7 @@ fn side_block(
                 span: INFLUENCE_PERCENT_SPAN,
             },
         },
-        format!("{influence:.2}%"),
+        form.influence_label(side),
         cx,
     );
 

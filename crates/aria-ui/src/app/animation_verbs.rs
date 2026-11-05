@@ -15,6 +15,7 @@ use aria_models::{
 use gpui::SharedString;
 
 use super::clip_keys::{KeyParam, key_params_of};
+use super::param_units::Units;
 use super::property_rows::SelectedKeyframe;
 use super::{AppState, DialogKind};
 
@@ -72,7 +73,15 @@ impl KeyframeVelocityForm {
 
     /// The side's influence as a percentage of its segment.
     pub fn influence_percent(&self, side: VelocitySide) -> f32 {
-        self.side(side).influence * 100.0
+        Units::INFLUENCE
+            .number
+            .scale
+            .shown(self.side(side).influence)
+    }
+
+    /// What a readout prints for the side's influence.
+    pub fn influence_label(&self, side: VelocitySide) -> String {
+        Units::INFLUENCE.print(self.side(side).influence)
     }
 
     fn side(&self, side: VelocitySide) -> TemporalEase {
@@ -107,7 +116,7 @@ fn stored_keys(model: &Clip, row: &KeyParam) -> Vec<Keyframe<ParamValue>> {
 }
 
 /// The shape of a segment played backwards: a Bezier's control polygon
-/// mirrored through the segment's centre. A Hold stays a Hold; the jump moves
+/// mirrored through the segment's center. A Hold stays a Hold; the jump moves
 /// to the other end of the segment, which a keyframe cannot state.
 fn reversed_segment(leaving: Easing) -> Easing {
     match leaving.control_points() {
@@ -435,6 +444,19 @@ impl AppState {
         }
         let form = self.keyframe_velocity.clone();
         let rate = self.playhead.rate;
+        let any_changed = form.targets.iter().any(|target| {
+            self.clip_and_lane_kind(target.clip)
+                .and_then(|(model, audio_lane)| {
+                    row_of(&model, audio_lane, target.param)?
+                        .spec
+                        .temporal_ease_at(&model, model.param_tick(target.tick))
+                })
+                != Some((form.incoming, form.outgoing))
+        });
+        if !any_changed {
+            self.open_dialog(DialogKind::None);
+            return;
+        }
         let result = self.one_step(|this| {
             for target in form.targets.iter() {
                 let hold = this

@@ -595,7 +595,7 @@ pub(crate) fn paint_filmstrip(
             );
             *paint_calls += 1;
             if !enabled {
-                super::paint_solid(
+                crate::panels::timeline::property_rows::paint_rect(
                     window,
                     paint_calls,
                     x + tile.from,

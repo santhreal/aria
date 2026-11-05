@@ -546,7 +546,7 @@ fn property_row_header(
 
 /// A row's value at the playhead. A scalar or a pair (its first component) is
 /// a scrubbable readout writing at the playhead, which keys the property when
-/// it is keyframed; a colour or a rectangle only prints.
+/// it is keyframed; a color or a rectangle only prints.
 fn value_readout(
     theme: &Theme,
     row: &TimelinePropertyRow,
@@ -751,7 +751,7 @@ fn paint_key_row(
     );
 }
 
-pub(super) fn paint_rect(
+pub(in crate::panels::timeline) fn paint_rect(
     window: &mut Window,
     calls: &mut usize,
     x: f32,

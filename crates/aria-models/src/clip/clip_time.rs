@@ -89,11 +89,39 @@ impl Clip {
     /// beat that falls within the clip's visible source window. Beats left
     /// behind by a trim or a split are skipped. Pure; `O(beats)`.
     pub fn beat_timeline_ticks(&self) -> Vec<i64> {
-        let mut out: Vec<i64> = self
-            .beats
-            .iter()
-            .filter_map(|beat| self.timeline_tick_for_source(*beat))
-            .collect();
+        if self.beats.is_empty() {
+            return Vec::new();
+        }
+        let Some(source) = self.source_range() else {
+            return Vec::new();
+        };
+        let dur = source.duration.value;
+        if dur <= 0 {
+            return Vec::new();
+        }
+        let first = source.start.value;
+        let end = first + dur;
+        let tl_start = self.timeline.start.value;
+        let tl_dur = self.timeline.duration.value;
+        let unit_speed = tl_dur == dur && !self.has_speed_curve();
+        let mut out = Vec::with_capacity(self.beats.len());
+        for &beat in &self.beats {
+            if beat < first || beat >= end {
+                continue;
+            }
+            let offset = beat - first;
+            let tick = if unit_speed {
+                let tl_offset = if self.reversed { dur - offset } else { offset };
+                tl_start + tl_offset
+            } else {
+                let mut frac = offset as f64 / dur as f64;
+                if self.reversed {
+                    frac = 1.0 - frac;
+                }
+                tl_start + (frac * tl_dur as f64).round() as i64
+            };
+            out.push(tick);
+        }
         out.sort_unstable();
         out
     }

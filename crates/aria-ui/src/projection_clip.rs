@@ -207,6 +207,7 @@ pub(super) fn clip_to_ui(
         line,
     } = Placement::of(clip, project.timeline().frame_rate, track.kind.is_audio());
 
+    let model_transition = track.transition_at(clip.id);
     UiClip {
         id: clip_id(clip.id),
         track_id: track_id(track.id),
@@ -350,7 +351,7 @@ pub(super) fn clip_to_ui(
         animation_out: clip.animation_out.as_ref().map(animation_to_ui),
         animation_combo: clip.animation_combo.as_ref().map(animation_to_ui),
         audio_role: clip.audio_role,
-        transition: track.transition_at(clip.id).map(transition_to_ui),
+        transition: model_transition.map(transition_to_ui),
         transition_media: track.kind.transition_media().filter(|_| abuts_right),
         replaceable: clip.replaceable.as_ref().map(|slot| UiSlot {
             order: slot.order,
@@ -365,7 +366,7 @@ pub(super) fn clip_to_ui(
             .clip_type
             .as_deref()
             .map(|id| clip_type_to_ui(clip, id)),
-        missing_plugin: missing_plugin(clip, track),
+        missing_plugin: missing_plugin(clip, model_transition),
         markers,
         speed_label,
         drift,
@@ -504,15 +505,15 @@ impl Placement {
 /// The badge a clip draws while a plugin behind it is missing, failed, or
 /// disabled: the first id no catalog lists among its type, effects, and audio
 /// effects, then the transition at its right edge. The clip keeps every id.
-fn missing_plugin(clip: &aria_models::Clip, track: &aria_models::Track) -> Option<SharedString> {
+fn missing_plugin(
+    clip: &aria_models::Clip,
+    transition: Option<&aria_models::Transition>,
+) -> Option<SharedString> {
     let id = clip.missing_plugin_id().or_else(|| {
-        track
-            .transition_at(clip.id)
-            .map(|transition| transition.transition_id.as_str())
-            .filter(|id| {
-                aria_models::transition_spec(id).is_none()
-                    && aria_models::AudioTransition::from_id(id).is_none()
-            })
+        transition.map(|tr| tr.transition_id.as_str()).filter(|id| {
+            aria_models::transition_spec(id).is_none()
+                && aria_models::AudioTransition::from_id(id).is_none()
+        })
     })?;
     Some(format!("Missing plugin: {id}").into())
 }

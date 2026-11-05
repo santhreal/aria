@@ -470,32 +470,37 @@ impl AppState {
         let selected = self.selection.to_vec();
         let mut seen_links: Vec<u64> = Vec::new();
         let mut speed_targets: Vec<(ClipId, bool)> = Vec::new();
+        let mut pitch_targets: Vec<ClipId> = Vec::new();
         for &clip in &selected {
-            let has_ramp = self.ui_clip_ref(clip).is_some_and(|ui| ui.time_remap);
-            let link = self.ui_clip_ref(clip).and_then(|ui| ui.linked_to);
-            if let Some(l) = link {
-                if seen_links.contains(&l) {
-                    continue;
-                }
-                seen_links.push(l);
+            let Some(ui) = self.ui_clip_ref(clip) else {
+                continue;
+            };
+            let has_ramp = ui.time_remap;
+            let link = ui.linked_to;
+            let current_speed = Rational::new(ui.speed_num, ui.speed_den).reduced();
+            let speed_changed = has_ramp || current_speed != speed || ui.reversed != reversed;
+            if ui.preserve_pitch != preserve_pitch {
+                pitch_targets.push(clip);
             }
-            speed_targets.push((clip, has_ramp));
+            if speed_changed {
+                if let Some(l) = link {
+                    if seen_links.contains(&l) {
+                        continue;
+                    }
+                    seen_links.push(l);
+                }
+                speed_targets.push((clip, has_ramp));
+            }
+        }
+        if speed_targets.is_empty() && pitch_targets.is_empty() {
+            self.open_dialog(DialogKind::None);
+            return;
         }
         let res = self.one_step(|this| {
             for (clip, has_ramp) in speed_targets {
-                if has_ramp {
-                    this.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
-                        clip,
-                        curve: None,
-                    }))?;
-                }
-                this.apply_command(Command::Edit(EditCommand::SetClipSpeed {
-                    clip,
-                    speed,
-                    reversed,
-                }))?;
+                this.apply_clip_speed_in_step(clip, speed, reversed, has_ramp)?;
             }
-            for clip in selected {
+            for clip in pitch_targets {
                 this.apply_command(Command::Edit(EditCommand::SetClipPitch {
                     clip,
                     preserve_pitch,
@@ -735,6 +740,19 @@ impl AppState {
                 }
             }
         }
+        {
+            let engine = self.engine.lock();
+            let project = engine.project();
+            plan.retain(|&(clip, linear)| {
+                !project.clip(clip).is_some_and(
+                    |c| matches!(c.volume, Param::Constant(cur) if (cur - linear).abs() <= 1e-5),
+                )
+            });
+        }
+        if plan.is_empty() {
+            self.open_dialog(DialogKind::None);
+            return;
+        }
         let res = self.one_step(|this| {
             for (clip, linear) in plan {
                 this.apply_command(Command::Edit(EditCommand::SetParamConstant {
@@ -824,6 +842,20 @@ mod tests {
         assert_eq!(state.speed_duration.speed_percent, 100.0);
         assert_eq!(state.speed_duration.duration_ticks, base_ticks);
 
+        // Applying with nothing changed closes the dialog without dirtying or
+        // adding an undo step.
+        state.save_project().expect("save");
+        let clean_depth = applied_steps(&state);
+        state.status_message = None;
+        state.apply_speed_duration();
+        assert_eq!(state.dialog, DialogKind::None);
+        assert!(
+            !state.store.is_dirty,
+            "unchanged Speed/Duration must not dirty the project"
+        );
+        assert_eq!(applied_steps(&state), clean_depth);
+        assert_eq!(state.status_message, None);
+        state.open_speed_duration();
         // Out-of-range speed is refused with a stated reason.
         assert!(state.set_speed_duration_percent(0.0).is_err());
         assert!(state.speed_duration.error.is_some());
@@ -895,6 +927,20 @@ mod tests {
             .max_peak_dbfs
             .expect("decoded wav has a measured peak");
 
+        // Applying with nothing changed closes the dialog without dirtying or
+        // adding an undo step.
+        state.save_project().expect("save");
+        let clean_depth = applied_steps(&state);
+        state.status_message = None;
+        state.apply_audio_gain();
+        assert_eq!(state.dialog, DialogKind::None);
+        assert!(
+            !state.store.is_dirty,
+            "unchanged Audio Gain must not dirty the project"
+        );
+        assert_eq!(applied_steps(&state), clean_depth);
+        assert_eq!(state.status_message, None);
+        state.open_audio_gain();
         // Mode 1: Set Gain to -6 dB.
         state.set_audio_gain_mode(AudioGainMode::SetGain);
         state.set_audio_gain_db(-6.0).expect("valid set dB");

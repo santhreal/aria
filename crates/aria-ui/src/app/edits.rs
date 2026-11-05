@@ -3,7 +3,7 @@
 //! Every edit here goes through [`AppState::apply_command`], so each one is a
 //! single undoable engine command and no surface mutates the store directly.
 //!
-//! Moving, renaming, recolouring, and annotating a marker all ride the one
+//! Moving, renaming, recoloring, and annotating a marker all ride the one
 //! `SetMarker` command, which carries the whole row. Each of those four edits
 //! therefore has to resend the three fields it is not changing, or it would
 //! erase them; [`AppState::set_marker`] is the single place that does so.
@@ -118,7 +118,7 @@ impl AppState {
         format!("Marker {}", highest.saturating_add(1))
     }
 
-    /// The colour for the next marker, stepped so neighbours differ.
+    /// The color for the next marker, stepped so neighbors differ.
     pub(super) fn next_marker_color(&self) -> MarkerColor {
         MarkerColor::cycle(self.store.sequence.markers.len())
     }
@@ -310,10 +310,23 @@ impl AppState {
                 return;
             }
         };
+        let name = form.name.trim();
+        let comment = form.comment.trim();
+        if self.marker_row(form.marker).is_some_and(|row| {
+            row.name.as_ref() == name
+                && row.comment.as_ref() == comment
+                && row.color == form.color
+                && row.kind == form.kind
+                && row.duration_ticks == duration_ticks
+        }) {
+            self.marker_edit.error = None;
+            self.open_dialog(DialogKind::None);
+            return;
+        }
         match self.edit_marker_full(
             form.marker,
-            form.name.trim().to_string(),
-            form.comment.trim().to_string(),
+            name.to_string(),
+            comment.to_string(),
             form.color,
             duration_ticks,
             form.kind,
@@ -399,12 +412,12 @@ impl AppState {
         self.marker_edit.kind = kind;
     }
 
-    /// Active colour filter in the Markers panel (`None` shows all markers).
+    /// Active color filter in the Markers panel (`None` shows all markers).
     pub fn marker_color_filter(&self) -> Option<MarkerColor> {
         self.marker_color_filter
     }
 
-    /// Set or clear the Markers panel colour filter.
+    /// Set or clear the Markers panel color filter.
     pub fn set_marker_color_filter(&mut self, color: Option<MarkerColor>) {
         self.marker_color_filter = color;
     }
@@ -420,7 +433,7 @@ impl AppState {
             .collect()
     }
 
-    /// Rename a marker, keeping its position, colour, and note.
+    /// Rename a marker, keeping its position, color, and note.
     pub fn rename_marker(&mut self, marker: u64, name: String) -> Result<(), EngineError> {
         let Some(row) = self.marker_row(marker) else {
             return Ok(());
@@ -429,7 +442,7 @@ impl AppState {
         self.set_marker(marker, None, name, color, comment)
     }
 
-    /// Write or clear a marker's note, keeping its position, name, and colour.
+    /// Write or clear a marker's note, keeping its position, name, and color.
     ///
     /// An empty `comment` is a real edit that clears the note, not a no-op.
     pub fn set_marker_comment(&mut self, marker: u64, comment: String) -> Result<(), EngineError> {
@@ -440,7 +453,7 @@ impl AppState {
         self.set_marker(marker, None, name, color, comment)
     }
 
-    /// Move a marker to `to`, keeping its name, colour, and note.
+    /// Move a marker to `to`, keeping its name, color, and note.
     pub fn move_marker(&mut self, marker: u64, to: i64) -> Result<(), EngineError> {
         let Some(row) = self.marker_row(marker) else {
             return Ok(());
@@ -449,7 +462,7 @@ impl AppState {
         self.set_marker(marker, Some(to), name, color, comment)
     }
 
-    /// Step a marker to the next colour, keeping everything else.
+    /// Step a marker to the next color, keeping everything else.
     pub fn cycle_marker_color(&mut self, marker: u64) -> Result<(), EngineError> {
         let Some(row) = self.marker_row(marker) else {
             return Ok(());
@@ -611,6 +624,165 @@ impl AppState {
         self.status_message = Some("Froze frame".into());
         Ok(())
     }
+
+    /// Apply `SetClipSpeed` (optionally clearing a ramp first) inside an open
+    /// edit group, pushing trailing clips first when Ripple mode is active and
+    /// the new speed lengthens the clip.
+    pub(crate) fn apply_clip_speed_in_step(
+        &mut self,
+        clip: aria_models::ClipId,
+        speed: aria_models::Rational,
+        reversed: bool,
+        clear_ramp: bool,
+    ) -> Result<(), EngineError> {
+        let ripple = (self.edit_mode == crate::types::EditMode::Ripple)
+            .then(|| {
+                let track = self.track_of(clip)?;
+                let rate = self.store.sequence.frame_rate;
+                let mut held = self.engine.lock().project().clip(clip)?.clone();
+                let old_end = held.timeline.end_tick();
+                let old_dur = held.timeline.duration.value;
+                if clear_ramp {
+                    held.speed_curve = aria_models::Param::Constant(1.0);
+                }
+                let new_dur = held.retimed(speed, rate).ok()?.duration.value;
+                let delta = new_dur - old_dur;
+                (delta > 0).then(|| {
+                    let mut lanes = vec![track];
+                    if let Some(link) = self
+                        .ui_clip_ref(clip)
+                        .and_then(|ui| ui.linked_to)
+                        .filter(|_| self.linked_selection)
+                    {
+                        for lane in &self.store.sequence.tracks {
+                            if !lane.locked
+                                && lane.clips.iter().any(|item| item.linked_to == Some(link))
+                            {
+                                let id = aria_models::TrackId::from_raw(lane.id);
+                                if !lanes.contains(&id) {
+                                    lanes.push(id);
+                                }
+                            }
+                        }
+                    }
+                    lanes.retain(|lane| {
+                        self.store
+                            .sequence
+                            .tracks
+                            .iter()
+                            .find(|t| t.id == lane.raw())
+                            .is_some_and(|t| {
+                                t.clips.iter().any(|c| c.timeline_start_ticks >= old_end)
+                            })
+                    });
+                    (lanes, old_end, delta, rate)
+                })
+            })
+            .flatten()
+            .filter(|(lanes, ..)| !lanes.is_empty());
+
+        if let Some((lanes, old_end, delta, rate)) = ripple {
+            for lane in lanes {
+                self.apply_command(Command::Edit(EditCommand::ShiftClips {
+                    track: lane,
+                    from: aria_models::RationalTime::new(old_end, rate),
+                    delta: aria_models::RationalTime::new(delta, rate),
+                }))?;
+            }
+        }
+        if clear_ramp {
+            self.apply_command(Command::Edit(EditCommand::SetSpeedCurve {
+                clip,
+                curve: None,
+            }))?;
+        }
+        self.apply_command(Command::Edit(EditCommand::SetClipSpeed {
+            clip,
+            speed,
+            reversed,
+        }))?;
+        Ok(())
+    }
+
+    /// Unlocked lanes holding `clip` or (when linked selection is on) its
+    /// linked companions that have a clip starting at or after `from`.
+    pub(crate) fn ripple_speed_lanes(
+        &self,
+        clip: aria_models::ClipId,
+        primary: aria_models::TrackId,
+        from: i64,
+    ) -> Vec<aria_models::TrackId> {
+        let mut lanes = vec![primary];
+        if let Some(link) = self
+            .ui_clip_ref(clip)
+            .and_then(|ui| ui.linked_to)
+            .filter(|_| self.linked_selection)
+        {
+            for lane in &self.store.sequence.tracks {
+                if !lane.locked && lane.clips.iter().any(|item| item.linked_to == Some(link)) {
+                    let id = aria_models::TrackId::from_raw(lane.id);
+                    if !lanes.contains(&id) {
+                        lanes.push(id);
+                    }
+                }
+            }
+        }
+        lanes.retain(|lane| {
+            self.store
+                .sequence
+                .tracks
+                .iter()
+                .find(|t| t.id == lane.raw())
+                .is_some_and(|t| t.clips.iter().any(|c| c.timeline_start_ticks >= from))
+        });
+        lanes
+    }
+
+    /// Apply `SetSpeedCurve` to `clip`, pushing trailing clips in Ripple mode
+    /// when the ramp lengthens the clip, as one undo step.
+    pub(crate) fn apply_speed_curve_edit(
+        &mut self,
+        clip: aria_models::ClipId,
+        curve: Option<aria_models::Param<f32>>,
+    ) -> Result<(), EngineError> {
+        let ripple = (self.edit_mode == crate::types::EditMode::Ripple)
+            .then(|| {
+                let track = self.track_of(clip)?;
+                let rate = self.store.sequence.frame_rate;
+                let held = self.engine.lock().project().clip(clip)?.clone();
+                let old_end = held.timeline.end_tick();
+                let effective = curve.clone().unwrap_or(aria_models::Param::Constant(1.0));
+                let new_dur = held.duration_under(&effective, rate)?;
+                let delta = new_dur - held.timeline.duration.value;
+                (delta > 0).then(|| {
+                    (
+                        self.ripple_speed_lanes(clip, track, old_end),
+                        old_end,
+                        delta,
+                        rate,
+                    )
+                })
+            })
+            .flatten()
+            .filter(|(lanes, ..)| !lanes.is_empty());
+
+        if let Some((lanes, old_end, delta, rate)) = ripple {
+            self.one_step_as("Set speed curve", |this| {
+                for lane in lanes {
+                    this.apply_command(Command::Edit(EditCommand::ShiftClips {
+                        track: lane,
+                        from: aria_models::RationalTime::new(old_end, rate),
+                        delta: aria_models::RationalTime::new(delta, rate),
+                    }))?;
+                }
+                this.apply_command(Command::Edit(EditCommand::SetSpeedCurve { clip, curve }))?;
+                Ok(())
+            })
+        } else {
+            self.apply_command(Command::Edit(EditCommand::SetSpeedCurve { clip, curve }))?;
+            Ok(())
+        }
+    }
 }
 
 fn parse_marker_duration_ticks(text: &str, rate_num: i32, rate_den: i32) -> Result<i64, String> {
@@ -627,4 +799,192 @@ fn parse_marker_duration_ticks(text: &str, rate_num: i32, rate_den: i32) -> Resu
     }
     crate::timecode::parse_ticks(trimmed, rate_num, rate_den)
         .ok_or_else(|| format!("Invalid duration timecode '{trimmed}'"))
+}
+#[cfg(test)]
+mod boxed_speed_tests {
+    //! Speed changes and speed ramps on a clip followed by a neighbor.
+    //!
+    //! # Why
+    //!
+    //! Closes the class where applying a lengthening speed ramp (`Hero`) or a
+    //! slower Speed/Duration percentage to a clip with a right-hand neighbor
+    //! fails with `ModelError::Overlap`: in Overwrite mode the retimed clip's
+    //! out point trims to the neighbor's start so the neighbor stays in place,
+    //! in Ripple mode trailing clips shift by the added length so the retimed
+    //! clip keeps its full length, and each operation undoes in one step. Does
+    //! not cover rate-stretch pointer drags, which clamp to room before release.
+
+    use crate::app::AppState;
+    use crate::types::EditMode;
+    use aria_models::{ClipId, speed_preset};
+
+    fn boxed_pair() -> (AppState, ClipId, ClipId, i64, i64) {
+        let (mut state, first) = crate::app::premiere_tests::with_clip();
+        let first_ui = state.ui_clip_ref(first).expect("first clip").clone();
+        let cut = first_ui.timeline_end_ticks;
+        let media = aria_models::MediaId::from_raw(first_ui.media_id.expect("media"));
+        state
+            .drop_media_on_timeline(media, None, cut)
+            .expect("drop trailing neighbor");
+        let neighbor = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .find(|c| c.id != first.raw() && c.timeline_start_ticks == cut)
+            .map(|c| ClipId::from_raw(c.id))
+            .expect("neighbor clip");
+        let neighbor_end = state
+            .ui_clip_ref(neighbor)
+            .expect("neighbor")
+            .timeline_end_ticks;
+        state.select_clip(first);
+        (state, first, neighbor, cut, neighbor_end)
+    }
+
+    #[test]
+    fn hero_and_slowdown_on_boxed_clip_trim_in_overwrite_and_shift_in_ripple_with_single_undo() {
+        let (mut state, first, neighbor, cut, neighbor_end) = boxed_pair();
+        let hero = speed_preset("hero").expect("hero preset");
+        let full_hero_len = state
+            .engine
+            .lock()
+            .project()
+            .speed_curve_duration(first, &hero)
+            .expect("hero duration");
+        let added = full_hero_len - cut;
+        assert!(
+            added > 0,
+            "hero must lengthen the clip ({full_hero_len} vs {cut})"
+        );
+
+        // 1. Overwrite mode: Hero trims the retimed clip's out point to the
+        // neighbor's start, keeps the neighbor unmoved, and undoes in one step.
+        state.edit_mode = EditMode::Overwrite;
+        state
+            .set_selected_speed_preset("hero")
+            .expect("hero on boxed clip in Overwrite mode");
+        assert_eq!(state.selected_speed_preset(), Some("hero"));
+        let first_ui = state.ui_clip_ref(first).expect("first");
+        let neighbor_ui = state.ui_clip_ref(neighbor).expect("neighbor");
+        assert_eq!(
+            (first_ui.timeline_start_ticks, first_ui.timeline_end_ticks),
+            (0, cut),
+            "retimed clip must end at the neighbor's start in Overwrite mode"
+        );
+        assert_eq!(
+            (
+                neighbor_ui.timeline_start_ticks,
+                neighbor_ui.timeline_end_ticks
+            ),
+            (cut, neighbor_end),
+            "neighbor must stay unmoved in Overwrite mode"
+        );
+        assert!(state.undo(), "one undo step restores Overwrite Hero");
+        assert!(!state.selected_has_ramp());
+        assert_eq!(
+            state.ui_clip_ref(first).expect("first").timeline_end_ticks,
+            cut
+        );
+        assert_eq!(
+            state
+                .ui_clip_ref(neighbor)
+                .expect("neighbor")
+                .timeline_start_ticks,
+            cut
+        );
+
+        // Overwrite Speed/Duration slowdown (50%) also trims to the neighbor.
+        state.open_speed_duration();
+        state.set_speed_duration_percent(50.0).expect("50%");
+        state.apply_speed_duration();
+        assert_eq!(state.speed_duration.error, None);
+        assert_eq!(
+            state.ui_clip_ref(first).expect("first").timeline_end_ticks,
+            cut
+        );
+        assert_eq!(
+            state
+                .ui_clip_ref(neighbor)
+                .expect("neighbor")
+                .timeline_start_ticks,
+            cut
+        );
+        assert!(state.undo(), "one undo step restores Overwrite 50% speed");
+
+        // 2. Ripple mode: Hero pushes the neighbor by the added length so the
+        // retimed clip keeps its full length, and undoes in one step.
+        state.edit_mode = EditMode::Ripple;
+        state
+            .apply_speed_curve_edit(first, Some(hero))
+            .expect("hero on boxed clip in Ripple mode");
+        assert_eq!(state.selected_speed_preset(), Some("hero"));
+        let first_ui = state.ui_clip_ref(first).expect("first");
+        let neighbor_ui = state.ui_clip_ref(neighbor).expect("neighbor");
+        assert_eq!(
+            (first_ui.timeline_start_ticks, first_ui.timeline_end_ticks),
+            (0, full_hero_len),
+            "retimed clip keeps its full length in Ripple mode"
+        );
+        assert_eq!(
+            (
+                neighbor_ui.timeline_start_ticks,
+                neighbor_ui.timeline_end_ticks
+            ),
+            (cut + added, neighbor_end + added),
+            "neighbor moves by the added length in Ripple mode"
+        );
+        assert!(
+            state.undo(),
+            "one undo step restores both clip and neighbor"
+        );
+        assert!(!state.selected_has_ramp());
+        assert_eq!(
+            state.ui_clip_ref(first).expect("first").timeline_end_ticks,
+            cut
+        );
+        assert_eq!(
+            (
+                state
+                    .ui_clip_ref(neighbor)
+                    .expect("neighbor")
+                    .timeline_start_ticks,
+                state
+                    .ui_clip_ref(neighbor)
+                    .expect("neighbor")
+                    .timeline_end_ticks,
+            ),
+            (cut, neighbor_end)
+        );
+
+        // Ripple Speed/Duration slowdown (50%) pushes the neighbor by `cut`.
+        state.open_speed_duration();
+        state.set_speed_duration_percent(50.0).expect("50%");
+        state.apply_speed_duration();
+        assert_eq!(state.speed_duration.error, None);
+        assert_eq!(
+            state.ui_clip_ref(first).expect("first").timeline_end_ticks,
+            cut * 2
+        );
+        assert_eq!(
+            state
+                .ui_clip_ref(neighbor)
+                .expect("neighbor")
+                .timeline_start_ticks,
+            cut * 2
+        );
+        assert!(state.undo(), "one undo step restores Ripple 50% speed");
+        assert_eq!(
+            state.ui_clip_ref(first).expect("first").timeline_end_ticks,
+            cut
+        );
+        assert_eq!(
+            state
+                .ui_clip_ref(neighbor)
+                .expect("neighbor")
+                .timeline_start_ticks,
+            cut
+        );
+    }
 }

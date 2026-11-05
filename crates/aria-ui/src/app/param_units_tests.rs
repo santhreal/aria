@@ -17,15 +17,17 @@ use std::rc::Rc;
 
 use aria_analysis::linear_from_db;
 use aria_models::{
-    AudioSend, ClipParam, MaskKind, MaskParam, ParamKind, TextParam, clip_param_catalog,
-    mask_param_group,
+    AudioSend, ClipParam, EASY_EASE_INFLUENCE, MAX_TEMPORAL_INFLUENCE, MIN_TEMPORAL_INFLUENCE,
+    MaskKind, MaskParam, ParamKind, TextParam, clip_param_catalog, mask_param_group,
 };
 
 use super::{Scale, Units};
 use crate::app::AppState;
+use crate::app::animation_verbs::VelocitySide;
 use crate::app::clip_params::ParamRow;
 use crate::app::fixtures::{a_clip, a_title};
 use crate::app::mixer::gain_label;
+use crate::app::property_rows::GraphHandleSide;
 use crate::app::value_scrub::{ScrubTarget, ValueKind, Write, write_number};
 use crate::motion::MotionKey;
 
@@ -323,6 +325,79 @@ fn a_fader_reads_a_level_as_a_gain_row_prints_it() {
     for level in levels {
         for (id, units) in &rows {
             assert_eq!(gain_label(level), units.print(level), "{id} at {level}");
+        }
+    }
+}
+
+/// The Keyframe Velocity dialog and the Graph Editor's handle labels print one
+/// influence text across the segment span, from the 0.1% floor through Easy
+/// Ease to 100.0%.
+#[test]
+fn keyframe_velocity_and_graph_handles_print_one_influence_text() {
+    let mut state = a_clip();
+    let clip = state.selected_clip().expect("a selected clip");
+    for (tick, value) in [(0, 0.0), (4, 0.5), (20, 1.0)] {
+        state.set_playhead(tick);
+        state
+            .set_keyframe_scalar(ClipParam::Opacity, tick, value)
+            .expect("a keyframe");
+    }
+    state.select_timeline_property(clip, ClipParam::Opacity, false);
+    state.select_timeline_keyframe(clip, ClipParam::Opacity, 4, false);
+
+    let scale = Units::INFLUENCE.number.scale;
+    let samples = [
+        MIN_TEMPORAL_INFLUENCE,
+        0.1,
+        EASY_EASE_INFLUENCE,
+        0.5,
+        0.75,
+        MAX_TEMPORAL_INFLUENCE,
+    ]
+    .into_iter()
+    .chain((1..=100).map(|pct| pct as f32 / 100.0));
+
+    for stored in samples {
+        let percent = scale.shown(stored);
+        state.open_keyframe_velocity();
+        for side in [VelocitySide::Incoming, VelocitySide::Outgoing] {
+            state
+                .set_keyframe_velocity_influence(side, percent)
+                .expect("influence inside span");
+        }
+        state.apply_keyframe_velocity();
+        state.open_keyframe_velocity();
+
+        let graph = state.build_timeline_graph_model(24.0, 20.0, 0.0, 120.0);
+        let curve = graph
+            .curves
+            .iter()
+            .find(|c| c.clip == clip && c.param == ClipParam::Opacity)
+            .expect("opacity curve");
+        for (velocity_side, graph_side) in [
+            (VelocitySide::Incoming, GraphHandleSide::Incoming),
+            (VelocitySide::Outgoing, GraphHandleSide::Outgoing),
+        ] {
+            let handle = curve
+                .influence_handles
+                .iter()
+                .find(|h| h.tick == 4 && h.side == graph_side)
+                .expect("handle on middle keyframe");
+            let dialog_text = state.keyframe_velocity.influence_label(velocity_side);
+            let graph_text = Units::INFLUENCE.print(
+                handle
+                    .influence
+                    .clamp(MIN_TEMPORAL_INFLUENCE, MAX_TEMPORAL_INFLUENCE),
+            );
+            assert_eq!(
+                dialog_text,
+                Units::INFLUENCE.print(stored),
+                "{velocity_side:?} dialog readout at {stored}"
+            );
+            assert_eq!(
+                dialog_text, graph_text,
+                "{velocity_side:?} dialog vs graph handle at {stored}"
+            );
         }
     }
 }

@@ -164,10 +164,100 @@ macro_rules! grade_rows {
                 |c| ParamRoute::Scalar(&c.adjust.$field),
             ),)*]
         }
+
+        fn visit_grade_keyframes(clip: &Clip, visit: &mut impl FnMut(i64, crate::Easing)) {
+            $(marks(&clip.adjust.$field, visit);)*
+        }
     };
 }
 
 crate::adjust_slider_rows!(grade_rows);
+
+fn marks<T: Clone>(param: &Param<T>, visit: &mut impl FnMut(i64, crate::Easing)) {
+    for k in param.keyframes() {
+        visit(k.tick, k.easing);
+    }
+}
+
+/// Visit keyframes of every static catalog row in [`CATALOG`] order without
+/// resolving each row through [`ParamSpec`] and [`Clip::param_route`].
+pub(super) fn visit_static_keyframes(clip: &Clip, visit: &mut impl FnMut(i64, crate::Easing)) {
+    marks(&clip.transform.position, visit);
+    marks(&clip.transform.anchor_point, visit);
+    marks(&clip.transform.scale, visit);
+    marks(&clip.transform.rotation, visit);
+    marks(&clip.transform.opacity, visit);
+    marks(&clip.crop, visit);
+    if matches!(clip.content, ClipSource::Media { .. }) {
+        marks(&clip.volume, visit);
+        marks(&clip.pan, visit);
+    }
+    if let Some(f) = &clip.filter {
+        marks(&f.intensity, visit);
+    }
+    if let Some(l) = &clip.lut {
+        marks(&l.intensity, visit);
+    }
+    visit_grade_keyframes(clip, visit);
+    if let Some(k) = &clip.chroma_key {
+        marks(&k.strength, visit);
+        marks(&k.shadow, visit);
+    }
+    if let Some(m) = &clip.matte {
+        marks(&m.softness, visit);
+    }
+    if let Some(s) = &clip.styles.shadow {
+        marks(&s.rgba, visit);
+        marks(&s.offset, visit);
+        marks(&s.blur, visit);
+    }
+    if let Some(g) = &clip.styles.glow {
+        marks(&g.rgba, visit);
+        marks(&g.radius, visit);
+        marks(&g.intensity, visit);
+    }
+    if let Some(o) = &clip.styles.outline {
+        marks(&o.rgba, visit);
+        marks(&o.width, visit);
+    }
+    if let Some(b) = &clip.styles.background {
+        marks(&b.rgba, visit);
+        marks(&b.padding, visit);
+        marks(&b.radius, visit);
+    }
+    if let Some(s) = text_style(clip) {
+        marks(&s.size, visit);
+        marks(&s.fill, visit);
+        marks(&s.letter_spacing, visit);
+        marks(&s.line_spacing, visit);
+        if let Some(stroke) = &s.stroke {
+            marks(&stroke.width, visit);
+            marks(&stroke.rgba, visit);
+        }
+        if let Some(shadow) = &s.shadow {
+            marks(&shadow.blur, visit);
+            marks(&shadow.distance, visit);
+            marks(&shadow.rgba, visit);
+        }
+        if let Some(bg) = &s.background {
+            marks(&bg.rgba, visit);
+            marks(&bg.radius, visit);
+        }
+    }
+    if let Some((shape, rgba, width, height, radius, stroke)) = shape_fields(clip) {
+        marks(width, visit);
+        marks(height, visit);
+        marks(radius, visit);
+        if let Shape::Star { inner_ratio, .. } = shape {
+            marks(inner_ratio, visit);
+        }
+        marks(rgba, visit);
+        if let Some(stroke) = stroke {
+            marks(&stroke.width, visit);
+            marks(&stroke.rgba, visit);
+        }
+    }
+}
 
 pub(super) static CATALOG: LazyLock<Vec<ParamSpec>> = LazyLock::new(|| {
     use ParamKind::{Color, Scalar, Vec2};

@@ -1,5 +1,5 @@
 //! Regression tests for sequence and clip markers, the Marker Edit dialog,
-//! range marker ruler geometry, and the Markers panel colour filter.
+//! range marker ruler geometry, and the Markers panel color filter.
 
 use std::collections::BTreeSet;
 
@@ -334,4 +334,62 @@ fn a_markers_row_withheld_for_no_markers_declines_in_its_rows_words() {
             "{id} changed the project, the playhead or the dialog"
         );
     }
+}
+
+/// WHY: pressing Enter (Save) on the Edit Marker dialog without changing any
+/// field always committed `edit_marker_full`, dirtying a clean project and
+/// adding an undo step for a no-op.
+#[test]
+fn saving_an_unchanged_marker_edit_dialog_closes_without_dirtying_or_adding_undo() {
+    let (mut state, _clip) = with_clip();
+    state.clear_selection();
+    state.set_playhead(12);
+    state.add_marker_at_playhead().expect("add sequence marker");
+    let marker_id = state.store.sequence.markers[0].id;
+    let original_color = state.store.sequence.markers[0].color;
+    state.save_project().expect("save");
+    assert!(!state.store.is_dirty);
+    let depth_before = state.history_entries().iter().filter(|e| e.applied).count();
+
+    assert!(state.open_marker_edit(marker_id));
+    state.status_message = None;
+    state.apply_marker_edit();
+    assert_eq!(
+        state.dialog,
+        DialogKind::None,
+        "unchanged save closes dialog"
+    );
+    assert!(
+        !state.store.is_dirty,
+        "unchanged save must not dirty the project"
+    );
+    assert_eq!(
+        state.history_entries().iter().filter(|e| e.applied).count(),
+        depth_before,
+        "unchanged save must not add an undo step"
+    );
+    assert_eq!(
+        state.status_message, None,
+        "unchanged save must not report Updated marker"
+    );
+
+    // Changing only the color commits one undo step and marks the project dirty.
+    let next_color = if original_color == MarkerColor::Red {
+        MarkerColor::Green
+    } else {
+        MarkerColor::Red
+    };
+    assert!(state.open_marker_edit(marker_id));
+    state.set_marker_edit_color(next_color);
+    state.apply_marker_edit();
+    assert_eq!(state.dialog, DialogKind::None);
+    assert!(
+        state.store.is_dirty,
+        "changing marker color marks the project dirty"
+    );
+    assert_eq!(
+        state.history_entries().iter().filter(|e| e.applied).count(),
+        depth_before + 1
+    );
+    assert_eq!(state.store.sequence.markers[0].color, next_color);
 }

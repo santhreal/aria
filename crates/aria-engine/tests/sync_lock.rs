@@ -432,6 +432,62 @@ fn clearing_sync_lock_pins_a_lane_against_a_ripple_move() {
     assert_eq!(span(&engine, sound), (0, 24), "pinned lane did not move");
 }
 
+/// Moving a linked picture+sound pair must close the moved span on a third
+/// sync-locked rider lane once, not once per linked companion, and a cross-track
+/// ripple move must keep the linked pair aligned and split any rider clip that
+/// straddles the drop.
+#[test]
+fn a_linked_ripple_move_closes_and_opens_sync_locked_rider_lanes_once() {
+    let (_dir, mut engine, media, video, audio, rate) = lanes();
+    let v2 = match engine
+        .apply(Command::Edit(EditCommand::AddTrack {
+            kind: TrackKind::Video,
+            name: "V2".into(),
+            index: None,
+            pinned: false,
+        }))
+        .expect("add V2")
+    {
+        ApplyOutcome::Edited(EditOutcome::CreatedTrack(id)) => id,
+        other => panic!("unexpected {other:?}"),
+    };
+
+    let pic_a = add_media_clip(&mut engine, video, media, src(rate, 1), rt(0));
+    let pic_b = add_media_clip(&mut engine, video, media, src(rate, 1), rt(24));
+    let snd_a = add_media_clip(&mut engine, audio, media, src(rate, 1), rt(0));
+    let snd_b = add_media_clip(&mut engine, audio, media, src(rate, 1), rt(24));
+    engine
+        .apply(Command::Edit(EditCommand::LinkClips {
+            clips: vec![pic_a, snd_a],
+        }))
+        .expect("link pic_a and snd_a");
+
+    let r1 = add_media_clip(&mut engine, v2, media, src(rate, 1), rt(0));
+    let r2 = add_media_clip(&mut engine, v2, media, src(rate, 1), rt(24));
+    let r3 = add_media_clip(&mut engine, v2, media, src(rate, 1), rt(48));
+
+    engine
+        .apply(Command::Edit(EditCommand::RippleMoveClip {
+            clip: pic_a,
+            to_track: video,
+            start: rt(48),
+        }))
+        .expect("ripple move linked pair");
+
+    assert_eq!(span(&engine, pic_b), (0, 24));
+    assert_eq!(span(&engine, pic_a), (24, 48));
+    assert_eq!(span(&engine, snd_b), (0, 24));
+    assert_eq!(span(&engine, snd_a), (24, 48));
+    assert!(engine.project().clip(r1).is_none());
+    assert_eq!(span(&engine, r2), (0, 24));
+    assert_eq!(span(&engine, r3), (48, 72));
+
+    assert!(engine.undo());
+    assert_eq!(span(&engine, r1), (0, 24));
+    assert_eq!(span(&engine, r2), (24, 48));
+    assert_eq!(span(&engine, r3), (48, 72));
+}
+
 /// When a ripple edit on one lane cuts or removes material on a sync-locked
 /// rider lane and breaks a transition abutment on that rider lane, the engine
 /// prunes the dead transition on the rider lane and restores it on undo.

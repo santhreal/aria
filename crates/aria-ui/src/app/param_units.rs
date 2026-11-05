@@ -234,6 +234,19 @@ impl Units<'static> {
         suffix: "%",
     };
 
+    /// The units of a keyframe's temporal influence, stored as a fraction of
+    /// its segment: a percent to a tenth, one percent per unit of drag. The
+    /// Keyframe Velocity dialog and the Graph Editor's handle readouts print
+    /// through it.
+    pub const INFLUENCE: Self = Self {
+        number: Number {
+            scale: Scale::Linear(100.0),
+            decimals: 1,
+            drag: 1.0,
+        },
+        suffix: "%",
+    };
+
     /// The units of catalog property `param`, bounded by `range`, as what it
     /// measures prints and drags it: a percent, a degree, a reference pixel, a
     /// decibel, or an amount. An amount prints two digits inside two bounds

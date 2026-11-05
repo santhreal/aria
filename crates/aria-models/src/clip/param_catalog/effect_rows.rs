@@ -231,11 +231,7 @@ pub fn visit_clip_params(clip: &Clip, mut visit: impl FnMut(&ParamSpec)) {
 /// one route lookup per property and one catalog lookup per effect, and
 /// without building a mask or effect row.
 pub fn visit_clip_keyframes(clip: &Clip, mut visit: impl FnMut(i64, Easing)) {
-    // A row that is not available has no route or is out of scope, and
-    // `visit_keyframes` reports nothing for either, so no row is filtered.
-    for spec in super::clip_param_catalog() {
-        spec.visit_keyframes(clip, &mut visit);
-    }
+    super::rows::visit_static_keyframes(clip, &mut visit);
     for mask in &clip.masks {
         for param in super::mask_rows::params_of(mask) {
             super::route_keyframes(super::mask_rows::property_route(mask, param), &mut visit);

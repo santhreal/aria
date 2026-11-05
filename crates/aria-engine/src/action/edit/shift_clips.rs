@@ -164,7 +164,7 @@ pub(crate) fn close_for_ripple_delete(
 /// is already cut there and is left alone.
 ///
 /// [`Project::split_tail_links`]: aria_models::Project::split_tail_links
-fn cut_at(
+pub(crate) fn cut_at(
     ctx: &mut ApplyContext<'_>,
     lanes: &[TrackId],
     at: RationalTime,

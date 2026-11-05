@@ -12,6 +12,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use aria_models::{MAX_TEMPORAL_INFLUENCE, MIN_TEMPORAL_INFLUENCE};
 use gpui::{
     App, Bounds, ContentMask, Corners, Edges, Entity, HitboxBehavior, InteractiveElement,
     IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels, SharedString, Styled, Window,
@@ -19,6 +20,7 @@ use gpui::{
 };
 
 use crate::app::AppState;
+use crate::app::param_units::Units;
 use crate::app::property_rows::graph::graph_axis_ys;
 use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode};
 use crate::components::{self, ChipSize};
@@ -424,11 +426,13 @@ fn paint_graph_canvas(
                 ));
                 calls += 1;
 
-                let pct = (h.influence * 100.0).clamp(0.1, 100.0);
+                let influence = h
+                    .influence
+                    .clamp(MIN_TEMPORAL_INFLUENCE, MAX_TEMPORAL_INFLUENCE);
                 let label = super::clip::shape(
                     window,
-                    format!("{pct:.0}%").into(),
-                    9.0,
+                    Units::INFLUENCE.print(influence).into(),
+                    f32::from(Theme::TEXT_MICRO),
                     theme.warning,
                     theme,
                 );

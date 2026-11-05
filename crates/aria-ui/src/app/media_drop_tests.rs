@@ -92,9 +92,7 @@ fn a_lane_that_cannot_hold_the_media_is_not_used() {
     // Audio dropped on a video lane belongs on an audio lane: the time the
     // operator aimed at is worth keeping, the lane is not.
     let (mut state, media) = state();
-    let video = state
-        .add_lane_of_kind(TrackKind::Video, None)
-        .expect("a video lane");
+    let video = TrackId::from_raw(lanes(&state)[0].0);
     let audio = state
         .add_lane_of_kind(TrackKind::Audio, None)
         .expect("an audio lane");

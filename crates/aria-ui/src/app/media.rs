@@ -18,24 +18,22 @@ use gpui::SharedString;
 impl AppState {
     pub(crate) fn ensure_kind_track(&mut self, kind: TrackKind) -> Result<TrackId, EngineError> {
         let ui_kind = crate::types::UiTrackKind::from_model(kind);
-        if let Some(id) = self
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .find(|track| track.kind == ui_kind)
+        let nearest = |tracks: &[crate::types::UiTrack]| {
+            let mut lanes = tracks.iter().filter(|track| track.kind == ui_kind);
+            match kind.zone() {
+                aria_models::LaneZone::Floor | aria_models::LaneZone::Bus => lanes.next(),
+                aria_models::LaneZone::Main
+                | aria_models::LaneZone::Stack
+                | aria_models::LaneZone::Ceiling => lanes.next_back(),
+            }
             .map(|track| TrackId::from_raw(track.id))
-        {
+        };
+        if let Some(id) = nearest(&self.store.sequence.tracks) {
             return Ok(id);
         }
         let name = kind.default_name();
         self.add_track(kind, name)?;
-        self.store
-            .sequence
-            .tracks
-            .iter()
-            .find(|track| track.kind == ui_kind)
-            .map(|track| TrackId::from_raw(track.id))
+        nearest(&self.store.sequence.tracks)
             .ok_or_else(|| EngineError::Export("no track after add".into()))
     }
 
@@ -97,13 +95,24 @@ impl AppState {
         if let Some(id) = aimed {
             return Ok(id);
         }
-        let targeted = self
+        if let Some(channel) = aria_models::SourceChannel::of_lane(kind)
+            && let Some(id) = self.store.sequence.patched_lane(channel)
+        {
+            return Ok(TrackId::from_raw(id));
+        }
+        let mut matches = self
             .store
             .sequence
             .tracks
             .iter()
-            .find(|lane| lane.kind == ui_kind && lane.targeted)
-            .map(|lane| TrackId::from_raw(lane.id));
+            .filter(|lane| lane.kind == ui_kind && lane.targeted);
+        let targeted = match kind.zone() {
+            aria_models::LaneZone::Floor | aria_models::LaneZone::Bus => matches.next(),
+            aria_models::LaneZone::Main
+            | aria_models::LaneZone::Stack
+            | aria_models::LaneZone::Ceiling => matches.next_back(),
+        }
+        .map(|lane| TrackId::from_raw(lane.id));
         match targeted {
             Some(id) => Ok(id),
             None => self.ensure_kind_track(kind),

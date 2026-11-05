@@ -1108,6 +1108,11 @@ Notes for the latest release. For previous releases, see the
 - The Timeline's and the Viewer's display buttons open their menu with no row lit, as a menu opened from the menu bar does; Down lights the first row and Up the last.
 - Effect Controls and the timeline's property rows name the property **Anchor Point**, as the Command Palette does, instead of **Anchor point**.
 - The readout of a transition edge drag shows the blend's name and the cut, such as `Cross Fade · bridge → dome`, instead of `Transition` and the outgoing clip's name.
+- A ripple move of linked clips opens and closes each sync-locked lane once, keeps the linked clips with the moved clip across tracks, and splits a clip that straddles the drop point on every lane it shifts.
+- Adding a video or audio track keeps the default source patch and the three-point edit target on V1 and A1.
+- The Keyframe Velocity dialog and the Graph Editor's influence handles print influence as a percent to a tenth, from `0.1%` to `100.0%`.
+- Applying the Edit Marker, Speed/Duration, Audio Gain, or Keyframe Velocity dialog with no change closes the dialog without adding an undo step or marking the project unsaved.
+- Applying a lengthening speed ramp or slower Speed/Duration to a clip followed by a neighbor trims the retimed clip to the neighbor's start in Overwrite mode and shifts trailing clips in Ripple mode, undoing in one step.
 
 ## [alpha-0.7.0] - 2026-07-22
 

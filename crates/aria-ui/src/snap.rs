@@ -152,7 +152,7 @@ impl SnapIndex {
     /// a binary search; precedence second is what makes an equal distance
     /// resolve the way a single pass over the unsorted list resolved it.
     pub fn build(mut rows: Vec<SnapCandidate>) -> Self {
-        rows.sort_by(|a, b| {
+        rows.sort_unstable_by(|a, b| {
             a.tick
                 .cmp(&b.tick)
                 .then_with(|| a.kind.rank().cmp(&b.kind.rank()))
@@ -282,10 +282,25 @@ pub fn threshold_ticks(pps: f32, fps: f32) -> i64 {
 /// playhead and the marks are not here — they move without a projection and
 /// are passed to [`SnapIndex::nearest`] as `extra`.
 pub fn index_for(store: &crate::types::UiEditorStore) -> SnapIndex {
-    let mut rows = vec![
-        SnapCandidate::new(0, SnapKind::SequenceStart),
-        SnapCandidate::new(store.sequence.duration_ticks, SnapKind::SequenceEnd),
-    ];
+    let marker_rows: usize = store
+        .sequence
+        .markers
+        .iter()
+        .map(|marker| 1 + usize::from(marker.duration_ticks > 0))
+        .sum();
+    let clip_rows: usize = store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| &track.clips)
+        .map(|clip| 2 + clip.beat_ticks.len())
+        .sum();
+    let mut rows = Vec::with_capacity(2 + marker_rows + clip_rows);
+    rows.push(SnapCandidate::new(0, SnapKind::SequenceStart));
+    rows.push(SnapCandidate::new(
+        store.sequence.duration_ticks,
+        SnapKind::SequenceEnd,
+    ));
     for marker in store.sequence.markers.iter() {
         rows.push(SnapCandidate::new(marker.tick, SnapKind::Marker));
         if marker.duration_ticks > 0 {
