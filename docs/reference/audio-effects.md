@@ -33,7 +33,7 @@ params = [
 ## Where to apply and edit audio effects
 
 - **Effects & Presets (**Window > Effects & Presets**, **Audio Effects**)**: expand **Amplitude & Compression**, **Channels**, **Delay & Echo**, **Filter & EQ**, **Noise Reduction**, **Reverb**, or **Time & Pitch**, and double-click an entry or drag it onto an audio or video-with-audio clip.
-- **Project panel (**Window > Project**, **Effects > Effects > Audio Effects**)** and **Effect menu**: click an entry to append it to the selected clip or drag it onto a timeline clip.
+- **Project panel (**Window > Project**, **Effects > All > Audio Effects**)** and **Effect menu**: click an entry to append it to the selected clip or drag it onto a timeline clip.
 - **Effect Controls (**Window > Effect Controls**, **Audio** tab)**:
   - Click the **On** or **Bypassed** chip to bypass an audio effect instance or bring it back.
   - Reorder instances with the up and down chevrons, or remove one with the bin.
@@ -63,7 +63,7 @@ params = [
 
 Multiplies left and right channels by `10^(gain / 20.0)` (`crates/aria-render/src/audio_fx/channels.rs`). When `gain` is constant `0.0 dB`, skips multiplication.
 
-UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Gain**, **Project > Effects > Effects > Gain**, and **Effect > Amplitude & Compression > Gain**.
+UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Gain**, **Project > Effects > All > Gain**, and **Effect > Amplitude & Compression > Gain**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ Runs up to 10 biquad filter stages in series per channel (`crates/aria-render/sr
 - **High Cut (`high_cut`)**: Butterworth (`Q = 1 / sqrt(2)`) 2nd-order low-pass filter when `high_cut < 24000.0 Hz` and below Nyquist (bypassed at `24000.0 Hz`).
 - **Output (`output`)**: post-filter linear gain `10^(output / 20.0)`. Any band with `gain == 0.0 dB` is bypassed and its filter state is cleared.
 
-UI location: **Effects & Presets > Audio Effects > Filter & EQ > Parametric EQ**, **Project > Effects > Effects > Parametric EQ**, and **Effect > Filter & EQ > Parametric EQ**.
+UI location: **Effects & Presets > Audio Effects > Filter & EQ > Parametric EQ**, **Project > Effects > All > Parametric EQ**, and **Effect > Filter & EQ > Parametric EQ**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -115,7 +115,7 @@ UI location: **Effects & Presets > Audio Effects > Filter & EQ > Parametric EQ**
 
 Measures peak level across `left` and `right` (or the sidechain stereo pair when `sidechain = true` is routed), converts to decibels, evaluates soft-knee static compression (`knee` dB wide around `threshold` at `ratio`), smooths gain reduction in dB with one-pole `attack` and `release` coefficients (`exp(-1 / (ms * 0.001 * rate))`), and scales both channels by `10^((envelope + makeup) / 20)` (`crates/aria-render/src/audio_fx/dynamics.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Compressor**, **Project > Effects > Effects > Compressor**, and **Effect > Amplitude & Compression > Compressor**.
+UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Compressor**, **Project > Effects > All > Compressor**, and **Effect > Amplitude & Compression > Compressor**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -130,7 +130,7 @@ UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Com
 
 Applies input drive `10^(input / 20)`, delays the signal by `LIMITER_LOOKAHEAD = 240` frames at `48 kHz` (`5 ms`, scaled by sample rate), maintains a monotonic deque of minimum required attenuation `ceiling / peak` over the lookahead window, smooths recovery with `release`, box-averages the gain across the window so attenuation reaches the required ceiling smoothly at the peak sample, and clamps output to `±ceiling` (`crates/aria-render/src/audio_fx/dynamics.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Limiter**, **Project > Effects > Effects > Limiter**, and **Effect > Amplitude & Compression > Limiter**.
+UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Limiter**, **Project > Effects > All > Limiter**, and **Effect > Amplitude & Compression > Limiter**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -142,7 +142,7 @@ UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Lim
 
 Runs a Butterworth 2nd-order high-pass sidechain detector at `frequency` (`0.5 ms` attack, `40.0 ms` release), computes `4:1` gain reduction above `threshold` capped to `range` dB, and updates a Butterworth high-shelf filter at `frequency` every `DEESS_CONTROL = 16` frames (`crates/aria-render/src/audio_fx/dynamics.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Filter & EQ > De-esser**, **Project > Effects > Effects > De-esser**, and **Effect > Filter & EQ > De-esser**.
+UI location: **Effects & Presets > Audio Effects > Filter & EQ > De-esser**, **Project > Effects > All > De-esser**, and **Effect > Filter & EQ > De-esser**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -154,7 +154,7 @@ UI location: **Effects & Presets > Audio Effects > Filter & EQ > De-esser**, **P
 
 Processes each channel through an independent `nnnoiseless::DenoiseState` RNNoise recurrent neural network in `480`-sample frames (`latency = 960` frames / `20 ms` at `48 kHz` to buffer one full input frame and align output), then mixes the denoised `wet` frame with latency-compensated `dry` audio via `wet * amount + dry * (1.0 - amount)` (`crates/aria-render/src/audio_fx/denoise.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Noise Reduction > Noise Reduction**, **Project > Effects > Effects > Noise Reduction**, and **Effect > Noise Reduction > Noise Reduction**.
+UI location: **Effects & Presets > Audio Effects > Noise Reduction > Noise Reduction**, **Project > Effects > All > Noise Reduction**, and **Effect > Noise Reduction > Noise Reduction**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -168,7 +168,7 @@ Runs a Freeverb-tuned Schroeder-Moorer stereo reverberator (`crates/aria-render/
 - 4 series Schroeder all-pass filters per channel (`ALLPASSES = [556, 441, 341, 225]`, feedback `0.5`).
 - Stereo width cross-matrix `direct = 3.0 * (width / 2.0 + 0.5)` and `cross = 3.0 * ((1.0 - width) / 2.0)`, blended with dry input by `mix`.
 
-UI location: **Effects & Presets > Audio Effects > Reverb > Reverb**, **Project > Effects > Effects > Reverb**, and **Effect > Reverb > Reverb**.
+UI location: **Effects & Presets > Audio Effects > Reverb > Reverb**, **Project > Effects > All > Reverb**, and **Effect > Reverb > Reverb**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -182,7 +182,7 @@ UI location: **Effects & Presets > Audio Effects > Reverb > Reverb**, **Project 
 
 Maintains a per-channel circular delay line (`DELAY_SECONDS = 4` ceiling) with linear fractional-sample interpolation at `delay = time * rate / 1000.0` frames (`crates/aria-render/src/audio_fx/space.rs`). Writes `flush(sample + echo * feedback)` back into the line and outputs `sample * (1.0 - mix) + echo * mix`.
 
-UI location: **Effects & Presets > Audio Effects > Delay & Echo > Delay**, **Project > Effects > Effects > Delay**, and **Effect > Delay & Echo > Delay**.
+UI location: **Effects & Presets > Audio Effects > Delay & Echo > Delay**, **Project > Effects > All > Delay**, and **Effect > Delay & Echo > Delay**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -194,7 +194,7 @@ UI location: **Effects & Presets > Audio Effects > Delay & Echo > Delay**, **Pro
 
 Sweeps two fractional-sample read heads separated by half a `2048`-frame window (`latency = 1024` frames at `48 kHz`) at pitch ratio `2^((semitones + cents / 100) / 12)` (`clamped to 0.25..=4.0`), crossfaded with complementary `sin^2(pi * phase)` and `cos^2(pi * phase)` windows (`crates/aria-render/src/audio_fx/pitch.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Time & Pitch > Pitch Shifter**, **Project > Effects > Effects > Pitch Shifter**, and **Effect > Time & Pitch > Pitch Shifter**.
+UI location: **Effects & Presets > Audio Effects > Time & Pitch > Pitch Shifter**, **Project > Effects > All > Pitch Shifter**, and **Effect > Time & Pitch > Pitch Shifter**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -205,7 +205,7 @@ UI location: **Effects & Presets > Audio Effects > Time & Pitch > Pitch Shifter*
 
 Exchanges the left and right channel slices (`left.swap_with_slice(right)`, `crates/aria-render/src/audio_fx/channels.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Channels > Swap Channels**, **Project > Effects > Effects > Swap Channels**, and **Effect > Channels > Swap Channels**.
+UI location: **Effects & Presets > Audio Effects > Channels > Swap Channels**, **Project > Effects > All > Swap Channels**, and **Effect > Channels > Swap Channels**.
 
 Parameters: none (`params = []`).
 
@@ -213,7 +213,7 @@ Parameters: none (`params = []`).
 
 Copies the right channel slice into the left channel (`left.copy_from_slice(right)`, `crates/aria-render/src/audio_fx/channels.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Channels > Fill Left with Right**, **Project > Effects > Effects > Fill Left with Right**, and **Effect > Channels > Fill Left with Right**.
+UI location: **Effects & Presets > Audio Effects > Channels > Fill Left with Right**, **Project > Effects > All > Fill Left with Right**, and **Effect > Channels > Fill Left with Right**.
 
 Parameters: none (`params = []`).
 
@@ -221,7 +221,7 @@ Parameters: none (`params = []`).
 
 Copies the left channel slice into the right channel (`right.copy_from_slice(left)`, `crates/aria-render/src/audio_fx/channels.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Channels > Fill Right with Left**, **Project > Effects > Effects > Fill Right with Left**, and **Effect > Channels > Fill Right with Left**.
+UI location: **Effects & Presets > Audio Effects > Channels > Fill Right with Left**, **Project > Effects > All > Fill Right with Left**, and **Effect > Channels > Fill Right with Left**.
 
 Parameters: none (`params = []`).
 
@@ -229,7 +229,7 @@ Parameters: none (`params = []`).
 
 Replaces both left and right samples in each frame with `(left + right) * 0.5` (`crates/aria-render/src/audio_fx/channels.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Channels > Mono**, **Project > Effects > Effects > Mono**, and **Effect > Channels > Mono**.
+UI location: **Effects & Presets > Audio Effects > Channels > Mono**, **Project > Effects > All > Mono**, and **Effect > Channels > Mono**.
 
 Parameters: none (`params = []`).
 
@@ -237,7 +237,7 @@ Parameters: none (`params = []`).
 
 Applies the two-stage ITU-R BS.1770 K-weighting pre-filter (`+4.0 dB` high shelf at `1681.97 Hz`, high-pass at `38.14 Hz`), integrates mean-square power over a rolling 3-second window of thirty `100 ms` buckets (`loudness = -0.691 + 10 * log10(power)`), holds gain when loudness sits below `GATE_LUFS = -50.0 LUFS`, and slews gain toward `clamp(target - loudness, -40.0, max_gain)` with a `500 ms` downward and `2000 ms` upward time constant (`crates/aria-render/src/audio_fx/loudness.rs`).
 
-UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Loudness Normalizer**, **Project > Effects > Effects > Loudness Normalizer**, and **Effect > Amplitude & Compression > Loudness Normalizer**.
+UI location: **Effects & Presets > Audio Effects > Amplitude & Compression > Loudness Normalizer**, **Project > Effects > All > Loudness Normalizer**, and **Effect > Amplitude & Compression > Loudness Normalizer**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |

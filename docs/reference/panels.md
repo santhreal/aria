@@ -71,7 +71,7 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 | `Shapes` | `Graphics` | Shapes | Places a `Rectangle` or `Ellipse` vector shape generator clip (`200 x 200` reference pixels) at the playhead. |
 | `Stickers` | `Graphics` | Stickers | Built-in sticker catalog (`docs/reference/stickers-and-masks.md`) and Lottie imports. |
 | `Masks` | `Graphics` | Masks | Mask shapes (`linear`, `mirror`, `circle`, `rectangle`, `heart`, `star`, `path`) applied to the selected clip. |
-| `Effects` | `Effects` | Effects | Unified browser tree for Favorites, Video Effects, Audio Effects, Video Transitions, Audio Transitions, Generators, and User Presets. |
+| `Effects` | `Effects` | All | Unified browser tree for Favorites, Video Effects, Audio Effects, Video Transitions, Audio Transitions, Generators, and User Presets. |
 | `Transitions` | `Effects` | Transitions | Video transition catalog applied to the selected clip's outgoing cut or dragged onto a cut. |
 | `Generators` | `Effects` | Generators | Procedural GPU generators (`docs/reference/generators.md`) and plugin clip types. |
 | `Animations` | `Effects` | Animations | In, Out, and Loop clip animation catalog (`docs/reference/animations.md`) with hover preview. |

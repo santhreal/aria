@@ -2,7 +2,6 @@
 
 use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
-use crate::components::section_label;
 use crate::motion::MotionKey;
 use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
@@ -64,7 +63,6 @@ pub fn look_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Look"))
         .child(chip_row(
             theme,
             MotionKey::new("insp.row", "look-filter"),

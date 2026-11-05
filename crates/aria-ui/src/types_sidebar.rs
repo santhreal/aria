@@ -60,7 +60,7 @@ impl SidebarTab {
             Self::Animations => "Animations",
             Self::Masks => "Masks",
             Self::Transitions => "Transitions",
-            Self::Effects => "Effects",
+            Self::Effects => "All",
             Self::Stock => "Stock",
             Self::CloudSfx => "SFX",
             Self::Generate => "Generate",

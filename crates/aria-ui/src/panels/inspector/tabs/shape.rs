@@ -14,8 +14,6 @@ use crate::theme::Theme;
 
 use crate::panels::inspector::blocks::widgets::{color_rows, param_rows};
 
-use crate::components::section_label;
-
 pub fn shape_tab(
     theme: &Theme,
     state: &gpui::Entity<crate::app::AppState>,
@@ -28,7 +26,6 @@ pub fn shape_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Shape"))
         .children(rows)
         .children(colors)
         .child(

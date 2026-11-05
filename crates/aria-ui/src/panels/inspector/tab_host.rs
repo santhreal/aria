@@ -241,6 +241,10 @@ fn info_body(
 }
 
 #[cfg(test)]
+#[path = "tab_heading_tests.rs"]
+mod tab_heading_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

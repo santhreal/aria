@@ -132,7 +132,6 @@ pub fn audio_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Audio"))
         .children(rows)
         .when_some(inserts, |el, chain| {
             el.child(section_label(theme, "Audio effects")).child(chain)
@@ -241,7 +240,7 @@ fn duck_rows(
             theme.text_faint,
             match &lane {
                 Some(name) => format!("Listening to {name}"),
-                None => "No lane is the duck source yet".to_string(),
+                None => "No track is the duck source yet".to_string(),
             },
         )
         .into_any_element(),

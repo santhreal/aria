@@ -4,7 +4,6 @@ use aria_models::MediaId;
 
 use gpui::{IntoElement, ParentElement, Styled, div, px};
 
-use crate::components::section_label;
 use crate::theme::Theme;
 use crate::timecode::format_ticks;
 use crate::types::UiClip;
@@ -52,7 +51,6 @@ pub fn info_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Info"))
         .child(fact_row(theme, "Name", clip.name.clone(), Columns::Free))
         .child(fact_row(
             theme,

@@ -42,8 +42,6 @@ use crate::panels::inspector::blocks::widgets::{
     unkeyed_row,
 };
 
-use crate::components::section_label;
-
 /// Height of the curve graph. Tall enough for a log axis to read, short enough to
 /// leave the rest of the tab on screen.
 const GRAPH_HEIGHT: f32 = 120.0;
@@ -146,7 +144,6 @@ pub fn speed_block(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Speed"))
         .child(label_note(
             Columns::Free,
             theme.text_faint,

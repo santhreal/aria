@@ -28,7 +28,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 ## Where to apply and edit video effects
 
 - **Effects & Presets panel (`Window > Effects & Presets`)**: expand **Video Effects**, filter by name or category in the search field, and double-click an entry or drag it onto a timeline clip.
-- **Project panel (`Window > Project`)**: select the **Effects > Effects** chip, then click an entry to append it to the selected clip or drag it onto a clip on the timeline.
+- **Project panel (`Window > Project`)**: select the **Effects > All** chip, then click an entry to append it to the selected clip or drag it onto a clip on the timeline.
 - **Top menu bar (`Effect`)**: select a category submenu (**Blur & Sharpen**, **Color**, **Distort**, **Noise & Grain**, **Stylize**) and click an effect to append it to the selected clip.
 - **Effect Controls (`Window > Effect Controls > Effects` tab)**:
   - Turn an instance's switch off to skip it during rendering without removing its parameters or keyframes; a skipped instance draws its name dimmed.
@@ -59,7 +59,7 @@ params = [{ name = "radius", label = "Radius", default = 12.0, min = 0.0, max = 
 
 Applies a two-pass separable box blur: horizontal pass (`effect_blur_h.wgsl`) followed by vertical pass (`effect_blur_v.wgsl`). When `radius <= 0.0`, the shader returns the center sample unchanged. For `radius > 0.0`, `r = min(i32(radius), 32)` pairs adjacent texels `(2k - 1, 2k)` at bilinear midpoint `2k - 0.5` so each filtered read averages two texels, plus an unpaired edge tap when `r` is odd.
 
-UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Gaussian Blur**, **Project > Effects > Effects > Gaussian Blur**, and **Effect > Blur & Sharpen > Gaussian Blur**.
+UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Gaussian Blur**, **Project > Effects > All > Gaussian Blur**, and **Effect > Blur & Sharpen > Gaussian Blur**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Gaussian Blu
 
 Computes radial distance from the frame center `dist = length(uv - (0.5, 0.5)) * 1.41421356` and multiplies premultiplied `color.rgb` by `1.0 - clamp(amount, 0.0, 1.0) * smoothstep(0.35, 1.0, dist)`, preserving `color.a` (`effect_vignette.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Stylize > Vignette**, **Project > Effects > Effects > Vignette**, and **Effect > Stylize > Vignette**.
+UI location: **Effects & Presets > Video Effects > Stylize > Vignette**, **Project > Effects > All > Vignette**, and **Effect > Stylize > Vignette**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ UI location: **Effects & Presets > Video Effects > Stylize > Vignette**, **Proje
 
 Evaluates a 5-tap cross Laplacian unsharp mask (`effect_sharpen.wgsl`) over the center texel and its four cardinal neighbors (`±step.x`, `±step.y`): `laplacian = center.rgb * 4.0 - (l.rgb + r.rgb + u.rgb + d.rgb)`. Clamps `center.rgb + laplacian * max(amount, 0.0)` to `0.0..=center.a` so premultiplied channels stay within alpha coverage.
 
-UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Sharpen**, **Project > Effects > Effects > Sharpen**, and **Effect > Blur & Sharpen > Sharpen**.
+UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Sharpen**, **Project > Effects > All > Sharpen**, and **Effect > Blur & Sharpen > Sharpen**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Sharpen**, *
 
 Quantizes UV coordinates to square cell centers of `cell = max(size, 1.0)` pixels: `px = floor(uv * dims / cell) * cell + cell * 0.5` and samples `input_tex` at `px / dims` (`effect_pixelate.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Stylize > Pixelate**, **Project > Effects > Effects > Pixelate**, and **Effect > Stylize > Pixelate**.
+UI location: **Effects & Presets > Video Effects > Stylize > Pixelate**, **Project > Effects > All > Pixelate**, and **Effect > Stylize > Pixelate**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -99,7 +99,7 @@ UI location: **Effects & Presets > Video Effects > Stylize > Pixelate**, **Proje
 
 Cuts the frame into `BANDS = 24.0` horizontal rows (`band = floor(uv.y * 24.0)`). When `hash((band, seed)) < amount`, shifts the band horizontally by `slide = (hash((band + 1.0, seed * 1.7 + 3.0)) - 0.5) * 2.0 * 0.08 * amount` and slips red (`base + slide * 0.35`) and blue (`base - slide * 0.35`) against green (`effect_glitch.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Stylize > Glitch**, **Project > Effects > Effects > Glitch**, and **Effect > Stylize > Glitch**.
+UI location: **Effects & Presets > Video Effects > Stylize > Glitch**, **Project > Effects > All > Glitch**, and **Effect > Stylize > Glitch**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -110,7 +110,7 @@ UI location: **Effects & Presets > Video Effects > Stylize > Glitch**, **Project
 
 Splits channels radially around the frame center `(0.5, 0.5)` (`effect_chromatic_aberration.wgsl`): computes `shift = (uv - (0.5, 0.5)) * (clamp(amount, 0.0, 1.0) * 0.04)`, samples red at `uv + shift`, green and alpha at `uv`, and blue at `uv - shift`.
 
-UI location: **Effects & Presets > Video Effects > Distort > Chromatic Aberration**, **Project > Effects > Effects > Chromatic Aberration**, and **Effect > Distort > Chromatic Aberration**.
+UI location: **Effects & Presets > Video Effects > Distort > Chromatic Aberration**, **Project > Effects > All > Chromatic Aberration**, and **Effect > Distort > Chromatic Aberration**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -120,7 +120,7 @@ UI location: **Effects & Presets > Video Effects > Distort > Chromatic Aberratio
 
 Computes deterministic zero-mean per-pixel hash noise `noise = (hash(floor(uv * dims) + (seed, seed * 0.37)) - 0.5) * 2.0`, scales by `swing = noise * clamp(amount, 0.0, 1.0) * 0.25 * src.a`, and clamps `src.rgb + swing` to `0.0..=src.a` so transparent areas remain transparent (`effect_grain.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Noise & Grain > Film Grain**, **Project > Effects > Effects > Film Grain**, and **Effect > Noise & Grain > Film Grain**.
+UI location: **Effects & Presets > Video Effects > Noise & Grain > Film Grain**, **Project > Effects > All > Film Grain**, and **Effect > Noise & Grain > Film Grain**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -131,7 +131,7 @@ UI location: **Effects & Presets > Video Effects > Noise & Grain > Film Grain**,
 
 Samples two concentric 8-tap rings at `4.0` and `8.0` texels around `uv` (`effect_glow.wgsl`). Each tap extracts Rec.709 luminance above `threshold` (`over = max(luma - threshold, 0.0) / max(1.0 - threshold, 0.001)`), averages the 16 taps into `spill`, and clamps `src.rgb + spill * max(intensity, 0.0)` to `0.0..=src.a`.
 
-UI location: **Effects & Presets > Video Effects > Stylize > Glow**, **Project > Effects > Effects > Glow**, and **Effect > Stylize > Glow**.
+UI location: **Effects & Presets > Video Effects > Stylize > Glow**, **Project > Effects > All > Glow**, and **Effect > Stylize > Glow**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -142,7 +142,7 @@ UI location: **Effects & Presets > Video Effects > Stylize > Glow**, **Project >
 
 Averages `SAMPLES = 12` evenly spaced taps along the radial vector from `uv` toward `(0.5, 0.5)` (`toward = ((0.5, 0.5) - uv) * (clamp(amount, 0.0, 1.0) * 0.3)`, `effect_zoom_blur.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Zoom Blur**, **Project > Effects > Effects > Zoom Blur**, and **Effect > Blur & Sharpen > Zoom Blur**.
+UI location: **Effects & Presets > Video Effects > Blur & Sharpen > Zoom Blur**, **Project > Effects > All > Zoom Blur**, and **Effect > Blur & Sharpen > Zoom Blur**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -156,7 +156,7 @@ Rounds `mode` to an integer in `0..=3` (`effect_mirror.wgsl`):
 - `2`: mirrors the top half onto the bottom (`uv.y = min(uv.y, 1.0 - uv.y)`).
 - `3`: mirrors the bottom half onto the top (`uv.y = max(uv.y, 1.0 - uv.y)`).
 
-UI location: **Effects & Presets > Video Effects > Distort > Mirror**, **Project > Effects > Effects > Mirror**, and **Effect > Distort > Mirror**.
+UI location: **Effects & Presets > Video Effects > Distort > Mirror**, **Project > Effects > All > Mirror**, and **Effect > Distort > Mirror**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -166,7 +166,7 @@ UI location: **Effects & Presets > Video Effects > Distort > Mirror**, **Project
 
 Samples the input texture at `uv - offset`, divides out alpha (`straight = src.rgb / src.a`), mixes toward `color.rgb` by `clamp(amount * color.a, 0.0, 1.0)`, and repremultiplies by `src.a` (`effect_color_overlay.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Color > Color Overlay**, **Project > Effects > Effects > Color Overlay**, and **Effect > Color > Color Overlay**.
+UI location: **Effects & Presets > Video Effects > Color > Color Overlay**, **Project > Effects > All > Color Overlay**, and **Effect > Color > Color Overlay**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -178,7 +178,7 @@ UI location: **Effects & Presets > Video Effects > Color > Color Overlay**, **Pr
 
 Unpremultiplies `src.rgb / src.a`, computes luminance `luma = dot(straight, (0.299, 0.587, 0.114))`, interpolates `duo = mix(shadow_color.rgb, highlight_color.rgb, clamp(luma, 0.0, 1.0))`, mixes `straight` toward `duo` by `clamp(intensity, 0.0, 1.0)`, and repremultiplies by `src.a` (`effect_duotone.wgsl`).
 
-UI location: **Effects & Presets > Video Effects > Color > Duotone**, **Project > Effects > Effects > Duotone**, and **Effect > Color > Duotone**.
+UI location: **Effects & Presets > Video Effects > Color > Duotone**, **Project > Effects > All > Duotone**, and **Effect > Color > Duotone**.
 
 | Name | Label | Kind | Unit | Min | Max | Default | Animates |
 | --- | --- | --- | --- | --- | --- | --- | --- |

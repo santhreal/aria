@@ -849,6 +849,9 @@ Notes for the latest release. For previous releases, see the
 - Easy Ease and Hold in the timeline graph, and the Assistant's Send while the prompt box is empty, draw at 40 % opacity with the arrow cursor, as every disabled control does.
 - The Assistant's Plan only draws as a labeled switch in place of a button that gained a check mark while on.
 - The Home Use Template tile reads "Choose a .ariat bundle and fill its slots with your media.", in the imperative the Open tile uses.
+- The Look, Audio, Speed, Shape, and Info tabs of Effect Controls open on their first property instead of a heading that repeats the tab's name.
+- The Project panel's Effects group lists its tree tab as **All**, beside Transitions, Generators, and Animations.
+- The Audio tab's ducking note reads track, as the timeline does.
 
 ### Fixed
 
