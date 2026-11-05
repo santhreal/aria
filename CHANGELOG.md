@@ -1184,6 +1184,8 @@ Notes for the latest release. For previous releases, see the
 - The selected Home rail row keeps its selected fill under the pointer instead of dimming to the hover fill.
 - The vectorscope draws its 100 % red, yellow, blue and cyan target boxes whole instead of cut off at the edge of the scope.
 - Send on an empty Assistant prompt reports on the status line instead of adding an Error entry to the transcript.
+- The Paragraph panel draws the Wrap label at its left edge and the switch at its right edge.
+- The Character panel font list shows seven whole rows, and the panel scrolls when its controls are taller than the frame.
 
 ## [alpha-0.7.0] - 2026-07-22
 

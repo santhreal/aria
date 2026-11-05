@@ -67,6 +67,7 @@ pub fn font_list(
                 let (family, label) = entry(row)?;
                 let line = div()
                     .id(key.with(family).element_id("font"))
+                    .debug_selector(move || format!("font-row-{row}"))
                     .flex()
                     .items_center()
                     .w_full()

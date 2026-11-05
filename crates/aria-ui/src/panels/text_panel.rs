@@ -10,6 +10,7 @@ use gpui::{AnyElement, InteractiveElement, IntoElement, ParentElement, Styled, d
 
 use crate::app::AppState;
 use crate::components;
+use crate::panels::inspector::blocks::widgets::Columns;
 use crate::panels::inspector::tabs::text::{character_controls, paragraph_controls};
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder;
@@ -38,12 +39,16 @@ pub fn render_paragraph(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let theme = Theme::of(cx);
-    let controls = paragraph_controls(&theme, PARAGRAPH, state, cx);
+    let controls = paragraph_controls(&theme, PARAGRAPH, Columns::Free, state, cx);
     panel(&theme, PARAGRAPH, controls)
 }
 
 /// The scrolling body both panels share: the controls, or the line a panel
 /// shows when the selection is not a title.
+///
+/// The controls stand in a column of their own height inside the frame, so a
+/// frame shorter than they are scrolls them rather than squeezing the font
+/// list, the one control that can shrink, below the rows it shows.
 fn panel(theme: &Theme, surface: &'static str, controls: Vec<AnyElement>) -> AnyElement {
     let empty = controls.is_empty();
     crate::edge_fade::scroll_y(
@@ -54,8 +59,16 @@ fn panel(theme: &Theme, surface: &'static str, controls: Vec<AnyElement>) -> Any
             .p(px(Theme::SPACE_SM))
             .flex()
             .flex_col()
-            .gap(px(Theme::SPACE_XS))
-            .children(controls)
+            .when(!empty, |el| {
+                el.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_none()
+                        .gap(px(Theme::SPACE_XS))
+                        .children(controls),
+                )
+            })
             .when(empty, |el| {
                 el.child(components::empty_state(
                     surface,

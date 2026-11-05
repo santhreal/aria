@@ -316,6 +316,111 @@ fn the_character_and_paragraph_panels_dock_from_the_window_menu(cx: &mut gpui::T
     }
 }
 
+/// A drawn shell with a title selected and the dock panel `panel` open.
+fn title_panel<'a>(
+    cx: &'a mut gpui::TestAppContext,
+    tag: &str,
+    panel: &'static str,
+) -> (gpui::Entity<AppState>, &'a mut gpui::VisualTestContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, tag);
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state
+                .add_generated(aria_models::Generator::text("Hello"))
+                .expect("place a title");
+            let title = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .flat_map(|track| track.clips.iter())
+                .find(|clip| clip.generator.is_some())
+                .map(|clip| aria_models::ClipId::from_raw(clip.id))
+                .expect("the title landed");
+            state.select_clip(title);
+            let row = format!("{}{panel}", crate::chrome::menu_window::PANEL_PREFIX);
+            if !state.dock_tree.is_open(panel) {
+                assert!(
+                    crate::chrome::menu_items::run_item(
+                        crate::types::AppMenu::Window,
+                        &row,
+                        state,
+                        cx,
+                    ),
+                    "Window has no row for {panel}"
+                );
+            }
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    (state, visual)
+}
+
+/// The Paragraph panel draws no rows that key, so its Wrap line stands in no
+/// keyed columns: the label at the panel's left edge and the switch at its
+/// right, as a Settings switch row stands. Drawn in the keyed rows' columns,
+/// the label stood a stopwatch's width in and the switch mid-panel, before
+/// blanks for a keyframe navigator and time area the panel does not draw.
+#[gpui::test]
+fn the_paragraph_panel_draws_wrap_from_edge_to_edge(cx: &mut gpui::TestAppContext) {
+    let (_state, visual) = title_panel(cx, "paragraph-wrap", crate::dock::PANEL_PARAGRAPH);
+    let panel = visual
+        .debug_bounds("paragraph-panel")
+        .expect("Paragraph is open and not drawn");
+    let label = visual
+        .debug_bounds("insp-label-free-Wrap")
+        .expect("Wrap is not a free line on the Paragraph panel");
+    let value = visual
+        .debug_bounds("insp-value-free-Wrap")
+        .expect("Wrap draws no switch on the Paragraph panel");
+    // The panel's padding plus the line's own.
+    let inset = gpui::px(crate::theme::Theme::SPACE_SM + crate::theme::Theme::SPACE_XS + 0.5);
+    assert!(
+        label.left() - panel.left() <= inset,
+        "Wrap's label {label:?} stands in from the panel {panel:?}"
+    );
+    assert!(
+        panel.right() - value.right() <= inset,
+        "Wrap's switch {value:?} stops short of the panel's edge {panel:?}"
+    );
+}
+
+/// The Character panel's controls are taller than its frame, which scrolls
+/// them. The font list draws every row it shows before it scrolls, a whole
+/// row each: laid straight into the frame's column, the list was the one
+/// control that could shrink and was squeezed to three rows and a part.
+///
+/// The rows come from the host's installed families, so on a host with fewer
+/// than three the list fits either way and this cannot tell the two apart.
+#[gpui::test]
+fn the_character_panel_scrolls_rather_than_squeezing_the_font_list(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = title_panel(cx, "character-fonts", crate::dock::PANEL_CHARACTER);
+    let families = visual.read(|app| state.read(app).font_families().len());
+    const ROWS_SHOWN: usize = 7;
+    let shown = (families + 1).min(ROWS_SHOWN);
+    let mut previous: Option<gpui::Bounds<gpui::Pixels>> = None;
+    for row in 0..shown {
+        let drawn = visual
+            .debug_bounds(format!("font-row-{row}").leak())
+            .unwrap_or_else(|| panic!("font row {row} of {shown} is not drawn"));
+        assert_eq!(
+            drawn.size.height,
+            gpui::px(crate::theme::Theme::ROW_HEIGHT),
+            "font row {row} is {drawn:?}"
+        );
+        if let Some(previous) = previous {
+            assert_eq!(
+                drawn.top(),
+                previous.bottom(),
+                "font row {row} {drawn:?} does not follow {previous:?}"
+            );
+        }
+        previous = Some(drawn);
+    }
+}
+
 #[test]
 fn every_bundled_sticker_places_a_clip_that_the_model_accepts() {
     // The Stickers tab is generated from this catalog, so a bundled asset the model

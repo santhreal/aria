@@ -105,7 +105,13 @@ pub fn text_tab(
             },
         )))
         .children(character_controls(theme, INSPECTOR, state, cx))
-        .children(paragraph_controls(theme, INSPECTOR, state, cx))
+        .children(paragraph_controls(
+            theme,
+            INSPECTOR,
+            Columns::Keyed,
+            state,
+            cx,
+        ))
         .child(section_label(theme, "Effect"))
         .child(presets)
         .child(section_label(theme, "Cloud presets"))
@@ -248,9 +254,15 @@ pub fn character_controls(
 /// The Paragraph controls: where the lines sit across the frame, where the
 /// block sits down it, and whether long lines wrap. Empty when the selection is
 /// not a title.
+///
+/// `columns` places the Wrap line: the keyed rows' columns on the Text tab,
+/// beside the rows that key; free on the Paragraph panel, which draws no
+/// keyed rows, so its label stands at the panel's edge and its switch at the
+/// other.
 pub fn paragraph_controls(
     theme: &Theme,
     surface: &'static str,
+    columns: Columns,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<AnyElement> {
@@ -291,7 +303,7 @@ pub fn paragraph_controls(
         theme,
         MotionKey::new("insp.row", "text-wrap").with(surface),
         TextSwitch::Wrap.label(),
-        Columns::Keyed,
+        columns,
         MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
         Some(face.is_on(TextSwitch::Wrap)),
         cx,
