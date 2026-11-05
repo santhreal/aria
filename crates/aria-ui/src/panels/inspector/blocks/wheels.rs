@@ -1,4 +1,4 @@
-//! Lift, Gamma and Gain colour wheels, drawn wherever the grade is.
+//! Lift, Gamma and Gain color wheels, drawn wherever the grade is.
 //!
 //! A wheel paints a hue ring, crosshairs, and a puck at the offset its
 //! channels read as. A press anywhere on the wheel puts the puck under the
@@ -68,7 +68,7 @@ fn single_wheel_widget(
     // Where the wheel painted, in window pixels, for the press to read the
     // pointer against. The ring canvas covers the whole wheel: the outline is
     // an overlay rather than a border, so no inset shifts the canvas, the
-    // crosshairs, or the puck off the wheel's centre.
+    // crosshairs, or the puck off the wheel's center.
     let frame = Rc::new(Cell::new([0.0_f32; 4]));
     let pressed = Rc::clone(&frame);
     let ring = canvas(
@@ -229,7 +229,7 @@ fn single_wheel_widget(
         )
 }
 
-/// The hue ring: one dot per step around the rim, in the colour a press at
+/// The hue ring: one dot per step around the rim, in the color a press at
 /// that angle pushes the picture toward. Red is at 0°, green at 120° and blue
 /// at 240°, turning clockwise on screen.
 fn paint_ring(bounds: Bounds<Pixels>, window: &mut gpui::Window) {

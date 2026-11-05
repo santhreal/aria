@@ -5,7 +5,7 @@
 //! it is a fill drawn over the row beside it. The two ways to get one are a job
 //! that over-reports and a phase that ran past one, and both are exercised here.
 //!
-//! What these do not catch: the drawn colour, and whether the bar is mounted at
+//! What these do not catch: the drawn color, and whether the bar is mounted at
 //! all. The first is a theme token, and the second is the caller's condition.
 
 use std::time::Duration;
@@ -75,7 +75,7 @@ fn a_fraction_a_job_could_not_have_meant_still_draws_inside_the_track() {
 /// render reports every few hundred frames, so the raw fraction arrives in jumps
 /// large enough to read as a bar that had been stuck and then caught up.
 #[test]
-fn a_new_report_is_travelled_to_rather_than_jumped_to() {
+fn a_new_report_is_traveled_to_rather_than_jumped_to() {
     let frames = motion::TestFrames::new();
     let bar = key("travel");
     assert_eq!(eased_width(bar, 0.0), 0.0, "a first report draws as it is");

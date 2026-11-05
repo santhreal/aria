@@ -1,7 +1,7 @@
 //! Every line a dock panel draws starts in sentence case.
 //!
 //! The class closed here: a readout value, a tag or a note that starts in
-//! lower case among capitalised lines, as the pool's `linked` and `no`, the
+//! lower case among capitalized lines, as the pool's `linked` and `no`, the
 //! history row's `current` and the mixer's `not in the mix` were. A line is held to [`lowercase_start`], the
 //! check the status line and the dialogs are held to.
 //!

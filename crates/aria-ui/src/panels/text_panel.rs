@@ -20,7 +20,7 @@ const CHARACTER: &str = "character-panel";
 /// The surface name of the Paragraph panel's controls.
 const PARAGRAPH: &str = "paragraph-panel";
 
-/// Window > Character: font, style, size, tracking, leading, kerning, colours
+/// Window > Character: font, style, size, tracking, leading, kerning, colors
 /// and treatments of the selected title.
 pub fn render_character(
     state: &gpui::Entity<AppState>,

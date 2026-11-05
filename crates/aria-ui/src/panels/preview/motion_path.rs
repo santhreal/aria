@@ -29,8 +29,8 @@ const TANGENT: f32 = 8.0;
 /// A painted dot's side, in pixels.
 const DOT: f32 = 2.0;
 
-/// The colour a path is drawn in.
-fn colour(theme: &Theme, param: PathParam) -> gpui::Hsla {
+/// The color a path is drawn in.
+fn color(theme: &Theme, param: PathParam) -> gpui::Hsla {
     match param {
         PathParam::Position => theme.accent,
         PathParam::AnchorPoint => theme.playhead,
@@ -57,15 +57,15 @@ pub(super) fn overlay(
 
     let painted = Arc::clone(&paths);
     let (position, anchor) = (
-        colour(theme, PathParam::Position),
-        colour(theme, PathParam::AnchorPoint),
+        color(theme, PathParam::Position),
+        color(theme, PathParam::AnchorPoint),
     );
     let lines = canvas(
         |_, _, _| (),
         move |bounds, (), window, _| {
             window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
                 for path in painted.iter() {
-                    let colour = match path.param {
+                    let color = match path.param {
                         PathParam::Position => position,
                         PathParam::AnchorPoint => anchor,
                     };
@@ -81,7 +81,7 @@ pub(super) fn overlay(
                         }
                     }
                     if any && let Ok(levers) = levers.build() {
-                        window.paint_path(levers, colour);
+                        window.paint_path(levers, color);
                     }
                     for dot in &path.dots {
                         window.paint_quad(fill(
@@ -89,7 +89,7 @@ pub(super) fn overlay(
                                 origin: point(px(dot[0] - DOT * 0.5), px(dot[1] - DOT * 0.5)),
                                 size: size(px(DOT), px(DOT)),
                             },
-                            colour,
+                            color,
                         ));
                     }
                 }
@@ -124,7 +124,7 @@ pub(super) fn overlay(
             }),
         );
     for path in paths.iter() {
-        let colour = colour(theme, path.param);
+        let color = color(theme, path.param);
         for drawn in &path.keys {
             let key = drawn.key;
             for side in TangentSide::ALL {
@@ -135,7 +135,7 @@ pub(super) fn overlay(
                     key,
                     side,
                     frame.local(handle),
-                    colour,
+                    color,
                     theme,
                     hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -153,12 +153,8 @@ pub(super) fn overlay(
             root = root.child(key_square(
                 key,
                 frame.local(drawn.at),
-                if drawn.current {
-                    colour
-                } else {
-                    theme.on_solid
-                },
-                colour,
+                if drawn.current { color } else { theme.on_solid },
+                color,
                 hand,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                     let at = [f32::from(event.position.x), f32::from(event.position.y)];
@@ -181,7 +177,7 @@ pub(super) fn overlay(
     Some(root.into_any_element())
 }
 
-/// A keyframe's square, centred on `point`. The press is the square's alone:
+/// A keyframe's square, centered on `point`. The press is the square's alone:
 /// no move of the picture under it, and no pick of the clip.
 fn key_square(
     key: PathKey,
@@ -204,12 +200,12 @@ fn key_square(
     pressable(square, hand, on_down)
 }
 
-/// One tangent handle of a smooth keyframe, centred on `point`.
+/// One tangent handle of a smooth keyframe, centered on `point`.
 fn tangent_dot(
     key: PathKey,
     side: TangentSide,
     point: [f32; 2],
-    colour: gpui::Hsla,
+    color: gpui::Hsla,
     theme: &Theme,
     hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
@@ -224,7 +220,7 @@ fn tangent_dot(
         .w(px(TANGENT))
         .h(px(TANGENT))
         .rounded(px(TANGENT * 0.5))
-        .bg(colour)
+        .bg(color)
         .border_1()
         .border_color(theme.on_solid);
     pressable(dot, hand, on_down)

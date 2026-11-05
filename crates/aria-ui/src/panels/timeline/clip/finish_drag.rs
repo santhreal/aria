@@ -348,7 +348,7 @@ pub(super) fn on_left_up(
             crate::app::spawn_preview(this.state.clone(), cx);
             cx.notify();
         }
-        // The press selected the clip, and nothing travelled.
+        // The press selected the clip, and nothing traveled.
         CanvasGesture::LineOrMove { .. } => {}
     }
 }
@@ -391,7 +391,7 @@ pub(super) fn cancel(this: &mut Shell, cx: &mut Context<Shell>) {
     cx.notify();
 }
 
-/// The ticks a drag has travelled, or `None` under the threshold, where travel
+/// The ticks a drag has traveled, or `None` under the threshold, where travel
 /// is a hand's jitter. The held frame and the release read it alike, so a
 /// drag draws where it lands.
 fn travel(kind: DragKind, delta_px: f32, pps: f32, fps: f32) -> Option<i64> {

@@ -8,7 +8,7 @@
 //!   graph could be drawn and hit-tested, and no keyframe could be moved.
 //! - A keyframe moved in time costing two undo entries instead of one.
 //! - A pointer read in graph pixels while it arrives in window pixels.
-//! - Easing selection corrupting neighbouring keyframe easings or values.
+//! - Easing selection corrupting neighboring keyframe easings or values.
 //! - A graph that can only draw one property, while the model animates 58.
 //! - Empty or non-animated properties crashing during curve editor rendering.
 //! - A graph drawing a constant property while another holds keyframes.
@@ -361,7 +361,7 @@ fn axes(state: &AppState, param: ClipParam, local: i64) -> [f32; 2] {
 }
 
 #[test]
-fn picking_an_easing_writes_that_easing_and_leaves_neighbours_alone() {
+fn picking_an_easing_writes_that_easing_and_leaves_neighbors_alone() {
     let (mut state, start, _) = graphed();
     let (k1, k2, k3) = (start + 5, start + 15, start + 25);
 

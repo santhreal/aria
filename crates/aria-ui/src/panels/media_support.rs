@@ -158,14 +158,14 @@ pub(crate) fn render(
     )
 }
 
-/// One label/value row. A row that states a problem carries the warning colour
+/// One label/value row. A row that states a problem carries the warning color
 /// on its value, which is the part that states what is wrong.
 fn fact(theme: &Theme, row: &Row) -> gpui::AnyElement {
     let tint = if row.warn { theme.warning } else { theme.text };
     readout_tinted(theme, row.label.clone(), row.value.clone(), tint).into_any_element()
 }
 
-/// The normalise target, cycled by clicking. Dots come from the form's own
+/// The normalize target, cycled by clicking. Dots come from the form's own
 /// table, so a level added there shows up here with no edit.
 fn target_chip(
     theme: &Theme,
@@ -225,7 +225,7 @@ fn dots(theme: &Theme, at: Option<usize>, count: usize) -> gpui::AnyElement {
 }
 
 /// The exposure readout: the mean against neutral, where the extremes are, and
-/// how far off neutral the average colour sits.
+/// how far off neutral the average color sits.
 fn exposure_block(theme: &Theme, exposure: Exposure) -> gpui::AnyElement {
     let neutral = f32::from(exposure.neutral);
     let offset = exposure.mean_luma - neutral;

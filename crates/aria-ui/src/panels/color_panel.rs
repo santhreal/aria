@@ -26,7 +26,7 @@ use crate::theme::Theme;
 /// The surface name of the panel.
 const SURFACE: &str = "color-panel";
 
-/// The section the colour wheels head. Its rows are the wheels' numeric
+/// The section the color wheels head. Its rows are the wheels' numeric
 /// channels, drawn under the wheels.
 const WHEELS: &str = "Color Wheels";
 

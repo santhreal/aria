@@ -11,7 +11,7 @@
 //! runs from its keyframe to its tip in either direction, so the segment
 //! cases assert both orders draw the same columns and cover the whole line.
 //!
-//! What they do not catch: colour, thickness beyond the minimum, and anything
+//! What they do not catch: color, thickness beyond the minimum, and anything
 //! about the window — this is the geometry only.
 
 use crate::app::curve_stroke::{
@@ -140,7 +140,7 @@ fn an_ease_bends_the_way_its_samples_bend() {
         })
         .collect();
     let columns = drawn(&samples, HEIGHT + 40.0);
-    let centre = |x: f32| {
+    let center = |x: f32| {
         let column = at(&columns, x).unwrap_or_else(|| panic!("nothing drawn at x = {x}"));
         let (top, bottom) = column.span();
         (top + bottom) / 2.0
@@ -155,8 +155,8 @@ fn an_ease_bends_the_way_its_samples_bend() {
             "at x = {x} the ease is at {want} but the drawing covers {top}..{bottom}"
         );
     }
-    let early = centre(30.0) - centre(20.0);
-    let late = centre(90.0) - centre(80.0);
+    let early = center(30.0) - center(20.0);
+    let late = center(90.0) - center(80.0);
     assert!(
         late > early * 2.0,
         "the ease is drawn straight: early slope {early}, late slope {late}"

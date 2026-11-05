@@ -38,7 +38,7 @@ fn segment(path: &mut PathBuilder, a: &DrawnVertex, b: &DrawnVertex) {
 }
 
 /// Paint the outline, the tangent levers, and the rubber band.
-fn paint(drawn: &DrawnMaskPath, colour: gpui::Hsla, window: &mut gpui::Window) {
+fn paint(drawn: &DrawnMaskPath, color: gpui::Hsla, window: &mut gpui::Window) {
     let mut lines = PathBuilder::stroke(px(1.0));
     let Some(first) = drawn.vertices.first() else {
         return;
@@ -65,7 +65,7 @@ fn paint(drawn: &DrawnMaskPath, colour: gpui::Hsla, window: &mut gpui::Window) {
         lines.line_to(at(to));
     }
     if let Ok(lines) = lines.build() {
-        window.paint_path(lines, colour);
+        window.paint_path(lines, color);
     }
 }
 
@@ -86,7 +86,7 @@ pub(super) fn overlay(
     let drawing = read.mask_path_drawing();
     let frame = read.overlay_frame;
     let drawn = read.drawn_mask_path().map(Arc::new);
-    let colour = theme.playhead;
+    let color = theme.playhead;
 
     let mut root = div()
         .absolute()
@@ -120,7 +120,7 @@ pub(super) fn overlay(
                 |_, _, _| (),
                 move |bounds, (), window, _| {
                     window.with_content_mask(Some(ContentMask::from(bounds)), |window| {
-                        paint(&painted, colour, window);
+                        paint(&painted, color, window);
                     });
                 },
             )
@@ -136,7 +136,7 @@ pub(super) fn overlay(
                     index,
                     side,
                     frame.local(handle),
-                    colour,
+                    color,
                     theme,
                     hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -154,7 +154,7 @@ pub(super) fn overlay(
             // The first vertex of a path being drawn is filled: a click on it
             // closes the path.
             let fill = if drawing && index == 0 {
-                colour
+                color
             } else {
                 theme.on_solid
             };
@@ -162,7 +162,7 @@ pub(super) fn overlay(
                 index,
                 frame.local(vertex.at),
                 fill,
-                colour,
+                color,
                 hand,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
                     let at = [f32::from(event.position.x), f32::from(event.position.y)];
@@ -194,7 +194,7 @@ pub(super) fn overlay(
     Some(root.into_any_element())
 }
 
-/// A vertex's square, centred on `point`. The press is the square's alone: no
+/// A vertex's square, centered on `point`. The press is the square's alone: no
 /// Pen press on the picture under it, no move, and no pick of the clip.
 fn vertex_square(
     index: usize,
@@ -217,12 +217,12 @@ fn vertex_square(
     pressable(square, hand, on_down)
 }
 
-/// One tangent handle of a smooth vertex, centred on `point`.
+/// One tangent handle of a smooth vertex, centered on `point`.
 fn tangent_dot(
     index: usize,
     side: TangentSide,
     point: [f32; 2],
-    colour: gpui::Hsla,
+    color: gpui::Hsla,
     theme: &Theme,
     hand: bool,
     on_down: impl Fn(&MouseDownEvent, &mut gpui::Window, &mut gpui::App) + 'static,
@@ -237,7 +237,7 @@ fn tangent_dot(
         .w(px(TANGENT))
         .h(px(TANGENT))
         .rounded(px(TANGENT * 0.5))
-        .bg(colour)
+        .bg(color)
         .border_1()
         .border_color(theme.on_solid);
     pressable(dot, hand, on_down)

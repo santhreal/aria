@@ -10,7 +10,7 @@ pub(super) fn empty(theme: &Theme, project: &str) -> impl IntoElement {
     crate::components::empty_state("assistant", format!("Ask Aria about {project}"), theme)
 }
 
-/// One line of the conversation, coloured by who said it and copyable on its own.
+/// One line of the conversation, colored by who said it and copyable on its own.
 ///
 /// A row copies itself rather than only the whole conversation: the useful thing
 /// to paste is usually one answer, and selecting text inside a GPUI element is

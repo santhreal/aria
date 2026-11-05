@@ -188,7 +188,7 @@ pub(crate) fn captions_panel(
 /// probability is never above one.
 const CONFIDENCE_BANDS: &[(f32, &str)] = &[(0.5, "low"), (0.8, "fair"), (1.0, "good")];
 
-/// The band a probability falls in, plus the colour that names it.
+/// The band a probability falls in, plus the color that names it.
 fn band_for(theme: &Theme, value: f32) -> (&'static str, gpui::Hsla) {
     let colors = [theme.danger, theme.warning, theme.success];
     CONFIDENCE_BANDS

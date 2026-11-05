@@ -61,7 +61,7 @@ fn a_changed_target_travels_and_then_lands() {
 }
 
 #[test]
-fn a_travelling_value_only_moves_toward_its_target() {
+fn a_traveling_value_only_moves_toward_its_target() {
     let frames = TestFrames::new();
     let k = key("monotone");
     glide(k, 0.0, presets::SCROLL_GLIDE, false);
@@ -123,7 +123,7 @@ fn a_target_that_changes_mid_flight_continues_from_the_current_value() {
 }
 
 #[test]
-fn the_instant_override_snaps_without_travelling() {
+fn the_instant_override_snaps_without_traveling() {
     let frames = TestFrames::new();
     let k = key("instant");
     glide(k, 0.0, presets::RESIZE, false);
@@ -151,7 +151,7 @@ fn reduced_motion_stops_the_store_even_when_the_caller_asks_to_animate() {
     assert!(!frames.end(), "and no frame was requested for it");
 }
 
-/// A value already travelling when motion is turned off lands on the next
+/// A value already traveling when motion is turned off lands on the next
 /// frame instead of finishing its leg.
 #[test]
 fn turning_motion_off_lands_a_value_already_in_flight() {

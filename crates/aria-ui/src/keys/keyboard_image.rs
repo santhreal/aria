@@ -5,7 +5,7 @@
 //! the image once; the modifier caps choose which chords the image shows, and
 //! the keys no binding can use are drawn and hold nothing.
 //!
-//! A key takes the colour of the kind of command it holds. The kind is the
+//! A key takes the color of the kind of command it holds. The kind is the
 //! route a binding answers on, or Plugin for a command a plugin contributed:
 //! an Editor key works anywhere in the editor, a Timeline or Viewer key only
 //! while that panel holds focus, a Home key only on the start screen. One key
@@ -254,7 +254,7 @@ pub fn rows() -> impl Iterator<Item = &'static [Cap]> {
     MAIN.into_iter().chain(NAV)
 }
 
-/// The kind of command a binding holds, which is the colour of its key.
+/// The kind of command a binding holds, which is the color of its key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandKind {
     Editor,

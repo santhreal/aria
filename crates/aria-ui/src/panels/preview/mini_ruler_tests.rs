@@ -4,7 +4,7 @@
 //! markers: one element and one quad per marker, which a project with hundreds
 //! of markers pays for on every frame the Viewer is built or replayed. The runs
 //! are checked against the drawing they replace, column by column: each pixel
-//! column shows the colour of the last point marker under it, and no column is
+//! column shows the color of the last point marker under it, and no column is
 //! painted twice. Not caught: range markers, which still paint one quad each.
 
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ fn marker(id: u64, tick: i64, duration_ticks: i64, color: MarkerColor) -> UiMark
     }
 }
 
-/// The columns `flag_runs` paints, each with its colour. Fails on a column
+/// The columns `flag_runs` paints, each with its color. Fails on a column
 /// painted twice.
 fn drawn(
     markers: &[UiMarker],
@@ -53,7 +53,7 @@ fn drawn(
     (runs, columns)
 }
 
-/// What one flag per marker showed: the colour of the last point marker in
+/// What one flag per marker showed: the color of the last point marker in
 /// each column.
 fn expected(markers: &[UiMarker], last: i64, left: f32, width: f32) -> BTreeMap<i32, MarkerColor> {
     let mut columns = BTreeMap::new();
@@ -65,7 +65,7 @@ fn expected(markers: &[UiMarker], last: i64, left: f32, width: f32) -> BTreeMap<
 }
 
 #[test]
-fn many_markers_paint_one_run_per_colour_change_and_show_the_top_flag() {
+fn many_markers_paint_one_run_per_color_change_and_show_the_top_flag() {
     let (last, left, width) = (30_000, 37.0, 412.0);
     // Three markers to a column, cycling through the palette, with a range
     // marker among them that paints elsewhere.
@@ -89,7 +89,7 @@ fn many_markers_paint_one_run_per_colour_change_and_show_the_top_flag() {
 }
 
 #[test]
-fn neighbouring_columns_of_one_colour_paint_as_one_run() {
+fn neighboring_columns_of_one_color_paint_as_one_run() {
     let (last, left, width) = (1_000, 0.0, 100.0);
     let markers: Vec<UiMarker> = (0..1_000)
         .map(|tick| marker(tick as u64, tick, 0, MarkerColor::Teal))
@@ -100,7 +100,7 @@ fn neighbouring_columns_of_one_colour_paint_as_one_run() {
 }
 
 #[test]
-fn a_column_change_of_colour_starts_a_run_and_a_gap_ends_one() {
+fn a_column_change_of_color_starts_a_run_and_a_gap_ends_one() {
     // A strip as wide in pixels as it is long in ticks, at a length whose
     // fractions are exact in binary, so each tick is its own column.
     let (last, left, width) = (128, 0.0, 128.0);

@@ -5,7 +5,7 @@
 //! ring that snaps in after the click that deselected it, or a badge that plays
 //! a full fade for a lock already undone.
 //!
-//! What these do not catch: what the card draws with the value. That is a colour
+//! What these do not catch: what the card draws with the value. That is a color
 //! alpha in the builder chain, and it is asserted only in the sense that a value
 //! outside `0.0..=1.0` cannot leave here.
 

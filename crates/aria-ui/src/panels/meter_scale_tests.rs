@@ -2,7 +2,7 @@
 //! the Audio Meters panel draws.
 //!
 //! WHY: the Viewer's peak strip and the Audio Track Mixer's bars drew the
-//! linear amplitude, so a programme at -18 dBFS filled an eighth of the
+//! linear amplitude, so a program at -18 dBFS filled an eighth of the
 //! Viewer's bars and seven tenths of the Audio Meters panel's, and the master
 //! strip read the last block without the panel's fall. The class: a meter
 //! drawn on a scale of its own, or from a reading of its own. The Audio
@@ -11,11 +11,11 @@
 //! tenth of a second later, so the reading stands above the level published.
 //! At every step every bar is measured against [`meter_fraction`] of the
 //! reading: the panel's peak, the Viewer's two bars and the master's mixer
-//! bars against the programme meter's, the lane's mixer bars against the
+//! bars against the program meter's, the lane's mixer bars against the
 //! lane's.
 //!
 //! Not covered: a meter this test does not measure; the rates of the
-//! ballistics, which `app::meter_tests` covers; the colours.
+//! ballistics, which `app::meter_tests` covers; the colors.
 
 use std::time::{Duration, Instant};
 
@@ -82,7 +82,7 @@ fn every_meter_draws_a_level_at_one_place_on_the_dbfs_scale(cx: &mut TestAppCont
             })
         });
         redraw(&state, visual);
-        let (programme, own) = visual.read(|app| {
+        let (program, own) = visual.read(|app| {
             (
                 state.read(app).meter().peaks,
                 state.read(app).strip_meter(lane),
@@ -90,14 +90,14 @@ fn every_meter_draws_a_level_at_one_place_on_the_dbfs_scale(cx: &mut TestAppCont
         });
         if step + 1 < STEPS.len() {
             assert_eq!(
-                (programme, own),
+                (program, own),
                 ([level; 2], [level; 2]),
                 "a rise at {dbfs} dBFS reads at once"
             );
         } else {
             assert!(
-                programme[0] > 2.0 * level && own[0] > 2.0 * level,
-                "the drop to {dbfs} dBFS reads {programme:?} and {own:?}, not above it"
+                program[0] > 2.0 * level && own[0] > 2.0 * level,
+                "the drop to {dbfs} dBFS reads {program:?} and {own:?}, not above it"
             );
         }
 
@@ -106,12 +106,12 @@ fn every_meter_draws_a_level_at_one_place_on_the_dbfs_scale(cx: &mut TestAppCont
             "the Audio Meters panel's peak".to_owned(),
             "audio-meter-bar-0".to_owned(),
             "audio-meter-peak-0".to_owned(),
-            programme[0],
+            program[0],
         )];
         for (side, name) in ["l", "r"].into_iter().enumerate() {
             for (raw, whose, reading) in [
                 (strip, "the lane's mixer strip", own),
-                (0, "the master strip", programme),
+                (0, "the master strip", program),
             ] {
                 tall.push((
                     format!("{whose}, {name}"),
@@ -139,13 +139,13 @@ fn every_meter_draws_a_level_at_one_place_on_the_dbfs_scale(cx: &mut TestAppCont
         for (side, name) in ["l", "r"].into_iter().enumerate() {
             let track = drawn(visual, &format!("preview-meter-{name}"), dbfs);
             let fill = drawn(visual, &format!("preview-meter-{name}-fill"), dbfs);
-            let expected = f32::from(track.size.width) * meter_fraction(programme[side]);
+            let expected = f32::from(track.size.width) * meter_fraction(program[side]);
             assert!(
                 (f32::from(fill.size.width) - expected).abs() <= EPS
                     && (f32::from(fill.left()) - f32::from(track.left())).abs() <= EPS,
                 "at {dbfs} dBFS the Viewer's {name} bar reads {} and fills {:?} of {:?} from \
                  {:?}, not {expected} from its left end at {:?}",
-                programme[side],
+                program[side],
                 fill.size.width,
                 track.size.width,
                 fill.left(),

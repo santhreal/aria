@@ -136,7 +136,7 @@ fn reopening_the_palette_starts_at_the_first_hit(cx: &mut TestAppContext) {
     expect_shown(&state, visual, 0, "reopening after Up");
 }
 
-/// WHY: the card stood centred in the window, so each key that changed how
+/// WHY: the card stood centered in the window, so each key that changed how
 /// many rows matched moved the query field being typed in up or down. The
 /// header holding the field stands where it stood over the full list, through
 /// a query with a few hits and one with none.

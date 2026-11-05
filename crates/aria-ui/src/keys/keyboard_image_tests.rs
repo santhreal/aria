@@ -3,7 +3,7 @@
 //!
 //! The class closed here is an image that disagrees with the registry: a key
 //! the vocabulary can bind with no cap to drop a command on, a cap for a key no
-//! chord can name, or a cap coloured by the shipped chord after a rebinding
+//! chord can name, or a cap colored by the shipped chord after a rebinding
 //! moved it. The vocabulary is read from `BINDABLE_KEYS` at run time, so a key
 //! added to it is red here until the image places it.
 //!

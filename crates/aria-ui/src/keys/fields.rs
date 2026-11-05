@@ -37,7 +37,7 @@ pub struct TextField {
     /// same form, in the order the form draws them. Returns whether the
     /// picture can have changed, so the Viewer renders a new frame: a value
     /// committed on the way out does. `None` for a box that has no
-    /// neighbours, and then Tab is not consumed.
+    /// neighbors, and then Tab is not consumed.
     pub tab: Option<fn(&mut AppState, bool) -> bool>,
     /// Where the box's text is held.
     pub store: Store,

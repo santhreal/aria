@@ -135,7 +135,7 @@ pub(super) fn motion_row(
         )
 }
 
-/// One selectable accent choice, labelled with the accent's name.
+/// One selectable accent choice, labeled with the accent's name.
 ///
 /// The click both persists the choice and repaints: writing it without
 /// repainting would look like the setting did nothing until the next launch.
@@ -339,7 +339,7 @@ pub(super) fn time_display_row(
     )
 }
 
-/// A labelled row that installs `pick` on press, lit while it is the current
+/// A labeled row that installs `pick` on press, lit while it is the current
 /// value.
 fn pick_row(
     theme: &Theme,

@@ -205,7 +205,7 @@ struct MenuFacts {
     path_key: Option<MaskPathKeyMenu>,
     /// The label on the selection, for the swatch row.
     label: Option<aria_models::LabelColor>,
-    /// Every label colour in use with its clip count, so the menu can offer any
+    /// Every label color in use with its clip count, so the menu can offer any
     /// group rather than only the one the clip under the pointer carries.
     label_groups: Vec<(aria_models::LabelColor, usize)>,
     /// The label on the pool row the menu was opened on, when it was one.

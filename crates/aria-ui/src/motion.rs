@@ -1,6 +1,6 @@
 //! The editor's motion state over [`gpui::motion`].
 //!
-//! Curves, specs, presets, tweens, colour mixing, loader waveforms, and
+//! Curves, specs, presets, tweens, color mixing, loader waveforms, and
 //! release velocity are `gpui::motion`. This module holds what the editor adds:
 //! the identity every animated control is keyed by, one hover store and one
 //! glide store shared by every element of the window, the frame those stores
@@ -373,7 +373,7 @@ pub const FLING: MotionSpec =
 /// A caret marking time for someone who is typing. The curve is not spent: a
 /// caret is a square wave, and [`pulse_delta`] reads the raw phase.
 pub const CARET_BLINK: MotionSpec = MotionSpec::new(1000, Easing::Standard);
-/// The offset between neighbours in a list that arrived at once, so the order
+/// The offset between neighbors in a list that arrived at once, so the order
 /// is legible, in milliseconds: one frame at 60 Hz. Multiplied by the row's
 /// place in the list.
 pub const ROW_STAGGER_MS: u64 = 16;
@@ -560,7 +560,7 @@ mod scoped_repaint;
 #[path = "motion_fling_tests.rs"]
 mod fling;
 
-// The hover store and the colour blend it feeds.
+// The hover store and the color blend it feeds.
 #[path = "motion_hover.rs"]
 mod hover;
 pub use hover::*;

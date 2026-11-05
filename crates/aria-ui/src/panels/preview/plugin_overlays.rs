@@ -27,7 +27,7 @@ use super::handles::{HANDLE, pressable};
 /// The thickness of a cross handle's bars.
 const BAR: f32 = 2.0;
 
-/// The screen colour of `color`.
+/// The screen color of `color`.
 fn hsla(theme: &Theme, color: OverlayColor) -> gpui::Hsla {
     match color {
         OverlayColor::Accent => theme.accent,
@@ -160,7 +160,7 @@ pub(super) fn overlay(
     Some(root.into_any_element())
 }
 
-/// One draggable handle, centred on `point`.
+/// One draggable handle, centered on `point`.
 fn handle_mark(
     key: MotionKey,
     point: [f32; 2],

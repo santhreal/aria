@@ -3,10 +3,10 @@
 //! the display settings, and the graph editor.
 //!
 //! The header is two columns over two 24 px rows. The left column holds the
-//! timecode, centred on the two rows, its first digit on the column's text
+//! timecode, centered on the two rows, its first digit on the column's text
 //! edge. The right column is five toggles wide and holds the search field
 //! over the toggles, so the field and the toggles share both edges. Field and
-//! toggles are 20 px row controls, each centred on its row, so the stack
+//! toggles are 20 px row controls, each centered on its row, so the stack
 //! stands as far under the header's top as over its bottom. The right column
 //! keeps its width at every outline width; the left column takes the rest,
 //! and the timecode steps down to 14 px when that is narrower than an 18 px

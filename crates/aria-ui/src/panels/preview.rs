@@ -78,7 +78,7 @@ pub fn render(
             // Three groups that never split: what the picture shows, the
             // transport, and the display controls. The two outer groups split
             // the room the transport leaves evenly, so the transport stands on
-            // the Viewer's centre line whenever each outer group fits its
+            // the Viewer's center line whenever each outer group fits its
             // half. A Viewer too narrow for one line wraps between groups, so
             // every control stays inside the frame at the minimum window size.
             div()

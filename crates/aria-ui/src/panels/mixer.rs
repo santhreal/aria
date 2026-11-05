@@ -10,13 +10,13 @@
 //! The strips are drawn left to right in feed order, which the model hands over
 //! ([`aria_models::Timeline::audio_buses`]), so a bus is always to the right of
 //! everything that feeds it and the picture reads the way the mixdown runs. The
-//! master strip, last, holds the programme mix's inserts. A lane that cannot
+//! master strip, last, holds the program mix's inserts. A lane that cannot
 //! reach the master is bordered and says so: it is in the project, and it is
 //! not in the mix.
 //!
 //! Every strip's head, the rows above its pan, stands as tall as the tallest
 //! head, and the feet under them fill the frame. Every fader so starts and
-//! ends level with its neighbours' and runs as tall as the frame allows.
+//! ends level with its neighbors' and runs as tall as the frame allows.
 //!
 //! Motion is the shared vocabulary. The panel fades in on the pane switch, and
 //! every chip is the app's [`crate::components::chip`], which fades on its own
@@ -112,7 +112,7 @@ pub(crate) fn render(
             // Each strip is drawn in two rows: the heads, which their row
             // stretches to the tallest, then the feet, which fill the height
             // the frame has left. Every fader so starts and ends level with
-            // its neighbours', however many rows a head holds.
+            // its neighbors', however many rows a head holds.
             crate::edge_fade::scroll_y(
                 div()
                     .debug_selector(|| "mixer-strips-down".into())
@@ -344,7 +344,7 @@ fn channel(
     Strip { head, foot }
 }
 
-/// The master strip: the programme mix's insert chain, which runs after every
+/// The master strip: the program mix's insert chain, which runs after every
 /// lane and bus has been summed.
 fn master(
     state: &Entity<AppState>,

@@ -54,7 +54,7 @@ pub(crate) const ROUTE: MotionSpec = presets::DIALOG_IN;
 
 /// A progress fill catching up with a report. The geometry beat, because that is
 /// what a bar is: a width that changed. Short, because a report that arrived
-/// while the last one was still travelling must not queue behind it.
+/// while the last one was still traveling must not queue behind it.
 pub(crate) const PROGRESS: MotionSpec = presets::RESIZE;
 
 /// How long a wait must last before a loader is shown, spent by [`since`]

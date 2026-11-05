@@ -131,7 +131,7 @@ fn drawn(width: f32) -> bool {
     width >= STRIP_MIN
 }
 
-/// The colours a strip paints in, read off the theme before the paint.
+/// The colors a strip paints in, read off the theme before the paint.
 #[derive(Clone, Copy)]
 struct Ink {
     key: KeyInk,

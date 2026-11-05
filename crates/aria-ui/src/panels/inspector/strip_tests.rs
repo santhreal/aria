@@ -351,7 +351,7 @@ async fn every_control_beside_an_effect_parameter_edits_what_the_timeline_reads(
 ///
 /// Closes the class "a label long enough to push its row's time area onto a
 /// second line or sideways": the Transform block holds the longest built-in
-/// labels. Colour rows are the next test, and a frame too narrow for every
+/// labels. Color rows are the next test, and a frame too narrow for every
 /// control the one after.
 #[gpui::test]
 async fn every_time_area_is_drawn_on_its_stopwatchs_line_in_one_column(cx: &mut TestAppContext) {
@@ -376,35 +376,35 @@ async fn every_time_area_is_drawn_on_its_stopwatchs_line_in_one_column(cx: &mut 
     );
 }
 
-/// A colour row's time area starts and ends where a number row's does: the
+/// A color row's time area starts and ends where a number row's does: the
 /// palette is on the line under the label, so the navigator, the reset button
 /// and the strip end the label's line as they end a number row's, and the
-/// colour's name stands in the value column the number does.
+/// color's name stands in the value column the number does.
 ///
-/// Closes the class "a colour row whose palette or name pushes its time area
+/// Closes the class "a color row whose palette or name pushes its time area
 /// out of the column": the overlay's Color and Amount are rows of one effect,
 /// read one above the other. A frame too narrow for the controls narrows every
 /// strip by the same amount because the values share the column; the test
 /// reads the column rather than a narrow frame. Does not cover a value wider
 /// than the column.
 #[gpui::test]
-async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppContext) {
+async fn a_color_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppContext) {
     let (_state, visual) = drawn_on(cx, "effect-controls-color", "effects", |state| {
         state
             .add_effect_to_selected("color_overlay")
             .expect("add an overlay");
     });
-    let colour_param = ClipParam::Effect {
+    let color_param = ClipParam::Effect {
         effect: 0,
         param: 0,
     };
-    let (watch, colour) = (
-        painted(visual, "key", colour_param),
-        painted(visual, "strip", colour_param),
+    let (watch, color) = (
+        painted(visual, "key", color_param),
+        painted(visual, "strip", color_param),
     );
     assert!(
-        (middle(watch) - middle(colour)).abs() < 1.0,
-        "the color drew its time area at {colour:?}, off its stopwatch's line at {watch:?}"
+        (middle(watch) - middle(color)).abs() < 1.0,
+        "the color drew its time area at {color:?}, off its stopwatch's line at {watch:?}"
     );
     let amount_param = ClipParam::Effect {
         effect: 0,
@@ -412,14 +412,14 @@ async fn a_colour_rows_time_area_lines_up_with_a_number_rows(cx: &mut TestAppCon
     };
     let amount = painted(visual, "strip", amount_param);
     assert_eq!(
-        (colour.left(), colour.right()),
+        (color.left(), color.right()),
         (amount.left(), amount.right()),
-        "the color's time area at {colour:?} is off the amount's at {amount:?}"
+        "the color's time area at {color:?} is off the amount's at {amount:?}"
     );
-    // The colour's name and the amount's number differ in width, and both stand
+    // The color's name and the amount's number differ in width, and both stand
     // in one value column, so a narrower frame narrows both strips alike.
     let (name, number) = (
-        painted(visual, "value", colour_param),
+        painted(visual, "value", color_param),
         painted(visual, "value", amount_param),
     );
     assert_eq!(
@@ -687,7 +687,7 @@ fn read_playhead(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> 
 
 /// Every Inspector tab takes a share of the strip in proportion to its label
 /// and its padding, the tabs stay inside the strip, the underline spans the
-/// tab in front, and every tab's label stands on its tab's centre, down and
+/// tab in front, and every tab's label stands on its tab's center, down and
 /// across, at every width. While the strip is as wide as the labels and their
 /// padding, no tab is narrower than its own.
 ///
@@ -696,8 +696,8 @@ fn read_playhead(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> 
 /// in the shipped layout while the short labels had room to spare. Also closes
 /// "a tab off its underline": the underline is placed at the weights'
 /// fractions, so a tab sized any other way leaves it. And "a label off its
-/// tab's centre": an underline that takes layout at the tab's foot lifts the
-/// label, and a label not centred in its share stands to one side. The walk
+/// tab's center": an underline that takes layout at the tab's foot lifts the
+/// label, and a label not centered in its share stands to one side. The walk
 /// must draw a width where equal shares cut the longest label and weighted
 /// ones do not. Does not cover the ellipsis, which the test text system does
 /// not draw, so a cut label is checked down only.
@@ -725,7 +725,7 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
         .iter()
         .map(|tab| (tab.id.clone(), tab.label.clone()))
         .collect();
-    let mut centred = 0;
+    let mut centered = 0;
     let (mut steps, mut decisive) = (0, 0);
     // The tab in front moves one place right at every step, so the underline
     // is checked at every offset, not only at the first tab's.
@@ -793,7 +793,7 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
             "frame edge {frame}: the underline {line:?} is not under {in_front} {front:?}"
         );
         // A text box is laid out at its width rounded up to a whole pixel, so
-        // the box a label is centred by is measured from where its run starts.
+        // the box a label is centered by is measured from where its run starts.
         let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
         for (id, bounds, _) in &drawn {
             let label = labels
@@ -828,7 +828,7 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
                 run.text,
                 run.bounds
             );
-            centred += 1;
+            centered += 1;
         }
         in_front = drawn[(at + 1) % drawn.len()].0.clone();
         visual.update(|_, app| {
@@ -846,7 +846,7 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
          longest, so it cannot tell weighted shares from equal ones"
     );
     assert!(
-        centred > 0,
+        centered > 0,
         "the walk drew no tab whose whole label could be checked across"
     );
 }

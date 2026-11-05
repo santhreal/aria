@@ -28,7 +28,7 @@ pub use progress::{progress_bar, progress_row};
 mod delay;
 pub use delay::worth_showing;
 
-/// The pulsing block a panel shows while it waits. Painted in the busy colour,
+/// The pulsing block a panel shows while it waits. Painted in the busy color,
 /// which exists to say "something is running" without saying it failed.
 ///
 /// `id` offsets the phase, so two panels waiting at once do not pulse as one.

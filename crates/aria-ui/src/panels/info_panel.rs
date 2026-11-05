@@ -1,4 +1,4 @@
-//! The Info dock panel: the colour and position under the pointer in the
+//! The Info dock panel: the color and position under the pointer in the
 //! Viewer, the selected clip's times and source, the drag in progress, the
 //! faults drivers and plugins reported, what the last rendered frame cost, and
 //! the rate playback held.
@@ -80,7 +80,7 @@ pub fn render(
     .into_any_element()
 }
 
-/// One labelled value per row.
+/// One labeled value per row.
 fn rows(theme: &Theme, rows: Vec<InfoRow>) -> impl Iterator<Item = AnyElement> + '_ {
     rows.into_iter()
         .map(move |row| readout(theme, row.label, row.value).into_any_element())
@@ -145,7 +145,7 @@ fn fault_row(theme: &Theme, fault: InfoFault) -> AnyElement {
         .into_any_element()
 }
 
-/// The playback rate in the colour of its verdict, green while the run holds
+/// The playback rate in the color of its verdict, green while the run holds
 /// the sequence's rate and amber once it does not, then the late frames.
 fn playback_rows(theme: &Theme, playback: InfoPlayback) -> [AnyElement; 2] {
     let verdict = if playback.holds_rate {

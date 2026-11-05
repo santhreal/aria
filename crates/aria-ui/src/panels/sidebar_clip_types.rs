@@ -1,5 +1,5 @@
 //! The Generators tab's clip types: one row per type a plugin lists, drawn in
-//! the type's colour and icon. Clicking places the type at the playhead;
+//! the type's color and icon. Clicking places the type at the playhead;
 //! dragging carries it to a lane. A type whose generator cannot draw it shows
 //! why under its name, and placing it reports the same reason.
 

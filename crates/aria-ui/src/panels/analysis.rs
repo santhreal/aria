@@ -5,7 +5,7 @@
 //! index write; the rows below are what the index holds for the selected media, already
 //! filtered and ordered by the crate that owns the query.
 //!
-//! A stale row is labelled rather than hidden: the analyzer that wrote it has moved on,
+//! A stale row is labeled rather than hidden: the analyzer that wrote it has moved on,
 //! and the row offers both a re-run and a clear.
 
 use aria_core::count::counted;

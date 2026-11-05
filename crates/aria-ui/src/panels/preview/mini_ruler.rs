@@ -69,13 +69,13 @@ fn fraction(tick: i64, last: i64) -> f32 {
     (tick as f32 / last as f32).clamp(0.0, 1.0)
 }
 
-/// The point markers as runs of one colour, `(x, width, colour)` in window
+/// The point markers as runs of one color, `(x, width, color)` in window
 /// pixels, left to right.
 ///
 /// A flag is one pixel wide and the strip maps the whole sequence across its
 /// width, so it shows at most one flag per pixel column. Each marker lands in
-/// the column under its tick, the last one there gives the column its colour,
-/// as the flag painted on top did, and neighbouring columns of one colour join.
+/// the column under its tick, the last one there gives the column its color,
+/// as the flag painted on top did, and neighboring columns of one color join.
 /// The runs are bounded by the width in pixels whatever the number of markers.
 /// `markers` is in tick order, as the sequence holds them.
 fn flag_runs(

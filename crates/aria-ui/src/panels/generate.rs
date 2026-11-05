@@ -129,7 +129,7 @@ pub(crate) fn generate_panel(
 }
 
 /// One kind, as a chip. Drawn by [`crate::components::chip`], so it eases on
-/// hover like every other chip instead of swapping colour.
+/// hover like every other chip instead of swapping color.
 fn kind_chip(
     theme: &Theme,
     target: GenerateKind,

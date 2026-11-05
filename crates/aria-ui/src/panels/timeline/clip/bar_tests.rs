@@ -4,7 +4,7 @@
 //! Closes the class "a press lands somewhere other than what was drawn under
 //! it": the line hit-tested at a height its paint did not use, a keyframe dot a
 //! press passes through to the line, a Ctrl+click on the line that keys
-//! nothing. Also pins the fills the spec names: the fx badge grey, yellow, or
+//! nothing. Also pins the fills the spec names: the fx badge gray, yellow, or
 //! purple with the purple underline when both, an offline bar red, and the
 //! bracket on a held edge red while its drag is stopped at the limit. Not
 //! covered: the pointer's cursor shape, which the test platform does not
@@ -39,7 +39,7 @@ pub(super) struct Painted {
     pub(super) rounded: bool,
 }
 
-/// Every quad the last frame painted with its centre inside `within`.
+/// Every quad the last frame painted with its center inside `within`.
 pub(super) fn painted(visual: &mut VisualTestContext, within: Bounds<Pixels>) -> Vec<Painted> {
     visual.update(|window, _| {
         let scale = window.scale_factor();
@@ -385,7 +385,7 @@ fn a_press_on_the_line_moves_the_clip_along_the_lane_and_the_line_across_it(
 }
 
 #[gpui::test]
-fn the_fx_badge_is_grey_yellow_purple_or_yellow_over_purple(cx: &mut TestAppContext) {
+fn the_fx_badge_is_gray_yellow_purple_or_yellow_over_purple(cx: &mut TestAppContext) {
     let (state, visual, clip) = placed(cx, "bar-badge", texture());
     let lane = v1_lane(visual);
     let theme = visual.read(Theme::of);
@@ -741,7 +741,7 @@ fn a_waveform_draws_a_bar_every_3_px_at_every_zoom(cx: &mut TestAppContext) {
         lane.size.width
     );
 
-    // As far in as the timeline zooms, with the view centred on the clip's
+    // As far in as the timeline zooms, with the view centered on the clip's
     // middle, so the clip runs past both of its sides.
     let reach = visual.update(|window, app| {
         let reach = state.update(app, |s, _| {

@@ -95,7 +95,7 @@ fn covers(value: f32, bounds: (f32, f32)) -> Reach {
     }
 }
 
-/// A slot of every kind, labelled for its `holder`, with the integer's float
+/// A slot of every kind, labeled for its `holder`, with the integer's float
 /// bounds left as a manifest that states only `int_min` and `int_max` reads
 /// them, so an integer row drawn against its float bounds draws a fill of its
 /// own.

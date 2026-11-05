@@ -7,7 +7,7 @@
 //! twice. Queued one-shots would show that as a flicker; a chased value shows
 //! it as a reversal from wherever the fade had got to.
 //!
-//! Both are opacity, not colour, because the ring and the badge are drawn over
+//! Both are opacity, not color, because the ring and the badge are drawn over
 //! whatever the card already shows: fading the alpha leaves the fill and the
 //! filmstrip underneath untouched.
 //!

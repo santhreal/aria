@@ -1,7 +1,7 @@
 //! The top of the Keyboard Shortcuts section: the named sets, and the keyboard image.
 //!
 //! The image is drawn from [`crate::keys::keyboard_image`], with each key
-//! coloured by the kinds of command it holds under the modifiers shown. A
+//! colored by the kinds of command it holds under the modifiers shown. A
 //! binding row dragged onto a key binds it there; a key clicked while a row is
 //! armed is the same answer as pressing it. A key another binding holds asks
 //! before it moves, through the same question a pressed key asks.
@@ -36,8 +36,8 @@ pub(super) struct KeyDrag {
     pub(super) label: SharedString,
 }
 
-/// The colour a kind of command gives its key.
-fn kind_colour(theme: &Theme, kind: CommandKind) -> gpui::Hsla {
+/// The color a kind of command gives its key.
+fn kind_color(theme: &Theme, kind: CommandKind) -> gpui::Hsla {
     match kind {
         CommandKind::Editor => theme.accent,
         CommandKind::Timeline => theme.track_video,
@@ -183,7 +183,7 @@ pub(super) fn keyboard(
                         .w(px(10.0))
                         .h(px(4.0))
                         .rounded(px(1.0))
-                        .bg(kind_colour(theme, kind)),
+                        .bg(kind_color(theme, kind)),
                 )
                 .child(
                     div()
@@ -275,7 +275,7 @@ fn cap_element(
             let accent = theme.accent;
             let mut bands = div().flex().flex_row().h(px(3.0)).w_full();
             for kind in keyboard_image::kinds(holds) {
-                bands = bands.child(div().flex_1().h_full().bg(kind_colour(theme, kind)));
+                bands = bands.child(div().flex_1().h_full().bg(kind_color(theme, kind)));
             }
             let tip_state = state.clone();
             base.border_1()

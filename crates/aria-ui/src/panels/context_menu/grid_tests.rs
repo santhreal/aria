@@ -4,12 +4,12 @@
 //! The class closed here: a context row that spelled its state in its caption,
 //! as the lane heights did with a `• ` prefix, or drew a check mark anywhere but
 //! the lead column, so the caption of a checked row started at another x than
-//! its neighbours' and the state read differently than in the menu bar.
+//! its neighbors' and the state read differently than in the menu bar.
 //!
 //! A timeline with a blended cut is opened in a drawn shell, and the menu of
 //! every target it holds is opened over it. Every row the tables draw for the
 //! target, the blend and property rows among them, must start its caption one
-//! gap past the lead column; a checked row must draw a check mark centred in
+//! gap past the lead column; a checked row must draw a check mark centered in
 //! that column on its own line, an unchecked row none, and the card no other.
 //!
 //! Not covered: the label swatch block, which is not a text row; plugin rows,
@@ -96,7 +96,7 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
         // and the row's padding.
         let column = card.left() + px(1.0 + Theme::SPACE_XS + Theme::SPACE_SM);
         let caption_x = column + px(Theme::ICON_SIZE + Theme::SPACE_SM);
-        let centre = column + px(Theme::ICON_SIZE / 2.0);
+        let center = column + px(Theme::ICON_SIZE / 2.0);
         let checks: Vec<Bounds<Pixels>> = runs
             .iter()
             .filter(|(text, _)| text == "✓")
@@ -126,9 +126,9 @@ fn every_context_row_draws_its_check_mark_in_the_lead_column(cx: &mut TestAppCon
             match (is_checked, on_line) {
                 (true, Some(check)) => {
                     checked += 1;
-                    if (check.center().x - centre).abs() > px(EPS) {
+                    if (check.center().x - center).abs() > px(EPS) {
                         faults.push(format!(
-                            "{target:?}: `{caption}`'s check is centered at {:?}, the column at {centre:?}",
+                            "{target:?}: `{caption}`'s check is centered at {:?}, the column at {center:?}",
                             check.center().x
                         ));
                     }

@@ -2,7 +2,7 @@
 //!
 //! Every row comes from the catalog's `shape` group: a rectangle's corner
 //! radius, a star's inner ratio and the stroke width as steppers, the fill and
-//! the stroke colour as swatches.
+//! the stroke color as swatches.
 //!
 //! What is still missing is stated rather than faked: the shape *kind* (which
 //! outline the clip is) is a structural choice, and there is no command that

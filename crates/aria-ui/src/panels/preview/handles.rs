@@ -123,7 +123,7 @@ pub(super) fn overlay(
     let crop = read.overlay_crop()?;
     let mask = read.overlay_mask();
     // A path mask is shaped by its vertices: the box outline and the size
-    // handle draw nothing it uses. Its centre and rotation still apply.
+    // handle draw nothing it uses. Its center and rotation still apply.
     let path_mask = read
         .active_ui_mask()
         .is_some_and(|mask| mask.kind == aria_models::MaskKind::Path);
@@ -138,7 +138,7 @@ pub(super) fn overlay(
     };
     let hand = read.tool.pans();
     let type_handles = read.overlay_type_handles();
-    let type_colour = read
+    let type_color = read
         .selected_ui_clip_ref()
         .and_then(|clip| clip.clip_type.as_ref())
         .and_then(|clip_type| clip_type.colour)
@@ -198,14 +198,14 @@ pub(super) fn overlay(
                 ));
             }
             // A clip type's handles sit above the move surface and the corners,
-            // in the type's colour, so a point the generator draws from is
+            // in the type's color, so a point the generator draws from is
             // grabbed rather than the picture under it.
             for (index, value) in type_handles.into_iter().enumerate() {
                 let point = frame.local(layer.at(value));
                 root = root.child(handle_dot(
                     crate::motion::MotionKey::new("clip-type-handle", index).into(),
                     point,
-                    type_colour,
+                    type_color,
                     theme,
                     hand,
                     cx.listener(move |this, event: &MouseDownEvent, _, cx| {

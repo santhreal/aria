@@ -1,6 +1,6 @@
 //! The visible surface for an in-progress inline rename.
 //!
-//! A single centred bar serves every [`RenameTarget`], because the rename state
+//! A single centered bar serves every [`RenameTarget`], because the rename state
 //! is one field rather than one field per surface. Keys are routed by the shell,
 //! so this draws the draft, its selection and its caret, and nothing else.
 

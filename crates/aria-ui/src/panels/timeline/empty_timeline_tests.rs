@@ -617,7 +617,7 @@ fn edge_selection_trims_via_nudge_and_gap_selection_ripple_deletes_with_undo() {
 }
 
 #[test]
-fn clip_type_tint_prefers_label_then_clip_type_colour_then_kind() {
+fn clip_type_tint_prefers_label_then_clip_type_color_then_kind() {
     let mut state = empty_state("timeline-clip-type-tint");
     let media = state.import_media(fixture()).expect("import");
     let track_id = TrackId::from_raw(state.store.sequence.tracks[0].id);
@@ -652,7 +652,7 @@ fn clip_type_tint_prefers_label_then_clip_type_colour_then_kind() {
         label(aria_models::LabelColor::Purple)
     );
 
-    // 3. Explicit clip `label` colour takes precedence over `clip_type.colour`.
+    // 3. Explicit clip `label` color takes precedence over `clip_type.colour`.
     clip.label = Some(aria_models::LabelColor::Caribbean);
     assert_eq!(
         crate::panels::timeline::clip::tint(&theme, &clip),

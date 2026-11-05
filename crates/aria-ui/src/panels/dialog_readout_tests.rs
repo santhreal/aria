@@ -127,7 +127,7 @@ fn open_field(state: &mut AppState, target: &ScrubTarget) {
 }
 
 /// A frame drawn anew: the readouts it drew, the last draw under each key, in
-/// draw order. While a field is open, the frame records its neighbours.
+/// draw order. While a field is open, the frame records its neighbors.
 fn redraw(visual: &mut VisualTestContext) -> Vec<DrawnReadout> {
     record_readouts();
     visual.update(|window, _| window.refresh());
@@ -266,10 +266,10 @@ fn a_drag_holds_the_draft_inside_its_span_and_escape_restores_it(cx: &mut TestAp
                     state.drag_value(dx, false, false);
                 });
                 let reached = drawn_under(visual, key).value;
-                let travelled = clamp_into(&span, target.value + dx / PX_PER_UNIT * target.unit);
+                let traveled = clamp_into(&span, target.value + dx / PX_PER_UNIT * target.unit);
                 assert!(
-                    close(reached, travelled),
-                    "{kind:?}: {dx} px from {} reached {reached}, not {travelled}",
+                    close(reached, traveled),
+                    "{kind:?}: {dx} px from {} reached {reached}, not {traveled}",
                     target.value
                 );
                 assert_eq!(
@@ -429,7 +429,7 @@ fn tab_walks_a_dialogs_readouts_both_ways_and_never_leaves_it(cx: &mut TestAppCo
             let first = drawn_under(visual, keys[0]);
             act(&state, visual, |state| open_field(state, &first));
             for (step, expected) in walk.into_iter().enumerate() {
-                // The frame drawn with the field open records its neighbours.
+                // The frame drawn with the field open records its neighbors.
                 redraw(visual);
                 visual.simulate_keystrokes(stroke);
                 visual.run_until_parked();

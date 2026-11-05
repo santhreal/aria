@@ -6,8 +6,8 @@ use gpui::{Bounds, Corners, Edges, Hsla, Window, fill, point, px, quad, size};
 use crate::app::property_rows::KeyframeIconShape;
 use crate::theme::Theme;
 
-/// The colours a keyframe icon is painted in, read off the theme once so a
-/// canvas that paints many keys holds four colours rather than the theme.
+/// The colors a keyframe icon is painted in, read off the theme once so a
+/// canvas that paints many keys holds four colors rather than the theme.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct KeyInk {
     fill: Hsla,
