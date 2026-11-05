@@ -3,7 +3,7 @@
 //! Render and replace has the same requirement a proxy has, for the same
 //! reason: the file that stands in for the clip must be produced by the render
 //! and export path everything else goes through, because a second encoder would
-//! be a second opinion about colour, orientation, stills and rate conversion,
+//! be a second opinion about color, orientation, stills and rate conversion,
 //! and the first frame where the two disagreed would be a preview showing a
 //! picture the export does not have.
 //!
@@ -13,16 +13,16 @@
 //! is exactly the mapping [`Clip::unbaked`](aria_models::Clip::unbaked) inverts.
 //!
 //! What is deliberately left out of the pass is everything the clip is not: the
-//! neighbours it abuts, the transitions those junctions carried, and the lane
+//! neighbors it abuts, the transitions those junctions carried, and the lane
 //! bars above it. A lane bar reprocesses whatever is beneath it, so folding one
-//! into a single clip would bake a grade that belongs to the programme, and it
+//! into a single clip would bake a grade that belongs to the program, and it
 //! would stay baked after the bar was deleted. Only nests are kept, because a
 //! nest clip's picture *is* another timeline.
 //!
 //! A clip on a sound lane bakes the same way, to a file with no picture in it.
 //! The same argument applies once more, to the mix rather than to the picture: a
 //! lane's fader, its mute, its solo, its sends and where it points are all
-//! programme, and they are applied again when the intermediate plays back. So
+//! program, and they are applied again when the intermediate plays back. So
 //! the sound pass neutralizes them, and the file holds the clip's own sound and
 //! nothing else.
 
@@ -84,7 +84,7 @@ pub fn bake_project(project: &Project, clip: ClipId) -> Result<BakePass, EngineE
     for other in others {
         timeline.remove_clip(other);
     }
-    // Every junction this clip had is gone with its neighbours, and a transition
+    // Every junction this clip had is gone with its neighbors, and a transition
     // with one side missing renders nothing.
     baking.prune_dead_transitions();
     baking.move_clip(clip, track, RationalTime::new(0, span.start.rate))?;
@@ -101,13 +101,13 @@ pub fn bake_project(project: &Project, clip: ClipId) -> Result<BakePass, EngineE
 /// muted or soloed, no sends, straight to the master.
 ///
 /// The sound half of "the pass is the clip and nothing else". A fader is
-/// programme: it is applied when the intermediate plays back, so folding it in
+/// program: it is applied when the intermediate plays back, so folding it in
 /// would apply it twice, and it would stay folded in after the fader was moved.
 /// Mute and solo are the same argument at its extreme, where the file would be
 /// silence.
 ///
 /// Every lane rather than only the clip's own, because a send or a bus route
-/// elsewhere in the timeline can still colour what reaches the master.
+/// elsewhere in the timeline can still color what reaches the master.
 fn silence_the_mix_desk(baking: &mut Project) {
     let lanes: Vec<TrackId> = baking
         .timeline()

@@ -6,7 +6,7 @@ use super::*;
 use aria_models::{ParentKeep, Scale2};
 
 /// Two shapes on two lanes: the parent turned a quarter and doubled over
-/// `[12, 60)`, the child placed right of centre over `[0, 48)`.
+/// `[12, 60)`, the child placed right of center over `[0, 48)`.
 fn parent_and_child(
     engine: &mut aria_engine::Engine,
 ) -> (aria_models::ClipId, aria_models::ClipId) {

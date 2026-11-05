@@ -181,12 +181,12 @@ fn a_keyed_property_returns_to_a_constant() {
 }
 
 /// Clearing the ramp re-derives the duration; when the longer clip would run
-/// into its neighbour the removal fails and no group of the clip changes.
+/// into its neighbor the removal fails and no group of the clip changes.
 #[test]
 fn a_ramp_that_cannot_be_cleared_changes_nothing() {
     let (mut project, media, track) = project_with_media(500);
     let clip = project.add_clip(track, media, tr(0, 100), rt(0)).unwrap();
-    // A ramp averaging above 1x shortens the clip; a neighbour placed at its
+    // A ramp averaging above 1x shortens the clip; a neighbor placed at its
     // new end leaves no room for the original length.
     set(&mut project, clip, ClipAttribute::TimeRemapping);
     let end = project.clip(clip).unwrap().timeline.end().unwrap().value;

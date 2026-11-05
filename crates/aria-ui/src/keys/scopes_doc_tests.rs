@@ -9,7 +9,7 @@ use aria_analysis::{
 
 use crate::scopes::{
     HISTOGRAM_H, HISTOGRAM_W, SCOPE_PX, SKIN_TONE_DEGREES, TARGET_COLOURS, TARGET_LEVELS,
-    WaveformMode, channel_colour,
+    WaveformMode, channel_color,
 };
 
 fn unquote(cell: &str) -> &str {
@@ -69,7 +69,7 @@ fn table_rows(text: &str) -> Vec<Vec<&str>> {
 /// **Every scope mode, waveform trace, channel, configuration bound, and graticule constant matches `docs/reference/scopes.md`.**
 ///
 /// Closes: undocumented or stale `WaveformMode`, `WaveformTrace`, `WaveformChannel`,
-/// `ScopeConfig` bound or default, or vectorscope graticule constant / target colour.
+/// `ScopeConfig` bound or default, or vectorscope graticule constant / target color.
 /// Not caught: prose explanations outside the tables.
 #[test]
 fn scopes_doc_matches_registries() {
@@ -197,17 +197,17 @@ fn scopes_doc_matches_registries() {
             )
         })
         .collect();
-    let (grey_cb, grey_cr) = chroma_codes709(128, 128, 128);
+    let (gray_cb, gray_cr) = chroma_codes709(128, 128, 128);
     let expected_channels: Vec<(String, String, u8)> = all_channels
         .iter()
         .map(|&ch| {
-            let grey = match ch {
+            let gray = match ch {
                 WaveformChannel::Luma => luma709(128, 128, 128),
                 WaveformChannel::Red | WaveformChannel::Green | WaveformChannel::Blue => 128,
-                WaveformChannel::Cb => grey_cb,
-                WaveformChannel::Cr => grey_cr,
+                WaveformChannel::Cb => gray_cb,
+                WaveformChannel::Cr => gray_cr,
             };
-            (format!("{ch:?}"), format!("{:?}", channel_colour(ch)), grey)
+            (format!("{ch:?}"), format!("{:?}", channel_color(ch)), gray)
         })
         .collect();
     assert_eq!(

@@ -2,8 +2,8 @@
 //!
 //! The class these close: a rendered intermediate that is not what the clip
 //! looked like. Two ways that happens, and both are silent — the file shows
-//! more than the clip (a neighbour, a half transition, a lane bar's grade that
-//! belongs to the programme) or less than it (the clip's own effects dropped on
+//! more than the clip (a neighbor, a half transition, a lane bar's grade that
+//! belongs to the program) or less than it (the clip's own effects dropped on
 //! the way into the pass). Either way the swap looks right until something
 //! moves, so every assertion here is "the pass holds this clip, whole, alone".
 //!
@@ -46,14 +46,14 @@ pub(super) fn fixture() -> (Project, ClipId, ClipId) {
     let target = project
         .add_clip(lower, media, tr(0, 100), rt(48))
         .expect("target");
-    let neighbour = project
+    let neighbor = project
         .add_clip(lower, media, tr(100, 60), rt(148))
         .expect("neighbor");
     project
         .add_clip(upper, media, tr(0, 40), rt(60))
         .expect("above");
     project.add_effect(target, "gaussian_blur").expect("effect");
-    (project, target, neighbour)
+    (project, target, neighbor)
 }
 
 /// The clips of the pass's open timeline, start-ordered.
@@ -97,7 +97,7 @@ fn the_pass_keeps_the_look_the_render_is_supposed_to_fold_in() {
         "the pass dropped the clip's retiming"
     );
     // A retimed clip's span is its retimed span, so the file still covers the
-    // programme the clip occupies.
+    // program the clip occupies.
     assert_eq!(survivors(&pass), vec![(0, clip.timeline.duration.value)]);
 }
 
@@ -244,9 +244,9 @@ fn every_refusal_names_what_is_wrong() {
 /// disturbed by asking what a bake would render.
 #[test]
 fn building_a_pass_leaves_the_project_alone() {
-    let (project, target, neighbour) = fixture();
+    let (project, target, neighbor) = fixture();
     let before = survivors(&project);
     let _ = bake_project(&project, target).expect("a bake pass").project;
     assert_eq!(survivors(&project), before);
-    assert!(project.clip(neighbour).is_some());
+    assert!(project.clip(neighbor).is_some());
 }

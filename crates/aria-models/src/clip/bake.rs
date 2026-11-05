@@ -9,7 +9,7 @@
 //! The rule that makes the return exact is that **the intermediate is the
 //! clip's timeline span rendered one-to-one**. The start of the file is the tick
 //! the clip started on when it was baked, so how far into the file the clip's
-//! head now sits is how far into that stretch of programme it now starts —
+//! head now sits is how far into that stretch of program it now starts —
 //! whatever has happened to the clip since, and wherever on the timeline it has
 //! been dragged to. [`Clip::unbaked`] maps that offset back through the
 //! snapshot's own retiming with [`Clip::source_time_at`], which is the same
@@ -148,7 +148,7 @@ impl Clip {
     /// Keeps the clip's identity, its place on the timeline, and its link, and
     /// takes everything else back from the snapshot. A head trim on the baked
     /// clip becomes the same head trim on the original: the offset into the
-    /// rendered file is the offset into the stretch of programme it holds, so
+    /// rendered file is the offset into the stretch of program it holds, so
     /// the original's source in-point is read from its own retiming at that
     /// position and its clip-local animation is rebased by the same amount.
     pub fn unbaked(&self) -> Result<Self, ModelError> {
@@ -170,7 +170,7 @@ impl Clip {
         };
         // How far into the rendered file the clip's head now sits, in the
         // timeline's own ticks. The file is one-to-one with the stretch of
-        // programme it holds, but it counts in its own rate: a picture
+        // program it holds, but it counts in its own rate: a picture
         // intermediate at the sequence rate is the same number, a sound
         // intermediate counting audio ticks is not.
         let into_bake = crate::time::resample(baked_source.start, self.timeline.start.rate).value;

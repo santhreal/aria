@@ -172,7 +172,7 @@ fn bench_move_between_tracks(c: &mut Criterion) {
     let home = *fixture.tracks.first().expect("a track");
     let away = *fixture.tracks.get(1).expect("a second track");
     // Well past the last clip on either lane, so the move never has to displace
-    // a neighbour: the measurement is the move, not a ripple.
+    // a neighbor: the measurement is the move, not a ripple.
     let free = rt(CLIPS_PER_TRACK as i64 * (CLIP_TICKS + 1) + CLIP_TICKS);
     c.bench_function("move_clip_between_tracks_480_clips", |b| {
         b.iter(|| {

@@ -13,7 +13,7 @@ use crate::error::EngineError;
 /// Replace a media clip's beat grid and return an inverse restoring the prior
 /// one.
 ///
-/// The model normalises `beats` (sorted, deduped, clamped to the clip's source
+/// The model normalizes `beats` (sorted, deduped, clamped to the clip's source
 /// window), so a detector may hand over raw candidates in any order.
 pub(crate) fn set(
     ctx: &mut ApplyContext<'_>,

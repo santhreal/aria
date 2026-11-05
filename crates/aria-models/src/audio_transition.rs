@@ -6,7 +6,7 @@
 //! id. The set is closed: each entry is a curve the mixer evaluates per sample,
 //! not a pass a plugin supplies, so it is an enum rather than a catalog file.
 //!
-//! The window is the transition's own: `duration` ticks centred on the cut.
+//! The window is the transition's own: `duration` ticks centered on the cut.
 //! The outgoing clip plays past the cut into its source handle and fades out
 //! over the window; the incoming clip starts early from its handle and fades
 //! in. A side with less handle than half the window fades over the part of the

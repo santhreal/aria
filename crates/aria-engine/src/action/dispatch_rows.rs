@@ -56,7 +56,7 @@ edit_ops! { ctx;
     SetSpeedCurve { clip, curve } => updated(clip, edit::set_speed_curve::set_speed_curve(ctx, clip, curve)?),
     SetClipBeats { clip, beats } => updated(clip, edit::clip_beats::set(ctx, clip, beats)?),
     ClearBeats { clip } => updated(clip, edit::clip_beats::clear(ctx, clip)?),
-    // A slip changes neither the clip's extent nor its neighbours, so no
+    // A slip changes neither the clip's extent nor its neighbors, so no
     // junction can appear or disappear: its row keeps them.
     SlipClip { clip, by } => updated(clip, edit::slip_clip::execute(ctx, clip, by)?),
     TrimClip { clip, timeline } => updated(clip, edit::trim_clip::execute(ctx, clip, timeline)?),

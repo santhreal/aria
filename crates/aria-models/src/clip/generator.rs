@@ -336,7 +336,7 @@ pub struct ShapeStroke {
 }
 
 /// The stroke a shape is given when one is added, and what a reset returns
-/// its width and colour to: opaque black, 4 reference pixels wide.
+/// its width and color to: opaque black, 4 reference pixels wide.
 impl Default for ShapeStroke {
     fn default() -> Self {
         Self::new([0, 0, 0, 255], 4.0)

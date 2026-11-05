@@ -29,7 +29,7 @@ pub enum ClipAttribute {
     Effects,
     /// The audio effect chain.
     AudioEffects,
-    /// The colour adjustments, the filter, and the LUT.
+    /// The color adjustments, the filter, and the LUT.
     Grade,
     /// Every mask in the stack.
     Mask,
@@ -74,7 +74,7 @@ impl ClipAttribute {
     /// applied to the clip. Motion, Opacity, Crop, Time Remapping, Volume, and
     /// Pan are intrinsic; an effect chain, a grade, a mask, and a key are
     /// applied. The fx badge on a timeline clip bar draws the two in different
-    /// colours.
+    /// colors.
     pub const fn is_intrinsic(self) -> bool {
         match self {
             Self::Motion
@@ -201,7 +201,7 @@ impl ClipAttribute {
 }
 
 impl LookParam {
-    /// A colour adjustment, filter, or LUT parameter.
+    /// A color adjustment, filter, or LUT parameter.
     pub fn is_grade(self) -> bool {
         !self.is_chroma() && !matches!(self, Self::MatteSoftness)
     }

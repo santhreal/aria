@@ -315,7 +315,7 @@ impl Project {
     }
 
     /// Expand the outgoing keyframe segment at `at` with a piecewise easing
-    /// preset (bounce / elastic / back). Scalar and vec2 params only — colour
+    /// preset (bounce / elastic / back). Scalar and vec2 params only — color
     /// and crop params are rejected from the kind their registry row declares
     /// (neither implements [`crate::Extrapolate`]).
     pub fn apply_easing_preset(

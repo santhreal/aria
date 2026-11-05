@@ -15,7 +15,7 @@ use super::MOVE_MARKER;
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
 use crate::app::viewer_row_tests::{change, shell_with_take};
-use crate::app::work_area::tests::{centre, travel};
+use crate::app::work_area::tests::{center, travel};
 use crate::interned::intern;
 use crate::transport::TIMELINE_BASE_PPS;
 
@@ -302,13 +302,13 @@ fn the_drawn_flag_follows_the_drag_and_a_click_on_it_moves_the_playhead(
 
     // The flag moves with the pointer, and keeps moving once the pointer has
     // left the ruler.
-    let press = centre(visual, flag);
+    let press = center(visual, flag);
     let before = visual.read(|app| steps(state.read(app)));
     visual.simulate_mouse_down(press, MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(press + frames(6), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
     assert_eq!(at(visual), Some(30), "the drag moved the marker");
-    let drawn = f32::from(centre(visual, flag).x - press.x);
+    let drawn = f32::from(center(visual, flag).x - press.x);
     assert!(
         (drawn - frame * 6.0).abs() < 1.0,
         "the flag is drawn under the pointer: {drawn} px for {} px",
@@ -330,7 +330,7 @@ fn the_drawn_flag_follows_the_drag_and_a_click_on_it_moves_the_playhead(
     assert_eq!(label.as_deref(), Some(MOVE_MARKER));
 
     // Escape puts the flag back with the button down.
-    let press = centre(visual, flag);
+    let press = center(visual, flag);
     visual.simulate_mouse_down(press, MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(press - frames(4), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
@@ -344,7 +344,7 @@ fn the_drawn_flag_follows_the_drag_and_a_click_on_it_moves_the_playhead(
 
     // A click moves the playhead to the marker on the release.
     change(visual, &state, |state| state.set_playhead(0));
-    let press = centre(visual, flag);
+    let press = center(visual, flag);
     visual.simulate_mouse_down(press, MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
     assert_eq!(

@@ -44,7 +44,7 @@ pub struct MediaSource {
     /// load unchanged.
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_image: bool,
-    /// Operator grouping colour for the bin row, from the clip label set.
+    /// Operator grouping color for the bin row, from the clip label set.
     /// Absent from saves while unset, so old files load unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<crate::LabelColor>,

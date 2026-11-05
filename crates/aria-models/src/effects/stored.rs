@@ -3,7 +3,7 @@
 //! [`EffectInstance`](super::EffectInstance) and
 //! [`Transition`](crate::Transition) hold one map per kind of value and read a
 //! value that was never set as its catalog default. An effect keyframes its
-//! scalar, colour, and vector values, so they are read at a clip-relative tick;
+//! scalar, color, and vector values, so they are read at a clip-relative tick;
 //! a transition stores constants and ignores the tick. [`StoredParams`] is the
 //! single definition of how a stored value resolves against its
 //! [`EffectParamSpec`], how a `visible_when` condition is evaluated, and the
@@ -26,9 +26,9 @@ use crate::ids::ClipId;
 pub trait StoredParams {
     /// The stored scalar, angle, or integer value named `name` at `tick`.
     fn stored_scalar(&self, name: &str, tick: f64) -> Option<f32>;
-    /// The stored 8-bit colour named `name` at `tick`.
+    /// The stored 8-bit color named `name` at `tick`.
     fn stored_color(&self, name: &str, tick: f64) -> Option<[u8; 4]>;
-    /// The stored linear RGBA colour named `name` at `tick`.
+    /// The stored linear RGBA color named `name` at `tick`.
     fn stored_linear_color(&self, name: &str, tick: f64) -> Option<[f32; 4]>;
     /// The stored vector or size named `name` at `tick`.
     fn stored_vec2(&self, name: &str, tick: f64) -> Option<[f32; 2]>;
@@ -91,7 +91,7 @@ pub trait StoredParams {
         Some(p.choice_index(id).unwrap_or(0))
     }
 
-    /// The 8-bit colour of `p` at `tick`. A linear colour is clamped and
+    /// The 8-bit color of `p` at `tick`. A linear color is clamped and
     /// rounded to 8 bits.
     fn color(&self, p: &EffectParamSpec, tick: f64) -> Option<[u8; 4]> {
         if p.kind != EffectParamKind::Color {
@@ -106,7 +106,7 @@ pub trait StoredParams {
         Some(p.default_color_u8())
     }
 
-    /// The linear RGBA colour of `p` at `tick`. An 8-bit colour is divided
+    /// The linear RGBA color of `p` at `tick`. An 8-bit color is divided
     /// by 255.
     fn linear_color(&self, p: &EffectParamSpec, tick: f64) -> Option<[f32; 4]> {
         if p.kind != EffectParamKind::Color {
@@ -208,7 +208,7 @@ pub trait StoredParams {
 
     /// The shader storage-buffer floats of `params` at `tick`, in
     /// declaration order: one float per scalar, integer, boolean, choice
-    /// index, and layer id, four per colour, two per vector, three per
+    /// index, and layer id, four per color, two per vector, three per
     /// point, and a lookup table per curve and gradient. Text, font, and
     /// file parameters take no floats. `point` replaces the value of the
     /// vector at its slot index.

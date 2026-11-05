@@ -52,8 +52,8 @@ fn the_registration_rules_accept_a_sound_spec_and_name_each_refusal() {
     );
     assert_eq!(check_audio_effect(&sound), Ok(()));
 
-    let mut colour = scalar("tint", 0.0, 0.0, 1.0);
-    colour.kind = EffectParamKind::Color;
+    let mut color = scalar("tint", 0.0, 0.0, 1.0);
+    color.kind = EffectParamKind::Color;
     let mut vec2 = scalar("xy", 0.0, 0.0, 1.0);
     vec2.kind = EffectParamKind::Vec2;
     for (case, refused, says) in [
@@ -75,7 +75,7 @@ fn the_registration_rules_accept_a_sound_spec_and_name_each_refusal() {
             spec(vec![scalar("a", 0.0, 1.0, 0.0)], 0),
             "inverted range",
         ),
-        ("a color parameter", spec(vec![colour], 0), "scalar"),
+        ("a color parameter", spec(vec![color], 0), "scalar"),
         ("a vector parameter", spec(vec![vec2], 0), "scalar"),
         (
             "a default above the range",

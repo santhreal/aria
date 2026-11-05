@@ -28,7 +28,7 @@ pub const MAX_SPEED: f32 = 100.0;
 /// A picture clip's transform is clip-local: the animation belongs to the
 /// content, so dragging the clip drags its animation with it. A lane bar has no
 /// content — it reprocesses whatever is composited beneath its track — so its
-/// look belongs to the stretch of programme it covers, not to the bar. The two
+/// look belongs to the stretch of program it covers, not to the bar. The two
 /// conventions differ by the clip's start tick, and [`Clip::param_tick`]
 /// converts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

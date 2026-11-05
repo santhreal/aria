@@ -5,7 +5,7 @@
 //! first in its effect chain, and [`crate::Clip::clip_type`] holding the type's
 //! id. The generator's parameters are the type's data: they are saved with the
 //! clip as effect parameters, keyframed like any other, and listed as the type's
-//! property rows. The type adds a name, a colour and an icon for the timeline,
+//! property rows. The type adds a name, a color and an icon for the timeline,
 //! and the vec2 parameters the Viewer draws as drag handles.
 //!
 //! The catalog holds no shipped entries: text, shape, adjustment and multicam
@@ -45,7 +45,7 @@ pub struct ClipTypeSpec {
     /// before its generator.
     pub generator: String,
     /// The tint of the type's clips on the timeline when the clip has no label
-    /// colour of its own.
+    /// color of its own.
     pub colour: MarkerColor,
     /// The glyph drawn on the clip and beside the type's name.
     pub icon: Option<ClipTypeIcon>,

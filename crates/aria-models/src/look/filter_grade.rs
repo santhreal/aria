@@ -2,7 +2,7 @@
 //!
 //! A filter recipe used to be its own hand-written list of the same sliders,
 //! written out beside the model's. The two drifted: the recipe had no key for
-//! the colour wheels while the grade had twelve, and because the recipe read
+//! the color wheels while the grade had twelve, and because the recipe read
 //! with `#[serde(default)]`, a misspelled key in a catalog file was skipped —
 //! a preset that quietly did nothing.
 //!

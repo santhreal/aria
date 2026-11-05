@@ -70,7 +70,7 @@ fn overwrite(
 }
 
 #[test]
-fn a_clip_wholly_inside_the_span_is_removed_and_its_neighbours_stay_put() {
+fn a_clip_wholly_inside_the_span_is_removed_and_its_neighbors_stay_put() {
     let (_dir, mut engine, media, track, rate) = lane();
     let a = add_media_clip(&mut engine, track, media, src(rate, 1), rt(0));
     let b = add_media_clip(&mut engine, track, media, src(rate, 1), rt(24));

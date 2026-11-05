@@ -60,7 +60,7 @@ fn every_lane_kind_bakes_to_the_medium_its_row_describes() {
 }
 
 /// A sound pass holds the clip's own sound and nothing else. The lane it sits
-/// on is programme: its fader, its mute and where it points are applied again
+/// on is program: its fader, its mute and where it points are applied again
 /// when the intermediate plays back, so the pass takes them off.
 #[test]
 fn a_sound_pass_takes_every_lane_off_the_mix_desk() {
@@ -72,7 +72,7 @@ fn a_sound_pass_takes_every_lane_off_the_mix_desk() {
     let clip = project
         .add_clip(lane, media, tr(0, 100), rt(48))
         .expect("sound");
-    let neighbour = project
+    let neighbor = project
         .add_clip(other, media, tr(0, 40), rt(0))
         .expect("another lane's sound");
     project
@@ -100,7 +100,7 @@ fn a_sound_pass_takes_every_lane_off_the_mix_desk() {
         "the pass holds the clip alone at tick zero"
     );
     assert!(
-        pass.project.clip(neighbour).is_none(),
+        pass.project.clip(neighbor).is_none(),
         "another lane's sound is not this clip's"
     );
     for track in pass.project.timeline().tracks_ordered() {

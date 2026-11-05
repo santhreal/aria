@@ -15,7 +15,7 @@
 //! What is asserted about a written file: the frame count the command reports,
 //! that a probe can read it back, and the duration and dimensions that probe
 //! finds. Not the pixels — a readback of the composited canvas is the renderer's
-//! test, and asking a lossy H.264 file about a colour proves the encoder's
+//! test, and asking a lossy H.264 file about a color proves the encoder's
 //! chroma handling rather than the timeline's.
 
 mod common;

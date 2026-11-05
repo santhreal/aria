@@ -1,6 +1,6 @@
-//! Set a media-pool entry's label colour.
+//! Set a media-pool entry's label color.
 //!
-//! Self-inverse: applying it returns the same action carrying the colour that
+//! Self-inverse: applying it returns the same action carrying the color that
 //! was there before, so undo and redo are the same code path.
 
 use aria_models::{LabelColor, MediaId, ModelError};

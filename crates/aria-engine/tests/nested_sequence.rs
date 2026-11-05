@@ -23,7 +23,7 @@ use common::{add_generated, add_media_clip, add_track, rt, tr};
 /// An engine over a project that already holds one media source, one video
 /// lane, and two abutting-but-separated clips on it.
 ///
-/// The pool and the source clips are fixture setup, not the behaviour under
+/// The pool and the source clips are fixture setup, not the behavior under
 /// test, so they are built on a `Project` and the engine is opened around it: a
 /// live engine exposes no mutable project, because every change to one is a
 /// command.

@@ -30,19 +30,19 @@ pub const HISTOGRAM_W: u32 = 256;
 /// Height of the drawn histogram.
 pub const HISTOGRAM_H: u32 = 96;
 
-/// Graticule colour: dark enough to sit under a trace, bright enough to read.
+/// Graticule color: dark enough to sit under a trace, bright enough to read.
 const GRATICULE: [u8; 4] = [70, 78, 90, 255];
 /// Scope background. Opaque, so a trace is not blended with the panel.
 const BACKDROP: [u8; 4] = [12, 14, 18, 255];
 
-/// Luma trace colour for the waveform monitor.
+/// Luma trace color for the waveform monitor.
 const TRACE: [u8; 4] = [120, 235, 170, 255];
 
-/// Red trace colour, in the waveform parade and the histogram.
+/// Red trace color, in the waveform parade and the histogram.
 const RED: [u8; 3] = [235, 80, 80];
-/// Green trace colour, in the waveform parade and the histogram.
+/// Green trace color, in the waveform parade and the histogram.
 const GREEN: [u8; 3] = [80, 235, 110];
-/// Blue trace colour, in the waveform parade and the histogram.
+/// Blue trace color, in the waveform parade and the histogram.
 const BLUE: [u8; 3] = [90, 130, 245];
 
 /// The vectorscope's skin tone line, in degrees counter-clockwise from the Cb
@@ -67,7 +67,7 @@ pub const TARGET_LEVELS: [u8; 2] = [191, 255];
 /// a 100 % one, so the two read apart.
 const TARGET_HALF: [u32; 2] = [4, 2];
 
-/// What the waveform monitor shows. Saved with the UI settings, so a colourist
+/// What the waveform monitor shows. Saved with the UI settings, so a colorist
 /// finds the parade they left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,8 +132,8 @@ impl WaveformMode {
     }
 }
 
-/// The trace colour of one waveform channel.
-pub(crate) const fn channel_colour(channel: WaveformChannel) -> [u8; 3] {
+/// The trace color of one waveform channel.
+pub(crate) const fn channel_color(channel: WaveformChannel) -> [u8; 3] {
     match channel {
         WaveformChannel::Luma => [TRACE[0], TRACE[1], TRACE[2]],
         WaveformChannel::Red | WaveformChannel::Cr => RED,
@@ -265,7 +265,7 @@ fn cell_pixel(cell: usize, size: usize) -> u32 {
 fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
     let mut cached = VECTORSCOPE_GRATICULES.lock();
     Arc::clone(cached.entry(size).or_insert_with(|| {
-        let centre = cell_pixel(size / 2, size);
+        let center = cell_pixel(size / 2, size);
         let mut pixels = Vec::with_capacity(SCOPE_PX as usize * 3 + 360 + 12 * 32);
         let mut mark = |x: f32, y: f32| {
             let (x, y) = (x.round(), y.round());
@@ -273,7 +273,7 @@ fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
                 pixels.push(((y as u32 * SCOPE_PX + x as u32) * 4) as usize);
             }
         };
-        let middle = centre as f32;
+        let middle = center as f32;
         for i in 0..SCOPE_PX {
             mark(middle, i as f32);
             mark(i as f32, middle);
@@ -285,7 +285,7 @@ fn vectorscope_graticule(size: usize) -> Arc<[usize]> {
         }
         // Cr is up, so a counter-clockwise angle climbs the canvas.
         let (sin, cos) = SKIN_TONE_DEGREES.to_radians().sin_cos();
-        for step in 0..=centre {
+        for step in 0..=center {
             let t = step as f32;
             mark(middle + t * cos, middle - t * sin);
         }
@@ -339,7 +339,7 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
             continue;
         };
         let left = index as u32 * pitch;
-        let colour = channel_colour(*channel);
+        let color = channel_color(*channel);
         for (column, bins) in counts.as_chunks::<SCOPE_BINS>().0.iter().enumerate() {
             for (bin, hits) in bins.iter().enumerate() {
                 if *hits == 0 {
@@ -351,7 +351,7 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
                     image,
                     left + column as u32,
                     y,
-                    colour,
+                    color,
                     intensity(*hits, peak),
                 );
             }
@@ -359,8 +359,8 @@ fn paint_waveform(target: &mut RgbaImage, waveform: &Waveform) {
     }
 }
 
-/// Chroma on the Cb/Cr plane, with a centre cross, a saturation ring, the skin
-/// tone line, and the 75 % and 100 % colour targets.
+/// Chroma on the Cb/Cr plane, with a center cross, a saturation ring, the skin
+/// tone line, and the 75 % and 100 % color targets.
 pub fn vectorscope_image(vectorscope: &Vectorscope) -> RgbaImage {
     let mut image = canvas(SCOPE_PX, SCOPE_PX);
     paint_vectorscope(&mut image, vectorscope);
@@ -417,7 +417,7 @@ fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
         (&histogram.green, GREEN),
         (&histogram.blue, BLUE),
     ];
-    for (bins, colour) in channels {
+    for (bins, color) in channels {
         for (bin, count) in bins.iter().enumerate() {
             if *count == 0 {
                 continue;
@@ -425,7 +425,7 @@ fn paint_histogram(target: &mut RgbaImage, histogram: &Histogram) {
             let x = bin as u32 * (HISTOGRAM_W - 1) / (SCOPE_BINS as u32 - 1);
             let height = (intensity(*count, peak) * last as f32).round() as u32;
             for step in 0..=height {
-                add(image, x, last - step, colour, 0.7);
+                add(image, x, last - step, color, 0.7);
             }
         }
     }

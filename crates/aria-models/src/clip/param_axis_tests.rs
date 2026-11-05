@@ -300,7 +300,7 @@ fn a_delegated_read_accessor_follows_the_block_it_needs() {
 /// belonged to: the AI validator kept its own list of which parameters accept a
 /// preset, so a new property was accepted on the wire and refused by the model,
 /// or worse the reverse. The sweep runs over `CENSUS` and over every member of
-/// every axis, so a colour or a generator property added later is covered by
+/// every axis, so a color or a generator property added later is covered by
 /// declaring its kind.
 #[test]
 fn a_parameter_that_advertises_no_easing_preset_refuses_one() {
@@ -325,7 +325,7 @@ fn a_parameter_that_advertises_no_easing_preset_refuses_one() {
     assert!(refused > 0, "every parameter advertises an easing preset");
 }
 
-/// A colour and a rect never accept a preset, whichever axis they belong to: a
+/// A color and a rect never accept a preset, whichever axis they belong to: a
 /// preset extrapolates outside the keyframe pair, which neither can do. Stated
 /// separately from the predicate so the product rule is asserted rather than
 /// the implementation of the predicate.
@@ -395,7 +395,7 @@ fn an_accepted_easing_preset_expands_the_segment_it_names() {
 
 /// The validator column refuses a value of the wrong shape before anything is
 /// written, for every variant that declares a kind. A row that accepted a
-/// colour where it stores a scalar would corrupt on write instead of failing.
+/// color where it stores a scalar would corrupt on write instead of failing.
 #[test]
 fn the_validator_refuses_a_value_of_the_wrong_kind() {
     for (param, _) in clip_param_axis() {

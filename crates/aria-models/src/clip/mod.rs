@@ -187,12 +187,12 @@ pub struct Clip {
     /// linear gain ramp `volume` → 0. Absent from saves while 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub fade_out: i64,
-    /// Organizational label colour (Premiere label colours): a hue the
+    /// Organizational label color (Premiere label colors): a hue the
     /// operator assigns so related clips read as a group. Purely visual and
     /// render-neutral — the timeline and the inspector draw it, nothing
     /// composites it. `None` (and absent from saves) means the clip takes the
     /// default label of its kind, so old files load unchanged; a label saved
-    /// as one of the eight marker colours loads through
+    /// as one of the eight marker colors loads through
     /// [`crate::LabelColor`]'s aliases.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<crate::LabelColor>,

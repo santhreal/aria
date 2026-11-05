@@ -183,7 +183,7 @@ fn clearing_an_empty_grid_is_one_stable_reversible_step() {
 /// bypasses history: setting a grid is one reversible step, and the inverse
 /// restores the exact grid that was there before.
 #[test]
-fn setting_a_grid_normalises_it_and_undoes_to_the_previous_one() {
+fn setting_a_grid_normalizes_it_and_undoes_to_the_previous_one() {
     let (project, _media, clip) = media_project(vec![20, 50, 80]);
     let mut engine = engine_with(project);
 

@@ -8,7 +8,7 @@ impl Project {
     ///
     /// The speed ramp is cleared first, through
     /// [`Self::set_clip_speed_curve`], because that re-derives the clip's
-    /// duration and fails when the longer clip would overlap a neighbour; on
+    /// duration and fails when the longer clip would overlap a neighbor; on
     /// that failure nothing else has changed. A group the clip does not hold is
     /// left as it is.
     pub fn remove_clip_attributes(

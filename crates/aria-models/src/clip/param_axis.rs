@@ -3,7 +3,7 @@
 //! `ClipParam` names every animatable clip property a command can address.
 //! Each variant used to be an arm in every place that dispatched on one: the
 //! transform's three mutators, the project's keyframe / constant / erase /
-//! easing-preset routes, the colour-param guard, the target precondition, and
+//! easing-preset routes, the color-param guard, the target precondition, and
 //! the eight hand-written head rows of [`crate::clip_param_catalog`]. Most of
 //! those matches ended in a wildcard, so a new variant fell into somebody
 //! else's arm and shipped silently mis-routed.
@@ -151,7 +151,7 @@ impl ClipParam {
     /// The registry row for this variant.
     ///
     /// The only exhaustive match over `ClipParam` in the crate. Every
-    /// dispatcher reads its behaviour off the row this returns, so a variant
+    /// dispatcher reads its behavior off the row this returns, so a variant
     /// added without a row fails to compile here rather than falling into
     /// somebody else's wildcard arm.
     pub(crate) fn spec(self) -> &'static ClipParamSpec {
@@ -177,7 +177,7 @@ impl ClipParam {
 
     /// Which kind of property this parameter is.
     ///
-    /// Read off the registry row, so the classification and the behaviour that
+    /// Read off the registry row, so the classification and the behavior that
     /// follows from it cannot disagree.
     pub fn class(self) -> ClipParamClass {
         self.spec().class
@@ -318,7 +318,7 @@ impl ClipParam {
     /// Whether an easing preset can be applied to this parameter at all.
     ///
     /// Two facts off the one row: the variant declares an `ease` verb, and its
-    /// declared kind extrapolates. A colour has no meaning outside its
+    /// declared kind extrapolates. A color has no meaning outside its
     /// endpoints and a rect has no safe expansion, so both are refused here
     /// rather than in each surface's own guard list.
     pub fn supports_easing_preset(self) -> bool {

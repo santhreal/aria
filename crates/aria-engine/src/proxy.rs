@@ -9,7 +9,7 @@
 //!
 //! That requirement is why a proxy is produced by the same render and export path
 //! as everything else rather than by a transcoder of its own: a second decode and
-//! encode owner would be a second opinion about orientation, colour, stills, and
+//! encode owner would be a second opinion about orientation, color, stills, and
 //! rate conversion, and the first frame where the two disagreed would be a
 //! preview showing a picture the export does not have.
 //!

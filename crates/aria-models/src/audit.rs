@@ -58,7 +58,7 @@ pub enum ClipFact {
 ///
 /// The clip's lane and the walk are passed alongside it because some
 /// questions are about the clip's place in the sequence (its lane, its
-/// neighbours, a linked companion on another lane) rather than about the clip
+/// neighbors, a linked companion on another lane) rather than about the clip
 /// alone.
 #[derive(Debug, Clone, Copy)]
 pub struct ClipFactSpec {
@@ -97,7 +97,7 @@ impl<'a> FactWalk<'a> {
 
 /// Whether another clip on `lane` starts exactly where `clip` ends: the
 /// junction [`crate::Track::clips_abut`] reads, found by the lane's start
-/// order rather than by asking it about every neighbour.
+/// order rather than by asking it about every neighbor.
 fn at_a_cut(_: &FactWalk<'_>, lane: &Track, clip: &Clip) -> bool {
     lane.clips_starting_at(clip.timeline.end_tick())
         .any(|next| next.id != clip.id)

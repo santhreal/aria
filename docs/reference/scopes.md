@@ -14,7 +14,7 @@ Defined in `crates/aria-ui/src/scopes.rs` (`WaveformMode::ALL`, `#[serde(rename_
 
 ## Waveform channels (`WaveformChannel`)
 
-Defined in `crates/aria-analysis/src/scopes.rs` (`WaveformChannel`) and `crates/aria-ui/src/scopes.rs` (`channel_colour`). BT.709 luma (`luma709`) uses 16-bit fixed-point weights `13933 / 46871 / 4732` over `65536` (`0.2126 / 0.7152 / 0.0722`). BT.709 chroma (`chroma_codes709`) uses 15-bit fixed-point offsets with neutral gray at code value `128`.
+Defined in `crates/aria-analysis/src/scopes.rs` (`WaveformChannel`) and `crates/aria-ui/src/scopes.rs` (`channel_color`). BT.709 luma (`luma709`) uses 16-bit fixed-point weights `13933 / 46871 / 4732` over `65536` (`0.2126 / 0.7152 / 0.0722`). BT.709 chroma (`chroma_codes709`) uses 15-bit fixed-point offsets with neutral gray at code value `128`.
 
 | Variant | Trace RGB (`[u8; 3]`) | Gray (`128, 128, 128`) code | Measured quantity |
 | --- | --- | --- | --- |

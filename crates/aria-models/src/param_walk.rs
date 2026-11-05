@@ -210,7 +210,7 @@ impl ParamWalk for crate::clip::TextStyle {
             visit(&mut stroke.width)?;
         }
         // The background card was the carrier the old per-variant rebase
-        // forgot: a title with an animated card colour or corner radius kept
+        // forgot: a title with an animated card color or corner radius kept
         // its curve where the split found it, so the card animated against the
         // words it sits behind.
         if let Some(background) = &mut self.background {
@@ -274,7 +274,7 @@ impl ParamWalk for crate::clip::Generator {
                 }
                 Ok(())
             }
-            // A colour, a catalog id, a file path and a lane bar: content with
+            // A color, a catalog id, a file path and a lane bar: content with
             // nothing addressed in time.
             Self::SolidColor { .. }
             | Self::Sticker { .. }

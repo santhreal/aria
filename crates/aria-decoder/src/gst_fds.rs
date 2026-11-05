@@ -5,7 +5,7 @@
 //! fds. A desktop session starts a process with a soft limit of 1024, which a
 //! few dozen layers on screen, each with its own decoder, reach; past it every
 //! open fails with "Element failed to change its state". The first GStreamer
-//! initialisation in a process raises the soft limit to the hard limit, at
+//! initialization in a process raises the soft limit to the hard limit, at
 //! most [`OPEN_FILES`].
 
 use rustix::process::{Resource, Rlimit, getrlimit, setrlimit};
@@ -50,11 +50,11 @@ mod tests {
     /// WHY: a decoding process kept at the 1024 soft limit of a desktop session
     /// fails every open once a few dozen decoders are open. Covers the target
     /// below, at, and above the cap, an unlimited hard or soft limit, and the
-    /// choke point: every decode path initialises GStreamer through
+    /// choke point: every decode path initializes GStreamer through
     /// `ensure_init`, and after it the soft limit is raised. Does not catch a
     /// pipeline that leaks descriptors; that runs out at any limit.
     #[test]
-    fn gstreamer_initialisation_raises_the_open_file_limit() {
+    fn gstreamer_initialization_raises_the_open_file_limit() {
         let limit = |current: Option<u64>, maximum: Option<u64>| Rlimit { current, maximum };
         let cases = [
             (

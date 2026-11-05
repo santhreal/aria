@@ -1,6 +1,6 @@
 //! Folders in the media pool.
 //!
-//! A bin is organisation, not content: it holds no media of its own. A source
+//! A bin is organization, not content: it holds no media of its own. A source
 //! names the bin it sits in, and a bin names its parent, so the pool is a tree
 //! walked from the root rather than a nesting of owned lists. That keeps a move
 //! to a single field write and makes a missing parent a repairable state instead

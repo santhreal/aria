@@ -7,7 +7,7 @@
 //! serde attributes, a `Default` line, a slider table row, a parameter axis
 //! arm, a range group, a catalog row — and nothing tied them together, so a
 //! slider could exist in the model with no catalog row, no range, or a write
-//! path pointing at the neighbouring field. These tests read
+//! path pointing at the neighboring field. These tests read
 //! [`ColorAdjustments::SLIDERS`] and demand that each surface answers for the
 //! row, so a new row is covered the moment it is added and a row that reaches
 //! only half the surfaces fails here.
@@ -73,7 +73,7 @@ fn every_slider_has_a_catalog_row_that_agrees_with_its_shape() {
 #[test]
 fn every_slider_is_addressed_by_its_own_axis() {
     // A write through the axis must land on the field the row names, and on no
-    // other field: the classic failure is a row wired to its neighbour.
+    // other field: the classic failure is a row wired to its neighbor.
     let (mut project, clip) = graded_clip();
     for (at, slider) in ColorAdjustments::SLIDERS.iter().enumerate() {
         let axis = axis_of(slider.name);

@@ -138,7 +138,7 @@ mod tests {
     use super::*;
 
     /// The exhaustive `index_of` match is the compile-time gate; this proves
-    /// each arm points at its *own* row rather than a neighbour's, which would
+    /// each arm points at its *own* row rather than a neighbor's, which would
     /// compile and silently expand the wrong shape. Both sides come from
     /// [`SHIPPED`]: nothing here counts variants.
     #[test]

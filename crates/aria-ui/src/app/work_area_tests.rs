@@ -6,7 +6,7 @@
 //! bar's 8 px edge. Every grip is driven through the same press, drag and
 //! release, at two zooms, and the drawn test drives the bar the shell draws.
 //!
-//! Not covered: the bar's colours, which a snapshot owns.
+//! Not covered: the bar's colors, which a snapshot owns.
 
 use gpui::{Modifiers, MouseButton, MouseDownEvent, VisualTestContext, point, px};
 
@@ -138,8 +138,8 @@ fn a_double_click_sets_the_work_area_to_the_sequence() {
     );
 }
 
-/// The centre of the element drawn under `selector`.
-pub(crate) fn centre(
+/// The center of the element drawn under `selector`.
+pub(crate) fn center(
     visual: &mut VisualTestContext,
     selector: &'static str,
 ) -> gpui::Point<gpui::Pixels> {
@@ -165,7 +165,7 @@ fn the_drawn_bar_moves_its_ends_and_the_whole_range_and_fills_the_sequence_on_a_
 
     // The end grip moves Out, and keeps moving it once the pointer has left
     // the bar.
-    let end = centre(visual, "work-area-end");
+    let end = center(visual, "work-area-end");
     visual.simulate_mouse_down(end, MouseButton::Left, Modifiers::none());
     let left = end - frames(6);
     visual.simulate_mouse_move(left, MouseButton::Left, Modifiers::none());
@@ -187,7 +187,7 @@ fn the_drawn_bar_moves_its_ends_and_the_whole_range_and_fills_the_sequence_on_a_
     );
 
     // The start grip moves In.
-    let start = centre(visual, "work-area-start");
+    let start = center(visual, "work-area-start");
     visual.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(start + frames(3), MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_up(start + frames(3), MouseButton::Left, Modifiers::none());
@@ -200,7 +200,7 @@ fn the_drawn_bar_moves_its_ends_and_the_whole_range_and_fills_the_sequence_on_a_
 
     // The bar moves both, and Escape puts them back with the button down.
     let playhead = visual.read(|app| state.read(app).playhead.value);
-    let bar = centre(visual, "timeline-work-area");
+    let bar = center(visual, "timeline-work-area");
     visual.simulate_mouse_down(bar, MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_move(bar + frames(4), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
@@ -230,7 +230,7 @@ fn the_drawn_bar_moves_its_ends_and_the_whole_range_and_fills_the_sequence_on_a_
     );
 
     // A double-click fills the sequence.
-    let bar = centre(visual, "timeline-work-area");
+    let bar = center(visual, "timeline-work-area");
     visual.simulate_event(MouseDownEvent {
         position: bar,
         modifiers: Modifiers::none(),

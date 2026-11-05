@@ -261,7 +261,7 @@ mod tests {
     use super::*;
 
     /// The arm-points-at-its-own-row proof. A copy-pasted arm that returns a
-    /// neighbour's index goes red here, and a variant with no arm never compiles.
+    /// neighbor's index goes red here, and a variant with no arm never compiles.
     #[test]
     fn a_row_per_image_format_variant() {
         for (index, spec) in SHIPPED.iter().enumerate() {

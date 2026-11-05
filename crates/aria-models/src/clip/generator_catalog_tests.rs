@@ -2,7 +2,7 @@ use super::*;
 
 /// The exhaustive `index_of` match is the compile-time gate; this is the
 /// proof that each arm points at its *own* row instead of reusing a
-/// neighbour's, which would compile and silently mis-describe a generator.
+/// neighbor's, which would compile and silently mis-describe a generator.
 ///
 /// Both sides are derived: the rows come from [`SHIPPED`], the samples from
 /// each row's own census. Nothing here counts variants.
@@ -116,7 +116,7 @@ fn a_row_without_keyframes_is_unchanged_by_a_rebase() {
 }
 
 /// A lane bar has no content of its own, so its parameters can only be
-/// addressed in the programme's time: keyed clip-locally, a bar's look would
+/// addressed in the program's time: keyed clip-locally, a bar's look would
 /// slide every time the bar was dragged, which is the defect the column exists
 /// to close.
 ///
@@ -136,7 +136,7 @@ fn a_lane_bar_addresses_its_parameters_in_sequence_time() {
 
 /// The other side of the pairing. A generator that draws its own pixels carries
 /// its animation with it: a fill's fade belongs to the fill, not to the second
-/// of programme it happens to cover. Sequence timing on one would detach the
+/// of program it happens to cover. Sequence timing on one would detach the
 /// animation from the picture it animates, so it goes red here rather than
 /// shipping.
 #[test]

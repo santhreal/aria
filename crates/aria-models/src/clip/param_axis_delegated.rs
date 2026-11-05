@@ -311,8 +311,8 @@ fn style_ease(
     preset: PiecewiseEasingPreset,
 ) -> Result<(), ModelError> {
     let style = style_of(param)?;
-    // Colour style properties never reach here: `ClipParam::apply_easing_preset`
-    // refuses a colour row from its declared kind.
+    // Color style properties never reach here: `ClipParam::apply_easing_preset`
+    // refuses a color row from its declared kind.
     if param.kind() == Some(ParamKind::Vec2) {
         style_vec2_mut(&mut clip.styles, style)?.apply_easing_preset(tick, preset)
     } else {

@@ -292,7 +292,7 @@ fn apply_preset_undo_redo_roundtrip() {
 }
 
 /// Bypass switches one effect off without touching its parameters or its
-/// neighbours, one undo brings it back, and an index past the chain is refused
+/// neighbors, one undo brings it back, and an index past the chain is refused
 /// with the chain unchanged.
 #[test]
 fn set_effect_bypass_undo_redo_roundtrip() {

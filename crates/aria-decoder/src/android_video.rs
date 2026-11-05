@@ -1,6 +1,6 @@
 //! The video decoder itself: [`MediaCodecDecoder`], its feed-input /
 //! drain-output pump, and the codec-format refinement that settles geometry
-//! and colour before the first frame.
+//! and color before the first frame.
 //!
 //! Declared from `android.rs` with `#[path]`; `use super::*` reaches that
 //! module's private items and its own imports, so the move changed no name

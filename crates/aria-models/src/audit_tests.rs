@@ -254,7 +254,7 @@ fn the_cut_row_finds_the_abutting_pair() {
 
 /// What each question answers for one clip, read the way the model reads it
 /// for a single clip: the clip's own predicate, the timeline's per-clip scan,
-/// or the lane's abutment rule asked about every neighbour. Exhaustive, so a
+/// or the lane's abutment rule asked about every neighbor. Exhaustive, so a
 /// question added to [`ClipFact`] does not compile here until it has one.
 fn read_alone(fact: ClipFact, timeline: &Timeline, lane: &Track, clip: &Clip) -> bool {
     match fact {

@@ -233,7 +233,7 @@ param_enum! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LookParam {
-    /// Colour filter strength (`0` … `1`). Scalar; requires a filter.
+    /// Color filter strength (`0` … `1`). Scalar; requires a filter.
     FilterIntensity,
     /// LUT strength (`0` … `1`). Scalar; requires a LUT.
     LutIntensity,
@@ -351,7 +351,7 @@ pub enum LookParam {
     AdjustHueLumaBlue,
     /// Grade hue curve, luma of magentas. Scalar.
     AdjustHueLumaMagenta,
-    /// Grade HSL secondary key centre. Scalar.
+    /// Grade HSL secondary key center. Scalar.
     AdjustHslKeyHue,
     /// Grade HSL secondary key width. Scalar.
     AdjustHslKeyWidth,
@@ -381,7 +381,7 @@ param_enum! {
 pub enum MaskParam {
     /// Edge softness (`0` … `1`). Scalar.
     Feather,
-    /// Centre offset as a fraction of layer size. Vec2.
+    /// Center offset as a fraction of layer size. Vec2.
     Center,
     /// Size as a fraction of layer size. Vec2.
     Size,
@@ -439,13 +439,13 @@ param_enum! {
 /// rather than the wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ParamAxis {
-    /// [`LookParam`]: colour grade, chroma key, track matte.
+    /// [`LookParam`]: color grade, chroma key, track matte.
     Look,
     /// [`StyleParam`]: shadow, glow, outline, background plate.
     Style,
     /// [`TextParam`]: the visual treatment of a text generator.
     Text,
-    /// [`ShapeParam`]: the geometry and colours of a shape generator.
+    /// [`ShapeParam`]: the geometry and colors of a shape generator.
     Shape,
 }
 }

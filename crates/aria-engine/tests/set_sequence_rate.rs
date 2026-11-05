@@ -16,7 +16,7 @@ use common::{add_generated, add_track, rt, tr};
 #[test]
 fn a_rate_change_moves_clip_placements_to_equivalent_wall_clock_time() {
     let mut engine = Engine::new(EngineConfig::default()).expect("engine");
-    // The lane comes from the generator's own catalog row: a colour matte lives
+    // The lane comes from the generator's own catalog row: a color matte lives
     // on the graphics lane, and a fixture that names a lane by hand goes stale
     // the moment that row moves.
     let matte = Generator::SolidColor {

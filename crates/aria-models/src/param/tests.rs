@@ -895,7 +895,7 @@ fn incoming_and_outgoing_influence_shift_curve_pull_and_roundtrip_serde() {
 }
 
 #[test]
-fn roving_keyframe_retimes_from_neighbours_and_ignores_endpoints() {
+fn roving_keyframe_retimes_from_neighbors_and_ignores_endpoints() {
     let mut p = Param::Constant([0.0f32, 0.0]);
     p.set_keyframe(0, [0.0, 0.0], Easing::Linear);
     p.set_keyframe(10, [1.0, 0.0], Easing::Linear);

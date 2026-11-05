@@ -8,7 +8,7 @@ use crate::error::EngineError;
 /// `duration` on the timeline.
 ///
 /// The span is opened before the clip is placed rather than after, because a
-/// clip that grew into its neighbour would be refused as an overlap: with
+/// clip that grew into its neighbor would be refused as an overlap: with
 /// `ripple` the lane is pushed right by `duration`, and without it the span is
 /// covered the way [`overwrite`] covers one.
 ///

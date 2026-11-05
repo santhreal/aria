@@ -177,7 +177,7 @@ pub enum AudioInsertTarget {
     Clip(ClipId),
     /// A lane's sum, before its fader and its sends.
     Track(TrackId),
-    /// The programme mix, before the output clamp.
+    /// The program mix, before the output clamp.
     Master,
 }
 

@@ -6,7 +6,7 @@ use crate::error::EngineError;
 
 /// Set (or clear) a clip's given name. Accepted on every clip kind, since a
 /// name is an editorial label, not a property of the content, and
-/// changes no duration, so there is no neighbour check. The inverse is a
+/// changes no duration, so there is no neighbor check. The inverse is a
 /// full-clip restore, like the other flag edits.
 pub(crate) fn set_clip_name(
     ctx: &mut ApplyContext<'_>,

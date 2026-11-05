@@ -328,7 +328,7 @@ fn every_curve_a_clip_carries_is_resampled_with_it() {
 
 #[test]
 fn splitting_a_graded_clip_keeps_the_grade_on_the_picture() {
-    // The behaviour the walk exists for, through the editing path: a
+    // The behavior the walk exists for, through the editing path: a
     // split, then the same grade sampled at the same sequence tick.
     let mut project = Project::new("grade", R24);
     let media = project.add_media(crate::MediaSource::new(

@@ -16,7 +16,7 @@
 //!
 //! `index_of` is an exhaustive match over [`Generator`], so a new generator
 //! cannot compile until it names a row. `a_row_per_generator_variant` proves the
-//! arm points at that generator's own row rather than reusing a neighbour's, by
+//! arm points at that generator's own row rather than reusing a neighbor's, by
 //! round-tripping every row's own [`GeneratorSpec::census`] sample.
 
 use crate::error::ModelError;
@@ -56,7 +56,7 @@ pub struct GeneratorSpec {
     /// it reprocesses whatever is already composited beneath its track.
     pub paints: bool,
     /// Which time this generator's parameter keyframes are addressed in. A
-    /// lane bar's look belongs to the programme under it, so it keys in
+    /// lane bar's look belongs to the program under it, so it keys in
     /// sequence ticks; anything that paints keys in its own.
     pub param_time: ParamTime,
     /// Whether the content carries clip-relative keyframes, so a split or a
