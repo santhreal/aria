@@ -141,3 +141,116 @@ fn a_bar_shows_its_fade_handles_for_the_pointer_and_for_a_set_fade(cx: &mut Test
         "a fade in set, the pointer on its bar",
     );
 }
+
+#[gpui::test]
+fn pressing_a_linked_clip_line_or_right_clicking_puts_that_clip_first_and_shift_toggles(
+    cx: &mut TestAppContext,
+) {
+    use super::BarRows;
+    use super::tests::lane_of;
+    use gpui::MouseButton;
+
+    let shot = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let (state, visual, _) = placed(cx, "linked-press", shot);
+    let (v1_clip, a1_clip, v1_line_frac) = visual.read(|app| {
+        let s = state.read(app);
+        let v1 = s.store.sequence.tracks[0].clips[0].id;
+        let a1 = s.store.sequence.tracks[1].clips[0].id;
+        let line = s
+            .ui_clip_ref(ClipId::from_raw(v1))
+            .and_then(|clip| clip.line.as_ref())
+            .expect("V1 clip has an opacity line");
+        (
+            ClipId::from_raw(v1),
+            ClipId::from_raw(a1),
+            line.fraction_at(0.0),
+        )
+    });
+
+    let v1 = v1_lane(visual);
+    let a1 = lane_of(visual, "timeline-audio-canvas", "track-header-A1");
+    let (x0, x1, _) = card(visual, &state, v1_clip);
+    let mid_x = px((x0 + x1) * 0.5);
+    let a1_body = point(mid_x, a1.top() + px(6.0));
+    let v1_line = point(
+        mid_x,
+        v1.top() + px(BarRows::of(f32::from(v1.size.height)).line_y(v1_line_frac)),
+    );
+
+    // Press A1's body: both halves stay selected with A1 first.
+    visual.simulate_mouse_down(a1_body, MouseButton::Left, Modifiers::none());
+    visual.simulate_mouse_up(a1_body, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selected_clip(), Some(a1_clip));
+        assert_eq!(s.selected_model().map(|c| c.id), Some(a1_clip));
+        assert_eq!(s.selection, vec![a1_clip, v1_clip]);
+    });
+
+    // Press V1's line: the set is kept and V1 moves to the front.
+    visual.simulate_mouse_down(v1_line, MouseButton::Left, Modifiers::none());
+    visual.simulate_mouse_up(v1_line, MouseButton::Left, Modifiers::none());
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selected_clip(), Some(v1_clip));
+        assert_eq!(s.selected_model().map(|c| c.id), Some(v1_clip));
+        assert_eq!(s.selection, vec![v1_clip, a1_clip]);
+    });
+
+    // Right-click A1's body, then V1's line: each puts the clicked half first
+    // while keeping both halves selected.
+    visual.simulate_mouse_down(a1_body, MouseButton::Right, Modifiers::none());
+    visual.simulate_mouse_up(a1_body, MouseButton::Right, Modifiers::none());
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selected_clip(), Some(a1_clip));
+        assert_eq!(s.selected_model().map(|c| c.id), Some(a1_clip));
+        assert_eq!(s.selection, vec![a1_clip, v1_clip]);
+    });
+    visual.update(|window, app| {
+        state.update(app, |s, _| s.close_context());
+        window.refresh();
+    });
+    visual.run_until_parked();
+
+    visual.simulate_mouse_down(v1_line, MouseButton::Right, Modifiers::none());
+    visual.simulate_mouse_up(v1_line, MouseButton::Right, Modifiers::none());
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selected_clip(), Some(v1_clip));
+        assert_eq!(s.selected_model().map(|c| c.id), Some(v1_clip));
+        assert_eq!(s.selection, vec![v1_clip, a1_clip]);
+    });
+    visual.update(|window, app| {
+        state.update(app, |s, _| s.close_context());
+        window.refresh();
+    });
+    visual.run_until_parked();
+
+    // Shift-clicking V1's line toggles V1 out of and back into the selection,
+    // matching shift-click on the name band.
+    let shift = Modifiers {
+        shift: true,
+        ..Modifiers::none()
+    };
+    visual.simulate_mouse_down(v1_line, MouseButton::Left, shift);
+    visual.simulate_mouse_up(v1_line, MouseButton::Left, shift);
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selection, vec![a1_clip]);
+    });
+
+    visual.simulate_mouse_down(v1_line, MouseButton::Left, shift);
+    visual.simulate_mouse_up(v1_line, MouseButton::Left, shift);
+    visual.run_until_parked();
+    visual.read(|app| {
+        let s = state.read(app);
+        assert_eq!(s.selection, vec![a1_clip, v1_clip]);
+    });
+}

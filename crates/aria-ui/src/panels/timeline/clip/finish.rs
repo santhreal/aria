@@ -373,9 +373,7 @@ fn on_right_down(
         } => {
             cx.stop_propagation();
             this.state.update(cx, |state, _| {
-                if !state.selection.contains(&ClipId::from_raw(clip_id)) {
-                    state.select_clip_linked(ClipId::from_raw(clip_id), !event.modifiers.alt);
-                }
+                state.focus_or_select_clip(ClipId::from_raw(clip_id), !event.modifiers.alt);
                 state.open_context(
                     ContextTarget::Clip {
                         clip: clip_id,

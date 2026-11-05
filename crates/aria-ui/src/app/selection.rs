@@ -344,6 +344,30 @@ impl AppState {
         self.ui_clip_ref(self.selected_clip()?)
     }
 
+    /// Select `id` (with its link when `with_link` is set), or when `id` is
+    /// already in the selection keep the selected set and put `id` first so
+    /// Effect Controls and the property rows follow the pressed clip.
+    pub fn focus_or_select_clip(&mut self, id: ClipId, with_link: bool) {
+        if !with_link {
+            self.select_clip_linked(id, false);
+            return;
+        }
+        let Some(idx) = self.selection.iter().position(|c| *c == id) else {
+            self.select_clip_linked(id, true);
+            return;
+        };
+        if idx > 0 {
+            let clip = self.selection.remove(idx);
+            self.selection.insert(0, clip);
+        }
+        self.selected_edge = None;
+        self.selected_gap = None;
+        self.refresh_projected_selection();
+        if let Err(err) = self.refresh_moments() {
+            self.report_error(err);
+        }
+    }
+
     pub fn toggle_clip_in_selection(&mut self, id: ClipId) {
         let group = self.ui_clip_ref(id).and_then(|clip| clip.grouped_to);
         if let Some(idx) = self.selection.iter().position(|c| *c == id) {

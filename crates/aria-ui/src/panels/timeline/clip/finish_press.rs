@@ -293,8 +293,13 @@ pub(super) fn on_left_down(
                 });
             let origin_y = f32::from(event.position.y);
             let gesture = this.state.update(cx, |state, _| {
-                if !state.selection.contains(&clip) {
-                    state.select_clip_linked(clip, !event.modifiers.alt);
+                if event.modifiers.shift {
+                    state.toggle_clip_in_selection(clip);
+                    if key.is_none() {
+                        return None;
+                    }
+                } else {
+                    state.focus_or_select_clip(clip, !event.modifiers.alt);
                 }
                 match key {
                     Some(key) => state
