@@ -1,5 +1,12 @@
-use super::{describe_engine_error, describe_export_refusal};
+use std::collections::BTreeSet;
+
 use aria_engine::EngineError;
+use aria_models::{
+    BinId, ClipId, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId, PROJECT_SCHEMA_KIND,
+    PROJECT_SCHEMA_VERSION, ProjectSchema, Rational, SequenceId, SlotMedia, TrackId, TrackKind,
+};
+
+use super::{describe_engine_error, describe_export_refusal};
 
 #[test]
 fn missing_media_names_the_path_and_the_fix() {
@@ -149,4 +156,183 @@ fn unsupported_project_schema_names_both_versions_and_the_fix() {
         foreign_msg.contains("Pick a valid .aria project file"),
         "{foreign_msg}"
     );
+}
+
+/// Variants of [`ModelError`]; [`variant`] numbers them `0..VARIANTS`.
+const VARIANTS: usize = 45;
+
+/// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
+/// variant stops compiling here until it is numbered, and
+/// [`every_model_refusal_names_its_obstacle_and_the_fix`] then fails until
+/// [`every_refusal`] holds one of it.
+fn variant(err: &ModelError) -> usize {
+    match err {
+        ModelError::UnsupportedProjectSchema { .. } => 0,
+        ModelError::InvalidProjectFile(_) => 1,
+        ModelError::UnknownTrack(_) => 2,
+        ModelError::UnknownMedia(_) => 3,
+        ModelError::UnknownClip(_) => 4,
+        ModelError::DuplicateClip(_) => 5,
+        ModelError::UnknownMarker(_) => 6,
+        ModelError::UnknownBin(_) => 7,
+        ModelError::BinCycle(_) => 8,
+        ModelError::UnknownSequence(_) => 9,
+        ModelError::SequenceCycle(_) => 10,
+        ModelError::ParentCycle(_) => 11,
+        ModelError::ParentElsewhere { .. } => 12,
+        ModelError::ParentApart { .. } => 13,
+        ModelError::ParentOffPicture(_) => 14,
+        ModelError::ParentFlattened(_) => 15,
+        ModelError::ParentTooDeep(_) => 16,
+        ModelError::Overlap(_) => 17,
+        ModelError::IncompatibleTrackKind { .. } => 18,
+        ModelError::MediaReferenced(_) => 19,
+        ModelError::SourceOutOfBounds => 20,
+        ModelError::InvalidRange => 21,
+        ModelError::InvalidTransform(_) => 22,
+        ModelError::InvalidParam(_) => 23,
+        ModelError::RateMismatch { .. } => 24,
+        ModelError::TimeOverflow => 25,
+        ModelError::SlotMediaMismatch { .. } => 26,
+        ModelError::SlotDurationUnmet { .. } => 27,
+        ModelError::SlotRetimeUnsupported { .. } => 28,
+        ModelError::TooManyPicks { .. } => 29,
+        ModelError::UnknownMulticamGroup(_) => 30,
+        ModelError::EmptyMulticamGroup => 31,
+        ModelError::DuplicateMulticamMedia(_) => 32,
+        ModelError::MulticamAngleOutOfBounds { .. } => 33,
+        ModelError::InvalidMulticamCuts => 34,
+        ModelError::InvalidMulticamOffset(_) => 35,
+        ModelError::NotABus(_) => 36,
+        ModelError::LaneCarriesNoSound(_) => 37,
+        ModelError::RoutingCycle(_) => 38,
+        ModelError::DuplicateSend { .. } => 39,
+        ModelError::UnknownSend { .. } => 40,
+        ModelError::UnknownAudioEffect(_) => 41,
+        ModelError::ClipCarriesNoSound(_) => 42,
+        ModelError::UnknownInsert { .. } => 43,
+        ModelError::InsertsFull(_) => 44,
+    }
+}
+
+/// One refusal of each [`ModelError`] variant, as the model raises it.
+fn every_refusal() -> Vec<ModelError> {
+    let track = TrackId::from_raw(2);
+    let media = MediaId::from_raw(3);
+    let clip = ClipId::from_raw(4);
+    let other = ClipId::from_raw(5);
+    let bin = BinId::from_raw(6);
+    let sequence = SequenceId::from_raw(7);
+    vec![
+        ModelError::UnsupportedProjectSchema {
+            found: ProjectSchema {
+                version: PROJECT_SCHEMA_VERSION + 1,
+                kind: PROJECT_SCHEMA_KIND.into(),
+                extensions: Vec::new(),
+            },
+            expected: ProjectSchema::current(),
+        },
+        ModelError::InvalidProjectFile("expected value at line 1".into()),
+        ModelError::UnknownTrack(track),
+        ModelError::UnknownMedia(media),
+        ModelError::UnknownClip(clip),
+        ModelError::DuplicateClip(clip),
+        ModelError::UnknownMarker(MarkerId::from_raw(8)),
+        ModelError::UnknownBin(bin),
+        ModelError::BinCycle(bin),
+        ModelError::UnknownSequence(sequence),
+        ModelError::SequenceCycle(sequence),
+        ModelError::ParentCycle(clip),
+        ModelError::ParentElsewhere {
+            child: clip,
+            parent: other,
+        },
+        ModelError::ParentApart {
+            child: clip,
+            parent: other,
+        },
+        ModelError::ParentOffPicture(clip),
+        ModelError::ParentFlattened(other),
+        ModelError::ParentTooDeep(clip),
+        ModelError::Overlap(track),
+        ModelError::IncompatibleTrackKind {
+            track,
+            kind: TrackKind::Audio,
+        },
+        ModelError::MediaReferenced(media),
+        ModelError::SourceOutOfBounds,
+        ModelError::InvalidRange,
+        ModelError::InvalidTransform("scale is not finite".into()),
+        ModelError::InvalidParam("mask index 3 out of range".into()),
+        ModelError::RateMismatch {
+            expected: Rational::new(24, 1),
+            got: Rational::new(30, 1),
+        },
+        ModelError::TimeOverflow,
+        ModelError::SlotMediaMismatch {
+            slot: clip,
+            accepts: SlotMedia::VideoOnly,
+            found: MediaKind::Audio,
+        },
+        ModelError::SlotDurationUnmet { slot: clip },
+        ModelError::SlotRetimeUnsupported { slot: clip },
+        ModelError::TooManyPicks { given: 4, slots: 3 },
+        ModelError::UnknownMulticamGroup(MulticamGroupId::from_raw(9)),
+        ModelError::EmptyMulticamGroup,
+        ModelError::DuplicateMulticamMedia(media),
+        ModelError::MulticamAngleOutOfBounds { index: 5, total: 3 },
+        ModelError::InvalidMulticamCuts,
+        ModelError::InvalidMulticamOffset("NaN".into()),
+        ModelError::NotABus(track),
+        ModelError::LaneCarriesNoSound(track),
+        ModelError::RoutingCycle(track),
+        ModelError::DuplicateSend {
+            track,
+            to: TrackId::from_raw(10),
+        },
+        ModelError::UnknownSend { track, index: 2 },
+        ModelError::UnknownAudioEffect("reverb".into()),
+        ModelError::ClipCarriesNoSound(clip),
+        ModelError::UnknownInsert { index: 4, len: 2 },
+        ModelError::InsertsFull(8),
+    ]
+}
+
+/// Every model refusal reads as its own obstacle and the fix for it: an
+/// obstacle sentence, then an action sentence, with no id, debug value or
+/// placeholder of the model's own in it.
+///
+/// Closes "a refusal reads as a shrug": every model error but the two project
+/// file ones read "Couldn't apply that edit. Undo, then try again.", so a ramp
+/// refused for overlapping the next clip read as a fault to undo rather than
+/// a clip to make room for. Derived from [`variant`], so a new refusal fails
+/// here until it has copy and a case. Not covered: whether a sentence names
+/// the right fix, which is read in the copy itself.
+#[test]
+fn every_model_refusal_names_its_obstacle_and_the_fix() {
+    let refusals = every_refusal();
+    let numbered: BTreeSet<usize> = refusals.iter().map(variant).collect();
+    assert_eq!(
+        numbered,
+        (0..VARIANTS).collect(),
+        "every_refusal misses a ModelError variant"
+    );
+    for err in refusals {
+        let what = format!("{err:?}");
+        let copy = describe_engine_error(&EngineError::Model(err));
+        assert!(
+            !copy.contains("Couldn't apply that edit"),
+            "{what} reads as the generic refusal: {copy}"
+        );
+        assert!(
+            copy.ends_with('.') && copy.contains(". "),
+            "{what} is not an obstacle and a fix: {copy}"
+        );
+        for token in ["#", "{", "}", "Id(", "Rational", "Some("] {
+            assert!(
+                !copy.contains(token),
+                "{what} shows the model's own {token:?}: {copy}"
+            );
+        }
+    }
 }

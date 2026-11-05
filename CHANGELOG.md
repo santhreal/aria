@@ -1136,6 +1136,7 @@ Notes for the latest release. For previous releases, see the
 - A speed-ramp point stays highlighted while it is dragged along time, and each point is drawn centered on the place a click grabs it.
 - The Speed tab's ramp graph draws each preset with the easing the clip plays, and its Length readout matches the length an eased ramp gives the clip.
 - Dragging a speed-ramp point keeps the point's easing and adds one undo step instead of two.
+- An edit the project rejects now states the obstacle and the fix, such as a speed ramp that would overlap the next clip, instead of a generic message to undo and try again.
 
 ## [alpha-0.7.0] - 2026-07-22
 
