@@ -49,11 +49,13 @@ impl AppState {
         }
     }
 
-    /// Place a dragged catalog entry on empty lane space at `at`.
+    /// Land a dragged catalog entry released over `track` at `at`.
     ///
-    /// Inert for a payload that needs a clip: a preset with nothing under it has
-    /// nothing to change, and placing a bare clip to hold it would be inventing an
-    /// edit nothing requested.
+    /// A payload that targets a clip applies to the clip on `track` at `at`,
+    /// as [`Self::drop_catalog_on_clip`] does, and is inert over empty lane
+    /// space: a preset with nothing under it has nothing to change, and
+    /// placing a bare clip to hold it would be inventing an edit nothing
+    /// requested. A payload that places a clip of its own places it at `at`.
     pub fn drop_catalog_on_track(
         &mut self,
         drag: &CatalogDrag,
@@ -73,8 +75,20 @@ impl AppState {
             | CatalogDragKind::Transition
             | CatalogDragKind::Effect
             | CatalogDragKind::AudioEffect
-            | CatalogDragKind::Preset => Ok(()),
+            | CatalogDragKind::Preset => match track.and_then(|track| self.clip_on(track, at)) {
+                Some(clip) => self.drop_catalog_on_clip(drag, clip),
+                None => Ok(()),
+            },
         }
+    }
+
+    /// The clip on `track` at tick `at`. The lane is the single definition of
+    /// which clip is at a position, as for `select_clip_under_playhead`.
+    fn clip_on(&self, track: TrackId, at: i64) -> Option<ClipId> {
+        let at = aria_models::RationalTime::new(at, self.playhead.rate);
+        let engine = self.engine.lock();
+        let track = engine.project().timeline().track(track)?;
+        track.clip_at(at).ok().flatten().map(|clip| clip.id)
     }
 
     /// Apply a dragged catalog entry dropped on the inspector's Effects tab to

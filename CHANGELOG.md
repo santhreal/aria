@@ -1143,6 +1143,7 @@ Notes for the latest release. For previous releases, see the
 - An edit the project rejects now states the obstacle and the fix, such as a speed ramp that would overlap the next clip, instead of a generic message to undo and try again.
 - The Project panel's Icons and Freeform views draw each picture in a 16:9 box as wide as its cell, so a frame no longer sits between bands of empty plate.
 - A selected row in History, Effects & Presets, the Project panel, the Viewer menus, the menu bar and Settings keeps its selected plate under the pointer instead of fading to the weaker hover fill, and every row fades to one hover fill.
+- An effect, preset, animation, mask or transition dropped from Effects & Presets on a timeline clip applies to that clip instead of changing nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

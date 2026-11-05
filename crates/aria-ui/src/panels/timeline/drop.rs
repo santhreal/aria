@@ -12,12 +12,18 @@
 //!   media drop that adds one.
 //!
 //! The tick is captured on drag-move rather than read on drop, because a drop
-//! listener is not given the pointer. The magnet applies exactly as it does to a
-//! clip drag: a drop lands on a cut, a marker, or the playhead when it is close
-//! enough to one.
+//! listener is not given the pointer. A drag-move listener runs for every
+//! move of the drag, over its element or not, so each target takes a move
+//! only inside its own bounds ([`lane_drop`], [`edge_drop`]): the video and
+//! audio lane groups and both edge strips would otherwise each claim every
+//! move, and the last to run would name the lane. The magnet applies exactly
+//! as it does to a clip drag: a drop lands on a cut, a marker, or the
+//! playhead when it is close enough to one.
 
 use gpui::prelude::FluentBuilder;
-use gpui::{Div, InteractiveElement, IntoElement, ParentElement, Styled, div, px};
+use gpui::{
+    Bounds, Div, InteractiveElement, IntoElement, ParentElement, Pixels, Point, Styled, div, px,
+};
 
 use crate::drag_hint::{self as drop_hint, DropHint};
 use crate::motion;
@@ -38,6 +44,40 @@ fn snap_ticks(fps: f32, pps: f32) -> i64 {
     (((SNAP_PX / pps) * fps.max(1.0)).round() as i64).max(1)
 }
 
+/// The lane and tick a drag-move at `at` names over a lane group drawn in
+/// `bounds`, or `None` when `at` is outside the group.
+pub(super) fn lane_drop(
+    lanes: &[(u64, f32, f32)],
+    bounds: Bounds<Pixels>,
+    at: Point<Pixels>,
+    (scroll_x, fps, pps): (f32, f32, f32),
+) -> Option<(u64, i64)> {
+    if !bounds.contains(&at) {
+        return None;
+    }
+    let track = lane_at_y(lanes, f32::from(at.y - bounds.origin.y))?;
+    let x = f32::from(at.x - bounds.origin.x);
+    let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
+    Some((track, tick))
+}
+
+/// The tick a drag-move at `at` names over an edge strip drawn in `bounds`,
+/// whose lanes start `header_w` from its left edge, or `None` when `at` is
+/// outside the strip.
+pub(super) fn edge_drop(
+    bounds: Bounds<Pixels>,
+    at: Point<Pixels>,
+    header_w: f32,
+    (scroll_x, fps, pps): (f32, f32, f32),
+) -> Option<i64> {
+    if !bounds.contains(&at) {
+        return None;
+    }
+    let x = f32::from(at.x - bounds.origin.x) - header_w;
+    let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
+    Some(tick)
+}
+
 /// Make `el` a lane-group canvas container that accepts dragged pool media and
 /// catalog items, resolving the target lane from the pointer's vertical offset.
 pub(crate) fn group_target(
@@ -53,12 +93,12 @@ pub(crate) fn group_target(
     let lanes_catalog = lanes;
     el.on_drag_move(
         cx.listener(move |this, event: &gpui::DragMoveEvent<MediaDrag>, _, cx| {
-            let x = f32::from(event.event.position.x - event.bounds.origin.x);
-            let y = f32::from(event.event.position.y - event.bounds.origin.y);
-            let Some(track_id) = lane_at_y(&lanes_media, y) else {
+            let view = (scroll_x, fps, pps);
+            let Some((track_id, tick)) =
+                lane_drop(&lanes_media, event.bounds, event.event.position, view)
+            else {
                 return;
             };
-            let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
             this.set_media_drop(track_id, tick);
             if drop_hint::set(DropHint::Lane {
                 track: track_id,
@@ -109,12 +149,12 @@ pub(crate) fn group_target(
     }))
     .on_drag_move(cx.listener(
         move |this, event: &gpui::DragMoveEvent<crate::types::CatalogDrag>, _, cx| {
-            let x = f32::from(event.event.position.x - event.bounds.origin.x);
-            let y = f32::from(event.event.position.y - event.bounds.origin.y);
-            let Some(track_id) = lane_at_y(&lanes_catalog, y) else {
+            let view = (scroll_x, fps, pps);
+            let Some((track_id, tick)) =
+                lane_drop(&lanes_catalog, event.bounds, event.event.position, view)
+            else {
                 return;
             };
-            let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
             this.set_catalog_drop(track_id, tick);
             if drop_hint::set(DropHint::Lane {
                 track: track_id,
@@ -212,8 +252,11 @@ pub(crate) fn edge_strip(
         })
         .on_drag_move(
             cx.listener(move |this, event: &gpui::DragMoveEvent<MediaDrag>, _, cx| {
-                let x = f32::from(event.event.position.x - event.bounds.origin.x) - header_w;
-                let tick = crate::panels::timeline::px_to_ticks(x + scroll_x, fps, pps);
+                let view = (scroll_x, fps, pps);
+                let Some(tick) = edge_drop(event.bounds, event.event.position, header_w, view)
+                else {
+                    return;
+                };
                 this.set_media_edge_drop(tick);
                 if drop_hint::set(DropHint::Edge { top, tick }) {
                     cx.notify();

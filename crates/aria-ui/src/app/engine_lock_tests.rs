@@ -54,6 +54,11 @@ const DECLARED: &[(&str, &str, &str)] = &[
         "validates an assistant command against the project on the turn's own thread",
     ),
     (
+        "app/catalog_drag.rs",
+        "clip_on",
+        "resolves the clip at the drop point when a catalog drag is released onto a track",
+    ),
+    (
         "app/drag_room.rs",
         "drag_room",
         "reads the room of a trim, roll, slide or stretch about to land from a release \

@@ -295,6 +295,52 @@ fn a_drag_above_the_top_lane_lands_on_it_and_one_below_the_last_on_the_last() {
     assert_eq!(super::super::drop::lane_at_y(&[], 10.0), None);
 }
 
+/// WHY: a drag-move listener runs for every move of the drag, over its
+/// element or not, and `lane_at_y` takes a pointer above or below a group's
+/// lanes to its first or last. Each lane group took every move, so the audio
+/// group named A1 for a pointer over V1, and an effect dropped on a video
+/// clip went to the audio lane, where it changed nothing. Over a stacked top
+/// edge strip, video group, audio group and bottom edge strip, each point of
+/// a sweep is claimed by the target that contains it and by no other. Not
+/// covered: a drop target whose listener skips `lane_drop` or `edge_drop`.
+#[test]
+fn a_drag_move_names_a_lane_only_over_the_target_it_moves_over() {
+    use super::super::drop::{edge_drop, lane_drop};
+    use gpui::{Bounds, point, px, size};
+    let view = (96.0, 24.0, 48.0);
+    let rect =
+        |top: f32, height: f32| Bounds::new(point(px(0.), px(top)), size(px(800.), px(height)));
+    let edge_top = rect(0., 8.);
+    let video = rect(8., 200.);
+    let audio = rect(212., 200.);
+    let edge_bottom = rect(412., 8.);
+    // Each group's lanes in its own coordinates, top to bottom.
+    let video_lanes = [(2, 104.0, 152.0), (1, 152.0, 200.0)];
+    let audio_lanes = [(11, 0.0, 48.0), (12, 48.0, 96.0)];
+    for step in 0..215 {
+        let y = step as f32 * 2.0;
+        let at = point(px(400.), px(y));
+        let claims = [
+            (edge_top, edge_drop(edge_top, at, 0., view).is_some()),
+            (video, lane_drop(&video_lanes, video, at, view).is_some()),
+            (audio, lane_drop(&audio_lanes, audio, at, view).is_some()),
+            (edge_bottom, edge_drop(edge_bottom, at, 0., view).is_some()),
+        ];
+        for (n, (bounds, claimed)) in claims.into_iter().enumerate() {
+            assert_eq!(claimed, bounds.contains(&at), "target {n} at y {y}");
+        }
+    }
+    let over_v1 = point(px(240.), px(8. + 170.));
+    assert_eq!(
+        lane_drop(&video_lanes, video, over_v1, view),
+        Some((1, 168)),
+        "the video group names V1 at the scrolled tick under the pointer"
+    );
+    assert_eq!(lane_drop(&audio_lanes, audio, over_v1, view), None);
+    let over_head = point(px(240.), px(4.));
+    assert_eq!(edge_drop(edge_top, over_head, 48., view), Some(144));
+}
+
 #[test]
 fn the_first_lane_top_rests_each_side_on_the_divider() {
     // (audio, viewport, content, scroll, the first lane's top)

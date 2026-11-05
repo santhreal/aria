@@ -219,9 +219,18 @@ fn a_clip_type_drop_with_no_type_behind_the_id_is_refused_and_places_nothing() {
     assert_eq!(state.store.sequence.clip_count(), before);
 }
 
+/// Each clip payload lands on its clip both ways a drop names the clip: on
+/// the card, and on the lane at a tick inside the clip, which is how the
+/// timeline's lane groups report a drop. The lane drop once placed nothing
+/// for a clip payload, so an effect dropped on a timeline clip changed
+/// nothing. A lane drop past the clip's end selects nothing.
 #[test]
 fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
-    for drag in payloads().into_iter().filter(CatalogDrag::targets_a_clip) {
+    for (drag, on_lane) in payloads()
+        .into_iter()
+        .filter(CatalogDrag::targets_a_clip)
+        .flat_map(|drag| [(drag.clone(), false), (drag, true)])
+    {
         let (mut state, _) = with_clip();
         let target = state.selected_clip().expect("the fixture selects a clip");
         seed(&mut state, &drag);
@@ -229,9 +238,32 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
         state.selection.clear();
         state.rebuild_store();
 
-        state
-            .drop_catalog_on_clip(&drag, target)
-            .unwrap_or_else(|err| panic!("{:?} {}: {err:?}", drag.kind, drag.id));
+        let landed = if on_lane {
+            let (track, start, end) = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .find_map(|track| {
+                    let clip = track.clips.iter().find(|clip| clip.id == target.raw())?;
+                    Some((track.id, clip.timeline_start_ticks, clip.timeline_end_ticks))
+                })
+                .expect("the clip is on a lane");
+            let track = TrackId::from_raw(track);
+            state
+                .drop_catalog_on_track(&drag, Some(track), end)
+                .expect("inert past the clip");
+            assert_eq!(
+                state.selected_clip(),
+                None,
+                "{:?} past the clip's end selected a clip",
+                drag.kind
+            );
+            state.drop_catalog_on_track(&drag, Some(track), (start + end) / 2)
+        } else {
+            state.drop_catalog_on_clip(&drag, target)
+        };
+        landed.unwrap_or_else(|err| panic!("{:?} {}: {err:?}", drag.kind, drag.id));
 
         assert_eq!(
             state.selected_clip(),
