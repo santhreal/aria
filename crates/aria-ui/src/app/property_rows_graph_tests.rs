@@ -21,7 +21,7 @@ use aria_models::{ClipId, ClipParam, ParamKind, ParamValue};
 use super::GraphMode;
 use crate::app::AppState;
 use crate::app::clip_keys::key_params_of;
-use crate::app::fixtures::{a_title, blurred_clip, keyed_mask_path, with_audio};
+use crate::app::fixtures::{a_title, blurred_clip, keyed_mask_path, linked_pair, with_audio};
 use crate::app::param_units::{Scale, Units};
 use crate::app::property_rows::format_param_value;
 
@@ -118,4 +118,76 @@ fn curves_in_different_units_share_an_axis_of_stored_numbers() {
     for (label, stored) in axis(&mut state, clip, &shared, GraphMode::Value) {
         assert_eq!(label, units.print(stored), "the shared axis at {stored}");
     }
+}
+
+/// Every clip of a fixture with a linked video/audio pair and a lone clip
+/// graphs one curve on that clip when selected, whether selected alone or
+/// with its linked companion, and when a removed clip sits ahead of it in
+/// `selection` or in `graph_params` the graph falls back to the projected
+/// selection.
+///
+/// Closes the class where opening the timeline graph editor pinned the
+/// initial clip into `graph_params`, where `graph_default` read
+/// `selection.first()` while `clip_and_lane_kind` read `selected.model.id`,
+/// and where a removed clip in `graph_params` masked `graph_default`. Does
+/// not cover pointer hit-testing on the plotted curve, which
+/// `a_graph_press_takes_the_key_on_its_icon_and_the_nearest_handle_past_it`
+/// checks.
+#[test]
+fn every_fixture_clip_graphs_its_curve_and_stale_targets_fall_back_to_selection() {
+    let mut state = linked_pair();
+    let kept = ClipId::from_raw(state.store.sequence.tracks[0].clips[0].id);
+    let first_end = state.store.sequence.tracks[0].clips[0].timeline_end_ticks;
+    let lone = state
+        .place_generated(aria_models::Generator::text("Title"), None, first_end)
+        .expect("place the lone clip");
+    let clips: Vec<ClipId> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .map(|clip| ClipId::from_raw(clip.id))
+        .collect();
+    assert_eq!(clips.len(), 3, "linked V/A pair and lone clip");
+
+    state.toggle_timeline_graph_editor();
+    assert!(state.timeline_graph_open());
+
+    for &clip in &clips {
+        for linked in [true, false] {
+            state.select_clip_linked(clip, linked);
+            let model = state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
+            assert_eq!(
+                model.curves.len(),
+                1,
+                "clip {clip:?} (linked={linked}) must produce one curve"
+            );
+            assert_eq!(model.curves[0].clip, clip);
+        }
+    }
+
+    let gone = ClipId::from_raw(999_999);
+    for &clip in &clips {
+        state.selection = vec![gone, clip];
+        state.refresh_projected_selection();
+        assert_eq!(state.selected_clip(), Some(gone));
+        assert_eq!(state.selected_model().map(|c| c.id), Some(clip));
+        let model = state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
+        assert_eq!(model.curves.len(), 1);
+        assert_eq!(model.curves[0].clip, clip);
+    }
+
+    state.toggle_clip_outline(lone.raw());
+    state.select_timeline_property(lone, ClipParam::Position, false);
+    assert!(state.undo(), "undo the lone clip placement");
+    state.select_clip(kept);
+    let model = state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
+    assert_eq!(model.curves.len(), 1);
+    assert_eq!(model.curves[0].clip, kept);
+
+    state.with_prop_rows_mut(|s| s.graph_params.push((gone, ClipParam::Position)));
+    let model = state.build_timeline_graph_model(24.0, 120.0, 0.0, 160.0);
+    assert_eq!(model.curves.len(), 1);
+    assert_eq!(model.curves[0].clip, kept);
 }

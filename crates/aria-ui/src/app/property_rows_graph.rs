@@ -137,7 +137,20 @@ impl AppState {
 
     /// Toggle the timeline graph editor (`Shift+F3` or header button).
     pub fn toggle_timeline_graph_editor(&mut self) {
-        let next = self.with_prop_rows_mut(|s| {
+        let stale: Vec<ClipId> = self.with_prop_rows(|s| {
+            s.graph_params
+                .iter()
+                .map(|(clip, _)| *clip)
+                .chain(s.selected_keyframes.iter().map(|key| key.clip))
+                .filter(|&clip| self.clip_and_lane_kind(clip).is_none())
+                .collect()
+        });
+        self.with_prop_rows_mut(|s| {
+            if !stale.is_empty() {
+                s.graph_params.retain(|(clip, _)| !stale.contains(clip));
+                s.selected_keyframes
+                    .retain(|key| !stale.contains(&key.clip));
+            }
             s.graph_open = !s.graph_open;
             if s.graph_open
                 && s.graph_params.is_empty()
@@ -145,14 +158,7 @@ impl AppState {
             {
                 s.graph_params.push((first.clip, first.param));
             }
-            s.graph_open
         });
-        if next
-            && self.with_prop_rows(|s| s.graph_params.is_empty())
-            && let Some(target) = self.graph_default()
-        {
-            self.with_prop_rows_mut(|s| s.graph_params.push(target));
-        }
     }
 
     /// The property the timeline graph draws, and its rows highlight, while no
@@ -160,7 +166,7 @@ impl AppState {
     /// ([`AppState::curve_param`]) when its row is open or no row of the clip
     /// is, and otherwise the clip's first open row.
     pub(crate) fn graph_default(&self) -> Option<(ClipId, ClipParam)> {
-        let clip = self.selected_clip()?;
+        let clip = self.selected_model()?.id;
         let graphed = self.curve_param();
         // The selection's projected rows, as the Inspector reads them, rather
         // than a second projection of the same clip.
@@ -198,14 +204,14 @@ impl AppState {
         scroll_x: f32,
         height: f32,
     ) -> TimelineGraphModel {
-        let (mode, mut targets, selected_keys, active_drag) = self.with_prop_rows(|s| {
+        let (mode, selected_keys, active_drag) = self.with_prop_rows(|s| {
             (
                 s.graph_mode,
-                s.graph_params.clone(),
                 s.selected_keyframes.clone(),
                 s.graph_drag.clone(),
             )
         });
+        let mut targets = self.active_graph_params();
         if targets.is_empty()
             && let Some(target) = self.graph_default()
         {

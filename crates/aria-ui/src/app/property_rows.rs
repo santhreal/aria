@@ -366,7 +366,7 @@ impl AppState {
         out_ease: Option<TemporalEase>,
         hold: bool,
     ) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
+        let Some(clip) = self.selected_model().map(|clip| clip.id) else {
             return Ok(());
         };
         if !self.has_keyframe_at_playhead(param) {
@@ -389,7 +389,7 @@ impl AppState {
         param: ClipParam,
         roving: bool,
     ) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
+        let Some(clip) = self.selected_model().map(|clip| clip.id) else {
             return Ok(());
         };
         if !self.has_keyframe_at_playhead(param) {
@@ -465,6 +465,13 @@ impl AppState {
                 .collect()
         };
         self.expanded_models = models;
+        let selected = self.selected_model().map(|clip| clip.id);
+        let expanded = &self.expanded_models;
+        let live = |clip: ClipId| expanded.contains_key(&clip.raw()) || selected == Some(clip);
+        self.prop_rows.graph_params.retain(|(clip, _)| live(*clip));
+        self.prop_rows
+            .selected_keyframes
+            .retain(|key| live(key.clip));
     }
 
     /// The model of `clip_id` and whether it sits on an audio lane, from the
@@ -479,6 +486,15 @@ impl AppState {
             .as_ref()
             .filter(|detail| detail.model.id == clip_id)?;
         Some((detail.model.clone(), detail.audio_lane))
+    }
+
+    /// The chosen timeline property rows whose clips are in the projection
+    /// (open in the timeline outline, or the selected clip).
+    pub(crate) fn active_graph_params(&self) -> Vec<(ClipId, ClipParam)> {
+        self.with_prop_rows(|s| s.graph_params.clone())
+            .into_iter()
+            .filter(|(clip, _)| self.clip_and_lane_kind(*clip).is_some())
+            .collect()
     }
 
     /// The parameters currently visible in property rows for `clip_id`.
@@ -568,9 +584,10 @@ impl AppState {
         // The row the graph draws while no row is chosen for it is lit as a
         // chosen one is.
         let graph_default = self
-            .selected_clip()
+            .selected_model()
+            .map(|clip| clip.id)
             .filter(|clip| expanded_on_track.contains(&clip.raw()))
-            .filter(|_| self.with_prop_rows(|s| s.graph_params.is_empty()))
+            .filter(|_| self.active_graph_params().is_empty())
             .and_then(|_| self.graph_default());
         let mut out = Vec::new();
         for raw_clip in expanded_on_track {

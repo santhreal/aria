@@ -138,21 +138,22 @@ pub struct DriverView {
 }
 
 impl SelectedDetail {
-    /// Project the detail for the first clip of `selection` at `at`, with the
-    /// rest of the selection as its peers.
+    /// Project the detail for the first clip of `selection` in the project at
+    /// `at`, with the remaining live clips of `selection` as its peers.
     ///
-    /// `None` when nothing is selected or the first clip is not in the project
-    /// — a selection can name a clip an undo has taken away, and a stale
-    /// selection draws nothing rather than panicking. A peer the project no
-    /// longer holds is left out for the same reason.
+    /// `None` when nothing in `selection` is in the project — a selection can
+    /// hold a clip an undo has taken away, and a stale entry is skipped rather
+    /// than dropping the rest of the selection or panicking.
     pub fn of(engine: &mut Engine, selection: &[ClipId], at: RationalTime) -> Option<Self> {
-        let (&clip, others) = selection.split_first()?;
         let project = engine.project();
-        let held = project.timeline().clip(clip)?;
+        let (idx, (&clip, held)) = selection
+            .iter()
+            .enumerate()
+            .find_map(|(i, id)| Some((i, (id, project.timeline().clip(*id)?))))?;
         let model = held.clone();
         let audio_lane = on_audio_lane(project, clip);
         let params = key_params_of(&model, audio_lane);
-        let peers = others
+        let peers = selection[idx + 1..]
             .iter()
             .filter_map(|&peer| {
                 let model = project.timeline().clip(peer)?.clone();

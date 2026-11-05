@@ -1147,6 +1147,7 @@ Notes for the latest release. For previous releases, see the
 - A selected row in History, Effects & Presets, the Project panel, the Viewer menus, the menu bar and Settings keeps its selected plate under the pointer instead of fading to the weaker hover fill, and every row fades to one hover fill.
 - An effect, preset, animation, mask or transition dropped from Effects & Presets on a timeline clip applies to that clip instead of changing nothing.
 - The command palette matches typed letters against the starts of words, so `info` offers Info instead of six unrelated rows whose letters appear in order.
+- The timeline graph editor plots the selected clip's curve across clip switches, linked video/audio pairs, and deleted or undone clips instead of keeping the clip selected when the graph opened or showing an empty state.
 
 ## [alpha-0.7.0] - 2026-07-22
 
