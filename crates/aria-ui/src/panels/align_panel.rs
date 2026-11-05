@@ -94,8 +94,10 @@ pub fn render(
             .gap(px(Theme::SPACE_XS))
             .child(section_label(&theme, "Align to"))
             .child(row(targets))
-            .child(section_label(&theme, "Align"))
-            .child(row(edges))
+            // The tab states the panel's name, so the edges stand under the
+            // targets they align to, set off by a section's spacing, with no
+            // heading of their own.
+            .child(row(edges).pt(px(Theme::SPACE_SM)))
             .child(row(down))
             .child(section_label(&theme, "Distribute"))
             .child(row(spread))
@@ -110,14 +112,13 @@ pub fn render(
 }
 
 /// A wrapping row of controls.
-fn row(controls: Vec<AnyElement>) -> AnyElement {
+fn row(controls: Vec<AnyElement>) -> gpui::Div {
     div()
         .flex()
         .flex_row()
         .wraps()
         .gap(px(Theme::SPACE_XXS))
         .children(controls)
-        .into_any_element()
 }
 
 /// One button that hands `pick` to the registry when pressed. Drawn faint when

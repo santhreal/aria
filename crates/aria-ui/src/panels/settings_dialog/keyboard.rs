@@ -60,24 +60,16 @@ pub(super) fn keymap_rows(
             state.active_keymap().map(SharedString::new),
         )
     };
-    // The chips wrap inside a column of their own, so a second line of them
-    // starts under the first chip rather than under the label.
-    let mut chips = div()
-        .flex_1()
-        .min_w_0()
-        .flex()
-        .flex_row()
-        .wraps()
-        .items_center()
-        .gap(px(Theme::SPACE_XS));
+    let mut controls: Vec<gpui::AnyElement> = Vec::with_capacity(sets.len() + 3);
     if sets.is_empty() {
         // At a chip's inset, so it reads in line with the chips' text.
-        chips = chips.child(
+        controls.push(
             div()
                 .px(px(Theme::SPACE_SM))
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_faint)
-                .child("No saved sets"),
+                .child("No saved sets")
+                .into_any_element(),
         );
     }
     for (index, name) in sets.iter().enumerate() {
@@ -87,63 +79,62 @@ pub(super) fn keymap_rows(
             components::ghost_button(("settings-keymap", index), name.clone(), theme)
         };
         let picked = name.clone();
-        chips = chips.child(chip.on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state
-                    .update(cx, |state, cx| match state.load_keymap(&picked) {
-                        Ok(()) => state.persist_settings_later(cx),
-                        Err(err) => state.report_error(err),
-                    });
-                cx.notify();
-            }),
-        ));
-    }
-    chips = chips
-        .child(
-            components::ghost_button("settings-keymap-import", "Import…", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| state.import_keymap());
-                    cx.notify();
-                }),
-            ),
-        )
-        .child(
-            components::ghost_button("settings-keymap-export", "Export…", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| state.export_keymap());
-                    cx.notify();
-                }),
-            ),
-        );
-    if let Some(name) = active.filter(|name| sets.contains(name)) {
-        chips = chips.child(
-            components::ghost_button("settings-keymap-delete", "Delete set", theme).on_mouse_down(
+        controls.push(
+            chip.on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
                     this.state
-                        .update(cx, |state, cx| match state.delete_keymap(&name) {
+                        .update(cx, |state, cx| match state.load_keymap(&picked) {
                             Ok(()) => state.persist_settings_later(cx),
                             Err(err) => state.report_error(err),
                         });
                     cx.notify();
                 }),
-            ),
+            )
+            .into_any_element(),
         );
     }
-    let row = div()
-        .flex()
-        .flex_row()
-        .items_start()
-        .gap(px(Theme::SPACE_SM))
-        // Level with the first line of chips, whose text stands `SPACE_XS`
-        // inside each chip's top edge.
-        .child(super::widgets::row_label(theme, "Keymap").py(px(Theme::SPACE_XS)))
-        .child(chips);
+    controls.push(
+        components::ghost_button("settings-keymap-import", "Import…", theme)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                    this.state.update(cx, |state, _| state.import_keymap());
+                    cx.notify();
+                }),
+            )
+            .into_any_element(),
+    );
+    controls.push(
+        components::ghost_button("settings-keymap-export", "Export…", theme)
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                    this.state.update(cx, |state, _| state.export_keymap());
+                    cx.notify();
+                }),
+            )
+            .into_any_element(),
+    );
+    if let Some(name) = active.filter(|name| sets.contains(name)) {
+        controls.push(
+            components::ghost_button("settings-keymap-delete", "Delete set", theme)
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state
+                            .update(cx, |state, cx| match state.delete_keymap(&name) {
+                                Ok(()) => state.persist_settings_later(cx),
+                                Err(err) => state.report_error(err),
+                            });
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+        );
+    }
     vec![
-        row.into_any_element(),
+        super::widgets::chip_row(theme, "Keymap", controls),
         super::ai::field_row(theme, state, SettingsField::KeymapName, cx),
     ]
 }

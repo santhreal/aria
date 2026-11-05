@@ -422,3 +422,7 @@ mod choice_chips_tests;
 #[cfg(test)]
 #[path = "settings_dialog/canvas_groups_tests.rs"]
 mod canvas_groups_tests;
+
+#[cfg(test)]
+#[path = "settings_dialog/label_line_tests.rs"]
+mod label_line_tests;

@@ -1,7 +1,8 @@
 # Panels
 
 Every panel docks, tabs, and floats ([layout.md](layout.md#frames-and-panels)),
-has a panel menu, and keeps its state per project. The Viewer and Timeline have
+has a panel menu, and keeps its state per project. The tab states the panel's
+title, and the panel's body does not repeat it. The Viewer and Timeline have
 their own chapters; Audio Meters and Audio Track Mixer are in
 [audio.md](audio.md).
 

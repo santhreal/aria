@@ -440,8 +440,8 @@ fn the_filter_box_starts_on_the_column_of_the_boxes_below_it(cx: &mut TestAppCon
 ///
 /// Reads the AI section alone: the Status value starts at a chip's inset on
 /// the column the Source chips start on. Every read-only row is the one
-/// `kv` widget, so the row read here stands for each. Not covered: a value
-/// too long for one line, which wraps under its own first line.
+/// `kv` widget, so the row read here stands for each. A value too long for one
+/// line is read in `label_line_tests`.
 #[gpui::test]
 fn a_read_only_value_starts_on_the_column_of_the_controls(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "settings-value-column");

@@ -23,25 +23,41 @@ pub(super) fn row_label(theme: &Theme, label: impl Into<SharedString>) -> Div {
 }
 
 /// A row of controls: `label` in the label column, then the controls,
-/// `SPACE_XS` apart: a chip per choice with the one in force lit, or a switch.
+/// `SPACE_XS` apart and wrapping in the rest of the row: a chip per choice
+/// with the one in force lit, a switch, or buttons.
+///
+/// The row is at least one control row high, and the label stands on the
+/// centre line of the first line of controls however many lines they wrap
+/// onto. A line shorter than a control row, a switch's, stands on that centre
+/// line too.
 pub(super) fn chip_row(
     theme: &Theme,
     label: &'static str,
-    chips: impl IntoIterator<Item = Stateful<Div>>,
+    controls: impl IntoIterator<Item = impl IntoElement>,
 ) -> gpui::AnyElement {
     div()
         .flex()
         .flex_row()
-        .items_center()
+        .items_start()
         .gap(px(Theme::SPACE_SM))
-        .child(row_label(theme, label))
+        .child(
+            row_label(theme, label)
+                .min_h(px(Theme::CONTROL_HEIGHT))
+                .flex()
+                .items_center(),
+        )
         .child(
             div()
+                .flex_1()
+                .min_w_0()
+                .min_h(px(Theme::CONTROL_HEIGHT))
                 .flex()
                 .flex_row()
                 .flex_wrap()
+                .items_center()
+                .content_center()
                 .gap(px(Theme::SPACE_XS))
-                .children(chips),
+                .children(controls),
         )
         .into_any_element()
 }
@@ -106,14 +122,20 @@ pub(super) fn section(theme: &Theme, title: &str, rows: Vec<gpui::AnyElement>) -
 
 /// A row that reads a value: `label` in the label column, then `value` at a
 /// chip's inset on the column the controls of the other rows start on,
-/// wrapping in the rest of the row.
+/// wrapping in the rest of the row with the label level with its first line.
+///
+/// One line of text, padded by `SPACE_XXS` above and below, fills one
+/// `ROW_HEIGHT` row, and the label and every line of the value share that line
+/// height, so the label stands on the value's first line however many lines
+/// the value takes.
 pub(super) fn kv(theme: &Theme, label: &str, value: impl Into<String>) -> impl IntoElement {
     div()
         .flex()
         .flex_row()
-        .items_center()
+        .items_start()
         .gap(px(Theme::SPACE_SM))
-        .min_h(px(Theme::ROW_HEIGHT))
+        .py(px(Theme::SPACE_XXS))
+        .line_height(px(Theme::ROW_HEIGHT - 2.0 * Theme::SPACE_XXS))
         .child(row_label(theme, label.to_string()))
         .child(
             div()

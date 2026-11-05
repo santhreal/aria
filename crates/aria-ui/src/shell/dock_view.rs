@@ -820,6 +820,10 @@ mod dock_tab_tests;
 mod panel_fit_tests;
 
 #[cfg(test)]
+#[path = "panel_title_tests.rs"]
+mod panel_title_tests;
+
+#[cfg(test)]
 #[path = "frame_height_tests.rs"]
 mod frame_height_tests;
 #[cfg(test)]

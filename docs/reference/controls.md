@@ -226,7 +226,7 @@ The Effects Browser panel (`crates/aria-ui/src/panels/effects_browser.rs`) rende
 
 ## Audio Mixer
 
-The Audio Mixer strips (`crates/aria-ui/src/panels/mixer.rs`) render each strip's mute, solo, automation mode, output, and send chips. The shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) renders per-slot effect adding, bypass, key lane, ordering, and removal controls for track, clip, and master insert racks.
+The Audio Mixer (`crates/aria-ui/src/panels/mixer.rs`) renders the submix bus button and each strip's mute, solo, automation mode, output, and send chips. The shared audio insert chain (`crates/aria-ui/src/panels/insert_chain.rs`) renders per-slot effect adding, bypass, key lane, ordering, and removal controls for track, clip, and master insert racks.
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
@@ -238,6 +238,7 @@ The Audio Mixer strips (`crates/aria-ui/src/panels/mixer.rs`) render each strip'
 | `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
 | `insert-up` | Move earlier | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
+| `mixer-add-bus` | + Submix bus | Appends a submix bus lane to the sequence. | None |
 | `mixer-auto` (per row) | Off / Read / Write / Touch / Latch | Sets the strip's automation mode; the lit mode that writes the envelope draws its label in the warning color. | None |
 | `mixer-mute` (per row) | M | Toggles the mute of the lane or the master; a lit mute draws its label in the warning color. | None |
 | `mixer-out` (per row) | Master / bus name | Points the lane's output at the master or at a submix bus. | None |

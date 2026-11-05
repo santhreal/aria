@@ -111,7 +111,7 @@ pub fn render(
         .bg(theme.surface)
         .border_l_1()
         .border_color(if selected { theme.accent } else { theme.border })
-        .child(header(&theme, state, cx))
+        .when(!entries.is_empty(), |el| el.child(header(&theme, cx)))
         .child(
             crate::edge_fade::scroll_y(
                 div()
@@ -138,42 +138,31 @@ pub fn render(
         )
 }
 
-/// The panel's name, and the one action that applies to the whole conversation.
-fn header(
-    theme: &Theme,
-    state: &Entity<AppState>,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> impl IntoElement {
-    let has_transcript = !state.read(cx).transcript.is_empty();
+/// The action that applies to the whole conversation, over the transcript it
+/// copies. The tab states the panel's name, so the row draws only while there
+/// is a conversation to copy.
+fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> impl IntoElement {
     div()
         .h(px(Theme::HEADER_HEIGHT))
         .px(px(Theme::SPACE_MD))
         .flex()
         .items_center()
-        .justify_between()
+        .justify_end()
         .border_b_1()
         .border_color(theme.border)
         .child(
-            div()
-                .text_size(Theme::TEXT_HEADING)
-                .font_weight(gpui::FontWeight::SEMIBOLD)
-                .child("Assistant"),
+            crate::components::ghost_button("ai-copy-all", "Copy", theme).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                    let text = this.state.read(cx).transcript_text();
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                    this.state.update(cx, |state, _| {
+                        state.status_message = Some("Conversation copied".into());
+                    });
+                    cx.notify();
+                }),
+            ),
         )
-        .when(has_transcript, |el| {
-            el.child(
-                crate::components::ghost_button("ai-copy-all", "Copy", theme).on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(|this, _: &MouseDownEvent, _, cx| {
-                        let text = this.state.read(cx).transcript_text();
-                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
-                        this.state.update(cx, |state, _| {
-                            state.status_message = Some("Conversation copied".into());
-                        });
-                        cx.notify();
-                    }),
-                ),
-            )
-        })
 }
 
 /// A validated plan waiting for a decision.

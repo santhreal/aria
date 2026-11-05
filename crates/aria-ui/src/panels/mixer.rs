@@ -35,7 +35,7 @@ use crate::components::travel::{self, Gauge, Ink, Run};
 use crate::components::{ChipSize, Wraps as _};
 use gpui::{
     CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, SharedString, StatefulInteractiveElement, Styled, canvas, div, px, relative,
+    ParentElement, SharedString, Styled, canvas, div, px, relative,
 };
 
 use crate::app::AppState;
@@ -159,69 +159,33 @@ pub(crate) fn render(
             .flex_col()
             .size_full()
             .bg(theme.surface)
-            .child(header(
-                &theme,
-                state.read(cx).dock_panel_title(crate::dock::PANEL_MIXER),
-                cx,
-            ))
+            .child(header(&theme, cx))
             .child(body),
     )
     .into_any_element()
 }
 
-/// The panel's own row: its title, and the one thing it can add.
-fn header(
-    theme: &Theme,
-    title: &'static str,
-    cx: &mut gpui::Context<crate::shell::Shell>,
-) -> gpui::AnyElement {
-    let key = motion::MotionKey::new("mixer", "add-bus");
+/// The panel's own row: the one thing it can add, at the row's end. The tab
+/// above the panel states its name.
+fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::AnyElement {
+    let add = crate::components::ghost_button("mixer-add-bus", "+ Submix bus", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = mixer_strip::apply(state, Gesture::AddBus) {
+                        state.report_error(&err);
+                    }
+                });
+                cx.notify();
+            }),
+        );
     div()
         .flex()
-        .flex_row()
-        .wraps()
-        .items_center()
-        .justify_between()
-        .gap(px(Theme::SPACE_XS))
+        .justify_end()
         .px(px(Theme::SPACE_MD))
-        .py(px(Theme::SPACE_SM))
-        .border_b_1()
-        .border_color(theme.border)
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text)
-                .child(title),
-        )
-        .child(
-            div()
-                .id("mixer-add-bus")
-                .px(px(Theme::SPACE_SM))
-                .py(px(Theme::SPACE_XXS))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .bg(motion::hover_blend(
-                    key,
-                    theme.input_bg,
-                    theme.surface_raised_hover,
-                ))
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text)
-                .cursor(CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
-                .on_hover(motion::hover_listener(key))
-                .child("+ Submix bus")
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            if let Err(err) = mixer_strip::apply(state, Gesture::AddBus) {
-                                state.report_error(&err);
-                            }
-                        });
-                        cx.notify();
-                    }),
-                ),
-        )
+        .pt(px(Theme::SPACE_SM))
+        .child(add)
         .into_any_element()
 }
 
