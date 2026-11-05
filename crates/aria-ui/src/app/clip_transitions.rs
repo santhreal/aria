@@ -91,6 +91,24 @@ impl AppState {
         self.ui_clip_ref(clip)?.transition_media
     }
 
+    /// Select `clip` and open the inspector tab that draws the transition at
+    /// its right junction, with the Transition block brought into view: Look
+    /// for a blend between pictures, Audio for a crossfade between sounds. A
+    /// press on a transition band lands here. A junction that takes no
+    /// transition selects the clip and leaves the tab as it was.
+    pub fn select_transition(&mut self, clip: ClipId) {
+        self.select_clip(clip);
+        let Some(media) = self.clip_transition_media(clip) else {
+            return;
+        };
+        self.inspector_tab = match media {
+            TransitionMedia::Picture => "look",
+            TransitionMedia::Audio => "audio",
+        }
+        .to_owned();
+        self.inspector_reveal.request();
+    }
+
     /// The catalog id of the transition at this clip's right junction.
     pub fn clip_transition_id(&self, clip: ClipId) -> Option<String> {
         self.ui_clip_ref(clip)?

@@ -147,7 +147,7 @@ pub(super) fn on_left_down(
         HitTarget::TransitionBody { clip_id } => {
             cx.stop_propagation();
             this.state.update(cx, |state, _| {
-                state.select_clip(ClipId::from_raw(clip_id));
+                state.select_transition(ClipId::from_raw(clip_id));
             });
             cx.notify();
         }

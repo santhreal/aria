@@ -27,7 +27,7 @@ under **Video Transitions** and **Audio Transitions**.
 The timeline draws the window as a band at the cut according to its alignment.
 Drag either edge of the band to set the length: a centered band moves both
 edges symmetrically around the cut, and a start-aligned or end-aligned band
-changes length 1:1 with the dragged edge. The length stops at the longest
+changes length 1:1 with the dragged edge. Click the band to select the clip on the left of the cut and open the Look tab, or the Audio tab on an audio lane, scrolled to the Transition block. The length stops at the longest
 window the two clips at the cut can hold. While the button is down the band
 draws at the length the release sets, and the readout states the blend, the
 cut as `outgoing → incoming`, and the length. Right-click the band for

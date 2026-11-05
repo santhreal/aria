@@ -1131,6 +1131,7 @@ Notes for the latest release. For previous releases, see the
 - Audio Track Mixer strips fall to silence after a scrub once the 40 ms scrub grain finishes playing.
 - The Samples pane on Home lays the Sample Project and Use Template… tiles side by side, as the Start row does, instead of one under the other.
 - Next Font on Title and Previous Font on Title in the Command Palette step every selected title instead of only the first.
+- Clicking a transition on the timeline opens Effect Controls on the Look tab, or the Audio tab for an audio crossfade, scrolled to the Transition block, instead of leaving the Transform tab in front.
 
 ## [alpha-0.7.0] - 2026-07-22
 

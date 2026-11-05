@@ -192,6 +192,7 @@ impl AppState {
             relink_notes: std::collections::HashMap::new(),
             status_seen: None,
             inspector_tab: crate::app::DEFAULT_INSPECTOR_TAB.to_string(),
+            inspector_reveal: Default::default(),
             sidebar_tab: SidebarTab::Media,
             context_menu: None,
             context_at: (240.0, 96.0),

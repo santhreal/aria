@@ -5,12 +5,15 @@
 //! new blend appears without a second list here; a sound cut lists the audio
 //! crossfades. The tabs draw the block only where the projected
 //! `transition_media` says the junction takes that kind, which is the same rule
-//! the engine enforces.
+//! the engine enforces. A press on the junction's band on the timeline opens
+//! the tab and brings the block into view through the inspector's `reveal`
+//! mark.
 
-use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
+use gpui::{InteractiveElement, IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::clip_transitions::TRANSITION_STEP_TICKS;
 use crate::motion::MotionKey;
+use crate::panels::inspector::reveal;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
@@ -93,9 +96,12 @@ pub fn transition_block(
         .unwrap_or_default();
 
     div()
+        .debug_selector(|| "insp-transition".into())
+        .relative()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
+        .child(reveal::mark(&state.read(cx).inspector_reveal))
         .child(section_label(theme, "Transition"))
         .child(chip_row(
             theme,

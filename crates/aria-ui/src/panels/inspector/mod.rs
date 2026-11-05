@@ -14,6 +14,7 @@ mod keyframes_tests;
 mod ramp_tests;
 #[cfg(test)]
 mod reorder_tests;
+mod reveal;
 #[cfg(test)]
 mod slot_track_tests;
 #[cfg(test)]
@@ -21,6 +22,8 @@ mod strip_tests;
 pub mod tab_host;
 mod tab_strip;
 pub mod tabs;
+#[cfg(test)]
+mod transition_reveal_tests;
 #[cfg(test)]
 mod units_tests;
 
@@ -175,6 +178,9 @@ fn clip_body(
         Some(tab) => (tab.id.clone(), Some(tab.body)),
         None => (gpui::SharedString::new_static(""), None),
     };
+    // A press on a transition band moves the body through this handle.
+    let reveal = &state.read(cx).inspector_reveal;
+    let frame = reveal.frame.clone();
 
     div()
         .flex_1()
@@ -220,7 +226,8 @@ fn clip_body(
                         }),
                     )
                     .children(subs),
-            ),
+            )
+            .track_scroll(&frame),
         )
 }
 

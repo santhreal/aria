@@ -13,6 +13,29 @@ use super::*;
 /// this id is registered, so the two cannot disagree.
 pub const DEFAULT_INSPECTOR_TAB: &str = "transform";
 
+/// A scroll frame's handle and a pending request to bring one element under
+/// the frame into view. The element draws `panels::inspector::reveal::mark`
+/// over itself, and the mark's first prepaint after [`Self::request`] moves the
+/// frame and spends the request.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Reveal {
+    /// The handle the frame scrolls by.
+    pub(crate) frame: gpui::ScrollHandle,
+    pending: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl Reveal {
+    /// Bring the element drawn with the mark into view on its next prepaint.
+    pub(crate) fn request(&self) {
+        self.pending.set(true);
+    }
+
+    /// Whether a request is pending, spending it.
+    pub(crate) fn take(&self) -> bool {
+        self.pending.replace(false)
+    }
+}
+
 pub struct AppState {
     pub ctx: Arc<PluginContext>,
     pub(super) engine: Arc<Mutex<Engine>>,
@@ -173,6 +196,9 @@ pub struct AppState {
     /// The picked inspector tab, by id. A string because the tab
     /// list is data: a tab has no enum variant to be.
     pub inspector_tab: String,
+    /// The inspector body's scroll position, and the request a press on a
+    /// transition bar makes to bring the transition block into view in it.
+    pub(crate) inspector_reveal: Reveal,
     pub sidebar_tab: SidebarTab,
     pub context_menu: Option<ContextTarget>,
     pub context_at: (f32, f32),
