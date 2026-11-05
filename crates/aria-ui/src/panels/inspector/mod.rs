@@ -7,6 +7,8 @@ mod clip_type;
 #[cfg(test)]
 mod columns_tests;
 #[cfg(test)]
+mod empty_prompt_tests;
+#[cfg(test)]
 mod graph_tests;
 #[cfg(test)]
 mod keyframes_tests;
@@ -104,7 +106,7 @@ pub fn render(
         )
 }
 
-const SEQUENCE_PROMPT: &str = "Select a clip, or click a gap to edit the sequence.";
+const SEQUENCE_PROMPT: &str = "Select a clip to edit its properties.";
 
 fn rate_label(num: i32, den: i32) -> String {
     if den == 1 {

@@ -45,7 +45,8 @@ fn centre(visual: &mut VisualTestContext, selector: &str) -> Point<Pixels> {
     at
 }
 
-/// Open `menu` as a click on its title does, with `flyout` out.
+/// Open `menu` as a click on its title does, with `flyout` drawn out
+/// even when every row in it is blocked and no press opens it.
 fn open(
     visual: &mut VisualTestContext,
     state: &Entity<AppState>,
@@ -57,9 +58,7 @@ fn open(
             state.close_menu();
             state.status_message = None;
             state.toggle_menu(menu);
-            if let Some(at) = flyout {
-                state.open_menu_flyout(at);
-            }
+            state.menu_flyout = flyout.map(|at| (at, None));
             cx.notify();
         });
     });
@@ -95,13 +94,17 @@ fn a_press_on_a_submenu_entry_opens_its_flyout_and_keeps_the_drop(cx: &mut gpui:
                     visual.run_until_parked();
                 }
                 click(visual, at_entry);
-                let seen = visual.read(|app| {
+                // A submenu whose every row is blocked opens nothing.
+                let (seen, shut) = visual.read(|app| {
                     let state = state.read(app);
-                    (state.open_menu, state.menu_flyout.map(|(row, _)| row))
+                    let rows = state.menu_rows(menu);
+                    let shut = drop_entries(&rows)[at].blocked_by(&rows, state);
+                    let seen = (state.open_menu, state.menu_flyout.map(|(row, _)| row));
+                    (seen, shut.is_some())
                 });
                 assert_eq!(
                     seen,
-                    (Some(menu), Some(at)),
+                    (Some(menu), (!shut).then_some(at)),
                     "pressing {menu:?} > {caption} (moved there first: {moved_first})"
                 );
                 pressed += 1;

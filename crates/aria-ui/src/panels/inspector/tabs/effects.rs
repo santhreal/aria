@@ -20,6 +20,10 @@ use gpui::prelude::FluentBuilder;
 
 use crate::components::section_label;
 
+/// The line an empty chain draws under the Effects heading.
+const NO_EFFECTS: &str =
+    "This clip has no effects. Drag one here from Effects & Presets, or choose one under Add.";
+
 pub fn effects_tab(
     theme: &Theme,
     clip: &UiClip,
@@ -489,6 +493,13 @@ pub fn effects_tab(
             move_on_chain(this, drag, None, cx);
         }))
         .child(section_label(theme, "Effects"))
+        .when(remove_rows.is_empty(), |el| {
+            el.child(components::list_empty(
+                "inspector-fx-chain",
+                NO_EFFECTS,
+                theme,
+            ))
+        })
         .children(remove_rows)
         .child(section_label(theme, "Presets"))
         .child(

@@ -255,6 +255,7 @@ fn drawn_entries(menu: AppMenu, state: &AppState) -> Vec<Drawn> {
         drawn.push(match entry {
             super::menu_items::DropEntry::Row(at) => row(&items[*at], index, lit, false, rule),
             super::menu_items::DropEntry::Sub { caption, rows } => {
+                let blocked = entry.blocked_by(&items, state);
                 let flyout = (flyout_at == Some(index)).then(|| {
                     rows.iter()
                         .enumerate()
@@ -269,7 +270,7 @@ fn drawn_entries(menu: AppMenu, state: &AppState) -> Vec<Drawn> {
                     caption: caption.to_string(),
                     icon: None,
                     chord: None,
-                    blocked: None,
+                    blocked,
                     checked: None,
                     item: None,
                     index,
@@ -613,6 +614,7 @@ fn menu_row(
                 div()
                     .pl(px(Theme::SPACE_LG))
                     .text_color(theme.text_muted)
+                    .when(blocked.is_some(), |el| el.opacity(0.4))
                     .child("›"),
             )
         })
@@ -634,3 +636,7 @@ mod grid_tests;
 #[cfg(test)]
 #[path = "menu_rule_tests.rs"]
 mod rule_tests;
+
+#[cfg(test)]
+#[path = "menu_sub_blocked_tests.rs"]
+mod sub_blocked_tests;

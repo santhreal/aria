@@ -195,7 +195,11 @@ fn a_menu_draws_one_rule_between_two_groups_and_none_elsewhere(cx: &mut TestAppC
             let DropEntry::Sub { caption, rows } = entry else {
                 continue;
             };
-            redraw(&state, visual, |state| state.open_menu_flyout(index));
+            // Drawn out whether or not a row in it can run: the rules are
+            // the drawing's, and a blocked submenu opens no flyout.
+            redraw(&state, visual, |state| {
+                state.menu_flyout = Some((index, None))
+            });
             let list = format!("menu-sub-{label}-{caption}");
             let drawn: Vec<Entry> = rows
                 .iter()

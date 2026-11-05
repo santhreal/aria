@@ -73,7 +73,9 @@ proxy or a reduced preview draws the same picture.
 The Effects tab of Effect Controls lists the effect chain in render order. Each effect
 has a header: a switch, the effect's name, the up and down chevrons that move it
 one place (the first effect has no up chevron and the last no down chevron), a
-reset button, a menu button, and a bin to remove it.
+reset button, a menu button, and a bin to remove it. A clip with no effects
+reads `This clip has no effects.` under the heading, with where an effect
+comes from.
 
 - The switch turns the effect off and back on, one undo step per press. A
   switched-off effect keeps its parameters and its place in the chain, renders

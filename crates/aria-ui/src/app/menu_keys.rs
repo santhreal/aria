@@ -6,14 +6,16 @@
 //! row whose label starts with it, Enter or Space runs the lit row, and Escape
 //! closes the drop. Right or Enter on a submenu opens its flyout, which the same
 //! keys then walk; Left or Escape closes it again. A disabled row is lit like
-//! any other, and Enter on it states why it cannot run. The shell hands these keys here ahead of a focused box and
+//! any other, and Enter on it states why it cannot run. A submenu whose every
+//! row is disabled is a disabled row: Right or Enter on it states why, and
+//! opens nothing. The shell hands these keys here ahead of a focused box and
 //! the bindings, so an open drop holds the keyboard.
 //!
 //! The lit row is the row a click would run: the drop draws it from
 //! [`AppState::menu_row`], and a pointer moving over a lit drop moves the light.
 
 use crate::chrome::menu_host;
-use crate::chrome::menu_items::{DropEntry, MenuItems, drop_entries};
+use crate::chrome::menu_items::{DropEntry, MenuItem, MenuItems, drop_entries};
 use crate::types::AppMenu;
 
 use super::AppState;
@@ -139,7 +141,7 @@ impl AppState {
             MenuNav::Home => self.light_entry((len > 0).then_some(0)),
             MenuNav::End => self.light_entry(len.checked_sub(1)),
             MenuNav::Right => match lit_sub(self.menu_row) {
-                Some(at) => self.menu_flyout = Some((at, Some(0))),
+                Some(at) => self.open_flyout_lit(&entries[at], &rows, at),
                 None => self.open_neighbour(menu, 1),
             },
             MenuNav::Left => self.open_neighbour(menu, -1),
@@ -155,8 +157,10 @@ impl AppState {
                     let item = rows[*at];
                     self.press_lit(&item, cx);
                 }
-                Some(DropEntry::Sub { .. }) => {
-                    self.menu_flyout = self.menu_row.map(|at| (at, Some(0)));
+                Some(entry @ DropEntry::Sub { .. }) => {
+                    if let Some(at) = self.menu_row {
+                        self.open_flyout_lit(entry, &rows, at);
+                    }
                 }
                 None => {}
             },
@@ -167,8 +171,8 @@ impl AppState {
     /// The pointer moved onto entry `row` of the open drop. A drop the keyboard
     /// lit follows the pointer, so Enter runs the entry under it; a drop the
     /// pointer opened keeps its hover fade and lights nothing. Either way a
-    /// submenu under the pointer opens its flyout, and any other entry closes
-    /// the one that was open.
+    /// submenu under the pointer opens its flyout unless every row in it is
+    /// blocked, and any other entry closes the one that was open.
     pub fn point_menu_row(&mut self, row: usize) {
         if self.menu_row.is_some() {
             self.menu_row = Some(row);
@@ -179,9 +183,12 @@ impl AppState {
         if self.menu_flyout.is_some_and(|(at, _)| at == row) {
             return;
         }
-        let entries = drop_entries(&self.menu_rows(menu));
-        self.menu_flyout =
-            matches!(entries.get(row), Some(DropEntry::Sub { .. })).then_some((row, None));
+        let rows = self.menu_rows(menu);
+        self.menu_flyout = drop_entries(&rows)
+            .get(row)
+            .filter(|entry| matches!(entry, DropEntry::Sub { .. }))
+            .filter(|entry| entry.blocked_by(&rows, self).is_none())
+            .map(|_| (row, None));
     }
 
     /// The pointer moved onto row `child` of the open flyout. A flyout the
@@ -192,14 +199,36 @@ impl AppState {
         }
     }
 
-    /// A click on submenu entry `row`: open its flyout. The pointer has
+    /// A click on submenu entry `row`: open its flyout, or, when every row in
+    /// it is blocked, put the reason on the status line. The pointer has
     /// usually opened it already on the way to the click, so a flyout already
     /// out stays out, with the row the keyboard lit in it.
     pub fn open_menu_flyout(&mut self, row: usize) {
         if self.menu_flyout.is_some_and(|(at, _)| at == row) {
             return;
         }
-        self.menu_flyout = Some((row, None));
+        let rows = self
+            .open_menu
+            .map(|menu| self.menu_rows(menu))
+            .unwrap_or_default();
+        let blocked = drop_entries(&rows)
+            .get(row)
+            .filter(|entry| matches!(entry, DropEntry::Sub { .. }))
+            .and_then(|entry| entry.blocked_by(&rows, self));
+        match blocked {
+            Some(reason) => self.status_message = Some(reason.to_owned()),
+            None => self.menu_flyout = Some((row, None)),
+        }
+    }
+
+    /// Open the flyout of submenu entry `at` with its first row lit, or, when
+    /// every row in it is blocked, leave it shut and put the reason on the
+    /// status line, as Enter on a blocked row does.
+    fn open_flyout_lit(&mut self, entry: &DropEntry, rows: &[MenuItem], at: usize) {
+        match entry.blocked_by(rows, self) {
+            Some(reason) => self.status_message = Some(reason.to_owned()),
+            None => self.menu_flyout = Some((at, Some(0))),
+        }
     }
 
     fn open_lit(&mut self, menu: AppMenu) {

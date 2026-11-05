@@ -154,6 +154,20 @@ impl DropEntry {
             Self::Sub { rows, .. } => rows.iter().any(|at| items[*at].rule),
         }
     }
+
+    /// Why the entry cannot run or open now, or `None` when it can: a row's
+    /// own reason, and for a submenu its first row's reason when every row in
+    /// it is blocked, since its flyout would hold nothing to run.
+    pub fn blocked_by(&self, items: &[MenuItem], state: &AppState) -> Option<&'static str> {
+        match self {
+            Self::Row(at) => items[*at].blocked_by(state),
+            Self::Sub { rows, .. } => {
+                let mut reasons = rows.iter().map(|at| items[*at].blocked_by(state));
+                let first = reasons.next()??;
+                reasons.all(|reason| reason.is_some()).then_some(first)
+            }
+        }
+    }
 }
 
 /// The entries `items` draw as, in order: a row stands alone, and every row of
