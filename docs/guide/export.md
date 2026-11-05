@@ -92,7 +92,9 @@ encoder, so the same choices write the same file from any of the three.
 ## Unsaved work
 
 New, Open, Close, Home, Quit, and a project dropped on Home all leave what is
-loaded. With unsaved edits in the project, each one prompts first:
+loaded. With unsaved edits in the project, each one prompts first with the
+project and the action, such as `Save the changes to “Trailer” before going
+Home?`:
 
 - **Save** writes the project, then runs the requested action. A save that fails
   leaves the prompt up and the edits in place.

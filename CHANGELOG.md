@@ -731,7 +731,7 @@ Notes for the latest release. For previous releases, see the
 - Values and descriptions in Settings and the Export dialog start with a capital letter, such as `Included`, `Unbound`, and `Every transition at its designed speed`, and the Export Keyframes value reads `Every 15 frames` instead of `every 15`.
 - Settings > Catalogs lists each catalog by the file that overrides it, such as `transitions.toml`, instead of by its bare kind.
 - The Canvas aspect that follows the footage reads `Match footage` in Settings instead of `auto`, and a project or setting file still writes `auto`.
-- The Unsaved Changes dialog quotes the project's name inside its line, such as `Changes to “untitled” are not saved.`, instead of starting the line with the name.
+- The Unsaved Changes prompt is one question that states the quoted project name and the action, such as `Save the changes to “Trailer” before going Home?`, over a smaller line stating that discarded changes cannot be recovered.
 - The transcription model row in Settings states the model's size on disk once, from its verified byte count, and the memory it takes during inference.
 - Settings and the Generate tab name the fal provider `fal.ai`.
 - Status lines, error lines, and disabled menu rows' reasons start with a capital, and a line of one sentence ends without a period, such as `Select a clip with sound`.

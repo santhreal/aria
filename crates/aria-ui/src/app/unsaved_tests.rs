@@ -338,20 +338,50 @@ fn leaving_the_prompt_any_other_way_drops_the_intent() {
     assert!(state.store.is_dirty);
 }
 
+/// WHY: the prompt is a question whose answers both leave the project, so it
+/// states the project and where either answer goes. Closes "a prompt about
+/// some other project", "a prompt that drops the destination", and "an
+/// unnamed project left without a sentence". Does not check the drawn size.
 #[test]
-fn the_prompt_names_the_project_it_is_about_to_close() {
+fn the_prompt_asks_about_the_project_and_where_the_answer_goes() {
     let mut state = dirty();
     let name = state.store.project_name.clone();
     assert!(!name.is_empty(), "the fixture has no project name");
     assert_eq!(
         state.unsaved_line(),
-        format!("Changes to “{name}” are not saved.")
+        format!("Save the changes to “{name}”?")
+    );
+
+    state.request_go_home();
+    assert_eq!(
+        state.unsaved_line(),
+        format!("Save the changes to “{name}” before going Home?")
+    );
+
+    let other = Path::new("/nowhere.aria");
+    let mut next = Some(PendingIntent::GoHome);
+    while let Some(intent) = next {
+        next = after(&intent, other);
+        let going = intent.destination();
+        assert!(!going.trim().is_empty(), "{intent:?} has no destination");
+        state.request(intent.clone());
+        assert_eq!(
+            state.unsaved_line(),
+            format!("Save the changes to “{name}” before {going}?"),
+            "{intent:?} line mismatch"
+        );
+    }
+
+    state.request_new_project();
+    assert_eq!(
+        state.unsaved_line(),
+        format!("Save the changes to “{name}” before starting a new project?")
     );
 
     state.store_mut().project_name = "   ".into();
     assert_eq!(
         state.unsaved_line(),
-        "Changes to this project are not saved.",
+        "Save the changes to this project before starting a new project?",
         "an unnamed project still gets a sentence"
     );
 }

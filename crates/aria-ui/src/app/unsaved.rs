@@ -40,19 +40,19 @@ pub enum PendingIntent {
 }
 
 impl PendingIntent {
-    /// What answering the prompt does, as the prompt's second sentence.
+    /// Where answering the prompt goes, as the end of its question: "Save the
+    /// changes to … before going Home?"
     ///
-    /// A row per variant rather than a sentence in the panel: a new way of
-    /// leaving the project is one arm here, and the compiler asks for it before
-    /// the prompt can be drawn without it.
-    pub fn outcome(&self) -> &'static str {
+    /// One arm per variant rather than a sentence in the panel: a new way of
+    /// leaving the project fails to compile until it has an arm here.
+    pub fn destination(&self) -> &'static str {
         match self {
-            Self::GoHome => "Either answer goes to Home.",
-            Self::NewProject => "Either answer goes to a new project.",
-            Self::OpenProject(_) | Self::PickProject => "Either answer goes to another project.",
-            Self::OpenSample => "Either answer goes to the sample project.",
-            Self::DropOnHome(_) => "Either answer goes to what you dropped.",
-            Self::Quit => "Either answer quits Aria.",
+            Self::GoHome => "going Home",
+            Self::NewProject => "starting a new project",
+            Self::OpenProject(_) | Self::PickProject => "opening another project",
+            Self::OpenSample => "opening the sample project",
+            Self::DropOnHome(_) => "opening what you dropped",
+            Self::Quit => "quitting Aria",
         }
     }
 }
@@ -121,15 +121,22 @@ impl AppState {
         self.pending_intent.as_ref()
     }
 
-    /// The prompt's first line: which project has unsaved changes. The name is
-    /// the project's own, quoted, so a name in lower case or one that reads as a
-    /// word is not taken for part of the sentence, and never starts it.
+    /// The prompt's question: save which project's changes before going where.
+    /// The name is the project's own, quoted, so a name in lower case or one
+    /// that reads as a word is not taken for part of the sentence.
     pub fn unsaved_line(&self) -> String {
         let name = self.store.project_name.trim();
-        if name.is_empty() {
-            "Changes to this project are not saved.".into()
+        let project = if name.is_empty() {
+            "this project".to_string()
         } else {
-            format!("Changes to “{name}” are not saved.")
+            format!("“{name}”")
+        };
+        match self.pending_intent() {
+            Some(intent) => {
+                let going = intent.destination();
+                format!("Save the changes to {project} before {going}?")
+            }
+            None => format!("Save the changes to {project}?"),
         }
     }
 

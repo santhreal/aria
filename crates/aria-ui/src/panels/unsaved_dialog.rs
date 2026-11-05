@@ -1,16 +1,14 @@
 //! The unsaved-changes prompt.
 //!
 //! Three answers, and no fourth: save and go on, go on anyway, or stay. The
-//! panel knows nothing about what it is interrupting — the state holds the
-//! parked intent — so a new way of leaving a project reuses this dialog as it
-//! stands.
+//! state holds the parked intent and the question that states where it goes,
+//! so a new way of leaving a project reuses this dialog as it stands.
 
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Styled,
     div, px,
 };
 
-use crate::app::unsaved::PendingIntent;
 use crate::app::{AppState, DialogKind};
 use crate::chrome::dialog::{DialogBody, dialog_surface};
 use crate::components;
@@ -21,13 +19,7 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    let (line, going) = {
-        let state = state.read(cx);
-        (
-            state.unsaved_line(),
-            state.pending_intent().map(PendingIntent::outcome),
-        )
-    };
+    let line = state.read(cx).unsaved_line();
 
     let stay = components::ghost_button("unsaved-cancel", "Stay", &theme).on_mouse_down(
         MouseButton::Left,
@@ -55,24 +47,18 @@ pub fn render(
     let body = div()
         .flex()
         .flex_col()
-        .gap(px(Theme::SPACE_MD))
+        .gap(px(Theme::SPACE_SM))
         .child(
             div()
-                .text_size(Theme::TEXT_UI)
+                .text_size(Theme::TEXT_TITLE)
                 .text_color(theme.text)
                 .child(line),
         )
         .child(
             div()
-                .text_size(Theme::TEXT_TITLE)
-                .text_color(theme.text_faint)
-                .child(match going {
-                    // The prompt says what the answer does, because "Discard"
-                    // and "Save" both leave this project for one specific
-                    // destination.
-                    Some(outcome) => format!("Discard leaves them behind for good. {outcome}"),
-                    None => "Discard leaves them behind for good.".to_string(),
-                }),
+                .text_size(Theme::TEXT_UI)
+                .text_color(theme.text_muted)
+                .child("Discarded changes cannot be recovered."),
         );
     let body = DialogBody::new(body)
         .action(stay)
