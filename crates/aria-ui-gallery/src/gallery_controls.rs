@@ -13,7 +13,7 @@ use gpui::{
 use crate::gallery_kit::{caption, group, pin_hover, section, shelf, specimen};
 use crate::{Gallery, GalleryState, NO_FIELD};
 
-/// One specimen per component, at rest. The catalogue, not the state matrix.
+/// One specimen per component, at rest. The catalog, not the state matrix.
 ///
 /// Takes `cx` for the motion frame: the disclosure chevron below is drawn in
 /// whichever motion mode the header switch is in, because "reduced" is a state
@@ -855,7 +855,7 @@ fn field_states(theme: &Theme, state: GalleryState, cx: &mut Context<Gallery>) -
 ///
 /// The keys are global to the process, though: nothing in them names the bar.
 /// Bars one and four below carry the same labels, so their tabs share a fade —
-/// that is the shipped behaviour, shown rather than hidden.
+/// that is the shipped behavior, shown rather than hidden.
 fn tab_states(theme: &Theme, cx: &App) -> AnyElement {
     pin_hover("tab", "Speed-1", cx);
     group(

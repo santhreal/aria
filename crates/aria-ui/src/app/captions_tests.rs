@@ -68,7 +68,7 @@ fn the_decode_window_and_caption_times_convert_exactly() {
 /// fresh session has none of them installed. Enumerated from the catalog so a new model
 /// fails here rather than being silently unreachable.
 #[test]
-fn every_catalogued_model_is_listed_and_starts_uninstalled() {
+fn every_cataloged_model_is_listed_and_starts_uninstalled() {
     let (state, _) = with_clip();
     let rows = state.model_rows();
     assert_eq!(rows.len(), WhisperModel::catalog().len());

@@ -21,7 +21,7 @@
 //! `index_of` is an exhaustive match over [`LayerSource`], so a new topology
 //! cannot compile until it names a row. `a_row_per_layer_topology`
 //! proves the arm points at that topology's own row rather than reusing a
-//! neighbour's, by round-tripping every row's own [`LayerSourceSpec::census`]
+//! neighbor's, by round-tripping every row's own [`LayerSourceSpec::census`]
 //! sample.
 
 use aria_core::RationalTime;

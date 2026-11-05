@@ -42,20 +42,20 @@ impl PanelSpec {
     }
 }
 
-/// The colour a line of text is drawn in.
+/// The color a line of text is drawn in.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tone {
-    /// The body text colour.
+    /// The body text color.
     #[default]
     Normal,
-    /// The secondary text colour.
+    /// The secondary text color.
     Muted,
-    /// The theme's success colour.
+    /// The theme's success color.
     Success,
-    /// The theme's warning colour.
+    /// The theme's warning color.
     Warning,
-    /// The theme's danger colour.
+    /// The theme's danger color.
     Danger,
 }
 
@@ -86,7 +86,7 @@ pub enum UiNode {
     Text {
         /// The paragraph.
         text: Arc<str>,
-        /// Its colour.
+        /// Its color.
         #[serde(default)]
         tone: Tone,
     },

@@ -134,7 +134,7 @@ pub struct Marker {
     pub duration: RationalTime,
     /// The marker name.
     pub name: String,
-    /// The marker colour.
+    /// The marker color.
     pub color: MarkerColor,
     /// Comment text, empty when none.
     #[serde(default, skip_serializing_if = "String::is_empty")]

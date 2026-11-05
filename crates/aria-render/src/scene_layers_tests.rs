@@ -1,7 +1,7 @@
 use super::*;
 
 /// The exhaustive `index_of` match is the compile-time gate; this is the proof
-/// that each arm points at its *own* row instead of reusing a neighbour's, which
+/// that each arm points at its *own* row instead of reusing a neighbor's, which
 /// would compile and silently give a topology the wrong answers.
 ///
 /// Both sides are derived: the rows come from [`SHIPPED`], the samples from each

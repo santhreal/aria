@@ -3,7 +3,7 @@
 //! A keyframeable slot reads and writes where every property row does: its value
 //! at the playhead, held inside the clip, and a keyframe there when the slot is
 //! animated. A constant scalar slot is set with `SetEffectParam`, the
-//! non-animated quick edit; a constant colour, vector or point is set with
+//! non-animated quick edit; a constant color, vector or point is set with
 //! `SetParamConstant` on `ClipParam::Effect`, so an edit never grows a curve on a
 //! slot that had none and never flattens one that had.
 
@@ -160,7 +160,7 @@ impl AppState {
         }
     }
 
-    /// The colour of one slot at the playhead.
+    /// The color of one slot at the playhead.
     pub fn selected_effect_color(&self, index: usize, param: usize) -> Option<[u8; 4]> {
         match self.effect_slot_value(index, param) {
             Some(ParamValue::Color(value)) => Some(value),
@@ -223,8 +223,8 @@ impl AppState {
         kinds.contains(&slot.kind).then(|| read(slot))
     }
 
-    /// Set one colour effect parameter. Inert on a missing effect, a missing slot,
-    /// or a slot that is not a colour.
+    /// Set one color effect parameter. Inert on a missing effect, a missing slot,
+    /// or a slot that is not a color.
     pub fn set_selected_effect_color(
         &mut self,
         index: usize,
@@ -280,7 +280,7 @@ impl AppState {
         self.set_selected_effect_vec2(index, param, current)
     }
 
-    /// Return a colour or vec2 parameter to its catalog default.
+    /// Return a color or vec2 parameter to its catalog default.
     pub fn reset_selected_effect_non_scalar(
         &mut self,
         index: usize,

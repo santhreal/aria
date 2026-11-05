@@ -1,7 +1,7 @@
 //! What this build does with the schema versions a `config.toml` records.
 //!
 //! [`crate::load`] rejects a file whose recorded version it cannot read, and
-//! the error states one table. That is the right behaviour and the wrong
+//! the error states one table. That is the right behavior and the wrong
 //! amount of information: for a configuration written by another build, the
 //! report states, per table, which version is on disk, which version this build
 //! reads, and how far back it migrates. Answering that used to require reading

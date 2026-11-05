@@ -60,7 +60,7 @@ impl AnalysisKind {
     /// The result schema version.
     ///
     /// Bump this when a detector's configuration or output meaning changes, so every
-    /// stored batch from the previous behaviour reads as stale instead of current.
+    /// stored batch from the previous behavior reads as stale instead of current.
     pub fn analyzer_version(self) -> AnalyzerVersion {
         let version = match self {
             Self::Shots => 2,

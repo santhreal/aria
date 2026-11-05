@@ -122,7 +122,7 @@ fn adjustment_lane_styles_stay_none_on_canvas_pass() {
 }
 
 /// A catalog hover previews an animation the project does not carry. The class closed
-/// here is "a live override is honoured for the transform but silently dropped for the
+/// here is "a live override is honored for the transform but silently dropped for the
 /// animation slots", which would make hovering look like a dead row.
 #[test]
 fn resolve_with_substitutes_animation_slots_for_one_clip() {
@@ -228,7 +228,7 @@ fn resolve_with_substitutes_one_vec2_effect_parameter() {
         project.add_effect(id, "color_overlay").unwrap();
         project.add_effect(id, "color_overlay").unwrap();
     }
-    // `color_overlay` packs its colour (four floats), then the `offset` vec2
+    // `color_overlay` packs its color (four floats), then the `offset` vec2
     // in slot 1, then `amount`.
     let offset = |scene: &Scene, layer: usize, effect: usize| -> [f32; 2] {
         let params = &scene.layers[layer].effects[effect].params;

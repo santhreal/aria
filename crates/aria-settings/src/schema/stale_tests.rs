@@ -442,8 +442,8 @@ fn stale_cloud_account_host_is_migrated_and_a_current_file_ignores_account() {
 /// Keys from before the accent families read as their successor and a save
 /// writes the current key. `dark_blue` was the first spelling of `dark-blue`,
 /// and both, like `default`, named hues that no longer exist. The stored
-/// value is a name, not a colour, so this is tolerance rather than a version
-/// bump: no reader is served a colour a key no longer means.
+/// value is a name, not a color, so this is tolerance rather than a version
+/// bump: no reader is served a color a key no longer means.
 #[test]
 fn legacy_appearance_theme_keys_are_read_and_rewritten_canonically() {
     for legacy in ["dark_blue", "dark-blue", "default"] {

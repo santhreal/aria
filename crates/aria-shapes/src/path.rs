@@ -214,7 +214,7 @@ fn raster_frame(path: &BezierPath, style: &ShapeStyle, scale: f32) -> Option<Ras
 /// the renderer places the bitmap in. It is mapped back to shape-local pixels
 /// through the same frame [`PathRaster::rasterize`] draws with and tested with
 /// [`path_hit_test`], so a closed path is a hitbox inside its outline whatever
-/// its fill colour. `false` for a path with nothing to draw.
+/// its fill color. `false` for a path with nothing to draw.
 pub fn path_raster_hit(
     path: &BezierPath,
     style: &ShapeStyle,
@@ -224,7 +224,7 @@ pub fn path_raster_hit(
     let Some(frame) = raster_frame(path, style, scale) else {
         return false;
     };
-    // `rasterize` centres the inked bounds in the bitmap.
+    // `rasterize` centers the inked bounds in the bitmap.
     let bounds = frame.outline.bounds();
     let local = [
         (bounds.x() + bounds.width() * 0.5 + offset[0]) / frame.scale,

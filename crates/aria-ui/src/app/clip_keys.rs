@@ -182,7 +182,7 @@ pub(crate) fn key_params_of(clip: &Clip, audio_lane: bool) -> std::sync::Arc<[Ke
                         label: format!("{label} {axis}").into(),
                     })
                     .collect(),
-                // A colour needs a picker and a rectangle needs handles, so
+                // A color needs a picker and a rectangle needs handles, so
                 // neither is drawn as a row of steppers either.
                 ParamKind::Scalar | ParamKind::Color | ParamKind::Rect => std::sync::Arc::from([]),
             };

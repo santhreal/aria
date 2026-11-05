@@ -230,7 +230,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 
 /// A generator clip is a transparent solid carrying the effect: the effect
 /// draws over the whole frame, and with the registration dropped the clip
-/// draws the `Missing generator` slate, whose background covers the centre.
+/// draws the `Missing generator` slate, whose background covers the center.
 #[test]
 fn a_generator_draws_over_the_transparent_solid_that_carries_it() {
     let registration = aria_compositor::register_effect(EffectDefinition {
@@ -273,7 +273,7 @@ fn a_generator_draws_over_the_transparent_solid_that_carries_it() {
     );
 }
 
-/// The referenced layer's colour, opaque.
+/// The referenced layer's color, opaque.
 const LAYER_FS: &str = "@fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
     let l = textureSample(layer_matte, aria_sampler, in.uv);
@@ -323,7 +323,7 @@ fn read_layer(project: &mut Project, id: &str, reader: ClipId, referenced: ClipI
 
 /// An effect pass reading a layer parameter draws the frame of the clip the
 /// parameter references at the same instant. The reading clip is on top: with
-/// the registration dropped it shows its own colour, so the referenced colour
+/// the registration dropped it shows its own color, so the referenced color
 /// cannot come from the clip beneath showing through. A reference closing a
 /// cycle is refused by the model.
 #[test]
@@ -374,7 +374,7 @@ fn a_layer_parameter_reads_the_referenced_clip() {
 }
 
 /// A referenced clip's own layer references resolve before it, though no
-/// visible lane draws either clip: the reader on top shows the colour two
+/// visible lane draws either clip: the reader on top shows the color two
 /// references down.
 #[test]
 fn a_referenced_clip_reads_its_own_references_on_hidden_lanes() {

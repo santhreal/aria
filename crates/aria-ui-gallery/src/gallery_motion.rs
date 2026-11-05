@@ -1,4 +1,4 @@
-//! Motion: one live specimen per primitive, labelled with its name and its
+//! Motion: one live specimen per primitive, labeled with its name and its
 //! duration so two curves can be compared side by side.
 
 use aria_ui::components;

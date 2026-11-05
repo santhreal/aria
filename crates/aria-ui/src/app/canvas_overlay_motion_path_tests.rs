@@ -51,7 +51,7 @@ fn curve(state: &AppState, param: ClipParam) -> Param<[f32; 2]> {
 }
 
 /// Where a Position value lands on the canvas `framed` declares: 400 by 200
-/// at the window's origin, a position measured from its centre.
+/// at the window's origin, a position measured from its center.
 fn on_canvas([x, y]: [f32; 2]) -> [f32; 2] {
     [400.0 * (0.5 + x), 200.0 * (0.5 + y)]
 }
@@ -267,7 +267,7 @@ fn a_childs_path_is_drawn_through_its_parent_and_its_keyframe_follows_the_pointe
 fn a_keyframe_dragged_is_drafted_then_committed_as_one_undoable_keyframe() {
     let mut state = pathed();
     let watch = Watch::on(&state);
-    // Pressed off the square's centre: the keyframe moves with the pointer
+    // Pressed off the square's center: the keyframe moves with the pointer
     // rather than jumping under it.
     let from = drawn(&state, SMOOTH).at;
     let grab = [from[0] + 3.0, from[1] - 2.0];
@@ -643,7 +643,7 @@ fn bending_one_handle_keeps_the_other_opposite_at_its_own_length() {
 }
 
 #[test]
-fn auto_tangents_run_along_the_neighbours_a_third_of_the_way() {
+fn auto_tangents_run_along_the_neighbors_a_third_of_the_way() {
     let key = |value: [f32; 2]| OwnKey {
         tick: 0,
         local: 0,

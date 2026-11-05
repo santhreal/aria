@@ -294,7 +294,7 @@ mod raster_coverage_tests {
     }
 
     #[test]
-    fn every_shape_fills_its_centre_with_the_fill_colour() {
+    fn every_shape_fills_its_center_with_the_fill_color() {
         for (params, _, _) in shapes() {
             let name = variant_name(params);
             let img = raster(

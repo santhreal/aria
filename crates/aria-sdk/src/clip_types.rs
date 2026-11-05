@@ -1,12 +1,12 @@
 //! Generator-backed clip types: the [`ClipTypeSpec`] a plugin registers, the
 //! [`ClipTypeSchema`] of a type whose clips store their own fields, and the
-//! label colours of clip types and markers.
+//! label colors of clip types and markers.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{EffectGroupSpec, EffectParamSpec, EffectSpec};
 
-/// A label colour: a clip type's timeline tint and a marker's colour.
+/// A label color: a clip type's timeline tint and a marker's color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MarkerColor {
@@ -39,7 +39,7 @@ pub struct ClipTypeSpec {
     pub label: String,
     /// Id of the generator that draws the type. Not empty.
     pub generator: String,
-    /// The timeline label colour.
+    /// The timeline label color.
     pub colour: MarkerColor,
     /// SVG source of the icon drawn before the clip's name, or `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

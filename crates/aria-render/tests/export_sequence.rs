@@ -176,7 +176,7 @@ fn export_settings_even_rounding() {
 
 /// A range renders only the frames between its ends, and the file starts at
 /// zero: a ranged export is a shorter file, not a file with a timeline offset no
-/// player would honour.
+/// player would honor.
 #[test]
 fn a_ranged_export_renders_only_the_marked_span() {
     let project = solid_project(8);

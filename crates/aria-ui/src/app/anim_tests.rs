@@ -65,7 +65,7 @@ fn a_text_only_preset_is_not_offered_on_a_media_clip() {
                 choice.id
             );
             // Every shipped preset has a sampler, so the browser must not be
-            // labelling one as unrenderable.
+            // labeling one as unrenderable.
             assert!(
                 choice.rendered,
                 "{} is offered without a renderer",

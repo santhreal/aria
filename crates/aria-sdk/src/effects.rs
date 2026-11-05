@@ -25,7 +25,7 @@ pub enum EffectParamKind {
     /// One option of [`EffectParamSpec::choices`]. Its flattened float is the
     /// option's index.
     Choice,
-    /// An RGBA colour. The flattened floats hold its channels in `0.0..=1.0`.
+    /// An RGBA color. The flattened floats hold its channels in `0.0..=1.0`.
     Color,
     /// Two components in `min..=max`. A clip type's `handles` draws it on the
     /// Viewer.
@@ -39,7 +39,7 @@ pub enum EffectParamKind {
     /// A response curve over `0.0..=1.0`, flattened to
     /// [`EFFECT_CURVE_LUT_SAMPLES`] samples.
     Curve,
-    /// A colour gradient over `0.0..=1.0`, flattened to
+    /// A color gradient over `0.0..=1.0`, flattened to
     /// [`EFFECT_GRADIENT_LUT_SAMPLES`] linear RGBA samples.
     Gradient,
     /// UTF-8 text, read with [`CpuFrameIn::text`](crate::CpuFrameIn::text). Shaders do not read it.
@@ -120,7 +120,7 @@ impl EffectCurvePoint {
     }
 }
 
-/// One colour stop on an [`EffectParamKind::Gradient`] parameter (`position` in `0.0..=1.0`, linear RGBA).
+/// One color stop on an [`EffectParamKind::Gradient`] parameter (`position` in `0.0..=1.0`, linear RGBA).
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct EffectGradientStop {
     /// Position along the gradient, in `0.0..=1.0`.
@@ -492,7 +492,7 @@ impl EffectParamSpec {
         }
     }
 
-    /// Define an RGBA8 colour parameter.
+    /// Define an RGBA8 color parameter.
     pub fn color(
         name: impl Into<String>,
         label: impl Into<String>,
@@ -522,7 +522,7 @@ impl EffectParamSpec {
         }
     }
 
-    /// Define a colour gradient parameter.
+    /// Define a color gradient parameter.
     pub fn gradient(
         name: impl Into<String>,
         label: impl Into<String>,

@@ -132,7 +132,7 @@ fn stored_moments_reach_the_panel_and_the_filters_narrow_them() {
     assert_eq!(state.analysis.moments.len(), 4);
 }
 
-/// A batch written by an older analyzer version is labelled stale rather than served as
+/// A batch written by an older analyzer version is labeled stale rather than served as
 /// current or silently dropped, and clearing removes it.
 #[test]
 fn an_older_analyzer_version_reads_as_stale_and_can_be_cleared() {

@@ -86,7 +86,7 @@ pub struct VideoInfo {
     pub height: u32,
     /// Pixel layout of every frame.
     pub format: FrameFormat,
-    /// Colour space of every frame.
+    /// Color space of every frame.
     pub color: FrameColor,
     /// Frame rate numerator: `frame_rate_num / frame_rate_den` frames per
     /// second.

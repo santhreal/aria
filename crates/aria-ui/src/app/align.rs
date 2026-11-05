@@ -50,7 +50,7 @@ impl AlignTo {
     }
 }
 
-/// The edge or centre line an Align button moves each clip's bounds onto.
+/// The edge or center line an Align button moves each clip's bounds onto.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlignEdge {
     Left,
@@ -103,7 +103,7 @@ impl AlignEdge {
     }
 }
 
-/// The axis a Distribute button spreads clip centres along.
+/// The axis a Distribute button spreads clip centers along.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlignAxis {
     Horizontal,
@@ -141,8 +141,8 @@ pub(crate) struct Bounds {
 }
 
 impl Bounds {
-    /// The box around a `size` quad centred on `center` and turned `rotation`
-    /// radians about that centre, as the compositor turns it.
+    /// The box around a `size` quad centered on `center` and turned `rotation`
+    /// radians about that center, as the compositor turns it.
     pub(crate) fn of_quad(center: [f32; 2], size: [f32; 2], rotation: f32) -> Self {
         let (sin, cos) = rotation.sin_cos();
         let half = [
@@ -172,7 +172,7 @@ impl Bounds {
 struct Placed {
     clip: ClipId,
     bounds: Bounds,
-    /// Its own Position at the playhead, in canvas fractions from the centre.
+    /// Its own Position at the playhead, in canvas fractions from the center.
     own: [f32; 2],
     frame: Option<ParentFrame>,
     /// Position is animated, so a move is a keyframe under the playhead.
@@ -305,8 +305,8 @@ fn align_shifts(edge: AlignEdge, placed: &[Placed], target: Bounds) -> Vec<[f32;
         .collect()
 }
 
-/// The canvas-pixel shift that spaces the clips' centres evenly along `axis`
-/// between the two outermost, which stay put. Clips with equal centres keep
+/// The canvas-pixel shift that spaces the clips' centers evenly along `axis`
+/// between the two outermost, which stay put. Clips with equal centers keep
 /// their selection order.
 fn distribute_shifts(axis: AlignAxis, placed: &[Placed]) -> Vec<[f32; 2]> {
     let axis = axis.index();
@@ -412,7 +412,7 @@ impl AppState {
         self.move_selected(how)
     }
 
-    /// Space the selected clips' centres evenly along `axis` between the two
+    /// Space the selected clips' centers evenly along `axis` between the two
     /// outermost. Needs [`DISTRIBUTE_MIN`] clips drawing at the playhead.
     pub fn distribute_selected(&mut self, axis: AlignAxis) -> Result<(), EngineError> {
         self.move_selected(Move::Distribute(axis))

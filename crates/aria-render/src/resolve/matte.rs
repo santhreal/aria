@@ -1,5 +1,5 @@
 //! Track mattes: reading a clip's matte settings at the tick on screen, and
-//! folding each matted layer's neighbour above into a single matte wrapper.
+//! folding each matted layer's neighbor above into a single matte wrapper.
 
 use super::*;
 
@@ -28,7 +28,7 @@ pub(super) fn matte_request<'p>(
     })
 }
 
-/// Consume each matted layer's neighbour above into a matte wrapper.
+/// Consume each matted layer's neighbor above into a matte wrapper.
 ///
 /// Bottom-up, so the layer directly above is the stencil and leaves the
 /// composite: two layers in, one wrapper out. A stencil's own matte request is

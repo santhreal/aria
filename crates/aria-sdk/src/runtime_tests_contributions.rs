@@ -416,7 +416,7 @@ fn f16_helpers_round_trip_every_u16_bit_pattern() {
 }
 
 /// Closes the defect class where `aria_sdk::f16::from_f32` truncates, rounds
-/// ties away from zero, or rounds to the wrong neighbour. Over every pair of
+/// ties away from zero, or rounds to the wrong neighbor. Over every pair of
 /// adjacent finite binary16 values of either sign, the exact midpoint rounds
 /// to the even pattern and one `f32` ulp to either side rounds to the nearer
 /// value; past the largest finite value, the overflow midpoint rounds to

@@ -77,7 +77,7 @@ fn carets_and_frame(renderer: &mut Renderer, project: &Project) -> (Vec<LayerCar
     (carets, frame)
 }
 
-/// Canvas pixel centres of every pixel `keep` accepts.
+/// Canvas pixel centers of every pixel `keep` accepts.
 fn pixels(frame: &RgbaImage, keep: impl Fn([u8; 3]) -> bool) -> Vec<[f32; 2]> {
     let width = frame.width as usize;
     frame
@@ -201,7 +201,7 @@ fn carets_follow_the_layer_scale_rotation_and_alignment() {
     }
     assert_boundaries(&carets, &frame, [0.0, 1.0]);
     // The carets span the ink and not much more: a caret placed at the
-    // unscaled size or about the wrong centre misses it.
+    // unscaled size or about the wrong center misses it.
     let ink = pixels(&frame, |px| reddish(px) || whitish(px));
     let span = |points: &mut dyn Iterator<Item = [f32; 2]>| {
         points.fold([f32::MAX, f32::MAX, f32::MIN, f32::MIN], |b, p| {

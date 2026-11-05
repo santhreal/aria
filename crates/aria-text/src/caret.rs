@@ -75,7 +75,7 @@ fn line_distance(stop: &CaretStop, y: f32) -> f32 {
 ///
 /// Each cluster gives a stop at its leading edge and one at its trailing edge.
 /// A left-to-right cluster leads at its pen position; a right-to-left one
-/// leads at its far edge. Neighbouring clusters share a byte, and the first
+/// leads at its far edge. Neighboring clusters share a byte, and the first
 /// stop for a byte on a line is kept.
 pub(crate) fn stops(
     clusters: &[PendingCluster],

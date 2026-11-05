@@ -16,7 +16,7 @@ use aria_render::{Renderer, export_frame_png};
 const FPS_24: Rational = Rational::FPS_24;
 
 /// Red for frames 0..2, blue for 2..4, on a 320×180 canvas.
-fn two_colour_project() -> Project {
+fn two_color_project() -> Project {
     let mut project = Project::new("frame", FPS_24);
     let mut canvas = CanvasSettings::default();
     canvas.resolution = Some([320, 180]);
@@ -45,7 +45,7 @@ fn decode(path: &std::path::Path) -> (u32, u32, Vec<u8>) {
     (info.width, info.height, pixels)
 }
 
-fn centre(width: u32, height: u32, pixels: &[u8]) -> [u8; 3] {
+fn center(width: u32, height: u32, pixels: &[u8]) -> [u8; 3] {
     let at = (((height / 2) * width + width / 2) * 4) as usize;
     [pixels[at], pixels[at + 1], pixels[at + 2]]
 }
@@ -56,7 +56,7 @@ fn the_frame_at_the_requested_time_is_written_at_the_canvas_size() {
         eprintln!("skipping: no headless GPU available");
         return;
     };
-    let project = two_colour_project();
+    let project = two_color_project();
     let dir = tempfile::tempdir().expect("scratch dir");
 
     for (frame, name, dominant) in [(1, "red.png", 0), (3, "blue.png", 2)] {
@@ -76,7 +76,7 @@ fn the_frame_at_the_requested_time_is_written_at_the_canvas_size() {
             (320, 180),
             "{name} decoded at another size"
         );
-        let rgb = centre(width, height, &pixels);
+        let rgb = center(width, height, &pixels);
         let strongest = (0..3)
             .max_by_key(|&channel| rgb[channel])
             .expect("three channels");
@@ -93,7 +93,7 @@ fn an_existing_file_is_replaced_and_no_staging_directory_is_left() {
         eprintln!("skipping: no headless GPU available");
         return;
     };
-    let project = two_colour_project();
+    let project = two_color_project();
     let dir = tempfile::tempdir().expect("scratch dir");
     let path = dir.path().join("still.png");
     std::fs::write(&path, b"an older file").expect("seed the destination");
@@ -119,7 +119,7 @@ fn a_destination_in_a_missing_folder_fails_and_creates_nothing() {
         eprintln!("skipping: no headless GPU available");
         return;
     };
-    let project = two_colour_project();
+    let project = two_color_project();
     let dir = tempfile::tempdir().expect("scratch dir");
     let path = dir.path().join("absent").join("still.png");
 

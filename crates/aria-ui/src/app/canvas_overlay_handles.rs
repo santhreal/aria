@@ -430,7 +430,7 @@ fn on_canvas(frame: Option<aria_models::ParentFrame>, from: [f32; 2], to: [f32; 
 #[cfg(test)]
 use crate::app::transform_handle_tests::{framed, selected};
 
-/// The centre, in canvas pixels, of the layer `clip` draws in `scene`.
+/// The center, in canvas pixels, of the layer `clip` draws in `scene`.
 #[cfg(test)]
 fn layer_center(scene: &aria_render::Scene, clip: aria_models::ClipId) -> [f32; 2] {
     scene

@@ -203,7 +203,7 @@ impl<'a> CpuFrameIn<'a> {
         Some([s[0], s[1], s[2]])
     }
 
-    /// Evaluated linear RGBA colour parameter `name`.
+    /// Evaluated linear RGBA color parameter `name`.
     pub fn color(&self, name: &str) -> Option<[f32; 4]> {
         let (p, offset) = self.param_slot(name)?;
         if p.kind != EffectParamKind::Color {

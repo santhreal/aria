@@ -66,11 +66,11 @@ pub struct AnalyzerMarker {
     pub duration_frames: i64,
     /// The label beside the marker flag.
     pub name: String,
-    /// The marker flag colour.
+    /// The marker flag color.
     pub color: MarkerColor,
 }
 
-/// Labelled sample-frame span (such as a detected silence region) returned by an [`AnalyzerRun`].
+/// Labeled sample-frame span (such as a detected silence region) returned by an [`AnalyzerRun`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnalyzerRange {
     /// First sample frame of the span.
@@ -85,7 +85,7 @@ pub struct AnalyzerRange {
 /// Integrated loudness summary returned by an [`AnalyzerRun`].
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct AnalyzerLoudness {
-    /// Integrated programme loudness in LUFS (EBU R128, ITU-R BS.1770).
+    /// Integrated program loudness in LUFS (EBU R128, ITU-R BS.1770).
     pub integrated_lufs: f64,
     /// Peak level across channels in dBFS.
     pub true_peak_db: f64,

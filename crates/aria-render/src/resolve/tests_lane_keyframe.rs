@@ -4,7 +4,7 @@
 //! its track, over the stretch of timeline it covers. Its effect stack and its
 //! grade were sampled at a clip-local tick like a picture clip's transform, so
 //! the same bar dragged two seconds later played its look two seconds later —
-//! a look pinned to the bar rather than to the programme under it.
+//! a look pinned to the bar rather than to the program under it.
 //!
 //! The generator catalog now declares which convention a generator's
 //! parameters are addressed in ([`aria_models::ParamTime`]), and one clip
@@ -181,7 +181,7 @@ fn a_lane_keyframe_changes_the_frame() {
 }
 
 #[test]
-fn a_lane_bars_look_stays_where_the_programme_is_when_the_bar_moves() {
+fn a_lane_bars_look_stays_where_the_program_is_when_the_bar_moves() {
     let (mut project, bar) = with_bar(TrackKind::Adjustment, Generator::Adjustment, tr(0, 150));
     key(&mut project, bar, SATURATION, 40, -1.0);
     key(&mut project, bar, SATURATION, 100, 1.0);

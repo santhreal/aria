@@ -100,7 +100,7 @@ impl ModelManager {
         snapshot: &RootSnapshot,
     ) -> Result<ModelStatus, ModelManagerError> {
         // Neither path is allocated until the file is known to exist. `status`
-        // runs once per catalogued model on every Settings render, and the
+        // runs once per cataloged model on every Settings render, and the
         // answer for a model nobody installed is `Missing`.
         let metadata = match snapshot.dir.symlink_metadata(spec.filename()) {
             Ok(metadata) => metadata,

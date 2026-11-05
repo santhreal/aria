@@ -181,7 +181,7 @@ pub enum ModelIntegrityError {
     /// The file or stream length differed from the catalog.
     #[error("expected exactly {expected} bytes, found {actual}")]
     WrongSize {
-        /// Exact catalogued bytes.
+        /// Exact cataloged bytes.
         expected: u64,
         /// Observed bytes.
         actual: u64,
@@ -189,14 +189,14 @@ pub enum ModelIntegrityError {
     /// The SHA-256 digest differed from the catalog.
     #[error("expected SHA-256 {expected}, found {actual}")]
     ChecksumMismatch {
-        /// Catalogued lowercase SHA-256.
+        /// Cataloged lowercase SHA-256.
         expected: String,
         /// Observed lowercase SHA-256.
         actual: String,
     },
 }
 
-/// Current integrity state of one catalogued model.
+/// Current integrity state of one cataloged model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModelStatus {
     /// No model file exists.
@@ -296,10 +296,10 @@ pub enum ModelManagerError {
         #[source]
         reason: ModelIntegrityError,
     },
-    /// A stream exceeded the catalogued byte maximum.
+    /// A stream exceeded the cataloged byte maximum.
     #[error("model download exceeded {expected} bytes after observing {observed}")]
     DownloadTooLarge {
-        /// Exact catalogued maximum.
+        /// Exact cataloged maximum.
         expected: u64,
         /// Bytes observed when overflow was detected.
         observed: u64,

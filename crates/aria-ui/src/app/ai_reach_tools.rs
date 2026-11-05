@@ -119,7 +119,7 @@ impl AppState {
     /// and those are different problems.
     pub fn ai_system_prompt(&self) -> String {
         // The context first, and the lock after it: the window the turn would
-        // use is centred on the playhead the turn would report.
+        // use is centered on the playhead the turn would report.
         let context = self.assistant_context();
         let summary = aria_ai::summarize_for(
             self.engine().lock().project(),

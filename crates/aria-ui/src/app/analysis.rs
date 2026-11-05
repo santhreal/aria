@@ -9,7 +9,7 @@
 //!   re-encoded or replaced file gets a different key, so its stale analysis is never
 //!   served for the new bytes.
 //! - **One analyzer identity and version per detector** ([`AnalysisKind`]). The version
-//!   is the staleness signal: a batch stored by an older version is labelled and offers
+//!   is the staleness signal: a batch stored by an older version is labeled and offers
 //!   a re-run rather than being silently trusted or silently dropped.
 //! - **A run is a job.** Decode, detect, and `replace_batch` happen on the job thread;
 //!   the rows come back over a channel. A detector is never run on the render thread.
@@ -237,7 +237,7 @@ impl AppState {
         }
     }
 
-    /// Store a detected beat grid on the clip that was analysed.
+    /// Store a detected beat grid on the clip that was analyzed.
     ///
     /// Beats are kept in source ticks at the media's own rate, so they ride the
     /// content through trims, splits, and retimes. The detector reports seconds,

@@ -762,7 +762,7 @@ impl Host {
         self.decode_unit(res)
     }
 
-    /// Start a job labelled `label` on the host's jobs board and return its id.
+    /// Start a job labeled `label` on the host's jobs board and return its id.
     ///
     /// The host calls [`Plugin::job_step`](crate::Plugin::job_step) on the job's thread
     /// until a step is `done` or fails, or the job is cancelled, then calls

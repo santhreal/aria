@@ -89,7 +89,7 @@ pub struct CacheForm {
 /// Both come out of one exhaustive match so they cannot disagree. They used to
 /// be two mappings a crate apart — a rank here and a `0 | 1 | _` in the
 /// settings panel — and the wildcard meant a fourth tier would have been
-/// silently labelled "never evicted" while sorting third.
+/// silently labeled "never evicted" while sorting third.
 fn eviction(tier: CacheTier) -> (u8, &'static str) {
     match tier {
         CacheTier::Disposable => (0, "evicted first"),

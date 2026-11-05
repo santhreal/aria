@@ -196,7 +196,7 @@ pub(crate) fn paths_of(clip: &Clip, audio_lane: bool) -> Arc<[OwnPath]> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DrawnKey {
     pub key: PathKey,
-    /// Where the keyframe's square is centred, in window pixels.
+    /// Where the keyframe's square is centered, in window pixels.
     pub at: [f32; 2],
     /// Whether the keyframe sits under the playhead.
     pub current: bool,
@@ -229,7 +229,7 @@ pub struct DrawnPath {
 /// Where a path's own units land on screen.
 #[derive(Debug, Clone, Copy)]
 enum Space {
-    /// Canvas fractions from the canvas centre, placed through the parent's
+    /// Canvas fractions from the canvas center, placed through the parent's
     /// frame at the playhead.
     Canvas {
         rect: Rect,
@@ -322,8 +322,8 @@ pub fn bend(start: SpatialTangents, side: TangentSide, offset: [f32; 2]) -> Spat
 
 /// Tangents that make keyframe `index` smooth: both handles along the line
 /// from the previous keyframe to the next, each a third of the way to its own
-/// neighbour. An end keyframe points its one handle at its neighbour. `None`
-/// when the keyframe has no neighbour, or its neighbours give it no direction.
+/// neighbor. An end keyframe points its one handle at its neighbor. `None`
+/// when the keyframe has no neighbor, or its neighbors give it no direction.
 pub fn auto_tangents(keys: &[OwnKey], index: usize) -> Option<SpatialTangents> {
     let here = keys.get(index)?.value;
     let prev = index
@@ -634,8 +634,8 @@ impl AppState {
     }
 
     /// Alt+click on a path keyframe: a smooth keyframe becomes a corner, and a
-    /// corner becomes smooth with handles along its neighbours. Inert on a
-    /// keyframe with no neighbour to point at, and on a path that never bends.
+    /// corner becomes smooth with handles along its neighbors. Inert on a
+    /// keyframe with no neighbor to point at, and on a path that never bends.
     pub fn toggle_path_key_smooth(&mut self, key: PathKey) -> Result<(), EngineError> {
         if !key.param.bends() {
             return Ok(());

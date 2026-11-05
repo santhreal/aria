@@ -151,7 +151,7 @@ fn path_raster_size_is_the_raster_dimensions() {
 ///
 /// The canvas pick maps a click into the raster the renderer placed and asks
 /// `path_raster_hit`, so the mapping has to be the one `rasterize` draws with:
-/// the inked bounds centred and the scale divided out. Every fully inked pixel
+/// the inked bounds centered and the scale divided out. Every fully inked pixel
 /// must hit and the raster's empty corner must miss, for a path far from the
 /// origin (a bounds offset), at a scale, and stroked (the overhang).
 #[test]

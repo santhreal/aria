@@ -18,7 +18,7 @@ pub type DownloadReader = Box<dyn Read + Send + 'static>;
 pub trait ModelDownloader: Send + Sync {
     /// Opens a streaming response for `spec`.
     ///
-    /// The returned stream is consumed at most through the catalogued exact
+    /// The returned stream is consumed at most through the cataloged exact
     /// byte count plus one detecting read.
     fn download(&self, spec: &ModelSpec) -> Result<DownloadReader, DownloadError>;
 }

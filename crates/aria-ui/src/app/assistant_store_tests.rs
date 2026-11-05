@@ -88,7 +88,7 @@ fn a_saved_conversation_comes_back_with_every_row() {
 }
 
 /// Every kind must round trip, or reloading would silently drop rows of one
-/// colour. Derived from `AgentEntryKind::ALL` so a new kind fails here instead of
+/// color. Derived from `AgentEntryKind::ALL` so a new kind fails here instead of
 /// disappearing on reload.
 #[test]
 fn every_entry_kind_survives_the_round_trip() {
@@ -108,7 +108,7 @@ fn every_entry_kind_survives_the_round_trip() {
 /// an earlier version saved in lower case. A prompt, an answer and a reasoning
 /// summary keep the case they were written in.
 ///
-/// The class closed here: a lower case row among capitalised ones, as
+/// The class closed here: a lower case row among capitalized ones, as
 /// `aria-ai`'s `added …` and `placed media …` lines and the panel's own
 /// `waiting for you: …` were. Both writers are walked for every kind in
 /// `AgentEntryKind::ALL`, and the match has no `_` arm, so a new kind does not

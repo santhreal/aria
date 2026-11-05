@@ -152,19 +152,19 @@ fn the_box_of_a_turned_quad_holds_its_corners() {
 }
 
 #[test]
-fn distribute_spaces_centres_evenly_and_keeps_the_ends() {
+fn distribute_spaces_centers_evenly_and_keeps_the_ends() {
     for axis in AlignAxis::ALL {
         let (mut state, clips) = spread_three();
         let index = match axis {
             AlignAxis::Horizontal => 0,
             AlignAxis::Vertical => 1,
         };
-        let centre = |b: &Bounds| (b.min[index] + b.max[index]) / 2.0;
+        let center = |b: &Bounds| (b.min[index] + b.max[index]) / 2.0;
         let (before, _) = measured(&state, &clips);
         state.distribute_selected(axis).expect("distribute lands");
         let (after, _) = measured(&state, &clips);
-        let mut was: Vec<f32> = before.iter().map(centre).collect();
-        let mut now: Vec<f32> = after.iter().map(centre).collect();
+        let mut was: Vec<f32> = before.iter().map(center).collect();
+        let mut now: Vec<f32> = after.iter().map(center).collect();
         was.sort_by(f32::total_cmp);
         now.sort_by(f32::total_cmp);
         assert!(

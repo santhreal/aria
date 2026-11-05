@@ -314,7 +314,7 @@ fn the_context_reports_the_marks_in_seconds() {
     assert!(context.selected_clips.is_empty());
 
     // An in point with no out is not a range: half a range would send the model
-    // a duration it cannot honour.
+    // a duration it cannot honor.
     state.mark_out = None;
     assert_eq!(state.assistant_context().in_point_seconds, None);
 }

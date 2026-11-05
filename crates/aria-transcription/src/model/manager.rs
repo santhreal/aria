@@ -1,4 +1,4 @@
-//! Transactional installation of catalogued Whisper models.
+//! Transactional installation of cataloged Whisper models.
 //!
 //! This file owns the public surface and the install path. The rest of the
 //! machinery lives in three siblings, because one file holding the installer,

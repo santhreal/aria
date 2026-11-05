@@ -2,7 +2,7 @@
 //!
 //! The class closed here is "the stencil is the layer above": a matte is not a
 //! property the compositor can read off one layer, so resolve has to consume a
-//! neighbour. Every way that pairing can go wrong — nothing above, a
+//! neighbor. Every way that pairing can go wrong — nothing above, a
 //! canvas-wide pass on either side, a stencil that carries its own matte, a
 //! softness that is animated — is a way to either blank a frame or ask the
 //! compositor for a pass it cannot nest.

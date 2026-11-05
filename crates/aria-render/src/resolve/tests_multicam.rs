@@ -113,7 +113,7 @@ fn each_camera_fits_the_canvas_at_its_own_shape() {
 fn a_camera_that_started_late_is_read_earlier_in_its_own_file() {
     // The offset is where this camera's first frame sits on the group's clock,
     // so the read runs the other way. A sign error here is invisible in a group
-    // whose cameras are all synchronised, which is exactly the group a test
+    // whose cameras are all synchronized, which is exactly the group a test
     // would reach for first.
     let rig = rig([0, 12, -6]);
     let (_, at_group_start) = read(&rig, 0);

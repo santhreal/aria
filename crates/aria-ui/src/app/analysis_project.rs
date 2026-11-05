@@ -146,7 +146,7 @@ pub(crate) fn project_moment(record: &MomentRecord, offset: i64, rate: Rational)
 ///
 /// A separate rule so it is testable while every detector is still at version 1: the
 /// day one is bumped, the panel must label the old rows rather than serve them as
-/// current, and a record from a *newer* build must not be labelled either — it came
+/// current, and a record from a *newer* build must not be labeled either — it came
 /// from a version that knows more, not less.
 pub(crate) fn is_stale(stored: u32, current: u32) -> bool {
     stored < current

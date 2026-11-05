@@ -220,7 +220,7 @@ fn ink(theme: &Theme, label: &str, color: gpui::Hsla) -> AnyElement {
         .into_any_element()
 }
 
-/// Every colour token on the theme, so a palette change is reviewable in one
+/// Every color token on the theme, so a palette change is reviewable in one
 /// place rather than hunted through panels.
 pub(crate) fn theme_tokens(theme: &Theme) -> AnyElement {
     section(

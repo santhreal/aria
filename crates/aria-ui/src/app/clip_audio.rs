@@ -4,7 +4,7 @@
 //! Volume is stored as the linear multiplier a mixer applies and read by an
 //! operator in decibels, through [`Scale::Gain`], whose conversions come from
 //! [`aria_analysis::gain`] rather than being spelled out here: a clip's gain, a
-//! normalisation, and an export's headroom have to agree on what −6 dB means.
+//! normalization, and an export's headroom have to agree on what −6 dB means.
 
 use aria_analysis::GAIN_FLOOR_DB;
 use aria_commands::{Command, EditCommand};

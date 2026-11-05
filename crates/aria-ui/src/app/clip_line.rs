@@ -42,7 +42,7 @@ pub struct LineTravel {
     /// Timeline ticks after the press. Only a keyframe pressed on its dot
     /// travels along the lane.
     pub along: i64,
-    /// Ticks within which a keyframe travelling along the lane pulls to the
+    /// Ticks within which a keyframe traveling along the lane pulls to the
     /// playhead or to another keyframe of the clip. Zero pulls to none.
     pub magnet: i64,
 }
