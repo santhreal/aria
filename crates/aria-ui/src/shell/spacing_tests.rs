@@ -678,6 +678,7 @@ fn every_value_stands_on_the_line_of_its_keyframe_navigator(cx: &mut TestAppCont
                 .iter()
                 .filter(|run| {
                     !run.text.trim().is_empty()
+                        && run.text.as_ref() != "≡"
                         && (0.0..=Theme::SPACE_MD).contains(&gap(run, glyph))
                         && run.bounds.top() < glyph.bounds.bottom()
                         && glyph.bounds.top() < run.bounds.bottom()

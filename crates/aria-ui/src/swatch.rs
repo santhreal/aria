@@ -1,7 +1,8 @@
 //! A swatch: a square of one color that picks that color.
 //!
-//! The label palette and the Edit Marker dialog draw their colors with it, so a
-//! color pick has one size, one ring and one press wherever it appears.
+//! The label palette, the Edit Marker dialog and the Markers panel's color filter
+//! draw their colors with it, so a color pick has one size, one ring and one press
+//! wherever it appears.
 
 use gpui::prelude::FluentBuilder;
 use gpui::{

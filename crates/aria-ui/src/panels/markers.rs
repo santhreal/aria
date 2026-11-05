@@ -1,16 +1,16 @@
 //! The Markers dock panel: every ruler marker as a row.
 //!
-//! Markers used to exist only as flags on the ruler, so a marker off screen was
-//! a marker nothing could find, and its colour and note were data
-//! nothing showed. A row here states the time, the label, the colour, and the
-//! note, and every control on it is an existing marker command: click seeks,
-//! the swatch cycles the palette, Edit… opens the marker's dialog, Rename edits
-//! the label, Note edits the comment, and Remove deletes it. The four commands
-//! after the swatch are drawn on the row under the pointer.
+//! A row states the time, the label, the color and the note of one marker, so
+//! a marker off screen on the ruler is still found here. Every control on a
+//! row is an existing marker command: click seeks, the swatch cycles the
+//! palette, Edit… opens the marker's dialog, Rename edits the label, Note
+//! edits the comment, and Remove deletes it. The four commands after the
+//! swatch are drawn on the row under the pointer. The color filter above the
+//! rows shows the markers of one color.
 //!
-//! Nothing is computed here that the state does not already own: the rows are
-//! the projected markers in projection order (by tick), which is the order the
-//! ruler draws them in.
+//! The rows are the projected markers in projection order (by tick), which is
+//! the order the ruler draws them in; nothing here is computed beyond what the
+//! state holds.
 
 use crate::components::Wraps as _;
 use aria_core::count::counted;
@@ -25,6 +25,7 @@ use crate::motion;
 use crate::surfaces::markers_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::timecode;
+use crate::tooltip::WithTip as _;
 use crate::types::{RenameTarget, UiMarker};
 use gpui::prelude::FluentBuilder;
 
@@ -60,7 +61,7 @@ fn markers_panel(
     let markers = state.read(cx).visible_markers();
     let rate = state.read(cx).store.sequence.frame_rate;
     let playhead = state.read(cx).playhead.value;
-    // The project's own count, not the row count. They agree unless a colour
+    // The project's own count, not the row count. They agree unless a color
     // filter is active or a projection dropped one.
     let held = state.read(cx).marker_count();
 
@@ -119,37 +120,14 @@ fn filter_bar(
             cx.notify();
         }),
     );
-    div()
-        .flex()
-        .wraps()
-        .items_center()
-        .gap(px(Theme::SPACE_XXS))
-        .child(all_chip)
-        .children(aria_models::MarkerColor::ALL.into_iter().map(|color| {
-            let is_active = active == Some(color);
-            let id = match color {
-                aria_models::MarkerColor::Teal => "marker-filter-teal",
-                aria_models::MarkerColor::Blue => "marker-filter-blue",
-                aria_models::MarkerColor::Green => "marker-filter-green",
-                aria_models::MarkerColor::Yellow => "marker-filter-yellow",
-                aria_models::MarkerColor::Orange => "marker-filter-orange",
-                aria_models::MarkerColor::Red => "marker-filter-red",
-                aria_models::MarkerColor::Pink => "marker-filter-pink",
-                aria_models::MarkerColor::Purple => "marker-filter-purple",
-            };
-            div()
-                .id(id)
-                .w(px(14.))
-                .h(px(14.))
-                .rounded(px(Theme::CONTROL_RADIUS))
-                .border_1()
-                .border_color(if is_active {
-                    theme.accent
-                } else {
-                    theme.border
-                })
-                .bg(theme.marker(color))
-                .cursor(CursorStyle::PointingHand)
+    // The colors are the swatches the Edit Marker dialog picks from, so a color
+    // reads the same in the filter as where it is set; the one in force is ringed.
+    let swatches = aria_models::MarkerColor::ALL
+        .into_iter()
+        .enumerate()
+        .map(|(index, color)| {
+            let id = ("marker-filter-color", index);
+            crate::swatch::swatch(id, theme.marker(color), active == Some(color), theme)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -164,7 +142,15 @@ fn filter_bar(
                         cx.notify();
                     }),
                 )
-        }))
+                .with_tip(crate::tooltip::text_builder(color.label()))
+        });
+    div()
+        .flex()
+        .wraps()
+        .items_center()
+        .gap(px(Theme::SPACE_XS))
+        .child(all_chip)
+        .children(swatches)
         .into_any_element()
 }
 
@@ -362,8 +348,8 @@ fn row(
     crate::pending::arriving(crate::motion::MotionKey::new("marker-in", id), index, card)
 }
 
-/// The colour chip. Clicking it advances the palette, which is the only edit a
-/// marker's colour has.
+/// The color chip. Clicking it advances the palette, which is the only edit a
+/// marker's color has.
 fn swatch(
     theme: &Theme,
     marker: &UiMarker,

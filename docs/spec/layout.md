@@ -36,8 +36,8 @@ bar. The Timeline takes the rest.
 
 A resized window lays out a workspace with no changes for its new size, as
 choosing the workspace again does: Editing, Animation and Effects keep their
-side frames at 400 px and 300 px, Editing keeps Audio Meters at 64 px, and the
-Viewer and the Timeline take the
+side frames at 400 px and 300 px, every workspace keeps Audio Meters at
+64 px, and the Viewer and the Timeline take the
 difference. A workspace with a dragged splitter or a moved panel keeps the
 shares of its frames instead.
 
@@ -112,8 +112,10 @@ windows. The shipped workspaces are:
 | Editing | The window diagram above. |
 | Animation | Effect Controls and Project on the left, Viewer center, Info, Effects & Presets, and Align on the right, Timeline at 50 % with the graph editor open. |
 | Color | Viewer and Scopes side by side above the Timeline, Color panel on the right. |
-| Audio | Audio Track Mixer above the Timeline, Viewer reduced, Audio Meters and Effects & Presets filtered to audio effects on the right. |
+| Audio | Audio Track Mixer above the Timeline, Viewer reduced, Effects & Presets filtered to audio effects on the right. |
 | Effects | Effects & Presets and Effect Controls enlarged, Viewer center. |
+
+Every workspace keeps Audio Meters at 64 px right of the Timeline.
 
 The workspace switcher sits in the tool bar. Changing workspace rearranges the
 frames over 180 ms; panel contents are not rebuilt. A workspace that does not

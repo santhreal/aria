@@ -4,21 +4,29 @@
 //! WHY: in the 64 px launch frame the clip light, inset to the bars' column,
 //! was 22 px wide and its `CLIP` label wider, so the label ran out of the light
 //! over the scale's `0`. The class: a meter label drawn wider than its box.
-//! And in the Audio workspace's wide frame the bars kept a 22 px cap, so two
-//! thin bars stood at the frame's left under a clip light that ran the whole
-//! width. The class: a meter drawn for one frame width only.
+//! And in a wide frame the bars kept a 22 px cap, so two thin bars stood at
+//! the frame's left under a clip light that ran the whole width. The class: a
+//! meter drawn for one frame width only.
 //!
 //! A third class: the marks at 0 and -60 dBFS are centered on the bars' ends,
 //! and the half of each past them stood 1 px into the clip light above and
 //! the channel names below.
 //!
+//! A fourth: the Audio workspace put the meters at the front of the upper
+//! row's right frame, 28 % of the window, so its two bars drew as two 200 px
+//! slabs away from the Timeline they meter, and the Animation, Color and
+//! Effects workspaces drew no meters. Every shipped workspace stands them
+//! right of the Timeline, in its row.
+//!
 //! Checked in the launch layout's frame, which is also the panel's minimum
-//! width, and in the Audio workspace's: the clip light inside the frame and
-//! its label across the light, every scale mark across the scale column, which
-//! ends before the first bar, between the clip light and the channel names,
-//! and centered on the level it names, and the bars sharing the width beside
-//! the scale out to the panel's padding, with the clip light over the scale and
-//! both.
+//! width, in the frame of every shipped workspace, read from the workspace
+//! rows so a new workspace is checked with no case added here, and in the
+//! Viewer's frame, where the meters are docked by hand: the clip light
+//! inside the frame and its label across the light, every scale mark across
+//! the scale column, which ends before the first bar, between the clip light
+//! and the channel names, and centered on the level it names, and the bars
+//! sharing the width beside the scale out to the panel's padding, with the
+//! clip light over the scale and both.
 //!
 //! Not covered: real Inter advances, for which the test text system sets every
 //! character 0.6 em wide; and the 48 px floor that a window too narrow for the
@@ -27,7 +35,7 @@
 use gpui::{Bounds, Pixels, TestAppContext, point, px, size};
 
 use crate::app::meter::dbfs_fraction;
-use crate::dock::PANEL_AUDIO_METERS;
+use crate::dock::{DockTree, FrameId, PANEL_AUDIO_METERS, PANEL_TIMELINE};
 use crate::test_support::{bounds_inside, drawn_shell};
 use crate::theme::Theme;
 
@@ -39,14 +47,27 @@ const EPS: f32 = 0.51;
 #[gpui::test]
 fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
-    for workspace in [None, Some("win-workspace-audio")] {
-        let layout = workspace.unwrap_or("the launch layout");
-        let tag = format!("meter-labels-{}", workspace.unwrap_or("launch"));
+    let mut cases: Vec<(&str, Option<&str>, Option<FrameId>)> = vec![("launch", None, None)];
+    cases.extend(
+        crate::layouts::WORKSPACES
+            .iter()
+            .map(|ws| (ws.id, Some(ws.id), None)),
+    );
+    cases.push(("docked-wide", None, Some(FrameId::CENTER)));
+    for (layout, workspace, docked) in cases {
+        let tag = format!("meter-labels-{layout}");
         let (state, visual) = drawn_shell(cx, &tag);
         visual.update(|_, app| app.set_reduce_motion(true));
         if let Some(id) = workspace {
             visual.update(|_, app| {
                 state.update(app, |state, cx| assert!(state.apply_workspace(id, cx)))
+            });
+        }
+        if let Some(frame) = docked {
+            visual.update(|_, app| {
+                state.update(app, |state, _| {
+                    assert!(state.dock_tree.add_tab(frame, PANEL_AUDIO_METERS));
+                })
             });
         }
         for _ in 0..2 {
@@ -64,6 +85,28 @@ fn the_meters_fill_their_frame_and_keep_every_label_inside_its_box(cx: &mut Test
             })
             .unwrap_or_else(|| panic!("{layout} draws the Audio Meters frame"));
         let frame = Bounds::new(point(px(x), px(y)), size(px(w), px(h)));
+        let timeline = visual.read(|app| {
+            let state = state.read(app);
+            let holder = state.dock_tree.find(PANEL_TIMELINE)?;
+            state.dock_frame_rects.lock().get(&holder).copied()
+        });
+        if docked.is_some() {
+            assert!(
+                w > 4.0 * DockTree::EDITING_METERS_PX,
+                "{layout}: the hand-docked frame is {w} px, no wider than the launch frame"
+            );
+        } else {
+            // Beside the Timeline: its row, right of it.
+            let [tx, ty, tw, th] =
+                timeline.unwrap_or_else(|| panic!("{layout} draws the Timeline frame"));
+            assert!(
+                (y - ty).abs() <= EPS && (h - th).abs() <= EPS && x >= tx + tw - EPS,
+                "{layout}: the Audio Meters frame {:?} does not stand right of the Timeline \
+                 frame {:?} in its row",
+                [x, y, w, h],
+                [tx, ty, tw, th]
+            );
+        }
         let [body, light, scale, left, right] = [
             "audio-meters",
             "audio-meters-clip",

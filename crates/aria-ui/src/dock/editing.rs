@@ -26,8 +26,8 @@ impl DockTree {
     /// - Upper row: left frame [`Self::EDITING_LEFT_PX`] (`Project | Effect
     ///   Controls`), centre frame (`Viewer`), and right column
     ///   [`Self::EDITING_RIGHT_PX`] (`Effects & Presets`).
-    /// - Lower row: `Timeline` on the left, `Audio Meters` at `64 px` on the
-    ///   right.
+    /// - Lower row: [`Self::lower_row_for_width`], `Timeline` on the left,
+    ///   `Audio Meters` at `64 px` on the right.
     ///
     /// Every other panel opens from the Window menu into its
     /// [`default_frame_for`](super::default_frame_for) frame.
@@ -41,7 +41,6 @@ impl DockTree {
     /// meters) at `window_w`.
     pub fn editing_for_width(window_w: f32) -> Self {
         let (left_w, center_w, right_w) = Self::upper_row_weights_for_width(window_w, true);
-        let (timeline_w, meters_w) = Self::lower_row_weights_for_width(window_w);
         Self {
             version: DOCK_VERSION,
             root: Node::Split {
@@ -72,22 +71,7 @@ impl DockTree {
                     ),
                     (
                         Self::EDITING_TIMELINE_SHARE,
-                        Node::Split {
-                            axis: Axis::Row,
-                            children: vec![
-                                (
-                                    timeline_w,
-                                    Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
-                                ),
-                                (
-                                    meters_w,
-                                    Node::Frame(Frame::new(
-                                        FrameId::METERS,
-                                        vec![PANEL_AUDIO_METERS],
-                                    )),
-                                ),
-                            ],
-                        },
+                        Self::lower_row_for_width(window_w),
                     ),
                 ],
             },
@@ -126,5 +110,25 @@ impl DockTree {
         let timeline_px = (avail - meters_px).max(400.0);
         let sum = timeline_px + meters_px;
         (timeline_px / sum, meters_px / sum)
+    }
+
+    /// The lower row of every shipped workspace at `window_w`: `Timeline` on
+    /// the left and `Audio Meters` [`Self::EDITING_METERS_PX`] wide on the
+    /// right, so levels read beside the timeline that plays them.
+    pub fn lower_row_for_width(window_w: f32) -> Node {
+        let (timeline_w, meters_w) = Self::lower_row_weights_for_width(window_w);
+        Node::Split {
+            axis: Axis::Row,
+            children: vec![
+                (
+                    timeline_w,
+                    Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
+                ),
+                (
+                    meters_w,
+                    Node::Frame(Frame::new(FrameId::METERS, vec![PANEL_AUDIO_METERS])),
+                ),
+            ],
+        }
     }
 }

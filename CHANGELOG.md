@@ -828,6 +828,8 @@ Notes for the latest release. For previous releases, see the
 - A dock frame short of room for its tab titles shortens the longest titles first, so short titles such as Align and Jobs stay whole.
 - The Export sheet opens on the Destination row, then Format and Encoder, then Scale with the Size it gives directly under it, then Frame rate, Codec, Bitrate, Keyframes, Audio and Range.
 - A clip's filmstrip keeps its last pictures through an edit, an undo, or a redo until the new ones render, instead of going blank while it refills.
+- Every workspace docks Audio Meters at 64 px right of the Timeline; the Audio workspace no longer shows them as a wide frame in the upper right.
+- The Markers panel's color filter draws the Edit Marker dialog's swatches, rings the color in force, and names each color in a tooltip.
 
 ### Fixed
 

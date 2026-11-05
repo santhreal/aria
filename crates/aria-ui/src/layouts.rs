@@ -23,8 +23,8 @@ use std::path::{Path, PathBuf};
 
 use crate::dock::{
     Axis, DOCK_VERSION, DefaultFrame, DockTree, Frame, FrameId, Node, PANEL_ALIGN, PANEL_ASSISTANT,
-    PANEL_AUDIO_METERS, PANEL_COLOR, PANEL_EFFECTS, PANEL_INFO, PANEL_INSPECTOR, PANEL_MIXER,
-    PANEL_PROJECT, PANEL_SCOPES, PANEL_TIMELINE, PANEL_VIEWER, PanelId,
+    PANEL_COLOR, PANEL_EFFECTS, PANEL_INFO, PANEL_INSPECTOR, PANEL_MIXER, PANEL_PROJECT,
+    PANEL_SCOPES, PANEL_TIMELINE, PANEL_VIEWER, PanelId,
 };
 use crate::settings::{
     INSPECTOR_DEFAULT, INSPECTOR_MAX, INSPECTOR_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
@@ -310,10 +310,7 @@ pub fn workspace_tree_for_width(
                             ],
                         },
                     ),
-                    (
-                        0.50,
-                        Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
-                    ),
+                    (0.50, DockTree::lower_row_for_width(window_w)),
                 ],
             },
             floating: Vec::new(),
@@ -354,10 +351,7 @@ pub fn workspace_tree_for_width(
                             ],
                         },
                     ),
-                    (
-                        0.35,
-                        Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
-                    ),
+                    (0.35, DockTree::lower_row_for_width(window_w)),
                 ],
             },
             floating: Vec::new(),
@@ -392,16 +386,13 @@ pub fn workspace_tree_for_width(
                                     0.28,
                                     Node::Frame(Frame::new(
                                         FrameId::RIGHT,
-                                        vec![PANEL_AUDIO_METERS, PANEL_EFFECTS, PANEL_INSPECTOR],
+                                        vec![PANEL_EFFECTS, PANEL_INSPECTOR],
                                     )),
                                 ),
                             ],
                         },
                     ),
-                    (
-                        0.34,
-                        Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
-                    ),
+                    (0.34, DockTree::lower_row_for_width(window_w)),
                 ],
             },
             floating: Vec::new(),
@@ -442,10 +433,7 @@ pub fn workspace_tree_for_width(
                             ],
                         },
                     ),
-                    (
-                        0.40,
-                        Node::Frame(Frame::new(FrameId::BOTTOM, vec![PANEL_TIMELINE])),
-                    ),
+                    (0.40, DockTree::lower_row_for_width(window_w)),
                 ],
             },
             floating: Vec::new(),

@@ -39,19 +39,23 @@ workspace is chosen.
 | `win-workspace-animation` | Upper | 50% | Left | 400 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | no |
 | `win-workspace-animation` | Upper | 50% | Center | Rest | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
 | `win-workspace-animation` | Upper | 50% | Right | 300 px | `aria.panel.info`, `aria.panel.effects`, `aria.panel.align` | `aria.panel.effects` | no |
-| `win-workspace-animation` | Lower | 50% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-animation` | Lower | 50% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-animation` | Lower | 50% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
 | `win-workspace-colour` | Upper | 65% | Center | 38% | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | yes |
 | `win-workspace-colour` | Upper | 65% | Left | 32% | `aria.panel.scopes`, `aria.panel.media` | `aria.panel.scopes` | no |
 | `win-workspace-colour` | Upper | 65% | Right | 30% | `aria.panel.color`, `aria.panel.inspector`, `aria.panel.effects` | `aria.panel.color` | no |
-| `win-workspace-colour` | Lower | 35% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | no |
+| `win-workspace-colour` | Lower | 35% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | no |
+| `win-workspace-colour` | Lower | 35% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
 | `win-workspace-audio` | Upper | 66% | Left | 22% | `aria.panel.viewer`, `aria.panel.media` | `aria.panel.viewer` | no |
 | `win-workspace-audio` | Upper | 66% | Center | 50% | `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.mixer` | no |
-| `win-workspace-audio` | Upper | 66% | Right | 28% | `aria.panel.audio_meters`, `aria.panel.effects`, `aria.panel.inspector` | `aria.panel.audio_meters` | no |
-| `win-workspace-audio` | Lower | 34% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-audio` | Upper | 66% | Right | 28% | `aria.panel.effects`, `aria.panel.inspector` | `aria.panel.effects` | no |
+| `win-workspace-audio` | Lower | 34% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | yes |
+| `win-workspace-audio` | Lower | 34% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
 | `win-workspace-effects` | Upper | 60% | Left | 400 px | `aria.panel.inspector`, `aria.panel.media` | `aria.panel.inspector` | yes |
 | `win-workspace-effects` | Upper | 60% | Center | Rest | `aria.panel.viewer`, `aria.panel.mixer`, `aria.panel.assistant` | `aria.panel.viewer` | no |
 | `win-workspace-effects` | Upper | 60% | Right | 300 px | `aria.panel.effects`, `aria.panel.info` | `aria.panel.effects` | no |
-| `win-workspace-effects` | Lower | 40% | Bottom | 100% | `aria.panel.timeline` | `aria.panel.timeline` | no |
+| `win-workspace-effects` | Lower | 40% | Bottom | Rest | `aria.panel.timeline` | `aria.panel.timeline` | no |
+| `win-workspace-effects` | Lower | 40% | Meters | 64 px | `aria.panel.audio_meters` | `aria.panel.audio_meters` | no |
 
 ## Custom and plugin workspaces
 
