@@ -4,11 +4,7 @@
 //! pipeline and the native `aria-encoder`; this type owns the session
 //! [`Renderer`] and the undo [`History`].
 
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_models::{
@@ -25,6 +21,7 @@ use crate::action::{ApplyContext, ApplyOutcome, EditAction, History, HistoryStep
 use crate::error::EngineError;
 
 mod cells;
+mod saved;
 mod source_frame;
 
 pub use cells::{CellFrame, CellRenderer, CellSource};
@@ -141,15 +138,9 @@ pub struct Engine {
     /// Session revision: bumped on every successful project mutation (edits,
     /// open/load, undo, redo). Never serialized.
     revision: u64,
-    /// Revision last written to (or read from) disk; with `revision` this is
-    /// the dirty flag (see [`is_dirty`](Self::is_dirty)).
-    saved_revision: u64,
-    /// Whether the session was saved-clean when the open group began. A
-    /// rolled-back group restores the project it started from, so a session
-    /// that was clean before it is clean after: without this, a rehearsal or an
-    /// aborted turn would leave the session with unsaved changes that nothing
-    /// made.
-    group_started_clean: bool,
+    /// History step id last written to (or read from) disk; `None` after an
+    /// unhistoried project mutation until the next save (see [`is_dirty`](Self::is_dirty)).
+    saved_step_id: Option<u64>,
     /// Proxy substitutions applied so far: bumped whenever a media item starts
     /// or stops decoding through a proxy. Renderer state, so it must not move
     /// `revision` (see [`proxy_revision`](Self::proxy_revision)).
@@ -169,7 +160,7 @@ impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Engine")
             .field("revision", &self.revision)
-            .field("saved_revision", &self.saved_revision)
+            .field("saved_step_id", &self.saved_step_id)
             .finish_non_exhaustive()
     }
 }
@@ -197,6 +188,7 @@ impl Engine {
     /// behind a lock.
     pub fn with_renderer(config: EngineConfig, project: Project, renderer: Renderer) -> Self {
         let history = History::new(config.undo_limit);
+        let saved_step_id = Some(history.top_undo_id());
         Self {
             project: Arc::new(project),
             config,
@@ -204,8 +196,7 @@ impl Engine {
             project_path: None,
             renderer,
             revision: 0,
-            saved_revision: 0,
-            group_started_clean: true,
+            saved_step_id,
             proxy_revision: 0,
             preview_proxies: true,
             preview_transparency: false,
@@ -260,81 +251,9 @@ impl Engine {
         self.project_path.as_ref()
     }
 
-    /// Set the project's per-project AI agent rules (`ProjectMetadata`).
-    /// Metadata, not timeline state: it bypasses the command layer and is
-    /// not undoable by design (like `RelinkMedia`), but it does dirty the
-    /// session so the rules save with the project.
-    pub fn set_agent_rules(&mut self, rules: String) {
-        if self.project.metadata().agent_rules == rules {
-            return;
-        }
-        Arc::make_mut(&mut self.project).metadata_mut().agent_rules = rules;
-        self.revision += 1;
-    }
-    /// Write `value` under `key` in `plugin_id`'s per-project store, returning `true` when changed.
-    pub fn set_plugin_storage(&mut self, plugin_id: &str, key: &str, value: Vec<u8>) -> bool {
-        let changed = Arc::make_mut(&mut self.project).plugin_storage_set(plugin_id, key, value);
-        if changed {
-            self.revision += 1;
-        }
-        changed
-    }
-
-    /// Remove `key` from `plugin_id`'s per-project store, returning `true` when removed.
-    pub fn delete_plugin_storage(&mut self, plugin_id: &str, key: &str) -> bool {
-        if self.project.plugin_storage_get(plugin_id, key).is_none() {
-            return false;
-        }
-        let removed = Arc::make_mut(&mut self.project).plugin_storage_delete(plugin_id, key);
-        if removed {
-            self.revision += 1;
-        }
-        removed
-    }
-
-    /// Persist mutations made during a save notification (`ProjectSaved`) to `path` and mark clean.
-    pub fn finish_post_save(&mut self, path: &Path) -> Result<(), EngineError> {
-        if !self.is_dirty() || self.project_path.as_deref() != Some(path) {
-            return Ok(());
-        }
-        self.project.save_to_file(path)?;
-        self.saved_revision = self.revision;
-        Ok(())
-    }
-
     /// Monotonic session revision, bumped by every successful mutation.
     pub fn revision(&self) -> u64 {
         self.revision
-    }
-
-    /// True when the session has mutations not yet saved. Conservative: an undo
-    /// back to saved content still reads dirty (revisions only grow).
-    pub fn is_dirty(&self) -> bool {
-        self.revision != self.saved_revision
-    }
-
-    /// Declare the session unsaved without editing it.
-    ///
-    /// A recovered autosave is content the file on disk does not hold, so the
-    /// session has to read dirty even though this process made no edit. Bumps
-    /// the revision rather than clearing the baseline, so the projected flag and
-    /// the render caches agree with every other mutation.
-    pub fn mark_unsaved(&mut self) {
-        self.revision += 1;
-    }
-
-    /// Point the session at `path` after a recovery load, adopt its file stem
-    /// when the recovered document is still `"untitled"`, and mark the session
-    /// unsaved.
-    pub fn adopt_recovered_path(&mut self, path: Option<PathBuf>) {
-        if let Some(target) = &path {
-            crate::action::project::sync_project_name_from_path(
-                Arc::make_mut(&mut self.project),
-                target,
-            );
-        }
-        self.project_path = path;
-        self.revision += 1;
     }
 
     pub fn can_undo(&self) -> bool {
@@ -404,7 +323,6 @@ impl Engine {
     /// Group every command applied until [`commit_group`](Self::commit_group)
     /// into one history entry, so a multi-command gesture reverts with one undo.
     pub fn begin_group(&mut self) {
-        self.group_started_clean = !self.is_dirty();
         self.history.begin_group();
     }
 
@@ -439,11 +357,9 @@ impl Engine {
         for inverse in inverses.into_iter().rev() {
             if self.run_action(inverse).is_err() {
                 tracing::error!("history group rollback failed; state may be partial");
+                self.saved_step_id = None;
                 return;
             }
-        }
-        if self.group_started_clean {
-            self.saved_revision = self.revision;
         }
     }
 
@@ -462,6 +378,7 @@ impl Engine {
         for inverse in inverses.into_iter().rev() {
             if self.run_action(inverse).is_err() {
                 tracing::error!("history savepoint rollback failed; state may be partial");
+                self.saved_step_id = None;
                 return;
             }
         }
@@ -490,7 +407,7 @@ impl Engine {
         // stale (open decoders and still bitmaps, not only proxies).
         self.renderer.reset_media_sources();
         self.revision += 1;
-        self.saved_revision = self.revision;
+        self.mark_saved();
     }
 
     /// Apply a wire command. On success, pushes the inverse onto the undo stack.
@@ -523,6 +440,7 @@ impl Engine {
             history: &mut self.history,
         };
         let (outcome, inverse) = dispatch(command, &mut ctx)?;
+        let recorded = inverse.is_some();
         match outcome {
             ApplyOutcome::Opened | ApplyOutcome::Loaded => {
                 // Every session shows the magnetic main lane; files saved
@@ -537,25 +455,31 @@ impl Engine {
                 // The session now mirrors the file it came from: rebaseline as
                 // clean (revision still bumps so observers see a change).
                 self.revision += 1;
-                self.saved_revision = self.revision;
+                self.mark_saved();
             }
-            ApplyOutcome::Saved => self.saved_revision = self.revision,
+            ApplyOutcome::Saved => self.mark_saved(),
             // The media now names a different file: every id-keyed cache
             // (open decoder, still bitmap, proxy) belongs to the old path.
+            // Relinking records no step, so no undo returns to the saved one.
             ApplyOutcome::Relinked { media } => {
                 self.renderer.invalidate_media_source(media);
-                self.revision += 1;
+                self.unhistoried_change();
             }
+            // Every edit, removal, and label records a step. An import records
+            // none only for a file already in the pool, which changes nothing.
             ApplyOutcome::Edited(_)
             | ApplyOutcome::RemovedMedia { .. }
             | ApplyOutcome::LabeledMedia { .. }
-            | ApplyOutcome::Imported { .. } => self.revision += 1,
+            | ApplyOutcome::Imported { .. } => {
+                if recorded {
+                    self.revision += 1;
+                }
+            }
             // Unlike Open/Load, a filled template exists nowhere on disk as a
-            // project file: bump without rebaselining so the session reads
-            // dirty until first saved.
+            // project file: the session reads dirty until first saved.
             ApplyOutcome::AppliedTemplate => {
                 self.renderer.reset_media_sources();
-                self.revision += 1;
+                self.unhistoried_change();
             }
             // Writing a `.ariat` (like exporting an MP4) doesn't touch the
             // session project.
@@ -602,6 +526,11 @@ impl Engine {
         Arc::make_mut(&mut self.project)
             .timeline_mut()
             .attach_marker_to_clip(marker, clip)?;
+        // The change joins the top step without a new id: a save taken at
+        // that step no longer matches the project.
+        if self.saved_step_id == Some(self.history.top_undo_id()) {
+            self.saved_step_id = None;
+        }
         self.revision += 1;
         Ok(())
     }
@@ -916,10 +845,12 @@ impl Engine {
         let Some(step) = self.history.pop_undo() else {
             return false;
         };
+        let id = step.id;
         let label = step.label;
         match self.run_action(step.action) {
             Ok(inverse) => {
                 self.history.push_redo(HistoryStep {
+                    id,
                     label,
                     action: inverse,
                 });
@@ -934,7 +865,7 @@ impl Engine {
             Err(e) => {
                 tracing::error!("undo failed ({e}); clearing history to avoid corruption");
                 self.history.clear();
-                self.revision += 1;
+                self.unhistoried_change();
                 false
             }
         }
@@ -948,10 +879,12 @@ impl Engine {
         let Some(step) = self.history.pop_redo() else {
             return false;
         };
+        let id = step.id;
         let label = step.label;
         match self.run_action(step.action) {
             Ok(inverse) => {
                 self.history.push_undo(HistoryStep {
+                    id,
                     label,
                     action: inverse,
                 });
@@ -963,7 +896,7 @@ impl Engine {
             Err(e) => {
                 tracing::error!("redo failed ({e}); clearing history to avoid corruption");
                 self.history.clear();
-                self.revision += 1;
+                self.unhistoried_change();
                 false
             }
         }

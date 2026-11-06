@@ -266,6 +266,41 @@ fn saving_the_project_clears_the_offer() {
 }
 
 #[test]
+fn undoing_back_to_the_saved_step_clears_dirty_and_the_recovery_offer() {
+    use crate::app::DialogKind;
+
+    let mut state = dirty(scratch("recovery"));
+    state.project_path = Some(state.data_dir.join("saved_step.aria"));
+    state.save_project().expect("save baseline");
+    assert!(!state.store.is_dirty);
+
+    state
+        .add_track(aria_models::TrackKind::Audio, "A2")
+        .expect("edit after save");
+    assert!(state.store.is_dirty);
+    state.write_recovery().expect("recovery copy while dirty");
+    assert!(state.pending_recovery().is_some());
+    assert!(recovery_path(&state.data_dir).is_file());
+
+    assert!(state.undo(), "undo back to saved step");
+    assert!(
+        !state.store.is_dirty,
+        "undoing back to the saved step must mark the session clean"
+    );
+    assert!(
+        state.pending_recovery().is_none() && !recovery_path(&state.data_dir).exists(),
+        "undoing back to the saved step must clear the recovery copy"
+    );
+
+    state.request_quit();
+    assert_eq!(state.dialog, DialogKind::None);
+    assert!(
+        state.quit_requested(),
+        "quitting after undoing back to the saved step must not prompt"
+    );
+}
+
+#[test]
 fn starting_a_new_project_clears_the_offer() {
     let mut state = dirty(scratch("recovery"));
     state.write_recovery().expect("a copy to clear");

@@ -76,6 +76,10 @@ impl EditAction for CompoundAction {
 /// The label travels with the action rather than in a parallel list, so a
 /// history surface cannot show a name that belongs to a different entry.
 pub(crate) struct HistoryStep {
+    /// Identity of the project state this step leads to, kept across undo and
+    /// redo. `0` means unassigned: [`History`] assigns a fresh id when it
+    /// stores the step.
+    pub id: u64,
     pub label: Cow<'static, str>,
     pub action: Box<dyn EditAction>,
 }
@@ -96,6 +100,10 @@ pub(crate) struct History {
     pending: Option<Vec<HistoryStep>>,
     /// Advanced by every change to `undo` or `redo`; see [`Self::generation`].
     generation: u64,
+    /// Monotonic counter for [`HistoryStep::id`]; `0` is the initial empty stack.
+    next_id: u64,
+    /// Step id represented by an empty `undo` stack (`0` until a bottom step is evicted).
+    base_id: u64,
 }
 
 impl History {
@@ -106,6 +114,8 @@ impl History {
             limit: limit.max(1),
             pending: None,
             generation: 0,
+            next_id: 0,
+            base_id: 0,
         }
     }
 
@@ -122,6 +132,17 @@ impl History {
 
     fn advance(&mut self) {
         self.generation = self.generation.wrapping_add(1);
+    }
+
+    fn alloc_id(&mut self) -> u64 {
+        self.next_id = self.next_id.wrapping_add(1);
+        self.next_id
+    }
+
+    /// Identifier of the current undo position: the newest applied step's id,
+    /// or `base_id` when the undo stack is empty.
+    pub(crate) fn top_undo_id(&self) -> u64 {
+        self.undo.last().map_or(self.base_id, |step| step.id)
     }
 
     pub(crate) fn can_undo(&self) -> bool {
@@ -176,6 +197,7 @@ impl History {
                 };
                 let label = format!("{} +{}", first.label, steps.len() - 1);
                 HistoryStep {
+                    id: 0,
                     label: Cow::Owned(label),
                     action: Box::new(CompoundAction {
                         actions: steps.into_iter().map(|step| step.action).collect(),
@@ -230,25 +252,34 @@ impl History {
                 actions: steps.into_iter().map(|step| step.action).collect(),
             }),
         };
-        self.record_step(HistoryStep { label, action });
+        self.record_step(HistoryStep {
+            id: 0,
+            label,
+            action,
+        });
     }
 
     pub(crate) fn record_do(&mut self, label: &'static str, inverse: Box<dyn EditAction>) {
         self.record_step(HistoryStep {
+            id: 0,
             label: Cow::Borrowed(label),
             action: inverse,
         });
     }
 
-    fn record_step(&mut self, step: HistoryStep) {
+    fn record_step(&mut self, mut step: HistoryStep) {
         if let Some(pending) = self.pending.as_mut() {
             // Redo clearing waits for commit_group so a rolled-back group
             // leaves the redo stack intact.
             pending.push(step);
             return;
         }
+        if step.id == 0 {
+            step.id = self.alloc_id();
+        }
         if self.undo.len() >= self.limit {
-            self.undo.remove(0);
+            let evicted = self.undo.remove(0);
+            self.base_id = evicted.id;
         }
         self.undo.push(step);
         self.redo.clear();
@@ -263,7 +294,10 @@ impl History {
         step
     }
 
-    pub(crate) fn push_redo(&mut self, step: HistoryStep) {
+    pub(crate) fn push_redo(&mut self, mut step: HistoryStep) {
+        if step.id == 0 {
+            step.id = self.alloc_id();
+        }
         if self.redo.len() >= self.limit {
             self.redo.remove(0);
         }
@@ -279,9 +313,13 @@ impl History {
         step
     }
 
-    pub(crate) fn push_undo(&mut self, step: HistoryStep) {
+    pub(crate) fn push_undo(&mut self, mut step: HistoryStep) {
+        if step.id == 0 {
+            step.id = self.alloc_id();
+        }
         if self.undo.len() >= self.limit {
-            self.undo.remove(0);
+            let evicted = self.undo.remove(0);
+            self.base_id = evicted.id;
         }
         self.undo.push(step);
         self.advance();
@@ -297,6 +335,7 @@ impl History {
         let newer = stack.pop().expect("len >= 2");
         let older = stack.pop().expect("len >= 2");
         stack.push(HistoryStep {
+            id: newer.id,
             label: older.label,
             action: Box::new(CompoundAction {
                 actions: vec![older.action, newer.action],

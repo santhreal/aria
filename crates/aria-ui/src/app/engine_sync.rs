@@ -70,6 +70,9 @@ impl AppState {
         // scrub instead of trusting a comment.
         self.projections += 1;
         let mut store = snapshot.store;
+        if !store.is_dirty && self.store.is_dirty {
+            self.clear_recovery();
+        }
         store.zoom = self.zoom;
         store.scroll_x = self.scroll_x;
         self.store = std::sync::Arc::new(store);

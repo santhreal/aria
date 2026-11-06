@@ -31,11 +31,28 @@ fn dirty_state_tracks_edits_saves_and_history() {
 
     assert!(engine.undo());
     assert!(
-        engine.is_dirty(),
-        "undo back to saved content stays dirty (revisions only grow)"
+        !engine.is_dirty(),
+        "undo back to the saved step restores clean state"
     );
     assert!(engine.redo());
+    assert!(
+        engine.is_dirty(),
+        "redo away from the saved step marks the session dirty again"
+    );
+    assert!(engine.undo());
+    assert!(!engine.is_dirty());
+    assert!(engine.redo());
     assert!(engine.is_dirty());
+
+    // Saved after the edit, an undo leaves the saved step and a redo returns.
+    common::save_project(&mut engine, &project_file);
+    assert!(engine.undo());
+    assert!(engine.is_dirty(), "undo away from the saved step");
+    assert!(engine.redo());
+    assert!(
+        !engine.is_dirty(),
+        "redo back to the saved step restores clean state"
+    );
 
     common::open_project(&mut engine, &project_file);
     assert!(!engine.is_dirty(), "open rebaselines as clean");
@@ -45,6 +62,30 @@ fn dirty_state_tracks_edits_saves_and_history() {
         engine.is_dirty(),
         "edits after open dirty the session again"
     );
+}
+
+/// Re-importing a file the pool already holds returns its id and changes
+/// nothing, so a saved session stays saved and no observer sees a revision.
+/// Importing a new file after the save still reads unsaved.
+#[test]
+fn reimporting_a_pooled_file_keeps_a_saved_session_saved() {
+    let Some(path) = small_video_asset() else {
+        return;
+    };
+    let (dir, mut engine) = temp_engine();
+    let media = import_asset(&mut engine, &path);
+    let project_file = dir.path().join("pooled.aria");
+    common::save_project(&mut engine, &project_file);
+    let revision = engine.revision();
+
+    assert_eq!(import_asset(&mut engine, &path), media);
+    assert!(!engine.is_dirty(), "a re-import changes nothing");
+    assert_eq!(engine.revision(), revision);
+
+    let copy = dir.path().join("copy.mp4");
+    std::fs::copy(&path, &copy).expect("copy asset");
+    assert_ne!(import_asset(&mut engine, &copy), media);
+    assert!(engine.is_dirty(), "a new file in the pool is unsaved");
 }
 
 #[test]

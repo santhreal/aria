@@ -21,6 +21,7 @@ fn listed(history: &History) -> (Vec<String>, Vec<String>) {
 
 fn named(label: &'static str) -> HistoryStep {
     HistoryStep {
+        id: 0,
         label: Cow::Borrowed(label),
         action: Box::new(NoopAction),
     }

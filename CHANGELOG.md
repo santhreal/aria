@@ -1296,6 +1296,8 @@ Notes for the latest release. For previous releases, see the
 - **File > Export > Timeline…** and the keymap export to the project file or a file the project uses as media fail before anything is written, as a media export does.
 - `aria demo` writes its PNG through a staging file, so a failed write leaves the file already at the destination as it was.
 - An export to a symbolic link, a folder, or a special file names the path and what is there.
+- Undoing or redoing back to the saved state marks the project saved again and removes its autosave recovery copy.
+- Re-importing a file already in the media pool no longer marks a saved project unsaved.
 
 ## [alpha-0.7.0] - 2026-07-22
 

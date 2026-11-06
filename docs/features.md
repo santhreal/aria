@@ -245,6 +245,7 @@ Anything not listed here is not in the build.
   empty stretches move the window, a double click maximizes it, a right click
   opens the window menu, and the window's edges and corners resize it. The
   window title is the project name with a `*` while it has unsaved changes.
+  Undoing or redoing back to the saved state clears the `*`.
 - Command palette over every registered command and menu row.
 - Settings for appearance, keys, storage, providers, and each plugin's own
   schema.
