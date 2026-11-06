@@ -264,6 +264,12 @@ and renaming it over the old file. An interrupted save leaves the previous copy
 intact. `config.toml` is written with mode `0600`; every other file keeps its
 existing mode.
 
+A `ui-settings.json` or `recents.json` that does not parse is renamed to
+`<name>.unreadable-<unix seconds>` before anything is saved over it, and the
+status line states the new name. The session uses the default layout and keys,
+or an empty recents list. Copy what you want back into the new file, or delete
+the renamed one.
+
 Each table in `config.toml` holds a schema version, recorded in one table:
 
 ```toml

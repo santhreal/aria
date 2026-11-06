@@ -118,8 +118,8 @@ impl AppState {
         );
         // Home is the first route, so the list it draws is read once here rather
         // than on the first frame that draws it.
-        let recents: Arc<[crate::app::recents::RecentView]> =
-            crate::app::recents::visible_recents(&data_dir).into();
+        let (recents, recents_notice) = crate::app::recents::visible_recents(&data_dir);
+        let recents: Arc<[crate::app::recents::RecentView]> = recents.into();
         let pending_recovery = crate::app::recovery::load_pending_recovery(&data_dir);
         let assistant_skills: Arc<[crate::app::skills::UiSkill]> =
             crate::app::skills::load_assistant_skills(&data_dir).into();
@@ -140,6 +140,7 @@ impl AppState {
             data_dir.join("render-files"),
             crate::app::render_files::render_files_environment(&plugin_ctx),
         ));
+        let (ui_settings, ui_settings_notice) = UiSettings::open(&data_dir);
         let mut state = Self {
             ctx: Arc::new(plugin_ctx),
             engine,
@@ -158,7 +159,7 @@ impl AppState {
             preset_draft: None,
             driver_draft: None,
             parent_whip: None,
-            ui_settings: UiSettings::load(&data_dir),
+            ui_settings,
             dock_tree: crate::dock::DockTree::editing(),
             active_workspace_id: crate::layouts::WORKSPACES[0].id.to_string(),
             workspace_transition_epoch: 0,
@@ -408,6 +409,14 @@ impl AppState {
         state.refresh_analysis_cache_size();
         state.refresh_models();
         state.refresh_import_recents();
+        // Last, so no startup refresh clears them before the first frame.
+        let notices: Vec<String> = [ui_settings_notice, recents_notice]
+            .into_iter()
+            .flatten()
+            .collect();
+        if !notices.is_empty() {
+            state.report_error(notices.join(" "));
+        }
         Ok(state)
     }
 

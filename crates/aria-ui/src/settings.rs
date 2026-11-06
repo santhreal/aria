@@ -271,25 +271,53 @@ impl UiSettings {
         self.last_display_arrangement = Some(sig);
     }
 
+    /// The settings saved in `data_dir`. A file that is missing, unreadable,
+    /// or unparsable yields the defaults and is left where it is; a session
+    /// that writes the settings back opens them with [`UiSettings::open`].
     pub fn load(data_dir: &Path) -> Self {
+        Self::read(&data_dir.join(FILE_NAME)).unwrap_or_default()
+    }
+
+    /// The settings saved in `data_dir`, for a session that saves them back,
+    /// and the status line to post when the file could not be used.
+    ///
+    /// A file that does not parse is renamed to
+    /// `ui-settings.json.unreadable-<unix seconds>` before the defaults are
+    /// returned, so the session's first save does not replace the saved
+    /// layout, workspaces and key bindings with defaults.
+    pub fn open(data_dir: &Path) -> (Self, Option<String>) {
         let path = data_dir.join(FILE_NAME);
-        match std::fs::read_to_string(&path) {
-            Ok(text) => match serde_json::from_str::<UiSettings>(&text) {
-                Ok(mut settings) => {
-                    settings.clamp();
-                    settings
-                }
-                Err(err) => {
-                    tracing::warn!(error = %err, path = %path.display(), "corrupt ui-settings, using defaults");
-                    Self::default()
-                }
-            },
-            Err(err) if err.kind() == io::ErrorKind::NotFound => Self::default(),
-            Err(err) => {
+        match Self::read(&path) {
+            Ok(settings) => (settings, None),
+            Err(Unusable::Read(err)) => {
                 tracing::warn!(error = %err, path = %path.display(), "could not read ui-settings");
-                Self::default()
+                let line = format!(
+                    "Couldn't read {}: {err}. The default layout and keys are in use.",
+                    path.display()
+                );
+                (Self::default(), Some(line))
             }
+            Err(Unusable::Parse(err)) => (
+                Self::default(),
+                Some(set_aside_unparsable(
+                    &path,
+                    &err,
+                    "the default layout and keys are in use",
+                )),
+            ),
         }
+    }
+
+    /// The settings in `path`, clamped: the defaults when there is no file.
+    fn read(path: &Path) -> Result<Self, Unusable> {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Self::default()),
+            Err(err) => return Err(Unusable::Read(err)),
+        };
+        let mut settings = serde_json::from_str::<UiSettings>(&text).map_err(Unusable::Parse)?;
+        settings.clamp();
+        Ok(settings)
     }
 
     pub fn save(&self, data_dir: &Path) -> io::Result<()> {
@@ -314,6 +342,50 @@ impl UiSettings {
         for tree in self.workspace_trees.values_mut() {
             tree.normalize();
         }
+    }
+}
+
+/// Why a `ui-settings.json` on disk could not be used.
+enum Unusable {
+    Read(io::Error),
+    Parse(serde_json::Error),
+}
+
+/// Rename the state file at `path`, which did not parse with `err`, to
+/// `<name>.unreadable-<unix seconds>` beside it (with `-<n>` added when that
+/// name is taken), so the next save cannot replace it, and return the status
+/// line that states the failure, where the file went, and `consequence`.
+pub(crate) fn set_aside_unparsable(
+    path: &Path,
+    err: &dyn std::fmt::Display,
+    consequence: &str,
+) -> String {
+    tracing::warn!(error = %err, path = %path.display(), "unparsable state file, set aside");
+    let seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    let named = |suffix: String| {
+        let mut name = path.file_name().unwrap_or_default().to_owned();
+        name.push(suffix);
+        path.with_file_name(name)
+    };
+    let mut aside = named(format!(".unreadable-{seconds}"));
+    let mut taken = 0u32;
+    while aside.exists() {
+        taken += 1;
+        aside = named(format!(".unreadable-{seconds}-{taken}"));
+    }
+    match std::fs::rename(path, &aside) {
+        Ok(()) => format!(
+            "Couldn't parse {}: {err}. It was moved to {}, and {consequence}.",
+            path.display(),
+            aside.display()
+        ),
+        Err(moved) => format!(
+            "Couldn't parse {}: {err}. Moving it to {} failed ({moved}), so the next save replaces it.",
+            path.display(),
+            aside.display()
+        ),
     }
 }
 
@@ -588,5 +660,115 @@ mod tests {
             let back: UiSettings = serde_json::from_str(&text).expect("deserialize");
             assert_eq!(back, settings);
         }
+    }
+
+    /// The files in `dir` whose names start `ui-settings.json.unreadable-`.
+    fn set_aside(dir: &Path) -> Vec<PathBuf> {
+        std::fs::read_dir(dir)
+            .expect("list the data dir")
+            .map(|entry| entry.expect("entry").path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("ui-settings.json.unreadable-"))
+            })
+            .collect()
+    }
+
+    /// An unparsable `ui-settings.json` is set aside and reported, never
+    /// overwritten.
+    ///
+    /// The class closed here: a settings file that does not parse (cut off by
+    /// a crash, hand-edited, written by a newer build) was read as the
+    /// defaults without a word, and the session's first settings save
+    /// replaced it, so the saved layout, workspaces and key bindings were
+    /// gone. A session opens the file through [`UiSettings::open`], which
+    /// moves it to `ui-settings.json.unreadable-<seconds>`, and the move is
+    /// posted on the status line. Driven through `AppState::new`, the path
+    /// every session takes. Not covered: the rename failing, and a file that
+    /// parses but holds values that were edited by hand to something else.
+    #[test]
+    fn an_unparsable_settings_file_is_set_aside_and_reported() {
+        const CUT: &str = r#"{"sidebarWidth":300.0,"keys":{"timeline-razor":"#;
+        let data_dir = crate::scratch_pool::scratch("unparsable-settings");
+        std::fs::write(UiSettings::path(&data_dir), CUT).expect("write the cut-off file");
+        let mut state =
+            crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir.clone())
+                .expect("state");
+        assert_eq!(state.ui_settings, UiSettings::default());
+
+        let aside = set_aside(&data_dir);
+        assert_eq!(
+            aside.len(),
+            1,
+            "the unparsable file was not set aside: {aside:?}"
+        );
+        assert_eq!(std::fs::read_to_string(&aside[0]).expect("read"), CUT);
+        let line = state
+            .last_error
+            .clone()
+            .expect("the session opened with no line about the settings file");
+        assert!(
+            line.starts_with("Couldn't parse ") && line.contains(&aside[0].display().to_string()),
+            "the line does not state the failure and where the file went: {line}"
+        );
+
+        state.write_settings_now().expect("save the settings");
+        assert_eq!(
+            std::fs::read_to_string(&aside[0]).expect("read"),
+            CUT,
+            "the save replaced the set-aside copy"
+        );
+        assert_eq!(UiSettings::load(&data_dir), state.ui_settings);
+    }
+
+    /// A missing file, a valid file, and a path that cannot be read as a file
+    /// are each opened where they are: nothing is moved, and only the
+    /// unreadable path posts a line.
+    #[test]
+    fn a_missing_valid_or_unreadable_settings_file_is_not_moved() {
+        let dir = crate::scratch_pool::scratch("settings-open");
+        assert_eq!(UiSettings::open(&dir), (UiSettings::default(), None));
+
+        let saved = UiSettings {
+            sidebar_width: 300.0,
+            ..UiSettings::default()
+        };
+        saved.save(&dir).expect("save");
+        assert_eq!(UiSettings::open(&dir), (saved, None));
+        assert!(set_aside(&dir).is_empty());
+
+        let unreadable = crate::scratch_pool::scratch("settings-unreadable");
+        std::fs::create_dir(UiSettings::path(&unreadable)).expect("a directory in its place");
+        let (settings, line) = UiSettings::open(&unreadable);
+        assert_eq!(settings, UiSettings::default());
+        let line = line.expect("an unreadable file posts a line");
+        assert!(line.starts_with("Couldn't read "), "{line}");
+        assert!(
+            set_aside(&unreadable).is_empty(),
+            "an unreadable path was moved"
+        );
+        assert!(UiSettings::path(&unreadable).is_dir());
+    }
+
+    /// Two files set aside in the same second keep both copies: the second
+    /// takes a `-<n>` name instead of renaming over the first.
+    #[test]
+    fn a_second_set_aside_keeps_the_first() {
+        let dir = crate::scratch_pool::scratch("settings-aside-twice");
+        let path = UiSettings::path(&dir);
+        for (n, bytes) in ["{cut", "{also cut"].into_iter().enumerate() {
+            std::fs::write(&path, bytes).expect("write");
+            let line = set_aside_unparsable(&path, &"expected value", "nothing is lost");
+            assert!(line.ends_with(", and nothing is lost."), "{line}");
+            assert_eq!(set_aside(&dir).len(), n + 1, "{line}");
+        }
+        let mut kept: Vec<String> = set_aside(&dir)
+            .iter()
+            .map(|path| std::fs::read_to_string(path).expect("read"))
+            .collect();
+        kept.sort();
+        assert_eq!(kept, ["{also cut", "{cut"]);
+        assert!(!path.exists());
     }
 }

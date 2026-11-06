@@ -66,26 +66,37 @@ impl AppState {
     /// there. Home draws what this leaves behind, so a frame costs no file read
     /// and no stat.
     pub(crate) fn refresh_recents(&mut self) {
-        self.recents = visible_recents(&self.data_dir).into();
+        let (recents, set_aside) = visible_recents(&self.data_dir);
+        self.recents = recents.into();
+        self.report_set_aside(set_aside);
     }
 
     /// Put a project at the top of the recents list.
     pub(crate) fn remember_recent(&mut self, path: &Path) {
-        remember(&self.data_dir, path);
+        let set_aside = remember(&self.data_dir, path);
         self.refresh_recents();
+        self.report_set_aside(set_aside);
     }
 
     /// Take a project off the recents list, leaving the file alone.
     pub(crate) fn forget_recent(&mut self, path: &Path) {
-        forget(&self.data_dir, path);
+        let set_aside = forget(&self.data_dir, path);
         self.refresh_recents();
+        self.report_set_aside(set_aside);
     }
 
     /// Delete a project's file and take it off the list.
     pub(crate) fn delete_recent(&mut self, path: &Path) -> Result<(), String> {
-        let result = delete_recent_file(&self.data_dir, path);
-        self.refresh_recents();
-        result
+        delete_recent_file(path)?;
+        self.forget_recent(path);
+        Ok(())
+    }
+
+    /// Post the line for a recents file that did not parse and was set aside.
+    fn report_set_aside(&mut self, set_aside: Option<String>) {
+        if let Some(line) = set_aside {
+            self.report_error(line);
+        }
     }
 
     /// Open a recent project, or prompt to relink it when its file has moved.
@@ -118,8 +129,10 @@ pub(crate) fn relink_recent(state: &mut AppState, old: &Path) {
     );
 }
 
-pub fn remember(data_dir: &Path, path: &Path) {
-    let mut recents = load_entries(data_dir);
+/// Put `path` at the top of the recents list in `data_dir`. Returns the status
+/// line when the file there did not parse and was set aside.
+pub fn remember(data_dir: &Path, path: &Path) -> Option<String> {
+    let (mut recents, set_aside) = load_entries(data_dir);
     recents.retain(|entry| entry.path != path);
     recents.insert(
         0,
@@ -130,20 +143,24 @@ pub fn remember(data_dir: &Path, path: &Path) {
     );
     recents.truncate(MAX_RECENTS);
     save_entries(data_dir, &recents);
+    set_aside
 }
 
-pub fn forget(data_dir: &Path, path: &Path) {
-    let mut recents = load_entries(data_dir);
+/// Take `path` off the recents list in `data_dir`. Returns the status line
+/// when the file there did not parse and was set aside.
+pub fn forget(data_dir: &Path, path: &Path) -> Option<String> {
+    let (mut recents, set_aside) = load_entries(data_dir);
     recents.retain(|entry| entry.path != path);
     save_entries(data_dir, &recents);
+    set_aside
 }
 
-pub fn delete_recent_file(data_dir: &Path, path: &Path) -> Result<(), String> {
+/// Delete the project file at `path`, if it is there.
+pub fn delete_recent_file(path: &Path) -> Result<(), String> {
     if path.exists() {
         fs::remove_file(path)
             .map_err(|err| format!("could not delete {}: {err}", path.display()))?;
     }
-    forget(data_dir, path);
     Ok(())
 }
 
@@ -179,9 +196,12 @@ pub fn sample_still(data_dir: &Path) -> PathBuf {
     dest
 }
 
-pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
+/// The recents list in `data_dir` as Home draws it, and the status line when
+/// the file did not parse and was set aside.
+pub fn visible_recents(data_dir: &Path) -> (Vec<RecentView>, Option<String>) {
     let home = dirs::home_dir();
-    load_entries(data_dir)
+    let (entries, set_aside) = load_entries(data_dir);
+    let views = entries
         .into_iter()
         .map(|entry| {
             let missing = !entry.path.exists();
@@ -199,7 +219,8 @@ pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
                 opened,
             }
         })
-        .collect()
+        .collect();
+    (views, set_aside)
 }
 
 /// Where a recent project is, as its card prints it: the folder that holds
@@ -217,19 +238,27 @@ pub(crate) fn folder_label(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
-fn load_entries(data_dir: &Path) -> Vec<RecentEntry> {
+/// The entries in `data_dir`'s recents file, and the status line when the
+/// file did not parse in either shape and was set aside. A missing or
+/// unreadable file is an empty list.
+fn load_entries(data_dir: &Path) -> (Vec<RecentEntry>, Option<String>) {
     let path = data_dir.join(RECENTS_FILE);
     let Ok(text) = fs::read_to_string(&path) else {
-        return Vec::new();
+        return (Vec::new(), None);
     };
-    if let Ok(file) = serde_json::from_str::<RecentsFile>(&text) {
-        return file.entries;
+    let err = match serde_json::from_str::<RecentsFile>(&text) {
+        Ok(file) => return (file.entries, None),
+        Err(err) => err,
+    };
+    if let Ok(paths) = serde_json::from_str::<Vec<PathBuf>>(&text) {
+        let entries = paths
+            .into_iter()
+            .map(|path| RecentEntry { path, opened_at: 0 })
+            .collect();
+        return (entries, None);
     }
-    serde_json::from_str::<Vec<PathBuf>>(&text)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|path| RecentEntry { path, opened_at: 0 })
-        .collect()
+    let line = crate::settings::set_aside_unparsable(&path, &err, "the recents list starts empty");
+    (Vec::new(), Some(line))
 }
 
 fn save_entries(data_dir: &Path, entries: &[RecentEntry]) {
@@ -294,7 +323,7 @@ mod tests {
         fs::write(&b, "{}").unwrap();
         remember(&dir, &a);
         remember(&dir, &b);
-        let recents = visible_recents(&dir);
+        let (recents, _) = visible_recents(&dir);
         assert_eq!(recents[0].path.as_ref(), &b);
         assert_eq!(recents[1].path.as_ref(), &a);
         assert!(recents[0].opened_at > 0);
@@ -336,7 +365,7 @@ mod tests {
         let dir = scratch();
         let gone = dir.join("gone.aria");
         remember(&dir, &gone);
-        let recents = visible_recents(&dir);
+        let (recents, _) = visible_recents(&dir);
         assert!(recents[0].missing);
     }
 
@@ -350,7 +379,7 @@ mod tests {
             serde_json::to_string(&vec![&path]).unwrap(),
         )
         .unwrap();
-        let recents = visible_recents(&dir);
+        let (recents, _) = visible_recents(&dir);
         assert_eq!(recents[0].path.as_ref(), &path);
         remember(&dir, &path);
         let text = fs::read_to_string(dir.join(RECENTS_FILE)).unwrap();
@@ -365,6 +394,73 @@ mod tests {
         fs::write(&path, "{}").unwrap();
         remember(&dir, &path);
         forget(&dir, &path);
-        assert!(visible_recents(&dir).is_empty());
+        assert!(visible_recents(&dir).0.is_empty());
+    }
+
+    /// An unparsable `recents.json` is set aside and reported, never replaced.
+    ///
+    /// The class closed here: a recents file in neither shape read as an
+    /// empty list without a line, and the next project opened replaced it, so
+    /// every remembered project was gone. Driven through `AppState::new`, the
+    /// first read of a session, and through `remember_recent`, a read in the
+    /// middle of one: each sets the file aside under its own name and posts
+    /// the name. Not covered: an unreadable file, which reads as empty and
+    /// leaves the next save to fail on the same permission.
+    #[test]
+    fn an_unparsable_recents_file_is_set_aside_and_reported() {
+        const CUT: &str = r#"{"version":1,"entries":[{"path":"/films/a.aria","#;
+        let dir = crate::scratch_pool::scratch("recents-cut");
+        let file = dir.join(RECENTS_FILE);
+        let set_aside = || -> Vec<PathBuf> {
+            let mut found: Vec<PathBuf> = fs::read_dir(&dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.starts_with("recents.json.unreadable-"))
+                })
+                .collect();
+            found.sort();
+            found
+        };
+
+        fs::write(&file, CUT).unwrap();
+        let mut state =
+            AppState::new(aria_plugin::PluginContext::new(), dir.clone()).expect("state");
+        assert!(state.recents().is_empty());
+        let first = set_aside();
+        assert_eq!(first.len(), 1, "the session did not set the file aside");
+        assert_eq!(fs::read_to_string(&first[0]).unwrap(), CUT);
+        let line = state
+            .last_error
+            .clone()
+            .expect("the session opened with no line");
+        assert!(
+            line.starts_with("Couldn't parse ") && line.contains(&first[0].display().to_string()),
+            "{line}"
+        );
+
+        fs::write(&file, CUT).unwrap();
+        let project = dir.join("b.aria");
+        fs::write(&project, "{}").unwrap();
+        state.last_error = None;
+        state.remember_recent(&project);
+        let both = set_aside();
+        assert_eq!(
+            both.len(),
+            2,
+            "the second set-aside replaced the first: {both:?}"
+        );
+        let second = both.iter().find(|path| **path != first[0]).unwrap();
+        assert_eq!(fs::read_to_string(second).unwrap(), CUT);
+        assert_eq!(fs::read_to_string(&first[0]).unwrap(), CUT);
+        let line = state
+            .last_error
+            .clone()
+            .expect("remembering posted no line");
+        assert!(line.contains(&second.display().to_string()), "{line}");
+        assert_eq!(state.recents().len(), 1);
+        assert_eq!(state.recents()[0].path.as_ref(), &project);
     }
 }

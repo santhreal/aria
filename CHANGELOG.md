@@ -1267,6 +1267,7 @@ Notes for the latest release. For previous releases, see the
 - The sequence's Out point keeps the frame it was marked on, so a Marked range export, an adjustment layer, Extract, and Lift include the Out frame, and Go to Out lands on it.
 - A crash or a full disk while saving the window layout, workspaces, key sets, recents, conversations, skills or presets no longer leaves a truncated file that resets them to defaults.
 - A key set picked or a window closed within half a second of another settings change is no longer reverted on disk by that change's delayed save.
+- An unparsable `ui-settings.json` or `recents.json` is renamed to `<name>.unreadable-<seconds>` and reported on the status line instead of being overwritten by the next save.
 
 ## [alpha-0.7.0] - 2026-07-22
 
