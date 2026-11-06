@@ -133,6 +133,14 @@ fn redraw(visual: &mut VisualTestContext) -> Vec<DrawnReadout> {
         visual.run_until_parked();
         visual.executor().advance_clock(Duration::from_secs(1));
     }
+    settled(visual)
+}
+
+/// Every panel body built anew in one frame, and the readouts it drew, the
+/// last one drawn under each key. A value write opens no row, so a frame drawn
+/// after one draws every row the frame before it drew; a readout missing from
+/// it fails the caller by its key.
+fn settled(visual: &mut VisualTestContext) -> Vec<DrawnReadout> {
     record_readouts();
     // A refresh builds every panel body, so no readout is replayed unrecorded.
     visual.update(|window, _| window.refresh());
@@ -191,7 +199,8 @@ fn assert_each_reads_back(surface: &str, drawn: &[DrawnReadout]) {
 /// field opens with by that unit: down from a value above zero and up from any
 /// other, so a value resting on a floor of zero has room to move. A write that
 /// records no edit may leave the value where a bound holds it. Each recorded
-/// write is undone before the next.
+/// write is undone before the next, and the frame after the next write draws
+/// both: no readout is read off the undo itself.
 fn assert_each_moves_by_its_unit(
     surface: &str,
     state: &Entity<AppState>,
@@ -222,7 +231,7 @@ fn assert_each_moves_by_its_unit(
                 state.history_depth() > depth
             })
         });
-        let after = redraw(visual);
+        let after = settled(visual);
         let landed = drawn_under(&after, target.key)
             .unwrap_or_else(|| {
                 panic!(
@@ -234,16 +243,14 @@ fn assert_each_moves_by_its_unit(
             .value;
         if recorded {
             visual.update(|_, app| {
-                state.update(app, |state, cx| {
+                state.update(app, |state, _| {
                     assert!(
                         state.undo(),
                         "{surface}: the write through `{}` did not undo",
                         readout.text
                     );
-                    cx.notify();
                 })
             });
-            visual.run_until_parked();
         }
         let moved = landed - target.value;
         let slack = 1e-3 * target.unit.abs() + 1e-5 * target.value.abs().max(1.0);
