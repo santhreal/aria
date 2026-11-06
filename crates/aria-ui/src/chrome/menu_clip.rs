@@ -228,13 +228,13 @@ static CLIP_ITEMS: &[MenuItem] = &[
         let set = s.set_selected_matte_source(aria_models::MatteSource::Luma);
         report(s, set)
     })
-    .when(super::menu_guards::selection)
+    .when(|_, s| matte_source_ready(s, aria_models::MatteSource::Luma))
     .under("Track Matte"),
     MenuItem::new("seq-matte-alpha", "Alpha Matte from Above", |_, s, _| {
         let set = s.set_selected_matte_source(aria_models::MatteSource::Alpha);
         report(s, set)
     })
-    .when(super::menu_guards::selection)
+    .when(|_, s| matte_source_ready(s, aria_models::MatteSource::Alpha))
     .under("Track Matte"),
     MenuItem::new("seq-matte-clear", "Remove Track Matte", |_, s, _| {
         let cleared = s.clear_selected_matte();
@@ -244,6 +244,12 @@ static CLIP_ITEMS: &[MenuItem] = &[
     .under("Track Matte")
     .flyout_rule(),
 ];
+
+/// Disables a Matte from Above row with no clip selected, or whose source the
+/// selected clip's matte already reads, through the plan its body runs.
+fn matte_source_ready(state: &AppState, source: aria_models::MatteSource) -> Option<&'static str> {
+    state.matte_source_to_set(source).err().map(Decline::reason)
+}
 
 pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
     super::menu_guards::freezable(id, state).or_else(|| {

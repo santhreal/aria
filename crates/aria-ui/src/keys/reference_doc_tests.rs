@@ -547,7 +547,8 @@ fn menus_doc_matches_registry() {
                 | Decline::SourceTooShort
                 | Decline::SameSource
                 | Decline::SameLabel
-                | Decline::SameChannels => {}
+                | Decline::SameChannels
+                | Decline::SameMatte => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

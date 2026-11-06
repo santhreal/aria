@@ -107,8 +107,6 @@ fn a_row_that_records_a_step_changes_the_project() {
 /// Rows whose repeat still records a step over its own result. Each is red
 /// here once it no longer does, so the list only shrinks.
 const REPEATS_A_STEP: &[&str] = &[
-    "seq-matte-luma",
-    "seq-matte-alpha",
     "seq-default-transitions",
     "seq-transition-crossfade",
     "seq-marker-snap",
@@ -174,7 +172,7 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
 #[test]
 fn a_row_over_its_own_result_declines_and_records_nothing() {
     use crate::app::decline::Decline;
-    let cases: [(&str, fn() -> AppState, Decline); 9] = [
+    let cases: [(&str, fn() -> AppState, Decline); 10] = [
         ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
         ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
         (
@@ -220,6 +218,7 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
             || Sound.state(),
             Decline::SameChannels,
         ),
+        ("seq-matte-luma", || Matted.state(), Decline::SameMatte),
     ];
     let mut wrong = Vec::new();
     for (id, build, why) in cases {

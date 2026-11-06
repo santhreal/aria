@@ -351,11 +351,16 @@ impl AppState {
         })
     }
 
-    /// Cut the selected clip with the lane above, reading `source`.
+    /// Cut the selected clip with the lane above, reading `source`, or decline
+    /// for the reason [`Self::matte_source_to_set`] returns.
     ///
     /// Seeds a soft edge of zero: a hard cut is what a matte means until a
     /// falloff is set.
     pub fn set_selected_matte_source(&mut self, source: MatteSource) -> Result<(), EngineError> {
+        if let Err(why) = self.matte_source_to_set(source) {
+            self.decline(why);
+            return Ok(());
+        }
         let Some(model) = self.selected_model() else {
             return Ok(());
         };
@@ -381,6 +386,17 @@ impl AppState {
             )
         });
         Ok(())
+    }
+
+    /// Whether a Matte from Above row has a matte to write: a selected clip
+    /// that does not already read `source`. The row's guard and its body both
+    /// read this.
+    pub(crate) fn matte_source_to_set(&self, source: MatteSource) -> Result<(), Decline> {
+        let model = self.selected_model().ok_or(Decline::NoSelection)?;
+        match &model.matte {
+            Some(matte) if matte.source == source => Err(Decline::SameMatte),
+            _ => Ok(()),
+        }
     }
 
     /// Take the track matte off the selected clip.

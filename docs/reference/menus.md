@@ -107,8 +107,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
 | `seq-flip-v` | `Transform` | Flip Vertical | `none` | No clip is selected (`guards::selection`) | Toggles vertical mirror flip on the selected clips. |
 | `seq-crop-reset` | `Transform` | Reset Framing | `none` | No clip is selected, or the selected clip shows its whole frame (`guards::framing`) | Clears all four crop edges, the crop's keyframes, and both mirrors on the selected clip. |
-| `seq-matte-luma` | `Track Matte` | Luma Matte from Above | `none` | No clip is selected (`guards::selection`) | Uses the luminance of the clip directly above as the selected clip's track matte (`MatteSource::Luma`). |
-| `seq-matte-alpha` | `Track Matte` | Alpha Matte from Above | `none` | No clip is selected (`guards::selection`) | Uses the alpha channel of the clip directly above as the selected clip's track matte (`MatteSource::Alpha`). |
+| `seq-matte-luma` | `Track Matte` | Luma Matte from Above | `none` | No clip is selected, or the selected clip's matte already reads that source (`matte_source_ready`) | Uses the luminance of the clip directly above as the selected clip's track matte (`MatteSource::Luma`). |
+| `seq-matte-alpha` | `Track Matte` | Alpha Matte from Above | `none` | No clip is selected, or the selected clip's matte already reads that source (`matte_source_ready`) | Uses the alpha channel of the clip directly above as the selected clip's track matte (`MatteSource::Alpha`). |
 | `seq-matte-clear` | `Track Matte` | Remove Track Matte | `none` | No clip is selected, or the selected clip has no track matte (`guards::matte`) | Clears the track matte source on the selected clip. |
 | `clip-analyze:aria.beats` | `Analyze` | Detect Beats | `none` | Select a clip with sound (`guards::sound`) | Runs the registered beat analyzer (`aria.beats`) on the selected clip and adds beat markers. |
 
@@ -402,6 +402,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SameSource` | `The clip already plays those source frames` |
 | `SameLabel` | `That label is already set` |
 | `SameChannels` | `The selected clips already play those channels` |
+| `SameMatte` | `The selected clip's matte already reads that source` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

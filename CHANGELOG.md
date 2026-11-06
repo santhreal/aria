@@ -1358,6 +1358,7 @@ Notes for the latest release. For previous releases, see the
 - Sequence > Source > Insert, Overwrite and Insert Pool Selection and Sequence > Ducking > Cycle Duck Amount draw their chords, and a withheld Source row withholds its chord.
 - Labeling several clips is one undo step, and a label every selected clip or pool item already has is declined instead of recording a step that changes nothing.
 - An Audio Channels choice every selected clip already plays is disabled instead of recording an undo step that changes nothing.
+- Luma and Alpha Matte from Above are disabled on a clip whose matte already reads that source instead of recording an undo step that changes nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 
