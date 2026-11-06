@@ -333,6 +333,66 @@ pub fn check_export_destination(
     })
 }
 
+/// Fail when a source file the export reads is not on disk, naming the first
+/// one. A file read is the media of a clip that overlaps the exported span on
+/// a lane that contributes: an enabled picture lane when `picture` is set, an
+/// unmuted sound lane when `settings.audio` is. A clip that nests a sequence
+/// reads every clip of that sequence, at any depth. Every publisher calls this
+/// before it opens a staging file or an encoder, since a missing file
+/// otherwise fails the export at its first frame with a decoder's message.
+/// Multicam angles are not checked.
+pub fn check_export_media(
+    project: &Project,
+    settings: ExportSettings,
+    picture: bool,
+) -> Result<(), RenderError> {
+    let reads = |track: &aria_models::Track| {
+        if track.kind.is_audio() {
+            settings.audio && !track.muted
+        } else {
+            picture && track.kind.is_visual() && track.enabled
+        }
+    };
+    let (start, end) = settings.frame_span(project);
+    let rate = settings.frame_rate;
+    let mut nested = Vec::new();
+    let check = |clip: &aria_models::Clip, nested: &mut Vec<aria_models::SequenceId>| {
+        if let Some(sequence) = clip.sequence() {
+            nested.push(sequence);
+        }
+        let Some(media) = clip.media().and_then(|id| project.media(id)) else {
+            return Ok(());
+        };
+        match std::fs::metadata(media.path()) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(RenderError::MediaOffline {
+                path: media.path().to_path_buf(),
+            }),
+        }
+    };
+    for track in project.timeline().tracks_ordered().filter(|t| reads(t)) {
+        for clip in track.clips() {
+            let from = resample(clip.start(), rate).value;
+            let to = clip.end().map_or(i64::MAX, |to| resample(to, rate).value);
+            if from < end && to > start {
+                check(clip, &mut nested)?;
+            }
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    while let Some(id) = nested.pop() {
+        let Some(sequence) = project.sequence(id).filter(|_| seen.insert(id)) else {
+            continue;
+        };
+        for track in sequence.timeline.tracks_ordered().filter(|t| reads(t)) {
+            for clip in track.clips() {
+                check(clip, &mut nested)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A finished file export: the frames written and the encoder that wrote them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Exported {
@@ -359,6 +419,7 @@ pub fn export_to_file_with_encoder_observed(
     check_export_destination(project, path, None)?;
     let settings = settings.evened();
     export_frame_count(project, settings)?;
+    check_export_media(project, settings, true)?;
     let staging = TransactionalFile::new(path)?;
     let mut encoder = open_encoder(
         staging.staging_path(),

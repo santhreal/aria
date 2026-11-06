@@ -95,6 +95,12 @@ An export or a **File > Export > Frame…** to the project file, or to a file th
 project uses as media, fails before a job starts and leaves the file as it was.
 The status line names the file. Pick another path.
 
+An export that reads a clip whose file is missing fails before a job starts.
+The status line names the first missing file. Move the file back, or relink
+it in the media pool, and export again. The same check covers `aria export`.
+A missing file outside the exported range, on a disabled picture lane, or on
+a muted sound lane does not stop the export.
+
 The status line states the size, whether audio is included, and the span when the
 export starts.
 

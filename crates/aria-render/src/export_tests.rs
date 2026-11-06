@@ -334,3 +334,224 @@ fn every_file_publisher_leaves_an_input_destination_as_it_was() {
     );
     unchanged("the frame export");
 }
+
+/// The source file and a project that reads it: the one-second solid, then
+/// the file on V1 and on A1 over frames 30..40. The file is not written, so it
+/// is missing until a test writes it.
+struct Offline {
+    _dir: tempfile::TempDir,
+    media: std::path::PathBuf,
+    project: Project,
+    picture: aria_models::TrackId,
+    sound: aria_models::TrackId,
+}
+
+fn offline() -> Offline {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let media = dir.path().join("gone.mp4");
+    let mut project = one_second();
+    let id = project.add_media(aria_models::MediaSource::new(
+        &media, 64, 64, FPS, FRAMES, true,
+    ));
+    let picture = project.add_track(TrackKind::Video, "V1");
+    let sound = project.add_track(TrackKind::Audio, "A1");
+    for lane in [picture, sound] {
+        project
+            .add_clip(
+                lane,
+                id,
+                TimeRange::at_rate(0, 10, FPS),
+                RationalTime::new(FRAMES, FPS),
+            )
+            .expect("place the file");
+    }
+    Offline {
+        _dir: dir,
+        media,
+        project,
+        picture,
+        sound,
+    }
+}
+
+/// The file the check names, or `None` when it passes.
+fn gone(result: Result<(), RenderError>) -> Option<std::path::PathBuf> {
+    match result {
+        Ok(()) => None,
+        Err(RenderError::MediaOffline { path }) => Some(path),
+        Err(other) => panic!("expected the media check, got {other:?}"),
+    }
+}
+
+/// WHY: an export over a clip whose file was moved or deleted queued a job
+/// that failed at its first frame with "decode error: failed to open source:
+/// couldn't resolve ...". The check names the file before anything opens, for
+/// every lane and span the export reads, and passes every one it does not:
+/// a span that ends where the clip starts, a disabled picture lane, a muted
+/// or switched-off sound lane, and picture lanes in a sound export. Not
+/// caught: multicam angles, which are not checked.
+#[test]
+fn a_missing_source_is_refused_where_the_export_reads_it_and_only_there() {
+    let Offline {
+        _dir,
+        media,
+        mut project,
+        picture,
+        sound,
+    } = offline();
+    let mut whole = ExportSettings::for_project(&project);
+    whole.audio = true;
+    let span = |from, to| {
+        let mut settings = ranged(&project, from, to);
+        settings.audio = true;
+        settings
+    };
+
+    assert_eq!(
+        gone(check_export_media(&project, whole, true)),
+        Some(media.clone())
+    );
+    assert_eq!(
+        check_export_media(&project, whole, true)
+            .expect_err("missing")
+            .to_string(),
+        format!(
+            "{} is missing; move the file back or relink it in the media pool",
+            media.display()
+        )
+    );
+    assert_eq!(gone(check_export_media(&project, span(0, 30), true)), None);
+    assert_eq!(
+        gone(check_export_media(&project, span(29, 31), true)),
+        Some(media.clone())
+    );
+    assert_eq!(
+        gone(check_export_media(&project, span(39, 40), true)),
+        Some(media.clone()),
+        "the clip's last frame"
+    );
+
+    project
+        .timeline_mut()
+        .track_mut(picture)
+        .expect("V1")
+        .enabled = false;
+    assert_eq!(
+        gone(check_export_media(&project, whole, true)),
+        Some(media.clone()),
+        "A1 still reads the file"
+    );
+    assert_eq!(
+        gone(check_export_media(&project, whole.without_audio(), true)),
+        None,
+        "a disabled picture lane in a video-only export"
+    );
+    project
+        .timeline_mut()
+        .track_mut(picture)
+        .expect("V1")
+        .enabled = true;
+    assert_eq!(
+        gone(check_export_media(&project, whole.without_audio(), true)),
+        Some(media.clone()),
+        "an enabled picture lane"
+    );
+    assert_eq!(
+        gone(check_export_media(&project, whole, false)),
+        Some(media.clone()),
+        "a sound export reads A1"
+    );
+    project.timeline_mut().track_mut(sound).expect("A1").muted = true;
+    assert_eq!(
+        gone(check_export_media(&project, whole, false)),
+        None,
+        "a sound export reads no picture lane and no muted one"
+    );
+
+    std::fs::write(&media, b"footage").expect("write the file back");
+    assert_eq!(gone(check_export_media(&project, whole, true)), None);
+}
+
+/// WHY: a nest reads the files of the sequence it holds, and that sequence
+/// can hold another nest. A check that read only the open timeline passed an
+/// export whose only file was two nests down. Not caught: a nest's own span
+/// is not narrowed to the part of the sequence the nest plays.
+#[test]
+fn a_missing_source_inside_a_nest_is_refused_at_any_depth() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let media = dir.path().join("deep.mp4");
+    let mut project = one_second();
+    let id = project.add_media(aria_models::MediaSource::new(
+        &media, 64, 64, FPS, FRAMES, true,
+    ));
+    let ten = TimeRange::at_rate(0, 10, FPS);
+    let start = RationalTime::new(0, FPS);
+
+    let inner = project.create_sequence("inner", FPS);
+    project.set_active_sequence(Some(inner)).expect("inner");
+    let lane = project.add_track(TrackKind::Video, "V1");
+    project.add_clip(lane, id, ten, start).expect("the file");
+
+    let outer = project.create_sequence("outer", FPS);
+    project.set_active_sequence(Some(outer)).expect("outer");
+    let lane = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_sequence_clip(lane, inner, ten, start)
+        .expect("inner in outer");
+
+    project.set_active_sequence(None).expect("root");
+    let lane = project.add_track(TrackKind::Video, "V2");
+    project
+        .add_sequence_clip(lane, outer, ten, start)
+        .expect("outer on the root");
+
+    let settings = ExportSettings::for_project(&project);
+    assert_eq!(
+        gone(check_export_media(&project, settings, true)),
+        Some(media.clone())
+    );
+    std::fs::write(&media, b"footage").expect("write the file");
+    assert_eq!(gone(check_export_media(&project, settings, true)), None);
+}
+
+/// Every file publisher runs the media check before it opens a staging file,
+/// an encoder or a mix, so a missing source leaves no file behind and the
+/// caller reads the file's name rather than a decoder's message.
+#[test]
+fn every_file_publisher_refuses_a_missing_source_before_it_opens_anything() {
+    let Offline {
+        _dir,
+        media,
+        project,
+        ..
+    } = offline();
+    let out = media.with_file_name("out.mp4");
+    let mut settings = ExportSettings::for_project(&project);
+    settings.audio = true;
+
+    let sound = crate::export_audio_to_file_observed(&project, &out, settings, &mut |_, _| {
+        panic!("the sound export started before the media check")
+    });
+    assert!(
+        matches!(&sound, Err(RenderError::MediaOffline { path }) if *path == media),
+        "sound: {sound:?}"
+    );
+    assert!(!out.exists(), "the sound export wrote a file");
+
+    let Ok(mut renderer) = crate::Renderer::new_headless() else {
+        return;
+    };
+    let video = export_to_file_with_encoder_observed(
+        &mut renderer,
+        &project,
+        &out,
+        settings,
+        &mut |_, _| panic!("the video export opened an encoder before the media check"),
+        &mut |_, _| true,
+    );
+    assert!(
+        matches!(&video, Err(RenderError::MediaOffline { path }) if *path == media),
+        "video: {video:?}"
+    );
+    assert!(!out.exists(), "the video export wrote a file");
+}

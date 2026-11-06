@@ -688,3 +688,45 @@ fn an_export_over_the_project_file_or_a_pool_file_is_refused_before_a_job_exists
         b"the project"
     );
 }
+
+/// WHY: an export over a clip whose file was moved away queued a job that
+/// failed at its first frame with the decoder's "failed to open source"
+/// message. It is refused at enqueue, naming the file and the fix, and no job
+/// row is left behind. Not caught: a file that goes away after the job is
+/// queued, which the render path's own check reports when the job starts.
+#[test]
+fn an_export_over_a_missing_source_is_refused_before_a_job_exists() {
+    let dir = crate::scratch_pool::scratch("export_missing_source");
+    let asset = dir.join("moved.png");
+    std::fs::copy(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png"),
+        &asset,
+    )
+    .expect("copy the fixture");
+    let (mut state, _clip) = super::premiere_tests::with_media(asset);
+    let runner: ExportRunner = Arc::new(|_, _, _, _| Err("the runner ran".to_string()));
+    state.export_queue.set_runner(runner);
+    let media = state
+        .host
+        .snapshot()
+        .media_iter()
+        .next()
+        .expect("the clip's media")
+        .path()
+        .to_path_buf();
+    std::fs::remove_file(&media).expect("move the source away");
+    let rows = state.job_view.len();
+
+    let err = state
+        .export_job(dir.join("out.mp4"))
+        .expect_err("an export over a missing source is queued");
+    assert_eq!(
+        err,
+        format!(
+            "{} is missing; move the file back or relink it in the media pool",
+            media.display()
+        )
+    );
+    assert!(state.export_queue.snapshot().is_empty(), "queued");
+    assert_eq!(state.job_view.len(), rows, "a job row was left behind");
+}

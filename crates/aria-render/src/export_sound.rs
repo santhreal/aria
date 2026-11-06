@@ -54,6 +54,7 @@ pub fn export_audio_to_file_observed(
             "a sound export with the audio switched off would write an empty file".to_string(),
         ));
     }
+    crate::export::check_export_media(project, settings, false)?;
     let Some(mut mix) = ExportAudioMixer::for_project(project)? else {
         return Err(RenderError::Empty(EmptyExport::Silence));
     };

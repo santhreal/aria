@@ -69,6 +69,10 @@ pub enum RenderError {
         what: ExportInput,
     },
 
+    /// A source file the export reads is not on disk.
+    #[error("{} is missing; move the file back or relink it in the media pool", path.display())]
+    MediaOffline { path: std::path::PathBuf },
+
     /// The work was abandoned because whoever asked for it no longer wants it.
     ///
     /// Two callers raise this. An observed export cancelled by its progress

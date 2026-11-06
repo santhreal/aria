@@ -635,9 +635,10 @@ impl AppState {
     ///
     /// The request is what the sheet asked for; this is where the machine gets a
     /// say. One resolution against this host — a missing encoder, a codec or a
-    /// bitrate it will not honor, and a span with no frames in it — is refused
-    /// here, by name, before a job exists. Spawning first would report the same
-    /// thing a minute into a render.
+    /// bitrate it will not honor, a span with no frames in it, and a source
+    /// file that is not on disk — is refused here, by name, before a job
+    /// exists. Spawning first would report the same thing a minute into a
+    /// render.
     pub fn enqueue_export(&mut self, request: ExportRequest) -> Result<u64, String> {
         // A snapshot, not a copy: the project is copied once, by the next edit,
         // only if one lands while the export still reads it.
@@ -668,6 +669,8 @@ impl AppState {
             None => aria_render::ExportSettings::resolved(&project, request.format),
         }
         .map_err(|err| describe_export_refusal(&err))?;
+        aria_render::check_export_media(&project, settings, true)
+            .map_err(|err| describe_export_refusal(&err))?;
         let entry_id = self.export_queue.enqueue_with_encoder(
             request.destination,
             settings,
