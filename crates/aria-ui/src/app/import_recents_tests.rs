@@ -91,7 +91,7 @@ fn an_import_is_listed_survives_a_restart_and_clears() {
     let rows = recent_rows(&state);
     assert_eq!(rows.len(), 2, "{rows:?}");
     assert_eq!(rows[0].0, format!("{IMPORT_RECENT_PREFIX}{listed}"));
-    assert_eq!(rows[0].1, listed);
+    assert_eq!(rows[0].1, "recent.png", "the row reads the file's name");
     assert_eq!(rows[0].2, None);
     assert_eq!(rows[1].2, None, "a list with a file can be cleared");
 

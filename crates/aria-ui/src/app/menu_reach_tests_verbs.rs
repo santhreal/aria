@@ -7,8 +7,9 @@
 
 use super::menu_reach_dress::with_timeline_plugin;
 use super::*;
-use crate::chrome::menu_file::{EXPORT_PREFIX, RECENT_PREFIX};
+use crate::chrome::menu_file::{EXPORT_PREFIX, IMPORT_RECENT_PREFIX, RECENT_PREFIX};
 use crate::chrome::menu_items::MenuItem;
+use std::path::Path;
 
 fn row(menu: AppMenu, state: &AppState, id: &str) -> MenuItem {
     items_of(menu, state)
@@ -136,6 +137,36 @@ fn open_recent_lists_each_remembered_project_and_opens_the_one_chosen() {
         );
         assert_eq!(state.picks_asked(), 0, "Open Recent asks for no file");
     });
+}
+
+/// A recent row reads the file's name, and its folder only when another row
+/// of the same list has that name. A full path is cut at the menu's and the
+/// palette's edge from the right, so the name, the part read, was lost first.
+#[test]
+fn recent_rows_read_the_file_name_and_the_folder_only_to_tell_two_apart() {
+    let root = own_scratch("recent-labels");
+    let (a, b) = (root.join("a"), root.join("b"));
+    let mut state = saved();
+    for path in [a.join("cut.aria"), b.join("cut.aria"), a.join("solo.aria")] {
+        state.remember_recent(&path);
+    }
+    state.remember_imports(&[a.join("shot.mov"), b.join("shot.mov"), a.join("only.wav")]);
+    for (prefix, shared, unique) in [
+        (RECENT_PREFIX, "cut.aria", "solo.aria"),
+        (IMPORT_RECENT_PREFIX, "shot.mov", "only.wav"),
+    ] {
+        for dir in [&a, &b] {
+            let want = format!("{shared} ({})", dir.display());
+            assert_eq!(label(&state, prefix, &dir.join(shared)), want);
+        }
+        assert_eq!(label(&state, prefix, &a.join(unique)), unique);
+    }
+}
+
+/// The label of the File row whose id is `prefix` and `path`.
+fn label(state: &AppState, prefix: &str, path: &Path) -> &'static str {
+    let id = format!("{prefix}{}", path.display());
+    row(AppMenu::File, state, &id).label
 }
 
 /// Each mounted timeline exporter has its own row under Export, and the file

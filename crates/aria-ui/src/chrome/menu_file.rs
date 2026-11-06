@@ -5,6 +5,7 @@
 //! and the tests reach these rows through the one registry.
 
 use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 
 use crate::app::settings_form::SettingsSection;
 use crate::app::{AppState, DialogKind};
@@ -134,12 +135,12 @@ pub(super) fn file_items(state: &AppState) -> MenuItems {
     items.extend_from_slice(FILE_OPEN);
     // One row per remembered project, newest first. The id holds the path, so
     // one `fn` runs every row.
-    for recent in recents.iter() {
-        let path = recent.path.display().to_string();
+    let projects: Vec<&Path> = recents.iter().map(|recent| recent.path.as_path()).collect();
+    for path in &projects {
         items.push(
             MenuItem::new(
-                crate::interned::intern(&format!("{RECENT_PREFIX}{path}")),
-                crate::interned::intern(&path),
+                crate::interned::intern(&format!("{RECENT_PREFIX}{}", path.display())),
+                crate::interned::intern(&file_label(path, &projects)),
                 |id, s, _| {
                     if let Some(path) = id.strip_prefix(RECENT_PREFIX) {
                         s.open_recent(std::path::Path::new(path));
@@ -153,12 +154,12 @@ pub(super) fn file_items(state: &AppState) -> MenuItems {
     items.extend_from_slice(FILE_SAVE);
     // One row per recently imported file, newest first, then the row that
     // empties the list.
-    for path in imported {
-        let path = path.display().to_string();
+    let files: Vec<&Path> = imported.iter().map(PathBuf::as_path).collect();
+    for path in &files {
         items.push(
             MenuItem::new(
-                crate::interned::intern(&format!("{IMPORT_RECENT_PREFIX}{path}")),
-                crate::interned::intern(&path),
+                crate::interned::intern(&format!("{IMPORT_RECENT_PREFIX}{}", path.display())),
+                crate::interned::intern(&file_label(path, &files)),
                 |id, s, _| {
                     if let Some(path) = id.strip_prefix(IMPORT_RECENT_PREFIX) {
                         s.import_recent(std::path::Path::new(path));
@@ -188,4 +189,22 @@ pub(super) fn file_items(state: &AppState) -> MenuItems {
     }
     items.extend_from_slice(FILE_CLOSE);
     Cow::Owned(items)
+}
+
+/// What a row naming `path` reads: the file's name, and its folder after it
+/// when another of `paths` has the same name. A recent list is read by name,
+/// and a full path cut at the menu's edge loses the name first.
+fn file_label(path: &Path, paths: &[&Path]) -> String {
+    let Some(name) = path.file_name() else {
+        return path.display().to_string();
+    };
+    let shared = paths
+        .iter()
+        .filter(|other| other.file_name() == Some(name))
+        .nth(1)
+        .is_some();
+    match path.parent() {
+        Some(folder) if shared => format!("{} ({})", name.to_string_lossy(), folder.display()),
+        _ => name.to_string_lossy().into_owned(),
+    }
 }

@@ -38,7 +38,8 @@ into the timeline rather than the media pool.
 
 **File > Import Recent** lists the last ten files imported through
 **File > Import…**, newest first, and imports the chosen one again. A file that
-no longer exists is listed disabled. **Clear Recent Imports** empties the list.
+no longer exists is listed disabled. Each row reads the file's name, and its
+folder when two listed files share a name. **Clear Recent Imports** empties the list.
 The list is saved as `import-recents.json` in the data folder.
 
 An import adds lanes and clips to the open project as one undo step, and
