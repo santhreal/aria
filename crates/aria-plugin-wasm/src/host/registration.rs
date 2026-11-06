@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use aria_plugin::{PluginCommand, PluginContext, ScopeSpec, event_wire};
 
-use super::{ActiveThreadGuard, CallPhase, HostState, InstanceState, PluginKind, WasmPluginShared};
+use super::{
+    ActiveThreadGuard, CallPhase, HostState, InstanceState, LiveInstance, PluginKind,
+    WasmPluginShared,
+};
 use crate::ai_tools::{self, WasmAiTool};
 use crate::bindings;
 use crate::contributions;
@@ -143,6 +146,46 @@ impl WasmPluginShared {
         })
     }
 
+    fn run_analyzer_call<T>(
+        &self,
+        ctx: &PluginContext,
+        f: impl FnOnce(&mut LiveInstance) -> wasmtime::Result<Result<T, String>>,
+    ) -> Result<T, String> {
+        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+            return Err(format!(
+                "plugin {} cannot run an analyzer from inside one of its own calls",
+                self.manifest.id
+            ));
+        }
+        let mut guard = self.state.lock();
+        let live = match &mut *guard {
+            InstanceState::Mounted(live) => live,
+            InstanceState::Faulted(reason) => {
+                return Err(format!("plugin {} has faulted: {reason}", self.manifest.id));
+            }
+            InstanceState::Unmounted => {
+                return Err(format!("plugin {} is not mounted", self.manifest.id));
+            }
+        };
+        self.prepare_call(&mut live.store, CallPhase::Analyzer, ctx);
+        let result = {
+            let _thread_guard = ActiveThreadGuard::enter(&self.active_thread);
+            let _tick_guard = self.engine.enter_call();
+            f(live)
+        };
+        Self::finish_call(&mut live.store);
+        match result {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(guest_err)) => Err(guest_err),
+            Err(trap_err) => {
+                let reason = classify_trap(&trap_err);
+                *guard = InstanceState::Faulted(reason.clone());
+                drop(guard);
+                std::panic::resume_unwind(Box::new(reason));
+            }
+        }
+    }
+
     pub(crate) fn call_analyzer_open(
         &self,
         ctx: &PluginContext,
@@ -150,7 +193,7 @@ impl WasmPluginShared {
         sample_rate: u32,
         channels: u16,
     ) -> Result<u64, String> {
-        self.run_with_instance(ctx, CallPhase::Analyzer, |live, _engine| {
+        self.run_analyzer_call(ctx, |live| {
             live.plugin
                 .current()?
                 .call_analyzer_open(&mut live.store, id, sample_rate, channels)
@@ -163,7 +206,7 @@ impl WasmPluginShared {
         instance: u64,
         samples: &[f32],
     ) -> Result<(), String> {
-        self.run_with_instance(ctx, CallPhase::Analyzer, |live, _engine| {
+        self.run_analyzer_call(ctx, |live| {
             live.plugin
                 .current()?
                 .call_analyzer_push(&mut live.store, instance, samples)
@@ -175,7 +218,7 @@ impl WasmPluginShared {
         ctx: &PluginContext,
         instance: u64,
     ) -> Result<String, String> {
-        self.run_with_instance(ctx, CallPhase::Analyzer, |live, _engine| {
+        self.run_analyzer_call(ctx, |live| {
             live.plugin
                 .current()?
                 .call_analyzer_finish(&mut live.store, instance)

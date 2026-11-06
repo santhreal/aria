@@ -17,11 +17,12 @@
 
 use std::path::{Path, PathBuf};
 
-use aria_plugin::external::LIBRARY_EXTENSION;
+use aria_plugin::external::{LIBRARY_EXTENSION, load as load_native};
 use aria_plugin::package::{
-    COMPONENT_FILE, DataPlugin, LIBRARY_DIR, MANIFEST_FILE, Package, Tier, library_name,
+    ARCHIVE_EXTENSION, COMPONENT_FILE, DataPlugin, LIBRARY_DIR, MANIFEST_FILE, Package, Tier,
+    library_name, pack, stage, uninstall,
 };
-use aria_plugin::{Contribution, ContributionKind, PluginContext};
+use aria_plugin::{Contribution, ContributionKind, PanelEvent, PluginContext};
 use tempfile::TempDir;
 
 fn workspace_root() -> PathBuf {
@@ -242,12 +243,67 @@ fn every_example_package_opens_and_data_package_mounts_exact_contributions() {
                     aria_models::transition_spec("com.example.data-pack.cross-dissolve").is_none()
                 );
                 assert!(ctx.presets().is_empty());
+
+                // Pack, stage, commit, mount, and uninstall through the package installer.
+                let install_dir = scratch.path().join("installed-data");
+                let archive = scratch
+                    .path()
+                    .join(format!("data-pack.{ARCHIVE_EXTENSION}"));
+                pack(&pkg.dir, &archive).expect("pack data-plugin");
+                let staged = stage(&archive, &install_dir).expect("stage data-plugin");
+                let installed = staged.commit().expect("commit data-plugin");
+                ctx.mount(&DataPlugin::new(installed))
+                    .expect("mount installed data-plugin");
+                assert!(ctx.is_mounted("com.example.data-pack"));
+                ctx.unmount("com.example.data-pack")
+                    .expect("unmount installed data-plugin");
+                let removed = uninstall(&install_dir, "com.example.data-pack")
+                    .expect("uninstall data-plugin");
+                assert!(!removed.exists());
             }
             Tier::Wasm { .. } => {
                 saw_wasm = true;
             }
             Tier::Native { .. } => {
                 saw_native = true;
+                assert_eq!(pkg.manifest.id, "example.notes");
+
+                let install_dir = scratch.path().join("installed-native");
+                let archive = scratch
+                    .path()
+                    .join(format!("notes-plugin.{ARCHIVE_EXTENSION}"));
+                pack(&pkg.dir, &archive).expect("pack notes-plugin");
+                let staged = stage(&archive, &install_dir).expect("stage notes-plugin");
+                assert!(staged.is_native() && staged.needs_confirmation());
+                let installed = staged.commit().expect("commit notes-plugin");
+
+                let ctx = PluginContext::new();
+                let loaded = load_native(&installed).expect("load installed notes-plugin");
+                ctx.mount(loaded.as_ref()).expect("mount notes-plugin");
+                assert!(ctx.is_mounted("example.notes"));
+                ctx.run_command("notes.count").expect("run notes.count");
+                let _ = ctx.panel("notes.panel").expect("notes.panel registered");
+                assert!(ctx.events().flush(std::time::Duration::from_secs(5)));
+                assert!(
+                    ctx.panel("notes.panel")
+                        .expect("notes.panel state")
+                        .tree
+                        .is_some()
+                );
+                ctx.send_panel_event("notes.panel", PanelEvent::Pressed { id: "add".into() })
+                    .expect("send notes.panel event");
+                // Reload by unmounting and loading again from the installed directory.
+                ctx.unmount("example.notes").expect("unmount notes-plugin");
+                assert!(!ctx.is_mounted("example.notes"));
+                let reloaded = load_native(&installed).expect("reload installed notes-plugin");
+                ctx.mount(reloaded.as_ref()).expect("remount notes-plugin");
+                assert!(ctx.is_mounted("example.notes"));
+                ctx.unmount("example.notes")
+                    .expect("unmount reloaded notes-plugin");
+
+                let removed =
+                    uninstall(&install_dir, "example.notes").expect("uninstall notes-plugin");
+                assert!(!removed.exists());
             }
         }
     }
@@ -276,4 +332,42 @@ fn discovery_catches_new_broken_example_directory() {
         err.contains("not a reverse-domain id"),
         "expected reverse-domain id refusal, got: {err}"
     );
+}
+
+#[test]
+fn every_example_package_readme_matches_manifest_and_ui_install_labels() {
+    let _ = aria_notes_plugin::seen_commands();
+    let examples_dir = workspace_root().join("examples");
+    let dirs = discover_example_package_dirs(&examples_dir);
+    let scratch = TempDir::new().expect("scratch");
+
+    for dir in &dirs {
+        let pkg = open_example_package(dir, scratch.path()).expect("open example package");
+        let readme_path = dir.join("README.md");
+        let readme = std::fs::read_to_string(&readme_path)
+            .unwrap_or_else(|err| panic!("missing {}: {err}", readme_path.display()));
+        assert!(
+            readme.contains(&pkg.manifest.id),
+            "{} must name package id `{}`",
+            readme_path.display(),
+            pkg.manifest.id
+        );
+        assert!(
+            readme.contains("**File > Install Plugin…**")
+                && readme.contains("**Settings > Plugins > Install Plugin…**"),
+            "{} must reference current UI install actions (`File > Install Plugin…` and `Settings > Plugins > Install Plugin…`)",
+            readme_path.display()
+        );
+        for stale in [
+            "Install from File",
+            "Install Plugin...",
+            "four package checks",
+        ] {
+            assert!(
+                !readme.contains(stale),
+                "{} contains stale documentation claim `{stale}`",
+                readme_path.display()
+            );
+        }
+    }
 }

@@ -24,7 +24,8 @@ aria plugin pack examples/notes-plugin
 ```
 
 `aria plugin pack` compiles the `cdylib`, stages `lib/<os>-<arch>.<so|dylib|dll>`,
-runs the four package checks (`manifest`, `shaders`, `permissions`, `abi`), and
-writes `examples/notes-plugin/example.notes-0.1.0.ariaplugin`. Install the
-archive from **File > Install Plugin...**, **Settings > Plugins > Install from
-File...**, or by dropping the archive onto the editor window.
+runs the seven package checks (`manifest`, `shaders`, `textures`, `presets`,
+`contributes`, `permissions`, `abi`), and writes
+`examples/notes-plugin/example.notes-0.1.0.ariaplugin`. Install the archive from
+**File > Install Plugin…**, **Settings > Plugins > Install Plugin…**, or by
+dropping the archive onto the editor window.

@@ -46,6 +46,12 @@ impl WasmPluginShared {
             .join(".wasm-export-stage")
             .to_string_lossy()
             .into_owned();
+        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+            return Err(format!(
+                "plugin {} cannot re-enter from inside one of its own calls",
+                self.manifest.id
+            ));
+        }
         let mut guard = self.state.lock();
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,
@@ -145,6 +151,12 @@ impl WasmPluginShared {
         encode_path: &Path,
         f: impl FnOnce(&mut LiveInstance) -> wasmtime::Result<Result<T, String>>,
     ) -> Result<T, String> {
+        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+            return Err(format!(
+                "plugin {} cannot re-enter from inside one of its own calls",
+                self.manifest.id
+            ));
+        }
         let mut guard = self.state.lock();
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,

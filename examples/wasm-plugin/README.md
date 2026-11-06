@@ -41,5 +41,5 @@ aria plugin dev examples/wasm-plugin
 ```
 
 Install the generated `com.example.wasm-tools-0.1.0.ariaplugin` archive from
-**File > Install Plugin...**, **Settings > Plugins > Install from File...**, or
-by dropping the archive onto the editor window.
+**File > Install Plugin…**, **Settings > Plugins > Install Plugin…**, or by
+dropping the archive onto the editor window.

@@ -485,6 +485,8 @@ impl AnalyzerRun for NativeAnalyzerRun {
             ARIA_STATUS_OK => std::ops::ControlFlow::Continue(()),
             ARIA_STATUS_PANIC => {
                 self.finished = true;
+                self.state.failed.store(true, Ordering::Release);
+                self.state.mounted.store(false, Ordering::Release);
                 resume_unwind(Box::new(text));
             }
             _ => {
@@ -519,6 +521,8 @@ impl AnalyzerRun for NativeAnalyzerRun {
         match result.status {
             ARIA_STATUS_OK => host_wire::parse_analyzer_result(&text),
             ARIA_STATUS_PANIC => {
+                self.state.failed.store(true, Ordering::Release);
+                self.state.mounted.store(false, Ordering::Release);
                 resume_unwind(Box::new(text));
             }
             _ => Err(text),

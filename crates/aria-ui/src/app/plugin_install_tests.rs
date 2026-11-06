@@ -400,3 +400,66 @@ fn each_wasm_limit_clamps_persists_and_is_read_at_the_next_start() {
     assert_eq!(WasmLimit::Memory.describe(4_096), "4,096 MiB");
     assert_eq!(WasmLimit::Memory.describe(0), "0 MiB");
 }
+
+#[test]
+fn example_data_and_wasm_packages_install_run_reload_and_uninstall_in_app_state() {
+    crate::test_support::catalogs::own_process(|| {
+        let (mut state, data) = state("install-example-packages");
+        state.new_project().expect("new project");
+        let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+
+        let data_archive = data.join(format!("data-pack.{}", package::ARCHIVE_EXTENSION));
+        package::pack(&examples.join("data-plugin"), &data_archive).expect("pack data-plugin");
+
+        let wasm_archive = data.join(format!("wasm-tools.{}", package::ARCHIVE_EXTENSION));
+        package::pack(&examples.join("wasm-plugin"), &wasm_archive).expect("pack wasm-plugin");
+
+        state.install_plugin_archives(vec![data_archive, wasm_archive]);
+        assert_eq!(
+            state.install_prompt().map(|p| p.id),
+            Some("com.example.data-pack".to_owned())
+        );
+        state.confirm_plugin_install();
+        assert_eq!(
+            state.install_prompt().map(|p| p.id),
+            Some("com.example.wasm-tools".to_owned())
+        );
+        state.confirm_plugin_install();
+        assert_eq!(state.install_prompt(), None);
+
+        assert!(state.ctx.is_mounted("com.example.data-pack"));
+        assert!(state.ctx.is_mounted("com.example.wasm-tools"));
+        assert!(aria_models::effect_spec("com.example.data-pack.warm-tint").is_some());
+        assert!(aria_models::transition_spec("com.example.data-pack.cross-dissolve").is_some());
+        assert!(
+            state
+                .ctx
+                .presets()
+                .iter()
+                .any(|p| p.preset.name == "Soft Vignette")
+        );
+
+        let markers_before = state.store.sequence.markers.len();
+        state.run_plugin_command("example.add-marker");
+        assert_eq!(state.last_error, None);
+        assert_eq!(state.store.sequence.markers.len(), markers_before + 1);
+
+        state.reload_plugin("com.example.data-pack");
+        assert_eq!(state.last_error, None);
+        assert!(state.ctx.is_mounted("com.example.data-pack"));
+
+        state.reload_plugin("com.example.wasm-tools");
+        assert_eq!(state.last_error, None);
+        assert!(state.ctx.is_mounted("com.example.wasm-tools"));
+
+        state.supply_pick(Answer::Confirmed(true));
+        state.uninstall_plugin("com.example.data-pack");
+        assert!(!state.ctx.is_mounted("com.example.data-pack"));
+        assert!(aria_models::effect_spec("com.example.data-pack.warm-tint").is_none());
+
+        state.supply_pick(Answer::Confirmed(true));
+        state.uninstall_plugin("com.example.wasm-tools");
+        assert!(!state.ctx.is_mounted("com.example.wasm-tools"));
+        assert!(plugin_folder(&state).is_empty());
+    });
+}

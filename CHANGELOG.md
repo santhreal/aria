@@ -1246,6 +1246,7 @@ Notes for the latest release. For previous releases, see the
 - Timeline clip shifts, moves, trims, overwrites, four-point edits, nested sequence creation, send routing edits, and sequence rate changes reject overflowing ticks, duplicate or gapped selections, out-of-bounds send indices, and clip-collapsing frame rates without panicking or leaving partial mutations on the timeline.
 - The Assistant panel lists its available tool groups in its empty transcript area rather than under Effect Controls, and the `Assistant: What the Assistant Can Do` palette command opens and focuses the Assistant dock panel.
 - `Ctrl+arrow` nudges now move every selected clip as one undo step without colliding on abutting selections, `Shift+click` and single-lane Track Select respect the Linked Selection toggle, clip-selection actions clear any active edge or gap selection and skip locked clips on Select All, and multi-lane selection shifts undo in one step.
+- Native and WebAssembly audio analyzers isolate guest panics and traps as `AnalyzerError::Panicked`, offline audio exports no longer bypass slow WebAssembly audio processors for playback deadlines, and same-thread re-entrant WebAssembly host calls return an error instead of deadlocking.
 
 ## [alpha-0.7.0] - 2026-07-22
 

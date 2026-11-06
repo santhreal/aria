@@ -120,12 +120,40 @@ fn audio_effect_processes_samples_and_handles_missed_deadlines_and_traps() {
         "expected exact 0.5x gain, max_diff={max_diff}"
     );
 
-    // Set `gain = -1.0` (slow block mode): 3 missed deadlines report a fault and bypass the insert.
+    // Set `gain = -1.0` (slow block mode): offline export (`realtime = false`) has no playback
+    // deadline, so all 4 blocks are processed and no fault is recorded.
     let mut slow_project = gain_project.clone();
     slow_project
         .set_audio_effect_param(AudioInsertTarget::Master, 0, 0, Param::Constant(-1.0))
         .expect("set gain = -1.0");
-    let _ = mix_blocks(&slow_project, 4, true);
+    let offline_slow = mix_blocks(&slow_project, 4, false);
+    let offline_diff = dry
+        .iter()
+        .zip(offline_slow.iter())
+        .map(|(d, w)| (-d - w).abs())
+        .fold(0.0_f32, f32::max);
+    assert!(
+        offline_diff <= 1e-6,
+        "offline export must process all 4 slow blocks without deadline bypass, max_diff={offline_diff}"
+    );
+    assert!(
+        ctx.faults().is_empty(),
+        "offline export must not report playback deadline faults"
+    );
+
+    // In realtime playback (`realtime = true`), 3 missed deadlines report a fault, drop the
+    // processor instance, and bypass the 4th block while keeping the plugin mounted.
+    let realtime_slow = mix_blocks(&slow_project, 4, true);
+    let block_samples = BLOCK_FRAMES * usize::from(EXPORT_AUDIO_CHANNELS);
+    let fourth_diff = dry[3 * block_samples..]
+        .iter()
+        .zip(&realtime_slow[3 * block_samples..])
+        .map(|(d, w)| (d - w).abs())
+        .fold(0.0_f32, f32::max);
+    assert!(
+        fourth_diff <= 1e-6,
+        "fourth realtime block after 3 missed deadlines must bypass, fourth_diff={fourth_diff}"
+    );
     let faults = ctx.faults();
     assert_eq!(faults.len(), 1);
     assert_eq!(faults[0].plugin, "com.example.wasm-tools");
@@ -140,7 +168,6 @@ fn audio_effect_processes_samples_and_handles_missed_deadlines_and_traps() {
         ctx.is_mounted("com.example.wasm-tools"),
         "missed audio deadlines bypass the insert without unmounting the plugin"
     );
-
     // Set `gain = -2.0` (trap mode): the processor traps, silences the block, and fails the plugin.
     let mut trap_project = gain_project;
     trap_project

@@ -24,6 +24,8 @@ use aria_models::Project;
 use parking_lot::{Condvar, Mutex};
 
 use crate::context::PluginContext;
+#[cfg(doc)]
+use crate::editor_events::ProjectSaved;
 use crate::editor_events::{
     ExportFinished, ExportStarted, ProjectClosed, ProjectOpened, RenderResult,
 };

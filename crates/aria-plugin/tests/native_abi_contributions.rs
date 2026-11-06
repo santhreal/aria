@@ -12,20 +12,25 @@
 #![allow(unsafe_code)]
 
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+use aria_core::{Rational, TimeRange};
 
 use aria_compositor::{
     CompositeLayer, Compositor, CompositorConfig, CompositorLayer, CpuFrameIn as HostCpuFrameIn,
-    CpuFrameOut as HostCpuFrameOut, F16_ONE, GpuContext, LayerPlacement, PassInstance, RgbaImage,
+    CpuFrameOut as HostCpuFrameOut, GpuContext, LayerPlacement, PassInstance, RgbaImage,
     f16_to_f32, f32_to_f16, pass_id, registered_effect, renders_effect, renders_transition,
 };
 use aria_models::{
     ClipId, ClipParam, DriverCode, EffectChoiceOption as HostChoice, EffectInstance,
-    EffectParamKind as HostParamKind, EffectParamSpec as HostParamSpec, ParamValue, clip_type_spec,
-    effect_spec, transition_spec,
+    EffectParamKind as HostParamKind, EffectParamSpec as HostParamSpec, ParamValue, Project,
+    clip_type_spec, effect_spec, transition_spec,
 };
 use aria_plugin::external::{from_table, host_table};
 use aria_plugin::package::{MANIFEST_FILE, Package};
-use aria_plugin::{DriverClipInfo, DriverScope, InputClip, PluginContext};
+use aria_plugin::{
+    AnalyzerError, AudioSource, DriverClipInfo, DriverScope, InputClip, PluginContext,
+};
 use aria_plugin_abi::{ARIA_API_MAJOR, ARIA_PLUGIN_V1_SCOPES_SIZE};
 use aria_render::compile_driver;
 use aria_sdk::{
@@ -130,6 +135,7 @@ impl DriverLanguage for LinearDriver {
     }
 }
 
+static PARITY_UNMOUNTS: AtomicUsize = AtomicUsize::new(0);
 struct PeakAnalyzer;
 
 struct PeakAnalyzerRun {
@@ -155,11 +161,11 @@ impl SdkAnalyzer for PeakAnalyzer {
 
 impl AnalyzerRun for PeakAnalyzerRun {
     fn push(&mut self, samples: &[f32]) -> Result<(), String> {
+        if samples.len() == 512 {
+            panic!("native analyzer push boom");
+        }
         let ch = usize::from(self.channels.max(1));
         for frame in samples.chunks_exact(ch) {
-            if frame[0].is_nan() {
-                panic!("native analyzer push boom");
-            }
             if frame[0].abs() >= 0.5 {
                 self.peaks.push(self.frames);
             }
@@ -169,8 +175,11 @@ impl AnalyzerRun for PeakAnalyzerRun {
     }
 
     fn finish(self: Box<Self>) -> Result<AnalyzerResult, String> {
+        if self.frames == 0 {
+            panic!("native analyzer finish boom");
+        }
         Ok(AnalyzerResult {
-            beats: self.peaks,
+            beats: self.peaks.clone(),
             markers: vec![AnalyzerMarker {
                 frame: self.frames,
                 duration_frames: 0,
@@ -242,6 +251,10 @@ impl SdkPlugin for ParityGuest {
             ),
             PeakAnalyzer,
         )?;
+        Ok(())
+    }
+    fn unmount(&self, _host: &Host) -> Result<(), String> {
+        PARITY_UNMOUNTS.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -518,26 +531,10 @@ fn native_plugin_registers_all_contributions_renders_on_lavapipe_and_cleans_up_o
         registered_effect("native.parity.cpu_invert").expect("registered native cpu effect");
     let hdr_stride = 12; // 2 pixels wide (8 active u16s) + 4 u16 padding per row
     let mut hdr_in = vec![0xdead_u16; hdr_stride * 2];
-    let hdr_row0 = [
-        f32_to_f16(4.0),
-        f32_to_f16(-1.25),
-        f32_to_f16(12.5),
-        F16_ONE,
-        f32_to_f16(-0.00390625),
-        f32_to_f16(0.0),
-        f32_to_f16(65504.0),
-        F16_ONE,
-    ];
-    let hdr_row1 = [
-        0x0001_u16, // smallest positive subnormal f16
-        0x8001_u16, // smallest negative subnormal f16
-        f32_to_f16(2.75),
-        f32_to_f16(0.5),
-        f32_to_f16(-8.0),
-        f32_to_f16(0.125),
-        f32_to_f16(1.5),
-        F16_ONE,
-    ];
+    let hdr_row0 = [4.0, -1.25, 12.5, 1.0, -0.00390625, 0.0, 65504.0, 1.0].map(f32_to_f16);
+    let mut hdr_row1 = [0.0, 0.0, 2.75, 0.5, -8.0, 0.125, 1.5, 1.0].map(f32_to_f16);
+    hdr_row1[0] = 0x0001_u16;
+    hdr_row1[1] = 0x8001_u16;
     hdr_in[..8].copy_from_slice(&hdr_row0);
     hdr_in[hdr_stride..hdr_stride + 8].copy_from_slice(&hdr_row1);
     let mut hdr_out = vec![0u16; hdr_stride * 2];
@@ -633,28 +630,43 @@ fn native_plugin_registers_all_contributions_renders_on_lavapipe_and_cleans_up_o
         .expect("render transition");
     assert_px(&tr_img, 8, 8, [255, 0, 0, 255], 1);
     assert_px(&tr_img, 24, 8, [0, 0, 255, 255], 1);
-    let registered_analyzers = ctx.analyzers();
-    assert_eq!(registered_analyzers.len(), 1);
+    assert_eq!(ctx.analyzers()[0].spec.id, "native.parity.peak_analyzer");
+    let analysis = ctx
+        .run_analyzer(
+            "native.parity.peak_analyzer",
+            &Project::new("p", Rational::FPS_24),
+            AudioSource::Open,
+            TimeRange::at_rate(0, 1, Rational::FPS_24),
+            &AtomicBool::new(false),
+        )
+        .expect("run native analyzer");
     assert_eq!(
-        registered_analyzers[0].spec.id,
-        "native.parity.peak_analyzer"
+        (analysis.markers.len(), analysis.markers[0].frame),
+        (1, 2000)
     );
     // 4. Unmount removes every contribution.
     ctx.unmount(plugin_id).expect("unmount parity plugin");
-    assert!(!ctx.is_mounted(plugin_id));
-    assert!(effect_spec("native.parity.wgsl_invert").is_none());
-    assert!(!renders_effect("native.parity.wgsl_invert"));
-    assert!(effect_spec("native.parity.cpu_invert").is_none());
-    assert!(!renders_effect("native.parity.cpu_invert"));
-    assert!(effect_spec("native.parity.solid_gen").is_none());
-    assert!(transition_spec("native.parity.split").is_none());
-    assert!(!renders_transition("native.parity.split"));
-    assert!(clip_type_spec("native.parity.solid_clip").is_none());
-    assert!(ctx.driver_languages().is_empty());
-    assert!(ctx.presets().is_empty());
-    assert!(ctx.themes().is_empty());
-    assert!(ctx.workspaces().is_empty());
-    assert!(ctx.analyzers().is_empty());
+    assert!(!ctx.is_mounted(plugin_id) && effect_spec("native.parity.wgsl_invert").is_none());
+    assert!(
+        !renders_effect("native.parity.wgsl_invert") && !renders_effect("native.parity.cpu_invert")
+    );
+    assert!(
+        effect_spec("native.parity.cpu_invert").is_none()
+            && effect_spec("native.parity.solid_gen").is_none()
+    );
+    assert!(
+        transition_spec("native.parity.split").is_none()
+            && !renders_transition("native.parity.split")
+    );
+    assert!(
+        clip_type_spec("native.parity.solid_clip").is_none() && ctx.driver_languages().is_empty()
+    );
+    assert!(
+        ctx.presets().is_empty()
+            && ctx.themes().is_empty()
+            && ctx.workspaces().is_empty()
+            && ctx.analyzers().is_empty()
+    );
 }
 
 #[test]
@@ -705,6 +717,42 @@ fn panicking_native_cpu_effect_is_caught_across_abi_bypasses_frame_and_fails_plu
     assert!(ctx.themes().is_empty());
     assert!(ctx.workspaces().is_empty());
     assert!(ctx.analyzers().is_empty());
+    for (id, frames, want) in [
+        (
+            "test.native.analyzer.push-panic",
+            256,
+            "native analyzer push boom",
+        ),
+        (
+            "test.native.analyzer.finish-panic",
+            0,
+            "native analyzer finish boom",
+        ),
+    ] {
+        let (ctx_a, plugin_a) = loaded(&temp, id, &plugin_table!(RT));
+        ctx_a.mount(plugin_a.as_ref()).expect("mount parity plugin");
+        let before = PARITY_UNMOUNTS.load(Ordering::SeqCst);
+        let range = TimeRange::at_rate(0, frames, Rational::new(48_000, 1));
+        let proj = Project::new("p", Rational::FPS_24);
+        let cancel = AtomicBool::new(false);
+        let err = ctx_a
+            .run_analyzer(
+                "native.parity.peak_analyzer",
+                &proj,
+                AudioSource::Open,
+                range,
+                &cancel,
+            )
+            .expect_err("analyzer panic must fail run");
+        let want_err = AnalyzerError::Panicked {
+            id: "native.parity.peak_analyzer".into(),
+            reason: want.into(),
+        };
+        assert_eq!(err, want_err);
+        assert!(!ctx_a.is_mounted(id));
+        assert_eq!(PARITY_UNMOUNTS.load(Ordering::SeqCst), before);
+        assert_eq!(ctx_a.failures().len(), 1);
+    }
 }
 
 #[test]

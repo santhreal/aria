@@ -5,11 +5,18 @@ use aria_compositor::{
     F16_ONE, GpuContext, LayerPlacement, PassInstance, RgbaImage, f32_to_f16, pass_id,
     plugin_texture, registered_effect, renders_effect, renders_transition,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use aria_commands::{Command, EditCommand};
+use aria_core::{ColorSpace, EncoderConfig, Rational, RationalTime, TimeRange};
 use aria_models::{
-    ClipParam, DriverCode, EffectBounds, MarkerColor, ParamValue, audio_effect_spec,
-    clip_type_spec, effect_spec, transition_spec,
+    ClipParam, DriverCode, EffectBounds, Generator, MarkerColor, MediaSource, ParamValue, Project,
+    TrackKind, audio_effect_spec, clip_type_spec, effect_spec, transition_spec,
 };
-use aria_plugin::{DriverClipInfo, DriverScope, InputClip, SettingsService};
+use aria_plugin::{
+    AnalyzerError, AudioSource, CommandProposed, DriverClipInfo, DriverScope, InputClip, Origin,
+    RenderHost, SettingsService,
+};
 use aria_plugin_wasm::{Limits, load};
 
 use super::{FIXTURE_WASM, SERIAL, setup_host_context, write_package};
@@ -149,6 +156,35 @@ fn wasm_parity_contributions_register_render_on_lavapipe_fault_and_clean_up_on_u
             .iter()
             .any(|a| a.spec.id == "example.wasm-peaks")
     );
+    let empty_project = Project::new("wasm analyzer", Rational::FPS_24);
+    let analysis = ctx
+        .run_analyzer(
+            "example.wasm-peaks",
+            &empty_project,
+            AudioSource::Open,
+            TimeRange::at_rate(0, 1, Rational::FPS_24),
+            &AtomicBool::new(false),
+        )
+        .expect("run example.wasm-peaks");
+    assert_eq!(analysis.markers.len(), 1);
+    assert_eq!(analysis.markers[0].frame, 2000);
+    assert_eq!(analysis.markers[0].name, "WasmEnd");
+    assert_eq!(analysis.markers[0].color, MarkerColor::Teal);
+
+    let cancel = AtomicBool::new(false);
+    let cancelled = ctx.run_analyzer_with_progress(
+        "example.wasm-peaks",
+        &empty_project,
+        AudioSource::Open,
+        TimeRange::at_rate(0, 12, Rational::FPS_24),
+        &cancel,
+        |done, _total| {
+            if done > 0 {
+                cancel.store(true, Ordering::SeqCst);
+            }
+        },
+    );
+    assert_eq!(cancelled, Err(AnalyzerError::Cancelled));
 
     // 3. Driver evaluation.
     let prog = aria_render::compile_driver(&DriverCode::new("wasm-expr", "double_time"))
@@ -397,4 +433,188 @@ fn trapping_wasm_cpu_effect_bypasses_frame_records_fault_and_fails_plugin() {
     assert!(effect_spec("example.wgsl-invert").is_none());
     assert!(transition_spec("example.split-wipe").is_none());
     assert!(clip_type_spec("example.solid-clip").is_none());
+
+    // A trapping WASM analyzer unwinds into `run_analyzer`, records a single
+    // failure, unmounts the plugin, and returns `AnalyzerError::Panicked`.
+    let (ctx2, _host2, _view2, _settings2) = setup_host_context();
+    let plugin2 = load(&pkg, &Limits::default()).expect("load wasm plugin 2");
+    ctx2.mount(plugin2.as_ref()).expect("mount wasm plugin 2");
+    let nan_wav = temp.path().join("nan.wav");
+    let frames = 64usize;
+    let channels = 2u16;
+    let rate = 48_000u32;
+    let data_bytes = (frames * usize::from(channels) * 4) as u32;
+    let mut wav = Vec::with_capacity(44 + data_bytes as usize);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_bytes).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&3u16.to_le_bytes()); // IEEE float
+    wav.extend_from_slice(&channels.to_le_bytes());
+    wav.extend_from_slice(&rate.to_le_bytes());
+    wav.extend_from_slice(&(rate * u32::from(channels) * 4).to_le_bytes());
+    wav.extend_from_slice(&(channels * 4).to_le_bytes());
+    wav.extend_from_slice(&32u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_bytes.to_le_bytes());
+    for _ in 0..(frames * usize::from(channels)) {
+        wav.extend_from_slice(&f32::NAN.to_bits().to_le_bytes());
+    }
+    std::fs::write(&nan_wav, wav).expect("write nan.wav");
+    let mut nan_proj = Project::new("nan analyzer", Rational::FPS_24);
+    let media = nan_proj.add_media(MediaSource::new(
+        &nan_wav,
+        0,
+        0,
+        Rational::new(1, 1000),
+        100,
+        true,
+    ));
+    let lane = nan_proj.add_track(TrackKind::Audio, "A1");
+    nan_proj
+        .add_clip(
+            lane,
+            media,
+            TimeRange::at_rate(0, 100, Rational::new(1, 1000)),
+            RationalTime::zero(Rational::FPS_24),
+        )
+        .expect("add nan audio clip");
+    let trap_err = ctx2
+        .run_analyzer(
+            "example.wasm-peaks",
+            &nan_proj,
+            AudioSource::Open,
+            TimeRange::at_rate(0, 1, Rational::FPS_24),
+            &AtomicBool::new(false),
+        )
+        .expect_err("trapping wasm analyzer must fail");
+    assert!(
+        matches!(&trap_err, AnalyzerError::Panicked { id, reason } if id == "example.wasm-peaks" && reason.contains("wasm trap:")),
+        "expected AnalyzerError::Panicked, got {trap_err:?}"
+    );
+    assert!(!ctx2.is_mounted("com.example.wasm-tools"));
+    assert_eq!(ctx2.failures().len(), 1);
+
+    // Re-entrant calls on the same thread into `run_with_instance`, `call_export`,
+    // `run_encoder_call`, and `call_cpu_effect_process` return a refusal error instead
+    // of deadlocking `WasmPluginShared::state`.
+    let (ctx3, host3, _view3, settings3) = setup_host_context();
+    settings3.set("example.register_parity", serde_json::json!(true));
+    let _render_reg = ctx3.register(RenderHost::new(gpu));
+    let plugin3 = load(&pkg, &Limits::default()).expect("load wasm plugin 3");
+    ctx3.mount(plugin3.as_ref()).expect("mount wasm plugin 3");
+    let reentrant_errors = std::sync::Arc::new(parking_lot::Mutex::new(Vec::<String>::new()));
+    let errs_sink = std::sync::Arc::clone(&reentrant_errors);
+    let ctx3_inner = (*ctx3).clone();
+    let export_out = temp.path().join("reentrant.mrk");
+    let enc_out = temp.path().join("reentrant.rgba");
+    let _sub = ctx3.on_waterfall(move |_ev: &mut CommandProposed| {
+        let mut errs = errs_sink.lock();
+        if errs.is_empty() {
+            errs.push(
+                ctx3_inner
+                    .run_command("example.add-marker")
+                    .expect_err("re-entrant run_command must fail")
+                    .to_string(),
+            );
+            errs.push(
+                ctx3_inner
+                    .export_file(
+                        "example.markers",
+                        &Project::new("p", Rational::FPS_24),
+                        &export_out,
+                    )
+                    .expect_err("re-entrant export_file must fail")
+                    .to_string(),
+            );
+            errs.push(
+                ctx3_inner
+                    .open_encoder(
+                        "example.raw-rgba",
+                        &enc_out,
+                        &EncoderConfig::new((8, 8), Rational::FPS_24, ColorSpace::BT709),
+                    )
+                    .err()
+                    .expect("re-entrant open_encoder must fail")
+                    .to_string(),
+            );
+        }
+    });
+    ctx3.run_command("example.add-marker")
+        .expect("outer add-marker succeeds while inner re-entrant calls are refused");
+    let captured_errs = reentrant_errors.lock().clone();
+    assert_eq!(captured_errs.len(), 3, "{captured_errs:?}");
+    for err in &captured_errs {
+        assert!(
+            err.contains("cannot re-enter from inside one of its own calls"),
+            "unexpected re-entrancy error: {err}"
+        );
+    }
+    drop(_sub);
+
+    host3
+        .apply(
+            &Origin::Editor,
+            Command::Edit(EditCommand::AddTrack {
+                kind: TrackKind::Sticker,
+                name: "S1".to_owned(),
+                index: None,
+                pinned: false,
+            }),
+        )
+        .expect("add sticker track");
+    let s_track = host3
+        .snapshot()
+        .timeline()
+        .tracks_ordered()
+        .find(|t| t.kind == TrackKind::Sticker)
+        .expect("sticker track")
+        .id;
+    host3
+        .apply(
+            &Origin::Editor,
+            Command::Edit(EditCommand::AddGenerated {
+                track: s_track,
+                generator: Generator::SolidColor {
+                    rgba: [200, 100, 50, 255],
+                },
+                timeline: TimeRange::at_rate(0, 24, Rational::FPS_24),
+            }),
+        )
+        .expect("add sticker clip");
+    let s_clip = host3
+        .snapshot()
+        .timeline()
+        .track(s_track)
+        .expect("s_track")
+        .clips_ordered()
+        .next()
+        .expect("s_clip")
+        .id;
+    host3
+        .apply(
+            &Origin::Editor,
+            Command::Edit(EditCommand::AddEffect {
+                clip: s_clip,
+                effect_id: "example.cpu-invert".to_owned(),
+            }),
+        )
+        .expect("attach example.cpu-invert");
+    settings3.set(
+        "example.render_frame_args",
+        serde_json::json!({ "size": "exact", "width": 16, "height": 16 }),
+    );
+    ctx3.run_command("example.render-frame")
+        .expect("re-entrant render-frame completes without deadlocking");
+    assert!(
+        ctx3.faults().iter().any(|f| {
+            f.plugin == "com.example.wasm-tools"
+                && f.message.contains(
+                    "cannot run CPU effect example.cpu-invert from inside one of its own calls",
+                )
+        }),
+        "expected re-entrancy fault, got: {:?}",
+        ctx3.faults()
+    );
+    assert!(ctx3.is_mounted("com.example.wasm-tools"));
 }

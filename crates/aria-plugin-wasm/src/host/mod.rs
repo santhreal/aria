@@ -248,10 +248,6 @@ impl Plugin for WasmPlugin {
 }
 
 impl WasmPluginShared {
-    pub(crate) fn plugin_id(&self) -> &str {
-        &self.manifest.id
-    }
-
     pub(crate) fn has_parity_exports(&self) -> bool {
         matches!(self.pre, PluginPreKind::Current(_))
     }
@@ -396,6 +392,12 @@ impl WasmPluginShared {
         phase: CallPhase,
         f: impl FnOnce(&mut LiveInstance, &SharedEngine) -> wasmtime::Result<Result<T, String>>,
     ) -> Result<T, String> {
+        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+            return Err(format!(
+                "plugin {} cannot re-enter from inside one of its own calls",
+                self.manifest.id
+            ));
+        }
         let mut guard = self.state.lock();
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,
@@ -434,6 +436,12 @@ impl WasmPluginShared {
         phase: CallPhase,
         f: impl FnOnce(&mut LiveInstance) -> wasmtime::Result<T>,
     ) -> T {
+        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+            panic!(
+                "plugin {} cannot re-enter from inside one of its own calls",
+                self.manifest.id
+            );
+        }
         let mut guard = self.state.lock();
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,

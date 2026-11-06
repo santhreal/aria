@@ -1,19 +1,13 @@
 //! Audio effect factory and zero-allocation block processor for WASM plugins.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use aria_plugin::{
-    AUDIO_HOST_BLOCK, AudioBlock, AudioProcessor, AudioProcessorFactory, FaultKind, ParamSignal,
-    PluginContext, ProcessorFault,
+    AUDIO_HOST_BLOCK, AudioBlock, AudioProcessor, AudioProcessorFactory, ParamSignal, PluginContext,
 };
 
 use crate::bindings;
 use crate::host::WasmPluginShared;
-
-/// Number of consecutive block deadline misses before a processor is bypassed.
-const MAX_CONSECUTIVE_DEADLINE_MISSES: u32 = 3;
-
 #[derive(Clone)]
 pub(crate) struct WasmAudioFactory {
     shared: Arc<WasmPluginShared>,
@@ -47,7 +41,6 @@ impl AudioProcessorFactory for WasmAudioFactory {
             Ok(instance) => Box::new(WasmAudioProcessor::new(
                 Arc::clone(&self.shared),
                 self.ctx.clone(),
-                self.effect_id.clone(),
                 self.param_count,
                 instance,
             )),
@@ -61,11 +54,8 @@ impl AudioProcessorFactory for WasmAudioFactory {
 pub(crate) struct WasmAudioProcessor {
     shared: Arc<WasmPluginShared>,
     ctx: PluginContext,
-    effect_id: String,
     param_count: usize,
     instance: Option<u64>,
-    bypassed: bool,
-    consecutive_missed_deadlines: u32,
     scratch_params: Vec<bindings::AudioParam>,
     scratch_block: bindings::AudioBlock,
 }
@@ -74,7 +64,6 @@ impl WasmAudioProcessor {
     fn new(
         shared: Arc<WasmPluginShared>,
         ctx: PluginContext,
-        effect_id: String,
         param_count: usize,
         instance: u64,
     ) -> Self {
@@ -96,11 +85,8 @@ impl WasmAudioProcessor {
         Self {
             shared,
             ctx,
-            effect_id,
             param_count,
             instance: Some(instance),
-            bypassed: false,
-            consecutive_missed_deadlines: 0,
             scratch_params,
             scratch_block,
         }
@@ -109,14 +95,10 @@ impl WasmAudioProcessor {
 
 impl AudioProcessor for WasmAudioProcessor {
     fn process(&mut self, block: &mut AudioBlock<'_>) {
-        if self.bypassed {
-            return;
-        }
         let Some(instance) = self.instance else {
             return;
         };
 
-        let frames = block.frames();
         let sample_rate = block.sample_rate().max(1);
         let position = block.position();
 
@@ -154,41 +136,20 @@ impl AudioProcessor for WasmAudioProcessor {
         self.scratch_block.position = position;
         self.scratch_block.sample_rate = sample_rate;
 
-        let budget = Duration::from_secs_f64(frames as f64 / f64::from(sample_rate));
-        let started = Instant::now();
-        let outcome = self.shared.call_audio_process(
+        match self.shared.call_audio_process(
             &self.ctx,
             instance,
             &self.scratch_params,
             &self.scratch_block,
-        );
-        let took = started.elapsed();
-
-        match outcome {
+        ) {
             Ok(stereo) => {
                 let (left, right) = block.channels();
                 let copy_l = left.len().min(stereo.left.len());
                 let copy_r = right.len().min(stereo.right.len());
                 left[..copy_l].copy_from_slice(&stereo.left[..copy_l]);
                 right[..copy_r].copy_from_slice(&stereo.right[..copy_r]);
-
-                if frames > 0 && took > budget {
-                    self.consecutive_missed_deadlines += 1;
-                    if self.consecutive_missed_deadlines >= MAX_CONSECUTIVE_DEADLINE_MISSES {
-                        self.bypassed = true;
-                        let fault = ProcessorFault {
-                            effect_id: self.effect_id.clone(),
-                            kind: FaultKind::MissedDeadlines { budget, took },
-                        };
-                        self.ctx
-                            .report_fault(self.shared.plugin_id(), fault.to_string());
-                    }
-                } else {
-                    self.consecutive_missed_deadlines = 0;
-                }
             }
             Err(err) => {
-                self.bypassed = true;
                 self.instance = None;
                 panic!("the processor faulted: {err}");
             }
@@ -196,23 +157,18 @@ impl AudioProcessor for WasmAudioProcessor {
     }
 
     fn reset(&mut self) {
-        if self.bypassed {
-            return;
-        }
         if let Some(instance) = self.instance
-            && self.shared.call_audio_reset(&self.ctx, instance).is_err()
+            && let Err(err) = self.shared.call_audio_reset(&self.ctx, instance)
         {
-            self.bypassed = true;
             self.instance = None;
+            panic!("the processor faulted: {err}");
         }
     }
 }
 
 impl Drop for WasmAudioProcessor {
     fn drop(&mut self) {
-        if let Some(instance) = self.instance.take()
-            && !self.bypassed
-        {
+        if let Some(instance) = self.instance.take() {
             let _ = self.shared.call_audio_drop(&self.ctx, instance);
         }
     }
