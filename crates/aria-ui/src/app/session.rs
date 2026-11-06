@@ -396,30 +396,40 @@ impl AppState {
         Ok(())
     }
 
+    /// Mark In on the playhead. An Out at or before it would leave an empty or
+    /// inverted range, so that Out is cleared, and the status line says so.
     pub fn set_mark_in(&mut self) {
-        self.mark_in = Some(self.playhead.value.max(0));
-        if let Some(out) = self.mark_out
-            && out <= self.playhead.value
-        {
+        let at = self.playhead.value.max(0);
+        self.mark_in = Some(at);
+        let crossed = self.mark_out.is_some_and(|out| out <= at);
+        if crossed {
             self.mark_out = None;
         }
-        self.status_message = Some("Mark In".into());
+        self.status_message = Some(if crossed {
+            "Mark In; cleared the Out at or before it".into()
+        } else {
+            "Mark In".into()
+        });
     }
 
     /// Mark Out on the playhead's frame: the mark is the tick after it, so
-    /// the marked range `[in, out)` keeps the frame Out was pressed on.
+    /// the marked range `[in, out)` keeps the frame Out was pressed on. An In
+    /// at or after that tick is cleared, and the status line says so.
     pub fn set_mark_out(&mut self) {
         let out = out_after(
             self.playhead.value.max(0),
             self.store.sequence.duration_ticks,
         );
         self.mark_out = Some(out);
-        if let Some(inn) = self.mark_in
-            && inn >= out
-        {
+        let crossed = self.mark_in.is_some_and(|inn| inn >= out);
+        if crossed {
             self.mark_in = None;
         }
-        self.status_message = Some("Mark Out".into());
+        self.status_message = Some(if crossed {
+            "Mark Out; cleared the In at or after it".into()
+        } else {
+            "Mark Out".into()
+        });
     }
 
     pub fn clear_mark_in(&mut self) {

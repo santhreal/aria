@@ -151,3 +151,38 @@ fn match_frame_says_so_when_there_is_nothing_under_the_playhead() {
         Some("No media clip under the playhead")
     );
 }
+/// A source mark set across the other one clears it and the status line
+/// states which mark went; a mark on the other's own tick counts as crossing,
+/// and Out on In's own frame keeps both.
+#[test]
+fn a_source_mark_set_across_the_other_clears_it_and_says_so() {
+    let (mut state, media) = with_video_monitor();
+    let marks = |state: &AppState| {
+        let view = state.sources.focused().expect("source tab");
+        (view.mark_in, view.mark_out)
+    };
+    state.hover_pool_item(media, 11);
+    state.mark_in_here();
+    state.hover_pool_item(media, 10);
+    state.mark_out_here();
+    assert_eq!(marks(&state), (None, Some(11)));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Source Out; cleared the In at or after it")
+    );
+
+    state.hover_pool_item(media, 11);
+    state.mark_in_here();
+    assert_eq!(marks(&state), (Some(11), None));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Source In; cleared the Out at or before it")
+    );
+
+    state.mark_out_here();
+    assert_eq!(marks(&state), (Some(11), Some(12)));
+    assert_eq!(state.status_message.as_deref(), Some("Source Out"));
+    state.mark_in_here();
+    assert_eq!(marks(&state), (Some(11), Some(12)));
+    assert_eq!(state.status_message.as_deref(), Some("Source In"));
+}

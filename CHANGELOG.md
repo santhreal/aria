@@ -1340,6 +1340,7 @@ Notes for the latest release. For previous releases, see the
 - Multicam clips play and export the sound of the group's first camera that recorded sound, placed by that camera's sync offset, instead of silence.
 - Nested sequence clips play and export their sequence's mix instead of silence, so Clip > Nest… keeps the sound of the clips it gathers.
 - A non-finite media pool position is rejected instead of being saved as a value that stops the project from opening.
+- Mark In or Mark Out set across the other mark reports on the status line that the other mark was cleared, on the timeline and on a Source tab.
 
 ## [alpha-0.7.0] - 2026-07-22
 

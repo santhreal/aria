@@ -197,10 +197,15 @@ impl AppState {
             return;
         }
         view.mark_in = Some(view.tick);
-        if view.mark_out.is_some_and(|out| out <= view.tick) {
+        let crossed = view.mark_out.is_some_and(|out| out <= view.tick);
+        if crossed {
             view.mark_out = None;
         }
-        self.status_message = Some("Source In".into());
+        self.status_message = Some(if crossed {
+            "Source In; cleared the Out at or before it".into()
+        } else {
+            "Source In".into()
+        });
     }
 
     /// Mark Out after the focused Source tab's frame. A tab linked to a
@@ -216,10 +221,15 @@ impl AppState {
             return;
         }
         view.mark_out = Some(out);
-        if view.mark_in.is_some_and(|start| start >= out) {
+        let crossed = view.mark_in.is_some_and(|start| start >= out);
+        if crossed {
             view.mark_in = None;
         }
-        self.status_message = Some("Source Out".into());
+        self.status_message = Some(if crossed {
+            "Source Out; cleared the In at or after it".into()
+        } else {
+            "Source Out".into()
+        });
     }
 
     /// Clear both source marks. A tab linked to a timeline clip extends the

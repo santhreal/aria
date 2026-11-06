@@ -21,26 +21,43 @@ fn mark_in_and_out_record_the_playhead_and_clear_independently() {
     state.clear_mark_out();
     assert_eq!(state.mark_out, None);
 }
+/// A mark set across the other one clears it rather than leave an inverted or
+/// empty range, and the status line states which mark went. A mark on the
+/// other's own tick counts as crossing; Out on In's own frame keeps both.
 #[test]
-fn marking_out_before_in_does_not_leave_an_inverted_range() {
+fn a_mark_set_across_the_other_clears_it_and_says_so() {
     let (mut state, _) = with_clip();
-    state.set_playhead(40);
+    state.set_playhead(13);
     state.set_mark_in();
     state.set_playhead(12);
-    // Marking Out behind In must not yield out < in.
     state.set_mark_out();
-    if let (Some(inn), Some(out)) = (state.mark_in, state.mark_out) {
-        assert!(inn <= out, "in {inn} must not exceed out {out}");
-    }
+    assert_eq!((state.mark_in, state.mark_out), (None, Some(13)));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Mark Out; cleared the In at or after it")
+    );
 
     let (mut state, _) = with_clip();
     state.set_playhead(12);
     state.set_mark_out();
-    state.set_playhead(40);
+    state.set_playhead(13);
     state.set_mark_in();
-    if let (Some(inn), Some(out)) = (state.mark_in, state.mark_out) {
-        assert!(inn <= out, "in {inn} must not exceed out {out}");
-    }
+    assert_eq!((state.mark_in, state.mark_out), (Some(13), None));
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Mark In; cleared the Out at or before it")
+    );
+
+    // Out on In's own frame: the range is that one frame, and nothing clears.
+    let (mut state, _) = with_clip();
+    state.set_playhead(12);
+    state.set_mark_in();
+    state.set_mark_out();
+    assert_eq!((state.mark_in, state.mark_out), (Some(12), Some(13)));
+    assert_eq!(state.status_message.as_deref(), Some("Mark Out"));
+    state.set_mark_in();
+    assert_eq!((state.mark_in, state.mark_out), (Some(12), Some(13)));
+    assert_eq!(state.status_message.as_deref(), Some("Mark In"));
 }
 #[test]
 fn go_to_in_and_out_move_the_playhead_and_are_inert_when_unset() {

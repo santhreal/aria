@@ -157,8 +157,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
-| `seq-mark-in` | `none` | Mark In | `I` | Always enabled | Sets the In point at the playhead on the active monitor. |
-| `seq-mark-out` | `none` | Mark Out | `O` | Always enabled | Sets the Out point at the playhead on the active monitor. |
+| `seq-mark-in` | `none` | Mark In | `I` | Always enabled | Sets the In point at the playhead on the active monitor and clears an Out point at or before it. |
+| `seq-mark-out` | `none` | Mark Out | `O` | Always enabled | Sets the Out point after the playhead frame on the active monitor and clears an In point at or after it. |
 | `mark-clip` | `none` | Mark Clip | `X` | The sequence has no clips (`guards::clips`) | Sets sequence In and Out points to the span of the clip at the playhead. |
 | `mark-go-in` | `none` | Go to In | `Shift+I` | No In point is set (`guards::mark_in`) | Seeks the playhead to the sequence In point. |
 | `mark-go-out` | `none` | Go to Out | `Shift+O` | No Out point is set (`guards::mark_out`) | Seeks the playhead to the sequence Out point. |
