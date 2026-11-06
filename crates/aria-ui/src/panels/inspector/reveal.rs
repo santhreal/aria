@@ -1,4 +1,5 @@
-//! Bringing an element under the inspector's body into view.
+//! Bringing an element under the inspector's body into view, and the body
+//! back to its top when the tab changes.
 //!
 //! `ScrollHandle::scroll_to_item` reaches only the children of the element that
 //! scrolls, and a block sits several elements below the body. [`mark`] reaches
@@ -6,7 +7,9 @@
 //! [`Reveal::request`] reads where the element landed, moves the body so the
 //! element is in view, and spends the request. The frame after draws the move.
 
-use gpui::{Bounds, IntoElement, Pixels, Point, Styled, canvas, point, px};
+use gpui::{
+    Bounds, ElementId, IntoElement, Pixels, Point, SharedString, Styled, canvas, point, px,
+};
 
 use crate::app::Reveal;
 
@@ -32,6 +35,31 @@ pub(super) fn mark(reveal: &Reveal) -> impl IntoElement {
     )
     .absolute()
     .inset_0()
+}
+
+/// A zero-size element, drawn ahead of `reveal`'s frame, that puts the frame
+/// back at its top on the first prepaint that draws a tab other than the one
+/// the last prepaint drew. The frame's handle outlives the tab, so a tab would
+/// otherwise open at the depth the previous one was scrolled to. Drawn before
+/// the frame, the move lands on the frame that draws the new tab, and a reveal
+/// requested with the switch moves the frame after it.
+pub(super) fn top_on_switch(reveal: &Reveal, tab: SharedString) -> impl IntoElement + use<> {
+    let frame = reveal.frame.clone();
+    canvas(
+        move |_, window, _| {
+            let key = ElementId::Name("inspector-shown-tab".into());
+            let switched = window.with_global_id(key, |id, window| {
+                window.with_element_state(id, |shown: Option<SharedString>, _| {
+                    (shown.as_ref() != Some(&tab), tab)
+                })
+            });
+            if switched {
+                frame.set_offset(Point::default());
+            }
+        },
+        |_, (), _, _| {},
+    )
+    .absolute()
 }
 
 /// The offset that shows `target` in `view`, from `offset`, with the content

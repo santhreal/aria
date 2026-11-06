@@ -133,12 +133,9 @@ async fn no_graph_is_drawn_while_no_property_holds_a_keyframe(cx: &mut TestAppCo
     );
 }
 
-/// Scroll the Inspector to its end and return the window bounds of the
-/// element `selector` names, held to lie inside the Inspector's body.
-pub(super) fn scrolled_to(
-    visual: &mut VisualTestContext,
-    selector: &'static str,
-) -> Bounds<Pixels> {
+/// Scroll the Inspector's body to its end with the wheel and draw the result.
+/// Returns the body's window bounds.
+pub(super) fn scroll_to_end(visual: &mut VisualTestContext) -> Bounds<Pixels> {
     let body = visual
         .debug_bounds("inspector-body")
         .expect("the Inspector draws its body");
@@ -150,6 +147,16 @@ pub(super) fn scrolled_to(
         touch_phase: TouchPhase::Moved,
     });
     visual.run_until_parked();
+    body
+}
+
+/// Scroll the Inspector to its end and return the window bounds of the
+/// element `selector` names, held to lie inside the Inspector's body.
+pub(super) fn scrolled_to(
+    visual: &mut VisualTestContext,
+    selector: &'static str,
+) -> Bounds<Pixels> {
+    let body = scroll_to_end(visual);
     let drawn = visual
         .debug_bounds(selector)
         .unwrap_or_else(|| panic!("the Inspector draws no {selector}"));

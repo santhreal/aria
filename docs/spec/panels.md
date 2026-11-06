@@ -11,7 +11,7 @@ text inside the frame: a row of buttons or chips wraps, a label or field ends
 in an ellipsis, and a paragraph wraps. The Audio Track Mixer's strips scroll
 sideways instead, and down in a frame shorter than the strips. In Effect
 Controls, the tab's body and the panels stacked under it scroll below the tab
-row.
+row. A tab opens at the top of its body.
 
 ## Project
 

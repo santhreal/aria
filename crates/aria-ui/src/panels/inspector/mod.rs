@@ -23,6 +23,8 @@ mod slot_track_tests;
 mod strip_tests;
 pub mod tab_host;
 mod tab_strip;
+#[cfg(test)]
+mod tab_top_tests;
 pub mod tabs;
 #[cfg(test)]
 mod transition_reveal_tests;
@@ -180,9 +182,11 @@ fn clip_body(
         Some(tab) => (tab.id.clone(), Some(tab.body)),
         None => (gpui::SharedString::new_static(""), None),
     };
-    // A press on a transition band moves the body through this handle.
+    // A press on a transition band moves the body through this handle, and a
+    // switch of tab puts it back at its top.
     let reveal = &state.read(cx).inspector_reveal;
     let frame = reveal.frame.clone();
+    let top = reveal::top_on_switch(reveal, active_id.clone());
 
     div()
         .flex_1()
@@ -201,6 +205,7 @@ fn clip_body(
             active_id.clone(),
             cx,
         ))
+        .child(top)
         .child(
             // A tab taller than its frame scrolls under the tab row.
             crate::edge_fade::scroll_y(
