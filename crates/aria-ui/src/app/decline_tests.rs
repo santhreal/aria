@@ -342,3 +342,50 @@ fn a_chord_past_its_withheld_row_declines_in_the_rows_words() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// WHY: closes the class of a chord bound to a menu row's action that no row
+/// declares. The menu then draws no shortcut beside the row, and a withheld
+/// row does not withhold the chord, so the chord reaches the body the row was
+/// drawn disabled over. A binding named like a row is that row's chord, walked
+/// from the shipped table and every live menu: some row of that name declares
+/// one of the bindings of that name, so a new binding named after a row is red
+/// here until a row declares it. A second binding of one name is a second
+/// chord for the action (Ctrl+Y beside Ctrl+Shift+Z for Redo), and one row of
+/// a name drawn in two menus draws the chord once.
+///
+/// Rows a registered analyzer contributes are skipped: the detector chords
+/// start the built-in detector job, which those rows do not run.
+///
+/// What this does not catch: a chord whose name differs from the row it runs,
+/// and a second chord of one name, which no row withholds.
+#[test]
+fn a_binding_named_like_a_row_is_declared_on_a_row_of_that_name() {
+    const ANALYZER_ROWS: [&str; 2] = ["clip-analyze:", "seq-analyze:"];
+    let (state, _) = with_clip();
+    let mut declared: BTreeMap<&str, Vec<Option<&str>>> = BTreeMap::new();
+    for menu in AppMenu::ALL {
+        for row in items_of(menu, &state) {
+            if ANALYZER_ROWS
+                .iter()
+                .any(|prefix| row.id.starts_with(prefix))
+            {
+                continue;
+            }
+            declared.entry(row.label).or_default().push(row.key);
+        }
+    }
+    let wrong: Vec<String> = declared
+        .iter()
+        .filter_map(|(label, keys)| {
+            let named: Vec<&str> = SHIPPED_BINDINGS
+                .iter()
+                .filter(|binding| binding.name == *label)
+                .map(|binding| binding.id)
+                .collect();
+            let drawn = keys.iter().flatten().any(|key| named.contains(key));
+            (!named.is_empty() && !drawn)
+                .then(|| format!("\"{label}\" declares {keys:?}, none of {named:?}"))
+        })
+        .collect();
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

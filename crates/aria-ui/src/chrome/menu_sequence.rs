@@ -136,17 +136,20 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         let cut = s.cut_source_in(crate::types::EditMode::Ripple);
         report(s, cut)
     })
+    .key("key-source-insert")
     .when(guards::source_range)
     .under(SOURCE),
     MenuItem::new("seq-source-overwrite", "Overwrite", |_, s, _| {
         let cut = s.cut_source_in(crate::types::EditMode::Overwrite);
         report(s, cut)
     })
+    .key("key-source-overwrite")
     .when(guards::source_range)
     .under(SOURCE),
     MenuItem::new("seq-ripple-insert", "Insert Pool Selection", |_, s, _| {
         reach::ripple_insert(s)
     })
+    .key("key-ripple-insert")
     .when(guards::pool_selection)
     .under(SOURCE)
     .flyout_rule(),
@@ -209,6 +212,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-duck-amount", "Cycle Duck Amount", |_, s, _| {
         s.cycle_duck_amount()
     })
+    .key("key-duck-amount")
     .under(DUCKING),
     MenuItem::new("seq-duck-attack", "Cycle Duck Attack", |_, s, _| {
         s.cycle_duck_attack()

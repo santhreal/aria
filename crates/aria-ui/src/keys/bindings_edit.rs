@@ -327,11 +327,17 @@ pub(super) const EDIT_ROWS: &[Binding] = &[
     ),
     bind!("key-snap", "Snap", Chord::plain("s"), Editor, |state| state
         .toggle_snapping()),
-    bind!("key-link", "Link", Chord::ctrl("l"), Editor, |state| {
-        if let Err(err) = state.toggle_link_selected() {
-            state.report_error(&err);
+    bind!(
+        "key-link",
+        "Link or Unlink",
+        Chord::ctrl("l"),
+        Editor,
+        |state| {
+            if let Err(err) = state.toggle_link_selected() {
+                state.report_error(&err);
+            }
         }
-    }),
+    ),
     bind!(
         "key-gain-up",
         "Increase Clip Volume",

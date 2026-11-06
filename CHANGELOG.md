@@ -876,6 +876,7 @@ Notes for the latest release. For previous releases, see the
 - The Lottie and Templates cache rows and their `storage.paths.lottie` and `storage.paths.templates` keys are deleted, since those downloads are stored in the Downloads cache.
 - `PasteRetimed` and `PasteAttributes` take the copied clip in `copy` instead of a source clip id, and the new `PasteClip` edit places a copied clip on a lane.
 - Building an engine no longer brings up a GPU device; the first rendered frame brings it up, so `aria new` and sessions that only edit and save skip the driver start.
+- The Ctrl+L binding is named Link or Unlink in Settings > Keyboard Shortcuts.
 
 ### Fixed
 
@@ -1354,6 +1355,7 @@ Notes for the latest release. For previous releases, see the
 - An export finishes on the next encoder in order when the GPU opens its hardware encoder and then rejects the encode session, as at the NVENC concurrent-session limit.
 - A session with unsaved edits writes no recovery copy while it has no edit the last copy does not hold, instead of rewriting the whole project every twenty seconds.
 - `aria export` prints the encoder that wrote the file, instead of a hardware encoder that opened and then could not encode the first frame.
+- Sequence > Source > Insert, Overwrite and Insert Pool Selection and Sequence > Ducking > Cycle Duck Amount draw their chords, and a withheld Source row withholds its chord.
 
 ## [alpha-0.7.0] - 2026-07-22
 
