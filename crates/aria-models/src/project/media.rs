@@ -148,6 +148,9 @@ impl Project {
     }
 
     /// Set the freeform position of a pool item in `bin`, or at the pool root with `None`.
+    ///
+    /// A save cannot represent a non-finite coordinate, so a NaN or infinite
+    /// `position` is [`ModelError::InvalidParam`] and nothing changes.
     pub fn set_pool_item_position(
         &mut self,
         bin: Option<BinId>,
@@ -156,6 +159,12 @@ impl Project {
     ) -> Result<(), ModelError> {
         if !self.media.contains_key(&media) {
             return Err(ModelError::UnknownMedia(media));
+        }
+        if !(position.x.is_finite() && position.y.is_finite()) {
+            return Err(ModelError::InvalidParam(format!(
+                "pool position ({}, {}) is not a finite point",
+                position.x, position.y
+            )));
         }
         match bin {
             Some(bin_id) => {

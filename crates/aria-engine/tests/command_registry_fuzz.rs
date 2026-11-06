@@ -351,6 +351,19 @@ fn dispatch_and_check(engine: &mut Engine, cmd: EditCommand) -> bool {
     };
 
     assert_project_invariants(engine.project());
+    // Every state an edit leaves has to open again. A value the save writes
+    // and the load rejects, such as a non-finite float written as `null`,
+    // leaves a project that cannot be reopened.
+    let text = engine
+        .project()
+        .save_to_string()
+        .unwrap_or_else(|err| panic!("{} left a project that does not save: {err}", spec.id));
+    if let Err(err) = Project::load_from_string(&text) {
+        panic!(
+            "{} left a project that saves but does not open: {err}",
+            spec.id
+        );
+    }
     applied
 }
 

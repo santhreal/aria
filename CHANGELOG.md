@@ -1339,6 +1339,7 @@ Notes for the latest release. For previous releases, see the
 - Loop and work-area playback with the In point at the end of the sequence report the In point instead of an empty sequence.
 - Multicam clips play and export the sound of the group's first camera that recorded sound, placed by that camera's sync offset, instead of silence.
 - Nested sequence clips play and export their sequence's mix instead of silence, so Clip > Nest… keeps the sound of the clips it gathers.
+- A non-finite media pool position is rejected instead of being saved as a value that stops the project from opening.
 
 ## [alpha-0.7.0] - 2026-07-22
 

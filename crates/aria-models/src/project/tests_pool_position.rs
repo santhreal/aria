@@ -147,3 +147,34 @@ fn unknown_media_or_bin_returns_honest_error() {
         Err(ModelError::UnknownBin(_))
     ));
 }
+
+/// A save writes a non-finite coordinate as `null`, which the load rejects, so
+/// a project holding one could not be reopened. Every non-finite axis, at the
+/// root and in a bin, is rejected and leaves the saved position in place.
+#[test]
+fn a_non_finite_position_is_rejected_and_the_project_still_opens() {
+    let mut project = Project::new("finite", R24);
+    let media = project.add_media(sample_media(R24, 100));
+    let bin = project.add_bin("Bin", None).expect("bin");
+    let kept = PoolPosition::new(5.0, 6.0);
+    for at in [None, Some(bin)] {
+        project
+            .set_pool_item_position(at, media, kept)
+            .expect("a finite point");
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            for position in [PoolPosition::new(bad, 1.0), PoolPosition::new(1.0, bad)] {
+                assert!(
+                    matches!(
+                        project.set_pool_item_position(at, media, position),
+                        Err(ModelError::InvalidParam(_))
+                    ),
+                    "{position:?} in {at:?} is rejected"
+                );
+                assert_eq!(project.pool_item_position(at, media), Some(kept));
+            }
+        }
+    }
+    let text = project.save_to_string().expect("save");
+    let loaded = Project::load_from_string(&text).expect("the project opens");
+    assert_eq!(loaded.pool_item_position(Some(bin), media), Some(kept));
+}
