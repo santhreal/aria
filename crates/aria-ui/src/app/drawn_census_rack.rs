@@ -306,15 +306,7 @@ fn deleting_a_preset_shrinks_the_presets_and_the_file() {
 #[test]
 fn the_census_reaches_every_effect_command() {
     let sent = dispatched();
-    for label in [
-        "Add effect",
-        "Remove effect",
-        "Reorder effect",
-        "Set effect parameter",
-        "Update effect parameters",
-        "Bypass effect",
-        "Apply preset",
-    ] {
+    for label in super::claimed_by(&["Effects block"]) {
         assert!(
             sent.contains(label),
             "the rack sent {sent:?}, which does not include `{label}`"

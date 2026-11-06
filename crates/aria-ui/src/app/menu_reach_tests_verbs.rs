@@ -288,3 +288,248 @@ fn canvas_handles_rows_choose_the_live_set_and_check_only_it() {
         "a Canvas Handles row for a set that does not exist"
     );
 }
+
+fn blocked(menu: AppMenu, state: &AppState, id: &str) -> Option<&'static str> {
+    row(menu, state, id).blocked_by(state)
+}
+
+/// WHY: closes the defect class where Edit, Clip, and Sequence menu rows for
+/// Paste Attributes, Paste to Fit, Freeze Frame, Render and Replace, Restore
+/// Unrendered, Ripple Trim In/Out, Cross Fade / Remove Transition, Shift Lane,
+/// and Nested Sequence actions omitted precondition checks and were offered
+/// enabled when their target clip, mark range, project path, cut junction, or
+/// nested sequence did not exist.
+///
+/// What this does not catch: the visual styling of disabled rows in the popup.
+#[test]
+fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() {
+    use super::menu_reach_dress::Dress;
+    let (mut state, clip) = with_clip();
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
+        Some("Nothing has been copied or cut")
+    );
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-fit"),
+        Some("Nothing has been copied or cut")
+    );
+    state.copy_selected();
+    state.clear_selection();
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
+        Some("No clip is selected")
+    );
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-fit"),
+        Some("Mark In and Out to paste into a range")
+    );
+    state.select_clip(clip);
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
+        None
+    );
+    state.clear_selected().expect("remove copied clip");
+    assert_eq!(
+        blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
+        Some("Nothing has been copied or cut")
+    );
+    state
+        .paste_attributes()
+        .expect("deleted clipboard clip is inert");
+    assert_eq!(
+        blocked(AppMenu::Edit, &Dress::Fitted.state(), "edit-paste-fit"),
+        None
+    );
+
+    let (mut plain, _) = with_clip();
+    assert_eq!(
+        blocked(AppMenu::Clip, &plain, "seq-bake-clip"),
+        Some("Save the project first: a rendered clip is kept beside the project file.")
+    );
+    assert_eq!(
+        blocked(AppMenu::Clip, &plain, "seq-bake-restore"),
+        Some("Select a rendered clip to restore")
+    );
+    plain.project_path = Some(crate::scratch_pool::scratch("menu-bake-guard").join("p.aria"));
+    assert_eq!(
+        blocked(AppMenu::Clip, &plain, "seq-bake-clip"),
+        Some("This clip has nothing to render into a file")
+    );
+    assert_eq!(
+        blocked(AppMenu::Clip, &Dress::Rendered.state(), "seq-bake-clip"),
+        None
+    );
+    assert_eq!(
+        blocked(AppMenu::Clip, &Dress::Baked.state(), "seq-bake-restore"),
+        None
+    );
+
+    let (mut ripple, clip) = with_clip();
+    let end = ripple
+        .ui_clip_ref(clip)
+        .map(|c| c.timeline_end_ticks)
+        .expect("clip end");
+    ripple.set_playhead(0);
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-ripple-in"),
+        Some("No earlier edit on a targeted track")
+    );
+    assert_eq!(blocked(AppMenu::Sequence, &ripple, "seq-ripple-out"), None);
+    ripple.set_playhead(end);
+    assert_eq!(blocked(AppMenu::Sequence, &ripple, "seq-ripple-in"), None);
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-ripple-out"),
+        Some("No later edit on a targeted track")
+    );
+
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-transition-crossfade"),
+        Some("No clip on the other side of that cut")
+    );
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-transition-clear"),
+        Some("No transition at that cut")
+    );
+    assert_eq!(
+        blocked(
+            AppMenu::Sequence,
+            &Dress::Cut.state(),
+            "seq-transition-crossfade"
+        ),
+        None
+    );
+    assert_eq!(
+        blocked(
+            AppMenu::Sequence,
+            &Dress::Blended.state(),
+            "seq-transition-clear"
+        ),
+        None
+    );
+
+    ripple.clear_selection();
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-later"),
+        Some("No clip is selected")
+    );
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-earlier"),
+        Some("No clip is selected")
+    );
+    ripple.select_clip(clip);
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-later"),
+        None
+    );
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-earlier"),
+        None
+    );
+    crate::commands::reach::shift_lane(&mut ripple, false);
+    assert_eq!(
+        ripple.status_message.as_deref(),
+        Some("That offset would move a clip before the start of the sequence")
+    );
+    assert_eq!(ripple.last_error, None);
+
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-nest-open"),
+        Some("No nested sequence is selected")
+    );
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-nest-place"),
+        Some("No nested sequence is selected")
+    );
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-nest-leave"),
+        Some("Already at the root sequence")
+    );
+    let nest = Dress::Nest.state();
+    assert_eq!(blocked(AppMenu::Sequence, &nest, "seq-nest-open"), None);
+    assert_eq!(blocked(AppMenu::Sequence, &nest, "seq-nest-place"), None);
+    assert_eq!(
+        blocked(AppMenu::Sequence, &Dress::Inside.state(), "seq-nest-leave"),
+        None
+    );
+}
+
+/// WHY: closes the defect class where `ungroup_selected` and
+/// `duplicate_selection_to_next_lane` dispatched invalid engine commands when
+/// the selected clip was not grouped or when the first compatible track was
+/// already occupied at the clip's span.
+#[test]
+fn ungroup_and_duplicate_to_next_lane_decline_without_engine_errors() {
+    use super::menu_reach_dress::Dress;
+    let (state, _) = with_clip();
+    let cx = gpui::TestAppContext::single();
+    let entity = entity_of(state, &cx);
+    run_row(&entity, &cx, AppMenu::Clip, "clip-ungroup");
+    cx.update(|app| {
+        let state = entity.read(app);
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("The selected clips are not a group")
+        );
+        assert_eq!(state.last_error, None);
+    });
+
+    let (mut occupied, clip) = with_clip();
+    occupied
+        .add_track(aria_models::TrackKind::Video, "V2")
+        .expect("add V2");
+    occupied
+        .duplicate_selection_to_next_lane()
+        .expect("occupy V2 at the same span");
+    occupied.select_clip(clip);
+    occupied
+        .duplicate_selection_to_next_lane()
+        .expect("occupied compatible track declines cleanly");
+    assert_eq!(
+        occupied.status_message.as_deref(),
+        Some("Every other compatible track already has a clip at that time")
+    );
+    assert_eq!(occupied.last_error, None);
+
+    occupied
+        .add_track(aria_models::TrackKind::Video, "V3")
+        .expect("add V3");
+    occupied
+        .duplicate_selection_to_next_lane()
+        .expect("skips occupied V2 and duplicates onto V3");
+    assert_eq!(
+        occupied.status_message.as_deref(),
+        Some("Duplicated onto V3")
+    );
+    assert_eq!(occupied.last_error, None);
+
+    let mut linked_video = Dress::Sound.state();
+    let media = aria_models::MediaId::from_raw(linked_video.store.media[0].id);
+    let end = linked_video.store.sequence.duration_ticks;
+    linked_video
+        .drop_media_on_timeline(media, None, end)
+        .expect("drop linked video+audio pair");
+    let v_clip = linked_video.store.sequence.tracks[0]
+        .clips
+        .iter()
+        .find(|c| c.timeline_start_ticks == end)
+        .map(|c| aria_models::ClipId::from_raw(c.id))
+        .expect("dropped video clip");
+    linked_video.select_clip(v_clip);
+    assert_eq!(
+        blocked(AppMenu::Clip, &linked_video, "seq-freeze"),
+        Some("Move the playhead onto the selected clip")
+    );
+    linked_video.set_playhead(end + 5);
+    assert_eq!(
+        blocked(AppMenu::Clip, &linked_video, "seq-freeze"),
+        Some("Unlink the clip before freezing a frame")
+    );
+    linked_video
+        .freeze_selected_frame()
+        .expect("linked video clip declines without engine error");
+    assert_eq!(
+        linked_video.status_message.as_deref(),
+        Some("Unlink the clip before freezing a frame")
+    );
+    assert_eq!(linked_video.last_error, None);
+}

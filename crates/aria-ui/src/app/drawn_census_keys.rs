@@ -191,15 +191,7 @@ fn every_press_reaches_a_second_selected_clip_holding_the_same_curve() {
 #[test]
 fn the_census_reaches_every_keyframe_command() {
     let sent = dispatched();
-    for label in [
-        "Set keyframe",
-        "Remove keyframe",
-        "Set parameter",
-        "Apply easing",
-        "Set driver",
-        "Set keyframe ease",
-        "Set roving keyframe",
-    ] {
+    for label in super::claimed_by(&["keyframe list", "keyed row", "animatable row"]) {
         assert!(
             sent.contains(label),
             "the keyframe list sent {sent:?}, which does not include `{label}`"

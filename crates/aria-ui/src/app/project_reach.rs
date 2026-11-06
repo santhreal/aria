@@ -213,8 +213,31 @@ impl AppState {
     /// Duplicate the selected clip onto the first lane that accepts it. The
     /// palette's one-press form of the lane list above.
     pub fn duplicate_selection_to_next_lane(&mut self) -> Result<(), EngineError> {
-        let Some(choice) = self.lanes_accepting_selection().into_iter().next() else {
+        let choices = self.lanes_accepting_selection();
+        if choices.is_empty() {
             self.status_message = Some("No other track accepts this clip".into());
+            return Ok(());
+        }
+        let (start, end) = self
+            .selected_ui_clip()
+            .map(|ui| (ui.timeline_start_ticks, ui.timeline_end_ticks))
+            .unwrap_or((0, 0));
+        let Some(choice) = choices.into_iter().find(|choice| {
+            self.store
+                .sequence
+                .tracks
+                .iter()
+                .find(|lane| lane.id == choice.track)
+                .is_some_and(|lane| {
+                    !lane.locked
+                        && !lane
+                            .clips
+                            .iter()
+                            .any(|c| c.timeline_start_ticks < end && c.timeline_end_ticks > start)
+                })
+        }) else {
+            self.status_message =
+                Some("Every other compatible track already has a clip at that time".into());
             return Ok(());
         };
         let name = choice.name.clone();

@@ -189,19 +189,17 @@ fn every_gesture_the_strip_offers_is_driven() {
 #[test]
 fn the_census_reaches_every_routing_command() {
     let sent = dispatched();
-    for label in [
-        "Add track",
-        "Track output",
-        "Add send",
-        "Set send",
-        "Remove send",
-        "Track fader",
-        "Track pan",
-        "Track automation",
-        "Master mix",
-        "Mute track",
-        "Solo track",
-    ] {
+    for label in super::claimed_by(&[
+        "the mixer's master",
+        "the mixer's fader",
+        "the mixer's pan",
+        "the mixer's automation",
+        "the mixer's output",
+        "the mixer's send",
+    ])
+    .into_iter()
+    .chain(["Add track", "Mute track", "Solo track"])
+    {
         assert!(
             sent.contains(label),
             "driving every strip gesture did not send `{label}`; it sent {sent:?}"

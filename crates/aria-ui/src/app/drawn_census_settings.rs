@@ -177,12 +177,7 @@ fn a_second_press_of_the_same_row_asks_for_nothing() {
 #[test]
 fn the_census_reaches_every_command_these_pickers_claim() {
     let sent = dispatched();
-    for label in [
-        "Set canvas",
-        "Set sequence frame rate",
-        "Set audio layout",
-        "Set time display",
-    ] {
+    for label in super::claimed_by(&["settings dialog's"]) {
         assert!(
             sent.contains(label),
             "the settings census reached every row it draws and none of them sent \

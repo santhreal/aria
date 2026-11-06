@@ -48,11 +48,11 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-redo` | `none` | Redo | `Ctrl+Shift+Z` | Nothing to redo (`guards::redo`) | Reapplies the most recently undone edit step. |
 | `edit-cut` | `none` | Cut | `Ctrl+X` | No clip is selected (`guards::selection`) | Copies selected clips to the clipboard and removes them from the sequence. |
 | `edit-copy` | `none` | Copy | `Ctrl+C` | No clip is selected (`guards::selection`) | Copies selected clips and their attributes to the clipboard. |
-| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip onto its source track at the playhead when the target span is free. |
-| `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut (`guards::clipboard`) | Ripple-inserts clipboard clips at the playhead, shifting downstream clips right. |
-| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut (`guards::clipboard`) | Copies the animated transform, filter preset, and video effect chain from the clipboard clip onto selected clips. |
+| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut, or the copied clip is no longer in the sequence (`live_clipboard`) | Pastes the clipboard clip onto its source track at the playhead when the target span is free. |
+| `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut, or the copied clip is no longer in the sequence (`live_clipboard`) | Ripple-inserts clipboard clips at the playhead, shifting downstream clips right. |
+| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing is on the clipboard, or no clip is selected (`paste_attributes_ready`) | Copies the animated transform, filter preset, and video effect chain from the clipboard clip onto selected clips. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
-| `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut (`guards::clipboard`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
+| `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing is on the clipboard, or no In and Out range is marked (`paste_fit_ready`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
 | `edit-clear` | `none` | Clear | `Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips without closing the timeline gap. |
 | `edit-ripple` | `none` | Ripple Delete | `Shift+Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips and shifts subsequent clips left to close the gap. |
 | `edit-dup` | `none` | Duplicate | `Ctrl+D` | No clip is selected (`guards::selection`) | Places a copy of each selected clip immediately after the original on the same track. |
@@ -94,9 +94,9 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | Selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
 | `seq-nest` | `none` | Nest… | `none` | No clip is selected (`guards::selection`) | Moves selected clips into a new nested sequence and replaces them with a compound clip. |
 | `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first (`guards::source`) | Replaces the selected clip's media source with the active Source monitor item. |
-| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame (`guards::freezable`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
-| `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected (`guards::selection`) | Renders the selected clip with its effects to a media file and replaces its source. |
-| `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected (`guards::selection`) | Restores a rendered-and-replaced clip back to its original source and effects. |
+| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame, is on a locked track, is linked, does not span the playhead, or has a boundary animation at the playhead (`freeze_ready`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
+| `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected, the project has not been saved yet, or the selected clip has no video picture (`bake_ready`) | Renders the selected clip with its effects to a media file and replaces its source. |
+| `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected, or the selected clip has no unrendered source to restore (`baked_clip`) | Restores a rendered-and-replaced clip back to its original source and effects. |
 | `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected, or no selected clip or linked or grouped companion carries sound (`guards::gain`) | Opens `aria.dialog.audio-gain`. |
 | `clip-channels-stereo` | `Audio Channels` | Stereo | `none` | Select a clip with sound (`guards::sound`) | Routes the clip's left and right source channels as normal stereo (`AudioChannels::Stereo`). |
 | `clip-channels-swap` | `Audio Channels` | Swap Channels | `none` | Select a clip with sound (`guards::sound`) | Swaps the clip's left and right audio channels (`AudioChannels::Swap`). |
@@ -137,19 +137,19 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-source-insert` | `Source` | Insert | `none` | Open a source in the Source monitor first (`guards::source_range`) | Ripple-inserts the active Source monitor range at the playhead. |
 | `seq-source-overwrite` | `Source` | Overwrite | `none` | Open a source in the Source monitor first (`guards::source_range`) | Overwrites the active Source monitor range onto the sequence at the playhead. |
 | `seq-ripple-insert` | `Source` | Insert Pool Selection | `none` | No media is selected in the pool (`guards::pool_selection`) | Ripple-inserts the selected media pool items at the playhead. |
-| `seq-ripple-in` | `none` | Ripple Trim In | `Q` | The sequence has no clips (`guards::clips`) | Removes the span from the previous cut on the targeted tracks to the playhead from every targeted track, closes the gap, and moves the playhead to the span's start. |
-| `seq-ripple-out` | `none` | Ripple Trim Out | `W` | The sequence has no clips (`guards::clips`) | Removes the span from the playhead to the next cut on the targeted tracks from every targeted track and closes the gap. |
-| `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected (`guards::selection`) | Applies a `crossfade` transition to the selected clip's cut. |
-| `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected (`guards::selection`) | Removes the transition from the selected clip's cut. |
-| `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | Always enabled | Shifts every clip on the selected clip's track later by one second. |
-| `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `none` | Always enabled | Shifts every clip on the selected clip's track earlier by one second. |
+| `seq-ripple-in` | `none` | Ripple Trim In | `Q` | The sequence has no clips, or no clip starts at or before the playhead on the targeted tracks (`ripple_in_ready`) | Removes the span from the previous cut on the targeted tracks to the playhead from every targeted track, closes the gap, and moves the playhead to the span's start. |
+| `seq-ripple-out` | `none` | Ripple Trim Out | `W` | The sequence has no clips, or no clip ends at or after the playhead on the targeted tracks (`ripple_out_ready`) | Removes the span from the playhead to the next cut on the targeted tracks from every targeted track and closes the gap. |
+| `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected, or the selected clip has no picture cut at its right edge (`picture_cut_at_selection`) | Applies a `crossfade` transition to the selected clip's cut. |
+| `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected, or no transition is applied at the selected cut (`transition_at_selection`) | Removes the transition from the selected clip's cut. |
+| `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track later by one second. |
+| `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `none` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track earlier by one second. |
 | `seq-canvas-background` | `none` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background color to `[0, 0, 0, 255]`. |
 | `seq-duck-amount` | `Ducking` | Cycle Duck Amount | `none` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
 | `seq-duck-attack` | `Ducking` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
 | `seq-duck-release` | `Ducking` | Cycle Duck Release | `none` | Always enabled | Cycles the sidechain ducking release time. |
-| `seq-nest-open` | `Nested Sequence` | Open Nested Sequence | `none` | Always enabled | Opens the selected nested sequence clip's timeline. |
-| `seq-nest-leave` | `Nested Sequence` | Leave Nested Sequence | `none` | Always enabled | Returns from an open nested sequence to the root sequence. |
-| `seq-nest-place` | `Nested Sequence` | Place Nest at Playhead | `none` | Always enabled | Places a clip referencing the selected nested sequence at the playhead. |
+| `seq-nest-open` | `Nested Sequence` | Open Nested Sequence | `none` | No nested sequence clip is selected (`nested_clip_selected`) | Opens the selected nested sequence clip's timeline. |
+| `seq-nest-leave` | `Nested Sequence` | Leave Nested Sequence | `none` | The timeline is not inside a nested sequence (`inside_nested_sequence`) | Returns from an open nested sequence to the root sequence. |
+| `seq-nest-place` | `Nested Sequence` | Place Nest at Playhead | `none` | No nested sequence clip is selected (`nested_clip_selected`) | Places a clip referencing the selected nested sequence at the playhead. |
 | `seq-analyze:aria.silence` | `Analyze` | Detect Silence | `none` | The sequence has no clips (`guards::clips`) | Runs the registered silence analyzer (`aria.silence`) across the active sequence. |
 | `seq-analyze:aria.loudness` | `Analyze` | Measure Loudness | `none` | The sequence has no clips (`guards::clips`) | Runs the registered EBU R128 loudness analyzer (`aria.loudness`) across the sequence or In/Out range. |
 

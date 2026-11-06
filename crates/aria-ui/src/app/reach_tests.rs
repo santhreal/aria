@@ -27,7 +27,7 @@
 //!   not with a dialog: see `PICK_ROWS` and the tests under it. What a native
 //!   dialog itself does is not observed here.
 
-use aria_commands::{Reach, every_edit_command, every_project_command};
+use aria_commands::{Reach, edit_specs, project_specs};
 use std::collections::BTreeSet;
 
 use super::AppState;
@@ -267,25 +267,38 @@ fn every_row_does_what_it_says() {
 
 #[test]
 fn the_commands_the_palette_sends_only_grow() {
-    // A shrink means a row stopped sending what it used to send. Growth is fine:
-    // the list is a floor, not a lock.
-    const FLOOR: &[&str] = &[
-        "Add mask",
-        "Add track",
-        "Mark replaceable",
-        "New bin",
-        "Set chroma key",
-        "Set denoise",
-        "Set keyframe",
-        "Set motion blur",
-        "Set pitch lock",
-        "Shift clips",
-        "Solo track",
-    ];
+    // Derived from the command registry at run time: every command whose reach
+    // names the palette's own rows must be dispatched by the palette census, and
+    // every undoable one must write a history entry.
     let labels = measured();
-    let gone: Vec<_> = FLOOR
+    let sent = dispatched();
+    let claimed: Vec<_> = edit_specs()
         .iter()
-        .filter(|label| !labels.contains(**label))
+        .map(|spec| (spec.label, spec.reach, spec.inverse))
+        .chain(
+            project_specs()
+                .iter()
+                .map(|spec| (spec.label, spec.reach, spec.inverse)),
+        )
+        .filter(|(_, reach, _)| reach.surface().is_some_and(|s| s.contains("the palette's")))
+        .collect();
+    assert!(
+        !claimed.is_empty(),
+        "no command in the registry claims the palette's rows"
+    );
+    let unsent: Vec<_> = claimed
+        .iter()
+        .filter(|(label, _, _)| !sent.contains(*label))
+        .map(|(label, _, _)| *label)
+        .collect();
+    assert!(
+        unsent.is_empty(),
+        "the palette stopped dispatching {unsent:?}"
+    );
+    let gone: Vec<_> = claimed
+        .iter()
+        .filter(|(label, _, inverse)| inverse.is_undoable() && !labels.contains(*label))
+        .map(|(label, _, _)| *label)
         .collect();
     assert!(gone.is_empty(), "the palette stopped sending {gone:?}");
 }
@@ -295,19 +308,20 @@ fn every_command_the_palette_sends_is_declared_reachable() {
     // The inverse direction of `Reach`: a command the palette demonstrably
     // sends must not be declared internal.
     let labels = measured();
-    for cmd in every_edit_command() {
-        if labels.contains(cmd.label()) && !cmd.reach().is_operator() {
+    let sent = dispatched();
+    for spec in edit_specs() {
+        if (labels.contains(spec.label) || sent.contains(spec.label)) && !spec.reach.is_operator() {
             panic!(
                 "{} is declared unreachable but the palette sends it",
-                cmd.label()
+                spec.label
             );
         }
     }
-    for cmd in every_project_command() {
-        if labels.contains(cmd.label()) && !cmd.reach().is_operator() {
+    for spec in project_specs() {
+        if (labels.contains(spec.label) || sent.contains(spec.label)) && !spec.reach.is_operator() {
             panic!(
                 "{} is declared unreachable but the palette sends it",
-                cmd.label()
+                spec.label
             );
         }
     }
@@ -317,12 +331,8 @@ fn every_command_the_palette_sends_is_declared_reachable() {
 fn an_internal_command_carries_its_reason_into_the_editor() {
     // The editor is the crate that would have to build the surface, so the
     // reason has to survive the crate boundary rather than living in a comment.
-    let edit = every_edit_command()
-        .into_iter()
-        .map(|cmd| (cmd.label(), cmd.reach()));
-    let project = every_project_command()
-        .into_iter()
-        .map(|cmd| (cmd.label(), cmd.reach()));
+    let edit = edit_specs().iter().map(|spec| (spec.label, spec.reach));
+    let project = project_specs().iter().map(|spec| (spec.label, spec.reach));
     let internal: Vec<(&str, &str)> = edit
         .chain(project)
         .filter_map(|(label, reach)| match reach {

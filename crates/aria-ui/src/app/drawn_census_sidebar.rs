@@ -219,11 +219,11 @@ fn the_button_says_so_rather_than_building_an_empty_group() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in [
-        "Create multicam group",
-        "Switch multicam angle",
-        "Place multicam clip",
-    ] {
+    for label in super::claimed_by(&[
+        "sidebar's multicam",
+        "sidebar's angle",
+        "pool sidebar's Place",
+    ]) {
         assert!(
             sent.contains(label),
             "the sidebar census pressed every control it draws and none of them \

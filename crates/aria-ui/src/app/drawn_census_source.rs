@@ -442,7 +442,7 @@ fn a_pool_row_makes_a_pool_item_of_the_marked_range() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Place media", "Create subclip"] {
+    for label in super::claimed_by(&["source monitor's"]) {
         assert!(
             sent.contains(label),
             "the monitor census pressed every control the bar draws and none of \

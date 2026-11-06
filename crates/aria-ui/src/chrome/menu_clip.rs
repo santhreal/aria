@@ -92,6 +92,10 @@ pub(crate) const GROUP: MenuItem = MenuItem::new("clip-group", "Group", |_, s, _
 
 /// Clip > Ungroup, which the clip context menu mirrors.
 pub(crate) const UNGROUP: MenuItem = MenuItem::new("clip-ungroup", "Ungroup", |_, s, _| {
+    if let Some(reason) = super::menu_guards::grouped("clip-ungroup", s) {
+        s.status_message = Some(reason.to_string());
+        return;
+    }
     let ungrouped = s.ungroup_selected();
     report(s, ungrouped)
 })
@@ -103,7 +107,7 @@ pub(crate) const FREEZE: MenuItem = MenuItem::new("seq-freeze", "Freeze Frame", 
     let frozen = s.freeze_selected_frame();
     report(s, frozen)
 })
-.when(super::menu_guards::freezable)
+.when(freeze_ready)
 .rule();
 
 /// Clip > Audio Gain…, which the clip context menu mirrors.
@@ -154,13 +158,17 @@ static CLIP_ITEMS: &[MenuItem] = &[
             s.status_message = Some(err);
         }
     })
-    .when(super::menu_guards::selection),
+    .when(bake_ready),
     MenuItem::new("seq-bake-restore", "Restore Unrendered", |_, s, _| {
+        if let Some(reason) = baked_clip("seq-bake-restore", s) {
+            s.status_message = Some(reason.to_string());
+            return;
+        }
         if let Err(err) = s.restore_unrendered() {
             s.status_message = Some(err);
         }
     })
-    .when(super::menu_guards::selection),
+    .when(baked_clip),
     AUDIO_GAIN,
     MenuItem::new("clip-channels-stereo", "Stereo", run_audio_channels)
         .checked(audio_channels_checked)
@@ -223,6 +231,107 @@ static CLIP_ITEMS: &[MenuItem] = &[
     .under("Track Matte")
     .flyout_rule(),
 ];
+
+pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    super::menu_guards::freezable(id, state).or_else(|| {
+        let ui = state.selected_ui_clip()?;
+        let track = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.id == ui.track_id)?;
+        if track.kind != crate::types::UiTrackKind::Video {
+            return Some(crate::app::decline::Decline::NoFrameToHold.reason());
+        }
+        if track.locked {
+            return Some("Unlock the track first");
+        }
+        let at = state.playhead.value;
+        if at < ui.timeline_start_ticks || at > ui.timeline_end_ticks {
+            return Some("Move the playhead onto the selected clip");
+        }
+        if ui.linked_to.is_some_and(|link| {
+            state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter())
+                .any(|c| c.id != ui.id && c.linked_to == Some(link))
+        }) {
+            return Some("Unlink the clip before freezing a frame");
+        }
+        if track
+            .clips
+            .iter()
+            .filter(|c| c.timeline_start_ticks >= at)
+            .filter_map(|c| c.linked_to)
+            .any(|link| {
+                state
+                    .store
+                    .sequence
+                    .tracks
+                    .iter()
+                    .flat_map(|t| t.clips.iter())
+                    .filter(|c| c.linked_to == Some(link))
+                    .any(|c| c.track_id != ui.track_id || c.timeline_start_ticks < at)
+            })
+        {
+            return Some("Unlink the linked clip after the playhead before freezing a frame");
+        }
+        if (at == ui.timeline_start_ticks || at == ui.timeline_end_ticks)
+            && let Some(clip) = state
+                .engine()
+                .lock()
+                .project()
+                .clip(aria_models::ClipId::from_raw(ui.id))
+        {
+            if at == ui.timeline_start_ticks
+                && (clip.animation_in.is_some() || clip.animation_combo.is_some())
+            {
+                return Some(
+                    "Move the playhead inside the clip or remove its entrance animation before freezing",
+                );
+            }
+            if at == ui.timeline_end_ticks
+                && (clip.animation_out.is_some() || clip.animation_combo.is_some())
+            {
+                return Some(
+                    "Move the playhead inside the clip or remove its exit animation before freezing",
+                );
+            }
+        }
+        None
+    })
+}
+
+fn bake_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    super::menu_guards::selection(id, state).or_else(|| {
+        if state.project_path.is_none() {
+            return Some(
+                "Save the project first: a rendered clip is kept beside the project file.",
+            );
+        }
+        let clip = state.selected_clip()?;
+        aria_engine::bake_project(state.engine().lock().project(), clip)
+            .is_err()
+            .then_some("This clip has nothing to render into a file")
+    })
+}
+
+fn baked_clip(id: &str, state: &AppState) -> Option<&'static str> {
+    super::menu_guards::selection(id, state).or_else(|| {
+        let clip = state.selected_clip()?;
+        (!state
+            .engine()
+            .lock()
+            .project()
+            .clip(clip)
+            .is_some_and(|c| c.is_baked()))
+        .then_some("Select a rendered clip to restore")
+    })
+}
 
 fn run_clip_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {
     if let Some(analyzer_id) = id.strip_prefix(CLIP_ANALYZE_PREFIX)

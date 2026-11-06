@@ -779,18 +779,10 @@ fn the_magnet_takes_a_drag_that_lands_near_the_cut() {
 #[test]
 fn the_census_reaches_every_command_these_drags_claim() {
     let sent = dispatched();
-    for label in [
-        "Move clip",
-        "Overwrite move clip",
-        "Overwrite move clip without links",
-        "Slip clip",
-        "Trim clip",
-        "Set speed",
-        "Shift clips",
-        "Set transition length",
-        "Set audio levels",
-        "Ripple move clip",
-    ] {
+    for label in super::claimed_by(&["on the timeline"])
+        .into_iter()
+        .chain(["Shift clips"])
+    {
         assert!(
             sent.contains(label),
             "the timeline census pressed every drag the panel offers and none of \

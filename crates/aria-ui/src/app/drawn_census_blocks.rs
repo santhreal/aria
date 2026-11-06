@@ -407,24 +407,24 @@ fn every_pick_reaches_a_second_selected_clip_holding_the_same_thing() {
 #[test]
 fn the_census_reaches_every_command_these_blocks_claim() {
     let sent = dispatched();
-    for label in [
-        "Set audio levels",
+    for label in super::claimed_by(&[
+        "Audio block: the",
+        "Animation block",
+        "Speed block",
+        "Template block",
+        "Text block",
+        "Transition block",
+        "Transform block",
+    ])
+    .into_iter()
+    .chain([
         "Set pitch lock",
-        "Set audio role",
-        "Set animation",
-        "Set speed",
-        "Set speed curve",
-        "Replace clip media",
         "Mark replaceable",
-        "Mark text editable",
-        "Edit generator",
         "Add transition",
         "Remove transition",
         "Set transition length",
-        "Set transition alignment",
         "Set transition parameters",
-        "Set parent",
-    ] {
+    ]) {
         assert!(
             sent.contains(label),
             "these blocks sent {sent:?}, which does not include `{label}`"

@@ -87,7 +87,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
         report(s, pasted)
     })
     .key("key-paste-attributes")
-    .when(super::menu_guards::clipboard),
+    .when(paste_attributes_ready),
     MenuItem::new(
         "edit-remove-attributes",
         "Remove Attributes…",
@@ -98,7 +98,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
         let pasted = s.paste_to_fit();
         report(s, pasted)
     })
-    .when(super::menu_guards::clipboard),
+    .when(paste_fit_ready),
     CLEAR,
     RIPPLE_DELETE,
     DUPLICATE,
@@ -130,6 +130,26 @@ static EDIT_TAIL: &[MenuItem] = &[
     })
     .key("key-settings"),
 ];
+
+fn live_clipboard(state: &AppState) -> Option<&'static str> {
+    state
+        .clipboard_ui_clip()
+        .is_none()
+        .then_some("Nothing has been copied or cut")
+}
+
+fn paste_attributes_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    live_clipboard(state).or_else(|| super::menu_guards::selection(id, state))
+}
+
+fn paste_fit_ready(_: &str, state: &AppState) -> Option<&'static str> {
+    live_clipboard(state).or_else(|| {
+        state
+            .marked_range()
+            .is_none()
+            .then_some("Mark In and Out to paste into a range")
+    })
+}
 
 /// The Label row for `color`, or for no color.
 fn label_row(color: Option<LabelColor>) -> MenuItem {

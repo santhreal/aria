@@ -50,6 +50,19 @@ pub(crate) fn shift_lane(state: &mut AppState, later: bool) {
     };
     let second = state.one_second();
     let delta = if later { second } else { -second };
+    let first = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| lane.id == track.raw())
+        .and_then(|lane| lane.clips.iter().map(|c| c.timeline_start_ticks).min())
+        .unwrap_or(0);
+    if first + delta < 0 {
+        state.status_message =
+            Some("That offset would move a clip before the start of the sequence".into());
+        return;
+    }
     if let Err(err) = state.shift_track(track, delta) {
         state.report_error(&err);
     }

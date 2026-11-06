@@ -34,7 +34,7 @@ impl AppState {
     }
 
     /// The projected clip the clipboard points at, if it still exists.
-    fn clipboard_ui_clip(&self) -> Option<&crate::types::UiClip> {
+    pub(crate) fn clipboard_ui_clip(&self) -> Option<&crate::types::UiClip> {
         let clip = self.clipboard?;
         self.store
             .sequence
@@ -134,7 +134,7 @@ impl AppState {
     /// Inert when the clipboard is empty, when nothing is selected, or when the
     /// selection *is* the source.
     pub fn paste_attributes(&mut self) -> Result<(), EngineError> {
-        let Some(source) = self.clipboard else {
+        let Some(source) = self.clipboard_ui_clip().map(|ui| ClipId::from_raw(ui.id)) else {
             return Ok(());
         };
         let Some(target) = self.selected_clip() else {

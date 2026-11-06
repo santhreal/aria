@@ -286,7 +286,7 @@ fn a_filter_narrows_the_rows_without_touching_the_project() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Clear beats", "Set beats"] {
+    for label in super::claimed_by(&["analysis panel"]) {
         assert!(
             sent.contains(label),
             "the analysis census pressed every control the panel draws and none \

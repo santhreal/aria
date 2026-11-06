@@ -287,14 +287,7 @@ fn every_edit_gesture_asks_the_model_for_something() {
 #[test]
 fn the_census_reaches_every_insert_command() {
     let sent = dispatched();
-    for label in [
-        "Add audio effect",
-        "Remove audio effect",
-        "Reorder audio effect",
-        "Set audio effect parameter",
-        "Bypass audio effect",
-        "Set sidechain",
-    ] {
+    for label in super::claimed_by(&["insert picker", "insert slots", "sidechain picker"]) {
         assert!(
             sent.contains(label),
             "the insert chains sent {sent:?}, which does not include `{label}`"

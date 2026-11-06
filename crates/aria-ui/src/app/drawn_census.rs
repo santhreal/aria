@@ -61,6 +61,36 @@ pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
     &CENSUS
 }
 
+/// Every command label in `aria_commands::edit_specs()` and
+/// `aria_commands::project_specs()` whose operator surface description contains
+/// any of `claims`.
+///
+/// Each entry in `claims` must match at least one command in the registry so a
+/// stale or misspelled surface substring fails immediately.
+pub(super) fn claimed_by(claims: &[&str]) -> BTreeSet<&'static str> {
+    let mut out = BTreeSet::new();
+    for claim in claims {
+        let mut matched = false;
+        for spec in aria_commands::edit_specs() {
+            if spec.reach.surface().is_some_and(|s| s.contains(claim)) {
+                out.insert(spec.label);
+                matched = true;
+            }
+        }
+        for spec in aria_commands::project_specs() {
+            if spec.reach.surface().is_some_and(|s| s.contains(claim)) {
+                out.insert(spec.label);
+                matched = true;
+            }
+        }
+        assert!(
+            matched,
+            "no command in edit_specs() or project_specs() claims surface {claim:?}"
+        );
+    }
+    out
+}
+
 // --- reading a registry out of its own source ----------------------------
 //
 // Fail-by-default without a list kept by hand on either side: a registry's

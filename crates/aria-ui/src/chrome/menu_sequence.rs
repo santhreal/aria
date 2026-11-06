@@ -155,14 +155,14 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         report(s, trimmed)
     })
     .key("key-trim-in")
-    .when(guards::clips)
+    .when(ripple_in_ready)
     .rule(),
     MenuItem::new("seq-ripple-out", "Ripple Trim Out", |_, s, _| {
         let trimmed = s.ripple_trim_to_playhead(false);
         report(s, trimmed)
     })
     .key("key-trim-out")
-    .when(guards::clips),
+    .when(ripple_out_ready),
     MenuItem::new(
         "seq-transition-crossfade",
         "Add Cross Fade at Cut",
@@ -171,7 +171,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
             report(s, set)
         },
     )
-    .when(guards::selection)
+    .when(picture_cut_at_selection)
     .rule(),
     MenuItem::new(
         "seq-transition-clear",
@@ -181,7 +181,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
             report(s, cleared)
         },
     )
-    .when(guards::selection),
+    .when(transition_at_selection),
     // Rows whose bodies live in `crate::commands::reach`, which the lane-shift
     // chords call too, so a row and its chord cannot drift into doing two
     // different things.
@@ -190,12 +190,14 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "Shift Lane One Second Later",
         |_, s, _| reach::shift_lane(s, true),
     )
+    .when(guards::selection)
     .rule(),
     MenuItem::new(
         "seq-lane-shift-earlier",
         "Shift Lane One Second Earlier",
         |_, s, _| reach::shift_lane(s, false),
-    ),
+    )
+    .when(guards::selection),
     MenuItem::new(
         "seq-canvas-background",
         "Reset Canvas Background",
@@ -217,16 +219,82 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-nest-open", "Open Nested Sequence", |_, s, _| {
         reach::open_selected_nest(s)
     })
+    .when(nested_clip_selected)
     .under(NESTED),
     MenuItem::new("seq-nest-leave", "Leave Nested Sequence", |_, s, _| {
         reach::leave_sequence(s)
     })
+    .when(inside_nested_sequence)
     .under(NESTED),
     MenuItem::new("seq-nest-place", "Place Nest at Playhead", |_, s, _| {
         reach::place_selected_nest(s)
     })
+    .when(nested_clip_selected)
     .under(NESTED),
 ];
+
+fn targeted_cuts(state: &AppState) -> impl Iterator<Item = i64> + '_ {
+    state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .filter(|lane| lane.targeted && !lane.locked)
+        .flat_map(|lane| lane.clips.iter())
+        .flat_map(|clip| [clip.timeline_start_ticks, clip.timeline_end_ticks])
+}
+
+fn ripple_in_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    guards::clips(id, state).or_else(|| {
+        let at = state.playhead.value;
+        (!targeted_cuts(state).any(|tick| tick < at))
+            .then_some("No earlier edit on a targeted track")
+    })
+}
+
+fn ripple_out_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    guards::clips(id, state).or_else(|| {
+        let at = state.playhead.value;
+        (!targeted_cuts(state).any(|tick| tick > at)).then_some("No later edit on a targeted track")
+    })
+}
+
+fn picture_cut_at_selection(id: &str, state: &AppState) -> Option<&'static str> {
+    use crate::app::decline::Decline;
+    guards::selection(id, state).or_else(|| {
+        let clip = state.selected_clip()?;
+        match state.clip_transition_media(clip) {
+            None => Some(Decline::NoAbuttingCut.reason()),
+            Some(aria_models::TransitionMedia::Audio) => Some(Decline::SoundCut.reason()),
+            Some(aria_models::TransitionMedia::Picture) => None,
+        }
+    })
+}
+
+fn transition_at_selection(id: &str, state: &AppState) -> Option<&'static str> {
+    guards::selection(id, state).or_else(|| {
+        state
+            .selected_clip()
+            .and_then(|clip| state.clip_transition_ticks(clip))
+            .is_none()
+            .then_some(crate::app::decline::Decline::NoTransitionAtCut.reason())
+    })
+}
+
+fn nested_clip_selected(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .selected_nested_sequence()
+        .is_none()
+        .then_some("No nested sequence is selected")
+}
+
+fn inside_nested_sequence(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .store
+        .open_sequence
+        .is_none()
+        .then_some("Already at the root sequence")
+}
 
 fn run_sequence_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {
     if let Some(analyzer_id) = id.strip_prefix(SEQ_ANALYZE_PREFIX)

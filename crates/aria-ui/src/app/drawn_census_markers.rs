@@ -149,7 +149,7 @@ fn a_control_on_a_marker_that_is_gone_asks_for_nothing() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Add marker", "Edit marker", "Remove marker"] {
+    for label in super::claimed_by(&["markers panel"]) {
         assert!(
             sent.contains(label),
             "the markers census pressed every control the panel draws and none of \

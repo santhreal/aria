@@ -34,7 +34,7 @@
 
 use std::collections::BTreeSet;
 
-use aria_commands::{Reach, every_edit_command, every_project_command};
+use aria_commands::{Reach, edit_specs, project_specs};
 
 use super::premiere_tests::with_clip;
 use crate::keys::KeyBody;
@@ -86,8 +86,6 @@ const TABLE_CLAIMS: &[&str] = &[
     "handles on the preview",
     "Home screen's",
     "lane header",
-    "track header",
-    "swatch",
     "label",
     "bin",
     "rename",
@@ -150,16 +148,13 @@ fn reached() -> BTreeSet<&'static str> {
     out
 }
 
-/// Every command's label with its declared reach.
+/// Every command's label with its declared reach, derived from the command
+/// registry at run time.
 fn declared() -> Vec<(&'static str, Reach)> {
-    every_edit_command()
-        .into_iter()
-        .map(|cmd| (cmd.label(), cmd.reach()))
-        .chain(
-            every_project_command()
-                .into_iter()
-                .map(|cmd| (cmd.label(), cmd.reach())),
-        )
+    edit_specs()
+        .iter()
+        .map(|spec| (spec.label, spec.reach))
+        .chain(project_specs().iter().map(|spec| (spec.label, spec.reach)))
         .collect()
 }
 
@@ -197,6 +192,15 @@ fn every_operator_row_is_sent_by_its_claimed_surface() {
                 "{label} states {surface:?}, but driving that surface sent nothing"
             ));
         }
+    }
+    for word in TABLE_CLAIMS {
+        let matched = declared()
+            .iter()
+            .any(|(_, reach)| reach.surface().is_some_and(|s| s.contains(word)));
+        assert!(
+            matched,
+            "TABLE_CLAIMS entry {word:?} is not claimed by any command in the registry"
+        );
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

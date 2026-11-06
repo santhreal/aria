@@ -200,24 +200,21 @@ fn every_pick_reaches_a_second_selected_clip_holding_the_same_thing() {
 #[test]
 fn the_census_reaches_every_picture_command() {
     let sent = dispatched();
-    for label in [
-        "Set filter",
-        "Add mask",
-        "Set mask",
-        "Remove mask",
-        "Reorder masks",
+    for label in super::claimed_by(&[
+        "Look block",
+        "Grade block",
+        "Styles block",
+        "inspector's Detach",
+        "inspector's grade sliders",
+    ])
+    .into_iter()
+    .chain([
         "Set chroma key",
         "Set track matte",
-        "Set layer styles",
-        "Set LUT",
-        "Set blend mode",
-        "Stabilize",
-        "Grade",
         "Set denoise",
         "Crop",
         "Set motion blur",
-        "Set clip type",
-    ] {
+    ]) {
         assert!(
             sent.contains(label),
             "the picture picks sent {sent:?}, which does not include `{label}`"

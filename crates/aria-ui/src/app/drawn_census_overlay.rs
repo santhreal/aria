@@ -506,7 +506,10 @@ fn a_cancelled_drag_leaves_the_project_alone() {
 #[test]
 fn the_census_reaches_every_command_these_handles_claim() {
     let sent = dispatched();
-    for label in SETS {
+    for label in super::claimed_by(&["handles on the preview"])
+        .into_iter()
+        .chain(SETS)
+    {
         assert!(
             sent.contains(label),
             "the overlay census dragged every handle the preview draws and none \

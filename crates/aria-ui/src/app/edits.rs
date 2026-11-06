@@ -609,8 +609,8 @@ impl AppState {
         let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
-        if !self.selected_can_freeze_frame() {
-            self.decline(Decline::NoFrameToHold);
+        if let Some(reason) = crate::chrome::menu_clip::freeze_ready("seq-freeze", self) {
+            self.status_message = Some(reason.to_string());
             return Ok(());
         }
         let rate = self.playhead.rate;
