@@ -158,17 +158,29 @@ fn declared() -> Vec<(&'static str, Reach)> {
         .collect()
 }
 
-/// One measurement, three claims held against it.
+/// One measurement, every claim held against it.
 ///
 /// `reached()` presses every registry, which is most of this file's cost.
-/// nextest runs each test in its own process, so three tests reading it paid
-/// for it three times; one test reads it once and reports every claim's
-/// failures together.
+/// nextest runs each test in its own process, so each test reading it paid for
+/// it again; one test reads it once and reports every claim's failures
+/// together.
 #[test]
 fn the_measured_reach_agrees_with_every_declared_row() {
     let reached = reached();
     let declared = declared();
     let mut wrong = Vec::new();
+    // A harness that observed nothing would pass every claim below by
+    // measuring an empty set.
+    for (census, sent) in [
+        ("palette", super::reach_tests::dispatched().len()),
+        ("menu", super::menu_reach_tests::dispatched().len()),
+        ("chord", chord_dispatches().len()),
+        ("drawn registry", super::drawn_census::dispatched().len()),
+    ] {
+        if sent == 0 {
+            wrong.push(format!("the {census} census saw no command"));
+        }
+    }
     // The strong direction: this is measured, not described. A row stating
     // that nothing reaches it, while a table reaches it, is a false row.
     for (label, reach) in &declared {
@@ -242,22 +254,4 @@ fn every_operator_command_has_a_surface() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-}
-
-#[test]
-fn the_driven_surfaces_reach_something() {
-    // A harness that observed nothing would pass every test above by measuring
-    // an empty set.
-    assert!(
-        !super::reach_tests::dispatched().is_empty(),
-        "the palette census saw no command"
-    );
-    assert!(
-        !super::menu_reach_tests::dispatched().is_empty(),
-        "the menu census saw no command"
-    );
-    assert!(
-        !chord_dispatches().is_empty(),
-        "no shipped chord sends a command"
-    );
 }
