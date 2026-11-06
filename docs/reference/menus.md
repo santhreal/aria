@@ -98,11 +98,11 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected, the project has not been saved yet, or the selected clip has no video picture (`bake_ready`) | Renders the selected clip with its effects to a media file and replaces its source. |
 | `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected, or the selected clip has no unrendered source to restore (`baked_clip`) | Restores a rendered-and-replaced clip back to its original source and effects. |
 | `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected, or no selected clip or linked or grouped companion carries sound (`guards::gain`) | Opens `aria.dialog.audio-gain`. |
-| `clip-channels-stereo` | `Audio Channels` | Stereo | `none` | Select a clip with sound (`guards::sound`) | Routes the clip's left and right source channels as normal stereo (`AudioChannels::Stereo`). |
-| `clip-channels-swap` | `Audio Channels` | Swap Channels | `none` | Select a clip with sound (`guards::sound`) | Swaps the clip's left and right audio channels (`AudioChannels::Swap`). |
-| `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::LeftToBoth`). |
-| `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound (`guards::sound`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::RightToBoth`). |
-| `clip-channels-mono` | `Audio Channels` | Mono | `none` | Select a clip with sound (`guards::sound`) | Sums the clip's left and right channels to mono (`AudioChannels::Mono`). |
+| `clip-channels-stereo` | `Audio Channels` | Stereo | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Routes the clip's left and right source channels as normal stereo (`AudioChannels::Stereo`). |
+| `clip-channels-swap` | `Audio Channels` | Swap Channels | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Swaps the clip's left and right audio channels (`AudioChannels::Swap`). |
+| `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::LeftToBoth`). |
+| `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::RightToBoth`). |
+| `clip-channels-mono` | `Audio Channels` | Mono | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sums the clip's left and right channels to mono (`AudioChannels::Mono`). |
 | `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected, or the selected clip has no sound to extract (`guards::extractable`) | Extracts the selected video clip's audio stream onto an audio lane. |
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
 | `seq-flip-v` | `Transform` | Flip Vertical | `none` | No clip is selected (`guards::selection`) | Toggles vertical mirror flip on the selected clips. |
@@ -401,6 +401,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SourceTooShort` | `The source does not hold enough media around its playhead to fill the clip` |
 | `SameSource` | `The clip already plays those source frames` |
 | `SameLabel` | `That label is already set` |
+| `SameChannels` | `The selected clips already play those channels` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

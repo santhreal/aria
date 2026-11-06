@@ -79,8 +79,8 @@
   play: **Stereo**, **Swap Channels**, **Left to Both**, **Right to Both**, or
   **Mono**. A choice other than Stereo places the matching channel tool first in
   each clip's audio effects, replacing any channel tool already there; Stereo
-  removes it. The check mark shows the choice every selected clip shares. Each
-  choice is one undo step.
+  removes it. The check mark shows the choice every selected clip shares, and
+  that choice is disabled. Each choice is one undo step.
 - F is Match Frame: it opens the source of the clip under the playhead in the
   monitor, on the same frame, with that clip's take marked. The selection wins
   when it is under the playhead; otherwise the topmost clip does.

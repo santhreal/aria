@@ -101,6 +101,44 @@ fn a_clip_without_sound_is_left_alone() {
     }
 }
 
+/// WHY: a choice the clip already played removed its tool and added it back,
+/// a step that changed nothing and spent the next Undo on nothing. Closes that
+/// for every choice, on a clip whose chain holds another effect, through both
+/// the row's guard and its body. Does not cover a mixed selection.
+#[test]
+fn a_choice_the_clip_already_plays_is_declined_and_asks_for_nothing() {
+    let (mut state, clip) = with_audio();
+    state
+        .apply_command(aria_commands::Command::Edit(
+            aria_commands::EditCommand::AddAudioEffect {
+                target: AudioInsertTarget::Clip(clip),
+                effect_id: "gain".to_owned(),
+            },
+        ))
+        .expect("a gain insert");
+    let rows = channel_rows(&state);
+    for choice in AudioChannels::ALL {
+        state.set_audio_channels(choice).expect("set");
+        let row = rows
+            .iter()
+            .find(|row| row.id == choice.row())
+            .expect("the row");
+        assert_eq!(
+            row.blocked_by(&state),
+            Some("The selected clips already play those channels"),
+            "{choice:?}"
+        );
+        let watch = crate::app::sent_census::Watch::on(&state);
+        state.set_audio_channels(choice).expect("again");
+        assert_eq!(watch.take(), Vec::<&str>::new(), "{choice:?} again");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("The selected clips already play those channels"),
+            "{choice:?} again"
+        );
+    }
+}
+
 /// The Clip > Audio Channels rows, in menu order.
 fn channel_rows(state: &AppState) -> Vec<MenuItem> {
     items_of(AppMenu::Clip, state)

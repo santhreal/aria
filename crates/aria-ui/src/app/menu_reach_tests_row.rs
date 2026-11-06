@@ -107,10 +107,6 @@ fn a_row_that_records_a_step_changes_the_project() {
 /// Rows whose repeat still records a step over its own result. Each is red
 /// here once it no longer does, so the list only shrinks.
 const REPEATS_A_STEP: &[&str] = &[
-    "clip-channels-swap",
-    "clip-channels-left",
-    "clip-channels-right",
-    "clip-channels-mono",
     "seq-matte-luma",
     "seq-matte-alpha",
     "seq-default-transitions",
@@ -178,7 +174,7 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
 #[test]
 fn a_row_over_its_own_result_declines_and_records_nothing() {
     use crate::app::decline::Decline;
-    let cases: [(&str, fn() -> AppState, Decline); 8] = [
+    let cases: [(&str, fn() -> AppState, Decline); 9] = [
         ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
         ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
         (
@@ -219,6 +215,11 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
             Decline::SameSource,
         ),
         ("edit-label-violet", || Labelled.state(), Decline::SameLabel),
+        (
+            "clip-channels-stereo",
+            || Sound.state(),
+            Decline::SameChannels,
+        ),
     ];
     let mut wrong = Vec::new();
     for (id, build, why) in cases {

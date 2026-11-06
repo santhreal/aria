@@ -123,11 +123,13 @@ pub enum Decline {
     SameSource,
     /// A label write to clips or a pool item that already have that label.
     SameLabel,
+    /// An Audio Channels choice every selected clip with sound already plays.
+    SameChannels,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 46] = [
+    pub const ALL: [Decline; 47] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -174,6 +176,7 @@ impl Decline {
         Decline::SourceTooShort,
         Decline::SameSource,
         Decline::SameLabel,
+        Decline::SameChannels,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -230,6 +233,7 @@ impl Decline {
             }
             Decline::SameSource => "The clip already plays those source frames",
             Decline::SameLabel => "That label is already set",
+            Decline::SameChannels => "The selected clips already play those channels",
         }
     }
 }

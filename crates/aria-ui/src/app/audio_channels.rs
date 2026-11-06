@@ -5,7 +5,8 @@
 //! insert chain, so the mix, the meters, and export apply it, and the inspector
 //! lists it with the clip's other audio effects. Choosing again replaces the
 //! tool; Stereo removes it. Each choice is one undo step over every selected
-//! clip that carries sound.
+//! clip that carries sound and does not already play it, and a choice every
+//! such clip already plays is declined.
 
 use aria_commands::{Command, EditCommand};
 use aria_core::count::counted;
@@ -13,6 +14,8 @@ use aria_engine::EngineError;
 use aria_models::{AudioInsertTarget, ClipId};
 
 use super::AppState;
+use super::decline::Decline;
+use crate::types::UiInsert;
 
 /// One Audio Channels choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +88,23 @@ impl AudioChannels {
     }
 }
 
+/// Whether `inserts` play `choice` as an Audio Channels row leaves them: its
+/// tool alone among the channel tools, first in the chain and not bypassed, or
+/// no channel tool for Stereo.
+fn plays_only(inserts: &[UiInsert], choice: AudioChannels) -> bool {
+    let mut tools = inserts
+        .iter()
+        .enumerate()
+        .filter(|(_, insert)| AudioChannels::of_tool(&insert.effect_id).is_some());
+    match (tools.next(), tools.next(), choice.tool()) {
+        (None, _, None) => true,
+        (Some((0, insert)), None, Some(_)) => {
+            !insert.bypass && AudioChannels::of_tool(&insert.effect_id) == Some(choice)
+        }
+        _ => false,
+    }
+}
+
 impl AppState {
     /// The selected clips as projected, in lane order. A menu draw reads these,
     /// so they come from the store rather than the session.
@@ -131,12 +151,28 @@ impl AppState {
         agreed
     }
 
-    /// Clip > Audio Channels > `choice` on every selected clip with sound, as
-    /// one undo step.
+    /// The selected clips with sound that do not already play `choice` the
+    /// way an Audio Channels row leaves them: the clips the row rewrites. The
+    /// row's guard and its body both read this.
+    pub(crate) fn channel_targets(&self, choice: AudioChannels) -> Vec<ClipId> {
+        self.selected_rows()
+            .filter(|clip| clip.can_hold_inserts && !plays_only(&clip.audio_inserts, choice))
+            .map(|clip| ClipId::from_raw(clip.id))
+            .collect()
+    }
+
+    /// Clip > Audio Channels > `choice` on every selected clip with sound that
+    /// does not already play it, as one undo step. Declines when every such
+    /// clip already plays it: a step that rewrites a chain into itself would
+    /// spend the next Undo on nothing.
     pub fn set_audio_channels(&mut self, choice: AudioChannels) -> Result<(), EngineError> {
-        let clips = self.sounding_selection();
-        if clips.is_empty() {
+        if !self.selection_has_sound() {
             self.status_message = Some("Select a clip with sound".into());
+            return Ok(());
+        }
+        let clips = self.channel_targets(choice);
+        if clips.is_empty() {
+            self.decline(Decline::SameChannels);
             return Ok(());
         }
         let plans: Vec<(ClipId, Vec<usize>, usize)> = {

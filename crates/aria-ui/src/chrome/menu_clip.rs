@@ -8,6 +8,7 @@ use std::borrow::Cow;
 
 use crate::app::AppState;
 use crate::app::audio_channels::AudioChannels;
+use crate::app::decline::Decline;
 
 use super::menu_items::{MenuItem, MenuItems, report};
 
@@ -29,6 +30,18 @@ fn run_audio_channels(id: &str, state: &mut AppState, _: &mut gpui::Context<AppS
 /// Whether the selection plays the choice row `id` picks.
 fn audio_channels_checked(id: &str, state: &AppState) -> bool {
     AudioChannels::of_row(id).is_some_and(|choice| state.selection_audio_channels() == Some(choice))
+}
+
+/// Disables an Audio Channels row with no selected clip with sound, or whose
+/// choice every such clip already plays, through the plan its body runs.
+fn audio_channels_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    let choice = AudioChannels::of_row(id)?;
+    super::menu_guards::sound(id, state).or_else(|| {
+        state
+            .channel_targets(choice)
+            .is_empty()
+            .then_some(Decline::SameChannels.reason())
+    })
 }
 
 /// Clip > Rename…, which the clip context menu mirrors.
@@ -172,23 +185,23 @@ static CLIP_ITEMS: &[MenuItem] = &[
     AUDIO_GAIN,
     MenuItem::new("clip-channels-stereo", "Stereo", run_audio_channels)
         .checked(audio_channels_checked)
-        .when(super::menu_guards::sound)
+        .when(audio_channels_ready)
         .under(AUDIO_CHANNELS),
     MenuItem::new("clip-channels-swap", "Swap Channels", run_audio_channels)
         .checked(audio_channels_checked)
-        .when(super::menu_guards::sound)
+        .when(audio_channels_ready)
         .under(AUDIO_CHANNELS),
     MenuItem::new("clip-channels-left", "Left to Both", run_audio_channels)
         .checked(audio_channels_checked)
-        .when(super::menu_guards::sound)
+        .when(audio_channels_ready)
         .under(AUDIO_CHANNELS),
     MenuItem::new("clip-channels-right", "Right to Both", run_audio_channels)
         .checked(audio_channels_checked)
-        .when(super::menu_guards::sound)
+        .when(audio_channels_ready)
         .under(AUDIO_CHANNELS),
     MenuItem::new("clip-channels-mono", "Mono", run_audio_channels)
         .checked(audio_channels_checked)
-        .when(super::menu_guards::sound)
+        .when(audio_channels_ready)
         .under(AUDIO_CHANNELS),
     EXTRACT_AUDIO,
     MenuItem::new("seq-flip-h", "Flip Horizontal", |_, s, _| {
