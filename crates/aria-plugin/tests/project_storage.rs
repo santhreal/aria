@@ -465,6 +465,41 @@ fn project_saved_handler_storage_mutations_land_in_saved_file_and_keep_session_c
     );
 }
 
+/// WHY: a `CommandApplied` handler that writes plugin storage when it sees
+/// the save land ran after the file was written, so the write stayed off disk
+/// and the session read dirty right after the save. `announce` saves again
+/// after the handlers when either event has one; the `ProjectSaved` test
+/// above does not reach the `CommandApplied` arm. Not caught: a handler that
+/// writes from a thread of its own after it returns.
+#[test]
+fn command_applied_handler_storage_write_after_a_save_lands_in_the_saved_file() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (ctx, host, _reg) = make_host_session();
+
+    let ctx_for_applied = ctx.clone();
+    let _applied_sub = ctx.on_event::<aria_plugin::CommandApplied, _>(move |applied| {
+        if matches!(applied.command, aria_engine::Command::Project(_)) {
+            ctx_for_applied
+                .storage_set("example.notes", "applied", b"after the save")
+                .expect("write in CommandApplied handler");
+        }
+    });
+
+    let saved_path = dir.path().join("applied.aria");
+    host.save_as(&Origin::Editor, &saved_path)
+        .expect("save_as with CommandApplied handler");
+    assert!(
+        !host.is_dirty(),
+        "session must stay clean after a CommandApplied handler writes to plugin storage"
+    );
+    let on_disk = Project::load_from_file(&saved_path).expect("load applied.aria");
+    assert_eq!(
+        on_disk.plugin_storage_get("example.notes", "applied"),
+        Some(&b"after the save"[..]),
+        "CommandApplied handler storage write must land in the saved .aria file on disk"
+    );
+}
+
 #[test]
 fn storage_mutations_inside_command_proposed_handler_commit_without_deadlock() {
     let dir = tempfile::tempdir().expect("tempdir");
