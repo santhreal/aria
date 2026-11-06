@@ -359,7 +359,7 @@ mod tests {
         }
     }
 
-    /// WHY: The Plugins panel row description must keep `{ms:.1} ms to mount`,
+    /// WHY: A Settings > Plugins row description must keep `{ms:.1} ms to mount`,
     /// append per-frame and per-audio-block costs only when the plugin has
     /// executed them, and preserve sub-millisecond audio block precision
     /// instead of printing `0.0 ms` for non-zero timings.

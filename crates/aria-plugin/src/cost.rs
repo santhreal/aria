@@ -233,7 +233,7 @@ impl CostLedger {
 mod tests {
     use super::*;
 
-    /// WHY: The Plugins panel reads `CostMetric` to show per-frame and
+    /// WHY: Settings > Plugins reads `CostMetric` to show per-frame and
     /// per-block runtime cost. An uncalled plugin must report `None` (`calls == 0`)
     /// rather than `0.0 ms`, while recorded samples must track `last`, smoothed
     /// `mean`, `max`, and `calls` per plugin id without cross-talk, and clearing

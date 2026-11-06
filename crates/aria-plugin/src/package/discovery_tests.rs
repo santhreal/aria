@@ -174,7 +174,7 @@ fn discovery_reads_every_package_in_path_order() {
     );
     assert_eq!(
         reasons[3],
-        "an archive is not loaded in place; install it from the Plugins panel"
+        "an archive is not loaded in place; install it with File > Install Plugin…"
     );
 
     assert!(

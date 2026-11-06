@@ -169,8 +169,8 @@ installed -> (activation event) -> active -> (disable / uninstall / reload) -> i
    with no code, and plugins a plugin that loads at start requires load at
    start. A waiting plugin's requirements that also wait load before it.
 3. **Mount.** The plugin registers handlers for its contributions and services,
-   and subscribes to events. Mount time is measured and shown in the Plugins
-   panel.
+   and subscribes to events. Mount time is measured and shown in Settings >
+   Plugins.
 4. **Unload.** Disable, uninstall, and reload drop every registration, wait for
    in-flight calls into the plugin to return, then unload its code. Nothing the
    host holds borrows from plugin memory, so unloading frees it.
@@ -179,19 +179,19 @@ installed -> (activation event) -> active -> (disable / uninstall / reload) -> i
    copy of the library. Plugin state that must survive a reload is written to
    plugin storage.
 
-Install: drop an `.ariaplugin` on the window or on the Plugins panel, or File >
-Install Plugin. Aria shows the manifest's name, publisher, version, tier, and
-permissions, and installs on confirmation. An update that adds permissions asks
-again.
+Install: drop an `.ariaplugin` on the window, or choose File > Install Plugin…
+or Install Plugin… in Settings > Plugins. Aria shows the manifest's name,
+publisher, version, tier, and permissions, and installs on confirmation. An
+update that adds permissions asks again.
 
 ## Faults
 
 - A panic in a native plugin is caught at the API boundary; a trap ends the WASM
   call. Either way the call fails, the plugin is marked failed for the session,
-  its registrations are dropped, and the Plugins panel shows the message and
+  its registrations are dropped, and Settings > Plugins shows the message and
   backtrace. The rest of Aria keeps running.
 - Calls on the render and audio paths have deadlines. An effect that misses the
-  frame deadline is reported in the Plugins panel with its measured cost; an
+  frame deadline is reported in Settings > Plugins with its measured cost; an
   audio processor that misses three consecutive block deadlines is bypassed and
   reported.
 - WASM calls run with fuel and memory limits from Settings > Plugins.
@@ -335,7 +335,7 @@ need it.
 | `fs` (`fs`) | File access in granted scopes |
 | `process` (`process`) | Spawning granted executables with arguments, piped I/O |
 | `services` | Getting another plugin's service by interface name and version |
-| `log` | Log lines at levels, shown in the Plugins panel |
+| `log` | Log lines at levels, shown in Settings > Plugins |
 
 The project snapshot is immutable and cheap to take. Edits happen only through
 `transact`, so every plugin edit is undoable, appears in History with the
@@ -377,5 +377,5 @@ The shipped set is every capability Aria has: media decoders and encoders,
 the effect and transition catalogs, text and shape clip types, color, scopes,
 audio effects and analysis, the assistant and its tools, `aria.expressions`,
 importers and exporters for EDL, FCPXML, and OTIO, and the shipped themes and
-workspaces. Each appears in the Plugins panel and can be disabled, except the
+workspaces. Each appears in Settings > Plugins and can be disabled, except the
 project model and the plugin host.

@@ -444,7 +444,7 @@ pub fn discover(dir: &Path) -> Vec<Result<Package, PackageError>> {
             match extension.as_deref() {
                 Some("ariaplugin") => Some(Err(PackageError::new(
                     &path,
-                    "an archive is not loaded in place; install it from the Plugins panel",
+                    "an archive is not loaded in place; install it with File > Install Plugin…",
                 ))),
                 Some("so" | "dylib" | "dll") => Some(Err(PackageError::new(
                     &path,
