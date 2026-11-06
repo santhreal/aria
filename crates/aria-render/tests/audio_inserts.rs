@@ -846,6 +846,79 @@ fn three_missed_deadlines_in_a_row_bypass_an_insert_during_playback_only() {
     assert_eq!(ledger.lock().len(), 1, "and reports nothing");
 }
 
+/// A nest's inserts run under the deadlines of the sequence playing it. The
+/// nested mix is built as a span's reader, so a playback mixer that holds only
+/// its own graph to deadlines leaves a slow insert inside a nest running every
+/// block, stalling playback instead of being bypassed.
+#[test]
+fn a_slow_insert_inside_a_nest_is_bypassed_during_playback() {
+    const FRAMES: usize = RATE as usize / 100;
+    const SLOW: &[usize] = &[0, 1, 3, 4, 5, 6];
+    let calls = Arc::new(AtomicUsize::new(0));
+    let ledger = Ledger::default();
+    let counted = Arc::clone(&calls);
+    let _slow = register(
+        spec("render.nest_slow", Vec::new(), 0, false),
+        Some(&ledger),
+        move || Slow {
+            slow: SLOW,
+            call: 0,
+            calls: Arc::clone(&counted),
+        },
+    );
+    let dir = tempfile::tempdir().expect("tempdir");
+    let tone = dir.path().join("tone.wav");
+    write_tone(&tone, 1000, 440.0);
+    let mut project = Project::new("nest", R24);
+    let media = project.add_media(MediaSource::new(&tone, 0, 0, MS, 1000, true));
+    let nest = project.create_sequence("Nest 1", R24);
+    project
+        .set_active_sequence(Some(nest))
+        .expect("open the nest");
+    let inner = project.add_track(TrackKind::Audio, "A1");
+    project
+        .add_clip(
+            inner,
+            media,
+            TimeRange::at_rate(0, 1000, MS),
+            RationalTime::new(0, R24),
+        )
+        .expect("the tone");
+    project
+        .add_audio_effect(AudioInsertTarget::Master, "render.nest_slow")
+        .expect("the nest's insert");
+    project.set_active_sequence(None).expect("leave the nest");
+    let lane = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_sequence_clip(
+            lane,
+            nest,
+            TimeRange::at_rate(0, 24, R24),
+            RationalTime::new(0, R24),
+        )
+        .expect("the nest clip");
+
+    let mut playback = mixer(&project);
+    playback.set_realtime(true);
+    mix_blocks(&mut playback, 0, 8, FRAMES);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        6,
+        "bypassed after the sixth call"
+    );
+    let faults = ledger.lock().clone();
+    assert!(
+        matches!(
+            faults.as_slice(),
+            [ProcessorFault {
+                kind: FaultKind::MissedDeadlines { .. },
+                ..
+            }]
+        ),
+        "{faults:?}"
+    );
+}
+
 /// A block that does not continue the last one resets every processor and
 /// pre-rolls the chains, so what follows a seek is what a continuous mix
 /// would have played there.

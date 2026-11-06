@@ -234,8 +234,9 @@ impl Project {
     /// starts before the file's first sample when the camera started after the
     /// window does, and runs past its end when the camera stopped first; the
     /// reader plays silence for either stretch. `None` for a clip with no
-    /// recorded sound: generated content, a nested sequence, a source without
-    /// an audio stream, or a source missing from the pool.
+    /// recorded sound of its own: generated content, a nested sequence (whose
+    /// sound is that sequence's mix), a source without an audio stream, or a
+    /// source missing from the pool.
     pub fn clip_sound(&self, clip: &Clip) -> Option<(&MediaSource, TimeRange)> {
         let source = clip.source_range()?;
         if let Some(media) = clip.media() {

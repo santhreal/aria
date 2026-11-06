@@ -36,13 +36,7 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::path::PathBuf;
 
 use aria_core::{AudioReader, DecodeError};
-use aria_models::{
-    AudioEffectInstance, AutomationMode, ClipParam, ModelError, Param, Project, Rational, TrackId,
-    audio_gain_at,
-};
-
-use crate::driver::driven_envelope;
-use crate::error::RenderError;
+use aria_models::{AutomationMode, Param, Rational, TrackId, audio_gain_at};
 
 use crate::audio_dsp::{
     DenoiseReader, OLA_FRAME, OLA_HOP, OLA_PAD, OLA_WARMUP, SpanWarp, ola_aligned_offset,
@@ -294,181 +288,6 @@ impl std::fmt::Debug for ExportAudioMixer {
 }
 
 impl ExportAudioMixer {
-    /// Audible spans: clips on lanes whose sound still arrives at the master,
-    /// summed through the project's own mix graph. CapCut-style, a video clip
-    /// keeps its own sound, so video lanes are audible too; only a clip
-    /// detached to a linked audio lane defers its audio there. `None` when the
-    /// timeline is silent, so callers can skip the audio track entirely.
-    ///
-    /// Routing is read once, from [`Timeline::audio_buses`]: a lane behind a
-    /// muted bus is dropped here rather than decoded and multiplied by zero,
-    /// and a project whose routing is cyclic is refused by name instead of
-    /// being mixed in whatever order the fold happened to take.
-    ///
-    /// Reversed clips mix backward. Other retimed and denoised clips mix
-    /// through the same warped-resample path.
-    ///
-    /// [`Timeline::audio_buses`]: aria_models::Timeline::audio_buses
-    pub fn for_project(project: &Project) -> Result<Option<Self>, RenderError> {
-        let timeline = project.timeline();
-        let fps = timeline.frame_rate;
-        let graph = timeline.audio_buses()?;
-        let index_of = |track| graph.iter().position(|node| node.track == track);
-        // Feed order is what the fold below relies on: a lane only ever writes
-        // forward, so its destinations have to sit after it. The model
-        // guarantees that; this turns the guarantee into a checked precondition
-        // instead of an index the fold would have to second-guess per block.
-        let mut buses: Vec<BusNode> = Vec::with_capacity(graph.len());
-        for (i, node) in graph.iter().enumerate() {
-            let forward = |target| match index_of(target) {
-                Some(j) if j > i => Ok(j),
-                _ => Err(RenderError::Model(ModelError::RoutingCycle(node.track))),
-            };
-            let mut sends = Vec::with_capacity(node.sends.len());
-            for send in node.sends {
-                sends.push((forward(send.to)?, send.level, send.pre_fader));
-            }
-            buses.push(BusNode {
-                gain: node.gain,
-                pan: node.pan,
-                automation: node.automation,
-                volume_envelope: node.volume_envelope.clone(),
-                pan_envelope: node.pan_envelope.clone(),
-                output: node.output.bus().map(forward).transpose()?,
-                sends,
-                live: node.reaches_master,
-            });
-        }
-        let mut spans = Vec::new();
-        // Each span's clip chain, by span.
-        let mut clip_inserts: Vec<&[AudioEffectInstance]> = Vec::new();
-        // One lane's spans, for its crossfades.
-        let mut lane = Vec::new();
-        // Read once: the per-clip detach query scans the audio lanes for each
-        // linked clip.
-        let links = timeline.audio_lane_links();
-        for track in timeline.tracks_ordered() {
-            let Some(bus) = index_of(track.id) else {
-                continue;
-            };
-            if !graph[bus].reaches_master {
-                continue;
-            }
-            lane.clear();
-            for clip in track.clips_ordered() {
-                if clip.is_silent() {
-                    continue;
-                }
-                if !links.carries_own_audio(track, clip) {
-                    continue;
-                }
-                let Some((media, source)) = project.clip_sound(clip) else {
-                    continue;
-                };
-                let warp = if clip.has_speed_curve() {
-                    SpanWarp::Curved {
-                        curve: clip.speed_curve.clone(),
-                        source_len: ticks_to_samples(
-                            source.duration.value,
-                            source.start.rate.num,
-                            source.start.rate.den,
-                        ),
-                        curve_total: clip.speed_curve_average(),
-                    }
-                } else if clip.speed.num != clip.speed.den {
-                    SpanWarp::FlatSpeed {
-                        num: clip.speed.num,
-                        den: clip.speed.den,
-                    }
-                } else {
-                    SpanWarp::Linear
-                };
-                // A driven envelope replaces the keyframed one, evaluated once
-                // per frame of the clip.
-                let volume = driven_envelope(project, clip, ClipParam::Volume);
-                let pan = driven_envelope(project, clip, ClipParam::Pan);
-                let media_len = ticks_to_samples(
-                    media.duration.value,
-                    media.duration.rate.num,
-                    media.duration.rate.den,
-                );
-                spans.push(Span {
-                    path: media.path().to_path_buf(),
-                    start: ticks_to_samples(clip.timeline.start.value, fps.num, fps.den),
-                    end: ticks_to_samples(clip.timeline.end_tick(), fps.num, fps.den),
-                    source_start: ticks_to_samples(
-                        source.start.value,
-                        source.start.rate.num,
-                        source.start.rate.den,
-                    ),
-                    source_len: ticks_to_samples(
-                        source.duration.value,
-                        source.start.rate.num,
-                        source.start.rate.den,
-                    ),
-                    reversed: clip.reversed,
-                    warp,
-                    preserve_pitch: clip.preserve_pitch,
-                    denoise: clip.denoise,
-                    volume: volume
-                        .as_ref()
-                        .unwrap_or(&clip.volume)
-                        .map_ticks(|tick| ticks_to_samples(tick, fps.num, fps.den)),
-                    pan: pan
-                        .as_ref()
-                        .unwrap_or(&clip.pan)
-                        .map_ticks(|tick| ticks_to_samples(tick, fps.num, fps.den)),
-                    fade_in: ticks_to_samples(clip.fade_in, fps.num, fps.den),
-                    fade_out: ticks_to_samples(clip.fade_out, fps.num, fps.den),
-                    crossfade_in: None,
-                    crossfade_out: None,
-                    reader: None,
-                    exhausted: false,
-                    file_len: Some(media_len),
-                    bus,
-                });
-                lane.push(xfade::LaneSpan {
-                    clip: clip.id,
-                    span: spans.len() - 1,
-                    media_len,
-                });
-                clip_inserts.push(&clip.audio_effects);
-            }
-            xfade::crossfade_lane(track, &lane, &mut spans, fps);
-        }
-        if spans.is_empty() {
-            return Ok(None);
-        }
-        let inserts = inserts::InsertGraph::build(
-            &graph,
-            &buses,
-            timeline.master_audio_effects(),
-            &clip_inserts,
-            fps,
-        )
-        .map(Box::new);
-        Ok(Some(Self {
-            bus_buffers: vec![Vec::new(); buses.len()],
-            lanes: graph.iter().map(|node| node.track).collect(),
-            peaks: vec![[0.0; 2]; buses.len()],
-            fps,
-            master_gain: timeline.master_gain(),
-            master_pan: timeline.master_pan(),
-            master_muted: timeline.master_muted(),
-            master_automation: timeline.master_automation(),
-            master_volume: timeline.master_volume_envelope().clone(),
-            master_pan_envelope: timeline.master_pan_envelope().clone(),
-            master_peak: [0.0; 2],
-            buses,
-            spans,
-            scratch: Vec::new(),
-            warp_scratch: Vec::new(),
-            weight_scratch: Vec::new(),
-            shuttle_scratch: Vec::new(),
-            inserts,
-        }))
-    }
-
     /// A mixer over hand-built spans, all summing straight to the master at
     /// unity: the shape a project with no routing resolves to. Lets a case
     /// exercise one span's own arithmetic without a project behind it.
@@ -666,10 +485,18 @@ impl ExportAudioMixer {
     }
 
     /// Hold insert processors to playback deadlines: a block that takes longer
-    /// than the real time it covers counts as a miss. Off for export.
+    /// than the real time it covers counts as a miss. Off for export. A nested
+    /// sequence's mix is a span's reader, so its own inserts follow.
     pub fn set_realtime(&mut self, realtime: bool) {
         if let Some(graph) = &mut self.inserts {
             graph.set_realtime(realtime);
+        }
+        for reader in self
+            .spans
+            .iter_mut()
+            .filter_map(|span| span.reader.as_mut())
+        {
+            reader.set_realtime(realtime);
         }
     }
 
@@ -956,6 +783,9 @@ pub use mix::*;
 
 #[path = "export_audio_inserts.rs"]
 mod inserts;
+
+#[path = "export_audio_spans.rs"]
+mod spans;
 
 #[path = "export_audio_xfade.rs"]
 mod xfade;

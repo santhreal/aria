@@ -14,6 +14,7 @@ use aria_core::{AudioReader, DecodeError};
 use aria_models::{MediaSource, Project, Rational, RationalTime, TimeRange, TrackKind};
 
 use super::*;
+use crate::error::RenderError;
 
 /// A source whose every sample is its own frame position, so a block mixed
 /// for the wrong frame differs, and which counts its reads and can fail one.

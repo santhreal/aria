@@ -4,7 +4,7 @@
 use super::*;
 use crate::audio_dsp::SpanWarp;
 use aria_core::AudioReader;
-use aria_models::Rational;
+use aria_models::{Project, Rational};
 use std::f32::consts::PI;
 
 struct SineReader {

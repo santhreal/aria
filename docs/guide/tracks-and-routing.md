@@ -169,9 +169,14 @@ LUT, layer styles, blend mode, and motion blur as one picture. A sequence of
 another shape fills the middle of the canvas; a larger one draws at the
 canvas size.
 
+A nest clip plays its sequence's mix: every audible lane of the sequence,
+through its routing, sends, inserts and master strip. That mix then takes the
+clip's volume, pan, fades, speed, reverse, denoise and audio effects as one
+source, on the lane the clip is placed on.
+
 A sequence that shows itself, directly or through another nest, cannot be
-placed. A project edited outside Aria that holds one fails the frame with a
-sequence cycle error stating the sequence.
+placed. A project edited outside Aria that holds one fails the frame and the
+sound with a sequence cycle error stating the sequence.
 
 Nesting nothing, opening a clip that is not a nest, and leaving when the root
 timeline is already open are each refused with what is missing.

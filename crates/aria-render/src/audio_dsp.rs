@@ -286,6 +286,10 @@ impl AudioReader for DenoiseReader {
     fn position(&self) -> Option<i64> {
         self.inner.position()
     }
+
+    fn set_realtime(&mut self, realtime: bool) {
+        self.inner.set_realtime(realtime);
+    }
 }
 
 #[cfg(test)]
@@ -375,5 +379,40 @@ mod tests {
         let mut again = vec![0.0; 512 * 2];
         reader.read(&mut again).unwrap();
         assert!(again.iter().any(|&s| s.is_finite()));
+    }
+
+    /// A denoised nest clip wraps the nested mix in the denoiser, so the
+    /// nest's inserts reach playback deadlines only through it.
+    #[test]
+    fn denoise_reader_passes_realtime_to_its_source() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        struct Probe(Arc<AtomicBool>);
+
+        impl AudioReader for Probe {
+            fn read(&mut self, _out: &mut [f32]) -> Result<usize, DecodeError> {
+                Ok(0)
+            }
+
+            fn seek_to_frame(&mut self, _frame: i64) -> Result<(), DecodeError> {
+                Ok(())
+            }
+
+            fn position(&self) -> Option<i64> {
+                None
+            }
+
+            fn set_realtime(&mut self, realtime: bool) {
+                self.0.store(realtime, Ordering::SeqCst);
+            }
+        }
+
+        let held = Arc::new(AtomicBool::new(false));
+        let mut reader = DenoiseReader::new(Box::new(Probe(Arc::clone(&held))), 2);
+        reader.set_realtime(true);
+        assert!(held.load(Ordering::SeqCst), "realtime reaches the source");
+        reader.set_realtime(false);
+        assert!(!held.load(Ordering::SeqCst), "and so does its release");
     }
 }

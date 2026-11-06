@@ -1338,6 +1338,7 @@ Notes for the latest release. For previous releases, see the
 - An export over a multicam clip whose live camera's file is missing fails before it starts and names the file.
 - Loop and work-area playback with the In point at the end of the sequence report the In point instead of an empty sequence.
 - Multicam clips play and export the sound of the group's first camera that recorded sound, placed by that camera's sync offset, instead of silence.
+- Nested sequence clips play and export their sequence's mix instead of silence, so Clip > Nest… keeps the sound of the clips it gathers.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -15,7 +15,10 @@
 use std::path::Path;
 
 use aria_core::RationalTime;
-use aria_models::{MediaSource, MulticamAngle, Project, Rational, TimeRange, TrackKind};
+use aria_models::{
+    Clip, MediaSource, ModelError, MulticamAngle, Project, Rational, SequenceId, TimeRange, Track,
+    TrackKind,
+};
 use aria_render::{EmptyExport, ExportSettings, RenderError, export_audio_to_file_observed};
 
 #[path = "support/tone.rs"]
@@ -49,6 +52,31 @@ fn samples_of(bytes: &[u8]) -> Vec<i16> {
         .iter()
         .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
         .collect()
+}
+
+/// Export `project`, two seconds at 24 fps, and check its sound is the tone
+/// from 0.5 s to 1.5 s and silence on either side.
+fn assert_tone_sounds_from_half_a_second_for_one(project: &Project, out: &Path, case: &str) {
+    let frames = export_audio_to_file_observed(
+        project,
+        out,
+        ExportSettings::for_project(project),
+        &mut |_, _| true,
+    )
+    .unwrap_or_else(|err| panic!("{case}: the export is audible: {err}"));
+    assert_eq!(frames, 48, "{case}: two seconds at 24 fps");
+    let samples = samples_of(&std::fs::read(out).expect("the exported file"));
+    let at = |seconds: f64| (seconds * f64::from(RATE)) as usize * CHANNELS;
+    let peak = |from: f64, to: f64| {
+        samples[at(from)..at(to)]
+            .iter()
+            .map(|s| s.unsigned_abs())
+            .max()
+            .unwrap_or(0)
+    };
+    assert_eq!(peak(0.0, 0.45), 0, "{case}: sound before 0.5 s");
+    assert!(peak(0.55, 1.45) > 8_000, "{case}: the tone is missing");
+    assert_eq!(peak(1.55, 2.0), 0, "{case}: sound after 1.5 s");
 }
 
 #[test]
@@ -184,37 +212,115 @@ fn a_multicam_clip_plays_its_first_sounding_camera_where_that_camera_rolls() {
             .add_multicam_clip(lane, group, span, RationalTime::new(0, fps))
             .expect("the multicam clip");
         project.clip_mut(clip).expect("the clip").reversed = reversed;
-        let out = dir.path().join("bake.wav");
-
-        let frames = export_audio_to_file_observed(
+        let case = format!("multicam, reversed {reversed}");
+        assert_tone_sounds_from_half_a_second_for_one(
             &project,
-            &out,
-            ExportSettings::for_project(&project),
-            &mut |_, _| true,
-        )
-        .unwrap_or_else(|err| panic!("reversed {reversed}: a multicam clip is audible: {err}"));
-
-        assert_eq!(frames, 48, "the group runs two seconds at 24 fps");
-        let samples = samples_of(&std::fs::read(&out).expect("the exported file"));
-        let at = |seconds: f64| (seconds * f64::from(RATE)) as usize * CHANNELS;
-        let peak = |from: f64, to: f64| {
-            samples[at(from)..at(to)]
-                .iter()
-                .map(|s| s.unsigned_abs())
-                .max()
-                .unwrap_or(0)
-        };
-        assert_eq!(
-            peak(0.0, 0.45),
-            0,
-            "reversed {reversed}: sound before 0.5 s"
+            &dir.path().join("bake.wav"),
+            &case,
         );
-        assert!(
-            peak(0.55, 1.45) > 8_000,
-            "reversed {reversed}: the camera's sound is missing while it rolls"
-        );
-        assert_eq!(peak(1.55, 2.0), 0, "reversed {reversed}: sound after 1.5 s");
     }
+}
+
+/// A project whose root holds one two-second nest clip on `V1`, playing a
+/// sequence with a one-second tone half a second into it on an audio lane.
+fn project_with_nested_tone(tone: &Path) -> (Project, SequenceId) {
+    write_tone(tone, 1000, 440.0);
+    let fps = Rational::FPS_24;
+    let mut project = Project::new("nest", fps);
+    let media = project.add_media(MediaSource::new(tone, 0, 0, MS, 1000, true));
+    let nest = project.create_sequence("Nest 1", fps);
+    project
+        .set_active_sequence(Some(nest))
+        .expect("open the nest");
+    let inner = project.add_track(TrackKind::Audio, "A1");
+    project
+        .add_clip(
+            inner,
+            media,
+            TimeRange::at_rate(0, 1000, MS),
+            RationalTime::new(12, fps),
+        )
+        .expect("the tone inside the nest");
+    project.set_active_sequence(None).expect("leave the nest");
+    let lane = project.add_track(TrackKind::Video, "V1");
+    project
+        .add_sequence_clip(
+            lane,
+            nest,
+            TimeRange::at_rate(0, 48, fps),
+            RationalTime::new(0, fps),
+        )
+        .expect("the nest clip");
+    (project, nest)
+}
+
+/// A nest clip plays its sequence's mix. The class this closes: a clip kind the
+/// span resolver has no sound for exports and plays silent, so nesting a stretch
+/// of the timeline drops its sound. A resolver that skips sequence clips writes
+/// nothing at all; one that reads the nest from the wrong offset moves the
+/// tone; a nested read that never re-arms its spans after a backward seek drops
+/// the tone from the reversed clip once the tone's file has run out once.
+#[test]
+fn a_nest_clip_plays_its_sequences_mix_through_its_own_window() {
+    for reversed in [false, true] {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (mut project, _) = project_with_nested_tone(&dir.path().join("tone.wav"));
+        let clip = project
+            .timeline()
+            .tracks_ordered()
+            .flat_map(|track| track.clips_ordered())
+            .map(|clip| clip.id)
+            .next()
+            .expect("the nest clip");
+        project.clip_mut(clip).expect("the clip").reversed = reversed;
+        // Reversed, the window is symmetric: the tone covers 0.5 s to 1.5 s of
+        // a two-second read either way.
+        let case = format!("nest, reversed {reversed}");
+        assert_tone_sounds_from_half_a_second_for_one(
+            &project,
+            &dir.path().join("bake.wav"),
+            &case,
+        );
+    }
+}
+
+/// A sequence that plays itself has no mix. Resolving one has to stop at the
+/// repeat and report it, not recurse until the stack runs out.
+#[test]
+fn a_sequence_that_plays_itself_fails_the_sound_with_a_cycle_error() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (mut project, nest) = project_with_nested_tone(&dir.path().join("tone.wav"));
+    // The model's own placement rejects this, so build it as a project edited
+    // outside Aria would hold it.
+    let fps = Rational::FPS_24;
+    let inner = project.sequence_mut(nest).expect("the nest");
+    let lane = inner.timeline.add_track(Track::new(TrackKind::Video, "V1"));
+    inner
+        .timeline
+        .add_clip(
+            lane,
+            Clip::from_sequence(
+                nest,
+                TimeRange::at_rate(0, 12, fps),
+                TimeRange::at_rate(0, 12, fps),
+            ),
+        )
+        .expect("the nest inside itself");
+    let out = dir.path().join("bake.wav");
+
+    let err = export_audio_to_file_observed(
+        &project,
+        &out,
+        ExportSettings::for_project(&project),
+        &mut |_, _| true,
+    )
+    .expect_err("a cyclic nest has no mix");
+
+    assert!(
+        matches!(err, RenderError::Model(ModelError::SequenceCycle(id)) if id == nest),
+        "{err}"
+    );
+    assert!(!out.exists(), "nothing is written for a cyclic nest");
 }
 
 #[cfg(target_os = "linux")]

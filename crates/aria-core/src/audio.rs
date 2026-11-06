@@ -33,6 +33,10 @@ pub trait AudioReader: Send {
     /// Output-frame position of the next sample [`read`](AudioReader::read)
     /// will emit, or `None` before the first decode establishes the anchor.
     fn position(&self) -> Option<i64>;
+
+    /// Hold any processing this source runs to playback deadlines, or release
+    /// it for an export. A source that only decodes has nothing to hold.
+    fn set_realtime(&mut self, _realtime: bool) {}
 }
 
 /// Output configuration for the audio track of an encode session.
