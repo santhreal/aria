@@ -11,6 +11,7 @@ use aria_plugin::{PluginContext, Service};
 use parking_lot::RwLock;
 
 use crate::app::AppState;
+use crate::chrome::menu_items::RowBlocked;
 
 /// What a command does with the state alone. A plain function pointer, not a
 /// closure: a command acts on `AppState` and holds no state of its own.
@@ -32,6 +33,15 @@ pub struct CommandEntry {
     /// What the palette shows and filters on.
     pub label: &'static str,
     pub run: CommandRun,
+    /// Why the command cannot run now, or `None` when it can.
+    pub blocked: RowBlocked,
+}
+
+impl CommandEntry {
+    /// Why the command cannot run against `state` now, or `None` when it can.
+    pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
+        (self.blocked)(self.id, state)
+    }
 }
 
 /// One contributed command that needs the entity context.
@@ -40,6 +50,15 @@ pub struct WindowedEntry {
     pub id: &'static str,
     pub label: &'static str,
     pub run: WindowedRun,
+    /// Why the command cannot run now, or `None` when it can.
+    pub blocked: RowBlocked,
+}
+
+impl WindowedEntry {
+    /// Why the command cannot run against `state` now, or `None` when it can.
+    pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
+        (self.blocked)(self.id, state)
+    }
 }
 
 /// How a registered command is invoked.
@@ -55,6 +74,14 @@ pub struct Registered {
     pub id: &'static str,
     pub label: &'static str,
     pub body: CommandBody,
+    pub blocked: RowBlocked,
+}
+
+impl Registered {
+    /// Why the command cannot run against `state` now, or `None` when it can.
+    pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
+        (self.blocked)(self.id, state)
+    }
 }
 
 /// Every command the palette can offer, in registration order.
@@ -82,6 +109,7 @@ impl CommandHost {
             id: entry.id,
             label: entry.label,
             body: CommandBody::Plain(entry.run),
+            blocked: entry.blocked,
         });
     }
 
@@ -93,6 +121,7 @@ impl CommandHost {
             id: entry.id,
             label: entry.label,
             body: CommandBody::Windowed(entry.run),
+            blocked: entry.blocked,
         });
     }
 
@@ -143,6 +172,7 @@ mod tests {
             id,
             label,
             run: noop,
+            blocked: crate::chrome::menu_guards::ready,
         }
     }
 
@@ -178,6 +208,7 @@ mod tests {
             id: "pal-a",
             label: "Windowed",
             run: |_, _| {},
+            blocked: crate::chrome::menu_guards::ready,
         });
         assert_eq!(host.ids(), vec!["pal-a"]);
         assert!(matches!(host.all()[0].body, CommandBody::Windowed(_)));
@@ -193,6 +224,7 @@ mod tests {
             id: "pal-b",
             label: "B",
             run: |_, _| {},
+            blocked: crate::chrome::menu_guards::ready,
         });
         host.add(entry("pal-c", "C"));
         assert_eq!(host.ids(), vec!["pal-a", "pal-b", "pal-c"]);

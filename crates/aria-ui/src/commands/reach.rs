@@ -23,6 +23,7 @@ use aria_models::ClipParam;
 
 use crate::app::AppState;
 use crate::app::decline::Decline;
+use crate::chrome::menu_guards as guards;
 
 use super::host::CommandEntry;
 
@@ -32,6 +33,10 @@ use super::host::CommandEntry;
 /// `add_keyframe_at_playhead`'s own rule — a row for a property an image clip has
 /// no volume for stays quiet rather than erroring.
 pub(crate) fn keyframe(state: &mut AppState, param: ClipParam) {
+    if let Some(reason) = guards::keyframe_param_blocked(state, param) {
+        state.status_message = Some(reason.to_string());
+        return;
+    }
     if let Err(err) = state.add_keyframe_at_playhead(param) {
         state.report_error(&err);
     }
@@ -121,6 +126,10 @@ pub(crate) fn reset_canvas_background(state: &mut AppState) {
 /// Character list files through, so a step reaches the titles a press on the
 /// list reaches. Inert off a title.
 pub(crate) fn cycle_font(state: &mut AppState, forward: bool) {
+    if let Some(reason) = guards::title_clip("pal-font-next", state) {
+        state.status_message = Some(reason.to_string());
+        return;
+    }
     let pick = crate::surfaces::clip_pick::Pick::CycleFont { forward };
     if let Err(err) = crate::surfaces::clip_pick::apply(state, pick) {
         state.report_error(&err);
@@ -167,51 +176,67 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
         id: "pal-key-anchor-point",
         label: "Keyframe Anchor Point at Playhead",
         run: |state| keyframe(state, ClipParam::AnchorPoint),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-rotation",
         label: "Keyframe Rotation at Playhead",
         run: |state| keyframe(state, ClipParam::Rotation),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-crop",
         label: "Keyframe Crop at Playhead",
         run: |state| keyframe(state, ClipParam::Crop),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-volume",
         label: "Keyframe Volume at Playhead",
         run: |state| keyframe(state, ClipParam::Volume),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-pan",
         label: "Keyframe Pan at Playhead",
         run: |state| keyframe(state, ClipParam::Pan),
+        blocked: guards::keyframe_at_playhead,
     },
     // --- pool, titles -------------------------------------------------------
     CommandEntry {
         id: "pal-media-filter-clear",
         label: "Clear Pool Filter",
-        run: |state| state.clear_media_query(),
+        run: |state| {
+            if let Some(reason) = guards::media_filter("pal-media-filter-clear", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
+            state.clear_media_query();
+        },
+        blocked: guards::media_filter,
     },
     CommandEntry {
         id: "pal-font-next",
         label: "Next Font on Title",
         run: |state| cycle_font(state, true),
+        blocked: guards::title_clip,
     },
     CommandEntry {
         id: "pal-font-prev",
         label: "Previous Font on Title",
         run: |state| cycle_font(state, false),
+        blocked: guards::title_clip,
     },
     CommandEntry {
         id: "pal-proxy-clear-all",
         label: "Decode Everything from Originals",
         run: |state| state.clear_all_media_proxies(),
+        blocked: guards::proxies_in_use,
     },
     CommandEntry {
         id: "pal-proxy-create-all",
         label: "Proxy Every Pool Item",
         run: |state| state.proxy_whole_pool(),
+        blocked: guards::media_pool,
     },
 ];

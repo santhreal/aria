@@ -14,6 +14,7 @@
 //! they need the entity context to start a request.
 
 use crate::app::settings_form::SettingsSection;
+use crate::chrome::menu_guards as guards;
 use crate::types::ActivePanel;
 
 use super::host::{CommandEntry, WindowedEntry};
@@ -30,11 +31,13 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
             state.active_panel = ActivePanel::Ai;
             state.status_message = Some("The assistant's tools are listed beside it".into());
         },
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-ai-system-prompt",
         label: "Assistant: Show the System Prompt",
         run: |state| state.show_ai_system_prompt(),
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-ai-slash",
@@ -48,16 +51,19 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
                 format!("/{}", names.join(", /"))
             });
         },
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-ai-models",
         label: "AI: Choose the Model",
         run: |state| state.open_settings_at(SettingsSection::Ai),
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-ai-connection",
         label: "AI: Test the Connection",
         run: |state| state.open_settings_at(SettingsSection::Ai),
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-ai-schema",
@@ -67,11 +73,13 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
             let status = state.settings_schema_status();
             state.status_message = Some(status);
         },
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-cloud-checksum",
         label: "Cloud: Checksum a Downloaded File",
         run: |state| state.checksum_picked_file(),
+        blocked: guards::ready,
     },
 ];
 
@@ -85,10 +93,12 @@ pub(super) const AI_JOB_ROWS: &[WindowedEntry] = &[
         id: "pal-ai-list-models",
         label: "AI: Ask the Endpoint Which Models It Serves",
         run: |state, cx| state.probe_ai_models(cx),
+        blocked: guards::ai_idle,
     },
     WindowedEntry {
         id: "pal-ai-test-connection",
         label: "AI: Test the Provider Connection Now",
         run: |state, cx| state.test_ai_connection(cx),
+        blocked: guards::ai_idle,
     },
 ];
