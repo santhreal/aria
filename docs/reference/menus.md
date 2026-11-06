@@ -379,6 +379,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SeveralCopied` | `The copy holds more than one clip` |
 | `NoMarkedRange` | `Mark an In and an Out point first` |
 | `NoClipOrGap` | `No clip or gap is selected` |
+| `InAtEnd` | `The In point is at the end of the sequence` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

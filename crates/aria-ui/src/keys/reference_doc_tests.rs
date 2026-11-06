@@ -524,7 +524,8 @@ fn menus_doc_matches_registry() {
                 | Decline::NoLaneForCopy
                 | Decline::SeveralCopied
                 | Decline::NoMarkedRange
-                | Decline::NoClipOrGap => {}
+                | Decline::NoClipOrGap
+                | Decline::InAtEnd => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

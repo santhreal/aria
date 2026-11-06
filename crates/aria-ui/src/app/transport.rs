@@ -23,6 +23,7 @@ use crate::preview_worker::{Cadence, PreviewFrame};
 use crate::projection::project_to_ui;
 use crate::types::UiEditorStore;
 
+use super::decline::Decline;
 use super::{AppState, FrameReady, PlayheadMoved};
 use crate::transport::ShuttleSpeed;
 
@@ -205,7 +206,14 @@ impl AppState {
         let (bound_start, bound_end) = self.active_playback_bounds();
         if bound_end <= bound_start {
             self.stop_transport();
-            self.status_message = Some("The sequence has no clips".into());
+            // The bounds are empty with clips on the sequence only when the
+            // marked range starts at its end: `work_area` falls back to the
+            // sequence's end for an Out at or before In.
+            if self.store.sequence.duration_ticks > 0 {
+                self.decline(Decline::InAtEnd);
+            } else {
+                self.status_message = Some("The sequence has no clips".into());
+            }
             return;
         }
         if !self.playing {
@@ -615,14 +623,11 @@ impl AppState {
         self.playback.report()
     }
 
-    /// Whether the mixer can honor the transport as it stands.
-    ///
-    /// The mixer plays a project forward at the sequence rate: it neither
-    /// resamples nor reads backwards, and its own clock only counts up. At any
-    /// other shuttle speed there is no audio that matches the picture, so the
-    /// audio path goes quiet and the frame clock drives the playhead — which is
-    /// what makes reverse move at all, since a running audio clock would pull
-    /// the playhead forward again on the next frame.
+    /// Whether the mixer follows the transport at its current rate: every
+    /// forward and reverse shuttle speed up to 4x, with the pitch held
+    /// ([`ShuttleSpeed::is_audible`]). Above 4x the audio path goes quiet and
+    /// the frame clock drives the playhead, so the playhead is never pulled by
+    /// an audio clock running at another rate.
     ///
     /// One reader for the whole transport: every site that republishes during
     /// playback asks this rather than deciding for itself.

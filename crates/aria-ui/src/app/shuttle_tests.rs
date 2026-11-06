@@ -3,6 +3,7 @@
 
 use std::time::{Duration, Instant};
 
+use super::decline::Decline;
 use super::premiere_tests::with_clip;
 use crate::transport::ShuttleSpeed;
 
@@ -540,6 +541,43 @@ fn starting_forward_from_the_end_or_reverse_from_the_start_rewinds_across_every_
                     state.playhead.value
                 );
             }
+        }
+    }
+}
+
+/// An In point on the sequence's last tick leaves loop and work-area playback
+/// nothing to play. Every start path that plays the marked range declines with
+/// the In point as the reason, not with a sequence that holds clips reported as
+/// empty, and none enters a 0-tick play state.
+///
+/// Catches a start path that reads an empty marked range as an empty sequence.
+/// Does not catch the reason's wording, which the decline census checks.
+#[test]
+fn an_in_point_at_the_end_declines_the_marked_range_on_every_start_path() {
+    for (label, method, _, start) in transport_start_paths() {
+        for looping in [false, true] {
+            if !looping && method != "play_work_area" {
+                continue;
+            }
+            let (mut state, _) = with_clip();
+            let duration = state.store.sequence.duration_ticks;
+            assert!(duration > 0);
+            state.set_playhead(duration);
+            state.set_mark_in();
+            if looping {
+                state.toggle_loop();
+            }
+            state.status_message = None;
+            start(&mut state);
+            assert!(
+                !state.playing,
+                "{label} (loop={looping}): played an empty marked range"
+            );
+            assert_eq!(
+                state.status_message.as_deref(),
+                Some(Decline::InAtEnd.reason()),
+                "{label} (loop={looping}): did not name the In point"
+            );
         }
     }
 }
