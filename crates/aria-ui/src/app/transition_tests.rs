@@ -512,6 +512,43 @@ fn each_chord_puts_its_default_on_a_cut_of_its_own_media() {
     );
 }
 
+/// Apply Default Transitions is offered where Ctrl+T finds a picture cut and
+/// withheld in Ctrl+T's words where it finds none: a lone clip, and a selected
+/// edge with no clip on its other side.
+#[test]
+fn default_transitions_row_reads_the_cut_ctrl_t_finds() {
+    let row = |state: &AppState| {
+        crate::chrome::menu_items::items_of(crate::types::AppMenu::Sequence, state)
+            .into_iter()
+            .find(|item| item.id == "seq-default-transitions")
+            .expect("the Apply Default Transitions row")
+            .blocked_by(state)
+    };
+    let no_cut = Some(Decline::NoCutForTransition.reason());
+    let (mut state, clip) = with_clip();
+    state.clear_selection();
+    assert_eq!(row(&state), no_cut, "a lone clip has no cut");
+    state
+        .add_default_transition(TransitionMedia::Picture)
+        .expect("inert");
+    assert_eq!(state.clip_transition_id(clip), None);
+    assert_eq!(state.status_message.as_deref(), no_cut);
+
+    let open = Some(Decline::NoAbuttingCut.reason());
+    let (mut state, _, right) = with_cut();
+    state.clear_selection();
+    assert_eq!(row(&state), None, "a picture cut on a targeted track");
+    state.select_edge(right, crate::types::TrimSide::Out);
+    assert_eq!(row(&state), open, "nothing follows the right clip's Out");
+    state
+        .add_default_transition(TransitionMedia::Picture)
+        .expect("inert");
+    assert_eq!(state.clip_transition_id(right), None);
+    assert_eq!(state.status_message.as_deref(), open);
+    state.select_edge(right, crate::types::TrimSide::In);
+    assert_eq!(row(&state), None, "the right clip's In is the cut");
+}
+
 #[test]
 fn transition_alignment_projects_and_switches_from_menu_and_inspector() {
     use crate::surfaces::clip_pick::{self, Pick};

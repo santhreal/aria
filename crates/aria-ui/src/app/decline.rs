@@ -86,11 +86,14 @@ pub enum Decline {
     NoMediaClipAtPlayhead,
     /// Add Edit sent with no clip it cuts strictly inside under the playhead.
     NoClipToCut,
+    /// Ctrl+T or Ctrl+Shift+T sent with no edge selected and no cut of its
+    /// kind between two clips on the targeted lanes.
+    NoCutForTransition,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 28] = [
+    pub const ALL: [Decline; 29] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -119,6 +122,7 @@ impl Decline {
         Decline::NoTargetedClipAtPlayhead,
         Decline::NoMediaClipAtPlayhead,
         Decline::NoClipToCut,
+        Decline::NoCutForTransition,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -153,6 +157,7 @@ impl Decline {
             Decline::NoTargetedClipAtPlayhead => "No clip under the playhead on a targeted track",
             Decline::NoMediaClipAtPlayhead => "No media clip under the playhead",
             Decline::NoClipToCut => "No clip under the playhead to cut",
+            Decline::NoCutForTransition => "No cut between two clips to put a transition on",
         }
     }
 }

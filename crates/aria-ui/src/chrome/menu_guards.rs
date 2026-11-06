@@ -550,6 +550,14 @@ pub(crate) fn clip_to_cut(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some(Decline::NoClipToCut.reason())
 }
 
+/// The row puts the default picture transition on the cut Ctrl+T finds.
+pub(crate) fn picture_cut(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .default_transition_cut(aria_models::TransitionMedia::Picture)
+        .err()
+        .map(|why| why.reason())
+}
+
 /// The row cuts every unlocked lane's clip at the playhead.
 pub(crate) fn clip_to_cut_all(_: &str, state: &AppState) -> Option<&'static str> {
     state

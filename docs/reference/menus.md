@@ -124,7 +124,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-add-edit-all` | `none` | Add Edit to All Tracks | `Ctrl+Shift+K` | No unlocked clip lies across the playhead (`guards::clip_to_cut_all`) | Splits every clip intersecting the playhead across all unlocked tracks. |
 | `seq-trim-edit` | `none` | Trim Edit | `none` | The sequence has no clips (`guards::clips`) | Selects the edit point nearest the playhead for keyboard trim nudging. |
 | `seq-extend-edit` | `none` | Extend Edit | `none` | Select an edit point first (`guards::edge`) | Extends the selected edit point to the current playhead tick. |
-| `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The sequence has no clips (`guards::clips`) | Applies the default picture transition (`crossfade`) at the selected cut. |
+| `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The selected edge has no clip on its other side, or with no edge selected no targeted track has a cut between two pictures (`guards::picture_cut`) | Applies the default picture transition (`crossfade`) at the cut of the selected edge, or at the picture cut nearest the playhead on the targeted tracks. |
 | `seq-lift` | `none` | Lift | `;` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and leaves a timeline gap. |
 | `seq-extract` | `none` | Extract | `'` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and ripple-closes the gap. |
 | `seq-snap` | `none` | Snap | `S` | Always enabled | Toggles magnetic timeline snapping (`snap_enabled`). |
@@ -383,6 +383,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoTargetedClipAtPlayhead` | `No clip under the playhead on a targeted track` |
 | `NoMediaClipAtPlayhead` | `No media clip under the playhead` |
 | `NoClipToCut` | `No clip under the playhead to cut` |
+| `NoCutForTransition` | `No cut between two clips to put a transition on` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

@@ -1346,6 +1346,7 @@ Notes for the latest release. For previous releases, see the
 - Sequence > Match Frame is enabled by a media clip under the playhead rather than by a selection, as `F` is.
 - Sequence > Add Edit and Add Edit to All Tracks are disabled when no unlocked clip they would cut lies across the playhead.
 - The clip context menu offers Add Edit only when the playhead lies inside a clip it would cut.
+- Sequence > Apply Default Transitions is disabled when `Ctrl+T` would find no cut between two pictures to put a transition on.
 
 ## [alpha-0.7.0] - 2026-07-22
 

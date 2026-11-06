@@ -509,12 +509,36 @@ impl AppState {
             self.status_message = Some("No transition is registered".into());
             return Ok(());
         };
-        let junction = match self.selected_edge {
-            Some(edge) if edge.side == TrimSide::Out => Some(ClipId::from_raw(edge.clip)),
+        match self.default_transition_cut(media) {
+            Ok(clip) => self.set_clip_transition(clip, &id),
+            Err(why) => {
+                self.decline(why);
+                Ok(())
+            }
+        }
+    }
+
+    /// The cut Ctrl+T and Ctrl+Shift+T put a `media` transition on, by the
+    /// clip on its left: the selected edge's cut, or with no edge selected the
+    /// cut of that kind nearest the playhead among the targeted lanes. The
+    /// Apply Default Transitions row reads the same cut.
+    pub(crate) fn default_transition_cut(
+        &self,
+        media: aria_models::TransitionMedia,
+    ) -> Result<ClipId, Decline> {
+        match self.selected_edge {
+            Some(edge) if edge.side == TrimSide::Out => {
+                let clip = ClipId::from_raw(edge.clip);
+                self.ui_clip_ref(clip)
+                    .is_some_and(|ui| ui.transition_media.is_some())
+                    .then_some(clip)
+                    .ok_or(Decline::NoAbuttingCut)
+            }
             Some(edge) => self
                 .abutting(ClipId::from_raw(edge.clip))
                 .0
-                .map(|left| left.clip),
+                .map(|left| left.clip)
+                .ok_or(Decline::NoAbuttingCut),
             None => {
                 let at = self.playhead.value;
                 self.targeted_lanes()
@@ -522,13 +546,9 @@ impl AppState {
                     .filter(|clip| clip.transition_media == Some(media))
                     .min_by_key(|clip| (clip.timeline_end_ticks - at).abs())
                     .map(|clip| ClipId::from_raw(clip.id))
+                    .ok_or(Decline::NoCutForTransition)
             }
-        };
-        let Some(clip) = junction else {
-            self.status_message = Some("No cut between two clips to put a transition on".into());
-            return Ok(());
-        };
-        self.set_clip_transition(clip, &id)
+        }
     }
 
     /// An arrow in the Viewer: move the selected clip by `dx`, `dy` canvas

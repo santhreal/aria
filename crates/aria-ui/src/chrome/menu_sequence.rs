@@ -83,7 +83,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         },
     )
     .key("key-transition")
-    .when(guards::clips)
+    .when(guards::picture_cut)
     .rule(),
     MenuItem::new("seq-lift", "Lift", |_, s, _| {
         let lifted = s.remove_marked_range(false);

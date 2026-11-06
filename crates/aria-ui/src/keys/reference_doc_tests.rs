@@ -528,7 +528,8 @@ fn menus_doc_matches_registry() {
                 | Decline::InAtEnd
                 | Decline::NoTargetedClipAtPlayhead
                 | Decline::NoMediaClipAtPlayhead
-                | Decline::NoClipToCut => {}
+                | Decline::NoClipToCut
+                | Decline::NoCutForTransition => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
