@@ -10,6 +10,18 @@
 # `cargo nextest run --profile slow` runs only the multi-second suite skipped by
 # `[profile.default]`.
 
+nextest-version = { required = "0.9.98" }
+experimental = ["setup-scripts"]
+
+# The UI suites decode their fixture media with GStreamer's software decoders.
+# The NVIDIA decoders open a CUDA context in each test process and destroy it at
+# exit, about 1.5 s per process that decodes; the aria-ui library suite on
+# santhserver (RTX 3080 Ti, 16 processes) runs in 154 s with them ranked out and
+# 252 s with them in. aria-decoder, aria-render and frame_budget keep the
+# hardware decoders.
+[scripts.setup.software-decode]
+command = ["sh", "-c", "echo GST_PLUGIN_FEATURE_RANK=nvh264dec:NONE,nvh265dec:NONE,nvav1dec:NONE,nvvp8dec:NONE,nvvp9dec:NONE,nvmpegvideodec:NONE,nvmpeg2videodec:NONE,nvmpeg4videodec:NONE,nvjpegdec:NONE,nvh264sldec:NONE,nvh265sldec:NONE >> \"$NEXTEST_ENV\""]
+
 [test-groups.gpu-media]
 max-threads = 4
 
@@ -17,6 +29,11 @@ max-threads = 4
 default-filter = "not (package(~aria-bench) | test(end_to_end_new_pack_check_and_mount_for_native_and_wasm) | (package(~aria-cli) & binary(~it) & (test(export_encoder) | test(drivers))) | (package(~aria-analysis) & test(moments_sqlite)) | (package(~aria-encoder) & (test(long_av) | test(roundtrip))))"
 slow-timeout = { period = "30s", terminate-after = 4 }
 fail-fast = false
+
+[[profile.default.scripts]]
+platform = { host = "cfg(target_os = \"linux\")" }
+filter = "package(aria-ui) & not binary(frame_budget)"
+setup = "software-decode"
 
 # Schedule long-running tests first when active so they never create a tail at
 # the end of a full workspace run.
