@@ -1228,6 +1228,7 @@ Notes for the latest release. For previous releases, see the
 - The AI composer, File menu, Captions tab, and Settings dialog now read held slash commands, recent-import state, configuration tables, cache sizes, and Whisper model status from `AppState` instead of reading and hashing files on disk on every frame.
 - The Analysis tab draws a detector or Measure at 40 % opacity while the selected clip cannot be analyzed by it.
 - The export sheet draws the marked range at 40 % opacity while no In and Out are set.
+- A disabled button or chip no longer brightens to full strength while it is pressed.
 
 ## [alpha-0.7.0] - 2026-07-22
 

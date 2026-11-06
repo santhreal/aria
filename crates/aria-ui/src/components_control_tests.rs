@@ -33,10 +33,17 @@
 //! ghost and a chip through `blocked::blocked` and checks each draws at the
 //! spec's opacity with the arrow cursor, and that an unblocked one keeps its
 //! own. Not covered: a caller that draws a disabled control without it.
+//!
+//! The blocked press case: a press on a blocked control ran the control's
+//! own press style, so a refused Send flashed from 40 % to 92 % opacity on
+//! its pressed plate while the pointer held it. It draws one live and one
+//! blocked control of each frame, hovers and then holds each, and compares
+//! the quads painted over it. Not covered: the hover wash, which the frame
+//! bakes in before `blocked` sees the control.
 
 use gpui::{
-    Context, InteractiveElement, IntoElement, ParentElement, Render, Styled, TestAppContext,
-    Window, div, px,
+    Bounds, Context, InteractiveElement, IntoElement, Modifiers, MouseButton, ParentElement,
+    Pixels, Render, Stateful, Styled, TestAppContext, VisualTestContext, Window, div, px,
 };
 
 use super::{ChipSize, button, chip, ghost_button, text_box, underline_tab};
@@ -268,4 +275,108 @@ fn a_blocked_control_draws_at_the_spec_opacity_with_the_arrow(cx: &mut TestAppCo
             );
         }
     });
+}
+
+/// The frames a blocked control is drawn through.
+const FRAMES: [&str; 3] = ["button", "ghost", "chip"];
+
+/// The `name` frame, keyed by `index`.
+fn frame(name: &str, index: usize, theme: &Theme) -> Stateful<gpui::Div> {
+    match name {
+        "button" => button(("p-button", index), "Send", theme),
+        "ghost" => ghost_button(("p-ghost", index), "Hold", theme),
+        _ => chip(("p-chip", index), "Range", true, ChipSize::Regular, theme),
+    }
+}
+
+/// One live and one blocked control of each frame, under `{name}-{blocked}`.
+struct Presses;
+
+impl Render for Presses {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::motion::begin_frame(cx);
+        let theme = &Theme::of(cx);
+        let controls = FRAMES.into_iter().flat_map(|name| {
+            [false, true]
+                .into_iter()
+                .enumerate()
+                .map(move |(index, refused)| {
+                    super::blocked::blocked(frame(name, index, theme), refused)
+                        .debug_selector(move || format!("{name}-{refused}"))
+                })
+        });
+        div()
+            .font_family(theme.font_sans.clone())
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(8.0))
+            .children(controls.collect::<Vec<_>>())
+    }
+}
+
+/// Lets every hover fade and press settle, and draws a fresh frame.
+fn settle(visual: &mut VisualTestContext) {
+    visual.run_until_parked();
+    visual
+        .executor()
+        .advance_clock(std::time::Duration::from_secs(1));
+    visual.update(|window, cx| {
+        window.simulate_next_frame(cx);
+        window.draw(cx).clear(cx);
+    });
+    visual.run_until_parked();
+}
+
+/// The fill and edge of every quad the last frame painted over `at`.
+fn painted(visual: &mut VisualTestContext, at: Bounds<Pixels>) -> Vec<String> {
+    visual.update(|window, _| {
+        let scale = window.scale_factor();
+        window
+            .painted_quads()
+            .iter()
+            .filter(|quad| {
+                let b = quad.bounds;
+                let center = gpui::point(
+                    px((b.origin.x.0 + b.size.width.0 / 2.0) / scale),
+                    px((b.origin.y.0 + b.size.height.0 / 2.0) / scale),
+                );
+                at.contains(&center)
+            })
+            .map(|quad| format!("{:?} {:?}", quad.background, quad.border_color))
+            .collect()
+    })
+}
+
+#[gpui::test]
+fn a_blocked_control_draws_the_same_held_as_hovered(cx: &mut TestAppContext) {
+    install(cx, Appearance::Dark);
+    let (_, visual) = crate::test_support::window_view(cx, |_, _| Presses);
+    settle(visual);
+    for name in FRAMES {
+        for refused in [false, true] {
+            let selector = crate::interned::intern(&format!("{name}-{refused}"));
+            let at = visual
+                .debug_bounds(selector)
+                .unwrap_or_else(|| panic!("no {selector} was drawn"));
+            let center = at.center();
+            visual.simulate_mouse_move(center, None::<MouseButton>, Modifiers::none());
+            settle(visual);
+            let hovered = painted(visual, at);
+            visual.simulate_mouse_down(center, MouseButton::Left, Modifiers::none());
+            settle(visual);
+            let held = painted(visual, at);
+            visual.simulate_mouse_up(center, MouseButton::Left, Modifiers::none());
+            settle(visual);
+            assert!(!hovered.is_empty(), "the {selector} paints no quad");
+            if refused {
+                assert_eq!(held, hovered, "a blocked {name} changes while held");
+            } else {
+                assert_ne!(
+                    held, hovered,
+                    "a live {name} draws no press, so a blocked one's cannot be told apart"
+                );
+            }
+        }
+    }
 }

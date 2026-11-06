@@ -84,12 +84,12 @@ pointer is hidden and confined during the drag and reappears where the drag
 started.
 
 A button press dims the button to 92 % opacity and darkens its plate. A
-disabled control is drawn at 40 % opacity, keeps the arrow cursor, and states
-the reason in its tooltip. Every icon-only control has a tooltip naming the
-action and its chord, shown after 400 ms and hidden on press. After a press the
-tooltip stays hidden until the pointer leaves the control. A tooltip that
-states more than a name sets it on a dimmed line under the name, and wraps at
-280 px.
+disabled control is drawn at 40 % opacity, keeps the arrow cursor, draws no
+change when pressed, and states the reason in its tooltip. Every icon-only
+control has a tooltip naming the action and its chord, shown after 400 ms and
+hidden on press. After a press the tooltip stays hidden until the pointer
+leaves the control. A tooltip that states more than a name sets it on a
+dimmed line under the name, and wraps at 280 px.
 
 An icon control draws no plate at rest: its glyph stands in muted text on the
 surface, and a wash fades in under the pointer. A toggle that is on, an armed
