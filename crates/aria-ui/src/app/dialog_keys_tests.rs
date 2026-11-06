@@ -154,7 +154,11 @@ fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
             }
             opened[at] += 1;
             for (id, chord) in &chords {
-                edit(&state, visual, |state| state.status_message = None);
+                // A notifying edit redraws the whole shell; clear only a
+                // status a press set, since an unset one is already `None`.
+                if visual.read(|app| state.read(app).status_message.is_some()) {
+                    edit(&state, visual, |state| state.status_message = None);
+                }
                 let before = visual.read(|app| behind(state.read(app)));
                 press(visual, chord);
                 let after = visual.read(|app| behind(state.read(app)));

@@ -158,28 +158,28 @@ fn declared() -> Vec<(&'static str, Reach)> {
         .collect()
 }
 
+/// One measurement, three claims held against it.
+///
+/// `reached()` presses every registry, which is most of this file's cost.
+/// nextest runs each test in its own process, so three tests reading it paid
+/// for it three times; one test reads it once and reports every claim's
+/// failures together.
 #[test]
-fn a_command_something_sends_is_not_declared_unreachable() {
-    // The strong direction: this is measured, not described. A row saying
-    // nothing reaches it, while a table reaches it, is a false row.
+fn the_measured_reach_agrees_with_every_declared_row() {
     let reached = reached();
-    let wrong: Vec<&str> = declared()
-        .into_iter()
-        .filter(|(label, reach)| !reach.is_operator() && reached.contains(*label))
-        .map(|(label, _)| label)
-        .collect();
-    assert!(
-        wrong.is_empty(),
-        "these commands declare no operator surface and are sent by a palette \
-         row, a menu row or a chord: {wrong:?}"
-    );
-}
-
-#[test]
-fn every_operator_row_is_sent_by_its_claimed_surface() {
-    let reached = reached();
+    let declared = declared();
     let mut wrong = Vec::new();
-    for (label, reach) in declared() {
+    // The strong direction: this is measured, not described. A row stating
+    // that nothing reaches it, while a table reaches it, is a false row.
+    for (label, reach) in &declared {
+        if !reach.is_operator() && reached.contains(label) {
+            wrong.push(format!(
+                "{label} declares no operator surface and is sent by a palette row, \
+                 a menu row, a chord or a drawn registry"
+            ));
+        }
+    }
+    for (label, reach) in &declared {
         let Some(surface) = reach.surface() else {
             continue;
         };
@@ -194,13 +194,24 @@ fn every_operator_row_is_sent_by_its_claimed_surface() {
         }
     }
     for word in TABLE_CLAIMS {
-        let matched = declared()
+        if !declared
             .iter()
-            .any(|(_, reach)| reach.surface().is_some_and(|s| s.contains(word)));
-        assert!(
-            matched,
-            "TABLE_CLAIMS entry {word:?} is not claimed by any command in the registry"
-        );
+            .any(|(_, reach)| reach.surface().is_some_and(|s| s.contains(word)))
+        {
+            wrong.push(format!(
+                "TABLE_CLAIMS entry {word:?} is not claimed by any command in the registry"
+            ));
+        }
+    }
+    // Why the census watches dispatch instead of history: saving asks for a
+    // command and writes no history entry, so a history-based census reports it
+    // as unreached. If this fails, the harness has gone back to measuring edits
+    // only.
+    if !reached.contains("Save project") {
+        wrong.push("a saving surface is no longer observed".into());
+    }
+    if super::reach_tests::measured().contains("Save project") {
+        wrong.push("saving now writes history, so the dispatch comparison proves nothing".into());
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
@@ -248,22 +259,5 @@ fn the_driven_surfaces_reach_something() {
     assert!(
         !chord_dispatches().is_empty(),
         "no shipped chord sends a command"
-    );
-}
-
-#[test]
-fn the_measured_surfaces_cover_more_than_the_history_list_can_see() {
-    // Why the census watches dispatch instead of history: saving asks for a
-    // command and writes no history entry, so a history-based census reports it
-    // as unreached. If this ever fails, the harness has quietly gone back to
-    // measuring edits only.
-    let reached = reached();
-    assert!(
-        reached.contains("Save project"),
-        "a saving surface is no longer observed"
-    );
-    assert!(
-        !super::reach_tests::measured().contains("Save project"),
-        "saving now writes history, so this comparison proves nothing"
     );
 }
