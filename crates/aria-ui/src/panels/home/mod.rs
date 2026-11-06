@@ -10,6 +10,8 @@
 //! any panel is drawn, and is written from the menu bar, so it lives in
 //! [`crate::app::recents`]. Home draws what the state hands it.
 
+#[cfg(test)]
+mod banner_tests;
 mod cards;
 #[cfg(test)]
 mod layout_tests;

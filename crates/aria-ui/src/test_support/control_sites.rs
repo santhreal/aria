@@ -128,10 +128,6 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 0,
     },
     Forwarder {
-        name: "banner_action",
-        arg: 0,
-    },
-    Forwarder {
         name: "reorder_button",
         arg: 0,
     },

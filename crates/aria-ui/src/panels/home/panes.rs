@@ -82,16 +82,20 @@ pub(super) fn recovery_banner(
             .border_color(theme.accent)
             .child(div().flex_1().text_size(Theme::TEXT_UI).child(line))
             .child(banner_action(
-                crate::motion::MotionKey::new("recovery", "restore"),
-                "Restore",
-                theme,
+                crate::components::button(
+                    crate::motion::MotionKey::new("recovery", "restore"),
+                    "Restore",
+                    theme,
+                ),
                 cx,
                 |state| press(state, Pick::RestoreRecovery),
             ))
             .child(banner_action(
-                crate::motion::MotionKey::new("recovery", "discard"),
-                "Discard",
-                theme,
+                crate::components::ghost_button(
+                    crate::motion::MotionKey::new("recovery", "discard"),
+                    "Discard",
+                    theme,
+                ),
                 cx,
                 |state| press(state, Pick::DiscardRecovery),
             )),

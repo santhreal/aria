@@ -328,16 +328,14 @@ fn recent_card(
     .into_any_element()
 }
 
-/// A small action on a Home banner: a ghost button that runs one Home row, its
-/// press stopping at it.
+/// An action on a Home banner: `button`, built by the caller at the weight its
+/// action has, running one Home row, its press stopping at it.
 pub(super) fn banner_action(
-    key: motion::MotionKey,
-    label: &'static str,
-    theme: &Theme,
+    button: gpui::Stateful<gpui::Div>,
     cx: &mut gpui::Context<crate::shell::Shell>,
     action: impl Fn(&mut AppState) + 'static,
 ) -> gpui::Stateful<gpui::Div> {
-    crate::components::ghost_button(key, label, theme).on_mouse_down(
+    button.on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();
