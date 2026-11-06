@@ -1365,6 +1365,7 @@ Notes for the latest release. For previous releases, see the
 - Add Keyframe where every selected property is already keyed with its value at the playhead, and Bezier, Hold or Easy Ease on keyframes that already have that easing, are disabled instead of recording an undo step that changes nothing.
 - Hold written over a held keyframe no longer resets its easing handles, so releasing Hold restores the easing the keyframe had before.
 - Move Track Up and Move Track Down past the end of a lane's part of the stack, Open Gap and Close Gap on a track with no clip at or after the playhead, Reset Transform on a clip at the default transform, and the checked lane height now record no undo step, the context menu and the palette offer those rows only when they act, and the Transform reset in Effect Controls is drawn blocked over a clip at the default transform.
+- A key pressed behind an open dialog that the dialog does not use no longer redraws the window.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -379,15 +379,16 @@ impl Shell {
         }
 
         // A dialog that is up owns the keyboard: a key its boxes and Enter did
-        // not take is dropped, never sent to a binding behind it. Escape closes
-        // the dialog on Home as it does in the editor.
+        // not take is dropped, never sent to a binding behind it, and changes
+        // nothing to draw. Escape closes the dialog on Home as it does in the
+        // editor.
         if self.state.read(cx).dialog != DialogKind::None {
             if key == "escape" && !ctrl {
                 self.state
                     .update(cx, |state, _| state.open_dialog(DialogKind::None));
+                cx.notify();
             }
             cx.stop_propagation();
-            cx.notify();
             return;
         }
 

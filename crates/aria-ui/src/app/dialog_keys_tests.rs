@@ -14,6 +14,9 @@
 //!   each binding's chord goes through the shell's key handler. Dialogs and
 //!   bindings are read from their registries at run time, so a new dialog or a
 //!   new binding is covered by construction.
+//! - A chord the dialog drops with no box focused draws no frame. The shell
+//!   once redrew the whole window for every dropped key, so a held key behind
+//!   a dialog laid the window out again on each repeat.
 //! - Every route off Settings ends a capture armed there, including a direct
 //!   write of the dialog field that no close path reaches: the next key is a
 //!   key, not a chord.
@@ -118,6 +121,21 @@ fn edit(
     });
 }
 
+/// Flush until an update draws nothing. A dialog's first frame can dirty the
+/// window again (a focus move, a size read in paint), and the next update
+/// draws that frame, which would count against the first chord.
+fn settle(visual: &mut VisualTestContext) {
+    for _ in 0..8 {
+        let opened = crate::motion::frames::opened();
+        visual.update(|_, _| {});
+        visual.run_until_parked();
+        if crate::motion::frames::opened() == opened {
+            return;
+        }
+    }
+    panic!("the window still draws a frame after 8 updates");
+}
+
 /// Enter and Escape are a dialog's own keys: Enter runs its primary action and
 /// Escape closes it, so they are not leaks.
 fn dialog_key(chord: &Chord) -> bool {
@@ -131,7 +149,16 @@ fn dialog_key(chord: &Chord) -> bool {
 #[gpui::test]
 fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "dialog-keys-census");
+    // The codec probe the Export sheet starts on opening answers on a thread
+    // of its own and redraws the window when it lands. Answered first, the
+    // sheet starts nothing, so every frame below is one a chord drew.
+    aria_encoder::available_codecs();
     let kinds = registered_kinds(&state, visual);
+    // The first key down moves the window from mouse to keyboard input
+    // modality, and the window redraws for that switch. A free key spends the
+    // frame before any chord is counted.
+    press(visual, &Chord::plain(super::rebind::tests::free_key()));
+    settle(visual);
     let chords: Vec<(&str, Chord)> = SHIPPED_BINDINGS
         .iter()
         .filter(|binding| !dialog_key(&binding.chord))
@@ -148,6 +175,9 @@ fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
                 }
                 state.open_dialog(kind);
             });
+            // The frames that draw the dialog land before the first chord, so
+            // every frame counted below is one a chord drew.
+            settle(visual);
             // Home opens only the dialogs it draws; the rest are refused there.
             if visual.read(|app| state.read(app).dialog) != kind {
                 continue;
@@ -158,14 +188,25 @@ fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
                 // status a press set, since an unset one is already `None`.
                 if visual.read(|app| state.read(app).status_message.is_some()) {
                     edit(&state, visual, |state| state.status_message = None);
+                    settle(visual);
                 }
                 let before = visual.read(|app| behind(state.read(app)));
+                // A focused box takes printable keys as text and redraws its
+                // caret; a key nothing takes is dropped and draws nothing.
+                let typed =
+                    visual.read(|app| crate::keys::fields::focused(state.read(app)).is_some());
+                let opened = crate::motion::frames::opened();
                 press(visual, chord);
                 let after = visual.read(|app| behind(state.read(app)));
                 assert_eq!(
                     after,
                     before,
                     "{id} ({}) ran behind {kind:?} on {route:?}",
+                    chord.label()
+                );
+                assert!(
+                    typed || crate::motion::frames::opened() == opened,
+                    "{id} ({}) was dropped by {kind:?} on {route:?} and redrew the window",
                     chord.label()
                 );
             }

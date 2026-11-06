@@ -206,6 +206,11 @@ pub(crate) mod frames {
         CEILING.set(more.map(|more| OPENED.get() + more));
     }
 
+    /// The frames this thread has opened.
+    pub(crate) fn opened() -> usize {
+        OPENED.get()
+    }
+
     pub(super) fn open() {
         let opened = OPENED.get() + 1;
         OPENED.set(opened);
