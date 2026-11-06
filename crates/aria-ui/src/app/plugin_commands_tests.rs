@@ -309,6 +309,13 @@ fn plugin_commands_drive_editor_transport_and_project_session_through_shared_ser
     assert_eq!(state.last_error, None);
     assert_eq!(state.project_path.as_deref(), Some(first_path.as_path()));
 
+    // An empty sequence refuses to play, so the transport drive needs a clip.
+    crate::app::premiere_tests::place_media(
+        &mut state,
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/texture.png"),
+    );
+
     // Drive transport (`play`, `seek`, `stop`) from a plugin command and verify `AppState` and `EditorView`.
     let _transport_cmd = state
         .ctx

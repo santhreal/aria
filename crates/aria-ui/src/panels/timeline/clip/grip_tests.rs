@@ -232,8 +232,9 @@ fn pressing_a_linked_clip_line_or_right_clicking_puts_that_clip_first_and_shift_
     });
     visual.run_until_parked();
 
-    // Shift-clicking V1's line toggles V1 out of and back into the selection,
-    // matching shift-click on the name band.
+    // Shift-clicking V1's line toggles the linked pair out of and back into the
+    // selection, as shift-click on the clip body does while linked selection
+    // is on; the pressed clip comes back first.
     let shift = Modifiers {
         shift: true,
         ..Modifiers::none()
@@ -243,7 +244,11 @@ fn pressing_a_linked_clip_line_or_right_clicking_puts_that_clip_first_and_shift_
     visual.run_until_parked();
     visual.read(|app| {
         let s = state.read(app);
-        assert_eq!(s.selection, vec![a1_clip]);
+        assert!(
+            s.linked_selection,
+            "the pair toggles together only while linked"
+        );
+        assert_eq!(s.selection, Vec::<ClipId>::new());
     });
 
     visual.simulate_mouse_down(v1_line, MouseButton::Left, shift);
@@ -251,6 +256,6 @@ fn pressing_a_linked_clip_line_or_right_clicking_puts_that_clip_first_and_shift_
     visual.run_until_parked();
     visual.read(|app| {
         let s = state.read(app);
-        assert_eq!(s.selection, vec![a1_clip, v1_clip]);
+        assert_eq!(s.selection, vec![v1_clip, a1_clip]);
     });
 }

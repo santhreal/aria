@@ -20,14 +20,18 @@ use crate::scratch_pool::scratch;
 use crate::types::{ActivePanel, SidebarTab};
 use aria_plugin::PluginContext;
 
-/// A pool with one still in it, selected, and the sidebar on its Media tab.
+/// A pool with one still in it, placed on the timeline so Space has a sequence
+/// to play, selected in the pool, and the sidebar on its Media tab.
 fn with_selection() -> AppState {
     let mut state = AppState::new(PluginContext::new(), scratch("panel-focus")).expect("state");
     state.new_project().expect("project");
     let still = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/texture.png");
-    let media = state.import_media(still).expect("import").raw();
-    state.select_pool_item(media);
+    let media = state.import_media(still).expect("import");
+    state
+        .drop_media_on_timeline(media, None, 0)
+        .expect("place the still");
+    state.select_pool_item(media.raw());
     state.sidebar_tab = SidebarTab::Media;
     state
 }

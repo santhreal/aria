@@ -107,7 +107,7 @@ fn space_over_the_pool_loads_the_selection_and_puts_it_away_again() {
 }
 #[test]
 fn space_elsewhere_is_transport_and_returns_the_pane_to_the_sequence() {
-    let (mut state, _media) = with_selection();
+    let (mut state, _media) = with_placed_selection();
     state.space();
     assert!(state.sources.focused().is_some());
 
@@ -122,7 +122,7 @@ fn space_elsewhere_is_transport_and_returns_the_pane_to_the_sequence() {
 }
 #[test]
 fn opening_the_monitor_stops_playback() {
-    let (mut state, _media) = with_selection();
+    let (mut state, _media) = with_placed_selection();
     state.active_panel = ActivePanel::Timeline;
     state.space();
     assert!(state.playing);

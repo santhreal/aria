@@ -35,6 +35,17 @@ fn with_selection() -> (AppState, u64) {
     state.active_panel = ActivePanel::Media;
     (state, id)
 }
+/// [`with_selection`] with the still placed on the timeline too, for a press
+/// that plays the sequence: an empty sequence refuses to play.
+fn with_placed_selection() -> (AppState, u64) {
+    let (mut state, media) = with_selection();
+    state
+        .drop_media_on_timeline(aria_models::MediaId::from_raw(media), None, 0)
+        .expect("place the still");
+    state.select_pool_item(media);
+    state.active_panel = ActivePanel::Media;
+    (state, media)
+}
 // --- source marks and cutting in ---------------------------------------------
 
 /// A monitor open on the still, and the tick it is parked on.

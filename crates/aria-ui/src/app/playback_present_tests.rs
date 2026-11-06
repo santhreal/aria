@@ -291,7 +291,14 @@ async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
         visual.update(|window, app| {
             state.update(app, |state, cx| {
                 state.go_home();
-                state.save_project().expect("clean session on Home");
+                // An untitled session has no path to save to, so it is saved to
+                // one: a dirty session would stop the Home pick at a prompt.
+                state
+                    .save_project_to(
+                        crate::scratch_pool::scratch("vsync-sample-save")
+                            .join(format!("{label}.aria")),
+                    )
+                    .expect("clean session on Home");
                 match label {
                     "open_sample_project" => {
                         crate::surfaces::home_pick::apply(

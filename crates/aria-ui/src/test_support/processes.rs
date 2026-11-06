@@ -6,7 +6,7 @@ use super::collect_rs;
 
 /// A file allowed to start another program, and why.
 ///
-/// Eight entries and a self-reference. Everything else that trips this is a
+/// Nine entries and a self-reference. Everything else that trips this is a
 /// defect: a second spawn site is a second policy, and the policy here is
 /// that a launch needs the application's permission.
 const SPAWN_OWNERS: &[(&str, &str)] = &[
@@ -47,6 +47,11 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
         "runs the `aria-desktop` binary this crate builds with no display server and \
          reads its exit status and what it prints; startup is only observable from a \
          separate process",
+    ),
+    (
+        "crates/aria-render/tests/export_sound.rs",
+        "reads an exported file back through ffprobe and ffmpeg, a decoder outside \
+         the pipeline under test, so an encoder defect cannot hide in its own reader",
     ),
     (
         "crates/aria-ui/src/test_support/processes.rs",

@@ -653,6 +653,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "benchmark fixture identifier internal to aria-bench",
         ),
         (
+            "JobKind",
+            "internal job category in aria-jobs; a Jobs row shows the kind's verb in its title, never the kind's name",
+        ),
+        (
             "ScenarioId",
             "benchmark scenario identifier internal to aria-bench",
         ),
