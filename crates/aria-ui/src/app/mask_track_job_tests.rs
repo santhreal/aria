@@ -370,8 +370,8 @@ fn a_track_lands_on_its_mask_when_the_stack_shifts_while_it_runs() {
 
 #[test]
 fn a_track_whose_mask_is_gone_or_reshaped_writes_nothing_and_says_so() {
-    // Writing to whatever sits nearest would put a moving center on a mask the
-    // operator drew elsewhere or redrew; a refusal costs one more pass.
+    // Writing to whatever sits nearest would put a moving center on a mask
+    // drawn elsewhere or redrawn; a refusal costs one more pass.
     let path: fn(&mut AppState) = |state| as_path(state, &SQUARE, true);
     let cases: [(&str, fn(&mut AppState), fn(&mut AppState)); 6] = [
         (

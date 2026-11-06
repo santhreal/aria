@@ -7,8 +7,8 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the project canvas; the inverse restores the prior settings. An explicit
-/// `resolution` is refused here rather than clamped: a delivery size the
-/// operator typed is either the one they meant or a mistake worth naming, and
+/// `resolution` is refused here rather than clamped: a typed delivery size is
+/// either the intended one or a mistake worth naming, and
 /// every later stage (preview, export, compositor) then trusts the stored size.
 pub(crate) fn set_canvas(
     ctx: &mut ApplyContext<'_>,

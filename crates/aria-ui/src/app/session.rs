@@ -82,7 +82,7 @@ impl AppState {
             // The structure is readable either way — what is missing is the
             // media it points at — so this falls through to the load that
             // skips resolution rather than repeating what it does, and the
-            // operator is told which sources did not resolve.
+            // reported error states which sources did not resolve.
             Err(EngineError::MissingMedia(missing)) => {
                 self.load_project(path)?;
                 self.report_error(EngineError::MissingMedia(missing));

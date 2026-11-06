@@ -227,9 +227,9 @@ pub mod portable {
     /// What an error names when the input is a byte slice with no path.
     pub(super) const BYTES_CTX: &str = "embedded image";
 
-    /// The refusal a `None` decoder column produces, naming the container so an
-    /// operator learns which format this build cannot read rather than that
-    /// "the image failed".
+    /// The refusal a `None` decoder column produces, naming the container so the
+    /// error states which format this build cannot read rather than that "the
+    /// image failed".
     fn unsupported(ctx: &str, format: ImageFormat) -> DecodeError {
         DecodeError::unsupported(format!(
             "{ctx}: no portable decoder for {} stills on this platform",

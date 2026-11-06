@@ -457,8 +457,8 @@ fn run_transcription(
 
 /// Persist the transcript as one analyzer batch.
 ///
-/// A failure here fails the run: a transcript the index silently dropped is one the
-/// operator would keep re-measuring, and the sentence names the index so the cause is
+/// A failure here fails the run: a transcript the index silently dropped would
+/// be measured again on every run, and the sentence names the index so the cause is
 /// the disk rather than the model.
 fn store_transcript(
     index: &MomentsIndex,

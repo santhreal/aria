@@ -1,8 +1,8 @@
 //! Nested sequences driven through the editor's controls.
 //!
 //! Defect class these close: three commands (`CreateNestedSequence`,
-//! `PlaceNestedSequence`, `OpenSequence`) declared themselves reachable by the
-//! operator and no surface sent any of them. A nest could exist in a project
+//! `PlaceNestedSequence`, `OpenSequence`) declared themselves reachable from
+//! the editor and no surface sent any of them. A nest could exist in a project
 //! and there was no way to open it, leave it, or place a second copy. So the
 //! cases are: nesting replaces the selection with one clip that names its
 //! sequence; opening a nest swaps the timeline under the editor and the

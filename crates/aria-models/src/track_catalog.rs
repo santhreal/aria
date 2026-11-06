@@ -95,8 +95,8 @@ pub struct TrackKindSpec {
     /// column, and implicit cleanup leaves such a lane alone when it is empty,
     /// because empty is what it always is.
     pub is_bus: bool,
-    /// Whether an assistant may create a lane of this kind. The lanes an
-    /// operator builds a sequence out of, plus the buses they mix into; the
+    /// Whether an assistant may create a lane of this kind. The lanes a
+    /// sequence is built out of, plus the buses they mix into; the
     /// canvas-wide effect, filter and adjustment lanes are applied to clips
     /// instead, so an assistant has no reason to add one.
     pub agent_creates: bool,

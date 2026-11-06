@@ -1,8 +1,8 @@
 //! When a loader is allowed to appear.
 //!
 //! A wait that resolves in forty milliseconds and a wait that never resolves
-//! both used to show a spinner on the first frame, so the fast one flashed: the
-//! operator saw something start and stop with no time to read it, which reads as
+//! both used to show a spinner on the first frame, so the fast one flashed:
+//! something started and stopped with no time to read it, which reads as
 //! a glitch rather than as work. Every loader now asks first.
 //!
 //! The age comes from the eased-geometry store's [`glide::since`], which already

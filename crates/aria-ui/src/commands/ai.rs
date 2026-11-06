@@ -8,8 +8,8 @@
 //! Two of these rows open Settings with its filter already set rather than
 //! performing the work. That is deliberate and not a placeholder: choosing a
 //! model and testing a key are *controls* — a list to pick from and a button with
-//! a result line — and a palette row that fired them blind would give the
-//! operator no way to read the answer. The row is the name; the pane is the
+//! a result line — and a palette row that fired them blind would leave no
+//! place to read the answer. The row is the name; the pane is the
 //! control. `AI_JOB_ROWS` holds the two that can be fired directly, because
 //! they need the entity context to start a request.
 

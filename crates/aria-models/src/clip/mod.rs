@@ -187,8 +187,8 @@ pub struct Clip {
     /// linear gain ramp `volume` → 0. Absent from saves while 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub fade_out: i64,
-    /// Organizational label color (Premiere label colors): a hue the
-    /// operator assigns so related clips read as a group. Purely visual and
+    /// Organizational label color (Premiere label colors): a hue assigned so
+    /// related clips read as a group. Purely visual and
     /// render-neutral — the timeline and the inspector draw it, nothing
     /// composites it. `None` (and absent from saves) means the clip takes the
     /// default label of its kind, so old files load unchanged; a label saved

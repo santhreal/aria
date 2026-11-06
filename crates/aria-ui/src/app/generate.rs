@@ -147,9 +147,9 @@ impl AppState {
 
     /// Submit the prompt as a job.
     ///
-    /// Refused, by name, when there is no prompt or no key: both are things the
-    /// operator fixes in one step, and a queued job that fails for either reason costs
-    /// a round trip to say the same thing.
+    /// Refused, by name, when there is no prompt or no key: each is fixed in
+    /// one step, and a queued job that fails for either reason costs a round
+    /// trip to say the same thing.
     pub fn submit_generation(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
         let (prompt, key) = self.generation_precheck()?;
 

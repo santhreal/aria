@@ -1,14 +1,14 @@
 //! Contracts for the clip card name.
 //!
-//! The class closed here is "the card name is derived from the source, so the
-//! operator cannot say what a clip is". A name has to outrank the derived one,
+//! The class closed here is "the card name is derived from the source, so no
+//! card states what a clip is". A name has to outrank the derived one,
 //! survive a save, undo like any other edit, and be clearable back to the
 //! derived name — that last one is the case a plain `String` field would get
 //! wrong.
 //!
 //! The derived name is the source's own: the file a media clip places, as the
-//! pool lists it, and the group a multicam clip cuts between. An id the
-//! operator never sees anywhere else is not a name.
+//! pool lists it, and the group a multicam clip cuts between. An id that no
+//! other surface draws is not a name.
 //!
 //! Not covered: the double-click that opens the draft, which needs a render
 //! surface. The draft itself is exercised through `begin_rename`, typing into

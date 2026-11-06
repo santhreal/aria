@@ -21,8 +21,8 @@ impl AppState {
     /// field, so the untouched ones are resent from the project rather than
     /// defaulted — otherwise picking an aspect would reset the background.
     ///
-    /// An explicit size is reshaped, not dropped: the delivery baseline the
-    /// operator chose survives a change of shape. Picking `Auto` clears it,
+    /// An explicit size is reshaped, not dropped: the chosen delivery baseline
+    /// survives a change of shape. Picking `Auto` clears it,
     /// because following the footage is exactly what `Auto` means, and so does a
     /// reshape that would leave the canvas unencodable (a very wide preset at a
     /// very tall baseline) — losing the size beats refusing the aspect.

@@ -70,8 +70,8 @@ impl AppState {
     /// already occupied there, in which case the group gets a lane of its own on
     /// top. A placement is an add rather than a ripple or an overwrite, so the
     /// alternative is a button that refuses on any full timeline, and a group
-    /// that arrives beside the material it is meant to replace is what an
-    /// operator can act on.
+    /// that arrives beside the material it is meant to replace is one the next
+    /// edit can act on.
     pub fn place_multicam_group(&mut self, group: MulticamGroupId) -> Result<(), EngineError> {
         let source = {
             let engine = self.engine.lock();
@@ -133,7 +133,7 @@ impl AppState {
     /// Move one angle by `frames` frames of the sequence rate.
     ///
     /// The offset it moves from is the projected one, which is the value the
-    /// operator is looking at: reading it back out of the engine would let a
+    /// sidebar draws: reading it back out of the engine would let a
     /// nudge act on a state the sidebar never drew.
     pub fn nudge_multicam_angle_offset(
         &mut self,

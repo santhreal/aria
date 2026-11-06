@@ -45,8 +45,8 @@ struct Row {
 /// latest camera's end. Two strips drawn one above the other are therefore two
 /// pictures of the same stretch of time, and an offset that is wrong reads as
 /// sound that does not line up. Cutting each strip to its own file instead
-/// would draw every camera as if it started on time, which is the thing the
-/// operator is trying to see.
+/// would draw every camera as if it started on time, which hides the offset
+/// the strip exists to show.
 fn rows(state: &AppState, group: &crate::types::UiMulticamGroup, fps: f64) -> Vec<Row> {
     let count = (STRIP_W / BAR_W) as usize;
     let placed: Vec<(f64, Option<f64>)> = group

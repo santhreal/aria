@@ -352,8 +352,8 @@ impl AppState {
 
     /// Cut the selected clip with the lane above, reading `source`.
     ///
-    /// Seeds a soft edge of zero: a hard cut is what a matte means before the
-    /// operator asks for a falloff.
+    /// Seeds a soft edge of zero: a hard cut is what a matte means until a
+    /// falloff is set.
     pub fn set_selected_matte_source(&mut self, source: MatteSource) -> Result<(), EngineError> {
         let Some(model) = self.selected_model() else {
             return Ok(());

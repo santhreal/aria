@@ -79,8 +79,8 @@ fn every_menu_row_is_offered_by_name() {
     state.open_dialog(DialogKind::Palette);
     let catalog = state.palette_catalog();
     let offered: Vec<&str> = catalog.iter().map(|offer| offer.label.as_str()).collect();
-    // The catalog folds rows that differ only in case into one, as the
-    // operator reads them as one; "New project" offers "New Project".
+    // The catalog folds rows that differ only in case into one, as they read
+    // as one; "New project" offers "New Project".
     let offers = |name: &str| offered.iter().any(|each| each.eq_ignore_ascii_case(name));
     for (menu, label, captioned) in menu_rows(&state) {
         assert!(

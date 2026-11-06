@@ -52,8 +52,8 @@ fn a_second_modified_click_drops_the_item_it_added() {
 
 #[test]
 fn dropping_the_anchor_leaves_a_span_a_selected_item_to_run_from() {
-    // A span from an unselected anchor would pick a run starting nowhere the
-    // operator can see.
+    // A span from an unselected anchor would pick a run starting at an item
+    // the pool does not draw as selected.
     let mut selection = PoolSelection::default();
     selection.toggle(10);
     selection.toggle(30);

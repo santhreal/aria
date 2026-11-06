@@ -151,8 +151,8 @@ impl AppState {
     /// Apply (or replace) a transition at this clip's right junction.
     ///
     /// Declines an unknown id, a junction that cannot carry one, and a
-    /// transition of the other kind: a stale surface must not raise an error the
-    /// operator did not cause, and it must not swallow the press either, so each
+    /// transition of the other kind: a stale surface must not raise an error
+    /// no edit caused, and it must not swallow the press either, so each
     /// case names itself in the status line.
     pub fn set_clip_transition(
         &mut self,

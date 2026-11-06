@@ -95,8 +95,8 @@ fn spans(state: &AppState) -> Vec<(i64, i64)> {
 /// against a projection that had stopped reading paths at all. What the dressing
 /// has to work around is the revision gate: the pool is rebuilt when the project
 /// changes, so a file that disappears behind a settled state stays drawn as
-/// online until the next edit. The next import is that edit, and it is what an
-/// operator does after losing a card.
+/// online until the next edit. The next import is that edit, and it is the
+/// next step after losing a card.
 fn with_offline_card() -> (AppState, u64) {
     let dir = crate::scratch_pool::scratch("pool-pick");
     let staged = dir.join("gone.mp4");

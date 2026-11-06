@@ -246,7 +246,7 @@ pub(crate) mod bins;
 #[path = "sidebar_clip_types.rs"]
 mod clip_types;
 /// What follows the pointer during a catalog drag: the entry's own name, so the
-/// operator can see which preset they are carrying over a dense timeline.
+/// ghost states which preset is being carried over a dense timeline.
 ///
 /// It carries no theme. A ghost is built inside the drag closure, where the
 /// caller has only a borrow, and it renders with a context of its own — so it

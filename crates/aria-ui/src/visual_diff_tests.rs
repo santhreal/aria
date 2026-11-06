@@ -228,9 +228,9 @@ fn snapshot_diff_refuses_a_reshaped_picture() {
     );
 }
 
-/// Blessing is opt-in, and this is the name the failure message tells an
-/// operator to set. A rename that left the message behind would send them to a
-/// variable that does nothing.
+/// Blessing is opt-in, and this is the variable the failure message prints. A
+/// rename that left the message behind would print a variable that does
+/// nothing.
 ///
 /// Not run while blessing: under that variable `check` writes the picture
 /// instead of refusing it, which would leave a reference no case claims — the

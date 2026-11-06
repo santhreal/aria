@@ -61,9 +61,9 @@ struct Blocks<'a> {
 
 /// Build one table into elements.
 ///
-/// The facts are copied into each row's listener, so a click acts on the menu the
-/// operator opened rather than on whatever the session holds by the time they
-/// reach for it. An engine refusal is reported here, once: forty rows cannot
+/// The facts are copied into each row's listener, so a click acts on the menu
+/// that was opened rather than on whatever the session holds by the time the
+/// click lands. An engine refusal is reported here, once: forty rows cannot
 /// disagree about whether a refused edit is announced.
 ///
 /// A [`MenuItem::Rule`] is held until the next entry that draws something and

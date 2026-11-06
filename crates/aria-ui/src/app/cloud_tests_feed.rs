@@ -246,8 +246,8 @@ fn the_search_box_edits_the_query_only_while_it_holds_focus() {
 }
 #[test]
 fn changing_the_kind_drops_results_that_answered_the_previous_one() {
-    // Leaving video clips under a Photo chip is worse than an empty panel: the
-    // operator would import the wrong kind.
+    // Leaving video clips under a Photo chip is worse than an empty panel: a
+    // click on a card would import the wrong kind.
     let (mut state, _) = with_clip();
     assert_eq!(state.stock_kind, StockKind::Video, "video is the default");
 

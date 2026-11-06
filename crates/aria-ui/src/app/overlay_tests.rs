@@ -234,8 +234,8 @@ fn each_mask_drag_moves_only_what_it_names() {
 }
 
 /// A crop gesture is one edit: the moves build a draft, the release commits it,
-/// and the preview shows the uncropped frame while the handles are moving so the
-/// operator cuts into a picture they can see.
+/// and the preview shows the uncropped frame while the handles are moving so
+/// the cut is made into a visible picture.
 #[test]
 fn a_crop_drag_is_one_edit_and_previews_the_uncropped_frame() {
     let (mut state, _) = with_clip();

@@ -222,8 +222,8 @@ fn the_census_reaches_every_picture_command() {
     }
 }
 
-/// A pick made while nothing is selected is a state the window can be in: the
-/// operator clicked as the selection was replaced. It is not an error and it is
+/// A pick made while nothing is selected is a state the window can be in: a
+/// click landed as the selection was replaced. It is not an error and it is
 /// not an undo entry.
 #[test]
 fn a_pick_with_nothing_selected_is_inert() {

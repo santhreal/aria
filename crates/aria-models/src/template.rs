@@ -8,8 +8,8 @@
 //!
 //! - A replaceable clip keeps its **sample media**, so the template previews
 //!   exactly like the author's video.
-//! - [`apply`](Template::apply) fills the slots **in order** (the sequence the
-//!   user/agent picks media in) by swapping each slot's media while its locked
+//! - [`apply`](Template::apply) fills the slots **in order** (the order in
+//!   which the editor or an agent picks media) by swapping each slot's media while its locked
 //!   timeline duration, transform, effects, transitions, and animations are
 //!   preserved.
 //! - The customization surface ([`slots`](Template::slots),

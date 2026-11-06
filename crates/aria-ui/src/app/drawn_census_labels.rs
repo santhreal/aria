@@ -72,8 +72,8 @@ fn every_swatch_writes_a_label() {
 fn the_palette_offers_every_color_and_a_way_out() {
     // Fail by default on a new color: the palette is built from
     // `LabelColor::ALL`, so a color added to the model appears here without an
-    // edit, and a palette that stopped offering the clear would be a label an
-    // operator cannot take off.
+    // edit, and a palette that stopped offering the clear would leave a label
+    // no control can take off.
     let swatches: Vec<Option<LabelColor>> = labels::swatches().collect();
     assert_eq!(
         swatches.len(),

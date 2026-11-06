@@ -100,8 +100,8 @@ fn enter_on_the_export_sheet_runs_the_export() {
         Some(refusal.as_str()),
         "Enter must reach the same refusal the button reaches"
     );
-    // A refused export leaves no job behind, and the sheet stays up: the
-    // operator has something to fix and the sheet is where they fix it.
+    // A refused export leaves no job behind, and the sheet stays up: something
+    // needs fixing and the sheet is where it is fixed.
     assert_eq!(state.job_view.len(), rows);
     assert_eq!(state.dialog, DialogKind::Export);
 }

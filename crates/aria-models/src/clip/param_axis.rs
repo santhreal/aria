@@ -522,8 +522,8 @@ fn no_easing_preset(param: ClipParam) -> ModelError {
 /// Why a param command cannot write this parameter, and what does write it.
 ///
 /// Read off [`ClipParamClass`], exhaustively: a new exclusion states its own
-/// redirection here instead of falling into a generic refusal that tells an
-/// operator nothing about where the property is actually edited.
+/// redirection here instead of falling into a generic refusal that states
+/// nothing about where the property is actually edited.
 fn not_writable(param: ClipParam) -> ModelError {
     let why = match param.class() {
         ClipParamClass::Excluded(ParamExclusion::SpeedCurve) => {

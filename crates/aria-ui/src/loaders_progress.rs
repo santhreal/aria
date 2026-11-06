@@ -1,7 +1,7 @@
 //! The progress bar, determinate and not.
 //!
-//! A job that reports a fraction and a job that cannot are the same wait to the
-//! operator, so they get one element with two fills. The determinate fill is a
+//! A job that reports a fraction and a job that cannot are the same wait on
+//! screen, so they get one element with two fills. The determinate fill is a
 //! chased value: a render reports every few hundred frames, so the raw fraction
 //! arrives in visible jumps, and a bar that jumps reads as a bar that was stuck.
 //! The indeterminate fill shuttles at the loader clock's rate, and stops when the

@@ -1,8 +1,8 @@
 //! Inspector audio edits: volume, fades, reverse. Pan is a catalog property and
 //! is written by the generated row through `set_param_scalar`.
 //!
-//! Volume is stored as the linear multiplier a mixer applies and read by an
-//! operator in decibels, through [`Scale::Gain`], whose conversions come from
+//! Volume is stored as the linear multiplier a mixer applies and shown in
+//! decibels, through [`Scale::Gain`], whose conversions come from
 //! [`aria_analysis::gain`] rather than being spelled out here: a clip's gain, a
 //! normalization, and an export's headroom have to agree on what −6 dB means.
 

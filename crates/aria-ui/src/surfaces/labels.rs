@@ -1,8 +1,8 @@
 //! The label palette: what a swatch is, and what pressing one writes.
 //!
 //! A swatch is not a text row, so the panel owns the drawing. What it must not
-//! own is the action: a color click and a clear click are the only way an
-//! operator sets a label, and while both lived inside a gpui closure nothing
+//! own is the action: a color click and a clear click are the only controls
+//! that set a label, and while both lived inside a gpui closure nothing
 //! could check that either still wrote anything.
 
 use aria_engine::EngineError;

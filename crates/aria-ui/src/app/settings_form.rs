@@ -590,7 +590,7 @@ impl AppState {
     }
 
     /// Every line of the config file this build could not use, worded for the
-    /// operator.
+    /// Settings window.
     ///
     /// A dropped value keeps its default, which is right: a hand edit must not
     /// stop the editor opening. Dropping it silently is not, because the file

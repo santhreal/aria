@@ -4,8 +4,8 @@
 //! the property catalog, so animating one over a moving subject was possible and
 //! meant placing a keyframe on every frame. This walks the range once, correlates
 //! the patch under the mask from each frame to the next
-//! ([`aria_compositor::track_patch`]), and writes the center keyframes the
-//! operator would have placed.
+//! ([`aria_compositor::track_patch`]), and writes the center keyframes that
+//! hand tracking would have placed.
 //!
 //! Three rules the pass exists to keep:
 //!
@@ -212,8 +212,8 @@ pub(crate) fn walk_mask(
 ) -> (Vec<(RationalTime, [f32; 2])>, MaskTrackReport) {
     let mut report = MaskTrackReport::nothing();
     let mut keys = Vec::new();
-    // No first frame is no track: reporting nothing written is honest, and an
-    // operator sees the mask unchanged.
+    // No first frame is no track: reporting nothing written is honest, and the
+    // mask stays unchanged.
     let Some(mut previous) = frames.frame(walk.start) else {
         return (keys, report);
     };

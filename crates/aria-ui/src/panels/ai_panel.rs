@@ -66,8 +66,8 @@ pub fn render(
     let entries = state.read(cx).transcript.clone();
     let scroll = state.read(cx).assistant.scroll.clone();
     follow_newest(state, &scroll, cx);
-    // The handle again: a pending plan is drawn as a card every frame until the
-    // operator applies or drops it.
+    // The handle again: a pending plan is drawn as a card every frame until it
+    // is applied or dropped.
     let plan = state.read(cx).assistant.plan.clone();
     let asking = state
         .read(cx)

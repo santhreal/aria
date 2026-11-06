@@ -11,9 +11,14 @@
 //!
 //! "the user" stays legal under `crates/aria-ai/`, where it is the chat role a
 //! provider protocol defines ("the user prompt", "the user message") and the
-//! system prompt addresses the model in that vocabulary. Not caught: a persona
-//! phrased another way, such as "users", "the editor" meaning a person, or
-//! "you" in a comment.
+//! system prompt addresses the model in that vocabulary.
+//!
+//! A phrase wrapped across a line break is matched too: each line's last word
+//! is joined to the next line's first word once a leading `//!`, `///`, `//`
+//! or `*` is dropped. Forty-six wrapped comments passed the per-line match.
+//! Not caught: a persona phrased another way, such as "users", "the editor"
+//! meaning a person, or "you" in a comment, and a phrase split between two
+//! string literals.
 
 use std::path::Path;
 
@@ -54,6 +59,51 @@ fn banned_in(rel: &str, line: &str) -> Vec<&'static str> {
     found
 }
 
+/// The two words either side of the break between `line` and `next`, with the
+/// next line's comment marker and the current line's string continuation
+/// dropped, so a wrapped phrase reads as it would on one line.
+fn seam(line: &str, next: &str) -> String {
+    let next = next.trim_start();
+    let next = ["//!", "///", "//", "*"]
+        .into_iter()
+        .find_map(|marker| next.strip_prefix(marker))
+        .unwrap_or(next);
+    let last = line
+        .trim_end()
+        .trim_end_matches('\\')
+        .split_whitespace()
+        .next_back()
+        .unwrap_or("");
+    let first = next.split_whitespace().next().unwrap_or("");
+    format!("{last} {first}")
+}
+
+/// Each line of `text` that names a persona, alone or wrapped onto the line
+/// after it: the line's 1-based number, the phrases found, and the line as
+/// shown, joined to the next one when the phrase spans both.
+fn persona_lines(rel: &str, text: &str) -> Vec<(usize, Vec<&'static str>, String)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut hits = Vec::new();
+    for (number, line) in lines.iter().enumerate() {
+        let mut found = banned_in(rel, line);
+        let wrapped = lines
+            .get(number + 1)
+            .map(|next| banned_in(rel, &seam(line, next)))
+            .unwrap_or_default();
+        if found.is_empty() && wrapped.is_empty() {
+            continue;
+        }
+        let shown = if wrapped.is_empty() {
+            line.trim().to_string()
+        } else {
+            format!("{} / {}", line.trim(), lines[number + 1].trim())
+        };
+        found.extend(wrapped);
+        hits.push((number + 1, found, shown));
+    }
+    hits
+}
+
 #[test]
 fn source_prose_names_no_persona() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -85,18 +135,10 @@ fn source_prose_names_no_persona() {
             continue;
         };
         let exemption = EXEMPT.iter().position(|(name, _)| rel == *name);
-        for (number, line) in text.lines().enumerate() {
-            let found = banned_in(&rel, line);
-            if found.is_empty() {
-                continue;
-            }
+        for (number, found, shown) in persona_lines(&rel, &text) {
             match exemption {
                 Some(row) => exempt_hit[row] = true,
-                None => offenders.push(format!(
-                    "{rel}:{}: {found:?} in {:?}",
-                    number + 1,
-                    line.trim()
-                )),
+                None => offenders.push(format!("{rel}:{number}: {found:?} in {shown:?}")),
             }
         }
     }
@@ -167,4 +209,49 @@ fn the_matcher_separates_persona_from_chat_role_and_lookalikes() {
     for (rel, line, expected) in cases {
         assert_eq!(banned_in(rel, line), expected, "{rel}: {line}");
     }
+}
+
+/// The seam joins a phrase wrapped under every comment marker and through a
+/// string continuation, keeps the chat-role crate's exemption, and finds
+/// nothing where the words either side of the break form no phrase.
+#[test]
+fn the_seam_matches_a_phrase_wrapped_across_a_line_break() {
+    let ui = "crates/aria-ui/src/a.rs";
+    let cases: [(&str, &str, &str, &[&str]); 9] = [
+        (ui, "  // so the", "  // operator", &["the operator"]),
+        (ui, "/// what an", "/// Operator presses", &["an operator"]),
+        (ui, "//! reports what the", "//!   user did", &["the user"]),
+        (ui, " * shown to the", " * user as written", &["the user"]),
+        (ui, "\"to the \\", "   user sees\"", &["the user"]),
+        ("crates/aria-ai/src/a.rs", "// the", "// user prompt", &[]),
+        (ui, "// with its binary", "// operator", &[]),
+        (ui, "// into the", "// preset library", &[]),
+        (ui, "// ends on the", "", &[]),
+    ];
+    for (rel, line, next, expected) in cases {
+        assert_eq!(
+            banned_in(rel, &seam(line, next)),
+            expected,
+            "{rel}: {line} / {next}"
+        );
+    }
+}
+
+/// The census reports a phrase wrapped across a line break at the line it
+/// starts on, with both lines shown, and a phrase on one line at that line
+/// alone; a line whose words form no phrase with its neighbor is not reported.
+#[test]
+fn the_census_reports_a_wrapped_phrase_at_the_line_it_starts_on() {
+    let text = "fn f() {}\n    // so the\n    // operator can fix it\n// the user\n";
+    assert_eq!(
+        persona_lines("crates/aria-ui/src/a.rs", text),
+        vec![
+            (
+                2,
+                vec!["the operator"],
+                "// so the / // operator can fix it".to_string()
+            ),
+            (4, vec!["the user"], "// the user".to_string()),
+        ]
+    );
 }

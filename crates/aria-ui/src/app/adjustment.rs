@@ -8,8 +8,8 @@
 //! mean two different ranges in two places.
 //!
 //! Placement is refused on overlap by the model, so a second layer over an
-//! occupied range stacks onto a fresh lane rather than surfacing an error the
-//! operator cannot act on.
+//! occupied range stacks onto a fresh lane rather than surfacing an error
+//! that no next step can resolve.
 
 use aria_commands::{Command, EditCommand};
 use aria_engine::EngineError;

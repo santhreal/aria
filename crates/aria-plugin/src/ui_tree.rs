@@ -1,8 +1,8 @@
 //! The tree a plugin panel declares, and the events a host sends back.
 //!
 //! A plugin links no UI toolkit. It returns a [`UiNode`] tree of text and
-//! controls; the host draws each node with its own widgets and reports what the
-//! user did as a [`PanelEvent`]. Every string is an `Arc<str>`, so a host that
+//! controls; the host draws each node with its own widgets and reports each
+//! input on them as a [`PanelEvent`]. Every string is an `Arc<str>`, so a host that
 //! draws the tree every frame copies pointers, not text.
 //!
 //! The tree is data, so it serializes: a native plugin passes it as JSON and a

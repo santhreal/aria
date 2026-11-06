@@ -4,8 +4,8 @@
 //! for two milestones while no surface could make one, and the first attempt at
 //! a surface aimed at a lane by the coarse projected kind, which collapses
 //! sticker, effect, filter, and adjustment lanes into one — so the placement
-//! would land on a sticker lane and be refused by the engine with an error the
-//! operator cannot act on. These pin the lane the bar lands on, the span it
+//! would land on a sticker lane and be refused by the engine with an error
+//! that no next step can resolve. These pin the lane the bar lands on, the span it
 //! covers, and that a second layer never fails on an overlap.
 //!
 //! Not covered: how the bar draws, and what the resolver does with it —

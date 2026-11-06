@@ -7,8 +7,8 @@
 //! added without a decision, because the table is checked against the live
 //! command list in both directions.
 //!
-//! `aria_commands::Reach` states the same thing from the other side: whether an
-//! operator can ask for a command at all. That is a compile-time declaration in
+//! `aria_commands::Reach` states the same thing from the other side: whether
+//! any surface can request a command at all. That is a compile-time declaration in
 //! the crate that owns the commands, which cannot see a palette row, so the two
 //! meet here.
 //!

@@ -20,7 +20,7 @@ fn row(menu: AppMenu, state: &AppState, id: &str) -> MenuItem {
 
 /// A row declared to edit its dressing is drawn enabled over it. A guard
 /// stricter than the row's own code draws a working row disabled, and the
-/// operator then cannot reach it from the bar, the palette, or a key.
+/// command is then unreachable from the bar, the palette, or a key.
 #[test]
 fn no_row_is_drawn_disabled_over_the_state_it_edits() {
     let mut wrong = Vec::new();
