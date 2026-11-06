@@ -290,6 +290,8 @@ impl AppState {
             self.status_message = Some(format!("{} is already empty", id.descriptor().label));
             return Ok(());
         }
+        // A held connection would checkpoint into a file this clear deletes.
+        self.analysis.index.release();
         let report = clear_cache(&path, &NeverCancelled)
             .map_err(|err| format!("clearing {}: {err}", path.display()))?;
         // The measurement the panel is showing described the tree that just went away.
@@ -342,6 +344,8 @@ impl AppState {
             ));
             return Ok(());
         }
+        // A held connection would checkpoint into the file this move carries.
+        self.analysis.index.release();
         if source.exists() {
             let target = destination.to_path_buf();
             let this = &mut *self;

@@ -147,6 +147,54 @@ pub struct AnalysisForm {
     pub(crate) offset_ticks: i64,
     /// Media entry the current `loudness` contour was measured from.
     pub(crate) loudness_media_id: Option<u64>,
+    /// The moments index this session has open, so a read or a write costs
+    /// no open, no schema check, and no close-time checkpoint.
+    pub(crate) index: HeldIndex,
+}
+
+/// One open [`MomentsIndex`], shared with the jobs that write it.
+///
+/// Closing a written index checkpoints its write-ahead log, which costs four
+/// `fsync` calls, so an index opened per call paid them on every clear and
+/// every detector run. A clone holds nothing: the copy opens its own.
+#[derive(Default)]
+pub(crate) struct HeldIndex(parking_lot::Mutex<Option<Arc<MomentsIndex>>>);
+
+impl HeldIndex {
+    /// The held index if it is open at `path` and its file is still there,
+    /// else a fresh open at `path`, held from now on.
+    pub(crate) fn held_or_open(&self, path: &Path) -> Result<Arc<MomentsIndex>, String> {
+        let mut held = self.0.lock();
+        if let Some(index) = held
+            .as_ref()
+            .filter(|index| index.path() == path && path.exists())
+        {
+            return Ok(Arc::clone(index));
+        }
+        *held = None;
+        let index = MomentsIndex::open(path)
+            .map(Arc::new)
+            .map_err(|err| format!("opening the moments index: {err}"))?;
+        *held = Some(Arc::clone(&index));
+        Ok(index)
+    }
+
+    /// Close the held index, before its directory is cleared or moved.
+    pub(crate) fn release(&self) {
+        self.0.lock().take();
+    }
+}
+
+impl Clone for HeldIndex {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for HeldIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HeldIndex")
+    }
 }
 
 /// Everything a run needs, resolved before it costs anything.

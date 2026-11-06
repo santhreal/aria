@@ -652,3 +652,57 @@ fn normalising_a_clip_ignores_a_loudness_contour_measured_for_another_media_item
         "normalise_selected_clip must not apply another media entry's loudness contour"
     );
 }
+
+/// The session holds one moments index and opens it again where the layout
+/// points now. An index opened per call paid four `fsync` calls at every
+/// close of a written index. A held index that outlived a clear, a move, or a
+/// redirect would write into a file no later read opens, losing every result
+/// after it. Not covered: a file deleted by another process while a write is
+/// in flight.
+#[test]
+fn the_moments_index_is_held_and_follows_the_cache() {
+    let (mut state, _) = with_clip();
+    let first = state.analysis_index().expect("open the index");
+    let again = state.analysis_index().expect("the held index");
+    assert!(
+        std::sync::Arc::ptr_eq(&first, &again),
+        "a second read opened the index again"
+    );
+    drop((first, again));
+    let one_write_after = |state: &mut AppState, step: &str, at: f64| {
+        store(state, AnalysisKind::Shots, &[(at, at, 1.0)]);
+        state.refresh_moments().expect("read the index");
+        assert_eq!(
+            state.analysis.moments.len(),
+            1,
+            "the write after {step} did not reach a read"
+        );
+        assert_eq!(
+            state.analysis_index().expect("the held index").path(),
+            state.analysis_index_path(),
+            "the index after {step} is not where the layout points"
+        );
+    };
+    one_write_after(&mut state, "the first open", 0.5);
+    state.clear_analysis_cache().expect("clear the cache");
+    one_write_after(&mut state, "Clear Analysis Cache", 1.0);
+    state
+        .clear_registered_cache("analysis")
+        .expect("clear the cache row");
+    one_write_after(&mut state, "a Caches row clear", 1.5);
+    let data = state.data_dir.clone();
+    state
+        .relocate_registered_cache("analysis", data.join("moved-analysis"))
+        .expect("move the cache");
+    one_write_after(&mut state, "Move…", 2.0);
+    state
+        .set_cache_override("analysis", data.join("redirected-analysis"))
+        .expect("redirect the cache");
+    one_write_after(&mut state, "Redirect…", 2.5);
+    // Back onto the index written before the redirect: the file is there, and
+    // the held index is the redirected one.
+    state
+        .set_cache_override("analysis", data.join("moved-analysis"))
+        .expect("redirect the cache back");
+    one_write_after(&mut state, "a redirect onto a written index", 3.0);
+}

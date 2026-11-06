@@ -877,6 +877,7 @@ Notes for the latest release. For previous releases, see the
 - `PasteRetimed` and `PasteAttributes` take the copied clip in `copy` instead of a source clip id, and the new `PasteClip` edit places a copied clip on a lane.
 - Building an engine no longer brings up a GPU device; the first rendered frame brings it up, so `aria new` and sessions that only edit and save skip the driver start.
 - The Ctrl+L binding is named Link or Unlink in Settings > Keyboard Shortcuts.
+- The Analysis panel keeps the moments index open for the session instead of opening and closing it for every read and write, which removes four disk syncs from every clear and detector run.
 
 ### Fixed
 

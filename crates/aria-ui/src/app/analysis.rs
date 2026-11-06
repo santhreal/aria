@@ -80,14 +80,15 @@ impl AppState {
             .join(aria_analysis::moments::MOMENTS_INDEX_DATABASE_FILENAME)
     }
 
-    /// The moments index, opened under the analysis cache root.
+    /// The moments index, opened under the analysis cache root and held.
     ///
-    /// Opened per call rather than held: a click-driven read costs one open, and a
-    /// cached connection would outlive a relocated cache root.
+    /// Held rather than opened per call: closing a written index checkpoints its
+    /// log with four `fsync` calls. A moved cache root or a deleted file opens
+    /// it again at the path the layout resolves now.
     pub(crate) fn analysis_index(&self) -> Result<Arc<MomentsIndex>, String> {
-        MomentsIndex::open_in_cache_root(self.analysis_cache_root())
-            .map(Arc::new)
-            .map_err(|err| format!("opening the moments index: {err}"))
+        self.analysis
+            .index
+            .held_or_open(&self.analysis_index_path())
     }
 
     /// Bytes the analysis cache occupies on disk, held on [`AnalysisForm`] and
@@ -123,6 +124,7 @@ impl AppState {
         self.refresh_analysis_cache_size();
         let freed = self.analysis.cache_bytes;
         if root.exists() {
+            self.analysis.index.release();
             std::fs::remove_dir_all(&root).map_err(|err| format!("{}: {err}", root.display()))?;
         }
         self.analysis.cache_bytes = 0;

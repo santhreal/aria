@@ -228,6 +228,8 @@ impl AppState {
             return Err(err);
         }
         let mut stayed = Vec::new();
+        // A held connection would checkpoint into the file this move carries.
+        self.analysis.index.release();
         for (id, from, to) in moves {
             if let Err(err) = relocate_cache(&from, &to, &NeverCancelled, |_| Ok(())) {
                 stayed.push(format!(
