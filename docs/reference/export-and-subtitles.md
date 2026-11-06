@@ -36,6 +36,8 @@ Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENC
 
 `x264enc` also runs `tune=zerolatency` with trellis quantization off. A hardware element whose GStreamer plugin failed to load in the process is skipped without being built again. Only `x265enc` has `videoconvert` in front of it, because it takes no NV12.
 
+When a video bitrate is chosen, `nvh26xenc` (`rc-mode=cbr`) and `nvcudah26xenc` (`rate-control=cbr`) set `strict-gop=true` and `vbv-buffer-size` to the target in `kbit`, `vaapih26xenc` sets `rate-control=cbr`, `x264enc` sets `vbv-buf-capacity=300`, and `x265enc` sets `option-string` to `vbv-maxrate=<kbps>:vbv-bufsize=<kbps>:strict-cbr=1`. None of the elements stuffs filler NAL units, so a flat or static picture that reaches the minimum quantizer writes fewer bits than the target.
+
 An error that stops the encode pipeline, such as a full disk, fails the export's next frame or sound push, or its finish, with GStreamer's reason.
 
 The export sheet's Codec row offers the codecs `aria_encoder::available_codecs` returns. On Linux, a codec is offered when one of its elements opens; the probe runs once per process, on the `aria-codec-probe` thread, when the Export sheet first opens. Until it answers, the row states the chosen codec. On other targets the row offers the Codecs column above.

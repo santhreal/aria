@@ -11,6 +11,34 @@ use gstreamer::prelude::*;
 use super::ensure_init;
 use crate::EncoderChoice;
 
+std::thread_local! {
+    static FORCED_VIDEO_ENCODER: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+}
+
+impl super::GstEncoder {
+    /// Candidate GStreamer video encoder elements for `codec`, in priority order.
+    pub fn video_candidates(codec: VideoCodec) -> &'static [&'static str] {
+        candidates(codec)
+    }
+
+    /// Open the encoder forcing a specific element from [`Self::video_candidates`].
+    pub fn open_with_video_encoder(
+        path: &std::path::Path,
+        config: EncoderConfig,
+        video_encoder: &'static str,
+    ) -> Result<Self, EncodeError> {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                FORCED_VIDEO_ENCODER.with(|cell| cell.set(None));
+            }
+        }
+        FORCED_VIDEO_ENCODER.with(|cell| cell.set(Some(video_encoder)));
+        let _reset = Reset;
+        Self::open(path, config)
+    }
+}
+
 /// The encoder element for `codec` that takes `frames`, built and opened:
 /// hardware first, software last.
 ///
@@ -33,16 +61,19 @@ pub(super) fn pick_encoder(
         VideoCodec::H264 => "Install gstreamer1.0-plugins-ugly (x264enc) or a VAAPI/NVENC plugin.",
         VideoCodec::H265 => "Install gstreamer1.0-plugins-bad (x265enc) or a VAAPI/NVENC plugin.",
     };
+    let forced = FORCED_VIDEO_ENCODER.with(std::cell::Cell::get);
+    let list = match forced {
+        Some(ref name) => std::slice::from_ref(name),
+        None => candidates(codec),
+    };
     let (element, opened, passed_over) =
-        first_opened(candidates(codec), |name| open_encoder_element(name, frames)).map_err(
-            |reasons| {
-                EncodeError::unsupported(format!(
-                    "no {} encoder opens here: {}. {hint}",
-                    codec.label(),
-                    reasons.join("; ")
-                ))
-            },
-        )?;
+        first_opened(list, |name| open_encoder_element(name, frames)).map_err(|reasons| {
+            EncodeError::unsupported(format!(
+                "no {} encoder opens here: {}. {hint}",
+                codec.label(),
+                reasons.join("; ")
+            ))
+        })?;
     let choice = EncoderChoice {
         encoder: element.into(),
         hardware: Some(!SOFTWARE_ENCODERS.contains(&element)),
@@ -226,7 +257,24 @@ pub(crate) fn await_codec_probe() {
     PROBE.wait();
 }
 
-/// How one candidate element spells the two rate settings an export chooses.
+/// How one candidate element bounds the VBV buffer around `bitrate`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Vbv {
+    /// `nvh26xenc` and `nvcudah26xenc`: `strict-gop` and a buffer in kbit sized
+    /// to one second at `bitrate`.
+    Buffer {
+        strict_gop: bool,
+        property: &'static str,
+    },
+    /// `x264enc`: a buffer duration in milliseconds.
+    Capacity { property: &'static str, ms: u32 },
+    /// `x265enc`: libx265 VBV and strict-CBR options passed through `option-string`.
+    X265Options,
+    /// `vaapih26xenc`: `rate-control=cbr` bounds the rate without a separate VBV property.
+    None,
+}
+
+/// How one candidate element spells the rate settings an export chooses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Knobs {
     /// The property holding the most frames between two keyframes.
@@ -235,25 +283,45 @@ struct Knobs {
     /// for an element whose default mode reads `bitrate` as a cap or ignores
     /// it. The software encoders target `bitrate` once it is set.
     rate_mode: Option<(&'static str, &'static str)>,
+    /// How the element bounds its VBV buffer so a short export holds `bitrate`.
+    vbv: Vbv,
 }
 
 /// The rate properties of `name`, one row per element in [`candidates`].
 ///
 /// The names are read from `gst-inspect-1.0` 1.24: `nvh26xenc` take
-/// `gop-size` (`gint`) and `rc-mode`, `nvcudah26xenc` `gop-size` and
-/// `rate-control`, `vaapih26xenc` `keyframe-period` (`guint`) and
-/// `rate-control`, `x264enc` `key-int-max` (`guint`) and `x265enc`
-/// `key-int-max` (`gint`).
+/// `gop-size` (`gint`), `rc-mode`, `strict-gop`, and `vbv-buffer-size`,
+/// `nvcudah26xenc` `gop-size`, `rate-control`, `strict-gop`, and
+/// `vbv-buffer-size`, `vaapih26xenc` `keyframe-period` (`guint`) and
+/// `rate-control`, `x264enc` `key-int-max` (`guint`) and `vbv-buf-capacity`,
+/// and `x265enc` `key-int-max` (`gint`) and `option-string`.
 fn knobs(name: &str) -> Option<Knobs> {
-    let knobs = |keyframes, rate_mode| Knobs {
+    let knobs = |keyframes, rate_mode, vbv| Knobs {
         keyframes,
         rate_mode,
+        vbv,
+    };
+    let nvenc_vbv = Vbv::Buffer {
+        strict_gop: true,
+        property: "vbv-buffer-size",
     };
     Some(match name {
-        "nvh264enc" | "nvh265enc" => knobs("gop-size", Some(("rc-mode", "cbr"))),
-        "nvcudah264enc" | "nvcudah265enc" => knobs("gop-size", Some(("rate-control", "cbr"))),
-        "vaapih264enc" | "vaapih265enc" => knobs("keyframe-period", Some(("rate-control", "cbr"))),
-        "x264enc" | "x265enc" => knobs("key-int-max", None),
+        "nvh264enc" | "nvh265enc" => knobs("gop-size", Some(("rc-mode", "cbr")), nvenc_vbv),
+        "nvcudah264enc" | "nvcudah265enc" => {
+            knobs("gop-size", Some(("rate-control", "cbr")), nvenc_vbv)
+        }
+        "vaapih264enc" | "vaapih265enc" => {
+            knobs("keyframe-period", Some(("rate-control", "cbr")), Vbv::None)
+        }
+        "x264enc" => knobs(
+            "key-int-max",
+            None,
+            Vbv::Capacity {
+                property: "vbv-buf-capacity",
+                ms: 300,
+            },
+        ),
+        "x265enc" => knobs("key-int-max", None, Vbv::X265Options),
         _ => return None,
     })
 }
@@ -307,6 +375,25 @@ pub(super) fn configure_encoder(
             encoder.set_property_from_str(mode, nick);
         }
         set_count(encoder, name, "bitrate", kbps, "kbit/s")?;
+        match knobs.vbv {
+            Vbv::Buffer {
+                strict_gop,
+                property,
+            } => {
+                encoder.set_property("strict-gop", strict_gop);
+                set_count(encoder, name, property, kbps, "kbit")?;
+            }
+            Vbv::Capacity { property, ms } => {
+                set_count(encoder, name, property, ms, "ms")?;
+            }
+            Vbv::X265Options => {
+                encoder.set_property(
+                    "option-string",
+                    format!("vbv-maxrate={kbps}:vbv-bufsize={kbps}:strict-cbr=1"),
+                );
+            }
+            Vbv::None => {}
+        }
     }
     Ok(())
 }
@@ -616,6 +703,39 @@ mod tests {
                     let (_, set) =
                         gst::glib::EnumValue::from_value(&value).expect("rate control is an enum");
                     assert_eq!(set.nick(), nick, "{name} {mode}");
+                }
+                assert_eq!(
+                    knobs.vbv == Vbv::None,
+                    name.starts_with("vaapi"),
+                    "{name} vbv row"
+                );
+                match knobs.vbv {
+                    Vbv::Buffer {
+                        strict_gop,
+                        property,
+                    } => {
+                        assert_eq!(
+                            encoder.property::<bool>("strict-gop"),
+                            strict_gop,
+                            "{name} strict-gop"
+                        );
+                        assert_eq!(count(&encoder, property), 8_000, "{name} {property}");
+                    }
+                    Vbv::Capacity { property, ms } => {
+                        assert_eq!(
+                            count(&encoder, property),
+                            i64::from(ms),
+                            "{name} {property}"
+                        );
+                    }
+                    Vbv::X265Options => {
+                        assert_eq!(
+                            encoder.property::<String>("option-string"),
+                            "vbv-maxrate=8000:vbv-bufsize=8000:strict-cbr=1",
+                            "{name} option-string"
+                        );
+                    }
+                    Vbv::None => {}
                 }
                 built.push(name);
             }
