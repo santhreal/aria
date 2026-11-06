@@ -315,9 +315,18 @@ fn every_part(state: &Entity<AppState>, visual: &mut VisualTestContext) -> Vec<b
     parts
 }
 
-/// The points of a sweep of `area`: lines 40 px apart, across and then down,
-/// each walked 4 px at a time.
-fn sweep(area: Bounds<Pixels>) -> Vec<Point<Pixels>> {
+/// The lines a sweep walks over an area.
+#[derive(Clone, Copy, Debug)]
+enum Lines {
+    /// Rows 40 px apart, each walked left to right.
+    Across,
+    /// Columns 40 px apart, each walked top to bottom.
+    Down,
+}
+
+/// The points of a sweep of `area` along `lines`, each line walked 4 px at a
+/// time.
+fn sweep(area: Bounds<Pixels>, lines: Lines) -> Vec<Point<Pixels>> {
     const LINE: f32 = 40.0;
     const STEP: f32 = 4.0;
     let (left, top) = (f32::from(area.left()), f32::from(area.top()));
@@ -325,11 +334,14 @@ fn sweep(area: Bounds<Pixels>) -> Vec<Point<Pixels>> {
     let walk = |from: f32, to: f32, by: f32| {
         std::iter::successors(Some(from), move |at| Some(at + by)).take_while(move |at| *at < to)
     };
-    let across = walk(top + LINE / 2.0, bottom, LINE)
-        .flat_map(|y| walk(left + 1.0, right, STEP).map(move |x| point(px(x), px(y))));
-    let down = walk(left + LINE / 2.0, right, LINE)
-        .flat_map(|x| walk(top + 1.0, bottom, STEP).map(move |y| point(px(x), px(y))));
-    across.chain(down).collect()
+    match lines {
+        Lines::Across => walk(top + LINE / 2.0, bottom, LINE)
+            .flat_map(|y| walk(left + 1.0, right, STEP).map(move |x| point(px(x), px(y))))
+            .collect(),
+        Lines::Down => walk(left + LINE / 2.0, right, LINE)
+            .flat_map(|x| walk(top + 1.0, bottom, STEP).map(move |y| point(px(x), px(y))))
+            .collect(),
+    }
 }
 
 /// Moves the pointer through `points` with `button` held, and returns each
@@ -380,30 +392,37 @@ fn draws_as_a_whole_redraw(visual: &mut VisualTestContext, after: &str) {
     );
 }
 
-/// No pointer move rebuilds every part of the window: not across the whole
-/// window with no button held while the Info panel reads the pixel under the
-/// pointer over the Viewer, not over the Viewer while the Pen draws a mask
-/// path, not down the track headers while a lane is dragged by its header,
-/// and not across the pool tile of a take open in a Source tab, which moves
-/// the take. Each of those once notified the whole shell on every pixel or
-/// row it moved, and each frame of the take that landed did too. What the
-/// moves changed is drawn: the Info panel reads the pixel under the pointer,
-/// the rubber band ends at it, a row is marked for the lane's drop, the take
-/// stands at its tile's frame, and the window equals one drawn anew. Fails on
-/// any move that rebuilds the whole window, from a listener, from a frame it
-/// asked for, or from a hover style drawn by the shell itself.
-#[gpui::test]
-fn no_pointer_move_rebuilds_the_whole_window(cx: &mut TestAppContext) {
+/// The shell with the Info panel docked on the right, which reads the pixel
+/// under the pointer while it is over the Viewer.
+///
+/// The moves below once notified the whole shell on every pixel or row they
+/// moved, and each frame of a take that landed did too. Each test sweeps one
+/// case and fails on any move that rebuilds every part of the window, from a
+/// listener, from a frame it asked for, or from a hover style drawn by the
+/// shell itself; then on a window that differs from one drawn anew.
+fn with_info<'a>(
+    cx: &'a mut TestAppContext,
+    tag: &str,
+) -> (Entity<AppState>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
-    let (state, visual) = opened(cx, "pointer-sweep");
+    let (state, visual) = opened(cx, tag);
     dock_right(&state, visual, PANEL_INFO).expect("the Info panel docks in the right frame");
+    (state, visual)
+}
+
+/// No move along `lines` across the whole window with no button held
+/// rebuilds every part of it, and the Info panel then reads the pixel under
+/// the pointer at the Viewer's center.
+fn the_window_swept(cx: &mut TestAppContext, lines: Lines) {
+    let (state, visual) = with_info(cx, &format!("pointer-sweep-{lines:?}"));
     let window =
         visual.update(|window, _| Bounds::new(point(px(0.0), px(0.0)), window.viewport_size()));
     let every = every_part(&state, visual);
-    let whole = whole_redraws(visual, &sweep(window), None, &every);
+    let whole = whole_redraws(visual, &sweep(window, lines), None, &every);
     assert!(
         whole.is_empty(),
-        "{} moves with no button held rebuilt the whole window, first at {:?}",
+        "{} moves {lines:?} the window with no button held rebuilt the whole window, first \
+         at {:?}",
         whole.len(),
         whole.first()
     );
@@ -416,7 +435,24 @@ fn no_pointer_move_rebuilds_the_whole_window(cx: &mut TestAppContext) {
         viewer.center()
     );
     draws_as_a_whole_redraw(visual, "a sweep of the window");
+}
 
+#[gpui::test]
+fn no_pointer_move_across_the_window_rebuilds_it(cx: &mut TestAppContext) {
+    the_window_swept(cx, Lines::Across);
+}
+
+#[gpui::test]
+fn no_pointer_move_down_the_window_rebuilds_it(cx: &mut TestAppContext) {
+    the_window_swept(cx, Lines::Down);
+}
+
+/// No move along `lines` over the Viewer while the Pen draws a mask path
+/// rebuilds every part of the window, and the rubber band ends at the
+/// pointer.
+fn the_pen_swept(cx: &mut TestAppContext, lines: Lines) {
+    let (state, visual) = with_info(cx, &format!("pen-sweep-{lines:?}"));
+    let viewer = frame_rect(&state, visual, FrameId::CENTER);
     // The Pen draws a mask path from a click on the still.
     visual.update(|_, app| {
         state.update(app, |state, cx| {
@@ -441,11 +477,12 @@ fn no_pointer_move_rebuilds_the_whole_window(cx: &mut TestAppContext) {
         "a Pen click at ({x}, {y}) on the still starts a mask path"
     );
     let every = every_part(&state, visual);
-    let points = sweep(viewer);
+    let points = sweep(viewer, lines);
     let whole = whole_redraws(visual, &points, None, &every);
     assert!(
         whole.is_empty(),
-        "{} moves over the Viewer while the Pen draws rebuilt the whole window, first at {:?}",
+        "{} moves {lines:?} the Viewer while the Pen draws rebuilt the whole window, first at \
+         {:?}",
         whole.len(),
         whole.first()
     );
@@ -469,11 +506,30 @@ fn no_pointer_move_rebuilds_the_whole_window(cx: &mut TestAppContext) {
         "the rubber band ends at the pointer"
     );
     draws_as_a_whole_redraw(visual, "a sweep of the Viewer while the Pen draws");
-    // A second video lane, and V1 dragged by its header down the header
-    // column and back.
+}
+
+#[gpui::test]
+fn no_pointer_move_across_the_viewer_while_the_pen_draws_rebuilds_the_window(
+    cx: &mut TestAppContext,
+) {
+    the_pen_swept(cx, Lines::Across);
+}
+
+#[gpui::test]
+fn no_pointer_move_down_the_viewer_while_the_pen_draws_rebuilds_the_window(
+    cx: &mut TestAppContext,
+) {
+    the_pen_swept(cx, Lines::Down);
+}
+
+/// No move of V1 dragged by its header down the header column, past a
+/// second video lane, rebuilds every part of the window, and the header
+/// under the drag marks its row for the drop.
+#[gpui::test]
+fn no_move_of_a_lane_drag_rebuilds_the_whole_window(cx: &mut TestAppContext) {
+    let (state, visual) = with_info(cx, "lane-drag-sweep");
     visual.update(|_, app| {
         state.update(app, |state, cx| {
-            state.tool = EditorTool::Pointer;
             state
                 .add_track(aria_models::TrackKind::Video, "Video 2")
                 .expect("add a video lane");
@@ -536,9 +592,14 @@ fn no_pointer_move_rebuilds_the_whole_window(cx: &mut TestAppContext) {
     visual.simulate_mouse_move(header.center(), MouseButton::Left, Modifiers::none());
     visual.simulate_mouse_up(header.center(), MouseButton::Left, Modifiers::none());
     visual.run_until_parked();
+}
 
-    // The still open in a Source tab, and its pool tile scrubbed with no
-    // button held.
+/// No move across the pool tile of a take open in a Source tab, which scrubs
+/// the take, rebuilds every part of the window, and the take stands at its
+/// tile's frame.
+#[gpui::test]
+fn no_scrub_across_a_take_tile_rebuilds_the_whole_window(cx: &mut TestAppContext) {
+    let (state, visual) = with_info(cx, "take-tile-sweep");
     let media = visual
         .read(|app| state.read(app).store.media.first().map(|item| item.id))
         .expect("the pool holds the still");
