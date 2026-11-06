@@ -53,9 +53,13 @@ impl super::GstEncoder {
 /// earlier one was passed over; when none does, the error lists every
 /// candidate's reason. A caller that does not keep the element sets it to
 /// `NULL` before dropping it.
+///
+/// `after` names a candidate that opened and then could not encode; only the
+/// candidates after it are tried. A forced encoder has none after it.
 pub(super) fn pick_encoder(
     codec: VideoCodec,
     frames: &gst::Caps,
+    after: Option<&str>,
 ) -> Result<(EncoderChoice, gst::Element), EncodeError> {
     let hint = match codec {
         VideoCodec::H264 => "Install gstreamer1.0-plugins-ugly (x264enc) or a VAAPI/NVENC plugin.",
@@ -65,6 +69,10 @@ pub(super) fn pick_encoder(
     let list = match forced {
         Some(ref name) => std::slice::from_ref(name),
         None => candidates(codec),
+    };
+    let list = match after.and_then(|failed| list.iter().position(|name| *name == failed)) {
+        Some(at) => &list[at + 1..],
+        None => list,
     };
     let (element, opened, passed_over) =
         first_opened(list, |name| open_encoder_element(name, frames)).map_err(|reasons| {
@@ -214,7 +222,7 @@ fn takes_frames(element: &gst::Element, frames: &gst::Caps) -> bool {
 /// yet.
 fn can_encode(codec: VideoCodec) -> bool {
     ensure_init().is_ok()
-        && pick_encoder(codec, &gst::Caps::new_any()).is_ok_and(|(_, opened)| {
+        && pick_encoder(codec, &gst::Caps::new_any(), None).is_ok_and(|(_, opened)| {
             let _ = opened.set_state(gst::State::Null);
             true
         })
@@ -532,7 +540,7 @@ mod tests {
     fn the_picked_encoder_opens_on_this_machine() {
         ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
-            let Ok((choice, element)) = pick_encoder(codec, &frames(1920, 1080)) else {
+            let Ok((choice, element)) = pick_encoder(codec, &frames(1920, 1080), None) else {
                 continue;
             };
             let name = &choice.encoder;
@@ -584,13 +592,13 @@ mod tests {
     fn encoders_picked_in_a_row_open_on_one_device_context() {
         ensure_init().expect("GStreamer initializes");
         for codec in [VideoCodec::H264, VideoCodec::H265] {
-            let Ok((choice, first)) = pick_encoder(codec, &frames(1920, 1080)) else {
+            let Ok((choice, first)) = pick_encoder(codec, &frames(1920, 1080), None) else {
                 continue;
             };
             let _ = first.set_state(gst::State::Null);
             let held = || {
-                let (_, element) =
-                    pick_encoder(codec, &frames(1920, 1080)).expect("the encoder opens again");
+                let (_, element) = pick_encoder(codec, &frames(1920, 1080), None)
+                    .expect("the encoder opens again");
                 let contexts = element.contexts();
                 let _ = element.set_state(gst::State::Null);
                 contexts

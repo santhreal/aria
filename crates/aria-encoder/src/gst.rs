@@ -6,7 +6,8 @@
 //! package that carries them. Aria never ships a codec.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::time::Duration;
 
 use aria_core::{EncodeError, EncoderConfig, RationalTime, VideoCodec, VideoEncoder, VideoFrame};
 use gstreamer as gst;
@@ -60,7 +61,46 @@ pub struct GstEncoder {
     choice: EncoderChoice,
     /// The first error the pipeline posted, set from the thread that posted it.
     failure: Arc<OnceLock<String>>,
+    /// Whether the first frame reached a hardware encoder, until the first
+    /// push has read it.
+    first_frame: Option<Arc<FirstFrame>>,
+    /// The AAC element the caller forced, for a reopen on another encoder.
+    aac_override: Option<String>,
+    /// Whether any audio was pushed, which a reopen could not push again.
+    audio_pushed: bool,
     finished: bool,
+}
+
+/// How long the first push waits for the frame to reach a hardware encoder.
+const FIRST_FRAME_LIMIT: Duration = Duration::from_secs(10);
+
+/// Whether the first frame reached the encoder (`Some(true)`) or the pipeline
+/// stopped on an error first (`Some(false)`), settled once by the streaming
+/// thread or the thread that posted the error.
+#[derive(Default)]
+struct FirstFrame {
+    seen: Mutex<Option<bool>>,
+    settled: Condvar,
+}
+
+impl FirstFrame {
+    fn settle(&self, took: bool) {
+        let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
+        if seen.is_none() {
+            *seen = Some(took);
+            self.settled.notify_all();
+        }
+    }
+
+    /// The settled answer, or `None` when `limit` passed first.
+    fn wait(&self, limit: Duration) -> Option<bool> {
+        let seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
+        let (seen, _) = self
+            .settled
+            .wait_timeout_while(seen, limit, |seen| seen.is_none())
+            .unwrap_or_else(PoisonError::into_inner);
+        *seen
+    }
 }
 
 /// # Safety
@@ -108,6 +148,17 @@ impl GstEncoder {
         config: EncoderConfig,
         aac_override: Option<&str>,
     ) -> Result<Self, EncodeError> {
+        Self::open_after(path, config, aac_override, None)
+    }
+
+    /// Open on the first candidate after `after` that opens, or on the first
+    /// candidate that opens when `after` is `None`.
+    fn open_after(
+        path: &Path,
+        config: EncoderConfig,
+        aac_override: Option<&str>,
+        after: Option<&str>,
+    ) -> Result<Self, EncodeError> {
         ensure_init()?;
         let (width, height) = config.size;
         if width == 0 || height == 0 {
@@ -116,7 +167,7 @@ impl GstEncoder {
             ));
         }
         let frames = video_caps(width, height, config.frame_rate, matrix_for(&config.color))?;
-        let (choice, encoder) = pick_encoder(config.video_codec, &frames)?;
+        let (choice, encoder) = pick_encoder(config.video_codec, &frames, after)?;
         match Self::assemble(path, config, choice, &encoder, &frames, aac_override) {
             Ok(opened) => Ok(opened),
             Err(err) => {
@@ -194,11 +245,23 @@ impl GstEncoder {
             None
         };
 
+        // A hardware encoder opens its encode session on the first frame's
+        // caps, and a busy device refuses it there, after the element opened.
+        // The frame reaching the encoder's sink pad means the caps were taken.
+        let first = Arc::new(FirstFrame::default());
+        if let Some(pad) = encoder.static_pad("sink") {
+            let took = Arc::clone(&first);
+            pad.add_probe(gst::PadProbeType::BUFFER, move |_, _| {
+                took.settle(true);
+                gst::PadProbeReturn::Remove
+            });
+        }
         let failure = end_sources_on_error(
             &pipeline,
             [Some(&video), audio.as_ref().map(|a| &a.src)]
                 .into_iter()
                 .flatten(),
+            Arc::clone(&first),
         );
         if let Err(err) = pipeline.set_state(gst::State::Playing) {
             let _ = pipeline.set_state(gst::State::Null);
@@ -213,32 +276,48 @@ impl GstEncoder {
             buffer_pool,
             layout,
             config,
+            first_frame: (choice.hardware == Some(true)).then_some(first),
             choice,
             failure,
+            aac_override: aac_override.map(str::to_owned),
+            audio_pushed: false,
             finished: false,
         })
     }
 
-    /// The error a push or end of stream that `flow` refused reports: the
-    /// pipeline's own error when one stopped it, which is why the source
-    /// refused.
-    fn push_failed(&self, flow: gst::FlowError) -> EncodeError {
-        EncodeError::Encode(
-            self.failure
-                .get()
-                .cloned()
-                .unwrap_or_else(|| format!("GStreamer refused the buffer ({flow:?}).")),
+    /// Reopen on the candidate after the hardware encoder that could not take
+    /// the first frame, and push that frame there.
+    ///
+    /// The stopped pipeline is set to `NULL` before the next one opens the
+    /// same path, so it writes nothing more to the file.
+    fn fall_back(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
+        let failed = self.choice.encoder.clone();
+        let why = self
+            .failure
+            .get()
+            .cloned()
+            .unwrap_or_else(|| "the pipeline stopped".into());
+        let _ = self.pipeline.set_state(gst::State::Null);
+        self.finished = true;
+        let mut next = Self::open_after(
+            &self.output_path,
+            self.config.clone(),
+            self.aac_override.as_deref(),
+            Some(&*failed),
         )
+        .map_err(|err| {
+            EncodeError::Encode(format!("{why} No encoder after {failed} opens: {err}"))
+        })?;
+        let mut passed_over = std::mem::take(&mut self.choice.passed_over);
+        passed_over.push(format!("{failed} opened and could not encode ({why})"));
+        passed_over.append(&mut next.choice.passed_over);
+        next.choice.passed_over = passed_over;
+        *self = next;
+        self.push(frame)
     }
-}
 
-impl VideoEncoder for GstEncoder {
-    fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
-        if self.finished {
-            return Err(EncodeError::Encode(
-                "encoder already finished. Open a new encode session.".into(),
-            ));
-        }
+    /// Write `frame` to the video source.
+    fn push_frame(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
         let (width, height) = self.config.size;
         let mut buffer = self
             .buffer_pool
@@ -282,7 +361,12 @@ impl VideoEncoder for GstEncoder {
             .map_err(|flow| self.push_failed(flow))
     }
 
-    fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
+    /// Write `samples` at `pts` to the audio source.
+    fn push_audio_samples(
+        &mut self,
+        samples: &[f32],
+        pts: RationalTime,
+    ) -> Result<(), EncodeError> {
         if self.finished {
             return Err(EncodeError::Encode(
                 "encoder already finished. Open a new encode session.".into(),
@@ -299,6 +383,44 @@ impl VideoEncoder for GstEncoder {
         Ok(())
     }
 
+    /// The error a push or end of stream that `flow` refused reports: the
+    /// pipeline's own error when one stopped it, which is why the source
+    /// refused.
+    fn push_failed(&self, flow: gst::FlowError) -> EncodeError {
+        EncodeError::Encode(
+            self.failure
+                .get()
+                .cloned()
+                .unwrap_or_else(|| format!("GStreamer refused the buffer ({flow:?}).")),
+        )
+    }
+}
+
+impl VideoEncoder for GstEncoder {
+    /// The first push to a hardware encoder waits for the frame to reach it,
+    /// and moves the export to the next candidate when the device refused the
+    /// encode session, as a GPU at its session limit does.
+    fn push(&mut self, frame: &VideoFrame) -> Result<(), EncodeError> {
+        if self.finished {
+            return Err(EncodeError::Encode(
+                "encoder already finished. Open a new encode session.".into(),
+            ));
+        }
+        let Some(first) = self.first_frame.take() else {
+            return self.push_frame(frame);
+        };
+        let pushed = self.push_frame(frame);
+        let refused = pushed.is_err() || first.wait(FIRST_FRAME_LIMIT) == Some(false);
+        if !refused || self.audio_pushed {
+            return pushed;
+        }
+        self.fall_back(frame)
+    }
+
+    fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
+        self.audio_pushed = true;
+        self.push_audio_samples(samples, pts)
+    }
     fn finish(&mut self) -> Result<(), EncodeError> {
         if self.finished {
             return Ok(());
@@ -386,10 +508,12 @@ fn encode_failure(err: &gst::message::Error) -> String {
 /// the error waits on the bus for a `finish` that never comes. An ended source
 /// wakes the blocked push, which then fails with the recorded error. The
 /// sources are held weakly, as the pipeline holds the bus that holds this
-/// handler.
+/// handler. An error before the first frame reached the encoder settles
+/// `first` as refused.
 fn end_sources_on_error<'a>(
     pipeline: &gst::Pipeline,
     sources: impl IntoIterator<Item = &'a gst_app::AppSrc>,
+    first: Arc<FirstFrame>,
 ) -> Arc<OnceLock<String>> {
     let failure = Arc::new(OnceLock::new());
     let Some(bus) = pipeline.bus() else {
@@ -403,6 +527,7 @@ fn end_sources_on_error<'a>(
     bus.set_sync_handler(move |_, message| {
         if let gst::MessageView::Error(err) = message.view() {
             let _ = failed.set(encode_failure(err));
+            first.settle(false);
             for source in sources.iter().filter_map(|source| source.upgrade()) {
                 let _ = source.end_of_stream();
             }

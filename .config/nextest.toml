@@ -54,6 +54,13 @@ filter = "binary(~frame_budget) | test(first_interactive_frame_is_measured_cold_
 threads-required = "num-test-threads"
 priority = 90
 
+# Holds every hardware encode session the GPU grants, so nothing else encodes
+# beside it.
+[[profile.default.overrides]]
+filter = "package(aria-encoder) & test(an_export_past_the_hardware_session_limit_finishes_on_the_next_encoder)"
+threads-required = "num-test-threads"
+priority = 90
+
 [profile.ci]
 default-filter = "all()"
 slow-timeout = { period = "60s", terminate-after = 4 }

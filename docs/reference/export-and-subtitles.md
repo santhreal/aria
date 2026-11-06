@@ -27,7 +27,7 @@ Defined in `crates/aria-encoder/src/lib.rs` (`capability()` and `AUDIO_CAPABILIT
 
 ### Linux encoder elements (`aria_encoder::gst`)
 
-Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device and takes the export's frame size and rate. `nvh264enc` takes widths 145 to 4096 and heights 49 to 4096, so a narrower export goes to the next element in order.
+Defined in `crates/aria-encoder/src/gst_element.rs` (`candidates`, `SOFTWARE_ENCODERS`, `SOFTWARE_SPEED_PRESET`). The GStreamer backend builds each element in order and encodes with the first one that opens its device and takes the export's frame size and rate. `nvh264enc` takes widths 145 to 4096 and heights 49 to 4096, so a narrower export goes to the next element in order. A hardware element opens its encode session on the first frame; when the device rejects the session, as NVENC does at its concurrent-session limit, the export reopens on the next element in order and the rejected element is listed among the skipped ones.
 
 | Codec | Elements in order | Software element | Software speed preset |
 | --- | --- | --- | --- |
