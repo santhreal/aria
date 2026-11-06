@@ -28,12 +28,15 @@ pub enum PromptLine<'a> {
 
 /// The lines the prompt shows under the title, in order.
 pub fn lines(prompt: &InstallPrompt) -> Vec<PromptLine<'_>> {
+    // An empty publisher is the manifest default; "from ," hides that nobody
+    // put a name to the code.
+    let origin = match prompt.publisher.trim() {
+        "" => format!("{} plugin with no publisher, id {}", prompt.tier, prompt.id),
+        publisher => format!("{} plugin from {publisher}, id {}", prompt.tier, prompt.id),
+    };
     let mut lines = vec![
         PromptLine::Text(format!("{} {}", prompt.name, prompt.version)),
-        PromptLine::Text(format!(
-            "{} plugin from {}, id {}",
-            prompt.tier, prompt.publisher, prompt.id
-        )),
+        PromptLine::Text(origin),
     ];
     if let Some(old) = &prompt.replaces {
         lines.push(PromptLine::Text(format!(

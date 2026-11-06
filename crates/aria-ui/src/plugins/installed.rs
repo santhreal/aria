@@ -201,6 +201,8 @@ impl InstalledPlugins {
     /// [`Self::open`] with `dev` as the development package.
     pub(crate) fn open_developing(data_dir: &Path, dev: Option<PathBuf>) -> Self {
         let dir = external_plugin_dir(data_dir);
+        // An install killed at its prompt left its unpacked files here.
+        package::sweep(&dir);
         let disabled = fs::read_to_string(dir.join(DISABLED_FILE))
             .map(|text| {
                 text.lines()

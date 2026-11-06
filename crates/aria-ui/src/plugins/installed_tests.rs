@@ -84,6 +84,47 @@ fn mounted_version(ctx: &PluginContext, id: &str) -> Option<String> {
         .map(|info| info.manifest.version.to_string())
 }
 
+/// An editor killed with the install prompt up leaves its unpacked archive
+/// in `.install-<pid>-<n>`, with no live lock beside it; the next start
+/// deletes it and lists the installed package alone. This is the folder a
+/// killed editor left in a headed run: `plugin.toml`, `plugin.wasm` and
+/// `shaders/`, no lock file.
+#[test]
+fn the_next_start_deletes_what_a_killed_install_left() {
+    let data = crate::scratch_pool::scratch("installed-killed-install");
+    write_package(
+        &data,
+        "looks",
+        &[(package::MANIFEST_FILE, manifest("1.0.0").as_bytes())],
+    );
+    let left = write_package(
+        &data,
+        ".install-1420709-0",
+        &[
+            (package::MANIFEST_FILE, manifest("2.0.0").as_bytes()),
+            ("plugin.wasm", b"\0asm"),
+            ("shaders/tint.wgsl", b"// tint\n"),
+        ],
+    );
+
+    let installed = InstalledPlugins::open(&data);
+
+    assert!(!left.exists(), "the killed install's folder is deleted");
+    let mut names: Vec<String> = fs::read_dir(external_plugin_dir(&data))
+        .expect("plugins dir")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names, ["looks"]);
+    assert_eq!(installed.packages().len(), 1);
+}
+
 #[test]
 fn a_disabled_package_stays_unmounted_across_a_restart_until_enabled() {
     let data = crate::scratch_pool::scratch("installed-disable");

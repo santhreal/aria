@@ -35,7 +35,7 @@ pub use archive::{
     unpack,
 };
 pub use declared::{DataPlugin, MAX_SHADER_BYTES, MAX_TEXTURE_BYTES, register_declared};
-pub use install::{Staged, stage, uninstall};
+pub use install::{Staged, stage, sweep, uninstall};
 pub use manifest::{
     Access, DeclaredClipType, DeclaredCommand, DeclaredEffect, DeclaredPanel, DeclaredPass,
     DeclaredTexture, DeclaredTransition, FsScope, PackageManifest, Permissions, Requirement,

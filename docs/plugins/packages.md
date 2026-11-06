@@ -763,7 +763,15 @@ Packages are stored at `<data dir>/plugins/<id>/`.
 2. `stage` unpacks the archive (at most `MAX_ARCHIVE_ENTRIES` = 10,000 entries
    and `MAX_UNPACKED_BYTES` = 1 GiB uncompressed) into a sibling
    `.install-<pid>-<n>` directory and runs `Package::open` before modifying an
-   existing installation.
+   existing installation. The editor holds an exclusive lock on the
+   `.install-<pid>-<n>.lock` file beside the directory until the install is
+   committed or cancelled. An update moves the previous version to
+   `.replaced-<pid>-<n>` and an uninstall moves the package to
+   `.removed-<pid>-<n>`, each locked the same way.
+   When the editor opens the plugins folder, and before each install, it deletes
+   every such directory whose lock no running process holds: the files of an
+   install whose editor was killed or crashed at the prompt, and a previous
+   version that could not be deleted.
 3. New installs always open a confirmation dialog listing any requested
    `[permissions]` capabilities and, for `Tier::Native` packages, an
    unsandboxed-code warning (`Staged::needs_confirmation()`).

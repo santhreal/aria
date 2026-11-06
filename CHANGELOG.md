@@ -1259,6 +1259,8 @@ Notes for the latest release. For previous releases, see the
 - Closing Settings while a shortcut row waits for a key ends the capture, so the next key is no longer taken as that row's chord.
 - `aria frame` exits 2 on an `--at` at or past the end of the timeline and 1 on an empty timeline instead of writing a black PNG.
 - A command-line usage error prints the reason, the synopsis of the command it names, and a pointer to `aria --help` instead of the whole usage block.
+- The editor deletes the unpacked files of a plugin install whose editor was killed at the Install Plugin prompt the next time it opens the plugins folder.
+- The Install Plugin prompt reads "with no publisher" for a package that names none instead of "from ,".
 
 ## [alpha-0.7.0] - 2026-07-22
 

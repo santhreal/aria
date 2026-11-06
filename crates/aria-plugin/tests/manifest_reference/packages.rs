@@ -528,7 +528,9 @@ fn packages_doc_limits_and_install_lifecycle_match_source_constants_and_methods(
     assert_eq!(aria_plugin::package::MAX_SHADER_BYTES, 1 << 20);
     assert_eq!(aria_plugin::package::MAX_TEXTURE_BYTES, 64 << 20);
     assert!(
-        install_src.contains("hidden_name(\"install\")") && doc.contains("`.install-<pid>-<n>`"),
+        install_src.contains("WorkDir::claim(plugins_dir, \"install\")")
+            && doc.contains("`.install-<pid>-<n>`")
+            && doc.contains("`.install-<pid>-<n>.lock`"),
         "docs/plugins/packages.md staging directory pattern drifted from install.rs"
     );
     assert!(

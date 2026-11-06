@@ -315,3 +315,70 @@ fn uninstall_removes_the_package_and_keeps_its_storage() {
     let err = uninstall(&fixture.plugins(), ID).expect_err("gone");
     assert_eq!(err.reason, format!("no installed package is {ID}"));
 }
+
+/// Closes "a working folder outlives the process that made it": the next
+/// install deletes every `.install-`, `.replaced-` and `.removed-` folder,
+/// and every lock file of one, that no live holder has, and keeps the one an
+/// install in progress holds and every hidden entry that is not a working
+/// folder. A lock no open file holds stands in for a process that exited:
+/// the operating system releases a dead process's lock the same way.
+///
+/// Not caught: two processes in different pid namespaces sharing one plugins
+/// folder, which only the claim's `WouldBlock` branch handles.
+#[test]
+fn the_next_install_deletes_every_working_folder_no_live_holder_has() {
+    let fixture = Fixture::new();
+    let plugins = fixture.plugins();
+    let text = manifest("1.0.0", "");
+    let package = [("plugin.toml", text.as_str())];
+    let live = stage(&fixture.archive("live.ariaplugin", &package), &plugins).expect("stages");
+    let live_name = live
+        .package()
+        .dir
+        .file_name()
+        .expect("named")
+        .to_string_lossy()
+        .into_owned();
+
+    // Dead: a folder with no lock (what an install killed at its prompt left
+    // before locks existed), folders beside unheld locks, and a lock whose
+    // folder is gone.
+    for name in [".install-1420709-0", ".replaced-77-3", ".removed-5-0"] {
+        fs::create_dir_all(plugins.join(name).join("shaders")).expect("mkdir");
+        fs::write(
+            plugins.join(name).join("plugin.toml"),
+            manifest("0.1.0", ""),
+        )
+        .expect("write");
+    }
+    for lock in [
+        ".replaced-77-3.lock",
+        ".removed-5-0.lock",
+        ".install-9-9.lock",
+    ] {
+        File::create(plugins.join(lock)).expect("lock file");
+    }
+    // Hidden, and not working folders.
+    let kept = [
+        ".disabled",
+        ".install-1-0-1",
+        ".install-1-x",
+        ".install-notes",
+        ".installer-1-0",
+    ];
+    for name in &kept[1..] {
+        fs::create_dir_all(plugins.join(name)).expect("mkdir");
+    }
+    fs::write(plugins.join(kept[0]), "").expect("write");
+
+    drop(stage(&fixture.archive("next.ariaplugin", &package), &plugins).expect("stages"));
+
+    let mut expected: Vec<String> = kept.iter().map(|name| (*name).to_owned()).collect();
+    expected.push(live_name.clone());
+    expected.push(format!("{live_name}.lock"));
+    expected.sort();
+    assert_eq!(entries(&plugins), expected, "the live install is kept");
+
+    drop(live);
+    assert_eq!(entries(&plugins), kept, "a dropped install leaves no lock");
+}

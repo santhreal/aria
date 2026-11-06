@@ -62,6 +62,24 @@ fn the_prompt_lines_name_the_package_and_each_permission() {
     );
 }
 
+/// The manifest's publisher defaults to empty, and `aria plugin new` writes
+/// it empty: the origin line states that no publisher is named instead of
+/// reading "from ,". A blank publisher counts as empty.
+#[test]
+fn a_package_with_no_publisher_is_stated_as_such() {
+    for blank in ["", "   "] {
+        let prompt = InstallPrompt {
+            publisher: blank.into(),
+            ..looks()
+        };
+        assert_eq!(
+            lines(&prompt)[1],
+            Text("WASM plugin with no publisher, id com.example.looks".into()),
+            "publisher {blank:?}"
+        );
+    }
+}
+
 /// The title reads Update Plugin only over a package that replaces an
 /// installed version, and each title is in Title Case. The drawn title of the
 /// dialog with no prompt is read by `chrome::dialog_tests`; the update title
