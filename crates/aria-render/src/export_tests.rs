@@ -605,3 +605,66 @@ fn every_file_publisher_refuses_a_missing_source_before_it_opens_anything() {
     );
     assert!(!out.exists(), "the video export wrote a file");
 }
+
+/// WHY: an encoder can change while it encodes. The GStreamer encoder reopens
+/// on the next candidate when a hardware encoder opens and then rejects the
+/// first frame, and the export read the encoder's choice before the first
+/// frame, so `aria export` reported the hardware encoder for a file the
+/// software one wrote. Does not cover the reopen itself, which the
+/// `aria-encoder` `session_limit` test covers.
+#[test]
+fn the_export_reports_the_encoder_that_wrote_the_file() {
+    use aria_core::{EncodeError, EncoderChoice, VideoEncoder, VideoFrame};
+
+    /// Reports a hardware encoder until it takes a frame, then the software
+    /// one it moved to.
+    struct Reopens {
+        pushed: bool,
+    }
+
+    impl VideoEncoder for Reopens {
+        fn push(&mut self, _: &VideoFrame) -> Result<(), EncodeError> {
+            self.pushed = true;
+            Ok(())
+        }
+
+        fn finish(&mut self) -> Result<(), EncodeError> {
+            Ok(())
+        }
+
+        fn choice(&self) -> EncoderChoice {
+            if !self.pushed {
+                return EncoderChoice::only("hardware", Some(true));
+            }
+            EncoderChoice {
+                encoder: "software".into(),
+                hardware: Some(false),
+                passed_over: vec!["hardware opened and could not encode".into()],
+            }
+        }
+    }
+
+    let Ok(mut renderer) = crate::Renderer::new_headless() else {
+        return;
+    };
+    let dir = tempfile::tempdir().expect("tempdir");
+    let out = dir.path().join("out.mp4");
+    let project = one_second();
+    let exported = export_to_file_with_encoder_observed(
+        &mut renderer,
+        &project,
+        &out,
+        ranged(&project, 0, 2),
+        &mut |path, _| {
+            std::fs::write(path, b"encoded").expect("write the staging file");
+            Ok(Box::new(Reopens { pushed: false }))
+        },
+        &mut |_, _| true,
+    )
+    .expect("the export finishes");
+    assert_eq!(exported.frames, 2);
+    assert_eq!(
+        exported.encoder.to_string(),
+        "encoder software (software)\nskipped hardware opened and could not encode"
+    );
+}

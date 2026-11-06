@@ -286,7 +286,8 @@ pub struct EncoderChoice {
     /// (`Some(false)`); `None` when the platform framework selects the codec
     /// itself and does not report which one it took.
     pub hardware: Option<bool>,
-    /// Why each encoder tried before [`Self::encoder`] did not open, in order.
+    /// Why each encoder tried before [`Self::encoder`] was not used, in order:
+    /// it did not open, or it opened and could not encode.
     pub passed_over: Vec<String>,
 }
 

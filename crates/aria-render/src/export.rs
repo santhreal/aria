@@ -421,8 +421,9 @@ pub struct Exported {
 }
 
 /// [`export_to_file_observed`] with a caller-supplied encoder opener (such as a
-/// registered plugin encoder). Returns the frame count and the encoder the
-/// opener opened.
+/// registered plugin encoder). Returns the frame count and the encoder that
+/// wrote the file, read after the last frame: an encoder that reopens on the
+/// next candidate mid-export reports the candidate that took the frames.
 ///
 /// Encoding writes to the same sibling `TransactionalFile` staging directory
 /// as [`export_to_file_observed`], and atomically replaces `path` only after
@@ -445,8 +446,8 @@ pub fn export_to_file_with_encoder_observed(
         staging.staging_path(),
         export_config_with(project, settings),
     )?;
-    let choice = encoder.choice();
     let frames = export_observed(renderer, project, encoder.as_mut(), settings, observer)?;
+    let choice = encoder.choice();
     drop(encoder);
     staging.publish()?;
     Ok(Exported {
