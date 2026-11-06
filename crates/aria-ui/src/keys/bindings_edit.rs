@@ -465,9 +465,7 @@ pub(super) const EDIT_ROWS: &[Binding] = &[
         |state| state.close_project()
     ),
     bind!("key-save", "Save", Chord::ctrl("s"), Editor, |state| {
-        if let Err(err) = state.save_project() {
-            state.report_error(&err);
-        }
+        state.save_or_pick();
     }),
     bind!(
         "key-save-as",

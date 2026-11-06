@@ -444,3 +444,248 @@ fn window_title_tracks_project_name_and_dirty_state_across_every_open_path() {
         );
     }
 }
+
+/// WHY: a project saved as `p.aria` and copied to `rec.aria` (or saved via
+/// `Save As` to a new file) used to display `"p"` in the window title,
+/// breadcrumb, unsaved prompt, export default filename, template filename, and
+/// project rename draft while showing `"rec"` in Recents, the recovery banner,
+/// and the recovery status line. Closes that class by scanning every non-test
+/// `.rs` file in `aria-ui` to enforce that no UI surface reads
+/// `store.project_name` directly, enumerating every call site of the single
+/// owner (`AppState::project_display_name` / `session::project_name_of`),
+/// failing if a new call site is added without a surface reader here, and
+/// asserting every surface agrees across an unsaved project, an opened copy
+/// (`rec.aria` copied from `p.aria`), `Save As` to a new stem, and crash
+/// recovery.
+#[test]
+fn every_project_name_surface_reads_one_owner_across_open_save_as_and_recovery() {
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    use crate::app::picker::Answer;
+    use crate::test_support::collect_rs;
+    use crate::test_support::control_sites::strip_comments;
+    use crate::test_support::sources::without_test_items;
+    use crate::types::RenameTarget;
+    use aria_commands::{Command, EditCommand};
+
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    collect_rs(&src, &mut files);
+    assert!(files.len() > 200);
+
+    let mut direct_store_reads = Vec::new();
+    let mut owner_sites = BTreeSet::new();
+
+    for file in &files {
+        let rel = file
+            .strip_prefix(&src)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
+            continue;
+        }
+        let raw = std::fs::read_to_string(file).expect("read source file");
+        let code = strip_comments(&without_test_items(&raw));
+        for (line_idx, line) in code.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.contains("project_name")
+                && !trimmed.contains("project_name_of(")
+                && !matches!(
+                    rel.as_str(),
+                    "app/session.rs" | "projection.rs" | "app/engine_sync.rs" | "types_editor.rs"
+                )
+            {
+                direct_store_reads.push(format!("{rel}:{}: {trimmed}", line_idx + 1));
+            }
+            if trimmed.contains("project_display_name(") || trimmed.contains("project_name_of(") {
+                if rel == "app/session.rs"
+                    && (trimmed.starts_with("pub(crate) fn project_name_of")
+                        || trimmed.starts_with("pub fn project_display_name")
+                        || trimmed.starts_with("project_name_of("))
+                {
+                    continue;
+                }
+                owner_sites.insert(rel.clone());
+            }
+        }
+    }
+
+    assert!(
+        direct_store_reads.is_empty(),
+        "UI surfaces must read AppState::project_display_name or session::project_name_of instead of store.project_name:\n  {}",
+        direct_store_reads.join("\n  ")
+    );
+
+    let expected_sites: BTreeSet<String> = [
+        "app/export_request.rs",
+        "app/recents.rs",
+        "app/recovery.rs",
+        "app/rename.rs",
+        "app/session.rs",
+        "app/templates.rs",
+        "app/unsaved.rs",
+        "chrome.rs",
+        "panels/settings_dialog.rs",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(
+        owner_sites, expected_sites,
+        "the set of files calling project_display_name / project_name_of changed; register any new surface in this test"
+    );
+
+    type SurfaceReader = (&'static str, fn(&mut crate::app::AppState) -> String);
+    let active_surfaces: &[SurfaceReader] = &[
+        ("app/session.rs:window_title", |state| {
+            match state.window_title() {
+                WindowTitle::Project { name, .. } => name.to_string(),
+                WindowTitle::Home | WindowTitle::Panel(_) => {
+                    panic!("expected editor WindowTitle::Project")
+                }
+            }
+        }),
+        ("chrome.rs:breadcrumb", |state| {
+            state.project_display_name().to_owned()
+        }),
+        ("app/unsaved.rs:unsaved_line", |state| {
+            let line = state.unsaved_line();
+            let start = line.find('“').expect("opening quote in unsaved_line") + '“'.len_utf8();
+            let end = line[start..]
+                .find('”')
+                .expect("closing quote in unsaved_line")
+                + start;
+            line[start..end].to_owned()
+        }),
+        ("app/export_request.rs:export_destination", |state| {
+            state
+                .export_destination()
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("export stem")
+                .to_owned()
+        }),
+        ("app/rename.rs:RenameTarget::Project", |state| {
+            state.begin_rename(RenameTarget::Project);
+            let draft = state.rename_draft.to_string();
+            state.cancel_rename();
+            draft
+        }),
+        ("app/templates.rs:save_template", |state| {
+            let tpl = state.data_dir.join("probe-template.ariat");
+            state
+                .save_template(tpl.clone(), String::new())
+                .expect("save template with default project name");
+            aria_models::Template::load_from_file(&tpl)
+                .expect("load saved template")
+                .meta()
+                .name
+                .to_owned()
+        }),
+    ];
+
+    let assert_active_surfaces = |state: &mut crate::app::AppState, expected: &str, stage: &str| {
+        for (surface, read) in active_surfaces {
+            assert_eq!(
+                read(state),
+                expected,
+                "{stage}: surface {surface} disagreed on project name"
+            );
+        }
+    };
+
+    let temp = crate::scratch_pool::scratch("project-name-one-owner");
+    let data_dir = temp.join("data");
+    std::fs::create_dir_all(&data_dir).expect("create data_dir");
+    let mut state = crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir.clone())
+        .expect("init AppState");
+
+    // 1. Before first save: stored name is used across all active surfaces.
+    state.new_project().expect("new project");
+    state
+        .apply_command(Command::Edit(EditCommand::SetProjectName {
+            name: "Rough Cut".into(),
+        }))
+        .expect("rename unsaved project");
+    assert!(state.project_path.is_none());
+    assert_active_surfaces(&mut state, "Rough Cut", "unsaved project before first save");
+
+    // 2. Save as p.aria, copy p.aria to rec.aria on disk, and open rec.aria.
+    let p_path = temp.join("p.aria");
+    state.supply_pick(Answer::file(&p_path));
+    state.save_or_pick();
+    assert_active_surfaces(&mut state, "p", "after first save to p.aria");
+    assert_eq!(state.recents()[0].label.as_ref(), "p");
+
+    let rec_path = temp.join("rec.aria");
+    std::fs::copy(&p_path, &rec_path).expect("copy p.aria to rec.aria");
+    assert_eq!(
+        aria_models::Project::load_from_file(&rec_path)
+            .expect("raw load rec.aria")
+            .name,
+        "p",
+        "copied file still carries old JSON name on disk before open"
+    );
+    state.open_project(rec_path.clone()).expect("open rec.aria");
+    assert_active_surfaces(
+        &mut state,
+        "rec",
+        "after opening rec.aria copied from p.aria",
+    );
+    assert_eq!(
+        state.recents()[0].label.as_ref(),
+        "rec",
+        "app/recents.rs:visible_recents must report rec"
+    );
+
+    // 3. Save As from rec.aria to final-cut.aria adopts the new stem everywhere.
+    let final_path = temp.join("final-cut.aria");
+    state.supply_pick(Answer::file(&final_path));
+    state.save_project_as();
+    assert_active_surfaces(&mut state, "final-cut", "after Save As to final-cut.aria");
+    assert_eq!(state.recents()[0].label.as_ref(), "final-cut");
+    assert_eq!(
+        aria_models::Project::load_from_file(&final_path)
+            .expect("load final-cut.aria")
+            .name,
+        "final-cut"
+    );
+
+    // 4. Crash recovery of rec.aria (whose on-disk JSON still holds "name": "p").
+    state.open_project(rec_path).expect("reopen rec.aria");
+    state
+        .add_track(aria_models::TrackKind::Video, "Recovery Track")
+        .expect("dirty edit");
+    state.write_recovery().expect("write recovery copy");
+    // Simulate a recovery file written when internal Project.name was still "p".
+    let mut raw_rec =
+        aria_models::Project::load_from_file(&crate::app::recovery::recovery_path(&data_dir))
+            .expect("load recovery file");
+    raw_rec.name = "p".into();
+    raw_rec
+        .save_to_file(&crate::app::recovery::recovery_path(&data_dir))
+        .expect("overwrite recovery file with stale internal name");
+
+    let mut relaunched = crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir)
+        .expect("relaunch AppState");
+    let offer = relaunched
+        .pending_recovery()
+        .expect("pending recovery offer");
+    assert_eq!(
+        offer.name, "rec",
+        "app/recovery.rs:load_pending_recovery banner must report rec"
+    );
+    relaunched.restore_recovery().expect("restore recovery");
+    assert_eq!(
+        relaunched.status_message.as_deref(),
+        Some("Recovered unsaved work in rec. Save to keep it."),
+        "app/recovery.rs:restore_recovery status line must report rec"
+    );
+    assert_active_surfaces(
+        &mut relaunched,
+        "rec",
+        "after restoring recovery of rec.aria",
+    );
+}

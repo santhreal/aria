@@ -1,3 +1,4 @@
+use super::premiere_tests::save_fixture;
 use super::{AppState, DialogKind, describe_engine_error};
 use crate::types::UiRoute;
 use aria_models::{ClipId, ClipParam};
@@ -82,7 +83,7 @@ fn import_fixture_then_place_clip() {
         .drop_media_on_timeline(media, None, 0)
         .expect("place clip");
     assert_eq!(state.store.sequence.clip_count(), 1);
-    state.save_project().unwrap();
+    save_fixture(&mut state);
     assert!(state.project_path.as_ref().unwrap().exists());
 }
 
@@ -116,8 +117,7 @@ fn relink_repairs_missing_media() {
     state
         .drop_media_on_timeline(media, None, 0)
         .expect("place clip");
-    state.save_project().unwrap();
-    let project = state.project_path.clone().unwrap();
+    let project = save_fixture(&mut state);
     std::fs::remove_file(&local).unwrap();
     let mut reopened = AppState::new(PluginContext::new(), dir).unwrap();
     reopened

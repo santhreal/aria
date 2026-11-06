@@ -312,3 +312,300 @@ fn every_panel_pick_asks_once_and_a_cancel_changes_nothing() {
         );
     }
 }
+
+/// WHY: saving an unsaved project used to fall back to `<data_dir>/untitled.aria`
+/// without prompting, so `Ctrl+S`, `File > Save`, the command palette's Save
+/// row, and the Unsaved Changes dialog's Save button wrote to a hidden internal
+/// path and overwrote earlier untitled work. Closes that class by deriving every
+/// save entry point from `SHIPPED_BINDINGS`, `AppMenu::File`, the live palette
+/// catalog, and the unsaved prompt at run time, driving each on an unsaved
+/// project first with a cancelled pick (asserting one pick was requested and no
+/// `.aria` file was written) and then with a chosen path (asserting the project
+/// is written at the chosen path). Does not cover the OS file dialog window
+/// itself.
+#[test]
+fn every_save_entry_point_asks_for_a_path_on_an_unsaved_project() {
+    use crate::app::palette::Pending;
+    use crate::chrome::menu_items::{items_of, run_item};
+    use crate::keys::KeyBody;
+    use crate::keys::bindings::SHIPPED_BINDINGS;
+    use crate::types::AppMenu;
+    use gpui::AppContext;
+
+    let probe_dir = crate::scratch_pool::scratch("save-entry-probe");
+    let probe_ctx = aria_plugin::PluginContext::new();
+    let _ = crate::plugins::mount_all(&probe_ctx, &probe_dir);
+    let mut probe = super::AppState::new(probe_ctx, probe_dir).expect("probe state");
+    probe.new_project().expect("probe project");
+
+    let key_ids: Vec<&'static str> = SHIPPED_BINDINGS
+        .iter()
+        .filter(|b| {
+            b.name.starts_with("Save") && b.name != "Save a Copy" && b.name != "Save as Template"
+        })
+        .map(|b| b.id)
+        .collect();
+    assert!(
+        key_ids.contains(&"key-save") && key_ids.contains(&"key-save-as"),
+        "expected key-save and key-save-as in shipped bindings, got {key_ids:?}"
+    );
+
+    let menu_ids: Vec<&'static str> = items_of(AppMenu::File, &probe)
+        .into_iter()
+        .filter(|item| {
+            item.label.starts_with("Save")
+                && item.label != "Save a Copy…"
+                && item.label != "Save as Template…"
+        })
+        .map(|item| item.id)
+        .collect();
+    assert!(
+        menu_ids.contains(&"file-save") && menu_ids.contains(&"file-save-as"),
+        "expected file-save and file-save-as in File menu, got {menu_ids:?}"
+    );
+
+    let palette_ids: Vec<String> = probe
+        .palette_catalog()
+        .iter()
+        .filter(|offer| {
+            offer.source == Some(AppMenu::File)
+                && offer.label.starts_with("Save")
+                && offer.label.as_ref() != "Save a Copy…"
+                && offer.label.as_ref() != "Save as Template…"
+        })
+        .map(|offer| offer.id.to_string())
+        .collect();
+    assert!(
+        palette_ids.iter().any(|id| id == "file-save")
+            && palette_ids.iter().any(|id| id == "file-save-as"),
+        "expected file-save and file-save-as in palette catalog, got {palette_ids:?}"
+    );
+
+    type EntryRunner = Box<dyn Fn(&mut super::AppState, &gpui::TestAppContext)>;
+    let mut entries: Vec<(String, EntryRunner)> = Vec::new();
+
+    for id in key_ids {
+        entries.push((
+            format!("chord:{id}"),
+            Box::new(move |state, _| {
+                let binding = SHIPPED_BINDINGS
+                    .iter()
+                    .find(|b| b.id == id)
+                    .expect("shipped binding");
+                let KeyBody::Plain(run) = binding.run else {
+                    panic!("{id} is not a plain key binding");
+                };
+                run(state);
+            }),
+        ));
+    }
+
+    for id in menu_ids {
+        entries.push((
+            format!("menu:{id}"),
+            Box::new(move |state, cx| {
+                let _ = crate::plugins::mount_all(&state.ctx, &state.data_dir);
+                let placeholder = super::AppState::new(
+                    aria_plugin::PluginContext::new(),
+                    crate::scratch_pool::scratch("menu-placeholder"),
+                )
+                .expect("placeholder");
+                let moved = std::mem::replace(state, placeholder);
+                let entity = cx.update(|app| app.new(|_| moved));
+                cx.update(|app| {
+                    entity.update(app, |s, cx| {
+                        assert!(run_item(AppMenu::File, id, s, cx), "{id} did not run");
+                    });
+                });
+                let _ = cx.update(|app| {
+                    entity.update(app, |s, _| {
+                        let empty = super::AppState::new(
+                            aria_plugin::PluginContext::new(),
+                            crate::scratch_pool::scratch("menu-empty"),
+                        )
+                        .expect("empty");
+                        *state = std::mem::replace(s, empty);
+                    })
+                });
+            }),
+        ));
+    }
+
+    for id in palette_ids {
+        entries.push((
+            format!("palette:{id}"),
+            Box::new(move |state, cx| {
+                let _ = crate::plugins::mount_all(&state.ctx, &state.data_dir);
+                let index = state
+                    .palette_hits()
+                    .iter()
+                    .position(|offer| offer.id.as_ref() == id.as_str())
+                    .expect("palette offer present");
+                let pending = state.run_palette_offer(index);
+                if let Some(Pending::Menu(menu, row_id)) = pending {
+                    let placeholder = super::AppState::new(
+                        aria_plugin::PluginContext::new(),
+                        crate::scratch_pool::scratch("pal-placeholder"),
+                    )
+                    .expect("placeholder");
+                    let moved = std::mem::replace(state, placeholder);
+                    let entity = cx.update(|app| app.new(|_| moved));
+                    cx.update(|app| {
+                        entity.update(app, |s, cx| {
+                            assert!(run_item(menu, row_id, s, cx), "{row_id} did not run");
+                        });
+                    });
+                    let _ = cx.update(|app| {
+                        entity.update(app, |s, _| {
+                            let empty = super::AppState::new(
+                                aria_plugin::PluginContext::new(),
+                                crate::scratch_pool::scratch("pal-empty"),
+                            )
+                            .expect("empty");
+                            *state = std::mem::replace(s, empty);
+                        })
+                    });
+                }
+            }),
+        ));
+    }
+
+    entries.push((
+        "unsaved:save_and_continue".to_string(),
+        Box::new(|state, _| {
+            state.request_new_project();
+            assert_eq!(state.dialog, super::DialogKind::UnsavedChanges);
+            state.save_and_continue();
+        }),
+    ));
+
+    let cx = gpui::TestAppContext::single();
+    let out_dir = crate::scratch_pool::scratch("save-entry-targets");
+
+    for (idx, (label, run)) in entries.iter().enumerate() {
+        // Phase 1: Cancelled pick asks once and writes nothing.
+        let (mut state, _) = with_clip();
+        assert!(state.project_path.is_none());
+        state.supply_pick(Answer::cancelled());
+        run(&mut state, &cx);
+        assert_eq!(
+            state.picks_asked(),
+            1,
+            "{label} did not ask for a save path"
+        );
+        assert_eq!(
+            state.picks_unused(),
+            0,
+            "{label} left its supplied pick unread"
+        );
+        assert!(
+            state.project_path.is_none(),
+            "{label} set a project path after a cancelled pick"
+        );
+        assert!(
+            !state.data_dir.join("untitled.aria").exists(),
+            "{label} wrote untitled.aria despite a cancelled pick"
+        );
+
+        // Phase 2: Supplied path writes the file at the chosen destination.
+        let (mut state, _) = with_clip();
+        let chosen = out_dir.join(format!("saved-{idx}.aria"));
+        state.supply_pick(Answer::file(&chosen));
+        run(&mut state, &cx);
+        assert_eq!(
+            state.picks_asked(),
+            1,
+            "{label} did not ask for a save path"
+        );
+        assert_eq!(
+            state.picks_unused(),
+            0,
+            "{label} left its supplied pick unread"
+        );
+        assert!(
+            chosen.is_file(),
+            "{label} did not write the project to {}",
+            chosen.display()
+        );
+        assert!(
+            !state.data_dir.join("untitled.aria").exists(),
+            "{label} wrote untitled.aria instead of only the chosen path"
+        );
+    }
+}
+
+/// WHY: two untitled sessions in the same profile used to write to the same
+/// `<data_dir>/untitled.aria` fallback, so saving the second silently clobbered
+/// the first. Closes that class by asserting direct `save_project()` on an
+/// untitled project is refused, and two untitled sessions sharing a `data_dir`
+/// each prompt for their own destination and preserve both projects on disk.
+#[test]
+fn saving_two_untitled_projects_asks_twice_and_keeps_both_distinct() {
+    let shared_dir = crate::scratch_pool::scratch("two-untitled");
+    let mut first =
+        super::AppState::new(aria_plugin::PluginContext::new(), shared_dir.clone()).expect("first");
+    first.new_project().expect("new project A");
+    first
+        .add_track(aria_models::TrackKind::Video, "Project A Lane")
+        .expect("lane A");
+
+    let err = first
+        .save_project()
+        .expect_err("direct save_project on untitled state must refuse");
+    assert!(
+        err.to_string().contains("Save As"),
+        "refusal must point at Save As: {err}"
+    );
+    assert!(!shared_dir.join("untitled.aria").exists());
+
+    let path_a = shared_dir.join("project-a.aria");
+    first.supply_pick(Answer::file(&path_a));
+    first.save_or_pick();
+    assert_eq!(first.picks_asked(), 1);
+    assert_eq!(first.project_path.as_deref(), Some(path_a.as_path()));
+    assert!(path_a.is_file());
+
+    let mut second = super::AppState::new(aria_plugin::PluginContext::new(), shared_dir.clone())
+        .expect("second");
+    second.new_project().expect("new project B");
+    second
+        .add_track(aria_models::TrackKind::Audio, "Project B Lane")
+        .expect("lane B");
+
+    second.supply_pick(Answer::cancelled());
+    second.save_or_pick();
+    assert_eq!(second.picks_asked(), 1);
+    assert!(second.project_path.is_none());
+    assert!(!shared_dir.join("untitled.aria").exists());
+
+    let path_b = shared_dir.join("project-b.aria");
+    second.supply_pick(Answer::file(&path_b));
+    second.save_or_pick();
+    assert_eq!(second.picks_asked(), 2);
+    assert_eq!(second.project_path.as_deref(), Some(path_b.as_path()));
+    assert!(path_b.is_file());
+
+    let loaded_a = aria_models::Project::load_from_file(&path_a).expect("load project A");
+    let loaded_b = aria_models::Project::load_from_file(&path_b).expect("load project B");
+    assert!(
+        loaded_a
+            .timeline()
+            .tracks_ordered()
+            .any(|t| t.name == "Project A Lane"),
+        "project A was overwritten"
+    );
+    assert!(
+        !loaded_a
+            .timeline()
+            .tracks_ordered()
+            .any(|t| t.name == "Project B Lane"),
+        "project B leaked into project A"
+    );
+    assert!(
+        loaded_b
+            .timeline()
+            .tracks_ordered()
+            .any(|t| t.name == "Project B Lane"),
+        "project B was not saved to its chosen path"
+    );
+}

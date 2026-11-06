@@ -106,7 +106,7 @@ impl AppState {
                 .flat_map(|track| track.clips.iter())
                 .find(|clip| clip.id == id)
                 .map(|clip| clip.name.to_string()),
-            RenameTarget::Project => Some(self.store.project_name.to_string()),
+            RenameTarget::Project => Some(self.project_display_name().to_string()),
             // An unset hint still opens a draft: the slot exists, the hint is
             // just empty.
             RenameTarget::SlotLabel => self

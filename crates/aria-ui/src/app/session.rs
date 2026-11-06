@@ -11,16 +11,32 @@ use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
 use crate::types::{AppMenu, HomeRail, UiRoute};
 
+/// The display name of a project: the trimmed file stem of `path` once the
+/// project has a path on disk, or `fallback` before the first save.
+pub(crate) fn project_name_of<'a>(path: Option<&'a std::path::Path>, fallback: &'a str) -> &'a str {
+    path.and_then(|p| p.file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(str::trim)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(fallback)
+}
+
 impl AppState {
     pub fn save_project(&mut self) -> Result<(), EngineError> {
-        let path = self
-            .project_path
-            .clone()
-            .unwrap_or_else(|| self.data_dir.join("untitled.aria"));
-        self.project_path = Some(path.clone());
+        let Some(path) = self.project_path.clone() else {
+            return Err(EngineError::Refused(
+                "The project has no path yet. Use File > Save As to choose where to save it."
+                    .into(),
+            ));
+        };
+        self.save_project_to(path)
+    }
+
+    pub(crate) fn save_project_to(&mut self, path: PathBuf) -> Result<(), EngineError> {
         self.apply_command(Command::Project(ProjectCommand::Save {
             path: path.clone(),
         }))?;
+        self.project_path = Some(path.clone());
         self.remember_recent(&path);
         self.clear_recovery();
         // The conversation is keyed by the project's path, so it can only be
@@ -31,6 +47,18 @@ impl AppState {
         }
         self.status_message = Some("Saved".into());
         Ok(())
+    }
+
+    /// Save the project to its existing `.aria` file, or open the Save As
+    /// picker when the project has not been saved yet.
+    pub fn save_or_pick(&mut self) {
+        if self.project_path.is_none() {
+            self.save_project_as();
+            return;
+        }
+        if let Err(err) = self.save_project() {
+            self.report_error(&err);
+        }
     }
 
     pub fn open_project(&mut self, path: PathBuf) -> Result<(), EngineError> {
@@ -84,6 +112,16 @@ impl AppState {
         self.enter_editor();
     }
 
+    /// The open project's display name: the file stem of `project_path` once
+    /// the project has a path on disk, or `store.project_name` before the
+    /// first save.
+    pub fn project_display_name(&self) -> &str {
+        project_name_of(
+            self.project_path.as_deref(),
+            self.store.project_name.as_ref(),
+        )
+    }
+
     /// Current window title derived from the active route, project name, and
     /// dirty state.
     pub(crate) fn window_title(&self) -> crate::chrome::window_frame::WindowTitle {
@@ -91,7 +129,7 @@ impl AppState {
             crate::chrome::window_frame::WindowTitle::Home
         } else {
             crate::chrome::window_frame::WindowTitle::Project {
-                name: self.store.project_name.clone(),
+                name: self.project_display_name().to_owned().into(),
                 dirty: self.store.is_dirty,
             }
         }
@@ -456,15 +494,19 @@ impl AppState {
     }
 
     pub fn save_project_as(&mut self) {
+        self.pick_and_save_project(|_| {});
+    }
+
+    pub(crate) fn pick_and_save_project(&mut self, after: fn(&mut Self)) {
         self.request_pick(
             Ask::SaveFile(FileSpec::new("Save As").filter("Aria project", &["aria"])),
-            |state, answer| {
+            move |state, answer| {
                 let Some(path) = answer.one() else {
                     return;
                 };
-                state.project_path = Some(path);
-                if let Err(err) = state.save_project() {
-                    state.report_error(&err);
+                match state.save_project_to(path) {
+                    Ok(()) => after(state),
+                    Err(err) => state.report_error(&err),
                 }
             },
         );

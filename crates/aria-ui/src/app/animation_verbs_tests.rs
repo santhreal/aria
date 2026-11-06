@@ -14,7 +14,7 @@
 use aria_models::{ClipId, ClipParam, Easing, Param, ParamValue, TemporalEase};
 
 use crate::app::animation_verbs::VelocitySide;
-use crate::app::premiere_tests::with_clip;
+use crate::app::premiere_tests::{save_fixture, with_clip};
 use crate::app::{AppState, DialogKind};
 
 const OPACITY: ClipParam = ClipParam::Opacity;
@@ -187,7 +187,7 @@ fn keyframe_velocity_writes_both_handles_in_one_step() {
 
     // Applying with nothing changed closes the dialog without dirtying or
     // adding an undo step.
-    state.save_project().expect("save");
+    save_fixture(&mut state);
     let clean_depth = state.history_entries().iter().filter(|e| e.applied).count();
     state.status_message = None;
     state.apply_keyframe_velocity();

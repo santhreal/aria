@@ -31,11 +31,13 @@ See [Templates](#templates) for the marks.
 
 ## Export and save
 
-- Ctrl+S saves to `~/.aria/untitled.aria` the first time, or to the last
+- Ctrl+S prompts for a `.aria` path the first time, or saves to the current
   project path.
 - Ctrl+Shift+S saves to a new path.
 - Ctrl+O opens a project. Ctrl+Shift+W returns to Home.
-- Ctrl+M opens Export. Choose a destination or accept the default `.mp4`.
+- Ctrl+M opens Export. Choose a destination or accept the default `.mp4` beside
+  the project (or in the platform videos directory when the project has not been
+  saved yet).
 - Export writes what this platform's encoder supports. The sheet's **Format**
   and **Encoder** rows name the container, the codec of the file about to be
   written, and the backend (GStreamer on Linux, VideoToolbox on macOS, Media

@@ -125,7 +125,7 @@ impl AppState {
     /// The name is the project's own, quoted, so a name in lower case or one
     /// that reads as a word is not taken for part of the sentence.
     pub fn unsaved_line(&self) -> String {
-        let name = self.store.project_name.trim();
+        let name = self.project_display_name().trim();
         let project = if name.is_empty() {
             "this project".to_string()
         } else {
@@ -140,9 +140,14 @@ impl AppState {
         }
     }
 
-    /// Save, then continue. A failed save keeps the prompt up and the intent
+    /// Save, then continue. An unsaved project asks where to write first; a
+    /// cancelled pick or a failed save keeps the prompt up and the intent
     /// parked: the whole point is that the work survives the answer.
     pub fn save_and_continue(&mut self) {
+        if self.project_path.is_none() {
+            self.pick_and_save_project(Self::resolve_pending);
+            return;
+        }
         if let Err(err) = self.save_project() {
             self.report_error(&err);
             return;

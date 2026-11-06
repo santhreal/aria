@@ -7,6 +7,7 @@
 //! that can change it leave the held list in step.
 
 use super::AppState;
+use super::premiere_tests::save_fixture;
 use aria_plugin::PluginContext;
 use std::path::{Path, PathBuf};
 
@@ -83,11 +84,7 @@ fn saving_a_project_puts_it_where_home_will_draw_it() {
     let dir = scratch();
     let mut state = AppState::new(PluginContext::new(), dir).unwrap();
     state.new_project().unwrap();
-    state.save_project().unwrap();
-    let saved = state
-        .project_path
-        .as_deref()
-        .expect("a saved project has a path");
+    let saved = save_fixture(&mut state);
     assert_eq!(
         state.recents()[0].path.as_ref(),
         &saved,

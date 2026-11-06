@@ -38,14 +38,24 @@ fn asked_for(state: &AppState) -> ExportRequest {
 }
 
 #[test]
-fn an_unsaved_project_exports_beside_its_data_and_a_saved_one_beside_itself() {
+fn an_unsaved_project_exports_to_the_videos_directory_and_a_saved_one_beside_itself() {
     let (mut state, opened) = asked();
     let name = state.store.project_name.clone();
+    let expected_unsaved_dir = dirs::video_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| state.data_dir.clone());
     assert_eq!(
         opened.destination,
-        state.data_dir.join(format!("{name}.mp4")),
-        "a project that has never been saved has nowhere else to land"
+        expected_unsaved_dir.join(format!("{name}.mp4")),
+        "an unsaved project defaults to the platform videos directory"
     );
+    if dirs::video_dir().or_else(dirs::home_dir).is_some() {
+        assert_ne!(
+            opened.destination,
+            state.data_dir.join(format!("{name}.mp4")),
+            "an unsaved project must not export into the internal data directory"
+        );
+    }
 
     state.project_path = Some(state.data_dir.join("cut.aria"));
     assert_eq!(
@@ -245,10 +255,13 @@ fn building_a_request_queues_no_export_and_says_nothing() {
 fn the_default_request_names_the_project_it_would_render() {
     let (state, defaults) = asked();
     let name = state.store.project_name.clone();
+    let expected_unsaved_dir = dirs::video_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| state.data_dir.clone());
     assert_eq!(
         defaults,
         ExportRequest {
-            destination: state.data_dir.join(format!("{name}.mp4")),
+            destination: expected_unsaved_dir.join(format!("{name}.mp4")),
             format: ExportFormat {
                 size: Some(state.canvas_size_tuple()),
                 frame_rate: Some(state.store.sequence.frame_rate),

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::app::settings_form::SettingsSection;
 use crate::app::{AppState, DialogKind};
 
-use super::menu_items::{MenuItem, MenuItems, report};
+use super::menu_items::{MenuItem, MenuItems};
 
 /// The id prefix of an Open Recent row. The rest of the id is the project's path.
 pub(crate) const RECENT_PREFIX: &str = "file-recent:";
@@ -51,12 +51,9 @@ static FILE_SAVE: &[MenuItem] = &[
     MenuItem::new("file-rename", "Rename Project…", |_, s, _| {
         s.begin_rename(crate::types::RenameTarget::Project)
     }),
-    MenuItem::new("file-save", "Save", |_, s, _| {
-        let saved = s.save_project();
-        report(s, saved)
-    })
-    .key("key-save")
-    .rule(),
+    MenuItem::new("file-save", "Save", |_, s, _| s.save_or_pick())
+        .key("key-save")
+        .rule(),
     MenuItem::new("file-save-as", "Save As…", |_, s, _| s.save_project_as()).key("key-save-as"),
     MenuItem::new("file-save-copy", "Save a Copy…", |_, s, _| {
         s.save_project_copy()

@@ -135,7 +135,7 @@ pub fn render(
     }
     // Canvas is a project setting, so the section is absent with no project open
     // rather than editing a project that does not exist.
-    if !state.read(cx).store.project_name.is_empty() {
+    if !state.read(cx).project_display_name().is_empty() {
         push_visible!(SettingsSection::Canvas, canvas_rows(&theme, state, cx));
     }
     let visible = sections;

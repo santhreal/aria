@@ -18,7 +18,7 @@ use aria_plugin::PluginContext;
 
 use crate::app::AppState;
 use crate::app::mask_path::tests::masked_path;
-use crate::app::premiere_tests::{with_clip, with_media};
+pub(crate) use crate::app::premiere_tests::{save_fixture, with_clip, with_media};
 use crate::surfaces::context_menu::{KeyframeMenu, MaskPathKeyMenu};
 use crate::types::ContextTarget;
 

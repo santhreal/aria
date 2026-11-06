@@ -844,7 +844,7 @@ mod tests {
 
         // Applying with nothing changed closes the dialog without dirtying or
         // adding an undo step.
-        state.save_project().expect("save");
+        fixtures::save_fixture(&mut state);
         let clean_depth = applied_steps(&state);
         state.status_message = None;
         state.apply_speed_duration();
@@ -929,7 +929,7 @@ mod tests {
 
         // Applying with nothing changed closes the dialog without dirtying or
         // adding an undo step.
-        state.save_project().expect("save");
+        fixtures::save_fixture(&mut state);
         let clean_depth = applied_steps(&state);
         state.status_message = None;
         state.apply_audio_gain();

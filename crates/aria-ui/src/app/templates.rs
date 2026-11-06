@@ -44,7 +44,7 @@ impl AppState {
     /// template is not a Save As in disguise.
     pub fn save_template(&mut self, path: PathBuf, name: String) -> Result<(), EngineError> {
         let name = if name.trim().is_empty() {
-            self.store.project_name.to_string()
+            self.project_display_name().to_string()
         } else {
             name
         };
@@ -64,7 +64,7 @@ impl AppState {
     /// Ask for a destination and save the template there. The name comes from the
     /// project, which already has a chosen name.
     pub fn pick_and_save_template(&mut self) {
-        let name = self.store.project_name.to_string();
+        let name = self.project_display_name().to_string();
         self.request_pick(
             Ask::SaveFile(
                 FileSpec::new("Save as Template")

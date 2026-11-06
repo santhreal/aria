@@ -41,18 +41,20 @@ pub struct ExportRequest {
 
 impl AppState {
     /// Where an export lands when no file is named: beside the
-    /// project, or in the data directory when the project has never been saved.
+    /// project, or in the platform videos directory when the project has never
+    /// been saved.
     ///
     /// Here rather than in the sheet, so the path the sheet prints and the path
     /// the button writes to are one answer.
     pub fn export_destination(&self) -> PathBuf {
         let ext = self.export_extension();
-        match self.project_path.as_ref() {
-            Some(path) => path.with_extension(&ext),
-            None => self
-                .data_dir
-                .join(format!("{}.{ext}", self.store.project_name)),
-        }
+        let dir = match self.project_path.as_ref().and_then(|path| path.parent()) {
+            Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+            _ => dirs::video_dir()
+                .or_else(dirs::home_dir)
+                .unwrap_or_else(|| self.data_dir.clone()),
+        };
+        dir.join(format!("{}.{ext}", self.project_display_name()))
     }
 
     /// The export the sheet is currently describing, addressed at `destination`.

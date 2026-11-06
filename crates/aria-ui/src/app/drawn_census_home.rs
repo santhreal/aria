@@ -53,9 +53,7 @@ fn at_home() -> Dressed {
     state
         .save_template(bundle.clone(), "Census".into())
         .expect("a template bundle with no slots to fill");
-    state
-        .save_project()
-        .expect("a saved project, so a tile runs its intent instead of parking it");
+    crate::app::fixtures::save_fixture(&mut state);
     assert!(
         !state.store.is_dirty,
         "the fixture is still dirty, so every tile would park behind the prompt"

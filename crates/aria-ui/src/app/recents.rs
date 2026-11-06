@@ -185,11 +185,7 @@ pub fn visible_recents(data_dir: &Path) -> Vec<RecentView> {
         .into_iter()
         .map(|entry| {
             let missing = !entry.path.exists();
-            let label = entry
-                .path
-                .file_stem()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or("untitled")
+            let label = super::session::project_name_of(Some(&entry.path), "untitled")
                 .to_owned()
                 .into();
             let detail = folder_label(&entry.path, home.as_deref()).into();

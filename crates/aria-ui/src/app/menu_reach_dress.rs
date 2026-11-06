@@ -486,6 +486,8 @@ pub(super) enum Answered {
     /// A saved session, answered with a second project on disk that has two
     /// clips, so loading it is visible in the clip count.
     Open,
+    /// An unsaved session, answered with the path its first save writes to.
+    Save,
     /// A saved session, answered with a name it has not been written under.
     SaveAs,
     /// A saved session, answered with a second path the copy is written to.
@@ -523,6 +525,12 @@ impl Answered {
             Self::Open => {
                 let path = a_project_of_two_clips();
                 let mut state = saved();
+                state.supply_pick(Answer::file(&path));
+                (state, path)
+            }
+            Self::Save => {
+                let path = own_scratch("save").join("first.aria");
+                let (mut state, _) = with_clip();
                 state.supply_pick(Answer::file(&path));
                 (state, path)
             }

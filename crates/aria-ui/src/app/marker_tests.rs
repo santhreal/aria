@@ -7,7 +7,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, MarkerColor, MarkerKind, RationalTime};
 
 use super::decline::Decline;
-use super::premiere_tests::with_clip;
+use super::premiere_tests::{save_fixture, with_clip};
 use super::{AppState, DialogKind, MarkerEditField};
 use crate::chrome::menu_items::items_of;
 use crate::surfaces::settings_pick::RATES;
@@ -347,7 +347,7 @@ fn saving_an_unchanged_marker_edit_dialog_closes_without_dirtying_or_adding_undo
     state.add_marker_at_playhead().expect("add sequence marker");
     let marker_id = state.store.sequence.markers[0].id;
     let original_color = state.store.sequence.markers[0].color;
-    state.save_project().expect("save");
+    save_fixture(&mut state);
     assert!(!state.store.is_dirty);
     let depth_before = state.history_entries().iter().filter(|e| e.applied).count();
 

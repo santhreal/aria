@@ -308,6 +308,70 @@ fn saving_writes_the_file_then_runs_the_intent() {
     assert_eq!(state.project_path, None, "the new project ran");
 }
 
+/// WHY: pressing Save on the Unsaved Changes prompt over an untitled project
+/// used to write `<data_dir>/untitled.aria` without asking and then replace the
+/// session. Closes that class across every `PendingIntent` variant: an
+/// unanswered or cancelled Save As pick leaves the prompt up, the intent
+/// parked, and the unsaved edits in memory without writing `untitled.aria`;
+/// answering the pick writes the chosen file and then runs the parked intent.
+#[test]
+fn saving_an_unsaved_project_from_the_prompt_asks_where_to_write_and_keeps_the_prompt_on_cancel() {
+    let other = saved_elsewhere();
+    let mut next = Some(PendingIntent::GoHome);
+    let mut idx = 0usize;
+    while let Some(intent) = next {
+        next = after(&intent, &other);
+        idx += 1;
+        let dir = scratch("unsaved-first-save");
+        let mut state = AppState::new(PluginContext::new(), dir.clone()).expect("state");
+        state.new_project().expect("a project to edit");
+        state
+            .add_track(aria_models::TrackKind::Video, LOST)
+            .expect("an edit to keep");
+        assert!(state.project_path.is_none());
+        assert!(!state.request(intent.clone()), "{intent:?} did not ask");
+
+        state.supply_pick(Answer::cancelled());
+        state.save_and_continue();
+        assert_eq!(state.picks_asked(), 1, "{intent:?} did not ask for a path");
+        assert_eq!(state.picks_unused(), 0);
+        assert_eq!(
+            state.dialog,
+            DialogKind::UnsavedChanges,
+            "{intent:?} closed the prompt on a cancelled save pick"
+        );
+        assert_eq!(
+            state.pending_intent(),
+            Some(&intent),
+            "{intent:?} lost its parked intent on a cancelled save pick"
+        );
+        assert!(
+            state.store.is_dirty,
+            "{intent:?} cleared dirty without saving"
+        );
+        assert!(has_lane(&state, LOST), "{intent:?} lost the unsaved lane");
+        assert!(!dir.join("untitled.aria").exists());
+
+        let chosen = dir.join(format!("saved-{idx}.aria"));
+        state.supply_pick(Answer::file(chosen.clone()));
+        if intent == PendingIntent::PickProject {
+            state.supply_pick(Answer::file(other.clone()));
+        }
+        state.save_and_continue();
+        assert!(chosen.is_file(), "{intent:?} did not write the chosen file");
+        assert!(!dir.join("untitled.aria").exists());
+        assert_eq!(state.dialog, DialogKind::None, "{intent:?} kept the prompt");
+        assert!(state.pending_intent().is_none(), "{intent:?} stayed parked");
+        let saved_project = aria_models::Project::load_from_file(&chosen).expect("load saved");
+        assert!(
+            saved_project
+                .timeline()
+                .tracks_ordered()
+                .any(|t| t.name == LOST),
+            "{intent:?} did not persist the unsaved lane to the chosen file"
+        );
+    }
+}
 #[test]
 fn a_failed_save_keeps_the_prompt_and_the_work() {
     let mut state = dirty();

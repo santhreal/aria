@@ -273,11 +273,13 @@ impl AppState {
     pub(crate) fn run_host_request(&mut self, request: HostRequest) -> Result<String, String> {
         match request {
             HostRequest::SaveProject => {
-                self.save_project().map_err(|err| err.to_string())?;
-                Ok(match &self.project_path {
-                    Some(path) => format!("saved {}", path.display()),
-                    None => "saved".to_string(),
-                })
+                self.save_project()
+                    .map_err(|err| format!("app_save_project: {err}"))?;
+                let path = self
+                    .project_path
+                    .as_ref()
+                    .expect("save_project requires project_path");
+                Ok(format!("saved {}", path.display()))
             }
             HostRequest::Seek { seconds } => {
                 let rate = self.playhead.rate;

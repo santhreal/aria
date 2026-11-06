@@ -308,6 +308,31 @@ fn a_bad_cache_name_is_refused_and_names_itself() {
     assert!(error.contains("not-a-cache"), "{error}");
 }
 
+/// WHY: `app_save_project` runs from the assistant loop without a file picker,
+/// so calling it on an untitled project used to write `<data_dir>/untitled.aria`
+/// silently. Closes that class by asserting `HostRequest::SaveProject` refuses
+/// by name (`app_save_project`) when `project_path` is `None` and writes the
+/// file once `project_path` is set.
+#[test]
+fn save_project_request_refuses_an_untitled_project_by_name_and_saves_a_named_one() {
+    let mut state = state();
+    assert!(state.project_path.is_none());
+    let error = state
+        .run_host_request(HostRequest::SaveProject)
+        .expect_err("untitled project cannot be saved without a path");
+    assert!(error.contains("app_save_project"), "{error}");
+    assert!(error.contains("Save As"), "{error}");
+    assert!(!state.data_dir.join("untitled.aria").exists());
+
+    let path = state.data_dir.join("assisted.aria");
+    state.project_path = Some(path.clone());
+    let detail = state
+        .run_host_request(HostRequest::SaveProject)
+        .expect("named project saves");
+    assert!(detail.contains("assisted.aria"), "{detail}");
+    assert!(path.is_file());
+}
+
 /// The model has to receive what happened, and the transcript has to show it. One
 /// applied request produces exactly one transcript row either way.
 #[test]

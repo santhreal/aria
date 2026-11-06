@@ -167,8 +167,9 @@ fn a_defined_clip_type_is_placed_edited_saved_reloaded_and_drawn_by_its_callback
     assert_eq!(state.selected_effect_param(0, 0), Some(0.5));
     assert_gray(center(&state), 128);
 
+    let path = state.data_dir.join("defined.aria");
+    state.project_path = Some(path.clone());
     state.save_project().expect("saves");
-    let path = state.project_path.clone().expect("a saved path");
     state.new_project().expect("a new project");
     assert_eq!(clip_count(&state), 0);
     state.open_project(path).expect("reopens");

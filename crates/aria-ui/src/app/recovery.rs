@@ -148,11 +148,7 @@ pub(crate) fn load_pending_recovery(data_dir: &Path) -> Option<RecoveryOffer> {
         .map(|text| text.trim().to_string())
         .filter(|text| !text.is_empty())
         .map(PathBuf::from);
-    let name = project
-        .as_ref()
-        .and_then(|path| path.file_stem())
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| "Untitled project".into());
+    let name = super::session::project_name_of(project.as_deref(), "Untitled project").to_owned();
     Some(RecoveryOffer {
         file,
         project,
@@ -280,7 +276,10 @@ impl AppState {
         self.enter_editor();
         self.sync_from_engine();
         self.status_message = Some(match &offer.project {
-            Some(_) => format!("Recovered unsaved work in {}. Save to keep it.", offer.name),
+            Some(_) => format!(
+                "Recovered unsaved work in {}. Save to keep it.",
+                self.project_display_name()
+            ),
             None => "Recovered unsaved work. Save it somewhere to keep it.".into(),
         });
         Ok(())

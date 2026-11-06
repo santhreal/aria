@@ -24,7 +24,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `file-home` | `Open Recent` | All Recent Projects… | `none` | Always enabled | Switches the window route to Home (`UiRoute::Home`). |
 | `file-close` | `none` | Close | `Ctrl+Shift+W` | Always enabled | Closes the open project and returns to Home (`close_project`, opening `aria.dialog.unsaved` first when the active project has unsaved edits). |
 | `file-rename` | `none` | Rename Project… | `none` | Always enabled | Opens `aria.overlay.rename` (`RenameTarget::Project`) to rename the project. |
-| `file-save` | `none` | Save | `Ctrl+S` | Always enabled | Saves the project to its `.aria` path, or to `<data dir>/untitled.aria` when untitled. |
+| `file-save` | `none` | Save | `Ctrl+S` | Always enabled | Saves the project to its `.aria` path, or prompts for a `.aria` path when the project has not been saved yet. |
 | `file-save-as` | `none` | Save As… | `Ctrl+Shift+S` | Always enabled | Prompts for a new `.aria` path, writes the project there, and updates the session path. |
 | `file-save-copy` | `none` | Save a Copy… | `Ctrl+Alt+S` | Always enabled | Writes a copy of the project to a chosen `.aria` path without changing the session path. |
 | `file-save-template` | `none` | Save as Template… | `none` | Always enabled | Prompts for a destination `.ariat` path and packages the project as a template bundle. |

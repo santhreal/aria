@@ -46,14 +46,9 @@ pub(crate) fn load_session(
     Ok(())
 }
 
-/// Adopt the file stem of `path` when `project.name` is empty or the default
-/// `"untitled"` placeholder, ignoring internal shadow files (`untitled.aria`,
+/// Adopt the file stem of `path`, ignoring internal shadow files (`untitled.aria`,
 /// `recovery.aria`).
 pub(crate) fn sync_project_name_from_path(project: &mut Project, path: &std::path::Path) {
-    let trimmed = project.name.trim();
-    if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("untitled") {
-        return;
-    }
     let Some(stem) = path.file_stem().and_then(|s| s.to_str()).map(str::trim) else {
         return;
     };

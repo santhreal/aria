@@ -525,6 +525,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
 const PICK_ROWS: &[(&str, Answered)] = &[
     ("file-open", Answered::Open),
+    ("file-save", Answered::Save),
     ("file-save-as", Answered::SaveAs),
     ("file-save-copy", Answered::SaveCopy),
     ("file-save-template", Answered::SaveTemplate),
@@ -589,8 +590,7 @@ pub(super) fn own_scratch(name: &str) -> std::path::PathBuf {
 /// not stand between the row and the pick.
 fn saved() -> AppState {
     let (mut state, _) = with_clip();
-    state.project_path = Some(scratch("saved").join("open.aria"));
-    state.save_project().expect("save the fixture project");
+    super::premiere_tests::save_fixture(&mut state);
     state
 }
 fn entity_of(state: AppState, cx: &gpui::TestAppContext) -> gpui::Entity<AppState> {

@@ -59,6 +59,16 @@ pub(crate) fn place_media(state: &mut AppState, asset: PathBuf) -> ClipId {
     clip
 }
 
+/// Give `state` a `.aria` path in its scratch directory and save it there,
+/// for a test that needs a clean saved baseline rather than the Save As
+/// dialog.
+pub(crate) fn save_fixture(state: &mut AppState) -> PathBuf {
+    let path = state.data_dir.join("fixture.aria");
+    state.project_path = Some(path.clone());
+    state.save_project().expect("save fixture project");
+    path
+}
+
 /// A state carrying a measurement-sized sequence: `lanes` lane pairs of
 /// `clips` clips each, polled once so the store and the projection memo both
 /// describe it.

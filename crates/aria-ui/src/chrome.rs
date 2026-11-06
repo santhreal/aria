@@ -266,7 +266,7 @@ fn breadcrumb(
     state: &Entity<AppState>,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let name = state.read(cx).store.project_name.clone();
+    let name: gpui::SharedString = state.read(cx).project_display_name().to_owned().into();
     let dirty = state.read(cx).store.is_dirty;
     let key = motion::MotionKey::new("crumb", "home");
     div()
