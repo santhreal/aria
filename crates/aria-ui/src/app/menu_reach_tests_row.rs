@@ -40,6 +40,41 @@ fn every_row_does_what_it_says() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+/// A row its guard draws enabled never answers with a decline reason. The
+/// guard and the action read one state, so an enabled row that only prints
+/// why it did nothing is a guard that reads less than its action. Every row is
+/// checked under its own dressing and under the bare state (one clip, nothing
+/// selected, the playhead past the end), and every `Decline` reason counts. A
+/// guard and action that disagree only in a state neither covers, or an action
+/// that declines with wording outside `Decline`, is not caught here.
+#[test]
+fn an_enabled_row_never_answers_with_a_decline() {
+    let reasons: BTreeSet<&str> = crate::app::decline::Decline::ALL
+        .iter()
+        .map(|why| why.reason())
+        .collect();
+    let declined = |blocked: Option<&str>, status: &Option<String>| {
+        blocked.is_none() && status.as_deref().is_some_and(|line| reasons.contains(line))
+    };
+    let mut wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| declined(row.blocked, &row.status))
+        .map(|row| format!("{} against {:?}: {:?}", row.id, row.dress, row.status))
+        .collect();
+    wrong.extend(
+        CENSUS
+            .bare
+            .iter()
+            .filter(|row| declined(row.blocked, &row.status))
+            .map(|row| format!("{} against the bare state: {:?}", row.id, row.status)),
+    );
+    assert!(
+        CENSUS.bare.len() == CENSUS.rows.len(),
+        "every declared row runs against the bare state"
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
 #[test]
 fn every_command_the_menu_sends_is_declared_reachable() {
     // The inverse direction of `Reach`: a command the bar demonstrably sends

@@ -14,7 +14,7 @@ static MARKER_ITEMS: &[MenuItem] = &[
         s.mark_clip_at_playhead()
     })
     .key("key-mark-clip")
-    .when(guards::clips),
+    .when(guards::targeted_clip_at_playhead),
     MenuItem::new("mark-go-in", "Go to In", |_, s, _| s.go_to_in())
         .key("key-mark-in-go")
         .when(guards::mark_in)

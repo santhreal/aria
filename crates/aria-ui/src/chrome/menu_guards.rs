@@ -493,6 +493,15 @@ pub(crate) fn clip_under_playhead(_: &str, state: &AppState) -> Option<&'static 
     (!any).then_some("No clip under the playhead")
 }
 
+/// The row acts on the unlocked clips under the playhead on the targeted lanes.
+pub(crate) fn targeted_clip_at_playhead(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .clips_at_playhead()
+        .next()
+        .is_none()
+        .then_some(Decline::NoTargetedClipAtPlayhead.reason())
+}
+
 /// The row duplicates the selected clip onto another track that accepts it.
 pub(crate) fn other_compatible_track(id: &str, state: &AppState) -> Option<&'static str> {
     selection(id, state).or_else(|| {

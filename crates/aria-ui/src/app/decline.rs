@@ -79,11 +79,14 @@ pub enum Decline {
     /// Loop or work-area playback sent with the In point at the end of the
     /// sequence, so the range to play holds no frame.
     InAtEnd,
+    /// A command that acts on the clips under the playhead on the targeted
+    /// lanes, sent with no unlocked clip there.
+    NoTargetedClipAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 25] = [
+    pub const ALL: [Decline; 26] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -109,6 +112,7 @@ impl Decline {
         Decline::NoMarkedRange,
         Decline::NoClipOrGap,
         Decline::InAtEnd,
+        Decline::NoTargetedClipAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -140,6 +144,7 @@ impl Decline {
             Decline::NoMarkedRange => "Mark an In and an Out point first",
             Decline::NoClipOrGap => "No clip or gap is selected",
             Decline::InAtEnd => "The In point is at the end of the sequence",
+            Decline::NoTargetedClipAtPlayhead => "No clip under the playhead on a targeted track",
         }
     }
 }

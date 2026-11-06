@@ -29,8 +29,9 @@ impl AppState {
     }
 
     /// The unlocked clips under the playhead on the targeted lanes, a clip
-    /// starting on the playhead included and one ending on it excluded.
-    fn clips_at_playhead(&self) -> impl Iterator<Item = &UiClip> {
+    /// starting on the playhead included and one ending on it excluded. The
+    /// Mark Clip row's guard reads the same set the X and D keys act on.
+    pub(crate) fn clips_at_playhead(&self) -> impl Iterator<Item = &UiClip> {
         let at = self.playhead.value;
         self.targeted_lanes()
             .flat_map(|lane| lane.clips.iter())
@@ -314,7 +315,7 @@ impl AppState {
             .map(|clip| ClipId::from_raw(clip.id))
             .collect();
         if picked.is_empty() {
-            self.status_message = Some("No clip under the playhead on a targeted track".into());
+            self.decline(Decline::NoTargetedClipAtPlayhead);
             return;
         }
         self.selection = picked;
@@ -333,7 +334,7 @@ impl AppState {
                 clip.name.clone(),
             )
         }) else {
-            self.status_message = Some("No clip under the playhead on a targeted track".into());
+            self.decline(Decline::NoTargetedClipAtPlayhead);
             return;
         };
         self.mark_in = Some(from);

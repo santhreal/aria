@@ -151,6 +151,39 @@ fn out_keeps_the_frame_it_was_pressed_on() {
     state.go_to_out();
     assert_eq!(state.playhead.value, end - 1, "Go to Out after X");
 }
+/// The Mark Clip row and the X key read one set: the unlocked clips under the
+/// playhead on the targeted lanes. A clip on an untargeted lane, or none under
+/// the playhead, draws the row disabled with the reason X prints, and the
+/// marks stay as they were.
+#[test]
+fn mark_clip_is_disabled_where_x_finds_no_targeted_clip() {
+    use crate::app::decline::Decline;
+    use crate::chrome::menu_guards::targeted_clip_at_playhead;
+    let reason = Some(Decline::NoTargetedClipAtPlayhead.reason());
+    let (mut state, clip) = with_clip();
+    let (start, end) = clip_bounds(&state, clip);
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| lane.clips.iter().any(|ui| ui.id == clip.raw()))
+        .map(|lane| aria_models::TrackId::from_raw(lane.id))
+        .expect("the clip's lane");
+
+    state.set_playhead(start);
+    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), None);
+
+    state.toggle_track_targeted(lane).expect("untarget");
+    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), reason);
+    state.mark_clip_at_playhead();
+    assert_eq!(state.marked_range(), None);
+    assert_eq!(state.status_message.as_deref(), reason);
+
+    state.toggle_track_targeted(lane).expect("target");
+    state.set_playhead(end);
+    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), reason);
+}
 #[test]
 fn trim_to_playhead_pulls_the_chosen_edge_only() {
     let (mut state, clip) = with_clip();

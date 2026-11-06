@@ -159,7 +159,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | --- | --- | --- | --- | --- | --- |
 | `seq-mark-in` | `none` | Mark In | `I` | Always enabled | Sets the In point at the playhead on the active monitor and clears an Out point at or before it. |
 | `seq-mark-out` | `none` | Mark Out | `O` | Always enabled | Sets the Out point after the playhead frame on the active monitor and clears an In point at or after it. |
-| `mark-clip` | `none` | Mark Clip | `X` | The sequence has no clips (`guards::clips`) | Sets sequence In and Out points to the span of the clip at the playhead. |
+| `mark-clip` | `none` | Mark Clip | `X` | No unlocked clip is under the playhead on a targeted track (`guards::targeted_clip_at_playhead`) | Sets sequence In and Out points to the span of the first unlocked clip under the playhead on a targeted track. |
 | `mark-go-in` | `none` | Go to In | `Shift+I` | No In point is set (`guards::mark_in`) | Seeks the playhead to the sequence In point. |
 | `mark-go-out` | `none` | Go to Out | `Shift+O` | No Out point is set (`guards::mark_out`) | Seeks the playhead to the sequence Out point. |
 | `seq-clear-in` | `none` | Clear In | `Ctrl+Shift+I` | No In point is set (`guards::mark_in`) | Clears the active In point. |
@@ -380,6 +380,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoMarkedRange` | `Mark an In and an Out point first` |
 | `NoClipOrGap` | `No clip or gap is selected` |
 | `InAtEnd` | `The In point is at the end of the sequence` |
+| `NoTargetedClipAtPlayhead` | `No clip under the playhead on a targeted track` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

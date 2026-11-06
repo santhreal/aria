@@ -1341,6 +1341,7 @@ Notes for the latest release. For previous releases, see the
 - Nested sequence clips play and export their sequence's mix instead of silence, so Clip > Nest… keeps the sound of the clips it gathers.
 - A non-finite media pool position is rejected instead of being saved as a value that stops the project from opening.
 - Mark In or Mark Out set across the other mark reports on the status line that the other mark was cleared, on the timeline and on a Source tab.
+- Markers > Mark Clip is disabled when no unlocked clip is under the playhead on a targeted track, with that reason as its tooltip.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -364,13 +364,24 @@ struct RowOutcome {
     dress: Dress,
     wrote: Vec<String>,
     blocked: Option<&'static str>,
+    status: Option<String>,
     opened_form: bool,
+}
+
+/// One row run against the bare state: one clip, nothing selected, the playhead
+/// past the end. A guard that reads less than its action shows here as a row
+/// drawn enabled that answers with a decline.
+struct BareOutcome {
+    id: String,
+    blocked: Option<&'static str>,
+    status: Option<String>,
 }
 
 struct Probe {
     wrote: Vec<String>,
     asked: Vec<&'static str>,
     blocked: Option<&'static str>,
+    status: Option<String>,
     opened_form: bool,
     asked_pick: bool,
 }
@@ -380,6 +391,7 @@ struct MenuCensus {
     sent: BTreeSet<&'static str>,
     rows: Vec<RowOutcome>,
     asking_picks: Vec<String>,
+    bare: Vec<BareOutcome>,
 }
 
 /// Run one menu row against a state the caller built: a row that asks for a
@@ -410,6 +422,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
             };
             let blocked = item.blocked_by(&*state);
             let run = item.run;
+            state.status_message = None;
             run(id, state, cx);
             if enter {
                 assert!(
@@ -421,18 +434,24 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
         })
     });
     assert!(found, "{id} vanished between enumeration and running");
-    let (after, opened_form, asked_pick) = cx.update(|app| {
+    let (after, opened_form, asked_pick, status) = cx.update(|app| {
         let state = entity.read(app);
         let opened_form = matches!(
             crate::app::dialog_primary::primary(state.dialog),
             crate::app::dialog_primary::Primary::Run(_)
         );
-        (history_labels(state), opened_form, state.picks_asked() > 0)
+        (
+            history_labels(state),
+            opened_form,
+            state.picks_asked() > 0,
+            state.status_message.clone(),
+        )
     });
     Probe {
         wrote: after.into_iter().skip(before.len()).collect(),
         asked: watch.take(),
         blocked,
+        status,
         opened_form,
         asked_pick,
     }
@@ -464,6 +483,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
     let mut sent = BTreeSet::new();
     let mut row_outcomes = Vec::new();
     let mut asking_picks = Vec::new();
+    let mut bare = Vec::new();
     let rows = live_rows();
     for (menu, id) in &rows {
         // A row with no declaration is named by
@@ -477,6 +497,12 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             }
             continue;
         };
+        let outcome = probe(*menu, id, bare_state(), false);
+        bare.push(BareOutcome {
+            id: id.clone(),
+            blocked: outcome.blocked,
+            status: outcome.status,
+        });
         let outcome = probe(*menu, id, dress.state(), false);
         if outcome.asked_pick {
             asking_picks.push(id.clone());
@@ -489,6 +515,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             dress,
             wrote: outcome.wrote,
             blocked: outcome.blocked,
+            status: outcome.status,
             opened_form: outcome.opened_form,
         });
     }
@@ -518,8 +545,18 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
         sent,
         rows: row_outcomes,
         asking_picks,
+        bare,
     }
 });
+/// One clip on the timeline, nothing selected, and the playhead past the end,
+/// so no clip is under it.
+fn bare_state() -> AppState {
+    let (mut state, _) = with_clip();
+    state.clear_selection();
+    let end = state.store.sequence.duration_ticks;
+    state.set_playhead(end);
+    state
+}
 /// Every menu row that prompts for a path, with the state and the
 /// answer it is driven with. Checked against the live menus at run time by
 /// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
