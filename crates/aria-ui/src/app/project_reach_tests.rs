@@ -175,10 +175,13 @@ fn walking_every_question_lands_on_a_clip_or_reports_none() {
         }
         let selected = state.selected_clip().expect("a match is selected");
         let engine = state.engine.lock();
-        let timeline = engine.project().timeline();
-        let clip = timeline.clip(selected).expect("the selected clip exists");
+        let project = engine.project();
+        let clip = project
+            .timeline()
+            .clip(selected)
+            .expect("the selected clip exists");
         assert!(
-            spec.fact.holds(timeline, clip),
+            spec.fact.holds(project, clip),
             "'{}' selected a clip that does not answer it",
             spec.id
         );

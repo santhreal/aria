@@ -20,7 +20,8 @@ use std::cell::OnceCell;
 
 use crate::clip::Clip;
 use crate::ids::ClipId;
-use crate::timeline::{AudioLaneLinks, Timeline};
+use crate::project::Project;
+use crate::timeline::AudioLaneLinks;
 use crate::track::Track;
 
 #[path = "audit_project.rs"]
@@ -43,11 +44,11 @@ pub enum ClipFact {
     SpeedCurve,
     /// Detected beat markers.
     Beats,
-    /// Pitch rides the playback speed instead of being preserved.
+    /// Sound whose pitch rides the playback speed instead of being preserved.
     PitchRidesSpeed,
-    /// The clip's own media audio plays on its own lane.
+    /// The clip's own sound plays on its own track.
     OwnAudio,
-    /// A linked audio-lane companion took the sound over.
+    /// A linked audio-track companion took the clip's sound over.
     DetachedAudio,
     /// Another clip starts exactly where this one ends: a junction a
     /// transition can take.
@@ -76,22 +77,27 @@ pub struct ClipFactSpec {
 /// needs taken once per walk rather than once per clip.
 #[derive(Debug)]
 pub struct FactWalk<'a> {
-    timeline: &'a Timeline,
+    project: &'a Project,
     audio_links: OnceCell<AudioLaneLinks>,
 }
 
 impl<'a> FactWalk<'a> {
-    fn new(timeline: &'a Timeline) -> Self {
+    fn new(project: &'a Project) -> Self {
         Self {
-            timeline,
+            project,
             audio_links: OnceCell::new(),
         }
+    }
+
+    /// The project being walked.
+    pub const fn project(&self) -> &'a Project {
+        self.project
     }
 
     /// Every link group with a member on an audio lane, read on first use.
     pub fn audio_links(&self) -> &AudioLaneLinks {
         self.audio_links
-            .get_or_init(|| self.timeline.audio_lane_links())
+            .get_or_init(|| self.project.timeline().audio_lane_links())
     }
 }
 
@@ -145,19 +151,28 @@ const SHIPPED: &[ClipFactSpec] = &[
         fact: ClipFact::PitchRidesSpeed,
         id: "pitch_rides_speed",
         label: "Pitch rides speed",
-        test: |_, _, clip| clip.audio_pitch_factor() != 1.0,
+        test: |walk, lane, clip| {
+            walk.project().clip_insert_refusal(clip, lane).is_ok()
+                && clip.audio_pitch_factor() != 1.0
+        },
     },
     ClipFactSpec {
         fact: ClipFact::OwnAudio,
         id: "own_audio",
         label: "Sound on its own track",
-        test: |walk, lane, clip| walk.audio_links().carries_own_audio(lane, clip),
+        test: |walk, lane, clip| {
+            walk.project()
+                .clip_sounds_on_own_track(clip, lane, walk.audio_links())
+        },
     },
     ClipFactSpec {
         fact: ClipFact::DetachedAudio,
         id: "detached_audio",
         label: "Audio separated to a track",
-        test: |walk, _, clip| walk.audio_links().detached(clip),
+        test: |walk, lane, clip| {
+            walk.project().clip_insert_refusal(clip, lane).is_ok()
+                && walk.audio_links().detached(clip)
+        },
     },
     ClipFactSpec {
         fact: ClipFact::AtACut,
@@ -212,22 +227,25 @@ impl ClipFact {
         self.spec().label
     }
 
-    /// Answer this question for one clip of `timeline`: `false` for a clip on
-    /// no lane of it.
-    pub fn holds(self, timeline: &Timeline, clip: &Clip) -> bool {
+    /// Answer this question for one clip of `project`'s active sequence:
+    /// `false` for a clip on no lane of it.
+    pub fn holds(self, project: &Project, clip: &Clip) -> bool {
+        let timeline = project.timeline();
         let lane = timeline.track_of(clip.id).and_then(|id| timeline.track(id));
-        lane.is_some_and(|lane| (self.spec().test)(&FactWalk::new(timeline), lane, clip))
+        lane.is_some_and(|lane| (self.spec().test)(&FactWalk::new(project), lane, clip))
     }
 }
 
-/// Every clip in `timeline` this question holds for, in lane then start order.
+/// Every clip in `project`'s active sequence this question holds for, in lane
+/// then start order.
 ///
 /// One [`FactWalk`] serves every clip, so a question reading the whole
 /// sequence reads it once per call and not once per clip.
-pub fn clips_with_fact(timeline: &Timeline, fact: ClipFact) -> Vec<ClipId> {
+pub fn clips_with_fact(project: &Project, fact: ClipFact) -> Vec<ClipId> {
     let test = fact.spec().test;
-    let walk = &FactWalk::new(timeline);
-    timeline
+    let walk = &FactWalk::new(project);
+    project
+        .timeline()
         .tracks_ordered()
         .flat_map(|lane| {
             lane.clips_ordered()

@@ -85,13 +85,13 @@ impl ProjectReport {
                 .collect()
         };
         let clip_facts = {
-            let timeline = engine.project().timeline();
+            let project = engine.project();
             clip_facts()
                 .iter()
                 .map(|spec| ClipFactRow {
                     id: spec.id,
                     label: spec.label,
-                    count: clips_with_fact(timeline, spec.fact).len(),
+                    count: clips_with_fact(project, spec.fact).len(),
                 })
                 .collect()
         };

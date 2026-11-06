@@ -70,8 +70,9 @@ impl AppState {
         };
         let matches: Vec<(ClipId, i64)> = {
             let engine = self.engine.lock();
-            let timeline = engine.project().timeline();
-            clips_with_fact(timeline, spec.fact)
+            let project = engine.project();
+            let timeline = project.timeline();
+            clips_with_fact(project, spec.fact)
                 .into_iter()
                 .filter_map(|id| {
                     timeline

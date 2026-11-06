@@ -241,7 +241,7 @@ pub(super) fn clip_to_ui(
         effects: clip.effects.iter().map(effect_to_ui).collect(),
         audio_inserts: crate::app::audio_inserts::rows(&clip.audio_effects),
         can_hold_inserts,
-        has_audio: can_hold_inserts && links.audio.carries_own_audio(track, clip),
+        has_audio: project.clip_sounds_on_own_track(clip, track, &links.audio),
         still: fact.is_some_and(|fact| fact.is_image),
         generator,
         kind,

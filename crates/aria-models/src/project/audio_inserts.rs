@@ -5,10 +5,12 @@
 //! refused, so an insert never sits where the mixer cannot reach it.
 
 use crate::audio_effects::{AudioEffectInstance, AudioInsertTarget, audio_effect_spec};
-use crate::clip::Clip;
+use crate::clip::{Clip, ClipSource};
 use crate::error::ModelError;
-use crate::ids::TrackId;
+use crate::ids::{SequenceId, TrackId};
 use crate::param::Param;
+use crate::source_patch::SourceChannel;
+use crate::timeline::AudioLaneLinks;
 use crate::track::Track;
 
 use super::Project;
@@ -84,14 +86,80 @@ impl Project {
     /// already in hand. A projection over every clip calls this, so neither is
     /// looked up again.
     pub fn clip_insert_refusal(&self, clip: &Clip, lane: &Track) -> Result<(), ModelError> {
-        let silent_media = clip
-            .media()
-            .and_then(|media| self.media(media))
-            .is_some_and(|media| !media.has_audio);
-        if clip.is_generated() || silent_media || !lane.kind.spec().in_mixer() {
+        let mut sequences = crate::Map::default();
+        self.clip_insert_refusal_with(clip, lane, &mut sequences)
+    }
+
+    /// Whether `clip` on `lane` plays its own sound on its own track: its
+    /// source and lane accept audio inserts ([`Project::clip_insert_refusal`])
+    /// and its link state keeps its audio on `lane`
+    /// ([`AudioLaneLinks::carries_own_audio`]).
+    pub fn clip_sounds_on_own_track(
+        &self,
+        clip: &Clip,
+        lane: &Track,
+        links: &AudioLaneLinks,
+    ) -> bool {
+        self.clip_insert_refusal(clip, lane).is_ok() && links.carries_own_audio(lane, clip)
+    }
+
+    fn clip_insert_refusal_with(
+        &self,
+        clip: &Clip,
+        lane: &Track,
+        sequences: &mut crate::Map<SequenceId, bool>,
+    ) -> Result<(), ModelError> {
+        if clip.freeze_frame
+            || !lane.kind.spec().in_mixer()
+            || self.clip_source_is_silent(clip, sequences)
+        {
             return Err(ModelError::ClipCarriesNoSound(clip.id));
         }
         Ok(())
+    }
+
+    fn clip_source_is_silent(
+        &self,
+        clip: &Clip,
+        sequences: &mut crate::Map<SequenceId, bool>,
+    ) -> bool {
+        match &clip.content {
+            ClipSource::Media { media, .. } => self
+                .media(*media)
+                .is_some_and(|media| !media.has_channel(SourceChannel::Audio)),
+            ClipSource::Generated(_) => true,
+            ClipSource::Multicam { group, .. } => {
+                self.multicam_group(*group).is_some_and(|group| {
+                    !group.angles.iter().any(|angle| {
+                        self.media(angle.media)
+                            .is_none_or(|media| media.has_channel(SourceChannel::Audio))
+                    })
+                })
+            }
+            ClipSource::Sequence { sequence, .. } => !self.sequence_has_sound(*sequence, sequences),
+        }
+    }
+
+    fn sequence_has_sound(
+        &self,
+        sequence: SequenceId,
+        sequences: &mut crate::Map<SequenceId, bool>,
+    ) -> bool {
+        if let Some(&cached) = sequences.get(&sequence) {
+            return cached;
+        }
+        sequences.insert(sequence, false);
+        let has_sound = self.sequence(sequence).is_some_and(|seq| {
+            let links = seq.timeline.audio_lane_links();
+            seq.timeline.tracks_ordered().any(|lane| {
+                lane.clips_ordered().any(|clip| {
+                    self.clip_insert_refusal_with(clip, lane, sequences).is_ok()
+                        && links.carries_own_audio(lane, clip)
+                })
+            })
+        });
+        sequences.insert(sequence, has_sound);
+        has_sound
     }
 
     /// Append a registered audio effect to the chain at `target`, with every

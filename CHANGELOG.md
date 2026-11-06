@@ -1204,6 +1204,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls draws the stopwatch, keyframe navigator, reset button and time area on each crop inset row, so a keyed crop shows its keyframes and can be keyed, stepped and flattened from the Transform tab.
 - Effect Controls opens each tab at the top of its body instead of at the depth the previous tab was scrolled to.
 - The Effects tab of Effect Controls reads None under Effects when the clip has no effect, and draws its Add buttons on wrapping lines instead of one per line.
+- Count a clip under "Sound on its own track", "Pitch rides speed", and "Audio separated to a track" in Project Report only when its source and track carry sound.
 
 ## [alpha-0.7.0] - 2026-07-22
 

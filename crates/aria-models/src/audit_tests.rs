@@ -12,7 +12,7 @@
 //! predicate behind it is the one the label names.
 
 use super::*;
-use crate::clip::Generator;
+use crate::clip::{ClipSource, Generator};
 use crate::media::MediaSource;
 use crate::project::Project;
 use crate::time::{Rational, TimeRange};
@@ -168,11 +168,11 @@ fn every_clip_fact_agrees_with_asking_each_clip() {
         let expected: Vec<_> = timeline
             .tracks_ordered()
             .flat_map(|track| track.clips_ordered())
-            .filter(|clip| spec.fact.holds(timeline, clip))
+            .filter(|clip| spec.fact.holds(&project, clip))
             .map(|clip| clip.id)
             .collect();
         assert_eq!(
-            clips_with_fact(timeline, spec.fact),
+            clips_with_fact(&project, spec.fact),
             expected,
             "'{}' disagrees with itself",
             spec.id
@@ -264,7 +264,7 @@ fn every_project_fact_reads_in_sentence_case() {
 #[test]
 fn the_cut_row_finds_the_abutting_pair() {
     let project = dressed();
-    let found = clips_with_fact(project.timeline(), ClipFact::AtACut);
+    let found = clips_with_fact(&project, ClipFact::AtACut);
     assert_eq!(
         found.len(),
         1,
@@ -276,7 +276,8 @@ fn the_cut_row_finds_the_abutting_pair() {
 /// for a single clip: the clip's own predicate, the timeline's per-clip scan,
 /// or the lane's abutment rule asked about every neighbor. Exhaustive, so a
 /// question added to [`ClipFact`] does not compile here until it has one.
-fn read_alone(fact: ClipFact, timeline: &Timeline, lane: &Track, clip: &Clip) -> bool {
+fn read_alone(fact: ClipFact, project: &Project, lane: &Track, clip: &Clip) -> bool {
+    let timeline = project.timeline();
     match fact {
         ClipFact::CustomCrop => clip.has_custom_crop(),
         ClipFact::CustomAudio => clip.has_custom_audio(),
@@ -284,9 +285,16 @@ fn read_alone(fact: ClipFact, timeline: &Timeline, lane: &Track, clip: &Clip) ->
         ClipFact::PanEnvelope => clip.has_pan_envelope(),
         ClipFact::SpeedCurve => clip.has_speed_curve(),
         ClipFact::Beats => clip.has_beats(),
-        ClipFact::PitchRidesSpeed => clip.audio_pitch_factor() != 1.0,
-        ClipFact::OwnAudio => timeline.carries_own_audio(clip.id),
-        ClipFact::DetachedAudio => timeline.detached_to_audio_lane(clip.id),
+        ClipFact::PitchRidesSpeed => {
+            project.clip_insert_refusal(clip, lane).is_ok() && clip.audio_pitch_factor() != 1.0
+        }
+        ClipFact::OwnAudio => {
+            project.clip_sounds_on_own_track(clip, lane, &timeline.audio_lane_links())
+        }
+        ClipFact::DetachedAudio => {
+            project.clip_insert_refusal(clip, lane).is_ok()
+                && timeline.detached_to_audio_lane(clip.id)
+        }
         ClipFact::AtACut => lane
             .clips()
             .any(|other| other.id != clip.id && lane.clips_abut(clip.id, other.id)),
@@ -306,49 +314,49 @@ fn read_alone(fact: ClipFact, timeline: &Timeline, lane: &Track, clip: &Clip) ->
 /// this does not catch: a per-clip read and a row that are wrong the same way.
 #[test]
 fn every_row_answers_as_the_clip_alone_reads() {
-    let mut timeline = Timeline::new(R24);
-    let v1 = timeline.add_track(Track::new(TrackKind::Video, "V1"));
-    let v2 = timeline.add_track(Track::new(TrackKind::Video, "V2"));
-    let a1 = timeline.add_track(Track::new(TrackKind::Audio, "A1"));
-    let media = crate::ids::MediaId::from_raw(1);
-    let place = |timeline: &mut Timeline, lane, start, len, frozen| {
+    let mut project = Project::new("alone", R24);
+    let v1 = project.add_track(TrackKind::Video, "V1");
+    let v2 = project.add_track(TrackKind::Video, "V2");
+    let a1 = project.add_track(TrackKind::Audio, "A1");
+    let media = project.add_media(MediaSource::new("alone.mp4", 1920, 1080, R24, 1000, true));
+    let place = |project: &mut Project, lane, start, len, frozen| {
         let mut clip = Clip::from_media(
             media,
             TimeRange::at_rate(0, len, R24),
             TimeRange::at_rate(start, len, R24),
         );
         clip.freeze_frame = frozen;
-        timeline.add_clip(lane, clip).expect("placed")
+        project.timeline_mut().add_clip(lane, clip).expect("placed")
     };
-    let link = |timeline: &mut Timeline, clips: [ClipId; 2]| {
+    let link = |project: &mut Project, clips: [ClipId; 2]| {
         let group = crate::ids::LinkId::next();
         for clip in clips {
-            timeline.clip_mut(clip).expect("placed").link = Some(group);
+            project.timeline_mut().clip_mut(clip).expect("placed").link = Some(group);
         }
     };
-    let picture = place(&mut timeline, v1, 0, 24, false);
-    let sound = place(&mut timeline, a1, 0, 24, false);
-    link(&mut timeline, [picture, sound]);
-    place(&mut timeline, v1, 24, 24, false);
-    let gap = place(&mut timeline, v1, 60, 12, false);
-    let across = place(&mut timeline, v2, 48, 24, false);
-    link(&mut timeline, [gap, across]);
-    let frozen = place(&mut timeline, v2, 96, 24, true);
-    let held = place(&mut timeline, a1, 96, 24, false);
-    link(&mut timeline, [frozen, held]);
-    let before = place(&mut timeline, v1, 200, 10, false);
-    let between = place(&mut timeline, v1, 210, 0, false);
-    place(&mut timeline, v1, 210, 10, false);
-    place(&mut timeline, v2, 150, 0, false);
+    let picture = place(&mut project, v1, 0, 24, false);
+    let sound = place(&mut project, a1, 0, 24, false);
+    link(&mut project, [picture, sound]);
+    place(&mut project, v1, 24, 24, false);
+    let gap = place(&mut project, v1, 60, 12, false);
+    let across = place(&mut project, v2, 48, 24, false);
+    link(&mut project, [gap, across]);
+    let frozen = place(&mut project, v2, 96, 24, true);
+    let held = place(&mut project, a1, 96, 24, false);
+    link(&mut project, [frozen, held]);
+    let before = place(&mut project, v1, 200, 10, false);
+    let between = place(&mut project, v1, 210, 0, false);
+    place(&mut project, v1, 210, 10, false);
+    place(&mut project, v2, 150, 0, false);
 
     for spec in clip_facts() {
-        let found = clips_with_fact(&timeline, spec.fact);
+        let found = clips_with_fact(&project, spec.fact);
         let mut expected = Vec::new();
-        for lane in timeline.tracks_ordered() {
+        for lane in project.timeline().tracks_ordered() {
             for clip in lane.clips_ordered() {
-                let alone = read_alone(spec.fact, &timeline, lane, clip);
+                let alone = read_alone(spec.fact, &project, lane, clip);
                 let case = format!("'{}' for {:?} on {}", spec.id, clip.id, lane.name);
-                assert_eq!(spec.fact.holds(&timeline, clip), alone, "{case}");
+                assert_eq!(spec.fact.holds(&project, clip), alone, "{case}");
                 if alone {
                     expected.push(clip.id);
                 }
@@ -361,14 +369,14 @@ fn every_row_answers_as_the_clip_alone_reads() {
         ids
     };
     assert_eq!(
-        sorted(clips_with_fact(&timeline, ClipFact::AtACut)),
+        sorted(clips_with_fact(&project, ClipFact::AtACut)),
         sorted(vec![picture, before, between]),
         "the two junctions on V1, and nothing across lanes"
     );
     assert_eq!(
-        sorted(clips_with_fact(&timeline, ClipFact::DetachedAudio)),
-        sorted(vec![picture, sound, frozen, held]),
-        "every member of a link reaching an audio lane"
+        sorted(clips_with_fact(&project, ClipFact::DetachedAudio)),
+        sorted(vec![picture, sound, held]),
+        "every sounding member of a link reaching an audio lane"
     );
 }
 
@@ -399,4 +407,322 @@ fn soloing_a_lane_shows_up_in_the_readout() {
         after,
         FactValue::Names(vec![crate::track_catalog::track_kind_spec(kind).label])
     );
+}
+
+/// Every source kind in [`ClipSource`], mapped without a wildcard so a new
+/// variant fails to compile here until this suite covers both its sounding and
+/// silent placements.
+fn source_kind(source: &ClipSource) -> &'static str {
+    match source {
+        ClipSource::Media { .. } => "media",
+        ClipSource::Generated(_) => "generated",
+        ClipSource::Multicam { .. } => "multicam",
+        ClipSource::Sequence { .. } => "sequence",
+    }
+}
+
+/// Sound-bearing clip questions ([`ClipFact::OwnAudio`],
+/// [`ClipFact::PitchRidesSpeed`], and [`ClipFact::DetachedAudio`]) hold only
+/// when the clip's source and track carry sound.
+///
+/// The class closed here is a clip question checking track kind, link state, or
+/// retiming fields without checking [`Project::clip_insert_refusal`] /
+/// [`Project::clip_sounds_on_own_track`]. The fixture places every
+/// [`ClipSource`] variant in both silent and sounding forms (including the
+/// Sample Project shape of a 1x1 still on V1 and a title on T1, a silent video,
+/// a freeze frame, a solid generator, a silent multicam group, and a nested
+/// sequence containing only silent clips), plus a cyclic nested sequence. What
+/// this does not catch: a media probe misreporting [`MediaSource::has_audio`]
+/// at import time.
+#[test]
+fn sound_questions_hold_only_for_sources_with_sound() {
+    let mut project = Project::new("sources", R24);
+    let v1 = project.add_track(TrackKind::Video, "V1");
+    let s1 = project.add_track(TrackKind::Sticker, "S1");
+    let t1 = project.add_track(TrackKind::Text, "T1");
+    let a1 = project.add_track(TrackKind::Audio, "A1");
+
+    let video_sound_media = project.add_media(MediaSource::new(
+        "video_sound.mp4",
+        1920,
+        1080,
+        R24,
+        240,
+        true,
+    ));
+    let video_silent_media = project.add_media(MediaSource::new(
+        "video_silent.mp4",
+        1920,
+        1080,
+        R24,
+        240,
+        false,
+    ));
+    let still_media = project.add_media(MediaSource::image("still.png", 1, 1));
+    let audio_media = project.add_media(MediaSource::new("music.wav", 0, 0, R24, 240, true));
+
+    let mc_silent = project
+        .create_multicam_group(
+            "silent_cam",
+            vec![crate::multicam::MulticamAngle::new(video_silent_media, 0)],
+        )
+        .expect("silent multicam");
+    let mc_sound = project
+        .create_multicam_group(
+            "sound_cam",
+            vec![
+                crate::multicam::MulticamAngle::new(video_silent_media, 0),
+                crate::multicam::MulticamAngle::new(video_sound_media, 0),
+            ],
+        )
+        .expect("sounding multicam");
+
+    let nested_silent = project.create_sequence("silent_nest", R24);
+    {
+        let seq = project.sequence_mut(nested_silent).expect("silent_nest");
+        let nv1 = seq.timeline.add_track(Track::new(TrackKind::Video, "V1"));
+        let nt1 = seq.timeline.add_track(Track::new(TrackKind::Text, "T1"));
+        seq.timeline
+            .add_clip(
+                nv1,
+                Clip::from_media(
+                    still_media,
+                    TimeRange::at_rate(0, 24, R24),
+                    TimeRange::at_rate(0, 24, R24),
+                ),
+            )
+            .expect("nested still");
+        seq.timeline
+            .add_clip(
+                nv1,
+                Clip::from_media(
+                    video_silent_media,
+                    TimeRange::at_rate(0, 24, R24),
+                    TimeRange::at_rate(24, 24, R24),
+                ),
+            )
+            .expect("nested silent video");
+        seq.timeline
+            .add_clip(
+                nt1,
+                Clip::generated(
+                    Generator::text("Nested title"),
+                    TimeRange::at_rate(0, 24, R24),
+                ),
+            )
+            .expect("nested title");
+    }
+
+    let nested_sound = project.create_sequence("sound_nest", R24);
+    {
+        let seq = project.sequence_mut(nested_sound).expect("sound_nest");
+        let nv1 = seq.timeline.add_track(Track::new(TrackKind::Video, "V1"));
+        seq.timeline
+            .add_clip(
+                nv1,
+                Clip::from_media(
+                    video_sound_media,
+                    TimeRange::at_rate(0, 24, R24),
+                    TimeRange::at_rate(0, 24, R24),
+                ),
+            )
+            .expect("nested sounding video");
+    }
+
+    let place_on = |project: &mut Project, lane, mut clip: Clip| -> ClipId {
+        clip.speed = Rational::new(2, 1);
+        clip.preserve_pitch = false;
+        project.timeline_mut().add_clip(lane, clip).expect("placed")
+    };
+    let span = |slot: i64| TimeRange::at_rate(slot * 24, 24, R24);
+    let src = TimeRange::at_rate(0, 24, R24);
+
+    let video_with_audio = place_on(
+        &mut project,
+        v1,
+        Clip::from_media(video_sound_media, src, span(0)),
+    );
+    let video_without_audio = place_on(
+        &mut project,
+        v1,
+        Clip::from_media(video_silent_media, src, span(1)),
+    );
+    let still_clip = place_on(
+        &mut project,
+        v1,
+        Clip::from_media(still_media, src, span(2)),
+    );
+    let mut frozen = Clip::from_media(video_sound_media, src, span(3));
+    frozen.freeze_frame = true;
+    let frozen_clip = place_on(&mut project, v1, frozen);
+    let solid_on_s1 = place_on(
+        &mut project,
+        s1,
+        Clip::generated(
+            Generator::SolidColor {
+                rgba: [0, 0, 0, 255],
+            },
+            span(0),
+        ),
+    );
+    let title_on_t1 = place_on(
+        &mut project,
+        t1,
+        Clip::generated(Generator::text("Title"), span(0)),
+    );
+    let multicam_silent_clip = place_on(
+        &mut project,
+        v1,
+        Clip::from_multicam(mc_silent, src, span(4)),
+    );
+    let multicam_sound_clip = place_on(
+        &mut project,
+        v1,
+        Clip::from_multicam(mc_sound, src, span(5)),
+    );
+    let seq_silent_clip = place_on(
+        &mut project,
+        v1,
+        Clip::from_sequence(nested_silent, src, span(6)),
+    );
+    let seq_sound_clip = place_on(
+        &mut project,
+        v1,
+        Clip::from_sequence(nested_sound, src, span(7)),
+    );
+    let audio_file_clip = place_on(
+        &mut project,
+        a1,
+        Clip::from_media(audio_media, src, span(0)),
+    );
+
+    let cases = [
+        ("video_with_audio", video_with_audio, true),
+        ("video_without_audio", video_without_audio, false),
+        ("still", still_clip, false),
+        ("freeze_frame", frozen_clip, false),
+        ("solid_generator", solid_on_s1, false),
+        ("title_generator", title_on_t1, false),
+        ("multicam_silent", multicam_silent_clip, false),
+        ("multicam_with_sound", multicam_sound_clip, true),
+        ("nested_silent_sequence", seq_silent_clip, false),
+        ("nested_sequence_with_sound", seq_sound_clip, true),
+        ("audio_file", audio_file_clip, true),
+    ];
+
+    let links = project.timeline().audio_lane_links();
+    let v1_lane = project.timeline().track(v1).expect("V1");
+    let solid_clip_ref = project.timeline().clip(solid_on_s1).expect("solid");
+    assert!(
+        !project.clip_sounds_on_own_track(solid_clip_ref, v1_lane, &links),
+        "generated clip must report false even against a mixer track"
+    );
+
+    let mut covered_kinds = std::collections::BTreeSet::new();
+    for (name, id, expected_sound) in cases {
+        let clip = project.timeline().clip(id).expect(name);
+        let lane = project
+            .timeline()
+            .track(project.timeline().track_of(id).expect(name))
+            .expect(name);
+        covered_kinds.insert(source_kind(&clip.content));
+        assert_eq!(
+            project.clip_sounds_on_own_track(clip, lane, &links),
+            expected_sound,
+            "clip_sounds_on_own_track for {name}"
+        );
+        assert_eq!(
+            ClipFact::OwnAudio.holds(&project, clip),
+            expected_sound,
+            "OwnAudio::holds for {name}"
+        );
+        assert_eq!(
+            ClipFact::PitchRidesSpeed.holds(&project, clip),
+            expected_sound,
+            "PitchRidesSpeed::holds for {name}"
+        );
+    }
+    assert_eq!(
+        covered_kinds,
+        std::collections::BTreeSet::from(["media", "generated", "multicam", "sequence"]),
+        "every ClipSource variant must be exercised"
+    );
+
+    let expected_sounding = vec![
+        audio_file_clip,
+        video_with_audio,
+        multicam_sound_clip,
+        seq_sound_clip,
+    ];
+    assert_eq!(
+        clips_with_fact(&project, ClipFact::OwnAudio),
+        expected_sounding,
+        "OwnAudio must include only sounding clips"
+    );
+    assert_eq!(
+        clips_with_fact(&project, ClipFact::PitchRidesSpeed),
+        expected_sounding,
+        "PitchRidesSpeed must include only sounding clips"
+    );
+
+    let mut sample = Project::new("sample", R24);
+    let sample_v1 = sample.add_track(TrackKind::Video, "V1");
+    let sample_t1 = sample.add_track(TrackKind::Text, "T1");
+    let sample_still = sample.add_media(MediaSource::image("still.png", 1, 1));
+    sample
+        .add_clip(
+            sample_v1,
+            sample_still,
+            TimeRange::at_rate(0, 1000, crate::media::STILL_TICK_RATE),
+            crate::time::RationalTime::new(0, R24),
+        )
+        .expect("still on V1");
+    sample
+        .add_generated(
+            sample_t1,
+            Generator::text("Title"),
+            TimeRange::at_rate(0, 24, R24),
+        )
+        .expect("title on T1");
+    assert!(
+        clips_with_fact(&sample, ClipFact::OwnAudio).is_empty(),
+        "Sample Project (1x1 still on V1 and title on T1) must report 0 for own_audio"
+    );
+
+    let group = crate::ids::LinkId::next();
+    for (_, id, _) in cases {
+        project.timeline_mut().clip_mut(id).expect("placed").link = Some(group);
+    }
+    for (name, id, expected_sound) in cases {
+        let clip = project.timeline().clip(id).expect(name);
+        assert_eq!(
+            ClipFact::DetachedAudio.holds(&project, clip),
+            expected_sound,
+            "DetachedAudio::holds for {name}"
+        );
+    }
+    assert_eq!(
+        clips_with_fact(&project, ClipFact::DetachedAudio),
+        expected_sounding,
+        "DetachedAudio must include only sounding clips in the link group"
+    );
+
+    let cycle_a = project.create_sequence("cycle_a", R24);
+    let cycle_b = project.create_sequence("cycle_b", R24);
+    for (holder, target) in [(cycle_a, cycle_b), (cycle_b, cycle_a)] {
+        let seq = project.sequence_mut(holder).expect("cycle seq");
+        let nv1 = seq.timeline.add_track(Track::new(TrackKind::Video, "V1"));
+        seq.timeline
+            .add_clip(nv1, Clip::from_sequence(target, src, span(0)))
+            .expect("cycle clip");
+    }
+    let cyclic_clip = place_on(&mut project, v1, Clip::from_sequence(cycle_a, src, span(8)));
+    let cyclic = project.timeline().clip(cyclic_clip).expect("cyclic clip");
+    let v1_lane = project.timeline().track(v1).expect("V1");
+    assert!(!project.clip_sounds_on_own_track(
+        cyclic,
+        v1_lane,
+        &project.timeline().audio_lane_links()
+    ));
+    assert!(!ClipFact::OwnAudio.holds(&project, cyclic));
 }
