@@ -1232,6 +1232,7 @@ Notes for the latest release. For previous releases, see the
 - A disabled button or chip no longer brightens to full strength while it is pressed.
 - Settings > AI draws Reveal agent files at the end of the Agent files row and Test connection and List models on the values' column.
 - A media item's import time in the Info list now ends in "UTC", so it no longer reads as local time.
+- Status-line refusals that depend on the current selection now clear as soon as the selection changes, while unrelated errors remain on the status strip until an action succeeds.
 
 ## [alpha-0.7.0] - 2026-07-22
 

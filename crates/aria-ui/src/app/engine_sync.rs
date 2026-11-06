@@ -50,6 +50,7 @@ impl AppState {
         crate::projection::reselect(store, &self.selection, basis.as_mut());
         self.selected = selected;
         self.projected = Some(ProjectionKey { basis, ..key });
+        self.clear_selection_error();
     }
 
     /// Take a fresh projection as the one the panels draw.

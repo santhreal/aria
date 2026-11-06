@@ -520,7 +520,7 @@ impl AppState {
             .filter(|track| !track.locked)
             .flat_map(|track| track.clips.iter().map(|clip| ClipId::from_raw(clip.id)))
             .collect();
-        self.rebuild_store();
+        self.refresh_projected_selection();
     }
 
     /// Restore the Timeline's default height in the small-window view.

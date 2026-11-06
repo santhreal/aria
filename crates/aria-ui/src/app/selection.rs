@@ -405,14 +405,14 @@ impl AppState {
                 }
             }
         }
-        self.rebuild_store();
+        self.refresh_projected_selection();
     }
 
     pub fn add_clip_to_selection(&mut self, id: ClipId) {
         if !self.selection.contains(&id) {
             self.selection.push(id);
         }
-        self.rebuild_store();
+        self.refresh_projected_selection();
     }
 
     /// The move a clip drag drops: it covers what it lands on, by the rule of

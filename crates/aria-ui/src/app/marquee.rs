@@ -100,7 +100,7 @@ impl AppState {
             // nothing and the click reads as a deselect.
             if !self.selection.is_empty() {
                 self.selection.clear();
-                self.rebuild_store();
+                self.refresh_projected_selection();
             }
             return 0;
         }
@@ -119,7 +119,7 @@ impl AppState {
             .map(|clip| clip.id)
             .collect();
         self.selection = covered.iter().map(|id| ClipId::from_raw(*id)).collect();
-        self.rebuild_store();
+        self.refresh_projected_selection();
         covered.len()
     }
 

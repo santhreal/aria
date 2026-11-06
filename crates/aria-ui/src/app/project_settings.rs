@@ -157,7 +157,7 @@ impl AppState {
             1 => "Selected the clip using that item".into(),
             n => format!("Selected the {n} clips using that item"),
         });
-        self.rebuild_store();
+        self.refresh_projected_selection();
         found
     }
 }
