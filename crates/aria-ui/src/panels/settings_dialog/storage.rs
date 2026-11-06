@@ -26,31 +26,38 @@ pub(super) fn storage_rows(
     let used = crate::app::storage::format_bytes(read.download_cache_size_bytes());
     let quota = read.download_quota_mib();
     let protected = read.protected_download_count();
-    let busy = read.download_cache_busy();
+    let held = read.download_cache_held().is_some();
     let analysis_cache = format!(
         "{} at {}",
         crate::app::storage::format_bytes(read.analysis_cache_size_bytes()),
         read.analysis_cache_root().display()
     );
 
-    let relocate = components::ghost_button("storage-relocate", "Move storage…", theme)
-        .on_mouse_down(
+    // While a download holds the cache the two actions draw blocked; a press
+    // still posts why.
+    let relocate = components::blocked::blocked(
+        components::ghost_button("storage-relocate", "Move storage…", theme).on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
                 this.state.update(cx, |state, _| state.pick_storage_root());
                 cx.notify();
             }),
-        );
-    let clear = components::ghost_button("storage-clear", "Clear cache", theme).on_mouse_down(
-        MouseButton::Left,
-        cx.listener(|this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| {
-                if let Err(err) = state.clear_download_cache() {
-                    state.report_error(err);
-                }
-            });
-            cx.notify();
-        }),
+        ),
+        held,
+    );
+    let clear = components::blocked::blocked(
+        components::ghost_button("storage-clear", "Clear cache", theme).on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    if let Err(err) = state.clear_download_cache() {
+                        state.report_error(err);
+                    }
+                });
+                cx.notify();
+            }),
+        ),
+        held,
     );
     let mut rows = vec![
         value_row(theme, "Storage root", root, [relocate.into_any_element()]),
@@ -72,18 +79,6 @@ pub(super) fn storage_rows(
         );
     }
     rows.push(quota_row(theme, quota, cx));
-    rows.push(
-        kv(
-            theme,
-            "Maintenance",
-            if busy {
-                "Held; a download is in flight"
-            } else {
-                "Available"
-            },
-        )
-        .into_any_element(),
-    );
     let clear_analysis = components::ghost_button("analysis-cache-clear", "Clear analysis", theme)
         .on_mouse_down(
             MouseButton::Left,

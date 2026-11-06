@@ -25,6 +25,10 @@ pub(crate) const DOWNLOADS_DIR: &str = "downloads";
 
 const MIB: u64 = 1024 * 1024;
 
+/// The refusal of Clear cache and Move storage… while a download holds the
+/// cache.
+const DOWNLOAD_HELD: &str = "A download is in flight. Clear and Move run once it finishes";
+
 /// Build the session's cache from the config beside `data_dir`.
 ///
 /// A storage-root override redirects the cache; an absent or malformed config
@@ -109,12 +113,15 @@ impl AppState {
         Ok(())
     }
 
-    /// Whether the cache currently refuses destructive maintenance.
+    /// Why Clear cache and Move storage… cannot run, while they cannot.
     ///
-    /// True while a cloud download is in flight. Surfaced so a refused Clear reads as
-    /// "busy", not "broken".
-    pub fn download_cache_busy(&self) -> bool {
-        self.download_cache.destructive_operations_blocked()
+    /// The app holds the cache's destructive-operation flag for one reason, a
+    /// download in flight (`Self::hold_download_guard`), so every refusal and
+    /// the Settings rows word the hold from here, before the cache is asked.
+    pub fn download_cache_held(&self) -> Option<&'static str> {
+        self.download_cache
+            .destructive_operations_blocked()
+            .then_some(DOWNLOAD_HELD)
     }
 
     /// Take the guard for the duration of a background download.
@@ -138,6 +145,9 @@ impl AppState {
     /// leaves files behind looks like it failed, and one that silently deletes a file
     /// a project still needs looks like corruption.
     pub fn clear_download_cache(&mut self) -> Result<DownloadCacheClear, String> {
+        if let Some(held) = self.download_cache_held() {
+            return Err(held.into());
+        }
         let cleared = self
             .download_cache
             .clear()
@@ -161,6 +171,9 @@ impl AppState {
     /// root serving. The config is written only after the move succeeds, because a
     /// config pointing at a root that does not exist is a broken next launch.
     pub fn relocate_storage_root(&mut self, root: impl AsRef<Path>) -> Result<(), String> {
+        if let Some(held) = self.download_cache_held() {
+            return Err(held.into());
+        }
         let root = root.as_ref();
         if !root.is_absolute() {
             return Err(format!(
@@ -198,6 +211,10 @@ impl AppState {
     /// Ask for a folder, then move the storage root there: the Storage
     /// section's Move Storage button.
     pub fn pick_storage_root(&mut self) {
+        if let Some(held) = self.download_cache_held() {
+            self.report_error(held);
+            return;
+        }
         self.request_pick(
             Ask::Folder(FileSpec::new("Move Storage")),
             |state, answer| {
@@ -270,9 +287,7 @@ fn describe_switch_error(err: DownloadCacheSwitchError<std::io::Error>) -> Strin
         DownloadCacheSwitchError::MaintenanceBusy => {
             "a download is in flight; try again once it finishes".into()
         }
-        DownloadCacheSwitchError::DestructiveOperationsBlocked => {
-            "the cache is locked while the project inventory is scanned".into()
-        }
+        DownloadCacheSwitchError::DestructiveOperationsBlocked => DOWNLOAD_HELD.into(),
         DownloadCacheSwitchError::ProtectedPathOutsideRoot => {
             "a pinned file sits outside the cache root; restart Aria and try again".into()
         }

@@ -1237,6 +1237,7 @@ Notes for the latest release. For previous releases, see the
 - The timeline and editing guide, keyboard spec, and editing spec state the `Ctrl+Left` / `Ctrl+Right` and `Ctrl+Shift+Left` / `Ctrl+Shift+Right` clip-nudge chords and the `Alt` drag-magnet modifier, and the guide test suite checks the timeline, interchange format, and project schema registries.
 - Analysis, transcription and the loudness overview refuse an offline or silent clip with the same message, which quotes the media name as written: `“texture” has no audio track`, not `Texture has no audio track` or `texture carries no audio`.
 - Exported MP4 files preserve BT.709 colorimetry at all resolutions, align AAC audio within one frame through the final timeline block, and keep forward and reversed retimed audio spans audible through the end of bounded sources.
+- During a cloud download, Settings > Storage draws Clear cache and Move storage… blocked, and a press posts `A download is in flight. Clear and Move run once it finishes` without opening a folder picker, in place of a Maintenance row and a refusal about a project inventory scan.
 
 ## [alpha-0.7.0] - 2026-07-22
 

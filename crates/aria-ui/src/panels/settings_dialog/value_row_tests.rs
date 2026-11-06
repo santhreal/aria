@@ -23,7 +23,9 @@
 //! Not covered: the plugin rows' switches, which draw no text, and a cache
 //! row's Use default, which a fresh session does not draw.
 
-use gpui::{Bounds, Pixels, TestAppContext, TextRunLayout, VisualTestContext, px};
+use gpui::{
+    Bounds, CursorStyle, Modifiers, Pixels, TestAppContext, TextRunLayout, VisualTestContext, px,
+};
 
 use crate::app::models::TimeoutField;
 use crate::app::plugin_install::WasmLimit;
@@ -257,7 +259,7 @@ fn settings_values_with_actions_stand_on_the_section_grid(cx: &mut TestAppContex
         ]
     });
     let title = title_edge(&all, card, SettingsSection::Storage);
-    let column = one(&all, card, "Available").left();
+    let column = one(&all, card, &rows[2].1).left();
     for (label, value) in &rows {
         on_grid(&all, card, title, column, (label, value.as_str()));
     }
@@ -326,4 +328,61 @@ fn settings_values_with_actions_stand_on_the_section_grid(cx: &mut TestAppContex
         label.center().y
     );
     on_column(&all, card, path.left(), "Test connection");
+}
+
+/// While a download holds the cache, Move storage… and Clear cache draw
+/// blocked, and a press posts the reason; once it ends they draw live.
+///
+/// WHY: both stood live through a download, a press on Clear reported
+/// `aria-cloud`'s "protected until project media inventory completes", a press
+/// on Move opened a folder picker before refusing, and a Maintenance row read
+/// "Available" or "Paused while the project inventory is scanned", which named
+/// a scan the app does not run. Not caught: the 40 % opacity, held by
+/// `components_control_tests`.
+#[gpui::test]
+fn the_storage_actions_draw_blocked_exactly_while_a_download_holds_the_cache(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "held");
+    for held in [false, true, false] {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                if held {
+                    state.hold_download_guard();
+                } else {
+                    state.release_download_guard();
+                }
+                state.last_error = None;
+                cx.notify();
+            })
+        });
+        let (card, all) = drawn(&state, visual, SettingsSection::Storage);
+        assert!(
+            runs(&all, card, "Maintenance").is_empty(),
+            "the Storage section draws a Maintenance row"
+        );
+        for action in ["Move storage…", "Clear cache"] {
+            let at = one(&all, card, action).center();
+            visual.simulate_mouse_move(at, None, Modifiers::none());
+            visual.run_until_parked();
+            let cursor = visual.update(|window, _| window.rendered_cursor_style());
+            let want = if held {
+                CursorStyle::Arrow
+            } else {
+                CursorStyle::PointingHand
+            };
+            assert_eq!(cursor, Some(want), "`{action}` under the hand, held {held}");
+        }
+        if held {
+            let at = one(&all, card, "Clear cache").center();
+            visual.simulate_click(at, Modifiers::none());
+            visual.run_until_parked();
+            let (asked, error) = visual.update(|_, app| {
+                let state = state.read(app);
+                (state.download_cache_held(), state.last_error.clone())
+            });
+            assert_eq!(error.as_deref(), asked, "a blocked Clear cache posts why");
+        }
+    }
 }
