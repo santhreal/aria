@@ -593,6 +593,18 @@ impl Timeline {
     /// Place `clip` on `track_id`, rejecting unknown tracks, duplicate ids,
     /// and overlaps.
     pub fn add_clip(&mut self, track_id: TrackId, clip: Clip) -> Result<ClipId, ModelError> {
+        crate::time::check_same_rate(clip.timeline.start.rate, self.frame_rate)?;
+        crate::time::check_same_rate(clip.timeline.duration.rate, self.frame_rate)?;
+        if clip.timeline.start.value < 0 || clip.timeline.duration.value < 0 {
+            return Err(ModelError::InvalidRange);
+        }
+        clip.timeline.end()?;
+        if let Some(source) = clip.source_range() {
+            if source.start.value < 0 || source.duration.value < 0 {
+                return Err(ModelError::InvalidRange);
+            }
+            source.end()?;
+        }
         // Defense in depth against id collisions: a plain map insert would
         // silently overwrite an existing clip (and its index entry), which is
         // how a cross-session id clash used to destroy a clip. Reject instead.
@@ -634,6 +646,18 @@ impl Timeline {
     /// The replacement is validated against the lane and neighboring clips,
     /// then the maintained order and transition set are refreshed atomically.
     pub fn replace_clip(&mut self, clip: Clip) -> Result<Clip, ModelError> {
+        crate::time::check_same_rate(clip.timeline.start.rate, self.frame_rate)?;
+        crate::time::check_same_rate(clip.timeline.duration.rate, self.frame_rate)?;
+        if clip.timeline.start.value < 0 || clip.timeline.duration.value < 0 {
+            return Err(ModelError::InvalidRange);
+        }
+        clip.timeline.end()?;
+        if let Some(source) = clip.source_range() {
+            if source.start.value < 0 || source.duration.value < 0 {
+                return Err(ModelError::InvalidRange);
+            }
+            source.end()?;
+        }
         let track_id = *self
             .clip_index
             .get(&clip.id)

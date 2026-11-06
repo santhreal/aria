@@ -502,7 +502,7 @@ impl AppState {
     }
 
     pub fn assistant_target(&self) -> String {
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         let model = ai.model.trim();
         if model.is_empty() {
             return "No model chosen".into();

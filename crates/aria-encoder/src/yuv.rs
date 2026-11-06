@@ -94,6 +94,16 @@ impl YuvMatrix {
     pub(crate) const fn coefficients(self) -> YuvCoefficients {
         COEFFICIENTS[self.index()]
     }
+
+    /// GStreamer `colorimetry` field value matching this matrix.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(crate) const fn gst_colorimetry(self) -> &'static str {
+        match self {
+            YuvMatrix::Bt601 => "bt601",
+            YuvMatrix::Bt709 => "bt709",
+            YuvMatrix::Bt2020 => "bt2020",
+        }
+    }
 }
 
 /// Channel order of the packed 32-bit source pixels.

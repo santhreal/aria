@@ -54,8 +54,10 @@ impl AppState {
             .into_iter()
             .map(|(_, id)| ClipId::from_raw(id))
             .collect();
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.status_message = Some(format!("Selected {count}"));
-        self.rebuild_store();
+        self.refresh_projected_selection();
     }
 
     /// How many clips are drawn in each label, in palette order, for a

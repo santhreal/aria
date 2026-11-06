@@ -283,15 +283,22 @@ struct Rows {
 
 impl Render for Rows {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let list = scroll_list("rows", LONG, px(VIEW), self.reveal, |range, _, _| {
-            range
-                .map(|row| {
-                    div()
-                        .h(px(CELL))
-                        .when_some(row_name(row), |el, name| el.debug_selector(|| name.into()))
-                })
-                .collect()
-        });
+        let list = scroll_list(
+            "rows",
+            LONG,
+            px(CELL),
+            px(VIEW),
+            self.reveal,
+            |range, _, _| {
+                range
+                    .map(|row| {
+                        div()
+                            .h(px(CELL))
+                            .when_some(row_name(row), |el, name| el.debug_selector(|| name.into()))
+                    })
+                    .collect()
+            },
+        );
         div().size_full().child(
             div()
                 .debug_selector(|| "frame".into())
@@ -358,4 +365,83 @@ fn a_list_reveals_its_row_when_it_changes_and_keeps_the_wheels_place(cx: &mut Te
         "{what}: the last row did not come into view when it became the row revealed"
     );
     assert_in_view(visual, 15, what);
+}
+
+/// How a parent lays out the list it holds, as the crate's panels do.
+#[derive(Clone, Copy, Debug)]
+enum Parent {
+    /// A plain `div`.
+    Block,
+    /// A flex column, as a tab body stacks its blocks.
+    Column,
+    /// A flex column with a block after the list, as Text stacks presets
+    /// under the font list.
+    ColumnWithFoot,
+    /// A flex row, as a value column sits beside its label.
+    Row,
+}
+
+impl Parent {
+    const ALL: [Self; 4] = [Self::Block, Self::Column, Self::ColumnWithFoot, Self::Row];
+}
+
+/// `rows` rows `CELL` px tall in a list at most `VIEW` px tall, in `parent`.
+struct Laid {
+    rows: usize,
+    parent: Parent,
+}
+
+impl Render for Laid {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let list = scroll_list(
+            "laid",
+            self.rows,
+            px(CELL),
+            px(VIEW),
+            None,
+            |range, _, _| range.map(|_| div().h(px(CELL))).collect(),
+        );
+        let held = div().debug_selector(|| "held".into()).w(px(VIEW));
+        let held = match self.parent {
+            Parent::Block => held.child(list),
+            Parent::Column => held.flex().flex_col().child(list),
+            Parent::ColumnWithFoot => held.flex().flex_col().child(list).child(div().h(px(CELL))),
+            Parent::Row => held.flex().flex_row().child(list),
+        };
+        div().size_full().child(held)
+    }
+}
+
+/// **A list is laid out at its rows' height or its cap, whichever is less, in
+/// every parent.**
+///
+/// WHY: a list sized by measuring its rows reported every row to a flex parent
+/// while it drew at its cap, so a title's Text tab grew by the height of every
+/// installed font family and the wheel scrolled it into blank ground. Each
+/// parent layout is drawn with a list shorter than its cap, at its cap, and
+/// far past it, and the parent's height read back. Not caught: a parent that
+/// sets the list's height itself.
+#[gpui::test]
+fn a_list_is_laid_out_no_taller_than_its_cap_in_any_parent(cx: &mut TestAppContext) {
+    let fit = (VIEW / CELL) as usize;
+    for parent in Parent::ALL {
+        for rows in [1, fit, LONG, 1000] {
+            let (_, visual) =
+                crate::test_support::window_view(cx, move |_, _| Laid { rows, parent });
+            let held = visual
+                .debug_bounds("held")
+                .unwrap_or_else(|| panic!("{parent:?}: the list's parent was not drawn"));
+            let list = (rows as f32 * CELL).min(VIEW);
+            let foot = if matches!(parent, Parent::ColumnWithFoot) {
+                CELL
+            } else {
+                0.0
+            };
+            assert_eq!(
+                f32::from(held.size.height),
+                list + foot,
+                "{rows} rows in a {parent:?}: the parent is laid out at"
+            );
+        }
+    }
 }

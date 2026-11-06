@@ -152,12 +152,14 @@ impl AppState {
             .map(|clip| aria_models::ClipId::from_raw(clip.id))
             .collect();
         let found = self.selection.len();
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.status_message = Some(match found {
             0 => "No clip uses that item".into(),
             1 => "Selected the clip using that item".into(),
             n => format!("Selected the {n} clips using that item"),
         });
-        self.rebuild_store();
+        self.refresh_projected_selection();
         found
     }
 }

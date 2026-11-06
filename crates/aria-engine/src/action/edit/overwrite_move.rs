@@ -1,4 +1,6 @@
-use aria_models::{Clip, ClipId, ModelError, RationalTime, TimeRange, TrackId, check_same_rate};
+use aria_models::{
+    Clip, ClipId, ModelError, RationalTime, TimeError, TimeRange, TrackId, check_same_rate,
+};
 
 use crate::action::edit::insert_clip::InsertClipAction;
 use crate::action::edit::overwrite::{clear, cover_plan, rollback};
@@ -59,7 +61,10 @@ fn move_over(
     if start.value < 0 {
         return Err(ModelError::InvalidRange.into());
     }
-    let delta = start.value - ctx.project.require_clip(clip)?.start().value;
+    let delta = start
+        .value
+        .checked_sub(ctx.project.require_clip(clip)?.start().value)
+        .ok_or(TimeError::Overflow)?;
 
     let mut landings = Vec::with_capacity(ids.len());
     for &id in ids {
@@ -69,14 +74,19 @@ fn move_over(
         let (to, at) = if id == clip {
             (to_track, start.value)
         } else {
-            (from_track, (member.start().value + delta).max(0))
+            (
+                from_track,
+                member.start().value.saturating_add(delta).max(0),
+            )
         };
+        let duration = member.timeline.duration.value;
+        at.checked_add(duration).ok_or(TimeError::Overflow)?;
         landings.push(Landing {
             id,
             from_track,
             to_track: to,
             start: at,
-            duration: member.timeline.duration.value,
+            duration,
         });
     }
 

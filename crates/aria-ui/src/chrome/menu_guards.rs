@@ -343,3 +343,329 @@ pub(crate) fn empty_tracks(_: &str, state: &AppState) -> Option<&'static str> {
         .is_empty()
         .then_some("Every track holds a clip")
 }
+
+/// The row steps out of the open folder in the media pool.
+pub(crate) fn bin_up(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .current_bin
+        .is_none()
+        .then_some("Already at the top of the media pool")
+}
+
+/// The row seeks to the next or previous detected analysis moment.
+pub(crate) fn moment(id: &str, state: &AppState) -> Option<&'static str> {
+    if state.analysis.moments.is_empty() {
+        return Some("No detected moments");
+    }
+    let now = state.store.playhead_ticks;
+    if id == "pal-previous-moment" {
+        (!state.analysis.moments.iter().any(|m| m.start_tick < now))
+            .then_some("No detected moment before the playhead")
+    } else {
+        (!state.analysis.moments.iter().any(|m| m.start_tick > now))
+            .then_some("No detected moment after the playhead")
+    }
+}
+
+/// The row marks or unmarks the selected media clip as a template slot.
+pub(crate) fn template_slot(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        (state.selected_slot().is_none() && !state.selected_can_be_slot())
+            .then_some("Only media clips can be template slots")
+    })
+}
+
+/// The row acts on a selected title clip.
+pub(crate) fn title_clip(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state)
+        .or_else(|| (!state.selected_is_text()).then_some("Select a title clip first"))
+}
+
+/// Why `param` cannot be keyframed at the playhead on the selected clip, or
+/// `None` when it can.
+pub(crate) fn keyframe_param_blocked(
+    state: &AppState,
+    param: aria_models::ClipParam,
+) -> Option<&'static str> {
+    let Some(clip) = state.selected_model() else {
+        return Some(Decline::NoSelection.reason());
+    };
+    if state.playhead.value < clip.timeline.start.value
+        || state.playhead.value >= clip.timeline.end_tick()
+    {
+        return Some("Move the playhead inside the selected clip");
+    }
+    let Some(row) = state.key_param(param) else {
+        return Some("The selected clip does not have that property");
+    };
+    row.spec
+        .sample(clip, clip.param_tick(state.playhead.value))
+        .is_none()
+        .then_some("The selected clip does not have that property")
+}
+
+/// The row sets a keyframe at the playhead on the property named by `id`.
+pub(crate) fn keyframe_at_playhead(id: &str, state: &AppState) -> Option<&'static str> {
+    let slug = id.strip_prefix("pal-key-")?;
+    let param = aria_models::ClipParam::CENSUS.into_iter().find(
+        |param| matches!(param.class(), aria_models::ClipParamClass::Direct(s) if s == slug),
+    )?;
+    keyframe_param_blocked(state, *param)
+}
+
+/// The row removes the opacity keyframe under the playhead on the selected clip.
+pub(crate) fn opacity_keyframe_at_playhead(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        (!state.has_keyframe_at_playhead(aria_models::ClipParam::Opacity))
+            .then_some("The selected clip has no opacity keyframe at the playhead")
+    })
+}
+
+/// Why the selected clip's track cannot move one row up (`up`) or down, or
+/// `None` when it can.
+fn track_move(state: &AppState, up: bool) -> Option<&'static str> {
+    let Some(track) = state.selected_track() else {
+        return Some(Decline::NoSelection.reason());
+    };
+    let tracks = &state.store.sequence.tracks;
+    let count = tracks.len();
+    let Some(from_row) = tracks.iter().position(|lane| lane.id == track.raw()) else {
+        return Some(Decline::NoSelection.reason());
+    };
+    let visual_count = tracks
+        .iter()
+        .take_while(|lane| {
+            !matches!(
+                lane.kind,
+                crate::types::UiTrackKind::Audio | crate::types::UiTrackKind::Submix
+            )
+        })
+        .count();
+    let is_audio = from_row >= visual_count;
+    if up {
+        let top = if is_audio { visual_count } else { 0 };
+        (from_row <= top).then_some("The track is already at the top")
+    } else {
+        let bottom = if is_audio { count } else { visual_count };
+        (from_row + 1 >= bottom).then_some("The track is already at the bottom")
+    }
+}
+
+/// The row moves the selected clip's track up one slot.
+pub(crate) fn track_up(_: &str, state: &AppState) -> Option<&'static str> {
+    track_move(state, true)
+}
+
+/// The row moves the selected clip's track down one slot.
+pub(crate) fn track_down(_: &str, state: &AppState) -> Option<&'static str> {
+    track_move(state, false)
+}
+
+/// The row flags or unflags the selected clip's audio track as the duck source.
+pub(crate) fn audio_track(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        let Some(track) = state.selected_track() else {
+            return Some(Decline::NoSelection.reason());
+        };
+        let is_audio =
+            state.store.sequence.tracks.iter().any(|lane| {
+                lane.id == track.raw() && lane.kind == crate::types::UiTrackKind::Audio
+            });
+        (!is_audio).then_some("Select a clip on an audio track")
+    })
+}
+
+/// The row selects a clip under the playhead.
+pub(crate) fn clip_under_playhead(_: &str, state: &AppState) -> Option<&'static str> {
+    let at = state.store.playhead_ticks;
+    let any = state.store.sequence.tracks.iter().any(|track| {
+        track
+            .clips
+            .iter()
+            .any(|clip| at >= clip.timeline_start_ticks && at < clip.timeline_end_ticks)
+    });
+    (!any).then_some("No clip under the playhead")
+}
+
+/// The row duplicates the selected clip onto another track that accepts it.
+pub(crate) fn other_compatible_track(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        let Some(clip) = state.selected_ui_clip_ref() else {
+            return Some(Decline::NoSelection.reason());
+        };
+        let kind = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|track| track.id == clip.track_id)
+            .map(|track| track.kind);
+        let any = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .any(|track| track.id != clip.track_id && Some(track.kind) == kind);
+        (!any).then_some("No other track accepts this clip")
+    })
+}
+
+/// The row names the pending undo and redo steps.
+pub(crate) fn history_steps(_: &str, state: &AppState) -> Option<&'static str> {
+    (!state.store.can_undo && !state.store.can_redo).then_some("No steps to undo or redo")
+}
+
+/// The row reports the drawn size of a selected generated clip.
+pub(crate) fn measurable_content(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .selected_ui_clip_ref()
+            .is_none_or(|clip| clip.generator.is_none())
+            .then_some("The selection draws no measurable content")
+    })
+}
+
+/// The row clears the active media pool filter query.
+pub(crate) fn media_filter(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .media_query
+        .is_empty()
+        .then_some("The pool filter is already empty")
+}
+
+/// The row clears active media proxies when any pool item uses one.
+pub(crate) fn proxies_in_use(_: &str, state: &AppState) -> Option<&'static str> {
+    (!state.store.media.iter().any(|item| item.proxied)).then_some("No proxies in use")
+}
+
+/// The row acts on the items in the media pool.
+pub(crate) fn media_pool(_: &str, state: &AppState) -> Option<&'static str> {
+    state.store.media.is_empty().then_some("The pool is empty")
+}
+
+/// The row reloads the focused media pool item from disk.
+pub(crate) fn pool_focus(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .pool_selection
+        .focus()
+        .is_none()
+        .then_some("Pick a pool item to reload")
+}
+
+/// The row reports the cost of the last rendered frame.
+pub(crate) fn rendered_frame(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .frame_rows()
+        .is_empty()
+        .then_some("No frame has been rendered yet")
+}
+
+/// The row acts on the media pool item played by the selected clip.
+pub(crate) fn selected_media_source(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        let has_item = state
+            .selected_ui_clip_ref()
+            .and_then(|clip| clip.media_id)
+            .is_some_and(|media| state.store.media.iter().any(|item| item.id == media));
+        (!has_item).then_some("Select a clip that plays a pool entry")
+    })
+}
+
+/// The row acts on the audio stream of the media pool item played by the selected clip.
+pub(crate) fn selected_audio_source(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        let Some(media) = state.selected_ui_clip_ref().and_then(|clip| clip.media_id) else {
+            return Some("Select a clip that plays a pool entry");
+        };
+        let Some(item) = state.store.media.iter().find(|item| item.id == media) else {
+            return Some("Select a clip that plays a pool entry");
+        };
+        (!item.has_audio).then_some(Decline::NoSound.reason())
+    })
+}
+
+/// The row measures the frame currently shown in the Viewer.
+pub(crate) fn picture_on_screen(_: &str, state: &AppState) -> Option<&'static str> {
+    (state.last_frame.is_none() && state.preview_worker.shown_texture().is_none())
+        .then_some("No frame on screen to measure")
+}
+
+/// The row normalizes the selected clip from a measured loudness contour.
+pub(crate) fn normalisable(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .loudness_peak_dbfs()
+            .is_none()
+            .then_some("Measure loudness in the Analysis panel first, then normalize")
+    })
+}
+
+/// The row runs shot detection on the selected clip's media.
+pub(crate) fn detect_shots(_: &str, state: &AppState) -> Option<&'static str> {
+    use crate::app::analysis::{AnalysisKind, AnalysisRefusal};
+    match state.analysis_target(AnalysisKind::Shots) {
+        Ok(_) => None,
+        Err(AnalysisRefusal::Unselected) => Some(Decline::NoSelection.reason()),
+        Err(AnalysisRefusal::Generated) => Some("A generated clip has no media file to analyze"),
+        Err(AnalysisRefusal::Gone) => Some("The clip's media is no longer in the pool"),
+        Err(AnalysisRefusal::Offline(_)) => Some("The clip's media is offline"),
+        Err(AnalysisRefusal::Silent(_)) => Some(Decline::NoSound.reason()),
+    }
+}
+
+/// The row runs audio analysis or loudness measurement on the selected clip.
+pub(crate) fn detect_audio(_: &str, state: &AppState) -> Option<&'static str> {
+    use crate::app::analysis::{AnalysisKind, AnalysisRefusal};
+    match state.analysis_target(AnalysisKind::Silence) {
+        Ok(_) => None,
+        Err(AnalysisRefusal::Unselected) => Some(Decline::NoSelection.reason()),
+        Err(AnalysisRefusal::Generated) => Some("A generated clip has no media file to analyze"),
+        Err(AnalysisRefusal::Gone) => Some("The clip's media is no longer in the pool"),
+        Err(AnalysisRefusal::Offline(_)) => Some("The clip's media is offline"),
+        Err(AnalysisRefusal::Silent(_)) => Some(Decline::NoSound.reason()),
+    }
+}
+
+/// The row transcribes the selected clip's audio when a model is installed.
+pub(crate) fn transcribe(id: &str, state: &AppState) -> Option<&'static str> {
+    detect_audio(id, state).or_else(|| {
+        state
+            .settings_form
+            .installed_model
+            .is_none()
+            .then_some("Install a transcription model in Settings first")
+    })
+}
+
+/// The row ducks the selected music clips under the flagged voice track.
+pub(crate) fn duck(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        state
+            .duck_precheck()
+            .is_err()
+            .then_some("Flag a voice track and select an audio clip to duck")
+    })
+}
+
+/// The row tracks the active mask forward from the playhead.
+pub(crate) fn mask_track(_: &str, state: &AppState) -> Option<&'static str> {
+    if state.selected_clip().is_none() {
+        return Some("Select a clip with a mask to track");
+    }
+    if state.active_mask().is_none() {
+        return Some("Draw a mask on the clip before tracking it");
+    }
+    let span = state
+        .selected_ui_clip_ref()
+        .map_or(0, |ui| ui.timeline_end_ticks - 1 - state.playhead.value);
+    (span <= 0)
+        .then_some("The playhead is at the end of the clip, so there is nothing ahead to track")
+}
+
+/// The row queries the configured AI endpoint when no probe is already in flight.
+pub(crate) fn ai_idle(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .ai_probe
+        .busy
+        .then_some("An AI endpoint check is already running")
+}

@@ -60,6 +60,7 @@ pub fn font_list(
     crate::edge_fade::scroll_list(
         key.element_id("font-list"),
         lead + families.len(),
+        px(Theme::ROW_HEIGHT),
         px(ROWS_SHOWN * Theme::ROW_HEIGHT),
         marked,
         cx.processor(move |_, rows: Range<usize>, _, cx| {

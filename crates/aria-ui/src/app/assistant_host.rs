@@ -321,6 +321,31 @@ pub fn host_tool_specs() -> Vec<HostToolSpec> {
     ]
 }
 
+/// Every tool a turn offers the model that is neither an edit nor a plugin's:
+/// the loop's own `describe_project`, `commit_progress` and `read_skill`, all
+/// read-only, then this host's. Settings counts these as app tools, the
+/// assistant's tool list draws them as the `app` group, and the assistant
+/// guide's table lists them in this order.
+///
+/// A turn offers `read_skill` only while a skill is switched on; this lists it
+/// always, since the bundled skills are on until switched off.
+pub fn app_tools() -> Vec<HostToolSpec> {
+    [
+        aria_ai::wire::describe_project_spec(),
+        aria_ai::agent::commit_progress_spec(),
+        aria_ai::extend::read_skill_spec(),
+    ]
+    .into_iter()
+    .map(|spec| HostToolSpec {
+        name: spec.name,
+        description: spec.description,
+        parameters: spec.parameters,
+        tier: ToolTier::ReadOnly,
+    })
+    .chain(host_tool_specs())
+    .collect()
+}
+
 /// The AI tools the plugins mounted on `plugins` offer, in registration order.
 pub fn plugin_tool_specs(plugins: &PluginContext) -> Vec<HostToolSpec> {
     plugins

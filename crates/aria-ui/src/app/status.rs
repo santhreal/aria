@@ -3,7 +3,8 @@
 //! A status is a receipt for something that just happened ("Copied", "Export
 //! started"), so it stops being true a few seconds later and must not sit on the
 //! strip for the rest of the session. An error is not a receipt: it stays until
-//! an action succeeds, which is the only thing that makes it stale.
+//! an action succeeds, or, when the error is about the selection, until the
+//! selection changes.
 //!
 //! Ageing is done by asking, not by every writer remembering to stamp a time:
 //! the strip has forty-odd writers across the crate, and one that forgot the
@@ -57,6 +58,17 @@ impl AppState {
     pub(crate) fn clear_error(&mut self) {
         self.last_error = None;
     }
+
+    /// Forget the error when it is about the selection that was replaced.
+    ///
+    /// Called from [`AppState::refresh_projected_selection`], the single path
+    /// every selection write finishes with. An export failure, storage error or
+    /// plugin fault is not about the selection and stays on the strip.
+    pub(crate) fn clear_selection_error(&mut self) {
+        if self.last_error.as_deref().is_some_and(about_selection) {
+            self.last_error = None;
+        }
+    }
 }
 
 /// Symbols written in lower case: the effects badge and the expression driver
@@ -87,6 +99,29 @@ pub(crate) fn as_sentence(mut line: String) -> String {
     let at = line.len() - line.trim_start().len();
     line.replace_range(at..at + first.len_utf8(), &first.to_uppercase().to_string());
     line
+}
+
+/// Phrases in an error line that tie the failure to the current selection.
+const SELECTION_CLAUSES: [&str; 12] = [
+    "Select ",
+    ": select a clip first",
+    "The selected clip ",
+    "A generated clip has no ",
+    "The clip's media is no longer in the pool",
+    "The clip is too short to transcribe",
+    " has no audio track",
+    " is offline. Relink it first",
+    "A nested sequence clip is rendered from inside its sequence",
+    "Only a video or generator clip on a video track can be rendered in place",
+    " is already rendered",
+    "No selected clip ",
+];
+
+/// Whether `error` is about the current selection.
+pub(crate) fn about_selection(error: &str) -> bool {
+    SELECTION_CLAUSES
+        .iter()
+        .any(|clause| error.contains(clause))
 }
 
 #[cfg(test)]

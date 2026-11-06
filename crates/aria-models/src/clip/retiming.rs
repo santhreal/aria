@@ -55,7 +55,8 @@ pub fn retimed_duration(
     has_curve: bool,
 ) -> i64 {
     if !has_curve {
-        return (src_dur_tl * i64::from(speed.den) / i64::from(speed.num)).max(1);
+        let scaled = i128::from(src_dur_tl) * i128::from(speed.den) / i128::from(speed.num);
+        return scaled.clamp(1, i128::from(i64::MAX)) as i64;
     }
     let base = f64::from(speed.num) / f64::from(speed.den);
     let effective = base * average;
@@ -110,7 +111,7 @@ impl Clip {
             .round()
             .max(1.0) as i64;
         Ok(crate::time::Rational::from_ratio_fitted(
-            src_dur_tl * 1000,
+            src_dur_tl.saturating_mul(1000),
             scaled,
         ))
     }
@@ -214,13 +215,16 @@ impl Clip {
     /// Source ticks consumed by `tl_ticks` timeline ticks at this clip's
     /// speed (both in the same rate; exact rational scale, truncating).
     pub fn scale_by_speed(&self, tl_ticks: i64) -> i64 {
-        tl_ticks * i64::from(self.speed.num) / i64::from(self.speed.den)
+        let scaled = i128::from(tl_ticks) * i128::from(self.speed.num) / i128::from(self.speed.den);
+        scaled.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
     }
 
     /// Timeline ticks covered by `src_ticks` source ticks at this clip's
     /// speed (the inverse of [`Self::scale_by_speed`], truncating).
     pub fn unscale_by_speed(&self, src_ticks: i64) -> i64 {
-        src_ticks * i64::from(self.speed.den) / i64::from(self.speed.num)
+        let scaled =
+            i128::from(src_ticks) * i128::from(self.speed.den) / i128::from(self.speed.num);
+        scaled.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
     }
 
     /// The source ticks a slip moves this clip's take by so the picture
@@ -244,7 +248,7 @@ impl Clip {
     /// `[0, duration)` so callers sampling at a stale playhead still get the
     /// nearest in-range value.
     pub fn animation_tick(&self, timeline_tick: i64) -> i64 {
-        let offset = timeline_tick - self.timeline.start.value;
+        let offset = timeline_tick.saturating_sub(self.timeline.start.value);
         offset.clamp(0, (self.timeline.duration.value - 1).max(0))
     }
 

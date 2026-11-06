@@ -63,7 +63,15 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
         })
     });
     visual.run_until_parked();
-    let project = visual.read(|app| project_text(state.read(app)));
+    let project = visual.read(|app| {
+        let read = state.read(app);
+        let mut exempt = project_text(read);
+        for (name, tools) in read.ai_tool_groups() {
+            exempt.insert(format!("{name} · {}", tools.len()));
+            exempt.extend(tools.into_iter().map(|t| t.to_string()));
+        }
+        exempt
+    });
     let (media, _) = clips[0];
 
     let mut offenders = Vec::new();
@@ -250,7 +258,7 @@ fn converse(state: &mut AppState) {
 /// Place a media clip, a title and a shape, pick the media in the pool and
 /// read a frame for the Info panel. Returns every clip with its kind, the media
 /// clip first.
-fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
+pub(super) fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
     let movie = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
     let media = state.import_media(movie).expect("import the movie");

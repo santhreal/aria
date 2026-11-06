@@ -9,6 +9,8 @@
 //! [`aria_models::clip_facts`] at run time, so a question added to that table
 //! is reachable from the palette without a row being added here.
 
+use crate::chrome::menu_guards as guards;
+
 use super::host::CommandEntry;
 
 /// Rows that act on the project, the pool, or the session's measurements.
@@ -22,11 +24,13 @@ pub(crate) const PROJECT_ROWS: &[CommandEntry] = &[
         id: "pal-project-clip-under-playhead",
         label: "Select Clip Under Playhead",
         run: |state| state.select_clip_under_playhead(),
+        blocked: guards::clip_under_playhead,
     },
     CommandEntry {
         id: "pal-project-next-flagged-clip",
         label: "Go to Next Flagged Clip",
         run: |state| state.go_to_next_flagged_clip(),
+        blocked: guards::clips,
     },
     CommandEntry {
         id: "pal-project-duplicate-to-lane",
@@ -36,25 +40,30 @@ pub(crate) const PROJECT_ROWS: &[CommandEntry] = &[
                 state.report_error(&err);
             }
         },
+        blocked: guards::other_compatible_track,
     },
     CommandEntry {
         id: "pal-project-reveal-media",
         label: "Reveal a File in the Pool",
         run: |state| state.pick_and_reveal_media(),
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-project-describe-template",
         label: "Describe a Template Bundle",
         run: |state| state.pick_and_describe_template(),
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-project-history-pending",
         label: "Name the Next Undo and Redo",
         run: |state| state.report_pending_history(),
+        blocked: guards::history_steps,
     },
     CommandEntry {
         id: "pal-project-content-size",
         label: "Report Drawn Size of Selection",
         run: |state| state.report_content_size(),
+        blocked: guards::measurable_content,
     },
 ];

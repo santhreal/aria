@@ -88,33 +88,51 @@ fn a_key_naming_an_unset_environment_variable_is_not_a_key() {
         "an unset variable must not resolve to a key"
     );
 }
+/// A Clear or a Move landing mid-download deletes or moves the partial file the
+/// download is still writing, so both are refused while the download holds the
+/// cache, with one reason that names the download, and Move storage… refuses
+/// before it opens a folder picker. The refusals read "the project inventory
+/// is scanned" and "protected until project media inventory completes",
+/// `aria-cloud`'s wording for its other holder, and Move asked for a folder
+/// first. The drawn half is in the Settings value_row tests.
 #[test]
 fn a_download_in_flight_holds_off_cache_maintenance() {
-    // A Clear or a Move landing mid-download deletes or moves the partial file the
-    // download is still writing, and the import that follows references a path that is
-    // gone. The guard belongs to the work that would be corrupted, so it is held for
-    // the download and released whichever way the download ends.
     let (mut state, _) = with_clip();
-    assert!(!state.download_cache_busy(), "idle by default");
+    assert_eq!(state.download_cache_held(), None, "idle by default");
     state.clear_download_cache().expect("an idle cache clears");
 
     state.hold_download_guard();
-    assert!(state.download_cache_busy());
+    let held = state
+        .download_cache_held()
+        .expect("a download holds the cache");
+    assert_eq!(
+        held,
+        "A download is in flight. Clear and Move run once it finishes"
+    );
     let err = state
         .clear_download_cache()
         .expect_err("a clear during a download must be refused");
-    assert!(
-        err.contains("protected"),
-        "the refusal did not explain itself: {err}"
-    );
+    assert_eq!(err, held);
     let elsewhere = state.download_cache_root().join("elsewhere");
     let err = state
         .relocate_storage_root(&elsewhere)
         .expect_err("a move during a download must be refused");
-    assert!(!err.is_empty());
+    assert_eq!(err, held);
+    let asked = state.picks_asked();
+    state.pick_storage_root();
+    assert_eq!(
+        state.picks_asked(),
+        asked,
+        "Move storage… asked for a folder"
+    );
+    assert_eq!(state.last_error.as_deref(), Some(held));
 
     state.release_download_guard();
-    assert!(!state.download_cache_busy(), "the guard was not released");
+    assert_eq!(
+        state.download_cache_held(),
+        None,
+        "the guard was not released"
+    );
     state
         .clear_download_cache()
         .expect("maintenance resumes once the download ends");

@@ -1,15 +1,8 @@
-//! Transcript rows: the empty state and one line of the conversation.
+//! Transcript rows: one line of the conversation.
 //!
-//! Both functions are `pub(super)` so `ai_panel.rs` calls them by name.
+//! `bubble` is `pub(super)` so `ai_panel.rs` calls it by name.
 
 use super::*;
-
-/// The panel's line before anything has been asked. It states the project,
-/// because the assistant answers about this one and not in general. A prompt,
-/// so it ends with a period.
-pub(super) fn empty(theme: &Theme, project: &str) -> impl IntoElement {
-    crate::components::empty_state("assistant", format!("Ask Aria about {project}."), theme)
-}
 
 /// One line of the conversation, colored by who said it and copyable on its own.
 ///

@@ -1,6 +1,6 @@
 use aria_models::{
-    Clip, ClipId, ModelError, RationalTime, Sequence, SequenceId, TimeRange, Track, TrackId,
-    TrackKind,
+    Clip, ClipId, ModelError, RationalTime, Sequence, SequenceId, TimeError, TimeRange, Track,
+    TrackId, TrackKind,
 };
 
 use crate::action::edit::remove_clip::RemoveClipAction;
@@ -27,16 +27,16 @@ impl EditAction for UndoCreateNestedSequenceAction {
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
-        let nested_clip = ctx
-            .project
-            .timeline_mut()
-            .remove_clip(self.nested_clip_id)
-            .ok_or(ModelError::UnknownClip(self.nested_clip_id))?;
         let track_id = ctx
             .project
             .timeline()
             .track_of(self.nested_clip_id)
             .unwrap_or_else(|| self.original_clips[0].0);
+        let nested_clip = ctx
+            .project
+            .timeline_mut()
+            .remove_clip(self.nested_clip_id)
+            .ok_or(ModelError::UnknownClip(self.nested_clip_id))?;
         let sequence = ctx
             .project
             .remove_sequence(self.sequence_id)
@@ -109,17 +109,22 @@ pub(crate) fn create_nested_sequence(
     let mut min_start = i64::MAX;
     let mut max_end = i64::MIN;
     let mut original_clips = Vec::with_capacity(clips.len());
+    let mut seen = std::collections::BTreeSet::new();
 
     for &id in clips {
+        if !seen.insert(id) {
+            continue;
+        }
         let clip = tl.require_clip(id)?;
         let trk_id = tl.track_of(id).ok_or(ModelError::UnknownClip(id))?;
+        let end = clip.timeline.end()?.value;
         min_start = min_start.min(clip.timeline.start.value);
-        max_end = max_end.max(clip.timeline.end_tick());
+        max_end = max_end.max(end);
         original_clips.push((trk_id, Clip::clone(clip)));
     }
 
     let tl_rate = ctx.project.timeline().frame_rate;
-    let duration = max_end - min_start;
+    let duration = max_end.checked_sub(min_start).ok_or(TimeError::Overflow)?;
     if duration <= 0 {
         return Err(EngineError::Model(ModelError::InvalidRange));
     }
@@ -147,7 +152,12 @@ pub(crate) fn create_nested_sequence(
             }
         };
         let mut shifted_clip = Clip::clone(clip);
-        shifted_clip.timeline.start.value -= min_start;
+        shifted_clip.timeline.start.value = shifted_clip
+            .timeline
+            .start
+            .value
+            .checked_sub(min_start)
+            .ok_or(TimeError::Overflow)?;
         new_seq.timeline.add_clip(mapped_trk_id, shifted_clip)?;
     }
 
@@ -159,7 +169,6 @@ pub(crate) fn create_nested_sequence(
     // media-bearing lane accepts one. Refuse before the project is touched: the
     // same check inside `add_clip` fires after the sequence is registered and
     // the selection removed, which would leave the clips deleted and an orphan
-    // sequence behind. Nothing above this point has mutated the project.
     let dest = ctx.project.timeline().require_track(first_track_id)?;
     if !dest.kind.accepts_clip(&nested_clip) {
         return Err(EngineError::Model(ModelError::IncompatibleTrackKind {
@@ -167,7 +176,14 @@ pub(crate) fn create_nested_sequence(
             kind: dest.kind,
         }));
     }
-
+    for existing in dest.clips() {
+        if !seen.contains(&existing.id)
+            && existing.timeline.start.value < max_end
+            && existing.timeline.end()?.value > min_start
+        {
+            return Err(EngineError::Model(ModelError::Overlap(first_track_id)));
+        }
+    }
     let sequence_id = ctx.project.add_sequence(new_seq);
 
     for &id in clips {

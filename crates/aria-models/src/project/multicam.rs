@@ -61,12 +61,22 @@ impl Project {
         self.multicam_groups.len()
     }
 
-    /// Whether any clip on the timeline currently references `group_id`.
+    /// Whether any clip (on the root timeline, inside any secondary sequence,
+    /// or inside a baked clip snapshot) currently references `group_id`.
     pub fn is_multicam_group_referenced(&self, group_id: MulticamGroupId) -> bool {
-        self.timeline()
-            .tracks_ordered()
+        fn clip_references_multicam(clip: &Clip, group_id: MulticamGroupId) -> bool {
+            clip.multicam_group() == Some(group_id)
+                || clip
+                    .bake
+                    .as_deref()
+                    .is_some_and(|baked| clip_references_multicam(baked, group_id))
+        }
+
+        std::iter::once(self.root_timeline())
+            .chain(self.sequences.values().map(|s| &s.timeline))
+            .flat_map(|tl| tl.tracks_ordered())
             .flat_map(crate::track::Track::clips)
-            .any(|c| c.multicam_group() == Some(group_id))
+            .any(|c| clip_references_multicam(c, group_id))
     }
 
     /// Remove a multicam group. Refused if any clip still references it.
@@ -171,7 +181,11 @@ impl Project {
                 .get(&angle.media)
                 .ok_or(ModelError::UnknownMedia(angle.media))?;
             let duration = resample(media.full_range().duration, rate).value;
-            end = end.max(angle.sync_offset + duration);
+            let angle_end = angle
+                .sync_offset
+                .checked_add(duration)
+                .ok_or(ModelError::TimeOverflow)?;
+            end = end.max(angle_end);
         }
         if end <= 0 {
             return Err(ModelError::InvalidRange);
@@ -192,10 +206,15 @@ impl Project {
         }
         let tl_rate = self.timeline().frame_rate;
         check_same_rate(source.start.rate, tl_rate)?;
+        check_same_rate(source.duration.rate, tl_rate)?;
         check_same_rate(timeline_start.rate, tl_rate)?;
         if source.is_empty() {
             return Err(ModelError::InvalidRange);
         }
+        if source.start.value < 0 {
+            return Err(ModelError::SourceOutOfBounds);
+        }
+        source.end()?;
         let timeline_duration = resample(source.duration, tl_rate);
         let duration_ticks = timeline_duration.value.max(1);
         let timeline = TimeRange::at_rate(timeline_start.value, duration_ticks, tl_rate);

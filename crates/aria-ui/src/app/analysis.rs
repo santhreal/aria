@@ -149,11 +149,8 @@ impl AppState {
             .iter()
             .find(|item| item.id == media_id)
             .ok_or(AnalysisRefusal::Gone)?;
-        if media.missing {
-            return Err(AnalysisRefusal::Offline(media));
-        }
-        if kind.needs_audio() && !media.has_audio {
-            return Err(AnalysisRefusal::Silent(media));
+        if let Some(refusal) = AnalysisRefusal::of_media(media, kind.needs_audio()) {
+            return Err(refusal);
         }
         Ok((clip, media))
     }
@@ -708,14 +705,32 @@ pub(crate) enum AnalysisRefusal<'a> {
     Silent(&'a crate::types::UiMediaItem),
 }
 
+impl<'a> AnalysisRefusal<'a> {
+    /// Why a run cannot read `media`: offline before silent, and silent only
+    /// when the run reads audio. Analysis, transcription and the loudness
+    /// overview all refuse through this one test.
+    pub(crate) fn of_media(
+        media: &'a crate::types::UiMediaItem,
+        needs_audio: bool,
+    ) -> Option<Self> {
+        if media.missing {
+            return Some(Self::Offline(media));
+        }
+        (needs_audio && !media.has_audio).then_some(Self::Silent(media))
+    }
+}
+
+/// A media name is quoted, as the Home recovery banner quotes a project name,
+/// so a lower case name ("texture") is neither recapitalized by
+/// `status::as_sentence` nor read as the start of the sentence.
 impl std::fmt::Display for AnalysisRefusal<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unselected => f.write_str("Select a clip to analyze"),
             Self::Generated => f.write_str("A generated clip has no media to analyze"),
             Self::Gone => f.write_str("The clip's media is no longer in the pool"),
-            Self::Offline(media) => write!(f, "{} is offline. Relink it first", media.name),
-            Self::Silent(media) => write!(f, "{} has no audio track", media.name),
+            Self::Offline(media) => write!(f, "“{}” is offline. Relink it first", media.name),
+            Self::Silent(media) => write!(f, "“{}” has no audio track", media.name),
         }
     }
 }

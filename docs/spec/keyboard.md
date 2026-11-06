@@ -122,8 +122,8 @@ Holding a tool key uses that tool until release
 | Q / W | Remove from the previous cut to the playhead / the playhead to the next cut on targeted tracks, closing the gap |
 | Alt+[ / Alt+] | Trim head / tail to the playhead without closing the gap |
 | Delete / Shift+Delete | Clear / Ripple Delete |
-| Ctrl+Left / Ctrl+Right | Trim the selected edges one frame |
-| Ctrl+Shift+Left / Ctrl+Shift+Right | Trim the selected edges five frames |
+| Ctrl+Left / Ctrl+Right | Trim the selected edges, or move the selected clips, one frame |
+| Ctrl+Shift+Left / Ctrl+Shift+Right | Trim the selected edges, or move the selected clips, five frames |
 | Keypad `+` / `-`, digits, Enter | Move the selected clips, or trim the selected edges, by the typed duration |
 | Ctrl+T / Ctrl+Shift+T | Default video / audio transition at the selected edges, or at the nearest edit on targeted tracks |
 | D | Select the clip at the playhead on targeted tracks |

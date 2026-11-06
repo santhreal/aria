@@ -62,12 +62,10 @@ impl AppState {
 
     /// Every tool the model is handed, grouped as the registry groups them.
     ///
-    /// Enumerated from `aria_ai::wire::tool_groups`, the two specs the agent
-    /// appends per turn, and one group per plugin that offers tools, so this is
-    /// the vocabulary a prompt actually carries. The
-    /// existing settings row counts them; a count is not a capability list, and
-    /// "the assistant can edit the timeline" should not have to be taken on
-    /// trust.
+    /// Enumerated from `aria_ai::wire::tool_groups`, then the `app` group
+    /// (`super::assistant_host::app_tools`, which Settings counts), then one
+    /// group per plugin that offers tools, so this is the vocabulary a prompt
+    /// receives.
     pub fn ai_tool_groups(&self) -> Vec<(SharedString, Vec<SharedString>)> {
         let mut groups: Vec<(SharedString, Vec<SharedString>)> = aria_ai::wire::tool_groups()
             .iter()
@@ -78,15 +76,10 @@ impl AppState {
                 )
             })
             .collect();
-        // The two the agent appends itself, which no registry group holds: the
-        // project reader and the skill reader. Named from the specs so a rename
-        // there follows here.
+        let app = crate::app::assistant_host::app_tools();
         groups.push((
-            "beyond the edit vocabulary".into(),
-            vec![
-                aria_ai::wire::describe_project_spec().name.into(),
-                aria_ai::extend::read_skill_spec().name.into(),
-            ],
+            "app".into(),
+            app.into_iter().map(|spec| spec.name.into()).collect(),
         ));
         for tool in self.ctx.ai_tools() {
             let group: SharedString = format!("from the {} plugin", tool.plugin_name).into();

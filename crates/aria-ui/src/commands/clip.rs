@@ -8,6 +8,9 @@
 //! starts a job needs the entity context, so it cannot sit beside rows that run
 //! against a headless state.
 
+use crate::app::decline::Decline;
+use crate::chrome::menu_guards as guards;
+
 use super::host::{CommandEntry, WindowedEntry};
 
 /// A row that adds one mask shape to the selected clip's stack.
@@ -22,10 +25,14 @@ macro_rules! add_mask_row {
             id: $id,
             label: $label,
             run: |state| {
+                if state.selected_clip_or_decline().is_none() {
+                    return;
+                }
                 if let Err(err) = state.add_selected_mask(aria_models::MaskKind::$kind) {
                     state.report_error(&err);
                 }
             },
+            blocked: guards::selection,
         }
     };
 }
@@ -36,37 +43,54 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-motion-blur",
         label: "Toggle Motion Blur",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             if let Err(err) = state.toggle_selected_motion_blur() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-denoise",
         label: "Toggle Denoise",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             if let Err(err) = state.toggle_selected_denoise() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-pitch-lock",
         label: "Toggle Pitch Lock",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             if let Err(err) = state.toggle_selected_pitch_lock() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-mask-invert",
         label: "Invert Mask",
         run: |state| {
+            if let Some(reason) = guards::mask("pal-mask-invert", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Err(err) = state.toggle_active_mask_invert() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::mask,
     },
     add_mask_row!("pal-mask-add-linear", "Add Linear Mask", Linear),
     add_mask_row!("pal-mask-add-mirror", "Add Mirror Mask", Mirror),
@@ -79,139 +103,176 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-chroma-green",
         label: "Key Green Screen",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             if let Err(err) = state.set_selected_chroma_color([0, 177, 64]) {
                 state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-slot-toggle",
         label: "Mark as Template Slot",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             if let Err(err) = state.toggle_selected_replaceable() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::template_slot,
     },
     CommandEntry {
         id: "pal-text-editable",
         label: "Text Editable in Template",
         run: |state| {
+            if let Some(reason) = guards::title_clip("pal-text-editable", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Err(err) = state.toggle_selected_text_editable() {
                 state.report_error(&err);
             }
         },
+        blocked: guards::title_clip,
     },
     CommandEntry {
         id: "pal-key-opacity",
         label: "Keyframe Opacity at Playhead",
-        run: |state| {
-            if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Opacity) {
-                state.report_error(&err);
-            }
-        },
+        run: |state| super::reach::keyframe(state, aria_models::ClipParam::Opacity),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-position",
         label: "Keyframe Position at Playhead",
-        run: |state| {
-            if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Position) {
-                state.report_error(&err);
-            }
-        },
+        run: |state| super::reach::keyframe(state, aria_models::ClipParam::Position),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-scale",
         label: "Keyframe Scale at Playhead",
-        run: |state| {
-            if let Err(err) = state.add_keyframe_at_playhead(aria_models::ClipParam::Scale) {
-                state.report_error(&err);
-            }
-        },
+        run: |state| super::reach::keyframe(state, aria_models::ClipParam::Scale),
+        blocked: guards::keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-key-remove",
         label: "Remove Opacity Keyframe at Playhead",
         run: |state| {
+            if let Some(reason) = guards::opacity_keyframe_at_playhead("pal-key-remove", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Err(err) = state.remove_keyframe_at_playhead(aria_models::ClipParam::Opacity) {
                 state.report_error(&err);
             }
         },
+        blocked: guards::opacity_keyframe_at_playhead,
     },
     CommandEntry {
         id: "pal-shift-selection",
         label: "Shift Selection by Frames…",
         run: |state| {
+            if state.selected_clip_or_decline().is_none() {
+                return;
+            }
             state.begin_rename(crate::types::RenameTarget::ShiftFrames);
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-track-up",
         label: "Move Track Up",
         run: |state| {
+            if let Some(reason) = guards::track_up("pal-track-up", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.move_track_up(track)
             {
                 state.report_error(&err);
             }
         },
+        blocked: guards::track_up,
     },
     CommandEntry {
         id: "pal-track-down",
         label: "Move Track Down",
         run: |state| {
+            if let Some(reason) = guards::track_down("pal-track-down", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.move_track_down(track)
             {
                 state.report_error(&err);
             }
         },
+        blocked: guards::track_down,
     },
     CommandEntry {
         id: "pal-track-solo",
         label: "Solo Track",
         run: |state| {
-            if let Some(track) = state.selected_track()
-                && let Err(err) = state.toggle_track_solo(track)
-            {
+            let Some(track) = state.selected_track() else {
+                state.decline(Decline::NoSelection);
+                return;
+            };
+            if let Err(err) = state.toggle_track_solo(track) {
                 state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-track-duck",
         label: "Toggle Track as Duck Source",
         run: |state| {
+            if let Some(reason) = guards::audio_track("pal-track-duck", state) {
+                state.status_message = Some(reason.to_string());
+                return;
+            }
             if let Some(track) = state.selected_track()
                 && let Err(err) = state.toggle_track_duck_source(track)
             {
                 state.report_error(&err);
             }
         },
+        blocked: guards::audio_track,
     },
     CommandEntry {
         id: "pal-track-open-gap",
         label: "Open One-Second Gap at Playhead",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                let delta = state.store.sequence.frame_rate.nominal_fps();
-                if let Err(err) = state.shift_clips_from_playhead(track, delta) {
-                    state.report_error(&err);
-                }
+            let Some(track) = state.selected_track() else {
+                state.decline(Decline::NoSelection);
+                return;
+            };
+            let delta = state.store.sequence.frame_rate.nominal_fps();
+            if let Err(err) = state.shift_clips_from_playhead(track, delta) {
+                state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
     CommandEntry {
         id: "pal-track-close-gap",
         label: "Close One-Second Gap at Playhead",
         run: |state| {
-            if let Some(track) = state.selected_track() {
-                let delta = state.store.sequence.frame_rate.nominal_fps();
-                if let Err(err) = state.shift_clips_from_playhead(track, -delta) {
-                    state.report_error(&err);
-                }
+            let Some(track) = state.selected_track() else {
+                state.decline(Decline::NoSelection);
+                return;
+            };
+            let delta = state.store.sequence.frame_rate.nominal_fps();
+            if let Err(err) = state.shift_clips_from_playhead(track, -delta) {
+                state.report_error(&err);
             }
         },
+        blocked: guards::selection,
     },
 ];
 
@@ -225,4 +286,5 @@ pub(super) const CLIP_JOB_ROWS: &[WindowedEntry] = &[WindowedEntry {
     id: "pal-track-mask",
     label: "Track Mask Forward from the Playhead",
     run: |state, cx| state.run_mask_track(cx),
+    blocked: guards::mask_track,
 }];

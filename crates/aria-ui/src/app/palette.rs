@@ -42,11 +42,12 @@ use crate::types::AppMenu;
 /// How an offered row is invoked.
 #[derive(Debug, Clone)]
 pub enum Offered {
-    /// A registered command. Runs against the state alone.
-    Command(CommandRun),
-    /// A registered command that starts work. Needs the entity context, so the
-    /// caller runs it.
-    Windowed(WindowedRun),
+    /// A registered command, with the guard it draws disabled by. Runs against
+    /// the state alone.
+    Command(CommandRun, RowBlocked),
+    /// A registered command that starts work, with the guard it draws disabled
+    /// by. Needs the entity context, so the caller runs it.
+    Windowed(WindowedRun, RowBlocked),
     /// A menu row, named by the menu it lives in and its id, with the guard
     /// its menu draws it disabled by. Needs the entity context, so the caller
     /// runs it.
@@ -115,10 +116,13 @@ impl PaletteOffer {
     /// reports why.
     pub fn runs_now(&self, state: &AppState, keys: aria_plugin::ContextKeys) -> bool {
         match &self.action {
+            Offered::Command(_, blocked) | Offered::Windowed(_, blocked) => {
+                blocked(self.id.as_str(), state).is_none()
+            }
             Offered::Menu(_, id, blocked) => blocked(id, state).is_none(),
             Offered::Plugin(spec) => spec.enabled(keys),
             Offered::ClipType { placeable, .. } => *placeable,
-            Offered::Command(_) | Offered::Windowed(_) | Offered::Generator(_) => true,
+            Offered::Generator(_) => true,
         }
     }
 }
@@ -225,8 +229,8 @@ impl AppState {
                     label: SharedString::new_static(entry.label),
                     source: None,
                     action: match entry.body {
-                        CommandBody::Plain(run) => Offered::Command(run),
-                        CommandBody::Windowed(run) => Offered::Windowed(run),
+                        CommandBody::Plain(run) => Offered::Command(run, entry.blocked),
+                        CommandBody::Windowed(run) => Offered::Windowed(run, entry.blocked),
                     },
                 });
             }
@@ -382,11 +386,15 @@ impl AppState {
     pub fn run_palette_offer(&mut self, index: usize) -> Option<Pending> {
         let offer = self.palette_hits().get(index).cloned()?;
         match offer.action {
-            Offered::Command(run) => {
-                run(self);
+            Offered::Command(run, blocked) => {
+                if let Some(reason) = blocked(offer.id.as_str(), self) {
+                    self.status_message = Some(reason.to_string());
+                } else {
+                    run(self);
+                }
                 None
             }
-            Offered::Windowed(run) => Some(Pending::Windowed(run)),
+            Offered::Windowed(run, _) => Some(Pending::Windowed(run)),
             Offered::Menu(menu, id, _) => Some(Pending::Menu(menu, id)),
             Offered::Generator(id) => {
                 if let Err(err) = self.add_effect_generator(id.as_str()) {

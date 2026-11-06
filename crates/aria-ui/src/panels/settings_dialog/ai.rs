@@ -22,6 +22,7 @@ use crate::app::settings_form::SettingsField;
 use crate::components;
 use crate::theme::Theme;
 
+use super::value_row::value_row;
 use super::widgets::{choice_row, kv, row_label};
 
 // Beside this file rather than in a directory: the module tree is still
@@ -81,7 +82,15 @@ pub(super) fn ai_rows(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
-    let config = state.read(cx).cloud_settings();
+    let (source, protocol, summary, autonomy) = {
+        let ai = &state.read(cx).cloud_settings().ai;
+        (
+            ai.source,
+            ai.api_protocol,
+            ai.reasoning_summary,
+            ai.autonomy,
+        )
+    };
     let status = state.read(cx).ai_status();
     let agent_dir = state.read(cx).agent_dir();
     let agent_label = agent_dir.display().to_string();
@@ -98,13 +107,24 @@ pub(super) fn ai_rows(
         )
         .into_any_element()
     });
+    let reveal = components::ghost_button("agent-dir-reveal", "Reveal agent files", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    state.reveal_agent_dir();
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element();
     let mut rows = vec![choice_row(
         theme,
         "ai-source",
         "Source",
         &AiSource::ALL,
         AiSource::label,
-        config.ai.source,
+        source,
         cx,
         |state, source, _| state.set_ai_source(source),
     )];
@@ -117,7 +137,7 @@ pub(super) fn ai_rows(
             "Protocol",
             &AiApiProtocol::ALL,
             AiApiProtocol::label,
-            config.ai.api_protocol,
+            protocol,
             cx,
             |state, protocol, _| state.set_ai_protocol(protocol),
         ),
@@ -127,7 +147,7 @@ pub(super) fn ai_rows(
             "Reasoning",
             &ReasoningSummary::ALL,
             ReasoningSummary::label,
-            config.ai.reasoning_summary,
+            summary,
             cx,
             |state, summary, _| state.set_reasoning_summary(summary),
         ),
@@ -137,12 +157,12 @@ pub(super) fn ai_rows(
             "Autonomy",
             &Autonomy::ALL,
             Autonomy::label,
-            config.ai.autonomy,
+            autonomy,
             cx,
             |state, autonomy, _| state.set_autonomy(autonomy),
         ),
         kv(theme, "Status", status).into_any_element(),
-        kv(theme, "Agent files", agent_label).into_any_element(),
+        value_row(theme, "Agent files", agent_label, [reveal]),
         kv(theme, "Limits", state.read(cx).agent_limits()).into_any_element(),
         kv(theme, "Can do", state.read(cx).agent_capabilities()).into_any_element(),
         kv(theme, "Active", state.read(cx).agent_phases()).into_any_element(),
@@ -152,19 +172,6 @@ pub(super) fn ai_rows(
     // model and will accept this key.
     rows.extend(models::rows(theme, state, cx));
     rows.extend(asking);
-    rows.push(
-        components::ghost_button("agent-dir-reveal", "Reveal agent files", theme)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        state.reveal_agent_dir();
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element(),
-    );
     rows
 }
 

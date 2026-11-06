@@ -1,7 +1,7 @@
 //! Sequence frame rate edit: resamples timeline placements, keyframes, transitions,
 //! and markers, swapped as one undoable unit.
 
-use aria_models::{ModelError, Rational, Timeline};
+use aria_models::{ModelError, Rational, TimeError, Timeline};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -18,8 +18,44 @@ pub(crate) fn set_sequence_rate(
         ))));
     }
     let before = ctx.project.timeline().clone();
-    ctx.project.resample_frame_rate(frame_rate)?;
+    if let Err(err) = ctx
+        .project
+        .resample_frame_rate(frame_rate)
+        .and_then(|()| validate_resampled_timeline(ctx.project.timeline()))
+    {
+        *ctx.project.timeline_mut() = before;
+        return Err(err.into());
+    }
     Ok(Box::new(RestoreSequenceRateAction { previous: before }))
+}
+
+fn validate_resampled_timeline(timeline: &Timeline) -> Result<(), ModelError> {
+    for marker in timeline.markers() {
+        if marker.tick.value < 0 || marker.duration.value < 0 {
+            return Err(ModelError::InvalidRange);
+        }
+        marker
+            .tick
+            .value
+            .checked_add(marker.duration.value)
+            .ok_or(TimeError::Overflow)?;
+    }
+    for track in timeline.tracks_ordered() {
+        let mut prev_end: Option<i64> = None;
+        for clip in track.clips_ordered() {
+            if clip.timeline.start.value < 0 || clip.timeline.duration.value <= 0 {
+                return Err(ModelError::InvalidRange);
+            }
+            let end = clip.timeline.end()?.value;
+            if let Some(last_end) = prev_end
+                && last_end > clip.timeline.start.value
+            {
+                return Err(ModelError::Overlap(track.id));
+            }
+            prev_end = Some(end);
+        }
+    }
+    Ok(())
 }
 
 /// Swap the timeline back to a captured snapshot (set-sequence-rate undo/redo).

@@ -88,7 +88,7 @@ impl Project {
         if has_leading_current_schema(prefix) {
             let mut project: Project = serde_json::from_str(text)
                 .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-            project.timeline_mut().normalize_lanes();
+            project.normalize_all_lanes();
             return Ok(project);
         }
         Self::load_from_value_str(text)
@@ -113,7 +113,7 @@ impl Project {
         project.schema = schema;
         // Files written before the main-track flag (or edited externally)
         // re-derive the lane-zone / main-track invariants on entry.
-        project.timeline_mut().normalize_lanes();
+        project.normalize_all_lanes();
         Ok(project)
     }
 }

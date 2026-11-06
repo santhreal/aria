@@ -30,6 +30,7 @@ pub mod text;
 use crate::app::analysis::AnalysisKind;
 use crate::app::palette::Pending;
 use crate::app::{DialogKind, spawn_preview, start_playback};
+use crate::chrome::menu_guards as guards;
 use crate::const_table;
 
 use self::ai::{AI_JOB_ROWS, AI_ROWS};
@@ -113,16 +114,19 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
         id: "pal-detect-shots",
         label: "Detect Shots",
         run: |state, cx| state.run_detector(AnalysisKind::Shots, cx),
+        blocked: guards::detect_shots,
     },
     WindowedEntry {
         id: "pal-detect-silence",
         label: "Detect Silence",
         run: |state, cx| state.run_detector(AnalysisKind::Silence, cx),
+        blocked: guards::detect_audio,
     },
     WindowedEntry {
         id: "pal-detect-beats",
         label: "Detect Beats",
         run: |state, cx| state.run_detector(AnalysisKind::Beats, cx),
+        blocked: guards::detect_audio,
     },
     WindowedEntry {
         id: "pal-loudness",
@@ -132,6 +136,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
                 state.report_error(err);
             }
         },
+        blocked: guards::detect_audio,
     },
     WindowedEntry {
         id: "pal-transcribe",
@@ -141,6 +146,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
                 state.report_error(err);
             }
         },
+        blocked: guards::transcribe,
     },
     WindowedEntry {
         id: "pal-duck",
@@ -150,6 +156,7 @@ const ANALYSIS_JOB_ROWS: &[WindowedEntry] = &[
                 state.status_message = Some(err);
             }
         },
+        blocked: guards::duck,
     },
 ];
 

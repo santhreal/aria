@@ -306,7 +306,7 @@ impl AppState {
             Some(SettingsField::Filter) => self.settings_form.filter.clone(),
             Some(SettingsField::KeymapName) => self.active_keymap().unwrap_or_default().to_owned(),
             Some(SettingsField::Plugin(key)) => self.plugin_setting(key),
-            Some(field) => field.value(&self.cloud_settings()),
+            Some(field) => field.value(self.cloud_settings()),
             None => String::new(),
         };
         self.settings_form.draft.set(draft);
@@ -648,29 +648,23 @@ impl AppState {
     /// themselves.
     ///
     /// Not a written claim: the edit count is `aria-ai`'s own tool table and the
-    /// host count is the desktop's own, so a tool added or removed changes this
-    /// line without anyone remembering to edit it. The point of the row is that
-    /// "the assistant can edit the timeline" should not have to be taken on
-    /// trust.
+    /// app count is [`crate::app::assistant_host::app_tools`], the list the
+    /// assistant's tool list draws, so a tool added or removed changes this
+    /// line without anyone remembering to edit it.
     pub fn agent_capabilities(&self) -> String {
         let edits = aria_ai::wire::tool_specs().len();
-        let host = crate::app::assistant_host::host_tool_specs();
-        let senses = host
-            .iter()
-            .filter(|spec| spec.tier == aria_ai::ToolTier::ReadOnly)
-            .count();
-        let confirms = host
-            .iter()
-            .filter(|spec| spec.tier == aria_ai::ToolTier::System)
-            .count();
+        let app = crate::app::assistant_host::app_tools();
+        let count = |tier| app.iter().filter(|spec| spec.tier == tier).count();
+        let senses = count(aria_ai::ToolTier::ReadOnly);
+        let confirms = count(aria_ai::ToolTier::System);
         let plugins = crate::app::assistant_host::plugin_tool_specs(&self.ctx).len();
-        format_agent_capabilities(edits, host.len(), senses, confirms, plugins)
+        format_agent_capabilities(edits, app.len(), senses, confirms, plugins)
     }
 
     /// Which parts of a turn are switched on, from the settings that decide it.
     pub fn agent_phases(&self) -> String {
-        let ai = self.cloud_settings().ai;
-        let mut on: Vec<&str> = vec!["Edits", "senses"];
+        let ai = &self.cloud_settings().ai;
+        let mut on: Vec<&str> = vec!["Edits", "read-only tools"];
         if ai.reasoning_summary == aria_settings::ReasoningSummary::Auto {
             on.push("reasoning");
         }
@@ -712,7 +706,7 @@ impl AppState {
             SettingsField::Filter => self.settings_form.filter.clone(),
             SettingsField::KeymapName => self.active_keymap().unwrap_or_default().to_owned(),
             SettingsField::Plugin(key) => self.plugin_setting(key),
-            field => field.value(&self.cloud_settings()),
+            field => field.value(self.cloud_settings()),
         };
         (saved, false)
     }
@@ -728,10 +722,9 @@ pub(crate) fn format_agent_capabilities(
     plugins: usize,
 ) -> String {
     format!(
-        "{}, {} of which {senses} {} and {confirms} {} first, {}",
+        "{}, {} ({senses} read-only, {confirms} {} first), {}",
         counted(edits, "edit", "edits"),
         counted(app, "app tool", "app tools"),
-        noun(senses, "looks", "look"),
         noun(confirms, "asks", "ask"),
         counted(plugins, "plugin tool", "plugin tools"),
     )

@@ -8,6 +8,8 @@
 //! decision each one makes lives on `AppState` where the export sheet reaches
 //! the same verb.
 
+use crate::chrome::menu_guards as guards;
+
 use super::host::CommandEntry;
 
 /// Rows that drive the renderer, the shipped LUT pack, and the media pool's
@@ -17,6 +19,7 @@ pub(super) const RENDER_ROWS: &[CommandEntry] = &[
         id: "pal-look-install",
         label: "Install Starter LUT Pack",
         run: |state| state.install_starter_looks(),
+        blocked: guards::ready,
     },
     // Rendering a frame sequence is not a row here. It asks where the frames go,
     // and the surface that already holds the scale, the rate, and the range it
@@ -26,15 +29,18 @@ pub(super) const RENDER_ROWS: &[CommandEntry] = &[
         id: "pal-render-cost",
         label: "Last Frame Cost",
         run: |state| state.report_render_cost(),
+        blocked: guards::rendered_frame,
     },
     CommandEntry {
         id: "pal-media-reload",
         label: "Reload Media from Disk",
         run: |state| state.reload_selected_media(),
+        blocked: guards::pool_focus,
     },
     CommandEntry {
         id: "pal-media-reload-all",
         label: "Reload All Media from Disk",
         run: |state| state.reload_all_media_from_disk(),
+        blocked: guards::media_pool,
     },
 ];

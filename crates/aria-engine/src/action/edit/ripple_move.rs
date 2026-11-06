@@ -1,4 +1,6 @@
-use aria_models::{ClipId, ModelError, RationalTime, TimeRange, TrackId};
+use aria_models::{
+    ClipId, ModelError, RationalTime, TimeError, TimeRange, TrackId, check_same_rate,
+};
 
 use crate::action::edit::insert_clip::InsertClipAction;
 use crate::action::edit::remove_clip::RemoveClipAction;
@@ -90,7 +92,10 @@ pub(crate) fn execute(
     // that span, or when the destination lane rode along via sync lock. A
     // forward drop past the old end lands earlier by the primary's duration on
     // that closed timeline, and every companion takes the same landed delta.
-    let primary = group.iter().find(|m| m.id == clip).expect("primary member");
+    let primary = group
+        .iter()
+        .find(|m| m.id == clip)
+        .ok_or(ModelError::UnknownClip(clip))?;
     let dest_closed_origin = group.iter().any(|m| {
         m.to_track == primary.to_track
             && m.from_track == primary.to_track
@@ -104,10 +109,13 @@ pub(crate) fn execute(
             .is_some_and(|track| track.sync_lock));
     let mut drop = primary.dest;
     if dest_closed_origin && drop.value >= primary.from_end.value {
-        drop = RationalTime::new(drop.value - primary.duration.value, drop.rate);
+        drop = RationalTime::new(drop.value.saturating_sub(primary.duration.value), drop.rate);
     }
     drop = RationalTime::new(drop.value.max(0), drop.rate);
-    let landed_delta = drop.value - primary.from_start;
+    let landed_delta = drop
+        .value
+        .checked_sub(primary.from_start)
+        .ok_or(TimeError::Overflow)?;
 
     let mut to_lanes: Vec<TrackId> = group.iter().map(|m| m.to_track).collect();
     to_lanes.sort_by_key(|t| t.raw());
@@ -120,7 +128,10 @@ pub(crate) fn execute(
             let dest = if member.id == primary.id {
                 drop
             } else {
-                RationalTime::new((member.from_start + landed_delta).max(0), member.dest.rate)
+                RationalTime::new(
+                    member.from_start.saturating_add(landed_delta).max(0),
+                    member.dest.rate,
+                )
             };
             (member, clip, dest)
         })
@@ -175,8 +186,16 @@ fn members(
     to_track: TrackId,
     start: RationalTime,
 ) -> Result<Vec<Member>, EngineError> {
+    let tl_rate = ctx.project.timeline().frame_rate;
+    check_same_rate(start.rate, tl_rate)?;
+    if start.value < 0 {
+        return Err(ModelError::InvalidRange.into());
+    }
     let primary = ctx.project.require_clip(clip)?;
-    let delta = start.value - primary.start().value;
+    let delta = start
+        .value
+        .checked_sub(primary.start().value)
+        .ok_or(TimeError::Overflow)?;
     let ids = ctx.project.move_companions(clip);
     let mut group = Vec::with_capacity(ids.len());
     for id in ids {
@@ -187,15 +206,24 @@ fn members(
             .track_of(id)
             .ok_or(ModelError::UnknownClip(id))?;
         let duration = original.timeline.duration;
-        let from_end = RationalTime::new(
-            original.start().value + duration.value,
-            original.start().rate,
-        );
+        duration.value.checked_neg().ok_or(TimeError::Overflow)?;
+        let from_end_tick = original
+            .start()
+            .value
+            .checked_add(duration.value)
+            .ok_or(TimeError::Overflow)?;
+        let from_end = RationalTime::new(from_end_tick, original.start().rate);
         let dest = if id == clip {
             start
         } else {
-            RationalTime::new((original.start().value + delta).max(0), start.rate)
+            RationalTime::new(
+                original.start().value.saturating_add(delta).max(0),
+                start.rate,
+            )
         };
+        dest.value
+            .checked_add(duration.value)
+            .ok_or(TimeError::Overflow)?;
         let from_start = original.start().value;
         group.push(Member {
             id,

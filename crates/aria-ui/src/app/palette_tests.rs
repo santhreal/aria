@@ -117,8 +117,8 @@ fn an_empty_query_lists_the_menu_rows_first_in_menu_order() {
     let hits = state.palette_hits();
     let is_menu = |action: &Offered| match action {
         Offered::Menu(..) => true,
-        Offered::Command(_)
-        | Offered::Windowed(_)
+        Offered::Command(_, _)
+        | Offered::Windowed(_, _)
         | Offered::Generator(_)
         | Offered::ClipType { .. }
         | Offered::Plugin(_) => false,
@@ -127,8 +127,8 @@ fn an_empty_query_lists_the_menu_rows_first_in_menu_order() {
         .iter()
         .map_while(|offer| match offer.action {
             Offered::Menu(menu, id, _) => Some((menu, id)),
-            Offered::Command(_)
-            | Offered::Windowed(_)
+            Offered::Command(_, _)
+            | Offered::Windowed(_, _)
             | Offered::Generator(_)
             | Offered::ClipType { .. }
             | Offered::Plugin(_) => None,
@@ -238,6 +238,7 @@ fn a_command_outranks_the_menu_row_that_shares_its_label() {
         id: "palette-outrank-probe",
         label: "Jobs",
         run: noop_command,
+        blocked: crate::chrome::menu_guards::ready,
     });
     let catalog = state.palette_catalog();
     let jobs: Vec<_> = catalog
@@ -247,7 +248,7 @@ fn a_command_outranks_the_menu_row_that_shares_its_label() {
     assert_eq!(jobs.len(), 1, "Jobs is offered once");
     assert_eq!(jobs[0].id, "palette-outrank-probe");
     assert!(
-        matches!(jobs[0].action, Offered::Command(_)),
+        matches!(jobs[0].action, Offered::Command(_, _)),
         "a row that can run without the entity context must be the one offered"
     );
     assert!(jobs[0].source.is_none(), "a command names no menu");
@@ -386,7 +387,12 @@ fn enter_runs_the_highlighted_row_not_the_first() {
         ),
     ];
     for (id, label, run) in rows {
-        commands.add(crate::commands::host::CommandEntry { id, label, run });
+        commands.add(crate::commands::host::CommandEntry {
+            id,
+            label,
+            run,
+            blocked: crate::chrome::menu_guards::ready,
+        });
     }
     for ch in "palette enter probe".chars() {
         state.type_key(ch);
@@ -416,8 +422,8 @@ fn a_menu_row_reports_itself_back_for_the_context_to_run() {
         .enumerate()
         .find_map(|(at, offer)| match offer.action {
             Offered::Menu(menu, id, _) => Some((at, Pending::Menu(menu, id))),
-            Offered::Command(_)
-            | Offered::Windowed(_)
+            Offered::Command(_, _)
+            | Offered::Windowed(_, _)
             | Offered::Generator(_)
             | Offered::ClipType { .. }
             | Offered::Plugin(_) => None,
@@ -441,7 +447,7 @@ fn a_job_command_reports_itself_back_instead_of_running_here() {
     let hits = state.palette_hits();
     assert!(!hits.is_empty(), "the palette does not offer the detectors");
     assert!(
-        matches!(hits[0].action, Offered::Windowed(_)),
+        matches!(hits[0].action, Offered::Windowed(_, _)),
         "a detector must be offered as windowed work"
     );
     assert!(
@@ -506,6 +512,7 @@ fn registry_changes_invalidate_the_palette_catalog() {
         id: "palette-cache-command-probe",
         label: "Palette cache command probe",
         run: noop_command,
+        blocked: crate::chrome::menu_guards::ready,
     });
     let with_command = state.palette_catalog();
     assert!(
@@ -573,6 +580,197 @@ fn every_offered_row_holds_the_query_or_a_word_starting_with_it() {
                     .split(|c: char| !c.is_alphanumeric())
                     .any(|word| word.starts_with(first));
             assert!(reads, "{query} offers {}", hit.label);
+        }
+    }
+}
+/// Every command registered on the shipped [`crate::commands::host::CommandHost`]
+/// either acts on an empty project with nothing selected or is withheld by the
+/// palette and reports why when chosen.
+///
+/// Closes the class where palette-only commands carried no enablement function,
+/// so rows requiring a selected clip, timeline content, a media-pool item, a
+/// nested bin, or an analysis moment drew live on an empty project and either
+/// returned `Ok(())` with no effect or refused only after being run. Every
+/// command is read from the host at run time; adding a command with
+/// `guards::ready` that cannot act on an empty project fails this test by
+/// default because a live row must change editor state, undo history, a dialog
+/// or panel, the file picker, a background job, or the installed session assets
+/// rather than merely writing a status refusal.
+///
+/// Does not catch: a command whose guard checks the wrong project precondition
+/// when both preconditions are false on an empty project.
+#[test]
+fn every_command_in_the_host_either_acts_on_an_empty_project_or_draws_disabled() {
+    use crate::app::AppState;
+    use gpui::AppContext;
+
+    let base = state();
+    let keys = base.ctx.context_keys();
+    let catalog = base.palette_catalog();
+    let host = crate::commands::host::host_of(&base.ctx).expect("the ui plugin mounts commands");
+    let entries = host.all();
+    assert!(
+        entries.len() >= 80,
+        "expected the full command catalog, found {}",
+        entries.len()
+    );
+
+    for entry in &entries {
+        let offer = catalog
+            .iter()
+            .find(|offer| offer.id.as_str() == entry.id)
+            .unwrap_or_else(|| panic!("{} is missing from the palette catalog", entry.id));
+        let blocked = entry.blocked_by(&base);
+        assert_eq!(
+            offer.runs_now(&base, keys),
+            blocked.is_none(),
+            "{} ({}) palette runs_now disagrees with its command guard",
+            entry.id,
+            entry.label
+        );
+
+        if let Some(reason) = blocked {
+            assert!(
+                !reason.trim().is_empty() && reason.contains(' '),
+                "{} blocked reason {:?} is not a prose phrase",
+                entry.id,
+                reason
+            );
+            match entry.body {
+                crate::commands::host::CommandBody::Plain(run) => {
+                    let mut via_palette = state();
+                    via_palette.open_dialog(DialogKind::Palette);
+                    let at = via_palette
+                        .palette_hits()
+                        .iter()
+                        .position(|row| row.id.as_str() == entry.id)
+                        .unwrap_or_else(|| panic!("{} missing from unfiltered hits", entry.id));
+                    let pending = via_palette.run_palette_offer(at);
+                    assert!(
+                        pending.is_none(),
+                        "{} queued work while blocked by {:?}",
+                        entry.id,
+                        reason
+                    );
+                    assert!(
+                        !via_palette.store.can_undo,
+                        "{} recorded an undo step while blocked by {:?}",
+                        entry.id, reason
+                    );
+                    assert_eq!(
+                        via_palette.status_message.as_deref(),
+                        Some(reason),
+                        "{} did not report its blocked reason on the status line",
+                        entry.id
+                    );
+
+                    let mut direct = state();
+                    run(&mut direct);
+                    assert!(
+                        !direct.store.can_undo,
+                        "{} mutated undo history when called directly on an empty project",
+                        entry.id
+                    );
+                    let direct_report = direct
+                        .status_message
+                        .as_deref()
+                        .or(direct.last_error.as_deref());
+                    assert!(
+                        direct_report
+                            .is_some_and(|msg| !msg.trim().is_empty() && msg.contains(' ')),
+                        "{} ({}) returned silently when called directly on an empty project",
+                        entry.id,
+                        entry.label
+                    );
+                }
+                crate::commands::host::CommandBody::Windowed(run) => {
+                    let cx = gpui::TestAppContext::single();
+                    let fresh = state();
+                    let before_jobs = fresh.job_view.len();
+                    let entity = cx.update(|app| app.new(|_| fresh));
+                    cx.update(|app| entity.update(app, |s: &mut AppState, cx| run(s, cx)));
+                    cx.update(|app| {
+                        let s = entity.read(app);
+                        assert_eq!(
+                            s.job_view.len(),
+                            before_jobs,
+                            "{} queued a job while blocked by {:?}",
+                            entry.id,
+                            reason
+                        );
+                        let report = s.status_message.as_deref().or(s.last_error.as_deref());
+                        assert!(
+                            report.is_some_and(|msg| !msg.trim().is_empty() && msg.contains(' ')),
+                            "{} ({}) returned silently when called directly on an empty project",
+                            entry.id,
+                            entry.label
+                        );
+                    });
+                }
+            }
+        } else {
+            match entry.body {
+                crate::commands::host::CommandBody::Plain(run) => {
+                    let mut live = state();
+                    live.open_dialog(DialogKind::Palette);
+                    let before_overlay = live.overlay_mode;
+                    let before_sidebar = live.sidebar_tab;
+                    let before_panel = live.active_panel;
+                    let before_target = live.media_reach.target_dbfs;
+                    let before_jobs = live.job_view.len();
+                    let before_messages = live.transcript.len();
+                    let before_skills = live.assistant_skills();
+                    let lut_count = |s: &AppState| {
+                        s.storage_layout()
+                            .resolve(aria_storage::CacheId::Luts)
+                            .and_then(|dir| std::fs::read_dir(dir).ok())
+                            .map_or(0, Iterator::count)
+                    };
+                    let before_luts = lut_count(&live);
+                    run(&mut live);
+                    let acted = live.store.can_undo
+                        || live.overlay_mode != before_overlay
+                        || live.sidebar_tab != before_sidebar
+                        || live.active_panel != before_panel
+                        || live.dialog != DialogKind::Palette
+                        || (live.media_reach.target_dbfs - before_target).abs() > f32::EPSILON
+                        || live.picks_asked() > 0
+                        || live.job_view.len() > before_jobs
+                        || live.transcript.len() > before_messages
+                        || !std::sync::Arc::ptr_eq(&before_skills, &live.assistant_skills())
+                        || lut_count(&live) > before_luts;
+                    assert!(
+                        acted,
+                        "{} ({}) is offered live on an empty project but changed no editor state (status={:?}, error={:?})",
+                        entry.id, entry.label, live.status_message, live.last_error
+                    );
+                    assert!(
+                        live.last_error.is_none(),
+                        "{} ({}) is offered live on an empty project but errored: {:?}",
+                        entry.id,
+                        entry.label,
+                        live.last_error
+                    );
+                }
+                crate::commands::host::CommandBody::Windowed(run) => {
+                    let cx = gpui::TestAppContext::single();
+                    let fresh = state();
+                    let before_jobs = fresh.job_view.len();
+                    let entity = cx.update(|app| app.new(|_| fresh));
+                    cx.update(|app| entity.update(app, |s: &mut AppState, cx| run(s, cx)));
+                    cx.update(|app| {
+                        let s = entity.read(app);
+                        let acted = s.job_view.len() > before_jobs
+                            || s.ai_probe.busy
+                            || s.ai_probe.result.is_some();
+                        assert!(
+                            acted,
+                            "{} ({}) is offered live on an empty project but queued no work (status={:?}, error={:?})",
+                            entry.id, entry.label, s.status_message, s.last_error
+                        );
+                    });
+                }
+            }
         }
     }
 }

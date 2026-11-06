@@ -347,7 +347,7 @@ impl AppState {
     /// takes back what the earlier clips landed. The mask the Viewer edits is
     /// the first clip's and stays so, though a mask edit on another clip moves
     /// it there.
-    fn each_peer<T>(
+    pub(super) fn each_peer<T>(
         &mut self,
         peers: &[ClipId],
         edit: &mut impl FnMut(&mut Self) -> Result<T, EngineError>,

@@ -98,9 +98,14 @@ impl AppState {
         if low == high {
             // A press with no drag: the band has no width, so it encloses
             // nothing and the click reads as a deselect.
-            if !self.selection.is_empty() {
+            if !self.selection.is_empty()
+                || self.selected_edge.is_some()
+                || self.selected_gap.is_some()
+            {
                 self.selection.clear();
-                self.rebuild_store();
+                self.selected_edge = None;
+                self.selected_gap = None;
+                self.refresh_projected_selection();
             }
             return 0;
         }
@@ -115,11 +120,15 @@ impl AppState {
             .map(|(_, track)| track)
             .filter(|track| !track.locked)
             .flat_map(|track| track.clips.iter())
-            .filter(|clip| clip.timeline_start_ticks < high && clip.timeline_end_ticks > low)
+            .filter(|clip| {
+                !clip.locked && clip.timeline_start_ticks < high && clip.timeline_end_ticks > low
+            })
             .map(|clip| clip.id)
             .collect();
         self.selection = covered.iter().map(|id| ClipId::from_raw(*id)).collect();
-        self.rebuild_store();
+        self.selected_edge = None;
+        self.selected_gap = None;
+        self.refresh_projected_selection();
         covered.len()
     }
 

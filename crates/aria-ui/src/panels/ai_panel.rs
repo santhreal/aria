@@ -20,7 +20,7 @@ mod blocks;
 /// The transcript's own rows, beside this file for the same reason.
 #[path = "ai_panel_rows.rs"]
 mod rows;
-use rows::{bubble, empty};
+use rows::bubble;
 
 /// Carry the transcript to its newest row when a beat asked for it.
 ///
@@ -60,8 +60,6 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    // A handle on the projection, not a copy of it.
-    let store = state.read(cx).store.clone();
     let selected = state.read(cx).active_panel == ActivePanel::Ai;
     // The handle, not the conversation: a streamed answer must not cost a copy
     // of every entry drawn so far, once per frame.
@@ -80,9 +78,7 @@ pub fn render(
     let asked = asking.is_some();
 
     let mut rows: Vec<gpui::AnyElement> = Vec::new();
-    if entries.is_empty() {
-        rows.push(empty(&theme, &store.project_name).into_any_element());
-    } else {
+    if !entries.is_empty() {
         let streaming = state.read(cx).assistant.streaming_row();
         for (index, entry) in entries.iter().enumerate() {
             let live = streaming == Some(index);
@@ -101,6 +97,9 @@ pub fn render(
     // and the card already shows that.
     if state.read(cx).assistant.running && !asked {
         rows.push(crate::pending::working(&theme, "ai.turn", "Thinking…", cx));
+    }
+    if rows.is_empty() {
+        rows.push(crate::panels::ai_tools::render(state, cx).into_any_element());
     }
 
     div()
@@ -176,7 +175,7 @@ fn plan_card(
 ) -> impl IntoElement {
     // Each step is the line it would apply and, under it, the tool it arrives
     // under, from the command itself: the tool name is what to compare against
-    // the list beside the panel when a plan is not what the prompt asked for.
+    // the tool list when a plan is not what the prompt asked for.
     // The bullet stands in a column of its own, so the tool name starts where
     // the line does.
     let steps = plan.iter().map(|step| {

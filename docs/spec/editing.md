@@ -104,7 +104,7 @@ Snapping (S) snaps a moving edge, clip, playhead, or keyframe to: clip edges,
 the playhead, In and Out, markers, keyframes on visible property rows, beat
 markers, and the work area. The snap distance is 8 px. A snap draws a vertical
 `warning` line through every track at the snap point while it holds. Holding
-Ctrl while dragging inverts snapping for that drag.
+Alt while dragging suspends snapping for that drag.
 
 ## Linking and grouping
 

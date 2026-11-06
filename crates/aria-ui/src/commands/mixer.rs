@@ -6,6 +6,7 @@
 //! mixer strip is where a route is chosen; Window > Audio Track Mixer opens the
 //! mixer, and this row gives it a bus to route to.
 
+use crate::chrome::menu_guards as guards;
 use crate::types::ActivePanel;
 
 use super::host::CommandEntry;
@@ -20,4 +21,5 @@ pub(super) const MIXER_ROWS: &[CommandEntry] = &[CommandEntry {
         }
         state.focus_pane(ActivePanel::Mixer);
     },
+    blocked: guards::ready,
 }];

@@ -30,7 +30,7 @@ use crate::app::ai_reach::AiModelRow;
 use crate::components;
 use crate::theme::Theme;
 
-use super::super::widgets::{kv, row_plate};
+use super::super::widgets::{chip_row, kv, row_plate};
 
 /// The model list, the two provider probes, and the line the probe wrote.
 pub(super) fn rows(
@@ -68,42 +68,36 @@ pub(super) fn rows(
     out
 }
 
-/// The two things worth asking a provider before spending a prompt on it.
+/// The two things worth asking a provider before spending a prompt on it, on
+/// a line of their own that starts on the values' column.
 fn probe_buttons(
     theme: &Theme,
     busy: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    div()
-        .flex()
-        .flex_row()
-        .gap(px(Theme::SPACE_XS))
-        .child(
-            components::ghost_button("ai-test-connection", "Test connection", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    if busy {
-                        return;
-                    }
-                    this.state
-                        .update(cx, |state, cx| state.test_ai_connection(cx));
-                    cx.notify();
-                }),
-            ),
-        )
-        .child(
-            components::ghost_button("ai-list-models", "List models", theme).on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    if busy {
-                        return;
-                    }
-                    this.state.update(cx, |state, cx| state.probe_ai_models(cx));
-                    cx.notify();
-                }),
-            ),
-        )
-        .into_any_element()
+    let test = components::ghost_button("ai-test-connection", "Test connection", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                if busy {
+                    return;
+                }
+                this.state
+                    .update(cx, |state, cx| state.test_ai_connection(cx));
+                cx.notify();
+            }),
+        );
+    let list = components::ghost_button("ai-list-models", "List models", theme).on_mouse_down(
+        MouseButton::Left,
+        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+            if busy {
+                return;
+            }
+            this.state.update(cx, |state, cx| state.probe_ai_models(cx));
+            cx.notify();
+        }),
+    );
+    chip_row(theme, "", [test, list])
 }
 
 /// One offerable model: the name, what it is for, and whether it is there, on

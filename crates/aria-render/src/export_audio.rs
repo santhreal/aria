@@ -592,14 +592,14 @@ impl ExportAudioMixer {
             return Ok(());
         }
         let rel_start = stream_frame.max(0);
+        for span in &mut self.spans {
+            span.exhausted = false;
+        }
         if speed_num == speed_den {
             return self.mix_into(anchor_sample.saturating_add(rel_start), out);
         }
         if speed_num == -speed_den {
             out.fill(0.0);
-            for span in &mut self.spans {
-                span.exhausted = false;
-            }
             let src_end = (anchor_sample - rel_start).max(0);
             let src_start = (anchor_sample - rel_start - out_frames as i64).max(0);
             let need = (src_end - src_start) as usize;
@@ -640,9 +640,6 @@ impl ExportAudioMixer {
             self.peaks.fill([0.0; 2]);
             self.master_peak = [0.0; 2];
             return Ok(());
-        }
-        for span in &mut self.spans {
-            span.exhausted = false;
         }
         let mut window = std::mem::take(&mut self.shuttle_scratch);
         window.resize(need * CHANNELS, 0.0);
@@ -857,7 +854,7 @@ impl ExportAudioMixer {
                 .read(&mut warp_scratch[..need * CHANNELS])
                 .map_err(|err| audio_err("decode audio source", &path, err))?
         };
-        if (got as i64) < src_ceil - src_floor {
+        if !span.reversed && got == 0 {
             span.exhausted = true;
         }
 

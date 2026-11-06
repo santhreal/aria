@@ -415,48 +415,7 @@ impl AppState {
             self.select_clip(id);
             return;
         }
-        let mut selected = vec![id];
-        let mut links: Vec<u64> = root_link.into_iter().collect();
-        let mut groups: Vec<u64> = root.grouped_to.into_iter().collect();
-        loop {
-            let mut grew = false;
-            for track in &self.store.sequence.tracks {
-                if track.locked {
-                    continue;
-                }
-                for clip in &track.clips {
-                    if clip.locked {
-                        continue;
-                    }
-                    let link = clip.linked_to.filter(|_| follow_links);
-                    let matches = link.is_some_and(|l| links.contains(&l))
-                        || clip.grouped_to.is_some_and(|g| groups.contains(&g));
-                    if matches {
-                        let member = ClipId::from_raw(clip.id);
-                        if !selected.contains(&member) {
-                            selected.push(member);
-                            grew = true;
-                        }
-                        if let Some(l) = link
-                            && !links.contains(&l)
-                        {
-                            links.push(l);
-                            grew = true;
-                        }
-                        if let Some(g) = clip.grouped_to
-                            && !groups.contains(&g)
-                        {
-                            groups.push(g);
-                            grew = true;
-                        }
-                    }
-                }
-            }
-            if !grew {
-                break;
-            }
-        }
-        self.selection = selected;
+        self.selection = self.selection_companions(vec![id]);
         self.selected_edge = None;
         self.selected_gap = None;
         self.refresh_projected_selection();
@@ -518,9 +477,17 @@ impl AppState {
             .tracks
             .iter()
             .filter(|track| !track.locked)
-            .flat_map(|track| track.clips.iter().map(|clip| ClipId::from_raw(clip.id)))
+            .flat_map(|track| {
+                track
+                    .clips
+                    .iter()
+                    .filter(|clip| !clip.locked)
+                    .map(|clip| ClipId::from_raw(clip.id))
+            })
             .collect();
-        self.rebuild_store();
+        self.selected_edge = None;
+        self.selected_gap = None;
+        self.refresh_projected_selection();
     }
 
     /// Restore the Timeline's default height in the small-window view.
