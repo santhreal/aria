@@ -62,11 +62,16 @@ impl AppState {
         &self.settings_form.cloud
     }
 
-    /// Re-read `config.toml` and its schema report into `SettingsForm`.
+    /// Re-read `config.toml` and its schema report into `SettingsForm`, and
+    /// the plugins' view of it through `SettingsService`. Every write the
+    /// session makes to the file calls this.
     pub fn refresh_cloud_settings(&mut self) {
         let path = self.config_path();
         self.settings_form.cloud = aria_settings::load(&path).unwrap_or_default();
         self.settings_form.schema = aria_settings::schema_report::report(&path).into();
+        if let Some(settings) = self.ctx.try_get::<dyn aria_plugin::SettingsService>() {
+            settings.reload();
+        }
     }
 
     /// The cloud client, caching catalogs in the layout's `catalog` entry.

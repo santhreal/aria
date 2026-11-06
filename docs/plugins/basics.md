@@ -122,11 +122,11 @@ plugin for re-mounting after it was disabled.
 overrides from. Pass the same directory the session uses, so a process pointed at
 another profile does not load code and catalogs from the default one.
 
-That directory reaches one plugin and no other. `aria.storage` holds the root and
-registers a `StorageLayout` and a `StorageService` for it; a plugin that needs a
-directory calls that service instead of resolving one. `aria.transcription`
-fails to mount without it rather than downloading models into a directory the
-session never reads.
+That directory reaches two plugins. `aria.storage` holds the root and registers a
+`StorageLayout` and a `StorageService` for it; a plugin that needs a directory
+calls that service instead of resolving one. `aria.transcription` fails to mount
+without it rather than downloading models into a directory the session never
+reads. `aria.settings` serves `config.toml` in it through `SettingsService`.
 
 ## Capabilities
 
@@ -160,7 +160,7 @@ Service traits in `aria_plugin::service`:
 | `EffectService` | Effect catalog. `render_effect` draws one catalog effect over an image on the GPU; see [Effects and transitions](effects.md) |
 | `TransitionService` | Transition catalog. `render_transition` blends two images of one size at a progress in 0..1 |
 | `StorageService` | Cache and project directories |
-| `SettingsService` | `~/.aria/config.toml` get / set / save |
+| `SettingsService` | The session's `config.toml` get / set / save; see [Settings](settings.md) |
 | `UiPanelService` | Panel metadata; see [Panels](panels.md#panels) for the host that draws it |
 
 A service holds one value per type. Anything several plugins must receive in order is

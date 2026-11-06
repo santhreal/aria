@@ -1,6 +1,7 @@
 # Settings
 
-`SettingsService` reads and writes `~/.aria/config.toml`. A plugin declares its
+`SettingsService` reads and writes the session's `config.toml`: `~/.aria/config.toml`,
+or `config.toml` under `ARIA_DATA_DIR` when it is set. A plugin declares its
 fields, and **Settings** draws them in a section with the rows it uses for its
 own:
 
@@ -56,6 +57,10 @@ order, wrapping. A section drops when its plugin unmounts.
 `SettingsService::get` and `set` load a package waiting for the key's
 `setting:` event first ([Activation](activation.md)). `peek` reads as `get`
 does without loading anything; the Settings rows read through it.
+
+`SettingsService::save` writes the keys set since the last save onto the
+file's current contents, so a save keeps the storage root, cache paths, and
+other values Aria wrote meanwhile. A read reflects the file once Aria writes it.
 
 In `plugin.toml`, a key is qualified by the plugin id and the section takes the
 plugin name as its title:

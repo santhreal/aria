@@ -29,16 +29,20 @@ fn has_extension<S: AsRef<str>>(path: &Path, extensions: &[S]) -> bool {
 /// plugins that do not depend on each other; the rest is derived from each
 /// manifest's `requires` by `aria_plugin::load_order`.
 ///
-/// `data_dir` reaches exactly one plugin. Storage owns the root and registers a
-/// `StorageLayout` for it; everything that used to resolve its own directory —
-/// the transcription models, the cloud catalog cache — asks that service instead,
-/// so a session on a scratch profile cannot half-write into the default one.
+/// `data_dir` reaches the storage and settings plugins. Storage owns the root
+/// and registers a `StorageLayout` for it; everything that used to resolve its
+/// own directory — the transcription models, the cloud catalog cache — asks
+/// that service instead, so a session on a scratch profile cannot half-write
+/// into the default one. Settings serves the profile's `config.toml`, the file
+/// the session itself writes.
 pub fn builtin(data_dir: &Path) -> Vec<Box<dyn Plugin>> {
     vec![
         Box::new(StoragePlugin {
             root: data_dir.to_path_buf(),
         }),
-        Box::new(SettingsPlugin::default()),
+        Box::new(SettingsPlugin {
+            path: aria_settings::config_in(data_dir),
+        }),
         Box::new(DecoderPlugin),
         Box::new(EncoderPlugin),
         Box::new(CompositorPlugin),

@@ -19,6 +19,9 @@ use aria_plugin::{
 use super::SettingsField;
 use crate::app::AppState;
 
+#[path = "plugin_settings_tests_owner.rs"]
+mod owner;
+
 /// A state whose settings plugin writes `settings.toml` in its own directory.
 fn state() -> (AppState, PathBuf) {
     let dir = crate::scratch_pool::scratch("plugin-settings");

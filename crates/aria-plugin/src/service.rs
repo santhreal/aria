@@ -70,10 +70,11 @@ pub trait StorageService: Service {
     fn project_dir(&self) -> &Path;
 }
 
-/// User settings (`~/.aria/config.toml`).
+/// The session's settings file: `config.toml` in the profile's data directory.
 ///
 /// Reading or writing a key loads a package that waits for its `setting:`
-/// event, in a store that defers packages.
+/// event, in a store that defers packages. `save` writes the keys set since
+/// the last save onto the file's current contents.
 pub trait SettingsService: Service {
     fn get(&self, key: &str) -> Option<serde_json::Value>;
     fn set(&self, key: &str, value: serde_json::Value);
@@ -83,6 +84,11 @@ pub trait SettingsService: Service {
     fn peek(&self, key: &str) -> Option<serde_json::Value> {
         self.get(key)
     }
+
+    /// Re-read the backing file after another writer in this process changed
+    /// it, keeping the keys set since the last save. A store with no backing
+    /// file has nothing to re-read.
+    fn reload(&self) {}
 }
 
 /// Where a contributed panel lives in the shell.

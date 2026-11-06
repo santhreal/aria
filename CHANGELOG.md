@@ -1318,6 +1318,8 @@ Notes for the latest release. For previous releases, see the
 - AI models, media analysis, the catalog cache, and render files are written to the directory their Caches row shows, including at launch with a configured storage root or `[storage.paths]` override.
 - Clear, Move…, and Use default on the Downloads row go through the live download cache, so Clear keeps files an open project uses and Move… carries them with their pins.
 - Move… on a cache that holds no files yet records the new path instead of failing with "relocation source does not exist".
+- Saving a plugin setting keeps the storage root, cache paths, and download quota changed earlier in the session instead of writing back the values from launch.
+- Plugins read settings from the profile's own `config.toml` under `ARIA_DATA_DIR`, and read values Aria changed during the session.
 
 ## [alpha-0.7.0] - 2026-07-22
 

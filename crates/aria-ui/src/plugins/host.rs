@@ -7,7 +7,7 @@ use aria_plugin::{
     Plugin, PluginContext, PluginError, PluginManifest, Service, SettingsService, StorageService,
     WeakContext,
 };
-use aria_settings::{Settings, default_config_path};
+use aria_settings::Settings;
 use aria_storage::StorageLayout;
 use parking_lot::Mutex;
 
@@ -68,27 +68,85 @@ impl Plugin for StoragePlugin {
     }
 }
 
+/// The session's config file, served to plugins as [`SettingsService`].
+///
+/// No `Default`: the file is the session profile's `config.toml`, and only the
+/// caller knows the profile. See [`crate::plugins::builtin`].
 #[derive(Debug)]
 pub struct SettingsPlugin {
     pub path: PathBuf,
 }
 
-impl Default for SettingsPlugin {
-    fn default() -> Self {
-        Self {
-            path: default_config_path(),
-        }
-    }
-}
-
 struct SettingsStore {
     path: PathBuf,
-    inner: Mutex<Settings>,
+    inner: Mutex<StoreState>,
     /// The fields plugins declared, for the default an unset key reads as.
     schema: Arc<aria_plugin::SettingsSchema>,
     /// The context whose waiting packages a read or write of their key loads.
     /// Weak, because the context holds this store.
     ctx: WeakContext,
+}
+
+/// The file as last read, with the writes made since the last save.
+///
+/// The session writes the same file (the storage root, cache paths, quota, AI
+/// and provider fields), so a save replays `pending` onto the file's current
+/// contents instead of writing this view back over them, and the session's
+/// writes reach this view through [`SettingsService::reload`]. A read never
+/// touches the disk: the Settings rows read through it on every frame.
+struct StoreState {
+    settings: Settings,
+    /// Every `set` since the last save, in order.
+    pending: Vec<(String, serde_json::Value)>,
+}
+
+impl StoreState {
+    /// `path`'s current contents with the unsaved writes on top.
+    fn fresh(&self, path: &Path) -> Result<Settings, String> {
+        let mut fresh = aria_settings::load(path)?;
+        for (key, value) in &self.pending {
+            apply(&mut fresh, key, value);
+        }
+        Ok(fresh)
+    }
+}
+
+/// Write one `SettingsService::set` into `settings`.
+fn apply(settings: &mut Settings, key: &str, value: &serde_json::Value) {
+    match key {
+        "ai.source" => {
+            if let Some(raw) = value.as_str()
+                && let Some(source) = aria_settings::AiSource::from_key(raw)
+            {
+                settings.ai.source = source;
+            }
+        }
+        "ai.model" => {
+            if let Some(model) = value.as_str() {
+                settings.ai.model = model.to_string();
+            }
+        }
+        "ai.base_url" => {
+            if let Some(url) = value.as_str() {
+                settings.ai.base_url = url.to_string();
+            }
+        }
+        "cloud.base_url" => {
+            if let Some(url) = value.as_str() {
+                settings.cloud.base_url = url.to_string();
+            }
+        }
+        other => {
+            let stored = match value {
+                serde_json::Value::String(text) => Some(text.clone()),
+                serde_json::Value::Null => None,
+                // Anything else is stored as it reads, so a plugin that keeps a
+                // number or a flag is not silently dropped.
+                other => Some(other.to_string()),
+            };
+            settings.set_plugin_value(other, stored.as_deref());
+        }
+    }
 }
 
 impl SettingsStore {
@@ -101,7 +159,8 @@ impl SettingsStore {
     }
 
     fn read(&self, key: &str) -> Option<serde_json::Value> {
-        let settings = self.inner.lock();
+        let state = self.inner.lock();
+        let settings = &state.settings;
         match key {
             "ai.source" => Some(serde_json::Value::String(settings.ai.source.key().into())),
             "ai.model" => Some(serde_json::Value::String(settings.ai.model.clone())),
@@ -118,9 +177,7 @@ impl SettingsStore {
                     ));
                 }
                 // A key this crate does not own belongs to the plugin that declared
-                // it. Unknown keys used to be dropped on write and absent on read,
-                // so a plugin's own setting could not be stored at all. An unset
-                // key reads as the default its field declares.
+                // it. An unset key reads as the default its field declares.
                 match settings.plugin_value(other) {
                     Some(value) => Some(serde_json::Value::String(value.to_string())),
                     None => self
@@ -148,47 +205,28 @@ impl SettingsService for SettingsStore {
 
     fn set(&self, key: &str, value: serde_json::Value) {
         self.activate(key);
-        let mut settings = self.inner.lock();
-        match key {
-            "ai.source" => {
-                if let Some(raw) = value.as_str()
-                    && let Some(source) = aria_settings::AiSource::from_key(raw)
-                {
-                    settings.ai.source = source;
-                }
-            }
-            "ai.model" => {
-                if let Some(model) = value.as_str() {
-                    settings.ai.model = model.to_string();
-                }
-            }
-            "ai.base_url" => {
-                if let Some(url) = value.as_str() {
-                    settings.ai.base_url = url.to_string();
-                }
-            }
-            "cloud.base_url" => {
-                if let Some(url) = value.as_str() {
-                    settings.cloud.base_url = url.to_string();
-                }
-            }
-            other => {
-                let stored = match &value {
-                    serde_json::Value::String(text) => Some(text.clone()),
-                    serde_json::Value::Null => None,
-                    // Anything else is stored as it reads, so a plugin that keeps a
-                    // number or a flag is not silently dropped.
-                    other => Some(other.to_string()),
-                };
-                settings.set_plugin_value(other, stored.as_deref());
-            }
-        }
+        let mut state = self.inner.lock();
+        apply(&mut state.settings, key, &value);
+        state.pending.push((key.to_string(), value));
     }
 
     fn save(&self) -> Result<(), PluginError> {
-        let settings = self.inner.lock().clone();
-        aria_settings::save(&self.path, &settings)
-            .map_err(|err| PluginError::MountFailed("aria.settings".into(), err))
+        let failed = |err: String| PluginError::MountFailed("aria.settings".into(), err);
+        let mut state = self.inner.lock();
+        let fresh = state.fresh(&self.path).map_err(failed)?;
+        aria_settings::save(&self.path, &fresh).map_err(failed)?;
+        state.settings = fresh;
+        state.pending.clear();
+        Ok(())
+    }
+
+    /// A file left unreadable keeps the last good view; the next save reports
+    /// the fault.
+    fn reload(&self) {
+        let mut state = self.inner.lock();
+        if let Ok(fresh) = state.fresh(&self.path) {
+            state.settings = fresh;
+        }
     }
 }
 
@@ -202,7 +240,6 @@ impl Plugin for SettingsPlugin {
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         let settings = aria_settings::load(&self.path)
             .map_err(|err| PluginError::MountFailed("aria.settings".into(), err))?;
-        ctx.register(settings.clone());
         // The registry a plugin declares its own settings into. Registered here
         // because this plugin owns the file those settings land in, and it mounts
         // early enough for every later plugin to declare against it.
@@ -212,7 +249,10 @@ impl Plugin for SettingsPlugin {
             ctx,
             Arc::new(SettingsStore {
                 path: self.path.clone(),
-                inner: Mutex::new(settings),
+                inner: Mutex::new(StoreState {
+                    settings,
+                    pending: Vec::new(),
+                }),
                 schema,
                 ctx: ctx.downgrade(),
             }),
