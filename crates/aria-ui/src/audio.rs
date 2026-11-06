@@ -439,7 +439,7 @@ impl AudioSystem {
             .ok_or_else(|| "no audio output device. Plug in speakers or a headset.".to_string())?;
         let config = device
             .default_output_config()
-            .map_err(|e| format!("couldn't query the audio device: {e}. Check sound settings."))?;
+            .map_err(|e| device_failure("couldn't query the audio device", e))?;
         let sample_format = config.sample_format();
         let mut stream_config = config.config();
         stream_config.channels = stream_config.channels.max(1);
@@ -573,10 +573,10 @@ impl AudioSystem {
                 ));
             }
         }
-        .map_err(|e| format!("couldn't open the audio device: {e}. Check sound settings."))?;
+        .map_err(|e| device_failure("couldn't open the audio device", e))?;
         stream
             .play()
-            .map_err(|e| format!("couldn't start audio output: {e}. Check sound settings."))?;
+            .map_err(|e| device_failure("couldn't start audio output", e))?;
         self.stream = Some(stream);
         self.stop = Some(stop);
         Ok(())
@@ -604,6 +604,15 @@ impl Drop for AudioSystem {
             self.tear_down();
         }
     }
+}
+
+/// One line for a device call that failed: `what`, the device's reason, and
+/// the next step. cpal ends some reasons with a period of its own, which the
+/// line drops so that it reads `unplugged. Check`, not `unplugged.. Check`.
+fn device_failure(what: &str, err: impl std::fmt::Display) -> String {
+    let reason = err.to_string();
+    let reason = reason.trim_end().trim_end_matches('.');
+    format!("{what}: {reason}. Check sound settings.")
 }
 
 #[cfg(test)]
@@ -683,6 +692,41 @@ mod tests {
         assert_eq!(handle.pending_scrub_grains(), 0);
         assert_eq!(scrub_grain_frames(48_000), 1_920);
         assert_eq!(scrub_grain_frames(44_100), 1_764);
+    }
+
+    /// Each device call's error reads as one sentence before the next step:
+    /// the reasons cpal gives for an unplugged device end in a period of their
+    /// own, which the line keeps once, and a reason without one gains it.
+    #[test]
+    fn a_device_failure_reads_as_one_sentence_per_reason() {
+        let unplugged = "The requested device is no longer available. For example, it has been \
+                         unplugged. Check sound settings.";
+        assert_eq!(
+            device_failure(
+                "couldn't query the audio device",
+                cpal::DefaultStreamConfigError::DeviceNotAvailable,
+            ),
+            format!("couldn't query the audio device: {unplugged}")
+        );
+        assert_eq!(
+            device_failure(
+                "couldn't open the audio device",
+                cpal::BuildStreamError::DeviceNotAvailable,
+            ),
+            format!("couldn't open the audio device: {unplugged}")
+        );
+        assert_eq!(
+            device_failure(
+                "couldn't start audio output",
+                cpal::PlayStreamError::DeviceNotAvailable,
+            ),
+            "couldn't start audio output: the device associated with the stream is no longer \
+             available. Check sound settings."
+        );
+        assert_eq!(
+            device_failure("couldn't open the audio device", "busy "),
+            "couldn't open the audio device: busy. Check sound settings."
+        );
     }
 }
 

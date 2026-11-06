@@ -1291,6 +1291,7 @@ Notes for the latest release. For previous releases, see the
 - Plugin key-value writes and deletes mark the open project dirty, so quitting prompts to save and autosave writes a recovery copy.
 - Storage writes made by a `ProjectSaved` or `CommandApplied` handler during a save land in the saved `.aria` file and leave the session clean.
 - Plugin storage calls with no project open fail with an error in the Rust SDK, the C ABI and the WASM host.
+- An audio device unplugged during playback is reported in one sentence with no doubled period.
 
 ## [alpha-0.7.0] - 2026-07-22
 
