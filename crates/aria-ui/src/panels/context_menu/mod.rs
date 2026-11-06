@@ -4,7 +4,8 @@ use crate::app::AppState;
 use crate::motion;
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
 use crate::surfaces::context_menu::{
-    BadgeMenu, ClipMenu, EffectMenu, KeyframeMenu, MaskPathKeyMenu, PoolMenu, TrackMenu,
+    BadgeMenu, ClipMenu, EffectMenu, KeyframeMenu, MaskPathKeyMenu, PoolMenu, PreviewMenu,
+    TrackMenu,
 };
 use crate::surfaces::labels::LabelTarget;
 use crate::theme::Theme;
@@ -53,6 +54,10 @@ pub fn render(
     };
     let pool = match target {
         ContextTarget::PoolItem { media } => Some(PoolMenu::of(rows, media)),
+        _ => None,
+    };
+    let preview = match target {
+        ContextTarget::Preview => Some(PreviewMenu::of(rows)),
         _ => None,
     };
     let effect = match target {
@@ -118,6 +123,7 @@ pub fn render(
                     clip,
                     track,
                     pool,
+                    preview,
                     effect,
                     badge,
                     keyframe,
@@ -195,6 +201,8 @@ struct MenuFacts {
     track: Option<TrackMenu>,
     /// The pool row the menu was opened on.
     pool: Option<PoolMenu>,
+    /// The Viewer facts on a preview menu.
+    preview: Option<PreviewMenu>,
     /// The effect header the menu was opened on.
     effect: Option<EffectMenu>,
     /// The clip whose fx badge the menu was opened on.

@@ -1212,6 +1212,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls draws the clip's speed, its ramp's length and the duck source's track, and the Markers panel draws a marker's note and Clip tag, in the muted ink of a fact instead of the faint ink of an absence.
 - Effects & Presets no longer lists an Animation Presets folder reading (0) before a preset is saved.
 - The model names in Settings > AI start on the section's label edge instead of 8 px right of it.
+- The Viewer context menu's Fit Preview row fits the Viewer instead of the Timeline, and Reset Transform appears only when a clip with a picture is selected.
 
 ## [alpha-0.7.0] - 2026-07-22
 

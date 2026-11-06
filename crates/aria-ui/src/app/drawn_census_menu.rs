@@ -25,8 +25,8 @@ use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
     KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, MenuRow, POOL_ITEMS,
-    PREVIEW_ITEMS, PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu, apply_blend,
-    draw_property,
+    PREVIEW_ITEMS, PoolMenu, PreviewMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    apply_blend, draw_property,
 };
 use crate::types::ActivePanel;
 
@@ -103,10 +103,9 @@ impl Reread for MaskPathKeyMenu {
     }
 }
 
-/// The preview menu reads no facts.
-impl Reread for () {
-    fn reread(&self, _: &AppState) -> Option<Self> {
-        Some(())
+impl Reread for PreviewMenu {
+    fn reread(&self, state: &AppState) -> Option<Self> {
+        Some(Self::of(state))
     }
 }
 
@@ -261,12 +260,13 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
 /// without naming a field per row.
 fn fingerprint(state: &AppState) -> String {
     format!(
-        "{} {} {} {:?} {:?} {:?} {:?} {:?} {:?} {} {} {} {} {} {} {} {} {} {} {:?}",
+        "{} {} {} {:?} {:?} {:?} {:?} {:?} {:?} {:?} {} {} {} {} {} {} {} {} {} {} {:?}",
         state.revision,
         state.playhead.value,
         state.selection.len(),
         state.zoom.to_bits(),
         state.scroll_x.to_bits(),
+        state.preview_view,
         discriminant(&state.active_panel),
         discriminant(&state.dialog),
         discriminant(&state.route),
@@ -453,14 +453,9 @@ const POOL_STAGES: &[Stage<PoolMenu>] = &[
     },
 ];
 
-/// The preview menu reads nothing, so one state is every state.
-const PREVIEW_STAGES: &[Stage<()>] = &[Stage {
-    what: "a timeline with a clip on it",
-    dress: || {
-        let (state, _) = with_clip();
-        (state, ())
-    },
-}];
+#[path = "drawn_census_menu_preview.rs"]
+mod preview;
+use preview::PREVIEW_STAGES;
 
 /// A recents menu opens on a project that is on the list.
 const RECENT_STAGES: &[Stage<PathBuf>] = &[Stage {

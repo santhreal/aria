@@ -242,7 +242,12 @@ pub(super) fn items(
                 cx,
             )
         }
-        ContextTarget::Preview => drawn(PREVIEW_ITEMS, (), Blocks::default(), theme, cx),
+        ContextTarget::Preview => {
+            let Some(preview) = facts.preview else {
+                return Vec::new();
+            };
+            drawn(PREVIEW_ITEMS, preview, Blocks::default(), theme, cx)
+        }
         ContextTarget::PoolItem { media } => {
             let Some(pool) = facts.pool else {
                 return Vec::new();

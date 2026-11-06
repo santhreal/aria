@@ -14,10 +14,9 @@
 //! it. The position of that block is declared here so one place still holds the
 //! menu's order.
 //!
-//! The tables themselves live one file per target under `context_menu/`, because
-//! together they were most of a 562-line file. What stays here is what every
-//! target shares: the row shape, the item kinds, and the preview menu, which
-//! reads no facts.
+//! The tables sit one file per target under `context_menu/`. Shared here are
+//! the row shape, the item kinds, and the preview menu (`PREVIEW_ITEMS` and
+//! [`PreviewMenu`]).
 
 use aria_engine::EngineError;
 
@@ -114,23 +113,40 @@ const fn always<F>() -> fn(&F) -> bool {
     |_| true
 }
 
-/// The preview menu, which acts on the frame rather than on anything under the
-/// pointer, so it reads no facts.
-pub const PREVIEW_ITEMS: &[MenuItem<()>] = &[
+/// The Viewer facts a preview menu row reads, gathered once when the menu
+/// opens.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PreviewMenu {
+    /// Whether the selected clip draws a picture in the Viewer.
+    pub picture: bool,
+}
+
+impl PreviewMenu {
+    /// Read the Viewer facts a menu gathers when it opens.
+    pub fn of(state: &AppState) -> Self {
+        Self {
+            picture: state.selected_has_framing(),
+        }
+    }
+}
+
+/// The preview menu: fitting the Viewer and resetting the selected picture's
+/// transform.
+pub const PREVIEW_ITEMS: &[MenuItem<PreviewMenu>] = &[
     MenuItem::Row(MenuRow {
-        id: "ctx-fit",
-        label: |_| "Fit Timeline",
+        id: "ctx-fit-viewer",
+        label: |_| "Fit Preview",
         when: always(),
         checked: None,
         run: |state, _| {
-            state.zoom_fit_sequence();
+            state.preview_zoom_fit();
             Ok(())
         },
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-reset-transform",
         label: |_| "Reset Transform",
-        when: always(),
+        when: |preview| preview.picture,
         checked: None,
         run: |state, _| state.reset_selected_transform(),
     }),

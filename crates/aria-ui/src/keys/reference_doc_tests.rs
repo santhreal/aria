@@ -27,7 +27,7 @@ use crate::layouts::{WORKSPACES, workspace_tree_for_width};
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
     KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS,
-    PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    PoolMenu, PreviewMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
 };
 use crate::test_support::doc_tables::{
     parse_table_rows, read_doc, section_slice, strip_ticks, table_rows,
@@ -625,7 +625,13 @@ fn menus_doc_matches_registry() {
         hold: false,
     };
     let mut expected_ctx_items = Vec::new();
-    collect_ctx_items("PREVIEW_ITEMS", PREVIEW_ITEMS, &(), &mut expected_ctx_items);
+    let preview_facts = PreviewMenu::of(&state);
+    collect_ctx_items(
+        "PREVIEW_ITEMS",
+        PREVIEW_ITEMS,
+        &preview_facts,
+        &mut expected_ctx_items,
+    );
     collect_ctx_items(
         "CLIP_ITEMS",
         CLIP_ITEMS,

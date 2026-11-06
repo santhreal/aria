@@ -27,7 +27,7 @@ use crate::app::premiere_tests::place_media;
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
     KeyframeMenu, MASK_PATH_KEY_ITEMS, MaskPathKeyMenu, MenuItem, POOL_ITEMS, PREVIEW_ITEMS,
-    PoolMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
+    PoolMenu, PreviewMenu, RECENT_ITEMS, TRACK_ITEMS, TRANSITION_ITEMS, TrackMenu,
 };
 use crate::test_support::drawn_shell;
 use crate::theme::Theme;
@@ -298,7 +298,7 @@ pub(super) fn rows_of(state: &AppState, target: &ContextTarget) -> Vec<Entry> {
         ContextTarget::PoolItem { media } => {
             table(POOL_ITEMS, &PoolMenu::of(state, *media), &[], true)
         }
-        ContextTarget::Preview => table(PREVIEW_ITEMS, &(), &[], false),
+        ContextTarget::Preview => table(PREVIEW_ITEMS, &PreviewMenu::of(state), &[], false),
         ContextTarget::Recent { path } => table(RECENT_ITEMS, path, &[], false),
         ContextTarget::Keyframe { clip, param, tick } => table(
             KEYFRAME_ITEMS,

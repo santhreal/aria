@@ -383,7 +383,7 @@ A `CLIP_ITEMS` row that runs a menu bar command mirrors that bar row (`MIRRORED`
 
 | Target slice | Entry kind | Row ID | Default label | Default check |
 | --- | --- | --- | --- | --- |
-| `PREVIEW_ITEMS` | `Row` | `ctx-fit` | `Fit Timeline` | `none` |
+| `PREVIEW_ITEMS` | `Row` | `ctx-fit-viewer` | `Fit Preview` | `none` |
 | `PREVIEW_ITEMS` | `Row` | `ctx-reset-transform` | `Reset Transform` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-cut` | `Cut` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-copy` | `Copy` | `none` |
