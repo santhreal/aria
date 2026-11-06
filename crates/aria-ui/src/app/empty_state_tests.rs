@@ -13,6 +13,9 @@
 //!   and the action under it as below them.
 //! - The element fills the room the panel's content would: at least
 //!   [`FILL_HEIGHT`] of the body's height and [`FILL_WIDTH`] of its width.
+//! - The line is a prompt and ends with a period, as every empty-state prompt
+//!   does (the status-line rule in `app/status.rs` drops it only for status
+//!   lines and readouts).
 //! - A panel the table does not name fails the census until a decision for it
 //!   is recorded.
 //!
@@ -111,6 +114,11 @@ fn assert_centered(
         .unwrap_or_else(|| panic!("{panel} draws no empty-state-{id}"));
     let line = bounds(visual, format!("empty-state-{id}-line"))
         .unwrap_or_else(|| panic!("empty-state-{id} draws no line"));
+    let text = line_text(visual, line);
+    assert!(
+        text.ends_with('.'),
+        "{panel}: empty-state-{id} reads {text:?}, a prompt with no closing period"
+    );
     let (body, element, line) = (f32_bounds(body), f32_bounds(element), f32_bounds(line));
 
     assert!(
@@ -157,6 +165,25 @@ fn f32_bounds(bounds: Bounds<Pixels>) -> (f32, f32, f32, f32) {
         f32::from(bounds.right()),
         f32::from(bounds.bottom()),
     )
+}
+
+/// The text drawn inside `line`, its runs in reading order (top, then left),
+/// trimmed at the end.
+fn line_text(visual: &mut gpui::VisualTestContext, line: Bounds<Pixels>) -> String {
+    let mut runs: Vec<(f32, f32, String)> = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .filter(|run| line.contains(&run.bounds.center()))
+            .map(|run| {
+                let at = run.bounds.origin;
+                (f32::from(at.y), f32::from(at.x), run.text.to_string())
+            })
+            .collect()
+    });
+    runs.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    let text: Vec<String> = runs.into_iter().map(|(_, _, text)| text).collect();
+    text.join(" ").trim_end().to_string()
 }
 
 #[gpui::test]

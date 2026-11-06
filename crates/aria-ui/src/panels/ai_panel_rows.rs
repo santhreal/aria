@@ -4,10 +4,11 @@
 
 use super::*;
 
-/// What the panel says before anything has been asked. Names the project,
-/// because the assistant answers about this one and not in general.
+/// The panel's line before anything has been asked. It states the project,
+/// because the assistant answers about this one and not in general. A prompt,
+/// so it ends with a period.
 pub(super) fn empty(theme: &Theme, project: &str) -> impl IntoElement {
-    crate::components::empty_state("assistant", format!("Ask Aria about {project}"), theme)
+    crate::components::empty_state("assistant", format!("Ask Aria about {project}."), theme)
 }
 
 /// One line of the conversation, colored by who said it and copyable on its own.
