@@ -474,6 +474,36 @@ fn a_read_only_value_starts_on_the_column_of_the_controls(cx: &mut TestAppContex
     );
 }
 
+/// WHY: An AI model row drew its own plate, inset by its padding and never
+/// stepped out, so every model name stood 8 px right of the Status label and
+/// the section title, where every picker row's text stands on the edge.
+///
+/// Reads the AI section alone under the default source, which offers the
+/// curated catalog, and holds every model name to the Status label's edge.
+/// Not caught: the rows' colors, which the test renderer does not raster.
+#[gpui::test]
+fn every_ai_model_name_stands_on_the_section_edge(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_shell(cx, "settings-model-edge");
+    visual.simulate_resize(size(px(MIN_WINDOW_WIDTH), px(1600.0)));
+    let card = opened_on(&state, visual, SettingsSection::Ai.title());
+    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
+    let edge = run(&runs, card, "Status").bounds.left();
+    let models = visual.read(|app| state.read(app).ai_model_rows());
+    assert!(!models.is_empty(), "the AI section offers no model to read");
+    for model in &models {
+        let name = if model.selected {
+            format!("{} \u{2713}", model.label)
+        } else {
+            model.label.to_string()
+        };
+        let left = run(&runs, card, &name).bounds.left();
+        assert!(
+            (left - edge).abs() < px(EPS),
+            "the model `{name}` starts at {left:?}, the Status label at {edge:?}"
+        );
+    }
+}
+
 /// WHY: The Keyboard Shortcuts list drew a Clear button beside every row that
 /// holds a key, a column of identical boxes down the section, and its rows and
 /// the Workspaces rows stood their text 4 px right of the hint line above

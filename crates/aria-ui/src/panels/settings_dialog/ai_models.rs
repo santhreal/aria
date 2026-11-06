@@ -22,7 +22,7 @@
 
 use gpui::{
     Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, div, px,
+    SharedString, Styled, div, px,
 };
 
 use crate::app::AppState;
@@ -30,7 +30,7 @@ use crate::app::ai_reach::AiModelRow;
 use crate::components;
 use crate::theme::Theme;
 
-use super::super::widgets::kv;
+use super::super::widgets::{kv, row_plate};
 
 /// The model list, the two provider probes, and the line the probe wrote.
 pub(super) fn rows(
@@ -106,7 +106,9 @@ fn probe_buttons(
         .into_any_element()
 }
 
-/// One offerable model: the name, what it is for, and whether it is there.
+/// One offerable model: the name, what it is for, and whether it is there, on
+/// the plate every settings choice stands on, so the name stands on the
+/// section's label edge.
 ///
 /// A model the endpoint does not have is still offered, marked. Hiding it would
 /// hide the instruction: the row states the model to install, and a list that
@@ -117,7 +119,6 @@ fn model_row(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let key = crate::motion::MotionKey::new("ai.model", &row.id);
-    let id = key.element_id("ai-model");
     let lit = crate::motion::hover_t(key);
     let name_color = if row.selected {
         theme.text
@@ -127,33 +128,29 @@ fn model_row(
         theme.text_faint
     };
     let picked = row.id.clone();
-    div()
-        .id(id)
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_XS))
-        .px(px(Theme::SPACE_SM))
+    row_plate(key.into(), theme, key, row.selected)
         .py(px(Theme::SPACE_XS))
-        .rounded(px(Theme::CONTROL_RADIUS))
-        .cursor(gpui::CursorStyle::PointingHand)
-        .active(|style| style.opacity(0.92))
-        .bg(crate::motion::row_fill(key, row.selected, theme))
-        .on_hover(crate::motion::hover_listener(key))
         .child(
             div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(name_color)
-                .child(if row.selected {
-                    SharedString::from(format!("{} \u{2713}", row.label))
-                } else {
-                    row.label.clone()
-                }),
-        )
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child(row.detail),
+                .flex()
+                .flex_col()
+                .gap(px(Theme::SPACE_XS))
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(name_color)
+                        .child(if row.selected {
+                            SharedString::from(format!("{} \u{2713}", row.label))
+                        } else {
+                            row.label
+                        }),
+                )
+                .child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_faint)
+                        .child(row.detail),
+                ),
         )
         .on_mouse_down(
             MouseButton::Left,

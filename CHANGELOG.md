@@ -1211,6 +1211,7 @@ Notes for the latest release. For previous releases, see the
 - Count a clip under "Sound on its own track", "Pitch rides speed", and "Audio separated to a track" in Project Report only when its source and track carry sound.
 - Effect Controls draws the clip's speed, its ramp's length and the duck source's track, and the Markers panel draws a marker's note and Clip tag, in the muted ink of a fact instead of the faint ink of an absence.
 - Effects & Presets no longer lists an Animation Presets folder reading (0) before a preset is saved.
+- The model names in Settings > AI start on the section's label edge instead of 8 px right of it.
 
 ## [alpha-0.7.0] - 2026-07-22
 
