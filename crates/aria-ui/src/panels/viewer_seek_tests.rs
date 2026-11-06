@@ -23,7 +23,8 @@ use crate::app::AppState;
 use crate::components::drawn;
 
 /// A pause between two presses, longer than any fade in the catalog, so each
-/// press is a seek of its own rather than one step of a run.
+/// press is a seek of its own rather than one step of a run. Spent on the
+/// test clock, the clock every fade samples.
 const PAUSE: Duration = Duration::from_millis(400);
 
 /// How long the frame for a new position may take to reach the screen.
@@ -117,7 +118,7 @@ fn each_seek_shows_its_frame_whole_on_the_first_frame_drawn_with_it(cx: &mut Tes
         settle(visual);
         for button in MOVES {
             let what = format!("{button} with {front} in front");
-            std::thread::sleep(PAUSE);
+            visual.executor().advance_clock(PAUSE);
             let before = visual.read(|app| position(state.read(app)));
             press(visual, button);
             let after = visual.read(|app| position(state.read(app)));

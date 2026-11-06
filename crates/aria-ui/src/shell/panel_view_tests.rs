@@ -1,18 +1,13 @@
-//! A cached panel body draws what a full redraw draws.
+//! Drawing a docked panel and comparing frames, and the narrow-route tests
+//! built on that.
 //!
-//! The class closed here is a docked panel that replays a stale drawing: a
-//! change the panel draws reached the window, and the panel's cached body was
-//! not notified, so the frame shows the panel as it was. Every panel the
-//! registry holds is docked in turn, over a fresh project, and every change in
-//! [`CHANGES`] is made through the route the app makes it: a narrow
+//! A change is made through the route the app makes it: a narrow
 //! [`Shell::redraw`] for a moved view or playhead, the pool tile route for a
 //! tile hover, the filmstrip route for a landed cell, the frame route for a
 //! landed Viewer frame or scope reading, the timeline canvas's pointer
-//! listener for a held clip drag, a state notification for the rest.
-//! The frame drawn then must equal the frame drawn after a refresh, which
-//! builds every body anew. Every panel must also draw differently after at
-//! least one change, so a panel added to the registry whose drawing no change
-//! here reaches fails until a change it draws is added to [`CHANGES`].
+//! listener for a held clip drag, a state notification for the rest. The
+//! census that holds every registered panel to a full redraw after each
+//! change is `panel_view_cache_tests.rs`.
 //!
 //! A frame is compared by its quads (bounds, clip, colors, corners, borders),
 //! its text runs (text, bounds, size) and its images (bounds, clip, the atlas
@@ -53,7 +48,7 @@ pub(super) struct Drawing {
 impl Drawing {
     /// The part of the frame whose origin lies in `rect`: its quads, its text
     /// runs and its images.
-    fn inside(&self, rect: Bounds<Pixels>) -> [Vec<&String>; 3] {
+    pub(super) fn inside(&self, rect: Bounds<Pixels>) -> [Vec<&String>; 3] {
         fn within(drawn: &[(Bounds<Pixels>, String)], rect: Bounds<Pixels>) -> Vec<&String> {
             drawn
                 .iter()
@@ -207,7 +202,7 @@ pub(super) enum Change {
     Drag,
 }
 
-const CHANGES: [Change; 22] = [
+pub(super) const CHANGES: [Change; 22] = [
     Change::View,
     Change::Playhead,
     Change::Select,
@@ -694,60 +689,6 @@ pub(super) fn dock_right(
         gpui::point(gpui::px(x), gpui::px(y)),
         gpui::size(gpui::px(w), gpui::px(h)),
     ))
-}
-
-#[gpui::test]
-fn every_cached_panel_body_draws_what_a_full_redraw_draws(cx: &mut TestAppContext) {
-    cx.executor().allow_parking();
-    let panels = {
-        let (state, visual) = opened(cx, "panel-view");
-        let panels = visual.read(|app| state.read(app).registered_panel_ids());
-        visual.update(|window, _| window.remove_window());
-        panels
-    };
-    assert!(!panels.is_empty(), "the ui plugin registers panels");
-
-    let mut stale = Vec::new();
-    let mut unchanged = Vec::new();
-    let mut step = 0;
-    for (index, &panel) in panels.iter().enumerate() {
-        // Each panel starts from the same project, so a list that grew under
-        // the panels before it (History's steps, the Jobs rows) does not push
-        // a change below the frame's edge.
-        let (state, visual) = opened(cx, &format!("panel-view-{index}"));
-        let shell = shell_of(visual);
-        let Some(rect) = dock_right(&state, visual, panel) else {
-            stale.push(format!("{panel}: the right frame was not drawn"));
-            continue;
-        };
-        let mut changed = false;
-        let mut before = drawing(visual);
-        for change in CHANGES {
-            step += 1;
-            make(visual, &shell, change, step);
-            let cached = drawing(visual);
-            visual.update(|window, _| window.refresh());
-            visual.run_until_parked();
-            let full = drawing(visual);
-            if cached != full {
-                stale.push(format!(
-                    "{panel} after {change:?}: the cached drawing differs from a full redraw\n{}",
-                    cached.differences(&full)
-                ));
-            }
-            changed |= before.inside(rect) != full.inside(rect);
-            before = full;
-        }
-        if !changed {
-            unchanged.push(panel);
-        }
-        visual.update(|window, _| window.remove_window());
-    }
-    assert!(stale.is_empty(), "stale drawings:\n{}", stale.join("\n"));
-    assert!(
-        unchanged.is_empty(),
-        "no change in CHANGES alters the drawing of {unchanged:?}: add one each draws"
-    );
 }
 
 #[gpui::test]

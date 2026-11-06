@@ -45,6 +45,10 @@ use super::dock_view::frame_menu::FrameMenu;
 mod tests;
 
 #[cfg(test)]
+#[path = "panel_view_cache_tests.rs"]
+mod cache_tests;
+
+#[cfg(test)]
 #[path = "panel_view_idle_tests.rs"]
 mod idle_tests;
 
