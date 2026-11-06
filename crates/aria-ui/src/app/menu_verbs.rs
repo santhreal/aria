@@ -155,42 +155,43 @@ impl AppState {
     /// clip at the source in the Source monitor, so the source frame under the
     /// Source playhead lands on the sequence frame under the sequence playhead.
     pub fn replace_with_source(&mut self) -> Result<(), EngineError> {
-        let Some((media, source_tick)) = self
-            .monitor_source()
-            .map(|view| (MediaId::from_raw(view.media), view.tick))
-        else {
-            self.status_message = Some("Open a source in the Source monitor first".into());
-            return Ok(());
-        };
-        let Some(clip) = self.selected_clip_or_decline() else {
-            return Ok(());
-        };
-        let Some(ui) = self.ui_clip_ref(clip) else {
-            return Ok(());
-        };
-        let Some(old_media) = ui.media_id.filter(|_| ui.generator.is_none()) else {
-            self.status_message = Some("A generated clip has no media to replace".into());
-            return Ok(());
-        };
-        let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
-        let (old_from, old_to, reversed) =
-            (ui.source_start_ticks, ui.source_end_ticks, ui.reversed);
-        let (media_rate, still, available, old_rate) = {
-            let engine = self.engine.lock();
-            let project = engine.project();
-            let Some(item) = project.media(media) else {
+        let (clip, media, source) = match self.source_replacement() {
+            Ok(replacement) => replacement,
+            Err(why) => {
+                self.decline(why);
                 return Ok(());
-            };
-            let old_rate = project
-                .media(MediaId::from_raw(old_media))
-                .map_or(item.frame_rate, |old| old.frame_rate);
-            (
-                item.frame_rate,
-                item.is_image,
-                item.duration.value,
-                old_rate,
-            )
+            }
         };
+        self.apply_command(Command::Edit(EditCommand::SetClipMedia {
+            clip,
+            media,
+            source,
+        }))?;
+        self.status_message = Some("Replaced from the Source monitor".into());
+        Ok(())
+    }
+
+    /// The clip From Source Monitor repoints, the source it takes, and the
+    /// source window it plays. Declined with no source open, nothing
+    /// selected, a generated clip, too little source around the Source
+    /// playhead, or a window the clip already plays.
+    pub(crate) fn source_replacement(&self) -> Result<(ClipId, MediaId, TimeRange), Decline> {
+        let (media, source_tick) = self
+            .monitor_source()
+            .map(|view| (view.media, view.tick))
+            .ok_or(Decline::NoMonitorSource)?;
+        let clip = self.selected_clip().ok_or(Decline::NoSelection)?;
+        let ui = self.ui_clip_ref(clip).ok_or(Decline::NoSelection)?;
+        let old_media = ui
+            .media_id
+            .filter(|_| ui.generator.is_none())
+            .ok_or(Decline::GeneratedClip)?;
+        let pool = |id: u64| self.store.media.iter().find(|item| item.id == id);
+        let item = pool(media).ok_or(Decline::NoMonitorSource)?;
+        let (media_rate, still, available) = (item.frame_rate, item.still, item.duration_ticks);
+        let old_rate = pool(old_media).map_or(media_rate, |old| old.frame_rate);
+        let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
+        let (old_from, old_to) = (ui.source_start_ticks, ui.source_end_ticks);
         // The clip keeps its source span, speed included, measured in the new
         // source's frames.
         let length = resample(RationalTime::new(old_to - old_from, old_rate), media_rate)
@@ -200,22 +201,20 @@ impl AppState {
         let into = (self.playhead.value - start).clamp(0, span);
         let offset = i64::try_from(i128::from(length) * i128::from(into) / i128::from(span))
             .unwrap_or(length);
-        let offset = if reversed { length - offset } else { offset };
+        let offset = if ui.reversed { length - offset } else { offset };
         let from = source_tick - offset;
         if !still && (from < 0 || from + length > available) {
-            self.status_message = Some(
-                "The source does not hold enough media around its playhead to fill the clip".into(),
-            );
-            return Ok(());
+            return Err(Decline::SourceTooShort);
         }
         let from = if still { 0 } else { from };
-        self.apply_command(Command::Edit(EditCommand::SetClipMedia {
+        if old_media == media && old_from == from && old_to - old_from == length {
+            return Err(Decline::SameSource);
+        }
+        Ok((
             clip,
-            media,
-            source: TimeRange::at_rate(from, length, media_rate),
-        }))?;
-        self.status_message = Some("Replaced from the Source monitor".into());
-        Ok(())
+            MediaId::from_raw(media),
+            TimeRange::at_rate(from, length, media_rate),
+        ))
     }
 
     /// Effect > Remove All: take every effect off the selected clips, as one
@@ -311,11 +310,13 @@ impl AppState {
             KeyInterpolation::Bezier => self.easy_ease_selected_or_playhead(),
             KeyInterpolation::Hold => self.hold_selected_or_playhead(),
             KeyInterpolation::Linear => {
-                let targets = self.ease_target_keyframes();
-                if targets.is_empty() {
-                    self.status_message = Some("Select a keyframe first".into());
-                    return Ok(());
-                }
+                let targets = match self.linear_targets() {
+                    Ok(targets) => targets,
+                    Err(why) => {
+                        self.decline(why);
+                        return Ok(());
+                    }
+                };
                 self.one_step(|this| {
                     for target in targets {
                         this.set_keyframe_linear_at(target.clip, target.param, target.tick)?;

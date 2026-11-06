@@ -31,7 +31,8 @@ use crate::app::premiere_tests::{with_clip, with_media};
 pub(super) enum Dress {
     /// One still clip on one lane, selected. What most rows need.
     Clip,
-    /// That clip, and a copy of it on the clipboard.
+    /// Two clips abutting, the left one carrying an effect and copied, the
+    /// right one selected, so pasting attributes has a look to write.
     Copied,
     /// That clip copied, with a range marked on clear lane for the copy to be
     /// retimed into.
@@ -69,6 +70,12 @@ pub(super) enum Dress {
     Baked,
     /// The clip with a keyframe under the playhead.
     Keyed,
+    /// That keyframe eased Bezier, so making it Linear is an edit.
+    Eased,
+    /// The clip mirrored left to right.
+    Framed,
+    /// The clip with a luma track matte.
+    Matted,
     /// The clip with a color grade adjustment.
     Graded,
     /// The clip with two masks, so a row acting on the active mask has one to
@@ -81,6 +88,9 @@ pub(super) enum Dress {
     Picked,
     /// The clip with two keyframes on one property, both selected.
     Spanned,
+    /// The clip with two keyframes of different values on one property, both
+    /// selected, so reversing them is an edit.
+    Swung,
     /// The clip with an effect applied, which is the effect applied last.
     Effected,
     /// That clip with its effect copied, for a paste to add.
@@ -94,8 +104,9 @@ pub(super) enum Dress {
     Edged,
     /// The clip with an In point at its start and an Out point inside it.
     Ranged,
-    /// A source loaded in the monitor, and the clip selected with the playhead
-    /// inside it, so the clip has a source to be repointed at.
+    /// A clip of 24 fps picture selected with the playhead inside it, and a
+    /// still loaded in the monitor, so the clip has another source to be
+    /// repointed at.
     Sourced,
 }
 
@@ -115,6 +126,10 @@ impl Dress {
             }
             Self::Copied => {
                 let (mut state, left) = fixtures::blended_junction();
+                state.select_clip(left);
+                state
+                    .add_effect_to_selected(first_effect())
+                    .expect("the effect lands on the copied clip");
                 let right = state
                     .store
                     .sequence
@@ -124,7 +139,6 @@ impl Dress {
                     .map(|clip| ClipId::from_raw(clip.id))
                     .find(|clip| *clip != left)
                     .expect("the junction fixture holds two clips");
-                state.select_clip(left);
                 state.copy_selected();
                 // The paste's target is the other clip, so pasting attributes
                 // has somewhere to put them, and the playhead is past both so
@@ -261,6 +275,25 @@ impl Dress {
                     .expect("a keyframe lands at the playhead");
                 state
             }
+            Self::Eased => {
+                let mut state = Self::Keyed.state();
+                state
+                    .set_keyframe_interpolation(crate::app::menu_verbs::KeyInterpolation::Bezier)
+                    .expect("the keyframe eases");
+                state
+            }
+            Self::Framed => {
+                let mut state = Self::Clip.state();
+                state.toggle_selected_flip_h().expect("the clip mirrors");
+                state
+            }
+            Self::Matted => {
+                let mut state = Self::Clip.state();
+                state
+                    .set_selected_matte_source(aria_models::MatteSource::Luma)
+                    .expect("the matte lands");
+                state
+            }
             Self::Graded => {
                 let mut state = Self::Clip.state();
                 state
@@ -322,15 +355,30 @@ impl Dress {
                 state.marquee_select_keyframes(clip, param, start, end, false);
                 state
             }
+            Self::Swung => {
+                let mut state = Self::Clip.state();
+                let clip = state.selected_clip().expect("the clip is selected");
+                let param = aria_models::ClipParam::Look {
+                    param: aria_models::LookParam::AdjustExposure,
+                };
+                let ui = state.selected_ui_clip().expect("the clip is drawn");
+                let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
+                state.set_playhead(start);
+                state
+                    .add_keyframe_at_playhead(param)
+                    .expect("a keyframe lands at the start");
+                // On a property with a curve, a new value keys at the playhead.
+                state.set_playhead(start + (end - start) / 2);
+                state
+                    .set_param_scalar(param, None, 0.5)
+                    .expect("a second keyframe of another value");
+                state.marquee_select_keyframes(clip, param, start, end, false);
+                state
+            }
             Self::Effected => {
                 let mut state = Self::Clip.state();
-                let effect = aria_models::effect_catalog()
-                    .iter()
-                    .next()
-                    .map(|spec| spec.id.clone())
-                    .expect("an effect is registered");
                 state
-                    .add_effect_to_selected(effect)
+                    .add_effect_to_selected(first_effect())
                     .expect("the effect lands on the clip");
                 state
             }
@@ -377,14 +425,11 @@ impl Dress {
                 state
             }
             Self::Sourced => {
-                let (mut state, clip) = with_clip();
-                let media = state
-                    .store
-                    .media
-                    .first()
-                    .map(|item| item.id)
-                    .expect("the fixture imported one pool item");
-                state.select_pool_item(media);
+                let (mut state, clip) = with_media(picture());
+                let still = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/texture.png");
+                let media = state.import_media(still).expect("import the still");
+                state.select_pool_item(media.raw());
                 assert!(
                     state.toggle_source_monitor(),
                     "the fixture's pool item cannot be previewed"
@@ -395,6 +440,23 @@ impl Dress {
             }
         }
     }
+}
+
+/// The first effect the catalog registers.
+fn first_effect() -> String {
+    aria_models::effect_catalog()
+        .iter()
+        .next()
+        .map(|spec| spec.id.clone())
+        .expect("an effect is registered")
+}
+
+/// The 24 fps picture fixture.
+fn picture() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4")
+        .canonicalize()
+        .expect("the fixture exists")
 }
 
 /// Put the playhead in the middle of the selected clip.
@@ -633,11 +695,7 @@ impl Answered {
 /// A clip of 24 fps picture, the timeline interchange plugin mounted, and a
 /// path in a dir of `name`'s own in the first exporter's format.
 pub(super) fn with_timeline_plugin(name: &str) -> (AppState, PathBuf) {
-    let picture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4")
-        .canonicalize()
-        .expect("the fixture exists");
-    let (state, _) = with_media(picture);
+    let (state, _) = with_media(picture());
     state
         .ctx
         .mount(&aria_interchange::InterchangePlugin)

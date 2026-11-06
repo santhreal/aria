@@ -45,9 +45,9 @@ enum Kind {
     NoEdit,
 }
 use Dress::{
-    Baked, Blended, Chroma, Clip, Copied, Cut, Edged, EffectCopied, Effected, Fitted, Graded,
-    Grouped, Inside, Keyed, Labelled, Lanes, Linked, Marked, Masked, Nearby, Nest, Pair, Picked,
-    Ranged, Rendered, Sound, Source, Sourced, Spanned,
+    Baked, Blended, Chroma, Clip, Copied, Cut, Eased, Edged, EffectCopied, Effected, Fitted,
+    Framed, Graded, Grouped, Inside, Keyed, Labelled, Lanes, Linked, Marked, Masked, Matted,
+    Nearby, Nest, Pair, Picked, Ranged, Rendered, Sound, Source, Sourced, Spanned, Swung,
 };
 use Kind::{Edits, NoEdit};
 /// Every menu row, what it does, and the state it is driven against. Checked
@@ -69,10 +69,10 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("seq-ripple-out", Edits, Clip),
     ("seq-flip-h", Edits, Clip),
     ("seq-flip-v", Edits, Clip),
-    ("seq-crop-reset", Edits, Clip),
+    ("seq-crop-reset", Edits, Framed),
     ("seq-matte-luma", Edits, Clip),
     ("seq-matte-alpha", Edits, Clip),
-    ("seq-matte-clear", Edits, Clip),
+    ("seq-matte-clear", Edits, Matted),
     // Acts on state the fixture has to be dressed with first: a copy on the
     // clipboard, a marker under the playhead, a second clip to link to, a
     // junction, a source range, a nest, a mask, or a render already on disk.
@@ -271,7 +271,7 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("edit-label-none", Edits, Labelled),
     // Each sets the interpolation of the keyframe under the playhead.
     ("anim-toggle-hold", Edits, Keyed),
-    ("anim-interp-linear", Edits, Keyed),
+    ("anim-interp-linear", Edits, Eased),
     ("anim-interp-bezier", Edits, Keyed),
     ("anim-interp-hold", Edits, Keyed),
     ("anim-easy-ease", Edits, Keyed),
@@ -279,7 +279,7 @@ const ROWS: &[(&str, Kind, Dress)] = &[
     ("anim-easy-ease-out", Edits, Keyed),
     ("anim-add-keyframe", Edits, Picked),
     ("anim-add-expression", Edits, Picked),
-    ("anim-time-reverse", Edits, Spanned),
+    ("anim-time-reverse", Edits, Swung),
     ("fx-last", Edits, Effected),
     ("fx-remove-all", Edits, Effected),
     ("fx-paste", Edits, EffectCopied),
@@ -366,15 +366,19 @@ struct RowOutcome {
     blocked: Option<&'static str>,
     status: Option<String>,
     opened_form: bool,
+    changed: bool,
 }
 
 /// One row run against the bare state: one clip, nothing selected, the playhead
 /// past the end. A guard that reads less than its action shows here as a row
-/// drawn enabled that answers with a decline.
+/// drawn enabled that answers with a decline, and an action that records a
+/// step over no edit as `wrote` with `changed` false.
 struct BareOutcome {
     id: String,
     blocked: Option<&'static str>,
     status: Option<String>,
+    wrote: Vec<String>,
+    changed: bool,
 }
 
 struct Probe {
@@ -384,6 +388,8 @@ struct Probe {
     status: Option<String>,
     opened_form: bool,
     asked_pick: bool,
+    /// Whether the project reads differently after the row ran.
+    changed: bool,
 }
 
 struct MenuCensus {
@@ -410,6 +416,7 @@ fn dispatch(
 fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
     let cx = gpui::TestAppContext::single();
     let before = history_labels(&state);
+    let text = project_text(&state);
     let watch = super::sent_census::Watch::on(&state);
     let entity = cx.update(|app| app.new(|_| state));
     let (found, blocked) = cx.update(|app| {
@@ -434,7 +441,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
         })
     });
     assert!(found, "{id} vanished between enumeration and running");
-    let (after, opened_form, asked_pick, status) = cx.update(|app| {
+    let (after, opened_form, asked_pick, status, changed) = cx.update(|app| {
         let state = entity.read(app);
         let opened_form = matches!(
             crate::app::dialog_primary::primary(state.dialog),
@@ -445,6 +452,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
             opened_form,
             state.picks_asked() > 0,
             state.status_message.clone(),
+            project_text(state) != text,
         )
     });
     Probe {
@@ -454,8 +462,19 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
         status,
         opened_form,
         asked_pick,
+        changed,
     }
 }
+
+/// The project as it saves, plus the sequence it has open, to tell an edit or
+/// a navigation from a step over nothing.
+fn project_text(state: &AppState) -> String {
+    let engine = state.engine.lock();
+    let project = engine.project();
+    let text = project.save_to_string().expect("the project saves");
+    format!("{:?}\n{text}", project.active_sequence())
+}
+
 fn history_labels(state: &AppState) -> Vec<String> {
     state
         .engine
@@ -502,6 +521,8 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             id: id.clone(),
             blocked: outcome.blocked,
             status: outcome.status,
+            wrote: outcome.wrote,
+            changed: outcome.changed,
         });
         let outcome = probe(*menu, id, dress.state(), false);
         if outcome.asked_pick {
@@ -517,6 +538,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             blocked: outcome.blocked,
             status: outcome.status,
             opened_form: outcome.opened_form,
+            changed: outcome.changed,
         });
     }
     // A row that opens a file dialog is driven a second time, answered. The

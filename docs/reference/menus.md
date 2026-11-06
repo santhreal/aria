@@ -50,7 +50,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-copy` | `none` | Copy | `Ctrl+C` | No clip is selected (`guards::selection`) | Copies the selected clips, as they are now, to the clipboard. |
 | `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut (`guards::clipboard`) | Places the clipboard clips at the playhead with their copied spacing, each on its source lane or the first lane of the same kind, as one undo step. |
 | `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut (`guards::clipboard`) | Ripples each paste lane right from the playhead by the length of the clipboard clips and places them in the hole, as one undo step. |
-| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut, or no clip is selected (`paste_attributes_ready`) | Copies the transform, filter preset, and video effect chain of the first clipboard clip onto the selected clip. |
+| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut, no clip is selected, the copy came from the selected clip, or the selected clip already has the copied attributes (`paste_attributes_ready`) | Copies the transform, filter preset, and video effect chain of the first clipboard clip onto the selected clip. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
 | `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut, more than one clip was copied, or no In and Out range is marked (`paste_fit_ready`) | Places the clipboard clip at the In point, retimed to fill the In-to-Out span. |
 | `edit-clear` | `none` | Clear | `Backspace` | No clip or gap is selected (`guards::clip_or_gap`) | Deletes selected clips without closing the timeline gap, or closes the selected gap. |
@@ -93,7 +93,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-group` | `none` | Group | `Ctrl+G` | Fewer than two clips are selected, or they are already a group (`guards::groupable`) | Assigns a shared group ID to all selected clips. |
 | `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | The selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
 | `seq-nest` | `none` | Nest… | `none` | No clip is selected (`guards::selection`) | Moves selected clips into a new nested sequence and replaces them with a compound clip. |
-| `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first (`guards::source`) | Replaces the selected clip's media source with the active Source monitor item. |
+| `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first, no clip is selected, the clip is generated, the source does not hold enough media around its playhead, or the clip already plays those source frames (`guards::source_replacement`) | Replaces the selected clip's media source with the active Source monitor item. |
 | `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame, is on a locked track, is linked, does not span the playhead, or has a boundary animation at the playhead (`freeze_ready`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
 | `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected, the project has not been saved yet, or the selected clip has no video picture (`bake_ready`) | Renders the selected clip with its effects to a media file and replaces its source. |
 | `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected, or the selected clip has no unrendered source to restore (`baked_clip`) | Restores a rendered-and-replaced clip back to its original source and effects. |
@@ -106,10 +106,10 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected, or the selected clip has no sound to extract (`guards::extractable`) | Extracts the selected video clip's audio stream onto an audio lane. |
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
 | `seq-flip-v` | `Transform` | Flip Vertical | `none` | No clip is selected (`guards::selection`) | Toggles vertical mirror flip on the selected clips. |
-| `seq-crop-reset` | `Transform` | Reset Framing | `none` | No clip is selected (`guards::selection`) | Clears all four crop edges on the selected clips. |
+| `seq-crop-reset` | `Transform` | Reset Framing | `none` | No clip is selected, or the selected clip shows its whole frame (`guards::framing`) | Clears all four crop edges, the crop's keyframes, and both mirrors on the selected clip. |
 | `seq-matte-luma` | `Track Matte` | Luma Matte from Above | `none` | No clip is selected (`guards::selection`) | Uses the luminance of the clip directly above as the selected clip's track matte (`MatteSource::Luma`). |
 | `seq-matte-alpha` | `Track Matte` | Alpha Matte from Above | `none` | No clip is selected (`guards::selection`) | Uses the alpha channel of the clip directly above as the selected clip's track matte (`MatteSource::Alpha`). |
-| `seq-matte-clear` | `Track Matte` | Remove Track Matte | `none` | No clip is selected (`guards::selection`) | Clears the track matte source on the selected clips. |
+| `seq-matte-clear` | `Track Matte` | Remove Track Matte | `none` | No clip is selected, or the selected clip has no track matte (`guards::matte`) | Clears the track matte source on the selected clip. |
 | `clip-analyze:aria.beats` | `Analyze` | Detect Beats | `none` | Select a clip with sound (`guards::sound`) | Runs the registered beat analyzer (`aria.beats`) on the selected clip and adds beat markers. |
 
 ## Sequence menu
@@ -196,14 +196,14 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 | --- | --- | --- | --- | --- | --- |
 | `anim-add-keyframe` | `none` | Add Keyframe | `none` | Select a property row in the timeline (`guards::property_rows`) | Inserts keyframes at the playhead on all selected timeline property rows. |
 | `anim-toggle-hold` | `none` | Toggle Hold Keyframe | `Ctrl+Alt+H` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Toggles step-hold interpolation (`Easing::Hold`) on the target keyframes. |
-| `anim-interp-linear` | `Keyframe Interpolation` | Linear | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets the target keyframes' interpolation to `KeyInterpolation::Linear`. |
+| `anim-interp-linear` | `Keyframe Interpolation` | Linear | `none` | Select a keyframe, or put the playhead on one; or the keyframes are already Linear (`guards::keyframes_to_linear`) | Sets the target keyframes' interpolation to `KeyInterpolation::Linear`. |
 | `anim-interp-bezier` | `Keyframe Interpolation` | Bezier | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets the target keyframes' interpolation to `KeyInterpolation::Bezier`. |
 | `anim-interp-hold` | `Keyframe Interpolation` | Hold | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets the target keyframes' interpolation to `KeyInterpolation::Hold`. |
 | `anim-keyframe-velocity` | `none` | Keyframe Velocity… | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Opens `aria.dialog.keyframe-velocity` to edit incoming and outgoing velocity and influence. |
 | `anim-easy-ease` | `Keyframe Assistant` | Easy Ease | `F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to smooth ease-in-out (`Easing::EaseInOut`). |
 | `anim-easy-ease-in` | `Keyframe Assistant` | Easy Ease In | `Shift+F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to ease-in (`Easing::EaseIn`). |
 | `anim-easy-ease-out` | `Keyframe Assistant` | Easy Ease Out | `Ctrl+Shift+F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to ease-out (`Easing::EaseOut`). |
-| `anim-time-reverse` | `Keyframe Assistant` | Time-Reverse Keyframes | `none` | Select two or more keyframes on one property (`guards::keyframe_span`) | Reverses the values and easing of two or more selected keyframes along their span on each property. |
+| `anim-time-reverse` | `Keyframe Assistant` | Time-Reverse Keyframes | `none` | Select two or more keyframes on one property, or the selected keyframes play the same reversed (`guards::keyframes_to_reverse`) | Reverses the values and easing of two or more selected keyframes along their span on each property. |
 | `anim-add-expression` | `none` | Add Expression | `none` | Select a property row of the selected clip (`guards::clip_property_row`) | Attaches a default expression to the selected property row of the selected clip. |
 | `anim-reveal-keyed` | `none` | Reveal Properties with Keyframes | `Alt+U` | No clip is selected (`guards::selection`) | Reveals animated or modified property rows on the selected clips in the timeline outline. |
 | `anim-reveal-modified` | `none` | Reveal Modified Properties | `none` | No clip is selected (`guards::selection`) | Reveals all non-default property rows on the selected clips in the timeline outline. |
@@ -388,6 +388,18 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoSelectedEdge` | `Select an edit point first` |
 | `EdgeAtPlayhead` | `The edit point is already at the playhead` |
 | `ShiftBeforeStart` | `That offset would move a clip before the start of the sequence` |
+| `FullFrame` | `The selected clip shows its whole frame` |
+| `NoMatte` | `The selected clip has no track matte` |
+| `NoKeyframeTarget` | `Select a keyframe, or put the playhead on one` |
+| `AlreadyLinear` | `The keyframes are already Linear` |
+| `NoKeyframeSpan` | `Select two or more keyframes on one property` |
+| `ReversedSame` | `The selected keyframes play the same reversed` |
+| `CopiedFromHere` | `The copy came from the selected clip` |
+| `SameAttributes` | `The selected clip already has the copied attributes` |
+| `NoMonitorSource` | `Open a source in the Source monitor first` |
+| `GeneratedClip` | `A generated clip has no media to replace` |
+| `SourceTooShort` | `The source does not hold enough media around its playhead to fill the clip` |
+| `SameSource` | `The clip already plays those source frames` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

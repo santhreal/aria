@@ -150,7 +150,7 @@ static CLIP_ITEMS: &[MenuItem] = &[
         let replaced = s.replace_with_source();
         report(s, replaced)
     })
-    .when(super::menu_guards::source)
+    .when(super::menu_guards::source_replacement)
     .under("Replace with Clip"),
     FREEZE,
     MenuItem::new("seq-bake-clip", "Render and Replace", |_, s, _| {
@@ -208,7 +208,7 @@ static CLIP_ITEMS: &[MenuItem] = &[
         let reset = s.clear_selected_crop();
         report(s, reset)
     })
-    .when(super::menu_guards::selection)
+    .when(super::menu_guards::framing)
     .under("Transform")
     .flyout_rule(),
     MenuItem::new("seq-matte-luma", "Luma Matte from Above", |_, s, _| {
@@ -227,7 +227,7 @@ static CLIP_ITEMS: &[MenuItem] = &[
         let cleared = s.clear_selected_matte();
         report(s, cleared)
     })
-    .when(super::menu_guards::selection)
+    .when(super::menu_guards::matte)
     .under("Track Matte")
     .flyout_rule(),
 ];

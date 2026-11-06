@@ -15,6 +15,7 @@ use aria_engine::EngineError;
 use aria_models::{CropRect, MIN_CROP_FRACTION, MotionBlur};
 
 use super::AppState;
+use super::decline::Decline;
 
 /// The four crop edges, as (id, label, reader, writer).
 ///
@@ -167,8 +168,12 @@ impl AppState {
     /// Restore the full frame and clear both mirrors. A clear, so the crop's
     /// keys go with it.
     pub fn clear_selected_crop(&mut self) -> Result<(), EngineError> {
-        let Some(clip) = self.selected_clip() else {
-            return Ok(());
+        let clip = match self.framing_to_reset() {
+            Ok(clip) => clip,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
         };
         self.apply_command(Command::Edit(EditCommand::SetClipCrop {
             clip,
@@ -179,6 +184,19 @@ impl AppState {
         }))?;
         self.status_message = Some("Reset framing".into());
         Ok(())
+    }
+
+    /// The clip Reset Framing resets: the selected clip, while it is cropped,
+    /// keyed or not, or mirrored.
+    pub(crate) fn framing_to_reset(&self) -> Result<aria_models::ClipId, Decline> {
+        let clip = self.selected_clip().ok_or(Decline::NoSelection)?;
+        let model = self.selected_model().ok_or(Decline::NoSelection)?;
+        let framed = model.crop.constant() != Some(CropRect::FULL) || model.flip_h || model.flip_v;
+        if framed {
+            Ok(clip)
+        } else {
+            Err(Decline::FullFrame)
+        }
     }
 
     /// Set the whole crop window at once, keeping both mirror flags. The on-canvas

@@ -9,6 +9,7 @@ use aria_models::{ClipId, ClipParam, Easing, ParamKind, ParamValue, RationalTime
 use super::{CopiedKeyframe, KeyBand, KeyframeTimeDrag, SelectedKeyframe};
 use crate::app::AppState;
 use crate::app::clip_keys::{key_magnets, key_params_of, key_span};
+use crate::app::decline::Decline;
 
 impl AppState {
     /// Select a property row for display in the timeline graph editor.
@@ -504,7 +505,7 @@ impl AppState {
     ) -> Result<(), EngineError> {
         let targets = self.ease_target_keyframes();
         if targets.is_empty() {
-            self.status_message = Some("Select a keyframe first".into());
+            self.decline(Decline::NoKeyframeTarget);
             return Ok(());
         }
         let rate = self.store.sequence.frame_rate;

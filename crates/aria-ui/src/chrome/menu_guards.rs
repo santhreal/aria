@@ -260,7 +260,12 @@ pub(crate) fn keyframes(_: &str, state: &AppState) -> Option<&'static str> {
     state
         .ease_target_keyframes()
         .is_empty()
-        .then_some("Select a keyframe, or put the playhead on one")
+        .then_some(Decline::NoKeyframeTarget.reason())
+}
+
+/// The row sets the target keyframes that are not Linear to Linear.
+pub(crate) fn keyframes_to_linear(_: &str, state: &AppState) -> Option<&'static str> {
+    state.linear_targets().err().map(|why| why.reason())
 }
 
 /// The row acts on the property rows selected in the timeline outline.
@@ -270,15 +275,9 @@ pub(crate) fn property_rows(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some("Select a property row in the timeline")
 }
 
-/// The row acts on two or more selected keyframes of one property.
-pub(crate) fn keyframe_span(_: &str, state: &AppState) -> Option<&'static str> {
-    let selected = state.selected_timeline_keyframes();
-    let paired = selected.iter().enumerate().any(|(i, key)| {
-        selected[i + 1..]
-            .iter()
-            .any(|other| other.clip == key.clip && other.param == key.param)
-    });
-    (!paired).then_some("Select two or more keyframes on one property")
+/// The row reverses selected keyframes that do not play the same reversed.
+pub(crate) fn keyframes_to_reverse(_: &str, state: &AppState) -> Option<&'static str> {
+    state.time_reverse_plan().err().map(|why| why.reason())
 }
 
 /// The row acts on a selected property row of the selected clip.
@@ -326,7 +325,7 @@ pub(crate) fn source_range(_: &str, state: &AppState) -> Option<&'static str> {
     state
         .source_range()
         .is_none()
-        .then_some("Open a source in the Source monitor first")
+        .then_some(Decline::NoMonitorSource.reason())
 }
 
 /// The row places the media selected in the pool.
@@ -339,7 +338,22 @@ pub(crate) fn source(_: &str, state: &AppState) -> Option<&'static str> {
     state
         .monitor_source()
         .is_none()
-        .then_some("Open a source in the Source monitor first")
+        .then_some(Decline::NoMonitorSource.reason())
+}
+
+/// The row repoints the selected clip at the Source monitor's frames.
+pub(crate) fn source_replacement(_: &str, state: &AppState) -> Option<&'static str> {
+    state.source_replacement().err().map(|why| why.reason())
+}
+
+/// The row resets a crop or a mirror on the selected clip.
+pub(crate) fn framing(_: &str, state: &AppState) -> Option<&'static str> {
+    state.framing_to_reset().err().map(|why| why.reason())
+}
+
+/// The row removes the selected clip's track matte.
+pub(crate) fn matte(_: &str, state: &AppState) -> Option<&'static str> {
+    state.matte_to_clear().err().map(|why| why.reason())
 }
 
 /// The row acts on the comparison the Viewer draws.

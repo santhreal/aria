@@ -28,7 +28,7 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         let set = s.set_keyframe_interpolation(KeyInterpolation::Linear);
         report(s, set)
     })
-    .when(guards::keyframes)
+    .when(guards::keyframes_to_linear)
     .under(INTERPOLATION),
     MenuItem::new("anim-interp-bezier", "Bezier", |_, s, _| {
         let set = s.set_keyframe_interpolation(KeyInterpolation::Bezier);
@@ -73,7 +73,7 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         let reversed = s.time_reverse_selected_keyframes().map(drop);
         report(s, reversed)
     })
-    .when(guards::keyframe_span)
+    .when(guards::keyframes_to_reverse)
     .under(ASSISTANT)
     .flyout_rule(),
     MenuItem::new("anim-add-expression", "Add Expression", |_, s, _| {

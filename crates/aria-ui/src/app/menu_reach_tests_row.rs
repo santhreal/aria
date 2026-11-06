@@ -75,6 +75,113 @@ fn an_enabled_row_never_answers_with_a_decline() {
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+/// A row that records an undo step changes the project. A step over no edit
+/// spends the next Undo on nothing and marks the project unsaved with nothing
+/// to save, while the status line reports an edit. Every row is checked under
+/// its own dressing and under the bare state; a row that edits nothing only in
+/// a state neither covers, or a step whose edit the project file does not
+/// record, is not caught here.
+#[test]
+fn a_row_that_records_a_step_changes_the_project() {
+    let mut wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| !row.wrote.is_empty() && !row.changed)
+        .map(|row| {
+            format!(
+                "{} against {:?} recorded {:?}",
+                row.id, row.dress, row.wrote
+            )
+        })
+        .collect();
+    wrong.extend(
+        CENSUS
+            .bare
+            .iter()
+            .filter(|row| !row.wrote.is_empty() && !row.changed)
+            .map(|row| format!("{} against the bare state recorded {:?}", row.id, row.wrote)),
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// WHY: closes the class of rows that record an undo step over nothing when
+/// the state already holds their result: Reset Framing on a whole frame,
+/// Remove Track Matte with no matte, Linear on Linear keyframes, Time-Reverse
+/// on keyframes that play the same reversed, Paste Attributes onto the copy's
+/// own clip or a clip that already has the copied look, and From Source
+/// Monitor onto the frames the clip already plays. Each is drawn disabled with
+/// the reason its action declines with, and running it anyway records nothing.
+///
+/// What this does not catch: a row outside this table that repeats its own
+/// result; the census in `a_row_that_records_a_step_changes_the_project` sees
+/// only the dressings it drives.
+#[test]
+fn a_row_over_its_own_result_declines_and_records_nothing() {
+    use crate::app::decline::Decline;
+    let cases: [(&str, fn() -> AppState, Decline); 7] = [
+        ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
+        ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
+        (
+            "anim-interp-linear",
+            || Keyed.state(),
+            Decline::AlreadyLinear,
+        ),
+        (
+            "anim-time-reverse",
+            || Spanned.state(),
+            Decline::ReversedSame,
+        ),
+        (
+            "edit-paste-attributes",
+            || {
+                let (mut state, _) = with_clip();
+                state.copy_selected();
+                state
+            },
+            Decline::CopiedFromHere,
+        ),
+        (
+            "edit-paste-attributes",
+            || {
+                let mut state = Copied.state();
+                state.paste_attributes().expect("the look lands");
+                state
+            },
+            Decline::SameAttributes,
+        ),
+        (
+            "clip-replace-source",
+            || {
+                let mut state = Sourced.state();
+                state.replace_with_source().expect("the clip is repointed");
+                state
+            },
+            Decline::SameSource,
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (id, build, why) in cases {
+        let state = build();
+        let menu = AppMenu::ALL
+            .into_iter()
+            .find(|menu| items_of(*menu, &state).iter().any(|item| item.id == id))
+            .unwrap_or_else(|| panic!("{id} is on no menu"));
+        let probe = probe(menu, id, state, false);
+        let reason = Some(why.reason());
+        if probe.blocked != reason
+            || probe.status.as_deref() != reason
+            || !probe.wrote.is_empty()
+            || probe.changed
+        {
+            wrong.push(format!(
+                "{id} ({why:?}): drawn {:?}, said {:?}, recorded {:?}, changed {}",
+                probe.blocked, probe.status, probe.wrote, probe.changed
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
 #[test]
 fn every_command_the_menu_sends_is_declared_reachable() {
     // The inverse direction of `Reach`: a command the bar demonstrably sends

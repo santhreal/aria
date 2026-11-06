@@ -21,6 +21,7 @@ use aria_core::RationalTime;
 use gpui::{Context, RenderImage};
 
 use super::AppState;
+use super::decline::Decline;
 use super::picker::{Answer, Ask, FileSpec};
 
 /// What the Program frame is compared with.
@@ -232,7 +233,7 @@ impl AppState {
     /// monitor, at its own playhead.
     pub fn compare_with_source(&mut self) {
         let Some(name) = self.monitor_source().map(|view| view.name.clone()) else {
-            self.status_message = Some("Open a source in the Source monitor first".into());
+            self.decline(Decline::NoMonitorSource);
             return;
         };
         self.viewer_compare.begin(Reference::Source);

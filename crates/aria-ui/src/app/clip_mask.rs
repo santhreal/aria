@@ -25,6 +25,7 @@ use aria_models::{
 };
 
 use super::AppState;
+use super::decline::Decline;
 use crate::types::UiMask;
 
 /// Write `value` into `param` at clip-relative `tick`: a keyframe there,
@@ -382,13 +383,22 @@ impl AppState {
         Ok(())
     }
 
+    /// Take the track matte off the selected clip.
     pub fn clear_selected_matte(&mut self) -> Result<(), EngineError> {
-        if self.selected_clip().is_none() {
+        if let Err(why) = self.matte_to_clear() {
+            self.decline(why);
             return Ok(());
         }
         self.send_matte(None)?;
         self.status_message = Some("Removed track matte".into());
         Ok(())
+    }
+
+    /// Whether the selected clip has a track matte for Remove Track Matte to
+    /// take off.
+    pub(crate) fn matte_to_clear(&self) -> Result<(), Decline> {
+        let model = self.selected_model().ok_or(Decline::NoSelection)?;
+        model.matte.as_ref().map(drop).ok_or(Decline::NoMatte)
     }
 
     /// Flip which side of the stencil keeps the content.

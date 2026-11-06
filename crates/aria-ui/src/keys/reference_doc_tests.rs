@@ -533,7 +533,19 @@ fn menus_doc_matches_registry() {
                 | Decline::NoEditPoint
                 | Decline::NoSelectedEdge
                 | Decline::EdgeAtPlayhead
-                | Decline::ShiftBeforeStart => {}
+                | Decline::ShiftBeforeStart
+                | Decline::FullFrame
+                | Decline::NoMatte
+                | Decline::NoKeyframeTarget
+                | Decline::AlreadyLinear
+                | Decline::NoKeyframeSpan
+                | Decline::ReversedSame
+                | Decline::CopiedFromHere
+                | Decline::SameAttributes
+                | Decline::NoMonitorSource
+                | Decline::GeneratedClip
+                | Decline::SourceTooShort
+                | Decline::SameSource => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

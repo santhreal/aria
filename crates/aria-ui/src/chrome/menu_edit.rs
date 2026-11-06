@@ -132,8 +132,8 @@ static EDIT_TAIL: &[MenuItem] = &[
     .key("key-settings"),
 ];
 
-fn paste_attributes_ready(id: &str, state: &AppState) -> Option<&'static str> {
-    super::menu_guards::clipboard(id, state).or_else(|| super::menu_guards::selection(id, state))
+fn paste_attributes_ready(_: &str, state: &AppState) -> Option<&'static str> {
+    state.attributes_target().err().map(|why| why.reason())
 }
 
 fn paste_fit_ready(id: &str, state: &AppState) -> Option<&'static str> {

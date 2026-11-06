@@ -97,11 +97,35 @@ pub enum Decline {
     EdgeAtPlayhead,
     /// A lane or selection shift that would take a clip before tick 0.
     ShiftBeforeStart,
+    /// Reset Framing sent to a clip that shows its whole frame unmirrored.
+    FullFrame,
+    /// Remove Track Matte sent to a clip with no matte.
+    NoMatte,
+    /// A keyframe row sent with no keyframe selected and none under the playhead.
+    NoKeyframeTarget,
+    /// Linear sent to keyframes that are all Linear already.
+    AlreadyLinear,
+    /// A span row sent without two selected keyframes on one property.
+    NoKeyframeSpan,
+    /// Time-Reverse Keyframes sent to keyframes that play the same reversed.
+    ReversedSame,
+    /// Paste Attributes onto the clip the copy came from.
+    CopiedFromHere,
+    /// Paste Attributes onto a clip that already has the copied look.
+    SameAttributes,
+    /// A row that takes the Source monitor's source, with none open.
+    NoMonitorSource,
+    /// Replace from Source sent to a generated clip.
+    GeneratedClip,
+    /// Replace from Source with too little media around the Source playhead.
+    SourceTooShort,
+    /// Replace from Source that would put back the source frames the clip plays.
+    SameSource,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 33] = [
+    pub const ALL: [Decline; 45] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -135,6 +159,18 @@ impl Decline {
         Decline::NoSelectedEdge,
         Decline::EdgeAtPlayhead,
         Decline::ShiftBeforeStart,
+        Decline::FullFrame,
+        Decline::NoMatte,
+        Decline::NoKeyframeTarget,
+        Decline::AlreadyLinear,
+        Decline::NoKeyframeSpan,
+        Decline::ReversedSame,
+        Decline::CopiedFromHere,
+        Decline::SameAttributes,
+        Decline::NoMonitorSource,
+        Decline::GeneratedClip,
+        Decline::SourceTooShort,
+        Decline::SameSource,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -176,6 +212,20 @@ impl Decline {
             Decline::ShiftBeforeStart => {
                 "That offset would move a clip before the start of the sequence"
             }
+            Decline::FullFrame => "The selected clip shows its whole frame",
+            Decline::NoMatte => "The selected clip has no track matte",
+            Decline::NoKeyframeTarget => "Select a keyframe, or put the playhead on one",
+            Decline::AlreadyLinear => "The keyframes are already Linear",
+            Decline::NoKeyframeSpan => "Select two or more keyframes on one property",
+            Decline::ReversedSame => "The selected keyframes play the same reversed",
+            Decline::CopiedFromHere => "The copy came from the selected clip",
+            Decline::SameAttributes => "The selected clip already has the copied attributes",
+            Decline::NoMonitorSource => "Open a source in the Source monitor first",
+            Decline::GeneratedClip => "A generated clip has no media to replace",
+            Decline::SourceTooShort => {
+                "The source does not hold enough media around its playhead to fill the clip"
+            }
+            Decline::SameSource => "The clip already plays those source frames",
         }
     }
 }

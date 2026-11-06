@@ -101,7 +101,7 @@ fn staged() -> Vec<Staged> {
 
     push(Pick::FlipHorizontal, a_clip);
     push(Pick::FlipVertical, a_clip);
-    push(Pick::ClearCrop, a_clip);
+    push(Pick::ClearCrop, a_flipped_clip);
     push(Pick::ToggleMotionBlur, a_clip);
     push(Pick::DetachClipType, a_typed_clip);
 
@@ -433,6 +433,13 @@ fn a_matted_clip() -> AppState {
     state
         .set_selected_matte_source(MatteSource::Luma)
         .expect("the matte lands");
+    state
+}
+
+/// A mirrored clip, so the framing reset has a mirror to take off.
+fn a_flipped_clip() -> AppState {
+    let mut state = a_clip();
+    state.toggle_selected_flip_h().expect("the mirror lands");
     state
 }
 

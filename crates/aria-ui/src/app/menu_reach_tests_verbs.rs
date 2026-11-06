@@ -326,7 +326,8 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
     state.select_clip(clip);
     assert_eq!(
         blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
-        None
+        Some(crate::app::decline::Decline::CopiedFromHere.reason()),
+        "pasting the copy's look onto the clip it came from changes nothing"
     );
     state.clear_selected().expect("remove copied clip");
     assert_eq!(

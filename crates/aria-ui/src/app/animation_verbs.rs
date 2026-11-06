@@ -15,6 +15,7 @@ use aria_models::{
 use gpui::SharedString;
 
 use super::clip_keys::{KeyParam, key_params_of};
+use super::decline::Decline;
 use super::param_units::Units;
 use super::property_rows::SelectedKeyframe;
 use super::{AppState, DialogKind};
@@ -158,6 +159,15 @@ fn backwards(ease: Option<TemporalEase>) -> Option<TemporalEase> {
     ease.map(|ease| TemporalEase::new(-ease.speed, ease.influence))
 }
 
+/// The edits Time-Reverse Keyframes sends, and the keyframes it leaves
+/// selected.
+#[derive(Default)]
+pub(crate) struct ReversePlan {
+    removals: Vec<EditCommand>,
+    writes: Vec<EditCommand>,
+    selection: Vec<SelectedKeyframe>,
+}
+
 impl AppState {
     /// The property rows Add Keyframe and Add Expression act on: the rows
     /// selected in the timeline outline, whose clips still exist.
@@ -232,6 +242,33 @@ impl AppState {
     /// negated) to its mirrored time, and each segment keeps its shape played
     /// backwards. Returns how many keyframes moved.
     pub fn time_reverse_selected_keyframes(&mut self) -> Result<usize, EngineError> {
+        let plan = match self.time_reverse_plan() {
+            Ok(plan) => plan,
+            Err(why) => {
+                self.decline(why);
+                return Ok(0);
+            }
+        };
+        let count = plan.writes.len();
+        self.one_step(|this| {
+            for edit in plan.removals.into_iter().chain(plan.writes) {
+                this.apply_command(Command::Edit(edit))?;
+            }
+            Ok(())
+        })?;
+        self.with_prop_rows_mut(|s| {
+            s.selected_keyframes.clear();
+            s.selected_keyframes.extend(plan.selection);
+        });
+        self.status_message = Some(format!("Time-reversed {count} keyframes"));
+        Ok(count)
+    }
+
+    /// The edits Time-Reverse Keyframes sends. A property whose selected
+    /// keyframes play the same reversed sends none and keeps its selection.
+    /// Declined without two selected keyframes on one property, or when no
+    /// property changes.
+    pub(crate) fn time_reverse_plan(&self) -> Result<ReversePlan, Decline> {
         let mut groups: BTreeMap<(ClipId, ClipParam), Vec<i64>> = BTreeMap::new();
         for key in self.selected_timeline_keyframes() {
             groups
@@ -240,9 +277,8 @@ impl AppState {
                 .push(key.tick);
         }
         let rate = self.playhead.rate;
-        let mut removals = Vec::new();
-        let mut writes = Vec::new();
-        let mut selection = Vec::new();
+        let mut plan = ReversePlan::default();
+        let mut spans = 0;
         for ((clip, param), ticks) in groups {
             let Some((model, audio_lane)) = self.clip_and_lane_kind(clip) else {
                 continue;
@@ -258,10 +294,12 @@ impl AppState {
             if keys.len() < 2 {
                 continue;
             }
+            spans += 1;
             keys.sort_by_key(|key| key.tick);
             let last = keys.len() - 1;
             let span = keys[0].tick + keys[last].tick;
             let mirrored: Vec<i64> = keys.iter().map(|key| span - key.tick).collect();
+            let mut removals = Vec::new();
             for key in &keys {
                 if !mirrored.contains(&key.tick) {
                     removals.push(EditCommand::RemoveParamKeyframe {
@@ -271,6 +309,8 @@ impl AppState {
                     });
                 }
             }
+            let mut writes = Vec::new();
+            let mut same = removals.is_empty();
             for new in 0..=last {
                 let old = last - new;
                 let source = &keys[old];
@@ -288,6 +328,15 @@ impl AppState {
                     backwards(source.easing.in_ease()),
                     source.easing.is_roving(),
                 );
+                let tangents = source.tangents.map(|t| SpatialTangents {
+                    out_t: t.in_t,
+                    in_t: t.out_t,
+                });
+                // With no keyframe removed the mirrored ticks are the stored
+                // ones, so the keyframe written here replaces `keys[new]`.
+                same &= keys[new].value == source.value
+                    && keys[new].easing == easing
+                    && keys[new].tangents == tangents;
                 let tick = model.param_timeline_tick(span - source.tick);
                 writes.push(EditCommand::SetParamKeyframe {
                     clip,
@@ -295,31 +344,54 @@ impl AppState {
                     at: RationalTime::new(tick, rate),
                     value: source.value,
                     easing,
-                    tangents: source.tangents.map(|t| SpatialTangents {
-                        out_t: t.in_t,
-                        in_t: t.out_t,
-                    }),
+                    tangents,
                 });
-                selection.push(SelectedKeyframe { clip, param, tick });
+                plan.selection.push(SelectedKeyframe { clip, param, tick });
+            }
+            if !same {
+                plan.removals.extend(removals);
+                plan.writes.extend(writes);
             }
         }
-        if writes.is_empty() {
-            self.status_message = Some("Select two or more keyframes on one property first".into());
-            return Ok(0);
+        if spans == 0 {
+            return Err(Decline::NoKeyframeSpan);
         }
-        let count = writes.len();
-        self.one_step(|this| {
-            for edit in removals.into_iter().chain(writes) {
-                this.apply_command(Command::Edit(edit))?;
-            }
-            Ok(())
-        })?;
-        self.with_prop_rows_mut(|s| {
-            s.selected_keyframes.clear();
-            s.selected_keyframes.extend(selection);
-        });
-        self.status_message = Some(format!("Time-reversed {count} keyframes"));
-        Ok(count)
+        if plan.writes.is_empty() {
+            return Err(Decline::ReversedSame);
+        }
+        Ok(plan)
+    }
+
+    /// The keyframes Linear rewrites: the ease targets whose stored easing is
+    /// not Linear.
+    pub(crate) fn linear_targets(&self) -> Result<Vec<SelectedKeyframe>, Decline> {
+        let targets = self.ease_target_keyframes();
+        if targets.is_empty() {
+            return Err(Decline::NoKeyframeTarget);
+        }
+        let mut models: BTreeMap<ClipId, Option<(Clip, bool)>> = BTreeMap::new();
+        let rewritten: Vec<SelectedKeyframe> = targets
+            .into_iter()
+            .filter(|target| {
+                let Some((model, audio_lane)) = models
+                    .entry(target.clip)
+                    .or_insert_with(|| self.clip_and_lane_kind(target.clip))
+                else {
+                    return true;
+                };
+                let Some(row) = row_of(model, *audio_lane, target.param) else {
+                    return true;
+                };
+                let local = model.param_tick(target.tick);
+                !stored_keys(model, &row)
+                    .iter()
+                    .any(|key| key.tick == local && key.easing == Easing::Linear)
+            })
+            .collect();
+        if rewritten.is_empty() {
+            return Err(Decline::AlreadyLinear);
+        }
+        Ok(rewritten)
     }
 
     /// Animation > Add Expression: a driver on the selected property row of
@@ -351,7 +423,7 @@ impl AppState {
     pub fn open_keyframe_velocity(&mut self) {
         let targets = self.ease_target_keyframes();
         let Some(first) = targets.first().copied() else {
-            self.status_message = Some("Select a keyframe first".into());
+            self.decline(Decline::NoKeyframeTarget);
             return;
         };
         let rate = self.store.sequence.frame_rate;

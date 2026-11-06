@@ -249,24 +249,44 @@ impl AppState {
     /// and the whole effect chain with its parameters. Timing, media, and audio
     /// levels are not attributes and are left alone.
     ///
-    /// Inert when the selection *is* the clip the copy was taken from.
+    /// Declined by [`Self::attributes_target`].
     pub fn paste_attributes(&mut self) -> Result<(), EngineError> {
+        let target = match self.attributes_target() {
+            Ok(target) => target,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
+        };
         let Some(copied) = &self.clipboard else {
-            self.decline(Decline::NothingCopied);
             return Ok(());
         };
         let copy = copied.clips[0].clip.clone();
-        let Some(target) = self.selected_clip_or_decline() else {
-            return Ok(());
-        };
-        if target == copy.id {
-            return Ok(());
-        }
         self.apply_command(Command::Edit(EditCommand::PasteAttributes {
             copy,
             clip: target,
         }))?;
         self.status_message = Some("Pasted attributes".into());
         Ok(())
+    }
+
+    /// The clip Paste Attributes writes to: the selected clip, unless it is the
+    /// clip the copy came from or already has the copy's transform, filter,
+    /// and effect chain.
+    pub(crate) fn attributes_target(&self) -> Result<aria_models::ClipId, Decline> {
+        let copy = &self.clipboard.as_ref().ok_or(Decline::NothingCopied)?.clips[0].clip;
+        let target = self.selected_clip().ok_or(Decline::NoSelection)?;
+        if target == copy.id {
+            return Err(Decline::CopiedFromHere);
+        }
+        let model = self.selected_model().ok_or(Decline::NoSelection)?;
+        let same = model.transform == copy.transform
+            && model.filter == copy.filter
+            && model.effects == copy.effects;
+        if same {
+            Err(Decline::SameAttributes)
+        } else {
+            Ok(target)
+        }
     }
 }
