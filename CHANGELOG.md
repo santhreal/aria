@@ -1254,6 +1254,9 @@ Notes for the latest release. For previous releases, see the
 - Starting a second job or export on the same clip, asset, or destination path cancels the earlier in-flight run, and cancelling an export before commit removes any partial destination file created during the pass.
 - Closing or replacing a project advances the job registry epoch, cancels in-flight jobs and queued exports from the previous project, and discards late completions before they modify the active project.
 - Quitting the session cancels in-flight jobs and backward decode-pool GOP walks within a bounded shutdown window.
+- Keys pressed while a dialog is open no longer run editor or Home shortcuts behind it; Escape closes a dialog on Home.
+- A text box in a panel takes no typing while a dialog is open, and a Settings or Marker box takes none after its dialog closes.
+- Closing Settings while a shortcut row waits for a key ends the capture, so the next key is no longer taken as that row's chord.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -25,8 +25,16 @@ use aria_settings::{
 };
 use aria_storage::{CacheId, CacheKind};
 use std::path::PathBuf;
+/// Put the Settings dialog up, as it is whenever one of its boxes is typed
+/// into: a settings box takes no keys while its dialog is closed.
+fn settings_up(state: &mut AppState) {
+    if state.dialog != super::DialogKind::Settings {
+        state.open_dialog(super::DialogKind::Settings);
+    }
+}
 /// Type `text` into the focused field.
 fn type_text(state: &mut AppState, text: &str) {
+    settings_up(state);
     for ch in text.chars() {
         state.type_key(ch);
     }
@@ -36,6 +44,7 @@ fn type_text(state: &mut AppState, text: &str) {
 /// Focusing seeds the draft from the saved value, since a focus usually precedes a
 /// correction, so a test that needs a fresh value clears it the way a person would.
 fn retype(state: &mut AppState, field: SettingsField, text: &str) {
+    settings_up(state);
     state.focus_setting(Some(field));
     while !state.setting_draft(field).0.is_empty() {
         state.press_backspace();

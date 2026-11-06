@@ -70,6 +70,7 @@ const TABS: &[(&str, Tab)] = &[
         "aria.field.setting",
         Tab::Walks(Ring {
             focus: |state| {
+                state.open_settings();
                 save_ai_fields(state);
                 state.focus_setting(Some(SettingsField::AiBaseUrl));
             },

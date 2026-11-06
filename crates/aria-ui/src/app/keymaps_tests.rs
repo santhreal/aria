@@ -394,6 +394,7 @@ fn the_save_as_field_saves_a_set_under_the_typed_name() {
     use crate::app::settings_form::SettingsField;
     let a = plain(0);
     let (mut state, dir) = state("keymaps-field");
+    state.open_dialog(DialogKind::Settings);
     press(&mut state, a.id, free_key());
     state.focus_setting(Some(SettingsField::KeymapName));
     for ch in "Edit keys".chars() {
@@ -433,7 +434,13 @@ fn a_key_moved_from_the_keyboard_is_saved_before_the_window_closes(cx: &mut gpui
     let (a, holder) = (plain(0), plain(1));
     let (state, visual) = crate::test_support::drawn_shell(cx, "keymaps-shell-move");
     let data_dir = visual.read(|app| state.read(app).data_dir.clone());
-    visual.update(|_, app| state.update(app, |state, _| state.begin_rebind(a.id)));
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            // A row is armed from the Settings dialog, so it is up meanwhile.
+            state.open_dialog(DialogKind::Settings);
+            state.begin_rebind(a.id);
+        })
+    });
     visual.simulate_keystrokes(holder.chord.key);
     visual.run_until_parked();
     assert_eq!(

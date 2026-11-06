@@ -8,14 +8,16 @@
 //!
 //! The list is precedence order: the first field whose `focused` holds takes
 //! the keystroke, so rename outranking a search box is a position in a table
-//! rather than a guard in every box.
+//! rather than a guard in every box. A field takes keys only while its
+//! [`FieldHost`] is on top: a panel's box sleeps under a dialog, and a dialog's
+//! box sleeps once its dialog closes.
 
 use std::borrow::Cow;
 use std::ops::Range;
 
-use crate::app::AppState;
 use crate::app::line_text::{LineRule, LineText};
 use crate::app::settings_form::SettingsField;
+use crate::app::{AppState, DialogKind};
 
 /// One key-routed text field: what holds its focus, and the things a keystroke
 /// can mean while it does.
@@ -23,6 +25,8 @@ use crate::app::settings_form::SettingsField;
 pub struct TextField {
     pub id: &'static str,
     pub focused: fn(&AppState) -> bool,
+    /// Where the box is drawn, which sets when its focus counts.
+    pub host: FieldHost,
     /// Esc: leave the field. Never commits.
     pub escape: fn(&mut AppState),
     /// Enter.
@@ -41,6 +45,33 @@ pub struct TextField {
     pub tab: Option<fn(&mut AppState, bool) -> bool>,
     /// Where the box's text is held.
     pub store: Store,
+}
+
+/// Where a box is drawn. A dialog holds the keyboard while it is up, so a box
+/// focused in a panel behind it takes nothing, and a box of a dialog that has
+/// closed takes nothing either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldHost {
+    /// A panel of the editor or Home: live while no dialog is up.
+    Panel,
+    /// One dialog: live while that dialog is up.
+    Dialog(DialogKind),
+    /// A value readout: the open dialog's when it writes that dialog's draft,
+    /// a panel's when it writes the project.
+    ValueReadout,
+}
+
+impl FieldHost {
+    /// Whether a box drawn here can hold the keys in `state`.
+    pub fn live(self, state: &AppState) -> bool {
+        match self {
+            Self::Panel => state.dialog == DialogKind::None,
+            Self::Dialog(kind) => state.dialog == kind,
+            Self::ValueReadout => {
+                (state.dialog != DialogKind::None) == state.value_scrubs().entry_drafts()
+            }
+        }
+    }
 }
 
 /// What Enter does in a box.
@@ -214,6 +245,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.rename",
         focused: |state| state.rename.is_some(),
+        host: FieldHost::Panel,
         escape: AppState::cancel_rename,
         submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_rename() {
@@ -231,8 +263,9 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     },
     TextField {
         id: "aria.field.palette",
-        focused: |state| state.dialog == crate::app::DialogKind::Palette,
-        escape: |state| state.open_dialog(crate::app::DialogKind::None),
+        focused: |state| state.dialog == DialogKind::Palette,
+        host: FieldHost::Dialog(DialogKind::Palette),
+        escape: |state| state.open_dialog(DialogKind::None),
         submit: Submit::PaletteCommand,
         step: Some(|state, delta| state.palette_move(delta as isize)),
         tab: None,
@@ -248,6 +281,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.value",
         focused: AppState::value_entry_open,
+        host: FieldHost::ValueReadout,
         escape: AppState::cancel_value_entry,
         submit: Submit::State(|state, cx| {
             // In a dialog, Enter is the dialog's Enter: its primary action
@@ -274,6 +308,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.bin-rename",
         focused: |state| state.bin_rename.is_some(),
+        host: FieldHost::Panel,
         escape: AppState::cancel_bin_rename,
         submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_bin_rename() {
@@ -292,6 +327,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.preset",
         focused: AppState::preset_draft_open,
+        host: FieldHost::Panel,
         escape: AppState::cancel_preset_draft,
         // The save is the rack's gesture, not a call from here: an empty or
         // duplicate name is refused by the same path the button presses.
@@ -315,6 +351,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.driver",
         focused: AppState::driver_draft_open,
+        host: FieldHost::Panel,
         escape: AppState::escape_driver_draft,
         submit: Submit::State(|state, _| {
             if let Err(err) = state.commit_driver_draft() {
@@ -333,6 +370,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.stock-search",
         focused: |state| state.stock_search_focus,
+        host: FieldHost::Panel,
         escape: |state| state.focus_stock_search(false),
         submit: Submit::State(|state, cx| state.run_stock_search(cx)),
         step: None,
@@ -347,6 +385,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.generate-prompt",
         focused: |state| state.generate.focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_generate_prompt(false),
         submit: Submit::State(|state, cx| {
             if let Err(err) = state.submit_generation(cx) {
@@ -365,6 +404,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.caption-language",
         focused: |state| state.captions.language_focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_caption_language(false),
         submit: Submit::State(|state, cx| {
             if let Err(err) = state.transcribe_selected(cx) {
@@ -383,6 +423,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.bin-search",
         focused: |state| state.media_search_focus,
+        host: FieldHost::Panel,
         escape: |state| state.focus_media_search(false),
         // A filter has nothing to submit: the list is already filtered on every
         // keystroke, so Enter just puts the keyboard back on the editor.
@@ -399,6 +440,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.effects-search",
         focused: AppState::effects_search_focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_effects_search(false),
         // The tree is filtered on every keystroke, so Enter returns the
         // keyboard to the editor as the bin search does.
@@ -415,6 +457,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.property-search",
         focused: AppState::property_search_focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_property_search(false),
         // The rows are filtered on every keystroke, so Enter returns the
         // keyboard to the editor as the bin search does.
@@ -431,6 +474,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.marker-edit",
         focused: AppState::marker_edit_focused,
+        host: FieldHost::Dialog(DialogKind::MarkerEdit),
         escape: AppState::escape_marker_edit,
         submit: Submit::State(|state, _| state.apply_marker_edit()),
         step: None,
@@ -445,6 +489,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.setting",
         focused: |state| state.settings_form.focused.is_some(),
+        host: FieldHost::Dialog(DialogKind::Settings),
         escape: AppState::cancel_setting,
         submit: Submit::State(|state, cx| {
             // A named key set is recorded in `ui-settings.json`, which the
@@ -469,6 +514,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.clock",
         focused: AppState::clock_focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_clock(false),
         submit: Submit::State(|state, _| state.commit_clock()),
         step: None,
@@ -483,6 +529,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.ai-prompt",
         focused: |state| state.assistant.focused,
+        host: FieldHost::Panel,
         escape: |state| state.focus_assistant_prompt(false),
         // Enter is Send: a slash command expands here as it does on the button.
         submit: Submit::State(AppState::send_composer_prompt),
@@ -500,6 +547,7 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     TextField {
         id: "aria.field.plugin-panel",
         focused: |state| state.plugin_panels.input.is_some(),
+        host: FieldHost::Panel,
         escape: AppState::cancel_panel_input,
         submit: Submit::State(|state, _| state.submit_panel_input()),
         step: None,
@@ -521,7 +569,8 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     // from it.
     TextField {
         id: "aria.field.title",
-        focused: |state| state.dialog == crate::app::DialogKind::None && state.text_editing(),
+        focused: AppState::text_editing,
+        host: FieldHost::Panel,
         escape: AppState::end_text_edit,
         // A title has more than one line: Enter breaks the line.
         submit: Submit::State(|state, _| {
@@ -534,11 +583,12 @@ pub const SHIPPED_FIELDS: &[TextField] = &[
     },
 ];
 
-/// The field holding focus, or nothing when every box is idle.
+/// The field holding focus, or nothing when every box is idle. A box whose
+/// host is not on top is idle whatever its own focus says.
 pub fn focused(state: &AppState) -> Option<TextField> {
     SHIPPED_FIELDS
         .iter()
-        .find(|field| (field.focused)(state))
+        .find(|field| field.host.live(state) && (field.focused)(state))
         .copied()
 }
 

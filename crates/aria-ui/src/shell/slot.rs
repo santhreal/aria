@@ -262,18 +262,23 @@ impl Shell {
         // A capture in flight outranks every other consumer, text boxes
         // included: while Settings waits for a chord, the next keystroke *is*
         // the chord, and dispatching it would run the very command being
-        // rebound.
+        // rebound. The capture is the Settings dialog's, so it holds only while
+        // that dialog is up; one left armed past it ends here and the key runs
+        // as it would have.
         if self.state.read(cx).rebinding().is_some() {
-            self.state.update(cx, |state, cx| {
-                state.capture_rebind(key, ctrl, mods.shift, mods.alt);
-                // Saved now, not at window close: a key rebound before a crash
-                // is still rebound at the next launch.
-                state.persist_settings_later(cx);
-            });
-            // A captured chord is not text for a box that holds focus.
-            cx.stop_propagation();
-            cx.notify();
-            return;
+            if self.state.read(cx).dialog == DialogKind::Settings {
+                self.state.update(cx, |state, cx| {
+                    state.capture_rebind(key, ctrl, mods.shift, mods.alt);
+                    // Saved now, not at window close: a key rebound before a
+                    // crash is still rebound at the next launch.
+                    state.persist_settings_later(cx);
+                });
+                // A captured chord is not text for a box that holds focus.
+                cx.stop_propagation();
+                cx.notify();
+                return;
+            }
+            self.state.update(cx, |state, _| state.cancel_rebind());
         }
         // Escape ends the gesture in flight before it reaches a menu, a text
         // box, a dialog or the editor: what the press found is put back.
@@ -319,8 +324,7 @@ impl Shell {
         // and not the editor's key. Which action, or why there is none, is the
         // dialog registry's answer: the shell presses whatever the row names, so
         // a new dialog is reachable from the keyboard the moment it declares
-        // one. The key is consumed either way — a dialog holding the keyboard
-        // must not let a chord through to the timeline behind it.
+        // one. Every other key a dialog leaves is dropped below.
         if self.state.read(cx).dialog != DialogKind::None
             && matches!(
                 crate::popover::classify_key(key, mods.platform, ctrl),
@@ -370,6 +374,19 @@ impl Shell {
                     state.clear_selection();
                 }
             });
+            cx.notify();
+            return;
+        }
+
+        // A dialog that is up owns the keyboard: a key its boxes and Enter did
+        // not take is dropped, never sent to a binding behind it. Escape closes
+        // the dialog on Home as it does in the editor.
+        if self.state.read(cx).dialog != DialogKind::None {
+            if key == "escape" && !ctrl {
+                self.state
+                    .update(cx, |state, _| state.open_dialog(DialogKind::None));
+            }
+            cx.stop_propagation();
             cx.notify();
             return;
         }

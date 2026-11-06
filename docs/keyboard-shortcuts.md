@@ -18,9 +18,11 @@ holds focus, and Escape in the editor, which cancels whatever drag is in flight.
 ## Inside a text box
 
 A box takes keys only while it holds focus, so the bare-letter tool shortcuts
-keep working with a search box open. Every one-line box edits the same way: a
-name, a search, a prompt, the timecode, a value typed into a readout, a dialog
-field, a plugin panel's field, and the command palette.
+keep working with a search box open. A box in a panel takes no keys while a
+dialog is open, and a dialog's box takes none once its dialog closes. Every
+one-line box edits the same way: a name, a search, a prompt, the timecode, a
+value typed into a readout, a dialog field, a plugin panel's field, and the
+command palette.
 
 | Shortcut | Action |
 | --- | --- |
@@ -113,7 +115,7 @@ replaced by the finished text rather than appended to it.
 | With palette open | The filter edits as any text box does ([Inside a text box](#inside-a-text-box)), and typing lights the first hit. Up / Down light the next or previous hit and wrap. Enter runs the lit hit. Esc closes. Every command and every menu row is offered by name. An effect is offered as its Effect menu row, after its category (`Blur & Sharpen: Gaussian Blur`), so typing an effect's name and pressing Enter applies it to the selection. A generator is offered by its own name and places a clip at the playhead. |
 | With a menu open | Up / Down light the next or previous row and wrap. Left / Right open the neighboring menu. Home / End light the first or last row. A letter or digit lights the next row starting with it. Enter or Space runs the lit row. Esc closes. The pointer moves the light over a lit menu. |
 | With a rename open | The name opens selected and edits as any text box does, up to 64 characters. Enter applies. Esc cancels. An empty or unchanged name makes no change. |
-| With a dialog open | Enter runs the dialog's primary action: Export queues the export, the unsaved-changes prompt saves and continues. Every other dialog has no primary action and swallows the key. Esc closes. |
+| With a dialog open | Enter runs the dialog's primary action: Export queues the export, the unsaved-changes prompt saves and continues. Every other dialog has no primary action and swallows the key. Esc closes. A focused box in the dialog takes typing. Every other key is dropped: no shortcut of the editor or Home runs behind a dialog. |
 
 ## Tools
 
@@ -306,7 +308,8 @@ under its command's title, and any other binding under its id read as words:
 another binding on the same surface already answers prompts before it moves: the
 row names the holder and offers Move and Keep. Enter moves the chord and leaves
 the holder with no key; Esc leaves the chord with the holder and ends the
-capture. Clear, on the row under the pointer and on the row waiting for a key,
+capture. Closing Settings any other way also ends the capture and leaves the
+row's key unchanged. Clear, on the row under the pointer and on the row waiting for a key,
 leaves a binding with no key at all. Revert, on each row whose key differs from
 the shipped one, restores that row; Reset all restores every row.
 

@@ -238,6 +238,8 @@ fn a_typed_plugin_field_round_trips_through_the_dialog() {
         "a number with no placeholder states its range"
     );
 
+    // A settings box takes typing while the Settings dialog is up.
+    state.open_dialog(crate::app::DialogKind::Settings);
     state.focus_setting(Some(field));
     for ch in "/srv/notes".chars() {
         state.type_key(ch);

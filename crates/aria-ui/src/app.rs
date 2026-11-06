@@ -693,6 +693,9 @@ mod effect_bypass_tests;
 #[path = "app/badge_menu_tests.rs"]
 mod badge_menu_tests;
 #[cfg(test)]
+#[path = "app/dialog_keys_tests.rs"]
+mod dialog_keys_tests;
+#[cfg(test)]
 #[path = "app/effect_header_tests.rs"]
 mod effect_header_tests;
 #[cfg(test)]

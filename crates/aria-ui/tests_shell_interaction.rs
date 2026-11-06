@@ -409,9 +409,17 @@ fn interaction_typed_text_lands_once_and_a_consumed_key_lands_nowhere(
     assert_eq!(query(visual), "Fix ^", "Backspace takes one character");
 
     // A capture in flight takes the keystroke from the box that holds focus.
-    edit(&state, visual, |state| state.begin_rebind("key-mixer"));
+    // The capture is armed from the Settings dialog, so it is up meanwhile.
+    edit(&state, visual, |state| {
+        state.open_dialog(DialogKind::Settings);
+        state.begin_rebind("key-mixer");
+    });
     visual.simulate_keystrokes("shift-#");
-    edit(&state, visual, AppState::cancel_rebind);
+    edit(&state, visual, |state| {
+        state.cancel_rebind();
+        state.open_dialog(DialogKind::None);
+        state.focus_media_search(true);
+    });
     assert_eq!(query(visual), "Fix ^", "a captured chord is not typed");
 
     // The palette types the keystroke's text, not its key name.

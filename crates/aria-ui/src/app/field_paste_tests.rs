@@ -120,6 +120,7 @@ const CASES: &[Case] = &[
     Case {
         id: "aria.field.setting",
         focus: |state| {
+            state.open_settings();
             state.focus_setting(Some(SettingsField::AiBaseUrl));
             clear(state);
         },
@@ -261,6 +262,57 @@ fn every_shipped_field_has_a_paste_case() {
                 .iter()
                 .any(|field| field.id == case.id),
             "{} is not a shipped field",
+            case.id
+        );
+    }
+}
+
+/// A box takes keys only while the surface it is drawn on is on top. A panel's
+/// box under a dialog took the typing meant for the dialog, and a settings box
+/// left focused when Settings closed took the next keys with nothing on screen
+/// to show them. Each box is focused on its own surface, then every other
+/// surface the overlay registry draws is put on top: the box takes no run
+/// there, and holds the keys again once its own surface is back.
+#[test]
+fn a_box_takes_no_keys_while_another_surface_is_on_top() {
+    let ctx = aria_plugin::PluginContext::new();
+    ctx.mount(&crate::plugins::UiPlugin)
+        .expect("the ui plugin needs nothing");
+    let kinds = crate::plugins::overlay_host::host_of(&ctx)
+        .expect("mount registers the overlay host")
+        .dialog_kinds();
+    assert!(kinds.len() >= 6, "the shipped dialogs did not register");
+    for case in CASES {
+        let (mut state, _) = with_clip();
+        (case.focus)(&mut state);
+        let field = fields::focused(&state).unwrap_or_else(|| panic!("{} took no focus", case.id));
+        assert_eq!(field.id, case.id, "{} focused another box", case.id);
+        let own = state.dialog;
+        let text = field.text(&state).into_owned();
+        for kind in kinds.iter().copied().chain([super::DialogKind::None]) {
+            if kind == own {
+                continue;
+            }
+            state.dialog = kind;
+            assert_ne!(
+                fields::focused(&state).map(|focused| focused.id),
+                Some(case.id),
+                "{} holds the keys under {kind:?}",
+                case.id
+            );
+            fields::insert(&mut state, "x");
+            assert_eq!(
+                field.text(&state),
+                text.as_str(),
+                "{} took a run under {kind:?}",
+                case.id
+            );
+        }
+        state.dialog = own;
+        assert_eq!(
+            fields::focused(&state).map(|focused| focused.id),
+            Some(case.id),
+            "{} lost the keys when its surface came back",
             case.id
         );
     }

@@ -176,6 +176,7 @@ impl AppState {
     pub fn enter_editor(&mut self) {
         self.route = UiRoute::Editor;
         self.dialog = DialogKind::None;
+        self.cancel_rebind();
         self.close_popovers();
     }
 
@@ -184,6 +185,7 @@ impl AppState {
             self.toggle_playback();
         }
         self.dialog = DialogKind::None;
+        self.cancel_rebind();
         self.close_popovers();
         self.route = UiRoute::Home;
         // The list and the recovery offer are about files on disk, and anything
@@ -635,6 +637,13 @@ impl AppState {
         // A dialog's open value field goes with the dialog, uncommitted.
         if kind != self.dialog {
             self.drop_draft_entry();
+        }
+        // A key capture is the Settings dialog's: any route off that dialog
+        // ends it, and so does opening Settings over a capture some other
+        // route left armed. Left armed, it would take the next key anywhere as
+        // a chord.
+        if !(self.dialog == DialogKind::Settings && kind == DialogKind::Settings) {
+            self.cancel_rebind();
         }
         self.dialog = kind;
         // The report's counts are walks of the whole project, so they are taken
