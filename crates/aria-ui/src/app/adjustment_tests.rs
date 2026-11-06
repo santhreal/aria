@@ -359,7 +359,7 @@ fn every_placement_verb_that_adds_a_lane_is_one_step_named_after_the_edit() {
         assert_one_step(
             &mut state,
             "drop_media_on_new_lane",
-            "Source edit",
+            "Place media",
             &mut |s| {
                 s.drop_media_on_new_lane(media, true, 0)
                     .expect("drop on new lane");
@@ -369,7 +369,7 @@ fn every_placement_verb_that_adds_a_lane_is_one_step_named_after_the_edit() {
         assert_one_step(
             &mut state,
             "drop_media_on_timeline(no_video_lane)",
-            "Source edit",
+            "Place media",
             &mut |s| {
                 s.drop_media_on_timeline(media, None, 0)
                     .expect("drop on timeline");

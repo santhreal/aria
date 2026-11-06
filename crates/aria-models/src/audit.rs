@@ -150,13 +150,13 @@ const SHIPPED: &[ClipFactSpec] = &[
     ClipFactSpec {
         fact: ClipFact::OwnAudio,
         id: "own_audio",
-        label: "Sounds on its own lane",
+        label: "Sound on its own track",
         test: |walk, lane, clip| walk.audio_links().carries_own_audio(lane, clip),
     },
     ClipFactSpec {
         fact: ClipFact::DetachedAudio,
         id: "detached_audio",
-        label: "Audio separated to a lane",
+        label: "Audio separated to a track",
         test: |walk, _, clip| walk.audio_links().detached(clip),
     },
     ClipFactSpec {

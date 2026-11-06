@@ -109,8 +109,8 @@ impl Gesture {
     /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
-            Self::Body { drag: None, .. } => "a clip dragged along its lane",
-            Self::RippleBody { .. } => "a clip rippled along its lane, closing the hole it left",
+            Self::Body { drag: None, .. } => "a clip dragged along its track",
+            Self::RippleBody { .. } => "a clip rippled along its track, closing the hole it left",
             Self::Body {
                 drag: Some(BodyDrag::Slip),
                 ..
@@ -131,7 +131,7 @@ impl Gesture {
             Self::Edge {
                 drag: Some(EdgeDrag::Ripple),
                 ..
-            } => "an edge rippled, taking the lane with it",
+            } => "an edge rippled, taking the track with it",
             Self::Transition { .. } => "a transition's window dragged by an edge",
             Self::Fade { left: true, .. } => "a fade-in handle dragged on a clip card",
             Self::Fade { left: false, .. } => "a fade-out handle dragged on a clip card",

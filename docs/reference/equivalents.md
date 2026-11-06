@@ -79,7 +79,7 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Clip > Render and Replace... | `none` | Clip > Render and Replace | `seq-bake-clip` | `none` |
 | Premiere Pro | Clip > Restore Unrendered | `none` | Clip > Restore Unrendered | `seq-bake-restore` | `none` |
 | Premiere Pro | Sequence > Apply Video Transition | `Ctrl+D` | Sequence > Apply Default Transitions | `seq-default-transitions` | `Ctrl+T` |
-| Premiere Pro | Sequence > Apply Audio Transition | `Ctrl+Shift+D` | Audio transition | `key-audio-transition` | `Ctrl+Shift+T` |
+| Premiere Pro | Sequence > Apply Audio Transition | `Ctrl+Shift+D` | Apply Audio Transition | `key-audio-transition` | `Ctrl+Shift+T` |
 | Premiere Pro | Sequence > Add Tracks... | `none` | Sequence > Add Tracks > Video Track | `seq-v` | `none` |
 | Premiere Pro | Sequence > Delete Tracks... | `none` | Sequence > Delete Empty Tracks | `seq-delete-tracks` | `none` |
 | Premiere Pro | Clip > Scene Edit Detection... | `none` | Command Palette: Detect Shots | `key-detect-shots` | `Shift+Alt+C` |
@@ -98,12 +98,12 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Slide tool | `U` | Slide tool | `key-tool-slide` | `U` |
 | Premiere Pro | Ripple Trim Previous Edit to Playhead | `Q` | Sequence > Ripple Trim In | `key-trim-in` | `Q` |
 | Premiere Pro | Ripple Trim Next Edit to Playhead | `W` | Sequence > Ripple Trim Out | `key-trim-out` | `W` |
-| After Effects | Trim Layer In Point to Current Time | `Alt+[` | Trim in keep gap | `key-trim-in-keep-gap` | `Alt+[` |
-| After Effects | Trim Layer Out Point to Current Time | `Alt+]` | Trim out keep gap | `key-trim-out-keep-gap` | `Alt+]` |
-| Premiere Pro | Trim Backward | `Ctrl+Left` | Trim back | `key-trim-back` | `Ctrl+Left` |
-| Premiere Pro | Trim Forward | `Ctrl+Right` | Trim forward | `key-trim-forward` | `Ctrl+Right` |
-| Premiere Pro | Trim Backward Many | `Ctrl+Shift+Left` | Trim back fast | `key-trim-back-fast` | `Ctrl+Shift+Left` |
-| Premiere Pro | Trim Forward Many | `Ctrl+Shift+Right` | Trim forward fast | `key-trim-forward-fast` | `Ctrl+Shift+Right` |
+| After Effects | Trim Layer In Point to Current Time | `Alt+[` | Trim In | `key-trim-in-keep-gap` | `Alt+[` |
+| After Effects | Trim Layer Out Point to Current Time | `Alt+]` | Trim Out | `key-trim-out-keep-gap` | `Alt+]` |
+| Premiere Pro | Trim Backward | `Ctrl+Left` | Trim Backward | `key-trim-back` | `Ctrl+Left` |
+| Premiere Pro | Trim Forward | `Ctrl+Right` | Trim Forward | `key-trim-forward` | `Ctrl+Right` |
+| Premiere Pro | Trim Backward Many | `Ctrl+Shift+Left` | Trim Backward Many | `key-trim-back-fast` | `Ctrl+Shift+Left` |
+| Premiere Pro | Trim Forward Many | `Ctrl+Shift+Right` | Trim Forward Many | `key-trim-forward-fast` | `Ctrl+Shift+Right` |
 | Premiere Pro | Sequence > Trim Edit | `Shift+T` | Sequence > Trim Edit | `seq-trim-edit` | `none` |
 | Premiere Pro | Sequence > Extend Selected Edit to Playhead | `E` | Sequence > Extend Edit | `seq-extend-edit` | `none` |
 | Premiere Pro | Clip > Speed/Duration... | `Ctrl+R` | Clip > Speed/Duration… | `clip-speed-duration` | `Ctrl+R` |
@@ -117,23 +117,23 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | App | Command | Shortcut there | Aria | Aria id | Aria shortcut |
 | --- | --- | --- | --- | --- | --- |
 | Premiere Pro | Play-Stop Toggle | `Space` | Command Palette: Play / Pause | `key-play` | `Space` |
-| Premiere Pro | Play In to Out | `Ctrl+Shift+Space` | Play work area | `key-play-work-area` | `Shift+Space` |
-| Premiere Pro | Shuttle Left | `J` | Shuttle back | `key-shuttle-back` | `J` |
-| Premiere Pro | Shuttle Stop | `K` | Shuttle stop | `key-shuttle-stop` | `K` |
-| Premiere Pro | Shuttle Right | `L` | Shuttle forward | `key-shuttle-forward` | `L` |
-| Premiere Pro | Shuttle Slow Left | `Shift+J` | Shuttle slower | `key-shuttle-slower` | `Shift+J` |
-| Premiere Pro | Shuttle Slow Right | `Shift+L` | Shuttle faster | `key-shuttle-faster` | `Shift+L` |
+| Premiere Pro | Play In to Out | `Ctrl+Shift+Space` | Play Work Area | `key-play-work-area` | `Shift+Space` |
+| Premiere Pro | Shuttle Left | `J` | Shuttle Backward | `key-shuttle-back` | `J` |
+| Premiere Pro | Shuttle Stop | `K` | Shuttle Stop | `key-shuttle-stop` | `K` |
+| Premiere Pro | Shuttle Right | `L` | Shuttle Forward | `key-shuttle-forward` | `L` |
+| Premiere Pro | Shuttle Slow Left | `Shift+J` | Shuttle Slower | `key-shuttle-slower` | `Shift+J` |
+| Premiere Pro | Shuttle Slow Right | `Shift+L` | Shuttle Faster | `key-shuttle-faster` | `Shift+L` |
 | Premiere Pro | Loop Playback | `Ctrl+L` | View > Loop Playback | `view-loop` | `Ctrl+Shift+L` |
-| Premiere Pro | Step Back One Frame | `Left` | Step back | `key-step-back` | `Left` |
-| Premiere Pro | Step Forward One Frame | `Right` | Step forward | `key-step-forward` | `Right` |
-| Premiere Pro | Step Back Many Frames | `Shift+Left` | Step back fast | `key-step-back-fast` | `Shift+Left` |
-| Premiere Pro | Step Forward Many Frames | `Shift+Right` | Step forward fast | `key-step-forward-fast` | `Shift+Right` |
-| Premiere Pro | Go to Sequence-Clip Start | `Home` | Start | `key-start` | `Home` |
-| Premiere Pro | Go to Sequence-Clip End | `End` | End | `key-end` | `End` |
-| Premiere Pro | Go to Previous Edit Point | `Up` | Edit prev | `key-edit-prev` | `Up` |
-| Premiere Pro | Go to Next Edit Point | `Down` | Edit next | `key-edit-next` | `Down` |
-| Premiere Pro | Go to Previous Edit Point on Any Track | `Shift+Up` | Edit prev all | `key-edit-prev-all` | `Shift+Up` |
-| Premiere Pro | Go to Next Edit Point on Any Track | `Shift+Down` | Edit next all | `key-edit-next-all` | `Shift+Down` |
+| Premiere Pro | Step Back One Frame | `Left` | Step Back One Frame | `key-step-back` | `Left` |
+| Premiere Pro | Step Forward One Frame | `Right` | Step Forward One Frame | `key-step-forward` | `Right` |
+| Premiere Pro | Step Back Many Frames | `Shift+Left` | Step Back Many Frames | `key-step-back-fast` | `Shift+Left` |
+| Premiere Pro | Step Forward Many Frames | `Shift+Right` | Step Forward Many Frames | `key-step-forward-fast` | `Shift+Right` |
+| Premiere Pro | Go to Sequence-Clip Start | `Home` | Go to Start | `key-start` | `Home` |
+| Premiere Pro | Go to Sequence-Clip End | `End` | Go to End | `key-end` | `End` |
+| Premiere Pro | Go to Previous Edit Point | `Up` | Go to Previous Edit Point | `key-edit-prev` | `Up` |
+| Premiere Pro | Go to Next Edit Point | `Down` | Go to Next Edit Point | `key-edit-next` | `Down` |
+| Premiere Pro | Go to Previous Edit Point on Any Track | `Shift+Up` | Go to Previous Edit Point on Any Track | `key-edit-prev-all` | `Shift+Up` |
+| Premiere Pro | Go to Next Edit Point on Any Track | `Shift+Down` | Go to Next Edit Point on Any Track | `key-edit-next-all` | `Shift+Down` |
 | Premiere Pro | Sequence > Render In to Out | `Enter` | Sequence > Render In to Out | `seq-render-in-to-out` | `Enter` |
 | Premiere Pro | Sequence > Render Selection | `none` | Sequence > Render Selection | `seq-render-selection` | `none` |
 | Premiere Pro | Sequence > Delete Render Files | `none` | Sequence > Delete Render Files | `seq-delete-render-files` | `none` |
@@ -143,8 +143,8 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Zoom to Sequence | `\` | View > Zoom to Sequence | `seq-fit` | `\` |
 | Premiere Pro | Zoom to Frame | `Shift+F` | View > Zoom to Selection | `seq-fit-selection` | `Shift+F` |
 | Premiere Pro | Zoom to Selection | `Shift+Z` | View > Zoom to Selection | `key-fit-selection-z` | `Shift+Z` |
-| Premiere Pro | Increase Video Track Height | `Ctrl+=` | Tracks taller | `key-tracks-taller` | `Ctrl+=` |
-| Premiere Pro | Decrease Video Track Height | `Ctrl+-` | Tracks shorter | `key-tracks-shorter` | `Ctrl+-` |
+| Premiere Pro | Increase Video Track Height | `Ctrl+=` | Increase Track Height | `key-tracks-taller` | `Ctrl+=` |
+| Premiere Pro | Decrease Video Track Height | `Ctrl+-` | Decrease Track Height | `key-tracks-shorter` | `Ctrl+-` |
 | Premiere Pro | Hand tool | `H` | Hand tool | `key-tool-hand` | `H` |
 | Premiere Pro | Zoom tool | `Z` | Zoom tool | `key-tool-zoom` | `Z` |
 | After Effects | Fit in Viewer | `Shift+/` | View > Fit Preview | `key-viewer-fit` | `Shift+/` |
@@ -182,34 +182,34 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 
 | App | Command | Shortcut there | Aria | Aria id | Aria shortcut |
 | --- | --- | --- | --- | --- | --- |
-| After Effects | Reveal Position | `P` | Reveal position | `key-reveal-position` | `Alt+P` |
-| After Effects | Add or Remove Position from Timeline | `Shift+P` | Reveal position add | `key-reveal-position-add` | `Shift+Alt+P` |
-| After Effects | Reveal Scale | `S` | Reveal scale | `key-reveal-scale` | `Alt+S` |
-| After Effects | Add or Remove Scale from Timeline | `Shift+S` | Reveal scale add | `key-reveal-scale-add` | `Shift+Alt+S` |
-| After Effects | Reveal Rotation | `R` | Reveal rotation | `key-reveal-rotation` | `Alt+R` |
-| After Effects | Add or Remove Rotation from Timeline | `Shift+R` | Reveal rotation add | `key-reveal-rotation-add` | `Shift+Alt+R` |
-| After Effects | Reveal Opacity | `T` | Reveal opacity | `key-reveal-opacity` | `Alt+T` |
-| After Effects | Add or Remove Opacity from Timeline | `Shift+T` | Reveal opacity add | `key-reveal-opacity-add` | `Shift+Alt+T` |
-| After Effects | Reveal Anchor Point | `A` | Reveal anchor | `key-reveal-anchor` | `Alt+A` |
-| After Effects | Add or Remove Anchor Point from Timeline | `Shift+A` | Reveal anchor add | `key-reveal-anchor-add` | `Shift+Alt+A` |
-| After Effects | Reveal Effects | `E` | Reveal effects | `key-reveal-effects` | `Alt+E` |
-| After Effects | Add or Remove Effects from Timeline | `Shift+E` | Reveal effects add | `key-reveal-effects-add` | `Shift+Alt+E` |
-| After Effects | Reveal Masks | `M` | Reveal masks | `key-reveal-masks` | `Alt+M` |
-| After Effects | Add or Remove Masks from Timeline | `Shift+M` | Reveal masks add | `key-reveal-masks-add` | `Shift+Alt+M` |
-| After Effects | Reveal Audio Levels | `L` | Reveal audio | `key-reveal-audio` | `Alt+L` |
-| After Effects | Add or Remove Audio Levels from Timeline | `Shift+L` | Reveal audio add | `key-reveal-audio-add` | `Shift+Alt+L` |
+| After Effects | Reveal Position | `P` | Reveal Position | `key-reveal-position` | `Alt+P` |
+| After Effects | Add or Remove Position from Timeline | `Shift+P` | Add or Remove Position from Timeline | `key-reveal-position-add` | `Shift+Alt+P` |
+| After Effects | Reveal Scale | `S` | Reveal Scale | `key-reveal-scale` | `Alt+S` |
+| After Effects | Add or Remove Scale from Timeline | `Shift+S` | Add or Remove Scale from Timeline | `key-reveal-scale-add` | `Shift+Alt+S` |
+| After Effects | Reveal Rotation | `R` | Reveal Rotation | `key-reveal-rotation` | `Alt+R` |
+| After Effects | Add or Remove Rotation from Timeline | `Shift+R` | Add or Remove Rotation from Timeline | `key-reveal-rotation-add` | `Shift+Alt+R` |
+| After Effects | Reveal Opacity | `T` | Reveal Opacity | `key-reveal-opacity` | `Alt+T` |
+| After Effects | Add or Remove Opacity from Timeline | `Shift+T` | Add or Remove Opacity from Timeline | `key-reveal-opacity-add` | `Shift+Alt+T` |
+| After Effects | Reveal Anchor Point | `A` | Reveal Anchor Point | `key-reveal-anchor` | `Alt+A` |
+| After Effects | Add or Remove Anchor Point from Timeline | `Shift+A` | Add or Remove Anchor Point from Timeline | `key-reveal-anchor-add` | `Shift+Alt+A` |
+| After Effects | Reveal Effects | `E` | Reveal Effects | `key-reveal-effects` | `Alt+E` |
+| After Effects | Add or Remove Effects from Timeline | `Shift+E` | Add or Remove Effects from Timeline | `key-reveal-effects-add` | `Shift+Alt+E` |
+| After Effects | Reveal Masks | `M` | Reveal Masks | `key-reveal-masks` | `Alt+M` |
+| After Effects | Add or Remove Masks from Timeline | `Shift+M` | Add or Remove Masks from Timeline | `key-reveal-masks-add` | `Shift+Alt+M` |
+| After Effects | Reveal Audio Levels | `L` | Reveal Audio Levels | `key-reveal-audio` | `Alt+L` |
+| After Effects | Add or Remove Audio Levels from Timeline | `Shift+L` | Add or Remove Audio Levels from Timeline | `key-reveal-audio-add` | `Shift+Alt+L` |
 | After Effects | Reveal Properties with Keyframes | `U` | Animation > Reveal Properties with Keyframes | `anim-reveal-keyed` | `Alt+U` |
-| After Effects | Add or Remove Keyframed Properties from Timeline | `Shift+U` | Reveal animated add | `key-reveal-animated-add` | `Shift+Alt+U` |
+| After Effects | Add or Remove Keyframed Properties from Timeline | `Shift+U` | Add or Remove Keyframed Properties | `key-reveal-animated-add` | `Shift+Alt+U` |
 | After Effects | Reveal Modified Properties | `none` | Animation > Reveal Modified Properties | `anim-reveal-modified` | `none` |
-| After Effects | Hide All Property Rows | `` Ctrl+` `` | Reveal close | `key-reveal-close` | `` Alt+` `` |
-| After Effects | Move Selected Layers Left One Pixel | `Left` | Viewer left | `key-viewer-left` | `Left` |
-| After Effects | Move Selected Layers Right One Pixel | `Right` | Viewer right | `key-viewer-right` | `Right` |
-| After Effects | Move Selected Layers Up One Pixel | `Up` | Viewer up | `key-viewer-up` | `Up` |
-| After Effects | Move Selected Layers Down One Pixel | `Down` | Viewer down | `key-viewer-down` | `Down` |
-| After Effects | Move Selected Layers Left Ten Pixels | `Shift+Left` | Viewer left fast | `key-viewer-left-fast` | `Shift+Left` |
-| After Effects | Move Selected Layers Right Ten Pixels | `Shift+Right` | Viewer right fast | `key-viewer-right-fast` | `Shift+Right` |
-| After Effects | Move Selected Layers Up Ten Pixels | `Shift+Up` | Viewer up fast | `key-viewer-up-fast` | `Shift+Up` |
-| After Effects | Move Selected Layers Down Ten Pixels | `Shift+Down` | Viewer down fast | `key-viewer-down-fast` | `Shift+Down` |
+| After Effects | Hide All Property Rows | `` Ctrl+` `` | Hide All Property Rows | `key-reveal-close` | `` Alt+` `` |
+| After Effects | Move Selected Layers Left One Pixel | `Left` | Nudge Selection Left | `key-viewer-left` | `Left` |
+| After Effects | Move Selected Layers Right One Pixel | `Right` | Nudge Selection Right | `key-viewer-right` | `Right` |
+| After Effects | Move Selected Layers Up One Pixel | `Up` | Nudge Selection Up | `key-viewer-up` | `Up` |
+| After Effects | Move Selected Layers Down One Pixel | `Down` | Nudge Selection Down | `key-viewer-down` | `Down` |
+| After Effects | Move Selected Layers Left Ten Pixels | `Shift+Left` | Nudge Selection Further Left | `key-viewer-left-fast` | `Shift+Left` |
+| After Effects | Move Selected Layers Right Ten Pixels | `Shift+Right` | Nudge Selection Further Right | `key-viewer-right-fast` | `Shift+Right` |
+| After Effects | Move Selected Layers Up Ten Pixels | `Shift+Up` | Nudge Selection Further Up | `key-viewer-up-fast` | `Shift+Up` |
+| After Effects | Move Selected Layers Down Ten Pixels | `Shift+Down` | Nudge Selection Further Down | `key-viewer-down-fast` | `Shift+Down` |
 | After Effects | Layer > New > Adjustment Layer | `Ctrl+Alt+Y` | Sequence > Add Adjustment Layer | `seq-adjustment` | `none` |
 | After Effects | Layer > Transform > Flip Horizontal | `none` | Clip > Transform > Flip Horizontal | `seq-flip-h` | `none` |
 | After Effects | Layer > Transform > Flip Vertical | `none` | Clip > Transform > Flip Vertical | `seq-flip-v` | `none` |
@@ -232,8 +232,8 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | App | Command | Shortcut there | Aria | Aria id | Aria shortcut |
 | --- | --- | --- | --- | --- | --- |
 | After Effects | Animation > Add Keyframe | `Alt+Shift+P` | Animation > Add Keyframe | `anim-add-keyframe` | `none` |
-| After Effects | Go to Previous Visible Keyframe | `J` | Keyframe prev | `key-keyframe-prev` | `Shift+Alt+Left` |
-| After Effects | Go to Next Visible Keyframe | `K` | Keyframe next | `key-keyframe-next` | `Shift+Alt+Right` |
+| After Effects | Go to Previous Visible Keyframe | `J` | Go to Previous Keyframe | `key-keyframe-prev` | `Shift+Alt+Left` |
+| After Effects | Go to Next Visible Keyframe | `K` | Go to Next Keyframe | `key-keyframe-next` | `Shift+Alt+Right` |
 | After Effects | Animation > Toggle Hold Keyframe | `Ctrl+Alt+H` | Animation > Toggle Hold Keyframe | `anim-toggle-hold` | `Ctrl+Alt+H` |
 | After Effects | Animation > Keyframe Interpolation > Linear | `none` | Animation > Keyframe Interpolation > Linear | `anim-interp-linear` | `none` |
 | After Effects | Animation > Keyframe Interpolation > Bezier | `none` | Animation > Keyframe Interpolation > Bezier | `anim-interp-bezier` | `none` |
@@ -299,10 +299,10 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | App | Command | Shortcut there | Aria | Aria id | Aria shortcut |
 | --- | --- | --- | --- | --- | --- |
 | Premiere Pro | Clip > Audio Options > Audio Gain... | `G` | Clip > Audio Gain… | `clip-audio-gain` | `G` |
-| Premiere Pro | Increase Clip Volume | `]` | Gain up | `key-gain-up` | `]` |
-| Premiere Pro | Decrease Clip Volume | `[` | Gain down | `key-gain-down` | `[` |
-| Premiere Pro | Increase Clip Volume Many | `Shift+]` | Gain up fast | `key-gain-up-fast` | `Shift+]` |
-| Premiere Pro | Decrease Clip Volume Many | `Shift+[` | Gain down fast | `key-gain-down-fast` | `Shift+[` |
+| Premiere Pro | Increase Clip Volume | `]` | Increase Clip Volume | `key-gain-up` | `]` |
+| Premiere Pro | Decrease Clip Volume | `[` | Decrease Clip Volume | `key-gain-down` | `[` |
+| Premiere Pro | Increase Clip Volume Many | `Shift+]` | Increase Clip Volume Many | `key-gain-up-fast` | `Shift+]` |
+| Premiere Pro | Decrease Clip Volume Many | `Shift+[` | Decrease Clip Volume Many | `key-gain-down-fast` | `Shift+[` |
 | Premiere Pro | Clip > Audio Options > Breakout to Mono | `none` | Clip > Extract Audio | `seq-extract-audio` | `none` |
 | Premiere Pro | Clip > Modify > Audio Channels... (Stereo) | `none` | Clip > Audio Channels > Stereo | `clip-channels-stereo` | `none` |
 | Premiere Pro | Clip > Modify > Audio Channels... (Mono) | `none` | Clip > Audio Channels > Mono | `clip-channels-mono` | `none` |
@@ -349,20 +349,20 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | After Effects | Window > Character | `Ctrl+6` | Window > Character | `win-panel:aria.panel.character` | `none` |
 | After Effects | Window > Paragraph | `Ctrl+7` | Window > Paragraph | `win-panel:aria.panel.paragraph` | `none` |
 | After Effects | Window > Align | `none` | Window > Align | `win-panel:aria.panel.align` | `none` |
-| Premiere Pro | Maximize or Restore Frame Under Cursor | `` ` `` | Pane maximize | `key-pane-maximize` | `` ` `` |
+| Premiere Pro | Maximize or Restore Frame Under Cursor | `` ` `` | Maximize or Restore Frame | `key-pane-maximize` | `` ` `` |
 | Premiere Pro | Toggle Full Screen | `` Ctrl+` `` | View > Fullscreen Preview | `view-fullscreen` | `none` |
-| Premiere Pro | Select Next Panel | `Ctrl+Shift+.` | Pane next | `key-pane-next` | `Ctrl+Tab` |
-| Premiere Pro | Select Previous Panel | `Ctrl+Shift+,` | Pane prev | `key-pane-prev` | `Ctrl+Shift+Tab` |
-| Premiere Pro | Close Panel | `Ctrl+W` | Pane close | `key-pane-close` | `Ctrl+W` |
+| Premiere Pro | Select Next Panel | `Ctrl+Shift+.` | Next Panel | `key-pane-next` | `Ctrl+Tab` |
+| Premiere Pro | Select Previous Panel | `Ctrl+Shift+,` | Previous Panel | `key-pane-prev` | `Ctrl+Shift+Tab` |
+| Premiere Pro | Close Panel | `Ctrl+W` | Close Panel | `key-pane-close` | `Ctrl+W` |
 | Premiere Pro | Window > Workspaces > Editing | `Alt+Shift+1` | Window > Workspaces > Editing | `key-workspace-1` | `Shift+Alt+1` |
 | After Effects | Window > Workspace > Animation | `none` | Window > Workspaces > Animation | `key-workspace-2` | `Shift+Alt+2` |
 | Premiere Pro | Window > Workspaces > Color | `Alt+Shift+2` | Window > Workspaces > Color | `key-workspace-3` | `Shift+Alt+3` |
 | Premiere Pro | Window > Workspaces > Audio | `Alt+Shift+4` | Window > Workspaces > Audio | `key-workspace-4` | `Shift+Alt+4` |
 | Premiere Pro | Window > Workspaces > Effects | `Alt+Shift+3` | Window > Workspaces > Effects | `key-workspace-5` | `Shift+Alt+5` |
-| Premiere Pro | Activate Workspace Slot Six | `Alt+Shift+6` | Workspace 6 | `key-workspace-6` | `Shift+Alt+6` |
-| Premiere Pro | Activate Workspace Slot Seven | `Alt+Shift+7` | Workspace 7 | `key-workspace-7` | `Shift+Alt+7` |
-| Premiere Pro | Activate Workspace Slot Eight | `Alt+Shift+8` | Workspace 8 | `key-workspace-8` | `Shift+Alt+8` |
-| Premiere Pro | Activate Workspace Slot Nine | `Alt+Shift+9` | Workspace 9 | `key-workspace-9` | `Shift+Alt+9` |
+| Premiere Pro | Activate Workspace Slot Six | `Alt+Shift+6` | Workspace Slot 6 | `key-workspace-6` | `Shift+Alt+6` |
+| Premiere Pro | Activate Workspace Slot Seven | `Alt+Shift+7` | Workspace Slot 7 | `key-workspace-7` | `Shift+Alt+7` |
+| Premiere Pro | Activate Workspace Slot Eight | `Alt+Shift+8` | Workspace Slot 8 | `key-workspace-8` | `Shift+Alt+8` |
+| Premiere Pro | Activate Workspace Slot Nine | `Alt+Shift+9` | Workspace Slot 9 | `key-workspace-9` | `Shift+Alt+9` |
 | Premiere Pro | Window > Workspaces > Save as New Workspace... | `none` | Window > Workspaces > Save Workspace | `win-workspace-save` | `none` |
 | Premiere Pro | Window > Workspaces > Reset to Saved Layout | `Alt+Shift+0` | Window > Workspaces > Reset to Saved Layout | `win-workspace-reset` | `none` |
 | Premiere Pro | Edit > Keyboard Shortcuts... | `Ctrl+Alt+K` | Edit > Keyboard Shortcuts… | `edit-keyboard-shortcuts` | `Ctrl+Alt+K` |

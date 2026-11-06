@@ -25,39 +25,48 @@ use crate::commands::reach;
 pub(super) const REACH_ROWS: &[Binding] = &[
     bind!(
         "key-ripple-insert",
+        "Insert Pool Selection",
         Chord::shift(","),
         Editor,
         reach::ripple_insert
     ),
     bind!(
         "key-lane-shift-later",
+        "Shift Track One Second Later",
         Chord::alt("right"),
         Editor,
         |state| reach::shift_lane(state, true)
     ),
     bind!(
         "key-lane-shift-earlier",
+        "Shift Track One Second Earlier",
         Chord::alt("left"),
         Editor,
         |state| reach::shift_lane(state, false)
     ),
-    bind!("key-duck-amount", Chord::alt("d"), Editor, |state| state
-        .cycle_duck_amount()),
+    bind!(
+        "key-duck-amount",
+        "Cycle Duck Amount",
+        Chord::alt("d"),
+        Editor,
+        |state| state.cycle_duck_amount()
+    ),
     // Shift+Alt is where work lives: every chord that queues a job is on it, so
     // a key that starts something is never one modifier away from a key that
     // edits. Ducking sits beside `key-duck-amount` — Alt+D until the number is
     // right, Shift+Alt+D to apply it — and the detectors follow their own
     // initials. `every_detector_has_a_chord` is red until a new one is here.
-    bind!("key-duck-apply", Chord::shift_alt("d"), Editor, windowed: |state, cx| {
+    bind!("key-duck-apply", "Duck Under Voice", Chord::shift_alt("d"), Editor, windowed: |state, cx| {
         if let Err(err) = state.duck_selected(cx) {
             state.status_message = Some(err);
         }
     }),
-    bind!("key-detect-shots", Chord::shift_alt("c"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Shots, cx)),
-    bind!("key-detect-silence", Chord::shift_alt("q"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Silence, cx)),
-    bind!("key-detect-beats", Chord::shift_alt("b"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Beats, cx)),
+    bind!("key-detect-shots", "Detect Shots", Chord::shift_alt("c"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Shots, cx)),
+    bind!("key-detect-silence", "Detect Silence", Chord::shift_alt("q"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Silence, cx)),
+    bind!("key-detect-beats", "Detect Beats", Chord::shift_alt("b"), Editor, windowed: |state, cx| state.run_detector(AnalysisKind::Beats, cx)),
     bind!(
         "key-effect-reset",
+        "Reset Effect Parameters",
         Chord::ctrl_alt("r"),
         Editor,
         reach::reset_effects

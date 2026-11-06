@@ -51,6 +51,7 @@ impl KeyHost {
             }
             let binding = Binding {
                 id,
+                name: title,
                 chord: key.chord,
                 route: key.route,
                 run: KeyBody::Command(title),

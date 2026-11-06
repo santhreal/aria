@@ -855,6 +855,9 @@ Notes for the latest release. For previous releases, see the
 - The Info panel draws its Errors section only while a driver, plugin or mount fault is held, as it draws Drag and Playback.
 - The Project Report reads a clip question nothing answers as a dim 0, as it reads a project count at zero, instead of None.
 - The Assistant panel draws each skill as its name, its description and a switch, instead of a check or circle glyph before the name.
+- Keyboard Shortcuts lists every shipped binding by its full Title Case command name instead of a truncated key-id stem.
+- History entries for track display, fader, pan, automation, output, and source placement use track terminology and "Place media", and generator specs define per-kind "Add <kind>" history labels.
+- Project Report rows, command palette labels, tooltips, and status readouts use "track" instead of "lane" and "Viewer" instead of "preview".
 
 ### Fixed
 

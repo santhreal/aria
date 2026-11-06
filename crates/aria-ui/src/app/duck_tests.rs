@@ -158,7 +158,7 @@ fn a_duck_refuses_before_it_costs_a_decode() {
     // The fixture clip is on a video lane, and no lane is the duck source yet.
     assert_eq!(
         state.duck_precheck().unwrap_err(),
-        "Flag the voice lane as the duck source first"
+        "Flag the voice track as the duck source first"
     );
 
     state.add_track(TrackKind::Audio, "Voice").expect("lane");

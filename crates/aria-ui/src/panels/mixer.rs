@@ -89,7 +89,7 @@ pub(crate) fn render(
         Ok(strips) if strips.iter().all(|strip| soundless.contains(&strip.track)) => {
             crate::components::empty_state(
                 "mixer",
-                "No audio lanes yet. Add one, or add a submix bus, to mix.",
+                "No audio tracks yet. Add one, or add a submix bus, to mix.",
                 &theme,
             )
             .into_any_element()

@@ -311,8 +311,11 @@ mod tests {
     #[test]
     fn a_binding_reads_as_a_name_and_not_as_an_id() {
         assert_eq!(binding_label("key-play"), "Play");
-        assert_eq!(binding_label("key-shuttle-back"), "Shuttle back");
-        assert_eq!(binding_label("key-lane-shift-later"), "Lane shift later");
+        assert_eq!(binding_label("key-shuttle-back"), "Shuttle Backward");
+        assert_eq!(
+            binding_label("key-lane-shift-later"),
+            "Shift Track One Second Later"
+        );
         // No prefix and no hyphen: a plugin that names its binding anything at
         // all still gets a readable row.
         assert_eq!(binding_label("plugin"), "Plugin");

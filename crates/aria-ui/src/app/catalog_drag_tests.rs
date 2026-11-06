@@ -484,7 +484,7 @@ fn every_payload_dropped_on_effect_controls_lands_on_the_selection_or_is_refused
             CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {
                 let err = result.expect_err("a payload that places a clip is refused");
                 assert!(
-                    err.to_string().contains("drop it on a lane"),
+                    err.to_string().contains("drop it on a track"),
                     "{:?}: {err}",
                     drag.kind
                 );

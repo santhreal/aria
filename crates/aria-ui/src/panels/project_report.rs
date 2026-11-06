@@ -3,7 +3,7 @@
 //! Two tables the model already answered and nothing drew:
 //!
 //! * the pool and sequence counts (`media_count`, `bin_count`, `marker_count`,
-//!   `clip_count`, transitions, soloed lane kinds),
+//!   `clip_count`, transitions, soloed track kinds),
 //! * one row per per-clip question, with how many clips answer it: a speed
 //!   ramp put on one clip three hundred clips ago was findable only by
 //!   scrubbing.

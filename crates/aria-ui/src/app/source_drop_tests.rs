@@ -138,7 +138,7 @@ fn every_placement_adds_the_sound_lane_in_its_own_undo_step() {
                 .history_entries()
                 .last()
                 .map(|step| step.label.clone()),
-            Some("Source edit".to_string()),
+            Some("Place media".to_string()),
             "{what}: the undo step is named for the edit"
         );
 
@@ -197,7 +197,7 @@ fn an_edge_drop_and_the_lanes_it_adds_are_one_undo_step() {
             assert_eq!(history.len(), steps + 1, "{case}: one undo step");
             assert_eq!(
                 history.last().map(|step| step.label.as_str()),
-                Some("Source edit"),
+                Some("Place media"),
                 "{case}: the undo step is named for the edit"
             );
             assert!(state.undo(), "{case}: Undo");

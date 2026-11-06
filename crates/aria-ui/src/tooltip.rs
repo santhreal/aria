@@ -115,8 +115,8 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("program-mark-in", "Mark the sequence in point").key("key-mark-in"),
     ControlTip::named("program-mark-out", "Mark the sequence out point").key("key-mark-out"),
     // Preview view.
-    ControlTip::named("preview-zoom-out", "Zoom the preview out"),
-    ControlTip::named("preview-zoom-in", "Zoom the preview in"),
+    ControlTip::named("preview-zoom-out", "Zoom the Viewer out"),
+    ControlTip::named("preview-zoom-in", "Zoom the Viewer in"),
     ControlTip::named("preview-zoom", "Zoom level"),
     ControlTip::named("preview-handles-transform", "Transform handles"),
     ControlTip::named("preview-handles-crop", "Crop handles"),
@@ -135,7 +135,7 @@ pub const CONTROL_TIPS: &[ControlTip] = &[
     ControlTip::named("source-mark-out", "Mark the source out point").key("key-mark-out"),
     ControlTip::named("source-mark-clear", "Clear both source marks"),
     ControlTip::named("source-subclip", "Make a subclip of the marked range"),
-    ControlTip::named("source-insert", "Insert the marked range, rippling the lane").key("key-source-insert"),
+    ControlTip::named("source-insert", "Insert the marked range, rippling the track").key("key-source-insert"),
     ControlTip::named("source-overwrite", "Overwrite with the marked range").key("key-source-overwrite"),
     // Timeline. The header repeats the tool bar's toggles beside the
     // timecode, each under its own id so the two light on their own.

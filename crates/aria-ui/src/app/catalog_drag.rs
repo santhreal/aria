@@ -119,7 +119,7 @@ impl AppState {
             },
             CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {
                 Err(EngineError::Refused(format!(
-                    "{} places a clip of its own: drop it on a lane.",
+                    "{} places a clip of its own: drop it on a track.",
                     drag.label
                 )))
             }

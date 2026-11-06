@@ -73,7 +73,7 @@ impl Gesture {
             Self::Bypass { .. } => "an audio effect bypassed or brought back",
             Self::Open { .. } => "an audio effect's parameters shown or hidden",
             Self::Nudge { .. } => "an audio effect's parameter stepped",
-            Self::Key { .. } => "an audio effect's key lane picked",
+            Self::Key { .. } => "an audio effect's key track picked",
         }
     }
 

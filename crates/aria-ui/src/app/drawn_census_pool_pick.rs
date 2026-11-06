@@ -312,7 +312,7 @@ fn insert_and_overwrite_place_the_pool_selection_with_no_source_tab() {
     // Each item is one Source edit through the patching, as a drop is. The
     // sequence has no audio lane, so the item with sound adds A1 first, inside
     // the same step.
-    let label = "Source edit";
+    let label = "Place media";
     for mode in [EditMode::Ripple, EditMode::Overwrite] {
         let mut pool = stocked();
         pool.state.edit_mode = EditMode::Overwrite;

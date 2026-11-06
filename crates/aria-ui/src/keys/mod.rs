@@ -102,6 +102,7 @@ pub enum KeyBody {
 #[derive(Debug, Clone, Copy)]
 pub struct Binding {
     pub id: &'static str,
+    pub name: &'static str,
     pub chord: Chord,
     pub route: KeyRoute,
     pub run: KeyBody,
@@ -116,6 +117,7 @@ impl Binding {
         fn noop(_: &mut AppState) {}
         Self {
             id,
+            name: id,
             chord,
             route,
             run: KeyBody::Plain(noop),
@@ -125,36 +127,40 @@ impl Binding {
 }
 
 macro_rules! bind {
-    ($id:literal, $chord:expr, $route:ident, $run:expr) => {
+    ($id:literal, $name:literal, $chord:expr, $route:ident, $run:expr) => {
         $crate::keys::Binding {
             id: $id,
+            name: $name,
             chord: $chord,
             route: $crate::keys::KeyRoute::$route,
             run: $crate::keys::KeyBody::Plain($run),
             after: $crate::keys::After::Nothing,
         }
     };
-    ($id:literal, $chord:expr, $route:ident, $run:expr, after: $after:ident) => {
+    ($id:literal, $name:literal, $chord:expr, $route:ident, $run:expr, after: $after:ident) => {
         $crate::keys::Binding {
             id: $id,
+            name: $name,
             chord: $chord,
             route: $crate::keys::KeyRoute::$route,
             run: $crate::keys::KeyBody::Plain($run),
             after: $crate::keys::After::$after,
         }
     };
-    ($id:literal, $chord:expr, $route:ident, windowed: $run:expr) => {
+    ($id:literal, $name:literal, $chord:expr, $route:ident, windowed: $run:expr) => {
         $crate::keys::Binding {
             id: $id,
+            name: $name,
             chord: $chord,
             route: $crate::keys::KeyRoute::$route,
             run: $crate::keys::KeyBody::Windowed($run),
             after: $crate::keys::After::Nothing,
         }
     };
-    ($id:literal, $chord:expr, $route:ident, windowed: $run:expr, after: $after:ident) => {
+    ($id:literal, $name:literal, $chord:expr, $route:ident, windowed: $run:expr, after: $after:ident) => {
         $crate::keys::Binding {
             id: $id,
+            name: $name,
             chord: $chord,
             route: $crate::keys::KeyRoute::$route,
             run: $crate::keys::KeyBody::Windowed($run),
@@ -194,13 +200,13 @@ pub enum KeyOverrideError {
     Taken(KeyConflict),
 }
 
-/// A shipped id read as words: `key-shuttle-back` becomes "Shuttle back".
-///
-/// Derived rather than a fifth column on [`Binding`]: the id is the only name
-/// the registry holds, and a label table would be a second list to keep in step.
-/// A binding a menu row draws reads as that row, and a plugin's binding as its
-/// command's title, through [`crate::app::AppState::binding_name`].
+/// The human name of `id`: the shipped binding's `name` when `id` is in
+/// [`bindings::SHIPPED_BINDINGS`], or the `key-` stem formatted as words for a
+/// dynamically registered id.
 pub fn binding_label(id: &str) -> String {
+    if let Some(binding) = bindings::SHIPPED_BINDINGS.iter().find(|b| b.id == id) {
+        return binding.name.to_string();
+    }
     let stem = id.strip_prefix("key-").unwrap_or(id);
     let mut out = String::with_capacity(stem.len());
     for word in stem.split('-').filter(|word| !word.is_empty()) {

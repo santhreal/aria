@@ -202,7 +202,7 @@ impl Inert {
     fn message(&self) -> &'static str {
         match self {
             Self::NoneDrawing => {
-                "No selected clip draws at the playhead on an unlocked lane with an undriven Position"
+                "No selected clip draws at the playhead on an unlocked track with an undriven Position"
             }
             Self::TooFewToDistribute => {
                 "Distribute needs three selected clips drawing at the playhead"

@@ -38,6 +38,8 @@ pub struct GeneratorSpec {
     /// Fallback operator-facing label for a clip that carries no better name of
     /// its own (a sticker's catalog label, a Lottie's file stem).
     pub label: &'static str,
+    /// History label recorded when this generator is placed on a track.
+    pub add_label: &'static str,
     /// The one lane kind that accepts this generator.
     pub lane: TrackKind,
     /// The layer topology ids this generator can resolve to. More than one when
@@ -84,6 +86,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "text",
         label: "Text",
+        add_label: "Add title",
         lane: TrackKind::Text,
         renders_with: &["text"],
         has_text: true,
@@ -98,6 +101,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "solid",
         label: "Color",
+        add_label: "Add color matte",
         lane: TrackKind::Sticker,
         renders_with: &["solid"],
         has_text: false,
@@ -112,6 +116,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "shape",
         label: "Shape",
+        add_label: "Add shape",
         lane: TrackKind::Sticker,
         renders_with: &["shape", "path-shape"],
         has_text: false,
@@ -126,6 +131,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "sticker",
         label: "Sticker",
+        add_label: "Add sticker",
         lane: TrackKind::Sticker,
         renders_with: &["sticker"],
         has_text: false,
@@ -140,6 +146,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "lottie",
         label: "Animation",
+        add_label: "Add animation",
         lane: TrackKind::Sticker,
         renders_with: &["lottie"],
         has_text: false,
@@ -154,6 +161,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "effect",
         label: "Effect",
+        add_label: "Add effect",
         lane: TrackKind::Effect,
         renders_with: &["canvas-pass"],
         has_text: false,
@@ -168,6 +176,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "filter",
         label: "Filter",
+        add_label: "Add filter",
         lane: TrackKind::Filter,
         renders_with: &["canvas-pass"],
         has_text: false,
@@ -182,6 +191,7 @@ pub(crate) const SHIPPED: &[GeneratorSpec] = &[
     GeneratorSpec {
         id: "adjustment",
         label: "Adjustment",
+        add_label: "Add adjustment layer",
         lane: TrackKind::Adjustment,
         renders_with: &["canvas-pass"],
         has_text: false,

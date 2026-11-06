@@ -41,15 +41,15 @@ macro_rules! track_rows {
                     undo: restores("the lane's previous flags"), },
                 SetTrackSyncLock { label: "Sync lock", reach: operator("the lane header's sync-lock button"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous flags"), },
-                SetTrackDisplay { label: "Lane display", reach: operator("the lane context menu's height, waveform, filmstrip and collapse items"), junctions: keeps, lock: ignored,
+                SetTrackDisplay { label: "Track display", reach: operator("the lane context menu's height, waveform, filmstrip and collapse items"), junctions: keeps, lock: ignored,
                     undo: restores("the lane's previous view options"), },
-                SetTrackGain { label: "Lane fader", reach: operator("the mixer's fader, on release"), junctions: keeps, lock: guarded,
+                SetTrackGain { label: "Track fader", reach: operator("the mixer's fader, on release"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
-                SetTrackPan { label: "Lane pan", reach: operator("the mixer's pan control, on release"), junctions: keeps, lock: guarded,
+                SetTrackPan { label: "Track pan", reach: operator("the mixer's pan control, on release"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
-                SetTrackAutomation { label: "Lane automation", reach: operator("the mixer's automation mode picker, and fader or pan automation recording during playback"), junctions: keeps, lock: guarded,
+                SetTrackAutomation { label: "Track automation", reach: operator("the mixer's automation mode picker, and fader or pan automation recording during playback"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous automation mode and volume and pan envelopes"), },
-                SetTrackOutput { label: "Lane output", reach: operator("the mixer's output picker on each strip"), junctions: keeps, lock: guarded,
+                SetTrackOutput { label: "Track output", reach: operator("the mixer's output picker on each strip"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
                 AddSend { label: "Add send", reach: operator("the mixer's send button on each strip"), junctions: keeps, lock: guarded,
                     undo: restores("the lane's previous routing"), },
@@ -69,7 +69,7 @@ macro_rules! track_rows {
                     undo: restores("the lane by removing the placed nested sequence clip"), },
             }
             addresses patched_lanes {
-                SourceEdit { label: "Source edit", reach: operator("a media drop onto a lane, the source monitor's insert and overwrite buttons and their chords with or without a range marked on the sequence, and the same chords with Program focused for the selected pool items"), junctions: ripples, lock: guarded,
+                SourceEdit { label: "Place media", reach: operator("a media drop onto a lane, the source monitor's insert and overwrite buttons and their chords with or without a range marked on the sequence, and the same chords with Program focused for the selected pool items"), junctions: ripples, lock: guarded,
                     undo: restores("both lanes by removing the placed clips and undoing the span they opened or covered"), },
             }
         }

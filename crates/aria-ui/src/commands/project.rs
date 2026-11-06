@@ -30,7 +30,7 @@ pub(crate) const PROJECT_ROWS: &[CommandEntry] = &[
     },
     CommandEntry {
         id: "pal-project-duplicate-to-lane",
-        label: "Duplicate Clip onto Another Lane",
+        label: "Duplicate Clip onto Another Track",
         run: |state| {
             if let Err(err) = state.duplicate_selection_to_next_lane() {
                 state.report_error(&err);

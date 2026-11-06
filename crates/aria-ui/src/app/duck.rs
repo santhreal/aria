@@ -186,7 +186,7 @@ impl AppState {
             }
         }
         let Some(lane) = self.duck_source_name() else {
-            return Err("Flag the voice lane as the duck source first".into());
+            return Err("Flag the voice track as the duck source first".into());
         };
         if voice.is_empty() {
             return Err(format!("{lane} has no audio to measure"));
@@ -264,7 +264,7 @@ impl AppState {
         let release = ticks_for_seconds(form.release_seconds, rate);
         let spans = self.voice_timeline_spans(voice);
         if spans.is_empty() {
-            self.status_message = Some("No voice found on the duck source lane".into());
+            self.status_message = Some("No voice found on the duck source track".into());
             return;
         }
 

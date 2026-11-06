@@ -51,8 +51,17 @@ fn every_clip_question_is_offered_as_a_row() {
     let offered: Vec<&str> = state.clip_fact_rows().iter().map(|row| row.id).collect();
     let declared: Vec<&str> = clip_facts().iter().map(|spec| spec.id).collect();
     assert_eq!(offered, declared);
+    let offered_labels: Vec<&str> = state.clip_fact_rows().iter().map(|row| row.label).collect();
+    let declared_labels: Vec<&str> = clip_facts().iter().map(|spec| spec.label).collect();
+    assert_eq!(offered_labels, declared_labels);
     for row in state.clip_fact_rows().iter() {
         assert!(!row.label.is_empty(), "'{}' has no label", row.id);
+        assert!(
+            !row.label.to_ascii_lowercase().contains("lane"),
+            "'{}' label {:?} uses 'lane' instead of 'track'",
+            row.id,
+            row.label
+        );
     }
 }
 
@@ -63,8 +72,21 @@ fn every_project_number_is_offered_with_a_value() {
     let offered: Vec<&str> = state.project_fact_rows().iter().map(|row| row.id).collect();
     let declared: Vec<&str> = project_facts().iter().map(|spec| spec.id).collect();
     assert_eq!(offered, declared);
+    let offered_labels: Vec<&str> = state
+        .project_fact_rows()
+        .iter()
+        .map(|row| row.label)
+        .collect();
+    let declared_labels: Vec<&str> = project_facts().iter().map(|spec| spec.label).collect();
+    assert_eq!(offered_labels, declared_labels);
     for row in state.project_fact_rows().iter() {
         assert!(!row.value.trim().is_empty(), "'{}' reads nothing", row.id);
+        assert!(
+            !row.label.to_ascii_lowercase().contains("lane"),
+            "'{}' label {:?} uses 'lane' instead of 'track'",
+            row.id,
+            row.label
+        );
     }
 }
 
@@ -305,7 +327,7 @@ fn duplicating_onto_another_lane_records_one_step() {
     assert_eq!(history_len(&bare), before);
     assert_eq!(
         bare.status_message.as_deref(),
-        Some("No other lane accepts this clip")
+        Some("No other track accepts this clip")
     );
 }
 

@@ -69,6 +69,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
     if let Some(host) = host_of(ctx) {
         host.add(Binding {
             id: "example-notes-open",
+            name: "Open Jobs",
             chord: Chord::ctrl_shift("n"),
             route: KeyRoute::Editor,
             run: KeyBody::Plain(|state| state.open_dialog(DialogKind::Jobs)),
@@ -85,7 +86,7 @@ fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
 | `KeyDefault` | `command`, `chord`, `route` |
 | `After` | `Nothing`, `Play`, `Preview` |
 | `KeyBody` | `Plain`, `Windowed`, `Command` |
-| `Binding` | `id`, `chord`, `route`, `run`, `after` |
+| `Binding` | `id`, `name`, `chord`, `route`, `run`, `after` |
 | `KeyConflict` | `held_by`, `refused`, `chord` |
 | `BindingRow` | `binding`, `chord`, `overridden` |
 | `KeyOverrideError` | `Unknown`, `Taken` |

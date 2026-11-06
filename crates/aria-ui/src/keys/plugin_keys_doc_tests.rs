@@ -83,6 +83,7 @@ fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
     // Exhaustive destructuring of Binding, KeyConflict, BindingRow and match on KeyBody / KeyOverrideError.
     let sample_binding = super::Binding {
         id: "sample",
+        name: "Sample",
         chord: super::Chord::plain("a"),
         route: super::KeyRoute::Editor,
         run: super::KeyBody::Command("sample"),
@@ -90,6 +91,7 @@ fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
     };
     let super::Binding {
         id: _,
+        name: _,
         chord: _,
         route: _,
         run,
@@ -135,6 +137,7 @@ fn plugin_keys_and_basics_docs_match_ui_registries_bidirectionally() {
         type_members.get("Binding").expect("Binding row"),
         &vec![
             "id".to_string(),
+            "name".to_string(),
             "chord".to_string(),
             "route".to_string(),
             "run".to_string(),

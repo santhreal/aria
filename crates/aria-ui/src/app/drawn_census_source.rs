@@ -238,7 +238,7 @@ fn an_edit_row_sends_the_edit_the_table_names() {
                 state.history_depth(),
                 history.last().map(|step| step.label.as_str())
             ),
-            (steps + 1, Some("Source edit")),
+            (steps + 1, Some("Place media")),
             "{what} is one undo step named for the edit"
         );
     }
@@ -442,7 +442,7 @@ fn a_pool_row_makes_a_pool_item_of_the_marked_range() {
 #[test]
 fn the_census_reaches_every_command_these_controls_claim() {
     let sent = dispatched();
-    for label in ["Source edit", "Create subclip"] {
+    for label in ["Place media", "Create subclip"] {
         assert!(
             sent.contains(label),
             "the monitor census pressed every control the bar draws and none of \

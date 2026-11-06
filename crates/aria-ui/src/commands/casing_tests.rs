@@ -276,3 +276,83 @@ fn title_case_validator_rejects_sentence_case_and_capitalized_minor_words() {
     assert!(check_title_case("Place Nest At Playhead").is_err());
     assert!(check_title_case("Open One-second Gap at Playhead").is_err());
 }
+
+/// Closes the class where a shipped keyboard binding in `default_bindings()` or
+/// `Settings > Keyboard Shortcuts` (`AppState::binding_name`) displays a
+/// sentence-case `key-` stem fallback (`"Edit prev"`, `"Shuttle back"`,
+/// `"Play work area"`) or drifts from the menu row or tool spec that runs the
+/// same command.
+/// Does not catch semantic mismatch on a binding that has no menu row or tool
+/// spec.
+#[test]
+fn shipped_bindings_obey_title_case_and_match_menu_rows() {
+    let ctx = aria_plugin::PluginContext::new();
+    ctx.mount(&crate::plugins::UiPlugin)
+        .expect("mount ui plugin");
+    let mut state =
+        AppState::new(ctx, crate::scratch_pool::scratch("binding-name-casing")).expect("state");
+    state.enter_editor();
+
+    let tools: std::collections::BTreeMap<&str, &str> = tool_specs()
+        .iter()
+        .map(|spec| (spec.id, spec.label))
+        .collect();
+    let mut menu_keys: std::collections::BTreeMap<&str, String> = std::collections::BTreeMap::new();
+    for menu in AppMenu::ALL {
+        for item in state.menu_rows(menu).iter() {
+            if let Some(key_id) = item.key {
+                menu_keys.insert(key_id, item.label.trim_end_matches('…').to_string());
+            }
+        }
+    }
+
+    let bindings = crate::keys::bindings::SHIPPED_BINDINGS;
+    assert!(!bindings.is_empty(), "SHIPPED_BINDINGS must not be empty");
+    let mut violations = Vec::new();
+    for binding in bindings {
+        if binding.name == binding.id {
+            violations.push(format!("{}: binding.name is raw id", binding.id));
+        }
+        if let Err(err) = check_title_case(binding.name) {
+            violations.push(format!(
+                "{} (binding.name `{}`): {err}",
+                binding.id, binding.name
+            ));
+        }
+        let fallback = crate::keys::binding_label(binding.id);
+        if let Err(err) = check_title_case(&fallback) {
+            violations.push(format!(
+                "{} (binding_label `{fallback}`): {err}",
+                binding.id
+            ));
+        }
+        let shown = state.binding_name(binding.id);
+        if let Err(err) = check_title_case(&shown) {
+            violations.push(format!("{} (binding_name `{shown}`): {err}", binding.id));
+        }
+        if let Some(menu_label) = menu_keys.get(binding.id) {
+            if binding.name != menu_label {
+                violations.push(format!(
+                    "{}: binding.name `{}` != menu row label `{menu_label}`",
+                    binding.id, binding.name
+                ));
+            }
+        }
+        if let Some(suffix) = binding.id.strip_prefix("key-tool-") {
+            let tool_id = format!("tool-{suffix}");
+            if let Some(&tool_label) = tools.get(tool_id.as_str()) {
+                if binding.name != tool_label {
+                    violations.push(format!(
+                        "{}: binding.name `{}` != tool label `{tool_label}`",
+                        binding.id, binding.name
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "shipped binding names violating Title Case or menu/tool parity:\n{}",
+        violations.join("\n")
+    );
+}

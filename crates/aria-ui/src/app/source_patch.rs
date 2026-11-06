@@ -97,7 +97,7 @@ impl AppState {
         };
         if picture.is_none() && sound.lane().is_none() {
             self.status_message =
-                Some("Both source channels are patched off; patch one in a lane header".into());
+                Some("Both source channels are patched off; patch one in a track header".into());
             return Ok(None);
         }
         Ok(Some(SourceLanes { picture, sound }))

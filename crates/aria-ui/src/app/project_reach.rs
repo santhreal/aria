@@ -213,7 +213,7 @@ impl AppState {
     /// palette's one-press form of the lane list above.
     pub fn duplicate_selection_to_next_lane(&mut self) -> Result<(), EngineError> {
         let Some(choice) = self.lanes_accepting_selection().into_iter().next() else {
-            self.status_message = Some("No other lane accepts this clip".into());
+            self.status_message = Some("No other track accepts this clip".into());
             return Ok(());
         };
         let name = choice.name.clone();

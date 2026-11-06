@@ -126,7 +126,7 @@ const SHIPPED: &[ProjectFactSpec] = &[
     ProjectFactSpec {
         fact: ProjectFact::Lanes,
         id: "lanes",
-        label: "Lanes",
+        label: "Tracks",
         read: |project| FactValue::Count(project.timeline().tracks_ordered().count()),
     },
     ProjectFactSpec {
@@ -165,7 +165,7 @@ const SHIPPED: &[ProjectFactSpec] = &[
     ProjectFactSpec {
         fact: ProjectFact::SoloedKinds,
         id: "soloed_kinds",
-        label: "Soloed lane kinds",
+        label: "Soloed track kinds",
         read: |project| FactValue::Names(soloed_kinds(project)),
     },
 ];

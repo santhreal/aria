@@ -61,7 +61,7 @@ impl Gesture {
     /// The gesture, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {
-            Self::PointOutput { .. } => "a lane pointed at a bus",
+            Self::PointOutput { .. } => "a track pointed at a bus",
             Self::CycleSend { .. } => "a send chip clicked",
             Self::GrabFader { .. } => "a fader grabbed",
             Self::RideFader { .. } => "a fader ridden",

@@ -191,13 +191,13 @@ fn the_census_reaches_every_routing_command() {
     let sent = dispatched();
     for label in [
         "Add track",
-        "Lane output",
+        "Track output",
         "Add send",
         "Set send",
         "Remove send",
-        "Lane fader",
-        "Lane pan",
-        "Lane automation",
+        "Track fader",
+        "Track pan",
+        "Track automation",
         "Master mix",
         "Mute track",
         "Solo track",

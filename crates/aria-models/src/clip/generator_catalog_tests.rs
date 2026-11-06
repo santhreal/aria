@@ -42,6 +42,12 @@ fn every_row_has_a_distinct_id_and_a_label() {
     for spec in SHIPPED {
         assert!(!spec.label.is_empty(), "'{}' has no label", spec.id);
         assert!(
+            spec.add_label.starts_with("Add ") && !spec.add_label.contains("generated"),
+            "'{}' has unreviewed add_label {:?}",
+            spec.id,
+            spec.add_label
+        );
+        assert!(
             !spec.renders_with.is_empty(),
             "'{}' resolves to no layer topology",
             spec.id
@@ -189,4 +195,22 @@ fn resolve_presets_fails_closed_on_invalid_preset_reference() {
     };
     let err = generator.resolve_presets().unwrap_err();
     assert!(matches!(err, ModelError::InvalidParam(_)));
+}
+
+#[test]
+fn generator_add_labels_name_the_placed_kind() {
+    assert_eq!(Generator::text("Title").spec().add_label, "Add title");
+    assert_eq!(
+        Generator::Adjustment.spec().add_label,
+        "Add adjustment layer"
+    );
+    let mut add_labels: Vec<&str> = SHIPPED.iter().map(|spec| spec.add_label).collect();
+    let before = add_labels.len();
+    add_labels.sort_unstable();
+    add_labels.dedup();
+    assert_eq!(
+        add_labels.len(),
+        before,
+        "two generator rows share an add_label"
+    );
 }

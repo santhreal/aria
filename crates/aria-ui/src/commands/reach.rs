@@ -40,7 +40,7 @@ pub(crate) fn keyframe(state: &mut AppState, param: ClipParam) {
 /// Shift the selected clip's whole lane by one second, from its first clip on.
 pub(crate) fn shift_lane(state: &mut AppState, later: bool) {
     let Some(track) = state.selected_track() else {
-        state.status_message = Some("Select a clip on the lane to shift".into());
+        state.status_message = Some("Select a clip on the track to shift".into());
         return;
     };
     let second = state.one_second();

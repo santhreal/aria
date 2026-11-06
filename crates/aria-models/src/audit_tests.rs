@@ -130,11 +130,31 @@ fn every_row_is_uniquely_named() {
         project_facts().len(),
         "two project rows share an id"
     );
+    let project_labels: std::collections::BTreeSet<_> =
+        project_facts().iter().map(|spec| spec.label).collect();
+    assert_eq!(
+        project_labels.len(),
+        project_facts().len(),
+        "two project facts share a label"
+    );
     for spec in clip_facts() {
-        assert!(!spec.label.is_empty(), "'{}' has no label", spec.id);
+        assert!(!spec.id.is_empty() && !spec.label.is_empty());
+        let lower = spec.label.to_ascii_lowercase();
+        assert!(
+            !lower.contains("lane") && !spec.label.starts_with("Sounds on "),
+            "clip fact '{}' label {:?} uses stale wording",
+            spec.id,
+            spec.label
+        );
     }
     for spec in project_facts() {
-        assert!(!spec.label.is_empty(), "'{}' has no label", spec.id);
+        assert!(!spec.id.is_empty() && !spec.label.is_empty());
+        assert!(
+            !spec.label.to_ascii_lowercase().contains("lane"),
+            "project fact '{}' label {:?} uses 'lane' instead of 'track'",
+            spec.id,
+            spec.label
+        );
     }
 }
 
