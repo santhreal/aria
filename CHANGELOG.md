@@ -1320,6 +1320,7 @@ Notes for the latest release. For previous releases, see the
 - Move… on a cache that holds no files yet records the new path instead of failing with "relocation source does not exist".
 - Saving a plugin setting keeps the storage root, cache paths, and download quota changed earlier in the session instead of writing back the values from launch.
 - Plugins read settings from the profile's own `config.toml` under `ARIA_DATA_DIR`, and read values Aria changed during the session.
+- The Export sheet of an unsaved project no longer reads `user-dirs.dirs` on every frame.
 
 ## [alpha-0.7.0] - 2026-07-22
 

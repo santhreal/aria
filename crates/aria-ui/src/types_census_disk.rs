@@ -72,6 +72,15 @@ const DISK_PRIMITIVES: &[&str] = &[
     "load_agent_dir(",
     "ModelManager::new(",
     ".size_bytes()",
+    // The XDG user directories: each call reads `user-dirs.dirs`.
+    "dirs::audio_dir",
+    "dirs::desktop_dir",
+    "dirs::document_dir",
+    "dirs::download_dir",
+    "dirs::picture_dir",
+    "dirs::public_dir",
+    "dirs::template_dir",
+    "dirs::video_dir",
 ];
 
 struct ParsedFn {

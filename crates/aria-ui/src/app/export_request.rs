@@ -16,11 +16,18 @@
 //! stays with the queue, which is the step that spends the machine.
 
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use aria_core::ExportFormat;
 
 use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
+
+/// The platform videos directory, else home. Read once: on Linux each lookup
+/// reads `user-dirs.dirs`, and the export sheet prints the destination on
+/// every frame.
+static UNSAVED_EXPORT_DIR: LazyLock<Option<PathBuf>> =
+    LazyLock::new(|| dirs::video_dir().or_else(dirs::home_dir));
 
 /// One export, as the sheet's rows describe it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,8 +57,8 @@ impl AppState {
         let ext = self.export_extension();
         let dir = match self.project_path.as_ref().and_then(|path| path.parent()) {
             Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
-            _ => dirs::video_dir()
-                .or_else(dirs::home_dir)
+            _ => UNSAVED_EXPORT_DIR
+                .clone()
                 .unwrap_or_else(|| self.data_dir.clone()),
         };
         dir.join(format!("{}.{ext}", self.project_display_name()))
