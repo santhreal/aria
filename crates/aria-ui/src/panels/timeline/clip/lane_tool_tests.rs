@@ -344,14 +344,14 @@ fn room_above(canvas: Bounds<Pixels>, v2: Bounds<Pixels>) -> Pixels {
     canvas.top() + (v2.top() - canvas.top()) / 2.0
 }
 
-#[gpui::test]
-fn a_razor_or_track_select_press_acts_on_the_lane_under_it(cx: &mut TestAppContext) {
-    let (lanes, visual) = two_lanes(cx, "lane-tools");
+/// Every press of `tool` down V1's bars, a row every 4 px through each part
+/// and on the lane's line, acts on V1 alone: a Razor press cuts the clip under
+/// it or reports why it cannot, and a Track Select Shift+press selects the clip
+/// under it on V1 only. One test per tool, so the harness runs them on
+/// separate threads.
+fn every_press_acts_on_v1(cx: &mut TestAppContext, tag: &str, tool: EditorTool, name: &str) {
+    let (lanes, visual) = two_lanes(cx, tag);
     let v1 = v1_lane(visual);
-    let v2 = lane_of(visual, "timeline-video-canvas", "track-header-V2");
-    let canvas = visual
-        .debug_bounds("timeline-video-canvas")
-        .expect("the timeline draws its video lanes");
     let parts = parts(visual, &lanes);
     let line = BarRows::of(f32::from(v1.size.height)).line_top;
     let mut rows: Vec<f32> = (0..)
@@ -360,26 +360,57 @@ fn a_razor_or_track_select_press_acts_on_the_lane_under_it(cx: &mut TestAppConte
         .collect();
     rows.push(line);
 
-    for (tool, name) in [
-        (EditorTool::Razor, "Razor"),
-        (EditorTool::TrackSelectForward, "Track Select Forward"),
-        (EditorTool::TrackSelectBackward, "Track Select Backward"),
-    ] {
-        use_tool(visual, &lanes.state, tool);
-        for part in &parts {
-            for &dy in &rows {
-                let at = point(px(part.x), v1.top() + px(dy));
-                let what = format!("of {name} on {}, {dy} px into V1", part.name);
-                match tool {
-                    EditorTool::Razor if part.cuts => {
-                        razor(visual, &lanes, at, Modifiers::none(), (1, 0), &what);
-                    }
-                    EditorTool::Razor => refused(visual, &lanes, at, &what),
-                    _ => selects_v1(visual, &lanes, at, part.clip, &what),
+    use_tool(visual, &lanes.state, tool);
+    for part in &parts {
+        for &dy in &rows {
+            let at = point(px(part.x), v1.top() + px(dy));
+            let what = format!("of {name} on {}, {dy} px into V1", part.name);
+            match tool {
+                EditorTool::Razor if part.cuts => {
+                    razor(visual, &lanes, at, Modifiers::none(), (1, 0), &what);
                 }
+                EditorTool::Razor => refused(visual, &lanes, at, &what),
+                _ => selects_v1(visual, &lanes, at, part.clip, &what),
             }
         }
     }
+}
+
+#[gpui::test]
+fn a_razor_press_acts_on_the_lane_under_it(cx: &mut TestAppContext) {
+    every_press_acts_on_v1(cx, "lane-tools-razor", EditorTool::Razor, "Razor");
+}
+
+#[gpui::test]
+fn a_track_select_forward_press_acts_on_the_lane_under_it(cx: &mut TestAppContext) {
+    every_press_acts_on_v1(
+        cx,
+        "lane-tools-forward",
+        EditorTool::TrackSelectForward,
+        "Track Select Forward",
+    );
+}
+
+#[gpui::test]
+fn a_track_select_backward_press_acts_on_the_lane_under_it(cx: &mut TestAppContext) {
+    every_press_acts_on_v1(
+        cx,
+        "lane-tools-backward",
+        EditorTool::TrackSelectBackward,
+        "Track Select Backward",
+    );
+}
+
+#[gpui::test]
+fn a_press_off_the_lanes_or_with_shift_acts_on_every_lane(cx: &mut TestAppContext) {
+    let (lanes, visual) = two_lanes(cx, "lane-tools-every");
+    let v1 = v1_lane(visual);
+    let v2 = lane_of(visual, "timeline-video-canvas", "track-header-V2");
+    let canvas = visual
+        .debug_bounds("timeline-video-canvas")
+        .expect("the timeline draws its video lanes");
+    let parts = parts(visual, &lanes);
+    let line = BarRows::of(f32::from(v1.size.height)).line_top;
 
     // A Razor click cuts its own lane, so off every lane it cuts nothing, and a
     // Shift+click cuts every lane from anywhere.
@@ -424,6 +455,16 @@ fn a_razor_or_track_select_press_acts_on_the_lane_under_it(cx: &mut TestAppConte
         3,
         "a Track Select Shift+click above the lanes changed the selection"
     );
+}
+
+#[gpui::test]
+fn a_press_on_an_outline_row_acts_on_its_lane(cx: &mut TestAppContext) {
+    let (lanes, visual) = two_lanes(cx, "lane-tools-outline");
+    let canvas = visual
+        .debug_bounds("timeline-video-canvas")
+        .expect("the timeline draws its video lanes");
+    let parts = parts(visual, &lanes);
+    let body = x_of(&parts, "the outgoing body");
 
     // V1's property rows stand on the divider under its bars.
     visual.update(|window, app| {

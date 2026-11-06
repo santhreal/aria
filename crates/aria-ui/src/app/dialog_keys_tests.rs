@@ -146,9 +146,69 @@ fn dialog_key(chord: &Chord) -> bool {
         )
 }
 
+/// How many tests the census is cut into, one per `shard_*` test below. Shard
+/// `n` presses every chord whose place among the census chords is `n` modulo
+/// this, behind every dialog on both routes, so the harness runs the shards on
+/// separate threads and every chord is pressed behind every dialog once across
+/// them.
+const SHARDS: usize = 4;
+
+/// The chord of every shipped binding but a dialog's own keys.
+fn census_chords() -> Vec<(&'static str, Chord)> {
+    SHIPPED_BINDINGS
+        .iter()
+        .filter(|binding| !dialog_key(&binding.chord))
+        .map(|binding| (binding.id, binding.chord))
+        .collect()
+}
+
+/// The census chords shard `shard` presses.
+fn shard_of(shard: usize) -> Vec<(&'static str, Chord)> {
+    assert!(shard < SHARDS, "shard {shard} of {SHARDS}");
+    census_chords()
+        .into_iter()
+        .skip(shard)
+        .step_by(SHARDS)
+        .collect()
+}
+
+#[test]
+fn the_shards_press_every_census_chord_once() {
+    let all = census_chords();
+    assert!(all.len() > 50, "the shipped key table did not load");
+    let mut pressed: Vec<&str> = (0..SHARDS)
+        .flat_map(|shard| shard_of(shard).into_iter().map(|(id, _)| id))
+        .collect();
+    pressed.sort_unstable();
+    let mut ids: Vec<&str> = all.iter().map(|(id, _)| *id).collect();
+    ids.sort_unstable();
+    assert_eq!(pressed, ids, "the shards press each census chord once");
+}
+
 #[gpui::test]
-fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
-    let (state, visual) = drawn_shell(cx, "dialog-keys-census");
+fn no_binding_runs_behind_an_open_dialog_shard_0(cx: &mut TestAppContext) {
+    no_binding_runs_behind_an_open_dialog(cx, 0);
+}
+
+#[gpui::test]
+fn no_binding_runs_behind_an_open_dialog_shard_1(cx: &mut TestAppContext) {
+    no_binding_runs_behind_an_open_dialog(cx, 1);
+}
+
+#[gpui::test]
+fn no_binding_runs_behind_an_open_dialog_shard_2(cx: &mut TestAppContext) {
+    no_binding_runs_behind_an_open_dialog(cx, 2);
+}
+
+#[gpui::test]
+fn no_binding_runs_behind_an_open_dialog_shard_3(cx: &mut TestAppContext) {
+    // The last shard: a `SHARDS` with no test of its own leaves chords unpressed.
+    assert_eq!(SHARDS, 4, "one `shard_*` test per shard");
+    no_binding_runs_behind_an_open_dialog(cx, 3);
+}
+
+fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext, shard: usize) {
+    let (state, visual) = drawn_shell(cx, &format!("dialog-keys-census-{shard}"));
     // The codec probe the Export sheet starts on opening answers on a thread
     // of its own and redraws the window when it lands. Answered first, the
     // sheet starts nothing, so every frame below is one a chord drew.
@@ -159,12 +219,7 @@ fn no_binding_runs_behind_an_open_dialog(cx: &mut TestAppContext) {
     // frame before any chord is counted.
     press(visual, &Chord::plain(super::rebind::tests::free_key()));
     settle(visual);
-    let chords: Vec<(&str, Chord)> = SHIPPED_BINDINGS
-        .iter()
-        .filter(|binding| !dialog_key(&binding.chord))
-        .map(|binding| (binding.id, binding.chord))
-        .collect();
-    assert!(chords.len() > 50, "the shipped key table did not load");
+    let chords = shard_of(shard);
     let mut opened = [0usize; 2];
     for (at, route) in [UiRoute::Editor, UiRoute::Home].into_iter().enumerate() {
         for &kind in &kinds {
