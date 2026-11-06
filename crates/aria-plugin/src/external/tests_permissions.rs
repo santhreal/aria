@@ -222,14 +222,12 @@ fn permission_levels_enforce_access_and_record_capability_denials() {
         ctx.run_command("perm.stop").expect("stop allowed");
         assert_eq!(view.take_transport_requests().len(), 3);
 
-        let data_dir = pkg.data_dir(&data_root);
-        std::fs::create_dir_all(&data_dir).expect("data_dir");
         let allowed_file = proj_dir.join("saved.aria");
-        std::fs::write(
-            data_dir.join("target_path"),
-            allowed_file.to_str().expect("utf8").as_bytes(),
-        )
-        .expect("write target_path");
+        host.storage_set(
+            "test.permrw",
+            "target_path",
+            allowed_file.to_str().expect("utf8").as_bytes().to_vec(),
+        );
         ctx.run_command("perm.save_as")
             .expect("save_as in project dir allowed");
         ctx.run_command("perm.save")
@@ -239,11 +237,11 @@ fn permission_levels_enforce_access_and_record_capability_denials() {
         assert!(ctx.denials().is_empty());
 
         let outside_file = temp.path().join("outside.aria");
-        std::fs::write(
-            data_dir.join("target_path"),
-            outside_file.to_str().expect("utf8").as_bytes(),
-        )
-        .expect("write outside target_path");
+        host.storage_set(
+            "test.permrw",
+            "target_path",
+            outside_file.to_str().expect("utf8").as_bytes().to_vec(),
+        );
         let fs_err = ctx
             .run_command("perm.save_as")
             .expect_err("save_as outside granted fs scopes must fail");

@@ -212,7 +212,8 @@ again.
 | `process` | Spawning listed executables |
 | `clipboard` | Reading the clipboard (writing needs no permission) |
 
-Plugin storage (`<data dir>/plugin-data/<id>/`), settings, logging, events, UI
+Plugin storage (the plugin's per-project store in the open `.aria` project file,
+and `<data dir>/plugin-data/<id>/`), settings, logging, events, UI
 contributions, and the plugin's own package directory need no permission.
 
 WASM plugins cannot reach anything not granted. A native plugin runs native

@@ -176,3 +176,33 @@ fn project_schema_guide_documents_the_current_version_and_every_migration() {
         );
     }
 }
+
+#[test]
+fn schema_v3_migrates_to_v4_and_schema_v4_preserves_plugin_data() {
+    let v3_src =
+        std::fs::read_to_string(fixtures().join("schema-v3.aria")).expect("read schema-v3.aria");
+    let v3_loaded = Project::load_from_string(&v3_src).expect("load schema-v3.aria");
+    assert_eq!(v3_loaded.schema.version, 3);
+    assert!(v3_loaded.plugin_data.is_empty());
+    let v3_resaved = v3_loaded.save_to_string().expect("resave v3 as v4");
+    let v3_resaved_doc: serde_json::Value =
+        serde_json::from_str(&v3_resaved).expect("parse resaved v4");
+    assert_eq!(v3_resaved_doc["schema"]["version"], 4);
+    assert!(
+        v3_resaved_doc.get("plugin_data").is_none(),
+        "empty plugin_data must be omitted on save"
+    );
+
+    let v4_src =
+        std::fs::read_to_string(fixtures().join("schema-v4.aria")).expect("read schema-v4.aria");
+    let v4_loaded = Project::load_from_string(&v4_src).expect("load schema-v4.aria");
+    assert_eq!(v4_loaded.schema.version, 4);
+    assert_eq!(
+        v4_loaded.plugin_storage_get("example.notes", "note"),
+        Some(&b"hello"[..])
+    );
+    assert_eq!(
+        v4_loaded.plugin_storage_keys("example.notes"),
+        vec!["note".to_owned()]
+    );
+}

@@ -20,10 +20,19 @@ impl HostState {
         self.package.data_dir(&self.data_root)
     }
 
-    fn resolve_storage_key(&self, key: &str) -> Result<PathBuf, String> {
-        let rel = sanitize_relative_path(key).ok_or_else(|| {
+    fn sanitize_storage_key(key: &str) -> Result<PathBuf, String> {
+        sanitize_relative_path(key).ok_or_else(|| {
             format!("invalid storage key {key:?}: must be a relative path without `..`")
-        })?;
+        })
+    }
+
+    fn normalize_project_storage_key(key: &str) -> Result<String, String> {
+        let rel = Self::sanitize_storage_key(key)?;
+        Ok(rel.to_string_lossy().replace('\\', "/"))
+    }
+
+    fn resolve_storage_key(&self, key: &str) -> Result<PathBuf, String> {
+        let rel = Self::sanitize_storage_key(key)?;
         Ok(self.storage_root().join(rel))
     }
 
@@ -83,6 +92,14 @@ impl HostState {
     }
 
     pub(super) fn host_storage_get(&mut self, key: String) -> Result<Option<Vec<u8>>, String> {
+        let norm = Self::normalize_project_storage_key(&key)?;
+        if let Some(host) = self
+            .active_ctx
+            .as_ref()
+            .and_then(aria_plugin::PluginContext::unscoped_project_host)
+        {
+            return Ok(host.storage_get(&self.package.manifest.id, &norm));
+        }
         let path = self.resolve_storage_key(&key)?;
         match fs::read(&path) {
             Ok(bytes) => Ok(Some(bytes)),
@@ -92,6 +109,15 @@ impl HostState {
     }
 
     pub(super) fn host_storage_set(&mut self, key: String, value: Vec<u8>) -> Result<(), String> {
+        let norm = Self::normalize_project_storage_key(&key)?;
+        if let Some(host) = self
+            .active_ctx
+            .as_ref()
+            .and_then(aria_plugin::PluginContext::unscoped_project_host)
+        {
+            host.storage_set(&self.package.manifest.id, &norm, value);
+            return Ok(());
+        }
         let path = self.resolve_storage_key(&key)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| format!("storage_set {key:?}: {err}"))?;
@@ -100,6 +126,15 @@ impl HostState {
     }
 
     pub(super) fn host_storage_delete(&mut self, key: String) -> Result<(), String> {
+        let norm = Self::normalize_project_storage_key(&key)?;
+        if let Some(host) = self
+            .active_ctx
+            .as_ref()
+            .and_then(aria_plugin::PluginContext::unscoped_project_host)
+        {
+            host.storage_delete(&self.package.manifest.id, &norm);
+            return Ok(());
+        }
         let path = self.resolve_storage_key(&key)?;
         match fs::remove_file(&path) {
             Ok(()) => Ok(()),
@@ -109,6 +144,13 @@ impl HostState {
     }
 
     pub(super) fn host_storage_keys(&mut self) -> Result<Vec<String>, String> {
+        if let Some(host) = self
+            .active_ctx
+            .as_ref()
+            .and_then(aria_plugin::PluginContext::unscoped_project_host)
+        {
+            return Ok(host.storage_keys(&self.package.manifest.id));
+        }
         let root = self.storage_root();
         if !root.exists() {
             return Ok(Vec::new());

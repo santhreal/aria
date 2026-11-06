@@ -81,9 +81,10 @@ fn command_execution_settings_snapshot_undo_and_storage_work_end_to_end() {
     assert_eq!(markers[0].color, MarkerColor::Pink);
     assert_eq!(markers[0].tick, RationalTime::new(24, Rational::FPS_24));
 
-    // Verify receipt was written to plugin storage (`<pkg>/plugin-data/com.example.wasm-tools/last-receipt.json`).
-    let data_dir = pkg.data_dir(temp.path());
-    let receipt_bytes = fs::read(data_dir.join("last-receipt.json")).expect("receipt stored");
+    // Verify receipt was written to the open project's per-plugin store (`Project::plugin_data`).
+    let receipt_bytes = host
+        .storage_get("com.example.wasm-tools", "last-receipt.json")
+        .expect("receipt stored in project plugin_data");
     let receipt_json: serde_json::Value =
         serde_json::from_slice(&receipt_bytes).expect("valid receipt json");
     assert_eq!(receipt_json["revision"], 1);
@@ -95,8 +96,9 @@ fn command_execution_settings_snapshot_undo_and_storage_work_end_to_end() {
         host.snapshot().timeline().markers().is_empty(),
         "project-undo reverted the marker addition"
     );
-    let inspection_bytes =
-        fs::read(data_dir.join("last-inspection.json")).expect("inspection stored");
+    let inspection_bytes = host
+        .storage_get("com.example.wasm-tools", "last-inspection.json")
+        .expect("inspection stored in project plugin_data");
     let inspection: serde_json::Value =
         serde_json::from_slice(&inspection_bytes).expect("valid inspection json");
     assert_eq!(inspection["undid"], true);
@@ -105,13 +107,20 @@ fn command_execution_settings_snapshot_undo_and_storage_work_end_to_end() {
     // Run `example.storage-roundtrip` to verify `storage-set`, `storage-get`, `storage-keys`, `storage-delete`.
     ctx.run_command("example.storage-roundtrip")
         .expect("run storage-roundtrip");
-    assert!(!data_dir.join("alpha").exists(), "alpha was deleted");
     assert_eq!(
-        fs::read(data_dir.join("beta")).expect("beta exists"),
+        host.storage_get("com.example.wasm-tools", "alpha"),
+        None,
+        "alpha was deleted"
+    );
+    assert_eq!(
+        host.storage_get("com.example.wasm-tools", "beta")
+            .expect("beta exists"),
         b"two"
     );
     let check_json: serde_json::Value = serde_json::from_slice(
-        &fs::read(data_dir.join("storage-check.json")).expect("storage-check.json"),
+        &host
+            .storage_get("com.example.wasm-tools", "storage-check.json")
+            .expect("storage-check.json"),
     )
     .expect("valid json");
     let keys = check_json["keys_before_delete"]
@@ -152,8 +161,10 @@ fn event_subscriptions_handle_notifications_waterfalls_and_serial_claims() {
     });
     assert!(ctx.events().flush(FLUSH_TIMEOUT));
 
-    let data_dir = pkg.data_dir(temp.path());
-    let count_str = fs::read_to_string(data_dir.join("event-count")).expect("event-count written");
+    let count_bytes = host
+        .storage_get("com.example.wasm-tools", "event-count")
+        .expect("event-count written");
+    let count_str = String::from_utf8(count_bytes).expect("utf8 event-count");
     let count: u64 = count_str.trim().parse().expect("u64 count");
     assert!(count >= 1);
 
@@ -218,14 +229,18 @@ fn wasm_jobs_step_to_done_and_end_cancelled_when_cancelled() {
     let _serial = SERIAL.lock();
     let temp = tempfile::tempdir().expect("tempdir");
     let pkg = write_package(temp.path(), "read-write", &["pick"], FIXTURE_WASM);
-    let (mut ctx, _host, _view, _settings) = setup_host_context();
+    let (mut ctx, host, _view, _settings) = setup_host_context();
     let manager = Arc::new(JobManager::new());
     let held = ctx.register_arc(Arc::clone(&manager));
     ctx._services.push(held);
     let plugin = load(&pkg, &Limits::default()).expect("load wasm plugin");
     ctx.mount(plugin.as_ref()).expect("mount wasm plugin");
-    let data_dir = pkg.data_dir(temp.path());
-    let stored = |key: &str| fs::read_to_string(data_dir.join(key)).expect("stored by the guest");
+    let stored = |key: &str| {
+        let bytes = host
+            .storage_get("com.example.wasm-tools", key)
+            .expect("stored by the guest");
+        String::from_utf8(bytes).expect("utf8")
+    };
 
     ctx.run_command("example.count-job")
         .expect("starts the job");
@@ -436,8 +451,9 @@ fn wasm_project_queries_round_trip_and_refuse_without_read_permission() {
         .expect("query-project allowed under read");
     assert!(ctx.denials().is_empty());
 
-    let data_dir = pkg_read.data_dir(&temp.path().join("read"));
-    let summary_bytes = fs::read(data_dir.join("last-queries.json")).expect("last-queries.json");
+    let summary_bytes = host
+        .storage_get("com.example.wasm-tools", "last-queries.json")
+        .expect("last-queries.json");
     let summary: serde_json::Value =
         serde_json::from_slice(&summary_bytes).expect("valid summary json");
     let cid = seeded_clip_id.raw();
@@ -600,8 +616,10 @@ fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
     );
     ctx.run_command("example.project-session")
         .expect("save_as in project dir succeeds");
-    assert_eq!(host.project_path(), Some(copy_path));
+    assert_eq!(host.project_path(), Some(copy_path.clone()));
 
+    ctx.run_command("example.storage-roundtrip")
+        .expect("write storage into copy.aria before save");
     settings.set("example.session_args", serde_json::json!({ "op": "save" }));
     ctx.run_command("example.project-session")
         .expect("save succeeds");
@@ -613,6 +631,23 @@ fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
     ctx.run_command("example.project-session")
         .expect("open in project dir succeeds");
     assert_eq!(host.project_path(), Some(initial_path));
+    assert_eq!(
+        host.storage_get("com.example.wasm-tools", "beta"),
+        None,
+        "storage written to copy.aria must not leak into initial.aria"
+    );
+    settings.set(
+        "example.session_args",
+        serde_json::json!({ "op": "open", "path": copy_path.to_string_lossy() }),
+    );
+    ctx.run_command("example.project-session")
+        .expect("reopen copy.aria succeeds");
+    assert_eq!(
+        host.storage_get("com.example.wasm-tools", "beta")
+            .as_deref(),
+        Some(&b"two"[..]),
+        "storage written to copy.aria must survive save and reopen"
+    );
 
     let outside_path = temp.path().join("outside.aria");
     settings.set(

@@ -272,6 +272,23 @@ impl Engine {
         Arc::make_mut(&mut self.project).metadata_mut().agent_rules = rules;
         self.revision += 1;
     }
+    /// Write `value` under `key` in `plugin_id`'s per-project store, returning
+    /// `true` when the stored bytes changed.
+    pub fn set_plugin_storage(&mut self, plugin_id: &str, key: &str, value: Vec<u8>) -> bool {
+        if self.project.plugin_storage_get(plugin_id, key) == Some(value.as_slice()) {
+            return false;
+        }
+        Arc::make_mut(&mut self.project).plugin_storage_set(plugin_id, key, value)
+    }
+
+    /// Remove `key` from `plugin_id`'s per-project store, returning `true`
+    /// when an entry was removed.
+    pub fn delete_plugin_storage(&mut self, plugin_id: &str, key: &str) -> bool {
+        if self.project.plugin_storage_get(plugin_id, key).is_none() {
+            return false;
+        }
+        Arc::make_mut(&mut self.project).plugin_storage_delete(plugin_id, key)
+    }
 
     /// Monotonic session revision, bumped by every successful mutation.
     pub fn revision(&self) -> u64 {
@@ -612,38 +629,27 @@ impl Engine {
         self.previews.transform = value;
     }
 
-    /// Set (or clear with `None`) the live generator content for one clip —
-    /// the inspector-slider analogue of
-    /// [`set_transform_override`](Self::set_transform_override).
+    /// Set (or clear with `None`) the live generator override for one clip; see [`set_transform_override`](Self::set_transform_override).
     pub fn set_generator_override(&mut self, value: Option<(ClipId, Generator)>) {
         self.previews.generator = value;
     }
 
-    /// Set (or clear with `None`) the live look for one clip — the
-    /// color-grading analogue of
-    /// [`set_transform_override`](Self::set_transform_override).
+    /// Set (or clear with `None`) the live look override for one clip; see [`set_transform_override`](Self::set_transform_override).
     pub fn set_look_override(&mut self, value: Option<(ClipId, Option<Filter>, ColorAdjustments)>) {
         self.previews.look = value;
     }
 
-    /// Set (or clear with `None`) the live layer styles for one clip — the
-    /// shadow/glow/outline/background analogue of
-    /// [`set_transform_override`](Self::set_transform_override).
+    /// Set (or clear with `None`) the live layer styles override for one clip; see [`set_transform_override`](Self::set_transform_override).
     pub fn set_styles_override(&mut self, value: Option<(ClipId, LayerStyles)>) {
         self.previews.styles = value;
     }
 
-    /// Set (or clear with `None`) the live crop window and mirror flags for one clip —
-    /// the on-canvas crop-drag analogue of
-    /// [`set_transform_override`](Self::set_transform_override).
+    /// Set (or clear with `None`) the live crop and mirror override for one clip; see [`set_transform_override`](Self::set_transform_override).
     pub fn set_crop_override(&mut self, value: Option<(ClipId, CropRect, bool, bool)>) {
         self.previews.crop = value;
     }
 
-    /// Set (or clear with `None`) one live vec2 effect parameter: the clip, the
-    /// effect's index in its chain, the parameter's catalog slot, and the value.
-    /// The Viewer handle-drag analogue of
-    /// [`set_transform_override`](Self::set_transform_override).
+    /// Set (or clear with `None`) one live vec2 effect parameter override (`(clip, effect_idx, slot, value)`); see [`set_transform_override`](Self::set_transform_override).
     pub fn set_effect_vec2_override(&mut self, value: Option<(ClipId, usize, usize, [f32; 2])>) {
         self.previews.effect_vec2 = value;
     }

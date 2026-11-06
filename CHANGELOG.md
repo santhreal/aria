@@ -874,6 +874,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- Plugin storage calls (`PluginContext::storage_*`, `AriaHostV1::storage_*`, and WebAssembly `storage-*`) read and write a per-plugin store in the open `.aria` project file (schema version 4) and mark the session unsaved on change, instead of sharing one directory under `<data dir>/plugin-data/<id>` across every project.
 - Changing clip speed or editing a speed curve prunes the transitions it invalidates and restores them across undo and redo.
 - `Project::is_media_referenced` and `remove_media` check inactive timelines, nested sequences, and baked clip snapshots before removing media from the bin.
 - Shot detection samples 30 frames per second and finds the cuts of fast-cut footage on their frames, including dark and partial-frame cuts, instead of finding none.

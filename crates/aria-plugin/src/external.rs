@@ -42,6 +42,7 @@ use aria_plugin_abi::{
 use libloading::{Library, Symbol};
 use parking_lot::Mutex;
 
+pub(crate) use self::host_table::validate_storage_key;
 use self::host_table::{HOST_V1, register_native_command};
 use crate::context::{MountFailure, PluginContext};
 use crate::error::PluginError;

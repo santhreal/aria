@@ -1,0 +1,24 @@
+{
+  "schema": {
+    "version": 4,
+    "kind": "aria.project"
+  },
+  "id": 4,
+  "name": "schema-v4",
+  "metadata": {},
+  "plugin_data": {
+    "example.notes": {
+      "note": "68656c6c6f"
+    }
+  },
+  "media": [],
+  "timeline": {
+    "frame_rate": {
+      "num": 24,
+      "den": 1
+    },
+    "tracks": [],
+    "order": [],
+    "clip_index": []
+  }
+}

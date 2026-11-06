@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::Map;
@@ -28,6 +30,15 @@ pub struct Project {
     pub id: ProjectId,
     pub name: String,
     pub metadata: ProjectMetadata,
+    /// Per-project plugin key-value store (`plugin_id -> key -> raw bytes`).
+    /// Absent from saves while empty, and serialized in deterministic `BTreeMap`
+    /// key order with lowercase hex byte strings.
+    #[serde(
+        default,
+        with = "plugin_data_serde",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub plugin_data: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
     #[serde(with = "crate::serde_map")]
     media: Map<MediaId, MediaSource>,
     /// Pool folders. Absent from saves while empty, so a flat pool costs
@@ -105,6 +116,7 @@ impl Project {
             id: ProjectId::next(),
             name: name.into(),
             metadata: ProjectMetadata::default(),
+            plugin_data: BTreeMap::new(),
             media: Map::default(),
             bins: Map::default(),
             root_positions: Map::default(),
@@ -127,6 +139,48 @@ impl Project {
     pub fn metadata_mut(&mut self) -> &mut ProjectMetadata {
         &mut self.metadata
     }
+    /// Look up `key` in `plugin_id`'s per-project key-value store.
+    pub fn plugin_storage_get(&self, plugin_id: &str, key: &str) -> Option<&[u8]> {
+        self.plugin_data
+            .get(plugin_id)
+            .and_then(|entries| entries.get(key))
+            .map(Vec::as_slice)
+    }
+
+    /// Write `value` under `key` in `plugin_id`'s per-project key-value store.
+    /// Returns `true` when the stored bytes changed.
+    pub fn plugin_storage_set(&mut self, plugin_id: &str, key: &str, value: Vec<u8>) -> bool {
+        if self.plugin_storage_get(plugin_id, key) == Some(value.as_slice()) {
+            return false;
+        }
+        self.plugin_data
+            .entry(plugin_id.to_owned())
+            .or_default()
+            .insert(key.to_owned(), value);
+        true
+    }
+
+    /// Remove `key` from `plugin_id`'s per-project key-value store, returning
+    /// `true` when an entry was removed.
+    pub fn plugin_storage_delete(&mut self, plugin_id: &str, key: &str) -> bool {
+        let Some(entries) = self.plugin_data.get_mut(plugin_id) else {
+            return false;
+        };
+        let removed = entries.remove(key).is_some();
+        if entries.is_empty() {
+            self.plugin_data.remove(plugin_id);
+        }
+        removed
+    }
+
+    /// All keys stored for `plugin_id` in sorted order.
+    pub fn plugin_storage_keys(&self, plugin_id: &str) -> Vec<String> {
+        self.plugin_data
+            .get(plugin_id)
+            .map(|entries| entries.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
 
     // --- timeline ---------------------------------------------------------
 
@@ -333,5 +387,123 @@ impl Project {
             }
         }
         None
+    }
+}
+
+mod plugin_data_serde {
+    use std::collections::BTreeMap;
+    use std::fmt;
+
+    use serde::de::{self, Deserializer, SeqAccess, Visitor};
+    use serde::ser::{SerializeMap, Serializer};
+    use serde::{Deserialize, Serialize};
+
+    struct HexBytesRef<'a>(&'a [u8]);
+
+    impl Serialize for HexBytesRef<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            const LUT: &[u8; 16] = b"0123456789abcdef";
+            let mut hex = String::with_capacity(self.0.len() * 2);
+            for &b in self.0 {
+                hex.push(LUT[(b >> 4) as usize] as char);
+                hex.push(LUT[(b & 0x0f) as usize] as char);
+            }
+            serializer.serialize_str(&hex)
+        }
+    }
+
+    struct InnerMapRef<'a>(&'a BTreeMap<String, Vec<u8>>);
+
+    impl Serialize for InnerMapRef<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let mut map = serializer.serialize_map(Some(self.0.len()))?;
+            for (k, v) in self.0 {
+                map.serialize_entry(k, &HexBytesRef(v))?;
+            }
+            map.end()
+        }
+    }
+
+    pub(super) fn serialize<S: Serializer>(
+        data: &BTreeMap<String, BTreeMap<String, Vec<u8>>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let non_empty = data.values().filter(|m| !m.is_empty()).count();
+        let mut map = serializer.serialize_map(Some(non_empty))?;
+        for (plugin_id, entries) in data {
+            if !entries.is_empty() {
+                map.serialize_entry(plugin_id, &InnerMapRef(entries))?;
+            }
+        }
+        map.end()
+    }
+
+    struct HexBytes(Vec<u8>);
+
+    impl<'de> Deserialize<'de> for HexBytes {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            struct HexVisitor;
+
+            impl<'de> Visitor<'de> for HexVisitor {
+                type Value = HexBytes;
+
+                fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    f.write_str("a hex-encoded byte string or an array of u8")
+                }
+
+                fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                    if !v.len().is_multiple_of(2) {
+                        return Err(E::custom("hex byte string must have an even length"));
+                    }
+                    let mut out = Vec::with_capacity(v.len() / 2);
+                    let bytes = v.as_bytes();
+                    let mut i = 0;
+                    while i < bytes.len() {
+                        let hi = decode_nibble(bytes[i]).ok_or_else(|| {
+                            E::custom(format!("invalid hex character {:?}", bytes[i] as char))
+                        })?;
+                        let lo = decode_nibble(bytes[i + 1]).ok_or_else(|| {
+                            E::custom(format!("invalid hex character {:?}", bytes[i + 1] as char))
+                        })?;
+                        out.push((hi << 4) | lo);
+                        i += 2;
+                    }
+                    Ok(HexBytes(out))
+                }
+
+                fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                    let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                    while let Some(byte) = seq.next_element::<u8>()? {
+                        out.push(byte);
+                    }
+                    Ok(HexBytes(out))
+                }
+            }
+
+            deserializer.deserialize_any(HexVisitor)
+        }
+    }
+
+    fn decode_nibble(b: u8) -> Option<u8> {
+        match b {
+            b'0'..=b'9' => Some(b - b'0'),
+            b'a'..=b'f' => Some(b - b'a' + 10),
+            b'A'..=b'F' => Some(b - b'A' + 10),
+            _ => None,
+        }
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<BTreeMap<String, BTreeMap<String, Vec<u8>>>, D::Error> {
+        let raw = BTreeMap::<String, BTreeMap<String, HexBytes>>::deserialize(deserializer)?;
+        Ok(raw
+            .into_iter()
+            .filter_map(|(plugin_id, entries)| {
+                let inner: BTreeMap<String, Vec<u8>> =
+                    entries.into_iter().map(|(k, HexBytes(v))| (k, v)).collect();
+                (!inner.is_empty()).then_some((plugin_id, inner))
+            })
+            .collect())
     }
 }

@@ -22,7 +22,7 @@ Emit a log line at `level`. The line is kept in the plugin's log in Settings > P
 import storage-get: func(key: string) -> result<option<list<u8>>, string>;
 ```
 
-Read a key from the package's storage directory, `<data_root>/plugin-data/<id>`.
+Read a key from the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
 
 ### import `storage-set`
 
@@ -30,7 +30,7 @@ Read a key from the package's storage directory, `<data_root>/plugin-data/<id>`.
 import storage-set: func(key: string, value: list<u8>) -> result<_, string>;
 ```
 
-Write `value` under `key` in the package's storage directory.
+Write `value` under `key` in the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
 
 ### import `storage-delete`
 
@@ -38,7 +38,7 @@ Write `value` under `key` in the package's storage directory.
 import storage-delete: func(key: string) -> result<_, string>;
 ```
 
-Delete `key` from the package's storage directory.
+Delete `key` from the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
 
 ### import `storage-keys`
 
@@ -46,7 +46,7 @@ Delete `key` from the package's storage directory.
 import storage-keys: func() -> result<list<string>, string>;
 ```
 
-List every key in the package's storage directory in sorted order.
+List every key in the plugin's per-project store in sorted order.
 
 ### import `setting-get`
 

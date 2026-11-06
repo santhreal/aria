@@ -133,7 +133,7 @@ function table:
 | Group | `Host` calls | `Plugin` callbacks |
 | --- | --- | --- |
 | Lifecycle | `log(LogLevel, text)` | `mount(&self, host)`, `unmount(&self, host)` |
-| Storage | `storage_get(key)`, `storage_set(key, bytes)`, `storage_delete(key)`, `storage_keys()` (backed by `<data dir>/plugin-data/<id>`) | |
+| Storage | `storage_get(key)`, `storage_set(key, bytes)`, `storage_delete(key)`, `storage_keys()` (stored per plugin in the open `.aria` project's `plugin_data`, or `<data dir>/plugin-data/<id>` when no `ProjectHost` is registered) | |
 | Settings | `setting_get(key)` (`Result<Option<Value>, String>`), `setting_get_json(key)` | |
 | Commands | `register_command(id, title)` | `command_run(&self, host, id, args_json)` |
 | Events | `subscribe(event_kind)`, `subscribe_with_priority(event_kind, priority)` ([kinds and payloads](events.md#external-plugins)) | `event(&self, host, kind, event_json) -> Result<EventResponse, String>` |

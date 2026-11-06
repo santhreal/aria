@@ -17,6 +17,11 @@ pub const PROJECT_SCHEMA_KIND: &str = "aria.project";
 ///   a driver on a mask property is addressed as `{"mask": {"mask": <index>,
 ///   "param": <name>}}` instead of through the look axis. v3 readers rewrite
 ///   v2 files on load; v2 builds refuse v3 files rather than drop the stack.
+/// - **4** — per-project plugin storage: `Project::plugin_data` stores per-plugin
+///   key-value byte maps (`BTreeMap<String, BTreeMap<String, Vec<u8>>>`),
+///   serialized as lowercase hex strings and omitted when empty. v4 readers
+///   migrate v1–v3 files on load; v3 builds refuse v4 files rather than drop
+///   a project's plugin store on resave.
 ///
 /// Versioning policy (v1 roadmap M0 — the rules for changing the format):
 ///
@@ -31,7 +36,7 @@ pub const PROJECT_SCHEMA_KIND: &str = "aria.project";
 /// - **Files newer than this build are refused** on load with
 ///   [`ModelError::UnsupportedProjectSchema`](crate::ModelError) — never
 ///   guessed at.
-pub const PROJECT_SCHEMA_VERSION: u32 = 3;
+pub const PROJECT_SCHEMA_VERSION: u32 = 4;
 
 /// Identifies the serialized shape of a [`Project`](crate::Project).
 ///

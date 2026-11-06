@@ -64,9 +64,12 @@ File limits enforced when opening or mounting a package:
   or the WebAssembly `register-theme` import. The host reads the tokens when it
   lists themes; a theme that does not read is listed in Settings with the reason.
 
-Each package also gets a persistent data directory outside the package folder
-at `<data dir>/plugin-data/<id>` (`Package::data_dir`). Uninstalling or
-updating the package leaves `<data dir>/plugin-data/<id>` intact.
+Each plugin's key-value store (`storage_get`, `storage_set`, `storage_delete`,
+`storage_keys`) is saved per plugin in the open `.aria` project's `plugin_data`
+map. Each package also gets a data directory outside the package folder at
+`<data dir>/plugin-data/<id>` (`Package::data_dir`) used when no `ProjectHost`
+is registered; uninstalling or updating the package leaves
+`<data dir>/plugin-data/<id>` intact.
 
 ## `plugin.toml` reference
 

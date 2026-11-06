@@ -679,6 +679,7 @@ pub(crate) fn migrate_document(doc: &mut serde_json::Value, from: u32) {
         match step {
             1 => migrate_v1_to_v2(doc),
             2 => migrate_v2_to_v3(doc),
+            3 => migrate_v3_to_v4(doc),
             // `validate_schema` bounds `from` to supported versions, so a
             // missing arm is a bug: a version bump landed without its step.
             _ => unreachable!("no migration step for schema v{step} -> v{}", step + 1),
@@ -738,6 +739,19 @@ fn migrate_v2_clip(clip: &mut serde_json::Map<String, serde_json::Value>) {
         };
         let migrated = serde_json::json!({ "mask": { "mask": 0, "param": name } });
         *param = migrated;
+    }
+}
+
+/// v3 → v4 (per-project plugin storage): `Project` gained `plugin_data`
+/// (`BTreeMap<String, BTreeMap<String, Vec<u8>>>`), which defaults to an
+/// empty map when absent and is omitted on save when empty. If a v3 document
+/// carries `plugin_data: null`, strip the null so `#[serde(default)]`
+/// initializes an empty map.
+fn migrate_v3_to_v4(doc: &mut serde_json::Value) {
+    if let Some(obj) = doc.as_object_mut()
+        && obj.get("plugin_data").is_some_and(serde_json::Value::is_null)
+    {
+        obj.remove("plugin_data");
     }
 }
 

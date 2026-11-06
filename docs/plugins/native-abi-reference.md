@@ -476,7 +476,7 @@ AriaBytesResult (*storage_get)(void *host_ctx, AriaStr key);
 
 Prefix: [`ARIA_HOST_V1_MIN_SIZE`](#table-sizes).
 
-Read the value stored under `key` in the plugin's storage directory, `<data dir>/plugin-data/<plugin id>`. Returns [`ARIA_BYTES_FOUND`](#bytes-status-codes) with the bytes, or [`ARIA_BYTES_NOT_FOUND`](#bytes-status-codes). A key is one file name: not empty, not `.` or `..`, and without `/`, `\` or NUL.
+Read the value stored under `key` in the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data dir>/plugin-data/<plugin id>` when no project host is registered. Returns [`ARIA_BYTES_FOUND`](#bytes-status-codes) with the bytes, or [`ARIA_BYTES_NOT_FOUND`](#bytes-status-codes). A key is one file name: not empty, not `.` or `..`, and without `/`, `\` or NUL.
 
 ### `AriaHostV1.storage_set`
 

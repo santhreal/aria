@@ -11,13 +11,11 @@
 //! when another thread holds the project.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fmt;
 use std::marker::PhantomData;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::thread::ThreadId;
 use std::time::{Duration, Instant};
 
 use aria_commands::{Command, ProjectCommand};
@@ -27,12 +25,14 @@ use parking_lot::{Condvar, Mutex};
 
 use crate::context::PluginContext;
 use crate::editor_events::{
-    ExportFinished, ExportStarted, MediaImported, MediaRelinked, ProjectClosed, ProjectOpened,
-    ProjectSaved, RenderResult,
+    ExportFinished, ExportStarted, ProjectClosed, ProjectOpened, RenderResult,
 };
 use crate::events::{Event, EventBus, panic_message};
 use crate::hooks::CommandProposed;
 
+#[path = "project_host_inner.rs"]
+mod inner;
+use inner::*;
 /// Who proposed a command.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Origin {
@@ -72,35 +72,6 @@ pub struct CommandApplied {
 }
 
 impl Event for CommandApplied {}
-
-/// A notification held with the open group and posted once nothing can roll it
-/// back. A rolled-back group posts none of its own.
-enum Announcement {
-    Applied(CommandApplied),
-    Imported(MediaImported),
-    Relinked(MediaRelinked),
-    Saved(ProjectSaved),
-    Replaced(ProjectClosed, ProjectOpened),
-}
-
-impl Announcement {
-    fn post(self, bus: &EventBus) {
-        match self {
-            Self::Applied(event) => bus.post(event),
-            Self::Imported(event) => bus.post(event),
-            Self::Relinked(event) => bus.post(event),
-            Self::Saved(event) => bus.post(event),
-            Self::Replaced(closed, opened) => {
-                bus.post(closed);
-                bus.post(opened);
-            }
-        }
-    }
-}
-
-/// What one applied command announces: `CommandApplied` when anything reads
-/// it, and the editor event its outcome implies, if any.
-type Announced = [Option<Announcement>; 2];
 
 /// Why a transaction did not apply. Nothing it applied remains.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -152,173 +123,6 @@ pub struct Reverted {
     pub found: u64,
     /// The engine revision after the rollback.
     pub left: u64,
-}
-
-/// Who holds the project, and what they have open.
-#[derive(Default)]
-struct Sequence {
-    /// The editing thread and who it edits for, while `holds > 0`.
-    owner: Option<(ThreadId, Origin)>,
-    /// Nested holds by the owner: one per open group plus one per command in
-    /// flight.
-    holds: usize,
-    /// Open groups, savepoints included.
-    groups: usize,
-    /// Announcements from commands applied inside the open groups, posted when
-    /// the outermost one commits and dropped when the group they belong to
-    /// rolls back.
-    announced: Vec<Announcement>,
-    session_changes: Vec<crate::host_wire::SessionChange>,
-}
-
-thread_local! {
-    /// The project and revision a `CommandProposed` dispatch on this thread is
-    /// about, while one runs. The engine is locked for the dispatch, so reads
-    /// return this instead of locking it again.
-    static PROPOSING: RefCell<Option<(Arc<Project>, u64)>> = const { RefCell::new(None) };
-}
-
-/// Marks this thread as dispatching `CommandProposed` until dropped, including
-/// when a handler panics.
-struct Proposing;
-
-impl Proposing {
-    fn enter(project: Arc<Project>, revision: u64) -> Self {
-        PROPOSING.with(|slot| *slot.borrow_mut() = Some((project, revision)));
-        Self
-    }
-}
-
-impl Drop for Proposing {
-    fn drop(&mut self) {
-        PROPOSING.with(|slot| slot.borrow_mut().take());
-    }
-}
-
-fn proposing() -> Option<(Arc<Project>, u64)> {
-    PROPOSING.with(|slot| slot.borrow().clone())
-}
-
-fn in_handler() -> bool {
-    PROPOSING.with(|slot| slot.borrow().is_some())
-}
-
-/// Whether `command` edits the session in a way history can undo.
-///
-/// Exhaustive over project commands, so a new one does not compile until it
-/// is classified.
-fn transactional(command: &Command) -> Result<(), TransactError> {
-    let Command::Project(project) = command else {
-        return Ok(());
-    };
-    match project {
-        ProjectCommand::Import { .. }
-        | ProjectCommand::RemoveMedia { .. }
-        | ProjectCommand::SetMediaLabel { .. } => Ok(()),
-        ProjectCommand::Save { .. }
-        | ProjectCommand::Open { .. }
-        | ProjectCommand::Load { .. }
-        | ProjectCommand::RelinkMedia { .. }
-        | ProjectCommand::Export { .. }
-        | ProjectCommand::SaveTemplate { .. }
-        | ProjectCommand::ApplyTemplate { .. } => Err(TransactError::NotUndoable {
-            label: command.label(),
-        }),
-    }
-}
-
-/// Whether `command` replaces the session, so its outcome closes one project
-/// and opens another.
-fn replaces_session(command: &Command) -> bool {
-    matches!(
-        command,
-        Command::Project(
-            ProjectCommand::Open { .. }
-                | ProjectCommand::Load { .. }
-                | ProjectCommand::ApplyTemplate { .. }
-        )
-    )
-}
-
-/// The editor event `outcome` implies, read from the engine right after it.
-/// `closed` is the session the command replaced, when it replaced one.
-///
-/// Exhaustive over outcomes, so a new one does not compile until it is
-/// classified.
-fn derived(
-    outcome: &ApplyOutcome,
-    engine: &Engine,
-    closed: Option<ProjectClosed>,
-) -> Option<Announcement> {
-    let media_path = |media| {
-        engine
-            .project()
-            .media(media)
-            .map(|source| source.path.clone())
-    };
-    match outcome {
-        ApplyOutcome::Imported { media } => media_path(*media).map(|path| {
-            Announcement::Imported(MediaImported {
-                media: *media,
-                path,
-            })
-        }),
-        ApplyOutcome::Relinked { media } => media_path(*media).map(|path| {
-            Announcement::Relinked(MediaRelinked {
-                media: *media,
-                path,
-            })
-        }),
-        ApplyOutcome::Saved => engine
-            .project_path()
-            .map(|path| Announcement::Saved(ProjectSaved { path: path.clone() })),
-        ApplyOutcome::Opened | ApplyOutcome::Loaded | ApplyOutcome::AppliedTemplate => {
-            Some(Announcement::Replaced(
-                closed.unwrap_or(ProjectClosed { path: None }),
-                ProjectOpened {
-                    path: engine.project_path().cloned(),
-                    project: engine.snapshot(),
-                },
-            ))
-        }
-        ApplyOutcome::RemovedMedia { .. }
-        | ApplyOutcome::LabeledMedia { .. }
-        | ApplyOutcome::Exported { .. }
-        | ApplyOutcome::SavedTemplate
-        | ApplyOutcome::Edited(_) => None,
-    }
-}
-
-/// Why one proposed-and-applied command did not land.
-enum Rejection {
-    Refused(String),
-    Engine(EngineError),
-}
-
-/// The refusal an edit gets while another thread holds the project.
-fn busy(holder: &Origin) -> EngineError {
-    EngineError::Refused(
-        TransactError::Busy {
-            holder: holder.clone(),
-        }
-        .to_string(),
-    )
-}
-
-/// How far an open group reaches back, to roll back to.
-#[derive(Clone, Copy)]
-struct Marks {
-    /// Steps the enclosing group held when this one opened; zero when outermost.
-    steps: usize,
-    /// Announcements queued when this one opened.
-    announced: usize,
-    /// The engine revision when this one opened.
-    revision: u64,
-}
-
-enum Finish {
-    Commit(Option<Cow<'static, str>>),
-    Rollback,
 }
 
 /// The project host. Registered by the engine plugin; the editor, the
@@ -530,7 +334,7 @@ impl ProjectHost {
     /// Propose `command` to every handler. The caller holds the engine lock.
     fn propose(
         &self,
-        engine: &Engine,
+        engine: &mut Engine,
         command: Command,
         origin: &Origin,
     ) -> Result<Command, String> {
@@ -538,6 +342,7 @@ impl ProjectHost {
         let _proposing = Proposing::enter(Arc::clone(&project), engine.revision());
         let mut proposed = CommandProposed::new(command, project, origin.clone());
         self.events.emit_waterfall(&mut proposed);
+        flush_proposing_storage_ops(engine);
         // The event and the stash drop when this returns, so the apply that
         // follows copies the project only if a handler kept a reference.
         match proposed.veto {
@@ -881,6 +686,47 @@ impl ProjectHost {
         };
         self.announce(hold.release([replaced]));
         Ok(result)
+    }
+
+    /// Look up `key` in `plugin_id`'s per-project store.
+    pub fn storage_get(&self, plugin_id: &str, key: &str) -> Option<Vec<u8>> {
+        match proposing() {
+            Some((project, _)) => project
+                .plugin_storage_get(plugin_id, key)
+                .map(<[u8]>::to_vec),
+            None => self
+                .engine
+                .lock()
+                .project()
+                .plugin_storage_get(plugin_id, key)
+                .map(<[u8]>::to_vec),
+        }
+    }
+
+    /// Write `value` under `key` in `plugin_id`'s per-project store, returning
+    /// `true` when the stored bytes changed.
+    pub fn storage_set(&self, plugin_id: &str, key: &str, value: Vec<u8>) -> bool {
+        if let Some(changed) = proposing_storage_set(plugin_id, key, value.clone()) {
+            return changed;
+        }
+        self.engine.lock().set_plugin_storage(plugin_id, key, value)
+    }
+
+    /// Remove `key` from `plugin_id`'s per-project store, returning `true`
+    /// when an entry was removed.
+    pub fn storage_delete(&self, plugin_id: &str, key: &str) -> bool {
+        if let Some(removed) = proposing_storage_delete(plugin_id, key) {
+            return removed;
+        }
+        self.engine.lock().delete_plugin_storage(plugin_id, key)
+    }
+
+    /// All keys stored for `plugin_id` in the open project, in sorted order.
+    pub fn storage_keys(&self, plugin_id: &str) -> Vec<String> {
+        match proposing() {
+            Some((project, _)) => project.plugin_storage_keys(plugin_id),
+            None => self.engine.lock().project().plugin_storage_keys(plugin_id),
+        }
     }
 }
 

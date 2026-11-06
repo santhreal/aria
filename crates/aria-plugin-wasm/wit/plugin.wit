@@ -1270,16 +1270,16 @@ world plugin {
     /// Emit a log line at `level`. The line is kept in the plugin's log in Settings > Plugins.
     import log: func(level: log-level, text: string);
 
-    /// Read a key from the package's storage directory, `<data_root>/plugin-data/<id>`.
+    /// Read a key from the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
     import storage-get: func(key: string) -> result<option<list<u8>>, string>;
 
-    /// Write `value` under `key` in the package's storage directory.
+    /// Write `value` under `key` in the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
     import storage-set: func(key: string, value: list<u8>) -> result<_, string>;
 
-    /// Delete `key` from the package's storage directory.
+    /// Delete `key` from the plugin's per-project store in the open `.aria` project (`plugin_data`), or `<data_root>/plugin-data/<id>` when no project host is registered.
     import storage-delete: func(key: string) -> result<_, string>;
 
-    /// List every key in the package's storage directory in sorted order.
+    /// List every key in the plugin's per-project store in sorted order.
     import storage-keys: func() -> result<list<string>, string>;
 
     /// Read a setting value as JSON text, or `none` if unset.

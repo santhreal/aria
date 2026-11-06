@@ -135,7 +135,7 @@ impl Host {
         }
     }
 
-    /// Read a key from the plugin's storage directory.
+    /// Read a key from the plugin's per-project store in the open `.aria` project.
     #[allow(unsafe_code)]
     pub fn storage_get(&self, key: &str) -> Result<Option<Vec<u8>>, String> {
         // SAFETY: `self.table.storage_get` is a valid host function.
@@ -152,7 +152,7 @@ impl Host {
         }
     }
 
-    /// Write `value` under `key` in the plugin's storage directory.
+    /// Write `value` under `key` in the plugin's per-project store in the open `.aria` project.
     #[allow(unsafe_code)]
     pub fn storage_set(&self, key: &str, value: &[u8]) -> Result<(), String> {
         // SAFETY: `self.table.storage_set` is a valid host function.
@@ -166,7 +166,7 @@ impl Host {
         self.decode_unit(res)
     }
 
-    /// Delete `key` from the plugin's storage directory.
+    /// Delete `key` from the plugin's per-project store in the open `.aria` project.
     #[allow(unsafe_code)]
     pub fn storage_delete(&self, key: &str) -> Result<(), String> {
         // SAFETY: `self.table.storage_delete` is a valid host function.
@@ -174,7 +174,7 @@ impl Host {
         self.decode_unit(res)
     }
 
-    /// List all keys in the plugin's storage directory, in sorted order.
+    /// List all keys in the plugin's per-project store, in sorted order.
     #[allow(unsafe_code)]
     pub fn storage_keys(&self) -> Result<Vec<String>, String> {
         // SAFETY: `self.table.storage_keys` is a valid host function.

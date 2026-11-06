@@ -643,8 +643,9 @@ typedef struct AriaHostV1 {
     /// `ARIA_LOG_*` value. A null `host_ctx` or text that is not UTF-8 writes nothing.
     void (*log)(void *host_ctx, uint32_t level, AriaStr text);
 
-    /// Read the value stored under `key` in the plugin's storage directory,
-    /// `<data dir>/plugin-data/<plugin id>`. Returns `ARIA_BYTES_FOUND` with the
+    /// Read the value stored under `key` in the plugin's per-project store in the
+    /// open `.aria` project (`plugin_data`), or `<data dir>/plugin-data/<plugin id>`
+    /// when no project host is registered. Returns `ARIA_BYTES_FOUND` with the
     /// bytes, or `ARIA_BYTES_NOT_FOUND`. A key is one file name: not empty, not `.` or
     /// `..`, and without `/`, `\` or NUL.
     AriaBytesResult (*storage_get)(void *host_ctx, AriaStr key);

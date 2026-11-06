@@ -34,6 +34,9 @@ pub(super) extern "C" fn host_storage_get(host_ctx: *mut c_void, key: AriaStr) -
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "storage key")?;
             validate_storage_key(key)?;
+            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
+                return Ok(host.storage_get(&ctx.state.id, key));
+            }
             let path = ctx.storage_dir().join(key);
             match std::fs::read(&path) {
                 Ok(bytes) => Ok(Some(bytes)),
@@ -60,6 +63,10 @@ pub(super) extern "C" fn host_storage_set(
             let key = read_str(key, "storage key")?;
             validate_storage_key(key)?;
             let bytes = value.as_slice();
+            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
+                host.storage_set(&ctx.state.id, key, bytes.to_vec());
+                return Ok(());
+            }
             let dir = ctx.storage_dir();
             std::fs::create_dir_all(&dir)
                 .map_err(|err| format!("storage directory creation failed: {err}"))?;
@@ -79,6 +86,10 @@ pub(super) extern "C" fn host_storage_delete(host_ctx: *mut c_void, key: AriaStr
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "storage key")?;
             validate_storage_key(key)?;
+            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
+                host.storage_delete(&ctx.state.id, key);
+                return Ok(());
+            }
             let path = ctx.storage_dir().join(key);
             match std::fs::remove_file(&path) {
                 Ok(()) => Ok(()),
@@ -97,6 +108,10 @@ pub(super) extern "C" fn host_storage_keys(host_ctx: *mut c_void) -> AriaResult 
     // SAFETY: `host_ctx` is valid for the duration of `host_storage_keys`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
+            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
+                let keys = host.storage_keys(&ctx.state.id);
+                return serde_json::to_string(&keys).map_err(|err| err.to_string());
+            }
             let dir = ctx.storage_dir();
             let entries = match std::fs::read_dir(&dir) {
                 Ok(entries) => entries,

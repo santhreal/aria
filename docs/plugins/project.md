@@ -33,6 +33,10 @@ it; a plugin declares `uses: &["ProjectHost"]` and takes it with
 | `save(&origin)` | Writes the open project to its current `project_path()` outside an edit group without adding an undo step, posting `ProjectSaved` |
 | `save_as(&origin, path)` | Writes the open project to `path` outside an edit group without adding an undo step, setting `project_path()` and posting `ProjectSaved` |
 | `replace_session(&origin, f)` | Runs `f` on the engine with no edit in flight, for a session replacement that is not a command, then posts `ProjectClosed` and `ProjectOpened` |
+| `storage_get(plugin_id, key)` | `Option<Vec<u8>>` for `(plugin_id, key)` in the open project's `plugin_data` store |
+| `storage_set(plugin_id, key, value)` | Writes `value` at `(plugin_id, key)` in the open project's `plugin_data` store and marks the session dirty when the bytes change |
+| `storage_delete(plugin_id, key)` | Removes `(plugin_id, key)` from the open project's `plugin_data` store, returning `true` when an entry was removed |
+| `storage_keys(plugin_id)` | Sorted `Vec<String>` of keys stored for `plugin_id` in the open project |
 
 `PluginContext` also exposes convenience query methods (`ctx.clip(id)`,
 `ctx.clips_in_range(sequence, range)`, `ctx.clips_at(sequence, tick)`,

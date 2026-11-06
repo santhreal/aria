@@ -88,7 +88,7 @@ pub(super) fn parse_panel_location(raw: &str) -> Result<PanelLocation, String> {
     }
 }
 
-pub(super) fn validate_storage_key(key: &str) -> Result<(), String> {
+pub(crate) fn validate_storage_key(key: &str) -> Result<(), String> {
     if key.is_empty()
         || key == "."
         || key == ".."

@@ -17,10 +17,10 @@ import to its in-process host service, `aria_sdk::Host` wrapper, and required
 | Release C string | n/a | `free_string` | handled by `Host` | n/a | none |
 | Release C byte buffer | n/a | `free_bytes` | handled by `Host` | n/a | none |
 | Write plugin log line | `PluginContext::log` | `log` | `log` | `log` | none |
-| Read package storage | `Package::data_dir` | `storage_get` | `storage_get` | `storage-get` | none |
-| Write package storage | `Package::data_dir` | `storage_set` | `storage_set` | `storage-set` | none |
-| Delete package storage | `Package::data_dir` | `storage_delete` | `storage_delete` | `storage-delete` | none |
-| List package storage | `Package::data_dir` | `storage_keys` | `storage_keys` | `storage-keys` | none |
+| Read plugin storage | `PluginContext::storage_get`, `ProjectHost::storage_get` | `storage_get` | `storage_get` | `storage-get` | none |
+| Write plugin storage | `PluginContext::storage_set`, `ProjectHost::storage_set` | `storage_set` | `storage_set` | `storage-set` | none |
+| Delete plugin storage | `PluginContext::storage_delete`, `ProjectHost::storage_delete` | `storage_delete` | `storage_delete` | `storage-delete` | none |
+| List plugin storage | `PluginContext::storage_keys`, `ProjectHost::storage_keys` | `storage_keys` | `storage_keys` | `storage-keys` | none |
 | Read setting value | `SettingsService::get` | `setting_get` | `setting_get`, `setting_get_json` | `setting-get` | none |
 | Register command | `CommandRegistry::register` | `register_command` | `register_command` | `register-command` | mount only |
 | Subscribe to event | `EventBus` | `subscribe` | `subscribe`, `subscribe_with_priority` | `subscribe` | mount only |

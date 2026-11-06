@@ -31,6 +31,7 @@ use self::project::{
     host_project_undo, host_render_frame, host_selected_clips,
 };
 pub(crate) use self::registration::register_native_command;
+pub(crate) use self::specs::validate_storage_key;
 use self::registration::{
     host_register_ai_tool, host_register_analyzer, host_register_clip_type, host_register_command,
     host_register_cpu_effect, host_register_driver_language, host_register_effect,

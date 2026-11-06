@@ -176,22 +176,43 @@ fn notes_plugin_cdylib_loads_and_executes_end_to_end() {
         .expect("single-track edit should pass");
     let _ = outcome;
 
-    // 3. Running `notes.count` writes the seen command count to `<data_root>/plugin-data/example.notes/seen_commands`.
+    // 3. Running `notes.count` writes the seen command count to the open project's
+    // per-plugin store (`Project::plugin_data["example.notes"]["seen_commands"]`),
+    // isolated from other projects and persisted across save/open.
     ctx.run_command("notes.count")
         .expect("run notes.count command");
-    let stored = std::fs::read_to_string(
-        data_root
-            .join("plugin-data")
-            .join("example.notes")
-            .join("seen_commands"),
-    )
-    .expect("read stored seen_commands");
+    let stored_bytes = host
+        .storage_get("example.notes", "seen_commands")
+        .expect("read stored seen_commands from ProjectHost");
+    let stored = String::from_utf8(stored_bytes).expect("utf8 seen_commands");
     let parsed_count: usize = stored.parse().expect("valid integer count");
     assert!(
         parsed_count >= 1,
         "expected at least 1 seen command, got {parsed_count}"
     );
 
+    let path_a = temp.path().join("notes_a.aria");
+    let path_b = temp.path().join("notes_b.aria");
+    aria_models::Project::new("Notes B", aria_core::Rational::FPS_24)
+        .save_to_file(&path_b)
+        .expect("save notes_b.aria");
+    host.save_as(&Origin::Editor, &path_a)
+        .expect("save notes_a.aria");
+    host.open(&Origin::Editor, &path_b)
+        .expect("open notes_b.aria");
+    assert_eq!(
+        host.storage_get("example.notes", "seen_commands"),
+        None,
+        "notes.count storage in project A must not leak into project B"
+    );
+    host.open(&Origin::Editor, &path_a)
+        .expect("reopen notes_a.aria");
+    assert_eq!(
+        host.storage_get("example.notes", "seen_commands")
+            .as_deref(),
+        Some(stored.as_bytes()),
+        "notes.count storage in project A must survive save and reopen"
+    );
     ctx.unmount("example.notes").expect("unmount example.notes");
     assert!(!ctx.is_mounted("example.notes"));
 }
