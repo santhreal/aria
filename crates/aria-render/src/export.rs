@@ -481,15 +481,11 @@ pub fn export_observed(
     let (start, _) = settings.frame_span(project);
     let native = settings.size == canvas_size(project);
 
-    // Export always applies per-clip transform motion blur when enabled.
-    // Interactive preview leaves the flag off for scrub performance.
-    let prev_blur = renderer.apply_motion_blur;
-    renderer.set_apply_motion_blur(true);
-    let result = export_observed_inner(
-        renderer, project, encoder, settings, observer, start, frames, native, rate,
-    );
-    renderer.set_apply_motion_blur(prev_blur);
-    result
+    renderer.exporting(|renderer| {
+        export_observed_inner(
+            renderer, project, encoder, settings, observer, start, frames, native, rate,
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

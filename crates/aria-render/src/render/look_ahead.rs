@@ -35,6 +35,7 @@ use crate::error::RenderError;
 use crate::resolve::ResolveOverrides;
 use crate::scene::{LayerSource, SceneLayer};
 
+use super::media_cache::offline_or;
 use super::{Renderer, SeekPolicy};
 
 /// How far ahead of the playhead clips coming on screen are opened and
@@ -355,8 +356,11 @@ impl Renderer {
         }
         if !self.decoders.contains_key(&key) {
             let path = self.decoder_path(project, key.media)?;
-            let decoder =
-                AheadDecoder::new(open_video_decoder_at(&path, self.decode_mode, source_time)?);
+            let opened = match open_video_decoder_at(&path, self.decode_mode, source_time) {
+                Ok(opened) => opened,
+                Err(error) => return Err(offline_or(path, error.into())),
+            };
+            let decoder = AheadDecoder::new(opened);
             if self.decoders.len() >= MAX_DECODERS {
                 self.evict_decoders_to(MAX_DECODERS - 1, true);
             }
@@ -368,13 +372,15 @@ impl Renderer {
         };
         slot.used = stamp;
         slot.released = false;
-        let opened = slot.ready();
-        let decoder = match opened {
+        let decoder = match slot.ready() {
             Ok(decoder) => decoder,
             Err(error) => {
                 // A failed open is retried by the next frame that needs it.
                 self.decoders.remove(&key);
-                return Err(error);
+                return Err(match self.decoder_path(project, key.media) {
+                    Ok(path) => offline_or(path, error),
+                    Err(_) => error,
+                });
             }
         };
         let mut frame = match policy {

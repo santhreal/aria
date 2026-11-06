@@ -147,6 +147,10 @@ impl PendingFrame {
     }
 }
 
+/// The color a media layer whose file is not on disk draws in, when
+/// [`Renderer::set_offline_slate`] is on.
+pub const OFFLINE_SLATE: [u8; 4] = [160, 24, 40, 255];
+
 /// Renders project frames on a headless (or shared) GPU.
 pub struct Renderer {
     gpu: GpuContext,
@@ -222,6 +226,9 @@ pub struct Renderer {
     /// export command) flip it off for the pass. Toggling drops the
     /// proxied media's open decoders so no cursor outlives its file.
     use_proxies: bool,
+    /// Whether a media layer whose file is not on disk draws as
+    /// [`OFFLINE_SLATE`] instead of failing the frame. Off by default.
+    offline_slate: bool,
     /// Changes whenever a media id may decode from a different file than
     /// before: a media-source reset or invalidation, a proxy registered or
     /// cleared, or proxies switched on or off. See [`MediaSources`].
@@ -273,6 +280,7 @@ impl std::fmt::Debug for Renderer {
             .field("decode_mode", &self.decode_mode)
             .field("use_proxies", &self.use_proxies)
             .field("apply_motion_blur", &self.apply_motion_blur)
+            .field("offline_slate", &self.offline_slate)
             .finish_non_exhaustive()
     }
 }

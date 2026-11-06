@@ -130,13 +130,11 @@ pub fn export_frame_png(
     path: &Path,
 ) -> Result<(u32, u32), RenderError> {
     crate::export::check_export_destination(project, path, None)?;
-    let prev_blur = renderer.apply_motion_blur;
-    renderer.set_apply_motion_blur(true);
-    let image = renderer
-        .resolve_frame(project, at)
-        .and_then(|scene| renderer.render_scene(project, &scene));
-    renderer.set_apply_motion_blur(prev_blur);
-    let image = image?;
+    let image = renderer.exporting(|renderer| {
+        renderer
+            .resolve_frame(project, at)
+            .and_then(|scene| renderer.render_scene(project, &scene))
+    })?;
     write_png(&image, path)?;
     Ok((image.width, image.height))
 }

@@ -21,7 +21,7 @@ use crate::scene::{LayerSource, Scene, SceneLayer, SceneLut, SizeSpec};
 
 use super::super::effects::{blend_mode, layer_effects, layer_styles, shape_mask};
 use super::super::look_ahead::{DecoderKey, Shown};
-use super::super::{Renderer, SeekPolicy};
+use super::super::{OFFLINE_SLATE, Renderer, SeekPolicy};
 use super::{DecodeTally, InlineVec, RealizeScratch, text};
 
 /// An owned, decoded or rasterized scene layer kept alive while the compositor
@@ -242,15 +242,25 @@ impl Renderer {
             LayerSource::Media { media, source_time } => {
                 let decode_started = std::time::Instant::now();
                 let key = DecoderKey::of(*media, layer);
-                let shown = self.decode(project, key, *source_time, policy)?;
-                decoded.ms += decode_started.elapsed().as_secs_f64() * 1000.0;
-                decoded.snapped += u32::from(!shown.exact);
-                (Pixels::Frame(shown), fixed())
+                match self.decode(project, key, *source_time, policy) {
+                    Ok(shown) => {
+                        decoded.ms += decode_started.elapsed().as_secs_f64() * 1000.0;
+                        decoded.snapped += u32::from(!shown.exact);
+                        (Pixels::Frame(shown), fixed())
+                    }
+                    Err(RenderError::MediaOffline { .. }) if self.offline_slate => {
+                        (Pixels::Solid(OFFLINE_SLATE), fixed())
+                    }
+                    Err(error) => return Err(error),
+                }
             }
-            LayerSource::Still { media } => {
-                self.ensure_still(project, *media)?;
-                (Pixels::Still(*media), fixed())
-            }
+            LayerSource::Still { media } => match self.ensure_still(project, *media) {
+                Ok(()) => (Pixels::Still(*media), fixed()),
+                Err(RenderError::MediaOffline { .. }) if self.offline_slate => {
+                    (Pixels::Solid(OFFLINE_SLATE), fixed())
+                }
+                Err(error) => return Err(error),
+            },
             LayerSource::Lottie { path, local_time } => {
                 // A missing or unsupported file draws nothing (the media
                 // offline story: projects move machines), never an error.

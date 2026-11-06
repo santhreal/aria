@@ -663,6 +663,15 @@ impl Engine {
         self.proxy_revision += 1;
     }
 
+    /// Draw media whose file is not on disk as
+    /// [`OFFLINE_SLATE`](aria_render::OFFLINE_SLATE) in the frames this engine
+    /// renders, instead of failing them with
+    /// [`RenderError::MediaOffline`](aria_render::RenderError::MediaOffline).
+    /// Off by default. An export fails on missing media whatever it is.
+    pub fn set_offline_slate(&mut self, on: bool) {
+        self.renderer.set_offline_slate(on);
+    }
+
     /// Monotonic counter over proxy substitutions and the
     /// [`preview_transparency`](Self::preview_transparency) switch.
     ///

@@ -16,6 +16,8 @@ mod export_sound;
 mod lottie_render;
 #[path = "../lut_render.rs"]
 mod lut_render;
+#[path = "../offline_slate.rs"]
+mod offline_slate;
 #[path = "../registered_render.rs"]
 mod registered_render;
 #[path = "../render_files.rs"]

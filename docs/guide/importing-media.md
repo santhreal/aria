@@ -87,6 +87,11 @@ states why on it:
 | the file there has a different frame size / duration / audio | The name matched, the file is another source |
 | could not read the file there | The file exists and did not open |
 
+The Viewer draws a clip whose file is missing as a solid red picture in the
+clip's place, with every other clip in the frame drawn as usual. An export, a
+frame export, and a plugin frame request fail instead, with the missing file's
+path in the error.
+
 ## Stock and sound effects
 
 The Project panel's **Library** group holds the **Stock**, **SFX**, and

@@ -260,6 +260,15 @@ pub(super) fn default_decode_mode() -> OutputMode {
     OutputMode::Cpu
 }
 
+/// `error`, or [`RenderError::MediaOffline`] when `path` is not on disk: a
+/// decode that failed because its file moved reports the file, not the codec.
+pub(super) fn offline_or(path: std::path::PathBuf, error: RenderError) -> RenderError {
+    match std::fs::metadata(&path) {
+        Ok(_) => error,
+        Err(_) => RenderError::MediaOffline { path },
+    }
+}
+
 impl Renderer {
     /// Decode `media`'s single still frame into the cache on first use.
     pub(super) fn ensure_still(
@@ -273,7 +282,10 @@ impl Renderer {
         let src = project
             .media(media)
             .ok_or(RenderError::MissingMedia(media))?;
-        let image = aria_decoder::decode_image(src.path())?;
+        let image = match aria_decoder::decode_image(src.path()) {
+            Ok(image) => image,
+            Err(error) => return Err(offline_or(src.path().to_path_buf(), error.into())),
+        };
         self.stills.insert(media, Arc::new(image));
         Ok(())
     }

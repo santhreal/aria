@@ -112,6 +112,7 @@ impl Renderer {
             decode_mode: default_decode_mode(),
             proxies: Arc::default(),
             use_proxies: true,
+            offline_slate: false,
             media_generation: next_media_generation(),
             apply_motion_blur: false,
             realize_scratch: super::realize::RealizeScratch::default(),
@@ -150,6 +151,20 @@ impl Renderer {
     /// frames. Export turns this on; interactive preview leaves it off.
     pub fn set_apply_motion_blur(&mut self, on: bool) {
         self.apply_motion_blur = on;
+    }
+
+    /// Run `pass` under the settings every export renders with: motion blur
+    /// applied, and a media file that is not on disk failing the frame with
+    /// [`RenderError::MediaOffline`](crate::RenderError::MediaOffline) rather
+    /// than drawing the offline slate. Both settings are restored after.
+    pub(crate) fn exporting<R>(&mut self, pass: impl FnOnce(&mut Self) -> R) -> R {
+        let (blur, slate) = (self.apply_motion_blur, self.offline_slate);
+        self.apply_motion_blur = true;
+        self.offline_slate = false;
+        let result = pass(self);
+        self.apply_motion_blur = blur;
+        self.offline_slate = slate;
+        result
     }
 
     /// Attach or detach the content-addressed [`RenderFiles`] store consulted by
@@ -285,6 +300,15 @@ impl Renderer {
         self.decoders
             .retain(|key, _| !proxies.contains_key(&key.media));
         self.media_generation = next_media_generation();
+    }
+
+    /// Draw a media layer whose file is not on disk as
+    /// [`OFFLINE_SLATE`](super::OFFLINE_SLATE) instead of failing the frame
+    /// with [`RenderError::MediaOffline`](crate::RenderError::MediaOffline). A
+    /// preview turns this on, so it shows the frame at the playhead with its
+    /// other layers; an export leaves it off.
+    pub fn set_offline_slate(&mut self, on: bool) {
+        self.offline_slate = on;
     }
 
     /// Drop every open decoder for `media` (see `decoders`: one entry per

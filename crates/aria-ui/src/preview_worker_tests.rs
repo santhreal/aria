@@ -445,6 +445,42 @@ async fn a_viewer_frame_is_the_tick_asked_for(cx: &mut gpui::TestAppContext) {
     }
 }
 
+/// WHY: a clip whose file was moved or deleted failed every Viewer render at
+/// the playhead, so the Viewer kept whatever frame it last drew. The engine a
+/// preview worker renders through draws the clip as the offline slate and the
+/// frame comes back. Not covered: the export path, which fails on a missing
+/// file whatever the slate setting (`aria-render` `tests/offline_slate.rs`).
+#[gpui::test]
+async fn a_viewer_frame_over_a_missing_file_shows_the_offline_slate(cx: &mut gpui::TestAppContext) {
+    let executor = cx.executor();
+    executor.allow_parking();
+    let moved = crate::scratch_pool::scratch("offline-viewer").join("moved.png");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
+    std::fs::copy(fixture, &moved).expect("copy the fixture");
+    let (state, _) = crate::app::premiere_tests::with_media(moved.clone());
+    std::fs::remove_file(&moved).expect("move the file away");
+    let at = RationalTime::new(3, state.playhead.rate);
+    let rendered = state
+        .preview_worker
+        .frame(&executor, at, None, Cancel::never())
+        .await;
+    let Some(Ok(frame)) = rendered else {
+        panic!("the Viewer frame over a missing file did not render: {rendered:?}");
+    };
+    let (width, height) = (frame.rgba.width, frame.rgba.height);
+    let at = (((height / 2) * width + width / 2) * 4) as usize;
+    let middle = &frame.rgba.pixels[at..at + 4];
+    let slate = aria_render::OFFLINE_SLATE;
+    assert!(
+        middle
+            .iter()
+            .zip(slate)
+            .all(|(got, want)| got.abs_diff(want) <= 4),
+        "the middle of a {width}x{height} frame is {middle:?}, not the slate {slate:?}"
+    );
+}
+
 /// Starting a run renders the next [`RENDER_AHEAD`] slots; a clear empties the
 /// cache at once; an edit renders them again from the new project.
 ///

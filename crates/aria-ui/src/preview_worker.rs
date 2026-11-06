@@ -244,8 +244,11 @@ pub struct PreviewWorker {
 
 impl PreviewWorker {
     /// Start the worker for the session rendering through `engine`, measuring
-    /// the scopes `plugins` registers beside the built-in three.
+    /// the scopes `plugins` registers beside the built-in three. The engine
+    /// draws media whose file is missing as the offline slate from here on, so
+    /// the viewer shows the frame at the playhead rather than the last one.
     pub fn spawn(engine: Arc<Mutex<Engine>>, plugins: PluginContext) -> std::io::Result<Self> {
+        engine.lock().set_offline_slate(true);
         let (first_lane, queue) = crossbeam_channel::unbounded();
         let (pictures, picture_queue) = crossbeam_channel::unbounded();
         let (wake, wakes) = wakes();

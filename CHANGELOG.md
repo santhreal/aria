@@ -1300,6 +1300,7 @@ Notes for the latest release. For previous releases, see the
 - Re-importing a file already in the media pool no longer marks a saved project unsaved.
 - Scrubbing builds the project's audio mix and opens the output device once instead of at every frame, and a missing output device is reported once.
 - Reverse playback shows each frame instead of flashing the clip's keyframe when decoding falls behind.
+- The Viewer draws a clip whose file is missing as a red slate with the rest of the frame instead of freezing on the last frame it drew.
 
 ## [alpha-0.7.0] - 2026-07-22
 
