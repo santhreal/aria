@@ -293,11 +293,10 @@ impl UiSettings {
     }
 
     pub fn save(&self, data_dir: &Path) -> io::Result<()> {
-        std::fs::create_dir_all(data_dir)?;
-        let path = data_dir.join(FILE_NAME);
         let text = serde_json::to_string_pretty(self)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        std::fs::write(path, text)
+        aria_settings::replace_file(&data_dir.join(FILE_NAME), text.as_bytes())
+            .map_err(io::Error::other)
     }
 
     pub fn path(data_dir: &Path) -> PathBuf {

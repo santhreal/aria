@@ -97,7 +97,7 @@ fn save_placement(window: &Window, state: &mut AppState, cx: &App) {
     );
     // The session is ending, so a status line would never be read: the failure
     // goes to the log with the path to fix.
-    if let Err(err) = state.ui_settings.save(&state.data_dir) {
+    if let Err(err) = state.write_settings_now() {
         tracing::warn!(
             dir = %state.data_dir.display(),
             "window placement not saved for the next launch: {err}"

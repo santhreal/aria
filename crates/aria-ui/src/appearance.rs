@@ -3,13 +3,12 @@
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use gpui::{App, Global, Subscription, Window};
 use serde::{Deserialize, Serialize};
 
-use crate::settings::UiSettings;
 use crate::theme::file::ThemeFile;
 use crate::theme::{Appearance, Theme};
 
@@ -159,17 +158,7 @@ pub fn set_mode(mode: AppearanceMode, cx: &mut App) {
         return;
     }
     state.mode = mode;
-    let data_dir = state.data_dir.clone();
     apply(cx);
-    persist(mode, &data_dir);
-}
-
-fn persist(mode: AppearanceMode, data_dir: &Path) {
-    let mut settings = UiSettings::load(data_dir);
-    settings.appearance = mode;
-    if let Err(err) = settings.save(data_dir) {
-        tracing::warn!(error = %err, "could not persist appearance");
-    }
 }
 
 pub fn observe_window(window: &mut Window, cx: &mut App) -> Subscription {

@@ -81,11 +81,34 @@ fn new_temporary_config_is_private_before_installation() {
 
     let dir = tempfile::tempdir().unwrap();
     let destination = dir.path().join("config.toml");
-    let temporary = write_synced_temp(&destination, b"secret = \"value\"\n", None).unwrap();
+    let temporary =
+        write_synced_temp(&destination, b"secret = \"value\"\n", None, Access::Private).unwrap();
 
     let mode = std::fs::metadata(&temporary).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
     std::fs::remove_file(temporary).unwrap();
+    assert_no_transaction_artifacts(dir.path());
+}
+
+/// A state file replaced through `replace_file` keeps the mode it had, unlike
+/// the config, which is always made private; a missing directory is created.
+#[cfg(unix)]
+#[test]
+fn a_replaced_file_keeps_its_mode_and_gains_its_directory() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ui-settings.json");
+    std::fs::write(&path, b"old").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+    replace_file(&path, b"new").unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"new");
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640, "the replaced file lost its mode");
+
+    let nested = dir.path().join("keymaps").join("Mine.toml");
+    replace_file(&nested, b"version = 1\n").unwrap();
+    assert_eq!(std::fs::read(&nested).unwrap(), b"version = 1\n");
     assert_no_transaction_artifacts(dir.path());
 }
 
@@ -96,7 +119,7 @@ fn fallback_swap_replaces_existing_file_and_cleans_backup() {
     let original = b"version = \"old\"\n";
     let replacement = b"version = \"new\"\n";
     std::fs::write(&destination, original).unwrap();
-    let temporary = write_synced_temp(&destination, replacement, None).unwrap();
+    let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1], &[]);
 
     install_temp_with_ops(&destination, &temporary, &fs).unwrap();
@@ -112,15 +135,12 @@ fn fallback_install_failure_restores_original_and_cleans_temp() {
     let original = b"version = \"old\"\n";
     let replacement = b"version = \"new\"\n";
     std::fs::write(&destination, original).unwrap();
-    let temporary = write_synced_temp(&destination, replacement, None).unwrap();
+    let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1, 3], &[]);
 
     let error = install_temp_with_ops(&destination, &temporary, &fs).unwrap_err();
 
-    assert!(
-        error.contains("original configuration was restored"),
-        "{error}"
-    );
+    assert!(error.contains("original file was restored"), "{error}");
     assert_eq!(std::fs::read(&destination).unwrap(), original);
     assert_no_transaction_artifacts(dir.path());
 }
@@ -132,7 +152,7 @@ fn fallback_reports_failed_rollback_and_retains_original_backup() {
     let original = b"version = \"old\"\n";
     let replacement = b"version = \"new\"\n";
     std::fs::write(&destination, original).unwrap();
-    let temporary = write_synced_temp(&destination, replacement, None).unwrap();
+    let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1, 3, 4], &[]);
 
     let error = install_temp_with_ops(&destination, &temporary, &fs).unwrap_err();
@@ -159,7 +179,7 @@ fn fallback_backup_cleanup_failure_does_not_uncommit_installation() {
     let original = b"version = \"old\"\n";
     let replacement = b"version = \"new\"\n";
     std::fs::write(&destination, original).unwrap();
-    let temporary = write_synced_temp(&destination, replacement, None).unwrap();
+    let temporary = write_synced_temp(&destination, replacement, None, Access::Private).unwrap();
     let fs = FaultFs::failing(&[1], &[1]);
 
     install_temp_with_ops(&destination, &temporary, &fs).unwrap();

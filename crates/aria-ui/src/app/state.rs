@@ -398,6 +398,11 @@ pub struct AppState {
     pub menu_owner: Option<&'static str>,
     pub interaction: std::sync::Arc<crate::interaction::InteractionGate>,
     pub(super) save_generation: u64,
+    /// The generation of the last `ui-settings.json` write that landed. A
+    /// write holds the lock for its whole length, so two writes never
+    /// interleave, and a write that finds a newer generation recorded skips:
+    /// the file never goes back to an older copy.
+    pub(super) settings_written: std::sync::Arc<parking_lot::Mutex<u64>>,
     pub(super) preview_generation: u64,
     /// Whether a preview decode is running. One runs at a time: a decode holds
     /// the engine lock for its whole length, so a second would only wait for the

@@ -265,6 +265,7 @@ impl AppState {
             k_crawl: 0,
             interaction: crate::interaction::InteractionGate::new(),
             save_generation: 0,
+            settings_written: std::sync::Arc::default(),
             open_menu: None,
             menu_row: None,
             menu_flyout: None,

@@ -1,22 +1,34 @@
-//! Replacing the config file without ever leaving it unreadable.
+//! Replacing a file without ever leaving it unreadable.
 //!
-//! A save is a transaction, not a write: the new contents go to a private
-//! temporary beside the destination, are flushed and synced, and only then
-//! replace the file. A crash, a full disk, or a permission fault leaves either
-//! the old file or the new one, never a truncated mixture of both, because the
-//! config is the only record of the API keys and cache locations.
+//! A save is a transaction, not a write: the new contents go to a temporary
+//! beside the destination, are flushed and synced, and only then replace the
+//! file. A crash, a full disk, or a permission fault leaves either the old file
+//! or the new one, never a truncated mixture of both. The config file is the
+//! only record of the API keys and cache locations; the editor's own state
+//! files (window layout, keymaps, presets, recents) go through
+//! [`replace_file`] for the same reason.
 //!
 //! The filesystem calls go through [`PersistenceFs`] so the failure paths
 //! themselves are testable: a rename that fails on the third call is a test,
 //! not a story.
 
 use std::ffi::OsString;
+use std::fs::Permissions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub(crate) const UNIQUE_PATH_ATTEMPTS: usize = 128;
 pub(crate) static UNIQUE_PATH_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Who may read a replaced file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Access {
+    /// Owner only (0600 on unix), whatever the replaced file's mode was.
+    Private,
+    /// The replaced file's permissions, or the umask default for a new file.
+    Shared,
+}
 
 pub(crate) trait PersistenceFs {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
@@ -40,6 +52,19 @@ impl PersistenceFs for StdPersistenceFs {
     }
 }
 
+/// Replace `destination` with `contents`, creating its directory when
+/// missing. A crash or a failed write leaves the old file or the new one,
+/// never a truncated file. The file keeps its permissions; a new file takes
+/// the umask default.
+pub fn replace_file(destination: &Path, contents: &[u8]) -> Result<(), String> {
+    let parent = destination_parent(destination)?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    let permissions = existing_permissions(destination)?;
+    let temporary = write_synced_temp(destination, contents, permissions, Access::Shared)?;
+    install_temp_with_ops(destination, &temporary, &StdPersistenceFs)
+}
+
 pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = destination_parent(destination)?;
     #[cfg(unix)]
@@ -60,18 +85,8 @@ pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<
             .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
     }
 
-    let permissions = match std::fs::metadata(destination) {
-        Ok(metadata) => Some(metadata.permissions()),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-        Err(e) => {
-            return Err(format!(
-                "could not read permissions for {}: {e}",
-                destination.display()
-            ));
-        }
-    };
-
-    let temporary = write_synced_temp(destination, contents, permissions)?;
+    let permissions = existing_permissions(destination)?;
+    let temporary = write_synced_temp(destination, contents, permissions, Access::Private)?;
     install_temp_with_ops(destination, &temporary, &StdPersistenceFs)?;
     #[cfg(unix)]
     {
@@ -81,12 +96,24 @@ pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<
     Ok(())
 }
 
+fn existing_permissions(destination: &Path) -> Result<Option<Permissions>, String> {
+    match std::fs::metadata(destination) {
+        Ok(metadata) => Ok(Some(metadata.permissions())),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!(
+            "could not read permissions for {}: {e}",
+            destination.display()
+        )),
+    }
+}
+
 pub(crate) fn write_synced_temp(
     destination: &Path,
     contents: &[u8],
-    permissions: Option<std::fs::Permissions>,
+    permissions: Option<Permissions>,
+    access: Access,
 ) -> Result<PathBuf, String> {
-    let (temporary, mut file) = create_unique_temp(destination)?;
+    let (temporary, mut file) = create_unique_temp(destination, access)?;
 
     if let Err(e) = file.write_all(contents) {
         drop(file);
@@ -94,19 +121,17 @@ pub(crate) fn write_synced_temp(
             &StdPersistenceFs,
             &temporary,
             format!(
-                "could not write temporary configuration for {}: {e}",
+                "could not write a temporary file for {}: {e}",
                 destination.display()
             ),
         ));
     }
 
     #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = file.set_permissions(std::fs::Permissions::from_mode(0o600));
-        let _ = permissions;
-    }
-    #[cfg(not(unix))]
+    let permissions = match access {
+        Access::Private => Some(std::os::unix::fs::PermissionsExt::from_mode(0o600)),
+        Access::Shared => permissions,
+    };
     if let Some(permissions) = permissions
         && let Err(e) = file.set_permissions(permissions)
     {
@@ -127,7 +152,7 @@ pub(crate) fn write_synced_temp(
             &StdPersistenceFs,
             &temporary,
             format!(
-                "could not sync temporary configuration for {}: {e}",
+                "could not sync a temporary file for {}: {e}",
                 destination.display()
             ),
         ));
@@ -137,7 +162,10 @@ pub(crate) fn write_synced_temp(
     Ok(temporary)
 }
 
-pub(crate) fn create_unique_temp(destination: &Path) -> Result<(PathBuf, std::fs::File), String> {
+pub(crate) fn create_unique_temp(
+    destination: &Path,
+    access: Access,
+) -> Result<(PathBuf, std::fs::File), String> {
     for _ in 0..UNIQUE_PATH_ATTEMPTS {
         let candidate = unique_sibling_path(destination, "tmp")?;
         let mut options = std::fs::OpenOptions::new();
@@ -145,14 +173,19 @@ pub(crate) fn create_unique_temp(destination: &Path) -> Result<(PathBuf, std::fs
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
+            options.mode(match access {
+                Access::Private => 0o600,
+                Access::Shared => 0o666,
+            });
         }
+        #[cfg(not(unix))]
+        let _ = access;
         match options.open(&candidate) {
             Ok(file) => return Ok((candidate, file)),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
             Err(e) => {
                 return Err(format!(
-                    "could not create a temporary configuration beside {}: {e}",
+                    "could not create a temporary file beside {}: {e}",
                     destination.display()
                 ));
             }
@@ -160,7 +193,7 @@ pub(crate) fn create_unique_temp(destination: &Path) -> Result<(PathBuf, std::fs
     }
 
     Err(format!(
-        "could not allocate a unique temporary configuration beside {}",
+        "could not allocate a unique temporary file beside {}",
         destination.display()
     ))
 }
@@ -182,8 +215,8 @@ pub(crate) fn install_temp_with_ops(
                 fs,
                 temporary,
                 format!(
-                    "could not install configuration at {} with an atomic rename: {atomic_error}; \
-                     the destination was absent, so no existing configuration required recovery",
+                    "could not install {} with an atomic rename: {atomic_error}; \
+                     the destination was absent, so no existing file required recovery",
                     destination.display()
                 ),
             ));
@@ -193,7 +226,7 @@ pub(crate) fn install_temp_with_ops(
                 fs,
                 temporary,
                 format!(
-                    "could not install configuration at {} with an atomic rename: {atomic_error}; \
+                    "could not install {} with an atomic rename: {atomic_error}; \
                      could not inspect the existing destination for recovery: {e}",
                     destination.display()
                 ),
@@ -208,8 +241,8 @@ pub(crate) fn install_temp_with_ops(
                 fs,
                 temporary,
                 format!(
-                    "could not replace configuration at {} after atomic rename failed \
-                     ({atomic_error}): {e}; the existing configuration was left in place",
+                    "could not replace {} after atomic rename failed \
+                     ({atomic_error}): {e}; the existing file was left in place",
                     destination.display()
                 ),
             ));
@@ -221,9 +254,9 @@ pub(crate) fn install_temp_with_ops(
             fs,
             temporary,
             format!(
-                "could not replace configuration at {}: atomic rename failed ({atomic_error}); \
-                 moving the existing configuration to a backup also failed: {backup_error}; \
-                 the existing configuration was left in place",
+                "could not replace {}: atomic rename failed ({atomic_error}); \
+                 moving the existing file to a backup also failed: {backup_error}; \
+                 the existing file was left in place",
                 destination.display()
             ),
         ));
@@ -244,8 +277,8 @@ pub(crate) fn install_temp_with_ops(
                 fs,
                 temporary,
                 format!(
-                    "could not install the new configuration at {} after backing up the existing \
-                     file: {install_error}; the original configuration was restored",
+                    "could not install the new {} after backing up the existing \
+                     file: {install_error}; the original file was restored",
                     destination.display()
                 ),
             )),
@@ -253,9 +286,9 @@ pub(crate) fn install_temp_with_ops(
                 fs,
                 temporary,
                 format!(
-                    "could not install the new configuration at {} after backing up the existing \
+                    "could not install the new {} after backing up the existing \
                      file: {install_error}; rollback failed: {rollback_error}; the destination may \
-                     be missing, and the original configuration backup was retained at {}",
+                     be missing, and the original file's backup was retained at {}",
                     destination.display(),
                     backup.display()
                 ),
@@ -290,12 +323,9 @@ pub(crate) fn vacant_backup_path(
 
 pub(crate) fn unique_sibling_path(destination: &Path, role: &str) -> Result<PathBuf, String> {
     let parent = destination_parent(destination)?;
-    let file_name = destination.file_name().ok_or_else(|| {
-        format!(
-            "configuration path {} has no file name",
-            destination.display()
-        )
-    })?;
+    let file_name = destination
+        .file_name()
+        .ok_or_else(|| format!("path {} has no file name", destination.display()))?;
     let nonce = UNIQUE_PATH_COUNTER.fetch_add(1, Ordering::Relaxed);
     let mut name = OsString::from(".");
     name.push(file_name);
@@ -304,12 +334,9 @@ pub(crate) fn unique_sibling_path(destination: &Path, role: &str) -> Result<Path
 }
 
 pub(crate) fn destination_parent(destination: &Path) -> Result<&Path, String> {
-    let parent = destination.parent().ok_or_else(|| {
-        format!(
-            "configuration path {} has no parent directory",
-            destination.display()
-        )
-    })?;
+    let parent = destination
+        .parent()
+        .ok_or_else(|| format!("path {} has no parent directory", destination.display()))?;
     if parent.as_os_str().is_empty() {
         Ok(Path::new("."))
     } else {

@@ -44,12 +44,7 @@ fn look_file_name(id: &str) -> String {
 
 /// Write one baked look into the LUT cache.
 fn write_look(path: &Path, lut: &StarterLut) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|err| format!("creating {}: {err}", parent.display()))?;
-    }
-    std::fs::write(path, lut.cube.to_cube_string(&lut.label))
-        .map_err(|err| format!("writing {}: {err}", path.display()))
+    aria_settings::replace_file(path, lut.cube.to_cube_string(&lut.label).as_bytes())
 }
 
 /// Whether `dir` already holds frames from an earlier sequence render.

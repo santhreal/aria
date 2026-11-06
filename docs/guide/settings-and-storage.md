@@ -257,6 +257,13 @@ installed version.
 Settings are stored in `~/.aria/config.toml`. UI chrome widths persist in
 `~/.aria/ui-settings.json`. Recents persist in `~/.aria/recents.json`.
 
+Aria saves `config.toml`, `ui-settings.json`, `recents.json`, and the
+workspace, key set, preset, assistant conversation, and skill files under
+`~/.aria` by writing a temporary file in the same folder, flushing it to disk,
+and renaming it over the old file. An interrupted save leaves the previous copy
+intact. `config.toml` is written with mode `0600`; every other file keeps its
+existing mode.
+
 Each table in `config.toml` holds a schema version, recorded in one table:
 
 ```toml

@@ -682,21 +682,57 @@ impl AppState {
         let generation = self.save_generation;
         let settings = self.ui_settings.clone();
         let data_dir = self.data_dir.clone();
+        let written = std::sync::Arc::clone(&self.settings_written);
         cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(SAVE_DEBOUNCE_MS))
                 .await;
-            let _ = this.update(cx, |state, _cx| {
-                if state.save_generation != generation {
-                    return;
-                }
-                if let Err(err) = settings.save(&data_dir) {
-                    tracing::warn!(error = %err, "could not persist ui-settings");
-                }
-            });
+            let latest = this
+                .update(cx, |state, _cx| state.save_generation == generation)
+                .unwrap_or(false);
+            if !latest {
+                return;
+            }
+            // The write syncs the file to disk: no work for the UI thread.
+            let saved = cx
+                .background_executor()
+                .spawn(async move { write_settings(&written, generation, &settings, &data_dir) })
+                .await;
+            if let Err(err) = saved {
+                tracing::warn!(error = %err, "could not persist ui-settings");
+            }
         })
         .detach();
     }
+
+    /// Write `ui-settings.json` now, and drop a debounced write still waiting:
+    /// it holds an older copy.
+    pub(crate) fn write_settings_now(&mut self) -> std::io::Result<()> {
+        self.save_generation = self.save_generation.saturating_add(1);
+        write_settings(
+            &self.settings_written,
+            self.save_generation,
+            &self.ui_settings,
+            &self.data_dir,
+        )
+    }
+}
+
+/// Write `settings` as generation `generation`, unless a newer generation has
+/// landed already.
+pub(super) fn write_settings(
+    written: &parking_lot::Mutex<u64>,
+    generation: u64,
+    settings: &UiSettings,
+    data_dir: &std::path::Path,
+) -> std::io::Result<()> {
+    let mut last = written.lock();
+    if *last > generation {
+        return Ok(());
+    }
+    settings.save(data_dir)?;
+    *last = generation;
+    Ok(())
 }
 
 pub trait ReportableError {

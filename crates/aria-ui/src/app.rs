@@ -875,6 +875,9 @@ mod bin_folder_tests;
 #[path = "app/codec_tests.rs"]
 mod codec_tests;
 #[cfg(test)]
+#[path = "app/state_file_tests.rs"]
+mod state_file_tests;
+#[cfg(test)]
 #[path = "app/trim_gesture_tests.rs"]
 mod trim_gesture_tests;
 

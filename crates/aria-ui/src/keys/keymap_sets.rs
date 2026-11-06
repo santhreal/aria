@@ -193,14 +193,8 @@ pub fn read_keymap(path: &Path) -> Result<KeySet, String> {
 
 /// Write `set` to `path`, creating the directory it is in.
 pub fn write_keymap(path: &Path, set: &KeySet) -> Result<(), String> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)
-            .map_err(|err| format!("could not create {}: {err}", parent.display()))?;
-    }
     let text = render_keymap(set)?;
-    std::fs::write(path, text).map_err(|err| format!("could not write {}: {err}", path.display()))
+    aria_settings::replace_file(path, text.as_bytes())
 }
 
 /// Delete `<data dir>/keymaps/<name>.toml`.

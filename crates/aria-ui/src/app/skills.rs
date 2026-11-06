@@ -108,10 +108,8 @@ impl AppState {
         }
         let skill = aria_ai::extend::parse_skill(&id, &text)
             .map_err(|err| format!("{}: {err}", card.name))?;
-        let dir = self.agent_dir().join("skills").join(&id);
-        std::fs::create_dir_all(&dir).map_err(|err| format!("{}: {err}", dir.display()))?;
-        let dest = dir.join("SKILL.md");
-        std::fs::write(&dest, &text).map_err(|err| format!("{}: {err}", dest.display()))?;
+        let dest = self.agent_dir().join("skills").join(&id).join("SKILL.md");
+        aria_settings::replace_file(&dest, text.as_bytes())?;
         self.refresh_assistant_skills();
         self.status_message = Some(format!("Installed skill {}", skill.name));
         Ok(())
@@ -138,10 +136,8 @@ impl AppState {
         }
         let skill = aria_ai::extend::parse_skill(&id, &text)
             .map_err(|err| format!("{}: {err}", path.display()))?;
-        let dir = self.agent_dir().join("skills").join(&id);
-        std::fs::create_dir_all(&dir).map_err(|err| format!("{}: {err}", dir.display()))?;
-        let dest = dir.join("SKILL.md");
-        std::fs::write(&dest, &text).map_err(|err| format!("{}: {err}", dest.display()))?;
+        let dest = self.agent_dir().join("skills").join(&id).join("SKILL.md");
+        aria_settings::replace_file(&dest, text.as_bytes())?;
         self.refresh_assistant_skills();
         self.status_message = Some(format!("Installed skill {}", skill.name));
         Ok(())

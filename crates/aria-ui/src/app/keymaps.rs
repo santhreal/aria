@@ -428,7 +428,7 @@ impl AppState {
     /// Write `ui-settings.json` now, for a change made where no window context
     /// can schedule the debounced write: a picker's answer.
     fn save_settings_now(&mut self) {
-        if let Err(err) = self.ui_settings.save(&self.data_dir) {
+        if let Err(err) = self.write_settings_now() {
             self.report_error(format!(
                 "The keys are in force but could not be saved for the next launch: {err}"
             ));

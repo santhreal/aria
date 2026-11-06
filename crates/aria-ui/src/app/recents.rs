@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use super::AppState;
 use crate::app::picker::{Ask, FileSpec};
 
-const RECENTS_FILE: &str = "recents.json";
+pub(crate) const RECENTS_FILE: &str = "recents.json";
 pub(crate) const MAX_RECENTS: usize = 12;
 const RECENTS_VERSION: u32 = 1;
 
@@ -233,17 +233,15 @@ fn load_entries(data_dir: &Path) -> Vec<RecentEntry> {
 }
 
 fn save_entries(data_dir: &Path, entries: &[RecentEntry]) {
-    if let Err(err) = fs::create_dir_all(data_dir) {
-        tracing::warn!(error = %err, "could not create recents dir");
-        return;
-    }
     let file = RecentsFile {
         version: RECENTS_VERSION,
         entries: entries.to_vec(),
     };
     match serde_json::to_string_pretty(&file) {
         Ok(text) => {
-            if let Err(err) = fs::write(data_dir.join(RECENTS_FILE), text) {
+            if let Err(err) =
+                aria_settings::replace_file(&data_dir.join(RECENTS_FILE), text.as_bytes())
+            {
                 tracing::warn!(error = %err, "could not write recents");
             }
         }

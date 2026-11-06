@@ -203,11 +203,7 @@ impl AppState {
         };
         let text =
             serde_json::to_string_pretty(&stored).map_err(|err| format!("serialize: {err}"))?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| format!("{}: {err}", parent.display()))?;
-        }
-        std::fs::write(&path, text).map_err(|err| format!("{}: {err}", path.display()))
+        aria_settings::replace_file(&path, text.as_bytes())
     }
 
     /// Save the conversation, reporting a failure to the log only.

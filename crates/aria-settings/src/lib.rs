@@ -99,6 +99,7 @@ pub mod schema_report;
 #[path = "write.rs"]
 mod write;
 
+pub use persist::replace_file;
 pub use read::{Refusal, Rejected};
 
 // The transaction's pieces are reached by name from `save` and from the tests

@@ -214,7 +214,7 @@ fn migrate_legacy_effects_json(data_dir: &Path) {
             return;
         };
         let dest = target_file_path_for(&dir, &preset.name);
-        if fs::write(&dest, json).is_err() {
+        if aria_settings::replace_file(&dest, json.as_bytes()).is_err() {
             return;
         }
     }
@@ -294,10 +294,8 @@ pub(crate) fn load_presets(data_dir: &Path) -> (Vec<Preset>, Vec<BrokenPreset>) 
 
 fn write_preset_file(data_dir: &Path, preset: &Preset) -> Result<PathBuf, String> {
     let json = preset.to_json().map_err(|err| err.to_string())?;
-    let dir = presets_dir(data_dir);
-    fs::create_dir_all(&dir).map_err(|err| format!("could not create presets dir: {err}"))?;
-    let path = target_file_path_for(&dir, &preset.name);
-    fs::write(&path, json).map_err(|err| format!("could not write {}: {err}", path.display()))?;
+    let path = target_file_path_for(&presets_dir(data_dir), &preset.name);
+    aria_settings::replace_file(&path, json.as_bytes())?;
     Ok(path)
 }
 

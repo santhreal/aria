@@ -589,15 +589,11 @@ pub fn save_named_workspace(
     tree: &DockTree,
 ) -> Result<PathBuf, String> {
     let path = workspace_file_path(data_dir, name)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
-    }
     let ws = SavedWorkspace::new(name.trim(), panes, tree.clone());
     let json = ws
         .to_json()
         .map_err(|e| format!("could not serialize workspace: {e}"))?;
-    std::fs::write(&path, json).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    aria_settings::replace_file(&path, json.as_bytes())?;
     Ok(path)
 }
 
@@ -609,16 +605,10 @@ pub fn load_named_workspace(data_dir: &Path, name: &str) -> Result<SavedWorkspac
 
 /// Export a workspace as JSON to `path`.
 pub fn export_workspace_json(path: &Path, ws: &SavedWorkspace) -> Result<(), String> {
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
-    }
     let json = ws
         .to_json()
         .map_err(|e| format!("could not serialize workspace: {e}"))?;
-    std::fs::write(path, json).map_err(|e| format!("could not write {}: {e}", path.display()))
+    aria_settings::replace_file(path, json.as_bytes())
 }
 
 /// Import a workspace from a JSON file at `path`.
