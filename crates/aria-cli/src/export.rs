@@ -29,7 +29,10 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let fps = args.number("fps")?;
     let bitrate = args.number("bitrate")?;
     let codec = codec_from(args)?;
-    let quiet = args.present("quiet");
+    let progress = shows_progress(
+        args.present("quiet"),
+        std::io::IsTerminal::is_terminal(&std::io::stderr()),
+    );
 
     if fps == Some(0) {
         return Err(Failure::Usage("--fps wants a rate above zero".into()));
@@ -59,7 +62,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let mut renderer = Renderer::new_headless().map_err(|err| err.to_string())?;
     let mut last_percent = u64::MAX;
     let mut observer = |done: u64, total: u64| {
-        if !quiet && total > 0 {
+        if progress && total > 0 {
             let percent = done * 100 / total;
             if percent != last_percent {
                 last_percent = percent;
@@ -77,7 +80,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         &mut observer as _,
     )
     .map_err(|err| err.to_string())?;
-    if !quiet {
+    if progress {
         eprintln!();
     }
     project::warn_driver_faults(&project);
@@ -92,6 +95,14 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     // The encoder line, then one `skipped` line per encoder that did not open.
     println!("{}", exported.encoder);
     Ok(())
+}
+
+/// Whether the export prints its `\rencoding N%` line: only to a terminal,
+/// where each update overwrites the last, and never with `--quiet`. Sent to a
+/// file or a pipe, the carriage returns piled one update per percent into a
+/// single log line.
+fn shows_progress(quiet: bool, stderr_is_terminal: bool) -> bool {
+    !quiet && stderr_is_terminal
 }
 
 /// The `--codec` flag as a [`VideoCodec`], refusing a name no codec answers to.
@@ -216,5 +227,25 @@ mod tests {
 
         let args = Args::parse(["export", "a.aria", "b.mp4"]).unwrap();
         assert_eq!(codec_from(&args).unwrap(), None);
+    }
+
+    /// WHY: export progress went to stderr whether or not it was a terminal,
+    /// so `aria export … 2> log` filled the log with a hundred carriage-return
+    /// updates. Every combination of `--quiet` and a terminal is listed. Not
+    /// caught: `run` passing something other than stderr's terminal state.
+    #[test]
+    fn progress_prints_only_to_a_terminal_and_never_with_quiet() {
+        for (quiet, terminal, shown) in [
+            (false, true, true),
+            (false, false, false),
+            (true, true, false),
+            (true, false, false),
+        ] {
+            assert_eq!(
+                shows_progress(quiet, terminal),
+                shown,
+                "--quiet {quiet}, stderr a terminal {terminal}"
+            );
+        }
     }
 }

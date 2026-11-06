@@ -16,7 +16,7 @@ The binary is `target/release/aria`.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success, or usage printed for `--help`, `-h`, or no arguments |
+| `0` | Success, or usage printed for `--help`, `-h`, or no arguments, or the version printed for `--version` |
 | `1` | The command ran and failed |
 | `2` | The command line was wrong |
 
@@ -25,8 +25,18 @@ prints the usage block on stdout and exits `0`. A usage error prints the reason,
 the synopsis of the command it names, and a line pointing to `aria --help` on
 stderr and exits `2`. A runtime failure prints the reason
 on stderr and exits `1` (or the child exit code when `aria plugin dev` runs the
-editor). Progress goes to stderr and results go to stdout, so
-`aria inspect project.aria > facts.txt` captures the output alone.
+editor). `aria --version` prints `aria` and the version on stdout and exits
+`0`.
+
+Flags are spelled `--name`. A word that starts with `-` and is not the value of
+a flag is a usage error, so `aria frame project.aria -o` writes no file named
+`-o`. Write a path that starts with `-` as `./-name`.
+
+Progress goes to stderr and results go to stdout, so
+`aria inspect project.aria > facts.txt` captures the output alone. A reader
+that closes either stream early, such as `head`, ends the output on that
+stream, and the command runs to its end with its own exit code. Any other
+failed write to stdout, such as a full disk, exits `1`.
 
 ## new
 
@@ -91,7 +101,7 @@ aria export <project.aria> <out.mp4> [--at SECONDS] [--to SECONDS]
 | `--codec <CODEC>` | `h264` | Video codec: `h264` or `h265` |
 | `--bitrate <KBPS>` | encoder default | Target video bitrate in kilobits per second |
 | `--no-audio` | off | Omit the audio track and write video only |
-| `--quiet` | off | Suppress per-frame progress updates on stderr |
+| `--quiet` | off | Suppress the progress line on stderr; without it the line is printed only when stderr is a terminal |
 
 Encode a timeline span. Defaults use the project canvas size, frame rate, and
 audio over the whole timeline. `--at` and `--to` bound a half-open range; the

@@ -14,6 +14,24 @@
 //! aria analyze voice.wav --silence
 //! ```
 
+// Every module's `print!` family writes through `out` rather than std's, which
+// panics on a closed pipe. A `macro_rules!` defined here is in scope in every
+// module declared below it, ahead of the std prelude's.
+macro_rules! print {
+    ($($arg:tt)*) => { $crate::out::stdout(format_args!($($arg)*)) };
+}
+macro_rules! println {
+    () => { $crate::out::stdout(format_args!("\n")) };
+    ($($arg:tt)*) => { $crate::out::stdout(format_args!("{}\n", format_args!($($arg)*))) };
+}
+macro_rules! eprint {
+    ($($arg:tt)*) => { $crate::out::stderr(format_args!($($arg)*)) };
+}
+macro_rules! eprintln {
+    () => { $crate::out::stderr(format_args!("\n")) };
+    ($($arg:tt)*) => { $crate::out::stderr(format_args!("{}\n", format_args!($($arg)*))) };
+}
+
 mod analyze;
 mod args;
 mod demo;
@@ -22,6 +40,7 @@ mod fail;
 mod frame;
 mod inspect;
 mod new;
+mod out;
 mod plugin;
 mod project;
 
@@ -41,13 +60,17 @@ fn main() -> ! {
                 print!("{}", args::USAGE);
                 0
             }
+            Err(ArgsError::Version) => {
+                println!("aria {}", env!("CARGO_PKG_VERSION"));
+                0
+            }
             Err(err) => report(&Failure::from(err), verb),
         }
     };
     // An export decodes its sources, and a process that decoded on NVDEC must
     // not end through `exit` (see `exit_process`). Every value of the command
     // is dropped by here.
-    aria_decoder::exit_process(code)
+    aria_decoder::exit_process(out::finish(code))
 }
 
 fn run(args: &Args) -> Result<(), Failure> {

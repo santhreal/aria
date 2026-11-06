@@ -237,6 +237,72 @@ fn no_verb_and_help_are_not_errors() {
     );
 }
 
+/// WHY: a word with one leading dash fell through to the positionals, so
+/// `aria frame p.aria -o` wrote a PNG named `-o`, `aria new -x` a project
+/// named `-x`, and `aria frame p.aria -o x.png` failed on "x.png" instead of
+/// the `-o`. Every verb and plugin sub-command is enumerated, with the dash
+/// word in each positional slot. A dash word that is a flag's value still
+/// parses (`--at -1` reaches the negative-seconds check), and `-h` is still
+/// help. Not caught: a path that starts with a dash on purpose, which is
+/// written `./-name`.
+#[test]
+fn a_single_dash_word_is_a_usage_error_and_not_a_path() {
+    let mut prefixes: Vec<Vec<&str>> = Verb::ALL
+        .iter()
+        .filter(|verb| **verb != Verb::Plugin)
+        .map(|verb| vec![verb.key()])
+        .collect();
+    prefixes.extend(
+        crate::plugin::Subcommand::ALL
+            .iter()
+            .map(|sub| vec!["plugin", sub.key()]),
+    );
+    for prefix in &prefixes {
+        for dash in ["-o", "-", "-x.png", "-1"] {
+            for slot in 0..2 {
+                let mut argv = prefix.clone();
+                argv.extend(std::iter::repeat_n("p.aria", slot));
+                argv.push(dash);
+                argv.push("out.png");
+                assert_eq!(
+                    Args::parse(argv.clone()).err(),
+                    Some(ArgsError::Usage(format!(
+                        "\"{dash}\" is not a flag: flags are spelled --name, and a path \
+                         that starts with - is written ./{dash}"
+                    ))),
+                    "{argv:?}"
+                );
+            }
+        }
+    }
+    let args = Args::parse(["export", "p.aria", "o.mp4", "--at", "-1"]).expect("--at -1");
+    assert_eq!(args.positional, ["p.aria", "o.mp4"]);
+    assert_eq!(args.value("at"), Ok(Some("-1")));
+    assert_eq!(
+        Args::parse(["frame", "p.aria", "./-o"])
+            .map(|args| args.positional)
+            .ok(),
+        Some(vec!["p.aria".to_owned(), "./-o".to_owned()])
+    );
+    assert_eq!(Args::parse(["frame", "-h"]).err(), Some(ArgsError::Help));
+}
+
+/// `aria --version` prints the version and exits 0; it is a top-level word,
+/// so after a verb it is that verb's unknown flag.
+#[test]
+fn version_is_the_first_word_only() {
+    assert_eq!(Args::parse(["--version"]).err(), Some(ArgsError::Version));
+    assert_eq!(
+        Args::parse(["--version", "export"]).err(),
+        Some(ArgsError::Version)
+    );
+    let args = Args::parse(["export", "--version"]).expect("parses as a flag");
+    assert_eq!(
+        args.reject_unknown(Verb::Export.flags()),
+        Err(ArgsError::Usage("export does not take --version".into()))
+    );
+}
+
 /// Every verb and flag the usage block documents parses, and every parsed
 /// verb, sub-command, and flag is documented in both `USAGE` and
 /// `docs/command-line.md`.

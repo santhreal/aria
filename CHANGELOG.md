@@ -1268,6 +1268,10 @@ Notes for the latest release. For previous releases, see the
 - A crash or a full disk while saving the window layout, workspaces, key sets, recents, conversations, skills or presets no longer leaves a truncated file that resets them to defaults.
 - A key set picked or a window closed within half a second of another settings change is no longer reverted on disk by that change's delayed save.
 - An unparsable `ui-settings.json` or `recents.json` is renamed to `<name>.unreadable-<seconds>` and reported on the status line instead of being overwritten by the next save.
+- `aria` no longer panics with exit 101 when a reader such as `head` closes its output early, and a failed write to stdout exits 1.
+- A command-line word with one leading dash, such as `-o`, is a usage error instead of a file name.
+- `aria export` prints its progress line only when stderr is a terminal.
+- `aria --version` prints the version.
 
 ## [alpha-0.7.0] - 2026-07-22
 

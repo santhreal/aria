@@ -107,6 +107,8 @@ pub(crate) enum ArgsError {
     NoVerb,
     /// `--help` anywhere: same block, exit 0.
     Help,
+    /// `--version` as the first word: print the version on stdout, exit 0.
+    Version,
     /// A usage mistake, exit 2.
     Usage(String),
 }
@@ -121,6 +123,9 @@ impl Args {
         let words: Vec<String> = argv.into_iter().map(Into::into).collect();
         if words.iter().any(|word| word == "--help" || word == "-h") {
             return Err(ArgsError::Help);
+        }
+        if words.first().is_some_and(|word| word == "--version") {
+            return Err(ArgsError::Version);
         }
         let mut words = words.into_iter();
         let Some(first) = words.next() else {
@@ -149,6 +154,14 @@ impl Args {
                 }
             } else if let Some(name) = pending.take() {
                 flags.insert(name, Some(word));
+            } else if word.starts_with('-') {
+                // Flags are spelled `--name`. A dash word left as a positional
+                // became an output path: `frame p.aria -o x.png` wrote a file
+                // named `-o`.
+                return Err(ArgsError::Usage(format!(
+                    "\"{word}\" is not a flag: flags are spelled --name, and a path \
+                     that starts with - is written ./{word}"
+                )));
             } else {
                 positional.push(word);
             }
@@ -302,6 +315,7 @@ aria — the Aria editor's command line
 
 USAGE
     aria <command> [arguments]
+    aria --help | --version
 
 COMMANDS
     demo [out.png]
