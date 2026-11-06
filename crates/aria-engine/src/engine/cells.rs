@@ -19,12 +19,13 @@ use super::Engine;
 use crate::error::EngineError;
 
 /// What a [`CellRenderer`] renders from: the committed project, the files the
-/// session decodes each media id from, and the session's GPU device.
+/// session decodes each media id from, and the session's GPU device, `None`
+/// while the session has drawn no frame.
 #[derive(Debug)]
 pub struct CellSource {
     project: Arc<Project>,
     media: MediaSources,
-    gpu: GpuContext,
+    gpu: Option<GpuContext>,
 }
 
 impl Engine {
@@ -34,7 +35,7 @@ impl Engine {
         CellSource {
             project: self.snapshot(),
             media: self.renderer.media_sources(),
-            gpu: self.renderer.gpu().share(),
+            gpu: self.renderer.gpu().map(GpuContext::share),
         }
     }
 }
@@ -50,7 +51,8 @@ pub struct CellFrame {
 }
 
 /// A renderer of lane frames with decoders of its own, on the session's GPU
-/// device. The first frame builds it.
+/// device, or on the process's headless one when the session has drawn no
+/// frame yet. The first frame builds it.
 #[derive(Debug, Default)]
 pub struct CellRenderer {
     renderer: Option<Renderer>,
@@ -70,9 +72,10 @@ impl CellRenderer {
         max_height: u32,
         policy: SeekPolicy,
     ) -> Result<CellFrame, EngineError> {
-        let renderer = self
-            .renderer
-            .get_or_insert_with(|| Renderer::with_gpu(source.gpu.share()));
+        let renderer = self.renderer.get_or_insert_with(|| match &source.gpu {
+            Some(gpu) => Renderer::with_gpu(gpu.share()),
+            None => Renderer::deferred(),
+        });
         renderer.adopt_media_sources(&source.media);
         let image = renderer.render_frame_fit_with(
             &source.project,

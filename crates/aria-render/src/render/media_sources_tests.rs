@@ -58,7 +58,8 @@ fn project() -> (Project, MediaId) {
 
 /// A renderer that adopted `session`'s sources and decoded a frame from them.
 fn adopter(session: &Renderer, project: &Project) -> Renderer {
-    let mut adopter = Renderer::with_gpu(session.gpu().share());
+    let gpu = session.gpu().expect("the session renders on a device");
+    let mut adopter = Renderer::with_gpu(gpu.share());
     adopter.adopt_media_sources(&session.media_sources());
     adopter
         .render_frame_fit(project, RationalTime::new(10, FPS), 32, 18)

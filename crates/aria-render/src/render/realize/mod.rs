@@ -702,14 +702,14 @@ impl Renderer {
         let realize_ms = realize_started.elapsed().as_secs_f64() * 1000.0;
         let submitted_at = Instant::now();
         let readback = match output {
-            Output::ExportReadback { .. } => Some(self.compositor.submit_compositor_layers(
-                &self.gpu,
-                &config,
-                compositor_layers,
-            )?),
+            Output::ExportReadback { .. } => {
+                let (gpu, compositor) = self.device.ready()?;
+                Some(compositor.submit_compositor_layers(gpu, &config, compositor_layers)?)
+            }
             Output::Texture(texture) => {
-                self.compositor.submit_compositor_layers_to_texture(
-                    &self.gpu,
+                let (gpu, compositor) = self.device.ready()?;
+                compositor.submit_compositor_layers_to_texture(
+                    gpu,
                     &config,
                     compositor_layers,
                     texture,
@@ -717,27 +717,24 @@ impl Renderer {
                 None
             }
             Output::Sink(sink) => {
+                let (gpu, compositor) = self.device.ready()?;
                 if let Some(texture) = sink.texture(scene.width, scene.height) {
-                    self.compositor.submit_compositor_layers_to_texture(
-                        &self.gpu,
+                    compositor.submit_compositor_layers_to_texture(
+                        gpu,
                         &config,
                         compositor_layers,
                         texture,
                     )?;
-                    sink.record_readbacks(self.readback_count());
+                    sink.record_readbacks(compositor.readback_count());
                     None
                 } else {
-                    Some(self.compositor.submit_compositor_layers(
-                        &self.gpu,
-                        &config,
-                        compositor_layers,
-                    )?)
+                    Some(compositor.submit_compositor_layers(gpu, &config, compositor_layers)?)
                 }
             }
             #[cfg(test)]
             Output::DryRun => None,
         };
-        let passes = self.compositor.pass_stats();
+        let passes = self.device.pass_stats();
         Ok(PendingFrame {
             readback,
             scratch: None,

@@ -104,39 +104,33 @@ impl Plugin for EnginePlugin {
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         // One device for the process: the engine renders on the render plugin's,
         // rather than bringing up a second driver instance and a second pipeline
-        // set of its own. Without one there is no preview, which is what the
-        // warning below has always meant.
-        let engine = match ctx.try_get::<GpuContext>() {
-            Some(gpu) => Ok(Engine::with_renderer(
-                EngineConfig::default(),
-                Project::new("untitled", Rational::FPS_24),
-                Renderer::with_gpu(gpu.share()),
-            )),
-            None => Engine::new(EngineConfig::default()),
+        // set of its own. Where that plugin found none, edits still apply and
+        // the first frame retries the device once, then fails with why not.
+        let renderer = match ctx.try_get::<GpuContext>() {
+            Some(gpu) => Renderer::with_gpu(gpu.share()),
+            None => Renderer::deferred(),
         };
-        match engine {
-            Ok(mut engine) => {
-                engine.new_session();
-                let shared = Arc::new(Mutex::new(engine));
-                ctx.register_arc(Arc::clone(&shared));
-                ctx.register(ProjectHost::new(shared, ctx));
-                // What the window shows besides the project, recorded per drawn
-                // frame; a plugin reads it by declaring `EditorView`.
-                ctx.register(aria_plugin::EditorView::new());
-                // The lock policy is a waterfall handler, not a service: the host
-                // asks every plugin in mount order and the first refusal wins. It
-                // reads the project the event carries; the engine is locked while
-                // the event runs.
-                ctx.on_waterfall::<CommandProposed, _>(|proposed| {
-                    if let Some(reason) = locked_lane_veto(&proposed.project, &proposed.command) {
-                        proposed.refuse(reason);
-                    }
-                });
+        let mut engine = Engine::with_renderer(
+            EngineConfig::default(),
+            Project::new("untitled", Rational::FPS_24),
+            renderer,
+        );
+        engine.new_session();
+        let shared = Arc::new(Mutex::new(engine));
+        ctx.register_arc(Arc::clone(&shared));
+        ctx.register(ProjectHost::new(shared, ctx));
+        // What the window shows besides the project, recorded per drawn
+        // frame; a plugin reads it by declaring `EditorView`.
+        ctx.register(aria_plugin::EditorView::new());
+        // The lock policy is a waterfall handler, not a service: the host
+        // asks every plugin in mount order and the first refusal wins. It
+        // reads the project the event carries; the engine is locked while
+        // the event runs.
+        ctx.on_waterfall::<CommandProposed, _>(|proposed| {
+            if let Some(reason) = locked_lane_veto(&proposed.project, &proposed.command) {
+                proposed.refuse(reason);
             }
-            Err(err) => {
-                tracing::warn!(error = %err, "engine gpu session unavailable");
-            }
-        }
+        });
         // The project extension is not claimed here on purpose: the host decides it,
         // so a dropped project still opens on a machine where this plugin failed to
         // mount.

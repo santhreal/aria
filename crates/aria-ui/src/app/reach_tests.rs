@@ -386,7 +386,10 @@ fn the_checksum_row_hashes_the_file_it_was_given() {
     run_row("pal-cloud-checksum", &mut state);
 
     assert_eq!(state.picks_asked(), 1, "the row did not ask for a file");
-    let line = state.status_message.expect("the row reported nothing");
+    let line = state
+        .status_message
+        .take()
+        .expect("the row reported nothing");
     assert!(
         line.starts_with("texture.png"),
         "the report must name the file that was picked: {line}"

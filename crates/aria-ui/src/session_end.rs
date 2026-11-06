@@ -7,19 +7,36 @@
 //! placement before the session ends, so the next launch reopens the window at
 //! the size, position and maximized state it closed with (`docs/spec/layout.md`).
 
+use std::time::Duration;
+
 use gpui::{App, Entity, Window, WindowBounds};
 
 use crate::app::AppState;
 use crate::settings::WindowPlacement;
+
+/// How long a session end waits for its job threads after cancelling them.
+///
+/// A job thread still drawing when the process exits races the GPU driver's
+/// exit handlers, which free the device under it: the process ends in SIGSEGV
+/// instead of exit 0.
+pub(crate) const JOB_SHUTDOWN: Duration = Duration::from_secs(5);
 
 /// Stop background workers and close every video decode session held by `state`.
 pub(crate) fn close_decode_sessions(state: &mut AppState) {
     state.playing = false;
     state.audio.publish_stop();
     state.preview_worker.stop();
-    state.shutdown_jobs(std::time::Duration::from_secs(2));
+    state.shutdown_jobs(JOB_SHUTDOWN);
     state.filmstrips = crate::filmstrips::FilmstripStore::default();
     state.engine().lock().new_session();
+}
+
+/// A session dropped without [`quit`] stops its preview worker and settles its
+/// jobs the same way, so no thread of the session outlives it.
+impl Drop for AppState {
+    fn drop(&mut self) {
+        self.shutdown_jobs(JOB_SHUTDOWN);
+    }
 }
 
 /// Save the window's placement, close decode sessions, then quit the app.

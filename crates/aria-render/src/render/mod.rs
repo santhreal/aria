@@ -6,6 +6,7 @@
 //! re-initializing the GPU or re-opening decoders.
 
 mod api;
+mod device;
 pub(crate) mod effects;
 mod look_ahead;
 mod measure;
@@ -31,7 +32,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use aria_compositor::{Compositor, GpuContext, PendingReadback, RgbaImage};
+use aria_compositor::{PendingReadback, RgbaImage};
 use aria_core::RationalTime;
 use aria_decoder::OutputMode;
 use aria_models::{MediaId, TrackId};
@@ -153,8 +154,9 @@ pub const OFFLINE_SLATE: [u8; 4] = [160, 24, 40, 255];
 
 /// Renders project frames on a headless (or shared) GPU.
 pub struct Renderer {
-    gpu: GpuContext,
-    compositor: Compositor,
+    /// The device and its pipelines, brought up by the first frame of a
+    /// [`deferred`](Renderer::deferred) renderer.
+    device: device::Device,
     text: TextRenderer,
     /// Pen-path rasterizer (memoized, like `text`). Parametric shapes never
     /// touch it — they realize as GPU SDF layers.

@@ -333,9 +333,10 @@ fn steady_frame_render_allocations_stay_at_wgpu_floor() {
     } else {
         own_context(&shared.adapter.get_info())
     };
+    let renderer_gpu = gpu.share();
     let mut renderer = Renderer::with_gpu(gpu);
-    let adapter = renderer.gpu().adapter.get_info();
-    let device = renderer.gpu().device.clone();
+    let adapter = renderer_gpu.adapter.get_info();
+    let device = renderer_gpu.device.clone();
     let idle = || {
         device
             .poll(wgpu::PollType::wait_indefinitely())

@@ -875,6 +875,7 @@ Notes for the latest release. For previous releases, see the
 - Consolidated per-crate integration test targets into single `tests/it/main.rs` binaries, disabled test-profile symbol debuginfo, and configured `cargo-nextest` profiles and media concurrency limits, cutting warm `aria-ui` incremental test builds from 14.66 s to 7.17 s and full workspace test compilation CPU time by 50%.
 - The Lottie and Templates cache rows and their `storage.paths.lottie` and `storage.paths.templates` keys are deleted, since those downloads are stored in the Downloads cache.
 - `PasteRetimed` and `PasteAttributes` take the copied clip in `copy` instead of a source clip id, and the new `PasteClip` edit places a copied clip on a lane.
+- Building an engine no longer brings up a GPU device; the first rendered frame brings it up, so `aria new` and sessions that only edit and save skip the driver start.
 
 ### Fixed
 
@@ -1332,6 +1333,7 @@ Notes for the latest release. For previous releases, see the
 - A shortcut pressed while its menu row is disabled changes nothing and shows the row's reason on the status line.
 - Edit > Clear, Ripple Delete and Deselect All are enabled while a timeline gap is selected.
 - Lift, Extract and Paste to Fit with no In and Out range show the same status line as their disabled menu rows.
+- Quitting while a background job is finishing waits up to five seconds for it instead of two, so the job's GPU work no longer races the driver's shutdown and crashes the exit.
 
 ## [alpha-0.7.0] - 2026-07-22
 

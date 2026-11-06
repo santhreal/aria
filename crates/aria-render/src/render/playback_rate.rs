@@ -131,7 +131,7 @@ fn playback_rate_report_measures_a_known_sequence() {
     }
 
     let report = meter.report();
-    let software = renderer.gpu.is_software();
+    let software = renderer.gpu().is_some_and(|gpu| gpu.is_software());
     println!(
         "playback rate report: {} ({})",
         report.label(),

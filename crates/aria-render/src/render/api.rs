@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use aria_compositor::{
-    CompositeLayer, Compositor, CompositorConfig, CompositorError, CompositorLayer, FrameSink,
-    GpuContext, ImageSink, LayerPlacement, RgbaImage, wgpu,
+    CompositeLayer, CompositorConfig, CompositorError, CompositorLayer, FrameSink, GpuContext,
+    ImageSink, LayerPlacement, RgbaImage, wgpu,
 };
 use aria_core::{Cancel, RationalTime};
 use aria_decoder::OutputMode;
@@ -78,11 +78,20 @@ pub(super) fn media_scene(
 impl Renderer {
     /// Bring up a headless GPU and build the renderer.
     ///
-    /// Use this where the renderer is the only GPU consumer — export, a CLI, a
-    /// test. A process that already has a device shares it with
-    /// [`Self::with_gpu`] instead of paying for a second one.
+    /// Use this where the renderer is the only GPU consumer and renders at
+    /// once — export, a CLI, a test. A process that already has a device
+    /// shares it with [`Self::with_gpu`] instead of paying for a second one.
     pub fn new_headless() -> Result<Self, RenderError> {
         Ok(Self::with_gpu(GpuContext::new_headless_blocking()?))
+    }
+
+    /// A renderer whose first frame brings up the process's headless device.
+    ///
+    /// For a session that may never draw: an engine that edits and saves
+    /// costs no driver work. A host with no device fails that first frame,
+    /// and every later one, with the bring-up error.
+    pub fn deferred() -> Self {
+        Self::on(super::device::Device::deferred())
     }
 
     /// Build the renderer on a device somebody else already created.
@@ -91,10 +100,12 @@ impl Renderer {
     /// device — but the driver instance, the adapter and the video memory behind
     /// them are not duplicated. `GpuContext::share` is what hands one over.
     pub fn with_gpu(gpu: GpuContext) -> Self {
-        let compositor = Compositor::new(&gpu);
+        Self::on(super::device::Device::on(gpu))
+    }
+
+    fn on(device: super::device::Device) -> Self {
         Self {
-            gpu,
-            compositor,
+            device,
             text: TextRenderer::new(),
             paths: PathRaster::new(),
             decoders: HashMap::new(),
@@ -129,22 +140,22 @@ impl Renderer {
         }
     }
 
-    /// Shared handle to this renderer's [`GpuContext`].
-    pub fn gpu(&self) -> &GpuContext {
-        &self.gpu
+    /// This renderer's [`GpuContext`], or `None` while a deferred renderer
+    /// has drawn no frame.
+    pub fn gpu(&self) -> Option<&GpuContext> {
+        self.device.gpu()
     }
 
     /// Replace this renderer's [`GpuContext`] and rebuild device-bound GPU
     /// pipelines and texture caches on the new device.
     pub fn set_gpu(&mut self, gpu: GpuContext) {
-        self.compositor.reset_gpu(&gpu);
-        self.gpu = gpu;
+        self.device.set(gpu);
     }
 
     /// Cumulative number of GPU-to-CPU frame readbacks submitted by this
     /// renderer's compositor.
     pub const fn readback_count(&self) -> u64 {
-        self.compositor.readback_count()
+        self.device.readback_count()
     }
 
     /// Enable or disable transform motion-blur supersampling on subsequent
@@ -735,8 +746,8 @@ impl Renderer {
         let layers = [CompositorLayer::layer(&layer)];
         let submitted_at = Instant::now();
         let res = if let Some(texture) = sink.texture(width, height) {
-            self.compositor
-                .submit_compositor_layers_to_texture(&self.gpu, &config, &layers, texture)?;
+            let (gpu, compositor) = self.device.ready()?;
+            compositor.submit_compositor_layers_to_texture(gpu, &config, &layers, texture)?;
             let pending = PendingFrame {
                 readback: None,
                 scratch: None,
@@ -753,9 +764,8 @@ impl Renderer {
             self.finish_pending_on_gpu(pending);
             Ok(())
         } else {
-            let readback = self
-                .compositor
-                .submit_compositor_layers(&self.gpu, &config, &layers)?;
+            let (gpu, compositor) = self.device.ready()?;
+            let readback = compositor.submit_compositor_layers(gpu, &config, &layers)?;
             let pending = PendingFrame {
                 readback: Some(readback),
                 scratch: None,
@@ -789,8 +799,8 @@ impl Renderer {
         );
         let layers = [CompositorLayer::layer(&layer)];
         let submitted_at = Instant::now();
-        self.compositor
-            .submit_compositor_layers_to_texture(&self.gpu, &config, &layers, texture)?;
+        let (gpu, compositor) = self.device.ready()?;
+        compositor.submit_compositor_layers_to_texture(gpu, &config, &layers, texture)?;
         let pending = PendingFrame {
             readback: None,
             scratch: None,

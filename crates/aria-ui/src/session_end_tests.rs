@@ -195,15 +195,25 @@ fn every_quit_in_the_crate_goes_through_session_end() {
     );
 }
 
+/// A dropped session cancels its jobs and waits for their threads: a job
+/// thread still drawing when the process exits races the GPU driver's exit
+/// handlers and ends the process in SIGSEGV. The job here finishes 300 ms of
+/// work after the cancel, as a device bring-up or a renderer's drop does, and
+/// has finished when `drop` returns. Not caught: a job that outlasts
+/// [`super::JOB_SHUTDOWN`].
 #[test]
-fn dropping_app_state_cancels_in_flight_jobs() {
+fn dropping_app_state_cancels_and_settles_in_flight_jobs() {
     let (state, _) = crate::app::premiere_tests::with_clip();
     let jobs = state.jobs.clone();
     let epoch_before = jobs.project_epoch();
-    let job_id = state.jobs.spawn("background-job", |ctx| {
+    let finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done = std::sync::Arc::clone(&finished);
+    let job_id = state.jobs.spawn("background-job", move |ctx| {
         while !ctx.cancelled() {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        done.store(true, std::sync::atomic::Ordering::Release);
         Err("cancelled".into())
     });
     drop(state);
@@ -211,8 +221,14 @@ fn dropping_app_state_cancels_in_flight_jobs() {
         jobs.project_epoch() > epoch_before,
         "dropping AppState must advance the project epoch"
     );
-    let settled = jobs.settle_all(std::time::Duration::from_secs(1));
-    assert!(settled, "in-flight job did not settle after AppState drop");
+    assert!(
+        finished.load(std::sync::atomic::Ordering::Acquire),
+        "the job was still running when the dropped session returned"
+    );
+    assert!(
+        jobs.settle_all(std::time::Duration::ZERO),
+        "a job thread outlived the dropped session"
+    );
     let snapshot = jobs
         .get(job_id)
         .expect("spawned job stays in registry history");

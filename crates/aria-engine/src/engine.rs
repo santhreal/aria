@@ -21,6 +21,8 @@ use crate::action::{ApplyContext, ApplyOutcome, EditAction, History, HistoryStep
 use crate::error::EngineError;
 
 mod cells;
+#[cfg(test)]
+mod device_tests;
 mod saved;
 mod source_frame;
 
@@ -166,18 +168,19 @@ impl std::fmt::Debug for Engine {
 }
 
 impl Engine {
-    /// Build an engine with a fresh, empty project and a headless renderer.
+    /// Build an engine with a fresh, empty project and a deferred renderer.
     pub fn new(config: EngineConfig) -> Result<Self, EngineError> {
         Self::with_project(config, Project::new("untitled", Rational::FPS_24))
     }
 
-    /// Build an engine around an existing project, on a renderer of its own.
+    /// Build an engine around an existing project, on a renderer of its own
+    /// whose first frame brings up the process's headless device.
+    ///
+    /// An engine that edits, saves and closes without drawing a frame brings
+    /// up no device. On a host with no device the edits work and every frame
+    /// fails with the bring-up error.
     pub fn with_project(config: EngineConfig, project: Project) -> Result<Self, EngineError> {
-        Ok(Self::with_renderer(
-            config,
-            project,
-            Renderer::new_headless()?,
-        ))
+        Ok(Self::with_renderer(config, project, Renderer::deferred()))
     }
 
     /// Build an engine around an existing project and an existing renderer.

@@ -239,14 +239,9 @@ fn text(engine: &mut Engine, track: TrackId, start: i64) -> ClipId {
 
 /// Reset `engine` to the census fixture aimed at `aim`.
 ///
-/// # Why
-///
-/// `Engine::with_project` calls `Renderer::new_headless`, which brings up a
-/// Vulkan device (`66` OS threads on Lavapipe) and JIT-compiles 25 WGSL
-/// pipelines (`~240 ms` wall per call). Reusing one `Engine` across the
-/// 230 `(EditCommand, Aim)` cases and resetting its project and history on
-/// each case keeps every projection and undo assertion identical without
-/// constructing 230 headless GPU devices.
+/// One engine serves the 230 `(EditCommand, Aim)` cases: resetting its project
+/// and history before each case leaves nothing of the case before it. The
+/// engine draws no frame, so it brings up no GPU device.
 fn reset_fixture(engine: &mut Engine, aim: Aim) -> Targets {
     let mut project = Project::new("lanes", RATE);
     // Not the 1920×1080 an `Auto` canvas falls back to, so a canvas fact the
@@ -293,23 +288,13 @@ fn reset_fixture(engine: &mut Engine, aim: Aim) -> Targets {
     Targets { clip, track, media }
 }
 
-fn fixture_engine(gpu: Option<&aria_compositor::GpuContext>) -> Engine {
+fn fixture_engine() -> Engine {
     let config = EngineConfig { undo_limit: 64 };
-    let project = Project::new("lanes", RATE);
-    match gpu {
-        Some(gpu) => Engine::with_renderer(
-            config,
-            project,
-            aria_render::Renderer::with_gpu(gpu.share()),
-        ),
-        None => Engine::with_project(config, project).expect("an engine over the fixture"),
-    }
+    Engine::with_project(config, Project::new("lanes", RATE)).expect("an engine over the fixture")
 }
 
 fn fixture(aim: Aim) -> (Engine, Targets) {
-    let ctx = aria_plugin::PluginContext::new();
-    let gpu = crate::test_support::mounted_gpu(&ctx);
-    let mut engine = fixture_engine(gpu.as_ref());
+    let mut engine = fixture_engine();
     let targets = reset_fixture(&mut engine, aim);
     (engine, targets)
 }
@@ -495,11 +480,9 @@ fn case(engine: &mut Engine, sample: &EditCommand, aim: Aim) -> Result<Option<Re
 /// one, and re-projects as much as its [`REACH`] row records.
 #[test]
 fn every_edit_reprojects_what_a_full_projection_would() {
-    let ctx = aria_plugin::PluginContext::new();
-    let gpu = crate::test_support::mounted_gpu(&ctx);
-    let mut fresh_engine = fixture_engine(gpu.as_ref());
+    let mut fresh_engine = fixture_engine();
     let fresh_targets = reset_fixture(&mut fresh_engine, Aim::Text);
-    let mut engine = fixture_engine(gpu.as_ref());
+    let mut engine = fixture_engine();
     let _ = reset_fixture(&mut engine, Aim::Linked);
     let _ = engine.apply(Command::Edit(EditCommand::SetProjectName {
         name: "mutated".to_string(),

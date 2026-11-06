@@ -50,12 +50,12 @@ fn a_repeated_frame_hashes_no_bitmap() {
                 renderer
                     .render_scene(&fx.project, &scene)
                     .unwrap_or_else(|e| panic!("{what}: first frame: {e}"));
-                first += renderer.compositor.bitmaps_hashed();
+                first += hashed(&renderer);
                 renderer
                     .render_scene(&fx.project, &scene)
                     .unwrap_or_else(|e| panic!("{what}: repeated frame: {e}"));
                 assert_eq!(
-                    renderer.compositor.bitmaps_hashed(),
+                    hashed(&renderer),
                     0,
                     "{what}: the repeated frame hashed a bitmap"
                 );
@@ -66,4 +66,13 @@ fn a_repeated_frame_hashes_no_bitmap() {
         first > 0,
         "no first frame hashed a bitmap, so the repeats prove nothing"
     );
+}
+
+/// Bitmaps the last frame hashed; the frame before brought the device up.
+fn hashed(renderer: &crate::Renderer) -> u32 {
+    renderer
+        .device
+        .compositor()
+        .expect("a rendered frame brought the device up")
+        .bitmaps_hashed()
 }
