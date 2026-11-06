@@ -110,7 +110,7 @@ pub fn keyframes_block(
                 )),
                 Some(pick_button(
                     MotionKey::new("kf-driver", &id),
-                    if driven { "ƒ Remove" } else { "ƒ Driver" },
+                    if driven { "Remove driver" } else { "Driver" },
                     theme,
                     cx,
                     move |state| keyframe_rows::apply(state, Row::Driver(param)),

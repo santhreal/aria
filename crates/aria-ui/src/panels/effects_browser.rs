@@ -188,7 +188,7 @@ pub(crate) fn effects_panel(
                             .child(group.only_label()),
                     )
                     .child(
-                        components::ghost_button("effects-filter-clear", "Show All", theme)
+                        components::ghost_button("effects-filter-clear", "Show all", theme)
                             .on_mouse_down(
                                 MouseButton::Left,
                                 cx.listener(|this, _: &MouseDownEvent, _, cx| {

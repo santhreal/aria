@@ -7,7 +7,8 @@
 //! [`control_selector`] states, so a test finds it by kind, id and label.
 //!
 //! Every labelled control drawn in a test passes [`note`], which rejects a
-//! label that opens with a glyph for its verb.
+//! label that opens with a glyph for its verb, and a [`super::ghost_button`]
+//! label in Title Case that is not a menu row.
 
 use gpui::{Div, InteractiveElement as _, Pixels, SharedString, Stateful};
 
@@ -117,6 +118,12 @@ pub(super) fn note(
             !opens_with_glyph(label),
             "the {kind} `{label}` opens with a glyph for its verb: label it with the word"
         );
+        if kind == "ghost" {
+            assert!(
+                ghost_sentence_case(label),
+                "the ghost `{label}` is in Title Case: write it in sentence case, or match its menu row"
+            );
+        }
     }
     if NOTING.get() == 0 {
         return control;
@@ -145,6 +152,57 @@ pub(crate) fn opens_with_glyph(label: &str) -> bool {
         (chars.next(), chars.next()),
         (Some(mark), Some(space)) if !mark.is_alphanumeric() && space.is_whitespace()
     )
+}
+
+/// Surface and slot names that keep their initial capital after the first word
+/// of a [`super::ghost_button`] label.
+const NAMES: [&str; 2] = ["Settings", crate::layouts::CUSTOM_NAME];
+
+/// Whether `word`, after the first word of a [`super::ghost_button`] label,
+/// may start with an uppercase letter: a name in [`NAMES`], a token with a
+/// digit (such as `H.264`), or an acronym or unit with a later uppercase
+/// letter (such as `LUT`, `CSV…` or `MiB`).
+fn allowed_capital_word(word: &str) -> bool {
+    NAMES.contains(&word)
+        || word.chars().any(|ch| ch.is_ascii_digit())
+        || word.chars().skip(1).any(char::is_uppercase)
+}
+
+/// Every row label in [`crate::chrome::menu_items`] across
+/// [`crate::types::AppMenu::ALL`], and every catalog label in
+/// [`crate::catalog_text::effect_entries`], which the Effects tab's Add list
+/// draws as ghost buttons.
+fn registry_labels() -> &'static std::collections::HashSet<String> {
+    static LABELS: std::sync::LazyLock<std::collections::HashSet<String>> =
+        std::sync::LazyLock::new(|| {
+            let ctx = aria_plugin::PluginContext::new();
+            let state =
+                crate::app::AppState::new(ctx, crate::scratch_pool::scratch("noted-menu-labels"))
+                    .expect("scratch state for menu labels");
+            crate::types::AppMenu::ALL
+                .into_iter()
+                .flat_map(|menu| crate::chrome::menu_items::labels_for(menu, &state))
+                .map(str::to_owned)
+                .chain(
+                    crate::catalog_text::effect_entries()
+                        .iter()
+                        .map(|entry| entry.label.to_string()),
+                )
+                .collect()
+        });
+    &LABELS
+}
+
+/// Whether a [`super::ghost_button`] `label` is in sentence case: every word
+/// after the first starting in lower case unless it is an
+/// [`allowed_capital_word`], or the label (without the ` (passthrough)` mark
+/// the Effects tab adds when no GPU pass is mounted) is in [`registry_labels`].
+pub(crate) fn ghost_sentence_case(label: &str) -> bool {
+    label
+        .split_whitespace()
+        .skip(1)
+        .all(|word| !word.starts_with(char::is_uppercase) || allowed_capital_word(word))
+        || registry_labels().contains(label.strip_suffix(" (passthrough)").unwrap_or(label))
 }
 
 /// The debug selector a `kind` of control `id` drawing `drawn` draws under
@@ -213,6 +271,52 @@ mod tests {
             ("", false),
         ] {
             assert_eq!(opens_with_glyph(label), glyph, "`{label}`");
+        }
+    }
+
+    /// The class: a [`super::super::ghost_button`] in Title Case ("Show All",
+    /// "Open Folder", "Hide Log", "Relink All") beside buttons in sentence
+    /// case ("Show all", "Open folder", "Hide log", "Reload", "Reset all").
+    /// Every ghost button a test draws passes [`note`], which rejects a word
+    /// after the first that starts in upper case unless it is in [`NAMES`],
+    /// contains a digit, has a later uppercase letter, or the whole label is a
+    /// menu row in [`crate::chrome::menu_items`] ("Relink All…", "Install
+    /// Plugin…", "Open Data Folder", "Easy Ease"). Not covered: a ghost button
+    /// no test draws, a solid [`super::super::button`], or a multi-word
+    /// user-supplied keymap set name in Title Case.
+    #[test]
+    fn a_ghost_label_in_title_case_that_is_not_a_menu_row_is_rejected() {
+        for (label, ok) in [
+            ("Show all", true),
+            ("Show All", false),
+            ("Relink All…", true),
+            ("Relink All", false),
+            ("Install Plugin…", true),
+            ("Open Data Folder", true),
+            ("Easy Ease", true),
+            ("Open folder", true),
+            ("Open Folder", false),
+            ("Hide log", true),
+            ("Hide Log", false),
+            ("Export frames…", true),
+            ("Export Frames…", false),
+            ("Export as…", true),
+            ("Export As…", false),
+            ("Driver", true),
+            ("Remove driver", true),
+            ("ƒ Driver", false),
+            ("ƒ Remove", false),
+            ("Open Settings", true),
+            ("Save as Custom", true),
+            ("Replace Custom", true),
+            ("Clear LUT", true),
+            ("Export CSV…", true),
+            ("+512 MiB", true),
+            ("Gaussian Blur (passthrough)", true),
+            ("H.264", true),
+            ("", true),
+        ] {
+            assert_eq!(ghost_sentence_case(label), ok, "`{label}`");
         }
     }
 }

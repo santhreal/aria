@@ -51,7 +51,7 @@ each preset file that did not read, with the reason.
 
 A workspace can list one group alone, as the Audio workspace lists Audio
 Effects. A caption over the tree states the group. Favorites from that group
-and Failed to Load stay listed. **Show All** lists every group again.
+and Failed to Load stay listed. **Show all** lists every group again.
 
 ### Generators
 

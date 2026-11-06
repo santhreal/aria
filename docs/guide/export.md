@@ -77,8 +77,8 @@ project:
   its In and Out timecodes. With no In and Out set, clicking the marked range
   reports how to set them and keeps the whole timeline.
 
-**Export As…** prompts for another path and starts the export there. **Export
-Frames…** prompts for a folder and writes the frames as an image sequence,
+**Export as…** prompts for another path and starts the export there. **Export
+frames…** prompts for a folder and writes the frames as an image sequence,
 with the same scale, rate, and range.
 
 The status line states the size, whether audio is included, and the span when the
@@ -123,7 +123,7 @@ Export a sequence as an H.264 `.mp4` file for web delivery:
 
 1. Mark the sequence In and Out points if exporting a sub-range, or leave the work area spanning the full cut, and press <kbd>Ctrl+S</kbd> (`key-save`) or choose **File > Save** to save the project first. The window title clears its unsaved `*` indicator.
 2. Press <kbd>Ctrl+M</kbd> (`key-export`) or choose **File > Export > Media…**. The Export modal sheet opens over the workspace.
-3. In the Export sheet, check that **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** is `Included`, and **Range** matches the intended span. The **Destination** row shows the file **Export** writes; click [`export-dest`](../reference/controls.md#export--transcode) (**Export As…**) to write elsewhere instead, which starts the export at the chosen path.
+3. In the Export sheet, check that **Scale** is `100%`, **Codec** is `H.264`, **Bitrate** is `8 Mb/s` (or `16 Mb/s` for high-motion 1080p/4K web upload), **Audio** is `Included`, and **Range** matches the intended span. The **Destination** row shows the file **Export** writes; click [`export-dest`](../reference/controls.md#export--transcode) (**Export as…**) to write elsewhere instead, which starts the export at the chosen path.
 4. Click [`export-go`](../reference/controls.md#export--transcode) to start the background encode to the Destination file (or click [`export-cancel`](../reference/controls.md#export--transcode) to close the sheet without rendering). The Jobs board opens showing frame progress and estimated time remaining, and clicking [`job-reveal`](../reference/controls.md#modal-dialogs) once the job finishes opens the exported `.mp4` in the system file manager.
 
 ## Reference

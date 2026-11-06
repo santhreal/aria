@@ -12,7 +12,7 @@ timeline property row.
 - ◇ writes a keyframe at the playhead, pinning the value the property already
   has there. ◆ means one is already there; clicking it removes that keyframe.
 - ‹ and › move the playhead to the previous and next keyframe.
-- **ƒ Driver** adds a driver to the property and **ƒ Remove** removes it; see
+- **Driver** adds a driver to the property and **Remove driver** removes it; see
   [Drivers](../plugins/drivers.md).
 - **Flatten** drops every keyframe and holds the value at the playhead.
 - With a keyframe under the playhead, the easing chips shape the segment leaving

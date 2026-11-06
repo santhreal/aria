@@ -325,7 +325,7 @@ This chapter maps Premiere Pro and After Effects commands to their Aria controls
 | Premiere Pro | Export Frame | `Ctrl+Shift+E` | File > Export > Frame… | `file-export-frame` | `Ctrl+Shift+E` |
 | After Effects | Composition > Save Frame As > File... | `Ctrl+Alt+S` | File > Export > Frame… | `file-export-frame` | `Ctrl+Shift+E` |
 | Premiere Pro | File > Export > Final Cut Pro XML / EDL... | `none` | File > Export > Timeline… | `file-export-timeline` | `none` |
-| Premiere Pro | Export Settings > Format: Image Sequence | `none` | Export & Transcode: Export Frames… | `export-frames` | `none` |
+| Premiere Pro | Export Settings > Format: Image Sequence | `none` | Export & Transcode: Export frames… | `export-frames` | `none` |
 | Premiere Pro | Export Settings > Export | `none` | Export & Transcode: Export | `export-go` | `none` |
 | Premiere Pro | File > Export > Queue in Adobe Media Encoder | `Ctrl+M` | `none` | `none` | `none` |
 

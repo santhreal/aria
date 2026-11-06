@@ -150,7 +150,7 @@ pub(super) fn plugin_rows(
                 cx.notify();
             }),
         );
-    let open = components::ghost_button("plugin-folder", "Open Folder", theme).on_mouse_down(
+    let open = components::ghost_button("plugin-folder", "Open folder", theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             this.state
@@ -195,10 +195,10 @@ pub(super) fn plugin_rows(
             if !row.development {
                 actions.push(("plugin-uninstall", "Uninstall", RowAction::Uninstall));
             }
-            actions.push(("plugin-open", "Open Folder", RowAction::OpenFolder));
+            actions.push(("plugin-open", "Open folder", RowAction::OpenFolder));
         }
         if row.log_lines > 0 {
-            let label = if row.log_open { "Hide Log" } else { "Log" };
+            let label = if row.log_open { "Hide log" } else { "Log" };
             actions.push(("plugin-log", label, RowAction::ToggleLog));
         }
         let buttons: Vec<_> = actions

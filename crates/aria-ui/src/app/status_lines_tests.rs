@@ -316,7 +316,7 @@ fn a_line_that_starts_with_a_lower_case_word_is_found() {
         ("1920×1080", None),
         ("—", None),
         ("fx", None),
-        ("ƒ Driver", None),
+        ("Remove driver", None),
         ("fxaa on", Some("fxaa")),
         ("", None),
     ] {

@@ -71,7 +71,7 @@ is mounted.
 ## Missing media
 
 If a media file moves after save, its pool row is marked missing. Click
-**Relink** on the row to point it at the file, or **Relink All** to pick one
+**Relink** on the row to point it at the file, or **Relink All…** to pick one
 folder and repair every missing row from it.
 
 Relink All searches the folder and up to four levels below it, matching by file

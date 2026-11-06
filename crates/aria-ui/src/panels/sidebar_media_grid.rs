@@ -134,7 +134,7 @@ pub(super) fn media_grid(
         .gap(px(Theme::SPACE_XS))
         .when(missing_any, |el| {
             el.child(div().flex().ml(px(-components::GHOST_INSET.0)).child(
-                components::ghost_button("relink-all", "Relink All", theme).on_mouse_down(
+                components::ghost_button("relink-all", "Relink All…", theme).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _: &MouseDownEvent, _, cx| {
                         this.state.update(cx, |state, _| state.relink_all());

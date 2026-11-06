@@ -56,7 +56,7 @@ pub fn render(
     // encoder can still get frames out this way, and the sequence answers to the
     // same choices above it as the video does — minus the audio track a folder
     // of stills cannot carry.
-    let frames = components::ghost_button("export-frames", "Export Frames…", &theme).on_mouse_down(
+    let frames = components::ghost_button("export-frames", "Export frames…", &theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             this.state
@@ -64,7 +64,7 @@ pub fn render(
             cx.notify();
         }),
     );
-    let save_as = components::ghost_button("export-dest", "Export As…", &theme).on_mouse_down(
+    let save_as = components::ghost_button("export-dest", "Export as…", &theme).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             this.state

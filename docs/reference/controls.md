@@ -204,7 +204,7 @@ The Project panel (`crates/aria-ui/src/panels/sidebar_*.rs`, `crates/aria-ui/src
 | `pool-view-icons` | Icons | Switches the media pool layout to large thumbnail icons. | None |
 | `pool-view-list` | List | Switches the media pool to one line per item, name on the left and facts on the right, with no picture. | None |
 | `pool-view-tiles` | Tiles | Switches the media pool to one row per item, its picture on the left and its name and facts beside it. | None |
-| `relink-all` | Relink All | Opens a file picker to relink all missing media items in the project. | None |
+| `relink-all` | Relink All… | Opens a file picker to relink all missing media items in the project. | None |
 | `sidebar-group` (per row) | Group tab | Switches the top-level Project panel category (Media, Graphics, Effects, Library, Analyze). | None |
 | `sidebar-tab` (per row) | Tab label | Switches the Project panel to the tab (Media, Titles, Shapes, Stickers, Generators, Animations, Masks, Transitions, Effects, Stock, SFX, Generate, Captions, Analysis, Audio) within the open group. | None |
 | `stock-kind` (per row) | Video / Photo / Audio | Selects the media kind a stock search returns. | None |
@@ -219,7 +219,7 @@ The Effects Browser panel (`crates/aria-ui/src/panels/effects_browser.rs`) rende
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `effects-filter-clear` | Show All | Clears the active category filter in the Effects Browser to list all effects and transitions. | None |
+| `effects-filter-clear` | Show all | Clears the active category filter in the Effects Browser to list all effects and transitions. | None |
 | `effects-query` | Search | Filters the Effects Browser catalog by effect, transition, or preset name. | None |
 | `effects-query-clear` | Clear search | Clears the active search query in the Effects Browser. | None |
 
@@ -339,7 +339,7 @@ The Inspector's Keyframes and Graph blocks and property row keyframe navigator (
 | `keyframe-easing` (per row) | Snappy / Overshoot / Anticipate | Applies the bezier easing preset to the segment leaving the keyframe at the playhead. | None |
 | `keyframe-piecewise` (per row) | Bounce out / Elastic out / Back out | Applies the piecewise easing preset to the segment leaving the keyframe at the playhead. | None |
 | `kf-at` | ◆ / ◇ | Adds a keyframe at the playhead or removes the existing keyframe on the property row. | None |
-| `kf-driver` (per row) | ƒ Driver / ƒ Remove | Attaches or removes a procedural parameter driver on the property of the Keyframes block row. | None |
+| `kf-driver` (per row) | Driver / Remove driver | Attaches or removes a procedural parameter driver on the property of the Keyframes block row. | None |
 | `kf-flatten` (per row) | Flatten | Removes all keyframes on the property and holds the value sampled at the playhead as a constant. | None |
 | `kf-next` (per row) | › | Moves the playhead to the next keyframe on the property. | None |
 | `kf-prev` (per row) | ‹ | Moves the playhead to the previous keyframe on the property. | None |
@@ -381,9 +381,9 @@ The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders a chip
 | `export-bitrate` (per row) | Encoder default / 4 Mb/s / 8 Mb/s / 16 Mb/s / 40 Mb/s | Sets the target video bitrate. Shown where the platform encoder honors a bitrate. | None |
 | `export-cancel` | Cancel | Closes the Export dialog without starting an export job. | None |
 | `export-codec` (per row) | H.264 / H.265 | Sets the video codec, from the codecs this machine's encoder opens and the codec in force. Shown once the codec probe has answered and more than one codec is offered. | None |
-| `export-dest` | Export As… | Opens the Export save dialog with the format's extension and the proposed file name, then starts the export to the chosen path and opens the Jobs dialog. | None |
+| `export-dest` | Export as… | Opens the Export save dialog with the format's extension and the proposed file name, then starts the export to the chosen path and opens the Jobs dialog. | None |
 | `export-format` (per row) | Platform format / plugin encoder | Selects the platform encoder or a mounted plugin encoder. Shown when a plugin registers an encoder. | None |
-| `export-frames` | Export Frames… | Opens a folder picker and starts an image-sequence export job to the chosen folder, opening the Jobs dialog. | None |
+| `export-frames` | Export frames… | Opens a folder picker and starts an image-sequence export job to the chosen folder, opening the Jobs dialog. | None |
 | `export-go` | Export | Starts rendering the sequence or selected range with the current export settings. | None |
 | `export-gop` (per row) | Codec default / Every 15 / Every 30 / Every 60 | Sets the maximum keyframe interval in frames. | None |
 | `export-range` (per row) | Whole timeline / marked span | Renders the whole timeline or only the span between In and Out; with nothing marked, the marked choice reports how to mark one. | None |
@@ -411,10 +411,10 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `caches-copy-paths` | Copy paths | Copies the formatted report of all cache directory paths and sizes to the clipboard. | None |
 | `caches-measure` | Measure | Scans disk usage across all registered cache directories and updates their byte totals. | None |
 | `model-install` (per row) | Install / Re-download | Downloads, verifies, and installs the row's Whisper model; drawn at the end of the model's row while the model is missing or corrupt. | None |
-| `plugin-folder` | Open Folder | Opens the installed plugins directory in the system file manager. | None |
+| `plugin-folder` | Open folder | Opens the installed plugins directory in the system file manager. | None |
 | `plugin-install` | Install Plugin… | Opens a file picker to install an `.ariaplugin` plugin archive. | None |
 | `plugin-log-copy` (per row) | Copy | Copies the diagnostic log output of the selected plugin to the clipboard. | None |
-| `plugin-row-action` (per row) | Reload / Uninstall / Open Folder / Log / Hide Log | Reloads or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
+| `plugin-row-action` (per row) | Reload / Uninstall / Open folder / Log / Hide log | Reloads or uninstalls the plugin, opens its folder, or shows or hides its log. | None |
 | `plugin-setting-option` (per row) | Option label | Saves the option of a plugin's choice setting. | None |
 | `plugin-setting-switch` (per row) | Switch | Saves `true` or `false` for a plugin's toggle setting. | None |
 | `plugin-toggle` (per row) | Switch | Enables or disables the plugin; drawn at the right end of the plugin's row, and absent for a plugin the shell cannot run without. | None |

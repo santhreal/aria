@@ -869,6 +869,7 @@ Notes for the latest release. For previous releases, see the
 - The Audio Track Mixer's buttons read **Add submix bus** and **Add audio effect** instead of **+ Submix bus** and **+ Audio effect**, and its empty state reads "No audio tracks. Add a track or a submix bus to mix."
 - The Learn pane heads its Home shortcuts "On Home", beside "In the editor".
 - The Captions tab sets one clip per word with a **Per word** switch in place of a lone chip.
+- Word buttons in Effects & Presets (`Show all`), Settings > Plugins (`Open folder`, `Hide log`), the Export sheet (`Export frames…`, `Export as…`), and the Keyframes block (`Driver`, `Remove driver`) use sentence case, and `Relink All…` in the Project panel matches `File > Relink All…`.
 
 ### Fixed
 

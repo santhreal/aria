@@ -12,14 +12,17 @@
 //! clip selected, its source picked in the pool and a frame reading for the
 //! Info panel. The Inspector is drawn once per tab for each of a media clip, a
 //! title and a shape the tab applies to. The Media Support report is a dialog,
-//! and `chrome::dialog_tests` walks it. The Assistant is drawn a second time
+//! and `chrome::dialog_tests` walks it. Effects & Presets is also drawn
+//! filtered to one group, the Project pool with a missing file, and Settings >
+//! Plugins with a faulted plugin's log open, so their conditional ghost buttons
+//! pass `crate::components::noted`. The Assistant is drawn a second time
 //! holding a row of every kind, a plan and a question, each written by the
 //! path that writes it in the editor.
 //!
 //! A line the project supplies, such as a media name, a clip name, a lane name
 //! or a path, is written as the project wrote it and is skipped. Not covered: a
-//! lower case word inside a line, and a line a panel draws only after a choice
-//! changes or a job reports.
+//! lower case word inside a non-button line, and a line a panel draws only
+//! after another choice changes or a job reports.
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
@@ -36,7 +39,10 @@ use crate::app::assistant::{Beat, Finished, PlanStep};
 use crate::app::assistant_host::{HostRequest, PendingAsk};
 use crate::app::status::lowercase_start;
 use crate::components::drawn;
-use crate::dock::{DockTree, FrameId, PANEL_ASSISTANT, PANEL_INSPECTOR, PanelId, Zone};
+use crate::dock::{
+    DockTree, FrameId, PANEL_ASSISTANT, PANEL_EFFECTS, PANEL_INSPECTOR, PANEL_PROJECT, PanelId,
+    Zone,
+};
 use crate::panels::inspector::tab_host::host_of as tab_host;
 use crate::test_support::{drawn_shell, drawn_shell_at, project_text};
 use crate::types::{AgentEntryKind, UiClipKind};
@@ -92,6 +98,51 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
         drawn_tabs, shipped,
         "a tab applies to none of the dressed clip kinds; dress a clip it applies to"
     );
+    let filtered = drawn_lines(&state, visual, PANEL_EFFECTS, |state| {
+        state.set_effects_filter(Some(crate::app::effects_browser::Group::AudioEffects));
+    });
+    assert!(
+        filtered.iter().any(|line| line == "Show all"),
+        "filtered Effects & Presets drew no `Show all`: {filtered:?}"
+    );
+    check(PANEL_EFFECTS, &filtered, &project, &mut offenders);
+
+    let missing = drawn_lines(&state, visual, PANEL_PROJECT, |state| {
+        state.sidebar_tab = crate::types::SidebarTab::Media;
+        state.store_mut().media[0].missing = true;
+    });
+    assert!(
+        missing.iter().any(|line| line == "Relink All…"),
+        "a pool with a missing file drew no `Relink All…`: {missing:?}"
+    );
+    check(PANEL_PROJECT, &missing, &project, &mut offenders);
+
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.ctx.log_for(
+                "aria.storage",
+                aria_plugin::LogLevel::Info,
+                "indexed 3 projects",
+            );
+            state.toggle_plugin_log("aria.storage");
+            state.open_settings_at(crate::app::settings_form::SettingsSection::Plugins);
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    let plugins: Vec<String> = visual.update(|window, _| {
+        window
+            .rendered_text_runs()
+            .iter()
+            .map(|run| run.text.to_string())
+            .collect()
+    });
+    for expected in ["Open folder", "Hide log"] {
+        assert!(
+            plugins.iter().any(|line| line == expected),
+            "Settings > Plugins with an open plugin log drew no `{expected}`: {plugins:?}"
+        );
+    }
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
 }
 
