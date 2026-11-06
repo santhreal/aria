@@ -314,7 +314,9 @@ aria-desktop [path...]
 
 Start the graphical editor. Each positional `path` opens a `.aria` project or
 imports a media or timeline file on launch, matching a file drop on the window.
-`aria-desktop` takes no flags.
+`aria-desktop --help` prints the usage and `aria-desktop --version` prints the
+version; both exit `0`. Any other word that starts with `-` fails with exit
+code `2` before a window opens. Write a path that starts with `-` as `./-name`.
 
 | Variable | Effect |
 | --- | --- |
