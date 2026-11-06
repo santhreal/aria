@@ -129,6 +129,25 @@ impl AppState {
         }
         Ok(())
     }
+
+    /// Open paths passed on the command line at startup.
+    ///
+    /// A failure keeps the session on Home, writes the refusal to the status
+    /// strip through [`Self::report_error`], and prints it to standard error.
+    pub fn open_cli_paths(&mut self, paths: Vec<PathBuf>) {
+        let was_home = self.route == crate::types::UiRoute::Home;
+        if !paths.is_empty()
+            && let Err(err) = self.drop_on_home(paths)
+        {
+            if was_home && self.route != crate::types::UiRoute::Home {
+                let _ = self.empty_session();
+                self.go_home();
+            }
+            self.report_error(&err);
+            tracing::error!(error = %err, "could not open the paths given on the command line");
+            eprintln!("aria could not open what you asked for: {err}");
+        }
+    }
 }
 #[cfg(test)]
 mod tests {

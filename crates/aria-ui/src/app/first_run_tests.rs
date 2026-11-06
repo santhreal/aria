@@ -140,13 +140,24 @@ fn relink_repairs_missing_media() {
 #[test]
 fn corrupt_project_file_is_human() {
     let dir = scratch();
-    let path = dir.join("bad.aria");
-    std::fs::write(&path, "{not json").unwrap();
-    let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    let err = state.open_project(path).unwrap_err();
+    let not_json = dir.join("bad.aria");
+    std::fs::write(&not_json, "{not json").unwrap();
+    let mut state = AppState::new(PluginContext::new(), dir.clone()).unwrap();
+    let err = state.open_project(not_json).unwrap_err();
     let msg = describe_engine_error(&err);
-    assert!(msg.contains("corrupted"));
-    assert!(msg.contains(".aria"));
+    assert!(msg.contains("not an Aria project file"), "got: {msg}");
+    assert!(msg.contains(".aria"), "got: {msg}");
+
+    let damaged = dir.join("damaged.aria");
+    std::fs::write(
+        &damaged,
+        r#"{"schema":{"kind":"aria.project","version":1},"name":"Broken"}"#,
+    )
+    .unwrap();
+    let err = state.open_project(damaged).unwrap_err();
+    let msg = describe_engine_error(&err);
+    assert!(msg.contains("corrupted"), "got: {msg}");
+    assert!(msg.contains(".aria"), "got: {msg}");
 }
 
 #[test]

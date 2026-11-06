@@ -111,7 +111,7 @@ pub use effects::{
     evaluate_effect_gradient_lut, sample_effect_curve, sample_effect_gradient,
     shipped_effect_catalog,
 };
-pub use error::ModelError;
+pub use error::{ModelError, ProjectLoadError, ProjectLoadErrorKind};
 pub use ids::{
     BinId, ClipId, GroupId, LinkId, MarkerId, MediaId, MulticamGroupId, ProjectId, SequenceId,
     TemplateId, TrackId,

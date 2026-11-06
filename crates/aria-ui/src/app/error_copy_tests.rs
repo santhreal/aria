@@ -159,7 +159,7 @@ fn unsupported_project_schema_names_both_versions_and_the_fix() {
 }
 
 /// Variants of [`ModelError`]; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 45;
+const VARIANTS: usize = 46;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -212,6 +212,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::ClipCarriesNoSound(_) => 42,
         ModelError::UnknownInsert { .. } => 43,
         ModelError::InsertsFull(_) => 44,
+        ModelError::ProjectLoad(_) => 45,
     }
 }
 
@@ -295,6 +296,9 @@ fn every_refusal() -> Vec<ModelError> {
         ModelError::ClipCarriesNoSound(clip),
         ModelError::UnknownInsert { index: 4, len: 2 },
         ModelError::InsertsFull(8),
+        ModelError::ProjectLoad(aria_models::ProjectLoadError::NotFound {
+            path: "missing.aria".into(),
+        }),
     ]
 }
 

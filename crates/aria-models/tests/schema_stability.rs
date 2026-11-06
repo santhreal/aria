@@ -97,7 +97,7 @@ fn unsupported_schema_versions_fail_closed_naming_both_versions_and_corrective_a
             "error must name supported versions 1 to {PROJECT_SCHEMA_VERSION}: {msg}"
         );
         assert!(
-            msg.contains("update Aria"),
+            msg.contains("Update Aria to open it"),
             "error must name corrective action: {msg}"
         );
     }
@@ -124,7 +124,7 @@ fn unsupported_schema_versions_fail_closed_naming_both_versions_and_corrective_a
         "{zero_err}"
     );
     assert!(
-        zero_err.contains("open a valid .aria project file"),
+        zero_err.contains("Pick a valid .aria project file"),
         "{zero_err}"
     );
 
@@ -150,7 +150,7 @@ fn unsupported_schema_versions_fail_closed_naming_both_versions_and_corrective_a
         "{foreign_err}"
     );
     assert!(
-        foreign_err.contains("open a valid .aria project file"),
+        foreign_err.contains("Pick a valid .aria project file"),
         "{foreign_err}"
     );
 }

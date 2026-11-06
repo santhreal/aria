@@ -712,6 +712,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "HomeRail",
             "internal Home screen left-rail tab selection in aria-ui::types_editor",
         ),
+        (
+            "ProjectLoadErrorKind",
+            "project-load failure classification in aria-models::error",
+        ),
     ];
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))

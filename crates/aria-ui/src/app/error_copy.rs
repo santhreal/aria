@@ -42,21 +42,10 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
 /// than borrowing one that points at the wrong fix.
 fn model_copy(err: &ModelError) -> String {
     let copy = match err {
-        ModelError::InvalidProjectFile(_) => {
-            "Couldn't open this project. The file may be corrupted. Pick another .aria file."
-        }
-        ModelError::UnsupportedProjectSchema { found, expected } => {
-            return if found.kind == expected.kind && found.version > expected.version {
-                format!(
-                    "Couldn't open this project: it uses project format version {}, and this build reads versions 1 to {}. Update Aria to open it.",
-                    found.version, expected.version
-                )
-            } else {
-                format!(
-                    "Couldn't open this project: its format is '{}' version {}, and this build reads '{}' versions 1 to {}. Pick a valid .aria project file.",
-                    found.kind, found.version, expected.kind, expected.version
-                )
-            };
+        ModelError::ProjectLoad(_)
+        | ModelError::InvalidProjectFile(_)
+        | ModelError::UnsupportedProjectSchema { .. } => {
+            return err.to_string();
         }
         ModelError::Overlap(_) => {
             "That would overlap another clip on the same track. Make room for it, then try again."

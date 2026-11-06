@@ -11,7 +11,7 @@ use aria_models::Project;
 
 /// Read a `.aria` file.
 pub(crate) fn load(path: &Path) -> Result<Project, String> {
-    Project::load_from_file(path).map_err(|err| format!("{}: {err}", path.display()))
+    Project::load_from_file(path).map_err(|err| err.to_string())
 }
 
 /// Print every driver that failed while `project` rendered. A failed driver's
@@ -106,5 +106,70 @@ mod tests {
         assert_eq!(clock(61.25), "0:01:01.250");
         assert_eq!(clock(3661.0), "1:01:01.000");
         assert_eq!(clock(-1.0), "0:00:00.000");
+    }
+
+    /// Every `ProjectLoadErrorKind` variant reported by `project::load` prints
+    /// the same user-facing wording as `Project::load_from_file`.
+    #[test]
+    fn load_reports_every_project_load_error_kind_with_user_facing_wording() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for kind in aria_models::ProjectLoadErrorKind::ALL {
+            let path = match kind {
+                aria_models::ProjectLoadErrorKind::NotFound => dir.path().join("missing.aria"),
+                aria_models::ProjectLoadErrorKind::Unreadable => {
+                    let p = dir.path().join("locked.aria");
+                    std::fs::write(&p, "{}").expect("write locked");
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o000))
+                            .expect("chmod 000");
+                    }
+                    p
+                }
+                aria_models::ProjectLoadErrorKind::NotAProject => {
+                    let p = dir.path().join("plain.aria");
+                    std::fs::write(&p, "not json at all").expect("write plain");
+                    p
+                }
+                aria_models::ProjectLoadErrorKind::NewerSchema => {
+                    let p = dir.path().join("newer.aria");
+                    std::fs::write(
+                        &p,
+                        r#"{"schema":{"version":99,"kind":"aria.project"},"id":1,"name":"future","metadata":{},"media":[],"timeline":{"frame_rate":{"num":24,"den":1},"tracks":[],"order":[],"clip_index":[]}}"#,
+                    )
+                    .expect("write newer");
+                    p
+                }
+                aria_models::ProjectLoadErrorKind::Damaged => {
+                    let p = dir.path().join("damaged.aria");
+                    std::fs::write(
+                        &p,
+                        r#"{"schema":{"version":4,"kind":"aria.project"},"id":1,"name":"broken","metadata":{},"media":[],"timeline":{"frame_rate":{"num":"bad","den":1},"tracks":[],"order":[],"clip_index":[]}}"#,
+                    )
+                    .expect("write damaged");
+                    p
+                }
+            };
+            let cli_err = load(&path).expect_err("cli load must fail");
+            let model_err = Project::load_from_file(&path).expect_err("model load must fail");
+            assert_eq!(model_err.load_error_kind(), Some(kind));
+            assert_eq!(cli_err, model_err.to_string());
+            assert!(!cli_err.contains("invalid project file"));
+            assert!(!cli_err.contains("os error"));
+            assert!(!cli_err.contains("at line "));
+            #[cfg(unix)]
+            if kind == aria_models::ProjectLoadErrorKind::Unreadable {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+
+        let args = crate::args::Args::parse(["frame", "/nonexistent.aria"]).expect("parse frame");
+        let err = crate::frame::run(&args).expect_err("frame on missing project must fail");
+        assert_eq!(
+            err.message(),
+            "No project at /nonexistent.aria. Check the path or pick another .aria file."
+        );
     }
 }

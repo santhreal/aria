@@ -601,7 +601,13 @@ impl Render for Shell {
                 .when(frame.has_title_bar(), |el| {
                     el.child(crate::chrome::home_bar(&theme, window, cx))
                 })
-                .children(self.slot(PanelLocation::Home, cx))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .children(self.slot(PanelLocation::Home, cx)),
+                )
+                .child(status_strip(&theme, &self.state, status, err, cx))
                 .into_any_element()
         } else if self.state.read(cx).preview_view.fullscreen {
             // Fullscreen is the viewer with nothing beside it. The overlay slot
@@ -800,16 +806,9 @@ impl Render for Shell {
     }
 }
 
-/// The element that keeps the chrome's own motion running.
-///
-/// A GPUI view repaints when something notifies it, and an eased value has
-/// nothing to notify it: the value is a function of the clock. So the frame that
-/// drew an unsettled value requests the next one through [`motion::end_frame`].
-/// Nothing is painted, and once every value has landed the requests stop.
-///
-/// It is mounted by the shell rather than by the stores because exactly one
-/// element ends each frame: a second would advance the stores' frame counter
-/// twice and drop the values the first had just drawn.
+/// Ends each frame via [`motion::end_frame`] so unsettled eased values request
+/// another repaint until they land. Mounted once on the shell so the stores'
+/// frame counter advances once per frame.
 fn motion_driver() -> impl IntoElement {
     gpui::canvas(
         |_, window, cx| {

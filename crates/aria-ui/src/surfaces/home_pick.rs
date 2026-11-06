@@ -16,7 +16,7 @@
 //! selects which pane is drawn, a Learn line is text, and a catalog feed is a
 //! fetch: none of them touches the project.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use aria_engine::EngineError;
 
@@ -44,6 +44,21 @@ pub enum Pick {
 }
 
 impl Pick {
+    /// Every [`Pick`] variant, with `sample` supplied to the path-carrying
+    /// entries.
+    pub fn all(sample: &Path) -> Vec<Self> {
+        vec![
+            Self::NewProject,
+            Self::PickProject,
+            Self::OpenRecent(sample.to_path_buf()),
+            Self::RelinkRecent(sample.to_path_buf()),
+            Self::OpenSample,
+            Self::UseTemplate,
+            Self::RestoreRecovery,
+            Self::DiscardRecovery,
+        ]
+    }
+
     /// The pressed control, for a census and for a failure message.
     pub fn what(&self) -> &'static str {
         match self {

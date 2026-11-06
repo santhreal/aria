@@ -288,6 +288,7 @@ impl AppState {
     /// Throw the recovery copy away.
     pub fn discard_recovery(&mut self) {
         self.clear_recovery();
+        self.clear_error();
         self.status_message = Some("Discarded the recovered work".into());
     }
 }

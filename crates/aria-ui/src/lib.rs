@@ -193,12 +193,7 @@ pub fn run_app_with(config: UiConfig) -> ! {
     // they go through the same owner: a project file opens, media is imported and
     // laid end to end in a fresh session, a LUT or a skill installs. Answered
     // before the window so the first frame is the named project.
-    if !config.open_paths.is_empty()
-        && let Err(err) = state.drop_on_home(config.open_paths)
-    {
-        tracing::error!(error = %err, "could not open the paths given on the command line");
-        eprintln!("aria could not open what you asked for: {err}");
-    }
+    state.open_cli_paths(config.open_paths);
     // The hardware decode device opens while the window builds, so the first
     // clip's decoder finds it open. It starts once the command-line media is
     // probed: loading the device plugin holds GStreamer's plugin loader for

@@ -1277,6 +1277,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new` fails with exit 2 when its output already exists instead of saving a project over it.
 - Save, Save As and Save a Copy fail on a file the media pool plays from instead of replacing that footage with the project.
 - File > Export > Frame fails on the project file or a media file the project uses instead of replacing it with the PNG.
+- Classify project load failures into not-found, unreadable, non-project, newer-schema, and damaged-field messages and draw the status strip on the Home screen.
 
 ## [alpha-0.7.0] - 2026-07-22
 

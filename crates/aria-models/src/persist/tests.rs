@@ -646,7 +646,10 @@ fn load_rejects_unknown_schema_version() {
     )
     .unwrap();
     let err = Project::load_from_file(&path).unwrap_err();
-    assert!(matches!(err, ModelError::UnsupportedProjectSchema { .. }));
+    assert_eq!(
+        err.load_error_kind(),
+        Some(crate::ProjectLoadErrorKind::NewerSchema)
+    );
 }
 
 #[test]
@@ -770,7 +773,10 @@ fn validate_schema_rejects_future_version_and_wrong_kind() {
         extensions: Vec::new(),
     };
     let err = validate_schema(&future_schema).unwrap_err();
-    assert!(matches!(err, ModelError::UnsupportedProjectSchema { .. }));
+    assert_eq!(
+        err.load_error_kind(),
+        Some(crate::ProjectLoadErrorKind::NewerSchema)
+    );
 
     // Version 0
     let zero_schema = ProjectSchema {

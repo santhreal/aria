@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::Deserialize;
 
-use crate::error::ModelError;
+use crate::error::{ModelError, ProjectLoadError};
 use crate::project::Project;
 use crate::schema::{PROJECT_SCHEMA_VERSION, ProjectSchema};
 
@@ -82,9 +82,12 @@ impl Project {
     /// current one — so the strict parse below only ever sees the current
     /// format. Files newer than this build are refused, never half-parsed.
     pub fn load_from_file(path: &Path) -> Result<Project, ModelError> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        Self::load_from_string(&text)
+        let bytes = std::fs::read(path)
+            .map_err(|err| ModelError::ProjectLoad(ProjectLoadError::from_io(path, &err)))?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| {
+            ModelError::ProjectLoad(ProjectLoadError::not_a_project(Some(path), "not JSON"))
+        })?;
+        Self::load_from_string_at(text, Some(path))
     }
 
     /// Serialize this project to a JSON string stamped with the current schema version.
@@ -97,38 +100,71 @@ impl Project {
 
     /// Deserialize a project from a JSON string, validating and migrating its schema.
     pub fn load_from_string(text: &str) -> Result<Project, ModelError> {
+        Self::load_from_string_at(text, None)
+    }
+
+    fn load_from_string_at(text: &str, path: Option<&Path>) -> Result<Project, ModelError> {
         let bytes = text.as_bytes();
         let prefix = &bytes[..bytes.len().min(STREAM_BUF_CAPACITY)];
-        if has_leading_current_schema(prefix) {
-            let mut project: Project = serde_json::from_str(text)
-                .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        if has_leading_current_schema(prefix)
+            && let Ok(mut project) = serde_json::from_str::<Project>(text)
+        {
             project.normalize_all_lanes();
             return Ok(project);
         }
-        Self::load_from_value_str(text)
+        Self::load_from_value_str_at(text, path)
     }
 
-    fn load_from_value_str(text: &str) -> Result<Project, ModelError> {
+    fn load_from_value_str_at(text: &str, path: Option<&Path>) -> Result<Project, ModelError> {
         #[cfg(test)]
         note_value_fallback();
-        let mut doc: serde_json::Value = serde_json::from_str(text)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        let bytes = text.as_bytes();
+        let prefix = &bytes[..bytes.len().min(STREAM_BUF_CAPACITY)];
+        let mut doc: serde_json::Value = match serde_json::from_str(text) {
+            Ok(doc) => doc,
+            Err(err) => {
+                if has_leading_current_schema(prefix) {
+                    return Err(ModelError::ProjectLoad(ProjectLoadError::from_serde(
+                        path, text, &err,
+                    )));
+                }
+                return Err(ModelError::ProjectLoad(ProjectLoadError::not_a_project(
+                    path, "not JSON",
+                )));
+            }
+        };
+        if !doc.is_object() {
+            return Err(ModelError::ProjectLoad(ProjectLoadError::not_a_project(
+                path,
+                "not a JSON object",
+            )));
+        }
 
         unwrap_legacy_envelope(&mut doc);
-        let mut schema = read_schema(&doc)?;
+        let mut schema = read_schema_at(&doc, path)?;
         normalize_legacy_schema(&mut schema);
-        validate_schema(&schema)?;
+        validate_schema_at(&schema, path)?;
         migrate_document(&mut doc, schema.version);
 
-        let mut project: Project = serde_json::from_value(doc)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        // Keep the file's original (normalized) schema as provenance; the
-        // writer re-stamps the current version on save.
-        project.schema = schema;
-        // Files written before the main-track flag (or edited externally)
-        // re-derive the lane-zone / main-track invariants on entry.
-        project.normalize_all_lanes();
-        Ok(project)
+        match serde_json::from_value::<Project>(doc.clone()) {
+            Ok(mut project) => {
+                // Keep the file's original (normalized) schema as provenance; the
+                // writer re-stamps the current version on save.
+                project.schema = schema;
+                // Files written before the main-track flag (or edited externally)
+                // re-derive the lane-zone / main-track invariants on entry.
+                project.normalize_all_lanes();
+                Ok(project)
+            }
+            Err(_) => {
+                let pretty = serde_json::to_string_pretty(&doc).unwrap_or_else(|_| text.to_owned());
+                let err = serde_json::from_str::<Project>(&pretty)
+                    .expect_err("document rejected by from_value must fail from_str");
+                Err(ModelError::ProjectLoad(ProjectLoadError::from_serde(
+                    path, &pretty, &err,
+                )))
+            }
+        }
     }
 }
 
@@ -658,16 +694,24 @@ fn unwrap_legacy_envelope(doc: &mut serde_json::Value) {
 /// deserializing the whole project. Shared with the template loader, which
 /// wraps a project document and versions in lockstep with it.
 pub(crate) fn read_schema(doc: &serde_json::Value) -> Result<ProjectSchema, ModelError> {
+    read_schema_at(doc, None)
+}
+
+fn read_schema_at(
+    doc: &serde_json::Value,
+    path: Option<&Path>,
+) -> Result<ProjectSchema, ModelError> {
     #[derive(Deserialize)]
     struct Holder(#[serde(deserialize_with = "crate::schema::deserialize")] ProjectSchema);
 
+    let err = |reason| ModelError::ProjectLoad(ProjectLoadError::not_a_project(path, reason));
     let raw = doc
         .get("schema")
         .or_else(|| doc.get("schema_version"))
-        .ok_or_else(|| ModelError::InvalidProjectFile("missing schema".into()))?;
+        .ok_or_else(|| err("missing project schema"))?;
     serde_json::from_value::<Holder>(raw.clone())
         .map(|holder| holder.0)
-        .map_err(|e| ModelError::InvalidProjectFile(format!("invalid schema: {e}")))
+        .map_err(|_| err("invalid project schema"))
 }
 
 /// Rewrite a raw project document from `from`'s shape to the current
@@ -776,14 +820,17 @@ fn normalize_legacy_schema(schema: &mut ProjectSchema) {
         schema.kind = crate::schema::PROJECT_SCHEMA_KIND.into();
     }
 }
-
+#[cfg(test)]
 fn validate_schema(found: &ProjectSchema) -> Result<(), ModelError> {
+    validate_schema_at(found, None)
+}
+
+fn validate_schema_at(found: &ProjectSchema, path: Option<&Path>) -> Result<(), ModelError> {
     let expected = ProjectSchema::current();
     if !found.is_supported() {
-        return Err(ModelError::UnsupportedProjectSchema {
-            found: found.clone(),
-            expected,
-        });
+        return Err(ModelError::ProjectLoad(ProjectLoadError::from_schema(
+            path, found, &expected,
+        )));
     }
     Ok(())
 }
