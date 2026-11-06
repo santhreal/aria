@@ -167,33 +167,53 @@ impl AppState {
         let label = format!("Generating {}: {prompt}", kind.label().to_lowercase());
         let (wake, wakes) = crate::handoff::wakes::<Result<(), String>>();
         let target = dest.clone();
-        self.spawn_job(label, move |context| {
-            let outcome = run_generation(context, &key, kind, &request, &target);
-            let reported = match (&outcome, context.cancelled()) {
-                (_, true) => Err(String::new()),
-                (Ok(()), false) => Ok(()),
-                (Err(err), false) => Err(err.clone()),
-            };
-            wake.wake(reported);
-            outcome.map(|()| aria_jobs::JobCompletion::new("generated"))
-        });
+        let epoch = self.project_epoch();
+        self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Generation, label)
+                .with_target(format!("generate:{}", target.display())),
+            move |context| {
+                let outcome = run_generation(context, &key, kind, &request, &target);
+                let reported = match (&outcome, context.cancelled()) {
+                    (_, true) => Err(String::new()),
+                    (Ok(()), false) => Ok(()),
+                    (Err(err), false) => Err(err.clone()),
+                };
+                wake.wake(reported);
+                outcome.map(|()| aria_jobs::JobCompletion::new("generated"))
+            },
+        );
 
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
-            let _ = this.update(cx, |state, _| match outcome {
-                Some(Ok(())) => match state.adopt_generated(&dest) {
-                    Ok(()) => state.generate.prompt.clear(),
-                    Err(err) => state.report_error(err),
-                },
-                Some(Err(reason)) if reason.is_empty() => {
-                    state.status_message = Some("Cancelled the generation".into());
+            let _ = this.update(cx, |state, _| {
+                if state.project_epoch() != epoch {
+                    let _ = std::fs::remove_file(&dest);
+                    return;
                 }
-                Some(Err(reason)) => state.report_error(reason),
-                None => state.report_error("The generation did not report"),
+                match outcome {
+                    Some(Ok(())) => match state.adopt_generated(&dest) {
+                        Ok(()) => state.generate.prompt.clear(),
+                        Err(err) => state.report_error(err),
+                    },
+                    Some(Err(reason)) if reason.is_empty() => {
+                        let _ = std::fs::remove_file(&dest);
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the generation");
+                        }
+                    }
+                    Some(Err(reason)) => {
+                        let _ = std::fs::remove_file(&dest);
+                        state.report_error(reason);
+                    }
+                    None => {
+                        let _ = std::fs::remove_file(&dest);
+                        state.report_error("The generation did not report");
+                    }
+                }
             });
         })
         .detach();
-        self.status_message = Some("Generating…".into());
+        self.set_job_status_line("Generating…");
         Ok(())
     }
 

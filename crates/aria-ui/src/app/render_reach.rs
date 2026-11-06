@@ -206,36 +206,42 @@ impl AppState {
         let dest = dir;
         let gpu = super::render_device::shared_device(&self.ctx);
         let kind = aria_plugin::RenderKind::ImageSequence;
-        let id = self.spawn_render(label, kind, dest.clone(), move |context| {
-            let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
-            let mut encoder = aria_render::PngSequenceEncoder::new(&dest)
-                .map_err(|err| format!("opening {}: {err}", dest.display()))?;
-            let mut observer = |done: u64, total: u64| {
-                let fraction = if total == 0 {
-                    0.0
-                } else {
-                    done as f32 / total as f32
+        let id = self.spawn_render(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Export, label)
+                .with_target(format!("render_seq:{}", dest.display())),
+            kind,
+            dest.clone(),
+            move |context| {
+                let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
+                let mut encoder = aria_render::PngSequenceEncoder::new(&dest)
+                    .map_err(|err| format!("opening {}: {err}", dest.display()))?;
+                let mut observer = |done: u64, total: u64| {
+                    let fraction = if total == 0 {
+                        0.0
+                    } else {
+                        done as f32 / total as f32
+                    };
+                    context.set_progress(fraction, format!("frame {done}/{total}"));
+                    !context.cancelled()
                 };
-                context.set_progress(fraction, format!("frame {done}/{total}"));
-                !context.cancelled()
-            };
-            aria_render::export_observed(
-                &mut renderer,
-                &project,
-                &mut encoder,
-                settings,
-                &mut observer,
-            )
-            .map_err(|err| err.to_string())?;
-            // The sink's own count, not the loop's: it is the number of files on
-            // disk, which is what gets opened next.
-            let written = encoder.frames_written();
-            JobCompletion::new(counted(written, "frame", "frames").to_string())
-                .with_output("path", dest.display().to_string())
-                .map_err(String::from)
-        });
+                aria_render::export_observed(
+                    &mut renderer,
+                    &project,
+                    &mut encoder,
+                    settings,
+                    &mut observer,
+                )
+                .map_err(|err| err.to_string())?;
+                // The sink's own count, not the loop's: it is the number of files on
+                // disk, which is what gets opened next.
+                let written = encoder.frames_written();
+                JobCompletion::new(counted(written, "frame", "frames").to_string())
+                    .with_output("path", dest.display().to_string())
+                    .map_err(String::from)
+            },
+        );
         let (w, h) = settings.size;
-        self.status_message = Some(format!(
+        self.set_job_status_line(format!(
             "Rendering frames · {w}×{h} · {}",
             self.export_range_label()
         ));
@@ -253,16 +259,21 @@ impl AppState {
         let at = self.playhead;
         let gpu = super::render_device::shared_device(&self.ctx);
         let label = format!("Exporting frame to {}", folder_label(&path));
-        let id = self.spawn_job(label, move |context| {
-            context.set_progress(0.0, "rendering".to_string());
-            let mut renderer = super::render_device::renderer_on(gpu, "the frame export")?;
-            let (w, h) = aria_render::export_frame_png(&mut renderer, &project, at, &path)
-                .map_err(|err| format!("exporting the frame to {}: {err}", path.display()))?;
-            JobCompletion::new(format!("{w}×{h} PNG"))
-                .with_output("path", path.display().to_string())
-                .map_err(String::from)
-        });
-        self.status_message = Some(format!("Exporting frame {}", self.playhead.value));
+        let target_path = path.display().to_string();
+        let id = self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Other, label)
+                .with_target(format!("export_frame:{target_path}")),
+            move |context| {
+                context.set_progress(0.0, "rendering".to_string());
+                let mut renderer = super::render_device::renderer_on(gpu, "the frame export")?;
+                let (w, h) = aria_render::export_frame_png(&mut renderer, &project, at, &path)
+                    .map_err(|err| format!("exporting the frame to {}: {err}", path.display()))?;
+                JobCompletion::new(format!("{w}×{h} PNG"))
+                    .with_output("path", path.display().to_string())
+                    .map_err(String::from)
+            },
+        );
+        self.set_job_status_line(format!("Exporting frame {}", self.playhead.value));
         id.raw()
     }
 

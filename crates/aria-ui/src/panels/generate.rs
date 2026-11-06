@@ -29,7 +29,7 @@ const JOB_LIMIT: usize = 6;
 /// Only the generation rows: the full board is Window > Jobs, and repeating an
 /// export here would say nothing about the prompt.
 fn mine(job: &crate::app::jobs::UiJob) -> bool {
-    job.label.starts_with("Generating ")
+    job.kind == crate::app::jobs::JobKind::Generation
 }
 
 pub(crate) fn generate_panel(

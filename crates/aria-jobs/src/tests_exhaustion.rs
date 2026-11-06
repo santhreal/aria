@@ -331,3 +331,131 @@ fn concurrent_spawners_never_strand_a_job() {
     assert!(peak.load(Ordering::SeqCst) <= 2);
     assert_slots_freed(&watched.manager);
 }
+
+/// WHY: spawning duplicate work on the same `(JobKind, target)` ran both jobs
+/// concurrently and raced their completion writes, while project switches and
+/// session quit had no registry-level epoch/shutdown barrier to cancel both
+/// running and admission-queued jobs within a wall-clock bound. Closes the
+/// class of duplicate target runs and unbounded job shutdown across every
+/// `JobKind` in `JobKind::ALL`. Does not cover UI status-strip formatting (see
+/// `aria-ui::app::jobs_tests`).
+#[test]
+fn target_deduplication_and_bounded_shutdown_hold_for_every_job_kind() {
+    for kind in crate::JobKind::ALL {
+        let manager = JobManager::with_concurrency_limit(2);
+        let (started_tx, started_rx) = mpsc::channel();
+        let first =
+            manager.spawn_with_target(kind, Some("clip:42".to_string()), "first run", move |ctx| {
+                let _ = started_tx.send(());
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while !ctx.cancelled() && std::time::Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(crate::JobCompletion::new("first"))
+            });
+        started_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("first job started");
+
+        let second = manager.spawn_with_target(
+            kind,
+            Some("clip:42".to_string()),
+            "second run",
+            move |ctx| {
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while !ctx.cancelled() && std::time::Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(crate::JobCompletion::new("second"))
+            },
+        );
+        let third_other_target = manager.spawn_with_target(
+            kind,
+            Some("clip:99".to_string()),
+            "other target",
+            move |ctx| {
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while !ctx.cancelled() && std::time::Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(crate::JobCompletion::new("third"))
+            },
+        );
+
+        let dedup_start = std::time::Instant::now();
+        while !manager.get(first).expect("first").state.is_terminal() {
+            assert!(
+                dedup_start.elapsed() < Duration::from_secs(1),
+                "duplicate target did not cancel first job for {kind:?} within 1s"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        let first_snap = manager.get(first).expect("first");
+        assert_eq!(first_snap.kind, kind);
+        assert_eq!(
+            first_snap.state,
+            JobState::Cancelled,
+            "first job on duplicate target must be Cancelled for {kind:?}"
+        );
+        assert!(
+            !manager.get(second).expect("second").state.is_terminal(),
+            "replacement job on target must remain active for {kind:?}"
+        );
+        assert!(
+            !manager
+                .get(third_other_target)
+                .expect("third")
+                .state
+                .is_terminal(),
+            "distinct target must not be cancelled for {kind:?}"
+        );
+
+        let epoch_before = manager.project_epoch();
+        let epoch_after = manager.advance_project_epoch();
+        assert_eq!(epoch_after, epoch_before + 1);
+        assert!(
+            manager.settle_all(Duration::from_secs(1)),
+            "advance_project_epoch did not cancel in-flight jobs within 1s for {kind:?}"
+        );
+        assert_eq!(
+            manager.get(second).expect("second").state,
+            JobState::Cancelled
+        );
+        assert_eq!(
+            manager.get(third_other_target).expect("third").state,
+            JobState::Cancelled
+        );
+
+        let (quit_tx, quit_rx) = mpsc::channel();
+        let fourth_for_quit = manager.spawn_with_target(
+            kind,
+            Some("clip:quit".to_string()),
+            "quit run",
+            move |ctx| {
+                let _ = quit_tx.send(());
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                while !ctx.cancelled() && std::time::Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(crate::JobCompletion::new("fourth"))
+            },
+        );
+        quit_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("quit job started");
+        let shutdown_start = std::time::Instant::now();
+        assert!(
+            manager.shutdown(Duration::from_secs(1)),
+            "shutdown exceeded 1s bound for {kind:?}"
+        );
+        assert!(
+            shutdown_start.elapsed() < Duration::from_secs(1),
+            "shutdown took {:?} for {kind:?}",
+            shutdown_start.elapsed()
+        );
+        assert_eq!(
+            manager.get(fourth_for_quit).expect("fourth").state,
+            JobState::Cancelled
+        );
+    }
+}

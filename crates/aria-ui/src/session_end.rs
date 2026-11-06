@@ -17,6 +17,7 @@ pub(crate) fn close_decode_sessions(state: &mut AppState) {
     state.playing = false;
     state.audio.publish_stop();
     state.preview_worker.stop();
+    state.shutdown_jobs(std::time::Duration::from_secs(2));
     state.filmstrips = crate::filmstrips::FilmstripStore::default();
     state.engine().lock().new_session();
 }

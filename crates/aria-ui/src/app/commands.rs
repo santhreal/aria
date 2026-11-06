@@ -489,6 +489,14 @@ impl AppState {
     }
 
     pub fn apply_command(&mut self, command: Command) -> Result<ApplyOutcome, EngineError> {
+        let replaces_project = matches!(
+            &command,
+            Command::Project(
+                aria_commands::ProjectCommand::Open { .. }
+                    | aria_commands::ProjectCommand::Load { .. }
+                    | aria_commands::ProjectCommand::ApplyTemplate { .. }
+            )
+        );
         let (outcome, (invalidation, from, to)) = self.host.apply_observed(
             &Origin::Editor,
             command,
@@ -506,6 +514,9 @@ impl AppState {
                 )
             },
         )?;
+        if replaces_project {
+            self.close_project_jobs();
+        }
         match invalidation {
             FilmstripInvalidation::Full => self.filmstrips.sync_revision(to),
             FilmstripInvalidation::Spans(spans) => self.filmstrips.advance(from, to, spans),

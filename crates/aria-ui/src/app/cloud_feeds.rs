@@ -304,47 +304,56 @@ impl AppState {
         // would spin a core for the length of the transfer; subscribing globally would
         // wake this closure for every unrelated job.
         let (wake, wakes) = crate::handoff::wakes::<Result<(), String>>();
-        self.spawn_job(label, move |context| {
-            let cancel = Arc::new(AtomicBool::new(false));
-            let mirror = cancel.clone();
-            let result = aria_cloud::download::download_to(&url, &target, &cancel, |progress| {
-                if context.cancelled() {
-                    mirror.store(true, Ordering::Relaxed);
-                }
-                // `total_bytes` is 0 when the CDN sent no Content-Length.
-                match progress.total_bytes {
-                    total if total > 0 => context.set_progress(
-                        progress.bytes_downloaded as f32 / total as f32,
-                        format!(
-                            "{} of {}",
-                            crate::app::storage::format_bytes(progress.bytes_downloaded),
-                            crate::app::storage::format_bytes(total)
-                        ),
-                    ),
-                    // A server that sends no length gives no denominator. Reporting a
-                    // made-up fraction would be worse than reporting bytes.
-                    _ => context.set_progress(
-                        0.0,
-                        crate::app::storage::format_bytes(progress.bytes_downloaded),
-                    ),
-                }
-            });
-            let outcome = match (&result, context.cancelled()) {
-                (_, true) => Err(String::new()),
-                (Ok(()), false) => Ok(()),
-                (Err(err), false) => Err(err.to_string()),
-            };
-            wake.wake(outcome);
-            result
-                .map(|()| aria_jobs::JobCompletion::new("downloaded"))
-                .map_err(|err| err.to_string())
-        });
+        let epoch = self.project_epoch();
+        self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Download, label)
+                .with_target(format!("cloud:{}", target.display())),
+            move |context| {
+                let cancel = Arc::new(AtomicBool::new(false));
+                let mirror = cancel.clone();
+                let result =
+                    aria_cloud::download::download_to(&url, &target, &cancel, |progress| {
+                        if context.cancelled() {
+                            mirror.store(true, Ordering::Relaxed);
+                        }
+                        // `total_bytes` is 0 when the CDN sent no Content-Length.
+                        match progress.total_bytes {
+                            total if total > 0 => context.set_progress(
+                                progress.bytes_downloaded as f32 / total as f32,
+                                format!(
+                                    "{} of {}",
+                                    crate::app::storage::format_bytes(progress.bytes_downloaded),
+                                    crate::app::storage::format_bytes(total)
+                                ),
+                            ),
+                            // A server that sends no length gives no denominator. Reporting a
+                            // made-up fraction would be worse than reporting bytes.
+                            _ => context.set_progress(
+                                0.0,
+                                crate::app::storage::format_bytes(progress.bytes_downloaded),
+                            ),
+                        }
+                    });
+                let outcome = match (&result, context.cancelled()) {
+                    (_, true) => Err(String::new()),
+                    (Ok(()), false) => Ok(()),
+                    (Err(err), false) => Err(err.to_string()),
+                };
+                wake.wake(outcome);
+                result
+                    .map(|()| aria_jobs::JobCompletion::new("downloaded"))
+                    .map_err(|err| err.to_string())
+            },
+        );
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, _| {
                 // Released whichever way the transfer ended: a failed download that left
                 // the guard held would lock Clear and Move for the rest of the session.
                 state.release_download_guard();
+                if state.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(())) => {
                         if let Err(err) = state.adopt_cloud_asset(feed, &dest, &card) {
@@ -354,7 +363,9 @@ impl AppState {
                     // An empty reason is the cancellation case: the cancel was
                     // requested, so it is a status line and not an error.
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some(format!("Cancelled {}", card.name));
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line(format!("Cancelled {}", card.name));
+                        }
                     }
                     Some(Err(reason)) => {
                         state.report_error(format!("{}: {reason}", card.name));

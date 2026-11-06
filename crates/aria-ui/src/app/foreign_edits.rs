@@ -28,6 +28,7 @@ impl AppState {
                     SessionChange::Opened { path } => {
                         crate::projection::invalidate_media_statuses();
                         self.waveforms.clear();
+                        self.close_project_jobs();
                         self.clear_recovery();
                         if let Some(p) = &path {
                             self.remember_recent(p);

@@ -233,9 +233,22 @@ impl AppState {
         let index = self.analysis_index()?;
         let (wake, wakes) = crate::handoff::wakes::<Result<Vec<UiCaption>, String>>();
         let label = request.label.clone();
-        self.spawn_job(label, move |context| {
+        let epoch = self.jobs.project_epoch();
+        let jobs = self.jobs.clone();
+        let spec = crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Transcription, label)
+            .with_target(format!(
+                "transcribe:{}:{:?}",
+                request.clip_start_tick, request.content_key
+            ));
+        self.spawn_job(spec, move |context| {
+            if jobs.project_epoch() != epoch {
+                return Err(String::new());
+            }
             let outcome = run_transcription(context, &request, &index);
-            let reported = match (&outcome, context.cancelled()) {
+            let reported = match (
+                &outcome,
+                context.cancelled() || jobs.project_epoch() != epoch,
+            ) {
                 (_, true) => Err(String::new()),
                 (Ok(captions), false) => Ok(captions.clone()),
                 (Err(err), false) => Err(err.clone()),
@@ -250,17 +263,24 @@ impl AppState {
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.jobs.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(captions)) => {
-                        state.status_message = Some(format!(
-                            "Transcribed {}",
-                            counted(captions.len(), "segment", "segments")
-                        ));
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line(format!(
+                                "Transcribed {}",
+                                counted(captions.len(), "segment", "segments")
+                            ));
+                        }
                         state.captions.segments = captions;
                         state.refresh_analysis_cache_size();
                     }
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some("Cancelled the transcription".into());
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the transcription");
+                        }
                     }
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("The transcription did not report"),
@@ -269,7 +289,7 @@ impl AppState {
             });
         })
         .detach();
-        self.status_message = Some("Transcribing…".into());
+        self.set_job_status_line("Transcribing…");
         Ok(())
     }
 

@@ -312,15 +312,21 @@ impl SharedQueue {
         let gpu = self.gpu.as_ref().map(|g| g.share());
 
         let shared_for_job = Arc::clone(self);
-        let job_id = self
-            .job_manager
-            .spawn_with_completion(label, move |context| {
+        let dest_existed = dest.exists();
+        let target_key = dest.display().to_string();
+        let job_id = self.job_manager.spawn_with_target(
+            aria_jobs::JobKind::Export,
+            Some(target_key),
+            label,
+            move |context| {
                 if cancel_early {
                     let _ = context.cancelled();
                 }
                 let mut guard = JobCompletionGuard {
                     shared: shared_for_job,
                     entry_id,
+                    dest: dest.clone(),
+                    dest_existed,
                     context,
                     completed: false,
                 };
@@ -358,6 +364,8 @@ impl SharedQueue {
 struct JobCompletionGuard<'a> {
     shared: Arc<SharedQueue>,
     entry_id: u64,
+    dest: PathBuf,
+    dest_existed: bool,
     context: &'a aria_jobs::JobContext,
     completed: bool,
 }
@@ -369,6 +377,9 @@ impl<'a> JobCompletionGuard<'a> {
         }
         self.completed = true;
         let cancelled = self.context.cancelled();
+        if cancelled && !self.dest_existed {
+            let _ = std::fs::remove_file(&self.dest);
+        }
         let (state, error) = match result {
             _ if cancelled => (ExportEntryState::Cancelled, None),
             Ok(_) => (ExportEntryState::Done, None),
@@ -383,6 +394,9 @@ impl<'a> Drop for JobCompletionGuard<'a> {
         if !self.completed {
             self.completed = true;
             let cancelled = self.context.cancelled();
+            if cancelled && !self.dest_existed {
+                let _ = std::fs::remove_file(&self.dest);
+            }
             let state = if cancelled {
                 ExportEntryState::Cancelled
             } else {
@@ -480,8 +494,21 @@ impl ExportQueue {
         project: Arc<Project>,
         plugin_encoder: Option<String>,
     ) -> u64 {
+        let stale_running_jobs: Vec<JobId>;
         let id = {
             let mut inner = self.shared.inner.lock();
+            inner
+                .entries
+                .retain(|e| !(e.state == ExportEntryState::Queued && e.dest == dest));
+            stale_running_jobs = inner
+                .entries
+                .iter_mut()
+                .filter(|e| e.state == ExportEntryState::Running && e.dest == dest)
+                .filter_map(|e| {
+                    e.cancel_requested = true;
+                    e.job_id
+                })
+                .collect();
             let id = inner.next_id;
             inner.next_id += 1;
             let label = format!("Exporting {}", file_label(&dest));
@@ -503,11 +530,14 @@ impl ExportQueue {
             inner.entries.push(entry);
             id
         };
+        for job_id in stale_running_jobs {
+            self.shared.job_manager.cancel(job_id);
+        }
         self.shared.pump_internal();
         id
     }
 
-    /// Cancel a queue entry by ID.
+    /// Cancel a queue entry by entry ID or running `JobId`.
     ///
     /// - If `Queued`: removes the entry from the queue and returns `true`.
     /// - If `Running`: cancels the running job in `JobManager`, marks cancel requested, and returns `true`.
@@ -516,7 +546,11 @@ impl ExportQueue {
         let job_to_cancel: Option<JobId>;
         {
             let mut inner = self.shared.inner.lock();
-            let Some(pos) = inner.entries.iter().position(|e| e.id == id) else {
+            let Some(pos) = inner
+                .entries
+                .iter()
+                .position(|e| e.id == id || e.job_id == Some(JobId::from_raw(id)))
+            else {
                 return false;
             };
             let entry = &mut inner.entries[pos];
@@ -540,6 +574,28 @@ impl ExportQueue {
             true
         } else {
             true
+        }
+    }
+
+    /// Remove every queued export and request cancellation for any running export.
+    pub fn cancel_all(&self) {
+        let jobs_to_cancel: Vec<JobId> = {
+            let mut inner = self.shared.inner.lock();
+            inner
+                .entries
+                .retain(|e| e.state != ExportEntryState::Queued);
+            inner
+                .entries
+                .iter_mut()
+                .filter(|e| e.state == ExportEntryState::Running)
+                .filter_map(|e| {
+                    e.cancel_requested = true;
+                    e.job_id
+                })
+                .collect()
+        };
+        for job_id in jobs_to_cancel {
+            self.shared.job_manager.cancel(job_id);
         }
     }
 

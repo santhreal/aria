@@ -219,28 +219,41 @@ impl AppState {
         let (wake, wakes) = crate::handoff::wakes::<Result<VoiceSpans, String>>();
         let label = request.label.clone();
         let music = request.music.clone();
+        let target_key = format!(
+            "duck:{:?}",
+            music.iter().map(|id| id.raw()).collect::<Vec<_>>()
+        );
         let form = self.duck;
-        self.spawn_job(label, move |context| {
-            let outcome = measure_voice(context, &request);
-            let reported = match (&outcome, context.cancelled()) {
-                (_, true) => Err(String::new()),
-                (Ok(spans), false) => Ok(spans.clone()),
-                (Err(err), false) => Err(err.clone()),
-            };
-            wake.wake(reported);
-            let spans: usize = outcome?.iter().map(|(_, spans)| spans.len()).sum();
-            JobCompletion::new(counted(spans, "voice span", "voice spans").to_string())
-                .with_output("spans", spans.to_string())
-                .map_err(String::from)
-        });
+        let epoch = self.project_epoch();
+        self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Other, label).with_target(target_key),
+            move |context| {
+                let outcome = measure_voice(context, &request);
+                let reported = match (&outcome, context.cancelled()) {
+                    (_, true) => Err(String::new()),
+                    (Ok(spans), false) => Ok(spans.clone()),
+                    (Err(err), false) => Err(err.clone()),
+                };
+                wake.wake(reported);
+                let spans: usize = outcome?.iter().map(|(_, spans)| spans.len()).sum();
+                JobCompletion::new(counted(spans, "voice span", "voice spans").to_string())
+                    .with_output("spans", spans.to_string())
+                    .map_err(String::from)
+            },
+        );
 
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(spans)) => state.apply_duck(&spans, &music, form),
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some("Cancelled the duck".into());
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the duck");
+                        }
                     }
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("The duck did not report"),
@@ -249,7 +262,7 @@ impl AppState {
             });
         })
         .detach();
-        self.status_message = Some("Measuring the voice…".into());
+        self.set_job_status_line("Measuring the voice…");
         Ok(())
     }
 

@@ -25,9 +25,21 @@ impl AppState {
         let offset = self.selected_ui_clip().map_or(0, |clip| {
             clip.timeline_start_ticks - clip.source_start_ticks
         });
-        self.spawn_job(label, move |context| {
+        let epoch = self.jobs.project_epoch();
+        let jobs = self.jobs.clone();
+        let spec =
+            crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Loudness, label).with_target(
+                format!("loudness:{}:{:?}", request.clip.raw(), request.content_key),
+            );
+        self.spawn_job(spec, move |context| {
+            if jobs.project_epoch() != epoch {
+                return Err(String::new());
+            }
             let outcome = measure_contour(context, &request, offset);
-            let reported = match (&outcome, context.cancelled()) {
+            let reported = match (
+                &outcome,
+                context.cancelled() || jobs.project_epoch() != epoch,
+            ) {
                 (_, true) => Err(String::new()),
                 (Ok(points), false) => Ok(points.clone()),
                 (Err(err), false) => Err(err.clone()),
@@ -42,16 +54,23 @@ impl AppState {
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.jobs.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(points)) => {
-                        state.status_message = Some(format!(
-                            "Measured {}",
-                            counted(points.len(), "loudness window", "loudness windows")
-                        ));
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line(format!(
+                                "Measured {}",
+                                counted(points.len(), "loudness window", "loudness windows")
+                            ));
+                        }
                         state.analysis.loudness = points.into();
                     }
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some("Cancelled the measurement".into());
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the measurement");
+                        }
                     }
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("The measurement did not report"),

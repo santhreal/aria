@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use aria_core::{DecodeError, FrameData, Rational, RationalTime, VideoDecoder, VideoFrame};
 
 use super::{AHEAD_FRAMES, BEHIND_BYTES, BEHIND_SURFACES};
-use crate::seek::{frame_covers, is_after, is_frame_before, seek_walk, seek_walk_while};
+use crate::seek::{frame_covers, is_after, is_frame_before, seek_walk_while};
 
 /// Default held backward frame threshold below which a parked reverse decoder
 /// pre-walks the preceding GOP on the decode pool.
@@ -234,7 +234,25 @@ pub(super) fn run(
         // The same seek and walk as the wrapped decoder's own `frame_at`, so
         // an open-GOP sync sample backs off the same way, keeping the frames
         // the walk passes.
-        Op::Back(target) => seek_walk(decoder, target, frame_rate, |frame| behind.push(frame)),
+        Op::Back(target) => {
+            let mut canceled = false;
+            let found = seek_walk_while(
+                decoder,
+                target,
+                frame_rate,
+                || {
+                    canceled = shared.walk_canceled();
+                    !canceled
+                },
+                |frame| behind.push(frame),
+            );
+            if canceled {
+                behind.clear();
+                Ok(None)
+            } else {
+                found
+            }
+        }
         Op::BackFill { target, floor } => {
             let mut canceled = false;
             let found = seek_walk_while(
@@ -651,6 +669,11 @@ impl Shared {
             || !state.parked
             || state.behind_floor != Some(floor)
             || state.want.is_some()
+    }
+
+    pub(super) fn walk_canceled(&self) -> bool {
+        let state = self.lock();
+        state.stop || state.closed
     }
 }
 

@@ -566,3 +566,79 @@ fn a_queued_plugin_encoder_that_unmounts_before_running_fails_naming_the_format_
         "unmounted plugin encoder must fail without falling back to the default runner"
     );
 }
+
+/// WHY: cancelling an active export or switching projects mid-export left
+/// partial destination files on disk, allowed duplicate exports to the same
+/// destination path to run concurrently, and left the status strip stuck on
+/// `"Export enqueued · ..."` after terminal transitions. Closes the class of
+/// mid-export cancel file leaks, duplicate-destination races, and missing
+/// export status transitions.
+#[test]
+fn cancel_mid_export_and_duplicate_destination_clean_up_partial_file_within_bound() {
+    let (mut state, _clip) = with_clip();
+    let (started_tx, started_rx) = crossbeam_channel::bounded::<std::path::PathBuf>(4);
+    let runner: ExportRunner = Arc::new(move |context, _project, dest, _settings| {
+        std::fs::write(dest, b"partial-mp4-header").expect("write partial file");
+        let _ = started_tx.send(dest.to_path_buf());
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !context.cancelled() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        if !context.try_begin_commit() {
+            return Err("cancelled".into());
+        }
+        JobCompletion::new("exported")
+            .with_output("path", dest.display().to_string())
+            .map_err(String::from)
+    });
+    state.export_queue.set_runner(runner);
+
+    let dir = crate::scratch_pool::scratch("export_cancel_cleanup");
+    let out = dir.join("partial.mp4");
+    let entry1 = state.export_job(out.clone()).expect("enqueue first");
+    let started_path = started_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("first export started and wrote partial file");
+    assert_eq!(started_path, out);
+    assert!(out.exists(), "partial file exists while running");
+
+    // Enqueueing a second export to the same destination deduplicates the first.
+    let entry2 = state.export_job(out.clone()).expect("enqueue duplicate");
+    let _ = started_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("replacement export started");
+    let snap_after_dedup = state.export_queue.snapshot();
+    let e1 = snap_after_dedup
+        .iter()
+        .find(|e| e.id == entry1)
+        .expect("entry 1 present");
+    assert_eq!(
+        e1.state,
+        ExportEntryState::Cancelled,
+        "duplicate destination export must cancel the earlier run"
+    );
+
+    // Cancel the replacement mid-export and verify bounded stop + partial file removal.
+    let cancel_start = std::time::Instant::now();
+    state.cancel_job(entry2);
+    assert!(
+        state.export_queue.settle_all(Duration::from_secs(1)),
+        "cancelled export must settle within 1s"
+    );
+    assert!(cancel_start.elapsed() < Duration::from_secs(1));
+    state.refresh_jobs();
+    assert!(
+        !out.exists(),
+        "partial destination file must be deleted when export is cancelled"
+    );
+    let snap_final = state.export_queue.snapshot();
+    let e2 = snap_final
+        .iter()
+        .find(|e| e.id == entry2)
+        .expect("entry 2 present");
+    assert_eq!(e2.state, ExportEntryState::Cancelled);
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Cancelled exporting partial.mp4")
+    );
+}

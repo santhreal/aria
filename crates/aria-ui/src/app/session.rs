@@ -103,6 +103,7 @@ impl AppState {
     /// path is adopted before it is read.
     fn adopt_project(&mut self, path: PathBuf) {
         self.waveforms.clear();
+        self.close_project_jobs();
         self.clear_recovery();
         // Remembered before the path is adopted, so the list is built from the
         // path this call was handed rather than read back out of the state.
@@ -153,6 +154,7 @@ impl AppState {
         )?;
         self.project_path = None;
         self.waveforms.clear();
+        self.close_project_jobs();
         self.clear_recovery();
         self.selection.clear();
         self.load_conversation();

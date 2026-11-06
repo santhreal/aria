@@ -48,27 +48,33 @@ impl AppState {
         }
         let animates = format.animates();
         let label = format!("Verifying {name} ({})", format.label());
-        self.spawn_job(label, move |context| {
-            if context.cancelled() {
-                return Err("cancelled before the decode started".into());
-            }
-            let bytes = std::fs::read(&path).map_err(|err| format!("{}: {err}", path.display()))?;
-            let from_bytes = sniff_bytes(&bytes)
-                .ok_or_else(|| format!("{}: the header names no container", path.display()))?;
-            if from_bytes != format {
-                return Err(format!(
-                    "{}: the path reads as {} and the bytes as {}",
-                    path.display(),
-                    format.label(),
-                    from_bytes.label()
-                ));
-            }
-            if animates {
-                verify_animation(&path, &bytes)
-            } else {
-                verify_still(&path, &bytes)
-            }
-        });
+        let target_key = format!("verify:{}", path.display());
+        self.spawn_job(
+            crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Other, label)
+                .with_target(target_key),
+            move |context| {
+                if context.cancelled() {
+                    return Err("cancelled before the decode started".into());
+                }
+                let bytes =
+                    std::fs::read(&path).map_err(|err| format!("{}: {err}", path.display()))?;
+                let from_bytes = sniff_bytes(&bytes)
+                    .ok_or_else(|| format!("{}: the header names no container", path.display()))?;
+                if from_bytes != format {
+                    return Err(format!(
+                        "{}: the path reads as {} and the bytes as {}",
+                        path.display(),
+                        format.label(),
+                        from_bytes.label()
+                    ));
+                }
+                if animates {
+                    verify_animation(&path, &bytes)
+                } else {
+                    verify_still(&path, &bytes)
+                }
+            },
+        );
     }
 
     /// Fold the selected source's whole audio stream into a fixed overview and
@@ -88,37 +94,45 @@ impl AppState {
         }
         let path = PathBuf::from(&*item.path);
         let name = item.name.clone();
-        self.spawn_job(format!("Reading {name} loudness"), move |context| {
-            if context.cancelled() {
-                return Err("cancelled before the read started".into());
-            }
-            let peaks = aria_decoder::audio_peaks(&path, OVERVIEW_BUCKETS)
-                .map_err(|err| err.to_string())?;
-            let floor = linear_from_db(LOUD_THRESHOLD_DBFS);
-            let loud = peaks.iter().filter(|peak| **peak >= floor).count();
-            let (at, peak) = peaks.iter().copied().enumerate().fold(
-                (0_usize, 0.0_f32),
-                |best, (index, value)| {
-                    if value > best.1 { (index, value) } else { best }
-                },
-            );
-            let across = if peaks.len() > 1 {
-                at as f64 / (peaks.len() - 1) as f64 * 100.0
-            } else {
-                0.0
-            };
-            let level = db_from_linear(peak)
-                .map(|db| format!("{db:.1} dBFS"))
-                .unwrap_or_else(|| "silence".to_string());
-            JobCompletion::new(format!(
-                "loudest {level} at {across:.0}% in; {loud} of {} over \
+        let target_key = format!("loudness_overview:{}", path.display());
+        self.spawn_job(
+            crate::app::jobs::JobSpec::new(
+                crate::app::jobs::JobKind::Loudness,
+                format!("Reading {name} loudness"),
+            )
+            .with_target(target_key),
+            move |context| {
+                if context.cancelled() {
+                    return Err("cancelled before the read started".into());
+                }
+                let peaks = aria_decoder::audio_peaks(&path, OVERVIEW_BUCKETS)
+                    .map_err(|err| err.to_string())?;
+                let floor = linear_from_db(LOUD_THRESHOLD_DBFS);
+                let loud = peaks.iter().filter(|peak| **peak >= floor).count();
+                let (at, peak) = peaks.iter().copied().enumerate().fold(
+                    (0_usize, 0.0_f32),
+                    |best, (index, value)| {
+                        if value > best.1 { (index, value) } else { best }
+                    },
+                );
+                let across = if peaks.len() > 1 {
+                    at as f64 / (peaks.len() - 1) as f64 * 100.0
+                } else {
+                    0.0
+                };
+                let level = db_from_linear(peak)
+                    .map(|db| format!("{db:.1} dBFS"))
+                    .unwrap_or_else(|| "silence".to_string());
+                JobCompletion::new(format!(
+                    "loudest {level} at {across:.0}% in; {loud} of {} over \
                      {LOUD_THRESHOLD_DBFS:.0} dBFS",
-                counted(peaks.len(), "bucket", "buckets")
-            ))
-            .with_output("peak_at_percent", format!("{across:.1}"))?
-            .with_output("loud_buckets", loud.to_string())
-            .map_err(String::from)
-        });
+                    counted(peaks.len(), "bucket", "buckets")
+                ))
+                .with_output("peak_at_percent", format!("{across:.1}"))?
+                .with_output("loud_buckets", loud.to_string())
+                .map_err(String::from)
+            },
+        );
     }
 }
 

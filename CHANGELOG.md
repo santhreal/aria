@@ -1248,6 +1248,12 @@ Notes for the latest release. For previous releases, see the
 - `Ctrl+arrow` nudges now move every selected clip as one undo step without colliding on abutting selections, `Shift+click` and single-lane Track Select respect the Linked Selection toggle, clip-selection actions clear any active edge or gap selection and skip locked clips on Select All, and multi-lane selection shifts undo in one step.
 - Native and WebAssembly audio analyzers isolate guest panics and traps as `AnalyzerError::Panicked`, offline audio exports no longer bypass slow WebAssembly audio processors for playback deadlines, and same-thread re-entrant WebAssembly host calls return an error instead of deadlocking.
 - Saving an untitled project opens the Save As file picker instead of writing `<data_dir>/untitled.aria`, the default export path for an unsaved project uses the platform videos directory, and every UI surface reads a project's display name from its file stem once saved.
+- Completed job rows conjugate their title verb to past tense (`Exported`, `Transcribed`, `Analyzed`, `Measured`, `Downloaded`, `Generated`, `Rendered`) instead of remaining in the present progressive after completion.
+- Terminal job transitions (`Done`, `Failed`, `Cancelled`) replace the job's own start or enqueue status-strip line with the terminal outcome while leaving newer unrelated status messages intact.
+- Frame PNG exports register as `JobKind::Other` at spawn rather than matching `JobKind::Export` by label prefix.
+- Starting a second job or export on the same clip, asset, or destination path cancels the earlier in-flight run, and cancelling an export before commit removes any partial destination file created during the pass.
+- Closing or replacing a project advances the job registry epoch, cancels in-flight jobs and queued exports from the previous project, and discards late completions before they modify the active project.
+- Quitting the session cancels in-flight jobs and backward decode-pool GOP walks within a bounded shutdown window.
 
 ## [alpha-0.7.0] - 2026-07-22
 

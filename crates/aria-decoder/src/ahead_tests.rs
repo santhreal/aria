@@ -607,3 +607,73 @@ fn dropping_an_opening_decoder_waits_for_an_in_flight_open_to_drop_the_decoder()
         "a canceled OpeningDecoder must not decode ahead after open"
     );
 }
+
+/// WHY: `Op::Back` walked an entire GOP via `seek_walk` without checking
+/// `state.stop || state.closed`, so dropping or releasing an `AheadDecoder`
+/// during a backward GOP walk decoded thousands of unneeded frames before
+/// releasing the decoder. Closes the class of uninterruptible backward GOP
+/// walks on the decode pool. Does not cover hardware codec teardown inside a
+/// single `next_frame` FFI call.
+#[test]
+fn dropping_mid_backward_walk_aborts_the_gop_walk_within_bound() {
+    struct GateBack {
+        inner: Mock,
+        entered: Option<std::sync::mpsc::SyncSender<()>>,
+        resume: std::sync::mpsc::Receiver<()>,
+    }
+    impl VideoDecoder for GateBack {
+        fn info(&self) -> &SourceInfo {
+            self.inner.info()
+        }
+        fn seek(&mut self, target: RationalTime) -> Result<(), DecodeError> {
+            self.inner.seek(target)
+        }
+        fn next_frame(&mut self) -> Result<Option<VideoFrame>, DecodeError> {
+            let frame = self.inner.next_frame()?;
+            if self.inner.counts.seeks() == 2
+                && let Some(entered) = self.entered.take()
+            {
+                let _ = entered.send(());
+                let _ = self.resume.recv_timeout(Duration::from_secs(5));
+            }
+            Ok(frame)
+        }
+    }
+
+    let (mock, counts) = Mock::new(200, 200);
+    let (entered_tx, entered_rx) = std::sync::mpsc::sync_channel(1);
+    let (resume_tx, resume_rx) = std::sync::mpsc::sync_channel(1);
+    let mut decoder = AheadDecoder::new(Box::new(GateBack {
+        inner: mock,
+        entered: Some(entered_tx),
+        resume: resume_rx,
+    }));
+    decoder
+        .seek(rt(150))
+        .unwrap_or_else(|error| panic!("{error}"));
+    decoder.idle();
+    let before_back = counts.decoded();
+    assert_eq!(counts.seeks(), 1);
+
+    decoder.request(rt(100), false);
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("backward walk entered first frame on pool");
+    let shared = Arc::clone(&decoder.shared);
+    let dropping = std::thread::spawn(move || drop(decoder));
+    within_deadline("drop marks AheadDecoder closed", || shared.lock().closed);
+    let drop_start = Instant::now();
+    let _ = resume_tx.send(());
+    dropping.join().expect("drop did not panic");
+    let drop_elapsed = drop_start.elapsed();
+    assert!(
+        drop_elapsed < Duration::from_millis(500),
+        "dropping AheadDecoder during backward walk took {drop_elapsed:?}"
+    );
+    assert_eq!(counts.dropped(), 1);
+    let walked = counts.decoded().saturating_sub(before_back);
+    assert!(
+        walked <= 2,
+        "backward walk decoded {walked} frames of a 101-frame walk after drop"
+    );
+}

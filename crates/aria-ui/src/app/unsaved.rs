@@ -197,7 +197,10 @@ impl AppState {
         match intent {
             PendingIntent::GoHome => self.go_home(),
             PendingIntent::NewProject => match self.new_project() {
-                Ok(()) => self.status_message = Some("New project".into()),
+                Ok(()) => {
+                    self.clear_error();
+                    self.status_message = Some("New project".into());
+                }
                 Err(err) => self.report_error(&err),
             },
             PendingIntent::OpenProject(path) => {
@@ -207,16 +210,29 @@ impl AppState {
             }
             PendingIntent::PickProject => self.pick_and_open_project(),
             PendingIntent::OpenSample => {
+                let was_home = self.route == crate::types::UiRoute::Home;
                 if let Err(err) = self.open_sample_project() {
+                    if was_home && self.route != crate::types::UiRoute::Home {
+                        let _ = self.empty_session();
+                        self.go_home();
+                    }
                     self.report_error(&err);
                 }
             }
             PendingIntent::DropOnHome(paths) => {
+                let was_home = self.route == crate::types::UiRoute::Home;
                 if let Err(err) = self.drop_on_home(paths) {
+                    if was_home && self.route != crate::types::UiRoute::Home {
+                        let _ = self.empty_session();
+                        self.go_home();
+                    }
                     self.report_error(&err);
                 }
             }
-            PendingIntent::Quit => self.quit_requested = true,
+            PendingIntent::Quit => {
+                self.shutdown_jobs(std::time::Duration::from_secs(2));
+                self.quit_requested = true;
+            }
         }
     }
 }

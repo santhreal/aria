@@ -109,43 +109,56 @@ impl AppState {
         }
         let engine = Arc::clone(&self.engine);
         let gpu = super::render_device::shared_device(&self.ctx);
-        let id = self.spawn_job(format!("Proxying {name}"), move |context| {
-            let mut renderer = super::render_device::renderer_on(gpu, "the proxy")?;
-            let mut guard = super::jobs::CommitGuard::new(context, "the proxy");
-            let mut observer = |done: u64, total: u64| {
-                let fraction = if total == 0 {
-                    0.0
-                } else {
-                    done as f32 / total as f32
+        let epoch = self.project_epoch();
+        let manager = self.jobs.clone();
+        let id = self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Other, format!("Proxying {name}"))
+                .with_target(format!("proxy:{}", media.raw())),
+            move |context| {
+                let mut renderer = super::render_device::renderer_on(gpu, "the proxy")?;
+                let mut guard = super::jobs::CommitGuard::new(context, "the proxy");
+                let mut observer = |done: u64, total: u64| {
+                    let fraction = if total == 0 {
+                        0.0
+                    } else {
+                        done as f32 / total as f32
+                    };
+                    context.set_progress(fraction, format!("frame {done}/{total}"));
+                    if manager.project_epoch() != epoch {
+                        return false;
+                    }
+                    if done == total {
+                        return guard.begin().is_ok();
+                    }
+                    !context.cancelled()
                 };
-                context.set_progress(fraction, format!("frame {done}/{total}"));
-                if done == total {
-                    return guard.begin().is_ok();
+                let frames = aria_render::export_to_file_observed(
+                    &mut renderer,
+                    &project,
+                    &dest,
+                    settings,
+                    &mut observer,
+                )
+                .map_err(|err| err.to_string())?;
+                if manager.project_epoch() != epoch {
+                    let _ = std::fs::remove_file(&dest);
+                    return Err("project closed before the proxy completed".into());
                 }
-                !context.cancelled()
-            };
-            let frames = aria_render::export_to_file_observed(
-                &mut renderer,
-                &project,
-                &dest,
-                settings,
-                &mut observer,
-            )
-            .map_err(|err| err.to_string())?;
-            // The last act, on the shared engine: the file exists, so the
-            // substitution is true from here on and the next frame decodes
-            // through it. Registering earlier would point the renderer at a
-            // file that is still being written.
-            let published = dest.display().to_string();
-            engine.lock().set_media_proxy(media, dest);
-            JobCompletion::new(format!(
-                "{} at {width}×{height}",
-                counted(frames, "frame", "frames")
-            ))
-            .with_output("path", published)
-            .map_err(String::from)
-        });
-        self.status_message = Some(format!("Proxying {name} · {width}×{height}"));
+                // The last act, on the shared engine: the file exists, so the
+                // substitution is true from here on and the next frame decodes
+                // through it. Registering earlier would point the renderer at a
+                // file that is still being written.
+                let published = dest.display().to_string();
+                engine.lock().set_media_proxy(media, dest);
+                JobCompletion::new(format!(
+                    "{} at {width}×{height}",
+                    counted(frames, "frame", "frames")
+                ))
+                .with_output("path", published)
+                .map_err(String::from)
+            },
+        );
+        self.set_job_status_line(format!("Proxying {name} · {width}×{height}"));
         Ok(id.raw())
     }
 

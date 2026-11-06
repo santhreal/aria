@@ -160,11 +160,14 @@ impl AppState {
         };
         let label = name.clone();
         let published = dest.display().to_string();
-        self.status_message = Some(format!("Rendering {name} · {written}"));
+        let status_line = format!("Rendering {name} · {written}");
         let BakePass { project, .. } = pass;
         let kind = aria_plugin::RenderKind::Clip(clip);
+        let epoch = self.project_epoch();
+        let manager = self.jobs.clone();
         let id = self.spawn_render(
-            format!("Rendering {name}"),
+            super::jobs::JobSpec::new(super::jobs::JobKind::Other, format!("Rendering {name}"))
+                .with_target(format!("bake:{}", clip.raw())),
             kind,
             dest.clone(),
             move |context| {
@@ -176,6 +179,9 @@ impl AppState {
                         done as f32 / total as f32
                     };
                     context.set_progress(fraction, format!("frame {done}/{total}"));
+                    if manager.project_epoch() != epoch {
+                        return false;
+                    }
                     if done == total {
                         return guard.begin().is_ok();
                     }
@@ -206,9 +212,14 @@ impl AppState {
                 // turn that queued this render holds the project until it ends, so
                 // the swap waits for it, one contended wait at a time, unless the
                 // job is cancelled first.
+                if manager.project_epoch() != epoch {
+                    let _ = std::fs::remove_file(&dest);
+                    return Err("project closed before the render completed".into());
+                }
                 loop {
                     match adopt(&host, clip, dest.clone()) {
-                        Err(TransactError::Busy { .. }) if !context.cancelled() => {}
+                        Err(TransactError::Busy { .. })
+                            if !context.cancelled() && manager.project_epoch() == epoch => {}
                         result => break result.map_err(|err| err.to_string())?,
                     }
                 }
@@ -220,6 +231,7 @@ impl AppState {
                 .map_err(String::from)
             },
         );
+        self.set_job_status_line(status_line);
         Ok(id.raw())
     }
 }

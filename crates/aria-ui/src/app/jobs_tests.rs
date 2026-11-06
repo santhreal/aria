@@ -29,6 +29,7 @@ use aria_plugin::PluginContext;
 fn snapshot(state: JobState, cancel_requested: bool) -> JobSnapshot {
     JobSnapshot {
         id: JobId::from_raw(3),
+        kind: JobKind::Export,
         label: "Exporting draft.mp4".into(),
         state,
         cancellable: !state.is_terminal(),
@@ -471,7 +472,12 @@ fn only_one_module_registers_a_job() {
             if code.starts_with("//") || code.starts_with("///") {
                 continue;
             }
-            if code.contains("spawn_with_completion(") || code.contains("jobs.spawn(") {
+            if code.contains("spawn_with_completion(")
+                || code.contains("spawn_with_completion_typed(")
+                || code.contains("spawn_with_target(")
+                || code.contains("spawn_typed(")
+                || code.contains("jobs.spawn(")
+            {
                 reaches.push(format!("{name}:{}: {code}", index + 1));
             }
         }
@@ -577,4 +583,265 @@ fn a_running_job_in_the_status_bar_opens_the_jobs_panel(cx: &mut gpui::TestAppCo
         "the Jobs panel is not drawn"
     );
     release.send(()).expect("let the job finish");
+}
+
+/// WHY: `UiJob::from_snapshot` previously guessed `JobKind` from label prefixes
+/// (misclassifying `"Exporting frame to ..."` as `JobKind::Export`), froze row
+/// titles in the present progressive after completion (`"Exporting p.mp4 · Done"`),
+/// and `refresh_jobs` never transitioned the status strip when a job reached
+/// `Done`/`Failed`/`Cancelled`. Closes the class of untyped job kinds, frozen
+/// Done row titles, missing terminal status-strip receipts, and clobbered
+/// unrelated status lines across every member of `JobKind::ALL`.
+#[test]
+fn every_registered_job_kind_projects_state_titles_and_terminal_status_without_clobbering() {
+    let registry = super::jobs::job_kind_registry();
+    assert_eq!(
+        registry.len(),
+        JobKind::ALL.len(),
+        "job_kind_registry must cover every JobKind::ALL variant"
+    );
+    for (idx, &kind) in JobKind::ALL.iter().enumerate() {
+        let spec = super::jobs::job_kind_spec(kind);
+        assert_eq!(spec.kind, kind);
+        assert_eq!(registry[idx].kind, kind);
+        assert!(!spec.active_verb.is_empty());
+        assert!(!spec.done_verb.is_empty());
+        assert_ne!(spec.active_verb, spec.done_verb);
+        assert!(spec.cancel_on_project_change);
+        assert!(spec.cancel_on_quit);
+        assert!(spec.deduplicate_target);
+    }
+
+    let (mut state, _clip) = with_clip();
+
+    // 1. Frame export ("Exporting frame to ...") carries JobKind::Other, not Export.
+    let dir = crate::scratch_pool::scratch("frame_kind");
+    let frame_id = state.export_frame_job(dir.join("still.png"));
+    let frame_row = state
+        .job_view
+        .iter()
+        .find(|row| row.id == frame_id)
+        .expect("frame export row projected");
+    assert_eq!(
+        frame_row.kind,
+        JobKind::Other,
+        "frame export must carry explicit JobKind::Other despite 'Exporting ' prefix"
+    );
+    let _ = settle(&state.jobs, JobId::from_raw(frame_id));
+
+    // 2. Drive every JobKind in the runtime registry through Done, Failed, and Cancelled.
+    for spec in registry {
+        let target_noun = format!("item-{:?}", spec.kind).to_lowercase();
+        let active_label = format!("{} {target_noun}", spec.active_verb);
+        let done_label = format!("{} {target_noun}", spec.done_verb);
+
+        // Done transition: row title inflects to past tense and status strip updates.
+        let (release_tx, release_rx) = crossbeam_channel::bounded::<()>(1);
+        let id_done = state.spawn_job(
+            super::jobs::JobSpec::new(spec.kind, active_label.clone()),
+            move |_| {
+                let _ = release_rx.recv_timeout(Duration::from_secs(2));
+                Ok(JobCompletion::new("ok"))
+            },
+        );
+        let active_row = state
+            .job_view
+            .iter()
+            .find(|r| r.id == id_done.raw())
+            .expect("active row");
+        assert_eq!(active_row.kind, spec.kind);
+        assert_eq!(active_row.label.as_ref(), active_label.as_str());
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(format!("{active_label}…").as_str())
+        );
+        let _ = release_tx.send(());
+        let snap_done = settle(&state.jobs, id_done);
+        assert_eq!(snap_done.state, JobState::Done);
+        state.refresh_jobs();
+        let finished_row = state
+            .job_view
+            .iter()
+            .find(|r| r.id == id_done.raw())
+            .expect("done row");
+        assert_eq!(finished_row.kind, spec.kind);
+        assert_eq!(
+            finished_row.label.as_ref(),
+            done_label.as_str(),
+            "Done row title must use past-tense verb for {:?}",
+            spec.kind
+        );
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(done_label.as_str()),
+            "Done transition must replace the job's start line with its outcome for {:?}",
+            spec.kind
+        );
+
+        // Failed transition: row title stays active, status strip reports failure reason.
+        let id_fail = state.spawn_job(
+            super::jobs::JobSpec::new(spec.kind, active_label.clone()),
+            move |_| Err("stream truncated".into()),
+        );
+        let snap_fail = settle(&state.jobs, id_fail);
+        assert_eq!(snap_fail.state, JobState::Failed);
+        state.refresh_jobs();
+        let fail_row = state
+            .job_view
+            .iter()
+            .find(|r| r.id == id_fail.raw())
+            .expect("failed row");
+        assert_eq!(fail_row.label.as_ref(), active_label.as_str());
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("Stream truncated"),
+            "Failed transition must report failure reason on status strip for {:?}",
+            spec.kind
+        );
+
+        // Cancelled transition: row title stays active, status strip reports Cancelled.
+        let (started_tx, started_rx) = crossbeam_channel::bounded::<()>(1);
+        let id_cancel = state.spawn_job(
+            super::jobs::JobSpec::new(spec.kind, active_label.clone()),
+            move |ctx| {
+                let _ = started_tx.send(());
+                let deadline = Instant::now() + Duration::from_secs(2);
+                while !ctx.cancelled() && Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                Ok(JobCompletion::new("unused"))
+            },
+        );
+        started_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("cancel job started");
+        state.cancel_job(id_cancel.raw());
+        let snap_cancel = settle(&state.jobs, id_cancel);
+        assert_eq!(snap_cancel.state, JobState::Cancelled);
+        state.refresh_jobs();
+        let cancel_row = state
+            .job_view
+            .iter()
+            .find(|r| r.id == id_cancel.raw())
+            .expect("cancelled row");
+        assert_eq!(cancel_row.label.as_ref(), active_label.as_str());
+        let expected_cancel = format!(
+            "Cancelled {} {target_noun}",
+            spec.active_verb.to_lowercase()
+        );
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(expected_cancel.as_str()),
+            "Cancelled transition must report cancellation on status strip for {:?}",
+            spec.kind
+        );
+
+        // Newer unrelated status line must never be overwritten when the job finishes.
+        let (unrel_tx, unrel_rx) = crossbeam_channel::bounded::<()>(1);
+        let id_unrel = state.spawn_job(
+            super::jobs::JobSpec::new(spec.kind, active_label.clone()),
+            move |_| {
+                let _ = unrel_rx.recv_timeout(Duration::from_secs(2));
+                Ok(JobCompletion::new("ok"))
+            },
+        );
+        state.status_message = Some("Saved project.aria".into());
+        let _ = unrel_tx.send(());
+        let _ = settle(&state.jobs, id_unrel);
+        state.refresh_jobs();
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("Saved project.aria"),
+            "terminal transition for {:?} overwrote a newer unrelated status line",
+            spec.kind
+        );
+    }
+}
+
+/// WHY: closing or switching projects while background jobs were in flight
+/// left those jobs running in the old project's epoch and allowed their late
+/// completions to land in the new project, while quitting with jobs in flight
+/// did not boundedly cancel and settle the worker pool.
+#[test]
+fn project_change_and_session_quit_cancel_inflight_jobs_within_bound() {
+    let (mut state, _clip) = with_clip();
+    let epoch_before = state.project_epoch();
+
+    let (started_tx, started_rx) = crossbeam_channel::bounded::<()>(2);
+    let tx1 = started_tx.clone();
+    let job1 = state.spawn_job(
+        super::jobs::JobSpec::new(JobKind::Analysis, "Analyzing clip.mp4")
+            .with_target("analysis:1"),
+        move |ctx| {
+            let _ = tx1.send(());
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !ctx.cancelled() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            Ok(JobCompletion::new("done"))
+        },
+    );
+    let job2 = state.spawn_job(
+        super::jobs::JobSpec::new(JobKind::Transcription, "Transcribing clip.mp4")
+            .with_target("transcribe:1"),
+        move |ctx| {
+            let _ = started_tx.send(());
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !ctx.cancelled() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            Ok(JobCompletion::new("done"))
+        },
+    );
+    started_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("job1 started");
+    started_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("job2 started");
+
+    let switch_start = Instant::now();
+    state.new_project().expect("new project");
+    assert!(
+        state.project_epoch() > epoch_before,
+        "new_project must advance project_epoch"
+    );
+    let snap1 = settle(&state.jobs, job1);
+    let snap2 = settle(&state.jobs, job2);
+    assert!(
+        switch_start.elapsed() < Duration::from_secs(1),
+        "project switch cancellation exceeded 1s bound"
+    );
+    assert_eq!(snap1.state, JobState::Cancelled);
+    assert_eq!(snap2.state, JobState::Cancelled);
+    assert!(state.analysis.moments.is_empty());
+    assert!(state.captions.segments.is_empty());
+
+    // Spawn another in-flight job and verify shutdown_jobs settles within bound.
+    let (quit_tx, quit_rx) = crossbeam_channel::bounded::<()>(1);
+    let quit_job = state.spawn_job(
+        super::jobs::JobSpec::new(JobKind::Loudness, "Measuring clip.mp4"),
+        move |ctx| {
+            let _ = quit_tx.send(());
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !ctx.cancelled() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            Ok(JobCompletion::new("done"))
+        },
+    );
+    quit_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("quit_job started");
+    let quit_start = Instant::now();
+    assert!(
+        state.shutdown_jobs(Duration::from_secs(1)),
+        "shutdown_jobs must settle all jobs within 1s"
+    );
+    assert!(quit_start.elapsed() < Duration::from_secs(1));
+    assert_eq!(state.running_job_count(), 0);
+    assert_eq!(
+        state.jobs.get(quit_job).expect("quit_job").state,
+        JobState::Cancelled
+    );
 }

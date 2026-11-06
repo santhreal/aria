@@ -196,9 +196,24 @@ impl AppState {
         let label = request.label.clone();
         let clip = request.clip;
         let media_rate = request.media_rate;
-        self.spawn_job(label, move |context| {
+        let epoch = self.jobs.project_epoch();
+        let jobs = self.jobs.clone();
+        let spec = crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Analysis, label)
+            .with_target(format!(
+                "analysis:{}:{}:{:?}",
+                clip.raw(),
+                kind.id(),
+                request.content_key
+            ));
+        self.spawn_job(spec, move |context| {
+            if jobs.project_epoch() != epoch {
+                return Err(String::new());
+            }
             let outcome = run_analysis(context, &request, &index);
-            let reported = match (&outcome, context.cancelled()) {
+            let reported = match (
+                &outcome,
+                context.cancelled() || jobs.project_epoch() != epoch,
+            ) {
                 (_, true) => Err(String::new()),
                 (Ok(report), false) => Ok(AnalysisReport {
                     count: report.count,
@@ -216,12 +231,17 @@ impl AppState {
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.jobs.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(report)) => {
-                        state.status_message = Some(format!(
-                            "Detected {}",
-                            counted(report.count, "moment", "moments")
-                        ));
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line(format!(
+                                "Detected {}",
+                                counted(report.count, "moment", "moments")
+                            ));
+                        }
                         if let Err(err) = state.refresh_moments() {
                             state.report_error(err);
                         }
@@ -230,7 +250,9 @@ impl AppState {
                         }
                     }
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some("Cancelled the analysis".into());
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the analysis");
+                        }
                     }
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("The analysis did not report"),
@@ -239,7 +261,7 @@ impl AppState {
             });
         })
         .detach();
-        self.status_message = Some(format!("Analyzing for {}…", kind.label().to_lowercase()));
+        self.set_job_status_line(format!("Analyzing for {}…", kind.label().to_lowercase()));
         Ok(())
     }
 
@@ -400,7 +422,15 @@ impl AppState {
         let ctx_clone = Arc::clone(&self.ctx);
         let job_label = format!("Analyzing: {}", spec.label);
         let analyzer_id_owned = spec.id.clone();
-        let id = self.spawn_job(job_label, move |context| {
+        let epoch = self.jobs.project_epoch();
+        let jobs = self.jobs.clone();
+        let job_spec =
+            crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Analysis, job_label)
+                .with_target(format!("analyzer:{}:{source:?}", spec.id));
+        let id = self.spawn_job(job_spec, move |context| {
+            if jobs.project_epoch() != epoch {
+                return Err(String::new());
+            }
             let cancel = std::sync::atomic::AtomicBool::new(context.cancelled());
             let res = entry.run_with_progress(
                 &ctx_clone,
@@ -409,7 +439,7 @@ impl AppState {
                 range,
                 &cancel,
                 |mixed, total| {
-                    if context.cancelled() {
+                    if context.cancelled() || jobs.project_epoch() != epoch {
                         cancel.store(true, std::sync::atomic::Ordering::Release);
                     } else {
                         let frac = if total == 0 {
@@ -423,12 +453,18 @@ impl AppState {
             );
             match res {
                 Ok(result) => {
+                    if jobs.project_epoch() != epoch {
+                        wake.wake(Err(String::new()));
+                        return Err(String::new());
+                    }
                     crate::app::jobs::CommitGuard::new(context, "the analyzer result").begin()?;
                     let summary = result.summary();
                     wake.wake(Ok(result));
                     Ok(JobCompletion::new(summary))
                 }
-                Err(aria_plugin::AnalyzerError::Cancelled) if context.cancelled() => {
+                Err(aria_plugin::AnalyzerError::Cancelled)
+                    if context.cancelled() || jobs.project_epoch() != epoch =>
+                {
                     wake.wake(Err(String::new()));
                     Err(String::new())
                 }
@@ -443,6 +479,9 @@ impl AppState {
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.jobs.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok(result)) => {
                         if let Err(err) =
@@ -452,7 +491,9 @@ impl AppState {
                         }
                     }
                     Some(Err(reason)) if reason.is_empty() => {
-                        state.status_message = Some("Cancelled the analysis".into());
+                        if state.can_replace_job_status() {
+                            state.set_job_status_line("Cancelled the analysis");
+                        }
                     }
                     Some(Err(reason)) => state.report_error(reason),
                     None => state.report_error("The analysis did not report"),
@@ -462,7 +503,7 @@ impl AppState {
         })
         .detach();
 
-        self.status_message = Some(format!("Analyzing with {}…", spec.label));
+        self.set_job_status_line(format!("Analyzing with {}…", spec.label));
         Ok(id.raw())
     }
 

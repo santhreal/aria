@@ -12,14 +12,14 @@
 //! one subscriber that wakes the entity per transition, so an idle app does no work.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
+pub use aria_jobs::JobKind;
 use aria_jobs::{JobId, JobSnapshot, JobState};
-use gpui::Context;
+use gpui::{Context, SharedString};
 
 use super::export_request::ExportRequest;
 use super::{AppState, describe_export_refusal};
-use gpui::SharedString;
-
 /// The one-shot publication boundary every job that writes shares.
 ///
 /// [`aria_jobs::JobContext::try_begin_commit`] is the ordering point against
@@ -64,18 +64,222 @@ impl<'a> CommitGuard<'a> {
     }
 }
 
-/// Typed category of a background job.
+/// Lifecycle and presentation policy for one [`JobKind`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JobKind {
-    Transcription,
-    Download,
-    Analysis,
-    Loudness,
-    Export,
-    Generation,
-    Other,
+pub struct JobKindSpec {
+    pub kind: JobKind,
+    /// Present-participle verb leading an active row title ("Exporting", "Transcribing").
+    pub active_verb: &'static str,
+    /// Past-tense verb leading a completed (`Done`) row title and status receipt ("Exported", "Transcribed").
+    pub done_verb: &'static str,
+    /// Whether closing or replacing the project cancels in-flight jobs of this kind
+    /// and discards their late completions.
+    pub cancel_on_project_change: bool,
+    /// Whether quitting the session cancels in-flight jobs of this kind and bounds
+    /// their termination.
+    pub cancel_on_quit: bool,
+    /// Whether two concurrent runs on the same target are deduplicated so at most
+    /// one run for that target is in flight at a time.
+    pub deduplicate_target: bool,
 }
 
+const JOB_KIND_REGISTRY: [JobKindSpec; 7] = [
+    JobKindSpec {
+        kind: JobKind::Transcription,
+        active_verb: "Transcribing",
+        done_verb: "Transcribed",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Download,
+        active_verb: "Downloading",
+        done_verb: "Downloaded",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Analysis,
+        active_verb: "Analyzing",
+        done_verb: "Analyzed",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Loudness,
+        active_verb: "Measuring",
+        done_verb: "Measured",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Export,
+        active_verb: "Exporting",
+        done_verb: "Exported",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Generation,
+        active_verb: "Generating",
+        done_verb: "Generated",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+    JobKindSpec {
+        kind: JobKind::Other,
+        active_verb: "Rendering",
+        done_verb: "Rendered",
+        cancel_on_project_change: true,
+        cancel_on_quit: true,
+        deduplicate_target: true,
+    },
+];
+
+/// Runtime registry entry for every [`JobKind`].
+pub fn job_kind_registry() -> &'static [JobKindSpec; 7] {
+    &JOB_KIND_REGISTRY
+}
+
+/// Lookup the [`JobKindSpec`] for `kind`.
+pub fn job_kind_spec(kind: JobKind) -> &'static JobKindSpec {
+    match kind {
+        JobKind::Transcription => &JOB_KIND_REGISTRY[0],
+        JobKind::Download => &JOB_KIND_REGISTRY[1],
+        JobKind::Analysis => &JOB_KIND_REGISTRY[2],
+        JobKind::Loudness => &JOB_KIND_REGISTRY[3],
+        JobKind::Export => &JOB_KIND_REGISTRY[4],
+        JobKind::Generation => &JOB_KIND_REGISTRY[5],
+        JobKind::Other => &JOB_KIND_REGISTRY[6],
+    }
+}
+
+/// Verb pairs `(active, done)` used to conjugate row titles when a job reaches [`JobState::Done`].
+const VERB_PAIRS: &[(&str, &str)] = &[
+    ("Transcribing ", "Transcribed "),
+    ("Downloading ", "Downloaded "),
+    ("Analyzing ", "Analyzed "),
+    ("Measuring ", "Measured "),
+    ("Exporting ", "Exported "),
+    ("Generating ", "Generated "),
+    ("Rendering ", "Rendered "),
+    ("Proxying ", "Proxied "),
+    ("Tracking ", "Tracked "),
+    ("Verifying ", "Verified "),
+    ("Deleting ", "Deleted "),
+    ("Clearing ", "Cleared "),
+    ("Reading ", "Read "),
+    ("Running ", "Ran "),
+    ("Writing ", "Wrote "),
+];
+
+fn lower_leading_word(text: &str) -> String {
+    let mut chars = text.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    let rest = chars.as_str();
+    let next_is_upper = rest.chars().next().is_some_and(char::is_uppercase);
+    if first.is_uppercase() && !next_is_upper {
+        format!("{}{rest}", first.to_lowercase())
+    } else {
+        text.to_string()
+    }
+}
+
+/// Format a job's row title for `state` from its spawn `kind` and `label`.
+pub fn row_title_for_state(kind: JobKind, label: &str, state: JobState) -> String {
+    if state != JobState::Done {
+        return label.to_string();
+    }
+    let spec = job_kind_spec(kind);
+    if let Some(rest) = label.strip_prefix(spec.active_verb)
+        && rest.starts_with(' ')
+    {
+        return format!("{}{rest}", spec.done_verb);
+    }
+    for &(active, done) in VERB_PAIRS {
+        if let Some(rest) = label.strip_prefix(active) {
+            return format!("{done}{rest}");
+        }
+        if label.starts_with(done) {
+            return label.to_string();
+        }
+    }
+    if kind != JobKind::Other && !label.is_empty() {
+        return format!("{} {}", spec.done_verb, lower_leading_word(label));
+    }
+    label.to_string()
+}
+
+/// Compute the status-strip line posted when `snapshot` reaches a terminal state.
+pub fn terminal_status_for_snapshot(snapshot: &JobSnapshot) -> Option<String> {
+    match snapshot.state {
+        JobState::Queued | JobState::Running => None,
+        JobState::Done => Some(row_title_for_state(
+            snapshot.kind,
+            &snapshot.label,
+            JobState::Done,
+        )),
+        JobState::Failed => {
+            let trimmed = snapshot.detail.trim();
+            if trimmed.is_empty() {
+                Some(format!("Failed {}", lower_leading_word(&snapshot.label)))
+            } else {
+                Some(super::status::as_sentence(trimmed.to_string()))
+            }
+        }
+        JobState::Cancelled => Some(format!("Cancelled {}", lower_leading_word(&snapshot.label))),
+    }
+}
+
+/// Structured spawn descriptor carrying [`JobKind`], display label, and
+/// optional deduplication target key as data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobSpec {
+    pub kind: JobKind,
+    pub label: String,
+    pub target: Option<String>,
+}
+
+impl JobSpec {
+    pub fn new(kind: JobKind, label: impl Into<String>) -> Self {
+        Self {
+            kind,
+            label: label.into(),
+            target: None,
+        }
+    }
+
+    pub fn with_target(mut self, target: impl Into<String>) -> Self {
+        self.target = Some(target.into());
+        self
+    }
+}
+
+impl From<&str> for JobSpec {
+    fn from(label: &str) -> Self {
+        Self::new(JobKind::Other, label)
+    }
+}
+
+impl From<String> for JobSpec {
+    fn from(label: String) -> Self {
+        Self::new(JobKind::Other, label)
+    }
+}
+
+impl<S: Into<String>> From<(JobKind, S)> for JobSpec {
+    fn from((kind, label): (JobKind, S)) -> Self {
+        Self::new(kind, label)
+    }
+}
 /// One job as the panel needs it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UiJob {
@@ -151,24 +355,11 @@ impl UiJob {
             Some(end) => end.duration_since(snapshot.started).as_secs_f32(),
             None => snapshot.started.elapsed().as_secs_f32(),
         };
-        let kind = if snapshot.label.starts_with("Transcribing ") {
-            JobKind::Transcription
-        } else if snapshot.label.starts_with("Downloading ") {
-            JobKind::Download
-        } else if snapshot.label.starts_with("Analyzing ") {
-            JobKind::Analysis
-        } else if snapshot.label.starts_with("Measuring ") {
-            JobKind::Loudness
-        } else if snapshot.label.starts_with("Exporting ") {
-            JobKind::Export
-        } else if snapshot.label.starts_with("Generating ") {
-            JobKind::Generation
-        } else {
-            JobKind::Other
-        };
+        let kind = snapshot.kind;
+        let label = row_title_for_state(kind, &snapshot.label, snapshot.state);
         Self {
             id: snapshot.id.raw(),
-            label: snapshot.label.clone().into(),
+            label: label.into(),
             kind,
             status,
             progress: snapshot.progress,
@@ -194,13 +385,18 @@ impl AppState {
     /// update that started the work.
     pub(crate) fn spawn_job(
         &mut self,
-        label: impl Into<String>,
+        spec: impl Into<JobSpec>,
         work: impl FnOnce(&aria_jobs::JobContext) -> Result<aria_jobs::JobCompletion, String>
         + Send
         + 'static,
     ) -> JobId {
-        let id = self.jobs.spawn_with_completion(label, work);
-        self.refresh_jobs();
+        let spec = spec.into();
+        let start_line = format!("{}…", spec.label);
+        self.set_job_status_line(start_line);
+        let id = self
+            .jobs
+            .spawn_with_target(spec.kind, spec.target, spec.label, work);
+        self.project_job_view();
         id
     }
 
@@ -213,7 +409,7 @@ impl AppState {
     /// then unwinds into the registry, which records it the same way.
     pub(crate) fn spawn_render(
         &mut self,
-        label: impl Into<String>,
+        spec: impl Into<JobSpec>,
         kind: aria_plugin::RenderKind,
         path: PathBuf,
         work: impl FnOnce(&aria_jobs::JobContext) -> Result<aria_jobs::JobCompletion, String>
@@ -221,7 +417,7 @@ impl AppState {
         + 'static,
     ) -> JobId {
         let bus = std::sync::Arc::clone(self.ctx.event_bus());
-        self.spawn_job(label, move |context| {
+        self.spawn_job(spec, move |context| {
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(context)));
             let result = match &outcome {
                 Err(payload) => aria_plugin::RenderResult::Failed(format!(
@@ -235,6 +431,61 @@ impl AppState {
             bus.post(aria_plugin::RenderFinished { kind, path, result });
             outcome.unwrap_or_else(|payload| std::panic::resume_unwind(payload))
         })
+    }
+
+    /// Set `self.status_message` to `line` and record that a job owns that line.
+    pub(crate) fn set_job_status_line(&mut self, line: impl Into<String>) {
+        let line = line.into();
+        self.jobs.record_status_line(line.clone());
+        self.status_message = Some(line);
+    }
+
+    /// Whether `self.status_message` is absent or still holds a job's own
+    /// enqueue, start, or cancelling status line (and not a newer unrelated status).
+    pub(crate) fn can_replace_job_status(&self) -> bool {
+        let Some(current) = self.status_message.as_deref() else {
+            return true;
+        };
+        if self.jobs.owns_status_line(Some(current)) {
+            return true;
+        }
+        current.starts_with("Export enqueued · ")
+            || current.ends_with('…')
+            || current.starts_with("Downloading ")
+            || current.starts_with("Verifying ")
+            || current.starts_with("Proxying ")
+            || current.starts_with("Rendering frames · ")
+            || current.starts_with("Exporting frame ")
+    }
+
+    /// Current project epoch from the job registry.
+    pub(crate) fn project_epoch(&self) -> u64 {
+        self.jobs.project_epoch()
+    }
+
+    /// Advance the project epoch, cancel in-flight jobs and queued exports from
+    /// the previous project, and clear transient per-project analysis state.
+    pub(crate) fn close_project_jobs(&mut self) {
+        self.export_queue.cancel_all();
+        self.jobs.advance_project_epoch();
+        self.analysis.moments.clear();
+        self.analysis.stored.clear();
+        self.analysis.loudness = std::sync::Arc::default();
+        self.captions.segments.clear();
+        self.project_job_view();
+    }
+
+    /// Cancel every in-flight job and queued export and wait up to `timeout`
+    /// for background worker threads to finish before session exit.
+    pub fn shutdown_jobs(&mut self, timeout: Duration) -> bool {
+        self.playing = false;
+        self.audio.publish_stop();
+        self.preview_worker.stop();
+        self.export_queue.cancel_all();
+        self.jobs.advance_project_epoch();
+        let settled = self.jobs.settle_all(timeout);
+        self.refresh_jobs();
+        settled
     }
 
     /// Rebuild the board's projection from the registry and the export queue.
@@ -251,12 +502,31 @@ impl AppState {
     /// frame with the pending strip up did that four times while the job threads
     /// writing progress contended for the same lock.
     pub(crate) fn refresh_jobs(&mut self) {
+        let snapshots = self.jobs.snapshot();
+        for snapshot in snapshots.iter().rev() {
+            if snapshot.state.is_terminal()
+                && self.jobs.mark_terminal_status_reported(snapshot.id)
+                && self.can_replace_job_status()
+                && let Some(outcome) = terminal_status_for_snapshot(snapshot)
+            {
+                self.set_job_status_line(outcome);
+            }
+        }
+        self.project_job_view_from(snapshots);
+    }
+
+    pub(crate) fn project_job_view(&mut self) {
+        let snapshots = self.jobs.snapshot();
+        self.project_job_view_from(snapshots);
+    }
+
+    fn project_job_view_from(&mut self, snapshots: Vec<JobSnapshot>) {
         let mut rows = Vec::new();
         for entry in self.export_queue.snapshot() {
             if entry.state == crate::app::export_queue::ExportEntryState::Queued {
                 rows.push(UiJob {
                     id: entry.id,
-                    label: entry.label.to_string().into(),
+                    label: entry.label.into(),
                     kind: JobKind::Export,
                     status: "Queued",
                     progress: None,
@@ -268,7 +538,7 @@ impl AppState {
                 });
             }
         }
-        rows.extend(self.jobs.snapshot().iter().map(UiJob::from_snapshot));
+        rows.extend(snapshots.iter().map(UiJob::from_snapshot));
         self.job_view = rows.into();
     }
 
@@ -287,12 +557,13 @@ impl AppState {
     /// is the worse surface.
     pub fn cancel_job(&mut self, id: u64) {
         if self.export_queue.cancel(id) {
+            self.set_job_status_line("Cancelling…");
             self.refresh_jobs();
-            self.status_message = Some("Cancelling…".into());
             return;
         }
         if self.jobs.cancel(JobId::from_raw(id)) {
-            self.status_message = Some("Cancelling…".into());
+            self.set_job_status_line("Cancelling…");
+            self.refresh_jobs();
         } else {
             self.status_message = Some("Too late to cancel".into());
         }
@@ -395,9 +666,8 @@ impl AppState {
             project,
             request.plugin_encoder,
         );
-        self.refresh_jobs();
         let (w, h) = request.size;
-        self.status_message = Some(format!(
+        let enqueued_line = format!(
             "Export enqueued · {w}×{h} · {} · {}",
             if settings.audio {
                 "with audio"
@@ -405,7 +675,9 @@ impl AppState {
                 "video only"
             },
             request.range
-        ));
+        );
+        self.set_job_status_line(enqueued_line);
+        self.project_job_view();
         Ok(entry_id)
     }
 

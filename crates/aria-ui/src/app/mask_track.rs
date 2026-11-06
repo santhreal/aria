@@ -324,50 +324,61 @@ impl AppState {
         let (wake, wakes) = crate::handoff::wakes::<
             Result<(Vec<(RationalTime, [f32; 2])>, MaskTrackReport), String>,
         >();
-        let id = self.spawn_job(format!("Tracking the mask on {name}"), move |context| {
-            let renderer = match super::render_device::renderer_on(gpu, "the mask track") {
-                Ok(renderer) => renderer,
-                // Both surfaces get it: the job row shows the refusal on the
-                // board, and the window shows it beside the pressed control.
-                Err(err) => {
-                    wake.wake(Err(err.clone()));
-                    return Err(err);
-                }
-            };
-            let mut frames = RenderedFrames { renderer, project };
-            let (keys, report) = walk_mask(
-                &mut frames,
-                &walk,
-                &|| context.cancelled(),
-                &mut |done, total| {
-                    let fraction = if total == 0 {
-                        1.0
-                    } else {
-                        done as f32 / total as f32
-                    };
-                    context.set_progress(fraction, format!("frame {done}/{total}"));
-                },
-            );
-            // Published even when it was stopped: a cancelled track keeps the
-            // frames it already followed, which is what stopping it half way
-            // requests. No commit guard for that reason
-            // — the publication is a history entry, one keystroke from gone,
-            // not a file on disk.
-            let written = report.written;
-            wake.wake(Ok((keys, report)));
-            let keyframes = counted(written, "keyframe", "keyframes");
-            let detail = match (report.lost_at, report.cancelled) {
-                (Some(tick), _) => format!("{keyframes}, lost the feature at {tick}"),
-                (None, true) => format!("{keyframes} before it was stopped"),
-                (None, false) => keyframes.to_string(),
-            };
-            JobCompletion::new(detail)
-                .with_output("keyframes", written.to_string())
-                .map_err(String::from)
-        });
+        let epoch = self.project_epoch();
+        let id = self.spawn_job(
+            super::jobs::JobSpec::new(
+                super::jobs::JobKind::Other,
+                format!("Tracking the mask on {name}"),
+            )
+            .with_target(format!("mask:{}:{}", target.clip.raw(), target.index)),
+            move |context| {
+                let renderer = match super::render_device::renderer_on(gpu, "the mask track") {
+                    Ok(renderer) => renderer,
+                    // Both surfaces get it: the job row shows the refusal on the
+                    // board, and the window shows it beside the pressed control.
+                    Err(err) => {
+                        wake.wake(Err(err.clone()));
+                        return Err(err);
+                    }
+                };
+                let mut frames = RenderedFrames { renderer, project };
+                let (keys, report) = walk_mask(
+                    &mut frames,
+                    &walk,
+                    &|| context.cancelled(),
+                    &mut |done, total| {
+                        let fraction = if total == 0 {
+                            1.0
+                        } else {
+                            done as f32 / total as f32
+                        };
+                        context.set_progress(fraction, format!("frame {done}/{total}"));
+                    },
+                );
+                // Published even when it was stopped: a cancelled track keeps the
+                // frames it already followed, which is what stopping it half way
+                // requests. No commit guard for that reason
+                // — the publication is a history entry, one keystroke from gone,
+                // not a file on disk.
+                let written = report.written;
+                wake.wake(Ok((keys, report)));
+                let keyframes = counted(written, "keyframe", "keyframes");
+                let detail = match (report.lost_at, report.cancelled) {
+                    (Some(tick), _) => format!("{keyframes}, lost the feature at {tick}"),
+                    (None, true) => format!("{keyframes} before it was stopped"),
+                    (None, false) => keyframes.to_string(),
+                };
+                JobCompletion::new(detail)
+                    .with_output("keyframes", written.to_string())
+                    .map_err(String::from)
+            },
+        );
         cx.spawn(async move |this, cx| {
             let outcome = wakes.next_from_a_thread(cx.background_executor()).await;
             let _ = this.update(cx, |state, cx| {
+                if state.project_epoch() != epoch {
+                    return;
+                }
                 match outcome {
                     Some(Ok((keys, report))) => state.adopt_track(&target, &keys, report),
                     Some(Err(reason)) => state.report_error(reason),
@@ -377,7 +388,7 @@ impl AppState {
             });
         })
         .detach();
-        self.status_message = Some(format!("Tracking the mask on {name}…"));
+        self.set_job_status_line(format!("Tracking the mask on {name}…"));
         Ok(id.raw())
     }
 

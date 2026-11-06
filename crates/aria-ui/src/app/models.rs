@@ -134,58 +134,62 @@ impl AppState {
         let spec = model.spec();
         let total = spec.exact_bytes();
         let label = format!("Downloading {}", spec.id());
-        let id = self.spawn_job(label, move |context| {
-            // The reader is `Box<dyn Read + 'static>` and cannot borrow the context, so
-            // bytes travel over a channel and one scoped thread turns them into
-            // progress. No polling: the reporter blocks on the receiver.
-            let (tx, rx) = crossbeam_channel::unbounded::<u64>();
-            let outcome = std::thread::scope(|scope| {
-                scope.spawn(|| {
-                    while let Ok(read) = rx.recv() {
-                        let fraction = if total == 0 {
-                            0.0
-                        } else {
-                            read as f32 / total as f32
+        let id = self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Download, label)
+                .with_target(format!("model:{}", spec.id())),
+            move |context| {
+                // The reader is `Box<dyn Read + 'static>` and cannot borrow the context, so
+                // bytes travel over a channel and one scoped thread turns them into
+                // progress. No polling: the reporter blocks on the receiver.
+                let (tx, rx) = crossbeam_channel::unbounded::<u64>();
+                let outcome = std::thread::scope(|scope| {
+                    scope.spawn(|| {
+                        while let Ok(read) = rx.recv() {
+                            let fraction = if total == 0 {
+                                0.0
+                            } else {
+                                read as f32 / total as f32
+                            };
+                            context.set_progress(
+                                fraction,
+                                format!("{} / {} MiB", read >> 20, total >> 20),
+                            );
+                        }
+                    });
+                    let cancelled = || context.cancelled();
+                    // The job registry, not the manager, owns the moment the
+                    // install stops being cancellable. `try_begin_commit` flips
+                    // that state atomically and answers whether it won; the
+                    // manager calls it immediately before the first rename, so a
+                    // Cancel pressed in the same instant either wins outright (no
+                    // rename happens, the old file survives) or loses outright (the
+                    // rename completes and the row stops offering Cancel). Without
+                    // the handshake the two race and Cancel can hit a model that
+                    // is already installed.
+                    let begin_commit = || context.try_begin_commit();
+                    let result = {
+                        let downloader = ProgressDownloader {
+                            inner: downloader.clone(),
+                            bytes: tx.clone(),
                         };
-                        context.set_progress(
-                            fraction,
-                            format!("{} / {} MiB", read >> 20, total >> 20),
-                        );
-                    }
-                });
-                let cancelled = || context.cancelled();
-                // The job registry, not the manager, owns the moment the
-                // install stops being cancellable. `try_begin_commit` flips
-                // that state atomically and answers whether it won; the
-                // manager calls it immediately before the first rename, so a
-                // Cancel pressed in the same instant either wins outright (no
-                // rename happens, the old file survives) or loses outright (the
-                // rename completes and the row stops offering Cancel). Without
-                // the handshake the two race and Cancel can hit a model that
-                // is already installed.
-                let begin_commit = || context.try_begin_commit();
-                let result = {
-                    let downloader = ProgressDownloader {
-                        inner: downloader.clone(),
-                        bytes: tx.clone(),
+                        manager.ensure_with_cancellation_and_commit(
+                            model,
+                            &downloader,
+                            &cancelled,
+                            &begin_commit,
+                        )
                     };
-                    manager.ensure_with_cancellation_and_commit(
-                        model,
-                        &downloader,
-                        &cancelled,
-                        &begin_commit,
-                    )
-                };
-                // Every sender is gone once this one is: the reporter ends and the
-                // scope joins it.
-                drop(tx);
-                result
-            });
-            let path = outcome.map_err(|err| err.to_string())?;
-            JobCompletion::new("verified")
-                .with_output("path", path.display().to_string())
-                .map_err(String::from)
-        });
+                    // Every sender is gone once this one is: the reporter ends and the
+                    // scope joins it.
+                    drop(tx);
+                    result
+                });
+                let path = outcome.map_err(|err| err.to_string())?;
+                JobCompletion::new("verified")
+                    .with_output("path", path.display().to_string())
+                    .map_err(String::from)
+            },
+        );
         self.status_message = Some(format!("Downloading {}", spec.id()));
         Ok(id.raw())
     }
@@ -207,49 +211,53 @@ impl AppState {
     /// model failures are the job's failure detail, not this call's.
     pub fn verify_models(&mut self) -> Result<u64, String> {
         let manager = self.model_manager()?;
-        let id = self.spawn_job("Verifying models", move |context| {
-            let catalog = WhisperModel::catalog();
-            let mut checked = 0usize;
-            let mut failures = Vec::new();
-            for (index, model) in catalog.iter().enumerate() {
-                if context.cancelled() {
-                    return Err("cancelled".to_string());
-                }
-                let spec = model.spec();
-                context.set_progress(
-                    (index + 1) as f32 / catalog.len() as f32,
-                    format!("hashing {}", spec.id()),
-                );
-                // A model nobody installed is not a failure, and re-hashing
-                // one already known corrupt is how the row confirms a
-                // re-download fixed it.
-                let present = match manager.status(*model) {
-                    Ok(ModelStatus::Missing) => false,
-                    Ok(ModelStatus::Ready { .. } | ModelStatus::Invalid { .. }) => true,
-                    Err(err) => {
-                        failures.push(format!("{}: {err}", spec.id()));
+        let id = self.spawn_job(
+            super::jobs::JobSpec::new(super::jobs::JobKind::Other, "Verifying models")
+                .with_target("verify_models"),
+            move |context| {
+                let catalog = WhisperModel::catalog();
+                let mut checked = 0usize;
+                let mut failures = Vec::new();
+                for (index, model) in catalog.iter().enumerate() {
+                    if context.cancelled() {
+                        return Err("cancelled".to_string());
+                    }
+                    let spec = model.spec();
+                    context.set_progress(
+                        (index + 1) as f32 / catalog.len() as f32,
+                        format!("hashing {}", spec.id()),
+                    );
+                    // A model nobody installed is not a failure, and re-hashing
+                    // one already known corrupt is how the row confirms a
+                    // re-download fixed it.
+                    let present = match manager.status(*model) {
+                        Ok(ModelStatus::Missing) => false,
+                        Ok(ModelStatus::Ready { .. } | ModelStatus::Invalid { .. }) => true,
+                        Err(err) => {
+                            failures.push(format!("{}: {err}", spec.id()));
+                            continue;
+                        }
+                    };
+                    if !present {
                         continue;
                     }
-                };
-                if !present {
-                    continue;
+                    checked += 1;
+                    if let Err(err) = manager.verify(*model) {
+                        failures.push(format!("{}: {err}", spec.id()));
+                    }
                 }
-                checked += 1;
-                if let Err(err) = manager.verify(*model) {
-                    failures.push(format!("{}: {err}", spec.id()));
+                if failures.is_empty() {
+                    return Ok(JobCompletion::new(format!(
+                        "{} still {} {} digest",
+                        counted(checked, "installed model", "installed models"),
+                        noun(checked, "matches", "match"),
+                        noun(checked, "its", "their")
+                    )));
                 }
-            }
-            if failures.is_empty() {
-                return Ok(JobCompletion::new(format!(
-                    "{} still {} {} digest",
-                    counted(checked, "installed model", "installed models"),
-                    noun(checked, "matches", "match"),
-                    noun(checked, "its", "their")
-                )));
-            }
-            Err(failures.join("; "))
-        });
-        self.status_message = Some("Verifying installed models".to_string());
+                Err(failures.join("; "))
+            },
+        );
+        self.set_job_status_line("Verifying installed models");
         Ok(id.raw())
     }
 

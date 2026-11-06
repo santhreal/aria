@@ -260,6 +260,32 @@ impl fmt::Display for JobId {
     }
 }
 
+/// Typed category of a background job, passed at spawn as data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum JobKind {
+    Transcription,
+    Download,
+    Analysis,
+    Loudness,
+    Export,
+    Generation,
+    #[default]
+    Other,
+}
+
+impl JobKind {
+    /// Every registered job kind.
+    pub const ALL: [Self; 7] = [
+        Self::Transcription,
+        Self::Download,
+        Self::Analysis,
+        Self::Loudness,
+        Self::Export,
+        Self::Generation,
+        Self::Other,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JobState {
     Queued,
@@ -284,6 +310,8 @@ impl JobState {
 #[derive(Debug, Clone)]
 pub struct JobSnapshot {
     pub id: JobId,
+    /// Category passed at spawn.
+    pub kind: JobKind,
     /// Human label ("Exporting draft.mp4", "Transcribing interview.mov"),
     /// sanitized to one line and at most [`MAX_JOB_LABEL_BYTES`] UTF-8 bytes.
     pub label: String,
@@ -487,10 +515,12 @@ impl JobManager {
         Self {
             shared: Arc::new(Shared {
                 next_id: AtomicU64::new(1),
+                project_epoch: AtomicU64::new(1),
                 inner: Mutex::default(),
                 concurrency_limit: Some(limit.max(1)),
                 active_threads: AtomicUsize::new(0),
                 waiting: Mutex::default(),
+                done_cv: parking_lot::Condvar::new(),
             }),
         }
     }
@@ -521,48 +551,7 @@ impl JobManager {
         label: impl Into<String>,
         work: impl FnOnce(&JobContext) -> Result<JobCompletion, String> + Send + 'static,
     ) -> JobId {
-        let label = sanitize_label(&label.into());
-        // Derived before the label moves into the snapshot. The thread name was
-        // built unconditionally either way, so ordering it first removes the
-        // second copy of the label rather than adding work.
-        let thread_name = thread_name(&label);
-        let cancel = Arc::new(AtomicBool::new(false));
-
-        let (id, snapshot, subscribers) = {
-            let mut inner = self.shared.inner.lock();
-            // Allocated under the lock so `jobs` stays sorted by id for
-            // `index_of`'s binary search when threads spawn concurrently.
-            let id = JobId(self.shared.next_id.fetch_add(1, Ordering::Relaxed));
-            let snap = JobSnapshot {
-                id,
-                label,
-                state: JobState::Queued,
-                cancellable: true,
-                progress: None,
-                detail: String::new(),
-                outputs: Vec::new(),
-                cancel_requested: false,
-                started: Instant::now(),
-                finished: None,
-            };
-            inner.jobs.push(Job {
-                snap: snap.clone(),
-                cancel: Arc::clone(&cancel),
-                cancellation_open: true,
-            });
-            (id, snap, inner.subscribers.clone())
-        };
-        // Deliver Queued before the thread exists, so a subscriber's event
-        // stream for this job can never open with Running.
-        deliver_to_subscribers(&snapshot, &subscribers);
-
-        self.shared.admit(admission::Waiting {
-            id,
-            cancellation: CancellationToken::new(cancel),
-            thread_name,
-            work: Box::new(work),
-        });
-        id
+        self.spawn_with_target(JobKind::Other, None, label, work)
     }
 
     /// Cooperative cancel during a job's preparation phase. When accepted,
@@ -649,12 +638,17 @@ fn deliver_to_subscribers(snapshot: &JobSnapshot, subscribers: &[Subscriber]) {
 struct Shared {
     /// Ids start at 1 and never recycle (see [`JobId`]).
     next_id: AtomicU64,
+    /// Monotonically increasing project epoch bumped when the active project
+    /// closes or is replaced.
+    project_epoch: AtomicU64,
     inner: Mutex<Inner>,
     concurrency_limit: Option<usize>,
     /// Jobs running now. Changed only under `waiting`'s lock.
     active_threads: AtomicUsize,
     /// Jobs spawned past the limit, waiting for a slot.
     waiting: Mutex<admission::Queue>,
+    /// Notified when `active_threads` drops to zero with `waiting` empty.
+    done_cv: parking_lot::Condvar,
 }
 
 #[derive(Default)]
@@ -663,10 +657,15 @@ struct Inner {
     /// lookups binary-search it.
     jobs: Vec<Job>,
     subscribers: Vec<Subscriber>,
+    /// Status strip lines written on behalf of jobs in the current project.
+    owned_statuses: std::collections::HashSet<String>,
+    /// Jobs whose terminal status-strip transition has been processed.
+    status_reported: std::collections::HashSet<JobId>,
 }
 
 struct Job {
     snap: JobSnapshot,
+    target: Option<String>,
     cancel: Arc<AtomicBool>,
     /// Guarded by `Shared::inner`; the ordering point shared by cancellation
     /// requests and `JobContext::try_begin_commit`.

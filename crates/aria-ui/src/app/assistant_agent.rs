@@ -135,103 +135,112 @@ impl AppState {
         // on one the turn brings up for itself.
         let gpu = crate::app::render_device::shared_device(&self.ctx);
         let plugins = aria_plugin::PluginContext::clone(&self.ctx);
-        self.spawn_job(label, move |context| {
-            let Ready {
-                provider,
-                context: editor,
-                extensions,
-                history,
-                prompt,
-                dry_run,
-                autonomy,
-                ..
-            } = ready;
-            let config = AgentConfig {
-                dry_run,
-                ..AgentConfig::default()
-            };
-            let mut bridge = SessionBridge::new(
-                project_host,
-                crate::handoff::Wake::clone(&wake),
-                Arc::clone(&cancel),
-            );
-            // The tool host reads the same session engine the bridge edits: a
-            // screenshot taken after two edits must show those edits.
-            let mut host = ShellHost::new(
-                engine,
-                crate::handoff::Wake::clone(&wake),
-                autonomy,
-                gpu,
-                plugins,
-            );
-            let mut edits = 0_usize;
-            let outcome = {
-                let tx = crate::handoff::Wake::clone(&wake);
-                let cancel = Arc::clone(&cancel);
-                let mut on_event = |event: AgentEvent| {
-                    // The Jobs board's cancel and the panel's Stop are one
-                    // signal: every beat is a chance to notice either, so a turn
-                    // cancelled from the board stops at the next delta rather
-                    // than running to completion unwatched.
-                    if context.cancelled() {
-                        cancel.store(true, Ordering::Relaxed);
-                    }
-                    let beat = match event {
-                        AgentEvent::TextDelta(text) => Beat::Text(text),
-                        AgentEvent::ReasoningDelta(text) => Beat::Reasoning(text),
-                        AgentEvent::Action(action) => {
-                            edits += 1;
-                            Beat::Action(action.description)
-                        }
-                        AgentEvent::HostAction { name, summary } => {
-                            Beat::Action(format!("{name}: {summary}"))
-                        }
-                        AgentEvent::Image(image) => Beat::Action(format!("image: {}", image.label)),
-                    };
-                    tx.wake(beat);
+        let epoch = self.project_epoch();
+        self.spawn_job(
+            crate::app::jobs::JobSpec::new(crate::app::jobs::JobKind::Other, label)
+                .with_target("assistant"),
+            move |context| {
+                let Ready {
+                    provider,
+                    context: editor,
+                    extensions,
+                    history,
+                    prompt,
+                    dry_run,
+                    autonomy,
+                    ..
+                } = ready;
+                let config = AgentConfig {
+                    dry_run,
+                    ..AgentConfig::default()
                 };
-                run_prompt_with_host(
-                    &provider,
-                    &mut bridge,
-                    &mut host,
-                    &editor,
-                    &extensions,
-                    &history,
-                    &prompt,
-                    &config,
-                    &cancel,
-                    &mut on_event,
-                )
-            };
-            let summary = match &outcome.status {
-                PromptStatus::Completed => counted(edits, "edit", "edits").to_string(),
-                PromptStatus::DryRun => counted(edits, "planned edit", "planned edits").to_string(),
-                PromptStatus::Aborted(reason) => format!("stopped: {reason}"),
-            };
-            let status = outcome.status.clone();
-            let plan = outcome
-                .actions
-                .into_iter()
-                .map(|action| PlanStep {
-                    description: action.description,
-                    command: action.command,
-                    outcome: action.outcome,
-                })
-                .collect();
-            wake.wake(Beat::Done(Box::new(Finished {
-                text: outcome.text,
-                status: outcome.status,
-                messages: outcome.turn_messages,
-                edits,
-                plan,
-            })));
-            match status {
-                // A stopped turn is a failed job: the board must not report
-                // "done" for interrupted work.
-                PromptStatus::Aborted(reason) => Err(reason),
-                _ => Ok(JobCompletion::new(summary)),
-            }
-        });
+                let mut bridge = SessionBridge::new(
+                    project_host,
+                    crate::handoff::Wake::clone(&wake),
+                    Arc::clone(&cancel),
+                );
+                // The tool host reads the same session engine the bridge edits: a
+                // screenshot taken after two edits must show those edits.
+                let mut host = ShellHost::new(
+                    engine,
+                    crate::handoff::Wake::clone(&wake),
+                    autonomy,
+                    gpu,
+                    plugins,
+                );
+                let mut edits = 0_usize;
+                let outcome = {
+                    let tx = crate::handoff::Wake::clone(&wake);
+                    let cancel = Arc::clone(&cancel);
+                    let mut on_event = |event: AgentEvent| {
+                        // The Jobs board's cancel and the panel's Stop are one
+                        // signal: every beat is a chance to notice either, so a turn
+                        // cancelled from the board stops at the next delta rather
+                        // than running to completion unwatched.
+                        if context.cancelled() {
+                            cancel.store(true, Ordering::Relaxed);
+                        }
+                        let beat = match event {
+                            AgentEvent::TextDelta(text) => Beat::Text(text),
+                            AgentEvent::ReasoningDelta(text) => Beat::Reasoning(text),
+                            AgentEvent::Action(action) => {
+                                edits += 1;
+                                Beat::Action(action.description)
+                            }
+                            AgentEvent::HostAction { name, summary } => {
+                                Beat::Action(format!("{name}: {summary}"))
+                            }
+                            AgentEvent::Image(image) => {
+                                Beat::Action(format!("image: {}", image.label))
+                            }
+                        };
+                        tx.wake(beat);
+                    };
+                    run_prompt_with_host(
+                        &provider,
+                        &mut bridge,
+                        &mut host,
+                        &editor,
+                        &extensions,
+                        &history,
+                        &prompt,
+                        &config,
+                        &cancel,
+                        &mut on_event,
+                    )
+                };
+                let summary = match &outcome.status {
+                    PromptStatus::Completed => counted(edits, "edit", "edits").to_string(),
+                    PromptStatus::DryRun => {
+                        counted(edits, "planned edit", "planned edits").to_string()
+                    }
+                    PromptStatus::Aborted(reason) => format!("stopped: {reason}"),
+                };
+                let status = outcome.status.clone();
+                let plan = outcome
+                    .actions
+                    .into_iter()
+                    .map(|action| PlanStep {
+                        description: action.description,
+                        command: action.command,
+                        outcome: action.outcome,
+                    })
+                    .collect();
+                wake.wake(Beat::Done(Box::new(Finished {
+                    text: outcome.text,
+                    status: outcome.status,
+                    messages: outcome.turn_messages,
+                    edits,
+                    plan,
+                })));
+                match status {
+                    // A stopped turn is a failed job: the board must not report
+                    // "done" for interrupted work.
+                    PromptStatus::Aborted(reason) => Err(reason),
+                    _ => Ok(JobCompletion::new(summary)),
+                }
+            },
+        );
 
         cx.spawn(async move |this, cx| {
             loop {
@@ -247,7 +256,12 @@ impl AppState {
                 };
                 let done = matches!(beat, Beat::Done(_));
                 if this
-                    .update(cx, |state, cx| state.apply_agent_beat(beat, cx))
+                    .update(cx, |state, cx| {
+                        if state.project_epoch() != epoch {
+                            return;
+                        }
+                        state.apply_agent_beat(beat, cx);
+                    })
                     .is_err()
                 {
                     return;
