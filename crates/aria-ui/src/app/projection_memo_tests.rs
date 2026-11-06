@@ -326,7 +326,7 @@ fn report_error_formats_various_error_types() {
     state.report_error(String::from("An owned string error"));
     assert_eq!(state.last_error.as_deref(), Some("An owned string error"));
 
-    let engine_err = aria_engine::EngineError::MissingMedia("clip-123".into());
+    let engine_err = aria_engine::EngineError::MissingMedia(vec!["clip-123".into()]);
     state.report_error(engine_err);
     assert!(state.last_error.is_some());
     assert!(state.last_error.as_ref().unwrap().contains("clip-123"));

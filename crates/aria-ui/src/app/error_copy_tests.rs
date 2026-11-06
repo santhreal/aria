@@ -10,9 +10,23 @@ use super::{describe_engine_error, describe_export_refusal};
 
 #[test]
 fn missing_media_names_the_path_and_the_fix() {
-    let msg = describe_engine_error(&EngineError::MissingMedia("/tmp/gone.mp4".into()));
-    assert!(msg.contains("/tmp/gone.mp4"));
-    assert!(msg.contains("Relink"));
+    let msg = describe_engine_error(&EngineError::MissingMedia(vec!["/tmp/gone.mp4".into()]));
+    assert_eq!(
+        msg,
+        "Couldn't find media at /tmp/gone.mp4. Move the file back or click Relink."
+    );
+}
+
+/// WHY: an Open with several missing files named one of them as if it were
+/// the only one. The copy counts them and names the first.
+#[test]
+fn several_missing_files_are_counted() {
+    let paths = vec!["/a.mp4".into(), "/b.mp4".into(), "/c.mp4".into()];
+    let msg = describe_engine_error(&EngineError::MissingMedia(paths));
+    assert_eq!(
+        msg,
+        "Couldn't find 3 media files, starting with /a.mp4. Move them back or click Relink All."
+    );
 }
 
 #[test]

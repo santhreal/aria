@@ -70,7 +70,9 @@ is mounted.
 
 ## Missing media
 
-If a media file moves after save, its pool row is marked missing. Click
+If a media file moves after save, its pool row is marked missing. Opening a
+project with missing files opens it with those rows marked, and the status line
+names the missing file, or counts the missing files and names the first. Click
 **Relink** on the row to point it at the file, or **Relink All…** to pick one
 folder and repair every missing row from it.
 

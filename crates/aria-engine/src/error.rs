@@ -30,8 +30,9 @@ pub enum EngineError {
     #[error("export: {0}")]
     Export(String),
 
-    #[error("media file not found: {0}")]
-    MissingMedia(String),
+    /// Every media path an Open found missing, sorted, each once. Never empty.
+    #[error("media file not found: {}", .0.join(", "))]
+    MissingMedia(Vec<String>),
 
     /// A command whose backend isn't available in this build (e.g. audio
     /// ducking and beat detection, which need the decoder's audio reader).

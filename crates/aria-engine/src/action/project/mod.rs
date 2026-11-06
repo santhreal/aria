@@ -22,8 +22,9 @@ pub(crate) mod save_template;
 pub(crate) mod set_media_label;
 
 /// Replace the session project from a `.aria` file. With `strict`, every
-/// referenced media path must exist on disk (Open); otherwise missing media is
-/// tolerated (Load). History is cleared — a fresh document has no undo past.
+/// referenced media path must exist on disk (Open), and the error lists each
+/// one that does not; otherwise missing media is tolerated (Load). History is
+/// cleared — a fresh document has no undo past.
 pub(crate) fn load_session(
     ctx: &mut ApplyContext<'_>,
     path: PathBuf,
@@ -32,12 +33,15 @@ pub(crate) fn load_session(
     let mut loaded = Project::load_from_file(&path)?;
     sync_project_name_from_path(&mut loaded, &path);
     if strict {
-        for media in loaded.media_iter() {
-            if !media.path().exists() {
-                return Err(EngineError::MissingMedia(
-                    media.path().display().to_string(),
-                ));
-            }
+        let mut missing: Vec<String> = loaded
+            .media_iter()
+            .filter(|media| !media.path().exists())
+            .map(|media| media.path().display().to_string())
+            .collect();
+        if !missing.is_empty() {
+            missing.sort_unstable();
+            missing.dedup();
+            return Err(EngineError::MissingMedia(missing));
         }
     }
     *ctx.project = loaded;

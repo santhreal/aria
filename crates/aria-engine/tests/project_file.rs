@@ -259,6 +259,48 @@ fn load_tolerates_missing_media() {
     );
 }
 
+/// WHY: Open stopped at the first missing file, so a project whose drive was
+/// unplugged reported one missing file however many were gone. Pins that the
+/// error lists every distinct missing path, sorted, leaves out a file that is
+/// present, and leaves the open session as it was. Does not cover which line
+/// the UI shows the error on.
+#[test]
+fn open_lists_every_missing_file() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let present = dir.path().join("present.mp4");
+    std::fs::write(&present, b"").expect("write present file");
+    let names = ["e", "d", "present", "c", "b", "a", "c"];
+    let mut fixture = Project::new("ghosts", Rational::FPS_24);
+    for name in names {
+        fixture.add_media(aria_models::MediaSource::new(
+            dir.path().join(format!("{name}.mp4")),
+            1280,
+            720,
+            Rational::FPS_24,
+            48,
+            false,
+        ));
+    }
+    let project_file = dir.path().join("ghosts.aria");
+    let mut saver = Engine::with_project(engine_config(), fixture).expect("engine");
+    common::save_project(&mut saver, &project_file);
+
+    let mut engine = Engine::new(engine_config()).expect("engine");
+    let before = engine.project().media_count();
+    let err = engine
+        .apply(Command::Project(ProjectCommand::Open {
+            path: project_file,
+        }))
+        .unwrap_err();
+    let aria_engine::EngineError::MissingMedia(missing) = &err else {
+        panic!("expected MissingMedia, got {err:?}");
+    };
+    let expected = ["a", "b", "c", "d", "e"]
+        .map(|name| dir.path().join(format!("{name}.mp4")).display().to_string());
+    assert_eq!(missing, &expected);
+    assert_eq!(engine.project().media_count(), before);
+}
+
 /// WHY: Save, Save As and Save a Copy wrote the project to any path, so saving
 /// to a file the pool plays from replaced the footage with project JSON and
 /// left a project whose media was itself. `Project::save_to_file` is the write

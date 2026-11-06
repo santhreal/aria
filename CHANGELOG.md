@@ -1334,6 +1334,7 @@ Notes for the latest release. For previous releases, see the
 - Edit > Clear, Ripple Delete and Deselect All are enabled while a timeline gap is selected.
 - Lift, Extract and Paste to Fit with no In and Out range show the same status line as their disabled menu rows.
 - Quitting while a background job is finishing waits up to five seconds for it instead of two, so the job's GPU work no longer races the driver's shutdown and crashes the exit.
+- Opening a project with several missing files reports how many are missing and names the first.
 
 ## [alpha-0.7.0] - 2026-07-22
 

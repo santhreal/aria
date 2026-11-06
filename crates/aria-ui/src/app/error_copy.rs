@@ -5,9 +5,7 @@ use aria_models::{MAX_PARENT_DEPTH, ModelError};
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
     match err {
-        EngineError::MissingMedia(path) => {
-            format!("Couldn't find media at {path}. Move the file back or click Relink.")
-        }
+        EngineError::MissingMedia(paths) => missing_media_copy(paths),
         EngineError::Import(msg) => {
             format!("Couldn't import that file: {msg}. Try another format or check the path.")
         }
@@ -34,6 +32,19 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
         // The reason states the obstacle and the next action and comes from the
         // host, plugin or edit that refused, so it is shown as written.
         EngineError::Refused(reason) => reason.clone(),
+    }
+}
+
+/// Names the one missing file, or counts them and names the first.
+fn missing_media_copy(paths: &[String]) -> String {
+    match paths {
+        [one] => format!("Couldn't find media at {one}. Move the file back or click Relink."),
+        [first, ..] => format!(
+            "Couldn't find {} media files, starting with {first}. Move them back or click Relink \
+             All.",
+            paths.len()
+        ),
+        [] => "Couldn't find this project's media. Move it back or click Relink All.".into(),
     }
 }
 
