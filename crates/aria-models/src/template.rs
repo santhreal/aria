@@ -20,8 +20,7 @@
 //! The result of `apply` is an ordinary [`Project`] that the existing
 //! compositor and exporter render unchanged.
 
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -312,15 +311,18 @@ impl Template {
     }
 
     /// Serialize this template to a `.ariat` JSON file.
+    ///
+    /// The file is written the way a project is: through a synced temporary
+    /// beside `path` that replaces it atomically, so a failed save leaves the
+    /// old template whole and a hard link to it keeps the old bytes. An
+    /// existing file's permissions carry over. A symbolic-link destination,
+    /// or a path the template's media pool plays from, fails with
+    /// [`io::ErrorKind::InvalidInput`] before anything is written.
     pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
+        crate::persist::reject_pool_media(&self.project, path, "template")?;
         let mut doc = self.clone();
         doc.schema = Self::current_schema();
-        let json = serde_json::to_string_pretty(&doc).map_err(io::Error::other)?;
-        let mut writer = BufWriter::new(File::create(path)?);
-        writer.write_all(json.as_bytes())?;
-        writer.write_all(b"\n")?;
-        writer.flush()?;
-        Ok(())
+        crate::persist::save_document(path, &doc)
     }
 
     /// Deserialize a template from a `.ariat` JSON file. Files that are not
@@ -627,6 +629,98 @@ mod tests {
         let loaded = Template::load_from_file(&path).unwrap();
         assert_eq!(loaded.schema.version, 1);
         assert_eq!(loaded.slot_count(), template.slot_count());
+    }
+
+    /// A template save replaces the file rather than rewriting it in place:
+    /// another name for the old file keeps the old bytes, and a save aimed at
+    /// pool media or through a symbolic link leaves the target untouched.
+    #[test]
+    fn template_save_replaces_the_file_and_leaves_a_hard_link_on_the_old_bytes() {
+        let (mut template, _, _) = sample_template();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("intro.ariat");
+        template.save_to_file(&path).unwrap();
+        let old = std::fs::read(&path).unwrap();
+        let witness = dir.path().join("witness.ariat");
+        std::fs::hard_link(&path, &witness).unwrap();
+
+        template.meta.name = "Renamed Intro".into();
+        template.save_to_file(&path).unwrap();
+
+        assert_eq!(std::fs::read(&witness).unwrap(), old);
+        let loaded = Template::load_from_file(&path).unwrap();
+        assert_eq!(loaded.meta.name, "Renamed Intro");
+    }
+
+    #[test]
+    fn template_save_over_pool_media_fails_and_keeps_the_media() {
+        let (mut template, _, _) = sample_template();
+        let dir = tempfile::tempdir().unwrap();
+        let footage = dir.path().join("footage.mp4");
+        std::fs::write(&footage, b"footage bytes").unwrap();
+        let footage = footage.canonicalize().unwrap();
+        template.project.add_media(MediaSource::new(
+            footage.clone(),
+            1920,
+            1080,
+            R24,
+            240,
+            true,
+        ));
+
+        let error = template.save_to_file(&footage).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            error.to_string().contains("media this template uses"),
+            "{error}"
+        );
+        assert_eq!(std::fs::read(&footage).unwrap(), b"footage bytes");
+        // Another spelling of the same file is the same file.
+        let dotted = dir.path().join(".").join("footage.mp4");
+        assert_eq!(
+            template.save_to_file(&dotted).unwrap_err().kind(),
+            io::ErrorKind::InvalidInput
+        );
+        assert_eq!(std::fs::read(&footage).unwrap(), b"footage bytes");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn template_save_rejects_a_symbolic_link_destination() {
+        let (template, _, _) = sample_template();
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("real.ariat");
+        std::fs::write(&target, b"keep").unwrap();
+        let link = dir.path().join("link.ariat");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let error = template.save_to_file(&link).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(std::fs::read(&target).unwrap(), b"keep");
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn template_save_keeps_the_existing_file_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let (template, _, _) = sample_template();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared.ariat");
+        template.save_to_file(&path).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+        template.save_to_file(&path).unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o640);
     }
 
     #[test]

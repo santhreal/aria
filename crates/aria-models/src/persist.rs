@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::{ModelError, ProjectLoadError};
 use crate::project::Project;
@@ -32,18 +32,10 @@ impl Project {
     /// would replace that footage with the project, which would then point at
     /// itself.
     pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
-        if self.plays_file(path) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!(
-                    "{} is media this project uses; save the project to another file",
-                    path.display()
-                ),
-            ));
-        }
+        reject_pool_media(self, path, "project")?;
         let mut stale = None;
         let doc = self.stamped_for_save(&mut stale);
-        persist_streaming(path, doc, &StdPersistenceFs)
+        save_document(path, doc)
     }
 
     /// The saved document: tab-indented pretty JSON with a trailing newline,
@@ -313,29 +305,60 @@ impl<F: PersistenceFs> Write for FsWriter<'_, F> {
     }
 }
 
-fn persist_streaming(
-    destination: &Path,
+/// Fail with [`io::ErrorKind::InvalidInput`] when `destination` is a file the
+/// media pool of `project` plays from: a save would replace that footage with
+/// a `document` that references it.
+pub(crate) fn reject_pool_media(
     project: &Project,
-    fs: &impl PersistenceFs,
+    destination: &Path,
+    document: &str,
 ) -> io::Result<()> {
-    let permissions = destination_permissions(destination, fs)?;
-    let temporary = write_streamed_temp(destination, project, permissions, fs)?;
-    install_temp_with_ops(destination, &temporary, fs)
+    if project.plays_file(destination) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "{} is media this {document} uses; save the {document} to another file",
+                destination.display()
+            ),
+        ));
+    }
+    Ok(())
 }
 
-fn write_streamed_temp(
+/// Write `doc` as the saved JSON document at `destination`, as
+/// [`save_streamed`] does.
+pub(crate) fn save_document<T: Serialize + ?Sized>(destination: &Path, doc: &T) -> io::Result<()> {
+    persist_streaming(destination, &StdPersistenceFs, |writer| {
+        pretty::to_writer(&mut *writer, doc).map_err(io::Error::other)?;
+        writer.write_all(b"\n")
+    })
+}
+
+/// Replace `destination` with the bytes `write` produces, through a synced
+/// sibling temporary renamed over it. A failed write leaves the old file
+/// whole, and a hard link to it keeps the old bytes. A symbolic-link or
+/// non-regular destination fails with [`io::ErrorKind::InvalidInput`]; an
+/// existing file's permissions carry over to the replacement.
+pub(crate) fn save_streamed(
     destination: &Path,
-    project: &Project,
-    permissions: Option<Permissions>,
-    fs: &impl PersistenceFs,
-) -> io::Result<PathBuf> {
-    write_temp(destination, permissions, fs, |file| {
+    write: impl FnOnce(&mut dyn Write) -> io::Result<()>,
+) -> io::Result<()> {
+    persist_streaming(destination, &StdPersistenceFs, |writer| write(writer))
+}
+
+fn persist_streaming<F: PersistenceFs>(
+    destination: &Path,
+    fs: &F,
+    write: impl FnOnce(&mut io::BufWriter<FsWriter<'_, F>>) -> io::Result<()>,
+) -> io::Result<()> {
+    let permissions = destination_permissions(destination, fs)?;
+    let temporary = write_temp(destination, permissions, fs, |file| {
         let mut writer = io::BufWriter::with_capacity(STREAM_BUF_CAPACITY, FsWriter { file, fs });
-        pretty::to_writer(&mut writer, project).map_err(io::Error::other)?;
-        writer.write_all(b"\n")?;
+        write(&mut writer)?;
         writer.into_inner().map_err(|err| err.into_error())?;
         Ok(())
-    })
+    })?;
+    install_temp_with_ops(destination, &temporary, fs)
 }
 
 /// Create a unique temporary beside `destination`, fill it with `write`, then

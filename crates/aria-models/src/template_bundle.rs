@@ -59,9 +59,13 @@ pub struct BundleManifest {
 ///
 /// Fails if any pool media file is missing on disk — a bundle with absent
 /// sample media would be broken on every machine, so authoring refuses it
-/// here rather than shipping the problem.
+/// here rather than shipping the problem. The archive replaces `path` the way
+/// a project save does: through a synced temporary renamed over it, so a
+/// failed write leaves an existing bundle whole. A path the media pool plays
+/// from, or a symbolic link, fails before anything is written.
 pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
     let io_err = |e: std::io::Error| ModelError::InvalidProjectFile(e.to_string());
+    crate::persist::reject_pool_media(template.project(), path, "bundle").map_err(io_err)?;
 
     // Plan the rewrite first: media id -> (source path, archive name).
     let mut entries: Vec<(crate::ids::MediaId, PathBuf, String)> = Vec::new();
@@ -95,24 +99,22 @@ pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
         min_schema_version: PROJECT_SCHEMA_VERSION,
     };
 
-    let file = std::fs::File::create(path).map_err(io_err)?;
-    let mut builder = tar::Builder::new(std::io::BufWriter::new(file));
-
     let manifest_json = serde_json::to_vec_pretty(&manifest)
         .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-    append_bytes(&mut builder, "bundle.json", &manifest_json).map_err(io_err)?;
-
     let template_json = serde_json::to_vec_pretty(&doc)
         .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-    append_bytes(&mut builder, "template.ariat", &template_json).map_err(io_err)?;
 
-    for (_, source, archive_name) in &entries {
-        builder
-            .append_path_with_name(source, archive_name)
-            .map_err(io_err)?;
-    }
-    builder.into_inner().map_err(io_err)?;
-    Ok(())
+    crate::persist::save_streamed(path, |out| {
+        let mut builder = tar::Builder::new(out);
+        append_bytes(&mut builder, "bundle.json", &manifest_json)?;
+        append_bytes(&mut builder, "template.ariat", &template_json)?;
+        for (_, source, archive_name) in &entries {
+            builder.append_path_with_name(source, archive_name)?;
+        }
+        builder.into_inner()?;
+        Ok(())
+    })
+    .map_err(io_err)
 }
 
 /// Read just the manifest — the cheap compatibility check a gallery runs
@@ -290,6 +292,49 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let err = write(&template, &dir.path().join("broken.ariab")).unwrap_err();
         assert!(err.to_string().contains("sample media missing"));
+    }
+
+    /// A bundle written over its own sample media fails and leaves the media
+    /// as it was; written in place, the archive truncated the footage it was
+    /// about to read.
+    ///
+    /// The media is read-only, so a writer that opens it in place fails at
+    /// once instead of archiving a file it is growing, which never ends and
+    /// fills the disk. Not bounded when the tests run with the privilege to
+    /// write a read-only file.
+    #[test]
+    fn write_over_sample_media_fails_and_keeps_the_media() {
+        let dir = tempfile::tempdir().unwrap();
+        let template = template_with_real_media(dir.path());
+        let sample = dir.path().join("sample.mp4");
+        let before = std::fs::read(&sample).unwrap();
+        let mut read_only = std::fs::metadata(&sample).unwrap().permissions();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&sample, read_only).unwrap();
+
+        let err = write(&template, &sample).unwrap_err();
+
+        assert!(err.to_string().contains("media this bundle uses"), "{err}");
+        assert_eq!(std::fs::read(&sample).unwrap(), before);
+    }
+
+    /// Writing a bundle replaces the file: a hard link to the previous bundle
+    /// keeps its bytes, and the new one reads back whole.
+    #[test]
+    fn write_replaces_an_existing_bundle_instead_of_rewriting_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut template = template_with_real_media(dir.path());
+        let bundle = dir.path().join("bundled.ariab");
+        write(&template, &bundle).unwrap();
+        let old = std::fs::read(&bundle).unwrap();
+        let witness = dir.path().join("witness.ariab");
+        std::fs::hard_link(&bundle, &witness).unwrap();
+
+        template.meta.name = "Renamed".into();
+        write(&template, &bundle).unwrap();
+
+        assert_eq!(std::fs::read(&witness).unwrap(), old);
+        assert_eq!(read_manifest(&bundle).unwrap().name, "Renamed");
     }
 
     #[test]

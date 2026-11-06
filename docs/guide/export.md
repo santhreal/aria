@@ -22,7 +22,9 @@ See [Templates](#templates) for the marks.
 
 - **File > Save as Template…** writes a `.ariat` bundle. The project itself is
   untouched: no rename, no dirty flag, no change to the project path. The status
-  line reports how many slots the bundle holds.
+  line reports how many slots the bundle holds. The bundle replaces an existing
+  file whole, as a project save does, and a save to a file the media pool plays
+  from or through a symbolic link fails and leaves the target as it was.
 - **File > Use Template…**, or the Use Template tile on Home, opens a bundle,
   prompts for one file per slot in fill order, using the slot's hint as the prompt,
   and replaces the session with the filled result. Cancelling the picker stops
