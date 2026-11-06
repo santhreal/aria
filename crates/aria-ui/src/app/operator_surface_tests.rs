@@ -138,14 +138,20 @@ fn chord_dispatches() -> &'static BTreeSet<&'static str> {
 }
 
 /// Every command a driven surface asked for: the palette, the bar, the chords,
-/// and every drawn registry `drawn_census` can walk.
+/// and every drawn registry `drawn_census` can walk. Each source is measured
+/// on a thread of its own, so the union costs the slowest of them.
 fn reached() -> BTreeSet<&'static str> {
-    let mut out: BTreeSet<&'static str> =
-        super::reach_tests::dispatched().iter().copied().collect();
-    out.extend(super::menu_reach_tests::dispatched().iter().copied());
-    out.extend(chord_dispatches().iter().copied());
-    out.extend(super::drawn_census::dispatched().iter().copied());
-    out
+    let sources: [fn() -> &'static BTreeSet<&'static str>; 4] = [
+        super::reach_tests::dispatched,
+        super::menu_reach_tests::dispatched,
+        chord_dispatches,
+        super::drawn_census::dispatched,
+    ];
+    super::drawn_census::on_threads(sources)
+        .into_iter()
+        .flatten()
+        .copied()
+        .collect()
 }
 
 /// Every command's label with its declared reach, derived from the command

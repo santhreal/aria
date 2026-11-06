@@ -19,6 +19,7 @@
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use crate::app::AppState;
 use crate::app::picker::Answer;
@@ -78,8 +79,8 @@ impl Dressed {
     /// Read off the state they are pressed against: the paths are per-fixture,
     /// so a row carrying one from an earlier build would name a file this
     /// session never remembered.
-    fn picks(&self) -> Vec<Pick> {
-        vec![
+    fn picks(&self) -> [Pick; ROWS] {
+        [
             Pick::NewProject,
             Pick::PickProject,
             Pick::OpenRecent(self.remembered.clone()),
@@ -116,30 +117,46 @@ impl Dressed {
     }
 }
 
+/// How many controls Home draws.
+const ROWS: usize = 8;
+
+/// Every control Home draws, each pressed on a Home dressed for it alone, on a
+/// thread of its own: the control's name, where it lands, and what it sent.
+/// Pressed once per process and read by every test below.
+fn pressed() -> &'static [(&'static str, Lands, Vec<&'static str>)] {
+    static PRESSED: LazyLock<Vec<(&'static str, Lands, Vec<&'static str>)>> = LazyLock::new(|| {
+        super::on_threads((0..ROWS).map(|index| {
+            move || {
+                let mut home = at_home();
+                let pick = home
+                    .picks()
+                    .into_iter()
+                    .nth(index)
+                    .expect("a row below ROWS");
+                let (what, lands) = (pick.what(), pick.lands());
+                let watch = Watch::on(&home.state);
+                home.press(pick);
+                (what, lands, watch.take())
+            }
+        }))
+    });
+    &PRESSED
+}
+
 /// Every command the screen's controls asked for.
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
-    let mut out = BTreeSet::new();
-    let count = at_home().picks().len();
-    for index in 0..count {
-        let mut home = at_home();
-        let pick = home.picks().swap_remove(index);
-        let watch = Watch::on(&home.state);
-        home.press(pick);
-        out.extend(watch.take());
-    }
-    out
+    pressed()
+        .iter()
+        .flat_map(|(_, _, sent)| sent.iter().copied())
+        .collect()
 }
 
 #[test]
 fn every_control_the_screen_draws_is_pressed() {
-    let pressed: BTreeSet<String> = at_home()
-        .picks()
-        .into_iter()
-        .map(|pick| pick.what().to_string())
-        .collect();
+    let pressed: BTreeSet<&str> = pressed().iter().map(|(what, _, _)| *what).collect();
     let missing: Vec<String> = super::arms_of(REGISTRY)
         .into_iter()
-        .filter(|arm| !pressed.contains(arm))
+        .filter(|arm| !pressed.contains(arm.as_str()))
         .collect();
     assert!(
         missing.is_empty(),
@@ -154,15 +171,7 @@ fn every_row_lands_what_it_says_it_lands() {
     // would either fail or be weakened until it proved nothing. Each row is
     // asserted against its own column instead, and a row with no column does not
     // compile.
-    let count = at_home().picks().len();
-    for index in 0..count {
-        let mut home = at_home();
-        let pick = home.picks().swap_remove(index);
-        let what = pick.what();
-        let lands = pick.lands();
-        let watch = Watch::on(&home.state);
-        home.press(pick);
-        let sent = watch.take();
+    for (what, lands, sent) in pressed() {
         match lands {
             Lands::Command => assert!(
                 !sent.is_empty(),

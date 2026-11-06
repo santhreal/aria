@@ -188,6 +188,12 @@ const THREAD_OWNERS: &[(&str, &str)] = &[
          export sheet opens before the encoder's probe has answered, never \
          joined, and reports through the preview worker's handoff wake",
     ),
+    (
+        "crates/aria-ui/src/app/drawn_census.rs",
+        "the census runner, test code only: each census builds states of its \
+         own on a scoped thread, and every thread is joined before the census \
+         answers",
+    ),
 ];
 
 /// **Handing work to a thread belongs to one module.**

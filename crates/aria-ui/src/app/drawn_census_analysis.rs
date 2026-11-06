@@ -99,20 +99,28 @@ fn press(state: &mut AppState, pick: Pick) {
 }
 
 /// Every command the panel's controls asked for, plus what the beat run writes.
+///
+/// Every press is made on an analyzed project of its own, so each runs on a
+/// thread of its own; `None` is the beat run's write.
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
-    let mut out = BTreeSet::new();
-    for pick in picks() {
-        let (mut state, _) = analyzed();
-        let watch = Watch::on(&state);
-        press(&mut state, pick);
-        out.extend(watch.take());
-    }
-    let (mut state, clip) = with_video();
-    let rate = state.store.media[0].frame_rate;
-    let watch = Watch::on(&state);
-    state.store_beats(clip, &[0.5, 1.0], rate);
-    out.extend(watch.take());
-    out
+    let runs = picks().into_iter().map(Some).chain([None]).map(|pick| {
+        move || match pick {
+            Some(pick) => {
+                let (mut state, _) = analyzed();
+                let watch = Watch::on(&state);
+                press(&mut state, pick);
+                watch.take()
+            }
+            None => {
+                let (mut state, clip) = with_video();
+                let rate = state.store.media[0].frame_rate;
+                let watch = Watch::on(&state);
+                state.store_beats(clip, &[0.5, 1.0], rate);
+                watch.take()
+            }
+        }
+    });
+    super::on_threads(runs).into_iter().flatten().collect()
 }
 
 #[test]
@@ -139,24 +147,29 @@ fn the_clear_beside_a_detector_drops_that_detector_and_no_other() {
     // The defect the missing surface hid: one clear per detector, and each one
     // keys its own batch. A clear that deleted the wrong batch, or all of them,
     // would leave the panel showing results for a detector that was kept.
-    for kind in AnalysisKind::ALL {
-        let (mut state, _) = analyzed();
-        press(&mut state, Pick::Clear(kind));
-        assert!(
-            !state.analysis_exists(kind),
-            "clearing {} left its own results behind",
-            kind.label()
-        );
-        for other in AnalysisKind::ALL {
+    let cleared = super::on_threads(AnalysisKind::ALL.map(|kind| {
+        move || {
+            let (mut state, _) = analyzed();
+            press(&mut state, Pick::Clear(kind));
+            AnalysisKind::ALL.map(|other| (other, state.analysis_exists(other)))
+        }
+    }));
+    for (kind, kept) in AnalysisKind::ALL.into_iter().zip(cleared) {
+        for (other, exists) in kept {
             if other == kind {
-                continue;
+                assert!(
+                    !exists,
+                    "clearing {} left its own results behind",
+                    kind.label()
+                );
+            } else {
+                assert!(
+                    exists,
+                    "clearing {} also dropped {}",
+                    kind.label(),
+                    other.label()
+                );
             }
-            assert!(
-                state.analysis_exists(other),
-                "clearing {} also dropped {}",
-                kind.label(),
-                other.label()
-            );
         }
     }
 }

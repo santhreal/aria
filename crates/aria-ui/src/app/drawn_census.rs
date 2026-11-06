@@ -28,37 +28,62 @@ use super::AppState;
 use super::premiere_tests::with_clip;
 use crate::surfaces::lane_header::{LANE_TOGGLES, LaneFlags, LaneToggle};
 
+/// Every registry's census below, in the order the census lists them.
+const CENSUSES: [fn() -> BTreeSet<&'static str>; 24] = [
+    lane_header,
+    align::dispatched,
+    analysis::dispatched,
+    bins::dispatched,
+    menu::dispatched,
+    labels::dispatched,
+    rename::dispatched,
+    pool::dispatched,
+    pool_pick::dispatched,
+    ramp::dispatched,
+    inspector::dispatched,
+    mixer::dispatched,
+    inserts::dispatched,
+    picks::dispatched,
+    rack::dispatched,
+    keys::dispatched,
+    blocks::dispatched,
+    markers::dispatched,
+    settings::dispatched,
+    sidebar::dispatched,
+    source::dispatched,
+    home::dispatched,
+    overlay::dispatched,
+    timeline::dispatched,
+];
+
 /// Every command a drawn surface dispatched, across every registry below.
+///
+/// Each registry's census builds its own states, so they run on threads of
+/// their own and the union costs the slowest census rather than their sum.
 pub(super) fn dispatched() -> &'static BTreeSet<&'static str> {
-    static CENSUS: LazyLock<BTreeSet<&'static str>> = LazyLock::new(|| {
-        let mut out = BTreeSet::new();
-        out.extend(lane_header());
-        out.extend(align::dispatched());
-        out.extend(analysis::dispatched());
-        out.extend(bins::dispatched());
-        out.extend(menu::dispatched());
-        out.extend(labels::dispatched());
-        out.extend(rename::dispatched());
-        out.extend(pool::dispatched());
-        out.extend(pool_pick::dispatched());
-        out.extend(ramp::dispatched());
-        out.extend(inspector::dispatched());
-        out.extend(mixer::dispatched());
-        out.extend(inserts::dispatched());
-        out.extend(picks::dispatched());
-        out.extend(rack::dispatched());
-        out.extend(keys::dispatched());
-        out.extend(blocks::dispatched());
-        out.extend(markers::dispatched());
-        out.extend(settings::dispatched());
-        out.extend(sidebar::dispatched());
-        out.extend(source::dispatched());
-        out.extend(home::dispatched());
-        out.extend(overlay::dispatched());
-        out.extend(timeline::dispatched());
-        out
-    });
+    static CENSUS: LazyLock<BTreeSet<&'static str>> =
+        LazyLock::new(|| on_threads(CENSUSES).into_iter().flatten().collect());
     &CENSUS
+}
+
+/// Run every one of `runs` on a scoped thread of its own and return what each
+/// returned, in the order given. Every run is started before the first is
+/// joined, and a run that panics fails the caller with its own message.
+pub(super) fn on_threads<R, T>(runs: impl IntoIterator<Item = R>) -> Vec<T>
+where
+    R: FnOnce() -> T + Send,
+    T: Send,
+{
+    std::thread::scope(|scope| {
+        let started: Vec<_> = runs.into_iter().map(|run| scope.spawn(run)).collect();
+        started
+            .into_iter()
+            .map(|run| {
+                run.join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .collect()
+    })
 }
 
 /// Every command label in `aria_commands::edit_specs()` and
