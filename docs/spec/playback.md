@@ -58,7 +58,6 @@ reported by the device is subtracted from the audio clock.
 | --- | --- |
 | Playback resolution | Full, 1/2, 1/4, 1/8, or Auto. Frames rendered during playback use it. Auto starts at Full and steps down one level after three drops in a second, and back up after five seconds without a drop. |
 | Paused resolution | Full or 1/2. A paused or scrubbed frame renders at it. |
-| High quality playback | Off by default. When on, scaling uses the highest quality filter during playback. |
 
 Scaled frames are rendered at the reduced size from the start: decode outputs at
 the reduced size where the codec supports it, and effects run on the reduced
@@ -67,10 +66,10 @@ frame with their spatial parameters scaled. The Viewer upscales the result.
 ## Pipeline
 
 ```
-decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
-      ^                                   ^
-   decode-ahead                    render-ahead
-   per active clip                 N frames
+decode workers  ->  render (GPU)  ->  frame cache  ->  present
+      ^                  ^
+   decode-ahead     render-ahead
+   per active clip  4 frames
 ```
 
 1. **Decode-ahead.** Each clip that will be visible in the next two seconds has
@@ -106,21 +105,23 @@ decode workers  ->  frame cache  ->  render (GPU)  ->  present (GPU, no copy)
    keyframe and references frames before it, the seek moves earlier, one
    second then doubling, until its first frame decodes without corruption. H.265 and H.266
    decoders drop such frames.
-2. **Frame cache.** Decoded and rendered frames are stored in a GPU-resident
-   cache bounded by a size in Settings (default: 25 % of video memory) and a
-   system memory spill tier (default: 4 GB). Frames are keyed by sequence,
-   time, resolution, and the hash of everything that affects them, so an edit
-   invalidates only the frames it changes. Cached ranges draw green in the
-   render bar.
-3. **Render-ahead.** The compositor renders frames ahead of the playhead on its
-   own thread into the cache. During playback it renders at most 4 frames
-   ahead; when paused it renders outward from the playhead into the work area
-   while the machine is idle.
-4. **Present.** The Viewer draws the cached texture directly. There is no GPU to
-   CPU readback and no CPU copy between render and display. The device that
-   renders is the device that presents.
-5. **Edits.** An edit during playback invalidates the affected cache entries and
-   playback continues; the next frame shown reflects the edit. The render bar's
+2. **Frame cache.** The preview worker holds the frame due next and the
+   frames rendered after it, at most 5 frames of RGBA pixels and display
+   textures at 3840x2160 (`CACHE_BYTES` in `crates/aria-ui/src/preview_worker.rs`).
+   Frames are keyed by tick and stamped with the engine and proxy revisions;
+   a frame from an older revision is dropped. Rendered ranges on disk draw
+   green in the render bar (see [Rendering ranges](#rendering-ranges)).
+3. **Render-ahead.** During playback the preview worker renders up to 4 frames
+   past the playhead (`RENDER_AHEAD`), nearest first, on its own thread. While
+   paused it renders the frame at the playhead.
+4. **Present.** When the window's `wgpu` device is shared with the preview
+   worker, the Viewer draws the rendered texture directly, with no GPU to CPU
+   readback. The frame is read back to the CPU when the window shares no
+   device, when the transparency grid is on, and while scopes are shown on a
+   device that runs no scope compute pass or with a plugin scope registered.
+5. **Edits.** An edit during playback moves the engine revision, which empties
+   the frame cache; playback continues and the next frame shown reflects the
+   edit. The render bar's
    colors are computed on a thread of their own, so the next Viewer frame
    never waits for them; a newer edit stops an older computation.
 
