@@ -7,9 +7,10 @@
 //! in the palette while the menu bar drew the same row disabled and choosing it
 //! only reported the guard's reason.
 //!
-//! The whole catalog is drawn with an empty query, and each row's drawn state
-//! is read against the source that rejects it: a menu row against the guard of
-//! the row the menu registry draws now, a plugin command against its
+//! The highlight walks the whole catalog with an empty query, and each row's
+//! drawn state is read on the frame that highlights it, which draws it in view,
+//! against the source that rejects it: a menu row against the guard of the row
+//! the menu registry draws now, a plugin command against its
 //! enablement condition, a clip type against its catalog entry. The match on
 //! the offer's kind is exhaustive, so a new kind of row fails to compile here
 //! until its rejection is stated.
@@ -90,17 +91,25 @@ fn a_palette_row_is_drawn_faint_exactly_while_choosing_it_is_rejected(cx: &mut T
             .any(|&(_, menu_row, rejected)| menu_row && !rejected),
         "the fixture withholds every menu row, so a faint-drawn live row goes unmeasured"
     );
-    let wrong: Vec<String> = rows
-        .iter()
-        .filter_map(|(id, _, rejected)| {
-            let faint = visual
-                .debug_bounds(intern(&format!("palette-withheld-{id}")))
-                .is_some();
-            (faint != *rejected).then(|| {
-                let drawn = if faint { "faint" } else { "live" };
-                format!("{id} is drawn {drawn} and choosing it is rejected: {rejected}")
-            })
-        })
-        .collect();
+    let mut wrong = Vec::new();
+    for (at, (id, _, rejected)) in rows.iter().enumerate() {
+        if at > 0 {
+            visual.simulate_keystrokes("down");
+            visual.run_until_parked();
+        }
+        assert!(
+            visual.debug_bounds("palette-highlight").is_some(),
+            "Down #{at} drew no highlighted row, so {id} goes unread"
+        );
+        let faint = visual
+            .debug_bounds(intern(&format!("palette-withheld-{id}")))
+            .is_some();
+        if faint != *rejected {
+            let drawn = if faint { "faint" } else { "live" };
+            wrong.push(format!(
+                "{id} is drawn {drawn} and choosing it is rejected: {rejected}"
+            ));
+        }
+    }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

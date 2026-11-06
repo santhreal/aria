@@ -214,7 +214,7 @@ impl AppState {
             palette_query: Default::default(),
             palette_cache: Default::default(),
             palette_index: 0,
-            palette_scroll: gpui::ScrollHandle::new(),
+            palette_list: 0,
             rename: None,
             rename_draft: Default::default(),
             rename_in_row: false,

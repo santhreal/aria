@@ -217,9 +217,10 @@ pub struct AppState {
     /// Which of the palette's current hits is highlighted. Clamped on read, so a
     /// query that shortens the list cannot leave it pointing past the end.
     pub palette_index: usize,
-    /// The palette list's scroll position. A move of the highlight scrolls the
-    /// list through it, so the highlighted row is drawn in view.
-    pub palette_scroll: gpui::ScrollHandle,
+    /// Which list the palette draws its hits in. Each restart takes a new one,
+    /// and a new list stands at its top with the first hit in view; the
+    /// highlight moves within a list by the least scroll that draws it.
+    pub(crate) palette_list: u64,
     /// In-progress inline rename, if any.
     pub rename: Option<crate::types::RenameTarget>,
     /// The draft of the rename in progress, with its caret and selection.

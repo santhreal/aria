@@ -2,13 +2,13 @@
 //!
 //! [`scroll_y`] and [`scroll_x`] make a scroll frame, which fades each edge on
 //! its axis while the frame's content continues past that edge, read from the
-//! frame's scroll handle. [`scroll_list`] makes one over rows of one height,
-//! drawing only the rows in view. [`edge_faded`] fades the edges of a view that
-//! scrolls by its own model, such as the Timeline's ruler and lanes, where the
-//! caller states how far content continues past each edge. A fade is as deep as
-//! the content past its edge, up to the view's band: a view scrolled a few
-//! pixels off a row fades those pixels, not a band over the row's text, and a
-//! list that fits fades nothing.
+//! frame's scroll handle. [`scroll_list`] and [`scroll_rows`] make one over rows
+//! of one height, drawing only the rows in view. [`edge_faded`] fades the edges
+//! of a view that scrolls by its own model, such as the Timeline's ruler and
+//! lanes, where the caller states how far content continues past each edge. A
+//! fade is as deep as the content past its edge, up to the view's band: a view
+//! scrolled a few pixels off a row fades those pixels, not a band over the
+//! row's text, and a list that fits fades nothing.
 //!
 //! Ported from Comet (<https://github.com/zeronsh/comet>)
 //! MIT License — see LICENSES/comet-MIT.txt
@@ -111,10 +111,11 @@ pub fn scroll_x(frame: Stateful<Div>) -> ScrollFrame {
 /// under a title's Text tab grew the tab by every installed family and the
 /// wheel scrolled the tab into blank ground.
 ///
-/// Row `reveal` is brought into view on the first draw and on each draw it
-/// differs from the row brought in last, centered when it was out of view.
-/// Between those draws the frame keeps the place the wheel moved it to, under
-/// `id`.
+/// Row `reveal` is brought into view on the first draw, centered, and on each
+/// later draw it differs from the row brought in last, by the least scroll that
+/// draws it whole, so a key that steps the row one place moves the list at most
+/// one row. Between those draws the frame keeps the place the wheel moved it to,
+/// under `id`.
 pub fn scroll_list<R: IntoElement>(
     id: impl Into<ElementId>,
     rows: usize,
@@ -126,6 +127,34 @@ pub fn scroll_list<R: IntoElement>(
     let list = uniform_list(id, rows, render)
         .w_full()
         .h((row * rows as f32).min(tallest));
+    ScrollFrame::new(Scrolled::List { list, reveal }, Axis::Vertical)
+}
+
+/// `rows` rows `row` px tall, scrolled on the vertical axis in a frame padded by
+/// `pad` px, with its top and bottom edges faded while rows continue past them.
+/// `render` draws the rows of a range, and only the rows in view are drawn.
+///
+/// The frame is laid out at its rows' height and its padding, and a flex parent
+/// with less room shrinks it, since the automatic minimum height of a scroll
+/// frame is zero. A dialog card at its size limit gives the frame the height
+/// left under its header. A parent that shrinks no child lays the frame out at
+/// every row's height; [`scroll_list`] caps the height for those. The height is
+/// stated rather than measured from the rows: a measured list in a dialog card
+/// was laid out with no room for a row.
+///
+/// Row `reveal` is brought into view as [`scroll_list`] brings it.
+pub fn scroll_rows<R: IntoElement>(
+    id: impl Into<ElementId>,
+    rows: usize,
+    row: Pixels,
+    pad: Pixels,
+    reveal: Option<usize>,
+    render: impl Fn(Range<usize>, &mut Window, &mut App) -> Vec<R> + 'static,
+) -> ScrollFrame {
+    let list = uniform_list(id, rows, render)
+        .w_full()
+        .h(row * rows as f32 + pad * 2.0)
+        .p(pad);
     ScrollFrame::new(Scrolled::List { list, reveal }, Axis::Vertical)
 }
 
@@ -159,7 +188,8 @@ struct KeptList {
 }
 
 /// A frame that scrolls on one axis and fades each edge on it that its content
-/// continues past. Made by [`scroll_y`], [`scroll_x`] and [`scroll_list`].
+/// continues past. Made by [`scroll_y`], [`scroll_x`], [`scroll_list`] and
+/// [`scroll_rows`].
 pub struct ScrollFrame {
     id: Option<ElementId>,
     /// What the frame scrolls, until its layout is requested and it becomes the
@@ -190,8 +220,8 @@ impl ScrollFrame {
     }
 
     /// Scroll by `handle`, which the caller reads or moves, instead of the
-    /// handle the frame keeps under its id. A frame made by [`scroll_list`]
-    /// scrolls by the list handle it keeps and takes none.
+    /// handle the frame keeps under its id. A frame made by [`scroll_list`] or
+    /// [`scroll_rows`] scrolls by the list handle it keeps and takes none.
     pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
         debug_assert!(
             !matches!(self.frame, Some(Scrolled::List { .. })),
@@ -354,10 +384,15 @@ impl Element for ScrollFrame {
                     // Kept under the frame's id with the row last brought into
                     // view, so the wheel's place holds until that row changes.
                     Some(id) => window.with_element_state(id, |kept: Option<KeptList>, _| {
+                        let strategy = if kept.is_some() {
+                            ScrollStrategy::Nearest
+                        } else {
+                            ScrollStrategy::Center
+                        };
                         let mut kept = kept.unwrap_or_default();
                         if reveal != kept.revealed {
                             if let Some(row) = reveal {
-                                kept.handle.scroll_to_item(row, ScrollStrategy::Center);
+                                kept.handle.scroll_to_item(row, strategy);
                             }
                             kept.revealed = reveal;
                         }

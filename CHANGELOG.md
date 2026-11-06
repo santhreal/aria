@@ -878,6 +878,7 @@ Notes for the latest release. For previous releases, see the
 - Building an engine no longer brings up a GPU device; the first rendered frame brings it up, so `aria new` and sessions that only edit and save skip the driver start.
 - The Ctrl+L binding is named Link or Unlink in Settings > Keyboard Shortcuts.
 - The Analysis panel keeps the moments index open for the session instead of opening and closing it for every read and write, which removes four disk syncs from every clear and detector run.
+- The command palette lays out only the rows in view, so a key that moves the highlight or edits the query draws one screen of rows instead of every command.
 
 ### Fixed
 

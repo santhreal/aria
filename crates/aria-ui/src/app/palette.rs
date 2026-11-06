@@ -356,27 +356,19 @@ impl AppState {
     }
 
     /// Move the highlight. Wraps at both ends, so Down on the last row returns to
-    /// the first.
+    /// the first. The list scrolls the least distance that draws the row whole.
     pub fn palette_move(&mut self, delta: isize) {
         let count = self.palette_hits().len();
-        let index = crate::popover::menu_step(self.palette_highlight(), count, delta).unwrap_or(0);
-        self.palette_index = index;
-        // Scrolls the least distance that draws the row whole, on the next
-        // frame, when the row's bounds are known.
-        self.palette_scroll.scroll_to_item(index);
+        self.palette_index =
+            crate::popover::menu_step(self.palette_highlight(), count, delta).unwrap_or(0);
     }
 
-    /// Highlights the first hit and returns the list to its top.
-    ///
-    /// The offset is set outright rather than scrolled to, since scrolling to
-    /// the first row stops with the row at the region's edge and the padding
-    /// above it out of view. The scroll to the first row replaces a scroll
-    /// requested before this frame, which would otherwise land on whatever
-    /// row now has that index.
+    /// Highlights the first hit and draws the hits in a new list, which stands
+    /// at its top. A list kept across a query that changed the hits would keep
+    /// the place the wheel left it at, over rows that now hold other hits.
     pub(crate) fn palette_restart(&mut self) {
         self.palette_index = 0;
-        self.palette_scroll.set_offset(gpui::Point::default());
-        self.palette_scroll.scroll_to_item(0);
+        self.palette_list = self.palette_list.wrapping_add(1);
     }
 
     /// Run the row at `index`.

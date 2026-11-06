@@ -15,11 +15,17 @@
 //! the header holding the query field after each: it stands where it stood
 //! over the full list.
 //!
-//! Not covered: the pointer wheel, which scrolls the list and leaves the
+//! A third case scrolls the list by the wheel, then types: the first hit is in
+//! view under the new query.
+//!
+//! Not covered: a wheel scroll by itself, which moves the list and leaves the
 //! highlight alone; a paste, which types through the same entry point as a
 //! typed character; and pixels.
 
-use gpui::{Bounds, Entity, Pixels, Size, TestAppContext, VisualTestContext, px, size};
+use gpui::{
+    Bounds, Entity, Modifiers, Pixels, ScrollDelta, ScrollWheelEvent, Size, TestAppContext,
+    TouchPhase, VisualTestContext, point, px, size,
+};
 
 use crate::app::{AppState, DialogKind};
 use crate::test_support::{bounds_inside, drawn_shell};
@@ -134,6 +140,38 @@ fn reopening_the_palette_starts_at_the_first_hit(cx: &mut TestAppContext) {
     );
     press(visual, "ctrl-shift-p");
     expect_shown(&state, visual, 0, "reopening after Up");
+}
+
+/// WHY: a list kept its place across a query that changed its hits, so a query
+/// typed after the wheel scrolled the list highlighted the first hit while the
+/// list stood rows past it. Each query draws its hits in a list of its own,
+/// which stands at its top.
+#[gpui::test]
+fn typing_after_the_wheel_scrolled_the_list_shows_the_first_hit(cx: &mut TestAppContext) {
+    let (state, visual) = open_palette(cx, "palette-wheel");
+    let region = visual
+        .debug_bounds("dialog-content")
+        .expect("the palette drew no scrolling region");
+    let position = region.center();
+    visual.simulate_mouse_move(position, None, Modifiers::none());
+    visual.simulate_event(ScrollWheelEvent {
+        position,
+        delta: ScrollDelta::Pixels(point(px(0.0), px(-2.0 * f32::from(region.size.height)))),
+        modifiers: Modifiers::none(),
+        touch_phase: TouchPhase::Moved,
+    });
+    visual.run_until_parked();
+    assert!(
+        visual.debug_bounds("palette-highlight").is_none(),
+        "the wheel left the first hit in view, so typing after it reads nothing"
+    );
+    press(visual, "e");
+    expect_shown(
+        &state,
+        visual,
+        0,
+        "typing 'e' after the wheel scrolled the list",
+    );
 }
 
 /// WHY: the card stood centered in the window, so each key that changed how

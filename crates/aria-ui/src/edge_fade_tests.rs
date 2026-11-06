@@ -45,9 +45,9 @@ const SCROLLS: [&str; 5] = [
     "uniform_list(",
 ];
 
-/// Fewest scroll frames the crate makes through [`scroll_y`], [`scroll_x`] and
-/// [`scroll_list`]. A frame moved to another way of scrolling drops the count
-/// below this.
+/// Fewest scroll frames the crate makes through [`scroll_y`], [`scroll_x`],
+/// [`scroll_list`] and [`super::scroll_rows`]. A frame moved to another way of
+/// scrolling drops the count below this.
 const FRAME_FLOOR: usize = 23;
 
 /// **Every scroll frame the crate makes fades the edges its content continues
@@ -62,7 +62,8 @@ fn every_scroll_frame_the_crate_makes_fades_its_edges() {
         }
         made += code.matches("edge_fade::scroll_y(").count()
             + code.matches("edge_fade::scroll_x(").count()
-            + code.matches("edge_fade::scroll_list(").count();
+            + code.matches("edge_fade::scroll_list(").count()
+            + code.matches("edge_fade::scroll_rows(").count();
         for (index, line) in code.lines().enumerate() {
             for call in SCROLLS.iter().filter(|call| line.contains(*call)) {
                 bare.push(format!("{rel}:{}: {call}", index + 1));
@@ -71,8 +72,8 @@ fn every_scroll_frame_the_crate_makes_fades_its_edges() {
     }
     assert!(
         bare.is_empty(),
-        "{} scroll frames are made without `edge_fade::scroll_y`, `scroll_x` or `scroll_list`, \
-         so they fade no edge their content continues past:\n  {}",
+        "{} scroll frames are made without `edge_fade::scroll_y`, `scroll_x`, `scroll_list` or \
+         `scroll_rows`, so they fade no edge their content continues past:\n  {}",
         bare.len(),
         bare.join("\n  ")
     );
@@ -269,6 +270,8 @@ fn a_frame_keeps_its_place_without_a_callers_handle(cx: &mut TestAppContext) {
 fn row_name(row: usize) -> Option<&'static str> {
     match row {
         0 => Some("row-0"),
+        1 => Some("row-1"),
+        4 => Some("row-4"),
         12 => Some("row-12"),
         15 => Some("row-15"),
         _ => None,
@@ -365,6 +368,35 @@ fn a_list_reveals_its_row_when_it_changes_and_keeps_the_wheels_place(cx: &mut Te
         "{what}: the last row did not come into view when it became the row revealed"
     );
     assert_in_view(visual, 15, what);
+}
+
+/// WHY: a list centered each row it brought into view, so a key that stepped
+/// the highlight one row past the bottom edge jumped the list half a view. After
+/// the first draw a row comes into view by the least scroll that draws it whole.
+#[gpui::test]
+fn a_list_brings_a_later_row_in_by_the_least_scroll(cx: &mut TestAppContext) {
+    let (rows, visual) = crate::test_support::window_view(cx, |_, _| Rows { reveal: Some(0) });
+    let what = "a list of 16 rows revealing row 4 after row 0";
+    assert_in_view(visual, 0, what);
+    visual.update(|_, cx| {
+        rows.update(cx, |view, cx| {
+            view.reveal = Some(4);
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    assert_in_view(visual, 4, what);
+    let frame = visual
+        .debug_bounds("frame")
+        .unwrap_or_else(|| panic!("{what}: the list was not drawn"));
+    let first = visual
+        .debug_bounds("row-1")
+        .unwrap_or_else(|| panic!("{what}: row 1 scrolled out of view"));
+    assert_eq!(
+        (first.top(), first.bottom()),
+        (frame.top(), frame.top() + px(CELL)),
+        "{what}: row 4 came in by more than the one row it stood past the edge"
+    );
 }
 
 /// How a parent lays out the list it holds, as the crate's panels do.

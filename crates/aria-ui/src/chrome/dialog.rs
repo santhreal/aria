@@ -12,9 +12,11 @@
 //! not fit. A card stands centered in the window, or, with
 //! [`DialogBody::anchored_top`], at a fixed share of the height under its top.
 
+use std::ops::Range;
+
 use gpui::{
     AnyElement, App, Div, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
-    ParentElement, ScrollHandle, Styled, div, px, relative,
+    ParentElement, Styled, Window, div, px, relative,
 };
 
 use crate::app::{AppState, DialogKind};
@@ -73,11 +75,18 @@ const ANCHORED_TOP: f32 = 0.15;
 /// the [`DialogBody::action`] row to the bottom. The content fills the space
 /// between them and scrolls once the card is at its size limit.
 pub struct DialogBody {
-    content: Div,
+    content: Content,
     header: Option<AnyElement>,
     actions: Vec<AnyElement>,
-    scroll: Option<ScrollHandle>,
     anchored_top: bool,
+}
+
+/// What scrolls between a card's header and its action row.
+enum Content {
+    /// A `div` with every child laid out.
+    Div(Div),
+    /// Rows of one height, only those in view laid out.
+    Rows(crate::edge_fade::ScrollFrame),
 }
 
 /// Elements have no `Debug`; this prints which regions the body has.
@@ -86,7 +95,7 @@ impl std::fmt::Debug for DialogBody {
         f.debug_struct("DialogBody")
             .field("header", &self.header.is_some())
             .field("actions", &self.actions.len())
-            .field("scroll", &self.scroll.is_some())
+            .field("rows", &matches!(self.content, Content::Rows(_)))
             .field("anchored_top", &self.anchored_top)
             .finish_non_exhaustive()
     }
@@ -97,11 +106,31 @@ impl DialogBody {
     /// (direction, gap) is kept; the card adds the padding and the scrolling.
     pub fn new(content: Div) -> Self {
         Self {
-            content,
+            content: Content::Div(content),
             header: None,
             actions: Vec::new(),
-            scroll: None,
             anchored_top: false,
+        }
+    }
+
+    /// A body whose scrolling region is `rows` rows `row` px tall, which
+    /// `render` draws by range. Only the rows in view are drawn, so a list of
+    /// a thousand rows costs a frame what a list of ten does. Row `reveal` is
+    /// brought into view as [`crate::edge_fade::scroll_rows`] brings it, and
+    /// the region keeps its place under `id`: a new `id` starts the list at
+    /// its top.
+    pub fn rows<R: IntoElement>(
+        id: impl Into<gpui::ElementId>,
+        rows: usize,
+        row: gpui::Pixels,
+        reveal: Option<usize>,
+        render: impl Fn(Range<usize>, &mut Window, &mut App) -> Vec<R> + 'static,
+    ) -> Self {
+        let frame =
+            crate::edge_fade::scroll_rows(id, rows, row, px(Theme::SPACE_LG), reveal, render);
+        Self {
+            content: Content::Rows(frame),
+            ..Self::new(div())
         }
     }
 
@@ -115,13 +144,6 @@ impl DialogBody {
     /// A body with no action draws no action row.
     pub fn action(mut self, action: impl IntoElement) -> Self {
         self.actions.push(action.into_any_element());
-        self
-    }
-
-    /// Tracks the content region with `handle`, so the caller can scroll a
-    /// row of `content` into view by its index among `content`'s children.
-    pub fn track_scroll(mut self, handle: &ScrollHandle) -> Self {
-        self.scroll = Some(handle.clone());
         self
     }
 
@@ -240,7 +262,6 @@ pub fn dialog_layer(
         content,
         header,
         actions,
-        scroll,
         anchored_top,
     } = body;
     let header = div()
@@ -263,13 +284,25 @@ pub fn dialog_layer(
         .children(header);
     // Automatic minimum height of a scroll container is zero, so this is the
     // region that gives up height when the card reaches its limit.
-    let content = crate::edge_fade::scroll_y(
-        content
-            .id("dialog-content")
-            .p(px(Theme::SPACE_LG))
-            .debug_selector(|| "dialog-content".into()),
-    )
-    .when_some(scroll, |content, handle| content.track_scroll(&handle));
+    let content = match content {
+        Content::Div(content) => crate::edge_fade::scroll_y(
+            content
+                .id("dialog-content")
+                .p(px(Theme::SPACE_LG))
+                .debug_selector(|| "dialog-content".into()),
+        )
+        .into_any_element(),
+        // The rows pad themselves inside the frame, so they scroll under the
+        // padding as a `div`'s children do. The column passes the height the
+        // card leaves it on to the frame.
+        Content::Rows(rows) => div()
+            .flex()
+            .flex_col()
+            .min_h_0()
+            .debug_selector(|| "dialog-content".into())
+            .child(rows)
+            .into_any_element(),
+    };
     let footer = (!actions.is_empty()).then(|| {
         div()
             .flex_none()

@@ -7,8 +7,10 @@
 //! offer in [`crate::app::palette`], so the keymap, the menu bar and the effect
 //! catalog reach a row without going through this file.
 
+use std::ops::Range;
+
 use gpui::{
-    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    AnyElement, CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, StatefulInteractiveElement, Styled, div, px,
 };
 
@@ -37,44 +39,80 @@ pub fn render(
         Some(query.selection()),
         &theme,
     );
-    let hits = state.read(cx).palette_hits();
-    let highlight = state.read(cx).palette_highlight();
-    let scroll = state.read(cx).palette_scroll.clone();
-    let keys = state.read(cx).ctx.context_keys();
-    let mut rows = Vec::with_capacity(hits.len());
-    for (at, offer) in hits.iter().enumerate() {
-        let live = offer.runs_now(state.read(cx), keys);
-        rows.push(
-            row(&theme, offer.clone(), live, at, highlight == Some(at), cx).into_any_element(),
-        );
-    }
-    if rows.is_empty() {
-        rows.push(
-            div()
-                .flex()
-                .items_center()
-                .h(px(Theme::ROW_HEIGHT))
-                .px(px(Theme::SPACE_SM))
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_faint)
-                .child("No command matches")
-                .into_any_element(),
-        );
-    }
-    // One row height and no gap, as a menu's rows: the palette is the menus
-    // filtered, and reads at their pitch.
-    let list = div().flex().flex_col().children(rows);
+    let (count, highlight, list) = {
+        let state = state.read(cx);
+        (
+            state.palette_hits().len(),
+            state.palette_highlight(),
+            state.palette_list,
+        )
+    };
+    let body = if count == 0 {
+        DialogBody::new(
+            div().flex().flex_col().child(
+                div()
+                    .flex()
+                    .items_center()
+                    .h(px(Theme::ROW_HEIGHT))
+                    .px(px(Theme::SPACE_SM))
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text_faint)
+                    .child("No command matches"),
+            ),
+        )
+    } else {
+        // One row height and no gap, as a menu's rows: the palette is the
+        // menus filtered, and reads at their pitch. Only the rows in view are
+        // drawn, so a key that moves the highlight lays out a screen of rows
+        // and not every command.
+        DialogBody::rows(
+            ("palette-rows", list),
+            count,
+            px(Theme::ROW_HEIGHT),
+            highlight,
+            cx.processor(
+                |shell: &mut crate::shell::Shell, range: Range<usize>, _, cx| {
+                    rows(shell, range, cx)
+                },
+            ),
+        )
+    };
     dialog_surface(
         "palette",
         DialogKind::Palette,
         "Command Palette",
         state,
         cx,
-        DialogBody::new(list)
-            .header(query_row)
-            .track_scroll(&scroll)
-            .anchored_top(),
+        body.header(query_row).anchored_top(),
     )
+}
+
+/// The rows of the hits in `range`.
+fn rows(
+    shell: &mut crate::shell::Shell,
+    range: Range<usize>,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> Vec<AnyElement> {
+    let theme = Theme::of(cx);
+    let offers: Vec<(usize, PaletteOffer, bool, bool)> = {
+        let state = shell.state.read(cx);
+        let hits = state.palette_hits();
+        let highlight = state.palette_highlight();
+        let keys = state.ctx.context_keys();
+        range
+            .filter_map(|at| {
+                let offer = hits.get(at)?;
+                let live = offer.runs_now(state, keys);
+                Some((at, offer.clone(), live, highlight == Some(at)))
+            })
+            .collect()
+    };
+    offers
+        .into_iter()
+        .map(|(at, offer, live, highlighted)| {
+            row(&theme, offer, live, at, highlighted, cx).into_any_element()
+        })
+        .collect()
 }
 
 /// One offer, drawn faint while it does not run now
@@ -107,8 +145,8 @@ fn row(
         .justify_between()
         .gap(px(Theme::SPACE_SM))
         .px(px(Theme::SPACE_SM))
+        .w_full()
         .h(px(Theme::ROW_HEIGHT))
-        .flex_none()
         .rounded(px(Theme::CONTROL_RADIUS))
         .when(highlighted, |el| {
             el.debug_selector(|| "palette-highlight".into())
