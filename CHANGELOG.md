@@ -1230,6 +1230,7 @@ Notes for the latest release. For previous releases, see the
 - The export sheet draws the marked range at 40 % opacity while no In and Out are set.
 - A disabled button or chip no longer brightens to full strength while it is pressed.
 - Settings > AI draws Reveal agent files at the end of the Agent files row and Test connection and List models on the values' column.
+- A media item's import time in the Info list now ends in "UTC", so it no longer reads as local time.
 
 ## [alpha-0.7.0] - 2026-07-22
 
