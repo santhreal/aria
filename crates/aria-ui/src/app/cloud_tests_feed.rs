@@ -286,7 +286,10 @@ fn a_skill_installs_into_the_agent_directory_and_a_malformed_one_does_not() {
         .expect_err("a file with no frontmatter is not a skill");
     assert!(err.contains("frontmatter"), "unhelpful refusal: {err}");
     assert!(
-        state.installed_skills().is_empty(),
+        !state
+            .assistant_skills()
+            .iter()
+            .any(|skill| skill.id == "pack"),
         "a refused pack must leave nothing behind"
     );
 
@@ -301,11 +304,13 @@ fn a_skill_installs_into_the_agent_directory_and_a_malformed_one_does_not() {
 
     // Installed means the agent's own loader finds it: the id is the directory name, so
     // the catalog's slash must not have escaped the skills directory.
-    let installed = state.installed_skills();
-    assert_eq!(installed.len(), 1);
-    assert_eq!(installed[0].id, "rough-cut");
-    assert_eq!(installed[0].name, "Rough cut");
-    assert_eq!(installed[0].description, "Assemble a first pass");
+    let skills = state.assistant_skills();
+    let installed = skills
+        .iter()
+        .find(|skill| skill.id == "rough-cut")
+        .expect("the installed skill is listed under its directory name");
+    assert_eq!(installed.name, "Rough cut");
+    assert_eq!(installed.description, "Assemble a first pass");
     assert!(
         state
             .agent_dir()

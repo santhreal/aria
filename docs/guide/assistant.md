@@ -49,17 +49,18 @@ Clearing the conversation drops a pending plan with it.
 
 ### Skills
 
-The panel lists the skills installed for the agent, and **Load catalog** below
-the list fetches the cloud skill catalog. Clicking an entry downloads it and
-installs it as `~/.aria/agent/skills/<id>/SKILL.md`, which is where the prompt
-builder reads skills from. A download that is not a valid skill is refused and
-installs nothing. Skills are read at send time, so a skill installed now is
-available to the next prompt, and editing a rule file takes effect on the next
-prompt without a restart.
+The panel lists the bundled skills and the skills installed for the agent, and
+**Load catalog** below the list fetches the cloud skill catalog. Clicking an
+entry downloads it and installs it as `~/.aria/agent/skills/<id>/SKILL.md`,
+which is where the prompt builder reads skills from. A download that is not a
+valid skill is refused and installs nothing. Skills are read at send time, so a
+skill installed now is available to the next prompt, and editing a rule file
+takes effect on the next prompt without a restart.
 
-The ✓ beside each skill switches it off for this conversation. It stays
-installed; the next prompt does not include it. Clearing the conversation
-switches them all back on.
+Each skill row holds the skill's name, its description and a switch. Clicking
+the row switches the skill off for this conversation. It stays installed; the
+next prompt does not include it. Clearing the conversation switches them all
+back on.
 
 Rules are read from `~/.aria/agent/` at send time. The rule text is capped, and a
 prompt that had to truncate it states that in the transcript instead of quietly

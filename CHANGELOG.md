@@ -854,6 +854,7 @@ Notes for the latest release. For previous releases, see the
 - The Audio tab's ducking note reads track, as the timeline does.
 - The Info panel draws its Errors section only while a driver, plugin or mount fault is held, as it draws Drag and Playback.
 - The Project Report reads a clip question nothing answers as a dim 0, as it reads a project count at zero, instead of None.
+- The Assistant panel draws each skill as its name, its description and a switch, instead of a check or circle glyph before the name.
 
 ### Fixed
 
@@ -1193,6 +1194,7 @@ Notes for the latest release. For previous releases, see the
 - The Paragraph panel draws the Wrap label at its left edge and the switch at its right edge.
 - The Character panel font list shows seven whole rows, and the panel scrolls when its controls are taller than the frame.
 - The Scopes panel draws its histogram at half the waveform's height, as the Viewer's scope strip does, so the Color workspace shows every scope whole instead of fading the histogram's foot under the frame edge.
+- The Assistant panel lists the bundled skills the agent is offered, so each can be held back for a conversation; it read "No skills installed" while they reached every prompt.
 
 ## [alpha-0.7.0] - 2026-07-22
 

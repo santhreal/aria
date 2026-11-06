@@ -36,14 +36,16 @@ impl AppState {
         self.data_dir.join("agent")
     }
 
-    /// Every installed skill, by id.
+    /// Every skill the assistant is offered: the bundled set and the installed
+    /// skills, an installed skill replacing a bundled one of the same id, sorted
+    /// by id. The same merge builds the prompt, so the panel lists what the
+    /// agent receives.
     ///
     /// Read from disk on demand rather than cached: skills are also installed by hand
     /// and by the agent's own tooling, and a cache would show a stale list until
     /// restart.
-    pub fn installed_skills(&self) -> Vec<UiSkill> {
-        aria_ai::extend::load_agent_dir(&self.agent_dir())
-            .skills
+    pub fn assistant_skills(&self) -> Vec<UiSkill> {
+        aria_ai::merge_skills(aria_ai::extend::load_agent_dir(&self.agent_dir()).skills)
             .into_iter()
             .map(|skill| UiSkill {
                 id: skill.id,

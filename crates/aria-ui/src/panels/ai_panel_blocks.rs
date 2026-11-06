@@ -7,7 +7,6 @@ use aria_core::count::counted;
 
 use super::*;
 use crate::theme::Theme;
-use gpui::StatefulInteractiveElement;
 
 /// A destructive host call the assistant is blocked on.
 ///
@@ -71,13 +70,13 @@ pub(super) fn ask_card(
         )
 }
 
-/// Installed skills, whether each is offered to this conversation, and the
-/// catalog they install from.
+/// The skills the assistant is offered, whether each is offered to this
+/// conversation, and the catalog more install from.
 ///
-/// Installing is what makes a skill available at all —
+/// The bundled skills and every installed one reach the system prompt —
 /// [`aria_ai::extend::load_agent_dir`] reads the agent directory at send time,
-/// puts every installed skill in the system prompt, and serves the body through
-/// `read_skill`. Clicking a row holds one back for this conversation only, so a
+/// [`aria_ai::merge_skills`] adds the bundled set, and `read_skill` serves the
+/// body. Clicking a row holds one back for this conversation only, so a
 /// procedure that does not apply to this task stops competing for the model's
 /// attention without being uninstalled for the next one.
 pub(super) fn skills_block(
@@ -85,29 +84,52 @@ pub(super) fn skills_block(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let installed = state.read(cx).installed_skills();
-    let offered = installed
+    let skills = state.read(cx).assistant_skills();
+    let offered = skills
         .iter()
         .filter(|skill| state.read(cx).assistant_skill_enabled(&skill.id))
         .count();
+    let total = skills.len();
     let mut rows: Vec<gpui::AnyElement> = Vec::new();
-    for skill in &installed {
-        let id = skill.id.clone();
+    for skill in skills {
+        let id = skill.id;
         let on = state.read(cx).assistant_skill_enabled(&id);
+        let key = crate::motion::MotionKey::new("ai-skill", &id);
+        let selector = format!("ai-skill-switch-{id}");
+        // The row presses the switch, as the Plan only label does: the name is
+        // the larger target, and the switch states the answer.
         rows.push(
             div()
-                .id(crate::motion::MotionKey::new("ai-skill", &id).element_id("ai-skill"))
+                .id(key.element_id("ai-skill"))
+                .flex()
+                .items_center()
+                .gap(px(Theme::SPACE_SM))
                 .text_size(Theme::TEXT_UI)
-                .text_color(if on { theme.text } else { theme.text_faint })
                 .cursor(gpui::CursorStyle::PointingHand)
-                .active(|style| style.opacity(0.92))
-                .hover(|el| el.bg(theme.wash(0.06)))
-                .child(gpui::SharedString::from(format!(
-                    "{} {} \u{2014} {}",
-                    if on { "\u{2713}" } else { "\u{25cb}" },
-                    skill.name,
-                    skill.description
-                )))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .flex()
+                        .gap(px(Theme::SPACE_XS))
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_color(theme.text)
+                                .child(gpui::SharedString::from(skill.name)),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_color(theme.text_faint)
+                                .child(gpui::SharedString::from(skill.description)),
+                        ),
+                )
+                .child(
+                    crate::components::switch(("ai-skill-switch", key), Some(on), theme)
+                        .debug_selector(move || selector),
+                )
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |this, _: &MouseDownEvent, _, cx| {
@@ -132,12 +154,12 @@ pub(super) fn skills_block(
             div()
                 .text_size(Theme::TEXT_UI)
                 .text_color(theme.text_muted)
-                .child(gpui::SharedString::from(if installed.is_empty() {
-                    "No skills installed".to_string()
+                .child(gpui::SharedString::from(if total == 0 {
+                    "No skills".to_string()
                 } else {
                     format!(
                         "{offered} of {} offered to the agent",
-                        counted(installed.len(), "skill", "skills")
+                        counted(total, "skill", "skills")
                     )
                 })),
         )
@@ -149,3 +171,7 @@ pub(super) fn skills_block(
             cx,
         ))
 }
+
+#[cfg(test)]
+#[path = "ai_panel_skills_tests.rs"]
+mod skills_tests;

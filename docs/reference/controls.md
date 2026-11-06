@@ -256,7 +256,7 @@ The Captions panel (`crates/aria-ui/src/panels/captions.rs`) renders speech-to-t
 | `caption-run` | Transcribe | Starts speech-to-text transcription on the selected media-backed timeline clip. | None |
 | `caption-target` (per row) | Text clips / Markers | Selects whether Commit places one timed text clip per caption or one timeline marker per caption. | None |
 | `caption-threads` (per row) | Auto / 1 / 2 / 4 / 8 | Sets how many CPU threads the transcription model decodes with; Auto uses one per core, up to 8. | None |
-| `caption-words` | One clip per word | Commits one caption per transcribed word instead of one per segment, for segments that include word timings. | None |
+| `caption-words` | Per word | Commits one caption per transcribed word instead of one per segment, for segments that include word timings. | None |
 
 ## Text
 
@@ -366,6 +366,7 @@ The AI Assistant panel (`crates/aria-ui/src/panels/ai_panel*.rs`) renders the pr
 | `ai-plan-only` | Plan only | Toggles plan-only mode so the assistant stages edits for review before execution. | None |
 | `ai-prompt` | Message Aria… | Enters a natural-language prompt or edit instruction for the AI assistant. | None |
 | `ai-send` | Send | Submits the current prompt to the configured AI assistant model. | None |
+| `ai-skill-switch` (per row) | Skill name | Turns one bundled or installed skill on or off for the assistant's prompt; a press anywhere on the row toggles it. | None |
 | `ai-stop` | Stop | Cancels the in-flight AI assistant generation or tool turn. | None |
 
 ## Export & Transcode
