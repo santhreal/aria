@@ -73,11 +73,11 @@ impl AppState {
         if self.assistant.running {
             return Err("The assistant is still working on the last prompt".into());
         }
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         if !ai.is_configured() {
             return Err("Configure an AI provider in Settings to send this prompt.".into());
         }
-        let provider = provider_from_ai(&ai)?;
+        let provider = provider_from_ai(ai)?;
         let (extensions, notes) = self.assistant_extensions();
         Ok(Ready {
             provider,

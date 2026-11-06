@@ -103,7 +103,7 @@ impl AppState {
     /// Empty before the endpoint is asked for the sources that need asking;
     /// [`AppState::ai_models_hint`] is the line that says so.
     pub fn ai_model_rows(&self) -> Vec<AiModelRow> {
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         let configured = ai.model.trim().to_string();
         match ai.source {
             AiSource::Local => local_models_availability(&self.ai_probe.installed)
@@ -148,7 +148,7 @@ impl AppState {
     /// key is a list of things that will refuse, so the row says to add the key
     /// instead of offering the request.
     pub fn ai_models_hint(&self) -> String {
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         if let Some(line) = &self.ai_probe.result {
             return line.clone();
         }
@@ -176,7 +176,7 @@ impl AppState {
     /// whether this build knows it, and a typo reads exactly like a model that
     /// is merely not installed. The catalog answers the first half of that.
     pub fn ai_model_detail(&self) -> String {
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         let id = ai.model.trim();
         if id.is_empty() {
             return "No model chosen".to_string();
@@ -238,7 +238,7 @@ impl AppState {
         if self.ai_probe.busy {
             return;
         }
-        let ai = self.cloud_settings().ai;
+        let ai = self.cloud_settings().ai.clone();
         let provider = match provider_from_ai(&ai) {
             Ok(provider) => provider,
             Err(err) => {
@@ -289,7 +289,7 @@ impl AppState {
         if self.ai_probe.busy {
             return;
         }
-        let ai = self.cloud_settings().ai;
+        let ai = self.cloud_settings().ai.clone();
         let provider = match provider_from_ai(&ai) {
             Ok(provider) => provider,
             Err(err) => {

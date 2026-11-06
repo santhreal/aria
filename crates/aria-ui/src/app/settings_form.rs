@@ -306,7 +306,7 @@ impl AppState {
             Some(SettingsField::Filter) => self.settings_form.filter.clone(),
             Some(SettingsField::KeymapName) => self.active_keymap().unwrap_or_default().to_owned(),
             Some(SettingsField::Plugin(key)) => self.plugin_setting(key),
-            Some(field) => field.value(&self.cloud_settings()),
+            Some(field) => field.value(self.cloud_settings()),
             None => String::new(),
         };
         self.settings_form.draft.set(draft);
@@ -663,7 +663,7 @@ impl AppState {
 
     /// Which parts of a turn are switched on, from the settings that decide it.
     pub fn agent_phases(&self) -> String {
-        let ai = self.cloud_settings().ai;
+        let ai = &self.cloud_settings().ai;
         let mut on: Vec<&str> = vec!["Edits", "read-only tools"];
         if ai.reasoning_summary == aria_settings::ReasoningSummary::Auto {
             on.push("reasoning");
@@ -706,7 +706,7 @@ impl AppState {
             SettingsField::Filter => self.settings_form.filter.clone(),
             SettingsField::KeymapName => self.active_keymap().unwrap_or_default().to_owned(),
             SettingsField::Plugin(key) => self.plugin_setting(key),
-            field => field.value(&self.cloud_settings()),
+            field => field.value(self.cloud_settings()),
         };
         (saved, false)
     }

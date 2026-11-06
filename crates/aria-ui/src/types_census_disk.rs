@@ -430,7 +430,7 @@ fn settings_dialog_draws_the_held_cloud_settings_and_schema(cx: &mut gpui::TestA
 
     assert!(
         visual
-            .update(|_, app| state.read(app).cloud_settings().ai.model)
+            .update(|_, app| state.read(app).cloud_settings().ai.model.clone())
             .is_empty(),
         "cloud_settings must return the held config until refreshed"
     );
@@ -449,7 +449,7 @@ fn settings_dialog_draws_the_held_cloud_settings_and_schema(cx: &mut gpui::TestA
     pump(visual);
 
     assert_eq!(
-        visual.update(|_, app| state.read(app).cloud_settings().ai.model),
+        visual.update(|_, app| state.read(app).cloud_settings().ai.model.clone()),
         "held-local"
     );
     assert_eq!(
