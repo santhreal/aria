@@ -157,7 +157,10 @@ mod mp4_av_verification {
         AudioTransition, CanvasAspect, CanvasSettings, Generator, MediaSource, Param, Project,
         Rational, TextStyle, TimeRange, TrackKind,
     };
-    use aria_render::{EXPORT_AUDIO_RATE, Renderer, export_to_file, sample_boundary};
+    use aria_render::{
+        EXPORT_AUDIO_RATE, ExportSettings, Renderer, export_to_file,
+        export_to_file_with_encoder_observed, sample_boundary,
+    };
 
     use super::MS;
 
@@ -546,5 +549,253 @@ mod mp4_av_verification {
                 }
             }
         }
+    }
+
+    fn decode_audio_f32_mono_48k(path: &Path) -> Vec<f32> {
+        let out = Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(path)
+            .args(["-vn", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"])
+            .output()
+            .expect("ffmpeg mono decode");
+        assert!(out.status.success(), "ffmpeg mono decode failed");
+        out.stdout
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|b| f32::from_le_bytes(*b))
+            .collect()
+    }
+
+    fn probe_audio_stream_timing(path: &Path) -> (i64, u64, f64, f64) {
+        let out = Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=start_pts,duration_ts,duration:format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+            ])
+            .arg(path)
+            .output()
+            .expect("ffprobe audio");
+        assert!(out.status.success(), "ffprobe audio failed");
+        let text = String::from_utf8_lossy(&out.stdout);
+        let nums: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let start_pts: i64 = nums[0].parse().expect("start_pts");
+        let duration_ts: u64 = nums[1].parse().expect("duration_ts");
+        let stream_dur: f64 = nums[2].parse().expect("stream duration");
+        let fmt_dur: f64 = nums[3].parse().expect("format duration");
+        (start_pts, duration_ts, stream_dur, fmt_dur)
+    }
+
+    /// Normalized cross-correlation peak `(best_lag_samples, best_corr)` of
+    /// `export_mono` against `src_mono` over `[-max_lag..=max_lag]` using a
+    /// template window `[t0..t0 + window_len]`. A positive lag means `export_mono`
+    /// is delayed (late) relative to `src_mono`.
+    fn cross_correlation_lag(
+        src_mono: &[f32],
+        export_mono: &[f32],
+        t0: usize,
+        window_len: usize,
+        max_lag: isize,
+    ) -> (isize, f64) {
+        let tmpl = &src_mono[t0..t0 + window_len];
+        let tmpl_mean = tmpl.iter().map(|&x| f64::from(x)).sum::<f64>() / window_len as f64;
+        let tmpl_centered: Vec<f64> = tmpl.iter().map(|&x| f64::from(x) - tmpl_mean).collect();
+        let tmpl_norm = tmpl_centered.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let mut best_lag = 0isize;
+        let mut best_corr = f64::NEG_INFINITY;
+        for lag in -max_lag..=max_lag {
+            let start = t0 as isize + lag;
+            if start < 0 || (start as usize) + window_len > export_mono.len() {
+                continue;
+            }
+            let seg = &export_mono[start as usize..start as usize + window_len];
+            let seg_mean = seg.iter().map(|&x| f64::from(x)).sum::<f64>() / window_len as f64;
+            let mut dot = 0.0f64;
+            let mut seg_sq = 0.0f64;
+            for (&a, &b) in tmpl_centered.iter().zip(seg.iter()) {
+                let bc = f64::from(b) - seg_mean;
+                dot += a * bc;
+                seg_sq += bc * bc;
+            }
+            let corr = dot / (tmpl_norm * seg_sq.sqrt() + 1e-12);
+            if corr > best_corr {
+                best_corr = corr;
+                best_lag = lag;
+            }
+        }
+        (best_lag, best_corr)
+    }
+
+    /// WHY: AAC encoders introduce MDCT / filterbank priming delay (1024 samples
+    /// in `avenc_aac`, 1600 samples in `voaacenc`, 2048 in `fdkaacenc`) and
+    /// either pad the final frame at EOS (`avenc_aac`) or drop lookahead samples
+    /// on EOS (`voaacenc`). Without edit-list (`edts`/`elst`) priming trim and
+    /// EOS flush/duration trimming, exported MP4 audio decodes 1024..1600 samples
+    /// late and changes the container duration, inflating `aria_decoder::probe`
+    /// `frame_count` by +1.
+    ///
+    /// Iterates over every AAC encoder in `GstEncoder::AAC_ENCODERS` installed on
+    /// this host, exports `fixture-640x360-24fps-3s-av.mp4`, and asserts 0-sample
+    /// lag (±1 sample) and exact sequence duration.
+    #[test]
+    fn exported_mp4_audio_has_zero_priming_lag_and_exact_sequence_duration_across_every_aac_encoder()
+     {
+        use aria_encoder::GstEncoder;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+        let src_mono = decode_audio_f32_mono_48k(&fixture);
+        let fps = Rational::FPS_24;
+        let frames = 48_i64;
+        let expected_samples = (frames as u64) * (EXPORT_AUDIO_RATE as u64) / (fps.num as u64);
+        assert_eq!(expected_samples, 96_000);
+
+        let mut project = Project::new("aac-priming", fps);
+        project.timeline_mut().set_canvas(CanvasSettings {
+            aspect: CanvasAspect::Wide16x9,
+            background: [0, 0, 0],
+            resolution: Some([320, 180]),
+        });
+        let media = project.add_media(MediaSource::new(&fixture, 640, 360, fps, frames, true));
+        let v1 = project.add_track(TrackKind::Video, "V1");
+        let a1 = project.add_track(TrackKind::Audio, "A1");
+        project
+            .add_clip(
+                v1,
+                media,
+                TimeRange::at_rate(0, frames, fps),
+                RationalTime::new(0, fps),
+            )
+            .expect("v1 clip");
+        project
+            .add_clip(
+                a1,
+                media,
+                TimeRange::at_rate(0, frames, fps),
+                RationalTime::new(0, fps),
+            )
+            .expect("a1 clip");
+
+        let mut renderer = Renderer::new_headless().expect("headless renderer");
+        let mut tested = Vec::new();
+        for &aac_name in GstEncoder::AAC_ENCODERS {
+            if !GstEncoder::has_aac_encoder(aac_name) {
+                continue;
+            }
+            tested.push(aac_name);
+            let out_mp4 = dir.path().join(format!("export_{aac_name}.mp4"));
+            let exported = export_to_file_with_encoder_observed(
+                &mut renderer,
+                &project,
+                &out_mp4,
+                ExportSettings::for_project(&project),
+                &mut |path, cfg| {
+                    Ok(Box::new(GstEncoder::open_with_aac_encoder(
+                        path, cfg, aac_name,
+                    )?))
+                },
+                &mut |_, _| true,
+            )
+            .unwrap_or_else(|e| panic!("{aac_name}: export failed: {e}"));
+            assert_eq!(exported.frames, frames as u64, "{aac_name}: frames written");
+
+            let dec_mono = decode_audio_f32_mono_48k(&out_mp4);
+            let (best_lag, best_corr) =
+                cross_correlation_lag(&src_mono, &dec_mono, 4_800, 86_400, 4_800);
+            assert!(
+                best_corr > 0.90,
+                "{aac_name}: cross-correlation peak {best_corr:.4} too low"
+            );
+            assert!(
+                best_lag.abs() <= 1,
+                "{aac_name}: decoded audio lag is {best_lag} samples ({:.2} ms), expected 0 ± 1 sample",
+                best_lag as f64 * 1000.0 / EXPORT_AUDIO_RATE as f64
+            );
+            let sample_diff = (dec_mono.len() as i64 - expected_samples as i64).abs();
+            assert!(
+                sample_diff < 1024,
+                "{aac_name}: decoded audio length {} samples differs from sequence {expected_samples} by {sample_diff} (>= one 1024-sample AAC frame)",
+                dec_mono.len()
+            );
+
+            let (start_pts, duration_ts, stream_dur, fmt_dur) = probe_audio_stream_timing(&out_mp4);
+            assert_eq!(start_pts, 0, "{aac_name}: audio start_pts should be 0");
+            assert_eq!(
+                duration_ts, expected_samples,
+                "{aac_name}: audio duration_ts {duration_ts} != {expected_samples}"
+            );
+            assert!(
+                (stream_dur - 2.0).abs() < 1e-3,
+                "{aac_name}: audio stream duration {stream_dur} != 2.0"
+            );
+            assert!(
+                (fmt_dur - 2.0).abs() < 1e-3,
+                "{aac_name}: container format duration {fmt_dur} != 2.0"
+            );
+
+            let probed = aria_decoder::probe(&out_mp4).expect("aria_decoder::probe");
+            assert_eq!(
+                probed.frame_count, frames,
+                "{aac_name}: aria_decoder::probe frame_count inflated"
+            );
+
+            // Also verify a 25-frame (1.042 s, 50_000-sample) ranged export so
+            // audio duration matches the 1.042 s video span instead of 1.063 s.
+            let range_frames = 25_i64;
+            let range_samples =
+                (range_frames as u64) * (EXPORT_AUDIO_RATE as u64) / (fps.num as u64);
+            let range_dur_sec = range_frames as f64 / fps.num as f64;
+            let range_mp4 = dir.path().join(format!("export_range_{aac_name}.mp4"));
+            let mut range_settings = ExportSettings::for_project(&project);
+            range_settings.range = Some((
+                RationalTime::new(0, fps),
+                RationalTime::new(range_frames, fps),
+            ));
+            let range_exported = export_to_file_with_encoder_observed(
+                &mut renderer,
+                &project,
+                &range_mp4,
+                range_settings,
+                &mut |path, cfg| {
+                    Ok(Box::new(GstEncoder::open_with_aac_encoder(
+                        path, cfg, aac_name,
+                    )?))
+                },
+                &mut |_, _| true,
+            )
+            .unwrap_or_else(|e| panic!("{aac_name}: ranged export failed: {e}"));
+            assert_eq!(range_exported.frames, range_frames as u64);
+            let (r_start, r_dur_ts, r_stream_dur, r_fmt_dur) =
+                probe_audio_stream_timing(&range_mp4);
+            assert_eq!(r_start, 0, "{aac_name}: ranged audio start_pts should be 0");
+            assert_eq!(
+                r_dur_ts, range_samples,
+                "{aac_name}: ranged audio duration_ts {r_dur_ts} != {range_samples}"
+            );
+            assert!(
+                (r_stream_dur - range_dur_sec).abs() < 1e-3,
+                "{aac_name}: ranged audio duration {r_stream_dur} != {range_dur_sec}"
+            );
+            assert!(
+                (r_fmt_dur - range_dur_sec).abs() < 1e-3,
+                "{aac_name}: ranged container duration {r_fmt_dur} != {range_dur_sec}"
+            );
+        }
+        assert!(
+            !tested.is_empty(),
+            "no AAC encoder from {:?} is installed on this host",
+            GstEncoder::AAC_ENCODERS
+        );
     }
 }

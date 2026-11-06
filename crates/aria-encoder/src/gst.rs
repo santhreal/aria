@@ -5,26 +5,25 @@
 //! `x265enc`). Missing plugins return [`EncodeError::Unsupported`], naming the
 //! package that carries them. Aria never ships a codec.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
-use aria_core::{
-    AudioEncoderConfig, EncodeError, EncoderConfig, RationalTime, VideoCodec, VideoEncoder,
-    VideoFrame,
-};
+use aria_core::{EncodeError, EncoderConfig, RationalTime, VideoCodec, VideoEncoder, VideoFrame};
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_app as gst_app;
-use gstreamer_audio as gst_audio;
 
 use crate::EncoderChoice;
 use crate::yuv::matrix_for;
 
+#[path = "gst_audio.rs"]
+mod audio;
 #[path = "gst_element.rs"]
 mod element;
 #[path = "gst_frame.rs"]
 mod frame;
 
+use audio::AudioBranch;
 pub(crate) use element::{await_codec_probe, probe_codecs, probed_codecs};
 use element::{configure_encoder, pick_encoder};
 use frame::{FrameLayout, open_buffer_pool, video_caps, write_frame_to_nv12};
@@ -51,9 +50,10 @@ fn ensure_init() -> Result<(), EncodeError> {
 
 /// An H.264 (+ optional AAC) → mp4 encoder backed by GStreamer.
 pub struct GstEncoder {
+    output_path: PathBuf,
     pipeline: gst::Pipeline,
     video: gst_app::AppSrc,
-    audio: Option<gst_app::AppSrc>,
+    audio: Option<AudioBranch>,
     buffer_pool: Option<gst::BufferPool>,
     layout: FrameLayout,
     config: EncoderConfig,
@@ -82,7 +82,32 @@ impl std::fmt::Debug for GstEncoder {
 }
 
 impl GstEncoder {
+    /// Candidate GStreamer AAC encoder elements in priority order.
+    pub const AAC_ENCODERS: &[&str] = &["avenc_aac", "fdkaacenc", "voaacenc"];
+
+    /// Whether the GStreamer registry on this host provides the named AAC encoder.
+    pub fn has_aac_encoder(name: &str) -> bool {
+        ensure_init().is_ok() && gst::ElementFactory::find(name).is_some()
+    }
+
+    /// Open the encoder forcing a specific AAC element from [`Self::AAC_ENCODERS`].
+    pub fn open_with_aac_encoder(
+        path: &Path,
+        config: EncoderConfig,
+        aac_encoder: &str,
+    ) -> Result<Self, EncodeError> {
+        Self::open_inner(path, config, Some(aac_encoder))
+    }
+
     pub fn open(path: &Path, config: EncoderConfig) -> Result<Self, EncodeError> {
+        Self::open_inner(path, config, None)
+    }
+
+    fn open_inner(
+        path: &Path,
+        config: EncoderConfig,
+        aac_override: Option<&str>,
+    ) -> Result<Self, EncodeError> {
         ensure_init()?;
         let (width, height) = config.size;
         if width == 0 || height == 0 {
@@ -92,7 +117,7 @@ impl GstEncoder {
         }
         let frames = video_caps(width, height, config.frame_rate, matrix_for(&config.color))?;
         let (choice, encoder) = pick_encoder(config.video_codec, &frames)?;
-        match Self::assemble(path, config, choice, &encoder, &frames) {
+        match Self::assemble(path, config, choice, &encoder, &frames, aac_override) {
             Ok(opened) => Ok(opened),
             Err(err) => {
                 // The picked element is open (`READY`), and GStreamer will not
@@ -111,6 +136,7 @@ impl GstEncoder {
         choice: EncoderChoice,
         encoder: &gst::Element,
         v_caps: &gst::Caps,
+        aac_override: Option<&str>,
     ) -> Result<Self, EncodeError> {
         let (width, height) = config.size;
         let enc_name: &str = &choice.encoder;
@@ -163,14 +189,16 @@ impl GstEncoder {
             .map_err(|e| EncodeError::Start(e.to_string()))?;
 
         let audio = if let Some(audio_cfg) = config.audio {
-            Some(add_audio_branch(&pipeline, &mux, audio_cfg)?)
+            Some(AudioBranch::add(&pipeline, &mux, audio_cfg, aac_override)?)
         } else {
             None
         };
 
         let failure = end_sources_on_error(
             &pipeline,
-            [Some(&video), audio.as_ref()].into_iter().flatten(),
+            [Some(&video), audio.as_ref().map(|a| &a.src)]
+                .into_iter()
+                .flatten(),
         );
         if let Err(err) = pipeline.set_state(gst::State::Playing) {
             let _ = pipeline.set_state(gst::State::Null);
@@ -178,6 +206,7 @@ impl GstEncoder {
         }
 
         Ok(Self {
+            output_path: path.to_path_buf(),
             pipeline,
             video,
             audio,
@@ -254,30 +283,20 @@ impl VideoEncoder for GstEncoder {
     }
 
     fn push_audio(&mut self, samples: &[f32], pts: RationalTime) -> Result<(), EncodeError> {
-        let Some(audio) = self.audio.as_ref() else {
-            return Err(EncodeError::unsupported(
-                "this encoder has no audio track (config.audio was None)",
-            ));
-        };
         if self.finished {
             return Err(EncodeError::Encode(
                 "encoder already finished. Open a new encode session.".into(),
             ));
         }
-        let bytes = bytemuck::cast_slice::<f32, u8>(samples).to_vec();
-        let mut buffer = gst::Buffer::from_mut_slice(bytes);
-        {
-            let buffer = buffer.get_mut().ok_or_else(|| {
-                EncodeError::Encode("couldn't write an audio encode buffer.".into())
-            })?;
-            buffer.set_pts(gst::ClockTime::from_nseconds(
-                pts.in_units(NS_PER_SEC) as u64
+        let Some(audio) = self.audio.as_mut() else {
+            return Err(EncodeError::unsupported(
+                "this encoder has no audio track (config.audio was None)",
             ));
+        };
+        if let Err(flow) = audio.push_samples(samples, pts) {
+            return Err(self.push_failed(flow));
         }
-        audio
-            .push_buffer(buffer)
-            .map(|_| ())
-            .map_err(|flow| self.push_failed(flow))
+        Ok(())
     }
 
     fn finish(&mut self) -> Result<(), EncodeError> {
@@ -287,10 +306,10 @@ impl VideoEncoder for GstEncoder {
         self.video
             .end_of_stream()
             .map_err(|flow| self.push_failed(flow))?;
-        if let Some(audio) = &self.audio {
-            audio
-                .end_of_stream()
-                .map_err(|flow| self.push_failed(flow))?;
+        if let Some(audio) = self.audio.as_mut()
+            && let Err(flow) = audio.finish_stream()
+        {
+            return Err(self.push_failed(flow));
         }
         let bus = self
             .pipeline
@@ -319,6 +338,9 @@ impl VideoEncoder for GstEncoder {
         if let Some(pool) = &self.buffer_pool {
             let _ = pool.set_active(false);
         }
+        if let Some(audio) = &self.audio {
+            audio.patch_mp4_edit_list(&self.output_path)?;
+        }
         self.finished = true;
         Ok(())
     }
@@ -337,7 +359,7 @@ impl Drop for GstEncoder {
         if !self.finished {
             let _ = self.video.end_of_stream();
             if let Some(audio) = &self.audio {
-                let _ = audio.end_of_stream();
+                let _ = audio.src.end_of_stream();
             }
         }
         let _ = self.pipeline.set_state(gst::State::Null);
@@ -390,63 +412,6 @@ fn end_sources_on_error<'a>(
     failure
 }
 
-fn add_audio_branch(
-    pipeline: &gst::Pipeline,
-    mux: &gst::Element,
-    audio: AudioEncoderConfig,
-) -> Result<gst_app::AppSrc, EncodeError> {
-    let Some(aac_name) = ["avenc_aac", "fdkaacenc", "voaacenc"]
-        .into_iter()
-        .find(|n| gst::ElementFactory::find(n).is_some())
-    else {
-        return Err(EncodeError::unsupported(
-            "no AAC encoder plugin found. Install gstreamer1.0-libav or gstreamer1.0-plugins-bad.",
-        ));
-    };
-
-    let src = gst_app::AppSrc::builder()
-        .format(gst::Format::Time)
-        .caps(&audio_caps(audio)?)
-        .stream_type(gst_app::AppStreamType::Stream)
-        .is_live(false)
-        .block(true)
-        .build();
-    let convert = make("audioconvert")?;
-    let resample = make("audioresample")?;
-    let encoder = gst::ElementFactory::make(aac_name)
-        .build()
-        .map_err(|e| EncodeError::Start(e.to_string()))?;
-    if encoder.find_property("bitrate").is_some() {
-        encoder.set_property("bitrate", AAC_BIT_RATE);
-    }
-    let parse = make("aacparse")?;
-    let queue = mux_queue(AUDIO_QUEUE_NS)?;
-
-    pipeline
-        .add_many([
-            src.upcast_ref(),
-            &convert,
-            &resample,
-            &encoder,
-            &parse,
-            &queue,
-        ])
-        .map_err(|e| EncodeError::Start(e.to_string()))?;
-    gst::Element::link_many([
-        src.upcast_ref(),
-        &convert,
-        &resample,
-        &encoder,
-        &parse,
-        &queue,
-    ])
-    .map_err(|e| EncodeError::Start(e.to_string()))?;
-    queue
-        .link(mux)
-        .map_err(|e| EncodeError::Start(e.to_string()))?;
-    Ok(src)
-}
-
 /// How much coded video the video branch holds in front of the muxer: well
 /// past the coder delay of AAC, which is a few thousand samples at any frame
 /// rate.
@@ -483,15 +448,6 @@ fn mux_queue(max_time_ns: u64) -> Result<gst::Element, EncodeError> {
                 "GStreamer element queue is missing ({e}). Install gstreamer1.0-plugins-base."
             ))
         })
-}
-
-fn audio_caps(audio: AudioEncoderConfig) -> Result<gst::Caps, EncodeError> {
-    Ok(gst::Caps::builder("audio/x-raw")
-        .field("format", gst_audio::AUDIO_FORMAT_F32.to_str())
-        .field("layout", "interleaved")
-        .field("rate", audio.sample_rate as i32)
-        .field("channels", i32::from(audio.channels))
-        .build())
 }
 
 fn make(factory: &str) -> Result<gst::Element, EncodeError> {

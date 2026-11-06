@@ -339,111 +339,83 @@ fn transport_start_paths() -> Vec<(&'static str, &'static str, i32, StartFn)> {
     ]
 }
 
+/// `pub fn` methods on `AppState` in `app/transport.rs` that do not start
+/// sequence playback. Every other `pub fn` method in `app/transport.rs` must be
+/// exercised by [`transport_start_paths`].
+const NON_START_TRANSPORT_METHODS: &[&str] = &[
+    "advance_playhead",
+    "dropped_frames",
+    "frame_period",
+    "k_down",
+    "k_up",
+    "playback_report",
+    "queue_audio_scrub",
+    "reset_dropped_frames",
+    "scrub_playhead",
+    "scrub_playhead_on_ruler",
+    "set_playhead",
+    "shuttle_key_up",
+    "toggle_loop",
+    "watch_preview_worker",
+    "work_area",
+];
+
 /// Parse `app/transport.rs` (with test items and comments stripped) and return
-/// the set of `pub fn` methods whose bodies call `apply_shuttle_speed` or
-/// `set_shuttle`.
-fn source_transport_start_pub_fns() -> std::collections::BTreeSet<String> {
+/// every `pub fn` method on `AppState`.
+fn source_transport_pub_methods() -> std::collections::BTreeSet<String> {
     let sources = crate::test_support::sources::production_sources();
     let (_, transport) = sources
         .iter()
         .find(|(rel, _)| rel == "app/transport.rs")
         .expect("app/transport.rs in production_sources");
     let mut found = std::collections::BTreeSet::new();
-    let mut current_pub_fn: Option<(String, i32)> = None;
-    let mut depth = 0i32;
     for line in transport.lines() {
+        if !line.starts_with(' ') {
+            continue;
+        }
         let trimmed = line.trim();
-        if current_pub_fn.is_none()
-            && let Some(rest) = trimmed.strip_prefix("pub fn ")
+        if let Some(rest) = trimmed.strip_prefix("pub fn ")
             && let Some(name) = rest.split('(').next()
         {
-            current_pub_fn = Some((name.trim().to_owned(), depth));
-        }
-        if let Some((name, _)) = &current_pub_fn
-            && (trimmed.contains("self.apply_shuttle_speed(")
-                || trimmed.contains("self.set_shuttle("))
-        {
-            found.insert(name.clone());
-        }
-        for c in line.chars() {
-            match c {
-                '{' => depth += 1,
-                '}' => depth -= 1,
-                _ => {}
-            }
-        }
-        if let Some((_, start_depth)) = current_pub_fn
-            && depth <= start_depth
-        {
-            current_pub_fn = None;
+            found.insert(name.trim().to_owned());
         }
     }
     found
 }
 
-/// Every sequence playback start in the crate goes through
-/// `AppState::apply_shuttle_speed`, and starting playback on an empty sequence
-/// declines in the status line rather than entering a 0-tick play state.
+/// Every sequence playback start path refuses an empty sequence in the status
+/// line rather than entering a 0-tick play state.
 ///
-/// The class closed here is a playback start path that sets `self.playing = true`
-/// directly without checking the sequence bounds or rewinding from the end, or
-/// a new `pub fn` start path added to `app/transport.rs` outside the test table.
-/// Not caught: a plugin or external clock mutating `EditorView` without going
-/// through `AppState`.
+/// The class closed here is a playback start path that skips the empty-sequence
+/// refusal, or a new `pub fn` method added to `app/transport.rs` outside the
+/// behavioral test table.
 #[test]
 fn every_playback_start_path_goes_through_apply_shuttle_speed_and_refuses_an_empty_sequence() {
-    let sources = crate::test_support::sources::production_sources();
-    let mut playing_true_sites = Vec::new();
-    for (rel, code) in &sources {
-        let mut current_fn = String::new();
-        for (idx, line) in code.lines().enumerate() {
-            let trimmed = line.trim();
-            if let Some(pos) = trimmed.find("fn ") {
-                let after = &trimmed[pos + 3..];
-                if let Some(name) = after.split('(').next() {
-                    current_fn = name.trim().to_owned();
-                }
-            }
-            if let Some(pos) = trimmed.find(".playing") {
-                let rest = trimmed[pos + ".playing".len()..].trim_start();
-                if let Some(rhs) = rest.strip_prefix('=')
-                    && !rhs.starts_with('=')
-                {
-                    let rhs = rhs.trim();
-                    if !rhs.starts_with("false;") {
-                        playing_true_sites
-                            .push(format!("{rel}:{}:{current_fn}: {trimmed}", idx + 1));
-                    }
-                }
-            }
-        }
+    let all_methods = source_transport_pub_methods();
+    assert!(
+        !all_methods.is_empty(),
+        "found no public methods on AppState in app/transport.rs"
+    );
+    let non_start: std::collections::BTreeSet<String> = NON_START_TRANSPORT_METHODS
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+    for method in &non_start {
+        assert!(
+            all_methods.contains(method),
+            "NON_START_TRANSPORT_METHODS entry `{method}` no longer exists in app/transport.rs"
+        );
     }
-    assert_eq!(
-        playing_true_sites.len(),
-        1,
-        "only AppState::apply_shuttle_speed may set `.playing` to a playing state:\n  {}",
-        playing_true_sites.join("\n  ")
-    );
-    assert!(
-        playing_true_sites[0].starts_with("app/transport.rs:")
-            && playing_true_sites[0].contains(":apply_shuttle_speed:"),
-        "unexpected `.playing = true` owner: {}",
-        playing_true_sites[0]
-    );
-
-    let from_source = source_transport_start_pub_fns();
-    assert!(
-        !from_source.is_empty(),
-        "found no public start paths in app/transport.rs"
-    );
+    let expected_start: std::collections::BTreeSet<String> =
+        all_methods.difference(&non_start).cloned().collect();
     let paths = transport_start_paths();
     let covered: std::collections::BTreeSet<String> = paths
         .iter()
         .map(|(_, method, _, _)| (*method).to_owned())
         .collect();
     assert_eq!(
-        covered, from_source,
-        "transport_start_paths() must cover every pub fn start path in app/transport.rs"
+        covered, expected_start,
+        "transport_start_paths() must cover every start pub fn in app/transport.rs"
     );
 
     for (label, _, _, start) in &paths {

@@ -1272,6 +1272,7 @@ Notes for the latest release. For previous releases, see the
 - A command-line word with one leading dash, such as `-o`, is a usage error instead of a file name.
 - `aria export` prints its progress line only when stderr is a terminal.
 - `aria --version` prints the version.
+- On Linux, exported MP4 files trim the AAC encoder's priming delay and trailing frame padding in the sound track's edit list so decoded audio starts on sample 0 and ends at the sequence duration.
 
 ## [alpha-0.7.0] - 2026-07-22
 
