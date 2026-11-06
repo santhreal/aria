@@ -873,6 +873,7 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
+- Sample Project places its bundled still on V1, starting forward playback from the end of the sequence or work area rewinds to the start and reverse playback at the start jumps to the end, starting playback on an empty sequence reports "The sequence has no clips" in the status line, and playback vsyncs publish the advancing playhead to EditorView.
 - Changing clip speed or editing a speed curve prunes the transitions it invalidates and restores them across undo and redo.
 - `Project::is_media_referenced` and `remove_media` check inactive timelines, nested sequences, and baked clip snapshots before removing media from the bin.
 - Shot detection samples 30 frames per second and finds the cuts of fast-cut footage on their frames, including dark and partial-frame cuts, instead of finding none.

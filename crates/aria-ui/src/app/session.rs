@@ -578,7 +578,7 @@ impl AppState {
     pub fn open_sample_project(&mut self) -> Result<(), EngineError> {
         self.new_project()?;
         let still = crate::app::recents::sample_still(&self.data_dir);
-        self.import_media(still)?;
+        self.import_dropped_paths(vec![still])?;
         Ok(())
     }
 

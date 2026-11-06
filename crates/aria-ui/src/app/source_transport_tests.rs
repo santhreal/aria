@@ -186,6 +186,9 @@ fn space_on_a_source_tab_runs_its_clock_and_not_the_sequence() {
 #[test]
 fn space_with_another_panel_active_plays_the_sequence() {
     let mut state = viewer_on_source();
+    state
+        .cut_source_in(crate::types::EditMode::Overwrite)
+        .expect("the take lands in the sequence");
     state.active_panel = ActivePanel::Timeline;
     state.space();
     assert!(state.playing);
@@ -199,6 +202,9 @@ fn space_with_another_panel_active_plays_the_sequence() {
 #[test]
 fn one_clock_runs_at_a_time() {
     let mut state = viewer_on_source();
+    state
+        .cut_source_in(crate::types::EditMode::Overwrite)
+        .expect("the take lands in the sequence");
     state.toggle_playback();
     assert!(state.playing);
     state.space();

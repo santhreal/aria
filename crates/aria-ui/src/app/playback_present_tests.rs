@@ -271,3 +271,87 @@ async fn a_vsync_moves_the_playhead_while_the_engine_is_held(cx: &mut TestAppCon
         "the stop left the edit made under the run out of the store"
     );
 }
+
+/// Starting a session from Home with media (`Pick::OpenSample` or
+/// `drop_on_home`) places the media on a timeline lane so playback advances
+/// both the sequence playhead and the published `EditorView` playhead.
+///
+/// The class closed here is a Home media entry point that imports into the
+/// pool without placing a clip on a track, leaving `duration_ticks` at zero so
+/// pressing Play immediately stops at `00:00:00:00` and plugins reading
+/// `EditorView` stay at tick `0`. Not caught: an external audio device clock
+/// that reports a non-advancing sample position.
+#[gpui::test]
+async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "vsync-sample");
+    for label in ["open_sample_project", "drop_on_home"] {
+        visual.update(|window, app| {
+            state.update(app, |state, cx| {
+                state.go_home();
+                state.save_project().expect("clean session on Home");
+                match label {
+                    "open_sample_project" => {
+                        crate::surfaces::home_pick::apply(
+                            state,
+                            crate::surfaces::home_pick::Pick::OpenSample,
+                        )
+                        .expect("open sample project");
+                    }
+                    "drop_on_home" => {
+                        state
+                            .drop_on_home(vec![fixture()])
+                            .expect("drop media on Home");
+                    }
+                    _ => unreachable!(),
+                }
+                assert_eq!(state.route, crate::types::UiRoute::Editor, "{label}");
+                state.toggle_viewer_playback();
+                cx.notify();
+            });
+            crate::app::start_playback(state.clone(), window, app);
+        });
+        settle(&state, visual).await;
+        visual.run_until_parked();
+
+        assert_eq!(
+            vsync(&state, visual, 1),
+            1,
+            "{label}: playback stopped on the first vsync (duration_ticks = {})",
+            visual.read(|app| state.read(app).store.sequence.duration_ticks)
+        );
+        visual.run_until_parked();
+        settle(&state, visual).await;
+        assert_eq!(vsync(&state, visual, 2), 1, "{label}: second vsync");
+        visual.run_until_parked();
+
+        visual.read(|app| {
+            let state = state.read(app);
+            assert!(
+                state.playhead.value > 0,
+                "{label}: playhead stayed at {}",
+                state.playhead.value
+            );
+            assert_eq!(
+                state.shown_tick,
+                Some(state.playhead.value),
+                "{label}: Viewer frame did not advance with playhead"
+            );
+            let view = state
+                .ctx
+                .try_get::<aria_plugin::EditorView>()
+                .expect("EditorView mounted")
+                .current()
+                .expect("EditorView published");
+            assert_eq!(
+                view.playhead, state.playhead,
+                "{label}: plugin EditorView playhead disagreed with sequence playhead"
+            );
+            assert!(view.playing, "{label}: plugin EditorView not marked playing");
+        });
+        visual.update(|_, app| state.update(app, |state, _| state.toggle_playback()));
+        assert_eq!(vsync(&state, visual, 3), 0, "{label}: loop outlived stop");
+    }
+}
