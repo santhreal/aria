@@ -617,12 +617,26 @@ fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
     ctx.run_command("example.project-session")
         .expect("save_as in project dir succeeds");
     assert_eq!(host.project_path(), Some(copy_path.clone()));
+    assert!(
+        host.is_dirty(),
+        "post-save_as storage_set(last-session.json) must dirty copy.aria"
+    );
 
     ctx.run_command("example.storage-roundtrip")
         .expect("write storage into copy.aria before save");
     settings.set("example.session_args", serde_json::json!({ "op": "save" }));
     ctx.run_command("example.project-session")
         .expect("save succeeds");
+    assert!(
+        host.is_dirty(),
+        "post-save storage_set(last-session.json) inside example.project-session must dirty copy.aria"
+    );
+    host.save(&Origin::Editor)
+        .expect("save post-command storage and flush CommandApplied event handler");
+    assert!(
+        !host.is_dirty(),
+        "host.save must persist event handler storage mutations and leave session clean"
+    );
 
     settings.set(
         "example.session_args",
@@ -630,12 +644,20 @@ fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
     );
     ctx.run_command("example.project-session")
         .expect("open in project dir succeeds");
-    assert_eq!(host.project_path(), Some(initial_path));
+    assert_eq!(host.project_path(), Some(initial_path.clone()));
     assert_eq!(
         host.storage_get("com.example.wasm-tools", "beta"),
         None,
         "storage written to copy.aria must not leak into initial.aria"
     );
+    assert!(
+        host.is_dirty(),
+        "post-open storage_set(last-session.json) must dirty initial.aria"
+    );
+    host.save(&Origin::Editor)
+        .expect("save initial.aria before reopening copy.aria");
+    assert!(!host.is_dirty(), "saved initial.aria must be clean");
+
     settings.set(
         "example.session_args",
         serde_json::json!({ "op": "open", "path": copy_path.to_string_lossy() }),
@@ -663,4 +685,94 @@ fn wasm_transport_session_and_render_frame_enforce_permissions_and_bounds() {
     );
 
     ctx.unmount("com.example.wasm-tools").expect("unmount rw");
+}
+
+#[test]
+fn wasm_storage_imports_fail_closed_without_project_host_and_dirty_project_when_open() {
+    let _serial = SERIAL.lock();
+    let wit_src = include_str!("../../wit/plugin.wit");
+    let wit_ops: Vec<&str> = wit_src
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("import ")?;
+            let (name, _) = rest.split_once(':')?;
+            name.starts_with("storage-").then_some(name.trim())
+        })
+        .collect();
+    assert_eq!(
+        wit_ops,
+        vec![
+            "storage-get",
+            "storage-set",
+            "storage-delete",
+            "storage-keys"
+        ],
+        "new storage-* import in plugin.wit must be covered by fail-closed tests"
+    );
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let data_root = temp.path().join("data");
+    let pkg = write_package(temp.path(), "read-write", &["pick"], FIXTURE_WASM);
+
+    // 1. Mount with NO ProjectHost registered on PluginContext: storage calls fail closed
+    // with "no open project" and write nothing to `<data_root>/plugin-data`.
+    let bare_ctx = aria_plugin::PluginContext::new();
+    let plugin = aria_plugin_wasm::load_with_data_root(&pkg, &Limits::default(), &data_root)
+        .expect("load wasm plugin");
+    bare_ctx.mount(plugin.as_ref()).expect("mount on bare_ctx");
+    let err = bare_ctx
+        .run_command("example.storage-roundtrip")
+        .expect_err("storage-roundtrip without ProjectHost must fail closed");
+    assert!(
+        err.to_string().contains("no open project"),
+        "expected no open project error, got: {err}"
+    );
+    assert!(
+        !data_root.join("plugin-data").exists(),
+        "WASM storage without ProjectHost must not create <data_root>/plugin-data"
+    );
+    bare_ctx
+        .unmount("com.example.wasm-tools")
+        .expect("unmount bare_ctx");
+
+    // 2. With ProjectHost registered and a clean saved project open, WASM `storage-set`
+    // dirties the project, and a `ProjectSaved` handler's storage write lands in the
+    // saved file while leaving the session clean.
+    let (ctx, host, _view, _settings) = setup_host_context();
+    let saved_path = temp.path().join("wasm_dirty.aria");
+    host.save_as(&Origin::Editor, &saved_path)
+        .expect("seed clean saved project");
+    assert!(!host.is_dirty(), "freshly saved project must be clean");
+
+    let plugin = load(&pkg, &Limits::default()).expect("load wasm plugin");
+    ctx.mount(plugin.as_ref()).expect("mount wasm plugin");
+    ctx.run_command("example.storage-roundtrip")
+        .expect("run storage-roundtrip on open project");
+    assert!(
+        host.is_dirty(),
+        "WASM storage-set must dirty the open project"
+    );
+
+    let ctx_for_saved = ctx.clone();
+    let _saved_sub = ctx.on_event::<aria_plugin::ProjectSaved, _>(move |_saved| {
+        ctx_for_saved
+            .storage_set("com.example.wasm-tools", "saved-hook", b"clean-after-save")
+            .expect("write saved-hook in ProjectSaved");
+    });
+    host.save(&Origin::Editor)
+        .expect("save project with ProjectSaved handler and WASM CommandApplied subscriber");
+    assert!(
+        !host.is_dirty(),
+        "session must stay clean after ProjectSaved and CommandApplied handlers write to storage"
+    );
+    let on_disk = aria_models::Project::load_from_file(&saved_path).expect("load saved file");
+    assert_eq!(
+        on_disk.plugin_storage_get("com.example.wasm-tools", "beta"),
+        Some(&b"two"[..])
+    );
+    assert_eq!(
+        on_disk.plugin_storage_get("com.example.wasm-tools", "saved-hook"),
+        Some(&b"clean-after-save"[..])
+    );
+    ctx.unmount("com.example.wasm-tools").expect("unmount");
 }

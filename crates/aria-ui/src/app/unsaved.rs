@@ -63,6 +63,14 @@ impl AppState {
     /// Returns true when the intent ran. The caller does not branch on it: it is
     /// here so a test can tell "ran" from "asked" without reading two fields.
     pub fn request(&mut self, intent: PendingIntent) -> bool {
+        if !self.store.is_dirty
+            && self
+                .engine
+                .try_lock()
+                .is_some_and(|engine| engine.is_dirty())
+        {
+            self.sync_from_engine();
+        }
         if !self.store.is_dirty {
             self.run_intent(intent);
             return true;

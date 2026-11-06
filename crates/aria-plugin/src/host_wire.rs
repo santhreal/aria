@@ -475,6 +475,11 @@ pub fn take_session_changes(host: &ProjectHost) -> Vec<SessionChange> {
     host.take_session_changes()
 }
 
+/// Register a callback invoked whenever plugin storage changes on `host`.
+pub fn set_storage_waker(host: &ProjectHost, waker: impl Fn() + Send + Sync + 'static) {
+    host.set_storage_waker(waker);
+}
+
 pub(crate) fn record_session_outcome(
     changes: &mut Vec<SessionChange>,
     origin: &Origin,

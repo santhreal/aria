@@ -119,9 +119,6 @@ pub enum LoadError {
 
 /// Load a [`Tier::Wasm`] [`Package`] with [`Limits`], returning a [`Box<dyn Plugin>`]
 /// ready for [`PluginContext::mount`](aria_plugin::PluginContext::mount).
-///
-/// The package's storage directory defaults to `<package.dir>/plugin-data/<id>`. Use
-/// [`load_with_data_root`] to place plugin storage under a shared profile data directory.
 pub fn load(package: &Package, limits: &Limits) -> Result<Box<dyn Plugin>, LoadError> {
     load_with_data_root(package, limits, package.dir.clone())
 }

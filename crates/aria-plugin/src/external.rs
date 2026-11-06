@@ -82,16 +82,15 @@ pub fn check_compat(api_major: u32, struct_size: usize) -> Result<(), String> {
 }
 
 /// Load a native plugin from `package`.
-///
-/// Storage operations resolve `<data_root>/plugin-data/<id>` from the
-/// [`StorageService`] registered in the [`PluginContext`] when mounted, or
-/// fall back to the parent directory of `package.dir`.
+/// Storage operations read and write the open `.aria` project (`Project::plugin_data`)
+/// through the [`crate::ProjectHost`] registered in [`PluginContext`], and fail
+/// when no project is open.
 pub fn load(package: &Package) -> Result<Box<dyn Plugin>, String> {
     load_optional_root(package, None)
 }
 
 /// Load a native plugin from `package` with an explicit `data_root` for
-/// `<data_root>/plugin-data/<id>`.
+/// exporter staging files under [`Package::data_dir`].
 pub fn load_with_data_root(package: &Package, data_root: &Path) -> Result<Box<dyn Plugin>, String> {
     load_optional_root(package, Some(data_root))
 }
@@ -251,12 +250,6 @@ pub(crate) struct HostCallContext<'a> {
     pub(crate) scoped_ctx: &'a PluginContext,
     pub(crate) unscoped_ctx: PluginContext,
     pub(crate) in_mount: bool,
-}
-
-impl HostCallContext<'_> {
-    pub(crate) fn storage_dir(&self) -> PathBuf {
-        self.state.resolve_storage_dir(self.scoped_ctx)
-    }
 }
 
 pub(crate) enum ExportCallError {

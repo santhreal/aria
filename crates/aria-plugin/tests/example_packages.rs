@@ -16,6 +16,7 @@
 //! native ABI test suites).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use aria_plugin::external::{LIBRARY_EXTENSION, load as load_native};
 use aria_plugin::package::{
@@ -278,6 +279,13 @@ fn every_example_package_opens_and_data_package_mounts_exact_contributions() {
                 let installed = staged.commit().expect("commit notes-plugin");
 
                 let ctx = PluginContext::new();
+                let engine =
+                    aria_engine::Engine::new(aria_engine::EngineConfig::default()).expect("engine");
+                let host = Arc::new(aria_plugin::ProjectHost::new(
+                    Arc::new(parking_lot::Mutex::new(engine)),
+                    &ctx,
+                ));
+                let _host_reg = ctx.register_arc(Arc::clone(&host));
                 let loaded = load_native(&installed).expect("load installed notes-plugin");
                 ctx.mount(loaded.as_ref()).expect("mount notes-plugin");
                 assert!(ctx.is_mounted("example.notes"));
@@ -292,14 +300,17 @@ fn every_example_package_opens_and_data_package_mounts_exact_contributions() {
                 );
                 ctx.send_panel_event("notes.panel", PanelEvent::Pressed { id: "add".into() })
                     .expect("send notes.panel event");
+                assert!(ctx.events().flush(std::time::Duration::from_secs(5)));
                 // Reload by unmounting and loading again from the installed directory.
                 ctx.unmount("example.notes").expect("unmount notes-plugin");
                 assert!(!ctx.is_mounted("example.notes"));
+                drop(loaded);
                 let reloaded = load_native(&installed).expect("reload installed notes-plugin");
                 ctx.mount(reloaded.as_ref()).expect("remount notes-plugin");
                 assert!(ctx.is_mounted("example.notes"));
                 ctx.unmount("example.notes")
                     .expect("unmount reloaded notes-plugin");
+                drop(reloaded);
 
                 let removed =
                     uninstall(&install_dir, "example.notes").expect("uninstall notes-plugin");

@@ -212,8 +212,8 @@ again.
 | `process` | Spawning listed executables |
 | `clipboard` | Reading the clipboard (writing needs no permission) |
 
-Plugin storage (the plugin's per-project store in the open `.aria` project file,
-and `<data dir>/plugin-data/<id>/`), settings, logging, events, UI
+Plugin storage (the plugin's per-project store in the open `.aria` project
+file), settings, logging, events, UI
 contributions, and the plugin's own package directory need no permission.
 
 WASM plugins cannot reach anything not granted. A native plugin runs native
@@ -327,7 +327,7 @@ need it.
 | `render` | The frame of a sequence or clip at a time, at a size, as a GPU texture or an RGBA image; render ranges |
 | `media` (`media`) | Probe, decode a frame or audio range, thumbnails, waveform peaks |
 | `gpu` (`gpu`) | The shared device and queue, texture and buffer creation, compute dispatch |
-| `storage` | Read and write files in plugin storage; a per-project store saved in the project file |
+| `storage` | Read, write, delete, and list keys in the plugin's per-project store saved in the open `.aria` project file (fails when no project is open) |
 | `settings` | The plugin's settings values and change events |
 | `ui` | Notifications, the status message, modal dialogs from a declarative tree, file and folder pickers, opening a panel, revealing a clip or property, the command palette |
 | `jobs` | Starting a job with progress and cancel |

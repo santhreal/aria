@@ -9,7 +9,9 @@
 
 use std::sync::Arc;
 
-use aria_plugin::host_wire::{SessionChange, rescale_time, take_session_changes};
+use aria_plugin::host_wire::{
+    SessionChange, rescale_time, set_storage_waker, take_session_changes,
+};
 use aria_plugin::{CommandApplied, Origin, TransportRequest};
 use gpui::Context;
 
@@ -85,6 +87,10 @@ impl AppState {
         let transport_wake = wake.clone();
         self.editor_view.set_transport_waker(move || {
             transport_wake.wake(());
+        });
+        let storage_wake = wake.clone();
+        set_storage_waker(&self.host, move || {
+            storage_wake.wake(());
         });
         self.edits_watch = Some(self.ctx.on_event::<CommandApplied, _>(move |applied| {
             if applied.origin != Origin::Editor {

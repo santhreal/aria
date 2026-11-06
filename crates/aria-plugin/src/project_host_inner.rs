@@ -10,7 +10,9 @@ use aria_engine::{ApplyOutcome, Engine, EngineError};
 use aria_models::Project;
 
 use super::{CommandApplied, Origin, TransactError};
-use crate::editor_events::{MediaImported, MediaRelinked, ProjectClosed, ProjectOpened, ProjectSaved};
+use crate::editor_events::{
+    MediaImported, MediaRelinked, ProjectClosed, ProjectOpened, ProjectSaved,
+};
 use crate::events::EventBus;
 
 /// A notification held with the open group and posted once nothing can roll it
@@ -124,11 +126,8 @@ pub(super) fn proposing_storage_set(plugin_id: &str, key: &str, value: Vec<u8>) 
     PROPOSING.with(|slot| {
         let mut borrow = slot.borrow_mut();
         let state = borrow.as_mut()?;
-        let changed = Arc::make_mut(&mut state.project).plugin_storage_set(
-            plugin_id,
-            key,
-            value.clone(),
-        );
+        let changed =
+            Arc::make_mut(&mut state.project).plugin_storage_set(plugin_id, key, value.clone());
         if changed {
             state.storage_ops.push(PendingStorageOp::Set {
                 plugin_id: plugin_id.to_owned(),

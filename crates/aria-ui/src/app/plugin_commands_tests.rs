@@ -356,3 +356,175 @@ fn plugin_commands_drive_editor_transport_and_project_session_through_shared_ser
         Some((false, 1))
     );
 }
+
+#[test]
+fn plugin_storage_mutations_from_native_and_wasm_dirty_session_prompt_on_quit_and_write_recovery() {
+    use crate::app::DialogKind;
+    use crate::app::recovery::{AUTOSAVE_INTERVAL, recovery_path};
+    use crate::app::unsaved::PendingIntent;
+    use std::time::Instant;
+
+    crate::test_support::catalogs::own_process(|| {
+        let mut state = state();
+        state.new_project().expect("new project");
+        let project_file = state.data_dir.join("session.aria");
+        state.project_path = Some(project_file.clone());
+        state.save_project().expect("initial save");
+        assert!(!state.host.is_dirty());
+        assert!(!state.store.is_dirty);
+
+        // 1. Native plugin command mutates per-project storage via `PluginContext::storage_set`.
+        let _native_cmd = state
+            .ctx
+            .register_command(
+                CommandSpec::new("native.write_note", "Write Note"),
+                |ctx: &PluginContext| {
+                    ctx.storage_set("native.notes", "draft", b"unsaved-native-note")
+                },
+            )
+            .expect("register native.write_note");
+        state.run_plugin_command("native.write_note");
+        assert_eq!(state.last_error, None);
+        assert!(
+            state.host.is_dirty() && state.store.is_dirty,
+            "native plugin storage_set must dirty both Engine and AppState store"
+        );
+
+        // Quitting must park Quit behind DialogKind::UnsavedChanges.
+        state.request_quit();
+        assert_eq!(state.dialog, DialogKind::UnsavedChanges);
+        assert_eq!(state.pending_intent(), Some(&PendingIntent::Quit));
+        assert!(!state.quit_requested());
+        state.cancel_pending();
+
+        // Autosave must write a recovery copy containing the native plugin's store entry.
+        let t0 = Instant::now();
+        assert!(
+            state.autosave_tick(t0),
+            "dirty session after native plugin storage_set must write recovery copy"
+        );
+        state.finish_autosave();
+        let recovered_native =
+            aria_models::Project::load_from_file(&recovery_path(&state.data_dir))
+                .expect("load recovery copy after native storage_set");
+        assert_eq!(
+            recovered_native.plugin_storage_get("native.notes", "draft"),
+            Some(&b"unsaved-native-note"[..])
+        );
+
+        // Save the project to reset dirty state before testing WASM plugin storage.
+        state.save_project().expect("save after native write");
+        assert!(!state.host.is_dirty());
+        assert!(!state.store.is_dirty);
+
+        // 2. Mount a real WASM plugin package and run `example.storage-roundtrip` through `AppState`.
+        let wasm_fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../aria-plugin-wasm/tests/fixtures/example_plugin.wasm");
+        let pkg_dir = state.data_dir.join("wasm-pkg");
+        std::fs::create_dir_all(&pkg_dir).expect("create wasm-pkg dir");
+        std::fs::write(
+            pkg_dir.join("plugin.toml"),
+            r#"[plugin]
+id = "com.example.wasm-tools"
+name = "Example WASM Tools"
+version = "0.1.0"
+api = 1
+publisher = "Aria Test"
+description = "Test WASM plugin"
+license = "MIT"
+
+[permissions]
+project = "read-write"
+"#,
+        )
+        .expect("write wasm plugin.toml");
+        std::fs::copy(&wasm_fixture, pkg_dir.join("plugin.wasm")).expect("copy plugin.wasm");
+        let pkg = aria_plugin::package::Package::open(&pkg_dir).expect("open wasm package");
+        let wasm_plugin =
+            aria_plugin_wasm::load(&pkg, &aria_plugin_wasm::Limits::default()).expect("load wasm");
+        state
+            .ctx
+            .mount(wasm_plugin.as_ref())
+            .expect("mount wasm plugin");
+
+        state.run_plugin_command("example.storage-roundtrip");
+        assert_eq!(state.last_error, None);
+        assert!(
+            state.host.is_dirty() && state.store.is_dirty,
+            "WASM plugin storage-set must dirty both Engine and AppState store"
+        );
+
+        state.request_quit();
+        assert_eq!(state.dialog, DialogKind::UnsavedChanges);
+        assert_eq!(state.pending_intent(), Some(&PendingIntent::Quit));
+        assert!(!state.quit_requested());
+        state.cancel_pending();
+
+        assert!(
+            state.autosave_tick(t0 + AUTOSAVE_INTERVAL),
+            "dirty session after WASM plugin storage-set must write recovery copy"
+        );
+        state.finish_autosave();
+        let recovered_wasm = aria_models::Project::load_from_file(&recovery_path(&state.data_dir))
+            .expect("load recovery copy after WASM storage-set");
+        assert_eq!(
+            recovered_wasm.plugin_storage_get("com.example.wasm-tools", "beta"),
+            Some(&b"two"[..])
+        );
+
+        state
+            .ctx
+            .unmount("com.example.wasm-tools")
+            .expect("unmount wasm plugin");
+    });
+}
+
+#[test]
+fn project_saved_handler_storage_write_lands_in_saved_file_and_keeps_app_state_clean() {
+    use crate::app::DialogKind;
+
+    let mut state = state();
+    state.new_project().expect("new project");
+    let project_file = state.data_dir.join("clean_save.aria");
+
+    let ctx_for_saved = state.ctx.clone();
+    let _saved_sub = state
+        .ctx
+        .on_event::<aria_plugin::ProjectSaved, _>(move |_saved| {
+            ctx_for_saved
+                .storage_set("native.notes", "saved_stamp", b"written-on-save")
+                .expect("write saved_stamp in ProjectSaved handler");
+        });
+
+    state
+        .ctx
+        .storage_set("native.notes", "note", b"body")
+        .expect("set note");
+    state.sync_from_plugin_host();
+    assert!(state.store.is_dirty);
+
+    state.project_path = Some(project_file.clone());
+    state
+        .save_project()
+        .expect("save project with ProjectSaved handler");
+    assert!(
+        !state.host.is_dirty() && !state.store.is_dirty,
+        "session must stay clean after ProjectSaved handler writes to plugin storage"
+    );
+
+    let saved = aria_models::Project::load_from_file(&project_file).expect("load clean_save.aria");
+    assert_eq!(
+        saved.plugin_storage_get("native.notes", "note"),
+        Some(&b"body"[..])
+    );
+    assert_eq!(
+        saved.plugin_storage_get("native.notes", "saved_stamp"),
+        Some(&b"written-on-save"[..]),
+        "ProjectSaved handler storage mutation must land in the saved .aria file"
+    );
+
+    // Because the session is clean after save, requesting quit succeeds without a prompt.
+    state.request_quit();
+    assert_eq!(state.dialog, DialogKind::None);
+    assert!(state.quit_requested());
+}

@@ -167,6 +167,14 @@ impl AppState {
     /// tick that finds it held starts nothing either, and the next tick tries
     /// again.
     pub fn autosave_tick(&mut self, now: Instant) -> bool {
+        if !self.store.is_dirty
+            && self
+                .engine
+                .try_lock()
+                .is_some_and(|engine| engine.is_dirty())
+        {
+            self.sync_from_engine();
+        }
         if !self.store.is_dirty || !self.autosave.due(now) {
             return false;
         }

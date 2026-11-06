@@ -17,7 +17,6 @@ impl Plugin for SamplePlugin {
         match id {
             COMMAND_ID => {
                 host.log(LogLevel::Info, "ran __COMMAND_ID__");
-                host.storage_set("last_run", COMMAND_ID.as_bytes())?;
                 Ok(())
             }
             other => Err(format!("unknown command: {other}")),

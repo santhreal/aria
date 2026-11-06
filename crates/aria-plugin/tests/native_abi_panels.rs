@@ -227,6 +227,12 @@ fn notes_cdylib_sidebar_panel_renders_handles_events_refuses_bad_tree_and_isolat
     let pkg = stage_notes_package(temp.path());
 
     let ctx = PluginContext::new();
+    let engine = aria_engine::Engine::new(aria_engine::EngineConfig::default()).expect("engine");
+    let host = Arc::new(aria_plugin::ProjectHost::new(
+        Arc::new(parking_lot::Mutex::new(engine)),
+        &ctx,
+    ));
+    let _host_reg = ctx.register_arc(Arc::clone(&host));
     let plugin = load_with_data_root(&pkg, &data_root).expect("load notes cdylib");
     ctx.mount(plugin.as_ref()).expect("mount notes cdylib");
 
@@ -288,13 +294,17 @@ fn notes_cdylib_sidebar_panel_renders_handles_events_refuses_bad_tree_and_isolat
         UiNode::input("draft", "scene 4 cut", "Write a note"),
     ]);
     assert_eq!(updated.tree.as_deref(), Some(&expected_updated));
-    let draft_file = data_root
-        .join("plugin-data")
-        .join("example.notes")
-        .join("draft");
     assert_eq!(
-        std::fs::read_to_string(&draft_file).expect("read persisted draft"),
-        "scene 4 cut"
+        host.storage_get("example.notes", "draft").as_deref(),
+        Some(&b"scene 4 cut"[..])
+    );
+    assert!(
+        host.is_dirty(),
+        "panel storage_set must dirty the open project"
+    );
+    assert!(
+        !data_root.join("plugin-data").exists(),
+        "plugin storage must not write to <data_root>/plugin-data"
     );
 
     // Trigger a tree with duplicate control IDs: host refuses the new tree, keeps the last

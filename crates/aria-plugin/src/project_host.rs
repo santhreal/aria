@@ -25,6 +25,8 @@ use parking_lot::{Condvar, Mutex};
 
 use crate::context::PluginContext;
 #[cfg(doc)]
+use crate::editor_events::MediaImported;
+#[cfg(doc)]
 use crate::editor_events::ProjectSaved;
 use crate::editor_events::{
     ExportFinished, ExportStarted, ProjectClosed, ProjectOpened, RenderResult,
@@ -134,6 +136,7 @@ pub struct ProjectHost {
     events: Arc<EventBus>,
     sequence: Mutex<Sequence>,
     released: Condvar,
+    storage_waker: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 impl fmt::Debug for ProjectHost {
@@ -184,7 +187,12 @@ impl ProjectHost {
             events: Arc::clone(ctx.event_bus()),
             sequence: Mutex::new(Sequence::default()),
             released: Condvar::new(),
+            storage_waker: Mutex::new(None),
         }
+    }
+
+    pub(crate) fn set_storage_waker(&self, waker: impl Fn() + Send + Sync + 'static) {
+        *self.storage_waker.lock() = Some(Arc::new(waker));
     }
 
     /// The engine. Rendering and reading go through it directly; edits go
@@ -328,23 +336,40 @@ impl ProjectHost {
     }
 
     fn announce(&self, announced: Vec<Announcement>) {
+        let mut saved_path = None;
         for announcement in announced {
+            if let Announcement::Saved(saved) = &announcement {
+                saved_path = Some(saved.path.clone());
+            }
             announcement.post(&self.events);
+        }
+        if let Some(path) = saved_path
+            && (self
+                .events
+                .has_handlers::<crate::editor_events::ProjectSaved>()
+                || self.events.has_handlers::<CommandApplied>())
+        {
+            let engine = Arc::clone(&self.engine);
+            self.events.defer(move || {
+                let _ = engine.lock().finish_post_save(&path);
+            });
+            let _ = self.events.flush(Duration::from_secs(5));
         }
     }
 
-    /// Propose `command` to every handler. The caller holds the engine lock.
-    fn propose(
-        &self,
-        engine: &mut Engine,
-        command: Command,
-        origin: &Origin,
-    ) -> Result<Command, String> {
-        let project = engine.snapshot();
-        let _proposing = Proposing::enter(Arc::clone(&project), engine.revision());
+    /// Propose `command` to every handler. The caller holds the project turn.
+    fn propose(&self, command: Command, origin: &Origin) -> Result<Command, String> {
+        let (project, revision) = {
+            let engine = self.engine.lock();
+            (engine.snapshot(), engine.revision())
+        };
+        let _proposing = Proposing::enter(Arc::clone(&project), revision);
         let mut proposed = CommandProposed::new(command, project, origin.clone());
         self.events.emit_waterfall(&mut proposed);
-        flush_proposing_storage_ops(engine);
+        {
+            let mut engine = self.engine.lock();
+            flush_proposing_storage_ops(&mut engine);
+        }
         // The event and the stash drop when this returns, so the apply that
         // follows copies the project only if a handler kept a reference.
         match proposed.veto {
@@ -353,18 +378,17 @@ impl ProjectHost {
         }
     }
 
-    /// Propose and apply one command on a locked engine.
+    /// Propose and apply one command while holding the project turn.
     fn apply_locked<B, R>(
         &self,
-        engine: &mut Engine,
         origin: &Origin,
         command: Command,
         before: impl FnOnce(&Command, &Engine) -> B,
         after: impl FnOnce(B, &ApplyOutcome, &Engine) -> R,
     ) -> Result<(ApplyOutcome, R, Announced), Rejection> {
-        let command = self
-            .propose(engine, command, origin)
-            .map_err(Rejection::Refused)?;
+        let command = self.propose(command, origin).map_err(Rejection::Refused)?;
+        let mut engine = self.engine.lock();
+        let engine = &mut *engine;
         let applied = self
             .events
             .has_handlers::<CommandApplied>()
@@ -437,10 +461,7 @@ impl ProjectHost {
         if self.sequence.lock().groups > 0 {
             transactional(&command).map_err(|err| EngineError::Refused(err.to_string()))?;
         }
-        let applied = {
-            let mut engine = self.engine.lock();
-            self.apply_locked(&mut engine, origin, command, before, after)
-        };
+        let applied = self.apply_locked(origin, command, before, after);
         let (outcome, result, announced) = match applied {
             Ok(applied) => applied,
             Err(Rejection::Refused(reason)) => return Err(EngineError::Refused(reason)),
@@ -711,7 +732,11 @@ impl ProjectHost {
         if let Some(changed) = proposing_storage_set(plugin_id, key, value.clone()) {
             return changed;
         }
-        self.engine.lock().set_plugin_storage(plugin_id, key, value)
+        let changed = self.engine.lock().set_plugin_storage(plugin_id, key, value);
+        if changed && let Some(waker) = self.storage_waker.lock().clone() {
+            waker();
+        }
+        changed
     }
 
     /// Remove `key` from `plugin_id`'s per-project store, returning `true`
@@ -720,7 +745,11 @@ impl ProjectHost {
         if let Some(removed) = proposing_storage_delete(plugin_id, key) {
             return removed;
         }
-        self.engine.lock().delete_plugin_storage(plugin_id, key)
+        let removed = self.engine.lock().delete_plugin_storage(plugin_id, key);
+        if removed && let Some(waker) = self.storage_waker.lock().clone() {
+            waker();
+        }
+        removed
     }
 
     /// All keys stored for `plugin_id` in the open project, in sorted order.
@@ -821,11 +850,9 @@ impl Transaction<'_> {
             .host
             .hold(&self.origin)
             .map_err(|holder| TransactError::Busy { holder })?;
-        let applied = {
-            let mut engine = self.host.engine.lock();
-            self.host
-                .apply_locked(&mut engine, &self.origin, command, |_, _| (), |(), _, _| ())
-        };
+        let applied = self
+            .host
+            .apply_locked(&self.origin, command, |_, _| (), |(), _, _| ());
         let (outcome, (), announced) = applied.map_err(|rejection| match rejection {
             Rejection::Refused(reason) => TransactError::Refused { label, reason },
             Rejection::Engine(err) => TransactError::Failed {

@@ -23,7 +23,6 @@ impl Guest for SamplePlugin {
         match id.as_str() {
             COMMAND_ID => {
                 log(LogLevel::Info, "ran __COMMAND_ID__");
-                storage_set("last_run", COMMAND_ID.as_bytes())?;
                 Ok(())
             }
             other => Err(format!("unknown command: {other}")),

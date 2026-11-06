@@ -710,7 +710,7 @@ fn dev_snapshot_watches_sources_and_ignores_staged_artifacts() {
 /// End-to-end proof: `aria plugin new` -> `aria plugin pack` -> `aria plugin check`
 /// for both `--tier native` and `--tier wasm`, followed by loading the packed
 /// package into `PluginContext`, verifying the mounted sample command and
-/// declared effect, and running the sample command to verify storage writes.
+/// declared effect, and running the sample command without an open project.
 #[test]
 fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     let scratch = tempfile::tempdir().expect("tempdir");
@@ -763,11 +763,10 @@ fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     );
     native_ctx
         .run_command("com.example.e2e-native.run")
-        .expect("run native sample command");
-    assert_eq!(
-        fs::read_to_string(unpacked_native.data_dir(&native_data_root).join("last_run"))
-            .expect("native command wrote storage"),
-        "com.example.e2e-native.run"
+        .expect("run native sample command without open project");
+    assert!(
+        !unpacked_native.data_dir(&native_data_root).exists(),
+        "sample command must not write global plugin-data files"
     );
     native_ctx
         .unmount(native_id)
@@ -846,11 +845,10 @@ fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     );
     wasm_ctx
         .run_command("com.example.e2e-wasm.run")
-        .expect("run wasm sample command");
-    assert_eq!(
-        fs::read_to_string(unpacked_wasm.data_dir(&wasm_data_root).join("last_run"))
-            .expect("wasm command wrote storage"),
-        "com.example.e2e-wasm.run"
+        .expect("run wasm sample command without open project");
+    assert!(
+        !unpacked_wasm.data_dir(&wasm_data_root).exists(),
+        "sample command must not write global plugin-data files"
     );
     wasm_ctx.unmount(wasm_id).expect("unmount wasm plugin");
 }

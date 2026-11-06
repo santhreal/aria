@@ -13,6 +13,12 @@
 //! `crates/aria-models/src/persist/tests.rs`) or WASM guest WIT binding layout
 //! (covered by `crates/aria-plugin-wasm/tests/wasm_plugins/commands.rs`).
 
+#![allow(unsafe_code)]
+
+#[macro_use]
+#[path = "support/plugin_table.rs"]
+mod plugin_table;
+
 use std::sync::Arc;
 
 use aria_core::Rational;
@@ -21,10 +27,8 @@ use aria_models::Project;
 use aria_plugin::{Origin, PluginContext, ProjectHost};
 use parking_lot::Mutex;
 
-fn make_host_session(
-    storage_root: &std::path::Path,
-) -> (PluginContext, Arc<ProjectHost>, aria_plugin::Registration) {
-    let ctx = PluginContext::new().with_storage_root(storage_root.to_path_buf());
+fn make_host_session() -> (PluginContext, Arc<ProjectHost>, aria_plugin::Registration) {
+    let ctx = PluginContext::new();
     let engine = Engine::new(EngineConfig::default()).expect("engine");
     let host = Arc::new(ProjectHost::new(Arc::new(Mutex::new(engine)), &ctx));
     let reg = ctx.register_arc(Arc::clone(&host));
@@ -34,7 +38,6 @@ fn make_host_session(
 #[test]
 fn two_projects_same_plugin_writes_in_project_a_are_not_visible_in_project_b() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root = dir.path().join("plugin-data");
     let path_a = dir.path().join("project_a.aria");
     let path_b = dir.path().join("project_b.aria");
 
@@ -45,11 +48,16 @@ fn two_projects_same_plugin_writes_in_project_a_are_not_visible_in_project_b() {
         .save_to_file(&path_b)
         .expect("save project B");
 
-    let (ctx, host, _reg) = make_host_session(&storage_root);
+    let (ctx, host, _reg) = make_host_session();
     host.open(&Origin::Editor, &path_a).expect("open project A");
+    assert!(!host.is_dirty(), "freshly opened project A must be clean");
 
     ctx.storage_set("example.notes", "note", b"project-a-only")
         .expect("write plugin storage in project A");
+    assert!(
+        host.is_dirty(),
+        "plugin storage_set must dirty the open project"
+    );
     assert_eq!(
         ctx.storage_get("example.notes", "note")
             .expect("read in project A")
@@ -57,6 +65,7 @@ fn two_projects_same_plugin_writes_in_project_a_are_not_visible_in_project_b() {
         Some(&b"project-a-only"[..])
     );
     host.save(&Origin::Editor).expect("save project A");
+    assert!(!host.is_dirty(), "saved project A must be clean");
 
     host.open(&Origin::Editor, &path_b).expect("open project B");
     assert_eq!(
@@ -90,11 +99,9 @@ fn two_projects_same_plugin_writes_in_project_a_are_not_visible_in_project_b() {
 #[test]
 fn save_and_reload_from_disk_preserves_plugin_store_in_project_file() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root_1 = dir.path().join("session1-plugin-data");
-    let storage_root_2 = dir.path().join("session2-plugin-data");
     let project_path = dir.path().join("persisted.aria");
 
-    let (ctx_1, host_1, _reg_1) = make_host_session(&storage_root_1);
+    let (ctx_1, host_1, _reg_1) = make_host_session();
 
     ctx_1
         .storage_set("example.notes", "note", b"saved-in-project-file")
@@ -107,8 +114,7 @@ fn save_and_reload_from_disk_preserves_plugin_store_in_project_file() {
         .save_as(&Origin::Editor, &project_path)
         .expect("save_as project");
 
-    // Open the saved `.aria` file in a brand-new session whose `storage_root` is empty.
-    let (ctx_2, host_2, _reg_2) = make_host_session(&storage_root_2);
+    let (ctx_2, host_2, _reg_2) = make_host_session();
     host_2
         .open(&Origin::Editor, &project_path)
         .expect("open saved project in session 2");
@@ -140,11 +146,9 @@ fn save_and_reload_from_disk_preserves_plugin_store_in_project_file() {
 #[test]
 fn two_plugins_in_one_project_are_isolated() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root_1 = dir.path().join("session1-plugin-data");
-    let storage_root_2 = dir.path().join("session2-plugin-data");
     let project_path = dir.path().join("multi_plugin.aria");
 
-    let (ctx_1, host_1, _reg_1) = make_host_session(&storage_root_1);
+    let (ctx_1, host_1, _reg_1) = make_host_session();
     ctx_1
         .storage_set("alpha.plugin", "shared", b"alpha-value")
         .expect("alpha set shared");
@@ -161,7 +165,7 @@ fn two_plugins_in_one_project_are_isolated() {
         .save_as(&Origin::Editor, &project_path)
         .expect("save multi_plugin.aria");
 
-    let (ctx_2, host_2, _reg_2) = make_host_session(&storage_root_2);
+    let (ctx_2, host_2, _reg_2) = make_host_session();
     host_2
         .open(&Origin::Editor, &project_path)
         .expect("open multi_plugin.aria");
@@ -189,10 +193,15 @@ fn two_plugins_in_one_project_are_isolated() {
         Some(&b"beta-value"[..])
     );
 
+    assert!(!host_2.is_dirty(), "freshly opened project must be clean");
     assert!(
         ctx_2
             .storage_delete("alpha.plugin", "shared")
             .expect("delete alpha shared")
+    );
+    assert!(
+        host_2.is_dirty(),
+        "plugin storage_delete must dirty the open project"
     );
     assert_eq!(
         ctx_2
@@ -211,12 +220,11 @@ fn two_plugins_in_one_project_are_isolated() {
 #[test]
 fn previous_schema_version_project_file_loads_with_empty_plugin_store_and_saves_as_v4() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root = dir.path().join("plugin-data");
     let v3_fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../aria-models/tests/fixtures/schema/schema-v3.aria");
     let working_path = dir.path().join("migrated.aria");
     std::fs::copy(&v3_fixture, &working_path).expect("copy schema-v3 fixture");
-    let (ctx, host, _reg) = make_host_session(&storage_root);
+    let (ctx, host, _reg) = make_host_session();
     host.open(&Origin::Editor, &working_path)
         .expect("open schema v3 project file");
     assert!(
@@ -237,10 +245,65 @@ fn previous_schema_version_project_file_loads_with_empty_plugin_store_and_saves_
     );
 }
 #[test]
-fn storage_validates_keys_and_falls_back_to_storage_root_when_no_project_host_is_registered() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root = dir.path().join("fallback-plugin-data");
-    let ctx = PluginContext::new().with_storage_root(storage_root.clone());
+fn every_storage_entry_point_validates_keys_and_fails_closed_when_no_project_host_is_registered() {
+    // Derive the storage entry points from the C ABI table, C header, and WIT file at runtime
+    // so adding a new `storage_*` / `storage-*` member without covering it turns this test RED.
+    let tables_rs = include_str!("../../aria-plugin-abi/src/tables.rs");
+    let c_abi_ops: Vec<&str> = tables_rs
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim().strip_prefix("pub ")?;
+            let (name, _) = trimmed.split_once(':')?;
+            name.starts_with("storage_").then_some(name.trim())
+        })
+        .collect();
+    assert_eq!(
+        c_abi_ops,
+        vec![
+            "storage_get",
+            "storage_set",
+            "storage_delete",
+            "storage_keys"
+        ],
+        "new storage_* entry point in AriaHostV1 must be added to fail-closed coverage"
+    );
+
+    let header_h = include_str!("../../aria-plugin-abi/include/aria_plugin.h");
+    let header_ops: Vec<&str> = header_h
+        .lines()
+        .filter_map(|line| {
+            let (_, rest) = line.split_once("(*storage_")?;
+            let (suffix, _) = rest.split_once(")(")?;
+            Some(suffix)
+        })
+        .collect();
+    assert_eq!(
+        header_ops,
+        vec!["get", "set", "delete", "keys"],
+        "aria_plugin.h storage_* entry points drifted from AriaHostV1"
+    );
+
+    let wit_src = include_str!("../../aria-plugin-wasm/wit/plugin.wit");
+    let wit_ops: Vec<&str> = wit_src
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("import ")?;
+            let (name, _) = rest.split_once(':')?;
+            name.starts_with("storage-").then_some(name.trim())
+        })
+        .collect();
+    assert_eq!(
+        wit_ops,
+        vec![
+            "storage-get",
+            "storage-set",
+            "storage-delete",
+            "storage-keys"
+        ],
+        "new storage-* import in plugin.wit must be added to fail-closed coverage"
+    );
+
+    let ctx = PluginContext::new();
 
     for bad_key in ["", ".", "..", "a/b", "a\\b", "bad\0key"] {
         assert!(
@@ -257,34 +320,155 @@ fn storage_validates_keys_and_falls_back_to_storage_root_when_no_project_host_is
         );
     }
 
-    ctx.storage_set("example.notes", "fallback", b"disk-bytes")
-        .expect("fallback set");
-    assert_eq!(
-        std::fs::read(storage_root.join("example.notes").join("fallback"))
-            .expect("fallback file on disk"),
-        b"disk-bytes"
-    );
-    assert_eq!(
-        ctx.storage_get("example.notes", "fallback")
-            .expect("fallback get")
-            .as_deref(),
-        Some(&b"disk-bytes"[..])
-    );
-    assert_eq!(
-        ctx.storage_keys("example.notes").expect("fallback keys"),
-        vec!["fallback".to_owned()]
-    );
+    // 1. PluginContext::storage_* fails closed with an error naming why (no open project).
+    for op in &c_abi_ops {
+        let err = match *op {
+            "storage_get" => ctx.storage_get("example.notes", "k").unwrap_err(),
+            "storage_set" => ctx.storage_set("example.notes", "k", b"v").unwrap_err(),
+            "storage_delete" => ctx.storage_delete("example.notes", "k").unwrap_err(),
+            "storage_keys" => ctx.storage_keys("example.notes").unwrap_err(),
+            other => panic!("unhandled storage op {other}"),
+        };
+        assert!(
+            err.contains("no open project") && err.contains(op),
+            "expected `{op}` error to state no open project, got: {err}"
+        );
+    }
+
+    // 2. Native C ABI (`AriaHostV1::storage_*`) and Rust SDK (`aria_sdk::Host::storage_*`)
+    // fail closed for every discovered entry point when no ProjectHost is registered,
+    // and never create `<data_root>/plugin-data`.
+    #[derive(Default)]
+    struct NoProjectGuest;
+
+    impl aria_sdk::Plugin for NoProjectGuest {
+        fn mount(&self, host: &aria_sdk::Host) -> Result<(), String> {
+            for cmd in [
+                "noproj.storage_get",
+                "noproj.storage_set",
+                "noproj.storage_delete",
+                "noproj.storage_keys",
+            ] {
+                host.register_command(cmd, cmd)?;
+            }
+            Ok(())
+        }
+
+        fn command_run(
+            &self,
+            host: &aria_sdk::Host,
+            id: &str,
+            _args_json: &str,
+        ) -> Result<(), String> {
+            match id {
+                "noproj.storage_get" => host.storage_get("k").map(drop),
+                "noproj.storage_set" => host.storage_set("k", b"v"),
+                "noproj.storage_delete" => host.storage_delete("k"),
+                "noproj.storage_keys" => host.storage_keys().map(drop),
+                other => Err(format!("unknown command {other}")),
+            }
+        }
+    }
+
+    static NO_PROJ_RT: std::sync::LazyLock<aria_sdk::PluginRuntime<NoProjectGuest>> =
+        std::sync::LazyLock::new(|| {
+            let rt = aria_sdk::PluginRuntime::new(NoProjectGuest);
+            // SAFETY: `HOST_V1` is a valid static `AriaHostV1` table.
+            assert!(unsafe {
+                rt.bind_host(
+                    aria_plugin::external::host_table() as *const _,
+                    aria_plugin_abi::ARIA_API_MAJOR,
+                )
+            });
+            rt
+        });
+    let table = plugin_table!(NO_PROJ_RT);
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let data_root = temp.path().join("data");
+    let pkg_dir = temp.path().join("test.noproj");
+    std::fs::create_dir_all(&pkg_dir).expect("pkg_dir");
+    std::fs::write(
+        pkg_dir.join("plugin.toml"),
+        r#"[plugin]
+id = "test.noproj"
+name = "NoProj"
+version = "0.1.0"
+api = "1"
+publisher = "Test"
+description = "Test"
+license = "MIT"
+"#,
+    )
+    .expect("write plugin.toml");
+    let pkg = aria_plugin::package::Package::open(&pkg_dir).expect("open pkg");
+    let plugin =
+        aria_plugin::external::from_table(&pkg, table, Some(&data_root)).expect("from_table");
+    ctx.mount(plugin.as_ref()).expect("mount test.noproj");
+
+    for op in &c_abi_ops {
+        let cmd = format!("noproj.{op}");
+        let err = ctx
+            .run_command(&cmd)
+            .expect_err("storage call without ProjectHost must fail closed");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("no open project") && msg.contains(op),
+            "expected `{cmd}` error to state no open project, got: {msg}"
+        );
+    }
     assert!(
-        ctx.storage_delete("example.notes", "fallback")
-            .expect("fallback delete")
+        !data_root.join("plugin-data").exists(),
+        "failed storage calls must not create <data_root>/plugin-data on disk"
     );
-    assert!(!storage_root.join("example.notes").join("fallback").exists());
 }
+#[test]
+fn project_saved_handler_storage_mutations_land_in_saved_file_and_keep_session_clean() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (ctx, host, _reg) = make_host_session();
+
+    let ctx_for_saved = ctx.clone();
+    let _saved_sub = ctx.on_event::<aria_plugin::ProjectSaved, _>(move |saved| {
+        ctx_for_saved
+            .storage_set(
+                "example.notes",
+                "saved_path",
+                saved.path.to_string_lossy().as_bytes(),
+            )
+            .expect("write saved_path in ProjectSaved handler");
+    });
+
+    ctx.storage_set("example.notes", "body", b"hello")
+        .expect("set body");
+    assert!(
+        host.is_dirty(),
+        "storage_set before save must dirty session"
+    );
+
+    let saved_path = dir.path().join("saved_clean.aria");
+    host.save_as(&Origin::Editor, &saved_path)
+        .expect("save_as with ProjectSaved handler");
+    assert!(
+        !host.is_dirty(),
+        "session must stay clean after ProjectSaved handler writes to plugin storage"
+    );
+
+    let on_disk = Project::load_from_file(&saved_path).expect("load saved_clean.aria");
+    assert_eq!(
+        on_disk.plugin_storage_get("example.notes", "body"),
+        Some(&b"hello"[..])
+    );
+    assert_eq!(
+        on_disk.plugin_storage_get("example.notes", "saved_path"),
+        Some(saved_path.to_string_lossy().as_bytes()),
+        "ProjectSaved handler storage write must land in the saved .aria file on disk"
+    );
+}
+
 #[test]
 fn storage_mutations_inside_command_proposed_handler_commit_without_deadlock() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let storage_root = dir.path().join("plugin-data");
-    let (ctx, host, _reg) = make_host_session(&storage_root);
+    let (ctx, host, _reg) = make_host_session();
     host.storage_set("example.notes", "stale", b"remove-me".to_vec());
 
     let ctx_for_handler = ctx.clone();

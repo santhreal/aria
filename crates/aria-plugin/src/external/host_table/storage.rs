@@ -5,7 +5,6 @@ use aria_plugin_abi::{
     AriaResult, AriaStr,
 };
 
-use super::specs::validate_storage_key;
 use super::{call_ctx, read_str};
 use crate::{LogLevel, host_wire};
 
@@ -33,16 +32,7 @@ pub(super) extern "C" fn host_storage_get(host_ctx: *mut c_void, key: AriaStr) -
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "storage key")?;
-            validate_storage_key(key)?;
-            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
-                return Ok(host.storage_get(&ctx.state.id, key));
-            }
-            let path = ctx.storage_dir().join(key);
-            match std::fs::read(&path) {
-                Ok(bytes) => Ok(Some(bytes)),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(err) => Err(format!("storage read failed for `{key}`: {err}")),
-            }
+            ctx.scoped_ctx.storage_get(&ctx.state.id, key)
         })
     };
     match result {
@@ -61,17 +51,8 @@ pub(super) extern "C" fn host_storage_set(
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "storage key")?;
-            validate_storage_key(key)?;
-            let bytes = value.as_slice();
-            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
-                host.storage_set(&ctx.state.id, key, bytes.to_vec());
-                return Ok(());
-            }
-            let dir = ctx.storage_dir();
-            std::fs::create_dir_all(&dir)
-                .map_err(|err| format!("storage directory creation failed: {err}"))?;
-            std::fs::write(dir.join(key), bytes)
-                .map_err(|err| format!("storage write failed for `{key}`: {err}"))
+            ctx.scoped_ctx
+                .storage_set(&ctx.state.id, key, value.as_slice())
         })
     };
     match result {
@@ -85,17 +66,9 @@ pub(super) extern "C" fn host_storage_delete(host_ctx: *mut c_void, key: AriaStr
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
             let key = read_str(key, "storage key")?;
-            validate_storage_key(key)?;
-            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
-                host.storage_delete(&ctx.state.id, key);
-                return Ok(());
-            }
-            let path = ctx.storage_dir().join(key);
-            match std::fs::remove_file(&path) {
-                Ok(()) => Ok(()),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                Err(err) => Err(format!("storage delete failed for `{key}`: {err}")),
-            }
+            ctx.scoped_ctx
+                .storage_delete(&ctx.state.id, key)
+                .map(|_| ())
         })
     };
     match result {
@@ -108,24 +81,7 @@ pub(super) extern "C" fn host_storage_keys(host_ctx: *mut c_void) -> AriaResult 
     // SAFETY: `host_ctx` is valid for the duration of `host_storage_keys`.
     let result = unsafe {
         call_ctx(host_ctx).and_then(|ctx| {
-            if let Some(host) = ctx.scoped_ctx.unscoped_project_host() {
-                let keys = host.storage_keys(&ctx.state.id);
-                return serde_json::to_string(&keys).map_err(|err| err.to_string());
-            }
-            let dir = ctx.storage_dir();
-            let entries = match std::fs::read_dir(&dir) {
-                Ok(entries) => entries,
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                    return Ok("[]".to_owned());
-                }
-                Err(err) => return Err(format!("storage list failed: {err}")),
-            };
-            let mut keys: Vec<String> = entries
-                .filter_map(Result::ok)
-                .filter(|entry| entry.path().is_file())
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                .collect();
-            keys.sort();
+            let keys = ctx.scoped_ctx.storage_keys(&ctx.state.id)?;
             serde_json::to_string(&keys).map_err(|err| err.to_string())
         })
     };

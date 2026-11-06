@@ -36,10 +36,9 @@ pub struct AriaHostV1 {
     /// `ARIA_LOG_*` value. A null `host_ctx` or text that is not UTF-8 writes nothing.
     pub log: unsafe extern "C" fn(host_ctx: *mut c_void, level: u32, text: AriaStr),
     /// Read the value stored under `key` in the plugin's per-project store in the
-    /// open `.aria` project (`plugin_data`), or `<data dir>/plugin-data/<plugin id>`
-    /// when no project host is registered. Returns [`ARIA_BYTES_FOUND`] with the
-    /// bytes, or [`ARIA_BYTES_NOT_FOUND`]. A key is one file name: not empty, not `.` or
-    /// `..`, and without `/`, `\` or NUL.
+    /// open `.aria` project (`plugin_data`). Fails when no project is open. Returns
+    /// [`ARIA_BYTES_FOUND`] with the bytes, or [`ARIA_BYTES_NOT_FOUND`]. A key is one
+    /// file name: not empty, not `.` or `..`, and without `/`, `\` or NUL.
     pub storage_get: unsafe extern "C" fn(host_ctx: *mut c_void, key: AriaStr) -> AriaBytesResult,
     /// Store `value` under `key`, replacing any earlier value. Keys follow the rules of
     /// `storage_get`.

@@ -11,7 +11,7 @@ Native C ABI plugin package (`Tier::Native`) built as a `cdylib` over
   `DropAction::ImportMedia` and `https://notes.example/` URLs as
   `DropAction::Handled`) and `"command-proposed"` (counting proposed
   commands and rejecting edits that target more than eight tracks).
-- Per-project storage reads and writes in the open `.aria` project (`Project::plugin_data["example.notes"]`, falling back to `<data dir>/plugin-data/example.notes` when no `ProjectHost` is registered).
+- Per-project storage reads and writes in the open `.aria` project (`Project::plugin_data["example.notes"]`).
 
 ## Build, validate, pack, and install
 

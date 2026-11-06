@@ -57,7 +57,6 @@ pub(super) struct ActiveExport {
 pub(crate) struct HostState {
     pub(super) shared: Weak<WasmPluginShared>,
     pub(super) package: Package,
-    pub(super) data_root: PathBuf,
     pub(super) limiter: StoreLimits,
     pub(super) phase: CallPhase,
     pub(super) active_ctx: Option<PluginContext>,
@@ -103,7 +102,6 @@ pub(crate) struct WasmPluginShared {
     pub(super) package: Package,
     pub(super) manifest: PluginManifest,
     pub(super) limits: Limits,
-    pub(super) data_root: PathBuf,
     pub(super) engine: &'static SharedEngine,
     /// The component, linked against the host and type-checked against the
     /// world at load, so a mismatch fails the load before any guest code runs.
@@ -149,7 +147,7 @@ impl WasmPlugin {
     pub(crate) fn new(
         package: &Package,
         limits: &Limits,
-        data_root: PathBuf,
+        _data_root: PathBuf,
         component_path: &Path,
     ) -> Result<Self, LoadError> {
         let engine = SharedEngine::get().map_err(LoadError::Engine)?;
@@ -212,7 +210,6 @@ impl WasmPlugin {
             package: package.clone(),
             manifest,
             limits: limits.clone(),
-            data_root,
             engine,
             pre,
             state: Mutex::new(InstanceState::Unmounted),
@@ -262,7 +259,6 @@ impl WasmPluginShared {
         let host_state = HostState {
             shared: Arc::downgrade(self),
             package: self.package.clone(),
-            data_root: self.data_root.clone(),
             limiter,
             phase: CallPhase::Idle,
             active_ctx: None,
@@ -399,6 +395,7 @@ impl WasmPluginShared {
             ));
         }
         let mut guard = self.state.lock();
+        let _thread_guard = ActiveThreadGuard::enter(&self.active_thread);
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,
             InstanceState::Faulted(reason) => {
@@ -411,11 +408,11 @@ impl WasmPluginShared {
 
         self.prepare_call(&mut live.store, phase, ctx);
         let result = {
-            let _thread_guard = ActiveThreadGuard::enter(&self.active_thread);
             let _tick_guard = self.engine.enter_call();
             f(live, self.engine)
         };
         Self::finish_call(&mut live.store);
+        drop(_thread_guard);
 
         match result {
             Ok(Ok(value)) => Ok(value),
@@ -443,26 +440,29 @@ impl WasmPluginShared {
             );
         }
         let mut guard = self.state.lock();
+        let _thread_guard = ActiveThreadGuard::enter(&self.active_thread);
         let live = match &mut *guard {
             InstanceState::Mounted(live) => live,
             InstanceState::Faulted(reason) => {
                 let msg = format!("plugin {} has faulted: {reason}", self.manifest.id);
+                drop(_thread_guard);
                 drop(guard);
                 panic!("{msg}");
             }
             InstanceState::Unmounted => {
                 let msg = format!("plugin {} is not mounted", self.manifest.id);
+                drop(_thread_guard);
                 drop(guard);
                 panic!("{msg}");
             }
         };
         self.prepare_call(&mut live.store, phase, ctx);
         let result = {
-            let _thread_guard = ActiveThreadGuard::enter(&self.active_thread);
             let _tick_guard = self.engine.enter_call();
             f(live)
         };
         Self::finish_call(&mut live.store);
+        drop(_thread_guard);
         match result {
             Ok(value) => value,
             Err(trap_err) => {

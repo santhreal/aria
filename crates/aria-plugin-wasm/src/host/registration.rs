@@ -33,7 +33,7 @@ impl WasmPluginShared {
         kind: &str,
         event_json: &str,
     ) -> Result<Option<String>, String> {
-        if *self.active_thread.lock() == Some(std::thread::current().id()) {
+        if self.active_thread.lock().is_some() || self.state.is_locked() {
             return Ok(None);
         }
         self.run_with_instance(ctx, CallPhase::Event, |live, _engine| match &live.plugin {

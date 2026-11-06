@@ -129,9 +129,6 @@ struct Shared {
     activations: Arc<Activations>,
     /// The lines each plugin logged, by plugin id.
     logs: PluginLogs,
-    /// Fallback plugin storage root (`<data_dir>/plugin-data`) used when no
-    /// [`crate::ProjectHost`] is registered on the context.
-    storage_root: RwLock<Option<std::path::PathBuf>>,
 }
 
 /// A service a plugin asked for and was refused, because its manifest does not
@@ -254,18 +251,10 @@ impl PluginContext {
                 jobs: PluginJobs::default(),
                 activations: Arc::default(),
                 logs: PluginLogs::default(),
-                storage_root: RwLock::new(None),
             }),
             scope: None,
         }
     }
-    /// Set the fallback plugin storage directory (`<data_dir>/plugin-data`) used
-    /// when no [`crate::ProjectHost`] is registered on this context.
-    pub fn with_storage_root(self, root: impl Into<std::path::PathBuf>) -> Self {
-        *self.shared.storage_root.write() = Some(root.into());
-        self
-    }
-
 
     /// The same context seen through one plugin's manifest: it resolves the
     /// services that manifest declares and nothing else.
@@ -728,85 +717,49 @@ impl PluginContext {
             .map(Arc::clone)
     }
 
-    fn fallback_storage_dir(&self, plugin_id: &str) -> Result<std::path::PathBuf, String> {
-        if let Some(root) = self.shared.storage_root.read().as_ref() {
-            return Ok(root.join(plugin_id));
-        }
-        let unscoped = self.scoped(None);
-        if let Some(storage) = unscoped.try_get::<dyn crate::StorageService>() {
-            let cache = storage.cache_dir();
-            let root = cache.parent().unwrap_or(cache);
-            return Ok(root.join("plugin-data").join(plugin_id));
-        }
-        Err("no ProjectHost or fallback storage_root is configured on PluginContext".to_owned())
+    fn require_project_host_for_storage(
+        &self,
+        plugin_id: &str,
+        op: &str,
+    ) -> Result<Arc<crate::ProjectHost>, String> {
+        self.unscoped_project_host().ok_or_else(|| {
+            format!(
+                "{op} failed for plugin `{plugin_id}`: plugin runs with no open project (no ProjectHost is registered)"
+            )
+        })
     }
 
     /// Read `key` from `plugin_id`'s per-project store in the open `.aria`
-    /// project, falling back to `storage_root` when no [`crate::ProjectHost`]
-    /// is registered.
+    /// project. Fails when no [`crate::ProjectHost`] is registered.
     pub fn storage_get(&self, plugin_id: &str, key: &str) -> Result<Option<Vec<u8>>, String> {
         crate::external::validate_storage_key(key)?;
-        if let Some(host) = self.unscoped_project_host() {
-            return Ok(host.storage_get(plugin_id, key));
-        }
-        let path = self.fallback_storage_dir(plugin_id)?.join(key);
-        match std::fs::read(&path) {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(format!("storage read failed for `{key}`: {err}")),
-        }
+        let host = self.require_project_host_for_storage(plugin_id, "storage_get")?;
+        Ok(host.storage_get(plugin_id, key))
     }
 
     /// Write `value` under `key` in `plugin_id`'s per-project store in the
-    /// open `.aria` project, falling back to `storage_root` when no
-    /// [`crate::ProjectHost`] is registered.
+    /// open `.aria` project. Fails when no [`crate::ProjectHost`] is registered.
     pub fn storage_set(&self, plugin_id: &str, key: &str, value: &[u8]) -> Result<(), String> {
         crate::external::validate_storage_key(key)?;
-        if let Some(host) = self.unscoped_project_host() {
-            host.storage_set(plugin_id, key, value.to_vec());
-            return Ok(());
-        }
-        let dir = self.fallback_storage_dir(plugin_id)?;
-        std::fs::create_dir_all(&dir)
-            .map_err(|err| format!("storage directory creation failed: {err}"))?;
-        std::fs::write(dir.join(key), value)
-            .map_err(|err| format!("storage write failed for `{key}`: {err}"))
+        let host = self.require_project_host_for_storage(plugin_id, "storage_set")?;
+        host.storage_set(plugin_id, key, value.to_vec());
+        Ok(())
     }
 
     /// Delete `key` from `plugin_id`'s per-project store in the open `.aria`
-    /// project, returning `true` when an entry was removed.
+    /// project, returning `true` when an entry was removed. Fails when no
+    /// [`crate::ProjectHost`] is registered.
     pub fn storage_delete(&self, plugin_id: &str, key: &str) -> Result<bool, String> {
         crate::external::validate_storage_key(key)?;
-        if let Some(host) = self.unscoped_project_host() {
-            return Ok(host.storage_delete(plugin_id, key));
-        }
-        let path = self.fallback_storage_dir(plugin_id)?.join(key);
-        match std::fs::remove_file(&path) {
-            Ok(()) => Ok(true),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(err) => Err(format!("storage delete failed for `{key}`: {err}")),
-        }
+        let host = self.require_project_host_for_storage(plugin_id, "storage_delete")?;
+        Ok(host.storage_delete(plugin_id, key))
     }
 
     /// Sorted keys stored in `plugin_id`'s per-project store in the open
-    /// `.aria` project.
+    /// `.aria` project. Fails when no [`crate::ProjectHost`] is registered.
     pub fn storage_keys(&self, plugin_id: &str) -> Result<Vec<String>, String> {
-        if let Some(host) = self.unscoped_project_host() {
-            return Ok(host.storage_keys(plugin_id));
-        }
-        let dir = self.fallback_storage_dir(plugin_id)?;
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(err) => return Err(format!("storage list failed: {err}")),
-        };
-        let mut keys: Vec<String> = entries
-            .filter_map(Result::ok)
-            .filter(|entry| entry.path().is_file())
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .collect();
-        keys.sort();
-        Ok(keys)
+        let host = self.require_project_host_for_storage(plugin_id, "storage_keys")?;
+        Ok(host.storage_keys(plugin_id))
     }
 
     /// Look up `id` across the project's sequences. Requires `ProjectHost` read access.

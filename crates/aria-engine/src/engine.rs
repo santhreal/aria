@@ -4,7 +4,11 @@
 //! pipeline and the native `aria-encoder`; this type owns the session
 //! [`Renderer`] and the undo [`History`].
 
-use std::{borrow::Cow, path::PathBuf, sync::Arc};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use aria_commands::{Command, EditCommand, ProjectCommand};
 use aria_models::{
@@ -84,16 +88,11 @@ struct LivePreviews {
     look: Option<(ClipId, Option<Filter>, ColorAdjustments)>,
     /// Live layer styles for one clip (inspector slider preview).
     styles: Option<(ClipId, LayerStyles)>,
-    /// Live animation slots for one clip: a catalog hover previews a preset before
-    /// any edit exists, so moving off the entry restores the clip with nothing on
-    /// the undo stack.
+    /// Live animation slots for one clip (catalog hover preview).
     animation: Option<(ClipId, AnimationSlot, Option<AnimationRef>)>,
-    /// Live crop window and mirror flags for one clip. An on-canvas crop drag shows
-    /// the uncropped frame while the handles move, so the crop cuts into the
-    /// visible picture instead of one the crop already hid.
+    /// Live crop window and mirror flags for one clip (on-canvas crop drag).
     crop: Option<(ClipId, CropRect, bool, bool)>,
-    /// One live vec2 effect parameter on one clip: a Viewer handle drag shows
-    /// the point it is placing before the release commits it.
+    /// One live vec2 effect parameter on one clip (Viewer handle drag).
     effect_vec2: Option<(ClipId, usize, usize, [f32; 2])>,
 }
 
@@ -272,22 +271,35 @@ impl Engine {
         Arc::make_mut(&mut self.project).metadata_mut().agent_rules = rules;
         self.revision += 1;
     }
-    /// Write `value` under `key` in `plugin_id`'s per-project store, returning
-    /// `true` when the stored bytes changed.
+    /// Write `value` under `key` in `plugin_id`'s per-project store, returning `true` when changed.
     pub fn set_plugin_storage(&mut self, plugin_id: &str, key: &str, value: Vec<u8>) -> bool {
-        if self.project.plugin_storage_get(plugin_id, key) == Some(value.as_slice()) {
-            return false;
+        let changed = Arc::make_mut(&mut self.project).plugin_storage_set(plugin_id, key, value);
+        if changed {
+            self.revision += 1;
         }
-        Arc::make_mut(&mut self.project).plugin_storage_set(plugin_id, key, value)
+        changed
     }
 
-    /// Remove `key` from `plugin_id`'s per-project store, returning `true`
-    /// when an entry was removed.
+    /// Remove `key` from `plugin_id`'s per-project store, returning `true` when removed.
     pub fn delete_plugin_storage(&mut self, plugin_id: &str, key: &str) -> bool {
         if self.project.plugin_storage_get(plugin_id, key).is_none() {
             return false;
         }
-        Arc::make_mut(&mut self.project).plugin_storage_delete(plugin_id, key)
+        let removed = Arc::make_mut(&mut self.project).plugin_storage_delete(plugin_id, key);
+        if removed {
+            self.revision += 1;
+        }
+        removed
+    }
+
+    /// Persist mutations made during a save notification (`ProjectSaved`) to `path` and mark clean.
+    pub fn finish_post_save(&mut self, path: &Path) -> Result<(), EngineError> {
+        if !self.is_dirty() || self.project_path.as_deref() != Some(path) {
+            return Ok(());
+        }
+        self.project.save_to_file(path)?;
+        self.saved_revision = self.revision;
+        Ok(())
     }
 
     /// Monotonic session revision, bumped by every successful mutation.
@@ -782,10 +794,7 @@ impl Engine {
     }
 
     /// The quad a resolved `layer` is drawn on in a `canvas`-sized scene,
-    /// `(center, size)` in canvas pixels before rotation. See
-    /// [`Renderer::layer_quad`]. `&mut self`: a title or pen path is sized from
-    /// the renderer's raster memos, so a miss rasterizes once and the next
-    /// preview frame reuses it.
+    /// `(center, size)` in canvas pixels before rotation; see [`Renderer::layer_quad`].
     pub fn layer_quad(
         &mut self,
         layer: &SceneLayer,
@@ -794,10 +803,7 @@ impl Engine {
         self.renderer.layer_quad(layer, canvas)
     }
 
-    /// The carets of a title `layer` in a `canvas`-sized scene, in canvas
-    /// pixels. See [`Renderer::layer_carets`]. `&mut self` for the same
-    /// reason as [`layer_quad`](Self::layer_quad): the stops come from the
-    /// renderer's shaping memo.
+    /// The carets of a title `layer` in a `canvas`-sized scene, in canvas pixels; see [`Renderer::layer_carets`].
     pub fn layer_carets(
         &mut self,
         layer: &SceneLayer,
