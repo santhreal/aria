@@ -27,6 +27,8 @@ const DOT: f32 = 5.0;
 /// Size of the fx badge.
 const FX_W: f32 = 16.0;
 const FX_H: f32 = 10.0;
+/// The alpha of the bar's ink that fills the fx badge with nothing applied.
+const FX_REST: f32 = 0.2;
 /// Space between the items of the name strip.
 const GAP: f32 = 4.0;
 /// Side of the dot a generated clip's content strip draws its fill color as.
@@ -204,14 +206,19 @@ fn rect(x: f32, y: f32, w: f32, h: f32) -> Bounds<Pixels> {
     }
 }
 
-/// The fill of the fx badge: grey with nothing applied or changed, yellow
-/// with effects applied, purple with only intrinsic properties changed.
-pub(crate) fn fx_fill(theme: &Theme, fx: UiFxBadge) -> Hsla {
-    match (fx.effects, fx.intrinsic) {
-        (false, false) => theme.text_muted,
+/// The fill of the fx badge and the ink of its glyph, on a bar whose name is
+/// drawn in `ink`. With nothing applied or changed, `ink` at [`FX_REST`] under
+/// the glyph in `ink`: the badge is keyed to the clip's fill, which is the same
+/// in both appearances, so it reads alike in both. Yellow with effects applied,
+/// purple with only intrinsic properties changed, each under the ink that
+/// contrasts more with it.
+pub(crate) fn fx_colors(theme: &Theme, fx: UiFxBadge, ink: Hsla) -> (Hsla, Hsla) {
+    let fill = match (fx.effects, fx.intrinsic) {
+        (false, false) => return (ink.opacity(FX_REST), ink),
         (true, _) => theme.marker(aria_models::MarkerColor::Yellow),
         (false, true) => theme.marker(aria_models::MarkerColor::Purple),
-    }
+    };
+    (fill, Theme::ink_on(fill))
 }
 
 /// The strip's geometry, left to right: where the name starts, and the
@@ -311,7 +318,7 @@ pub(crate) fn paint_name_strip(
     if right - strip.left < 8.0 {
         return hits;
     }
-    let ink = ink.opacity(alpha);
+    let (bare_ink, ink) = (ink, ink.opacity(alpha));
     let mask = ContentMask::from(rect(strip.left, top, right - strip.left, NAME_STRIP));
     window.with_content_mask(Some(mask), |window| {
         let mut x = strip.left;
@@ -376,8 +383,8 @@ pub(crate) fn paint_name_strip(
             x += f32::from(line.width()) + GAP;
         }
         let fx = rect(x, top + (NAME_STRIP - FX_H) * 0.5, FX_W, FX_H);
-        let fill = fx_fill(theme, clip.fx).opacity(alpha);
-        rounded(window, paint_calls, fx, 2.0, fill);
+        let (fill, glyph_ink) = fx_colors(theme, clip.fx, bare_ink);
+        rounded(window, paint_calls, fx, 2.0, fill.opacity(alpha));
         if clip.fx.effects && clip.fx.intrinsic {
             let purple = theme
                 .marker(aria_models::MarkerColor::Purple)
@@ -394,7 +401,7 @@ pub(crate) fn paint_name_strip(
             window,
             SharedString::new_static("fx"),
             BADGE_PX,
-            Theme::ink_on(fill),
+            glyph_ink.opacity(alpha),
             theme,
         );
         let glyph_x = x + (FX_W - f32::from(glyph.width())) * 0.5;
@@ -770,3 +777,7 @@ mod lane_tool_tests;
 #[cfg(test)]
 #[path = "content_strip_tests.rs"]
 mod content_strip_tests;
+
+#[cfg(test)]
+#[path = "badge_tests.rs"]
+mod badge_tests;

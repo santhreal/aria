@@ -140,7 +140,7 @@ audio clips the volume line.
 | --- | --- |
 | Fill | The clip's label color. Selected clips use the label's selected fill and a 1 px white border. |
 | Name strip | Clip name, then the speed when it is not 100 % (`120.0%`, `-100.0%` reversed), then badges. |
-| fx badge | Gray: no effects. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
+| fx badge | No effects: the name's ink at 20 % under an `fx` in that ink, the same on a clip in both looks. Yellow: effects applied. Purple: intrinsic properties changed. Yellow with purple underline: both. Clicking it opens a menu of the clip's effects and properties. |
 | Content strip | Video: thumbnails, per the display setting (head, head and tail, continuous). Audio: rectified waveform, logarithmic by default, one bar per 3 px of the clip at every zoom. Generators: an 8 px dot of their fill color, and the generator's name when the clip's name differs from it. |
 | Volume line | The clip volume as a horizontal line with keyframe dots. Dragging the line up or down changes the volume, and a drag from it along the lane moves the clip; Ctrl+click adds a keyframe. |
 | Keyframe dots | Shown when the track is Medium or taller and the clip has keyframes on the property chosen in the clip's badge menu. Dragging a dot moves its keyframe up or down and along the lane, inside the clip, pulled to the playhead and to the clip's other keyframes; Alt passes them. The readout states the keyframe's time. |

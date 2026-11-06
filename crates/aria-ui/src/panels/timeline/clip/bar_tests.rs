@@ -4,8 +4,8 @@
 //! Closes the class "a press lands somewhere other than what was drawn under
 //! it": the line hit-tested at a height its paint did not use, a keyframe dot a
 //! press passes through to the line, a Ctrl+click on the line that keys
-//! nothing. Also pins the fills the spec names: the fx badge gray, yellow, or
-//! purple with the purple underline when both, an offline bar red, and the
+//! nothing. Also pins the fills the spec names: the fx badge in the bar's ink,
+//! yellow, or purple with the purple underline when both, an offline bar red, and the
 //! bracket on a held edge red while its drag is stopped at the limit. Not
 //! covered: the pointer's cursor shape, which the test platform does not
 //! report back, and glyphs, which the test text system does not draw.
@@ -20,7 +20,7 @@ use gpui::{
     TestAppContext, VisualTestContext, point, px, size,
 };
 
-use super::{BarRows, DOT, FX_H, FX_W, name_tags};
+use super::{BarRows, DOT, FX_H, FX_W, badge_tests::rest, name_tags};
 use crate::app::AppState;
 use crate::scratch_pool::scratch;
 use crate::surfaces::timeline_gesture::{Drag, Gesture, Span};
@@ -385,7 +385,7 @@ fn a_press_on_the_line_moves_the_clip_along_the_lane_and_the_line_across_it(
 }
 
 #[gpui::test]
-fn the_fx_badge_is_gray_yellow_purple_or_yellow_over_purple(cx: &mut TestAppContext) {
+fn the_fx_badge_is_ink_yellow_purple_or_yellow_over_purple(cx: &mut TestAppContext) {
     let (state, visual, clip) = placed(cx, "bar-badge", texture());
     let lane = v1_lane(visual);
     let theme = visual.read(Theme::of);
@@ -412,7 +412,7 @@ fn the_fx_badge_is_gray_yellow_purple_or_yellow_over_purple(cx: &mut TestAppCont
         (badges[0].background, underlined)
     };
 
-    assert_eq!(badge(visual), (Background::from(theme.text_muted), false));
+    assert_eq!(badge(visual), (rest(visual, &state, clip), false));
 
     edit(
         visual,

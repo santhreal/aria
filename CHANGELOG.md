@@ -862,6 +862,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls Text and Effects tabs open directly at their content without repeating the tab label as an opening section heading.
 - The Home recovery banner draws Restore as the solid button and Discard as a ghost button.
 - Project > Media no longer marks a still image Silent.
+- The fx badge on a clip with nothing applied draws in the clip's own ink and reads the same in the dark and light looks.
 
 ### Fixed
 
