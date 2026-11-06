@@ -734,3 +734,108 @@ fn assistant_guide_matches_ai_registries_bidirectionally() {
         "tool_groups() and tool_specs() tool names must match in order"
     );
 }
+
+/// Closes the class where `docs/guide/timeline-and-editing.md` drifts from the
+/// frame-nudge bindings (`key-trim-back`, `key-trim-forward`,
+/// `key-trim-back-fast`, `key-trim-forward-fast`), Audio Gain bounds
+/// (`GAIN_FLOOR_DB`, `MAX_GAIN_DB`), or `LabelColor::ALL` order, where
+/// `docs/guide/importing-media.md` drifts from `aria_interchange::FORMATS`, or
+/// where `docs/guide/settings-and-storage.md` drifts from
+/// `PROJECT_FILE_EXTENSION`, `PROJECT_SCHEMA_KIND`, or `PROJECT_SCHEMA_VERSION`.
+/// Does not catch unquantified prose wording outside those registries.
+#[test]
+fn guide_timeline_importing_and_storage_claims_match_registries() {
+    // 1. Timeline and editing: frame nudge chords, Audio Gain bounds, and LabelColor::ALL.
+    let timeline_doc = read_doc("guide/timeline-and-editing.md");
+    let edit_sec = heading_body(&timeline_doc, "## Edit");
+    for required in [
+        "<kbd>Ctrl+Left</kbd> (`key-trim-back`)",
+        "<kbd>Ctrl+Right</kbd> (`key-trim-forward`)",
+        "<kbd>Ctrl+Shift+Left</kbd> (`key-trim-back-fast`)",
+        "<kbd>Ctrl+Shift+Right</kbd> (`key-trim-forward-fast`)",
+        &format!(
+            "`{:.0}` to `+{:.0}` dB",
+            aria_analysis::GAIN_FLOOR_DB,
+            crate::app::clip_ops::MAX_GAIN_DB
+        ),
+    ] {
+        assert!(
+            edit_sec.contains(required),
+            "docs/guide/timeline-and-editing.md ## Edit missing `{required}`"
+        );
+    }
+    let labels_sec = heading_body(&timeline_doc, "## Label colors");
+    let label_names: Vec<&str> = aria_models::LabelColor::ALL
+        .iter()
+        .map(|c| c.name())
+        .collect();
+    let (last_label, init_labels) = label_names.split_last().expect("LabelColor::ALL non-empty");
+    let expected_label_list = format!("{} and {last_label}", init_labels.join(", "));
+    let collapsed_labels = collapse_ws(labels_sec);
+    let expected_label_list_comma = format!("{}, and {last_label}", init_labels.join(", "));
+    assert!(
+        collapsed_labels.contains(&expected_label_list)
+            || collapsed_labels.contains(&expected_label_list_comma),
+        "docs/guide/timeline-and-editing.md ## Label colors drifted from LabelColor::ALL ({expected_label_list_comma})"
+    );
+
+    // 2. Importing media: `## Timeline files` matches `aria_interchange::FORMATS` and `SUBTITLE_FORMATS`.
+    let import_doc = read_doc("guide/importing-media.md");
+    let timeline_files_sec = heading_body(&import_doc, "## Timeline files");
+    let expected_formats: Vec<(String, String)> = aria_interchange::FORMATS
+        .iter()
+        .map(|f| (f.name.to_string(), format!(".{}", f.extension)))
+        .chain(
+            aria_interchange::SUBTITLE_FORMATS
+                .iter()
+                .map(|s| (s.name.to_string(), format!(".{}", s.extension))),
+        )
+        .collect();
+    let documented_formats: Vec<(String, String)> = table_rows(timeline_files_sec)
+        .iter()
+        .map(|cells| {
+            assert!(cells.len() >= 2, "malformed Timeline files row: {cells:?}");
+            (
+                strip_ticks(cells[0]).to_string(),
+                strip_ticks(cells[1]).to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        documented_formats, expected_formats,
+        "docs/guide/importing-media.md ## Timeline files table drifted from FORMATS + SUBTITLE_FORMATS"
+    );
+
+    // 3. Settings and storage: `.aria` project schema constants and version table.
+    let storage_doc = read_doc("guide/settings-and-storage.md");
+    let schema_sec = heading_body(
+        &storage_doc,
+        "## Project files (`.aria`) and schema versions",
+    );
+    for token in [
+        format!(
+            "PROJECT_FILE_EXTENSION = \"{}\"",
+            aria_models::PROJECT_FILE_EXTENSION
+        ),
+        format!("kind = \"{}\"", aria_models::PROJECT_SCHEMA_KIND),
+        format!("version = {}", aria_models::PROJECT_SCHEMA_VERSION),
+    ] {
+        assert!(
+            schema_sec.contains(&token),
+            "docs/guide/settings-and-storage.md missing `{token}`"
+        );
+    }
+    let documented_versions: Vec<u32> = table_rows(schema_sec)
+        .iter()
+        .map(|cells| {
+            strip_ticks(cells[0])
+                .parse::<u32>()
+                .expect("schema version integer")
+        })
+        .collect();
+    let expected_versions: Vec<u32> = (1..=aria_models::PROJECT_SCHEMA_VERSION).collect();
+    assert_eq!(
+        documented_versions, expected_versions,
+        "docs/guide/settings-and-storage.md schema version table drifted"
+    );
+}

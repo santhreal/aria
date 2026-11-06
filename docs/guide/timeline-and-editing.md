@@ -25,7 +25,7 @@
   touches is selected, in either direction, across every lane between the two
   corners. A press with no drag clears the selection. Esc abandons the band and
   leaves the selection as it was.
-- Arrow keys nudge one frame. Shift+Arrow nudges ten.
+- With no edge selected, <kbd>Ctrl+Left</kbd> (`key-trim-back`) and <kbd>Ctrl+Right</kbd> (`key-trim-forward`) move the selected clip one frame; <kbd>Ctrl+Shift+Left</kbd> (`key-trim-back-fast`) and <kbd>Ctrl+Shift+Right</kbd> (`key-trim-forward-fast`) move it five.
 - Delete or Backspace removes the selected clips and leaves their gaps; with a
   gap selected, it closes the gap. Shift+Delete or Shift+Backspace
   ripple-deletes the selection.
