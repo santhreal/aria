@@ -33,7 +33,7 @@ default = 0.1
 
 - **Keyboard shortcut (`Ctrl+T` / `Cmd+T`, `key-transition`)**: applies the default video transition (`crossfade`, `DEFAULT_TRANSITION_TICKS = 24`) on the selected clip's outgoing cut.
 - **Sequence menu (**Sequence > Apply Default Transitions** and **Sequence > Add Cross Fade at Cut**)**: applies `crossfade` (`24` ticks) to the selected clip's outgoing cut.
-- **Effects & Presets (**Window > Effects & Presets**, **Video Transitions**)**: double-click an entry or drag it onto a clip on the timeline. A drop lands on the clip's cut nearer the pointer; on a clip with one cut, it lands on that cut from either half. The clip on the left of that cut becomes selected.
+- **Effects & Presets (**Window > Effects & Presets**, **Video Transitions**)**: double-click an entry or drag it onto a clip on the timeline. While dragging, the lane line marks the cut the release lands on: the clip's cut nearer the pointer, or the clip's one cut from either half. The clip on the left of that cut becomes selected.
 - **Project panel (**Window > Project**, **Effects > Transitions**)**: click an entry to apply it to the selected clip's outgoing cut or drag it onto a timeline cut.
 - **Effect Controls (**Window > Effect Controls**, **Look > Transition** for picture cuts or **Audio > Transition** for sound cuts)**: selects the transition kind (`transition-choice`), duration in ticks (`transition-duration`), cut alignment (`transition-align`), and per-transition parameters (`feather` on wipes), or removes the transition (`transition-clear` / **Sequence > Remove Transition at Cut**).
 - **Timeline cut handle**: drag the transition pill across the cut to resize its duration directly on the track.

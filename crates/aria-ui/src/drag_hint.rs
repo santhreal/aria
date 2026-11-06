@@ -37,9 +37,9 @@ pub(crate) fn set(hint: DropHint) -> bool {
 
 /// Forget the drag. Called on the drop that consumes it, and by the timeline's
 /// own frame driver once no drag is in flight, so a drag released off the panel
-/// cannot leave a line behind.
-pub(crate) fn clear() {
-    HINT.with(|cell| cell.set(None));
+/// cannot leave a line behind. `true` when a hint was cleared.
+pub(crate) fn clear() -> bool {
+    HINT.with(|cell| cell.take().is_some())
 }
 
 /// The tick a lane is being dropped on, when the drag is over that lane.

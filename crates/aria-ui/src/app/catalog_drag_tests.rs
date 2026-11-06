@@ -614,8 +614,8 @@ fn cut_into(pieces: i64) -> (AppState, Vec<(ClipId, TrackId, i64, i64)>) {
 /// clip, declined "No clip on the other side of that cut" or blended the far
 /// cut. A drop with no position (Effect Controls) takes the right cut first.
 ///
-/// Not caught: a transition the model refuses at the picked cut for its
-/// length; the drag hint drawn before release.
+/// Not caught: a transition the model rejects at the picked cut for its
+/// length.
 #[test]
 fn a_dropped_transition_lands_on_the_cut_nearer_the_pointer() {
     #[derive(Debug, Clone, Copy)]
@@ -645,6 +645,17 @@ fn a_dropped_transition_lands_on_the_cut_nearer_the_pointer() {
         let (mut state, clips) = cut_into(pieces);
         let (target, track, start, end) = clips[on];
         let tenth = (end - start) / 10;
+        if let Some(at) = match released {
+            Released::Head => Some(start + tenth),
+            Released::Tail => Some(end - tenth),
+            Released::Unplaced => None,
+        } {
+            assert_eq!(
+                state.catalog_drop_tick(&drag, track, at),
+                Some(clips[expected].3),
+                "{case}: the hover line did not mark the cut the drop lands on"
+            );
+        }
         match released {
             Released::Head => state.drop_catalog_on_track(&drag, Some(track), start + tenth),
             Released::Tail => state.drop_catalog_on_track(&drag, Some(track), end - tenth),
@@ -670,5 +681,91 @@ fn a_dropped_transition_lands_on_the_cut_nearer_the_pointer() {
             Some(clips[expected].0),
             "{case}: the selection is not the clip keyed on the cut"
         );
+    }
+}
+
+/// While a catalog drag moves across a lane, [`AppState::catalog_drop_tick`]
+/// snaps a transition's lane line to the cut its release lands on — head cut
+/// in the first half when a clip abuts there, tail cut in the second half, and
+/// the sole abutting cut from either half of an end clip — and returns `None`
+/// when no cut is under the pointer (empty lane space or an isolated clip).
+/// Every non-transition catalog kind marks the pointer tick `at`.
+///
+/// Not caught: the GPUI paint call that draws `DropHint::Lane` in `clip.rs`.
+#[test]
+fn catalog_drop_tick_marks_the_transition_cut_or_the_pointer_tick_for_other_kinds() {
+    let (cut_state, clips) = cut_into(3);
+    let (_, track, first_start, first_end) = clips[0];
+    let (_, _, mid_start, mid_end) = clips[1];
+    let (_, _, last_start, last_end) = clips[2];
+    let tenth = (first_end - first_start) / 10;
+    let (lone_state, lone_clip) = with_clip();
+    let lone_track = TrackId::from_raw(lone_state.store.sequence.tracks[0].id);
+    let lone_mid = lone_state
+        .ui_clip_ref(lone_clip)
+        .map(|ui| (ui.timeline_start_ticks + ui.timeline_end_ticks) / 2)
+        .expect("lone clip span");
+
+    for drag in payloads() {
+        match drag.kind {
+            CatalogDragKind::Transition => {
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, first_start + tenth),
+                    Some(first_end),
+                    "first clip head half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, first_end - tenth),
+                    Some(first_end),
+                    "first clip tail half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, mid_start + tenth),
+                    Some(first_end),
+                    "middle clip head half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, mid_end - tenth),
+                    Some(mid_end),
+                    "middle clip tail half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, last_start + tenth),
+                    Some(mid_end),
+                    "last clip head half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, last_end - tenth),
+                    Some(mid_end),
+                    "last clip tail half"
+                );
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, last_end + tenth),
+                    None,
+                    "empty lane space past the last clip"
+                );
+                assert_eq!(
+                    lone_state.catalog_drop_tick(&drag, lone_track, lone_mid),
+                    None,
+                    "isolated clip with no abutting cut"
+                );
+            }
+            CatalogDragKind::Sticker
+            | CatalogDragKind::Generator
+            | CatalogDragKind::ClipType
+            | CatalogDragKind::Animation
+            | CatalogDragKind::Mask
+            | CatalogDragKind::Effect
+            | CatalogDragKind::AudioEffect
+            | CatalogDragKind::Preset => {
+                let at = last_start + tenth;
+                assert_eq!(
+                    cut_state.catalog_drop_tick(&drag, track, at),
+                    Some(at),
+                    "{:?} should mark the pointer tick",
+                    drag.kind
+                );
+            }
+        }
     }
 }

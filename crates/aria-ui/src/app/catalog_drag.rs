@@ -90,6 +90,41 @@ impl AppState {
         }
     }
 
+    /// The tick on `track` the lane line marks while `drag` is held at `at`, or
+    /// `None` when `drag` has no landing there.
+    ///
+    /// A transition lands on the cut nearer `at` within the clip under the
+    /// pointer (`timeline_end_ticks` of [`Self::transition_junction`]) when that
+    /// clip has an abutting cut, and nowhere over empty lane space or an
+    /// isolated clip. Every other catalog payload marks `at`.
+    pub fn catalog_drop_tick(&self, drag: &CatalogDrag, track: TrackId, at: i64) -> Option<i64> {
+        match drag.kind {
+            CatalogDragKind::Transition => {
+                let clip = self
+                    .store
+                    .sequence
+                    .tracks
+                    .iter()
+                    .find(|lane| lane.id == track.raw())?
+                    .clips
+                    .iter()
+                    .find(|clip| clip.timeline_start_ticks <= at && at < clip.timeline_end_ticks)
+                    .map(|clip| ClipId::from_raw(clip.id))?;
+                let junction = self.transition_junction(clip, Some(at));
+                self.clip_transition_media(junction)?;
+                self.ui_clip_ref(junction).map(|ui| ui.timeline_end_ticks)
+            }
+            CatalogDragKind::Sticker
+            | CatalogDragKind::Generator
+            | CatalogDragKind::ClipType
+            | CatalogDragKind::Animation
+            | CatalogDragKind::Mask
+            | CatalogDragKind::Effect
+            | CatalogDragKind::AudioEffect
+            | CatalogDragKind::Preset => Some(at),
+        }
+    }
+
     /// The clip on `track` at tick `at`. The lane is the single definition of
     /// which clip is at a position, as for `select_clip_under_playhead`.
     fn clip_on(&self, track: TrackId, at: i64) -> Option<ClipId> {

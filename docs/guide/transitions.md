@@ -22,7 +22,9 @@ selected edge or at the cut nearest the playhead on the targeted picture lanes.
 puts Constant Power at the selected edge or at the cut nearest the playhead on
 the targeted audio lanes. A selected edge on the other kind of lane is refused
 with a status line stating the other chord. The Effects panel lists both sets,
-under **Video Transitions** and **Audio Transitions**.
+under **Video Transitions** and **Audio Transitions**. Drag an entry onto a
+clip on the timeline to place it at the cut nearer the pointer; while dragging,
+the lane line marks that cut.
 
 The timeline draws the window as a band at the cut according to its alignment.
 Drag either edge of the band to set the length: a centered band moves both

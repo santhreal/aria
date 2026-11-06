@@ -156,10 +156,19 @@ pub(crate) fn group_target(
                 return;
             };
             this.set_catalog_drop(track_id, tick);
-            if drop_hint::set(DropHint::Lane {
-                track: track_id,
+            let hint = this.state.read(cx).catalog_drop_tick(
+                event.drag(cx),
+                aria_models::TrackId::from_raw(track_id),
                 tick,
-            }) {
+            );
+            let changed = match hint {
+                Some(tick) => drop_hint::set(DropHint::Lane {
+                    track: track_id,
+                    tick,
+                }),
+                None => drop_hint::clear(),
+            };
+            if changed {
                 cx.notify();
             }
         },
