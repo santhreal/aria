@@ -305,6 +305,14 @@ pub(crate) fn edge_to_extend(_: &str, state: &AppState) -> Option<&'static str> 
     state.extend_delta().err().map(|why| why.reason())
 }
 
+/// The row shifts the selected clip's lane one second earlier.
+pub(crate) fn lane_shift_earlier(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .lane_shift(-state.one_second())
+        .err()
+        .map(|why| why.reason())
+}
+
 /// The row reopens the saved file over unsaved edits.
 pub(crate) fn revertible(_: &str, state: &AppState) -> Option<&'static str> {
     if state.project_path.is_none() {

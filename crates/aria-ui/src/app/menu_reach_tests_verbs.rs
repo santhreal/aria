@@ -420,16 +420,28 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
         blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-later"),
         None
     );
+    // The lane's first clip starts less than a second in: there is no second
+    // to shift it back by, so the row is drawn disabled in the words its body declines with.
+    let before_start = Some(crate::app::decline::Decline::ShiftBeforeStart.reason());
     assert_eq!(
         blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-earlier"),
-        None
+        before_start
+    );
+    crate::commands::reach::shift_lane(&mut ripple, false);
+    assert_eq!(ripple.status_message.as_deref(), before_start);
+    assert_eq!(ripple.last_error, None);
+    crate::commands::reach::shift_lane(&mut ripple, true);
+    assert_eq!(
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-earlier"),
+        None,
+        "a lane one second in shifts back"
     );
     crate::commands::reach::shift_lane(&mut ripple, false);
     assert_eq!(
-        ripple.status_message.as_deref(),
-        Some("That offset would move a clip before the start of the sequence")
+        blocked(AppMenu::Sequence, &ripple, "seq-lane-shift-earlier"),
+        before_start,
+        "shifted back to where it started"
     );
-    assert_eq!(ripple.last_error, None);
 
     assert_eq!(
         blocked(AppMenu::Sequence, &ripple, "seq-nest-open"),

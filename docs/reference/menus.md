@@ -141,8 +141,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-ripple-out` | `none` | Ripple Trim Out | `W` | The sequence has no clips, or no clip ends at or after the playhead on the targeted tracks (`ripple_out_ready`) | Removes the span from the playhead to the next cut on the targeted tracks from every targeted track and closes the gap. |
 | `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected, or the selected clip has no picture cut at its right edge (`picture_cut_at_selection`) | Applies a `crossfade` transition to the selected clip's cut. |
 | `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected, or no transition is applied at the selected cut (`transition_at_selection`) | Removes the transition from the selected clip's cut. |
-| `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `none` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track later by one second. |
-| `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `none` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track earlier by one second. |
+| `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `Alt+Right` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track later by one second. |
+| `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `Alt+Left` | No clip is selected, or the lane's first clip starts less than one second in (`guards::lane_shift_earlier`) | Shifts every clip on the selected clip's track earlier by one second. |
 | `seq-canvas-background` | `none` | Reset Canvas Background | `none` | Always enabled | Restores the sequence canvas background color to `[0, 0, 0, 255]`. |
 | `seq-duck-amount` | `Ducking` | Cycle Duck Amount | `none` | Always enabled | Cycles the sidechain ducking attenuation depth (`-6 dB`, `-12 dB`, `-18 dB`, `-24 dB`). |
 | `seq-duck-attack` | `Ducking` | Cycle Duck Attack | `none` | Always enabled | Cycles the sidechain ducking attack time. |
@@ -387,6 +387,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoEditPoint` | `The sequence has no edit points` |
 | `NoSelectedEdge` | `Select an edit point first` |
 | `EdgeAtPlayhead` | `The edit point is already at the playhead` |
+| `ShiftBeforeStart` | `That offset would move a clip before the start of the sequence` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

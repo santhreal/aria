@@ -32,14 +32,14 @@ pub(super) const REACH_ROWS: &[Binding] = &[
     ),
     bind!(
         "key-lane-shift-later",
-        "Shift Track One Second Later",
+        "Shift Lane One Second Later",
         Chord::alt("right"),
         Editor,
         |state| reach::shift_lane(state, true)
     ),
     bind!(
         "key-lane-shift-earlier",
-        "Shift Track One Second Earlier",
+        "Shift Lane One Second Earlier",
         Chord::alt("left"),
         Editor,
         |state| reach::shift_lane(state, false)

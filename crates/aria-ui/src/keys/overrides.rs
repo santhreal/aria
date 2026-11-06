@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(binding_label("key-shuttle-back"), "Shuttle Backward");
         assert_eq!(
             binding_label("key-lane-shift-later"),
-            "Shift Track One Second Later"
+            "Shift Lane One Second Later"
         );
         // No prefix and no hyphen: a plugin that names its binding anything at
         // all still gets a readable row.

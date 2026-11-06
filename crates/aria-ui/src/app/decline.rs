@@ -95,11 +95,13 @@ pub enum Decline {
     NoSelectedEdge,
     /// Extend Edit sent with the selected edit point on the playhead.
     EdgeAtPlayhead,
+    /// A lane or selection shift that would take a clip before tick 0.
+    ShiftBeforeStart,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 32] = [
+    pub const ALL: [Decline; 33] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -132,6 +134,7 @@ impl Decline {
         Decline::NoEditPoint,
         Decline::NoSelectedEdge,
         Decline::EdgeAtPlayhead,
+        Decline::ShiftBeforeStart,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -170,6 +173,9 @@ impl Decline {
             Decline::NoEditPoint => "The sequence has no edit points",
             Decline::NoSelectedEdge => "Select an edit point first",
             Decline::EdgeAtPlayhead => "The edit point is already at the playhead",
+            Decline::ShiftBeforeStart => {
+                "That offset would move a clip before the start of the sequence"
+            }
         }
     }
 }

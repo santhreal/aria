@@ -190,6 +190,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "Shift Lane One Second Later",
         |_, s, _| reach::shift_lane(s, true),
     )
+    .key("key-lane-shift-later")
     .when(guards::selection)
     .rule(),
     MenuItem::new(
@@ -197,7 +198,8 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "Shift Lane One Second Earlier",
         |_, s, _| reach::shift_lane(s, false),
     )
-    .when(guards::selection),
+    .key("key-lane-shift-earlier")
+    .when(guards::lane_shift_earlier),
     MenuItem::new(
         "seq-canvas-background",
         "Reset Canvas Background",

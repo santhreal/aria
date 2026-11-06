@@ -532,7 +532,8 @@ fn menus_doc_matches_registry() {
                 | Decline::NoCutForTransition
                 | Decline::NoEditPoint
                 | Decline::NoSelectedEdge
-                | Decline::EdgeAtPlayhead => {}
+                | Decline::EdgeAtPlayhead
+                | Decline::ShiftBeforeStart => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

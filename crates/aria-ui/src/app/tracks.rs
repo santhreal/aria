@@ -11,6 +11,7 @@ use aria_engine::EngineError;
 use aria_models::{RationalTime, TrackId};
 
 use super::AppState;
+use super::decline::Decline;
 
 impl AppState {
     /// Where a track sits in the projected (top-first) list.
@@ -303,12 +304,11 @@ impl AppState {
         }
         let origins = self.selection_shift_origins();
         if origins.is_empty() {
-            self.status_message = Some("Select a clip to shift".into());
+            self.decline(Decline::NoSelection);
             return Ok(());
         }
         if self.shift_would_leave_the_sequence(&origins, frames) {
-            self.status_message =
-                Some("That offset would move a clip before the start of the sequence".into());
+            self.decline(Decline::ShiftBeforeStart);
             return Ok(());
         }
         let rate = self.playhead.rate;
@@ -324,14 +324,20 @@ impl AppState {
         })
     }
 
-    /// Shift the whole lane, from its first clip on, by `delta` ticks.
-    pub fn shift_track(&mut self, track: TrackId, delta: i64) -> Result<(), EngineError> {
-        if delta == 0 {
-            return Ok(());
+    /// The selected clip's lane, which Shift Lane moves by `delta` ticks from
+    /// its first clip on. Declined with nothing selected, or when the shift
+    /// would take that first clip before the start of the sequence.
+    pub(crate) fn lane_shift(&self, delta: i64) -> Result<TrackId, Decline> {
+        let track = self.selected_track().ok_or(Decline::NoSelection)?;
+        if self.lane_start(track) + delta < 0 {
+            return Err(Decline::ShiftBeforeStart);
         }
-        let rate = self.playhead.rate;
-        let from = self
-            .store
+        Ok(track)
+    }
+
+    /// Where the lane's first clip starts, in ticks; 0 for an empty lane.
+    fn lane_start(&self, track: TrackId) -> i64 {
+        self.store
             .sequence
             .tracks
             .iter()
@@ -342,7 +348,16 @@ impl AppState {
                     .map(|clip| clip.timeline_start_ticks)
                     .min()
             })
-            .unwrap_or(0);
+            .unwrap_or(0)
+    }
+
+    /// Shift the whole lane, from its first clip on, by `delta` ticks.
+    pub fn shift_track(&mut self, track: TrackId, delta: i64) -> Result<(), EngineError> {
+        if delta == 0 {
+            return Ok(());
+        }
+        let rate = self.playhead.rate;
+        let from = self.lane_start(track);
         self.apply_command(Command::Edit(EditCommand::ShiftClips {
             track,
             from: RationalTime::new(from, rate),

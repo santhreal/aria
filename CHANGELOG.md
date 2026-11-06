@@ -1348,6 +1348,8 @@ Notes for the latest release. For previous releases, see the
 - The clip context menu offers Add Edit only when the playhead lies inside a clip it would cut.
 - Sequence > Apply Default Transitions is disabled when `Ctrl+T` would find no cut between two pictures to put a transition on.
 - Sequence > Trim Edit is disabled when every clip is on a locked track, and Sequence > Extend Edit when the selected edit point is already at the playhead.
+- Shift Lane One Second Earlier is drawn disabled, and Alt+Left declines in its words, when the selected clip's lane starts less than one second in.
+- The Sequence menu shows Alt+Right and Alt+Left on the Shift Lane rows, and the shortcut editor lists those chords under the same names.
 
 ## [alpha-0.7.0] - 2026-07-22
 
