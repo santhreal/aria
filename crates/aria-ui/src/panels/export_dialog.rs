@@ -104,6 +104,7 @@ pub fn render(
                     .into_iter()
                     .map(|(id, label)| (id, SharedString::from(label))),
                 &options.plugin_encoder,
+                None,
                 AppState::select_export_plugin_encoder,
                 cx,
             ),
@@ -121,6 +122,7 @@ pub fn render(
             "export-scale",
             ExportScale::ALL.map(|scale| (scale, SharedString::new_static(scale.label()))),
             &options.scale,
+            None,
             AppState::set_export_scale,
             cx,
         ),
@@ -137,6 +139,7 @@ pub fn render(
             "export-rate",
             ExportRate::ALL.map(|rate| (rate, SharedString::new_static(rate.label()))),
             &options.rate,
+            None,
             AppState::set_export_rate,
             cx,
         ),
@@ -153,6 +156,7 @@ pub fn render(
                         .into_iter()
                         .map(|codec| (codec, SharedString::new_static(codec.label()))),
                     &options.codec,
+                    None,
                     AppState::set_export_codec,
                     cx,
                 ),
@@ -169,6 +173,7 @@ pub fn render(
                     "export-bitrate",
                     ExportBitrate::ALL.map(|bitrate| (bitrate, bitrate.label().into())),
                     &options.bitrate,
+                    None,
                     AppState::set_export_bitrate,
                     cx,
                 ),
@@ -185,6 +190,7 @@ pub fn render(
             "export-gop",
             ExportGop::ALL.map(|gop| (gop, gop.label().into())),
             &options.gop,
+            None,
             AppState::set_export_gop,
             cx,
         ),
@@ -198,13 +204,14 @@ pub fn render(
                 "export-audio",
                 AUDIO_CHOICES.map(|(audio, label)| (audio, SharedString::new_static(label))),
                 &options.audio,
+                None,
                 AppState::set_export_audio,
                 cx,
             ),
         ));
     }
-    // The marked choice names the span it renders; with nothing marked, a
-    // press on it reports how to mark one.
+    // The marked choice names the span it renders; with nothing marked it is
+    // drawn blocked, and a press on it reports how to mark one.
     rows.push(setting_row(
         &theme,
         "Range",
@@ -216,6 +223,7 @@ pub fn render(
                 (true, marked_label.into()),
             ],
             &(options.marked_range && marked),
+            (!marked).then_some(true),
             AppState::set_export_marked_range,
             cx,
         ),
@@ -311,7 +319,9 @@ fn fact(theme: &Theme, label: &'static str, value: String) -> gpui::Div {
 }
 
 /// A chip for each of `choices`, the one equal to `current` lit; a press sets
-/// that choice through `set`.
+/// that choice through `set`. The choice equal to `refused` cannot be taken
+/// now: it is drawn [`components::blocked::blocked`], and its press still
+/// goes to `set`, which reports why.
 ///
 /// The row steps out by a chip's side padding, so the first chip's label
 /// stands on the value column's text edge, where a fact's text starts.
@@ -320,6 +330,7 @@ fn chip_line<T: Clone + PartialEq + 'static>(
     id: &'static str,
     choices: impl IntoIterator<Item = (T, SharedString)>,
     current: &T,
+    refused: Option<T>,
     set: fn(&mut AppState, T),
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::Div {
@@ -328,8 +339,10 @@ fn chip_line<T: Clone + PartialEq + 'static>(
         .enumerate()
         .map(|(index, (choice, label))| {
             let active = choice == *current;
+            let blocked = refused.as_ref() == Some(&choice);
             let selector = label.clone();
-            components::chip((id, index), label, active, CHIP, theme)
+            let chip = components::chip((id, index), label, active, CHIP, theme);
+            components::blocked::blocked(chip, blocked)
                 .debug_selector(move || format!("{id}-{selector}"))
                 .on_mouse_down(
                     MouseButton::Left,

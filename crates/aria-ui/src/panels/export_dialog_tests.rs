@@ -1,7 +1,7 @@
 //! The export sheet's rows are one grid, and every choice on it is a chip that
 //! sets that choice.
 //!
-//! Two classes are closed here:
+//! Three classes are closed here:
 //!
 //! - Two row shapes on one sheet. Every row, a chip row or a fact, stands one
 //!   chip tall at one pitch, its label where the title starts, and a chip's
@@ -11,6 +11,9 @@
 //!   choice or another row's field. Each row's chips are enumerated from the
 //!   option's own `ALL`, so a choice added later is pressed without an edit
 //!   here, and each press is checked against the field it sets.
+//! - A choice drawn live while it cannot be taken. The marked range is drawn
+//!   blocked, with the arrow cursor, while nothing is marked, and live once a
+//!   range is.
 //!
 //! Every row the sheet draws is found by its label, so a row added to the
 //! sheet joins the grid check without an edit here. Not covered: which chip is
@@ -339,8 +342,9 @@ fn a_row_draws_its_label_and_choices_and_the_size_fact_follows_the_scale(cx: &mu
     assert!(read >= 9, "the sheet draws {read} rows");
 }
 
-/// The Range row: the marked choice is refused with a sentence until a range
-/// is marked, then names the span it renders and sets it.
+/// The Range row: the marked choice is drawn blocked and refused with a
+/// sentence until a range is marked, then names the span it renders and sets
+/// it. Whole timeline is live throughout.
 #[gpui::test]
 fn the_range_chips_render_the_marked_span_once_one_is_marked(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "export-range");
@@ -348,7 +352,26 @@ fn the_range_chips_render_the_marked_span_once_one_is_marked(cx: &mut TestAppCon
     let marked = |visual: &mut VisualTestContext| {
         visual.read(|app| state.read(app).export_options.marked_range)
     };
-
+    let cursor = |visual: &mut VisualTestContext, selector: &str| {
+        let at = visual
+            .debug_bounds(intern(selector))
+            .unwrap_or_else(|| panic!("the export sheet draws no {selector}"))
+            .center();
+        visual.simulate_mouse_move(at, None, gpui::Modifiers::none());
+        visual.run_until_parked();
+        visual.update(|window, _| window.rendered_cursor_style())
+    };
+    let whole = format!("export-range-{WHOLE_TIMELINE}");
+    assert_eq!(
+        cursor(visual, "export-range-Marked range"),
+        Some(gpui::CursorStyle::Arrow),
+        "with nothing marked, the marked range is drawn blocked"
+    );
+    assert_eq!(
+        cursor(visual, &whole),
+        Some(gpui::CursorStyle::PointingHand),
+        "the whole timeline is live"
+    );
     press(visual, "export-range-Marked range");
     assert!(!marked(visual));
     assert!(
@@ -368,13 +391,18 @@ fn the_range_chips_render_the_marked_span_once_one_is_marked(cx: &mut TestAppCon
     });
     visual.run_until_parked();
     assert_ne!(label, "Marked range");
+    assert_eq!(
+        cursor(visual, &format!("export-range-{label}")),
+        Some(gpui::CursorStyle::PointingHand),
+        "once a range is marked, its chip is live"
+    );
     press(visual, &format!("export-range-{label}"));
     assert!(marked(visual));
     assert_eq!(
         visual.read(|app| state.read(app).export_range_label()),
         label
     );
-    press(visual, &format!("export-range-{WHOLE_TIMELINE}"));
+    press(visual, &whole);
     assert!(!marked(visual));
 }
 
