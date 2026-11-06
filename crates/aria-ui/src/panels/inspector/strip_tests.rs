@@ -680,6 +680,46 @@ async fn the_editing_layout_opens_effect_controls_with_whole_strips(cx: &mut Tes
     }
 }
 
+/// Every property the Transform tab draws, read off the catalog's `transform`
+/// and `framing` groups on the selected clip, draws its stopwatch and time
+/// area, and the crop's stopwatch keys the crop at the playhead.
+///
+/// Closes the class "a property the model keys drawn as a row that cannot be
+/// keyed": the crop insets read an animated crop under the playhead but drew
+/// no stopwatch, so a crop keyed from the palette or a Viewer handle showed
+/// no keys in Effect Controls. A property added to either group is checked
+/// without this test naming it. Does not cover the Effects tab's rows.
+#[gpui::test]
+async fn every_transform_tab_property_draws_its_stopwatch(cx: &mut TestAppContext) {
+    let (state, visual) = drawn_on(cx, "effect-controls-keyed", "transform", |_| {});
+    let params: Vec<ClipParam> = visual.read(|app| {
+        let state = state.read(app);
+        let rows = state.key_params();
+        rows.iter()
+            .filter(|row| matches!(&*row.spec.group, "transform" | "framing"))
+            .map(|row| row.param())
+            .collect()
+    });
+    assert!(params.contains(&ClipParam::Crop), "{params:?}");
+    for &param in &params {
+        painted(visual, "key", param);
+        painted(visual, "strip", param);
+    }
+    // The crop's last row ends the tab's rows below the fold.
+    let watch = super::graph_tests::scrolled_to(visual, "insp-key-Crop").center();
+    click(visual, watch);
+    let (keys, at) = visual.read(|app| {
+        let state = state.read(app);
+        let keys: Vec<i64> = state
+            .keyframes_of(ClipParam::Crop)
+            .iter()
+            .map(|mark| mark.tick)
+            .collect();
+        (keys, state.playhead.value)
+    });
+    assert_eq!(keys, vec![at], "the crop's stopwatch keyed the playhead");
+}
+
 /// The playhead, in ticks.
 fn read_playhead(state: &gpui::Entity<AppState>, visual: &VisualTestContext) -> i64 {
     visual.read(|app| state.read(app).playhead.value)

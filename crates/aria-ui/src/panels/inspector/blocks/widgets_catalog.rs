@@ -23,7 +23,7 @@ use super::{
 use super::{DrawnChoice, cell_selector, record_choice};
 
 /// A number row that cannot be keyed, whose caller has the write and no
-/// declared range: crop insets, fades, motion blur, transition durations, ramp
+/// declared range: fades, motion blur, transition durations, ramp
 /// points, animation knobs, a template's fill order. `columns` stands it in the
 /// keyed rows' columns on an Effect Controls tab.
 #[allow(clippy::too_many_arguments)]

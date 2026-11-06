@@ -1199,6 +1199,7 @@ Notes for the latest release. For previous releases, see the
 - The Scopes panel draws its histogram at half the waveform's height, as the Viewer's scope strip does, so the Color workspace shows every scope whole instead of fading the histogram's foot under the frame edge.
 - The Assistant panel lists the bundled skills the agent is offered, so each can be held back for a conversation; it read "No skills installed" while they reached every prompt.
 - File > Open Recent and File > Import Recent rows, and their palette entries, read the file's name, with its folder only when two listed files share a name, instead of a full path cut off before the name.
+- Effect Controls draws the stopwatch, keyframe navigator, reset button and time area on each crop inset row, so a keyed crop shows its keyframes and can be keyed, stepped and flattened from the Transform tab.
 
 ## [alpha-0.7.0] - 2026-07-22
 

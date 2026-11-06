@@ -84,6 +84,9 @@ timeline property row:
 - The reset button returns the property to its default. On an animated
   property it writes the default as a keyframe at the playhead and keeps the
   rest of the curve. It is dimmed when the property holds its default there.
+- A property drawn on several rows, such as Position's X and Y or the crop's
+  left, top, right, and bottom insets, draws the stopwatch, navigator, reset
+  button and time area on each row, and each acts on the whole property.
 
 In Effect Controls, a time area follows the reset button. It spans the selected
 clip and draws the playhead and the property's keyframes. A wider Effect

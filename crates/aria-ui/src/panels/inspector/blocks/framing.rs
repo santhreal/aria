@@ -3,7 +3,9 @@
 //!
 //! Crop rows are generated from `app::clip_frame::CROP_EDGES`, so the panel
 //! cannot drift from the rect the model validates. They read the rect in force
-//! under the playhead, which is where an edit lands.
+//! under the playhead, which is where an edit lands. The crop is one animatable
+//! property, as a position is, so each inset row draws the same stopwatch,
+//! navigator and time area, as Position X and Position Y share theirs.
 
 use aria_models::ClipParam;
 use gpui::{InteractiveElement, IntoElement, ParentElement, Styled, div, px};
@@ -16,7 +18,9 @@ use crate::surfaces::inspector_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::UiClip;
 
-use super::widgets::{Columns, Readout, filing, switch_line, unkeyed_row};
+use super::widgets::{
+    Columns, Keys, Readout, Stopwatch, filing, stepper_row, switch_line, unkeyed_row,
+};
 
 pub fn framing_block(
     theme: &Theme,
@@ -26,10 +30,13 @@ pub fn framing_block(
 ) -> impl IntoElement {
     // Every frame of an animated crop has its own rect; the rows show the one
     // under the playhead, not the clip's first frame the projection holds.
-    let here = state
-        .read(cx)
-        .selected_framing_here()
-        .map_or(clip.crop, |(crop, ..)| crop);
+    let (here, watch) = {
+        let state = state.read(cx);
+        let here = state
+            .selected_framing_here()
+            .map_or(clip.crop, |(crop, ..)| crop);
+        (here, crop_stopwatch(state))
+    };
     // A crop inset reads, drags and types in the units a crop prints in.
     let units = Units::of(ClipParam::Crop, &ClipParam::Crop.range());
     let scale = units.number.scale;
@@ -38,13 +45,17 @@ pub fn framing_block(
         .map(|(id, label, ..)| {
             let edge = *id;
             let current = crop_inset(&here, edge);
-            unkeyed_row(
+            let keys = watch
+                .clone()
+                .map_or(Keys::Unkeyed(Columns::Keyed), Keys::Watch);
+            stepper_row(
                 theme,
                 state,
                 MotionKey::new("insp.row", edge),
                 *label,
                 Readout::of(units, current),
-                Columns::Keyed,
+                None,
+                keys,
                 move |state, by| {
                     state.nudge_selected_crop_inset(edge, scale.stored_delta(current, by))
                 },
@@ -127,4 +138,22 @@ pub fn framing_block(
             |state, by| state.nudge_selected_blur_samples(by.round() as i32),
             cx,
         ))
+}
+
+/// The stopwatch every crop inset row draws: the crop's keys, read once for
+/// the four rows. `None` when the selection offers no crop, and the rows then
+/// stand blank in the keyed columns.
+fn crop_stopwatch(state: &crate::app::AppState) -> Option<Stopwatch> {
+    let row = state.key_param(ClipParam::Crop)?;
+    let at = state.playhead.value;
+    Some(Stopwatch {
+        param: ClipParam::Crop,
+        animated: !row.marks.is_empty(),
+        at_playhead: row.keyed_at(at),
+        keys_around: row.keys_around(at),
+        off_default: state.param_off_default(ClipParam::Crop),
+        driver: None,
+        pick_target: false,
+        strip: state.key_strip(ClipParam::Crop),
+    })
 }

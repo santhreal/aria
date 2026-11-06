@@ -80,7 +80,7 @@ width of the value it shows. The tabs above the properties share the panel's
 width in proportion to the width of their names and shorten a long name the
 same way.
 
-A row that cannot be keyed, such as a fade, a switch, a crop inset, or a
+A row that cannot be keyed, such as a fade, a switch, or a
 transition or insert parameter, stands in the same columns as a property row:
 a blank where the stopwatch stands, its name in the name column, its value or
 switch in the value column, and a blank where the navigator, the reset button
