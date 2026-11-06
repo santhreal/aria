@@ -166,11 +166,12 @@ Settings holds an AI section.
   provider turns, and images. They come from the AI plugin, so with that plugin
   disabled the row states that instead of listing a cap nothing enforces.
 - **Can do** counts the tools a prompt is offered: the validated edit vocabulary,
-  then the app tools, split into the ones that only read and the ones that prompt
-  first. The counts are taken from those tables, not written here, so they cannot
-  claim a capability this build does not have.
-- **Active** lists which parts of a turn are switched on right now: edits, senses,
-  reasoning when a summary is requested, and whether a destructive call prompts.
+  then the app tools, with the read-only ones and the ones that prompt first in
+  parentheses, then the plugin tools. The counts are taken from those tables, not
+  written here, so they cannot claim a capability this build does not have.
+- **Active** lists which parts of a turn are switched on right now: edits,
+  read-only tools, reasoning when a summary is requested, and whether a
+  destructive call prompts.
 - **Agent files** shows where skills, rules, and slash commands are stored, and **Reveal
   agent files** opens it.
 

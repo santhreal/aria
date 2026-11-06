@@ -670,7 +670,7 @@ impl AppState {
     /// Which parts of a turn are switched on, from the settings that decide it.
     pub fn agent_phases(&self) -> String {
         let ai = self.cloud_settings().ai;
-        let mut on: Vec<&str> = vec!["Edits", "senses"];
+        let mut on: Vec<&str> = vec!["Edits", "read-only tools"];
         if ai.reasoning_summary == aria_settings::ReasoningSummary::Auto {
             on.push("reasoning");
         }
@@ -728,10 +728,9 @@ pub(crate) fn format_agent_capabilities(
     plugins: usize,
 ) -> String {
     format!(
-        "{}, {} of which {senses} {} and {confirms} {} first, {}",
+        "{}, {} ({senses} read-only, {confirms} {} first), {}",
         counted(edits, "edit", "edits"),
         counted(app, "app tool", "app tools"),
-        noun(senses, "looks", "look"),
         noun(confirms, "asks", "ask"),
         counted(plugins, "plugin tool", "plugin tools"),
     )

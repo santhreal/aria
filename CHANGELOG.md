@@ -870,6 +870,7 @@ Notes for the latest release. For previous releases, see the
 - The Learn pane heads its Home shortcuts "On Home", beside "In the editor".
 - The Captions tab sets one clip per word with a **Per word** switch in place of a lone chip.
 - Word buttons in Effects & Presets (`Show all`), Settings > Plugins (`Open folder`, `Hide log`), the Export sheet (`Export frames…`, `Export as…`), and the Keyframes block (`Driver`, `Remove driver`) use sentence case, and `Relink All…` in the Project panel matches `File > Relink All…`.
+- Settings > AI names the assistant's read-only tools as such in the Can do and Active rows.
 
 ### Fixed
 

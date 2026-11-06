@@ -206,15 +206,15 @@ fn plugin_settings_sections_render_from_services() {
 fn agent_capabilities_inflects_nouns_and_verbs_for_every_count() {
     assert_eq!(
         format_agent_capabilities(67, 5, 2, 1, 0),
-        "67 edits, 5 app tools of which 2 look and 1 asks first, 0 plugin tools"
+        "67 edits, 5 app tools (2 read-only, 1 asks first), 0 plugin tools"
     );
     assert_eq!(
         format_agent_capabilities(1, 1, 1, 2, 1),
-        "1 edit, 1 app tool of which 1 looks and 2 ask first, 1 plugin tool"
+        "1 edit, 1 app tool (1 read-only, 2 ask first), 1 plugin tool"
     );
     assert_eq!(
         format_agent_capabilities(0, 0, 0, 0, 2),
-        "0 edits, 0 app tools of which 0 look and 0 ask first, 2 plugin tools"
+        "0 edits, 0 app tools (0 read-only, 0 ask first), 2 plugin tools"
     );
 
     let state = make_state();
