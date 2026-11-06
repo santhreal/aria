@@ -209,6 +209,32 @@ fn scrub_playhead_respects_audio_scrubbing_setting_and_bounds_queue_to_one() {
     assert_eq!(state.audio.pending_scrub_grains(), 0);
 }
 
+/// A scrub builds the project's mix once per revision, however many frames it
+/// crosses with the audio system taking each grain: before, every step built
+/// a mix under the engine lock and restarted the stream. An edit builds again.
+#[test]
+fn a_scrub_builds_one_mix_per_project_revision() {
+    let (mut state, _) = with_clip();
+    let mut system = crate::audio::AudioSystem::new(state.audio.clone());
+    let mut built = 0;
+    let mut scrub = |state: &mut super::AppState, ticks: std::ops::Range<i64>| {
+        for tick in ticks {
+            state.scrub_playhead(tick);
+            let grain = state.audio.take_pending_scrub().expect("a grain queued");
+            built += usize::from(grain.mixer.is_some());
+            state.audio.queue_scrub(grain);
+            assert_eq!(system.pump(), None, "a still's project mixes silence");
+        }
+    };
+    scrub(&mut state, 1..41);
+    let revision = state.revision;
+    state.nudge_selected(1).expect("nudge the clip");
+    scrub(&mut state, 1..41);
+    drop(scrub);
+    assert_ne!(state.revision, revision, "the edit made a new revision");
+    assert_eq!(built, 2, "one mix per revision across 80 scrub steps");
+}
+
 /// K stops, and a stop is at 1x: the rate describes what playback is doing, and
 /// nothing is playing.
 #[test]

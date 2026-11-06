@@ -43,6 +43,12 @@ device, a device that rejects its configuration, or a mix that cannot be
 prepared, the picture plays on and the error line states the reason, such as
 `No audio output device. Plug in speakers or a headset.`
 
+A scrub that cannot start its sound stays silent and states the reason once.
+The next edit, play, or stop tries the device again.
+
+A scrub builds the project's mix once and moves one output stream from grain
+to grain. An edit builds the mix again.
+
 A/V offset stays inside half a frame during playback. The audio output latency
 reported by the device is subtracted from the audio clock.
 

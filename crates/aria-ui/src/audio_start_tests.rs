@@ -71,6 +71,7 @@ fn a_stream_that_does_not_start_is_reported_by_the_pump_that_tried_it() {
     assert_eq!(system.pump(), None, "a stop starts nothing");
     handle.queue_scrub(ScrubGrain {
         mixer: Some(prepared(Err("the grain failed".into()))),
+        revision: 0,
         tick: 3,
         fps_num: 24,
         fps_den: 1,
@@ -81,6 +82,59 @@ fn a_stream_that_does_not_start_is_reported_by_the_pump_that_tried_it() {
         None,
         "the grain was reported by the pump that tried"
     );
+}
+
+/// WHY: every scrub step built a mix from the project under the engine lock,
+/// and the pump tore down the stream and opened the device again for each
+/// grain on the UI thread; with no device each step probed the device and
+/// posted the same failure again. A mix is built and tried once per project
+/// revision, and an edit, a play or a stop tries again.
+///
+/// Not caught: a device plugged in during a scrub stays silent until one of
+/// those.
+#[test]
+fn a_scrub_mix_is_tried_once_per_revision() {
+    let handle = AudioHandle::new();
+    let mut system = AudioSystem::new(handle.clone());
+    let grain = |mixer: Option<Prepared>, revision, tick| ScrubGrain {
+        mixer,
+        revision,
+        tick,
+        fps_num: 24,
+        fps_den: 1,
+    };
+    assert!(!handle.scrub_mix_ready(7), "nothing tried yet");
+
+    handle.queue_scrub(grain(Some(prepared(Err("no device".into()))), 7, 1));
+    assert!(handle.scrub_mix_ready(7), "the pending grain holds the mix");
+    assert!(!handle.scrub_mix_ready(8), "a mix is one revision's");
+    handle.queue_scrub(grain(None, 8, 2));
+    assert!(
+        !handle.scrub_mix_ready(8) && !handle.scrub_mix_ready(7),
+        "a grain at a new revision drops the old mix"
+    );
+    handle.queue_scrub(grain(Some(prepared(Err("no device".into()))), 7, 3));
+    assert_eq!(system.pump().as_deref(), Some("no device"));
+    assert!(handle.scrub_mix_ready(7), "the failure is the tried mix");
+
+    for tick in 4..54 {
+        handle.queue_scrub(grain(None, 7, tick));
+        assert_eq!(system.pump(), None, "grain {tick} posted the failure again");
+    }
+    assert!(!handle.scrub_mix_ready(8), "an edit tries again");
+
+    handle.publish_play(play(Ok(None)));
+    assert_eq!(system.pump(), None);
+    assert!(!handle.scrub_mix_ready(7), "a play tries the device again");
+    handle.publish_stop();
+    assert_eq!(system.pump(), None);
+
+    handle.queue_scrub(grain(Some(prepared(Ok(None))), 9, 1));
+    assert_eq!(system.pump(), None, "a silent mix needs no device");
+    assert!(handle.scrub_mix_ready(9));
+    handle.queue_scrub(grain(None, 9, 2));
+    assert_eq!(system.pump(), None);
+    assert!(handle.scrub_mix_ready(9), "a later grain keeps the mix");
 }
 
 /// The shell posts what the pump returned on the error line, as a sentence.

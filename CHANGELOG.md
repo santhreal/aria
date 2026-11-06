@@ -1298,6 +1298,7 @@ Notes for the latest release. For previous releases, see the
 - An export to a symbolic link, a folder, or a special file names the path and what is there.
 - Undoing or redoing back to the saved state marks the project saved again and removes its autosave recovery copy.
 - Re-importing a file already in the media pool no longer marks a saved project unsaved.
+- Scrubbing builds the project's audio mix and opens the output device once instead of at every frame, and a missing output device is reported once.
 
 ## [alpha-0.7.0] - 2026-07-22
 

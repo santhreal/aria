@@ -57,6 +57,9 @@ pub struct PlaybackSnapshot {
 #[derive(Clone)]
 pub struct ScrubGrain {
     pub mixer: Option<Arc<Mutex<Option<Result<Option<ExportAudioMixer>, String>>>>>,
+    /// The project revision the grain was queued at. A mixer is the sound of
+    /// the project at one revision.
+    pub revision: u64,
     pub tick: i64,
     pub fps_num: i32,
     pub fps_den: i32,
@@ -78,6 +81,7 @@ impl std::fmt::Debug for ScrubGrain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScrubGrain")
             .field("has_mixer", &self.mixer.is_some())
+            .field("revision", &self.revision)
             .field("tick", &self.tick)
             .field("fps_num", &self.fps_num)
             .field("fps_den", &self.fps_den)
@@ -97,6 +101,10 @@ struct Shared {
     generation: std::sync::atomic::AtomicU64,
     scrub: Mutex<Option<ScrubGrain>>,
     scrub_generation: std::sync::atomic::AtomicU64,
+    /// One more than the project revision whose scrub mix the system last
+    /// tried to start, whether the stream started or not; `0` for none since
+    /// the last stream came down.
+    scrub_mix: std::sync::atomic::AtomicU64,
     /// `f32` bits. Written from the audio callback, so it must stay lock-free.
     peak_l: AtomicU32,
     peak_r: AtomicU32,
@@ -186,6 +194,7 @@ impl AudioHandle {
                 generation: std::sync::atomic::AtomicU64::new(0),
                 scrub: Mutex::new(None),
                 scrub_generation: std::sync::atomic::AtomicU64::new(0),
+                scrub_mix: std::sync::atomic::AtomicU64::new(0),
                 peak_l: AtomicU32::new(0),
                 peak_r: AtomicU32::new(0),
                 rms_l: AtomicU32::new(0),
@@ -289,18 +298,40 @@ impl AudioHandle {
     ///
     /// Replaces any pending grain that has not yet been taken by the output
     /// stream, so a burst of pointer moves never queues more than one grain
-    /// behind.
+    /// behind. A mixer the replaced grain held for the same revision moves to
+    /// the new one.
     pub fn queue_scrub(&self, grain: ScrubGrain) {
         let mut slot = self.inner.scrub.lock();
-        let keep_mixer = grain
-            .mixer
-            .or_else(|| slot.as_ref().and_then(|prev| prev.mixer.clone()));
+        let revision = grain.revision;
+        let keep_mixer = grain.mixer.or_else(|| {
+            slot.as_ref()
+                .filter(|prev| prev.revision == revision)
+                .and_then(|prev| prev.mixer.clone())
+        });
         *slot = Some(ScrubGrain {
             mixer: keep_mixer,
             ..grain
         });
         drop(slot);
         self.inner.scrub_generation.fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// Whether a scrub grain at `revision` needs no mixer of its own: the
+    /// system already tried that revision's mix, or the pending grain holds
+    /// it.
+    ///
+    /// A tried mix is a live stream, which takes each later grain without
+    /// restarting, or a stream that did not start, which stays silent rather
+    /// than probing the device and posting the same failure at every frame of
+    /// a scrub. An edit, a play, or a stop tries again.
+    pub fn scrub_mix_ready(&self, revision: u64) -> bool {
+        self.inner.scrub_mix.load(Ordering::Acquire) == revision.wrapping_add(1)
+            || self
+                .inner
+                .scrub
+                .lock()
+                .as_ref()
+                .is_some_and(|grain| grain.mixer.is_some() && grain.revision == revision)
     }
 
     /// How many scrub grains are waiting to be played (always `0` or `1`).
@@ -394,13 +425,14 @@ impl AudioSystem {
         }
         self.last_scrub_generation = scrub_gen;
         let grain = self.handle.take_pending_scrub()?;
-        if grain.mixer.is_none()
-            && let Some(slot) = &self.scrub_slot
-        {
-            *slot.lock() = Some((grain.tick, grain.fps_num, grain.fps_den));
+        // No mixer: this revision's mix was tried. A live stream moves to the
+        // grain; a stream that did not start leaves it silent.
+        let Some(mixer) = grain.mixer else {
+            if let Some(slot) = &self.scrub_slot {
+                *slot.lock() = Some((grain.tick, grain.fps_num, grain.fps_den));
+            }
             return None;
-        }
-        let mixer = grain.mixer?;
+        };
         self.tear_down();
         let slot = Arc::new(Mutex::new(Some((grain.tick, grain.fps_num, grain.fps_den))));
         let snapshot = PlaybackSnapshot {
@@ -411,7 +443,12 @@ impl AudioSystem {
             speed_num: 0,
             speed_den: 100,
         };
-        if let Err(err) = self.start(snapshot, Some(Arc::clone(&slot))) {
+        let started = self.start(snapshot, Some(Arc::clone(&slot)));
+        self.handle
+            .inner
+            .scrub_mix
+            .store(grain.revision.wrapping_add(1), Ordering::Release);
+        if let Err(err) = started {
             tracing::warn!("scrub audio not started: {err}");
             return Some(err);
         }
@@ -584,6 +621,7 @@ impl AudioSystem {
 
     fn tear_down(&mut self) {
         self.scrub_slot = None;
+        self.handle.inner.scrub_mix.store(0, Ordering::Release);
         if let Some(stop) = self.stop.take() {
             stop.store(true, Ordering::Release);
         }
@@ -677,6 +715,7 @@ mod tests {
         for tick in 1..=50 {
             handle.queue_scrub(ScrubGrain {
                 mixer: None,
+                revision: 0,
                 tick,
                 fps_num: 24,
                 fps_den: 1,

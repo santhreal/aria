@@ -100,20 +100,25 @@ impl AppState {
         self.queue_audio_scrub();
     }
 
+    /// Queue an audio grain at the playhead while paused.
+    ///
+    /// The mix is built from the project once per revision: a later grain
+    /// at the same revision moves the stream that mix started, or stays
+    /// silent when it did not start.
     pub fn queue_audio_scrub(&mut self) {
         if self.playing || !self.ui_settings.audio_scrubbing {
             return;
         }
-        let mixer = if self.audio.pending_scrub_grains() == 0 {
+        let revision = self.revision;
+        let mixer = (!self.audio.scrub_mix_ready(revision)).then(|| {
             let engine = self.engine.lock();
             let built = aria_render::ExportAudioMixer::for_project(engine.project())
                 .map_err(|err| format!("this project's audio routing has no mix: {err}"));
-            Some(Arc::new(parking_lot::Mutex::new(Some(built))))
-        } else {
-            None
-        };
+            Arc::new(parking_lot::Mutex::new(Some(built)))
+        });
         self.audio.queue_scrub(crate::audio::ScrubGrain {
             mixer,
+            revision,
             tick: self.playhead.value,
             fps_num: self.playhead.rate.num,
             fps_den: self.playhead.rate.den,
