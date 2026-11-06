@@ -130,7 +130,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         s.match_frame();
     })
     .key("key-match-frame")
-    .when(guards::selection)
+    .when(guards::media_clip_at_playhead)
     .rule(),
     MenuItem::new("seq-source-insert", "Insert", |_, s, _| {
         let cut = s.cut_source_in(crate::types::EditMode::Ripple);

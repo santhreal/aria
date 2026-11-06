@@ -182,7 +182,7 @@ clock stops the other, and focusing another tab stops the source.
 | X | Mark In and Out around the clip under the playhead on the targeted tracks |
 | Shift+I / Shift+O | Playhead to In / Out point |
 | Ctrl+Shift+I / Ctrl+Shift+O | Clear In / Out point, or the source's when one is loaded |
-| Ctrl+Shift+X | Clear In and Out |
+| Ctrl+Shift+X | Clear In and Out, or the source's when one is loaded |
 | M | Add marker at playhead, named and colored automatically. On a marker already at the playhead's frame, open its Edit Marker dialog. |
 | Shift+M / Ctrl+Shift+M | Playhead to next / previous marker |
 | Ctrl+Alt+M | Delete the marker at the playhead |

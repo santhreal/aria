@@ -1342,6 +1342,8 @@ Notes for the latest release. For previous releases, see the
 - A non-finite media pool position is rejected instead of being saved as a value that stops the project from opening.
 - Mark In or Mark Out set across the other mark reports on the status line that the other mark was cleared, on the timeline and on a Source tab.
 - Markers > Mark Clip is disabled when no unlocked clip is under the playhead on a targeted track, with that reason as its tooltip.
+- The Markers menu's Clear and Go to rows are enabled by the marks of the monitor they act on, so a Source tab's own In and Out enable Clear In, Clear Out, and Clear In and Out.
+- Sequence > Match Frame is enabled by a media clip under the playhead rather than by a selection, as `F` is.
 
 ## [alpha-0.7.0] - 2026-07-22
 

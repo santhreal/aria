@@ -82,11 +82,13 @@ pub enum Decline {
     /// A command that acts on the clips under the playhead on the targeted
     /// lanes, sent with no unlocked clip there.
     NoTargetedClipAtPlayhead,
+    /// Match Frame sent with no media clip under the playhead.
+    NoMediaClipAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 26] = [
+    pub const ALL: [Decline; 27] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -113,6 +115,7 @@ impl Decline {
         Decline::NoClipOrGap,
         Decline::InAtEnd,
         Decline::NoTargetedClipAtPlayhead,
+        Decline::NoMediaClipAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -145,6 +148,7 @@ impl Decline {
             Decline::NoClipOrGap => "No clip or gap is selected",
             Decline::InAtEnd => "The In point is at the end of the sequence",
             Decline::NoTargetedClipAtPlayhead => "No clip under the playhead on a targeted track",
+            Decline::NoMediaClipAtPlayhead => "No media clip under the playhead",
         }
     }
 }

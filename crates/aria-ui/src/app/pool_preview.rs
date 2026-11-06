@@ -355,6 +355,15 @@ impl AppState {
             .map(PoolPreviewStore::stamp_of)
     }
 
+    /// The In and Out that I, O, and the Clear keys act on: the Source tab's
+    /// in front of the Viewer, else the sequence's.
+    pub fn marks_here(&self) -> (Option<i64>, Option<i64>) {
+        match self.sources.focused() {
+            Some(view) => (view.mark_in, view.mark_out),
+            None => (self.mark_in, self.mark_out),
+        }
+    }
+
     pub fn mark_out_here(&mut self) {
         if self.sources.focused().is_some() {
             self.set_source_out();
@@ -502,7 +511,7 @@ impl AppState {
                 .or_else(|| under.pop())
         };
         let Some(frame) = chosen.and_then(|clip| self.clip_frame(clip, playhead)) else {
-            self.status_message = Some("No media clip under the playhead".into());
+            self.decline(crate::app::decline::Decline::NoMediaClipAtPlayhead);
             return false;
         };
         self.select_pool_item(frame.media);

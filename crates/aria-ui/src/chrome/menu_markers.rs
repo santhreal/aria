@@ -17,11 +17,11 @@ static MARKER_ITEMS: &[MenuItem] = &[
     .when(guards::targeted_clip_at_playhead),
     MenuItem::new("mark-go-in", "Go to In", |_, s, _| s.go_to_in())
         .key("key-mark-in-go")
-        .when(guards::mark_in)
+        .when(guards::go_in)
         .rule(),
     MenuItem::new("mark-go-out", "Go to Out", |_, s, _| s.go_to_out())
         .key("key-mark-out-go")
-        .when(guards::mark_out),
+        .when(guards::go_out),
     MenuItem::new("seq-clear-in", "Clear In", |_, s, _| s.clear_mark_in_here())
         .key("key-mark-in-clear")
         .when(guards::mark_in)

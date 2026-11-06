@@ -264,6 +264,8 @@ fn a_chord_past_its_withheld_row_declines_in_the_rows_words() {
             state.selection.clone(),
             state.selected_gap,
             state.playhead,
+            state.active_panel,
+            state.sources.focus_index(),
         )
     };
     let mut wrong = Vec::new();

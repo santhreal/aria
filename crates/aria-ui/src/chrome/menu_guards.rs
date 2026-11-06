@@ -23,6 +23,23 @@ pub(crate) fn selection(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some(Decline::NoSelection.reason())
 }
 
+/// The row opens the take of a media clip under the playhead, selected or not.
+pub(crate) fn media_clip_at_playhead(_: &str, state: &AppState) -> Option<&'static str> {
+    let at = state.playhead.value;
+    let under = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|lane| lane.clips.iter())
+        .any(|clip| {
+            clip.media_id.is_some()
+                && clip.timeline_start_ticks <= at
+                && at < clip.timeline_end_ticks
+        });
+    (!under).then_some(Decline::NoMediaClipAtPlayhead.reason())
+}
+
 /// The row acts on the selected clips or on the selected gap.
 pub(crate) fn clip_or_gap(_: &str, state: &AppState) -> Option<&'static str> {
     (state.selection.is_empty() && state.selected_gap.is_none())
@@ -161,20 +178,43 @@ pub(crate) fn redo(_: &str, state: &AppState) -> Option<&'static str> {
     (!state.store.can_redo).then_some("Nothing to redo")
 }
 
-/// The row acts on the sequence In or Out point.
+/// The row clears the In or Out point of the Source tab in front of the
+/// Viewer, else of the sequence.
 pub(crate) fn marks(_: &str, state: &AppState) -> Option<&'static str> {
-    (state.mark_in.is_none() && state.mark_out.is_none())
-        .then_some("Neither an In nor an Out point is set")
+    let (inn, out) = state.marks_here();
+    (inn.is_none() && out.is_none()).then_some("Neither an In nor an Out point is set")
 }
 
-/// The row acts on the sequence In point.
+/// The row clears the In point of the Source tab in front of the Viewer, else
+/// of the sequence.
 pub(crate) fn mark_in(_: &str, state: &AppState) -> Option<&'static str> {
-    state.mark_in.is_none().then_some("No In point is set")
+    state
+        .marks_here()
+        .0
+        .is_none()
+        .then_some("No In point is set")
 }
 
-/// The row acts on the sequence Out point.
+/// The row clears the Out point of the Source tab in front of the Viewer, else
+/// of the sequence.
 pub(crate) fn mark_out(_: &str, state: &AppState) -> Option<&'static str> {
-    state.mark_out.is_none().then_some("No Out point is set")
+    state
+        .marks_here()
+        .1
+        .is_none()
+        .then_some("No Out point is set")
+}
+
+/// The row seeks to an In point. A Source tab with the transport keys goes to
+/// its first frame without one; the sequence needs its In set.
+pub(crate) fn go_in(_: &str, state: &AppState) -> Option<&'static str> {
+    (!state.source_has_keys() && state.mark_in.is_none()).then_some("No In point is set")
+}
+
+/// The row seeks to an Out point. A Source tab with the transport keys goes to
+/// its last frame without one; the sequence needs its Out set.
+pub(crate) fn go_out(_: &str, state: &AppState) -> Option<&'static str> {
+    (!state.source_has_keys() && state.mark_out.is_none()).then_some("No Out point is set")
 }
 
 /// The row acts on the sequence's markers.

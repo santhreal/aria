@@ -133,7 +133,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-a` | `Add Tracks` | Audio Track | `none` | Always enabled | Appends a new audio track (`A<n>`) to the active sequence. |
 | `seq-delete-tracks` | `none` | Delete Empty Tracks | `none` | Every track holds a clip (`guards::empty_tracks`) | Deletes empty unlocked video and audio tracks from the active sequence while keeping at least one video track and one audio track. |
 | `seq-adjustment` | `none` | Add Adjustment Layer | `none` | Always enabled | Places an adjustment layer clip on a free or new adjustment track across the marked In/Out range, the selected clips' span, the full sequence, or five seconds from the start of an empty sequence. |
-| `seq-match-frame` | `none` | Match Frame | `F` | No clip is selected (`guards::selection`) | Opens the selected clip's source in the Source monitor at the matching source frame. |
+| `seq-match-frame` | `none` | Match Frame | `F` | No media clip under the playhead (`guards::media_clip_at_playhead`) | Opens the source of the selected clip under the playhead, else of the topmost media clip there, in the Source monitor at the matching source frame. |
 | `seq-source-insert` | `Source` | Insert | `none` | Open a source in the Source monitor first (`guards::source_range`) | Ripple-inserts the active Source monitor range at the playhead. |
 | `seq-source-overwrite` | `Source` | Overwrite | `none` | Open a source in the Source monitor first (`guards::source_range`) | Overwrites the active Source monitor range onto the sequence at the playhead. |
 | `seq-ripple-insert` | `Source` | Insert Pool Selection | `none` | No media is selected in the pool (`guards::pool_selection`) | Ripple-inserts the selected media pool items at the playhead. |
@@ -160,11 +160,11 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-mark-in` | `none` | Mark In | `I` | Always enabled | Sets the In point at the playhead on the active monitor and clears an Out point at or before it. |
 | `seq-mark-out` | `none` | Mark Out | `O` | Always enabled | Sets the Out point after the playhead frame on the active monitor and clears an In point at or after it. |
 | `mark-clip` | `none` | Mark Clip | `X` | No unlocked clip is under the playhead on a targeted track (`guards::targeted_clip_at_playhead`) | Sets sequence In and Out points to the span of the first unlocked clip under the playhead on a targeted track. |
-| `mark-go-in` | `none` | Go to In | `Shift+I` | No In point is set (`guards::mark_in`) | Seeks the playhead to the sequence In point. |
-| `mark-go-out` | `none` | Go to Out | `Shift+O` | No Out point is set (`guards::mark_out`) | Seeks the playhead to the sequence Out point. |
-| `seq-clear-in` | `none` | Clear In | `Ctrl+Shift+I` | No In point is set (`guards::mark_in`) | Clears the active In point. |
-| `seq-clear-out` | `none` | Clear Out | `Ctrl+Shift+O` | No Out point is set (`guards::mark_out`) | Clears the active Out point. |
-| `mark-clear` | `none` | Clear In and Out | `Ctrl+Shift+X` | Neither an In nor an Out point is set (`guards::marks`) | Clears both the In point and the Out point. |
+| `mark-go-in` | `none` | Go to In | `Shift+I` | No sequence In point is set and no Source tab has the transport keys (`guards::go_in`) | Seeks the playhead to the sequence In point, or a Source tab with the transport keys to its In point or first frame. |
+| `mark-go-out` | `none` | Go to Out | `Shift+O` | No sequence Out point is set and no Source tab has the transport keys (`guards::go_out`) | Seeks the playhead to the sequence Out point, or a Source tab with the transport keys to the frame its Out point keeps or its last frame. |
+| `seq-clear-in` | `none` | Clear In | `Ctrl+Shift+I` | No In point is set on the Source tab in front of the Viewer, or on the sequence with Program in front (`guards::mark_in`) | Clears the In point of the Source tab in front of the Viewer, or the sequence In point. |
+| `seq-clear-out` | `none` | Clear Out | `Ctrl+Shift+O` | No Out point is set on the Source tab in front of the Viewer, or on the sequence with Program in front (`guards::mark_out`) | Clears the Out point of the Source tab in front of the Viewer, or the sequence Out point. |
+| `mark-clear` | `none` | Clear In and Out | `Ctrl+Shift+X` | Neither an In nor an Out point is set on the Source tab in front of the Viewer, or on the sequence with Program in front (`guards::marks`) | Clears both points of the Source tab in front of the Viewer, or of the sequence. |
 | `seq-marker` | `none` | Add Marker | `M` | Always enabled | Adds a sequence marker at the playhead, or opens `aria.dialog.marker-edit` when a marker is already at the playhead. |
 | `seq-marker-next` | `none` | Go to Next Marker | `Shift+M` | The sequence has no markers (`guards::markers`) | Seeks the playhead to the next sequence marker. |
 | `seq-marker-prev` | `none` | Go to Previous Marker | `Ctrl+Shift+M` | The sequence has no markers (`guards::markers`) | Seeks the playhead to the previous sequence marker. |
@@ -381,6 +381,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoClipOrGap` | `No clip or gap is selected` |
 | `InAtEnd` | `The In point is at the end of the sequence` |
 | `NoTargetedClipAtPlayhead` | `No clip under the playhead on a targeted track` |
+| `NoMediaClipAtPlayhead` | `No media clip under the playhead` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 
