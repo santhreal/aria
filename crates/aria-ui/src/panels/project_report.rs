@@ -17,8 +17,9 @@
 //!
 //! A clip-question row is a control, not a readout: clicking it selects and
 //! seeks to the next clip that answers it, wrapping at the end, so repeated
-//! presses walk every match. A row nothing answers is drawn dim and reads
-//! `None` rather than being hidden: "no clip carries a speed ramp" is an answer.
+//! presses walk every match. A row nothing answers reads a dim `0`, as a
+//! project count at zero does, rather than being hidden: "no clip carries a
+//! speed ramp" is an answer.
 //!
 //! It is a dialog drawn on the shared card, titled and closed like the others.
 //! The Window menu offers it once the project has a media source or a clip
@@ -113,11 +114,12 @@ fn clip_fact_row(
     let key = motion::MotionKey::new("project-report", row.id);
     let empty = row.count == 0;
     let fact_id = row.id;
-    let (value, tint) = if empty {
-        (SharedString::new_static("None"), theme.text_faint)
+    let tint = if empty {
+        theme.text_faint
     } else {
-        (SharedString::from(row.count.to_string()), theme.accent)
+        theme.accent
     };
+    let value = SharedString::from(row.count.to_string());
     readout_tinted(theme, row.label, value, tint)
         .id(motion::MotionKey::new("fact", row.id).element_id("fact"))
         .mx(px(-Theme::SPACE_XS))

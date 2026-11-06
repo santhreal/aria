@@ -853,6 +853,7 @@ Notes for the latest release. For previous releases, see the
 - The Project panel's Effects group lists its tree tab as **All**, beside Transitions, Generators, and Animations.
 - The Audio tab's ducking note reads track, as the timeline does.
 - The Info panel draws its Errors section only while a driver, plugin or mount fault is held, as it draws Drag and Playback.
+- The Project Report reads a clip question nothing answers as a dim 0, as it reads a project count at zero, instead of None.
 
 ### Fixed
 
