@@ -24,6 +24,11 @@ Audio plays at every forward and reverse shuttle speed up to 4x with its pitch
 held, and is muted above 4x. Starting playback reaches the first moving frame
 within 100 ms on a warm cache (see [performance.md](performance.md)).
 
+Moving the playhead during playback continues playback from the new position:
+Home, End, Left, Right, a typed timecode, a marker jump, a click or drag on the
+ruler, and a plugin's move. Audio stops at the move and restarts at the
+playhead 150 ms after the last move.
+
 ## Clocks
 
 The audio device clock is the master. Video frames are presented on the

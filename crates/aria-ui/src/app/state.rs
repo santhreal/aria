@@ -428,6 +428,13 @@ pub struct AppState {
     pub(crate) playback_vsyncs: std::rc::Rc<()>,
     pub(super) playback_anchor_tick: i64,
     pub(super) playback_started: Option<Instant>,
+    /// Where the run's clock last put the playhead; `None` with no run. A
+    /// playhead found elsewhere on a vsync was moved by something else, and
+    /// the run goes on from there.
+    pub(super) playback_placed: Option<i64>,
+    /// When the run last went on from a moved playhead with the mixer quiet;
+    /// the mixer restarts once the moves settle.
+    pub(super) playback_audio_resume: Option<Instant>,
     /// Which ticks the run shows, while one is presenting.
     pub(super) playback_cadence: Option<crate::preview_worker::Cadence>,
     /// The newest slot of the run whose turn has come, shown or dropped.

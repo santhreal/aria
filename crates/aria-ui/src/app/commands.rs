@@ -281,6 +281,8 @@ impl AppState {
             playback_vsyncs: std::rc::Rc::new(()),
             playback_anchor_tick: 0,
             playback_started: None,
+            playback_placed: None,
+            playback_audio_resume: None,
             playback_cadence: None,
             playback_shown: 0,
             last_present: None,

@@ -277,6 +277,8 @@ pub(crate) mod timeline_view;
 pub(crate) mod tracks;
 #[path = "app/transport.rs"]
 mod transport;
+#[path = "app/transport_seek.rs"]
+mod transport_seek;
 #[path = "app/trim_gestures.rs"]
 pub mod trim_gestures;
 #[path = "app/unsaved.rs"]

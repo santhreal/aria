@@ -181,6 +181,8 @@ impl AppState {
             self.playing = false;
             self.interaction.set_playing(false);
             self.playback_started = None;
+            self.playback_placed = None;
+            self.playback_audio_resume = None;
             self.audio.publish_stop();
             self.stop_presenting();
         }
@@ -213,8 +215,8 @@ impl AppState {
         self.playing = true;
         self.interaction.set_playing(true);
         self.playback_generation = self.playback_generation.saturating_add(1);
-        self.playback_anchor_tick = self.playhead.value;
-        self.playback_started = Some(Instant::now());
+        self.anchor_clock_here();
+        self.playback_audio_resume = None;
         self.playback = aria_render::PlaybackMeter::at_rate(self.shuttle_rate());
         self.republish_audio();
         if self.playback_cadence.is_some() {
@@ -449,9 +451,10 @@ impl AppState {
         // strip, the Viewer and the Info panel draw them, and the shell and
         // those bodies redraw on every move.
         //
-        // A loop wrap restarts the run's clock and republishes the audio
-        // snapshot from the wrap. The shell starts the new stream on its next
-        // pump, and it pumps on a notify, so a wrap redraws the window.
+        // A loop wrap, a playhead moved under the run, and the mixer's restart
+        // after such a move each restart the run's clock and stop or republish
+        // the audio. The shell starts or ends the stream on its next pump, and
+        // it pumps on a notify, so each of them redraws the window.
         if self.playback_started != started {
             cx.notify();
         } else if self.playhead.value != before {
@@ -643,12 +646,13 @@ impl AppState {
         if !self.playing {
             return false;
         }
+        self.follow_moved_playhead();
         // The audio clock is read only while the mixer is the one following the
         // transport. A stream is torn down on the shell's next pump, not the
         // moment it is told to stop, so a shuttle that trusted whatever tick was
-        // in the clock would be dragged forward at 1x for as long as that took.
-        let audio_tick = self
-            .audio_follows()
+        // in the clock would be dragged forward at 1x for as long as that took;
+        // likewise a run waiting to restart its mixer after a move.
+        let audio_tick = (self.audio_follows() && self.playback_audio_resume.is_none())
             .then(|| self.audio.current_tick())
             .flatten();
         let tick = if let Some(audio_tick) = audio_tick {
@@ -679,8 +683,8 @@ impl AppState {
                 };
                 self.place_playhead(wrap);
                 self.follow_playhead();
-                self.playback_anchor_tick = wrap;
-                self.playback_started = Some(Instant::now());
+                self.anchor_clock_here();
+                self.playback_audio_resume = None;
                 self.republish_audio();
                 if self.playback_cadence.is_some() {
                     self.arm_presenting();
@@ -698,6 +702,8 @@ impl AppState {
             self.work_area_playback = false;
             self.k_crawl = 0;
             self.playback_started = None;
+            self.playback_placed = None;
+            self.playback_audio_resume = None;
             self.interaction.set_playing(false);
             self.audio.publish_stop();
             // A stopped transport is at 1x, the same rule K applies: the rate is
@@ -709,6 +715,7 @@ impl AppState {
         }
         self.place_playhead(tick);
         self.follow_playhead();
+        self.playback_placed = Some(self.playhead.value);
         true
     }
 
