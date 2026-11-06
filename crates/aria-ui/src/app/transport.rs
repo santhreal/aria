@@ -223,6 +223,7 @@ impl AppState {
         self.anchor_clock_here();
         self.playback_audio_resume = None;
         self.playback = aria_render::PlaybackMeter::at_rate(self.shuttle_rate());
+        self.playback_run_started = Instant::now();
         self.republish_audio();
         if self.playback_cadence.is_some() {
             self.arm_presenting();
@@ -495,9 +496,7 @@ impl AppState {
         }
         if let Some(frame) = presented.frame {
             self.playback.frame(frame.took);
-            if let Some(started) = self.playback_started {
-                self.playback.present(started.elapsed());
-            }
+            self.playback.present(self.playback_run_started.elapsed());
             self.show_frame(frame, cx);
         }
         self.preview_worker

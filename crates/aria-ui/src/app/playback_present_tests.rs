@@ -176,6 +176,80 @@ async fn each_vsync_shows_the_newest_frame_and_counts_what_it_did_not(cx: &mut T
     assert_eq!(vsync(&state, visual, 6), 0);
 }
 
+/// The achieved rate is the frames shown over the time the run has played.
+///
+/// The class closed here: the rate divided by the clock that places the
+/// playhead, which a seek, a loop wrap and the mixer's restart after a seek
+/// each start again, while the shown count went on from the start of the run,
+/// so one loop wrap read twice the sequence's rate. The test leaves the run
+/// 10 s old and the placing clock a few frames old, which is what a seek late
+/// in a run leaves, and then starts a new run, which counts from its own
+/// start. Not caught: a frame the meter counts twice.
+#[gpui::test]
+async fn the_achieved_rate_counts_the_run_across_a_restarted_clock(cx: &mut TestAppContext) {
+    const RUN: Duration = Duration::from_secs(10);
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "achieved");
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            let media = state.import_media(fixture()).expect("import the fixture");
+            state
+                .drop_media_on_timeline(media, None, 0)
+                .expect("place the clip");
+            state.set_shuttle(1);
+            state.set_shuttle(1);
+        })
+    });
+    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
+    settle(&state, visual).await;
+    visual.run_until_parked();
+    let begun = Instant::now();
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            state.playback_run_started = begun.checked_sub(RUN).expect("a clock 10 s old");
+        })
+    });
+    for periods in 1..=3 {
+        assert_eq!(vsync(&state, visual, periods), 1);
+        settle(&state, visual).await;
+    }
+    let report = visual.read(|app| state.read(app).playback_report());
+    assert!(report.presented > 0, "the run showed no frame");
+    let shown = f64::from(report.presented);
+    let longest = (RUN + begun.elapsed()).as_secs_f64();
+    assert!(
+        report.achieved_fps <= shown / RUN.as_secs_f64() && report.achieved_fps >= shown / longest,
+        "{:.2} fps for {} frames shown over a run of at least {RUN:?}",
+        report.achieved_fps,
+        report.presented
+    );
+
+    // A new run counts from its own start, not from the one before it.
+    visual.update(|_, app| state.update(app, |state, _| state.toggle_playback()));
+    assert_eq!(vsync(&state, visual, 4), 0, "the loop outlived the stop");
+    let restarted = Instant::now();
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            state.set_shuttle(1);
+            state.set_shuttle(1);
+        })
+    });
+    visual.update(|window, app| crate::app::start_playback(state.clone(), window, app));
+    settle(&state, visual).await;
+    visual.run_until_parked();
+    assert_eq!(vsync(&state, visual, 1), 1);
+    let report = visual.read(|app| state.read(app).playback_report());
+    assert!(report.presented > 0, "the new run showed no frame");
+    let floor = f64::from(report.presented) / restarted.elapsed().as_secs_f64();
+    assert!(
+        report.achieved_fps >= floor,
+        "{:.2} fps for {} frames shown since a restart {:?} ago: the old run's time was counted",
+        report.achieved_fps,
+        report.presented,
+        restarted.elapsed()
+    );
+}
+
 /// Starting playback again while a run presents leaves one loop: the earlier
 /// one sees a generation that is not its own and ends.
 #[gpui::test]

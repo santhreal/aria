@@ -1306,6 +1306,7 @@ Notes for the latest release. For previous releases, see the
 - Saving settings through a `config.toml` or state file that is a symbolic link replaces the file it points at and keeps the link instead of replacing the link with a copy.
 - A WebAssembly plugin that declares `fs = ["project"]` can read and write files in the saved project's folder instead of being denied every path there.
 - The plugin reference no longer states that a WebAssembly package gets a `plugin-data` directory, and `aria_plugin_wasm::load_with_data_root` and `Reloader::with_data_root`, which ignored their data root, are deleted.
+- The achieved frame rate in the status strip and the Info panel counts the whole playback run instead of reading above the sequence's rate after a seek or a loop wrap.
 
 ## [alpha-0.7.0] - 2026-07-22
 

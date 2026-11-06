@@ -453,6 +453,10 @@ pub struct AppState {
     /// playback starts at, so a report never mixes two rates, and the panel
     /// reads the same numbers the render gate measures.
     pub(super) playback: aria_render::PlaybackMeter,
+    /// When the run [`Self::playback`] measures began. Set with the meter and
+    /// never re-anchored: a seek, a loop wrap and the mixer's restart start
+    /// the clock that places the playhead again, not the run.
+    pub(super) playback_run_started: Instant,
     pub audio: crate::audio::AudioHandle,
     pub last_window_w: f32,
     pub last_window_h: f32,

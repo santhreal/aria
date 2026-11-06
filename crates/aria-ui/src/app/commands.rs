@@ -291,6 +291,7 @@ impl AppState {
             open_list: None,
             // Empty until playback runs, at the rate the project opens with.
             playback: aria_render::PlaybackMeter::at_rate(snapshot.playhead.rate),
+            playback_run_started: std::time::Instant::now(),
             audio: crate::audio::AudioHandle::new(),
             last_window_w: 1440.0,
             last_window_h: 900.0,
