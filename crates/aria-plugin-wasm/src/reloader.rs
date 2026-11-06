@@ -8,7 +8,7 @@ use aria_plugin::PluginContext;
 use aria_plugin::package::{COMPONENT_FILE, MANIFEST_FILE, Package, Tier, discover};
 use rustc_hash::{FxHashMap, FxHasher};
 
-use crate::{Limits, load, load_with_data_root};
+use crate::{Limits, load};
 
 /// Outcome of polling one WASM plugin package directory for changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,6 @@ struct TrackedPackage {
 pub struct Reloader {
     watched: Vec<PathBuf>,
     limits: Limits,
-    data_root: Option<PathBuf>,
     initial: FxHashMap<PathBuf, Fingerprint>,
     tracked: FxHashMap<PathBuf, TrackedPackage>,
 }
@@ -61,19 +60,11 @@ impl Reloader {
         let mut reloader = Self {
             watched: Vec::new(),
             limits,
-            data_root: None,
             initial: FxHashMap::default(),
             tracked: FxHashMap::default(),
         };
         reloader.watch(dir);
         reloader
-    }
-
-    /// Override the root directory under which package `data_dir` paths are resolved.
-    #[must_use]
-    pub fn with_data_root(mut self, data_root: impl Into<PathBuf>) -> Self {
-        self.data_root = Some(data_root.into());
-        self
     }
 
     /// Add another package directory or parent plugins directory to watch.
@@ -278,11 +269,7 @@ impl Reloader {
     }
 
     fn mount_opened_package(&self, pkg: &Package, ctx: &PluginContext) -> Result<(), String> {
-        let plugin = match &self.data_root {
-            Some(root) => load_with_data_root(pkg, &self.limits, root.clone()),
-            None => load(pkg, &self.limits),
-        }
-        .map_err(|err| err.to_string())?;
+        let plugin = load(pkg, &self.limits).map_err(|err| err.to_string())?;
         ctx.mount(plugin.as_ref()).map_err(|err| err.to_string())
     }
 }

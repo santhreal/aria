@@ -827,10 +827,8 @@ fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     assert!(!unpacked_wasm_dir.join("src").exists());
     assert!(!unpacked_wasm_dir.join("wit").exists());
 
-    let wasm_data_root = root.join("wasm-profile");
-    let wasm_plugin =
-        aria_plugin_wasm::load_with_data_root(&unpacked_wasm, &Limits::default(), &wasm_data_root)
-            .expect("load packed wasm plugin");
+    let wasm_plugin = aria_plugin_wasm::load(&unpacked_wasm, &Limits::default())
+        .expect("load packed wasm plugin");
     let wasm_ctx = PluginContext::new();
     wasm_ctx
         .mount(wasm_plugin.as_ref())
@@ -846,10 +844,6 @@ fn end_to_end_new_pack_check_and_mount_for_native_and_wasm() {
     wasm_ctx
         .run_command("com.example.e2e-wasm.run")
         .expect("run wasm sample command without open project");
-    assert!(
-        !unpacked_wasm.data_dir(&wasm_data_root).exists(),
-        "sample command must not write global plugin-data files"
-    );
     wasm_ctx.unmount(wasm_id).expect("unmount wasm plugin");
 }
 

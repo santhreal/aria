@@ -756,8 +756,7 @@ impl Loader {
             }),
             Tier::Wasm { .. } => {
                 let limits = wasm_limits(self.limits);
-                aria_plugin_wasm::load_with_data_root(package, &limits, self.data_root.clone())
-                    .map_err(|err| err.to_string())
+                aria_plugin_wasm::load(package, &limits).map_err(|err| err.to_string())
             }
             Tier::Data => Ok(Box::new(DataPlugin::new(package.clone()))),
         };

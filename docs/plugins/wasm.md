@@ -215,7 +215,7 @@ A guest offers the assistant a tool by calling `register-ai-tool(ai-tool-spec { 
 use std::time::Duration;
 use aria_plugin::PluginContext;
 use aria_plugin::package::Package;
-use aria_plugin_wasm::{Limits, Reloader, load_with_data_root};
+use aria_plugin_wasm::{Limits, Reloader, load};
 
 let package = Package::open(pkg_dir)?;
 let limits = Limits {
@@ -223,7 +223,7 @@ let limits = Limits {
     memory_bytes: 64 * 1024 * 1024,
     call_deadline: Duration::from_secs(2),
 };
-let plugin = load_with_data_root(&package, &limits, data_root)?;
+let plugin = load(&package, &limits)?;
 ctx.mount(plugin.as_ref())?;
 ```
 

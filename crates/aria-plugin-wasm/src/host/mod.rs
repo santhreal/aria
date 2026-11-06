@@ -147,7 +147,6 @@ impl WasmPlugin {
     pub(crate) fn new(
         package: &Package,
         limits: &Limits,
-        _data_root: PathBuf,
         component_path: &Path,
     ) -> Result<Self, LoadError> {
         let engine = SharedEngine::get().map_err(LoadError::Engine)?;

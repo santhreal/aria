@@ -120,16 +120,6 @@ pub enum LoadError {
 /// Load a [`Tier::Wasm`] [`Package`] with [`Limits`], returning a [`Box<dyn Plugin>`]
 /// ready for [`PluginContext::mount`](aria_plugin::PluginContext::mount).
 pub fn load(package: &Package, limits: &Limits) -> Result<Box<dyn Plugin>, LoadError> {
-    load_with_data_root(package, limits, package.dir.clone())
-}
-
-/// Load a [`Tier::Wasm`] [`Package`] with [`Limits`] and an explicit `data_root`
-/// for [`Package::data_dir`].
-pub fn load_with_data_root(
-    package: &Package,
-    limits: &Limits,
-    data_root: impl Into<PathBuf>,
-) -> Result<Box<dyn Plugin>, LoadError> {
     if package.manifest.api != API_MAJOR {
         return Err(LoadError::ApiMismatch {
             plugin: package.manifest.id.clone(),
@@ -142,7 +132,7 @@ pub fn load_with_data_root(
             path: package.dir.clone(),
         });
     };
-    let plugin = WasmPlugin::new(package, limits, data_root.into(), component)?;
+    let plugin = WasmPlugin::new(package, limits, component)?;
     Ok(Box::new(plugin))
 }
 

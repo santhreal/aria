@@ -711,14 +711,12 @@ fn wasm_storage_imports_fail_closed_without_project_host_and_dirty_project_when_
     );
 
     let temp = tempfile::tempdir().expect("tempdir");
-    let data_root = temp.path().join("data");
     let pkg = write_package(temp.path(), "read-write", &["pick"], FIXTURE_WASM);
 
     // 1. Mount with NO ProjectHost registered on PluginContext: storage calls fail closed
-    // with "no open project" and write nothing to `<data_root>/plugin-data`.
+    // with "no open project".
     let bare_ctx = aria_plugin::PluginContext::new();
-    let plugin = aria_plugin_wasm::load_with_data_root(&pkg, &Limits::default(), &data_root)
-        .expect("load wasm plugin");
+    let plugin = aria_plugin_wasm::load(&pkg, &Limits::default()).expect("load wasm plugin");
     bare_ctx.mount(plugin.as_ref()).expect("mount on bare_ctx");
     let err = bare_ctx
         .run_command("example.storage-roundtrip")
@@ -726,10 +724,6 @@ fn wasm_storage_imports_fail_closed_without_project_host_and_dirty_project_when_
     assert!(
         err.to_string().contains("no open project"),
         "expected no open project error, got: {err}"
-    );
-    assert!(
-        !data_root.join("plugin-data").exists(),
-        "WASM storage without ProjectHost must not create <data_root>/plugin-data"
     );
     bare_ctx
         .unmount("com.example.wasm-tools")

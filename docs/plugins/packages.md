@@ -66,10 +66,11 @@ File limits enforced when opening or mounting a package:
 
 Each plugin's key-value store (`storage_get`, `storage_set`, `storage_delete`,
 `storage_keys`) is saved per plugin in the open `.aria` project's `plugin_data`
-map, and fails when called with no project open. Each package also gets a
-directory outside the package folder at `<data dir>/plugin-data/<id>`
+map, and fails when called with no project open. Each native package also gets
+a directory outside the package folder at `<data dir>/plugin-data/<id>`
 (`Package::data_dir`) for staging files; uninstalling or updating the package
-leaves `<data dir>/plugin-data/<id>` intact.
+leaves `<data dir>/plugin-data/<id>` intact. A WebAssembly package has no data
+directory.
 
 ## `plugin.toml` reference
 
