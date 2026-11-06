@@ -104,41 +104,19 @@ fn a_row_that_records_a_step_changes_the_project() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// Rows whose repeat still records a step over its own result. Each is red
-/// here once it no longer does, so the list only shrinks.
-const REPEATS_A_STEP: &[&str] = &[
-    "anim-add-keyframe",
-    "anim-interp-bezier",
-    "anim-interp-hold",
-    "anim-easy-ease",
-    "anim-easy-ease-in",
-    "anim-easy-ease-out",
-];
-
 /// A row run a second time over its own result changes the project again, as
 /// a toggle or a paste does, or records nothing, as a row whose result is
 /// already in place must. The census runs every row that recorded a step once
 /// more in the same state; a repeat that records a step and changes nothing
 /// spends the next Undo on nothing. Rows that open a form are not repeated.
 ///
-/// A new row is held to this with no edit here. The rows in
-/// [`REPEATS_A_STEP`] are known to repeat a step; a listed row that stops is
-/// red until it leaves the list.
+/// A new row is held to this with no edit here.
 #[test]
 fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
-    let repeats: Vec<&str> = CENSUS
+    let repeats: Vec<String> = CENSUS
         .rows
         .iter()
         .filter(|row| !row.again.is_empty() && !row.again_changed)
-        .map(|row| row.id.as_str())
-        .collect();
-    let new: Vec<String> = CENSUS
-        .rows
-        .iter()
-        .filter(|row| {
-            let id = row.id.as_str();
-            repeats.contains(&id) && !REPEATS_A_STEP.contains(&id)
-        })
         .map(|row| {
             format!(
                 "{} against {:?} repeated {:?}",
@@ -146,21 +124,17 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
             )
         })
         .collect();
-    let stale: Vec<&str> = REPEATS_A_STEP
-        .iter()
-        .copied()
-        .filter(|id| !repeats.contains(id))
-        .collect();
-    assert!(new.is_empty(), "{}", new.join("\n"));
-    assert!(stale.is_empty(), "no longer repeat a step: {stale:?}");
+    assert!(repeats.is_empty(), "{}", repeats.join("\n"));
 }
 
 /// WHY: closes the class of rows that record an undo step over nothing when
 /// the state already holds their result: Reset Framing on a whole frame,
 /// Remove Track Matte with no matte, Linear on Linear keyframes, Time-Reverse
 /// on keyframes that play the same reversed, Paste Attributes onto the copy's
-/// own clip or a clip that already has the copied look, and From Source
-/// Monitor onto the frames the clip already plays. Each is drawn disabled with
+/// own clip or a clip that already has the copied look, From Source Monitor
+/// onto the frames the clip already plays, Add Keyframe where the keyframe
+/// already holds the value, and an ease row over keyframes that already have
+/// that easing. Each is drawn disabled with
 /// the reason its action declines with, and running it anyway records nothing.
 ///
 /// What this does not catch: a row outside this table that repeats its own
@@ -169,7 +143,7 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
 #[test]
 fn a_row_over_its_own_result_declines_and_records_nothing() {
     use crate::app::decline::Decline;
-    let cases: [(&str, fn() -> AppState, Decline); 13] = [
+    let cases: [(&str, fn() -> AppState, Decline); 20] = [
         ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
         ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
         (
@@ -247,6 +221,48 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
             },
             Decline::SameTransition,
         ),
+        (
+            "anim-add-keyframe",
+            || {
+                let mut state = Picked.state();
+                state
+                    .add_keyframes_on_selected_properties()
+                    .expect("the keyframe lands");
+                state
+            },
+            Decline::KeyedHere,
+        ),
+        ("anim-interp-bezier", || Eased.state(), Decline::SameEase),
+        (
+            "anim-interp-hold",
+            || {
+                let mut state = Keyed.state();
+                state
+                    .hold_selected_or_playhead()
+                    .expect("the keyframe holds");
+                state
+            },
+            Decline::SameEase,
+        ),
+        (
+            "anim-interp-hold",
+            || {
+                // Two or more eased keyframes, whose curve points the model
+                // re-solves after each write.
+                let mut state = Spanned.state();
+                state
+                    .easy_ease_selected_or_playhead()
+                    .expect("the keyframes ease");
+                state
+                    .hold_selected_or_playhead()
+                    .expect("the keyframes hold");
+                state
+            },
+            Decline::SameEase,
+        ),
+        ("anim-easy-ease", || Eased.state(), Decline::SameEase),
+        ("anim-easy-ease-in", || Eased.state(), Decline::SameEase),
+        ("anim-easy-ease-out", || Eased.state(), Decline::SameEase),
     ];
     let mut wrong = Vec::new();
     for (id, build, why) in cases {
@@ -269,6 +285,63 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A project file whose eased keyframes omit their solved handles loads with
+/// the default handles, which disagree with the eases. Easy Ease over such a
+/// keyframe re-solves its handles, so the row is offered and records a step
+/// that changes the project. The row's guard runs the model's own write and
+/// compares the curve, not the easing the write stores; a guard that compared
+/// only the stored easing would draw this row disabled.
+#[test]
+fn easy_ease_over_unsolved_handles_is_offered_and_resolves_them() {
+    fn strip_points(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(serde_json::Value::Object(temporal)) = map.get_mut("temporal") {
+                    temporal.remove("points");
+                }
+                map.values_mut().for_each(strip_points);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(strip_points),
+            _ => {}
+        }
+    }
+    let mut state = Spanned.state();
+    state
+        .easy_ease_selected_or_playhead()
+        .expect("the keyframes ease");
+    let clip = state.selected_clip().expect("the clip is selected");
+    let param = state
+        .key_params()
+        .first()
+        .expect("the clip can animate something")
+        .param();
+    let ui = state.selected_ui_clip().expect("the clip is drawn");
+    let (start, end) = (ui.timeline_start_ticks, ui.timeline_end_ticks);
+    let solved = project_text(&state);
+    let mut file =
+        serde_json::to_value(state.engine.lock().project()).expect("the project encodes");
+    strip_points(&mut file);
+    let loaded: aria_models::Project = serde_json::from_value(file).expect("the file loads");
+    state.engine.lock().reset_project(loaded);
+    state.sync_from_engine();
+    state.select_clip(clip);
+    state.marquee_select_keyframes(clip, param, start, end, false);
+    assert_ne!(
+        project_text(&state),
+        solved,
+        "the loaded handles are not the solved ones"
+    );
+    let probe = probe(AppMenu::Animation, "anim-easy-ease", state, false);
+    assert_eq!(probe.blocked, None, "the row is offered");
+    assert_eq!(probe.status, None, "the row writes without a decline");
+    assert_eq!(
+        probe.wrote,
+        ["Set keyframe ease +1"],
+        "one step over both keyframes is recorded"
+    );
+    assert!(probe.changed, "the handles are re-solved");
 }
 
 #[test]

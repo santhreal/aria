@@ -1361,6 +1361,8 @@ Notes for the latest release. For previous releases, see the
 - Luma and Alpha Matte from Above are disabled on a clip whose matte already reads that source instead of recording an undo step that changes nothing.
 - Move Nearest Marker to Playhead is disabled when that marker is already at the playhead instead of recording an undo step that changes nothing.
 - Applying a transition to a cut that already holds it is declined instead of recording an undo step that changes nothing.
+- Add Keyframe where every selected property is already keyed with its value at the playhead, and Bezier, Hold or Easy Ease on keyframes that already have that easing, are disabled instead of recording an undo step that changes nothing.
+- Hold written over a held keyframe no longer resets its easing handles, so releasing Hold restores the easing the keyframe had before.
 
 ## [alpha-0.7.0] - 2026-07-22
 

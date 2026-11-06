@@ -179,12 +179,38 @@ impl AppState {
     }
 
     /// Animation > Add Keyframe: a keyframe at the playhead on every selected
-    /// property row, holding the value the property has there. A row whose
-    /// clip is not under the playhead is passed over. Returns how many were
-    /// written.
+    /// property row that [`Self::keyframe_writes`] returns. Returns how many
+    /// were written.
     pub fn add_keyframes_on_selected_properties(&mut self) -> Result<usize, EngineError> {
+        let writes = match self.keyframe_writes() {
+            Ok(writes) => writes,
+            Err(why) => {
+                self.decline(why);
+                return Ok(0);
+            }
+        };
+        let count = writes.len();
+        self.one_step(|this| {
+            for write in writes {
+                this.apply_command(Command::Edit(write))?;
+            }
+            Ok(())
+        })?;
+        self.status_message = Some(format!(
+            "Added {} at the playhead",
+            counted(count, "keyframe", "keyframes")
+        ));
+        Ok(count)
+    }
+
+    /// The keyframes Add Keyframe writes: one at the playhead on each selected
+    /// property row of a clip under it, holding the value the property has
+    /// there, unless a keyframe there already holds it. The row's guard and
+    /// its body both read this.
+    pub(crate) fn keyframe_writes(&self) -> Result<Vec<EditCommand>, Decline> {
         let at = self.playhead;
         let mut writes = Vec::new();
+        let mut keyed = false;
         for (clip, param) in self.selected_property_rows() {
             let Some((model, audio_lane)) = self.clip_and_lane_kind(clip) else {
                 continue;
@@ -206,6 +232,10 @@ impl AppState {
             let existing = stored_keys(&model, &row)
                 .into_iter()
                 .find(|key| key.tick == local);
+            if existing.as_ref().is_some_and(|key| key.value == value) {
+                keyed = true;
+                continue;
+            }
             writes.push(EditCommand::SetParamKeyframe {
                 clip,
                 param,
@@ -215,23 +245,11 @@ impl AppState {
                 tangents: existing.and_then(|key| key.tangents),
             });
         }
-        if writes.is_empty() {
-            self.status_message =
-                Some("Select a property row of a clip under the playhead first".into());
-            return Ok(0);
+        match (writes.is_empty(), keyed) {
+            (false, _) => Ok(writes),
+            (true, true) => Err(Decline::KeyedHere),
+            (true, false) => Err(Decline::NoPropertyAtPlayhead),
         }
-        let count = writes.len();
-        self.one_step(|this| {
-            for write in writes {
-                this.apply_command(Command::Edit(write))?;
-            }
-            Ok(())
-        })?;
-        self.status_message = Some(format!(
-            "Added {} at the playhead",
-            counted(count, "keyframe", "keyframes")
-        ));
-        Ok(count)
     }
 
     /// Animation > Keyframe Assistant > Time-Reverse Keyframes: on each

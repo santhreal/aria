@@ -16,6 +16,8 @@ mod reveal;
 #[path = "property_rows_search.rs"]
 mod search;
 
+pub(crate) use keyframes::EaseWrite;
+
 #[cfg(test)]
 #[path = "property_rows_tests.rs"]
 mod tests;

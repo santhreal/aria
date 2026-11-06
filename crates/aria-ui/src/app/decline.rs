@@ -132,11 +132,18 @@ pub enum Decline {
     MarkerAtPlayhead,
     /// A transition applied to a cut that already holds it.
     SameTransition,
+    /// An ease row whose easing every target keyframe already has.
+    SameEase,
+    /// Add Keyframe where every selected property already has a keyframe at
+    /// the playhead holding its value.
+    KeyedHere,
+    /// Add Keyframe with no selected property row of a clip under the playhead.
+    NoPropertyAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 50] = [
+    pub const ALL: [Decline; 53] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -187,6 +194,9 @@ impl Decline {
         Decline::SameMatte,
         Decline::MarkerAtPlayhead,
         Decline::SameTransition,
+        Decline::SameEase,
+        Decline::KeyedHere,
+        Decline::NoPropertyAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -247,6 +257,11 @@ impl Decline {
             Decline::SameMatte => "The selected clip's matte already reads that source",
             Decline::MarkerAtPlayhead => "The nearest marker is already at the playhead",
             Decline::SameTransition => "That cut already has that transition",
+            Decline::SameEase => "The keyframes already have that easing",
+            Decline::KeyedHere => "The selected properties are already keyed at the playhead",
+            Decline::NoPropertyAtPlayhead => {
+                "Select a property row of a clip under the playhead first"
+            }
         }
     }
 }

@@ -3,7 +3,9 @@
 use std::borrow::Cow;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::app::menu_verbs::KeyInterpolation;
+use crate::app::property_rows::EaseWrite;
 use crate::app::property_rows::RevealAction;
 
 use super::menu_guards as guards;
@@ -17,7 +19,7 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         let added = s.add_keyframes_on_selected_properties().map(drop);
         report(s, added)
     })
-    .when(guards::property_rows),
+    .when(add_keyframe_ready),
     MenuItem::new("anim-toggle-hold", "Toggle Hold Keyframe", |_, s, _| {
         let toggled = s.toggle_hold_selected_or_playhead();
         report(s, toggled)
@@ -34,13 +36,13 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         let set = s.set_keyframe_interpolation(KeyInterpolation::Bezier);
         report(s, set)
     })
-    .when(guards::keyframes)
+    .when(|_, s| ease_ready(s, EaseWrite::EASY))
     .under(INTERPOLATION),
     MenuItem::new("anim-interp-hold", "Hold", |_, s, _| {
         let set = s.set_keyframe_interpolation(KeyInterpolation::Hold);
         report(s, set)
     })
-    .when(guards::keyframes)
+    .when(|_, s| ease_ready(s, EaseWrite::HOLD))
     .under(INTERPOLATION),
     MenuItem::new(
         "anim-keyframe-velocity",
@@ -53,21 +55,21 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
         report(s, eased)
     })
     .key("key-easy-ease")
-    .when(guards::keyframes)
+    .when(|_, s| ease_ready(s, EaseWrite::EASY))
     .under(ASSISTANT),
     MenuItem::new("anim-easy-ease-in", "Easy Ease In", |_, s, _| {
         let eased = s.easy_ease_in_selected_or_playhead();
         report(s, eased)
     })
     .key("key-easy-ease-in")
-    .when(guards::keyframes)
+    .when(|_, s| ease_ready(s, EaseWrite::EASY_IN))
     .under(ASSISTANT),
     MenuItem::new("anim-easy-ease-out", "Easy Ease Out", |_, s, _| {
         let eased = s.easy_ease_out_selected_or_playhead();
         report(s, eased)
     })
     .key("key-easy-ease-out")
-    .when(guards::keyframes)
+    .when(|_, s| ease_ready(s, EaseWrite::EASY_OUT))
     .under(ASSISTANT),
     MenuItem::new("anim-time-reverse", "Time-Reverse Keyframes", |_, s, _| {
         let reversed = s.time_reverse_selected_keyframes().map(drop);
@@ -102,6 +104,18 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
     .key("key-graph-editor")
     .rule(),
 ];
+
+/// Disables Add Keyframe with no selected property row under the playhead, or
+/// none a keyframe would change, through the plan its body runs.
+fn add_keyframe_ready(_: &str, state: &AppState) -> Option<&'static str> {
+    state.keyframe_writes().err().map(Decline::reason)
+}
+
+/// Disables an ease row with no target keyframe, or none `ease` would change,
+/// through the plan its body runs.
+fn ease_ready(state: &AppState, ease: EaseWrite) -> Option<&'static str> {
+    state.ease_targets(ease).err().map(Decline::reason)
+}
 
 pub(super) fn animation_items(_state: &AppState) -> MenuItems {
     Cow::Borrowed(ANIMATION_ITEMS)

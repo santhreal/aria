@@ -11,6 +11,49 @@ use crate::app::AppState;
 use crate::app::clip_keys::{key_magnets, key_params_of, key_span};
 use crate::app::decline::Decline;
 
+/// What an ease shortcut writes: the handles it sets, where a side left `None`
+/// keeps the handle the keyframe has, and Hold set, cleared, or toggled
+/// (`None`).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct EaseWrite {
+    in_ease: Option<TemporalEase>,
+    out_ease: Option<TemporalEase>,
+    hold: Option<bool>,
+}
+
+impl EaseWrite {
+    /// Easy Ease on both sides, which Bezier also writes.
+    pub(crate) const EASY: Self = Self {
+        in_ease: Some(TemporalEase::EASY_EASE),
+        out_ease: Some(TemporalEase::EASY_EASE),
+        hold: Some(false),
+    };
+    /// Easy Ease on the incoming side.
+    pub(crate) const EASY_IN: Self = Self {
+        in_ease: Some(TemporalEase::EASY_EASE),
+        out_ease: None,
+        hold: Some(false),
+    };
+    /// Easy Ease on the outgoing side.
+    pub(crate) const EASY_OUT: Self = Self {
+        in_ease: None,
+        out_ease: Some(TemporalEase::EASY_EASE),
+        hold: Some(false),
+    };
+    /// Hold, whatever the keyframe held.
+    pub(crate) const HOLD: Self = Self {
+        in_ease: None,
+        out_ease: None,
+        hold: Some(true),
+    };
+    /// Hold toggled.
+    const TOGGLE_HOLD: Self = Self {
+        in_ease: None,
+        out_ease: None,
+        hold: None,
+    };
+}
+
 impl AppState {
     /// Select a property row for display in the timeline graph editor.
     pub fn select_timeline_property(&mut self, clip: ClipId, param: ClipParam, additive: bool) {
@@ -466,72 +509,106 @@ impl AppState {
     /// `F9`: Easy Ease (33.33% influence, 0 speed on both sides) on selected
     /// keyframes or keyframes at the playhead.
     pub fn easy_ease_selected_or_playhead(&mut self) -> Result<(), EngineError> {
-        self.apply_ease_to_targets(
-            Some(TemporalEase::EASY_EASE),
-            Some(TemporalEase::EASY_EASE),
-            Some(false),
-        )
+        self.apply_ease_to_targets(EaseWrite::EASY)
     }
 
     /// `Shift+F9`: Easy Ease In (33.33% incoming influence, 0 incoming speed)
     /// on selected keyframes or keyframes at the playhead.
     pub fn easy_ease_in_selected_or_playhead(&mut self) -> Result<(), EngineError> {
-        self.apply_ease_to_targets(Some(TemporalEase::EASY_EASE), None, Some(false))
+        self.apply_ease_to_targets(EaseWrite::EASY_IN)
     }
 
     /// `Ctrl+Shift+F9`: Easy Ease Out (33.33% outgoing influence, 0 outgoing
     /// speed) on selected keyframes or keyframes at the playhead.
     pub fn easy_ease_out_selected_or_playhead(&mut self) -> Result<(), EngineError> {
-        self.apply_ease_to_targets(None, Some(TemporalEase::EASY_EASE), Some(false))
+        self.apply_ease_to_targets(EaseWrite::EASY_OUT)
     }
 
     /// `Ctrl+Alt+H`: Toggle Hold interpolation on selected keyframes or
     /// keyframes at the playhead.
     pub fn toggle_hold_selected_or_playhead(&mut self) -> Result<(), EngineError> {
-        self.apply_ease_to_targets(None, None, None)
+        self.apply_ease_to_targets(EaseWrite::TOGGLE_HOLD)
     }
 
     /// Animation > Keyframe Interpolation > Hold: Hold interpolation on the
     /// selected keyframes or the keyframes at the playhead, whatever they held.
     pub fn hold_selected_or_playhead(&mut self) -> Result<(), EngineError> {
-        self.apply_ease_to_targets(None, None, Some(true))
+        self.apply_ease_to_targets(EaseWrite::HOLD)
     }
 
-    fn apply_ease_to_targets(
-        &mut self,
-        in_ease: Option<TemporalEase>,
-        out_ease: Option<TemporalEase>,
-        explicit_hold: Option<bool>,
-    ) -> Result<(), EngineError> {
+    /// The keyframes `ease` rewrites: the ease targets whose easing it
+    /// changes. The rows' guards and the shortcuts both read this.
+    pub(crate) fn ease_targets(&self, ease: EaseWrite) -> Result<Vec<SelectedKeyframe>, Decline> {
         let targets = self.ease_target_keyframes();
         if targets.is_empty() {
-            self.decline(Decline::NoKeyframeTarget);
-            return Ok(());
+            return Err(Decline::NoKeyframeTarget);
         }
-        let rate = self.store.sequence.frame_rate;
+        let changed: Vec<SelectedKeyframe> = targets
+            .into_iter()
+            .filter(|&target| self.ease_command(target, ease).1)
+            .collect();
+        if changed.is_empty() {
+            return Err(Decline::SameEase);
+        }
+        Ok(changed)
+    }
+
+    /// The write `ease` sends for `target`, and whether it changes the
+    /// property's curve, found by running the model's own write on a copy of
+    /// the clip. `SetKeyframeEase` replaces both sides, so a side `ease`
+    /// leaves alone is written back with the handle it already has.
+    fn ease_command(&self, target: SelectedKeyframe, ease: EaseWrite) -> (EditCommand, bool) {
+        let found = self
+            .clip_and_lane_kind(target.clip)
+            .and_then(|(clip, audio_lane)| {
+                let row = key_params_of(&clip, audio_lane)
+                    .iter()
+                    .find(|row| row.param() == target.param)
+                    .cloned()?;
+                Some((clip, row))
+            });
+        let current = found
+            .as_ref()
+            .and_then(|(clip, row)| row.spec.easing_at(clip, clip.param_tick(target.tick)))
+            .unwrap_or(Easing::Linear);
+        let hold = ease.hold.unwrap_or_else(|| !current.is_hold());
+        let in_ease = ease.in_ease.or(current.in_ease());
+        let out_ease = ease.out_ease.or(current.out_ease());
+        // A write the model rejects is sent anyway, so its error is reported.
+        let changes = found.is_none_or(|(mut clip, row)| {
+            let before = row.spec.curve(&clip);
+            let local = clip.param_tick(target.tick);
+            target
+                .param
+                .set_keyframe_temporal_ease(&mut clip, local, in_ease, out_ease, hold)
+                .is_err()
+                || row.spec.curve(&clip) != before
+        });
+        let write = EditCommand::SetKeyframeEase {
+            clip: target.clip,
+            param: target.param,
+            at: RationalTime::new(target.tick, self.store.sequence.frame_rate),
+            in_ease,
+            out_ease,
+            hold,
+        };
+        (write, changes)
+    }
+
+    fn apply_ease_to_targets(&mut self, ease: EaseWrite) -> Result<(), EngineError> {
+        let targets = match self.ease_targets(ease) {
+            Ok(targets) => targets,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
+        };
         self.one_step(|this| {
             for target in targets {
-                // `SetKeyframeEase` replaces both sides, so a side this shortcut
-                // leaves alone is written back with the handle it already has.
-                let current = this
-                    .clip_and_lane_kind(target.clip)
-                    .and_then(|(c, a)| {
-                        let local = c.param_tick(target.tick);
-                        key_params_of(&c, a)
-                            .iter()
-                            .find(|r| r.param() == target.param)
-                            .and_then(|r| r.spec.easing_at(&c, local))
-                    })
-                    .unwrap_or(Easing::Linear);
-                let hold = explicit_hold.unwrap_or_else(|| !current.is_hold());
-                this.apply_command(Command::Edit(EditCommand::SetKeyframeEase {
-                    clip: target.clip,
-                    param: target.param,
-                    at: RationalTime::new(target.tick, rate),
-                    in_ease: in_ease.or(current.in_ease()),
-                    out_ease: out_ease.or(current.out_ease()),
-                    hold,
-                }))?;
+                // Read at the write: an earlier write in the step can move what
+                // this keyframe holds.
+                let (write, _) = this.ease_command(target, ease);
+                this.apply_command(Command::Edit(write))?;
             }
             Ok(())
         })

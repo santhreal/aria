@@ -22,7 +22,7 @@ use gpui::{
 use crate::app::AppState;
 use crate::app::param_units::Units;
 use crate::app::property_rows::graph::graph_axis_ys;
-use crate::app::property_rows::{GRAPH_EDITOR_H, GraphMode};
+use crate::app::property_rows::{EaseWrite, GRAPH_EDITOR_H, GraphMode};
 use crate::components::{self, ChipSize};
 use crate::panels::keyframe_icon::{KeyInk, paint_keyframe_icon};
 use crate::shell::{Hold, Shell};
@@ -105,10 +105,12 @@ pub(super) fn render_graph_editor(
     let value_chip = graph_mode_chip("graph-mode-value", "Value", GraphMode::Value);
     let speed_chip = graph_mode_chip("graph-mode-speed", "Speed", GraphMode::Speed);
     // Easy Ease and Hold act on the keys the Animation menu's rows act on.
-    // With none, the tools draw blocked, and a press puts the reason on the
-    // status line.
-    let blocked = crate::chrome::menu_guards::keyframes("", state.read(cx)).is_some();
-    let graph_tool = |id: &'static str, label: &'static str| {
+    // With none, or Easy Ease on keys that already have it, the tool draws
+    // blocked, and a press puts the reason on the status line.
+    let app = state.read(cx);
+    let ease_blocked = app.ease_targets(EaseWrite::EASY).is_err();
+    let hold_blocked = crate::chrome::menu_guards::keyframes("", app).is_some();
+    let graph_tool = |id: &'static str, label: &'static str, blocked: bool| {
         components::blocked::blocked(components::ghost_button(id, label, theme), blocked)
             .debug_selector(move || id.into())
             .px(px(Theme::SPACE_XS))
@@ -116,7 +118,7 @@ pub(super) fn render_graph_editor(
             .text_size(Theme::TEXT_SMALL)
             .when_some(crate::tooltip::builder(id), |el, tip| el.with_tip(tip))
     };
-    let easy_ease = graph_tool("graph-btn-easy-ease", "Easy Ease").on_mouse_down(
+    let easy_ease = graph_tool("graph-btn-easy-ease", "Easy Ease", ease_blocked).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();
@@ -129,7 +131,7 @@ pub(super) fn render_graph_editor(
             cx.notify();
         }),
     );
-    let hold = graph_tool("graph-btn-hold", "Hold").on_mouse_down(
+    let hold = graph_tool("graph-btn-hold", "Hold", hold_blocked).on_mouse_down(
         MouseButton::Left,
         cx.listener(|this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();

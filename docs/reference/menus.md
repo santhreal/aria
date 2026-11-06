@@ -194,15 +194,15 @@ After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 
 | ID | Submenu | Label | Shortcut | Disabled when | Action |
 | --- | --- | --- | --- | --- | --- |
-| `anim-add-keyframe` | `none` | Add Keyframe | `none` | Select a property row in the timeline (`guards::property_rows`) | Inserts keyframes at the playhead on all selected timeline property rows. |
+| `anim-add-keyframe` | `none` | Add Keyframe | `none` | No selected timeline property row of a clip under the playhead, or every one already has a keyframe at the playhead holding its value (`add_keyframe_ready`) | Inserts a keyframe at the playhead on each selected timeline property row of a clip under the playhead, holding the property's value there. |
 | `anim-toggle-hold` | `none` | Toggle Hold Keyframe | `Ctrl+Alt+H` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Toggles step-hold interpolation (`Easing::Hold`) on the target keyframes. |
 | `anim-interp-linear` | `Keyframe Interpolation` | Linear | `none` | Select a keyframe, or put the playhead on one; or the keyframes are already Linear (`guards::keyframes_to_linear`) | Sets the target keyframes' interpolation to `KeyInterpolation::Linear`. |
-| `anim-interp-bezier` | `Keyframe Interpolation` | Bezier | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets the target keyframes' interpolation to `KeyInterpolation::Bezier`. |
-| `anim-interp-hold` | `Keyframe Interpolation` | Hold | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets the target keyframes' interpolation to `KeyInterpolation::Hold`. |
+| `anim-interp-bezier` | `Keyframe Interpolation` | Bezier | `none` | Select a keyframe, or put the playhead on one, or every target keyframe already has that easing (`ease_ready`) | Sets Easy Ease handles (33.33% influence, zero speed) on both sides of the target keyframes and clears Hold. |
+| `anim-interp-hold` | `Keyframe Interpolation` | Hold | `none` | Select a keyframe, or put the playhead on one, or every target keyframe already has that easing (`ease_ready`) | Sets Hold on the target keyframes and keeps their handles. |
 | `anim-keyframe-velocity` | `none` | Keyframe Velocity… | `none` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Opens `aria.dialog.keyframe-velocity` to edit incoming and outgoing velocity and influence. |
-| `anim-easy-ease` | `Keyframe Assistant` | Easy Ease | `F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to smooth ease-in-out (`Easing::EaseInOut`). |
-| `anim-easy-ease-in` | `Keyframe Assistant` | Easy Ease In | `Shift+F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to ease-in (`Easing::EaseIn`). |
-| `anim-easy-ease-out` | `Keyframe Assistant` | Easy Ease Out | `Ctrl+Shift+F9` | Select a keyframe, or put the playhead on one (`guards::keyframes`) | Sets target keyframes to ease-out (`Easing::EaseOut`). |
+| `anim-easy-ease` | `Keyframe Assistant` | Easy Ease | `F9` | Select a keyframe, or put the playhead on one, or every target keyframe already has that easing (`ease_ready`) | Sets Easy Ease handles (33.33% influence, zero speed) on both sides of the target keyframes and clears Hold. |
+| `anim-easy-ease-in` | `Keyframe Assistant` | Easy Ease In | `Shift+F9` | Select a keyframe, or put the playhead on one, or every target keyframe already has that easing (`ease_ready`) | Sets an Easy Ease handle on the incoming side of the target keyframes, keeps the outgoing handle, and clears Hold. |
+| `anim-easy-ease-out` | `Keyframe Assistant` | Easy Ease Out | `Ctrl+Shift+F9` | Select a keyframe, or put the playhead on one, or every target keyframe already has that easing (`ease_ready`) | Sets an Easy Ease handle on the outgoing side of the target keyframes, keeps the incoming handle, and clears Hold. |
 | `anim-time-reverse` | `Keyframe Assistant` | Time-Reverse Keyframes | `none` | Select two or more keyframes on one property, or the selected keyframes play the same reversed (`guards::keyframes_to_reverse`) | Reverses the values and easing of two or more selected keyframes along their span on each property. |
 | `anim-add-expression` | `none` | Add Expression | `none` | Select a property row of the selected clip (`guards::clip_property_row`) | Attaches a default expression to the selected property row of the selected clip. |
 | `anim-reveal-keyed` | `none` | Reveal Properties with Keyframes | `Alt+U` | No clip is selected (`guards::selection`) | Reveals animated or modified property rows on the selected clips in the timeline outline. |
@@ -405,6 +405,9 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SameMatte` | `The selected clip's matte already reads that source` |
 | `MarkerAtPlayhead` | `The nearest marker is already at the playhead` |
 | `SameTransition` | `That cut already has that transition` |
+| `SameEase` | `The keyframes already have that easing` |
+| `KeyedHere` | `The selected properties are already keyed at the playhead` |
+| `NoPropertyAtPlayhead` | `Select a property row of a clip under the playhead first` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

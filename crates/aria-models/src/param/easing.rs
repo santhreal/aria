@@ -352,9 +352,14 @@ impl Easing {
         if !roving && in_ease.is_none() && out_ease.is_none() {
             return if hold { Easing::Hold } else { Easing::Linear };
         }
-        let points = self
-            .control_points()
-            .unwrap_or_else(default_temporal_points);
+        // A held Temporal keyframe keeps its handles for when it is released;
+        // `control_points` hides them only for display.
+        let points = match self {
+            Easing::Temporal { points, .. } => points,
+            other => other
+                .control_points()
+                .unwrap_or_else(default_temporal_points),
+        };
         Easing::Temporal {
             in_ease,
             out_ease,

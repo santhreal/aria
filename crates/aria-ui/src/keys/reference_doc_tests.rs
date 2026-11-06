@@ -550,7 +550,10 @@ fn menus_doc_matches_registry() {
                 | Decline::SameChannels
                 | Decline::SameMatte
                 | Decline::MarkerAtPlayhead
-                | Decline::SameTransition => {}
+                | Decline::SameTransition
+                | Decline::SameEase
+                | Decline::KeyedHere
+                | Decline::NoPropertyAtPlayhead => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

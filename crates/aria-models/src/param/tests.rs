@@ -868,6 +868,45 @@ fn easy_ease_in_out_and_hold_shape_adjacent_segments() {
     assert!(p.sample(15) > 1.0);
 }
 
+/// Writing a keyframe's own Hold back leaves the curve as it was, and toggling
+/// Hold twice restores it, on every keyframe of a curve under each ease. A
+/// held keyframe keeps its handles, so the last keyframe, whose points no
+/// segment re-solves, does not fall back to the default handles on a second
+/// write. Does not cover roving keyframes.
+#[test]
+fn hold_written_over_itself_or_toggled_back_keeps_the_curve() {
+    type Ease = fn(&mut Param<f32>, i64) -> Result<(), ModelError>;
+    let eases: [(&str, Ease); 4] = [
+        ("linear", |_, _| Ok(())),
+        ("easy ease", Param::easy_ease_keyframe),
+        ("easy ease in", Param::easy_ease_in_keyframe),
+        ("easy ease out", Param::easy_ease_out_keyframe),
+    ];
+    let ticks = [0, 30, 60];
+    for (name, ease) in eases {
+        for tick in ticks {
+            let mut p = Param::Constant(0.0f32);
+            for t in ticks {
+                p.set_keyframe(t, t as f32, Easing::Linear);
+            }
+            for t in ticks {
+                ease(&mut p, t).unwrap();
+            }
+            let before = p.clone();
+            let mut toggled = p.clone();
+            toggled.toggle_hold_keyframe(tick).unwrap();
+            toggled.toggle_hold_keyframe(tick).unwrap();
+            assert_eq!(toggled, before, "{name}: Hold toggled twice at {tick}");
+
+            let held = p.toggle_hold_keyframe(tick).unwrap();
+            let after_hold = p.clone();
+            p.set_keyframe_temporal_ease(tick, held.in_ease(), held.out_ease(), true)
+                .unwrap();
+            assert_eq!(p, after_hold, "{name}: Hold written over Hold at {tick}");
+        }
+    }
+}
+
 #[test]
 fn incoming_and_outgoing_influence_shift_curve_pull_and_roundtrip_serde() {
     let mut low = Param::Constant(0.0f32);

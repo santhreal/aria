@@ -196,12 +196,14 @@ curve and no value axis, and shows "Select a clip to graph its properties."
   under it, as a linear keyframe's do; a press past the icon, within 8 pixels,
   pulls out the nearest handle.
 - **Easy Ease** and **Hold** apply to the selected keyframes, or to the keyframe
-  under the playhead when none is selected.
+  under the playhead when none is selected. Either is disabled when every target
+  keyframe already has that easing, and records no undo step.
 
 ### Animation menu
 
 - **Add Keyframe** writes a keyframe at the playhead on every selected property
-  row, holding the value the property has there.
+  row, holding the value the property has there. It is disabled when each of
+  those rows already has a keyframe at the playhead holding that value.
 - **Add Expression** adds a driver to the selected property row and opens it.
   A row that already has a driver opens that driver.
 - **Keyframe Velocity…**, or a double-click on a keyframe, sets the incoming and
