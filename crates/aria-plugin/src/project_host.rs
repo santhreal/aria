@@ -116,16 +116,19 @@ pub struct Receipt {
     pub outcomes: Vec<ApplyOutcome>,
 }
 
-/// The engine revisions a rolled-back group spanned, for a cache keyed by
-/// revision: at `left`, the commands applied between `opened` and `found` are
-/// reverted. A group that applied nothing leaves `found` and `left` equal.
+/// The engine revisions a return to an earlier project spanned, for a cache
+/// keyed by revision: at `left`, the project equals the one at `opened`, so
+/// only the changes made between `opened` and `found` are changed back. A
+/// rolled-back group, an undo and a redo each report one; a history jump
+/// reports one for each step it takes. A return that changed nothing leaves
+/// `found` and `left` equal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reverted {
-    /// The engine revision when the group opened.
+    /// The engine revision whose project the return restored.
     pub opened: u64,
-    /// The engine revision just before the rollback.
+    /// The engine revision just before the return.
     pub found: u64,
-    /// The engine revision after the rollback.
+    /// The engine revision after the return.
     pub left: u64,
 }
 
@@ -597,31 +600,66 @@ impl ProjectHost {
         .map(|((), receipt)| receipt)
     }
 
-    /// Undo one step. `Ok(false)` when there is nothing to undo or this thread
-    /// has a group open.
-    pub fn undo(&self) -> Result<bool, EngineError> {
-        self.step_history(Engine::undo)
+    /// Undo one step. `None` when there is nothing to undo, the step failed,
+    /// or this thread has a group open.
+    pub fn undo(&self) -> Result<Option<Reverted>, EngineError> {
+        self.walk_history(|engine| engine.history_depth().checked_sub(1))
+            .map(|walked| walked.and_then(|steps| steps.into_iter().next()))
     }
 
-    /// Redo one step. `Ok(false)` when there is nothing to redo or this thread
-    /// has a group open.
-    pub fn redo(&self) -> Result<bool, EngineError> {
-        self.step_history(Engine::redo)
+    /// Redo one step. `None` when there is nothing to redo, the step failed,
+    /// or this thread has a group open.
+    pub fn redo(&self) -> Result<Option<Reverted>, EngineError> {
+        self.walk_history(|engine| Some(engine.history_depth() + 1))
+            .map(|walked| walked.and_then(|steps| steps.into_iter().next()))
     }
 
-    /// Undo or redo until `depth` steps are applied. `Ok(false)` when that
-    /// point was not reached or this thread has a group open.
-    pub fn history_jump(&self, depth: usize) -> Result<bool, EngineError> {
-        self.step_history(|engine| engine.history_jump(depth))
+    /// Undo or redo one step at a time until `depth` steps are applied, and
+    /// report each step in order. Every step leaves from the revision the one
+    /// before it left, so a store that follows the steps links each revision a
+    /// later step returns to. `None` when that point was not reached or this
+    /// thread has a group open.
+    pub fn history_jump(&self, depth: usize) -> Result<Option<Vec<Reverted>>, EngineError> {
+        self.walk_history(|_| Some(depth))
     }
 
-    fn step_history(&self, step: impl FnOnce(&mut Engine) -> bool) -> Result<bool, EngineError> {
+    /// Walk history one step at a time to the depth `target` names, reporting
+    /// the revisions each step spanned when the walk reached that depth.
+    fn walk_history(
+        &self,
+        target: impl FnOnce(&Engine) -> Option<usize>,
+    ) -> Result<Option<Vec<Reverted>>, EngineError> {
         assert!(!in_handler(), "{}", TransactError::Reentrant);
         let hold = self.hold(&Origin::Editor).map_err(|holder| busy(&holder))?;
         let grouped = self.sequence.lock().groups > 0;
-        let stepped = !grouped && step(&mut self.engine.lock());
+        let walked = if grouped {
+            None
+        } else {
+            let mut engine = self.engine.lock();
+            target(&engine).and_then(|depth| {
+                let mut steps = Vec::new();
+                loop {
+                    let at = engine.history_depth();
+                    let next = match at.cmp(&depth) {
+                        std::cmp::Ordering::Equal => break Some(steps),
+                        std::cmp::Ordering::Greater => at - 1,
+                        std::cmp::Ordering::Less => at + 1,
+                    };
+                    let opened = engine.history_return(next)?;
+                    let found = engine.revision();
+                    if !engine.history_jump(next) {
+                        break None;
+                    }
+                    steps.push(Reverted {
+                        opened,
+                        found,
+                        left: engine.revision(),
+                    });
+                }
+            })
+        };
         self.announce(hold.release([]));
-        Ok(stepped)
+        Ok(walked)
     }
 
     pub(crate) fn take_session_changes(&self) -> Vec<crate::host_wire::SessionChange> {

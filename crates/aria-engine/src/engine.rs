@@ -23,6 +23,8 @@ use crate::error::EngineError;
 mod cells;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod history_return_tests;
 mod saved;
 mod source_frame;
 
@@ -323,6 +325,17 @@ impl Engine {
         true
     }
 
+    /// The revision whose project [`history_jump`](Self::history_jump) to
+    /// `depth` restores: at the revision the jump leaves, the project equals
+    /// the one this revision named. The current revision when `depth` is the
+    /// current depth; `None` when no step sits at `depth`.
+    pub fn history_return(&self, depth: usize) -> Option<u64> {
+        if depth == self.history_depth() {
+            return Some(self.revision);
+        }
+        self.history.opened_at(depth)
+    }
+
     /// Group every command applied until [`commit_group`](Self::commit_group)
     /// into one history entry, so a multi-command gesture reverts with one undo.
     pub fn begin_group(&mut self) {
@@ -437,6 +450,7 @@ impl Engine {
 
         // The command is consumed by dispatch, so its name is taken first.
         let label = command.label();
+        let opened = self.revision;
         let mut ctx = ApplyContext {
             project: Arc::make_mut(&mut self.project),
             project_path: &mut self.project_path,
@@ -489,7 +503,7 @@ impl Engine {
             ApplyOutcome::Exported { .. } | ApplyOutcome::SavedTemplate => {}
         }
         if let Some(inverse) = inverse {
-            self.history.record_do(label, inverse);
+            self.history.record_do(opened, label, inverse);
         }
         Ok(outcome)
     }
@@ -510,8 +524,9 @@ impl Engine {
         };
         let (id, inverse) =
             crate::action::edit::marker::add_on_clip(&mut ctx, clip, at, name, color)?;
+        let opened = self.revision;
         self.revision += 1;
-        self.history.record_do("Add marker", inverse);
+        self.history.record_do(opened, "Add marker", inverse);
         Ok(id)
     }
 
@@ -559,8 +574,9 @@ impl Engine {
         let inverse = crate::action::edit::marker::edit(
             &mut ctx, marker, at, duration, name, color, comment, kind,
         )?;
+        let opened = self.revision;
         self.revision += 1;
-        self.history.record_do("Edit marker", inverse);
+        self.history.record_do(opened, "Edit marker", inverse);
         Ok(())
     }
 
@@ -859,10 +875,12 @@ impl Engine {
         };
         let id = step.id;
         let label = step.label;
+        let found = self.revision;
         match self.run_action(step.action) {
             Ok(inverse) => {
                 self.history.push_redo(HistoryStep {
                     id,
+                    opened: found,
                     label,
                     action: inverse,
                 });
@@ -893,10 +911,12 @@ impl Engine {
         };
         let id = step.id;
         let label = step.label;
+        let found = self.revision;
         match self.run_action(step.action) {
             Ok(inverse) => {
                 self.history.push_undo(HistoryStep {
                     id,
+                    opened: found,
                     label,
                     action: inverse,
                 });

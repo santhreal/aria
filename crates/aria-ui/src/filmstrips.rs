@@ -114,8 +114,10 @@ impl std::fmt::Debug for Cell {
     }
 }
 
-/// One edit the store followed: the revision moved from `from` to `to`, and
-/// the picture changed only inside `spans`.
+/// One move the store followed: the revision moved from `from` to `to`, and
+/// the picture changed only inside `spans`. A return to an earlier project
+/// moves with no span from the revision it returned to, which holds the same
+/// project.
 struct Step {
     from: u64,
     to: u64,
@@ -229,7 +231,7 @@ impl FilmstripStore {
 
     /// Invalidate everything rendered against an older revision. The fallback
     /// for a change that was not followed by span: a mutation that reports no
-    /// picture spans, an undo, or an edit made outside `apply_command`.
+    /// picture spans, or an edit made outside `apply_command`.
     pub fn sync_revision(&mut self, revision: u64) {
         if self.revision != revision {
             self.revision = revision;
@@ -265,10 +267,11 @@ impl FilmstripStore {
         self.follow(Step { from, to, spans });
     }
 
-    /// Follow a rollback: drop the cells the edits between `opened` and
-    /// `found` changed, which the rollback changed back, and retain the rest.
-    /// When the journal does not link every one of those edits, or the store
-    /// is not at `found`, every cell is dropped.
+    /// Follow a return to an earlier project (a rollback, an undo, a redo or
+    /// a history jump): drop the cells the edits between `opened` and `found`
+    /// changed, which the return changed back, and retain the rest. When the
+    /// journal does not link every one of those edits, or the store is not at
+    /// `found`, every cell is dropped.
     pub fn revert(&mut self, reverted: Reverted) {
         let Reverted {
             opened,
@@ -287,31 +290,54 @@ impl FilmstripStore {
             return;
         };
         self.drop_spans(&spans);
-        // Recorded as one edit, so a rollback of an enclosing group walks
-        // back across this one.
+        // Joined to `opened` and not to `found`: `left` holds the project
+        // `opened` held, so a later move out of either one reaches the other
+        // across no span.
         self.follow(Step {
-            from: found,
+            from: opened,
             to: left,
-            spans,
+            spans: Vec::new(),
         });
     }
 
-    /// Every span the journal recorded from `opened` up to the store's
-    /// revision, or `None` when an edit between them is missing.
+    /// Every span on the shortest run of journal steps between the store's
+    /// revision and `opened`, or `None` when no run links them.
+    ///
+    /// A step links its two revisions either way: the picture differs between
+    /// them only inside its spans, whichever one is current. A walk that keeps
+    /// to the fewest steps leaves out the edits an undo and its redo crossed
+    /// twice, so an undo after a redo drops the cells of one edit and not of
+    /// every move before it.
     fn spans_since(&self, opened: u64) -> Option<Vec<(i64, i64)>> {
-        let mut cursor = self.revision;
-        let mut spans = Vec::new();
-        for step in self.journal.iter().rev() {
-            if cursor == opened {
-                break;
+        // Breadth first; each revision keeps the step it was reached by and
+        // the revision that step came from.
+        let mut reached: Vec<(u64, Option<(usize, usize)>)> = vec![(self.revision, None)];
+        let mut next = 0;
+        while let Some(&(at, _)) = reached.get(next) {
+            if at == opened {
+                let mut spans = Vec::new();
+                let mut cursor = next;
+                while let (_, Some((step, from))) = reached[cursor] {
+                    spans.extend_from_slice(&self.journal[step].spans);
+                    cursor = from;
+                }
+                return Some(spans);
             }
-            if step.to != cursor {
-                return None;
+            for (step, link) in self.journal.iter().enumerate() {
+                let other = if link.from == at {
+                    link.to
+                } else if link.to == at {
+                    link.from
+                } else {
+                    continue;
+                };
+                if reached.iter().all(|&(seen, _)| seen != other) {
+                    reached.push((other, Some((step, next))));
+                }
             }
-            spans.extend_from_slice(&step.spans);
-            cursor = step.from;
+            next += 1;
         }
-        (cursor == opened).then_some(spans)
+        None
     }
 
     /// Invalidate the cells and drop the empty results of every lane inside
@@ -672,6 +698,10 @@ mod filmstrip_tests;
 #[cfg(test)]
 #[path = "filmstrip_rollback_tests.rs"]
 mod filmstrip_rollback_tests;
+
+#[cfg(test)]
+#[path = "filmstrip_history_tests.rs"]
+mod filmstrip_history_tests;
 
 #[cfg(test)]
 #[path = "filmstrip_fill_tests.rs"]

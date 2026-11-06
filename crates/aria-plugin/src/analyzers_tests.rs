@@ -308,7 +308,7 @@ fn beat_analyzer_over_click_track_produces_exact_beat_ticks_and_undoes_in_one_st
     );
 
     // One undo step restores the empty beat grid.
-    assert!(host.undo().expect("undo"));
+    assert!(host.undo().expect("undo").is_some());
     assert!(
         host.snapshot()
             .timeline()
@@ -319,7 +319,7 @@ fn beat_analyzer_over_click_track_produces_exact_beat_ticks_and_undoes_in_one_st
     );
 
     // One redo step restores the exact beat grid.
-    assert!(host.redo().expect("redo"));
+    assert!(host.redo().expect("redo").is_some());
     assert_eq!(
         host.snapshot()
             .timeline()
@@ -396,9 +396,9 @@ fn silence_and_loudness_analyzers_detect_ranges_and_loudness_and_undo_in_one_ste
         vec!["Detect Silence".to_owned()]
     );
 
-    assert!(host.undo().expect("undo silence marker"));
+    assert!(host.undo().expect("undo silence marker").is_some());
     assert!(host.snapshot().timeline().markers().is_empty());
-    assert!(host.redo().expect("redo silence marker"));
+    assert!(host.redo().expect("redo silence marker").is_some());
     assert_eq!(host.snapshot().timeline().markers().len(), 1);
     assert_eq!(
         host.snapshot().timeline().markers()[0].duration,
@@ -476,14 +476,14 @@ fn combined_beats_and_clip_markers_apply_and_undo_as_one_step() {
     );
 
     // Single undo removes both beats and clip markers.
-    assert!(host.undo().expect("undo combined step"));
+    assert!(host.undo().expect("undo combined step").is_some());
     let undone = host.snapshot();
     let undone_clip = undone.timeline().clip(clip_id).expect("clip");
     assert!(undone_clip.beats.is_empty());
     assert!(undone_clip.markers().is_empty());
 
     // Single redo restores both beats and clip markers (including marker duration).
-    assert!(host.redo().expect("redo combined step"));
+    assert!(host.redo().expect("redo combined step").is_some());
     let redone = host.snapshot();
     let redone_clip = redone.timeline().clip(clip_id).expect("clip");
     assert_eq!(redone_clip.beats, vec![0, 12]);

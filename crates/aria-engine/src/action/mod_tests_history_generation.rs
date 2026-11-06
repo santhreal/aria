@@ -22,6 +22,7 @@ fn listed(history: &History) -> (Vec<String>, Vec<String>) {
 fn named(label: &'static str) -> HistoryStep {
     HistoryStep {
         id: 0,
+        opened: 0,
         label: Cow::Borrowed(label),
         action: Box::new(NoopAction),
     }
@@ -30,8 +31,8 @@ fn named(label: &'static str) -> HistoryStep {
 /// Two applied steps and one undone, at a limit of `limit`.
 fn stocked(limit: usize) -> History {
     let mut history = History::new(limit);
-    history.record_do("a", Box::new(NoopAction));
-    history.record_do("b", Box::new(NoopAction));
+    history.record_do(0, "a", Box::new(NoopAction));
+    history.record_do(0, "b", Box::new(NoopAction));
     let undone = history.pop_undo().expect("b");
     history.push_redo(undone);
     history.record_step(named("c"));
@@ -45,7 +46,9 @@ type Op = fn(&mut History);
 #[test]
 fn every_change_to_the_list_advances_the_generation() {
     let ops: [(&str, Op); 9] = [
-        ("record a step", |h| h.record_do("d", Box::new(NoopAction))),
+        ("record a step", |h| {
+            h.record_do(0, "d", Box::new(NoopAction))
+        }),
         ("undo", |h| {
             let step = h.pop_undo().expect("an applied step");
             h.push_redo(step);
@@ -92,8 +95,8 @@ fn every_change_to_the_list_advances_the_generation() {
 #[test]
 fn a_commit_at_the_limit_keeps_the_length_and_advances_the_generation() {
     let mut history = History::new(2);
-    history.record_do("a", Box::new(NoopAction));
-    history.record_do("b", Box::new(NoopAction));
+    history.record_do(0, "a", Box::new(NoopAction));
+    history.record_do(0, "b", Box::new(NoopAction));
     let generation = history.generation();
     history.begin_group();
     history.record_step(named("g"));

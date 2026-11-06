@@ -152,7 +152,7 @@ fn full_contract_operations_and_registration_guard_and_interchange_work() {
         before_tracks + 2
     );
     // One undo reverts both imported tracks at once.
-    assert!(host.undo().expect("undo import"));
+    assert!(host.undo().expect("undo import").is_some());
     assert_eq!(
         host.snapshot().timeline().tracks_ordered().count(),
         before_tracks

@@ -12,23 +12,27 @@ impl AppState {
     /// Move the project to the state after `depth` steps.
     ///
     /// One republish for the whole walk rather than one per step: the request
-    /// is for a state, not for N undos.
+    /// is for a state, not for N undos. The filmstrips follow the walk step by
+    /// step and drop only the cells inside the edits it changed back.
     pub fn history_jump(&mut self, depth: usize) -> bool {
         if depth == self.history_depth() {
             return false;
         }
-        let reached = match self.host.history_jump(depth) {
-            Ok(reached) => reached,
+        let walked = match self.host.history_jump(depth) {
+            Ok(walked) => walked,
             Err(err) => {
                 self.report_error(&err);
                 return false;
             }
         };
+        for &reverted in walked.iter().flatten() {
+            self.filmstrips.revert(reverted);
+        }
         self.sync_from_engine();
         self.republish_audio();
-        if !reached {
+        if walked.is_none() {
             self.status_message = Some("History could not go that far".into());
         }
-        reached
+        walked.is_some()
     }
 }

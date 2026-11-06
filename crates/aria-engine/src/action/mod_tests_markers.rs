@@ -27,7 +27,7 @@ fn edit_marker_action_updates_all_fields_and_undoes_in_one_step() {
         let mut ctx = test_ctx(&mut project, &mut path, &mut history);
         marker::add(&mut ctx, rt(24), "Marker 1".into(), Some(MarkerColor::Teal)).unwrap()
     };
-    history.record_do("Add marker", add_inv);
+    history.record_do(0, "Add marker", add_inv);
     assert_eq!(history.undo_labels().len(), 1);
 
     let edit_inv = {
@@ -44,7 +44,7 @@ fn edit_marker_action_updates_all_fields_and_undoes_in_one_step() {
         )
         .unwrap()
     };
-    history.record_do("Edit marker", edit_inv);
+    history.record_do(0, "Edit marker", edit_inv);
     assert_eq!(
         history.undo_labels().len(),
         2,

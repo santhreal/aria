@@ -160,8 +160,8 @@ fn compound_rolls_back_when_an_inner_action_fails() {
 fn group_commits_as_single_entry_named_for_its_first_command() {
     let mut history = History::new(8);
     history.begin_group();
-    history.record_do("Move clip", Box::new(NoopAction));
-    history.record_do("Trim clip", Box::new(NoopAction));
+    history.record_do(0, "Move clip", Box::new(NoopAction));
+    history.record_do(0, "Trim clip", Box::new(NoopAction));
     assert!(!history.can_undo(), "pending group is not undoable yet");
     history.commit_group();
     assert_eq!(
@@ -177,7 +177,7 @@ fn group_commits_as_single_entry_named_for_its_first_command() {
 fn a_single_command_group_keeps_the_command_name() {
     let mut history = History::new(8);
     history.begin_group();
-    history.record_do("Split clip", Box::new(NoopAction));
+    history.record_do(0, "Split clip", Box::new(NoopAction));
     history.commit_group();
     assert_eq!(
         history.undo_labels().collect::<Vec<_>>(),
@@ -188,8 +188,8 @@ fn a_single_command_group_keeps_the_command_name() {
 #[test]
 fn labels_read_oldest_first_on_both_stacks() {
     let mut history = History::new(8);
-    history.record_do("Add clip", Box::new(NoopAction));
-    history.record_do("Move clip", Box::new(NoopAction));
+    history.record_do(0, "Add clip", Box::new(NoopAction));
+    history.record_do(0, "Move clip", Box::new(NoopAction));
     assert_eq!(
         history.undo_labels().collect::<Vec<_>>(),
         vec!["Add clip", "Move clip"]
@@ -214,14 +214,14 @@ fn group_defers_redo_clear_until_commit() {
     history.push_redo(step(Box::new(NoopAction)));
 
     history.begin_group();
-    history.record_do("Move clip", Box::new(NoopAction));
+    history.record_do(0, "Move clip", Box::new(NoopAction));
     let taken = history.take_group();
     assert_eq!(taken.len(), 1);
     assert!(history.can_redo(), "rolled-back group must not clear redo");
     assert!(!history.can_undo());
 
     history.begin_group();
-    history.record_do("Move clip", Box::new(NoopAction));
+    history.record_do(0, "Move clip", Box::new(NoopAction));
     history.commit_group();
     assert!(!history.can_redo(), "commit clears redo like any new edit");
     assert!(history.can_undo());

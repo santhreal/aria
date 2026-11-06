@@ -53,12 +53,12 @@ fn a_transaction_lands_as_one_undo_step_named_for_its_origin() {
         );
         drop(project);
 
-        assert!(host.undo().expect("undo"), "{origin}");
+        assert!(host.undo().expect("undo").is_some(), "{origin}");
         assert!(
             lanes(&host).is_empty(),
             "{origin}: one undo reverts both lanes"
         );
-        assert!(host.redo().expect("redo"), "{origin}");
+        assert!(host.redo().expect("redo").is_some(), "{origin}");
         assert_eq!(lanes(&host), ["a", "b"], "{origin}");
         assert_idle(&host);
     }

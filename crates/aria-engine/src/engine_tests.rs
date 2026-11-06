@@ -30,6 +30,7 @@ impl EditAction for NoopAction {
 fn step(action: Box<dyn EditAction>) -> HistoryStep {
     HistoryStep {
         id: 0,
+        opened: 0,
         label: std::borrow::Cow::Borrowed("Test step"),
         action,
     }
@@ -68,10 +69,10 @@ fn history_entries_borrow_static_and_grouped_labels() {
     engine.history.begin_group();
     engine
         .history
-        .record_do("Grouped step", Box::new(NoopAction));
+        .record_do(0, "Grouped step", Box::new(NoopAction));
     engine
         .history
-        .record_do("Second step", Box::new(NoopAction));
+        .record_do(0, "Second step", Box::new(NoopAction));
     engine.history.commit_group();
 
     let stored: Vec<(*const u8, usize)> = engine
@@ -96,7 +97,9 @@ fn grouped_rollback_bumps_revision_once_for_every_group_size() {
         let mut engine = Engine::new(EngineConfig::default()).expect("engine");
         engine.begin_group();
         for _ in 0..action_count {
-            engine.history.record_do("Test step", Box::new(NoopAction));
+            engine
+                .history
+                .record_do(0, "Test step", Box::new(NoopAction));
         }
         let before = engine.revision();
 

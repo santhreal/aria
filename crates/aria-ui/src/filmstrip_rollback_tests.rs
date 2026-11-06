@@ -9,8 +9,9 @@
 //! revision the store skipped: another origin's edit, a group dropped without
 //! `roll_back`, a journal that does not link back to where the group opened.
 //!
-//! Not covered: undo and redo, and the assistant's groups, which edit outside
-//! `apply_command` and drop every cell by the fallback the last half pins.
+//! Not covered: the assistant's groups, which edit outside `apply_command`
+//! and drop every cell by the fallback the last half pins. Undo and redo are
+//! in `filmstrip_history_tests`.
 
 use std::rc::Rc;
 
@@ -29,20 +30,20 @@ use crate::motion::MotionKey;
 
 /// Two pictures on the timeline: `a`, selected, and `b` a second after it,
 /// with one tick inside each.
-struct Pictures {
-    state: AppState,
-    a: ClipId,
-    b: ClipId,
-    in_a: i64,
-    in_b: i64,
+pub(super) struct Pictures {
+    pub(super) state: AppState,
+    pub(super) a: ClipId,
+    pub(super) b: ClipId,
+    pub(super) in_a: i64,
+    pub(super) in_b: i64,
 }
 
-fn bounds(state: &AppState, clip: ClipId) -> (i64, i64) {
+pub(super) fn bounds(state: &AppState, clip: ClipId) -> (i64, i64) {
     let ui = state.ui_clip_ref(clip).expect("the clip is drawn");
     (ui.timeline_start_ticks, ui.timeline_end_ticks)
 }
 
-fn pictures() -> Pictures {
+pub(super) fn pictures() -> Pictures {
     let (mut state, a) = with_clip();
     let media = match &state.engine().lock().project().clip(a).expect("a").content {
         ClipSource::Media { media, .. } => *media,
@@ -78,7 +79,7 @@ fn pictures() -> Pictures {
 
 /// Land a cell for `tick` rendered at the projected revision, as the
 /// timeline's draw does.
-fn land(state: &mut AppState, tick: i64) {
+pub(super) fn land(state: &mut AppState, tick: i64) {
     let revision = state.revision;
     state
         .filmstrips
@@ -90,11 +91,11 @@ fn land(state: &mut AppState, tick: i64) {
     );
 }
 
-fn has(state: &AppState, tick: i64) -> bool {
+pub(super) fn has(state: &AppState, tick: i64) -> bool {
     state.filmstrips.get(key(tick)).is_some()
 }
 
-fn opacity(clip: ClipId, value: f32) -> Command {
+pub(super) fn opacity(clip: ClipId, value: f32) -> Command {
     Command::Edit(EditCommand::SetParamConstant {
         clip,
         param: ClipParam::Opacity,

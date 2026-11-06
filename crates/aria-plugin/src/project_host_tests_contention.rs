@@ -257,17 +257,17 @@ fn history_does_not_move_while_a_group_is_open() {
         .expect("prior step");
     let group = host.group(&Origin::Editor).expect("open");
     host.apply(&Origin::Editor, add("grouped")).expect("lane");
-    assert!(!host.undo().expect("undo"));
-    assert!(!host.redo().expect("redo"));
-    assert!(!host.history_jump(0).expect("jump"));
+    assert!(host.undo().expect("undo").is_none());
+    assert!(host.redo().expect("redo").is_none());
+    assert!(host.history_jump(0).expect("jump").is_none());
     assert_eq!(lanes(&host), ["before", "grouped"]);
 
     group.commit();
-    assert!(host.undo().expect("undo"));
+    assert!(host.undo().expect("undo").is_some());
     assert_eq!(lanes(&host), ["before"]);
-    assert!(host.redo().expect("redo"));
+    assert!(host.redo().expect("redo").is_some());
     assert_eq!(lanes(&host), ["before", "grouped"]);
-    assert!(host.history_jump(0).expect("jump"));
+    assert!(host.history_jump(0).expect("jump").is_some());
     assert!(lanes(&host).is_empty());
     assert_idle(&host);
 }

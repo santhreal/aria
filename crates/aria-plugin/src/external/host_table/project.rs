@@ -284,7 +284,7 @@ pub(super) extern "C" fn host_project_undo(host_ctx: *mut c_void) -> AriaResult 
             let stepped = catch_unwind(AssertUnwindSafe(|| host.undo()))
                 .map_err(|_| TransactError::Reentrant.to_string())?
                 .map_err(|err| err.to_string())?;
-            Ok(if stepped { "true" } else { "false" }.to_owned())
+            Ok(if stepped.is_some() { "true" } else { "false" }.to_owned())
         })
     };
     match result {

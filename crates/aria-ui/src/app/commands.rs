@@ -591,19 +591,22 @@ impl AppState {
         self.step_history(ProjectHost::redo, "Nothing to redo")
     }
 
+    /// Step history one way, dropping only the filmstrip cells inside the
+    /// edits the step changed back.
     fn step_history(
         &mut self,
-        step: fn(&ProjectHost) -> Result<bool, EngineError>,
+        step: fn(&ProjectHost) -> Result<Option<aria_plugin::Reverted>, EngineError>,
         idle: &str,
     ) -> bool {
         match step(self.host.as_ref()) {
-            Ok(true) => {
+            Ok(Some(reverted)) => {
+                self.filmstrips.revert(reverted);
                 self.sync_from_engine();
                 self.clear_error();
                 self.republish_audio();
                 true
             }
-            Ok(false) => {
+            Ok(None) => {
                 self.status_message = Some(idle.into());
                 false
             }

@@ -247,7 +247,7 @@ fn an_import_is_one_undo_step_named_for_the_file() {
     let history = fx.history();
     assert_eq!(history.len(), steps + 1, "the import is one undo step");
     assert_eq!(history.last(), Some(&("Import Cut.Lanes".to_owned(), true)));
-    assert!(fx.host.undo().expect("undo"), "the import undoes");
+    assert!(fx.host.undo().expect("undo").is_some(), "the import undoes");
     assert_eq!(fx.lanes(), before, "one undo removes every imported lane");
 }
 

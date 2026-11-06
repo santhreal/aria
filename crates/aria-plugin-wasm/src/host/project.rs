@@ -147,7 +147,9 @@ impl HostState {
 
     pub(super) fn host_project_undo(&mut self) -> Result<bool, String> {
         let (_ctx, host) = self.require_project_write()?;
-        host.undo().map_err(|err| err.to_string())
+        host.undo()
+            .map(|reverted| reverted.is_some())
+            .map_err(|err| err.to_string())
     }
 
     pub(super) fn host_render_frame(

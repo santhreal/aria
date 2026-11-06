@@ -92,6 +92,7 @@ impl EditAction for FailAction {
 fn step(action: Box<dyn EditAction>) -> HistoryStep {
     HistoryStep {
         id: 0,
+        opened: 0,
         label: Cow::Borrowed("Move clip"),
         action,
     }

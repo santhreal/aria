@@ -58,7 +58,7 @@ fn import_applies_commands_in_one_undo_step_and_export_writes_exact_bytes() {
     );
 
     // One undo reverts BOTH imported markers in a single step.
-    assert!(host.undo().expect("undo import transaction"));
+    assert!(host.undo().expect("undo import transaction").is_some());
     assert!(
         host.snapshot().timeline().markers().is_empty(),
         "both imported markers must undo in one step"

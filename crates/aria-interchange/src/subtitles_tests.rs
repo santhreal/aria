@@ -417,7 +417,7 @@ fn placed_cues_land_on_frames_and_overlapping_cues_take_further_tracks() {
         }
     );
 
-    assert!(session.host().undo().expect("undoes"));
+    assert!(session.host().undo().expect("undoes").is_some());
     let project = session.project();
     assert!(
         project
@@ -547,7 +547,11 @@ fn every_format_imports_onto_the_timeline_and_exports_the_same_file() {
             format.id
         );
 
-        assert!(session.host().undo().expect("undoes"), "{}", format.id);
+        assert!(
+            session.host().undo().expect("undoes").is_some(),
+            "{}",
+            format.id
+        );
         assert!(
             session
                 .project()

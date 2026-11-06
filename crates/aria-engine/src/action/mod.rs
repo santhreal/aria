@@ -80,6 +80,11 @@ pub(crate) struct HistoryStep {
     /// redo. `0` means unassigned: [`History`] assigns a fresh id when it
     /// stores the step.
     pub id: u64,
+    /// Engine revision of the project this step returns to: undoing a step
+    /// recorded by an edit restores the project at the revision before that
+    /// edit, and redoing it restores the project at the revision before the
+    /// undo.
+    pub opened: u64,
     pub label: Cow<'static, str>,
     pub action: Box<dyn EditAction>,
 }
@@ -198,6 +203,7 @@ impl History {
                 let label = format!("{} +{}", first.label, steps.len() - 1);
                 HistoryStep {
                     id: 0,
+                    opened: first.opened,
                     label: Cow::Owned(label),
                     action: Box::new(CompoundAction {
                         actions: steps.into_iter().map(|step| step.action).collect(),
@@ -245,23 +251,34 @@ impl History {
         let Some(steps) = self.pending.take() else {
             return;
         };
+        let Some(opened) = steps.first().map(|step| step.opened) else {
+            return;
+        };
         let action: Box<dyn EditAction> = match <[HistoryStep; 1]>::try_from(steps) {
             Ok([step]) => step.action,
-            Err(steps) if steps.is_empty() => return,
             Err(steps) => Box::new(CompoundAction {
                 actions: steps.into_iter().map(|step| step.action).collect(),
             }),
         };
         self.record_step(HistoryStep {
             id: 0,
+            opened,
             label,
             action,
         });
     }
 
-    pub(crate) fn record_do(&mut self, label: &'static str, inverse: Box<dyn EditAction>) {
+    /// Record `inverse` as the step an edit made from engine revision
+    /// `opened`.
+    pub(crate) fn record_do(
+        &mut self,
+        opened: u64,
+        label: &'static str,
+        inverse: Box<dyn EditAction>,
+    ) {
         self.record_step(HistoryStep {
             id: 0,
+            opened,
             label: Cow::Borrowed(label),
             action: inverse,
         });
@@ -325,7 +342,7 @@ impl History {
         self.advance();
     }
     /// Merge the two newest undo steps into one compound step keeping the
-    /// earlier step's label.
+    /// earlier step's label and the project it returns to.
     pub(crate) fn coalesce_top_two(&mut self) {
         let grouped = self.pending.is_some();
         let stack = self.pending.as_mut().unwrap_or(&mut self.undo);
@@ -336,6 +353,7 @@ impl History {
         let older = stack.pop().expect("len >= 2");
         stack.push(HistoryStep {
             id: newer.id,
+            opened: older.opened,
             label: older.label,
             action: Box::new(CompoundAction {
                 actions: vec![older.action, newer.action],
@@ -355,6 +373,22 @@ impl History {
         if listed {
             self.advance();
         }
+    }
+
+    /// The engine revision whose project a walk to `depth` applied steps
+    /// restores: the [`HistoryStep::opened`] of the last step the walk moves.
+    /// `None` when the walk moves no step or no step sits at that depth.
+    pub(crate) fn opened_at(&self, depth: usize) -> Option<u64> {
+        let applied = self.undo.len();
+        if depth < applied {
+            return Some(self.undo[depth].opened);
+        }
+        let redone = depth - applied;
+        if redone == 0 {
+            return None;
+        }
+        let index = self.redo.len().checked_sub(redone)?;
+        Some(self.redo[index].opened)
     }
 }
 
