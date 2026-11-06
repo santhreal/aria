@@ -42,12 +42,12 @@ Mask a clip, keyframe its opacity, and cut it at the playhead from the Command P
 | `pal-key-scale` | Keyframe Scale at Playhead | `none` | Playhead does not intersect the selected clip | Inserts a `Scale` keyframe at the playhead with the clip's current scale. |
 | `pal-key-remove` | Remove Opacity Keyframe at Playhead | `none` | No opacity keyframe sits at the playhead | Removes the `Opacity` keyframe at the playhead on the selected clip. |
 | `pal-shift-selection` | Shift Selection by Frames… | `none` | Always enabled | Opens `aria.overlay.rename` (`RenameTarget::ShiftFrames`) to nudge selected clips by a signed frame count. |
-| `pal-track-up` | Move Track Up | `none` | No track is selected or track is already at the top | Moves the selected clip's track one slot higher in the track stack. |
-| `pal-track-down` | Move Track Down | `none` | No track is selected or track is already at the bottom | Moves the selected clip's track one slot lower in the track stack. |
+| `pal-track-up` | Move Track Up | `none` | No track is selected, or the track cannot move higher in the stack | Moves the selected clip's track one slot higher in the track stack, within its part of the stack: text tracks above the other video tracks, the main track below them, and audio tracks below the video. |
+| `pal-track-down` | Move Track Down | `none` | No track is selected, or the track cannot move lower in the stack | Moves the selected clip's track one slot lower in the track stack, within its part of the stack. |
 | `pal-track-solo` | Solo Track | `none` | No track is selected | Toggles solo status on the selected clip's track. |
 | `pal-track-duck` | Toggle Track as Duck Source | `none` | No track is selected | Toggles whether the selected clip's track acts as a dialogue trigger for sidechain audio ducking. |
-| `pal-track-open-gap` | Open One-Second Gap at Playhead | `none` | No track is selected | Shifts clips at or after the playhead on the selected track right by one second (`nominal_fps` ticks). |
-| `pal-track-close-gap` | Close One-Second Gap at Playhead | `none` | No track is selected | Shifts clips at or after the playhead on the selected track left by one second (`nominal_fps` ticks). |
+| `pal-track-open-gap` | Open One-Second Gap at Playhead | `none` | No track is selected | Shifts clips at or after the playhead on the selected track right by one second (`nominal_fps` ticks). A track with no clip at or after the playhead declines. |
+| `pal-track-close-gap` | Close One-Second Gap at Playhead | `none` | No track is selected | Shifts clips at or after the playhead on the selected track left by one second (`nominal_fps` ticks). A track with no clip at or after the playhead declines. |
 | `pal-project-clip-under-playhead` | Select Clip Under Playhead | `D` | No unlocked clip intersects the playhead | Selects the topmost unlocked clip intersecting the playhead. |
 | `pal-project-next-flagged-clip` | Go to Next Flagged Clip | `none` | No clip has an effect, mask, chroma key, or retiming | Seeks to and selects the next clip with effects, masks, chroma key, or retiming (`aria_models::clip_facts`). |
 | `pal-project-duplicate-to-lane` | Duplicate Clip onto Another Track | `none` | No clip is selected | Copies the selected clip onto the next compatible track at the same timeline tick. |

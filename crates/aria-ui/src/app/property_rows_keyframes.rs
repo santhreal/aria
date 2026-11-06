@@ -615,6 +615,7 @@ impl AppState {
     }
 
     /// Set a keyframe at `(clip, param, tick)` back to Linear interpolation.
+    /// A keyframe that is already Linear is declined.
     pub fn set_keyframe_linear_at(
         &mut self,
         clip: ClipId,
@@ -629,6 +630,10 @@ impl AppState {
             return Ok(());
         };
         let local = model.param_tick(tick);
+        if row.spec.easing_at(&model, local) == Some(Easing::Linear) {
+            self.decline(Decline::AlreadyLinear);
+            return Ok(());
+        }
         let Some(value) = row.spec.sample(&model, local) else {
             return Ok(());
         };

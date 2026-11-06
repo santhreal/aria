@@ -480,14 +480,14 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
 
 /// The project as it saves, plus the sequence it has open, to tell an edit or
 /// a navigation from a step over nothing.
-fn project_text(state: &AppState) -> String {
+pub(super) fn project_text(state: &AppState) -> String {
     let engine = state.engine.lock();
     let project = engine.project();
     let text = project.save_to_string().expect("the project saves");
     format!("{:?}\n{text}", project.active_sequence())
 }
 
-fn history_labels(state: &AppState) -> Vec<String> {
+pub(super) fn history_labels(state: &AppState) -> Vec<String> {
     state
         .engine
         .lock()

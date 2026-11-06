@@ -68,8 +68,11 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-key-position", Edits),
     ("pal-key-scale", Edits),
     ("pal-track-solo", Edits),
+    // Run with the playhead on the clip's first frame (`AT_CLIP_START`). The
+    // clip starts the sequence, so closing a gap before it would move it
+    // before the start, which the engine rejects with an error.
     ("pal-track-open-gap", Edits),
-    ("pal-track-close-gap", Edits),
+    ("pal-track-close-gap", NoEdit),
     // Each keyframe row pins a property the fixture clip has: it is a media
     // clip, so the audio envelopes answer too.
     ("pal-key-anchor-point", Edits),
@@ -157,35 +160,62 @@ fn kind_of(id: &str) -> Option<Kind> {
     ROWS.iter().find(|(row, _)| *row == id).map(|(_, k)| *k)
 }
 
-/// Run one palette row against a fresh state and report the history labels it
-/// added, newest last, every command it dispatched, and whether it asked the
-/// file picker for a path.
+/// The rows that shift the clips starting at or after the playhead, run with
+/// the playhead on the clip's first frame so the clip is one they move.
+const AT_CLIP_START: &[&str] = &["pal-track-open-gap", "pal-track-close-gap"];
+
+/// One palette row run against a fresh state.
+struct Driven {
+    id: &'static str,
+    /// The history labels it added, newest last.
+    wrote: Vec<String>,
+    /// Every command it dispatched.
+    sent: Vec<&'static str>,
+    /// Whether it asked the file picker for a path.
+    asked_pick: bool,
+    /// Why the palette drew it disabled over that state, read before it ran.
+    blocked: Option<&'static str>,
+    /// The status line it left.
+    status: Option<String>,
+}
+
+/// Run one palette row against a fresh state and report what it did.
 ///
 /// # Why
 ///
 /// Each `with_clip()` constructs an `AppState` and a headless `Renderer`
 /// (`~240 ms` wall and `66` Lavapipe threads per call). Recording per-row
-/// history labels and path-picker requests during the single `CENSUS` pass
-/// avoids two more passes over every row in
-/// `every_row_does_what_it_says` and
-/// `every_row_that_asks_for_a_path_is_driven_with_an_answer`.
-fn driven(row: &crate::commands::host::CommandEntry) -> (Vec<String>, Vec<&'static str>, bool) {
+/// history labels, path-picker requests, guards and status lines during the
+/// single `CENSUS` pass avoids further passes over every row in the tests
+/// that read them.
+fn driven(row: &crate::commands::host::CommandEntry) -> Driven {
     let (mut state, _) = with_clip();
     // Put the playhead inside the clip: several rows are inert outside it, and an
-    // inert row would look identical to a broken one.
+    // inert row would look identical to a broken one. A row that moves the clips
+    // starting at or after the playhead gets it on the clip's first frame.
     if let Some(ui) = state.selected_ui_clip() {
         let mid = ui.timeline_start_ticks + (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2;
-        state.set_playhead(mid);
+        let at = if AT_CLIP_START.contains(&row.id) {
+            ui.timeline_start_ticks
+        } else {
+            mid
+        };
+        state.set_playhead(at);
     }
     let watch = super::sent_census::Watch::on(&state);
     let before = history_labels(&state);
+    let blocked = (row.blocked)(row.id, &state);
+    state.status_message = None;
     (row.run)(&mut state);
     let after = history_labels(&state);
-    (
-        after.into_iter().skip(before.len()).collect(),
-        watch.take(),
-        state.picks_asked() > 0,
-    )
+    Driven {
+        id: row.id,
+        wrote: after.into_iter().skip(before.len()).collect(),
+        sent: watch.take(),
+        asked_pick: state.picks_asked() > 0,
+        blocked,
+        status: state.status_message.take(),
+    }
 }
 
 fn history_labels(state: &AppState) -> Vec<String> {
@@ -201,7 +231,7 @@ fn history_labels(state: &AppState) -> Vec<String> {
 struct PaletteCensus {
     labels: BTreeSet<String>,
     sent: BTreeSet<&'static str>,
-    rows: Vec<(&'static str, Vec<String>, bool)>,
+    rows: Vec<Driven>,
 }
 
 /// Every command label the drivable palette rows produced. Each row costs a
@@ -225,10 +255,10 @@ static CENSUS: std::sync::LazyLock<PaletteCensus> = std::sync::LazyLock::new(|| 
     let mut sent = BTreeSet::new();
     let mut rows = Vec::with_capacity(BUILTIN_COMMANDS.len());
     for row in BUILTIN_COMMANDS {
-        let (wrote, asked, asked_pick) = driven(row);
-        labels.extend(wrote.iter().cloned());
-        sent.extend(asked);
-        rows.push((row.id, wrote, asked_pick));
+        let row = driven(row);
+        labels.extend(row.wrote.iter().cloned());
+        sent.extend(row.sent.iter().copied());
+        rows.push(row);
     }
     PaletteCensus { labels, sent, rows }
 });
@@ -252,16 +282,56 @@ fn every_row_does_what_it_says() {
     // Collected rather than asserted one at a time: one run should name every
     // row that drifted, not the first.
     let mut wrong = Vec::new();
-    for (id, produced, _) in &CENSUS.rows {
-        let Some(kind) = kind_of(id) else {
+    for row in &CENSUS.rows {
+        let Some(kind) = kind_of(row.id) else {
             continue;
         };
+        let (id, produced) = (row.id, &row.wrote);
         match (kind, produced.is_empty()) {
             (Edits, true) => wrong.push(format!("{id} declared Edits, sent nothing")),
             (NoEdit, false) => wrong.push(format!("{id} declared NoEdit, sent {produced:?}")),
             _ => {}
         }
     }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A palette row its guard draws enabled never answers with a decline reason.
+/// The guard and the action read one state, so an enabled row that only
+/// prints why it did nothing is a guard that reads less than its action, such
+/// as a Move Track Up drawn enabled on the only video lane that prints that the
+/// lane is already at the top when pressed. Every row is checked over the census's
+/// state, one selected clip on one lane with the playhead inside it, and every
+/// `Decline` reason counts. A guard and action that disagree only in another
+/// state, or an action that declines with wording outside `Decline`, is not
+/// caught here; `menu_reach_tests` holds the menu rows to the same rule.
+#[test]
+fn an_enabled_palette_row_never_answers_with_a_decline() {
+    let reasons: BTreeSet<&str> = super::decline::Decline::ALL
+        .iter()
+        .map(|why| why.reason())
+        .collect();
+    let wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| {
+            row.blocked.is_none()
+                && row
+                    .status
+                    .as_deref()
+                    .is_some_and(|line| reasons.contains(line))
+        })
+        .map(|row| format!("{}: {:?}", row.id, row.status))
+        .collect();
+    assert_eq!(
+        CENSUS.rows.len(),
+        BUILTIN_COMMANDS.len(),
+        "every palette row runs in the census"
+    );
+    assert!(
+        CENSUS.rows.iter().any(|row| row.blocked.is_some()),
+        "no palette row is drawn disabled over the census's state, so no guard is read"
+    );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
@@ -429,8 +499,8 @@ fn every_row_that_asks_for_a_path_is_driven_with_an_answer() {
     let asking: Vec<&str> = CENSUS
         .rows
         .iter()
-        .filter(|(_, _, asked_pick)| *asked_pick)
-        .map(|(id, _, _)| *id)
+        .filter(|row| row.asked_pick)
+        .map(|row| row.id)
         .collect();
     let declared: BTreeSet<&str> = PICK_ROWS.iter().copied().collect();
     let undeclared: Vec<&&str> = asking

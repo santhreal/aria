@@ -408,6 +408,10 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SameEase` | `The keyframes already have that easing` |
 | `KeyedHere` | `The selected properties are already keyed at the playhead` |
 | `NoPropertyAtPlayhead` | `Select a property row of a clip under the playhead first` |
+| `TrackAtTop` | `The track cannot move higher in the stack` |
+| `TrackAtBottom` | `The track cannot move lower in the stack` |
+| `NothingAfterPlayhead` | `No clip on the track starts at or after the playhead` |
+| `DefaultTransform` | `The selected clip already has the default transform` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

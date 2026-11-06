@@ -22,10 +22,13 @@ pub struct TrackMenu {
     /// The lane is the voice auto-duck listens to, which Duck Source's check
     /// mark shows.
     pub duck_source: bool,
-    /// Where the lane sits in the drawn stack, and how tall the stack is, so the
-    /// rows that move it are offered only where there is somewhere to move.
-    pub row: usize,
-    pub lanes: usize,
+    /// The lane has a row to move to above it (`up`) and below it (`down`)
+    /// within its part of the stack, read from the plan the move follows.
+    pub up: bool,
+    pub down: bool,
+    /// A clip on the lane starts at or after the playhead, so the gap rows have
+    /// something to shift.
+    pub from_playhead: bool,
     /// How the lane is drawn: height, waveforms, filmstrips, collapsed.
     pub lane: TrackDisplay,
 }
@@ -34,16 +37,21 @@ impl TrackMenu {
     /// Read the lane facts a menu would gather when it opens over `track`, or
     /// `None` when that lane is no longer projected.
     pub fn of(state: &AppState, track: u64) -> Option<Self> {
-        let lanes = &state.store.sequence.tracks;
-        let row = lanes.iter().position(|lane| lane.id == track)?;
-        let lane = &lanes[row];
+        let lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|lane| lane.id == track)?;
+        let id = TrackId::from_raw(track);
         Some(Self {
             track,
             muted: lane.muted,
             kind: lane.kind,
             duck_source: lane.duck_source,
-            row,
-            lanes: lanes.len(),
+            up: state.track_step(id, true).is_ok(),
+            down: state.track_step(id, false).is_ok(),
+            from_playhead: state.lane_starts_from_playhead(id),
             lane: state.lane_display(track),
         })
     }
@@ -145,19 +153,19 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
         run: |state, lane| state.toggle_track_duck_source(TrackId::from_raw(lane.track)),
     }),
     MenuItem::Rule,
-    // Offered where there is somewhere to move: the top lane has no row above it,
-    // and a row that does nothing when clicked is worse than no row.
+    // Offered where there is somewhere to move: a row that does nothing when
+    // clicked is worse than no row.
     MenuItem::Row(MenuRow {
         id: "ctx-track-up",
         label: |_| "Move Track Up",
-        when: |lane| lane.row > 0,
+        when: |lane| lane.up,
         checked: None,
         run: |state, lane| state.move_track_up(TrackId::from_raw(lane.track)),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-track-down",
         label: |_| "Move Track Down",
-        when: |lane| lane.row + 1 < lane.lanes,
+        when: |lane| lane.down,
         checked: None,
         run: |state, lane| state.move_track_down(TrackId::from_raw(lane.track)),
     }),
@@ -165,7 +173,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-track-open-gap",
         label: |_| "Open Gap at Playhead",
-        when: always(),
+        when: |lane| lane.from_playhead,
         checked: None,
         run: |state, lane| {
             // One second of gap, so the amount reads the same at any frame rate.
@@ -176,7 +184,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-track-close-gap",
         label: |_| "Close Gap at Playhead",
-        when: always(),
+        when: |lane| lane.from_playhead,
         checked: None,
         run: |state, lane| {
             let delta = state.store.sequence.frame_rate.nominal_fps();

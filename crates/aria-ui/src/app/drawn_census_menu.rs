@@ -18,9 +18,10 @@ use std::collections::BTreeSet;
 use std::mem::discriminant;
 use std::path::PathBuf;
 
-use aria_models::{ClipId, ClipParam, Easing};
+use aria_models::ClipId;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::app::premiere_tests::with_clip;
 use crate::surfaces::context_menu::{
     BADGE_ITEMS, BadgeMenu, CLIP_ITEMS, ClipMenu, EFFECT_ITEMS, EffectMenu, KEYFRAME_ITEMS,
@@ -32,13 +33,22 @@ use crate::types::ActivePanel;
 
 use crate::app::fixtures;
 
+#[path = "drawn_census_menu_reread.rs"]
+mod reread;
+use reread::Reread;
+
+#[path = "drawn_census_menu_steps.rs"]
+mod steps;
+
+use crate::app::menu_reach_tests::{history_labels, project_text};
+
 /// What pressing every table produced.
 struct Pressed {
     /// Commands the rows dispatched.
     sent: BTreeSet<&'static str>,
-    /// Rows that were offered somewhere, and did nothing wherever they were
-    /// pressed.
-    inert: Vec<&'static str>,
+    /// Presses of an offered row that sent nothing, failed nothing, and left
+    /// the session as it was.
+    inert: Vec<String>,
     /// Rows no dressed state offered, so nothing pressed them.
     unoffered: Vec<&'static str>,
     /// Rows the census pressed at least once, in table order.
@@ -52,68 +62,13 @@ struct Pressed {
     /// Each press of a row that draws a check mark: its id, and whether it was
     /// checked before the press and after it.
     toggled: Vec<(&'static str, bool, bool)>,
-}
-
-/// The facts a table's rows read, gathered again from the state a press left,
-/// as a menu opened on the same target would gather them, or `None` when the
-/// target is gone.
-trait Reread: Clone {
-    fn reread(&self, state: &AppState) -> Option<Self>;
-}
-
-impl Reread for ClipMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Some(Self::of(state, self.clip))
-    }
-}
-
-impl Reread for TrackMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Self::of(state, self.track)
-    }
-}
-
-impl Reread for PoolMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Some(Self::of(state, self.media))
-    }
-}
-
-impl Reread for EffectMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Some(Self::of(state, self.clip, self.index))
-    }
-}
-
-impl Reread for BadgeMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Self::of(state, self.clip)
-    }
-}
-
-impl Reread for KeyframeMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Self::of(state, self.clip.raw(), self.param, self.tick)
-    }
-}
-
-impl Reread for MaskPathKeyMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Self::of(state, self.clip.raw(), self.mask, self.tick)
-    }
-}
-
-impl Reread for PreviewMenu {
-    fn reread(&self, state: &AppState) -> Option<Self> {
-        Some(Self::of(state))
-    }
-}
-
-/// A recents menu reads only the path it was opened on.
-impl Reread for PathBuf {
-    fn reread(&self, _: &AppState) -> Option<Self> {
-        Some(self.clone())
-    }
+    /// Presses of an offered row that answered with a `Decline` reason.
+    declined: Vec<String>,
+    /// Presses that recorded an undo step and left the project as it was.
+    empty_steps: Vec<String>,
+    /// Rows that recorded a step, were still offered, and recorded another
+    /// step over their own result that left the project as it was.
+    repeats: Vec<String>,
 }
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
@@ -126,11 +81,17 @@ pub(super) struct Stage<F> {
 
 /// Every command the context menu's rows dispatched.
 pub(super) fn dispatched() -> BTreeSet<&'static str> {
-    pressed().sent
+    pressed().sent.clone()
 }
 
-/// Press every pressable row in every table, in every state that offers it.
-fn pressed() -> Pressed {
+/// Press every pressable row in every table, in every state that offers it,
+/// once for every test that reads the result.
+fn pressed() -> &'static Pressed {
+    static PRESSED: std::sync::OnceLock<Pressed> = std::sync::OnceLock::new();
+    PRESSED.get_or_init(press_all)
+}
+
+fn press_all() -> Pressed {
     let mut out = Pressed {
         sent: BTreeSet::new(),
         inert: Vec::new(),
@@ -139,6 +100,9 @@ fn pressed() -> Pressed {
         labels: Vec::new(),
         checks: BTreeSet::new(),
         toggled: Vec::new(),
+        declined: Vec::new(),
+        empty_steps: Vec::new(),
+        repeats: Vec::new(),
     };
     press(CLIP_ITEMS, CLIP_STAGES, &mut out);
     press(TRANSITION_ITEMS, JUNCTION_STAGES, &mut out);
@@ -205,7 +169,6 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
         };
         let outside = matches!(entry, MenuItem::Outside(_));
         let mut offered = false;
-        let mut acted = false;
         for stage in stages {
             let (mut state, facts) = (stage.dress)();
             if !(row.when)(&facts) {
@@ -223,11 +186,33 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             state.active_panel = ActivePanel::Timeline;
             offered = true;
             let before = fingerprint(&state);
+            let (steps, text) = (history_labels(&state).len(), project_text(&state));
+            let said = state.status_message.clone();
             let watch = crate::app::sent_census::Watch::on(&state);
             let refused = (row.run)(&mut state, &facts).is_err();
             let sent = watch.take();
-            acted |= refused || !sent.is_empty() || fingerprint(&state) != before;
+            // Choosing the option a check mark already marks keeps it, as a
+            // menu does; every other press acts.
+            if !refused
+                && sent.is_empty()
+                && fingerprint(&state) == before
+                && !row.is_checked(&facts)
+            {
+                out.inert.push(format!("{} on {}", row.id, stage.what));
+            }
             out.sent.extend(sent);
+            if state.status_message != said
+                && let Some(line) = state.status_message.as_deref()
+                && Decline::ALL.iter().any(|why| why.reason() == line)
+            {
+                out.declined
+                    .push(format!("{} on {}: {line}", row.id, stage.what));
+            }
+            let wrote = history_labels(&state).len() > steps;
+            if wrote && project_text(&state) == text {
+                out.empty_steps
+                    .push(format!("{} on {}", row.id, stage.what));
+            }
             if let Some(after) = facts.reread(&state) {
                 for other in checkable() {
                     out.checks.insert((other.id, other.is_checked(&after)));
@@ -236,8 +221,16 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
                     out.toggled
                         .push((row.id, row.is_checked(&facts), row.is_checked(&after)));
                 }
+                // Pressed again over its own result, as a menu reopened on the
+                // target offers it.
+                if wrote && (row.when)(&after) {
+                    let (steps, text) = (history_labels(&state).len(), project_text(&state));
+                    let _ = (row.run)(&mut state, &after);
+                    if history_labels(&state).len() > steps && project_text(&state) == text {
+                        out.repeats.push(format!("{} on {}", row.id, stage.what));
+                    }
+                }
             }
-            let _ = stage.what;
         }
         if outside {
             continue;
@@ -247,9 +240,6 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             continue;
         }
         out.ids.push(row.id);
-        if !acted {
-            out.inert.push(row.id);
-        }
     }
 }
 
@@ -503,54 +493,9 @@ const BADGE_STAGES: &[Stage<BadgeMenu>] = &[Stage {
     },
 }];
 
-/// A keyframe's menu opens on the middle of three Position keyframes: linear,
-/// roving with keyframes copied, and held.
-const KEYFRAME_STAGES: &[Stage<KeyframeMenu>] = &[
-    Stage {
-        what: "a linear keyframe between two others",
-        dress: || fixtures::keyframe_menu(|_, _, _| {}),
-    },
-    Stage {
-        what: "a roving keyframe, keyframes copied",
-        dress: || {
-            fixtures::keyframe_menu(|state, clip, tick| {
-                state
-                    .toggle_roving_keyframe(clip, ClipParam::Position, tick)
-                    .expect("the middle keyframe roves");
-                state.copy_selected_keyframes();
-                state.status_message = None;
-            })
-        },
-    },
-    Stage {
-        what: "a held keyframe",
-        dress: || {
-            fixtures::keyframe_menu(|state, _, _| {
-                state
-                    .toggle_hold_selected_or_playhead()
-                    .expect("the keyframe holds");
-            })
-        },
-    },
-];
-
-/// A Path keyframe's menu opens on the first of two keyframes, linear and held.
-const PATH_KEY_STAGES: &[Stage<MaskPathKeyMenu>] = &[
-    Stage {
-        what: "a linear Path keyframe",
-        dress: || fixtures::path_key_menu(|_, _, _| {}),
-    },
-    Stage {
-        what: "a held Path keyframe",
-        dress: || {
-            fixtures::path_key_menu(|state, clip, tick| {
-                state
-                    .ease_mask_path_key(clip, 0, tick, Easing::Hold)
-                    .expect("the Path keyframe holds");
-            })
-        },
-    },
-];
+#[path = "drawn_census_menu_keys.rs"]
+mod keys;
+use keys::{KEYFRAME_STAGES, PATH_KEY_STAGES};
 
 /// The lane the fixture projects first.
 fn first_lane(state: &AppState) -> u64 {
@@ -577,12 +522,14 @@ fn first_media(state: &AppState) -> u64 {
 fn no_menu_row_is_inert() {
     // A row that asks for nothing, refuses nothing and changes nothing is a dead
     // control: it draws, it highlights, it closes the menu, and the project is
-    // exactly as it was.
-    let pressed = pressed();
+    // exactly as it was. Held in every state that offers the row, so a row
+    // offered where its result already holds is caught as well as a row that
+    // never acts.
+    let inert = &pressed().inert;
     assert!(
-        pressed.inert.is_empty(),
-        "these menu rows did nothing wherever they were offered: {:?}",
-        pressed.inert
+        inert.is_empty(),
+        "these menu rows did nothing in a state that offers them:\n{}",
+        inert.join("\n")
     );
 }
 
@@ -624,7 +571,7 @@ fn the_census_presses_every_row_it_can() {
 /// label variant no dressed state reaches.
 #[test]
 fn every_context_menu_row_is_in_title_case() {
-    let labels = pressed().labels;
+    let labels = &pressed().labels;
     let read: BTreeSet<&str> = labels.iter().map(|&(id, _)| id).collect();
     let unread: Vec<&str> = all_ids()
         .into_iter()

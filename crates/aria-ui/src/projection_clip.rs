@@ -75,6 +75,7 @@ pub(super) fn lane_to_ui(track: &Track, clips: UiClips) -> UiTrack {
         sync_lock: track.sync_lock,
         duck_source: track.duck_source,
         collapsed: track.display.collapsed,
+        zone: track.kind.spec().zone_rank(track.main),
         channel: aria_models::SourceChannel::of_lane(track.kind),
         patched: false,
         clips,

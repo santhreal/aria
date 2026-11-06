@@ -29,6 +29,12 @@ pub fn transform_tab(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let rows = param_rows(theme, "transform", state, cx);
+    // Drawn blocked over a clip already at the default transform, through the
+    // check the reset runs: a press there declines and records nothing.
+    let at_default = {
+        let state = state.read(cx);
+        state.selected_has_framing() && !state.selected_transform_resets()
+    };
     let reset = components::icon_button("inspector-reset", crate::icons::ROTATE_CCW, theme)
         .debug_selector(|| "inspector-reset".into())
         .on_mouse_down(
@@ -42,6 +48,7 @@ pub fn transform_tab(
                 cx.notify();
             }),
         );
+    let reset = components::blocked::blocked(reset, at_default);
     div()
         .flex()
         .flex_col()

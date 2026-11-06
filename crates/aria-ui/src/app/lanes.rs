@@ -130,6 +130,26 @@ impl AppState {
         filmstrip: Option<bool>,
         collapsed: Option<bool>,
     ) -> Result<(), EngineError> {
+        // A write of what the lane already shows, such as the checked height
+        // row or a resize released where it started, records nothing.
+        if self
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .any(|lane| lane.id == track)
+        {
+            let now = self.lane_display(track);
+            let next = TrackDisplay {
+                height: height.map_or(now.height, TrackDisplay::clamp_height),
+                waveform: waveform.unwrap_or(now.waveform),
+                filmstrip: filmstrip.unwrap_or(now.filmstrip),
+                collapsed: collapsed.unwrap_or(now.collapsed),
+            };
+            if next == now {
+                return Ok(());
+            }
+        }
         self.apply_command(Command::Edit(EditCommand::SetTrackDisplay {
             track: TrackId::from_raw(track),
             height,

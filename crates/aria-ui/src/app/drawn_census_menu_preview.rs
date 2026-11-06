@@ -29,7 +29,9 @@ use crate::surfaces::context_menu::{MenuItem, PREVIEW_ITEMS, PreviewMenu};
 use crate::types::{AppMenu, UiClipKind, UiClipTransform};
 
 /// The Viewer menu opens over a zoomed Viewer with nothing selected, with an
-/// audio clip selected, and with a displaced picture clip selected.
+/// audio clip selected, with a displaced picture clip selected, and with a
+/// picture clip at the default transform selected, where Reset Transform
+/// changes nothing.
 pub(super) const PREVIEW_STAGES: &[Stage<PreviewMenu>] = &[
     Stage {
         what: "a zoomed Viewer with nothing selected",
@@ -68,6 +70,17 @@ pub(super) const PREVIEW_STAGES: &[Stage<PreviewMenu>] = &[
                 })
                 .expect("the fixture's clip accepts a transform");
             state.sync_from_engine();
+            let facts = PreviewMenu::of(&state);
+            (state, facts)
+        },
+    },
+    Stage {
+        what: "a zoomed Viewer with a picture clip at the default transform selected",
+        dress: || {
+            let (mut state, _) = with_clip();
+            state.zoom = 200.0;
+            state.scroll_x = 40.0;
+            state.preview_view.zoom = Some(2.0);
             let facts = PreviewMenu::of(&state);
             (state, facts)
         },

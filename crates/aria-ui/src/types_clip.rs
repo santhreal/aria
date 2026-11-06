@@ -716,6 +716,11 @@ pub struct UiTrack {
     /// Voice lane: what a duck measures the dips from.
     pub duck_source: bool,
     pub collapsed: bool,
+    /// The lane's part of the stack, as the timeline ranks it
+    /// (`TrackKindSpec::zone_rank`). The timeline keeps every lane among the
+    /// lanes of its own zone, so a move across a zone's edge comes out as no
+    /// move.
+    pub zone: u8,
     /// The source channel this lane takes in a Source tab's edit, if any.
     pub channel: Option<aria_models::SourceChannel>,
     /// A Source tab's edit lands this lane's channel here. Set by

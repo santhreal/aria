@@ -686,8 +686,26 @@ impl AppState {
         Ok(())
     }
 
+    /// Reset the selected picture clip's transform to the default, dropping
+    /// its animation. A clip already at the default declines.
     pub fn reset_selected_transform(&mut self) -> Result<(), EngineError> {
+        if self.selected_has_framing() && !self.selected_transform_resets() {
+            self.decline(super::decline::Decline::DefaultTransform);
+            return Ok(());
+        }
         self.apply_transform(UiClipTransform::default(), None)
+    }
+
+    /// Whether Reset Transform changes the selected clip: its transform is
+    /// animated or holds a value off the default. Found by running the model's
+    /// own reset on a copy, so it holds whatever the reset writes. The Viewer
+    /// menu and the reset read this.
+    pub fn selected_transform_resets(&self) -> bool {
+        self.selected_model().is_some_and(|model| {
+            let mut reset = model.transform.clone();
+            reset.set_constant(UiClipTransform::default().into());
+            reset != model.transform
+        })
     }
 
     pub fn remove_effect_at(&mut self, index: usize) -> Result<(), EngineError> {

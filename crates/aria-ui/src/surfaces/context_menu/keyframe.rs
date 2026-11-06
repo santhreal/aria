@@ -8,11 +8,16 @@
 //!
 //! A Path keyframe is the mask's whole outline at one time, so its menu shapes
 //! the segment that leaves it and removes it, and has no velocity to ease.
+//!
+//! A row that would write what the keyframes already hold is not offered:
+//! Linear on a Linear keyframe, an Easy Ease row over keyframes that already
+//! have that easing, and a Path easing its segment already has.
 
 use aria_engine::EngineError;
 use aria_models::{ClipId, ClipParam, Easing};
 
 use crate::app::AppState;
+use crate::app::property_rows::EaseWrite;
 
 use super::{MenuItem, MenuRow, always};
 
@@ -27,6 +32,13 @@ pub struct KeyframeMenu {
     pub interior: bool,
     pub hold: bool,
     pub roving: bool,
+    /// The keyframe is Linear, so Linear has nothing to write.
+    pub linear: bool,
+    /// Easy Ease, Easy Ease In and Easy Ease Out each change a selected
+    /// keyframe, read from the plan each row's write follows.
+    pub easy: bool,
+    pub easy_in: bool,
+    pub easy_out: bool,
     /// Keyframes are copied, so a paste has something to add.
     pub copied: bool,
 }
@@ -45,6 +57,10 @@ impl KeyframeMenu {
             interior: mark.interior,
             hold: mark.hold,
             roving: mark.roving,
+            linear: mark.easing == Easing::Linear,
+            easy: state.ease_targets(EaseWrite::EASY).is_ok(),
+            easy_in: state.ease_targets(EaseWrite::EASY_IN).is_ok(),
+            easy_out: state.ease_targets(EaseWrite::EASY_OUT).is_ok(),
             copied: state.has_copied_keyframes(),
         })
     }
@@ -55,28 +71,28 @@ pub const KEYFRAME_ITEMS: &[MenuItem<KeyframeMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-key-linear",
         label: |_| "Linear",
-        when: always(),
+        when: |key| !key.linear,
         checked: None,
         run: |state, key| state.set_keyframe_linear_at(key.clip, key.param, key.tick),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-key-easy-ease",
         label: |_| "Easy Ease",
-        when: always(),
+        when: |key| key.easy,
         checked: None,
         run: |state, _| state.easy_ease_selected_or_playhead(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-key-easy-ease-in",
         label: |_| "Easy Ease In",
-        when: always(),
+        when: |key| key.easy_in,
         checked: None,
         run: |state, _| state.easy_ease_in_selected_or_playhead(),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-key-easy-ease-out",
         label: |_| "Easy Ease Out",
-        when: always(),
+        when: |key| key.easy_out,
         checked: None,
         run: |state, _| state.easy_ease_out_selected_or_playhead(),
     }),
@@ -123,13 +139,16 @@ pub const KEYFRAME_ITEMS: &[MenuItem<KeyframeMenu>] = &[
 ];
 
 /// The Path keyframe facts a row reads, gathered once when the menu opens.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MaskPathKeyMenu {
     pub clip: ClipId,
     pub mask: u32,
     /// The keyframe's timeline tick.
     pub tick: i64,
     pub hold: bool,
+    /// The easing of the segment leaving the keyframe: the choice a row that
+    /// writes it again would leave as it is.
+    pub easing: Easing,
 }
 
 impl MaskPathKeyMenu {
@@ -144,6 +163,7 @@ impl MaskPathKeyMenu {
             mask,
             tick,
             hold: mark.hold,
+            easing: mark.easing,
         })
     }
 
@@ -158,28 +178,28 @@ pub const MASK_PATH_KEY_ITEMS: &[MenuItem<MaskPathKeyMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-path-key-linear",
         label: |_| "Linear",
-        when: always(),
+        when: |key| key.easing != Easing::Linear,
         checked: None,
         run: |state, key| key.ease(state, Easing::Linear),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-path-key-ease",
         label: |_| "Easy Ease",
-        when: always(),
+        when: |key| key.easing != Easing::EaseInOut,
         checked: None,
         run: |state, key| key.ease(state, Easing::EaseInOut),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-path-key-ease-in",
         label: |_| "Easy Ease In",
-        when: always(),
+        when: |key| key.easing != Easing::EaseIn,
         checked: None,
         run: |state, key| key.ease(state, Easing::EaseIn),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-path-key-ease-out",
         label: |_| "Easy Ease Out",
-        when: always(),
+        when: |key| key.easing != Easing::EaseOut,
         checked: None,
         run: |state, key| key.ease(state, Easing::EaseOut),
     }),

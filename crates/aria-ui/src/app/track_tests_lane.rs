@@ -17,31 +17,44 @@ fn moving_a_lane_up_and_down_walks_the_projected_stack() {
     state.move_track_down(TrackId::from_raw(middle)).unwrap();
     assert_eq!(rows(&state), vec![top, middle, main]);
 }
+/// A move that the timeline's lane zones would put back declines and records
+/// nothing: off either end of the stack, raising the main track, and lowering
+/// the lane above it, which the timeline keeps below the other picture lanes.
+/// Does not cover text or sound lanes, which the context-menu census presses.
 #[test]
-fn a_move_off_the_end_of_the_stack_is_inert() {
+fn a_move_past_the_lanes_part_of_the_stack_declines_and_records_nothing() {
+    use crate::app::decline::Decline;
+    use crate::app::menu_reach_tests::history_labels;
     let (mut state, top, middle, main) = with_two_video_lanes();
     let order = vec![top, middle, main];
-
-    // Already at the top: no reorder, no error.
-    state.move_track_up(TrackId::from_raw(top)).unwrap();
-    assert_eq!(rows(&state), order);
-    // Already at the bottom row.
-    state.move_track_down(TrackId::from_raw(main)).unwrap();
-    assert_eq!(rows(&state), order);
+    let steps = history_labels(&state).len();
+    let cases = [
+        (top, true, Decline::TrackAtTop),
+        (main, true, Decline::TrackAtTop),
+        (middle, false, Decline::TrackAtBottom),
+        (main, false, Decline::TrackAtBottom),
+    ];
+    for (track, up, why) in cases {
+        state.status_message = None;
+        let track = TrackId::from_raw(track);
+        if up {
+            state.move_track_up(track).unwrap();
+        } else {
+            state.move_track_down(track).unwrap();
+        }
+        assert_eq!(
+            history_labels(&state).len(),
+            steps,
+            "{why:?}: a move that changed nothing recorded a step"
+        );
+        assert_eq!(rows(&state), order, "{why:?}: the stack moved");
+        assert_eq!(state.status_message.as_deref(), Some(why.reason()));
+    }
 
     // An unknown lane is inert rather than a panic.
     state.move_track_up(TrackId::from_raw(9999)).unwrap();
     state.move_track_down(TrackId::from_raw(9999)).unwrap();
     assert_eq!(rows(&state), order);
-}
-#[test]
-fn the_main_lane_cannot_be_lifted_off_the_bottom() {
-    // The model re-applies the lane zones after every move, so raising the main
-    // track is accepted and then undone by the invariant. The panel must not end
-    // up showing a stack the model does not hold.
-    let (mut state, top, middle, main) = with_two_video_lanes();
-    state.move_track_up(TrackId::from_raw(main)).unwrap();
-    assert_eq!(rows(&state), vec![top, middle, main]);
 }
 #[test]
 fn a_reorder_is_undoable() {
@@ -98,6 +111,54 @@ fn only_an_audio_lane_can_be_the_duck_source() {
         .toggle_track_duck_source(TrackId::from_raw(audio))
         .unwrap();
     assert!(!state.track_is_duck_source(TrackId::from_raw(audio)));
+}
+/// A shift from the playhead on a lane whose clips all start before it moves
+/// nothing, so it declines and records nothing, in either direction, and the
+/// palette draws both gap rows disabled with the same reason. The palette
+/// census runs these rows with the playhead on the clip's first frame, where
+/// they edit, so it never reads their guards over a lane they cannot shift.
+#[test]
+fn a_gap_shift_with_no_clip_after_the_playhead_declines_and_records_nothing() {
+    use crate::app::decline::Decline;
+    use crate::app::menu_reach_tests::{history_labels, project_text};
+    let (mut state, clip) = with_clip();
+    state.select_clip(clip);
+    let track = TrackId::from_raw(rows(&state)[0]);
+    let guard = |state: &AppState, id: &str| {
+        let row = crate::commands::BUILTIN_COMMANDS
+            .iter()
+            .find(|row| row.id == id)
+            .unwrap_or_else(|| panic!("the palette has no {id} row"));
+        (row.blocked)(id, state)
+    };
+    let gap_rows = ["pal-track-open-gap", "pal-track-close-gap"];
+    state.set_playhead(0);
+    for id in gap_rows {
+        assert_eq!(guard(&state, id), None, "{id} over the clip's first frame");
+    }
+    state.set_playhead(1);
+    for id in gap_rows {
+        assert_eq!(
+            guard(&state, id),
+            Some(Decline::NothingAfterPlayhead.reason()),
+            "{id} past the clip's first frame"
+        );
+    }
+    for delta in [12, -12] {
+        state.status_message = None;
+        let (steps, text) = (history_labels(&state).len(), project_text(&state));
+        state.shift_clips_from_playhead(track, delta).unwrap();
+        assert_eq!(
+            history_labels(&state).len(),
+            steps,
+            "{delta}: a step was recorded"
+        );
+        assert_eq!(project_text(&state), text, "{delta}: the project changed");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(Decline::NothingAfterPlayhead.reason())
+        );
+    }
 }
 #[test]
 fn opening_and_closing_a_gap_shifts_the_clips_after_the_playhead() {

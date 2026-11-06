@@ -139,11 +139,23 @@ pub enum Decline {
     KeyedHere,
     /// Add Keyframe with no selected property row of a clip under the playhead.
     NoPropertyAtPlayhead,
+    /// Move Track Up on a lane at the top of its part of the stack: text lanes
+    /// stay above picture lanes, the main track below the other picture lanes,
+    /// and sound lanes below the picture.
+    TrackAtTop,
+    /// Move Track Down on a lane at the bottom of its part of the stack.
+    TrackAtBottom,
+    /// A lane shift from the playhead on a lane with no clip starting at or
+    /// after it.
+    NothingAfterPlayhead,
+    /// Reset Transform on a clip whose transform is already the default and
+    /// not animated.
+    DefaultTransform,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 53] = [
+    pub const ALL: [Decline; 57] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -197,6 +209,10 @@ impl Decline {
         Decline::SameEase,
         Decline::KeyedHere,
         Decline::NoPropertyAtPlayhead,
+        Decline::TrackAtTop,
+        Decline::TrackAtBottom,
+        Decline::NothingAfterPlayhead,
+        Decline::DefaultTransform,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -262,6 +278,10 @@ impl Decline {
             Decline::NoPropertyAtPlayhead => {
                 "Select a property row of a clip under the playhead first"
             }
+            Decline::TrackAtTop => "The track cannot move higher in the stack",
+            Decline::TrackAtBottom => "The track cannot move lower in the stack",
+            Decline::NothingAfterPlayhead => "No clip on the track starts at or after the playhead",
+            Decline::DefaultTransform => "The selected clip already has the default transform",
         }
     }
 }

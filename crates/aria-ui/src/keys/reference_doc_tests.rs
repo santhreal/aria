@@ -553,7 +553,11 @@ fn menus_doc_matches_registry() {
                 | Decline::SameTransition
                 | Decline::SameEase
                 | Decline::KeyedHere
-                | Decline::NoPropertyAtPlayhead => {}
+                | Decline::NoPropertyAtPlayhead
+                | Decline::TrackAtTop
+                | Decline::TrackAtBottom
+                | Decline::NothingAfterPlayhead
+                | Decline::DefaultTransform => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
@@ -620,8 +624,9 @@ fn menus_doc_matches_registry() {
         muted: false,
         kind: crate::types::UiTrackKind::Video,
         duck_source: false,
-        row: 0,
-        lanes: 1,
+        up: false,
+        down: false,
+        from_playhead: false,
         lane: aria_models::TrackDisplay::default(),
     };
     let pool_facts = PoolMenu {
@@ -650,6 +655,10 @@ fn menus_doc_matches_registry() {
         interior: true,
         hold: false,
         roving: false,
+        linear: false,
+        easy: false,
+        easy_in: false,
+        easy_out: false,
         copied: false,
     };
     let path_key_facts = MaskPathKeyMenu {
@@ -657,6 +666,7 @@ fn menus_doc_matches_registry() {
         mask: 0,
         tick: 0,
         hold: false,
+        easing: aria_models::Easing::Linear,
     };
     let mut expected_ctx_items = Vec::new();
     let preview_facts = PreviewMenu::of(&state);

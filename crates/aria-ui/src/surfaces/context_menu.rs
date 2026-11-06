@@ -119,6 +119,8 @@ const fn always<F>() -> fn(&F) -> bool {
 pub struct PreviewMenu {
     /// Whether the selected clip draws a picture in the Viewer.
     pub picture: bool,
+    /// Whether Reset Transform changes the selected clip.
+    pub resets: bool,
 }
 
 impl PreviewMenu {
@@ -126,6 +128,7 @@ impl PreviewMenu {
     pub fn of(state: &AppState) -> Self {
         Self {
             picture: state.selected_has_framing(),
+            resets: state.selected_transform_resets(),
         }
     }
 }
@@ -146,7 +149,7 @@ pub const PREVIEW_ITEMS: &[MenuItem<PreviewMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-reset-transform",
         label: |_| "Reset Transform",
-        when: |preview| preview.picture,
+        when: |preview| preview.picture && preview.resets,
         checked: None,
         run: |state, _| state.reset_selected_transform(),
     }),

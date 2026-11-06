@@ -19,9 +19,13 @@ Right-click a track header for the rest:
   and draws a check mark while the track is the voice. Only audio tracks can
   be the source.
 - **Move Track Up** / **Move Track Down** move the track one row, which is one
-  layer in the composite. The main track stays at the bottom of the stack.
+  layer in the composite. Text tracks stay above the other video tracks, the
+  main track stays below them, and audio tracks stay below the video, so each
+  row is offered only where the next row holds a track of the same part of the
+  stack.
 - **Open Gap at Playhead** shifts every clip on that track starting at or after
-  the playhead one second later. **Close Gap at Playhead** shifts them back. A
+  the playhead one second later. **Close Gap at Playhead** shifts them back.
+  Both are offered on a track with a clip starting at or after the playhead. A
   shift that would collide with another clip, or move one before the start of the
   sequence, is refused.
 - **Collapse Lane** / **Expand Lane** does what the chevron does.
@@ -29,8 +33,8 @@ Right-click a track header for the rest:
   Filmstrips** / **Show Filmstrips** on a video track turn that lane's strips on
   or off.
 - **Lane Height: Mini**, **Small**, **Medium**, and **Large** set the lane to
-  20, 32, 48, and 72 pixels. The lane's current height draws a check mark; a
-  lane at any other height draws none.
+  20, 32, 48, and 72 pixels. The lane's current height draws a check mark, and
+  choosing it records nothing; a lane at any other height draws none.
 
 The palette's **Move Track Up** (`pal-track-up`), **Move Track Down**
 (`pal-track-down`), **Solo Track** (`pal-track-solo`), **Open One-Second Gap at

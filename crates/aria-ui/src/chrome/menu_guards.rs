@@ -268,13 +268,6 @@ pub(crate) fn keyframes_to_linear(_: &str, state: &AppState) -> Option<&'static 
     state.linear_targets().err().map(|why| why.reason())
 }
 
-/// The row acts on the property rows selected in the timeline outline.
-pub(crate) fn property_rows(_: &str, state: &AppState) -> Option<&'static str> {
-    state
-        .with_prop_rows(|rows| rows.graph_params.is_empty())
-        .then_some("Select a property row in the timeline")
-}
-
 /// The row reverses selected keyframes that do not play the same reversed.
 pub(crate) fn keyframes_to_reverse(_: &str, state: &AppState) -> Option<&'static str> {
     state.time_reverse_plan().err().map(|why| why.reason())
@@ -495,33 +488,12 @@ pub(crate) fn opacity_keyframe_at_playhead(id: &str, state: &AppState) -> Option
 }
 
 /// Why the selected clip's track cannot move one row up (`up`) or down, or
-/// `None` when it can.
+/// `None` when it can. Read from the plan the move follows.
 fn track_move(state: &AppState, up: bool) -> Option<&'static str> {
     let Some(track) = state.selected_track() else {
         return Some(Decline::NoSelection.reason());
     };
-    let tracks = &state.store.sequence.tracks;
-    let count = tracks.len();
-    let Some(from_row) = tracks.iter().position(|lane| lane.id == track.raw()) else {
-        return Some(Decline::NoSelection.reason());
-    };
-    let visual_count = tracks
-        .iter()
-        .take_while(|lane| {
-            !matches!(
-                lane.kind,
-                crate::types::UiTrackKind::Audio | crate::types::UiTrackKind::Submix
-            )
-        })
-        .count();
-    let is_audio = from_row >= visual_count;
-    if up {
-        let top = if is_audio { visual_count } else { 0 };
-        (from_row <= top).then_some("The track is already at the top")
-    } else {
-        let bottom = if is_audio { count } else { visual_count };
-        (from_row + 1 >= bottom).then_some("The track is already at the bottom")
-    }
+    state.track_step(track, up).err().map(Decline::reason)
 }
 
 /// The row moves the selected clip's track up one slot.
@@ -532,6 +504,15 @@ pub(crate) fn track_up(_: &str, state: &AppState) -> Option<&'static str> {
 /// The row moves the selected clip's track down one slot.
 pub(crate) fn track_down(_: &str, state: &AppState) -> Option<&'static str> {
     track_move(state, false)
+}
+
+/// The row shifts the clips on the selected clip's track that start at or
+/// after the playhead: read from the check the shift makes.
+pub(crate) fn shift_from_playhead(id: &str, state: &AppState) -> Option<&'static str> {
+    selection(id, state).or_else(|| {
+        let track = state.selected_track()?;
+        (!state.lane_starts_from_playhead(track)).then_some(Decline::NothingAfterPlayhead.reason())
+    })
 }
 
 /// The row flags or unflags the selected clip's audio track as the duck source.

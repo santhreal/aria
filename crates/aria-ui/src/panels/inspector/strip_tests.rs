@@ -894,10 +894,13 @@ async fn every_inspector_tab_takes_a_share_by_its_label_under_its_underline(
 /// WHY: The Transform block drew its reset button alone on a line under its
 /// rows, at the panel's left edge, where nothing tied it to the block it
 /// resets, while each effect in the Effects tab ends its header with its own.
+/// Over a clip already at the default it was drawn live, and a press recorded
+/// an undo step that changed nothing.
 ///
 /// The reset stands on the line of the block's title, its right edge on the
 /// edge every row's time area ends on, and a press there puts a moved opacity
-/// back. Not covered: the Effects tab's headers.
+/// back. At the default it is drawn blocked, and a press declines with the
+/// reason. Not covered: the Effects tab's headers.
 #[gpui::test]
 async fn the_transform_reset_ends_the_blocks_title_line(cx: &mut TestAppContext) {
     let (state, visual) = drawn_on(cx, "transform-reset-title", "transform", |state| {
@@ -933,5 +936,25 @@ async fn the_transform_reset_ends_the_blocks_title_line(cx: &mut TestAppContext)
         opacity,
         Some(ParamValue::Scalar(1.0)),
         "a press on the reset puts the opacity back"
+    );
+    let cursor = |visual: &mut gpui::VisualTestContext| {
+        visual.simulate_mouse_move(reset.center(), None, gpui::Modifiers::none());
+        visual.run_until_parked();
+        visual.update(|window, _| window.rendered_cursor_style())
+    };
+    assert_eq!(
+        cursor(visual),
+        Some(gpui::CursorStyle::Arrow),
+        "at the default the reset is drawn live"
+    );
+    click(visual, reset.center());
+    assert_eq!(
+        visual.read(|app| state.read(app).status_message.clone()),
+        Some(
+            crate::app::decline::Decline::DefaultTransform
+                .reason()
+                .to_string()
+        ),
+        "a press at the default does not decline with the reason"
     );
 }

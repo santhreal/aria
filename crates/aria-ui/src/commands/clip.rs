@@ -257,7 +257,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
                 state.report_error(&err);
             }
         },
-        blocked: guards::selection,
+        blocked: guards::shift_from_playhead,
     },
     CommandEntry {
         id: "pal-track-close-gap",
@@ -272,7 +272,7 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
                 state.report_error(&err);
             }
         },
-        blocked: guards::selection,
+        blocked: guards::shift_from_playhead,
     },
 ];
 

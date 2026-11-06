@@ -83,43 +83,73 @@ impl AppState {
     }
 
     /// Move a track one row up in the panel, which is one layer higher in the
-    /// composite. Inert at the top.
+    /// composite. A lane at the top of its part of the stack declines.
     pub fn move_track_up(&mut self, track: TrackId) -> Result<(), EngineError> {
-        let Some(row) = self.track_row(track) else {
-            return Ok(());
-        };
-        if row == 0 {
-            return Ok(());
-        }
-        self.move_track_to_row(track, row - 1)
+        self.step_track(track, true)
     }
 
-    /// Move a track one row down in the panel. Inert at the bottom.
+    /// Move a track one row down in the panel. A lane at the bottom of its part
+    /// of the stack declines.
     pub fn move_track_down(&mut self, track: TrackId) -> Result<(), EngineError> {
-        let Some(row) = self.track_row(track) else {
-            return Ok(());
-        };
-        if row + 1 >= self.store.sequence.tracks.len() {
-            return Ok(());
-        }
-        self.move_track_to_row(track, row + 1)
+        self.step_track(track, false)
     }
 
-    /// Move a track to a row of the projected list. Visual lanes above the A/V
-    /// divider are projected top-first (`V3, V2, V1`), while audio lanes below
-    /// the divider are projected downward (`A1, A2, A3`).
+    fn step_track(&mut self, track: TrackId, up: bool) -> Result<(), EngineError> {
+        let index = match self.track_step(track, up) {
+            Ok(index) => index,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
+        };
+        self.apply_command(Command::Edit(EditCommand::MoveTrack { track, index }))?;
+        Ok(())
+    }
+
+    /// The index `MoveTrack` sends to move `track` one row up (`up`) or down,
+    /// or why it stays: the row past it holds a lane of another part of the
+    /// stack, or there is none. The rows' guards, the track menu and the move
+    /// read this.
+    pub(crate) fn track_step(&self, track: TrackId, up: bool) -> Result<usize, Decline> {
+        let edge = if up {
+            Decline::TrackAtTop
+        } else {
+            Decline::TrackAtBottom
+        };
+        let row = self.track_row(track).ok_or(edge)?;
+        let to = if up {
+            row.checked_sub(1)
+        } else {
+            row.checked_add(1)
+        };
+        to.and_then(|to| self.track_move_index(track, to))
+            .ok_or(edge)
+    }
+
+    /// Move a track to a row of the projected list. A drop that would leave
+    /// the stack as it is sends nothing.
     pub fn move_track_to_row(&mut self, track: TrackId, row: usize) -> Result<(), EngineError> {
-        let count = self.store.sequence.tracks.len();
-        let Some(from_row) = self.track_row(track) else {
+        let Some(index) = self.track_move_index(track, row) else {
             return Ok(());
         };
-        if count == 0 || row >= count || from_row == row {
-            return Ok(());
-        }
-        let visual_count = self
-            .store
-            .sequence
-            .tracks
+        self.apply_command(Command::Edit(EditCommand::MoveTrack { track, index }))?;
+        Ok(())
+    }
+
+    /// The index `MoveTrack` sends to put `track` at projected `row`, or `None`
+    /// where the stack would come out as it is. The timeline keeps a lane
+    /// among the lanes of its zone, which sit together, so `row` is held to
+    /// that run first: a row past the run lands the lane at its edge, and a
+    /// lane already at that edge does not move.
+    ///
+    /// Visual lanes above the A/V divider are projected top-first (`V3, V2,
+    /// V1`), while audio lanes below the divider are projected downward (`A1,
+    /// A2, A3`), and the index is converted back to the timeline's bottom-first
+    /// order here.
+    fn track_move_index(&self, track: TrackId, row: usize) -> Option<usize> {
+        let tracks = &self.store.sequence.tracks;
+        let from_row = self.track_row(track)?;
+        let visual_count = tracks
             .iter()
             .take_while(|lane| {
                 !matches!(
@@ -128,20 +158,29 @@ impl AppState {
                 )
             })
             .count();
-        let is_audio = from_row >= visual_count;
-        let index = if is_audio {
-            if row < visual_count {
-                return Ok(());
-            }
-            row - visual_count
+        let audio = from_row >= visual_count;
+        if row >= tracks.len() || (row >= visual_count) != audio {
+            return None;
+        }
+        let zone = tracks[from_row].zone;
+        let same = |r: &usize| tracks[*r].zone == zone;
+        let first = (0..from_row)
+            .rev()
+            .take_while(same)
+            .last()
+            .unwrap_or(from_row);
+        let last = (from_row + 1..tracks.len())
+            .take_while(same)
+            .last()
+            .unwrap_or(from_row);
+        let row = row.clamp(first, last);
+        if row == from_row {
+            None
+        } else if audio {
+            Some(row - visual_count)
         } else {
-            if row >= visual_count {
-                return Ok(());
-            }
-            count - 1 - row
-        };
-        self.apply_command(Command::Edit(EditCommand::MoveTrack { track, index }))?;
-        Ok(())
+            Some(tracks.len() - 1 - row)
+        }
     }
 
     /// Whether a lane is flagged as the voice that auto-duck listens to.
@@ -242,15 +281,19 @@ impl AppState {
     }
 
     /// Shift every clip on `track` that starts at or after the playhead by
-    /// `delta` ticks. Positive opens a hole, negative closes a gap. A shift the
-    /// engine rejects (a collision, or below tick 0) is reported: the request
-    /// is something the timeline cannot hold.
+    /// `delta` ticks. Positive opens a hole, negative closes a gap. A lane with
+    /// no such clip declines. A shift the engine rejects (a collision, or below
+    /// tick 0) is reported: the request is something the timeline cannot hold.
     pub fn shift_clips_from_playhead(
         &mut self,
         track: TrackId,
         delta: i64,
     ) -> Result<(), EngineError> {
         if delta == 0 {
+            return Ok(());
+        }
+        if !self.lane_starts_from_playhead(track) {
+            self.decline(Decline::NothingAfterPlayhead);
             return Ok(());
         }
         let rate = self.playhead.rate;
@@ -260,6 +303,22 @@ impl AppState {
             delta: RationalTime::new(delta, rate),
         }))?;
         Ok(())
+    }
+
+    /// Whether a clip on `track` starts at or after the playhead: what a shift
+    /// from the playhead moves. The track menu's gap rows and the shift read
+    /// this.
+    pub(crate) fn lane_starts_from_playhead(&self, track: TrackId) -> bool {
+        self.store
+            .sequence
+            .tracks
+            .iter()
+            .find(|lane| lane.id == track.raw())
+            .is_some_and(|lane| {
+                lane.clips
+                    .iter()
+                    .any(|clip| clip.timeline_start_ticks >= self.playhead.value)
+            })
     }
 
     /// The lanes the selection spans, each with the earliest selected clip start on

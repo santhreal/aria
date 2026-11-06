@@ -185,11 +185,12 @@ pub(super) fn drifted_pair(by: i64) -> (AppState, ClipId, ClipId) {
     (state, picture, sound)
 }
 
-/// A lane with a lane above it and a lane below it, so the rows that move a lane
-/// through the stack have somewhere to move it, and the id of that middle lane.
+/// A picture lane with a lane of its own part of the stack above it and below
+/// it, over the main track, so the rows that move a lane through the stack have
+/// somewhere to move it, and the id of that lane.
 pub(super) fn middle_lane() -> (AppState, u64) {
     let (mut state, _) = with_clip();
-    for name in ["V2", "V3"] {
+    for name in ["V2", "V3", "V4"] {
         state
             .add_track(aria_models::TrackKind::Video, name.to_string())
             .expect("a lane to move past");
@@ -206,7 +207,7 @@ pub(super) fn middle_lane() -> (AppState, u64) {
     let middle = lanes
         .get(1)
         .copied()
-        .expect("three video lanes, so a middle one");
+        .expect("four video lanes, so one between two that move");
     (state, middle)
 }
 
