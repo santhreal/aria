@@ -73,6 +73,15 @@ impl FileSpec {
         &self.title
     }
 
+    /// The first extension offered, which a save answered with a name that has
+    /// no extension takes. `None` when the dialog offers every file.
+    pub fn first_extension(&self) -> Option<&str> {
+        self.filters
+            .first()
+            .and_then(|(_, extensions)| extensions.first())
+            .map(String::as_str)
+    }
+
     /// Offer one named group of extensions, written without the dot. Groups
     /// accumulate in the order they are added, which is the order the dialog
     /// lists them in.

@@ -658,8 +658,14 @@ fn every_timeline_and_save_file_export_writer_refuses_the_project_file_and_its_m
         ] {
             let expected = format!("{} is {what}; export to another file", resolved.display());
 
+            // A stem is completed to a name a file already has, which is
+            // asked about first; yes reaches the destination check.
+            let stem = chosen != resolved;
             state.last_error = None;
             state.supply_pick(Answer::file(chosen));
+            if stem {
+                state.supply_pick(Answer::Confirmed(true));
+            }
             state.pick_and_export_timeline_as(exporter_id);
             assert_eq!(
                 state.last_error.as_deref(),
@@ -684,7 +690,11 @@ fn every_timeline_and_save_file_export_writer_refuses_the_project_file_and_its_m
 
                 state.last_error = None;
                 state.supply_pick(Answer::file(chosen));
+                if stem {
+                    state.supply_pick(Answer::Confirmed(true));
+                }
                 state.pick_and_export_timeline();
+                assert_eq!(state.picks_unused(), 0, "an answer was left unused");
                 assert_eq!(
                     state.last_error.as_deref(),
                     Some(expected.as_str()),

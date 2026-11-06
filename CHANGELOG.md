@@ -1370,6 +1370,7 @@ Notes for the latest release. For previous releases, see the
 - Undo, redo and a history jump redraw only the filmstrip frames inside the edits they change back, instead of every frame of every strip.
 - **Export** prompts before replacing a file already at its destination instead of overwriting it.
 - **Export** writes an unsaved project whose name holds a path separator, such as `../clips`, inside the default directory instead of outside it.
+- A name typed without an extension in a save dialog is saved with the extension the dialog offers, so `cut` in **Save As** writes `cut.aria` instead of a file the Open dialog does not list.
 
 ## [alpha-0.7.0] - 2026-07-22
 

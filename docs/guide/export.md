@@ -37,6 +37,9 @@ See [Templates](#templates) for the marks.
   project path.
 - Ctrl+Shift+S saves to a new path. Ctrl+Alt+S saves a copy and keeps the
   open project's path.
+- A name typed without an extension in a save dialog is saved with the
+  extension the dialog offers: `cut` in Save As writes `cut.aria`. When a file
+  already has that name, the save prompts before replacing it.
 - A save to a file the media pool plays from fails and leaves that file as it
   was.
 - Ctrl+O opens a project. Ctrl+Shift+W returns to Home.

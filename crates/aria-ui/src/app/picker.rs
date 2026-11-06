@@ -141,8 +141,11 @@ impl Answer {
 struct PickRequest {
     waiting: String,
     ask: Ask,
-    then: Box<dyn FnOnce(&mut AppState, Answer) + Send>,
+    then: Continuation,
 }
+
+/// What runs with a pick's answer.
+type Continuation = Box<dyn FnOnce(&mut AppState, Answer) + Send>;
 
 impl super::selection::ReportableError for DialogError {
     fn into_error_message(self) -> String {
@@ -203,6 +206,11 @@ impl AppState {
     ///
     /// Returns immediately. `then` runs on the thread that draws, either now
     /// (an answer was supplied) or once the dialog is answered.
+    ///
+    /// A save answered with a name that has no extension is completed with the
+    /// first extension the dialog offered before `then` reads it, so `cut` in
+    /// Save As writes `cut.aria`: the Linux portal and zenity return a typed
+    /// name as it was typed.
     pub(crate) fn request_pick(
         &mut self,
         ask: Ask,
@@ -210,6 +218,18 @@ impl AppState {
     ) {
         #[cfg(test)]
         hold_title_case(&ask);
+        #[cfg(test)]
+        hold_save_extension(&ask);
+        let mut then: Continuation = Box::new(then);
+        if let Ask::SaveFile(spec) = &ask
+            && let Some(extension) = spec.first_extension()
+        {
+            let extension = extension.to_owned();
+            let named = then;
+            then = Box::new(move |state, answer| {
+                state.complete_save_answer(&extension, answer, named);
+            });
+        }
         self.picks.asked += 1;
         if let Some(answer) = self.picks.supplied.pop_front() {
             then(self, answer);
@@ -222,10 +242,42 @@ impl AppState {
         // A wake fails only when the reader is gone, which cannot happen while
         // the state holds it. Nothing is lost either way: an unanswered pick is
         // a dialog that never opened.
-        self.picks.to_window.wake(PickRequest {
-            waiting,
-            ask,
-            then: Box::new(then),
+        self.picks
+            .to_window
+            .wake(PickRequest { waiting, ask, then });
+    }
+
+    /// Hand `then` the path a save answer names, with `extension` added when
+    /// the chosen name has none.
+    ///
+    /// The dialog checked the name it was given for an existing file, not the
+    /// completed one, so a file already at the completed path is replaced only
+    /// once a Replace File question is answered yes; no is a cancelled save.
+    fn complete_save_answer(&mut self, extension: &str, answer: Answer, then: Continuation) {
+        let completed = match &answer {
+            Answer::Paths(paths)
+                if paths.len() == 1
+                    && paths[0].extension().is_none_or(|typed| typed.is_empty()) =>
+            {
+                paths[0].with_extension(extension)
+            }
+            _ => return then(self, answer),
+        };
+        if std::fs::symlink_metadata(&completed).is_err() {
+            return then(self, Answer::file(completed));
+        }
+        let question = format!("{} already exists. Replace it?", completed.display());
+        let ask = Ask::Confirm {
+            title: "Replace File".into(),
+            question,
+        };
+        self.request_pick(ask, move |state, reply| {
+            let answer = if reply.is_yes() {
+                Answer::file(completed)
+            } else {
+                Answer::cancelled()
+            };
+            then(state, answer);
         });
     }
 
@@ -294,6 +346,27 @@ fn hold_title_case(ask: &Ask) {
         panic!("the pick titled `{title}` is not in Title Case: {reason}");
     }
 }
+
+/// Refuse a save pick that offers no extension: a name typed without one would
+/// be written bare, a file no dialog filtered by type lists and no viewer
+/// opens. Checked at the seam, as [`hold_title_case`] is, so a new save pick
+/// fails in whichever test first reaches it.
+///
+/// Not caught: a save pick that no test reaches.
+#[cfg(test)]
+fn hold_save_extension(ask: &Ask) {
+    if let Ask::SaveFile(spec) = ask {
+        assert!(
+            spec.first_extension().is_some(),
+            "the save pick titled `{}` offers no extension to complete a typed name with",
+            spec.title()
+        );
+    }
+}
+
+#[cfg(test)]
+#[path = "picker_save_tests.rs"]
+mod save_tests;
 
 /// Open the dialogs the session asks for, one at a time.
 ///
