@@ -30,13 +30,10 @@ clips, 3840 beats, 15 markers, at 24 fps.
 | `snap_index` | 70 µs | The magnet set built from that projection |
 | `snap_query` | 46 ns | One magnet lookup, paid per pointer move during a drag |
 
-Recorded on a Ryzen 9 9950X, Linux, release profile. Treat them as a shape, not
-a target: a projection in the hundreds of microseconds is a frame that does not
-notice it, and a projection in the tens of milliseconds is a drag that stutters.
+Recorded on a Ryzen 9 9950X, Linux, release profile.
 
-A drag is the query, not the build: 46 ns per lookup is why the magnet set is
-built once per projection and binary-searched, instead of being rebuilt from
-every clip edge and beat on each mouse move.
+A drag pays the query, not the build: the magnet set is built once per
+projection and binary-searched on each mouse move.
 
 ## Playback against the sequence's rate
 
@@ -53,9 +50,8 @@ screen and the number the scenario checks come from one counter.
 generator at 640x360, 24 fps, through the preview entry point, excluding four
 warm-up frames because the first render of a session pays for pipeline and
 decoder setup. On a GPU it must hold 24 fps with at most 5% of frames late. On a
-CPU rasterizer the floor drops to a tenth of the target: `lavapipe` is an order
-of magnitude off a GPU, and a test that failed there would only teach everyone
-to ignore it. The report prints either way.
+CPU rasterizer such as `lavapipe` the floor is a tenth of the target. The report
+prints either way.
 
 Measured on a Ryzen 9 9950X with an RTX 5090, debug profile: **5517.2 fps
 against a 24 fps target, 0 of 116 frames late, worst frame 1.3 ms**. A solid
@@ -108,26 +104,20 @@ Recorded on a Ryzen 9 9950X with an RTX 5090, Linux, debug profile. The session
 is microseconds because the engine is mounted, not built here; the mount is the
 start.
 
-The test prints the dearest mounts, which is what makes the number actionable:
+The test prints the dearest mounts:
 `aria.render` (bringing up the GPU device), `aria.engine` (the pipelines built on
 it, and the first parse of the installed fonts), and nothing else above a few
 milliseconds. On `santhserver` (RTX 3080 Ti) a cold mount spends 112–126 ms in
 `aria.render`, 114–119 ms in `aria.engine`, and about 2 ms in `aria.storage`.
 Every plugin's own mount cost is also in Settings, next to the plugin.
 
-Before this breakdown the process created three GPU devices (one in the
-compositor plugin, one in the render plugin, one in the engine), each with its
-own driver instance, adapter, and pipeline set; one was rendered with and the
-other two had no reader. One device is created now and shared with
-`GpuContext::share`, so a cold start fell from **583 ms to 222 ms** and the
-process holds a third of the video memory it used to.
+The process creates one GPU device and shares it between the compositor, the
+render plugin and the engine with `GpuContext::share`.
 
 Headless engines follow the same device rule. A process keeps one headless
 device on Vulkan, Metal and D3D12; the GL fallback keeps a context per thread.
-Text renderers also parse the installed font catalog once, while shaping,
-raster and custom-font state remain isolated per renderer. On `santhserver`
-(RTX 3080 Ti), the 1,535-test UI library suite completes under its default
-parallelism in 127.53 s.
+Text renderers parse the installed font catalog once per process; shaping,
+raster and custom-font state are per renderer.
 
 ## Effect passes per frame
 
@@ -138,9 +128,8 @@ all three issue the same draw, so one bind group and one uniform buffer serve
 all of them. The binding is shared and the draw is not, which is why a grade on
 eight clips still grades each clip's own pixels.
 
-Every pass used to build both and drop them at submit. Twelve layers with two
-effects each is 24 passes per frame, so 24 uniform buffers and 24 bind groups
-per frame, for descriptors that were usually identical to the frame before.
+Twelve layers with two effects each issue 24 passes per frame. Without sharing,
+each pass builds a uniform buffer and a bind group and drops them at submit.
 
 | 12 layers × 2 effects, 512×288 | Per frame (median) |
 | --- | --- |
