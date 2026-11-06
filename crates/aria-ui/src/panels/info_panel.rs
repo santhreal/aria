@@ -44,10 +44,10 @@ pub fn render(
         body.push(section_label(&theme, "Drag").into_any_element());
         body.extend(rows(&theme, info.drag));
     }
-    body.push(section_label(&theme, "Errors").into_any_element());
-    if info.faults.is_empty() {
-        body.push(hint(&theme, "No errors."));
-    } else {
+    // A status section, drawn while it holds something, as Drag and Playback
+    // are: a session with no fault draws no Errors heading.
+    if !info.faults.is_empty() {
+        body.push(section_label(&theme, "Errors").into_any_element());
         body.extend(
             info.faults
                 .into_iter()

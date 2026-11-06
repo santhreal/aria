@@ -151,8 +151,9 @@ picture as displayed, at the preview resolution, so a reduced resolution reads
 the pixel that covers the canvas point. Below that it shows the selected clip's
 name, In, Out, Duration, source, and Source In and Out; during a trim, the tool,
 the clip, and the change; during a drag in the Viewer, the move, scale, crop,
-mask, or tangent being dragged. The Errors section lists driver faults with
-their clip and property, plugins that failed to mount, and plugin faults.
+mask, or tangent being dragged. While a fault is held, an Errors section lists
+driver faults with their clip and property, plugins that failed to mount, and
+plugin faults.
 
 The Last frame section states what the most recent frame cost to render: one
 row per render stage (Decode, Raster, Composite), then the whole frame. Raster

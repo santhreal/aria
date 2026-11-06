@@ -852,6 +852,7 @@ Notes for the latest release. For previous releases, see the
 - The Look, Audio, Speed, Shape, and Info tabs of Effect Controls open on their first property instead of a heading that repeats the tab's name.
 - The Project panel's Effects group lists its tree tab as **All**, beside Transitions, Generators, and Animations.
 - The Audio tab's ducking note reads track, as the timeline does.
+- The Info panel draws its Errors section only while a driver, plugin or mount fault is held, as it draws Drag and Playback.
 
 ### Fixed
 
