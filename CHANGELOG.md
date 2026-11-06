@@ -1344,6 +1344,8 @@ Notes for the latest release. For previous releases, see the
 - Markers > Mark Clip is disabled when no unlocked clip is under the playhead on a targeted track, with that reason as its tooltip.
 - The Markers menu's Clear and Go to rows are enabled by the marks of the monitor they act on, so a Source tab's own In and Out enable Clear In, Clear Out, and Clear In and Out.
 - Sequence > Match Frame is enabled by a media clip under the playhead rather than by a selection, as `F` is.
+- Sequence > Add Edit and Add Edit to All Tracks are disabled when no unlocked clip they would cut lies across the playhead.
+- The clip context menu offers Add Edit only when the playhead lies inside a clip it would cut.
 
 ## [alpha-0.7.0] - 2026-07-22
 

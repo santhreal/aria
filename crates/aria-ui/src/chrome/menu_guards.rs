@@ -542,6 +542,22 @@ pub(crate) fn targeted_clip_at_playhead(_: &str, state: &AppState) -> Option<&'s
         .then_some(Decline::NoTargetedClipAtPlayhead.reason())
 }
 
+/// The row cuts the clips Add Edit takes at the playhead.
+pub(crate) fn clip_to_cut(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .add_edit_targets(false)
+        .is_empty()
+        .then_some(Decline::NoClipToCut.reason())
+}
+
+/// The row cuts every unlocked lane's clip at the playhead.
+pub(crate) fn clip_to_cut_all(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .add_edit_targets(true)
+        .is_empty()
+        .then_some(Decline::NoClipToCut.reason())
+}
+
 /// The row duplicates the selected clip onto another track that accepts it.
 pub(crate) fn other_compatible_track(id: &str, state: &AppState) -> Option<&'static str> {
     selection(id, state).or_else(|| {

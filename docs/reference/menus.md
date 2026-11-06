@@ -120,8 +120,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-render-in-to-out` | `none` | Render In to Out | `Enter` | The sequence has no clips (`guards::clips`) | Renders preview cache files across the marked In/Out span (or the whole sequence). |
 | `seq-render-selection` | `none` | Render Selection | `none` | No clip is selected (`guards::selection`) | Renders preview cache files covering the selected clips. |
 | `seq-delete-render-files` | `none` | Delete Render Files | `none` | Always enabled | Deletes cached preview render files for the sequence. |
-| `seq-add-edit` | `none` | Add Edit | `Ctrl+K` | The sequence has no clips (`guards::clips`) | Splits selected clips (or unlocked tracks) at the playhead. |
-| `seq-add-edit-all` | `none` | Add Edit to All Tracks | `Ctrl+Shift+K` | The sequence has no clips (`guards::clips`) | Splits every clip intersecting the playhead across all unlocked tracks. |
+| `seq-add-edit` | `none` | Add Edit | `Ctrl+K` | No unlocked clip the cut would take lies across the playhead (`guards::clip_to_cut`) | Splits the selected clips under the playhead, or the clips on the targeted unlocked tracks when nothing is selected, at the playhead. |
+| `seq-add-edit-all` | `none` | Add Edit to All Tracks | `Ctrl+Shift+K` | No unlocked clip lies across the playhead (`guards::clip_to_cut_all`) | Splits every clip intersecting the playhead across all unlocked tracks. |
 | `seq-trim-edit` | `none` | Trim Edit | `none` | The sequence has no clips (`guards::clips`) | Selects the edit point nearest the playhead for keyboard trim nudging. |
 | `seq-extend-edit` | `none` | Extend Edit | `none` | Select an edit point first (`guards::edge`) | Extends the selected edit point to the current playhead tick. |
 | `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The sequence has no clips (`guards::clips`) | Applies the default picture transition (`crossfade`) at the selected cut. |
@@ -382,6 +382,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `InAtEnd` | `The In point is at the end of the sequence` |
 | `NoTargetedClipAtPlayhead` | `No clip under the playhead on a targeted track` |
 | `NoMediaClipAtPlayhead` | `No media clip under the playhead` |
+| `NoClipToCut` | `No clip under the playhead to cut` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

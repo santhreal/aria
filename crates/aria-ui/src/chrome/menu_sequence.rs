@@ -28,7 +28,7 @@ pub(crate) const ADD_EDIT: MenuItem = MenuItem::new("seq-add-edit", "Add Edit", 
     report(s, added)
 })
 .key("key-split")
-.when(guards::clips)
+.when(guards::clip_to_cut)
 .rule();
 
 static SEQUENCE_ITEMS: &[MenuItem] = &[
@@ -64,7 +64,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         report(s, added)
     })
     .key("key-split-all")
-    .when(guards::clips),
+    .when(guards::clip_to_cut_all),
     MenuItem::new("seq-trim-edit", "Trim Edit", |_, s, _| {
         s.select_nearest_edit()
     })

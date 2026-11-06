@@ -279,6 +279,14 @@ pub(super) fn disabled_remap() -> (AppState, ClipId) {
     (state, clip)
 }
 
+/// [`with_clip`](crate::app::premiere_tests::with_clip) with the playhead one
+/// frame into its clip, so the rows that cut at the playhead have a clip to cut.
+pub(super) fn under_playhead() -> (AppState, ClipId) {
+    let (mut state, clip) = crate::app::premiere_tests::with_clip();
+    state.set_playhead(into_selected(&state, 1));
+    (state, clip)
+}
+
 /// Key `param` of the selected clip at `tick` frames into the clip to `value`,
 /// linear, with `tangents` shaping a motion path through the keyframe.
 pub(super) fn key_point(

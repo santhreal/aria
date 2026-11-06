@@ -291,14 +291,18 @@ fn facts_over((state, clip): (AppState, ClipId)) -> (AppState, ClipMenu) {
     (state, facts)
 }
 
-/// A clip menu opens over a still, in both edit modes, a clip with a picture
-/// and sound, a linked pair, a linked pair out of sync, a parented clip, a
-/// group, and a disabled, remapped clip: between them they offer every clip
-/// row and draw each mark both ways.
+/// A clip menu opens over a still, in both edit modes and under the playhead,
+/// a clip with a picture and sound, a linked pair, a linked pair out of sync, a
+/// parented clip, a group, and a disabled, remapped clip: between them they
+/// offer every clip row and draw each mark both ways.
 pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
     Stage {
         what: "a still image on the timeline",
         dress: || facts_over(with_clip()),
+    },
+    Stage {
+        what: "a still under the playhead",
+        dress: || facts_over(fixtures::under_playhead()),
     },
     Stage {
         what: "a clip with a picture and sound",
@@ -794,10 +798,10 @@ fn only_a_row_that_leaves_the_editor_goes_unpressed() {
 #[test]
 fn a_row_is_offered_only_when_its_edit_is_possible() {
     // `when` is what keeps the menu honest: an offer that refuses when clicked is
-    // worse than no offer. Measured on the plain fixture, whose selection is one
-    // unlinked clip holding the one pool item.
-    let (state, clip) = with_clip();
-    let clip = ClipMenu::of(&state, clip.raw());
+    // worse than no offer. Measured on a still under the playhead, whose
+    // selection is one unlinked clip holding the one pool item.
+    let (mut state, id) = fixtures::under_playhead();
+    let clip = ClipMenu::of(&state, id.raw());
     let offered = |items: &'static [MenuItem<ClipMenu>], facts: &ClipMenu| -> Vec<&'static str> {
         items
             .iter()
@@ -828,6 +832,11 @@ fn a_row_is_offered_only_when_its_edit_is_possible() {
         "a clip with no parent was offered Release Parent"
     );
     assert!(rows.contains(&"ctx-split"), "Add Edit was withheld");
+    state.set_playhead(fixtures::into_selected(&state, 0));
+    assert!(
+        !offered(CLIP_ITEMS, &ClipMenu::of(&state, id.raw())).contains(&"ctx-split"),
+        "Add Edit was offered on the clip's first frame"
+    );
 
     let pool = PoolMenu::of(&state, first_media(&state));
     assert!(pool.in_use, "the fixture's clip holds the pool item");

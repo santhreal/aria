@@ -527,7 +527,8 @@ fn menus_doc_matches_registry() {
                 | Decline::NoClipOrGap
                 | Decline::InAtEnd
                 | Decline::NoTargetedClipAtPlayhead
-                | Decline::NoMediaClipAtPlayhead => {}
+                | Decline::NoMediaClipAtPlayhead
+                | Decline::NoClipToCut => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

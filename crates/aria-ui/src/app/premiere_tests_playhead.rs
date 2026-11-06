@@ -184,6 +184,49 @@ fn mark_clip_is_disabled_where_x_finds_no_targeted_clip() {
     state.set_playhead(end);
     assert_eq!(targeted_clip_at_playhead("mark-clip", &state), reason);
 }
+/// The Add Edit rows read the clips Ctrl+K and Ctrl+Shift+K cut: a clip the
+/// playhead lies strictly inside. On a clip's first tick, or with the clip's
+/// lane untargeted, Add Edit is disabled with the reason Ctrl+K prints and
+/// cuts nothing; Add Edit to All Tracks ignores targeting.
+#[test]
+fn add_edit_rows_read_the_clips_the_cut_takes() {
+    use crate::app::decline::Decline;
+    let reason = Some(Decline::NoClipToCut.reason());
+    let row = |id: &str, state: &AppState| {
+        crate::chrome::menu_items::items_of(crate::types::AppMenu::Sequence, state)
+            .into_iter()
+            .find(|item| item.id == id)
+            .expect("a Sequence row")
+            .blocked_by(state)
+    };
+    let (mut state, clip) = with_clip();
+    state.clear_selection();
+    let (start, end) = clip_bounds(&state, clip);
+    let lane = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .find(|lane| lane.clips.iter().any(|ui| ui.id == clip.raw()))
+        .map(|lane| aria_models::TrackId::from_raw(lane.id))
+        .expect("the clip's lane");
+
+    state.set_playhead(start + (end - start) / 2);
+    assert_eq!(row("seq-add-edit", &state), None);
+    assert_eq!(row("seq-add-edit-all", &state), None);
+
+    state.toggle_track_targeted(lane).expect("untarget");
+    assert_eq!(row("seq-add-edit", &state), reason);
+    assert_eq!(row("seq-add-edit-all", &state), None);
+    state.toggle_track_targeted(lane).expect("target");
+
+    state.set_playhead(start);
+    assert_eq!(row("seq-add-edit", &state), reason);
+    assert_eq!(row("seq-add-edit-all", &state), reason);
+    state.add_edit(false).expect("add edit");
+    assert_eq!(state.status_message.as_deref(), reason);
+    assert_eq!(clip_bounds(&state, clip), (start, end), "nothing was cut");
+}
 #[test]
 fn trim_to_playhead_pulls_the_chosen_edge_only() {
     let (mut state, clip) = with_clip();

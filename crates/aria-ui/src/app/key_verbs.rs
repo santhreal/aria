@@ -87,15 +87,16 @@ impl AppState {
         }
     }
 
-    /// Add Edit: cut at the playhead. The selected clips under the playhead
-    /// when any are selected, otherwise every targeted lane; `all` cuts every
-    /// unlocked lane whatever is selected.
-    pub fn add_edit(&mut self, all: bool) -> Result<(), EngineError> {
+    /// The clips Add Edit cuts at the playhead: the selected clips under the
+    /// playhead when any are selected, otherwise those on every targeted lane;
+    /// `all` takes every unlocked lane whatever is selected. The Add Edit rows'
+    /// guards read the same set.
+    pub(crate) fn add_edit_targets(&self, all: bool) -> Vec<ClipId> {
         let at = self.playhead.value;
         let spans = |clip: &&UiClip| {
             !clip.locked && clip.timeline_start_ticks < at && at < clip.timeline_end_ticks
         };
-        let targets: Vec<ClipId> = if all {
+        if all {
             self.store
                 .sequence
                 .tracks
@@ -117,12 +118,18 @@ impl AppState {
                 .filter(|id| self.ui_clip_ref(**id).as_ref().is_some_and(spans))
                 .copied()
                 .collect()
-        };
+        }
+    }
+
+    /// Add Edit: cut [`add_edit_targets`](Self::add_edit_targets) at the
+    /// playhead as one undo step.
+    pub fn add_edit(&mut self, all: bool) -> Result<(), EngineError> {
+        let targets = self.add_edit_targets(all);
         if targets.is_empty() {
-            self.status_message = Some("No clip under the playhead to cut".into());
+            self.decline(Decline::NoClipToCut);
             return Ok(());
         }
-        let cut = RationalTime::new(at, self.playhead.rate);
+        let cut = RationalTime::new(self.playhead.value, self.playhead.rate);
         self.one_step(|this| this.cut_clips_at(&targets, cut))
     }
 

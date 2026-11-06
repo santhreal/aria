@@ -84,11 +84,13 @@ pub enum Decline {
     NoTargetedClipAtPlayhead,
     /// Match Frame sent with no media clip under the playhead.
     NoMediaClipAtPlayhead,
+    /// Add Edit sent with no clip it cuts strictly inside under the playhead.
+    NoClipToCut,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 27] = [
+    pub const ALL: [Decline; 28] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -116,6 +118,7 @@ impl Decline {
         Decline::InAtEnd,
         Decline::NoTargetedClipAtPlayhead,
         Decline::NoMediaClipAtPlayhead,
+        Decline::NoClipToCut,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -149,6 +152,7 @@ impl Decline {
             Decline::InAtEnd => "The In point is at the end of the sequence",
             Decline::NoTargetedClipAtPlayhead => "No clip under the playhead on a targeted track",
             Decline::NoMediaClipAtPlayhead => "No media clip under the playhead",
+            Decline::NoClipToCut => "No clip under the playhead to cut",
         }
     }
 }
