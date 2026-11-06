@@ -81,6 +81,33 @@ fn a_row_with_no_codec_still_says_whether_there_is_sound() {
     );
 }
 
+/// A still states no sound, with or without a proxy: an image has none, so a
+/// `Silent` on every image row is noise beside the movies it is there to flag.
+/// A silent movie still reads `Silent`.
+#[test]
+fn a_still_row_states_no_sound() {
+    for has_audio in [false, true] {
+        let mut still = item(UiClipKind::Media);
+        still.still = true;
+        still.has_audio = has_audio;
+        still.duration_label = "00:00:05:00".into();
+        assert_eq!(
+            media_facts(&still),
+            lines("1920×1080 · 00:00:05:00", None),
+            "a still with has_audio {has_audio}"
+        );
+        still.proxied = true;
+        assert_eq!(
+            media_facts(&still),
+            lines("1920×1080 · 00:00:05:00", Some("Proxy")),
+            "a proxied still with has_audio {has_audio}"
+        );
+    }
+    let mut movie = item(UiClipKind::Media);
+    movie.has_audio = false;
+    assert_eq!(media_facts(&movie).streams.as_deref(), Some("Silent"));
+}
+
 #[test]
 fn an_audio_only_row_names_its_own_codec_and_no_video_one() {
     let mut media = item(UiClipKind::Audio);

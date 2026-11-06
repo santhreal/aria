@@ -412,7 +412,7 @@ pub(crate) fn codec_label(codec: Option<&str>) -> String {
 /// ellipsis rather than starting the next line with a separator. Each word the
 /// editor writes is capitalized, since any of them can start a line. The row of
 /// a video with no audio track reads `Silent`, because that is the file found
-/// missing halfway through a cut.
+/// missing halfway through a cut. A still states no sound: an image has none.
 ///
 /// A proxied row says so last. The substitution changes which file the preview
 /// decodes while every number above it still describes the original, so a row
@@ -467,11 +467,13 @@ pub(crate) fn media_facts(item: &crate::types::UiMediaItem) -> MediaFacts {
         if let Some(codec) = item.video_codec.as_deref() {
             append(codec);
         }
-        append(match (item.has_audio, item.audio_codec.as_deref()) {
-            (false, _) => "Silent",
-            (true, Some(codec)) => codec,
-            (true, None) => "Audio",
-        });
+        if !item.still {
+            append(match (item.has_audio, item.audio_codec.as_deref()) {
+                (false, _) => "Silent",
+                (true, Some(codec)) => codec,
+                (true, None) => "Audio",
+            });
+        }
     }
     if item.proxied {
         append("Proxy");

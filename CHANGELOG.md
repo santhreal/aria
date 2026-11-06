@@ -861,6 +861,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls shows the Audio tab only for clips with sound on their own lane and the Speed tab only for clips with moving media, and the Speed / Duration dialog offers Speed and Reverse Speed only when a selected clip has moving media and Maintain Audio Pitch only when a selected clip has sound.
 - Effect Controls Text and Effects tabs open directly at their content without repeating the tab label as an opening section heading.
 - The Home recovery banner draws Restore as the solid button and Discard as a ghost button.
+- Project > Media no longer marks a still image Silent.
 
 ### Fixed
 
