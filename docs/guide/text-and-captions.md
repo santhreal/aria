@@ -72,7 +72,7 @@ selected, the clip is generated, the media has no audio track, the media is
 offline, no model is installed, or the language is one Whisper does not support.
 
 The **Output** chips, **Text clips** and **Markers**, choose what a commit
-writes. The **Per word** switch splits each segment by its
+writes. **One clip per word** in the **Split** row splits each segment by its
 word timings; a segment the model gave no word timings for stays whole.
 **Commit** writes the units at their own times as one `Commit captions` undo
 entry: caption clips onto the text lane, markers onto the timeline.

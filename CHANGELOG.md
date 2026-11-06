@@ -868,6 +868,7 @@ Notes for the latest release. For previous releases, see the
 - Rename and Note on a Markers panel row edit the name and note in a text box on that row instead of in the centered rename bar.
 - The Audio Track Mixer's buttons read **Add submix bus** and **Add audio effect** instead of **+ Submix bus** and **+ Audio effect**, and its empty state reads "No audio tracks. Add a track or a submix bus to mix."
 - The Learn pane heads its Home shortcuts "On Home", beside "In the editor".
+- The Captions tab sets one clip per word with a **Per word** switch in place of a lone chip.
 
 ### Fixed
 
@@ -1221,6 +1222,7 @@ Notes for the latest release. For previous releases, see the
 - Hold the merged assistant skills list as shared strings on `AppState` and refresh it when the Assistant panel comes forward or a skill is installed instead of walking the skills directory on every frame.
 - The Assistant panel's empty-conversation prompt ends with a period, as every other empty-state prompt does.
 - The controls on a hovered Markers row stand on the row's own color instead of a darker box.
+- A switch in a Project panel form stands on its label's center line.
 
 ## [alpha-0.7.0] - 2026-07-22
 

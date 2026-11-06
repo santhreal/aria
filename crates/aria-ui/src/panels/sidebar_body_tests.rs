@@ -42,6 +42,7 @@ use super::STOCK_KINDS;
 use super::layout_tests::{bounds, project_width};
 use crate::app::AppState;
 use crate::app::captions::CaptionCommit;
+use crate::components::noted::{NotingControls, drawn_controls, record_controls};
 use crate::test_support::drawn_shell;
 use crate::theme::Theme;
 use crate::types::{SidebarGroup, SidebarTab};
@@ -77,7 +78,7 @@ const OTHER_LAYOUTS: [SidebarTab; 8] = [
 const FORMS: [(SidebarTab, &[&str]); 2] = [
     (
         SidebarTab::Captions,
-        &["Language", "Output", "Split", "Threads"],
+        &["Language", "Output", "Per word", "Threads"],
     ),
     (
         SidebarTab::Analysis,
@@ -421,4 +422,66 @@ fn every_panel_form_starts_its_labels_and_its_controls_on_two_edges(cx: &mut Tes
             .any(|(offer, _, _)| *offer == commit),
         "the form holds {commit:?}, which no Output chip offers"
     );
+}
+
+/// Every control on the first line of a Project panel form row stands on its
+/// label's center line, and no row offers a lone chip.
+///
+/// WHY: Captions drew whether a commit makes one clip per word as a single
+/// chip in a `Split` row, so an on/off read as a choice of one option beside
+/// the switches every other on/off setting draws; and a form row's controls
+/// box was as tall as its tallest control, so the switch that replaced the
+/// chip stood at the top of the row, 3 px over its label's center line. The
+/// classes closed here, over every control the shared `noted` census records
+/// (chips, switches, ghost buttons) in every row of every tab in [`FORMS`]: a
+/// row whose controls hold exactly one chip, and a control on a row's first
+/// line whose center is off its label's. A form tab placed in [`FORMS`] later
+/// is checked on the run that places it. Not caught: an on/off drawn outside
+/// a form row or as a lone ghost button, and text boxes, which the census
+/// does not record.
+#[gpui::test]
+fn every_panel_form_control_stands_on_its_label_and_no_chip_stands_alone(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (state, visual) = drawn_shell(cx, "panel-form-chips");
+    let _noting = NotingControls::start();
+    for (tab, rows) in FORMS {
+        record_controls();
+        open(&state, visual, tab);
+        let panel = bounds(visual, "sidebar");
+        let (built, _) = drawn_controls();
+        let drawn: Vec<(bool, Bounds<Pixels>)> = built
+            .iter()
+            .filter_map(|control| {
+                let at = visual.debug_bounds(crate::interned::intern(&control.selector))?;
+                Some((control.selector.starts_with("chip-"), at))
+            })
+            .collect();
+        assert!(
+            drawn.iter().any(|(chip, _)| *chip),
+            "{tab:?} drew no chip to read"
+        );
+        for row in rows {
+            let controls = bounds(visual, &format!("form-{row}-controls"));
+            let name = label(visual, row, panel).center().y;
+            let held: Vec<&(bool, Bounds<Pixels>)> = drawn
+                .iter()
+                .filter(|(_, at)| controls.contains(&at.center()))
+                .collect();
+            assert_ne!(
+                held.iter().filter(|(chip, _)| *chip).count(),
+                1,
+                "{tab:?}: the `{row}` row offers one chip, an on/off drawn as a choice; \
+                 draw it as a switch"
+            );
+            let first_line = controls.top() + px(Theme::CONTROL_HEIGHT);
+            for (_, at) in held.iter().filter(|(_, at)| at.top() < first_line) {
+                assert!(
+                    (at.center().y - name).abs() < px(EPS),
+                    "{tab:?}: a `{row}` control at {at:?} stands on {:?}, off its label's \
+                     center line {name:?}",
+                    at.center().y
+                );
+            }
+        }
+    }
 }

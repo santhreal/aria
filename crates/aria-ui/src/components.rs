@@ -545,11 +545,9 @@ pub fn row_label(theme: &Theme, label: impl Into<SharedString>, width: f32) -> D
 /// panel form draws, with room to spare.
 pub const FORM_LABEL_WIDTH: f32 = 64.0;
 
-/// One row of a panel form: `label` in the label column, then `controls` in
-/// the rest of the row, `SPACE_XS` apart and wrapping onto further lines in a
-/// narrow panel. The label stands on the center line of the first line of
-/// controls. Drawn as `form-{label}`, with the controls as
-/// `form-{label}-controls`.
+/// One row of a panel form: `label` in the label column, then `controls` `SPACE_XS` apart,
+/// wrapping in a narrow panel, at least one control row high with the label and a shorter
+/// control on the first line's center line. Drawn as `form-{label}` and `form-{label}-controls`.
 pub fn form_row(
     theme: &Theme,
     label: &'static str,
@@ -571,6 +569,7 @@ pub fn form_row(
                 .debug_selector(move || format!("form-{label}-controls"))
                 .flex_1()
                 .min_w_0()
+                .min_h(px(Theme::CONTROL_HEIGHT))
                 .flex()
                 .flex_wrap()
                 .items_center()

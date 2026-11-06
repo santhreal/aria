@@ -160,8 +160,8 @@ pub(crate) fn captions_panel(
         ))
         .child(components::form_row(
             theme,
-            "Split",
-            [word_toggle(theme, word_level, cx)],
+            "Per word",
+            [word_switch(theme, word_level, cx)],
         ))
         .child(components::form_row(
             theme,
@@ -341,25 +341,21 @@ fn commit_chip(
     .into_any_element()
 }
 
-fn word_toggle(
+/// Whether a commit splits each segment into one clip per word: a switch, as
+/// every on/off setting is.
+fn word_switch(
     theme: &Theme,
     word_level: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    components::chip(
-        "caption-words",
-        SharedString::from("One clip per word"),
-        word_level,
-        components::ChipSize::Regular,
-        theme,
-    )
-    .on_mouse_down(
-        MouseButton::Left,
-        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            this.state
-                .update(cx, |state, _| state.set_caption_word_level(!word_level));
-            cx.notify();
-        }),
-    )
-    .into_any_element()
+    components::switch("caption-words", Some(word_level), theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state
+                    .update(cx, |state, _| state.set_caption_word_level(!word_level));
+                cx.notify();
+            }),
+        )
+        .into_any_element()
 }
