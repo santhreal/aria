@@ -140,6 +140,27 @@ impl AppState {
         gap
     }
 
+    /// Drop every reference the session holds into the open project: the
+    /// clip, edge and gap selections, the clipboard, the parent pick whip,
+    /// the open property rows and their selected keyframes, the picked pool
+    /// items, the open folder and its rename, and the relink notes.
+    ///
+    /// A project file keeps its ids and every launch counts from 1 again, so a
+    /// reference kept across a project replacement names nothing in the new
+    /// project, or another clip with the same id.
+    pub(crate) fn forget_project_references(&mut self) {
+        self.clear_selection();
+        self.clipboard = None;
+        self.parent_whip = None;
+        self.expanded_clips = std::sync::Arc::default();
+        self.prop_rows.selected_keyframes.clear();
+        self.prop_rows.graph_params.clear();
+        self.open_bin(None);
+        self.pool_selection.clear();
+        self.bin_rename = None;
+        self.relink_notes.clear();
+    }
+
     /// Ripple-delete a gap on a lane by shifting subsequent clips left.
     pub fn close_gap(&mut self, gap: crate::types::SelectedGap) -> Result<(), EngineError> {
         let delta = gap.start_ticks - gap.end_ticks;

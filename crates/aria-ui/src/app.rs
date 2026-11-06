@@ -490,6 +490,10 @@ mod menu_reach_tests;
 mod linked_selection_tests;
 
 #[cfg(test)]
+#[path = "app/project_swap_tests.rs"]
+mod project_swap_tests;
+
+#[cfg(test)]
 #[path = "app/move_into_sync_tests.rs"]
 mod move_into_sync_tests;
 

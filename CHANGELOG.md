@@ -1321,6 +1321,7 @@ Notes for the latest release. For previous releases, see the
 - Saving a plugin setting keeps the storage root, cache paths, and download quota changed earlier in the session instead of writing back the values from launch.
 - Plugins read settings from the profile's own `config.toml` under `ARIA_DATA_DIR`, and read values Aria changed during the session.
 - The Export sheet of an unsaved project no longer reads `user-dirs.dirs` on every frame.
+- Opening a project, starting a new one, applying a template, or a plugin's open clears the clip, edge, gap, keyframe, pool item and folder selections, the clipboard, the parent pick whip, and the open property rows, instead of leaving them on whatever clip, item or folder of the new project has the same id.
 
 ## [alpha-0.7.0] - 2026-07-22
 

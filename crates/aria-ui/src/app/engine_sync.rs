@@ -21,6 +21,12 @@ impl AppState {
     ///
     /// Selection changes no model data. Re-walking every track and clip would
     /// reproduce the same store except for its selected ids and flags.
+    ///
+    /// The store is re-keyed only when its key covered the engine apart from
+    /// the selection and the playhead. An engine that moved since the store
+    /// was built, as a replaced session has, leaves the store unkeyed so the
+    /// next poll rebuilds it: a key minted here would claim the new engine for
+    /// a store that never read it.
     pub(crate) fn refresh_projected_selection(&mut self) {
         let held = self.projected.take();
         let (selected, key) = {
@@ -28,17 +34,21 @@ impl AppState {
             let rate = engine.project().timeline().frame_rate;
             let at = RationalTime::new(self.playhead.value, rate);
             let selected = selected_detail::SelectedDetail::of(&mut engine, &self.selection, at);
-            let mut key = ProjectionKey::of_with_basis(
-                &engine,
-                self.playhead,
-                &self.selection,
-                held.as_ref().and_then(|held| held.basis.as_ref()),
-            );
-            // The store keeps the names it was built with, so the key keeps
-            // the catalog revisions they were read at.
-            if let Some(held) = &held {
-                key.catalogs = held.catalogs;
-            }
+            let key = held
+                .as_ref()
+                .filter(|held| held.covers_engine(&engine))
+                .map(|held| {
+                    let mut key = ProjectionKey::of_with_basis(
+                        &engine,
+                        self.playhead,
+                        &self.selection,
+                        held.basis.as_ref(),
+                    );
+                    // The store keeps the names it was built with, so the key
+                    // keeps the catalog revisions they were read at.
+                    key.catalogs = held.catalogs;
+                    key
+                });
             (selected, key)
         };
         let mut basis = held.and_then(|held| held.basis);
@@ -49,7 +59,7 @@ impl AppState {
             .extend(self.selection.iter().map(|id| id.raw()));
         crate::projection::reselect(store, &self.selection, basis.as_mut());
         self.selected = selected;
-        self.projected = Some(ProjectionKey { basis, ..key });
+        self.projected = key.map(|key| ProjectionKey { basis, ..key });
         self.clear_selection_error();
     }
 
@@ -332,9 +342,14 @@ impl ProjectionKey {
     /// not invalidate the store: the projection carries the tick and nothing
     /// derived from it.
     fn covers_except_playhead(&self, engine: &Engine, selection: &[ClipId]) -> bool {
+        self.selection == selection && self.covers_engine(engine)
+    }
+
+    /// Whether every engine-side input the store was built from is unchanged:
+    /// everything but the selection and the playhead, which the session holds.
+    fn covers_engine(&self, engine: &Engine) -> bool {
         self.revision == engine.revision()
             && self.proxy_revision == engine.proxy_revision()
-            && self.selection == selection
             && self.dirty == engine.is_dirty()
             && self.project_name == engine.project().name
             && self.history == engine.history_generation()

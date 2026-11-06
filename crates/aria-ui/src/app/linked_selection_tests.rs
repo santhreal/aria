@@ -427,7 +427,9 @@ fn clip_selection_writers_in_source() -> BTreeSet<String> {
 
     let mutates_selection = |line: &str| {
         let trimmed = line.trim_start();
-        trimmed.starts_with("self.selection =")
+        trimmed
+            .strip_prefix("self.selection =")
+            .is_some_and(|rest| !rest.starts_with('='))
             || trimmed.starts_with("self.selection.clear(")
             || trimmed.starts_with("self.selection.push(")
             || trimmed.starts_with("self.selection.retain(")
