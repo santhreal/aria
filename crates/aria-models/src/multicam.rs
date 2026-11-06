@@ -210,6 +210,20 @@ impl MulticamGroup {
     pub fn active_sync_offset_at(&self, at: i64) -> i64 {
         self.live_at(at).map_or(0, |angle| angle.sync_offset)
     }
+
+    /// The angles live at some tick of `[from, to)`: the one live at `from`,
+    /// then each one a cut inside the span makes live, in cut order. An angle
+    /// can appear more than once, and a cut naming no angle yields nothing.
+    pub fn live_over(&self, from: i64, to: i64) -> impl Iterator<Item = &MulticamAngle> {
+        let later = self
+            .cuts
+            .iter()
+            .filter(move |cut| cut.at > from && cut.at < to)
+            .map(|cut| cut.angle);
+        std::iter::once(self.active_angle_at(from))
+            .chain(later)
+            .filter_map(|index| self.angles.get(index))
+    }
 }
 
 /// Which angle a cut list makes live at `at`.

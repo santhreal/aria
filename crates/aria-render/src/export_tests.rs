@@ -388,8 +388,7 @@ fn gone(result: Result<(), RenderError>) -> Option<std::path::PathBuf> {
 /// couldn't resolve ...". The check names the file before anything opens, for
 /// every lane and span the export reads, and passes every one it does not:
 /// a span that ends where the clip starts, a disabled picture lane, a muted
-/// or switched-off sound lane, and picture lanes in a sound export. Not
-/// caught: multicam angles, which are not checked.
+/// or switched-off sound lane, and picture lanes in a sound export.
 #[test]
 fn a_missing_source_is_refused_where_the_export_reads_it_and_only_there() {
     let Offline {
@@ -512,6 +511,57 @@ fn a_missing_source_inside_a_nest_is_refused_at_any_depth() {
     );
     std::fs::write(&media, b"footage").expect("write the file");
     assert_eq!(gone(check_export_media(&project, settings, true)), None);
+}
+
+/// WHY: a multicam clip reads the angle its cut list makes live, and the check
+/// read only plain media clips, so an export over a cut to a camera whose file
+/// was gone encoded every frame up to the cut and then failed. The check names
+/// a missing angle live anywhere in the clip's source window and passes one
+/// that is live only outside it: before the window, or from a cut on the
+/// window's end. Not caught: a window wider than the part of the clip the
+/// exported span plays.
+#[test]
+fn a_missing_multicam_angle_is_refused_where_the_clip_makes_it_live() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (wide, close) = (dir.path().join("wide.mp4"), dir.path().join("close.mp4"));
+    std::fs::write(&wide, b"footage").expect("write the wide angle");
+    let mut project = one_second();
+    let ids = [&wide, &close].map(|path| {
+        project.add_media(aria_models::MediaSource::new(
+            path, 64, 64, FPS, FRAMES, false,
+        ))
+    });
+    let angles = ids.map(|media| aria_models::MulticamAngle::new(media, 0));
+    let group = project
+        .create_multicam_group("cams", angles.to_vec())
+        .expect("group");
+    project
+        .multicam_group_mut(group)
+        .expect("the group")
+        .switch_angle(10, 1)
+        .expect("cut to close");
+    let lane = project.add_track(TrackKind::Video, "V1");
+    let at = RationalTime::new(0, FPS);
+    let place = |project: &mut Project, from: i64, len: i64| {
+        let clip = project
+            .add_multicam_clip(lane, group, TimeRange::at_rate(from, len, FPS), at)
+            .expect("place the multicam clip");
+        let settings = ExportSettings::for_project(project);
+        let result = gone(check_export_media(project, settings, true));
+        project.remove_clip(clip).expect("lift the clip");
+        result
+    };
+
+    assert_eq!(place(&mut project, 0, 20), Some(close.clone()));
+    assert_eq!(place(&mut project, 12, 5), Some(close.clone()));
+    assert_eq!(
+        place(&mut project, 0, 10),
+        None,
+        "a cut on the window's end"
+    );
+    assert_eq!(place(&mut project, 0, 9), None);
+    std::fs::write(&close, b"footage").expect("write the close angle");
+    assert_eq!(place(&mut project, 0, 20), None);
 }
 
 /// Every file publisher runs the media check before it opens a staging file,

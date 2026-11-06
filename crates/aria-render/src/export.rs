@@ -337,10 +337,11 @@ pub fn check_export_destination(
 /// one. A file read is the media of a clip that overlaps the exported span on
 /// a lane that contributes: an enabled picture lane when `picture` is set, an
 /// unmuted sound lane when `settings.audio` is. A clip that nests a sequence
-/// reads every clip of that sequence, at any depth. Every publisher calls this
-/// before it opens a staging file or an encoder, since a missing file
-/// otherwise fails the export at its first frame with a decoder's message.
-/// Multicam angles are not checked.
+/// reads every clip of that sequence, at any depth, and a multicam clip reads
+/// every angle its cut list makes live over its source window. Every publisher
+/// calls this before it opens a staging file or an encoder, since a missing
+/// file otherwise fails the export at the first frame that reads it, after
+/// every frame before it was encoded.
 pub fn check_export_media(
     project: &Project,
     settings: ExportSettings,
@@ -360,15 +361,14 @@ pub fn check_export_media(
         if let Some(sequence) = clip.sequence() {
             nested.push(sequence);
         }
-        let Some(media) = clip.media().and_then(|id| project.media(id)) else {
-            return Ok(());
-        };
-        match std::fs::metadata(media.path()) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(RenderError::MediaOffline {
-                path: media.path().to_path_buf(),
-            }),
+        for media in clip_reads(project, clip) {
+            if std::fs::metadata(media.path()).is_err() {
+                return Err(RenderError::MediaOffline {
+                    path: media.path().to_path_buf(),
+                });
+            }
         }
+        Ok(())
     };
     for track in project.timeline().tracks_ordered().filter(|t| reads(t)) {
         for clip in track.clips() {
@@ -391,6 +391,26 @@ pub fn check_export_media(
         }
     }
     Ok(())
+}
+
+/// The pool sources `clip` reads: its media, or the angles of its multicam
+/// group live over its source window. Nothing for a generated or nested clip.
+fn clip_reads<'p>(
+    project: &'p Project,
+    clip: &aria_models::Clip,
+) -> impl Iterator<Item = &'p aria_models::MediaSource> {
+    let media = clip.media().into_iter();
+    let angles = clip
+        .multicam_group()
+        .and_then(|group| project.multicam_group(group))
+        .zip(clip.source_range())
+        .into_iter()
+        .flat_map(|(group, window)| {
+            group
+                .live_over(window.start.value, window.end_tick())
+                .map(|angle| angle.media)
+        });
+    media.chain(angles).filter_map(|media| project.media(media))
 }
 
 /// A finished file export: the frames written and the encoder that wrote them.
