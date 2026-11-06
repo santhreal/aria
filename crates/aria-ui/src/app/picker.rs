@@ -33,7 +33,7 @@ use gpui::{App, Entity};
 
 use super::AppState;
 
-pub use aria_dialog::FileSpec;
+pub use aria_dialog::{DialogError, FileSpec};
 
 /// What one pick prompts for.
 #[derive(Debug)]
@@ -53,27 +53,26 @@ pub enum Ask {
 impl Ask {
     /// Open the dialog and wait for an answer. Awaited on a background task:
     /// the answer arrives whenever it arrives, and the window keeps drawing.
-    async fn answer(self) -> Answer {
+    pub(crate) async fn answer(self) -> Result<Answer, DialogError> {
         match self {
-            Ask::OpenFile(spec) => {
-                Answer::Paths(aria_dialog::open_file(spec).await.into_iter().collect())
-            }
-            Ask::OpenFiles(spec) => Answer::Paths(aria_dialog::open_files(spec).await),
-            Ask::SaveFile(spec) => {
-                Answer::Paths(aria_dialog::save_file(spec).await.into_iter().collect())
-            }
-            Ask::Folder(spec) => {
-                Answer::Paths(aria_dialog::open_folder(spec).await.into_iter().collect())
-            }
-            Ask::Confirm { title, question } => {
-                Answer::Confirmed(aria_dialog::confirm(title, question).await)
-            }
+            Ask::OpenFile(spec) => Ok(Answer::Paths(
+                aria_dialog::open_file(spec).await?.into_iter().collect(),
+            )),
+            Ask::OpenFiles(spec) => Ok(Answer::Paths(aria_dialog::open_files(spec).await?)),
+            Ask::SaveFile(spec) => Ok(Answer::Paths(
+                aria_dialog::save_file(spec).await?.into_iter().collect(),
+            )),
+            Ask::Folder(spec) => Ok(Answer::Paths(
+                aria_dialog::open_folder(spec).await?.into_iter().collect(),
+            )),
+            Ask::Confirm { title, question } => Ok(Answer::Confirmed(
+                aria_dialog::confirm(title, question).await?,
+            )),
         }
     }
 
     /// The title the dialog opens with.
-    #[cfg(test)]
-    fn title(&self) -> &str {
+    pub(crate) fn title(&self) -> &str {
         match self {
             Ask::OpenFile(spec)
             | Ask::OpenFiles(spec)
@@ -140,8 +139,15 @@ impl Answer {
 /// The continuation is `Send` because the request crosses to the picker task,
 /// and takes no context because it must also run in a plain unit test.
 struct PickRequest {
+    waiting: String,
     ask: Ask,
     then: Box<dyn FnOnce(&mut AppState, Answer) + Send>,
+}
+
+impl super::selection::ReportableError for DialogError {
+    fn into_error_message(self) -> String {
+        self.to_string()
+    }
 }
 
 /// The picks a session has asked for.
@@ -154,9 +160,20 @@ pub struct Picks {
     from_state: crate::handoff::Wakes<PickRequest>,
     /// Answers supplied in advance, consumed in order. Only a test fills this.
     supplied: VecDeque<Answer>,
+    /// Status line posted while a native dialog is open, kept until the dialog
+    /// answers or errors so [`AppState::age_status`] does not expire it while
+    /// the dialog is still open.
+    waiting: Option<String>,
     /// How many picks have been asked for, so a test can tell "asked and not
     /// answered" from "never asked".
     asked: usize,
+}
+
+impl Picks {
+    /// Whether `status` is the waiting line of an in-flight picker dialog.
+    pub(crate) fn is_waiting_status(&self, status: &str) -> bool {
+        self.waiting.as_deref() == Some(status)
+    }
 }
 
 impl std::fmt::Debug for Picks {
@@ -175,6 +192,7 @@ impl Default for Picks {
             to_window,
             from_state,
             supplied: VecDeque::new(),
+            waiting: None,
             asked: 0,
         }
     }
@@ -197,13 +215,39 @@ impl AppState {
             then(self, answer);
             return;
         }
+        let waiting = format!("Waiting for the {} picker", ask.title());
+        self.status_message = Some(format!("Waiting for the {} picker", ask.title()));
+        self.status_seen = None;
+        self.picks.waiting = Some(waiting.clone());
         // A wake fails only when the reader is gone, which cannot happen while
         // the state holds it. Nothing is lost either way: an unanswered pick is
         // a dialog that never opened.
         self.picks.to_window.wake(PickRequest {
+            waiting,
             ask,
             then: Box::new(then),
         });
+    }
+
+    /// Apply the outcome of a native dialog pick: clear its waiting status and
+    /// either run the continuation with the answer or post the dialog error.
+    pub(crate) fn finish_pick(
+        &mut self,
+        waiting: &str,
+        outcome: Result<Answer, DialogError>,
+        then: impl FnOnce(&mut AppState, Answer),
+    ) {
+        if self.picks.waiting.as_deref() == Some(waiting) {
+            self.picks.waiting = None;
+        }
+        if self.status_message.as_deref() == Some(waiting) {
+            self.status_message = None;
+            self.status_seen = None;
+        }
+        match outcome {
+            Ok(answer) => then(self, answer),
+            Err(err) => self.report_error(err),
+        }
     }
 
     /// Answer the next pick with `answer` instead of opening a dialog.
@@ -266,9 +310,9 @@ pub fn watch_picks(state: &Entity<AppState>, cx: &mut App) {
             let Some(request) = requests.next().await else {
                 break;
             };
-            let answer = cx.background_executor().spawn(request.ask.answer()).await;
+            let outcome = cx.background_executor().spawn(request.ask.answer()).await;
             let applied = state.update(cx, |state, cx| {
-                (request.then)(state, answer);
+                state.finish_pick(&request.waiting, outcome, request.then);
                 cx.notify();
             });
             if applied.is_err() {

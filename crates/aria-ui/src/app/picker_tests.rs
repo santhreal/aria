@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use aria_models::ClipId;
 
-use super::picker::{Answer, Ask, FileSpec};
+use super::picker::{Answer, Ask, DialogError, FileSpec};
 use super::premiere_tests::with_clip;
 
 /// A path named `name` inside a scratch dir of its own.
@@ -57,16 +57,15 @@ fn an_unanswered_pick_returns_instead_of_waiting_for_one() {
     // dialog, so a test hung rather than failed. The pick is recorded as asked
     // and the continuation does not run.
     let (mut state, _) = with_clip();
-    // What the strip already says. The continuation writes the chosen file's
-    // name (or "cancelled") over it, so the observation is that nothing wrote,
-    // not that nothing had ever written: placing the fixture's clip posts a
-    // status of its own.
-    let before = state.status_message.clone();
+    // The continuation writes the chosen file's name (or "cancelled") over the
+    // strip, while an unanswered pick posts its waiting line until the dialog
+    // answers.
     state.request_pick(Ask::OpenFile(FileSpec::new("Open Project")), report);
     assert_eq!(state.picks_asked(), 1, "the pick was not recorded");
     assert_eq!(
-        state.status_message, before,
-        "the continuation ran without an answer"
+        state.status_message.as_deref(),
+        Some("Waiting for the Open Project picker"),
+        "the continuation ran without an answer or the waiting status was not posted"
     );
 }
 
@@ -607,5 +606,81 @@ fn saving_two_untitled_projects_asks_twice_and_keeps_both_distinct() {
             .tracks_ordered()
             .any(|t| t.name == "Project B Lane"),
         "project B was not saved to its chosen path"
+    );
+}
+
+/// WHY: While a native picker is open (or waiting on a broken portal), the status
+/// strip used to keep whatever old receipt was there before, and a missing file
+/// picker backend returned `None` which the editor treated as a silent cancel.
+/// Closes that class by asserting:
+/// 1. An unanswered pick posts `"Waiting for the <title> picker"` immediately and
+///    `age_status` keeps it on the strip past `STATUS_TTL` until the dialog
+///    answers.
+/// 2. Finishing with a cancelled answer clears the waiting status without
+///    posting an error.
+/// 3. Finishing with `DialogError::NoBackend` clears the waiting status, skips
+///    the continuation, and posts `"No file picker is available. Install
+///    xdg-desktop-portal or zenity."` to `last_error`.
+#[test]
+fn waiting_status_persists_until_answered_and_missing_backend_posts_named_error() {
+    use std::time::{Duration, Instant};
+
+    let (mut state, _) = with_clip();
+    state.save_or_pick();
+    assert_eq!(state.picks_asked(), 1);
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Waiting for the Save As picker")
+    );
+
+    let start = Instant::now();
+    assert!(!state.age_status(start));
+    assert!(
+        !state.age_status(start + crate::app::status::STATUS_TTL + Duration::from_secs(30)),
+        "waiting status must not expire while the picker is still open"
+    );
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Waiting for the Save As picker")
+    );
+
+    // Cancelled dialog clears the waiting status and posts no error.
+    state.finish_pick(
+        "Waiting for the Save As picker",
+        Ok(Answer::cancelled()),
+        |s, answer| {
+            if let Some(path) = answer.one() {
+                s.status_message = Some(format!("Saved {}", path.display()));
+            }
+        },
+    );
+    assert_eq!(state.status_message, None);
+    assert_eq!(state.last_error, None);
+
+    // Missing backend skips the continuation, clears the waiting status, and
+    // posts the named error.
+    let mut continuation_ran = false;
+    state.request_pick(Ask::OpenFiles(FileSpec::new("Import Media")), |s, _| {
+        s.status_message = Some("Imported".into());
+    });
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Waiting for the Import Media picker")
+    );
+    state.finish_pick(
+        "Waiting for the Import Media picker",
+        Err(DialogError::NoBackend),
+        |_, _| {
+            continuation_ran = true;
+        },
+    );
+    assert!(
+        !continuation_ran,
+        "continuation must not run when no picker backend is available"
+    );
+    assert_eq!(state.status_message, None);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some("No file picker is available. Install xdg-desktop-portal or zenity.")
     );
 }

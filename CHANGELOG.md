@@ -1281,6 +1281,7 @@ Notes for the latest release. For previous releases, see the
 - Dragging a transition from **Effects & Presets** over a timeline clip marks the cut the drop lands on, and marks nothing over a clip with no abutting cut.
 - Home, End, the arrow keys, a typed timecode, a marker jump and a click or drag on the ruler during playback continue playback from the new position instead of snapping back.
 - H.264 and H.265 exports with a bitrate set stay within a few percent of it on every Linux encoder instead of overshooting by up to 2x.
+- On Linux without a portal file chooser, file dialogs open as modal windows on top of the editor, close when the editor exits, and report a missing picker instead of acting as a cancel.
 
 ## [alpha-0.7.0] - 2026-07-22
 

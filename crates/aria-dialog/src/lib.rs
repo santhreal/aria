@@ -10,18 +10,53 @@
 //! removes it as something a call site can reach for.
 //!
 //! The answer is a path, a list of paths, or a yes. A cancelled dialog is `None`,
-//! an empty list, or `false`: cancelling is an answer, not an error.
+//! an empty list, or `false`: cancelling is an answer, not an error. Having no
+//! file picker backend installed at all is [`DialogError::NoBackend`], so the
+//! caller can report the missing dependency instead of treating it as a cancel.
 
 use std::path::PathBuf;
 
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(all(test, target_os = "linux"))]
+mod linux_tests;
+
+/// Message reported when neither an XDG desktop portal `FileChooser` backend nor
+/// `zenity` is available to open a dialog.
+pub const NO_PICKER_BACKEND_MESSAGE: &str =
+    "No file picker is available. Install xdg-desktop-portal or zenity.";
+
+/// Why a native dialog could not be opened.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DialogError {
+    /// Neither a desktop portal `FileChooser` backend nor `zenity` is available.
+    NoBackend,
+}
+
+impl DialogError {
+    /// The sentence naming the missing backend and how to install one.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::NoBackend => NO_PICKER_BACKEND_MESSAGE,
+        }
+    }
+}
+
+impl std::fmt::Display for DialogError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::error::Error for DialogError {}
 /// What a file dialog opens with: its title, the extension groups it offers, the
 /// name it proposes for a new file, and the directory it starts in.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FileSpec {
-    title: String,
-    filters: Vec<(String, Vec<String>)>,
-    file_name: Option<String>,
-    directory: Option<PathBuf>,
+    pub(crate) title: String,
+    pub(crate) filters: Vec<(String, Vec<String>)>,
+    pub(crate) file_name: Option<String>,
+    pub(crate) directory: Option<PathBuf>,
 }
 
 impl FileSpec {
@@ -67,7 +102,7 @@ impl FileSpec {
         self
     }
 
-    fn build(self) -> rfd::AsyncFileDialog {
+    pub(crate) fn build(self) -> rfd::AsyncFileDialog {
         let mut dialog = rfd::AsyncFileDialog::new().set_title(self.title);
         for (name, extensions) in &self.filters {
             if !extensions.is_empty() {
@@ -85,50 +120,89 @@ impl FileSpec {
 }
 
 /// Ask for one existing file.
-pub async fn open_file(spec: FileSpec) -> Option<PathBuf> {
-    spec.build()
-        .pick_file()
-        .await
-        .map(|handle| handle.path().to_path_buf())
+pub async fn open_file(spec: FileSpec) -> Result<Option<PathBuf>, DialogError> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::open_file(spec).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(spec
+            .build()
+            .pick_file()
+            .await
+            .map(|handle| handle.path().to_path_buf()))
+    }
 }
 
 /// Ask for any number of existing files.
-pub async fn open_files(spec: FileSpec) -> Vec<PathBuf> {
-    spec.build()
-        .pick_files()
-        .await
-        .unwrap_or_default()
-        .iter()
-        .map(|handle| handle.path().to_path_buf())
-        .collect()
+pub async fn open_files(spec: FileSpec) -> Result<Vec<PathBuf>, DialogError> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::open_files(spec).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(spec
+            .build()
+            .pick_files()
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|handle| handle.path().to_path_buf())
+            .collect())
+    }
 }
 
 /// Ask where to write a file. The path may not exist yet.
-pub async fn save_file(spec: FileSpec) -> Option<PathBuf> {
-    spec.build()
-        .save_file()
-        .await
-        .map(|handle| handle.path().to_path_buf())
+pub async fn save_file(spec: FileSpec) -> Result<Option<PathBuf>, DialogError> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::save_file(spec).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(spec
+            .build()
+            .save_file()
+            .await
+            .map(|handle| handle.path().to_path_buf()))
+    }
 }
 
 /// Ask for a directory.
-pub async fn open_folder(spec: FileSpec) -> Option<PathBuf> {
-    spec.build()
-        .pick_folder()
-        .await
-        .map(|handle| handle.path().to_path_buf())
+pub async fn open_folder(spec: FileSpec) -> Result<Option<PathBuf>, DialogError> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::open_folder(spec).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(spec
+            .build()
+            .pick_folder()
+            .await
+            .map(|handle| handle.path().to_path_buf()))
+    }
 }
 
 /// Ask a question with two answers. `false` is both "no" and "the dialog was
 /// dismissed": neither is permission to go ahead.
-pub async fn confirm(title: String, question: String) -> bool {
-    rfd::AsyncMessageDialog::new()
-        .set_title(title)
-        .set_description(question)
-        .set_buttons(rfd::MessageButtons::OkCancel)
-        .show()
-        .await
-        == rfd::MessageDialogResult::Ok
+pub async fn confirm(title: String, question: String) -> Result<bool, DialogError> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::confirm(title, question).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(rfd::AsyncMessageDialog::new()
+            .set_title(title)
+            .set_description(question)
+            .set_buttons(rfd::MessageButtons::OkCancel)
+            .show()
+            .await
+            == rfd::MessageDialogResult::Ok)
+    }
 }
 
 #[cfg(test)]

@@ -473,6 +473,7 @@ dependencies = [
 name = "aria-dialog"
 version = "0.7.0-alpha.0"
 dependencies = [
+ "parking_lot",
  "rfd",
 ]
 

@@ -54,6 +54,16 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
          the pipeline under test, so an encoder defect cannot hide in its own reader",
     ),
     (
+        "crates/aria-dialog/src/linux.rs",
+        "spawns zenity as the Linux file and confirmation dialog fallback when the desktop \
+         portal has no FileChooser; never reached by a test that supplies its pick",
+    ),
+    (
+        "crates/aria-dialog/src/linux_tests.rs",
+        "starts an isolated dbus-daemon session bus for the portal timeout test; starts no \
+         desktop program",
+    ),
+    (
         "crates/aria-ui/src/test_support/processes.rs",
         "the rule below names the call it refuses, and would match itself",
     ),

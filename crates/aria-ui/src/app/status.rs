@@ -35,6 +35,10 @@ impl AppState {
             self.status_seen = None;
             return false;
         };
+        if self.picks.is_waiting_status(message) {
+            self.status_seen = Some((message.to_owned(), now));
+            return false;
+        }
         match &self.status_seen {
             // Same text still up: clear it once its time is spent.
             Some((seen, at)) if seen == message => {
