@@ -231,7 +231,7 @@ pub(super) fn learn_pane(theme: &Theme, state: &AppState) -> impl IntoElement {
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
-        .child(section_title(theme, "Learn"))
+        .child(section_title(theme, "On Home"))
         .children(HOME_CHORDS.map(line))
         .child(learn_line(
             theme,
