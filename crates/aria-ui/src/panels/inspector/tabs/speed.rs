@@ -146,7 +146,7 @@ pub fn speed_block(
         .gap(px(Theme::SPACE_XS))
         .child(label_note(
             Columns::Free,
-            theme.text_faint,
+            theme.text_muted,
             if has_ramp {
                 format!("Ramp on a {} base", Units::SPEED.print(flat))
             } else {
@@ -168,7 +168,7 @@ pub fn speed_block(
         .when_some(length, |el, ticks| {
             el.child(label_note(
                 Columns::Free,
-                theme.text_faint,
+                theme.text_muted,
                 format!("Length {}", format_ticks(ticks, fps_num, fps_den)),
             ))
         })

@@ -329,7 +329,7 @@ fn row(
                     el.child(
                         div()
                             .text_size(Theme::TEXT_SMALL)
-                            .text_color(theme.text_faint)
+                            .text_color(theme.text_muted)
                             .child("Clip"),
                     )
                 }),
@@ -338,7 +338,7 @@ fn row(
             el.child(
                 div()
                     .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
+                    .text_color(theme.text_muted)
                     .child(comment),
             )
         })

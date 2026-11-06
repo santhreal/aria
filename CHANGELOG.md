@@ -1205,6 +1205,7 @@ Notes for the latest release. For previous releases, see the
 - Effect Controls opens each tab at the top of its body instead of at the depth the previous tab was scrolled to.
 - The Effects tab of Effect Controls reads None under Effects when the clip has no effect, and draws its Add buttons on wrapping lines instead of one per line.
 - Count a clip under "Sound on its own track", "Pitch rides speed", and "Audio separated to a track" in Project Report only when its source and track carry sound.
+- Effect Controls draws the clip's speed, its ramp's length and the duck source's track, and the Markers panel draws a marker's note and Clip tag, in the muted ink of a fact instead of the faint ink of an absence.
 
 ## [alpha-0.7.0] - 2026-07-22
 

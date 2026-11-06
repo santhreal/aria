@@ -21,8 +21,8 @@ tokens and each family's values.
 | `border` | `#050506` | Splitters and frame edges |
 | `hairline` | `#ffffff` at 6 % | Row separators |
 | `text` | `#d8d8db` | Body text |
-| `text_muted` | `#9e9ea4` | Labels, column headers, a control at rest |
-| `text_faint` | `#67676d` | Disabled, hints |
+| `text_muted` | `#9e9ea4` | Labels, column headers, a control at rest, a stated fact |
+| `text_faint` | `#67676d` | Disabled, hints, an absence such as None |
 | `value` | `#5aa8ff` | Editable numbers (scrubbable values) |
 | `accent` | Blue: oklch 0.71 0.15 253 (`#57a5fc`) | Playhead, focus outline, selection, active tool |
 

@@ -234,15 +234,20 @@ fn duck_rows(
             .into_any_element(),
         );
     }
+    // The source's name is a fact of the sequence; its absence reads faint.
     rows.push(
-        label_note(
-            Columns::Keyed,
-            theme.text_faint,
-            match &lane {
-                Some(name) => format!("Listening to {name}"),
-                None => "No track is the duck source yet".to_string(),
-            },
-        )
+        match &lane {
+            Some(name) => label_note(
+                Columns::Keyed,
+                theme.text_muted,
+                format!("Listening to {name}"),
+            ),
+            None => label_note(
+                Columns::Keyed,
+                theme.text_faint,
+                "No track is the duck source yet",
+            ),
+        }
         .into_any_element(),
     );
     let run = components::ghost_button("duck-run", "Duck under voice", theme).on_mouse_down(

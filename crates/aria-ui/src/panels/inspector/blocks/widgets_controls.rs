@@ -24,7 +24,7 @@ use crate::tooltip::WithTip as _;
 
 use super::{Columns, VALUE_MIN, WATCH_SLOT, blanks, line, value_cell};
 #[cfg(test)]
-use super::{DrawnChoice, cell_selector, record_choice};
+use super::{DrawnChoice, cell_selector, record_choice, record_note};
 
 /// The controls `under` a line, `gap` apart, on a wrapping line of their own.
 /// In the keyed rows' columns, `keyed`, each line starts where the label does.
@@ -74,14 +74,21 @@ pub fn under_labels(
 
 /// A line of text in `ink` that starts where the labels of `columns` start
 /// and wraps at the block's edge: a warning, or what a block waits for.
+///
+/// `text_faint` is the ink of an absence, such as "None" or "Add a mask", whose
+/// words hold nothing of the selection. A note that states something of the
+/// selection, a speed, a length, a track's name, reads `text_muted`.
 pub fn label_note(columns: Columns, ink: gpui::Hsla, text: impl Into<SharedString>) -> gpui::Div {
+    let text = text.into();
+    #[cfg(test)]
+    record_note(&text, ink);
     under_labels(
         columns,
         [div()
             .w_full()
             .text_size(Theme::TEXT_UI)
             .text_color(ink)
-            .child(text.into())
+            .child(text)
             .into_any_element()],
     )
 }

@@ -40,8 +40,8 @@ stands apart from the hovered one.
 | Token | Dark | Light | Contrast target |
 | --- | --- | --- | --- |
 | `text` | `#d8d8db` | `#262626` | Body text |
-| `text_muted` | `#9e9ea4` | `#525252` | Labels, column headers, a control at rest |
-| `text_faint` | `#67676d` | `#7d7d7d` | Disabled, hints |
+| `text_muted` | `#9e9ea4` | `#525252` | Labels, column headers, a control at rest, a stated fact |
+| `text_faint` | `#67676d` | `#7d7d7d` | Disabled, hints, an absence such as None |
 | `text_dim` | `#828288` | `#636363` | Context rather than content: file paths |
 | `value` | `#5aa8ff` | `#1a73d9` | Editable numbers |
 | `caret` | accent family | accent family | The caret in a text box, solid, and in the rename bar, blinking |

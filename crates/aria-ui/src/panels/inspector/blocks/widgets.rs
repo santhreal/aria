@@ -390,6 +390,10 @@ thread_local! {
     /// The choice rows drawn into the Inspector since [`record_lines`].
     static CHOICES: std::cell::RefCell<Option<Vec<DrawnChoice>>> =
         const { std::cell::RefCell::new(None) };
+    /// The notes drawn into the Inspector since [`record_lines`], each with
+    /// its ink.
+    static NOTES: std::cell::RefCell<Option<Vec<(SharedString, gpui::Hsla)>>> =
+        const { std::cell::RefCell::new(None) };
     /// Whether the Inspector's body is being built.
     static IN_INSPECTOR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
@@ -431,6 +435,19 @@ fn record_choice(choice: DrawnChoice) {
     }
 }
 
+/// Note a [`label_note`] reading `text` in `ink`, as drawn into the Inspector,
+/// while one is being built and a record is open.
+#[cfg(test)]
+fn record_note(text: &SharedString, ink: gpui::Hsla) {
+    if IN_INSPECTOR.get() {
+        NOTES.with_borrow_mut(|notes| {
+            if let Some(notes) = notes {
+                notes.push((text.clone(), ink));
+            }
+        });
+    }
+}
+
 /// The Inspector's body being built, until this drops: the lines
 /// [`record_lines`] records are the ones built meanwhile, and no other
 /// panel's, and so are the ghost buttons, chips and switches it notes.
@@ -456,13 +473,28 @@ impl Drop for BuildingInspector {
     }
 }
 
-/// Start a fresh record of the lines, the choice rows and the controls drawn
-/// into the Inspector.
+/// Start a fresh record of the lines, the choice rows, the notes and the
+/// controls drawn into the Inspector.
 #[cfg(test)]
 pub(crate) fn record_lines() {
     LINES.set(Some(Vec::new()));
     CHOICES.set(Some(Vec::new()));
+    NOTES.set(Some(Vec::new()));
     crate::components::noted::record_controls();
+}
+
+/// Stop recording notes and return every note drawn into the Inspector since
+/// [`record_lines`], with its ink, once each.
+#[cfg(test)]
+pub(crate) fn drawn_notes() -> Vec<(SharedString, gpui::Hsla)> {
+    let notes = NOTES.with_borrow_mut(|notes| notes.take().unwrap_or_default());
+    let mut once = Vec::with_capacity(notes.len());
+    for note in notes {
+        if !once.contains(&note) {
+            once.push(note);
+        }
+    }
+    once
 }
 
 /// Stop recording and return every line drawn into the Inspector since
@@ -917,3 +949,7 @@ pub fn kind_label(kind: UiClipKind) -> &'static str {
 #[cfg(test)]
 #[path = "widgets_travel_tests.rs"]
 mod travel_tests;
+
+#[cfg(test)]
+#[path = "widgets_note_tests.rs"]
+mod note_tests;
