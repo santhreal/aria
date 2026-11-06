@@ -1359,6 +1359,7 @@ Notes for the latest release. For previous releases, see the
 - Labeling several clips is one undo step, and a label every selected clip or pool item already has is declined instead of recording a step that changes nothing.
 - An Audio Channels choice every selected clip already plays is disabled instead of recording an undo step that changes nothing.
 - Luma and Alpha Matte from Above are disabled on a clip whose matte already reads that source instead of recording an undo step that changes nothing.
+- Move Nearest Marker to Playhead is disabled when that marker is already at the playhead instead of recording an undo step that changes nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

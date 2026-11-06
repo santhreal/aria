@@ -548,7 +548,8 @@ fn menus_doc_matches_registry() {
                 | Decline::SameSource
                 | Decline::SameLabel
                 | Decline::SameChannels
-                | Decline::SameMatte => {}
+                | Decline::SameMatte
+                | Decline::MarkerAtPlayhead => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

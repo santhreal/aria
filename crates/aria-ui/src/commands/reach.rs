@@ -71,13 +71,28 @@ pub(crate) fn ripple_insert(state: &mut AppState) {
 /// a keypress.
 pub(crate) fn snap_marker(state: &mut AppState) {
     let at = state.playhead.value;
-    let Some(marker) = state.marker_at_playhead().map(|marker| marker.id) else {
-        state.decline(Decline::NoMarkerAtPlayhead);
-        return;
+    let marker = match marker_to_snap(state) {
+        Ok(marker) => marker,
+        Err(why) => {
+            state.decline(why);
+            return;
+        }
     };
     if let Err(err) = state.move_marker(marker, at) {
         state.report_error(&err);
     }
+}
+
+/// The marker [`snap_marker`] moves: the one within a second of the playhead,
+/// unless it is already on it. The row's guard and its body both read this.
+pub(crate) fn marker_to_snap(state: &AppState) -> Result<u64, Decline> {
+    let marker = state
+        .marker_at_playhead()
+        .ok_or(Decline::NoMarkerAtPlayhead)?;
+    if marker.tick == state.playhead.value {
+        return Err(Decline::MarkerAtPlayhead);
+    }
+    Ok(marker.id)
 }
 
 /// Return every parameter of every effect on the selected clip to its catalog

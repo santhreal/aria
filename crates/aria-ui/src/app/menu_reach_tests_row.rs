@@ -109,7 +109,6 @@ fn a_row_that_records_a_step_changes_the_project() {
 const REPEATS_A_STEP: &[&str] = &[
     "seq-default-transitions",
     "seq-transition-crossfade",
-    "seq-marker-snap",
     "anim-add-keyframe",
     "anim-interp-bezier",
     "anim-interp-hold",
@@ -172,7 +171,7 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
 #[test]
 fn a_row_over_its_own_result_declines_and_records_nothing() {
     use crate::app::decline::Decline;
-    let cases: [(&str, fn() -> AppState, Decline); 10] = [
+    let cases: [(&str, fn() -> AppState, Decline); 11] = [
         ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
         ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
         (
@@ -219,6 +218,15 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
             Decline::SameChannels,
         ),
         ("seq-matte-luma", || Matted.state(), Decline::SameMatte),
+        (
+            "seq-marker-snap",
+            || {
+                let mut state = Nearby.state();
+                crate::commands::reach::snap_marker(&mut state);
+                state
+            },
+            Decline::MarkerAtPlayhead,
+        ),
     ];
     let mut wrong = Vec::new();
     for (id, build, why) in cases {

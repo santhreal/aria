@@ -128,11 +128,13 @@ pub enum Decline {
     /// A Matte from Above row sent to a clip whose matte already reads that
     /// source.
     SameMatte,
+    /// Move Nearest Marker to Playhead with that marker on the playhead.
+    MarkerAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 48] = [
+    pub const ALL: [Decline; 49] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -181,6 +183,7 @@ impl Decline {
         Decline::SameLabel,
         Decline::SameChannels,
         Decline::SameMatte,
+        Decline::MarkerAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -239,6 +242,7 @@ impl Decline {
             Decline::SameLabel => "That label is already set",
             Decline::SameChannels => "The selected clips already play those channels",
             Decline::SameMatte => "The selected clip's matte already reads that source",
+            Decline::MarkerAtPlayhead => "The nearest marker is already at the playhead",
         }
     }
 }

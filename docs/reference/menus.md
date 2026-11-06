@@ -171,7 +171,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-marker-remove` | `none` | Clear Marker | `Ctrl+Alt+M` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Removes the marker nearest the playhead within one second. |
 | `marker-clear-all` | `none` | Clear All Markers | `Ctrl+Shift+Alt+M` | The sequence has no markers (`guards::markers`) | Removes every sequence marker from the active sequence. |
 | `seq-marker-rename` | `none` | Edit Marker… | `none` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Opens `aria.dialog.marker-edit` for the marker nearest the playhead within one second. |
-| `seq-marker-snap` | `none` | Move Nearest Marker to Playhead | `none` | No marker is within a second of the playhead (`guards::marker_at_playhead`) | Moves the marker nearest the playhead within one second onto the playhead tick. |
+| `seq-marker-snap` | `none` | Move Nearest Marker to Playhead | `none` | No marker is within a second of the playhead, or that marker is at the playhead (`snap_ready`) | Moves the marker nearest the playhead within one second onto the playhead tick. |
 
 ## Effect menu
 
@@ -403,6 +403,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SameLabel` | `That label is already set` |
 | `SameChannels` | `The selected clips already play those channels` |
 | `SameMatte` | `The selected clip's matte already reads that source` |
+| `MarkerAtPlayhead` | `The nearest marker is already at the playhead` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

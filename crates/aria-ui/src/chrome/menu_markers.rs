@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 
 use super::menu_guards as guards;
 use super::menu_items::{MenuItem, MenuItems, report};
@@ -75,8 +76,16 @@ static MARKER_ITEMS: &[MenuItem] = &[
         "Move Nearest Marker to Playhead",
         |_, s, _| crate::commands::reach::snap_marker(s),
     )
-    .when(guards::marker_at_playhead),
+    .when(snap_ready),
 ];
+
+/// Disables Move Nearest Marker to Playhead with no marker within a second of
+/// the playhead, or with that marker on it, through the plan its body runs.
+fn snap_ready(_: &str, state: &AppState) -> Option<&'static str> {
+    crate::commands::reach::marker_to_snap(state)
+        .err()
+        .map(Decline::reason)
+}
 
 pub(super) fn marker_items(_state: &AppState) -> MenuItems {
     Cow::Borrowed(MARKER_ITEMS)
