@@ -1,7 +1,7 @@
 # Panels
 
 Every panel docks, tabs, and floats ([layout.md](layout.md#frames-and-panels)),
-has a panel menu, and keeps its state per project. The tab states the panel's
+and a right-click on its tab opens the frame menu. The tab states the panel's
 title, and the panel's body does not repeat it. The Viewer and Timeline have
 their own chapters; Audio Meters and Audio Track Mixer are in
 [audio.md](audio.md).
@@ -15,23 +15,22 @@ row. A tab opens at the top of its body.
 
 ## Project
 
-The media bin. Views: list (columns: name, label, frame rate, media start,
-media end, duration, video info, audio info, codec, path, date, comment;
-columns resize, reorder, and sort) and icon (thumbnails, with hover scrub:
-moving the pointer across a thumbnail scrubs through the clip). The slider
-in the panel footer sets thumbnail size.
+The media pool, one bin at a time. A click on a bin in the bin list opens it
+in place; a double-click renames it. Bins nest: New bin creates one inside the
+open bin, and dragging a bin onto another moves it there. Deleting a bin moves
+its media and its bins up to its parent.
 
-- Bins nest. Double-click opens a bin in a new tab of the panel, Ctrl+double-click
-  opens it in place.
-- A search field filters by any column; the filter menu adds searches by type
-  (video, audio, still, sequence, offline, unused).
-- New Item menu: Sequence, Bin, Color Matte, Adjustment Clip, Title, and every
-  generator a plugin contributes.
-- Dragging an item to the Timeline drops it with the source patching; dragging
-  onto the New Item button creates a sequence matching the clip.
-- Items not used in any sequence draw their name in `text_muted` when the
-  "Show usage" option is on; the usage count column counts uses.
-- Offline items have a red icon and offer Link Media.
+- The search field matches an item's name, path, kind (`video`, `audio`),
+  label, and frame size (`1920x1080` or `1920×1080`). A search covers the open
+  bin and every bin under it.
+- In the views that draw pictures, moving the pointer across an item's picture
+  scrubs through the item.
+- Dragging an item to the Timeline places it.
+- An item whose file is missing draws its caption in `warning` and a Relink
+  button, which prompts for the file's new location. The reason the last
+  Relink All left it missing is drawn under it.
+- The item menu offers Remove from Project, or Select Clips in Timeline while a
+  clip uses the item, and Decode from Proxy or Decode from Original File.
 
 The panel's rows, from the top: the group chips (Media, Graphics, Effects,
 Library, Analyze) on one line, where the active group reads whole and the
@@ -91,7 +90,8 @@ choices on the line under it, as a color row shows its palette. The value
 column is 76 px wide.
 
 Each effect header shows a bypass toggle (fx), the effect name, a reset button,
-and a menu with Rename, Duplicate, Save Preset, Copy, and Remove. Effects
+and a menu with Reset, Rename Effect, Duplicate, Copy, Paste Below, Save as
+Preset…, and Remove Effect. Effects
 reorder by dragging their headers. With several clips selected, the panel edits
 the shared properties of all of them; differing values show as a dash.
 
@@ -117,17 +117,22 @@ property or effect they came from.
 ## Scopes
 
 Waveform (luma, RGB parade, YCbCr parade), vectorscope (with skin tone line and
-75 % and 100 % targets), histogram, and RGB parade, each sized to the panel.
-Scopes analyze the presented frame on the GPU after presentation and update at
-most at 30 Hz during playback, off the UI thread.
+75 % and 100 % targets), and RGB histogram, each sized to the panel. Scopes
+measure the presented frame off the UI thread: on the GPU when the frame is a
+texture on the window's device and no plugin scope is registered, and on the
+CPU from a readback otherwise. During playback they measure at most 30 frames
+a second.
 
 ## Color
 
-Basic correction (white balance, tone: exposure, contrast, highlights, shadows,
-whites, blacks, saturation), creative (look LUT with intensity, faded film,
-sharpen, vibrance), curves (RGB and hue-vs curves), color wheels (shadows,
-midtones, highlights), HSL secondary, and vignette. Every control is a
-keyframeable property of the clip's color effect.
+Sections, each opened and closed by its header: Basic Correction
+(temperature, tint, exposure, contrast, highlights, shadows, whites, blacks,
+brightness, saturation), Creative (faded film, vibrance, sharpness, hue), RGB
+Curves (shadows, midtones, and highlights of the master, red, green, and blue
+curves), Hue Curves (saturation, hue, and luma of six hues), Color Wheels
+(lift, gamma, gain), HSL Secondary, and Vignette. Every control is a
+keyframeable property of the clip's grade, the same rows as the Effect
+Controls Look tab. A grade property no section lists is drawn under Other.
 
 ## Text
 
@@ -143,8 +148,11 @@ or the first selected clip.
 
 ## Markers
 
-A list of sequence and clip markers with time, duration, name, comment, and
-color. Clicking a row moves the playhead; editing a cell edits the marker.
+Every ruler marker as a row, in time order: time, label, color, and note. A
+click on a row moves the playhead. The swatch cycles the marker's color, Edit…
+opens the marker dialog, Rename edits the label and Note the comment on the
+row, and Remove deletes the marker. The color filter above the rows shows the
+markers of one color.
 
 ## History
 
@@ -158,25 +166,33 @@ progress, elapsed time, estimate, cancel, and on completion a reveal action.
 
 ## Export
 
-The export dialog sets format, codec, preset, range (work area, whole
-sequence, custom), frame size, rate, bitrate, and audio settings, shows the
-estimated file size, and either exports now or queues. Formats come from
-encoder plugin contributions. The shipped set is H.264, HEVC, ProRes on macOS,
-AV1 where the platform encoder exists, image sequences (PNG, TIFF, EXR), WAV,
-and AAC; exporters for EDL, FCPXML, and OTIO export the timeline itself. Each
-setting is one row with its label in the left column and its choices or value
-beside the label; a click on a choice chip selects that value.
+The export dialog shows the destination and the encoder, and sets the format,
+scale (with the resulting frame size), frame rate, codec, bitrate, keyframe
+interval, audio (Included or Video only), and range (the whole timeline or the
+marked range). Format offers the platform encoder, which writes `.mp4`, and
+every encoder a plugin contributes. Codec offers H.264 and H.265 as the
+platform encoder reports them; a backend that sets its own bitrate shows the
+bitrate as a fact. Export frames… writes the range as one PNG per frame to a
+folder. Exports run one at a time, in the order they were started.
+**File > Export > Timeline…** writes the timeline itself through a timeline
+exporter plugin. Each setting is one row with its label in the left column and
+its choices or value beside the label; a click on a choice chip selects that
+value.
 
 ## Plugins
 
-Every installed plugin with its version, tier (native or WASM), state (active,
-inactive, failed with reason), permissions, contributions, and measured cost
-(mount time, per-frame render time, per-block audio time). Rows offer enable,
-disable, reload, uninstall, and open folder. Dropping an `.ariaplugin` package
-on the window or on this panel installs it after showing its permissions.
+**Settings > Plugins** lists every built-in plugin and installed package with
+its version, tier, state, contributions, permissions, and measured cost (mount
+time, render time per frame, time per audio block), and the failure of one that
+did not load. A plugin that can be turned off ends its row in a switch. An
+installed package offers Reload, Uninstall, and Open folder, and a plugin that
+logged offers Log. Dropping an `.ariaplugin` package on the window, or
+**File > Install Plugin…**, installs it after showing its permissions.
 
 ## Assistant
 
-The assistant is a plugin with a panel. It reads the project and proposes edits
-through the same command path as every other plugin; each proposal shows the
-commands it will apply and is applied as one undo step.
+The Assistant panel sends a prompt to the configured provider as a job, which
+the Jobs board can cancel. Its edits go through the session's project like any
+other edit, and a turn's edits undo as one step. With planning on, a turn
+validates its edits and shows them as a plan, which Apply replays and Discard
+drops.

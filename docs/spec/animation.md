@@ -55,36 +55,21 @@ the accent color.
 Keyframe edits are commands like any other edit: each gesture is one undo step,
 and a plugin's `CommandProposed` handler receives it.
 
-### Migration of existing projects
-
-Current projects store a CSS-style cubic bezier per segment. A segment from
-value `v0` at `t0` to `v1` at `t1` with control points `(x1, y1, x2, y2)`
-converts without loss: outgoing influence `x1`, outgoing speed
-`(y1 / x1) * (v1 - v0) / (t1 - t0)`, incoming influence `1 - x2`, incoming speed
-`((1 - y2) / (1 - x2)) * (v1 - v0) / (t1 - t0)`. Linear, Hold, and the named
-presets convert to the matching interpolation. The project schema version is
-bumped and a project from an older version is converted on load.
-
 ## Graph editor
 
-Shift+F3 replaces the keyframe rows of the opened clips with a graph of the
-selected properties. One property is drawn per color; the outline column shows
-the color next to each property name.
+Shift+F3, or the graph button in the timeline header, opens the graph editor
+band under the property rows of the opened clips. It draws the selected
+properties over the time area, with a value axis at the right of the header
+column. The header's tools row holds the Value and Speed chips, Easy Ease, and
+Hold.
 
 | Control | Effect |
 | --- | --- |
-| Value graph | Draws the value over time. Bezier handles on each keyframe set the curve. |
-| Speed graph | Draws the rate of change. Handle length is influence, handle height is speed. |
-| Auto-select graph type | Value graph for scalar properties, speed graph for spatial ones. |
-| Separate dimensions | Splits a point property into X, Y (and Z) properties with independent keyframes. |
-| Fit selection, fit all | Zooms the graph vertically and horizontally to the keyframes. |
-| Show reference graph | Draws the other graph type faintly behind the active one. |
-| Transform box | With several keyframes selected, a box with handles scales and moves them in time and value. |
-| Snap | Snaps keyframes and handles to frames, other keyframes, and the playhead. |
-
-The graph is drawn with antialiased paths at the display's refresh rate while
-handles are dragged; the Viewer updates on each frame of the drag at the paused
-resolution.
+| Value graph | Draws the value over time. |
+| Speed graph | Draws the rate of change, in units per second. |
+| Keyframe handles | Dragging a keyframe's incoming or outgoing handle sets that side's speed and influence. |
+| Easy Ease | Speed 0 and influence 33.33 % on both sides of the selected keyframes. |
+| Hold | Toggles Hold on the selected keyframes. |
 
 ## Motion paths
 
@@ -129,10 +114,11 @@ budget per frame; a driver that exceeds it is stopped and reported.
 
 ## Presets
 
-Effects & Presets > Save Animation Preset stores the selected properties,
-effects, and keyframes as an `.ariapreset` file. Applying a preset to a clip
-adds its effects and keyframes relative to the playhead. Presets are stored in
-`<data dir>/presets/` and plugins can ship them.
+The effect context menu's Save as Preset… and the inspector's Save as preset
+store the selected properties, effects, and keyframes as an `.ariapreset`
+file. Applying a preset to a clip adds its effects and keyframes relative to
+the playhead. Presets are stored in `<data dir>/presets/` and plugins can ship
+them.
 
 ## Time
 
@@ -144,6 +130,5 @@ adds its effects and keyframes relative to the playhead. Presets are stored in
   (`DialogKind::SpeedDuration`), setting constant speed, resulting duration,
   reverse, and whether audio pitch is held across the selected clips in one undo
   step.
-- Frame blending: off, frame mix, or optical flow, per clip.
 - Motion blur: a per-clip switch and a sequence master switch, with shutter
   angle and samples in Sequence Settings.
