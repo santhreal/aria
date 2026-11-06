@@ -1,4 +1,4 @@
-use aria_models::{ClipId, ModelError, RationalTime, TrackId};
+use aria_models::{ClipId, ModelError, RationalTime, TimeError, TrackId};
 
 use crate::action::{ApplyContext, CompoundAction, EditAction};
 use crate::error::EngineError;
@@ -46,10 +46,17 @@ fn move_with(
     mut ids: Vec<ClipId>,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let primary = ctx.project.require_clip(clip)?;
-    let delta = start.value - primary.start().value;
+    let delta = start
+        .value
+        .checked_sub(primary.start().value)
+        .ok_or(TimeError::Overflow)?;
     ids.sort_by_key(|&id| {
         let tick = ctx.project.clip(id).map_or(0, |c| c.start().value);
-        if delta > 0 { -tick } else { tick }
+        if delta > 0 {
+            tick.saturating_neg()
+        } else {
+            tick
+        }
     });
 
     if ids.len() == 1 {
@@ -67,7 +74,10 @@ fn move_with(
         let dest = if id == clip {
             start
         } else {
-            RationalTime::new((original.start().value + delta).max(0), start.rate)
+            RationalTime::new(
+                original.start().value.saturating_add(delta).max(0),
+                start.rate,
+            )
         };
         let dest_track = if id == clip { to_track } else { from_track };
         match move_one(ctx, id, dest_track, dest) {

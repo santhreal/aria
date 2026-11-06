@@ -1240,6 +1240,7 @@ Notes for the latest release. For previous releases, see the
 - During a cloud download, Settings > Storage draws Clear cache and Move storage… blocked, and a press posts `A download is in flight. Clear and Move run once it finishes` without opening a folder picker, in place of a Maintenance row and a refusal about a project inventory scan.
 - The assistant's tool list and the Settings > AI Can do count include every tool a prompt is offered, the app tools and the loop's `describe_project`, `commit_progress` and `read_skill`, so both describe the same set.
 - Project loading normalizes lane zones across secondary sequences, transitions clamp to and prune against adjacent clip junction limits across trims and undo/redo, and clip placement, shifting, trimming, retiming, and marker operations validate tick bounds atomically before mutating state.
+- Timeline clip shifts, moves, trims, overwrites, four-point edits, nested sequence creation, send routing edits, and sequence rate changes reject overflowing ticks, duplicate or gapped selections, out-of-bounds send indices, and clip-collapsing frame rates without panicking or leaving partial mutations on the timeline.
 
 ## [alpha-0.7.0] - 2026-07-22
 
