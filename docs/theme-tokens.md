@@ -76,14 +76,16 @@ Use each hue only in its role. No sixth accent.
 | `busy` | 0.718, 0.202, 349.761 | 0.592, 0.249, 0.584 | Working indicator (`loaders::pulse_loader`) |
 | `accent_strong` | accent family | accent family | Pressed or emphasized accent fill |
 | `danger_strong` | 0.58, 0.16, 25.0 | 0.51, 0.20, 25.0 | Destructive button fill |
-| `danger_muted` | 0.808, 0.114, 19.571 | 0.505, 0.213, 27.518 | Error status strip and failed job row fill |
-| `warning_muted` | 0.924, 0.12, 95.746 | 0.473, 0.137, 46.201 | Moved-file warning banner fill |
-| `success_muted` | 0.845, 0.143, 164.978 | 0.508, 0.118, 165.612 | Completed job row fill |
+| `danger_muted` | 0.32, 0.07, 22.216 | 0.86, 0.08, 27.325 | Error status strip and failed job row fill |
+| `warning_muted` | 0.32, 0.07, 84.429 | 0.86, 0.08, 48.998 | Missing-file recent card and shuttle badge fill |
+| `success_muted` | 0.32, 0.07, 163.223 | 0.86, 0.08, 163.225 | Completed job row fill |
 
 Muted variants back a whole surface rather than a glyph: `danger_muted` the
 status strip while an error stands and a failed job row, `warning_muted` a
-project whose file has moved, `success_muted` a job that finished. `on_accent`
-is the glyph color on an accent fill, as `on_solid` is on the solid one.
+recent project whose file has moved and the Viewer's shuttle badge,
+`success_muted` a job that finished. `text` and `text_muted` read on each at
+4.5:1 or more. `on_accent` is the glyph color on an accent fill, as `on_solid`
+is on the solid one.
 
 Primary buttons use `solid` / `on_solid` (neutral maximum contrast), not
 `accent`.

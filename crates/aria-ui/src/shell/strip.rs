@@ -68,7 +68,7 @@ pub(super) fn status_strip(
     });
     let resolution = playing.then(|| format!("Playback {}", read.playback_resolution_text()));
     let gpu = read.preview_worker.device_name().filter(|_| playing);
-    let has_err = err.is_some();
+    let (ground, ink) = note_colors(theme, err.is_some());
     let note = err.or(status).unwrap_or_default();
     // A status line that replaced another one has to be seen to have changed:
     // two refusals in a row can differ by their text alone. The element id is
@@ -84,11 +84,7 @@ pub(super) fn status_strip(
         .gap(px(Theme::SPACE_MD))
         // The strip is washed for an error rather than only colored: a
         // one-line message in a 22px strip is easy to miss.
-        .bg(if has_err {
-            theme.danger_muted
-        } else {
-            theme.surface
-        })
+        .bg(ground)
         .border_t_1()
         .border_color(theme.border)
         .text_size(Theme::TEXT_UI)
@@ -102,18 +98,10 @@ pub(super) fn status_strip(
                 .items_center()
                 .gap(px(Theme::SPACE_MD))
                 .when_some(breadcrumb, |el, chip| el.child(chip))
-                .child(
-                    div().min_w_0().truncate().child(motion::fade_quick(
-                        note_id,
-                        div()
-                            .text_color(if has_err {
-                                theme.danger
-                            } else {
-                                theme.text_faint
-                            })
-                            .child(note),
-                    )),
-                ),
+                .child(div().min_w_0().truncate().child(motion::fade_quick(
+                    note_id,
+                    div().text_color(ink).child(note),
+                ))),
         )
         // Center: the work in flight.
         .when_some(job, |el, job| el.child(job))
@@ -154,6 +142,18 @@ pub(super) fn status_strip(
                     )
                 }),
         )
+}
+
+/// The strip's ground and the ink of its message. An error lays the strip in
+/// `danger_muted` under body text, so the fill marks it and the words read at
+/// body contrast; a status line is a receipt, drawn in `text_faint` on the
+/// surface.
+pub(super) fn note_colors(theme: &Theme, error: bool) -> (gpui::Hsla, gpui::Hsla) {
+    if error {
+        (theme.danger_muted, theme.text)
+    } else {
+        (theme.surface, theme.text_faint)
+    }
 }
 
 /// The first job still running, its bar, and how many more are running beside
@@ -317,3 +317,7 @@ pub(super) fn spawn_meter(cx: &mut Context<Shell>) {
     })
     .detach();
 }
+
+#[cfg(test)]
+#[path = "strip_tests.rs"]
+mod tests;

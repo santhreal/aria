@@ -571,6 +571,42 @@ fn every_label_fill_carries_readable_ink() {
     }
 }
 
+/// Body and secondary text read on every `_muted` fill, in both looks.
+///
+/// WHY: the `_muted` tokens fill a whole surface (the status strip under an
+/// error, a settled job row, a recent project whose file moved, the shuttle
+/// badge) yet held mid-tone hues: the light look's `danger_muted` was a deep
+/// red that the status strip drew red error text on at 1.3:1, and body text
+/// read on it at 2.4:1. The class closed here: a `_muted` fill under which
+/// `text` or `text_muted` falls below WCAG AA. The fills are found by name in
+/// the theme-file token list at run time, so a `_muted` token added there is
+/// checked on the run that adds it. Not caught: a fill drawn under some other
+/// ink, and a theme file's own values.
+#[test]
+fn every_muted_fill_carries_readable_text() {
+    const INKS: [&str; 2] = ["text", "text_muted"];
+    // `text_muted` is an ink, not a fill.
+    let fills: Vec<_> = file::COLOR_TOKENS
+        .iter()
+        .filter(|(name, _)| name.ends_with("_muted") && !INKS.contains(name))
+        .collect();
+    assert!(!fills.is_empty(), "the token list holds no `_muted` fill");
+    for mut theme in [Theme::dark(), Theme::light()] {
+        let inks = [(INKS[0], theme.text), (INKS[1], theme.text_muted)];
+        for (name, slot) in &fills {
+            let fill = *slot(&mut theme);
+            for (ink_name, ink) in inks {
+                let ratio = contrast_ratio(ink, fill);
+                assert!(
+                    ratio >= 4.5,
+                    "{:?}: {ink_name} on {name} stands {ratio:.2}:1, under WCAG AA (4.5:1)",
+                    theme.appearance
+                );
+            }
+        }
+    }
+}
+
 /// The dark surfaces and text match the values `docs/spec/look.md` states.
 #[test]
 fn dark_surfaces_hold_the_values_the_look_chapter_states() {
