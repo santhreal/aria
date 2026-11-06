@@ -1352,6 +1352,7 @@ Notes for the latest release. For previous releases, see the
 - The Sequence menu shows Alt+Right and Alt+Left on the Shift Lane rows, and the shortcut editor lists those chords under the same names.
 - Reset Framing, Remove Track Matte, Linear, Time-Reverse Keyframes, Paste Attributes and From Source Monitor are drawn disabled, and record no undo step, when the selected clip or keyframes already hold their result.
 - An export finishes on the next encoder in order when the GPU opens its hardware encoder and then rejects the encode session, as at the NVENC concurrent-session limit.
+- A session with unsaved edits writes no recovery copy while it has no edit the last copy does not hold, instead of rewriting the whole project every twenty seconds.
 
 ## [alpha-0.7.0] - 2026-07-22
 

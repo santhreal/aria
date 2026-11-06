@@ -22,6 +22,11 @@
 //! refreshed when arriving at Home, and kept in step across every recovery
 //! write, clear, restore, and discard.
 //!
+//! A dirty session with no edit since its copy writes no other: the copy on
+//! disk already holds it, and rewriting it serialized and synced the whole
+//! project every interval for as long as the session sat idle. A copy that
+//! failed holds nothing, so the next due tick writes again.
+//!
 //! Not covered: the half-second ticker that calls `autosave_tick`, which needs a
 //! window, and that the tick returns before the write finishes; the
 //! `project-io` benchmark's `autosave_tick_ms` target measures that.
@@ -79,6 +84,9 @@ fn a_dirty_session_writes_a_copy_and_then_waits_out_the_interval() {
     assert!(state.autosave_tick(now), "the first dirty tick writes");
     state.finish_autosave();
     assert!(recovery_path(&state.data_dir).is_file());
+    state
+        .add_track(aria_models::TrackKind::Audio, "after the copy")
+        .expect("an edit the copy does not hold");
 
     assert!(
         !state.autosave_tick(now + AUTOSAVE_INTERVAL - Duration::from_millis(1)),
@@ -88,6 +96,55 @@ fn a_dirty_session_writes_a_copy_and_then_waits_out_the_interval() {
         state.autosave_tick(now + AUTOSAVE_INTERVAL),
         "the interval elapsed and nothing was written"
     );
+}
+
+#[test]
+fn a_dirty_session_with_no_edit_since_its_copy_writes_no_other() {
+    let mut state = dirty(scratch("recovery"));
+    let now = Instant::now();
+    assert!(state.autosave_tick(now), "the first dirty tick writes");
+    state.finish_autosave();
+    let copy = recovery_path(&state.data_dir);
+    std::fs::write(&copy, "the copy on disk").expect("mark the copy");
+    for round in 1..4 {
+        assert!(
+            !state.autosave_tick(now + AUTOSAVE_INTERVAL * round),
+            "round {round} wrote the same session again"
+        );
+    }
+    state.finish_autosave();
+    assert_eq!(
+        std::fs::read_to_string(&copy).expect("the copy"),
+        "the copy on disk",
+        "an idle tick rewrote the copy"
+    );
+    state
+        .add_track(aria_models::TrackKind::Audio, "after the copy")
+        .expect("an edit the copy does not hold");
+    assert!(
+        state.autosave_tick(now + AUTOSAVE_INTERVAL * 4),
+        "an edit after the copy wrote no new one"
+    );
+    state.finish_autosave();
+    assert!(aria_models::Project::load_from_file(&copy).is_ok());
+}
+
+#[test]
+fn a_copy_that_failed_is_written_at_the_next_due_tick() {
+    let mut state = dirty(scratch("recovery"));
+    let now = Instant::now();
+    let revision = state.engine.lock().revision();
+    state
+        .autosave
+        .start(now, revision, || Err(io::Error::other("the disk is full")))
+        .expect("the autosave thread");
+    state.finish_autosave();
+    assert!(
+        state.autosave_tick(now + AUTOSAVE_INTERVAL),
+        "a copy that failed counted as written"
+    );
+    state.finish_autosave();
+    assert!(recovery_path(&state.data_dir).is_file());
 }
 
 #[test]
@@ -143,7 +200,7 @@ fn a_copy_in_flight_holds_off_the_next_tick() {
     let (release, held) = mpsc::channel::<()>();
     state
         .autosave
-        .start(now, move || {
+        .start(now, 0, move || {
             let _ = held.recv_timeout(BOUND);
             Ok(())
         })
@@ -188,7 +245,7 @@ fn rewriting_the_copy_waits_for_the_one_in_flight() {
     let mut state = dirty(scratch("recovery"));
     state
         .autosave
-        .start(Instant::now(), late_copy(&state.data_dir, "older work"))
+        .start(Instant::now(), 0, late_copy(&state.data_dir, "older work"))
         .expect("the autosave thread");
     state.write_recovery().expect("the copy, now");
     state.finish_autosave();
@@ -206,7 +263,7 @@ fn clearing_the_copy_waits_for_the_one_in_flight() {
     let mut state = dirty(scratch("recovery"));
     state
         .autosave
-        .start(Instant::now(), late_copy(&state.data_dir, "older work"))
+        .start(Instant::now(), 0, late_copy(&state.data_dir, "older work"))
         .expect("the autosave thread");
     state.clear_recovery();
     state.finish_autosave();
@@ -222,7 +279,7 @@ fn dropping_the_session_waits_for_its_copy() {
     let mut state = dirty(dir.clone());
     state
         .autosave
-        .start(Instant::now(), late_copy(&dir, "in flight"))
+        .start(Instant::now(), 0, late_copy(&dir, "in flight"))
         .expect("the autosave thread");
     drop(state);
     assert!(
@@ -239,7 +296,7 @@ fn a_copy_waits_out_the_interval_and_any_copy_in_flight() {
     assert!(autosave.due(now), "the first copy waits for nothing");
     let (release, held) = mpsc::channel::<()>();
     autosave
-        .start(now, move || {
+        .start(now, 0, move || {
             let _ = held.recv_timeout(BOUND);
             Ok(())
         })

@@ -79,6 +79,10 @@ pub(crate) struct Autosave {
     last: Option<Instant>,
     /// The copy being written, if one is.
     writing: Option<JoinHandle<io::Result<()>>>,
+    /// The session revision the last copy holds. `None` means no copy holds
+    /// the session, so the next due tick writes one; a due tick at this
+    /// revision writes nothing, since the copy on disk already holds it.
+    copied: Option<u64>,
 }
 
 impl Autosave {
@@ -96,10 +100,12 @@ impl Autosave {
     pub(super) fn start(
         &mut self,
         now: Instant,
+        revision: u64,
         write: impl FnOnce() -> io::Result<()> + Send + 'static,
     ) -> io::Result<()> {
         self.finish();
         self.last = Some(now);
+        self.copied = Some(revision);
         let writing = thread::Builder::new()
             .name(THREAD_NAME.to_owned())
             .spawn(write)?;
@@ -112,12 +118,20 @@ impl Autosave {
         let Some(writing) = self.writing.take() else {
             return;
         };
-        match writing.join() {
-            Ok(Ok(())) => {}
-            Ok(Err(err)) => tracing::warn!(error = %err, "the recovery copy was not written"),
-            Err(_) => {
-                tracing::error!("the {THREAD_NAME} thread panicked writing the recovery copy")
+        let written = match writing.join() {
+            Ok(Ok(())) => true,
+            Ok(Err(err)) => {
+                tracing::warn!(error = %err, "the recovery copy was not written");
+                false
             }
+            Err(_) => {
+                tracing::error!("the {THREAD_NAME} thread panicked writing the recovery copy");
+                false
+            }
+        };
+        // A copy that failed holds nothing, so the next due tick writes again.
+        if !written {
+            self.copied = None;
         }
     }
 }
@@ -165,7 +179,9 @@ impl AppState {
     /// written starts nothing, and the next tick after it finishes starts the
     /// next one. A preview decode holds the session for the whole decode, so a
     /// tick that finds it held starts nothing either, and the next tick tries
-    /// again.
+    /// again. A session at the revision the last copy holds starts nothing:
+    /// an idle dirty session would otherwise serialize and sync the same
+    /// project every interval.
     pub fn autosave_tick(&mut self, now: Instant) -> bool {
         if !self.store.is_dirty
             && self
@@ -178,11 +194,18 @@ impl AppState {
         if !self.store.is_dirty || !self.autosave.due(now) {
             return false;
         }
-        let Some(project) = self.engine.try_lock().map(|engine| engine.snapshot()) else {
+        let Some((project, revision)) = self
+            .engine
+            .try_lock()
+            .map(|engine| (engine.snapshot(), engine.revision()))
+        else {
             return false;
         };
+        if self.autosave.copied == Some(revision) {
+            return false;
+        }
         let write = self.recovery_write(project);
-        match self.autosave.start(now, write) {
+        match self.autosave.start(now, revision, write) {
             Ok(()) => true,
             Err(err) => {
                 tracing::warn!(
@@ -212,9 +235,14 @@ impl AppState {
         // A copy still in flight would land after this one and replace it
         // with older work.
         self.autosave.finish();
-        let project = self.engine.lock().snapshot();
+        let (project, revision) = {
+            let engine = self.engine.lock();
+            (engine.snapshot(), engine.revision())
+        };
         let write = self.recovery_write(project);
+        self.autosave.copied = None;
         write().map_err(EngineError::Io)?;
+        self.autosave.copied = Some(revision);
         self.refresh_pending_recovery();
         Ok(())
     }
@@ -245,6 +273,7 @@ impl AppState {
         let _ = std::fs::remove_file(recovery_path(&self.data_dir));
         let _ = std::fs::remove_file(sidecar_path(&self.data_dir));
         self.autosave.last = None;
+        self.autosave.copied = None;
         self.pending_recovery = None;
     }
 

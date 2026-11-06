@@ -127,8 +127,9 @@ Home?`:
 - **Stay** cancels. Nothing is saved and nothing is replaced.
 
 While a project has unsaved edits, a copy is written to `~/.aria/recovery.aria`
-every twenty seconds, in the background, so editing continues while it is
-written. Saving, opening, or starting a project deletes it, as does **Discard**
+at most every twenty seconds, in the background, so editing continues while it
+is written. No copy is written while the session has no edit the last copy does
+not hold. Saving, opening, or starting a project deletes it, as does **Discard**
 on Close, Home, or Quit, so the copy only ever exists when the file on disk is
 behind the session.
 
