@@ -226,13 +226,49 @@ pub(crate) fn await_codec_probe() {
     PROBE.wait();
 }
 
+/// How one candidate element spells the two rate settings an export chooses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Knobs {
+    /// The property holding the most frames between two keyframes.
+    keyframes: &'static str,
+    /// The rate-control enum and the nick that makes `bitrate` the target,
+    /// for an element whose default mode reads `bitrate` as a cap or ignores
+    /// it. The software encoders target `bitrate` once it is set.
+    rate_mode: Option<(&'static str, &'static str)>,
+}
+
+/// The rate properties of `name`, one row per element in [`candidates`].
+///
+/// The names are read from `gst-inspect-1.0` 1.24: `nvh26xenc` take
+/// `gop-size` (`gint`) and `rc-mode`, `nvcudah26xenc` `gop-size` and
+/// `rate-control`, `vaapih26xenc` `keyframe-period` (`guint`) and
+/// `rate-control`, `x264enc` `key-int-max` (`guint`) and `x265enc`
+/// `key-int-max` (`gint`).
+fn knobs(name: &str) -> Option<Knobs> {
+    let knobs = |keyframes, rate_mode| Knobs {
+        keyframes,
+        rate_mode,
+    };
+    Some(match name {
+        "nvh264enc" | "nvh265enc" => knobs("gop-size", Some(("rc-mode", "cbr"))),
+        "nvcudah264enc" | "nvcudah265enc" => knobs("gop-size", Some(("rate-control", "cbr"))),
+        "vaapih264enc" | "vaapih265enc" => knobs("keyframe-period", Some(("rate-control", "cbr"))),
+        "x264enc" | "x265enc" => knobs("key-int-max", None),
+        _ => return None,
+    })
+}
+
 /// Apply what the caller chose: the keyframe spacing and the bitrate.
 ///
-/// Both are set through `find_property` rather than by element name, because
-/// every encoder here spells the rate control differently and only the software
-/// ones take the tuning knobs. A property an element does not have is left
-/// alone rather than refused: the encode is still the codec that was asked for.
-pub(super) fn configure_encoder(encoder: &gst::Element, config: &EncoderConfig, name: &str) {
+/// Each element is set through its row in [`knobs`]. A setting the element
+/// has no property for, or a value outside the property's range, fails the
+/// export here, before the pipeline creates the file: the encode never runs
+/// with a spacing or a rate other than the one asked for.
+pub(super) fn configure_encoder(
+    encoder: &gst::Element,
+    config: &EncoderConfig,
+    name: &str,
+) -> Result<(), EncodeError> {
     if name == "x264enc" || name == "x265enc" {
         encoder.set_property_from_str("speed-preset", SOFTWARE_SPEED_PRESET);
     }
@@ -242,38 +278,74 @@ pub(super) fn configure_encoder(encoder: &gst::Element, config: &EncoderConfig, 
         // `trellis` property defaults to on and replaces the preset's value.
         encoder.set_property("trellis", false);
     }
-    if let Some(interval) = config.keyframe_interval {
-        // x264enc / x265enc take a frame count; the hardware elements do not
-        // carry this property at all.
-        if encoder.find_property("key-int-max").is_some() {
-            encoder.set_property("key-int-max", interval);
-        }
+    if config.keyframe_interval.is_none() && config.bitrate_kbps.is_none() {
+        return Ok(());
+    }
+    let knobs = knobs(name).ok_or_else(|| {
+        EncodeError::unsupported(format!("{name} has no known keyframe or bitrate property"))
+    })?;
+    if let Some(frames) = config.keyframe_interval {
+        set_count(
+            encoder,
+            name,
+            knobs.keyframes,
+            frames,
+            "frames between keyframes",
+        )?;
     }
     if let Some(kbps) = config.bitrate_kbps {
-        set_bitrate(encoder, name, kbps);
+        if let Some((mode, nick)) = knobs.rate_mode {
+            let takes_nick = encoder.find_property(mode).is_some_and(|spec| {
+                gst::glib::EnumClass::with_type(spec.value_type())
+                    .is_some_and(|class| class.value_by_nick(nick).is_some())
+            });
+            if !takes_nick {
+                return Err(EncodeError::unsupported(format!(
+                    "{name} has no {mode} of {nick} to target a bitrate"
+                )));
+            }
+            encoder.set_property_from_str(mode, nick);
+        }
+        set_count(encoder, name, "bitrate", kbps, "kbit/s")?;
     }
+    Ok(())
 }
 
-/// Write `kbps` into whichever rate property this element carries.
-///
-/// Every encoder here spells rate control differently: `x264enc` takes an
-/// `i32` of kilobits, `x265enc` and the VAAPI elements a `u32`, and the NVENC
-/// elements need their rate-control mode moved off constant-quality or the
-/// bitrate is a cap they never approach. The property's own type is read rather
-/// than guessed from the element name, so a plugin that changes it does not
-/// turn into a panic.
-fn set_bitrate(encoder: &gst::Element, name: &str, kbps: u32) {
-    if name.starts_with("nv") && encoder.find_property("rc-mode").is_some() {
-        encoder.set_property_from_str("rc-mode", "cbr");
-    }
-    let Some(spec) = encoder.find_property("bitrate") else {
-        return;
+/// Write `value` into the integer property `property`, in the property's
+/// own type, or fail naming the element, the property and its range.
+fn set_count(
+    encoder: &gst::Element,
+    name: &str,
+    property: &str,
+    value: u32,
+    unit: &str,
+) -> Result<(), EncodeError> {
+    let spec = encoder
+        .find_property(property)
+        .ok_or_else(|| EncodeError::unsupported(format!("{name} has no {property} property")))?;
+    let out_of_range = |min: i64, max: i64| {
+        EncodeError::unsupported(format!(
+            "{name} takes {property} from {min} to {max} {unit}; the export asks for {value}"
+        ))
     };
-    if spec.value_type() == gst::glib::Type::U32 {
-        encoder.set_property("bitrate", kbps);
-    } else if spec.value_type() == gst::glib::Type::I32 {
-        encoder.set_property("bitrate", kbps as i32);
+    if let Some(range) = spec.downcast_ref::<gst::glib::ParamSpecUInt>() {
+        if value < range.minimum() || value > range.maximum() {
+            return Err(out_of_range(range.minimum().into(), range.maximum().into()));
+        }
+        encoder.set_property(property, value);
+    } else if let Some(range) = spec.downcast_ref::<gst::glib::ParamSpecInt>() {
+        let signed = i32::try_from(value)
+            .ok()
+            .filter(|signed| (range.minimum()..=range.maximum()).contains(signed))
+            .ok_or_else(|| out_of_range(range.minimum().into(), range.maximum().into()))?;
+        encoder.set_property(property, signed);
+    } else {
+        return Err(EncodeError::unsupported(format!(
+            "{name}'s {property} is a {}, not an integer",
+            spec.value_type()
+        )));
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -473,7 +545,7 @@ mod tests {
             color: aria_core::ColorSpace::BT709,
             audio: None,
         };
-        configure_encoder(&encoder, &config, "x264enc");
+        configure_encoder(&encoder, &config, "x264enc").expect("configures");
         assert!(!encoder.property::<bool>("trellis"), "trellis is on");
         let preset = encoder.property_value("speed-preset");
         let (_, preset) =
@@ -487,6 +559,101 @@ mod tests {
         );
         assert_eq!(encoder.property::<u32>("key-int-max"), 60);
         assert_eq!(encoder.property::<u32>("bitrate"), 8_000);
+    }
+
+    /// An export configuration asking for `frames` between keyframes and
+    /// `kbps` of video.
+    fn rated(codec: VideoCodec, frames: u32, kbps: u32) -> EncoderConfig {
+        EncoderConfig::new(
+            (640, 360),
+            Rational::new(24, 1),
+            aria_core::ColorSpace::BT709,
+        )
+        .with_codec(codec)
+        .with_keyframe_interval(frames)
+        .with_bitrate_kbps(kbps)
+    }
+
+    /// An integer property of `element` as an `i64`, whatever its width.
+    fn count(element: &gst::Element, property: &str) -> i64 {
+        let value = element.property_value(property);
+        value
+            .get::<u32>()
+            .map(i64::from)
+            .or_else(|_| value.get::<i32>().map(i64::from))
+            .unwrap_or_else(|_| panic!("{property} is not an integer: {value:?}"))
+    }
+
+    /// WHY: `configure_encoder` set `key-int-max` and skipped every element
+    /// without it, so NVENC (`gop-size`) and VAAPI (`keyframe-period`) wrote
+    /// their default spacing: an H.265 export asking for a keyframe every 30
+    /// frames came out with keyframes 75 frames apart. It also wrote a `u32`
+    /// into `x265enc`'s `gint` `key-int-max`, which GLib rejects with a panic.
+    ///
+    /// Closes the class "a candidate encoder ignores or misreads a rate
+    /// setting": every candidate of every codec has a row in `knobs`, read
+    /// from `candidates` at run time so a new candidate is red until it gets
+    /// one, and every candidate this host builds reads back the spacing, the
+    /// bitrate and the rate-control mode it was given. Not caught: the
+    /// spacing in an encoded file, which `tests/roundtrip.rs` reads; elements
+    /// this host does not have (VAAPI on the test hosts).
+    #[test]
+    fn every_candidate_takes_the_spacing_and_bitrate_it_is_given() {
+        ensure_init().expect("GStreamer initializes");
+        let mut built = Vec::new();
+        for codec in VideoCodec::ALL {
+            for &name in candidates(codec) {
+                let knobs = knobs(name).unwrap_or_else(|| panic!("{name} has no rate row"));
+                let Ok(encoder) = gst::ElementFactory::make(name).build() else {
+                    continue;
+                };
+                configure_encoder(&encoder, &rated(codec, 30, 8_000), name)
+                    .unwrap_or_else(|err| panic!("{name}: {err}"));
+                assert_eq!(count(&encoder, knobs.keyframes), 30, "{name} spacing");
+                assert_eq!(count(&encoder, "bitrate"), 8_000, "{name} bitrate");
+                if let Some((mode, nick)) = knobs.rate_mode {
+                    let value = encoder.property_value(mode);
+                    let (_, set) =
+                        gst::glib::EnumValue::from_value(&value).expect("rate control is an enum");
+                    assert_eq!(set.nick(), nick, "{name} {mode}");
+                }
+                built.push(name);
+            }
+        }
+        assert!(
+            built.contains(&"x264enc") || built.contains(&"x265enc"),
+            "no software encoder built here; built {built:?}"
+        );
+    }
+
+    /// A spacing or bitrate outside an element's range fails the export by
+    /// name instead of GLib clamping it or warning and leaving the default:
+    /// `x265enc` takes at most 102400 kbit/s, `x264enc` no zero bitrate.
+    #[test]
+    fn a_value_outside_the_elements_range_fails_by_name() {
+        ensure_init().expect("GStreamer initializes");
+        for (codec, name, kbps, range) in [
+            (
+                VideoCodec::H265,
+                "x265enc",
+                200_000,
+                "from 1 to 102400 kbit/s",
+            ),
+            (VideoCodec::H264, "x264enc", 0, "from 1 to 2048000 kbit/s"),
+        ] {
+            let Ok(encoder) = gst::ElementFactory::make(name).build() else {
+                continue;
+            };
+            let err = configure_encoder(&encoder, &rated(codec, 30, kbps), name)
+                .expect_err("out of range");
+            let text = err.to_string();
+            assert!(
+                text.contains(&format!(
+                    "{name} takes bitrate {range}; the export asks for {kbps}"
+                )),
+                "{text}"
+            );
+        }
     }
 
     /// WHY: `open_encoder_element` built every hardware candidate on each

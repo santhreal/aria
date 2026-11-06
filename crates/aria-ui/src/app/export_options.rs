@@ -273,10 +273,10 @@ impl AppState {
 
     /// How the Format row names `choice`: a plugin encoder by its name and
     /// extension, or by its id once unmounted, and the platform encoder by what
-    /// it writes with the chosen codec.
+    /// it writes with the chosen codec and the Audio switch.
     fn format_choice_label(&self, choice: Option<&str>) -> String {
         let Some(id) = choice else {
-            return format_label(self.export_options.codec);
+            return format_label(self.export_options.codec, self.export_options.audio);
         };
         match self.ctx.encoder(id) {
             Some(spec) => format!("{} (.{})", spec.name, spec.extension),
@@ -470,8 +470,8 @@ impl AppState {
 /// What this export will write, read from the encoder rather than compiled in:
 /// on a build with no backend the sheet must say so instead of promising an MP4.
 ///
-/// Takes the chosen codec, so the Format row and the Codec row cannot disagree
-/// about the file being written.
-pub fn format_label(codec: VideoCodec) -> String {
-    aria_encoder::capability().label_for(codec)
+/// Takes the chosen codec and the Audio switch, so the Format row cannot
+/// disagree with the Codec row or name a sound track a video-only file lacks.
+pub fn format_label(codec: VideoCodec, audio: bool) -> String {
+    aria_encoder::capability().label_for(codec, audio)
 }

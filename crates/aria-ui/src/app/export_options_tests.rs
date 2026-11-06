@@ -279,13 +279,13 @@ fn a_ranged_span_covers_the_frames_between_the_marks() {
 #[test]
 fn the_format_row_names_what_this_export_will_write() {
     let cap = aria_encoder::capability();
-    let label = crate::app::export_options::format_label(aria_core::VideoCodec::default());
+    let label = crate::app::export_options::format_label(aria_core::VideoCodec::default(), true);
     assert_eq!(label, cap.label());
     if cap.available {
         assert!(label.contains(cap.container), "{label} hides the container");
         assert!(label.contains(cap.video), "{label} hides the codec");
         for &codec in aria_encoder::available_codecs() {
-            let chosen = crate::app::export_options::format_label(codec);
+            let chosen = crate::app::export_options::format_label(codec, true);
             assert!(
                 chosen.contains(codec.label()),
                 "{chosen} does not name the chosen codec"
@@ -295,6 +295,32 @@ fn the_format_row_names_what_this_export_will_write() {
         assert!(
             !label.contains("MP4"),
             "{label} promises a format this build cannot write"
+        );
+    }
+}
+
+/// With the Audio switch off the file has no sound track, and the Format row
+/// says so instead of naming the audio codec: an H.265 export with Video only
+/// read "MP4 · H.265 / AAC". Each codec and both switch states, through the
+/// sheet's own row.
+#[test]
+fn the_format_row_names_the_sound_only_when_the_file_has_it() {
+    let cap = aria_encoder::capability();
+    let (Some(audio), true) = (cap.audio, cap.available) else {
+        return;
+    };
+    let (mut state, _) = with_clip();
+    for &codec in aria_encoder::available_codecs() {
+        state.export_options.codec = codec;
+        state.export_options.audio = true;
+        assert_eq!(
+            state.export_format_label(),
+            format!("{} · {} / {audio}", cap.container, codec.label())
+        );
+        state.export_options.audio = false;
+        assert_eq!(
+            state.export_format_label(),
+            format!("{} · {}, no audio", cap.container, codec.label())
         );
     }
 }
@@ -340,7 +366,10 @@ fn the_format_choices_are_the_platform_and_each_plugin_encoder() {
     use aria_plugin::EncoderSpec;
 
     let (mut state, _) = with_clip();
-    let platform = crate::app::export_options::format_label(state.export_options.codec);
+    let platform = crate::app::export_options::format_label(
+        state.export_options.codec,
+        state.export_options.audio,
+    );
     assert_eq!(
         state.export_format_choices(),
         vec![(None, platform.clone())],

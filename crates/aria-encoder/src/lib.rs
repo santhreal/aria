@@ -202,19 +202,20 @@ impl EncoderCapability {
     /// How the capability reads in an export sheet: `MP4 · H.264 / AAC`, or a
     /// sentence when this platform has no encoder.
     pub fn label(&self) -> String {
-        self.label_for(self.codecs.first().copied().unwrap_or_default())
+        self.label_for(self.codecs.first().copied().unwrap_or_default(), true)
     }
 
-    /// The same line for a chosen `codec`, so a sheet with a codec picker
-    /// describes the file it is about to write rather than the default one.
+    /// The same line for a chosen `codec`, with or without the sound, so a
+    /// sheet with a codec picker and an audio switch describes the file it is
+    /// about to write rather than the default one.
     ///
     /// One owner of the shape of that line: a sheet never assembles it from the
     /// fields itself.
-    pub fn label_for(&self, codec: VideoCodec) -> String {
+    pub fn label_for(&self, codec: VideoCodec, audio: bool) -> String {
         if !self.available {
             return "No encoder on this platform".to_string();
         }
-        match self.audio {
+        match self.audio.filter(|_| audio) {
             Some(audio) => format!("{} · {} / {}", self.container, codec.label(), audio),
             None => format!("{} · {}, no audio", self.container, codec.label()),
         }

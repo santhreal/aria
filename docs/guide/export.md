@@ -58,7 +58,9 @@ project:
 - **Destination** shows the file **Export** writes. A path wider than the
   sheet loses its start to an ellipsis, and the file name stays in view.
 - **Format** is the platform encoder or a plugin encoder. The row is drawn as
-  chips when a plugin registers an encoder.
+  chips when a plugin registers an encoder. The platform encoder's line names
+  the audio codec when **Audio** includes the mix and reads `no audio`
+  otherwise.
 - **Encoder** states the backend that writes the file.
 - **Scale** renders at 100, 75, 50, or 25 per cent of the canvas.
 - **Size** states the pixel size the file is written at: the canvas at the
@@ -73,7 +75,9 @@ project:
   the backend sets the rate. A codec or bitrate the encoder cannot honor is
   refused by name before any file is created, never swapped for something else.
 - **Keyframes** is the codec's own spacing or one keyframe every 15, 30, or 60
-  frames.
+  frames. Every encoder Aria opens on Linux, NVENC and VAAPI included, takes
+  the chosen spacing; an encoder that cannot fails the export by name before
+  any file is created.
 - **Audio** includes the mix or writes a video-only file.
 - **Range** is the whole timeline or the marked range, which the chip names by
   its In and Out timecodes. With no In and Out set, the marked range is drawn

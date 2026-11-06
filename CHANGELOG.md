@@ -1261,6 +1261,8 @@ Notes for the latest release. For previous releases, see the
 - A command-line usage error prints the reason, the synopsis of the command it names, and a pointer to `aria --help` instead of the whole usage block.
 - The editor deletes the unpacked files of a plugin install whose editor was killed at the Install Plugin prompt the next time it opens the plugins folder.
 - The Install Plugin prompt reads "with no publisher" for a package that names none instead of "from ,".
+- The Keyframes choice in the Export sheet sets the keyframe spacing on NVENC and VAAPI encoders, and an H.265 export on the x265 software encoder with a keyframe spacing no longer crashes.
+- The Export sheet's Format row and the `aria export` summary read "no audio" for a video-only export instead of naming AAC.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -128,7 +128,7 @@ impl GstEncoder {
             .block(true)
             .max_bytes((frame_bytes as u64).saturating_mul(8))
             .build();
-        configure_encoder(encoder, &config, enc_name);
+        configure_encoder(encoder, &config, enc_name)?;
         let parse = make(match config.video_codec {
             VideoCodec::H264 => "h264parse",
             VideoCodec::H265 => "h265parse",
