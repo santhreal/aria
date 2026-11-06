@@ -1,8 +1,10 @@
 # Timeline
 
-The Timeline panel shows one tab per open sequence. Tracks hold many clips
-each, as in Premiere Pro. Any clip opens into property rows under its track,
-as a layer does in After Effects, so cutting and animating happen in one panel.
+The Timeline panel shows one sequence at a time: the project's timeline, or a
+nested sequence opened by double-clicking its clip or from the Sequence menu,
+whose name the status bar's breadcrumb shows. Tracks hold many clips each, as
+in Premiere Pro. Any clip opens into property rows under its track, as a layer
+does in After Effects, so cutting and animating happen in one panel.
 
 ## Anatomy
 
@@ -148,18 +150,17 @@ audio clips the volume line.
 | Transition | A bar over the cut with its name, aligned to the cut (center, start, or end). Dragging its edge changes its length. The name strips of the clips under it start after it and end before it. The bar draws and takes presses while any part of it is in view, with its cut in view or not. |
 | Offline | Red fill with "Media Offline" and the file name. |
 | Disabled | Clip drawn at 40 % opacity and excluded from render. |
-| Linked | Video and audio of one source move, trim, and select together while linked selection is on. A link that has drifted out of sync shows the offset in frames on both bars (`+3`). |
+| Linked | Video and audio of one source move, trim, and select together while linked selection is on. A link that has drifted out of sync shows the offset in frames on both bars (`+3`); the clip context menu's Move into Sync moves one clip back. |
 
 Bars draw as one painted element per track, not as one widget per clip. A
 sequence with 10,000 clips scrolls and zooms at the display's refresh rate.
 
 ## Property rows
 
-A clip opens into property rows when its twirl arrow is clicked, when a reveal
-chord is pressed with it selected (see [keyboard.md](keyboard.md#properties)),
-or when a property is changed from Effect Controls with "Reveal in timeline"
-on. One clip per track can be open at a time; opening another clip on the same
-track closes the first.
+A clip opens into property rows when its twirl arrow is clicked or when a
+reveal chord is pressed with it selected (see
+[keyboard.md](keyboard.md#properties)). One clip per track can be open at a
+time; opening another clip on the same track closes the first.
 
 Rows are drawn under the track and span the full time area. Inside the opened
 clip's range the row background is `surface`; outside it the row is
@@ -167,7 +168,7 @@ shaded, since keyframes cannot exist there.
 
 | Group | Rows |
 | --- | --- |
-| Transform | Anchor Point, Position, Scale (linked or per axis), Rotation, Opacity, Skew, Skew Axis |
+| Transform | Anchor Point, Position, Scale (linked or per axis), Rotation, Opacity |
 | Time | Speed, Time Remap |
 | Effects | One group per effect in stack order, each with its parameters |
 | Masks | One group per mask: Path, Feather, Opacity, Expansion, mode, inverted |

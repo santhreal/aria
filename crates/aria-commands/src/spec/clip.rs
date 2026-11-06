@@ -141,7 +141,7 @@ macro_rules! clip_rows {
                     undo: restores("nothing of the original; it removes the copy"), },
                 MoveClip { label: "Move clip", reach: operator("the step chords, a typed timecode offset, and a slide on the timeline"), junctions: breaks, lock: guarded,
                     undo: restores("the clip's previous lane and start"), },
-                MoveClipUnlinked { label: "Move clip without links", reach: operator("the step chords, a typed timecode offset, and a slide on the timeline, with linked selection off"), junctions: breaks, lock: guarded,
+                MoveClipUnlinked { label: "Move clip without links", reach: operator("the step chords, a typed timecode offset, and a slide on the timeline, with linked selection off, and the clip context menu's Move into Sync row"), junctions: breaks, lock: guarded,
                     undo: restores("the clip's previous lane and start"), },
                 OverwriteMoveClip { label: "Overwrite move clip", reach: operator("dragging a clip on the timeline"), junctions: breaks, lock: guarded,
                     undo: restores("the clip's previous lane and start, and the material it covered"), },

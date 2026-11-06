@@ -458,6 +458,48 @@ impl AppState {
         }
     }
 
+    /// Move `clip` alone along its lane until it places its file where the
+    /// linked partner [`aria_models::Project::link_drifts`] measures it
+    /// against does, so the offset its bar draws clears. The partner stays
+    /// where it is. A clip already in sync, or one the move would start
+    /// before the sequence, stays put with the reason on the status bar; a
+    /// move onto another clip fails as any move without links does.
+    pub fn move_into_sync(&mut self, clip: ClipId) -> Result<(), EngineError> {
+        let (drift, start, rate) = {
+            let engine = self.engine.lock();
+            let project = engine.project();
+            let model = project
+                .clip(clip)
+                .ok_or(aria_models::ModelError::UnknownClip(clip))?;
+            (
+                project.link_drifts().get(&clip).copied(),
+                model.timeline.start.value,
+                project.timeline().frame_rate,
+            )
+        };
+        let Some(drift) = drift else {
+            self.status_message = Some("The clip is in sync with its linked clips".into());
+            return Ok(());
+        };
+        let to = start - drift;
+        if to < 0 {
+            self.status_message =
+                Some("Moving the clip into sync would start it before the sequence".into());
+            return Ok(());
+        }
+        let to_track = self
+            .track_of(clip)
+            .ok_or(aria_models::ModelError::UnknownClip(clip))?;
+        self.snap_guide = None;
+        self.apply_command(Command::Edit(EditCommand::MoveClipUnlinked {
+            clip,
+            to_track,
+            start: RationalTime::new(to, rate),
+        }))?;
+        self.status_message = Some("Moved into sync".into());
+        Ok(())
+    }
+
     /// Read where a held clip drag lets go, for the frame that draws it
     /// there: a move or a ripple move sets [`Self::held_move`] and the magnet
     /// it lands on, any other drag clears it. The clips the move takes are

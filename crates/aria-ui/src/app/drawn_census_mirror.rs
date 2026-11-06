@@ -23,7 +23,7 @@ use super::menu::CLIP_STAGES;
 
 /// Each clip menu row and the bar row whose command it runs, in the order the
 /// menu draws them.
-const TWINS: [(&str, Option<&str>); 20] = [
+const TWINS: [(&str, Option<&str>); 21] = [
     ("ctx-cut", Some("edit-cut")),
     ("ctx-copy", Some("edit-copy")),
     ("ctx-duplicate", Some("edit-dup")),
@@ -35,6 +35,8 @@ const TWINS: [(&str, Option<&str>); 20] = [
     ("ctx-enable", Some("clip-enable")),
     ("ctx-link", Some("seq-link")),
     ("ctx-unlink", Some("seq-unlink")),
+    // Acts on the clip under the pointer, which no bar row reads.
+    ("ctx-move-into-sync", None),
     ("ctx-group", Some("clip-group")),
     ("ctx-ungroup", Some("clip-ungroup")),
     // Acts on the clip under the pointer, not on the selection.

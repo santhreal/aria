@@ -144,6 +144,47 @@ pub(super) fn linked_pair() -> AppState {
     state
 }
 
+/// The video fixture dropped at the start, its sound on a lane of its own and
+/// linked to the picture, then the picture moved `by` frames on its own: a
+/// linked pair out of sync, the picture's bar drawing `+by`. The picture and
+/// the sound, in that order.
+pub(super) fn drifted_pair(by: i64) -> (AppState, ClipId, ClipId) {
+    let mut state = AppState::new(
+        PluginContext::new(),
+        crate::scratch_pool::scratch("census-drift"),
+    )
+    .expect("state");
+    state.new_project().expect("project");
+    let media = state
+        .import_media(asset("fixture-640x360-24fps-3s-av.mp4"))
+        .expect("import the video fixture");
+    state
+        .drop_media_on_timeline(media, None, 0)
+        .expect("place the video and its sound");
+    state.sync_from_engine();
+    let of_kind = |state: &AppState, video: bool| {
+        state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .filter(|lane| matches!(lane.kind, crate::types::UiTrackKind::Video) == video)
+            .flat_map(|lane| lane.clips.iter())
+            .map(|clip| ClipId::from_raw(clip.id))
+            .next()
+    };
+    let picture = of_kind(&state, true).expect("the picture clip");
+    let sound = of_kind(&state, false).expect("the sound clip");
+    let lane = state.track_of(picture).expect("the picture's lane");
+    state.toggle_linked_selection();
+    state
+        .move_clip(picture, lane, by)
+        .expect("move the picture alone");
+    state.toggle_linked_selection();
+    state.sync_from_engine();
+    (state, picture, sound)
+}
+
 /// A lane with a lane above it and a lane below it, so the rows that move a lane
 /// through the stack have somewhere to move it, and the id of that middle lane.
 pub(super) fn middle_lane() -> (AppState, u64) {

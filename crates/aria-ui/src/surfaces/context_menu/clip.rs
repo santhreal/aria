@@ -56,6 +56,9 @@ pub struct ClipMenu {
     check_bits: u32,
     /// Whether the clip under the pointer has a parent to release.
     pub parented: bool,
+    /// Frames the clip under the pointer sits from its linked partner, while
+    /// the link has drifted out of sync.
+    pub drift: Option<i64>,
     /// How the transition at `clip`'s right junction sits relative to the cut.
     pub transition_alignment: Option<TransitionAlignment>,
 }
@@ -81,6 +84,7 @@ impl ClipMenu {
             run_bits,
             check_bits,
             parented: ui.is_some_and(|c| c.parent.is_some()),
+            drift: ui.and_then(|c| c.drift),
             transition_alignment: ui.and_then(|c| c.transition.as_ref().map(|t| t.alignment)),
         }
     }
@@ -186,6 +190,13 @@ pub const CLIP_ITEMS: &[MenuItem<ClipMenu>] = &[
         when: |clip| clip.runs(&UNLINK),
         checked: None,
         run: |state, _| state.unlink_selected(),
+    }),
+    MenuItem::Row(MenuRow {
+        id: "ctx-move-into-sync",
+        label: |_| "Move into Sync",
+        when: |clip| clip.drift.is_some(),
+        checked: None,
+        run: |state, clip| state.move_into_sync(ClipId::from_raw(clip.clip)),
     }),
     MenuItem::Row(MenuRow {
         id: "ctx-group",

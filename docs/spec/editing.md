@@ -46,8 +46,7 @@ Ctrl+Shift+Left / Ctrl+Shift+Right by five frames.
 ## Moving and trimming
 
 - A drag shows a tooltip with the offset (`+00:00:01:04`) and, for a trim, the
-  new duration. Edges in the Viewer show the outgoing and incoming frames
-  side by side during a trim (two-up display).
+  new duration.
 - A move drops in overwrite mode. Ctrl while releasing drops in insert mode and
   pushes later clips right on every track with sync lock on.
 - A trim cannot extend past the source's media; the edge stops and turns red at
@@ -111,8 +110,9 @@ Alt while dragging suspends snapping for that drag.
 - Linked clips (video with its audio) select, move, and trim together while
   linked selection is on. Ctrl+L links or unlinks the selection.
 - Groups (Ctrl+G) select and move together but trim independently.
-- Out-of-sync linked clips show their offset on both bars. Right-click the
-  offset > Move into Sync or Slip into Sync restores sync.
+- A linked clip that places its file away from its partner draws the offset
+  on its bar, in frames. Right-click the clip > Move into Sync moves that clip
+  alone until it matches its partner; the partner stays.
 
 ## Nesting
 
@@ -120,9 +120,7 @@ Clip > Nest replaces the selection with one clip whose source is a new sequence
 holding the selection. Double-clicking a nested clip opens its sequence in a new
 Timeline tab. Edits inside it appear in every instance. A nested clip draws
 every visible lane of its sequence as one picture, fitted into the canvas it is
-placed on, and that picture takes the clip's transform and look. A nested
-sequence can be marked as a composition, which opens with one clip per track
-and the Animation workspace.
+placed on, and that picture takes the clip's transform and look.
 
 ## Markers
 

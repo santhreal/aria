@@ -397,6 +397,7 @@ A `CLIP_ITEMS` row that runs a menu bar command mirrors that bar row (`MIRRORED`
 | `CLIP_ITEMS` | `Row` | `ctx-enable` | `Enable` | `on` |
 | `CLIP_ITEMS` | `Row` | `ctx-link` | `Link` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-unlink` | `Unlink` | `none` |
+| `CLIP_ITEMS` | `Row` | `ctx-move-into-sync` | `Move into Sync` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-group` | `Group` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-ungroup` | `Ungroup` | `none` |
 | `CLIP_ITEMS` | `Row` | `ctx-release-parent` | `Release Parent` | `none` |

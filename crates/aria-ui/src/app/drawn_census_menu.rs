@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 use std::mem::discriminant;
 use std::path::PathBuf;
 
-use aria_models::{ClipParam, Easing};
+use aria_models::{ClipId, ClipParam, Easing};
 
 use crate::app::AppState;
 use crate::app::premiere_tests::with_clip;
@@ -285,25 +285,24 @@ fn fingerprint(state: &AppState) -> String {
     )
 }
 
+/// The state and the facts a clip menu opened over `clip` in it would gather.
+fn facts_over((state, clip): (AppState, ClipId)) -> (AppState, ClipMenu) {
+    let facts = ClipMenu::of(&state, clip.raw());
+    (state, facts)
+}
+
 /// A clip menu opens over a still, in both edit modes, a clip with a picture
-/// and sound, a linked pair, a parented clip, a group, and a disabled, remapped
-/// clip: between them they offer every clip row and draw each mark both ways.
+/// and sound, a linked pair, a linked pair out of sync, a parented clip, a
+/// group, and a disabled, remapped clip: between them they offer every clip
+/// row and draw each mark both ways.
 pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
     Stage {
         what: "a still image on the timeline",
-        dress: || {
-            let (state, clip) = with_clip();
-            let facts = ClipMenu::of(&state, clip.raw());
-            (state, facts)
-        },
+        dress: || facts_over(with_clip()),
     },
     Stage {
         what: "a clip with a picture and sound",
-        dress: || {
-            let (state, clip) = fixtures::with_video();
-            let facts = ClipMenu::of(&state, clip.raw());
-            (state, facts)
-        },
+        dress: || facts_over(fixtures::with_video()),
     },
     Stage {
         what: "a clip the editor would lift rather than ripple",
@@ -328,12 +327,15 @@ pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
         },
     },
     Stage {
-        what: "a clip with a parent",
+        what: "a picture moved out of sync with its sound",
         dress: || {
-            let (state, clip) = fixtures::parented_pair();
-            let facts = ClipMenu::of(&state, clip.raw());
-            (state, facts)
+            let (state, picture, _) = fixtures::drifted_pair(3);
+            facts_over((state, picture))
         },
+    },
+    Stage {
+        what: "a clip with a parent",
+        dress: || facts_over(fixtures::parented_pair()),
     },
     Stage {
         what: "two clips, grouped",
@@ -354,11 +356,7 @@ pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
     },
     Stage {
         what: "a disabled clip playing through a time remap",
-        dress: || {
-            let (state, clip) = fixtures::disabled_remap();
-            let facts = ClipMenu::of(&state, clip.raw());
-            (state, facts)
-        },
+        dress: || facts_over(fixtures::disabled_remap()),
     },
 ];
 
