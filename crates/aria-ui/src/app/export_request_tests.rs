@@ -65,6 +65,80 @@ fn an_unsaved_project_exports_to_the_videos_directory_and_a_saved_one_beside_its
     );
 }
 
+/// Defect class: an unsaved project's name is free text from the rename bar,
+/// and the default destination joined it onto the videos directory as typed,
+/// so `../x` wrote into its parent, `/x` replaced it, and `a/b` named a
+/// folder that need not exist.
+///
+/// Every name built from up to three characters of an alphabet of path
+/// separators, drive colons, dots, a wildcard, a control character and plain
+/// text, plus whole paths. A destination outside the directory the sheet
+/// names, or a file name that splits into folders on some platform, fails.
+///
+/// What this does not catch: a name Windows reserves for a device (`CON`,
+/// `NUL`), and a name longer than the file system allows.
+#[test]
+fn no_project_name_writes_outside_the_export_directory() {
+    const ALPHABET: [char; 8] = ['/', '\\', ':', '.', 'a', ' ', '\0', '*'];
+    let mut names: Vec<String> = ["../../escape", "/etc/passwd", "C:\\Windows\\x", "a/b", ".."]
+        .map(String::from)
+        .into();
+    let mut grown = vec![String::new()];
+    for _ in 0..3 {
+        grown = grown
+            .iter()
+            .flat_map(|stem| ALPHABET.map(|ch| format!("{stem}{ch}")))
+            .collect();
+        names.extend(grown.iter().cloned());
+    }
+    let (mut state, _) = with_clip();
+    let ext = state.export_extension();
+    let dir = dirs::video_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| state.data_dir.clone());
+    for name in &names {
+        state.store_mut().project_name = name.clone().into();
+        let destination = state.export_destination();
+        assert_eq!(
+            destination.parent(),
+            Some(dir.as_path()),
+            "unsaved project {name:?} exports to {destination:?}"
+        );
+        let file = destination.file_name().and_then(|file| file.to_str());
+        let file = file.unwrap_or_else(|| panic!("{destination:?} has no file name"));
+        assert!(
+            file.ends_with(&format!(".{ext}"))
+                && !file.contains(['/', '\\', ':'])
+                && !file.chars().any(char::is_control),
+            "project {name:?} exports as {file:?}, which is not one file name everywhere"
+        );
+    }
+}
+
+#[test]
+fn a_project_name_becomes_the_file_name_with_each_unwritable_character_a_dash() {
+    let cases = [
+        ("Cut 2/final", "Cut 2-final.mp4"),
+        ("../../escape", "..-..-escape.mp4"),
+        ("/etc/passwd", "-etc-passwd.mp4"),
+        ("C:\\Windows\\x", "C--Windows-x.mp4"),
+        ("a\0b\tc", "a-b-c.mp4"),
+        ("Reel <1> | \"take\"? *", "Reel -1- - -take-- -.mp4"),
+        ("  Trimmed  ", "Trimmed.mp4"),
+        ("   ", "Untitled.mp4"),
+        ("", "Untitled.mp4"),
+        ("..", "...mp4"),
+        ("Café", "Café.mp4"),
+    ];
+    for (name, want) in cases {
+        assert_eq!(
+            super::export_request::export_file_name(name, "mp4"),
+            want,
+            "project {name:?}"
+        );
+    }
+}
+
 #[test]
 fn every_scale_reaches_the_size_the_request_carries() {
     let (mut state, _) = with_clip();

@@ -1369,6 +1369,7 @@ Notes for the latest release. For previous releases, see the
 - A key pressed behind an open dialog that the dialog does not use no longer redraws the window.
 - Undo, redo and a history jump redraw only the filmstrip frames inside the edits they change back, instead of every frame of every strip.
 - **Export** prompts before replacing a file already at its destination instead of overwriting it.
+- **Export** writes an unsaved project whose name holds a path separator, such as `../clips`, inside the default directory instead of outside it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

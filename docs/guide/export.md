@@ -42,7 +42,9 @@ See [Templates](#templates) for the marks.
 - Ctrl+O opens a project. Ctrl+Shift+W returns to Home.
 - Ctrl+M opens Export. Choose a destination or accept the default `.mp4` beside
   the project (or in the platform videos directory when the project has not been
-  saved yet).
+  saved yet). The default file name is the project's name with each `/`, `\`,
+  `:`, `<`, `>`, `"`, `|`, `?`, `*` and control character written as `-`, or
+  `Untitled` when the name is blank.
 - Export writes what this platform's encoder supports. The sheet's **Format**
   and **Encoder** rows name the container, the codec of the file about to be
   written, and the backend (GStreamer on Linux, VideoToolbox on macOS, Media
