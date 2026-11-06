@@ -35,30 +35,7 @@ impl AppState {
     }
 
     pub fn nudge_selected(&mut self, frames: i64) -> Result<(), EngineError> {
-        if self.selected_edge.is_some() {
-            return self.trim_selected_edge(frames);
-        }
-        let Some(clip) = self.selected_clip() else {
-            return Ok(());
-        };
-        let Some(ui) = self
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .flat_map(|t| t.clips.iter())
-            .find(|c| c.id == clip.raw())
-            .cloned()
-        else {
-            return Ok(());
-        };
-        let start = (ui.timeline_start_ticks + frames).max(0);
-        self.apply_command(Command::Edit(self.move_command(
-            clip,
-            TrackId::from_raw(ui.track_id),
-            RationalTime::new(start, self.playhead.rate),
-        )))?;
-        Ok(())
+        self.move_selection_by(frames)
     }
 
     /// Select a clip's In or Out edit point for trimming.
@@ -179,12 +156,78 @@ impl AppState {
         Ok(())
     }
 
+    /// Expand `selected` by unlocked grouped companions, and while
+    /// [`Self::linked_selection`] is on by unlocked linked companions.
+    pub(crate) fn selection_companions(&self, mut selected: Vec<ClipId>) -> Vec<ClipId> {
+        let follow_links = self.linked_selection;
+        let mut links: Vec<u64> = Vec::new();
+        let mut groups: Vec<u64> = Vec::new();
+        for &id in &selected {
+            let Some(clip) = self.ui_clip_ref(id) else {
+                continue;
+            };
+            if follow_links
+                && let Some(link) = clip.linked_to
+                && !links.contains(&link)
+            {
+                links.push(link);
+            }
+            if let Some(group) = clip.grouped_to
+                && !groups.contains(&group)
+            {
+                groups.push(group);
+            }
+        }
+        if links.is_empty() && groups.is_empty() {
+            return selected;
+        }
+        loop {
+            let mut grew = false;
+            for track in &self.store.sequence.tracks {
+                if track.locked {
+                    continue;
+                }
+                for clip in &track.clips {
+                    if clip.locked {
+                        continue;
+                    }
+                    let link = clip.linked_to.filter(|_| follow_links);
+                    let matches = link.is_some_and(|l| links.contains(&l))
+                        || clip.grouped_to.is_some_and(|g| groups.contains(&g));
+                    if matches {
+                        let member = ClipId::from_raw(clip.id);
+                        if !selected.contains(&member) {
+                            selected.push(member);
+                            grew = true;
+                        }
+                        if let Some(l) = link
+                            && !links.contains(&l)
+                        {
+                            links.push(l);
+                            grew = true;
+                        }
+                        if let Some(g) = clip.grouped_to
+                            && !groups.contains(&g)
+                        {
+                            groups.push(g);
+                            grew = true;
+                        }
+                    }
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        selected
+    }
+
     /// Track Select Forward (`A`) or Backward (`Shift+A`) from `at_tick`.
     ///
     /// Selects clips on `track` when `all_tracks` is `false`, or across every
     /// unlocked lane when `all_tracks` is `true` (`Shift` modifier on click).
-    /// Linked companions on unlocked lanes are included so linked A/V pairs stay
-    /// together.
+    /// Grouped companions, and while [`Self::linked_selection`] is on linked
+    /// companions, on unlocked lanes are included.
     pub fn select_track_clips(
         &mut self,
         track: TrackId,
@@ -194,8 +237,6 @@ impl AppState {
     ) {
         let at_tick = at_tick.max(0);
         let mut selected: Vec<ClipId> = Vec::new();
-        let mut links: Vec<u64> = Vec::new();
-        let mut groups: Vec<u64> = Vec::new();
         for lane in &self.store.sequence.tracks {
             if lane.locked || (!all_tracks && lane.id != track.raw()) {
                 continue;
@@ -217,38 +258,10 @@ impl AppState {
                     if !selected.contains(&id) {
                         selected.push(id);
                     }
-                    if let Some(link) = clip.linked_to
-                        && !links.contains(&link)
-                    {
-                        links.push(link);
-                    }
-                    if let Some(group) = clip.grouped_to
-                        && !groups.contains(&group)
-                    {
-                        groups.push(group);
-                    }
                 }
             }
         }
-        if !links.is_empty() || !groups.is_empty() {
-            for lane in &self.store.sequence.tracks {
-                if lane.locked {
-                    continue;
-                }
-                for clip in &lane.clips {
-                    if !clip.locked
-                        && (clip.linked_to.is_some_and(|link| links.contains(&link))
-                            || clip.grouped_to.is_some_and(|group| groups.contains(&group)))
-                    {
-                        let id = ClipId::from_raw(clip.id);
-                        if !selected.contains(&id) {
-                            selected.push(id);
-                        }
-                    }
-                }
-            }
-        }
-        self.selection = selected;
+        self.selection = self.selection_companions(selected);
         self.selected_edge = None;
         self.selected_gap = None;
         self.refresh_projected_selection();
@@ -369,42 +382,18 @@ impl AppState {
     }
 
     pub fn toggle_clip_in_selection(&mut self, id: ClipId) {
-        let group = self.ui_clip_ref(id).and_then(|clip| clip.grouped_to);
-        if let Some(idx) = self.selection.iter().position(|c| *c == id) {
-            self.selection.remove(idx);
-            if let Some(group) = group {
-                let members: Vec<ClipId> = self
-                    .store
-                    .sequence
-                    .tracks
-                    .iter()
-                    .filter(|t| !t.locked)
-                    .flat_map(|t| t.clips.iter())
-                    .filter(|c| !c.locked && c.grouped_to == Some(group))
-                    .map(|c| ClipId::from_raw(c.id))
-                    .collect();
-                self.selection.retain(|c| !members.contains(c));
-            }
+        let members = self.selection_companions(vec![id]);
+        if self.selection.contains(&id) {
+            self.selection.retain(|c| !members.contains(c));
         } else {
-            self.selection.push(id);
-            if let Some(group) = group {
-                let members: Vec<ClipId> = self
-                    .store
-                    .sequence
-                    .tracks
-                    .iter()
-                    .filter(|t| !t.locked)
-                    .flat_map(|t| t.clips.iter())
-                    .filter(|c| !c.locked && c.grouped_to == Some(group))
-                    .map(|c| ClipId::from_raw(c.id))
-                    .collect();
-                for member in members {
-                    if !self.selection.contains(&member) {
-                        self.selection.push(member);
-                    }
+            for member in members {
+                if !self.selection.contains(&member) {
+                    self.selection.push(member);
                 }
             }
         }
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.refresh_projected_selection();
     }
 
@@ -412,6 +401,8 @@ impl AppState {
         if !self.selection.contains(&id) {
             self.selection.push(id);
         }
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.refresh_projected_selection();
     }
 

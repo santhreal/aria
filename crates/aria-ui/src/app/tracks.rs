@@ -295,9 +295,8 @@ impl AppState {
     ///
     /// Everything at or after that point on the lane moves with it, which is what
     /// keeps two lanes of one take together. A shift that would move any lane
-    /// before the start of the sequence is refused whole.
-    ///
-    /// The engine has no batch command, so an N-lane shift is N undo entries.
+    /// before the start of the sequence is refused whole, and a multi-lane shift
+    /// commits as one undo step.
     pub fn shift_selection(&mut self, frames: i64) -> Result<(), EngineError> {
         if frames == 0 {
             return Ok(());
@@ -313,14 +312,16 @@ impl AppState {
             return Ok(());
         }
         let rate = self.playhead.rate;
-        for (track, start) in origins {
-            self.apply_command(Command::Edit(EditCommand::ShiftClips {
-                track,
-                from: RationalTime::new(start, rate),
-                delta: RationalTime::new(frames, rate),
-            }))?;
-        }
-        Ok(())
+        self.one_step(|this| {
+            for (track, start) in origins {
+                this.apply_command(Command::Edit(EditCommand::ShiftClips {
+                    track,
+                    from: RationalTime::new(start, rate),
+                    delta: RationalTime::new(frames, rate),
+                }))?;
+            }
+            Ok(())
+        })
     }
 
     /// Shift the whole lane, from its first clip on, by `delta` ticks.

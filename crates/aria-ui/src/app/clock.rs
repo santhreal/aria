@@ -229,6 +229,9 @@ impl AppState {
         if self.selected_edge.is_some() {
             return self.trim_selected_edge(delta);
         }
+        if delta == 0 {
+            return Ok(());
+        }
         let mut moves: Vec<(ClipId, TrackId, i64)> = Vec::new();
         let mut earliest = i64::MAX;
         {
