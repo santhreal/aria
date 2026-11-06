@@ -135,9 +135,30 @@ fn a_closed_tree_lists_every_group_with_its_count() {
             "> Video Transitions (1)",
             "> Audio Transitions (1)",
             "> Generators (1)",
-            "> Animation Presets (0)",
         ]
     );
+}
+
+/// A group folder is listed only while it holds an entry, so no folder opens
+/// onto nothing: Animation Presets read "(0)" and opened empty before a preset
+/// was saved, while Favorites and Failed to Load were already left out when
+/// empty. Over every [`EntryKind`], a tree of one entry lists one group folder,
+/// that kind's, with a count of one; a tree of no entries lists no folder.
+#[test]
+fn a_group_is_listed_only_while_it_holds_an_entry() {
+    assert!(
+        tree(&[], &[], &[], "", &BTreeSet::new()).is_empty(),
+        "a tree with no entries listed a folder"
+    );
+    for kind in EntryKind::ALL {
+        let rows = [Entry::new(kind, "one", "One", "")];
+        let folders: Vec<String> = shape(&tree(&[&rows], &[], &[], "", &BTreeSet::new()));
+        assert_eq!(
+            folders,
+            [format!("> {} (1)", kind.group().label())],
+            "a tree of one {kind:?}"
+        );
+    }
 }
 
 /// Folders sort by name with the catalog's Other folder last, entries sort by
@@ -174,7 +195,6 @@ fn an_open_folder_lists_its_entries_by_label_with_other_last() {
             "v Audio Transitions (1)",
             "  Constant Power",
             "> Generators (1)",
-            "> Animation Presets (0)",
         ]
     );
 }

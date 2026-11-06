@@ -362,8 +362,10 @@ pub fn sort_for_tree(rows: &mut [Entry]) {
 /// The rows the tree draws.
 ///
 /// `entries` are slices each sorted by [`sort_for_tree`] and holding disjoint
-/// groups. `favorites` are saved keys. A blank search lists every group and
-/// the contents of each open folder; a search lists only matching entries and
+/// groups. `favorites` are saved keys. A blank search lists every group that
+/// holds an entry and the contents of each open folder; a group with none,
+/// such as Animation Presets before a preset is saved, is not listed, so no
+/// folder opens onto nothing. A search lists only matching entries and
 /// failures, with every folder that holds one open. `only` lists one group's
 /// entries, under Favorites as well as in the group; failures stay listed.
 pub fn tree<'a>(
@@ -422,7 +424,7 @@ pub fn tree<'a>(
             .flat_map(|slice| slice.iter())
             .filter(|entry| entry.kind.group() == group && shown(entry))
             .collect();
-        if searching && members.is_empty() {
+        if members.is_empty() {
             continue;
         }
         let key = FolderKey::group(group);

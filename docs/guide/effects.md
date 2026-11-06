@@ -5,7 +5,7 @@
 **Window > Effects & Presets**, or <kbd>Shift+5</kbd> (`key-pane-effects`), brings the Effects & Presets panel
 forward, opening it in the right column when it is closed, with its search box
 taking keys. The Project panel's **Effects** tab shows the same tree and search.
-The tree has one folder per group:
+The tree has one folder per group that holds an entry:
 
 - **Video Effects** and **Audio Effects**, each with one folder per category
   and the Other folder last.
@@ -13,8 +13,8 @@ The tree has one folder per group:
 - **Generators**: generators and plugin clip types. Aria ships Color
   Matte, Linear Gradient, Radial Gradient, Checkerboard, Grid, Fractal Noise,
   and Color Bars; see [Generators](#generators).
-- **Animation Presets**: saved presets and plugin presets. A saved preset hides
-  a plugin preset of the same name.
+- **Animation Presets**: saved presets and plugin presets, listed once one
+  exists. A saved preset hides a plugin preset of the same name.
 
 Click a folder to open or close it. Click an entry to pick it. Double-click an
 entry to apply it to the selection:
