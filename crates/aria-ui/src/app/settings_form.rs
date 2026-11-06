@@ -207,6 +207,18 @@ pub struct SettingsForm {
     pub draft: crate::app::line_text::LineText,
     /// The committed section filter.
     pub filter: String,
+    /// The held `config.toml` settings, refreshed when Settings opens and
+    /// whenever the app writes `config.toml`.
+    pub cloud: Settings,
+    /// The held `config.toml` table-version report, refreshed alongside
+    /// [`Self::cloud`].
+    pub schema: std::sync::Arc<[aria_settings::schema_report::ShapeStatus]>,
+    /// Cataloged transcription models and their on-disk states, refreshed at
+    /// startup, when Settings opens, and when a model job finishes.
+    pub model_rows: std::sync::Arc<[super::models::UiModel]>,
+    /// The first verified transcription model on disk, refreshed alongside
+    /// [`Self::model_rows`].
+    pub installed_model: Option<(aria_transcription::WhisperModel, std::path::PathBuf)>,
 }
 
 /// A shipped section of the Settings dialog. The dialog draws them in the
@@ -521,7 +533,9 @@ impl AppState {
             )
         })?;
         mutate(&mut settings)?;
-        save(&path, &settings).map_err(|err| format!("{}: {err}", path.display()))
+        save(&path, &settings).map_err(|err| format!("{}: {err}", path.display()))?;
+        self.refresh_cloud_settings();
+        Ok(())
     }
 
     pub fn set_ai_source(&mut self, source: AiSource) -> Result<(), String> {

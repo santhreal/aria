@@ -19,14 +19,7 @@ pub const RECENT_ITEMS: &[MenuItem<PathBuf>] = &[
         when: always(),
         checked: None,
         run: |state, path| {
-            // A project that moved is relinked rather than reported: the request
-            // is to open this project, and the answer is a file dialog, not an
-            // error about a path they did not type.
-            if !path.exists() {
-                crate::app::recents::relink_recent(state, path);
-                return Ok(());
-            }
-            state.request_open_project(path.to_path_buf());
+            state.open_or_relink_recent(path);
             Ok(())
         },
     }),

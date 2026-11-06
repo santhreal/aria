@@ -138,6 +138,9 @@ pub struct AnalysisForm {
     /// recorded by the refresh that had the index open. A panel drawing a Detect
     /// button asks this rather than the database.
     pub stored: Vec<AnalysisKind>,
+    /// Bytes the analysis cache occupies on disk, refreshed when Settings
+    /// opens and whenever the moments index is read or cleared.
+    pub cache_bytes: u64,
 }
 
 /// Everything a run needs, resolved before it costs anything.

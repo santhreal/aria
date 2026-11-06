@@ -581,6 +581,9 @@ impl AppState {
     pub fn show_sidebar_tab(&mut self, tab: SidebarTab) {
         self.focus_pane(ActivePanel::Media);
         self.sidebar_tab = tab;
+        if tab == SidebarTab::Captions {
+            self.refresh_models();
+        }
     }
 
     /// Toggle a dock panel tab (`Shift+6` for Mixer, `Shift+0` for Assistant):

@@ -66,20 +66,38 @@ impl AppState {
         ModelManager::new(self.data_dir.join("models")).map_err(|err| err.to_string())
     }
 
-    /// Every catalogued model with its on-disk state.
+    /// Every catalogued model with its held on-disk state.
     ///
-    /// A store that cannot be opened is one "Unreadable" row per model rather than an
-    /// empty list: an empty list looks like a catalog with nothing in it.
+    /// Held on `SettingsForm` and refreshed at startup, when Settings opens,
+    /// when the Captions panel comes forward, and when a model job finishes so
+    /// a draw does not stat model files per frame.
     pub fn model_rows(&self) -> Vec<UiModel> {
+        self.settings_form.model_rows.to_vec()
+    }
+
+    /// The first verified model, which is what a run uses.
+    pub fn installed_model(&self) -> Option<(WhisperModel, PathBuf)> {
+        self.settings_form.installed_model.clone()
+    }
+
+    /// Re-read [`Self::model_rows`] and [`Self::installed_model`] from
+    /// `<data_dir>/models`.
+    pub fn refresh_models(&mut self) {
         let manager = self.model_manager();
-        WhisperModel::catalog()
+        let mut installed = None;
+        let rows: Vec<UiModel> = WhisperModel::catalog()
             .iter()
             .map(|model| {
                 let spec = model.spec();
                 let (status, detail, reinstall) = match &manager {
                     Err(err) => ("Unreadable", err.clone(), false),
                     Ok(manager) => match manager.status(*model) {
-                        Ok(ModelStatus::Ready { .. }) => ("Ready", String::new(), false),
+                        Ok(ModelStatus::Ready { path }) => {
+                            if installed.is_none() {
+                                installed = Some((*model, path));
+                            }
+                            ("Ready", String::new(), false)
+                        }
                         Ok(ModelStatus::Missing) => ("Not installed", String::new(), false),
                         Ok(ModelStatus::Invalid { reason, .. }) => {
                             ("Corrupt", reason.to_string(), true)
@@ -97,18 +115,9 @@ impl AppState {
                     reinstall,
                 }
             })
-            .collect()
-    }
-
-    /// The first verified model, which is what a run uses.
-    pub fn installed_model(&self) -> Option<(WhisperModel, PathBuf)> {
-        let manager = self.model_manager().ok()?;
-        WhisperModel::catalog()
-            .iter()
-            .find_map(|model| match manager.status(*model) {
-                Ok(ModelStatus::Ready { path }) => Some((*model, path)),
-                _ => None,
-            })
+            .collect();
+        self.settings_form.model_rows = rows.into();
+        self.settings_form.installed_model = installed;
     }
 
     /// Install (or re-install) a model as a job.
@@ -273,7 +282,9 @@ impl AppState {
             return Ok(());
         }
         *slot = clamped;
-        aria_settings::save(&path, &settings)
+        aria_settings::save(&path, &settings)?;
+        self.refresh_cloud_settings();
+        Ok(())
     }
 
     /// The download timeouts, for the settings rows.

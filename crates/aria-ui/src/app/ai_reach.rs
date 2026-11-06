@@ -39,7 +39,7 @@ use aria_ai::catalog::{
 use aria_ai::config::provider_from_ai;
 use aria_ai::providers::openrouter_compat_extras;
 use aria_cloud::{DirectStockProvider, download::sha256_hex};
-use aria_settings::{AiSource, schema_report};
+use aria_settings::AiSource;
 use gpui::Context;
 
 use super::AppState;

@@ -14,19 +14,16 @@ use gpui::SharedString;
 impl AppState {
     /// The slash commands `commands/*.md` defines, by name.
     ///
-    /// Read at call time rather than cached, for the same reason the rules are:
-    /// a command file added between two prompts must reach the second one.
+    /// Held on `AssistantForm` and refreshed alongside
+    /// [`Self::refresh_assistant_skills`], so the composer hint draws without
+    /// reading `<data_dir>/agent/commands` per frame.
     pub fn assistant_slash_commands(&self) -> Vec<String> {
-        aria_ai::load_agent_dir(&self.agent_dir())
-            .commands
-            .into_iter()
-            .map(|command| command.name)
-            .collect()
+        self.assistant.slash_commands.to_vec()
     }
 
     /// The composer hint: what typing a slash does, and which names exist.
     pub fn assistant_slash_hint(&self) -> Option<String> {
-        let names = self.assistant_slash_commands();
+        let names = &self.assistant.slash_commands;
         if names.is_empty() {
             return None;
         }
@@ -48,6 +45,7 @@ impl AppState {
     /// happens to start with a slash unsendable.
     pub fn send_composer_prompt(&mut self, cx: &mut Context<Self>) {
         let typed = self.assistant.prompt.to_string();
+        self.refresh_assistant_skills();
         let commands = aria_ai::load_agent_dir(&self.agent_dir()).commands;
         match aria_ai::extend::expand_slash_command(&typed, &commands) {
             Some(expanded) => {
@@ -186,15 +184,16 @@ impl AppState {
     /// "the file was written by a newer build" an answerable question rather
     /// than a guess.
     pub fn settings_schema_rows(&self) -> Vec<(String, String)> {
-        schema_report::report(&self.config_path())
-            .into_iter()
+        self.settings_form
+            .schema
+            .iter()
             .map(|row| (format!("[{}]", row.table), row.summary()))
             .collect()
     }
 
     /// The one-line verdict for the whole configuration file.
     pub fn settings_schema_status(&self) -> String {
-        let rows = schema_report::report(&self.config_path());
+        let rows = &self.settings_form.schema;
         let refused: Vec<&str> = rows
             .iter()
             .filter(|row| row.refused())

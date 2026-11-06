@@ -31,6 +31,7 @@ fn a_refused_override_reads_as_refused() {
     let mut settings = aria_settings::load(&path).expect("load the config");
     *settings.storage.paths.slot("lottie").expect("overridable") = Some(shared.clone());
     aria_settings::save(&path, &settings).expect("save the config");
+    state.refresh_cloud_settings();
 
     let row = lottie(&state);
     assert!(!row.overridden, "a refused override reads as in force");
@@ -68,7 +69,7 @@ fn a_refused_override_reads_as_refused() {
 /// a hand edit says something wrong, it does not stop the editor opening.
 #[test]
 fn a_value_the_config_loader_refused_reaches_the_report() {
-    let (state, _) = with_clip();
+    let (mut state, _) = with_clip();
     let path = state.config_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("the config directory");
@@ -78,6 +79,7 @@ fn a_value_the_config_loader_refused_reaches_the_report() {
         "[storage]\nroot = \"cache\"\n\n[appearance]\ntheme = \"purple\"\n",
     )
     .expect("write a hand-edited config");
+    state.refresh_cloud_settings();
 
     let refusals = state.config_refusals();
     assert_eq!(refusals.len(), 2, "{refusals:?}");

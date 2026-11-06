@@ -87,6 +87,15 @@ impl AppState {
         self.refresh_recents();
         result
     }
+
+    /// Open a recent project, or prompt to relink it when its file has moved.
+    pub(crate) fn open_or_relink_recent(&mut self, path: &Path) {
+        if !path.exists() {
+            relink_recent(self, path);
+            return;
+        }
+        self.request_open_project(path.to_path_buf());
+    }
 }
 
 /// Relink a recent entry whose file has moved: ask for the project, forget the

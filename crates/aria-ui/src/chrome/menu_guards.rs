@@ -57,9 +57,11 @@ pub(crate) fn sound(_: &str, state: &AppState) -> Option<&'static str> {
 }
 
 /// The row imports a file that is still where it was imported from.
-pub(crate) fn import_recent(id: &str, _: &AppState) -> Option<&'static str> {
+pub(crate) fn import_recent(id: &str, state: &AppState) -> Option<&'static str> {
     let path = id.strip_prefix(super::menu_file::IMPORT_RECENT_PREFIX)?;
-    (!std::path::Path::new(path).exists()).then_some("The file is missing")
+    state
+        .import_recent_missing(path)
+        .then_some("The file is missing")
 }
 
 /// The row empties an Import Recent list that holds a file.

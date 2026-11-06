@@ -1224,6 +1224,7 @@ Notes for the latest release. For previous releases, see the
 - The controls on a hovered Markers row stand on the row's own color instead of a darker box.
 - A switch in a Project panel form stands on its label's center line.
 - An error on the status strip, a finished or failed job row, a missing-file recent card, and the shuttle badge draw their text readable in both looks.
+- The AI composer, File menu, Captions tab, and Settings dialog now read held slash commands, recent-import state, configuration tables, cache sizes, and Whisper model status from `AppState` instead of reading and hashing files on disk on every frame.
 
 ## [alpha-0.7.0] - 2026-07-22
 

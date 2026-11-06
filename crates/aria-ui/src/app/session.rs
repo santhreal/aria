@@ -164,6 +164,10 @@ impl AppState {
         self.menu_row = None;
         self.menu_flyout = None;
         self.menu_owner = None;
+        if self.open_menu == Some(AppMenu::File) {
+            self.refresh_recents();
+            self.refresh_import_recents();
+        }
     }
 
     pub fn close_menu(&mut self) {
@@ -646,6 +650,10 @@ impl AppState {
         if kind == DialogKind::Settings {
             self.theme_files = crate::theme::file::scan(&self.data_dir, &self.ctx.themes());
             self.refresh_keymap_sets();
+            self.refresh_cloud_settings();
+            self.refresh_download_cache_size();
+            self.refresh_analysis_cache_size();
+            self.refresh_models();
         }
     }
 }

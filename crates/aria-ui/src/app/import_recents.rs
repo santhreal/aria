@@ -70,6 +70,27 @@ impl AppState {
         &self.import_recents
     }
 
+    /// Whether `path` in [`Self::import_recents`] was missing on disk at the
+    /// last refresh.
+    pub(crate) fn import_recent_missing(&self, path: &str) -> bool {
+        self.caches
+            .missing_imports
+            .iter()
+            .any(|missing| missing.as_os_str() == path)
+    }
+
+    /// Re-check which paths in `Self::import_recents` are currently missing
+    /// on disk.
+    pub fn refresh_import_recents(&mut self) {
+        self.caches.missing_imports = self
+            .import_recents
+            .iter()
+            .filter(|path| !path.exists())
+            .cloned()
+            .collect::<Vec<_>>()
+            .into();
+    }
+
     /// Put `paths` at the head of the Import Recent list and save it.
     pub(crate) fn remember_imports(&mut self, paths: &[PathBuf]) {
         if paths.is_empty() {
@@ -83,6 +104,7 @@ impl AppState {
             ));
         }
         self.import_recents = Arc::from(list);
+        self.refresh_import_recents();
     }
 
     /// File > Import Recent > Clear Recent Imports: empty the list and delete
@@ -101,11 +123,13 @@ impl AppState {
             }
         }
         self.import_recents = Arc::from(Vec::new());
+        self.caches.missing_imports = Arc::from(Vec::new());
     }
 
     /// File > Import Recent > one file: import it again as File > Import does.
     pub fn import_recent(&mut self, path: &Path) {
         if !path.exists() {
+            self.refresh_import_recents();
             self.status_message = Some(format!("{} is missing", path.display()));
             return;
         }

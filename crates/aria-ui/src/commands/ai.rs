@@ -40,6 +40,7 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
         id: "pal-ai-slash",
         label: "Assistant: List the Slash Commands",
         run: |state| {
+            state.refresh_assistant_skills();
             let names = state.assistant_slash_commands();
             state.status_message = Some(if names.is_empty() {
                 "No slash commands: put a template in the agent directory's commands/".into()
@@ -62,8 +63,8 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
         id: "pal-ai-schema",
         label: "Configuration: What This Build Reads",
         run: |state| {
-            let status = state.settings_schema_status();
             state.open_settings_at(SettingsSection::Configuration);
+            let status = state.settings_schema_status();
             state.status_message = Some(status);
         },
     },

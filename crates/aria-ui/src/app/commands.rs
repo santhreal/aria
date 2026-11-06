@@ -401,6 +401,12 @@ impl AppState {
             engine.set_preview_transparency(state.ui_settings.transparency_grid);
         }
         state.refresh_render_files();
+        state.refresh_assistant_skills();
+        state.refresh_cloud_settings();
+        state.refresh_download_cache_size();
+        state.refresh_analysis_cache_size();
+        state.refresh_models();
+        state.refresh_import_recents();
         Ok(state)
     }
 

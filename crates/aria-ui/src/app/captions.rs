@@ -231,6 +231,7 @@ impl AppState {
 
     /// Run transcription as a job and adopt the result into the panel.
     pub fn transcribe_selected(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+        self.refresh_models();
         let request = self.transcription_precheck()?;
         let index = self.analysis_index()?;
         let (wake, wakes) = crate::handoff::wakes::<Result<Vec<UiCaption>, String>>();
@@ -259,6 +260,7 @@ impl AppState {
                             counted(captions.len(), "segment", "segments")
                         ));
                         state.captions.segments = captions;
+                        state.refresh_analysis_cache_size();
                     }
                     Some(Err(reason)) if reason.is_empty() => {
                         state.status_message = Some("Cancelled the transcription".into());

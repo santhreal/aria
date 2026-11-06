@@ -55,10 +55,17 @@ impl AppState {
         self.download_cache.root()
     }
 
-    /// Bytes currently cached. Walks the tree, so callers show it, they do not poll
-    /// it every frame.
+    /// Bytes currently cached, held on `CacheForm` and refreshed when
+    /// Settings opens and whenever the download cache changes so a draw does
+    /// not walk the cache directory per frame.
     pub fn download_cache_size_bytes(&self) -> u64 {
-        self.download_cache.size_bytes()
+        self.caches.download_bytes
+    }
+
+    /// Re-measure [`Self::download_cache_size_bytes`] from the download cache
+    /// directory on disk.
+    pub fn refresh_download_cache_size(&mut self) {
+        self.caches.download_bytes = self.download_cache.size_bytes();
     }
 
     /// The quota in MiB, which is the unit the config and the dialog both use.
@@ -96,6 +103,8 @@ impl AppState {
             .map_err(|err| format!("{}: {err}", path.display()))?;
         self.download_cache.set_quota_bytes(mib.saturating_mul(MIB));
         self.download_cache.enforce_quota();
+        self.refresh_cloud_settings();
+        self.refresh_download_cache_size();
         self.status_message = Some(format!("Download quota set to {mib} MiB"));
         Ok(())
     }
@@ -120,6 +129,7 @@ impl AppState {
 
     pub(crate) fn release_download_guard(&mut self) {
         self.download_cache.allow_destructive_operations();
+        self.refresh_download_cache_size();
     }
 
     /// Delete every unpinned cached file.
@@ -132,6 +142,7 @@ impl AppState {
             .download_cache
             .clear()
             .map_err(|err| format!("clearing the download cache: {err}"))?;
+        self.refresh_download_cache_size();
         let removed = format!(
             "Cleared {}, {}",
             counted(cleared.removed_files, "file", "files"),
@@ -178,6 +189,9 @@ impl AppState {
         })?;
         self.status_message = Some(format!("Storage root is now {}", root.display()));
         self.refresh_render_files();
+        self.refresh_cloud_settings();
+        self.refresh_download_cache_size();
+        self.refresh_analysis_cache_size();
         Ok(())
     }
 

@@ -82,6 +82,10 @@ pub struct AssistantForm {
     pub plan: Arc<Vec<PlanStep>>,
     /// Installed skills held back from this conversation, by id.
     pub skills_off: Vec<String>,
+    /// Slash command names in `<data_dir>/agent/commands/*.md`, refreshed with
+    /// [`AppState::refresh_assistant_skills`] so the composer hint draws
+    /// without reading the disk per frame.
+    pub slash_commands: Arc<[String]>,
     /// A destructive host call waiting on Approve or Deny.
     pub pending_ask: Option<PendingAsk>,
     /// The transcript's scroll position, so a new row does not throw the view

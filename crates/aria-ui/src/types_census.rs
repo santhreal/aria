@@ -289,6 +289,8 @@ fn only_the_sharing_module_reads_a_model_catalog() {
     );
 }
 
+#[path = "types_census_disk.rs"]
+mod disk;
 #[path = "types_census_identities.rs"]
 mod identities;
 #[path = "types_census_lists.rs"]

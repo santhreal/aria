@@ -135,6 +135,12 @@ fn a_deleted_file_is_listed_disabled_and_imports_nothing() {
     std::fs::copy(fixture(), &gone).expect("copy");
     state.import_paths(vec![gone.clone()]);
     std::fs::remove_file(&gone).expect("delete");
+    assert_eq!(
+        recent_rows(&state)[0].2,
+        None,
+        "a draw before opening the File menu reads the held missing set"
+    );
+    state.toggle_menu(AppMenu::File);
     let rows = recent_rows(&state);
     assert_eq!(rows[0].2, Some("The file is missing"));
 

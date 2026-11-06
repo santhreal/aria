@@ -87,20 +87,26 @@ impl AppState {
             .map_err(|err| format!("opening the moments index: {err}"))
     }
 
-    /// Bytes the analysis cache occupies on disk.
-    ///
-    /// Read on demand, not polled: it stats the index and its journals, and a
-    /// per-frame reading would be a disk read per frame.
+    /// Bytes the analysis cache occupies on disk, held on [`AnalysisForm`] and
+    /// refreshed when Settings opens and whenever the moments index is read or
+    /// cleared so a draw does not walk the cache directory per frame.
     pub fn analysis_cache_size_bytes(&self) -> u64 {
+        self.analysis.cache_bytes
+    }
+
+    /// Re-measure [`Self::analysis_cache_size_bytes`] from the analysis cache
+    /// directory on disk.
+    pub fn refresh_analysis_cache_size(&mut self) {
         let Ok(entries) = std::fs::read_dir(self.analysis_cache_root()) else {
-            return 0;
+            self.analysis.cache_bytes = 0;
+            return;
         };
-        entries
+        self.analysis.cache_bytes = entries
             .flatten()
             .filter_map(|entry| entry.metadata().ok())
             .filter(|meta| meta.is_file())
             .map(|meta| meta.len())
-            .sum()
+            .sum();
     }
 
     /// Delete every stored analysis for every media file.
@@ -111,10 +117,12 @@ impl AppState {
     /// run rebuilds what is still wanted.
     pub fn clear_analysis_cache(&mut self) -> Result<u64, String> {
         let root = self.analysis_cache_root();
-        let freed = self.analysis_cache_size_bytes();
+        self.refresh_analysis_cache_size();
+        let freed = self.analysis.cache_bytes;
         if root.exists() {
             std::fs::remove_dir_all(&root).map_err(|err| format!("{}: {err}", root.display()))?;
         }
+        self.analysis.cache_bytes = 0;
         self.analysis.moments.clear();
         self.analysis.loudness = std::sync::Arc::from([]);
         self.status_message = Some(format!(
@@ -457,6 +465,7 @@ impl AppState {
     /// With no index on disk this is a no-op rather than an open: selecting a clip must
     /// not create a database for a session that never analyzed anything.
     pub fn refresh_moments(&mut self) -> Result<(), String> {
+        self.refresh_analysis_cache_size();
         if !self.analysis_index_path().exists() {
             self.clear_analysis_rows();
             return Ok(());

@@ -58,9 +58,17 @@ impl AppState {
         stock_route(&self.cloud_settings())
     }
 
-    /// The config that owns the cloud endpoint and the BYOK keys.
+    /// The config that owns the cloud endpoint and the BYOK keys, held on
+    /// [`SettingsForm`] so a draw does not read `config.toml` per frame.
     pub(crate) fn cloud_settings(&self) -> aria_settings::Settings {
-        aria_settings::load(&self.config_path()).unwrap_or_default()
+        self.settings_form.cloud.clone()
+    }
+
+    /// Re-read `config.toml` and its schema report into `SettingsForm`.
+    pub fn refresh_cloud_settings(&mut self) {
+        let path = self.config_path();
+        self.settings_form.cloud = aria_settings::load(&path).unwrap_or_default();
+        self.settings_form.schema = aria_settings::schema_report::report(&path).into();
     }
 
     fn cloud_client(&self) -> CloudClient {

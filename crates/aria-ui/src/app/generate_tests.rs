@@ -24,7 +24,7 @@ use super::generate::{GENERATE_PROVIDER, GenerateKind};
 use super::premiere_tests::with_clip;
 
 /// Give one provider a literal key in the state's own config file.
-fn with_provider_key(state: &AppState, name: &str, key: &str) {
+fn with_provider_key(state: &mut AppState, name: &str, key: &str) {
     let path = state.config_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("config dir");
@@ -38,14 +38,16 @@ fn with_provider_key(state: &AppState, name: &str, key: &str) {
         },
     );
     aria_settings::save(&path, &settings).expect("write config");
+    state.refresh_cloud_settings();
 }
 
-fn without_providers(state: &AppState) {
+fn without_providers(state: &mut AppState) {
     let path = state.config_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("config dir");
     }
     aria_settings::save(&path, &Settings::default()).expect("write config");
+    state.refresh_cloud_settings();
 }
 
 #[test]
@@ -74,8 +76,8 @@ fn every_kind_has_a_label_and_an_importable_extension() {
 
 #[test]
 fn generation_is_configured_only_by_a_resolvable_key_for_this_provider() {
-    let (state, _clip) = with_clip();
-    without_providers(&state);
+    let (mut state, _clip) = with_clip();
+    without_providers(&mut state);
     assert!(
         !state.generation_configured(),
         "a config with no providers is not configured"
@@ -83,10 +85,10 @@ fn generation_is_configured_only_by_a_resolvable_key_for_this_provider() {
 
     // A key for another provider does not unlock generation: the routing question is
     // per provider, not "some key exists".
-    with_provider_key(&state, "pexels", "pexels-key");
+    with_provider_key(&mut state, "pexels", "pexels-key");
     assert!(!state.generation_configured());
 
-    with_provider_key(&state, GENERATE_PROVIDER, "fal-key");
+    with_provider_key(&mut state, GENERATE_PROVIDER, "fal-key");
     assert!(state.generation_configured());
 
     // A variable that is not set is not a key.
@@ -100,6 +102,7 @@ fn generation_is_configured_only_by_a_resolvable_key_for_this_provider() {
         },
     );
     aria_settings::save(&path, &settings).expect("write config");
+    state.refresh_cloud_settings();
     assert!(
         !state.generation_configured(),
         "an unset environment variable is not a key"
@@ -151,7 +154,7 @@ fn changing_kind_keeps_the_prompt() {
 #[test]
 fn a_blank_prompt_and_a_missing_key_are_both_refused() {
     let (mut state, _clip) = with_clip();
-    without_providers(&state);
+    without_providers(&mut state);
 
     // Blank first: with neither a prompt nor a key, the prompt is the nearer fix.
     state.focus_generate_prompt(true);
@@ -175,7 +178,7 @@ fn a_blank_prompt_and_a_missing_key_are_both_refused() {
     assert_eq!(state.generation_seq, 0);
 
     // With a key the same prompt passes, and the key is what the request carries.
-    with_provider_key(&state, GENERATE_PROVIDER, "fal-key");
+    with_provider_key(&mut state, GENERATE_PROVIDER, "fal-key");
     let (prompt, key) = state
         .generation_precheck()
         .expect("configured and prompted");

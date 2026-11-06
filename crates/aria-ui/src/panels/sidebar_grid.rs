@@ -117,6 +117,9 @@ fn group_chip(
                     && let Some(first) = group.tabs().first()
                 {
                     state.sidebar_tab = *first;
+                    if *first == SidebarTab::Captions {
+                        state.refresh_models();
+                    }
                 }
             });
             cx.notify();
@@ -148,7 +151,12 @@ fn group_tab(
     .on_mouse_down(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-            this.state.update(cx, |state, _| state.sidebar_tab = target);
+            this.state.update(cx, |state, _| {
+                state.sidebar_tab = target;
+                if target == SidebarTab::Captions {
+                    state.refresh_models();
+                }
+            });
             cx.notify();
         }),
     )

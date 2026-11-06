@@ -82,6 +82,12 @@ pub struct CacheForm {
     pub usage: BTreeMap<&'static str, (u64, u64)>,
     /// Whether a measurement has been taken this session.
     pub measured: bool,
+    /// Bytes the download cache occupies on disk, refreshed when Settings
+    /// opens and whenever the download cache is modified.
+    pub download_bytes: u64,
+    /// Paths in `import_recents` that are currently missing on disk, refreshed
+    /// when the File menu opens and whenever the Import Recent list changes.
+    pub missing_imports: std::sync::Arc<[PathBuf]>,
 }
 
 /// Eviction order for one tier: rank, lowest first, and the phrase that names it.
@@ -261,6 +267,8 @@ impl AppState {
         if id == CacheId::RenderFiles {
             self.refresh_render_files();
         }
+        self.refresh_download_cache_size();
+        self.refresh_analysis_cache_size();
         Ok(())
     }
 
@@ -317,6 +325,8 @@ impl AppState {
         if id == CacheId::RenderFiles {
             self.refresh_render_files();
         }
+        self.refresh_download_cache_size();
+        self.refresh_analysis_cache_size();
         Ok(())
     }
 
@@ -342,6 +352,8 @@ impl AppState {
         if id == CacheId::RenderFiles {
             self.refresh_render_files();
         }
+        self.refresh_download_cache_size();
+        self.refresh_analysis_cache_size();
         Ok(())
     }
 
@@ -424,6 +436,8 @@ impl AppState {
         if id == CacheId::RenderFiles {
             self.refresh_render_files();
         }
+        self.refresh_download_cache_size();
+        self.refresh_analysis_cache_size();
         Ok(())
     }
 
@@ -461,6 +475,7 @@ impl AppState {
         *slot = value;
         aria_settings::save(&path, &settings)
             .map_err(|err| format!("{}: {err}", path.display()))?;
+        self.refresh_cloud_settings();
         Ok(())
     }
 

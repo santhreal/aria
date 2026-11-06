@@ -142,7 +142,7 @@ pub(super) fn ai_rows(
             |state, autonomy, _| state.set_autonomy(autonomy),
         ),
         kv(theme, "Status", status).into_any_element(),
-        kv(theme, "Agent files", agent_label.clone()).into_any_element(),
+        kv(theme, "Agent files", agent_label).into_any_element(),
         kv(theme, "Limits", state.read(cx).agent_limits()).into_any_element(),
         kv(theme, "Can do", state.read(cx).agent_capabilities()).into_any_element(),
         kv(theme, "Active", state.read(cx).agent_phases()).into_any_element(),
@@ -157,16 +157,8 @@ pub(super) fn ai_rows(
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    let path = agent_label.clone();
                     this.state.update(cx, |state, _| {
-                        // The directory is created on demand: revealing a path that does
-                        // not exist yet would report "the folder is gone" for a fresh
-                        // install, which is not a configuration mistake.
-                        if let Err(err) = std::fs::create_dir_all(&path) {
-                            state.report_error(format!("{path}: {err}"));
-                            return;
-                        }
-                        state.reveal_path(&path);
+                        state.reveal_agent_dir();
                     });
                     cx.notify();
                 }),

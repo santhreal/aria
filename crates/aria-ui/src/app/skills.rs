@@ -64,9 +64,35 @@ impl AppState {
         Arc::clone(&self.assistant_skills)
     }
 
-    /// Re-read [`Self::assistant_skills`] from `<data_dir>/agent/skills`.
+    /// Re-read [`Self::assistant_skills`] and [`Self::assistant_slash_commands`]
+    /// from `<data_dir>/agent`.
     pub fn refresh_assistant_skills(&mut self) {
-        self.assistant_skills = load_assistant_skills(&self.data_dir).into();
+        let dir = aria_ai::extend::load_agent_dir(&self.agent_dir());
+        self.assistant_skills = aria_ai::merge_skills(dir.skills)
+            .into_iter()
+            .map(|skill| UiSkill {
+                id: SharedString::from(skill.id),
+                name: SharedString::from(skill.name),
+                description: SharedString::from(skill.description),
+            })
+            .collect::<Vec<_>>()
+            .into();
+        self.assistant.slash_commands = dir
+            .commands
+            .into_iter()
+            .map(|command| command.name)
+            .collect::<Vec<_>>()
+            .into();
+    }
+
+    /// Create `<data_dir>/agent` on demand and reveal it in the file manager.
+    pub fn reveal_agent_dir(&mut self) {
+        let path = self.agent_dir();
+        if let Err(err) = std::fs::create_dir_all(&path) {
+            self.report_error(format!("{}: {err}", path.display()));
+            return;
+        }
+        self.reveal_path(&path.display().to_string());
     }
 
     /// Install a downloaded skill file, validating it first.

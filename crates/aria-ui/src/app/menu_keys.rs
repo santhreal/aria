@@ -232,6 +232,10 @@ impl AppState {
     }
 
     fn open_lit(&mut self, menu: AppMenu) {
+        if menu == AppMenu::File {
+            self.refresh_recents();
+            self.refresh_import_recents();
+        }
         let empty = self.menu_rows(menu).is_empty();
         self.open_menu = Some(menu);
         self.menu_row = (!empty).then_some(0);

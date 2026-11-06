@@ -350,6 +350,11 @@ impl AppState {
         if self.dock_tree.is_active(crate::dock::PANEL_ASSISTANT) {
             self.refresh_assistant_skills();
         }
+        if self.dock_tree.is_active(crate::dock::PANEL_PROJECT)
+            && self.sidebar_tab == crate::types::SidebarTab::Captions
+        {
+            self.refresh_models();
+        }
         let wanted = self.scopes_wanted();
         if !self.preview_worker.set_scopes(wanted) {
             return;

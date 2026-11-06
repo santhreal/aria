@@ -22,10 +22,11 @@ use super::premiere_tests::with_clip;
 use super::storage::{DOWNLOADS_DIR, format_bytes};
 
 /// A cached file of `bytes` bytes, so size and clearing have something to observe.
-fn seed_cache(state: &AppState, name: &str, bytes: usize) -> PathBuf {
+fn seed_cache(state: &mut AppState, name: &str, bytes: usize) -> PathBuf {
     let path = state.download_cache_root().join(name);
     std::fs::create_dir_all(path.parent().expect("a parent")).expect("create the cache root");
     std::fs::write(&path, vec![0u8; bytes]).expect("seed a cached file");
+    state.refresh_download_cache_size();
     path
 }
 
@@ -43,9 +44,9 @@ fn a_fresh_session_reports_the_shipped_quota_and_an_empty_cache() {
 
 #[test]
 fn the_cache_reports_what_is_in_it() {
-    let (state, _) = with_clip();
-    seed_cache(&state, "one.bin", 4_096);
-    seed_cache(&state, "two.bin", 2_048);
+    let (mut state, _) = with_clip();
+    seed_cache(&mut state, "one.bin", 4_096);
+    seed_cache(&mut state, "two.bin", 2_048);
     assert_eq!(state.download_cache_size_bytes(), 6_144);
 }
 
@@ -117,7 +118,7 @@ fn the_accepted_quota_bounds_are_the_ones_the_config_validates() {
 fn lowering_the_quota_evicts_down_to_it() {
     // The quota is not a label: setting it enforces it.
     let (mut state, _) = with_clip();
-    seed_cache(&state, "big.bin", 3 * 1024 * 1024);
+    seed_cache(&mut state, "big.bin", 3 * 1024 * 1024);
     assert!(state.download_cache_size_bytes() >= 3 * 1024 * 1024);
 
     state.set_download_quota_mib(1).expect("1 MiB is in range");
@@ -131,8 +132,8 @@ fn lowering_the_quota_evicts_down_to_it() {
 #[test]
 fn clearing_the_cache_removes_the_files_and_says_what_it_removed() {
     let (mut state, _) = with_clip();
-    seed_cache(&state, "one.bin", 1_024);
-    seed_cache(&state, "two.bin", 1_024);
+    seed_cache(&mut state, "one.bin", 1_024);
+    seed_cache(&mut state, "two.bin", 1_024);
 
     let cleared = state.clear_download_cache().expect("clear");
     assert_eq!(cleared.removed_files, 2);
@@ -157,7 +158,7 @@ fn clearing_an_empty_cache_is_not_an_error() {
 #[test]
 fn relocating_carries_the_cached_files_and_persists_the_new_root() {
     let (mut state, _) = with_clip();
-    seed_cache(&state, "keep.bin", 512);
+    seed_cache(&mut state, "keep.bin", 512);
     let destination = state.data_dir.join("moved-root");
 
     state
@@ -196,7 +197,7 @@ fn relocating_before_the_first_download_still_works() {
 #[test]
 fn a_refused_relocation_leaves_the_cache_where_it_was() {
     let (mut state, _) = with_clip();
-    seed_cache(&state, "stay.bin", 128);
+    seed_cache(&mut state, "stay.bin", 128);
     let before = state.download_cache_root();
 
     // Relative, and a root whose cache directory already exists: both are refused,

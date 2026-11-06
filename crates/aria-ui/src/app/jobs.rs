@@ -335,6 +335,8 @@ impl AppState {
                     if finished {
                         state.sync_from_engine();
                         state.poll_render_bar();
+                        state.refresh_models();
+                        state.refresh_analysis_cache_size();
                     }
                     state.refresh_jobs();
                     cx.notify();
