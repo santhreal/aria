@@ -849,6 +849,27 @@ impl UiSequence {
         self.tracks.iter().map(|lane| lane.clips.len()).sum()
     }
 
+    /// The file names of the offline clips the picture at `tick` holds: each
+    /// enabled clip on an enabled lane that draws a picture, under `tick`,
+    /// whose file is missing. The preview renders each as a slate.
+    pub fn offline_at(&self, tick: i64) -> Vec<SharedString> {
+        let mut names: Vec<SharedString> = Vec::new();
+        let pictured = self.tracks.iter().filter(|lane| {
+            lane.enabled && !matches!(lane.kind, UiTrackKind::Audio | UiTrackKind::Submix)
+        });
+        for lane in pictured {
+            let under = lane.clips.iter().filter(|clip| {
+                clip.enabled && clip.timeline_start_ticks <= tick && tick < clip.timeline_end_ticks
+            });
+            for name in under.filter_map(|clip| clip.offline.as_ref()) {
+                if !names.contains(name) {
+                    names.push(name.clone());
+                }
+            }
+        }
+        names
+    }
+
     /// The lane a Source tab's `channel` lands on: its patched lane while that
     /// is still on the sequence, otherwise the targeted lane of the channel's
     /// kind nearest the video/audio divide, otherwise the lane of that kind

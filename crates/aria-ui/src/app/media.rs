@@ -421,7 +421,7 @@ pub(crate) fn codec_label(codec: Option<&str>) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MediaFacts {
     /// Shape and length: `1920×1080 · 00:00:02:00`, `Audio · 00:00:30:00`,
-    /// or `Media missing`.
+    /// or `Media Offline`.
     pub(crate) picture: String,
     /// The codecs, the sound and the proxy, when there is one to state.
     pub(crate) streams: Option<String>,
@@ -441,7 +441,7 @@ impl MediaFacts {
 pub(crate) fn media_facts(item: &crate::types::UiMediaItem) -> MediaFacts {
     if item.missing {
         return MediaFacts {
-            picture: "Media missing".to_string(),
+            picture: "Media Offline".to_string(),
             streams: None,
         };
     }

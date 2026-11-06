@@ -307,6 +307,7 @@ fn program_pane(
                 .child(frame_view(state, theme, cx))
                 .children(compare::wipe(state, theme, cx))
                 .children(guides(view, theme))
+                .children(offline_notice(state, theme, cx))
                 .child(handles::measure(state, cx.entity().downgrade()))
                 .children(handles::overlay(state, theme, cx))
                 .children(motion_path::overlay(state, theme, cx))
@@ -347,6 +348,9 @@ mod source;
 #[path = "preview_tabs.rs"]
 mod tabs;
 #[cfg(test)]
+#[path = "viewer_offline_tests.rs"]
+mod viewer_offline_tests;
+#[cfg(test)]
 #[path = "viewer_peak_tests.rs"]
 mod viewer_peak_tests;
 #[cfg(test)]
@@ -365,4 +369,4 @@ mod viewer_zoom_tests;
 mod zoom;
 use controls::{clock_field, jump_btn, loop_btn, mark_btn, step_btn, transport_btn, zoom_btn};
 use peak::peak_meter;
-use source::{frame_view, guides, source_stage};
+use source::{frame_view, guides, offline_notice, source_stage};

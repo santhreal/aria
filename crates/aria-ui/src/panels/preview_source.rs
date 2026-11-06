@@ -476,6 +476,44 @@ pub(super) fn safe_box(theme: &Theme, percent: f32) -> impl IntoElement {
         .border_color(theme.border_strong)
 }
 
+/// "Media Offline" and the missing files, over a Program frame that shows a
+/// clip whose file is gone. The preview draws such a clip as a plain red
+/// slate, which reads as footage without the words.
+pub(super) fn offline_notice(
+    state: &Entity<AppState>,
+    theme: &Theme,
+    cx: &gpui::Context<crate::shell::Shell>,
+) -> Option<gpui::AnyElement> {
+    let read = state.read(cx);
+    let tick = read.shown_tick.unwrap_or(read.playhead.value);
+    let names = read.store.sequence.offline_at(tick);
+    if names.is_empty() {
+        return None;
+    }
+    let files = names
+        .iter()
+        .map(|name| name.as_ref())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(
+        div()
+            .debug_selector(|| "viewer-offline".into())
+            .absolute()
+            .top(px(Theme::SPACE_MD))
+            .left(px(Theme::SPACE_MD))
+            .max_w(relative(0.9))
+            .px(px(Theme::SPACE_SM))
+            .py(px(Theme::SPACE_XS))
+            .rounded(px(Theme::CONTROL_RADIUS))
+            .bg(theme.danger)
+            .text_color(Theme::ink_on(theme.danger))
+            .text_size(Theme::TEXT_UI)
+            .truncate()
+            .child(gpui::SharedString::from(format!("Media Offline: {files}")))
+            .into_any_element(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;

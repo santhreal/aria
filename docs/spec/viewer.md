@@ -109,8 +109,7 @@ frame back. A click without a drag opens the field for typing.
 | Safe margins | Action safe at 93 %, title safe at 90 %, as 1 px lines. |
 | Guides | Dragged out of the rulers (Ctrl+Shift+R shows rulers). Snapping to guides is a View toggle. |
 | Transparency grid | 8 px checkerboard behind transparent pixels instead of black. |
-| Dropped-frame indicator | A dot in the top left of the frame: green while every frame arrives on time, yellow with a count after a drop. Clicking it resets the count. |
-| Missing media | A red slate naming the file and the clip. |
+| Missing media | A clip whose file is missing renders as a red slate, and a red tag in the top left of the frame reads `Media Offline:` and the missing file names while the frame holds such a clip. |
 | Clip outline | The selected clips' bounds, anchor point, and rotation handle. |
 
 ## On-canvas controls

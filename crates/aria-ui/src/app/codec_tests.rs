@@ -123,13 +123,15 @@ fn an_audio_only_row_names_its_own_codec_and_no_video_one() {
     assert_eq!(facts.line(), "Audio · 00:00:30:00");
 }
 
+/// A missing file reads `Media Offline`, the words the timeline bar and the
+/// Viewer print for the same file, before anything else about it.
 #[test]
 fn a_missing_file_reports_that_before_anything_else() {
     let mut media = item(UiClipKind::Media);
     media.missing = true;
     media.video_codec = Some("H.264".into());
     media.proxied = true;
-    assert_eq!(media_facts(&media), lines("Media missing", None));
+    assert_eq!(media_facts(&media), lines("Media Offline", None));
 }
 
 /// The proxy closes the streams line of every kind of row, and an audio file
