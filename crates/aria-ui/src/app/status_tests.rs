@@ -6,7 +6,7 @@
 //!   driven by a passed-in `now`, so these assertions need no sleeping and no
 //!   wall clock.
 //! - A refusal of the selection (`"Select a clip to analyze"`, `"Select a clip
-//!   with audio to transcribe"`, `"Texture has no audio track"`) outlives the
+//!   with audio to transcribe"`, `"“texture” has no audio track"`) outlives the
 //!   selection change that replaces it, or a selection writer updates
 //!   `AppState::selection` without finishing in
 //!   [`AppState::refresh_projected_selection`]. Every selection writer in

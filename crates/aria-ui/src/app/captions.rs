@@ -194,11 +194,8 @@ impl AppState {
             .iter()
             .find(|item| item.id == media_id)
             .ok_or("The clip's media is no longer in the pool")?;
-        if !media.has_audio {
-            return Err(format!("{} has no audio track", media.name));
-        }
-        if media.missing {
-            return Err(format!("{} is offline. Relink it first", media.name));
+        if let Some(refusal) = super::analysis::AnalysisRefusal::of_media(media, true) {
+            return Err(refusal.to_string());
         }
         let (_, model_path) = self
             .installed_model()

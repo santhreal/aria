@@ -82,8 +82,8 @@ impl AppState {
             self.status_message = Some("Select a clip that plays a pool entry".into());
             return;
         };
-        if !item.has_audio {
-            self.status_message = Some(format!("{} carries no audio", item.name));
+        if let Some(refusal) = crate::app::analysis::AnalysisRefusal::of_media(item, true) {
+            self.status_message = Some(refusal.to_string());
             return;
         }
         let path = PathBuf::from(&*item.path);
