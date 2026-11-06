@@ -19,6 +19,7 @@ use aria_models::{ClipId, Project, Rational, RationalTime};
 
 use crate::app::AppState;
 use crate::app::drag_steps::Step;
+use crate::tool_catalog::{BodyDrag, EdgeDrag};
 
 /// A neighbor of the clip being dragged, in timeline ticks.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -91,7 +92,10 @@ impl AppState {
         after: Option<Neighbour>,
     ) -> Result<(), EngineError> {
         let delta = slide_room(start, end, delta, before, after);
-        self.run_steps(&slide_steps(clip, start, delta, before, after))
+        self.run_steps(
+            BodyDrag::Slide.step_name(),
+            &slide_steps(clip, start, delta, before, after),
+        )
     }
 
     /// Move the cut between two abutting clips by `delta` ticks: the left clip's
@@ -102,7 +106,10 @@ impl AppState {
         right: Neighbour,
         delta: i64,
     ) -> Result<(), EngineError> {
-        self.run_steps(&roll_steps(left, right, roll_room(left, right, delta)))
+        self.run_steps(
+            Some(EdgeDrag::Roll.step_name()),
+            &roll_steps(left, right, roll_room(left, right, delta)),
+        )
     }
 
     /// Retime a clip so it occupies `new_duration` ticks while keeping its
@@ -126,7 +133,7 @@ impl AppState {
                 left,
             )
         });
-        self.run_steps(&steps)
+        self.run_steps(Some(EdgeDrag::Rate.step_name()), &steps)
     }
 
     /// Trim an edge and move the rest of the lane by the same amount, so the
@@ -142,7 +149,7 @@ impl AppState {
         delta: i64,
     ) -> Result<(), EngineError> {
         let steps = self.ripple_steps(clip, track, start, end, left, delta);
-        self.run_steps(&steps)
+        self.run_steps(Some(EdgeDrag::Ripple.step_name()), &steps)
     }
 
     /// The edits a ripple trim of `clip`'s head (`left`) or tail by `delta`

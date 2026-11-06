@@ -25,6 +25,18 @@ pub enum BodyDrag {
     Slide,
 }
 
+impl BodyDrag {
+    /// The undo step a release of this drag leaves. A slip sends one edit,
+    /// already named; a slide sends a trim, a move and a trim, and the step
+    /// takes the drag's name rather than whichever edit went first.
+    pub const fn step_name(self) -> Option<&'static str> {
+        match self {
+            Self::Slip => None,
+            Self::Slide => Some("Slide clip"),
+        }
+    }
+}
+
 /// Direction a track-select tool reaches from the clicked position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackSelectDir {
@@ -43,6 +55,19 @@ pub enum EdgeDrag {
     Rate,
     /// Trim the edge and move the rest of the lane so no gap is left.
     Ripple,
+}
+
+impl EdgeDrag {
+    /// The undo step a release of this drag leaves. Each sends several edits
+    /// in an order that depends on the edge and the direction, so the step
+    /// takes the drag's name rather than whichever edit went first.
+    pub const fn step_name(self) -> &'static str {
+        match self {
+            Self::Roll => "Roll edit",
+            Self::Rate => "Rate stretch",
+            Self::Ripple => "Ripple trim",
+        }
+    }
 }
 
 /// The tool bar button a tool shares with its siblings.

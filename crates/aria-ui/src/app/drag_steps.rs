@@ -58,18 +58,26 @@ pub(crate) struct Plan {
 impl AppState {
     /// Send `steps` as one undo entry, and settle each transition at a cut
     /// they move ([`kept`]). A refused step rolls back the steps before it.
-    pub(crate) fn run_steps(&mut self, steps: &[Step]) -> Result<(), EngineError> {
+    /// The entry is named `name`, or after its first edit without one.
+    pub(crate) fn run_steps(
+        &mut self,
+        name: Option<&'static str>,
+        steps: &[Step],
+    ) -> Result<(), EngineError> {
         self.snap_guide = None;
         if steps.is_empty() {
             return Ok(());
         }
         let cuts = Cut::all(self.engine.lock().project());
         match steps {
-            [step] if cuts.is_empty() => self.run_step(*step),
-            _ => self.one_step(|this| {
-                steps.iter().try_for_each(|step| this.run_step(*step))?;
-                this.settle_cuts(&cuts)
-            }),
+            [step] if name.is_none() && cuts.is_empty() => self.run_step(*step),
+            _ => self.one_step_named(
+                |_| name,
+                |this| {
+                    steps.iter().try_for_each(|step| this.run_step(*step))?;
+                    this.settle_cuts(&cuts)
+                },
+            ),
         }
     }
 

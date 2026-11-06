@@ -192,6 +192,24 @@ impl Gesture {
             | Self::Fade { .. } => None,
         }
     }
+
+    /// The undo step the release leaves, for a drag that sends several edits;
+    /// `None` for one that sends one edit, which the edit names.
+    pub(crate) fn step_name(&self) -> Option<&'static str> {
+        match *self {
+            Self::Edge {
+                drag: Some(drag), ..
+            } => Some(drag.step_name()),
+            Self::Body {
+                drag: Some(drag), ..
+            } => drag.step_name(),
+            Self::Edge { drag: None, .. }
+            | Self::Body { drag: None, .. }
+            | Self::RippleBody { .. }
+            | Self::Transition { .. }
+            | Self::Fade { .. } => None,
+        }
+    }
 }
 
 /// Where `desired` lands once the magnet has had its say, and the magnet it
@@ -492,7 +510,10 @@ pub fn apply(state: &mut AppState, gesture: Gesture, drag: Drag) -> Result<(), E
         }
         | Gesture::Edge { .. } => {
             let travel = held(state, gesture, &drag).map_or(0, |held| held.travel);
-            state.run_steps(&steps(state, gesture, drag.clip, travel))
+            state.run_steps(
+                gesture.step_name(),
+                &steps(state, gesture, drag.clip, travel),
+            )
         }
     }
 }

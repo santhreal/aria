@@ -57,7 +57,9 @@ Ctrl+Shift+Left / Ctrl+Shift+Right by five frames.
 - Numeric entry: with clips selected, typing `+` or `-` on the numeric keypad
   and a duration moves them; with an edge selected it trims.
 
-Every drag is one undo step with a name in Edit > Undo ("Undo Ripple Trim").
+Every drag is one undo step, named in Edit > Undo. A ripple trim, a roll, a
+rate stretch, and a slide take the drag's name ("Undo Ripple trim"); a move, a
+trim, and a slip take the edit's ("Undo Trim clip").
 
 ## Gaps and deletion
 
@@ -83,7 +85,7 @@ from the source's length or the gap.
 | --- | --- | --- |
 | Insert | `,` | Places the source range at the sequence In (or the playhead) on the patched tracks and pushes later clips right on sync-locked tracks |
 | Overwrite | `.` | Places the source range over what is there |
-| Replace | Clip > Replace with Clip > From Source | Replaces the clip under the playhead, aligning the Source playhead frame with the sequence playhead frame |
+| Replace | Clip > Replace with Clip > From Source Monitor | Replaces the clip under the playhead, aligning the Source playhead frame with the sequence playhead frame |
 | Fit to Fill | With four points set | Retimes the source range to the sequence range and shows the new speed |
 
 Source patching (the V and A indicators in the track headers) chooses which
@@ -99,9 +101,11 @@ pointer takes the channel of its kind.
 
 ## Snapping
 
-Snapping (S) snaps a moving edge, clip, playhead, or keyframe to: clip edges,
-the playhead, In and Out, markers, keyframes on visible property rows, beat
-markers, and the work area. The snap distance is 8 px. A snap draws a vertical
+Snapping (S) pulls a dragged clip, a dragged clip edge, or an item dropped on
+the timeline onto the nearest of: clip edges, the playhead, In and Out, both
+ends of every marker, beats detected on clips, and the start and end of the
+sequence. A keyframe dragged on a property row pulls to the playhead and the
+clip's other keyframes. The snap distance is 8 px. A snap draws a vertical
 `warning` line through every track at the snap point while it holds. Holding
 Alt while dragging suspends snapping for that drag.
 
@@ -116,11 +120,14 @@ Alt while dragging suspends snapping for that drag.
 
 ## Nesting
 
-Clip > Nest replaces the selection with one clip whose source is a new sequence
-holding the selection. Double-clicking a nested clip opens its sequence in a new
-Timeline tab. Edits inside it appear in every instance. A nested clip draws
-every visible lane of its sequence as one picture, fitted into the canvas it is
-placed on, and that picture takes the clip's transform and look.
+Clip > Nest… replaces the selection with one clip whose source is a new
+sequence holding the selection. Double-clicking a nested clip opens its
+sequence in the Timeline in place of the open one, and the status bar shows a
+breadcrumb with its name. Clicking the breadcrumb, or Sequence > Nested
+Sequence > Leave Nested Sequence, returns. Edits inside it appear in every
+instance. A nested clip draws every visible lane of its sequence as one
+picture, fitted into the canvas it is placed on, and that picture takes the
+clip's transform and look.
 
 ## Markers
 

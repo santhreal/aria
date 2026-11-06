@@ -17,6 +17,11 @@
 //! a fade drag stop where their edits stop, and the readout states the change
 //! the release makes.
 //!
+//! A drag that sends several edits leaves one undo step named after the drag
+//! (`Gesture::step_name`), on both edges and both ways. The step was named
+//! after its first edit, and which edit went first depended on the edge and
+//! the direction: a ripple that lengthened a tail read "Undo Shift clips".
+//!
 //! The drags are the census rows, each edge drag on both edges, so a new drag
 //! is sent here too. Every row is sent on the census junction, and each row a
 //! room holds is sent again on a lane between two clips, in open lane and at
@@ -134,7 +139,7 @@ fn assert_at_limit(
     name: &str,
 ) {
     let steps = timeline_gesture::steps(state, gesture, clip, past);
-    let sent = state.run_steps(&steps);
+    let sent = state.run_steps(gesture.step_name(), &steps);
     state.sync_from_engine();
     assert!(
         sent.is_err() || placed(state) == landed,
@@ -328,9 +333,19 @@ fn far_both_ways(dress: fn() -> Junction, held: bool) {
             let was = span_of(state, clip);
             let before = order(state);
             let was_set = set_on(state, gesture, clip);
+            let was_placed = placed(state);
             timeline_gesture::apply(state, gesture, drag)
                 .unwrap_or_else(|err| panic!("{name} was refused: {err}"));
             state.sync_from_engine();
+            if let Some(step) = gesture.step_name()
+                && placed(state) != was_placed
+            {
+                assert_eq!(
+                    state.next_undo_label().as_deref(),
+                    Some(step),
+                    "{name}: the undo step is not named after the drag"
+                );
+            }
             if gesture.room().is_none() {
                 assert!(
                     placed(state).iter().all(|&(start, ..)| start >= 0),
@@ -388,6 +403,31 @@ fn a_drag_in_open_lane_stops_at_the_take_or_the_next_clip() {
 #[test]
 fn a_drag_at_the_sequence_start_stops_there_unless_it_ripples() {
     far_both_ways(at_the_start, true);
+}
+
+/// Every census drag, on both edges and both ways: one that sends more than
+/// one edit names its undo step. Without a name the step takes its first
+/// edit's, and which edit goes first depends on the edge and the direction.
+/// A new drag that sends several edits fails here until it has a name.
+#[test]
+fn a_drag_that_sends_several_edits_names_its_undo_step() {
+    let dressed = junction();
+    let mut several = 0;
+    for (gesture, clip) in drags(&dressed) {
+        for travel in [-super::STEP, super::STEP] {
+            let steps = timeline_gesture::steps(&dressed.state, gesture, clip, travel);
+            if steps.len() > 1 {
+                several += 1;
+                assert!(
+                    gesture.step_name().is_some(),
+                    "{} by {travel} sends {} edits and names no undo step",
+                    gesture.what(),
+                    steps.len()
+                );
+            }
+        }
+    }
+    assert!(several > 0, "no census drag sent more than one edit");
 }
 
 /// The junction with `tool` armed in `mode` and the subject's `side` edge

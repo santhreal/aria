@@ -1311,6 +1311,7 @@ Notes for the latest release. For previous releases, see the
 - The Viewer draws a Media Offline tag with the missing file names over a frame that shows a clip whose file is gone, instead of a bare red frame.
 - The media pool row of a missing file reads Media Offline, the wording of the timeline bar and the Viewer.
 - An `.ariaplugin` archive left in the plugins folder now reports that it installs with File > Install Plugin… instead of naming a Plugins panel that does not exist.
+- Edit > Undo names a ripple trim, roll, rate stretch, or slide drag after the drag instead of after whichever of its edits ran first.
 
 ## [alpha-0.7.0] - 2026-07-22
 
