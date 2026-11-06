@@ -219,4 +219,153 @@ mod tests {
             );
         }
     }
+
+    /// Every `.rs` file in `crates/aria-cli/src` whose production code calls
+    /// `write_png(`.
+    fn png_writers_in_cli_source() -> std::collections::BTreeSet<String> {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut writers = std::collections::BTreeSet::new();
+        for entry in std::fs::read_dir(&src).expect("read crates/aria-cli/src") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .expect("file name")
+                .to_owned();
+            if name.ends_with("_tests.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read source file");
+            let prod = text.split("#[cfg(test)]").next().unwrap_or(&text);
+            if prod.contains("write_png(") {
+                assert!(
+                    !prod.contains("std::fs::write(") && !prod.contains("File::create("),
+                    "{name} writes directly to disk instead of routing through atomic write_png"
+                );
+                writers.insert(name);
+            }
+        }
+        writers
+    }
+
+    /// WHY: `aria frame` and `aria demo` encoded a PNG and passed it to
+    /// `std::fs::write`, which opens the destination with `O_TRUNC` in place
+    /// and follows symlinks: an interrupted or failed write left a truncated
+    /// file over the prior PNG, and a symlink destination overwrote its target.
+    /// Every PNG writer in `crates/aria-cli/src` is derived from source at run
+    /// time and driven over a pre-populated destination observed through a hard
+    /// link (proving replacement by rename rather than in-place truncation), a
+    /// failing write, and a symlink destination. Not caught: power loss when
+    /// the filesystem ignores `sync_all`.
+    #[test]
+    fn every_cli_png_writer_publishes_atomically_and_preserves_prior_destination_on_failure() {
+        use aria_core::RgbaImage;
+        use std::collections::BTreeSet;
+
+        let derived = png_writers_in_cli_source();
+        type Writer = (
+            &'static str,
+            Box<dyn Fn(&std::path::Path) -> Result<(), String>>,
+        );
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let cut = new_project(dir.path(), "cut.aria", &["fixture-640x360-30fps-3s.mp4"]);
+        let writers: Vec<Writer> = vec![
+            (
+                "demo.rs",
+                Box::new(|out| {
+                    let image = RgbaImage::new(
+                        2,
+                        2,
+                        vec![
+                            255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255,
+                        ],
+                    );
+                    crate::demo::write_png(&image, out)
+                }),
+            ),
+            (
+                "frame.rs",
+                Box::new({
+                    let cut = cut.clone();
+                    move |out| frame(&cut, out, None).map_err(|err| err.message().to_owned())
+                }),
+            ),
+        ];
+        let covered: BTreeSet<String> =
+            writers.iter().map(|(name, _)| (*name).to_owned()).collect();
+        assert_eq!(
+            covered, derived,
+            "every PNG writer in crates/aria-cli/src must be exercised in this table"
+        );
+
+        let old_bytes = b"prior PNG bytes that an interrupted or failed write must not truncate";
+        for (name, write_ok) in &writers {
+            let sub = dir.path().join(name.trim_end_matches(".rs"));
+            std::fs::create_dir_all(&sub).expect("create writer scratch");
+            let out = sub.join("out.png");
+            let prior_inode = sub.join("prior-inode.png");
+            std::fs::write(&out, old_bytes).expect("seed prior destination");
+            std::fs::hard_link(&out, &prior_inode).expect("hard-link prior inode");
+
+            write_ok(&out).unwrap_or_else(|err| panic!("{name} failed on valid output: {err}"));
+
+            assert_eq!(
+                std::fs::read(&prior_inode).expect("read prior inode"),
+                old_bytes,
+                "{name} truncated the destination inode in place instead of replacing by rename"
+            );
+            let written = std::fs::read(&out).expect("read published PNG");
+            let decoded = aria_render::decode_png(&written)
+                .unwrap_or_else(|err| panic!("{name} did not write a valid PNG: {err}"));
+            assert!(decoded.width > 0 && decoded.height > 0, "{name}");
+
+            let leftover: Vec<_> = std::fs::read_dir(&sub)
+                .expect("read writer dir")
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|entry| entry.starts_with(".aria-export-"))
+                .collect();
+            assert!(
+                leftover.is_empty(),
+                "{name} left staging directories behind: {leftover:?}"
+            );
+
+            #[cfg(unix)]
+            {
+                let target = sub.join("symlink-target.png");
+                let link = sub.join("symlink-out.png");
+                std::fs::write(&target, old_bytes).expect("seed symlink target");
+                std::os::unix::fs::symlink(&target, &link).expect("create symlink");
+                let err = write_ok(&link)
+                    .expect_err(&format!("{name} followed a symlink at the destination"));
+                assert!(
+                    err.contains(&format!("{} is a symbolic link", link.display())),
+                    "{name} symlink refusal did not name the symlink: {err}"
+                );
+                assert_eq!(
+                    std::fs::read(&target).expect("read symlink target"),
+                    old_bytes,
+                    "{name} overwrote the symlink target"
+                );
+            }
+        }
+
+        // A failed encode or missing parent directory leaves an existing file
+        // untouched and leaves no staging directory behind.
+        let guarded = dir.path().join("guarded.png");
+        std::fs::write(&guarded, old_bytes).expect("seed guarded destination");
+        let malformed = RgbaImage::new(4, 4, vec![0u8; 4]);
+        assert!(
+            crate::demo::write_png(&malformed, &guarded).is_err(),
+            "malformed RGBA buffer must fail encode_png"
+        );
+        assert_eq!(
+            std::fs::read(&guarded).expect("read guarded destination"),
+            old_bytes,
+            "failed encode overwrote existing destination"
+        );
+    }
 }

@@ -117,6 +117,9 @@ impl AppState {
                 // One format was asked for: the file takes its extension
                 // whatever name was typed.
                 Some(exporter) => {
+                    if !state.check_timeline_destination(&path) {
+                        return;
+                    }
                     let path = if path
                         .extension()
                         .is_some_and(|ext| ext.eq_ignore_ascii_case(&exporter.extension))
@@ -139,6 +142,9 @@ impl AppState {
     /// whether it was written; when it was not, `path` is unchanged and the
     /// error is reported.
     pub fn export_timeline(&mut self, path: &Path) -> bool {
+        if !self.check_timeline_destination(path) {
+            return false;
+        }
         let (exporter, path) = match exporter_for(&self.ctx.exporters(), path) {
             Ok(found) => found,
             Err(reason) => {
@@ -151,6 +157,9 @@ impl AppState {
 
     /// Write the open timeline to `path` through `exporter`.
     fn write_timeline(&mut self, exporter: &ExporterSpec, path: &Path) -> bool {
+        if !self.check_timeline_destination(path) {
+            return false;
+        }
         let project = self.host().snapshot();
         match self.ctx.export_file(&exporter.id, &project, path) {
             Ok(report) => {
@@ -163,6 +172,19 @@ impl AppState {
                 false
             }
         }
+    }
+
+    /// Refuse `path` when it names the project file or one of its media, as an
+    /// export does.
+    fn check_timeline_destination(&mut self, path: &Path) -> bool {
+        let project = self.host().snapshot();
+        if let Err(err) =
+            aria_render::check_export_destination(&project, path, self.project_path.as_deref())
+        {
+            self.report_error(super::error_copy::describe_export_refusal(&err));
+            return false;
+        }
+        true
     }
 
     /// Show `title` on the status line, and open the Timeline File dialog on

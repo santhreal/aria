@@ -61,7 +61,7 @@ impl VideoEncoder for PngSequenceEncoder {
             .ok_or_else(|| EncodeError::Encode("frame has no plane".into()))?;
 
         let path = self.dir.join(format!("frame_{:05}.png", self.index));
-        write_png(&path, frame.width(), frame.height(), plane)?;
+        write_plane_png(&path, frame.width(), frame.height(), plane)?;
         self.index += 1;
         Ok(())
     }
@@ -104,6 +104,19 @@ pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, RenderError> {
     Ok(bytes)
 }
 
+/// Encode `image` as an 8-bit RGBA PNG and publish it to `path` atomically.
+///
+/// Encoding and writing run in a sibling staging directory and replace `path`
+/// only after the PNG is complete, so a failed encode or write leaves whatever
+/// was at `path` as it was.
+pub fn write_png(image: &RgbaImage, path: &Path) -> Result<(), RenderError> {
+    let bytes = encode_png(image)?;
+    let staged = TransactionalFile::new(path)?;
+    std::fs::write(staged.staging_path(), &bytes)?;
+    staged.publish()?;
+    Ok(())
+}
+
 /// Render the frame `project` shows at `at`, at the canvas size, and write it
 /// to `path` as a PNG. Returns the image's width and height.
 ///
@@ -124,10 +137,7 @@ pub fn export_frame_png(
         .and_then(|scene| renderer.render_scene(project, &scene));
     renderer.set_apply_motion_blur(prev_blur);
     let image = image?;
-    let bytes = encode_png(&image)?;
-    let staged = TransactionalFile::new(path)?;
-    std::fs::write(staged.staging_path(), &bytes)?;
-    staged.publish()?;
+    write_png(&image, path)?;
     Ok((image.width, image.height))
 }
 
@@ -202,7 +212,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, RenderError> {
 }
 
 /// Write one RGBA8 plane to an 8-bit PNG, compacting away any row padding.
-fn write_png(path: &Path, width: u32, height: u32, plane: &Plane) -> Result<(), EncodeError> {
+fn write_plane_png(path: &Path, width: u32, height: u32, plane: &Plane) -> Result<(), EncodeError> {
     let row_bytes = width as usize * 4;
     let file = File::create(path).map_err(|e| EncodeError::Encode(e.to_string()))?;
     let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);

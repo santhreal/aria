@@ -69,8 +69,7 @@ pub(crate) fn run(out: Option<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
-/// Write a straight-alpha [`RgbaImage`] to an 8-bit RGBA PNG.
+/// Write a straight-alpha [`RgbaImage`] to an 8-bit RGBA PNG atomically.
 pub(crate) fn write_png(image: &RgbaImage, path: &Path) -> Result<(), String> {
-    let bytes = aria_render::encode_png(image).map_err(|err| err.to_string())?;
-    std::fs::write(path, bytes).map_err(|err| format!("{}: {err}", path.display()))
+    aria_render::write_png(image, path).map_err(|err| err.to_string())
 }

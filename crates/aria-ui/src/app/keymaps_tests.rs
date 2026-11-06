@@ -460,3 +460,140 @@ fn a_key_moved_from_the_keyboard_is_saved_before_the_window_closes(cx: &mut gpui
     assert_eq!(saved.keys.get(a.id), Some(&Some(holder.chord.label())));
     assert_eq!(saved.keys.get(holder.id), Some(&None));
 }
+
+/// Every function in `app/keymaps.rs` whose name starts with `export_keymap`.
+fn keymap_export_writers_in_source() -> std::collections::BTreeSet<String> {
+    use crate::test_support::sources::{code_lines, production_sources};
+
+    let mut writers = std::collections::BTreeSet::new();
+    for (rel, code) in production_sources() {
+        if rel != "app/keymaps.rs" {
+            continue;
+        }
+        for line in code_lines(&code) {
+            let trimmed = line.trim();
+            for prefix in ["pub fn ", "pub(crate) fn ", "pub(super) fn ", "fn "] {
+                if let Some(rest) = trimmed.strip_prefix(prefix) {
+                    let end = rest
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .unwrap_or(rest.len());
+                    let name = &rest[..end];
+                    if name.starts_with("export_keymap") {
+                        writers.insert(name.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    writers
+}
+
+/// WHY: `export_keymap` and `export_keymap_to` wrote the TOML keymap directly
+/// to whatever path was chosen, so picking the open `.aria` project file or a
+/// media clip in the project's pool replaced the project or its footage with
+/// `version = 1\n[keys]`. Every `export_keymap*` writer in `app/keymaps.rs` is
+/// derived from source at run time and tested against the project file and a
+/// pool media file (direct, `..`, and `.toml` symlink spellings). Not caught:
+/// overwriting an unrelated file outside the open project.
+#[test]
+fn every_keymap_export_writer_refuses_the_project_file_and_its_media() {
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    let derived = keymap_export_writers_in_source();
+    type Runner = (
+        &'static str,
+        Box<dyn Fn(&mut AppState, &Path) -> Result<(), String>>,
+    );
+    let runners: Vec<Runner> = vec![
+        (
+            "export_keymap",
+            Box::new(|state, path| {
+                state.last_error = None;
+                state.supply_pick(Answer::file(path));
+                state.export_keymap();
+                match state.last_error.clone() {
+                    Some(err) => Err(err),
+                    None => Ok(()),
+                }
+            }),
+        ),
+        (
+            "export_keymap_to",
+            Box::new(|state, path| state.export_keymap_to(path)),
+        ),
+    ];
+    let covered: BTreeSet<String> = runners.iter().map(|(name, _)| (*name).to_owned()).collect();
+    assert_eq!(
+        covered, derived,
+        "every export_keymap* writer in app/keymaps.rs must be exercised in this table"
+    );
+
+    let a = plain(0);
+    let (mut state, dir) = state("keymaps-export-guard");
+    press(&mut state, a.id, free_key());
+    let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4")
+        .canonicalize()
+        .expect("fixture exists");
+    let media = dir.join("clip.mp4");
+    std::fs::copy(&fixture, &media).expect("copy media fixture");
+    state.import_media(media.clone()).expect("import media");
+    let project_file = dir.join("project.aria");
+    state
+        .save_project_to(project_file.clone())
+        .expect("save project");
+
+    let project_bytes = std::fs::read(&project_file).expect("read project");
+    let media_bytes = std::fs::read(&media).expect("read media");
+    let sub = dir.join("nested");
+    std::fs::create_dir_all(&sub).expect("create nested dir");
+
+    let mut targets = vec![
+        (project_file.clone(), "the project file"),
+        (media.clone(), "media this project uses"),
+        (sub.join("..").join("project.aria"), "the project file"),
+        (sub.join("..").join("clip.mp4"), "media this project uses"),
+    ];
+    #[cfg(unix)]
+    {
+        let project_link = dir.join("project-keys.toml");
+        let media_link = dir.join("media-keys.toml");
+        std::os::unix::fs::symlink(&project_file, &project_link).expect("symlink project");
+        std::os::unix::fs::symlink(&media, &media_link).expect("symlink media");
+        targets.push((project_link, "the project file"));
+        targets.push((media_link, "media this project uses"));
+    }
+
+    for (writer, run) in &runners {
+        for (target, what) in &targets {
+            state.status_message = Some("Prior status".into());
+            let err = run(&mut state, target).expect_err(&format!(
+                "{writer} overwrote {what} at {}",
+                target.display()
+            ));
+            assert_eq!(
+                err,
+                format!("{} is {what}; export to another file", target.display()),
+                "{writer} over {what}"
+            );
+            assert_eq!(
+                state.status_message.as_deref(),
+                Some("Prior status"),
+                "{writer} clobbered status_message on refused export"
+            );
+            assert_eq!(
+                std::fs::read(&project_file).expect("read project"),
+                project_bytes,
+                "{writer} modified the project file via {}",
+                target.display()
+            );
+            assert_eq!(
+                std::fs::read(&media).expect("read media"),
+                media_bytes,
+                "{writer} modified the media file via {}",
+                target.display()
+            );
+        }
+    }
+}

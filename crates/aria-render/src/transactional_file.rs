@@ -224,8 +224,19 @@ fn validate_destination_path(destination: &Path) -> io::Result<()> {
 fn validate_destination_shape(destination: &Path) -> io::Result<()> {
     match fs::symlink_metadata(destination) {
         Ok(metadata) if metadata.file_type().is_file() => Ok(()),
-        Ok(_) => Err(invalid_input(
-            "export destination exists but is not a regular file",
+        Ok(metadata) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "{} is {}, not a regular file; export to a file name of its own",
+                destination.display(),
+                if metadata.file_type().is_symlink() {
+                    "a symbolic link"
+                } else if metadata.is_dir() {
+                    "a folder"
+                } else {
+                    "a special file"
+                }
+            ),
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),

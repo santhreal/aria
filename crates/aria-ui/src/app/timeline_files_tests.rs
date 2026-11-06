@@ -449,3 +449,319 @@ fn hide_the_placed_lane(state: &mut AppState) -> (TrackId, String) {
         .expect("hide the lane");
     (track, name)
 }
+
+/// Every function in `app/timeline_files.rs` whose name contains
+/// `export_timeline`.
+fn timeline_export_writers_in_source() -> std::collections::BTreeSet<String> {
+    use crate::test_support::sources::{code_lines, production_sources};
+
+    let mut writers = std::collections::BTreeSet::new();
+    for (rel, code) in production_sources() {
+        if rel != "app/timeline_files.rs" {
+            continue;
+        }
+        for line in code_lines(&code) {
+            let trimmed = line.trim();
+            for prefix in ["pub fn ", "pub(crate) fn ", "pub(super) fn ", "fn "] {
+                if let Some(rest) = trimmed.strip_prefix(prefix) {
+                    let end = rest
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .unwrap_or(rest.len());
+                    let name = &rest[..end];
+                    if name.contains("export_timeline") {
+                        writers.insert(name.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    writers
+}
+
+/// Every function in `app/` whose body opens `Ask::SaveFile` for an `"Export`
+/// dialog. Braces are counted on lexed lines, whose string literals are blank;
+/// the title is matched on the same lines with their literals kept.
+fn save_file_export_writers_in_app_source() -> std::collections::BTreeSet<String> {
+    use crate::test_support::sources::{code_lines, production_sources};
+
+    let mut writers = std::collections::BTreeSet::new();
+    for (rel, code) in production_sources() {
+        if rel != "app.rs" && !rel.starts_with("app/") {
+            continue;
+        }
+        let lines = code_lines(&code);
+        let source: Vec<&str> = code.lines().collect();
+        let mut index = 0usize;
+        while index < lines.len() {
+            let trimmed = lines[index].trim();
+            let mut fn_name = None;
+            for prefix in ["pub fn ", "pub(crate) fn ", "pub(super) fn ", "fn "] {
+                if let Some(rest) = trimmed.strip_prefix(prefix) {
+                    let end = rest
+                        .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                        .unwrap_or(rest.len());
+                    if end > 0 {
+                        fn_name = Some(rest[..end].to_owned());
+                        break;
+                    }
+                }
+            }
+            let Some(name) = fn_name else {
+                index += 1;
+                continue;
+            };
+            let mut depth = 0i32;
+            let mut seen_open = false;
+            let mut body = String::new();
+            while index < lines.len() {
+                let line = &lines[index];
+                for ch in line.chars() {
+                    match ch {
+                        '{' => {
+                            depth += 1;
+                            seen_open = true;
+                        }
+                        '}' => depth -= 1,
+                        _ => {}
+                    }
+                }
+                body.push_str(source.get(index).copied().unwrap_or_default());
+                body.push('\n');
+                index += 1;
+                if seen_open && depth <= 0 {
+                    break;
+                }
+            }
+            if body.contains("Ask::SaveFile(") && body.contains("FileSpec::new(\"Export") {
+                writers.insert(name);
+            }
+        }
+    }
+    writers
+}
+
+/// WHY: `export_timeline`, `pick_and_export_timeline`, and
+/// `pick_and_export_timeline_as` passed the chosen destination straight to
+/// `PluginContext::export_file` without calling
+/// `aria_render::check_export_destination`, so exporting a timeline over the
+/// open project file or a media clip in its pool (directly, via `..`, via a
+/// symlink with the exporter's extension, or via a bare stem whose appended
+/// extension named an input) replaced the project or its footage. Every
+/// timeline export entry point in `app/timeline_files.rs`, expanded across
+/// every registered exporter in `state.ctx.exporters()`, plus every
+/// `Ask::SaveFile(FileSpec::new("Export..."))` writer in `app/`, is derived
+/// from source at run time and verified to refuse both inputs without touching
+/// their bytes on disk. Not caught: overwriting an unrelated file outside the
+/// open project.
+#[test]
+fn every_timeline_and_save_file_export_writer_refuses_the_project_file_and_its_media() {
+    use std::collections::BTreeSet;
+
+    let derived_timeline = timeline_export_writers_in_source();
+    let covered_timeline: BTreeSet<String> = [
+        "export_timeline",
+        "pick_and_export_timeline",
+        "pick_and_export_timeline_as",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(
+        covered_timeline, derived_timeline,
+        "every *export_timeline* writer in app/timeline_files.rs must be exercised in this test"
+    );
+
+    let mut state = captioned();
+    let dir = out_dir().join("refuse-inputs");
+    std::fs::create_dir_all(&dir).expect("create test dir");
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4")
+        .canonicalize()
+        .expect("fixture exists");
+    let media = dir.join("clip.mp4");
+    std::fs::copy(&fixture, &media).expect("copy media");
+    state.import_media(media.clone()).expect("import media");
+    let project_file = dir.join("cut.aria");
+    state
+        .save_project_to(project_file.clone())
+        .expect("save project");
+
+    let project_bytes = std::fs::read(&project_file).expect("read project");
+    let media_bytes = std::fs::read(&media).expect("read media");
+    let sub = dir.join("nested");
+    std::fs::create_dir_all(&sub).expect("create nested dir");
+
+    let exporters: Vec<(String, String)> = state
+        .ctx
+        .exporters()
+        .into_iter()
+        .map(|spec| (spec.id.clone(), spec.extension.clone()))
+        .collect();
+    assert!(!exporters.is_empty(), "shipped exporters must be mounted");
+
+    // 1. Direct `export_timeline` and `pick_and_export_timeline` over the
+    //    project file and media (canonical and `..` spellings).
+    for (target, what) in [
+        (project_file.clone(), "the project file"),
+        (media.clone(), "media this project uses"),
+        (sub.join("..").join("cut.aria"), "the project file"),
+        (sub.join("..").join("clip.mp4"), "media this project uses"),
+    ] {
+        let expected = format!("{} is {what}; export to another file", target.display());
+
+        state.last_error = None;
+        assert!(
+            !state.export_timeline(&target),
+            "export_timeline accepted {what} at {}",
+            target.display()
+        );
+        assert_eq!(state.last_error.as_deref(), Some(expected.as_str()));
+        assert_eq!(state.timeline_report, None);
+        assert_eq!(state.dialog, DialogKind::None);
+
+        state.last_error = None;
+        state.supply_pick(Answer::file(&target));
+        state.pick_and_export_timeline();
+        assert_eq!(state.last_error.as_deref(), Some(expected.as_str()));
+
+        for (exporter_id, _) in &exporters {
+            state.last_error = None;
+            state.supply_pick(Answer::file(&target));
+            state.pick_and_export_timeline_as(exporter_id);
+            assert_eq!(
+                state.last_error.as_deref(),
+                Some(expected.as_str()),
+                "pick_and_export_timeline_as({exporter_id}) over {what}"
+            );
+        }
+    }
+
+    // 2. Every registered exporter's extension: a symlink `*.<ext>` pointing to
+    //    the project file or a pool media file, plus an extensionless stem
+    //    whose appended `.<ext>` resolves to that symlink.
+    #[cfg(unix)]
+    for (idx, (exporter_id, ext)) in exporters.iter().enumerate() {
+        let ext_dir = dir.join(format!("ext-{idx}-{ext}"));
+        std::fs::create_dir_all(&ext_dir).expect("create exporter dir");
+        let proj_stem = ext_dir.join("proj-target");
+        let proj_with_ext = ext_dir.join(format!("proj-target.{ext}"));
+        let media_stem = ext_dir.join("media-target");
+        let media_with_ext = ext_dir.join(format!("media-target.{ext}"));
+        std::os::unix::fs::symlink(&project_file, &proj_with_ext).expect("symlink project");
+        std::os::unix::fs::symlink(&media, &media_with_ext).expect("symlink media");
+
+        for (chosen, resolved, what) in [
+            (&proj_with_ext, &proj_with_ext, "the project file"),
+            (&media_with_ext, &media_with_ext, "media this project uses"),
+            (&proj_stem, &proj_with_ext, "the project file"),
+            (&media_stem, &media_with_ext, "media this project uses"),
+        ] {
+            let expected = format!("{} is {what}; export to another file", resolved.display());
+
+            state.last_error = None;
+            state.supply_pick(Answer::file(chosen));
+            state.pick_and_export_timeline_as(exporter_id);
+            assert_eq!(
+                state.last_error.as_deref(),
+                Some(expected.as_str()),
+                "pick_and_export_timeline_as({exporter_id}) on {}",
+                chosen.display()
+            );
+
+            if chosen == resolved || idx == 0 {
+                state.last_error = None;
+                assert!(
+                    !state.export_timeline(chosen),
+                    "export_timeline accepted {} -> {what}",
+                    chosen.display()
+                );
+                assert_eq!(
+                    state.last_error.as_deref(),
+                    Some(expected.as_str()),
+                    "export_timeline on {}",
+                    chosen.display()
+                );
+
+                state.last_error = None;
+                state.supply_pick(Answer::file(chosen));
+                state.pick_and_export_timeline();
+                assert_eq!(
+                    state.last_error.as_deref(),
+                    Some(expected.as_str()),
+                    "pick_and_export_timeline on {}",
+                    chosen.display()
+                );
+            }
+        }
+    }
+
+    // 3. Every `Ask::SaveFile(FileSpec::new("Export..."))` writer in `app/`
+    //    derived from `production_sources()`.
+    let derived_save_exports = save_file_export_writers_in_app_source();
+    type SaveExportRunner = (&'static str, Box<dyn Fn(&mut AppState, &Path)>);
+    let save_export_runners: Vec<SaveExportRunner> = vec![
+        (
+            "ask_timeline_path",
+            Box::new(|state, path| {
+                state.supply_pick(Answer::file(path));
+                state.pick_and_export_timeline();
+            }),
+        ),
+        (
+            "export_keymap",
+            Box::new(|state, path| {
+                state.supply_pick(Answer::file(path));
+                state.export_keymap();
+            }),
+        ),
+        (
+            "pick_and_export_frame",
+            Box::new(|state, path| {
+                state.supply_pick(Answer::file(path));
+                state.pick_and_export_frame();
+            }),
+        ),
+        (
+            "pick_export_destination",
+            Box::new(|state, path| {
+                state.supply_pick(Answer::file(path));
+                state.pick_export_destination();
+                state.export_to_destination();
+            }),
+        ),
+    ];
+    let covered_save_exports: BTreeSet<String> = save_export_runners
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    assert_eq!(
+        covered_save_exports, derived_save_exports,
+        "every Ask::SaveFile(\"Export...\") writer in app/ must be exercised in this table"
+    );
+
+    for (writer, run) in &save_export_runners {
+        for (target, what) in [
+            (&project_file, "the project file"),
+            (&media, "media this project uses"),
+        ] {
+            state.last_error = None;
+            run(&mut state, target);
+            assert_eq!(
+                state.last_error.as_deref(),
+                Some(format!("{} is {what}; export to another file", target.display()).as_str()),
+                "{writer} over {what}"
+            );
+        }
+    }
+
+    assert_eq!(
+        std::fs::read(&project_file).expect("read project"),
+        project_bytes,
+        "the project file was modified"
+    );
+    assert_eq!(
+        std::fs::read(&media).expect("read media"),
+        media_bytes,
+        "the media file was modified"
+    );
+}

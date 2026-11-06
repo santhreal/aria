@@ -1293,6 +1293,9 @@ Notes for the latest release. For previous releases, see the
 - Plugin storage calls with no project open fail with an error in the Rust SDK, the C ABI and the WASM host.
 - An audio device unplugged during playback is reported in one sentence with no doubled period.
 - An export that reads a clip whose source file is missing fails before a job starts and names the file, in the editor and in `aria export`.
+- **File > Export > Timeline…** and the keymap export to the project file or a file the project uses as media fail before anything is written, as a media export does.
+- `aria demo` writes its PNG through a staging file, so a failed write leaves the file already at the destination as it was.
+- An export to a symbolic link, a folder, or a special file names the path and what is there.
 
 ## [alpha-0.7.0] - 2026-07-22
 

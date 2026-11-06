@@ -429,8 +429,8 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-key-revert` (per row) | Revert | Restores the command row's keyboard shortcut to its shipped default chord. | None |
 | `settings-keymap` (per row) | Keymap set name | Loads the saved keyboard shortcut set and makes it active. | None |
 | `settings-keymap-delete` | Delete set | Deletes the selected custom keymap preset from disk. | None |
-| `settings-keymap-export` | Export… | Exports the current keyboard shortcut bindings to a `.json` keymap file. | None |
-| `settings-keymap-import` | Import… | Imports keyboard shortcut bindings from a `.json` keymap file. | None |
+| `settings-keymap-export` | Export… | Exports the current keyboard shortcut bindings to a `.toml` keymap file. A path naming the project file or one of its media fails before anything is written. | None |
+| `settings-keymap-import` | Import… | Imports keyboard shortcut bindings from a `.toml` keymap file. | None |
 | `settings-keys-reset` | Reset all | Restores every keyboard shortcut in the active set to its default chord. | None |
 | `settings-log-dropped-frames` | Switch | Toggles writing each dropped playback frame and its cause to the log under the `aria::playback` target; drawn on the Log dropped frames line. | None |
 | `settings-workspace-forget` (per row) | Forget | Deletes the saved custom workspace layout. | None |

@@ -229,8 +229,13 @@ impl AppState {
         Ok(())
     }
 
-    /// Write the rebindings in force to `path`.
+    /// Write the rebindings in force to `path`. A path naming the project file
+    /// or one of its media is refused before anything is written, as an export
+    /// is.
     pub(crate) fn export_keymap_to(&mut self, path: &Path) -> Result<(), String> {
+        let project = self.host().snapshot();
+        aria_render::check_export_destination(&project, path, self.project_path.as_deref())
+            .map_err(|err| super::error_copy::describe_export_refusal(&err))?;
         keymap_sets::write_keymap(path, &self.current_key_set())?;
         self.status_message = Some(format!("Exported the keys to {}", path.display()));
         Ok(())

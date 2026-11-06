@@ -732,7 +732,7 @@ impl FrameSink for ExportFrameSink {
 // and re-exported here under `crate::export`.
 #[path = "export_png.rs"]
 mod png_sink;
-pub use png_sink::{PngSequenceEncoder, decode_png, encode_png, export_frame_png};
+pub use png_sink::{PngSequenceEncoder, decode_png, encode_png, export_frame_png, write_png};
 
 #[cfg(test)]
 mod tests {
