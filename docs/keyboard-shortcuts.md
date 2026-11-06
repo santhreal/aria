@@ -174,7 +174,7 @@ clock stops the other, and focusing another tab stops the source.
 | Shortcut | Action |
 | --- | --- |
 | I | Set In point at playhead. With a source loaded in the monitor, marks the source instead. |
-| O | Set Out point at playhead. With a source loaded, marks the source (exclusive, so the frame on screen is kept). |
+| O | Set Out point on the frame at the playhead; that frame is kept. With a source loaded, marks the source instead. |
 | X | Mark In and Out around the clip under the playhead on the targeted tracks |
 | Shift+I / Shift+O | Playhead to In / Out point |
 | Ctrl+Shift+I / Ctrl+Shift+O | Clear In / Out point, or the source's when one is loaded |

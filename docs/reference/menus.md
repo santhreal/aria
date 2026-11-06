@@ -9,7 +9,7 @@ A row also marks where a group starts: `rule` starts a group of the drop at the 
 Set an in-point and out-point around a range, add a sequence marker, and render a preview cache for that span:
 
 1. Move the playhead to the start of the range and choose **Markers > Mark In** (`seq-mark-in`, `I`).
-2. Move the playhead to the end of the range and choose **Markers > Mark Out** (`seq-mark-out`, `O`).
+2. Move the playhead to the last frame of the range and choose **Markers > Mark Out** (`seq-mark-out`, `O`). The Out frame is part of the range.
 3. Choose **Markers > Add Marker** (`seq-marker`, `M`), then choose **Markers > Edit Marker…** (`seq-marker-rename`) to assign a name and color.
 4. Choose **Sequence > Render In to Out** (`seq-render-in-to-out`, `Enter`) to start a preview-render job covering the marked span.
 
