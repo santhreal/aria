@@ -545,7 +545,8 @@ fn menus_doc_matches_registry() {
                 | Decline::NoMonitorSource
                 | Decline::GeneratedClip
                 | Decline::SourceTooShort
-                | Decline::SameSource => {}
+                | Decline::SameSource
+                | Decline::SameLabel => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

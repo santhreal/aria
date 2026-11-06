@@ -121,6 +121,58 @@ fn a_label_covers_the_whole_selection() {
         vec![Some(LabelColor::Mango), Some(LabelColor::Mango)]
     );
     assert_eq!(state.label_counts(), vec![(LabelColor::Mango, 2)]);
+    assert!(state.undo(), "the labeling is undoable");
+    assert_eq!(
+        labels(&state),
+        vec![None, None],
+        "one Undo takes the label off every clip it went on"
+    );
+}
+
+/// WHY: a Label row wrote every selected clip, so a selection that already
+/// had the color recorded a step that changed nothing, and a selection that
+/// half had it spent one Undo per clip. Closes both for the selection: the
+/// write skips the clips that have the label, declines when that is all of
+/// them, and lands as one step. Does not cover the pool row, which
+/// `drawn_census_labels` presses.
+#[test]
+fn a_label_writes_only_the_clips_without_it_and_declines_on_none() {
+    let (mut state, first) = with_clip();
+    let end = state
+        .selected_ui_clip()
+        .expect("the fixture clip")
+        .timeline_end_ticks;
+    state.set_playhead(end / 2);
+    state.split_at_playhead().expect("two clips");
+    state.select_clip(first);
+    state
+        .set_selection_label(Some(LabelColor::Rose))
+        .expect("label the left half");
+    state.select_all_unlocked();
+
+    let watch = super::sent_census::Watch::on(&state);
+    state
+        .set_selection_label(Some(LabelColor::Rose))
+        .expect("label the rest");
+    assert_eq!(labels(&state), vec![Some(LabelColor::Rose); 2]);
+    assert_eq!(
+        watch.take(),
+        vec!["Set label color"],
+        "only the unlabelled half was written"
+    );
+
+    state.status_message = None;
+    state
+        .set_selection_label(Some(LabelColor::Rose))
+        .expect("a repeat is not an error");
+    assert_eq!(watch.take(), Vec::<&str>::new(), "a repeat wrote a label");
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("That label is already set")
+    );
+
+    assert!(state.undo(), "the second labeling is one step");
+    assert_eq!(labels(&state), vec![Some(LabelColor::Rose), None]);
 }
 
 #[test]

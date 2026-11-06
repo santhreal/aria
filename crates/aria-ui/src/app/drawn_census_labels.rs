@@ -17,7 +17,7 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
     let mut out = BTreeSet::new();
     for target in LabelTarget::ALL {
         for swatch in labels::swatches() {
-            let (mut state, target) = aimed(target);
+            let (mut state, target) = aimed(target, swatch);
             let watch = crate::app::sent_census::Watch::on(&state);
             target
                 .write(&mut state, swatch)
@@ -33,12 +33,13 @@ pub(super) fn dispatched() -> BTreeSet<&'static str> {
 }
 
 /// A fresh fixture with `target` aimed at it: the pool palette at the item that
-/// fixture imported, the clip palette at its selection.
+/// fixture imported, the clip palette at its selection. For the clear, the
+/// target is labelled first, since clearing no label writes nothing.
 ///
 /// Aimed per state rather than once, because a pool id belongs to the project it
 /// was imported into and means nothing in the next one.
-fn aimed(target: LabelTarget) -> (crate::app::AppState, LabelTarget) {
-    let (state, _) = with_clip();
+fn aimed(target: LabelTarget, swatch: Option<LabelColor>) -> (crate::app::AppState, LabelTarget) {
+    let (mut state, _) = with_clip();
     let media = state
         .store
         .media
@@ -46,6 +47,11 @@ fn aimed(target: LabelTarget) -> (crate::app::AppState, LabelTarget) {
         .expect("the fixture imports one pool item")
         .id;
     let target = target.on_media(media);
+    if swatch.is_none() {
+        target
+            .write(&mut state, Some(LabelColor::ALL[0]))
+            .expect("label the target before clearing it");
+    }
     (state, target)
 }
 
@@ -55,7 +61,7 @@ fn every_swatch_writes_a_label() {
     // menu, and the clip keeps whatever label it had.
     for target in LabelTarget::ALL {
         for swatch in labels::swatches() {
-            let (mut state, target) = aimed(target);
+            let (mut state, target) = aimed(target, swatch);
             let watch = crate::app::sent_census::Watch::on(&state);
             target.write(&mut state, swatch).expect("the write lands");
             assert!(
@@ -63,6 +69,35 @@ fn every_swatch_writes_a_label() {
                 "the {} swatch for {:?} asked for nothing",
                 target.id_prefix(),
                 swatch
+            );
+        }
+    }
+}
+
+/// WHY: a swatch pressed on a target that already has its color recorded a
+/// step that changed nothing, so the next Undo undid nothing. Closes that for
+/// every swatch on both targets, the clear included. Does not check the drawn
+/// check mark on the current color.
+#[test]
+fn a_swatch_pressed_again_asks_for_nothing_and_says_why() {
+    for target in LabelTarget::ALL {
+        for swatch in labels::swatches() {
+            let (mut state, target) = aimed(target, swatch);
+            target.write(&mut state, swatch).expect("the first press");
+            state.status_message = None;
+            let watch = crate::app::sent_census::Watch::on(&state);
+            target.write(&mut state, swatch).expect("the second press");
+            assert_eq!(
+                watch.take(),
+                Vec::<&str>::new(),
+                "the {} swatch {swatch:?} pressed again asked for a step",
+                target.id_prefix()
+            );
+            assert_eq!(
+                state.status_message.as_deref(),
+                Some("That label is already set"),
+                "the {} swatch {swatch:?} pressed again said nothing",
+                target.id_prefix()
             );
         }
     }

@@ -59,23 +59,23 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-select-all` | `none` | Select All | `Ctrl+A` | Always enabled | Selects every clip on unlocked tracks in the active sequence. |
 | `edit-deselect` | `none` | Deselect All | `Ctrl+Shift+A` | No clip or gap is selected (`guards::clip_or_gap`) | Clears the clip, edit point, and gap selection. |
 | `edit-find` | `none` | Find… | `Ctrl+F` | Always enabled | Focuses the Project panel media search field. |
-| `edit-label-violet` | `Label` | Violet | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Violet`. |
-| `edit-label-iris` | `Label` | Iris | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Iris`. |
-| `edit-label-caribbean` | `Label` | Caribbean | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Caribbean`. |
-| `edit-label-lavender` | `Label` | Lavender | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Lavender`. |
-| `edit-label-cerulean` | `Label` | Cerulean | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Cerulean`. |
-| `edit-label-forest` | `Label` | Forest | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Forest`. |
-| `edit-label-rose` | `Label` | Rose | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Rose`. |
-| `edit-label-mango` | `Label` | Mango | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Mango`. |
-| `edit-label-purple` | `Label` | Purple | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Purple`. |
-| `edit-label-blue` | `Label` | Blue | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Blue`. |
-| `edit-label-teal` | `Label` | Teal | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Teal`. |
-| `edit-label-magenta` | `Label` | Magenta | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Magenta`. |
-| `edit-label-tan` | `Label` | Tan | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Tan`. |
-| `edit-label-green` | `Label` | Green | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Green`. |
-| `edit-label-brown` | `Label` | Brown | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Brown`. |
-| `edit-label-yellow` | `Label` | Yellow | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Yellow`. |
-| `edit-label-none` | `Label` | None | `none` | No clip is selected (`guards::selection`) | Clears the label color (`None`) on selected clips. |
+| `edit-label-violet` | `Label` | Violet | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Violet`. |
+| `edit-label-iris` | `Label` | Iris | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Iris`. |
+| `edit-label-caribbean` | `Label` | Caribbean | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Caribbean`. |
+| `edit-label-lavender` | `Label` | Lavender | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Lavender`. |
+| `edit-label-cerulean` | `Label` | Cerulean | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Cerulean`. |
+| `edit-label-forest` | `Label` | Forest | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Forest`. |
+| `edit-label-rose` | `Label` | Rose | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Rose`. |
+| `edit-label-mango` | `Label` | Mango | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Mango`. |
+| `edit-label-purple` | `Label` | Purple | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Purple`. |
+| `edit-label-blue` | `Label` | Blue | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Blue`. |
+| `edit-label-teal` | `Label` | Teal | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Teal`. |
+| `edit-label-magenta` | `Label` | Magenta | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Magenta`. |
+| `edit-label-tan` | `Label` | Tan | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Tan`. |
+| `edit-label-green` | `Label` | Green | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Green`. |
+| `edit-label-brown` | `Label` | Brown | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Brown`. |
+| `edit-label-yellow` | `Label` | Yellow | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Sets the label color of selected clips to `LabelColor::Yellow`. |
+| `edit-label-none` | `Label` | None | `none` | No clip is selected, or every selected clip already has that label (`label_ready`) | Clears the label color (`None`) on selected clips. |
 | `edit-keyboard-shortcuts` | `none` | Keyboard Shortcuts… | `Ctrl+Alt+K` | Always enabled | Opens `aria.dialog.settings` on the Keyboard Shortcuts section alone. |
 | `edit-preferences` | `none` | Preferences… | `Ctrl+,` | Always enabled | Opens `aria.dialog.settings` on every section, with the filter cleared. |
 
@@ -400,6 +400,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `GeneratedClip` | `A generated clip has no media to replace` |
 | `SourceTooShort` | `The source does not hold enough media around its playhead to fill the clip` |
 | `SameSource` | `The clip already plays those source frames` |
+| `SameLabel` | `That label is already set` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

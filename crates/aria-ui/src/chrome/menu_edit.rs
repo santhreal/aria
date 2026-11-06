@@ -164,12 +164,18 @@ fn label_row(color: Option<LabelColor>) -> MenuItem {
         let labelled = s.set_selection_label(color);
         report(s, labelled)
     })
-    .when(super::menu_guards::selection)
+    .when(label_ready)
     .checked(|id, s| {
         s.selected_ui_clip_ref()
             .is_some_and(|clip| clip.label == label_of(id))
     })
     .under("Label")
+}
+
+/// Disables a Label row whose color every selected clip already has, through
+/// the plan its body runs.
+fn label_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    state.label_targets(label_of(id)).err().map(Decline::reason)
 }
 
 /// The color an Edit > Label row sets, by its id.

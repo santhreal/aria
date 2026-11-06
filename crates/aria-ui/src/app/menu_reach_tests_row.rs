@@ -107,23 +107,6 @@ fn a_row_that_records_a_step_changes_the_project() {
 /// Rows whose repeat still records a step over its own result. Each is red
 /// here once it no longer does, so the list only shrinks.
 const REPEATS_A_STEP: &[&str] = &[
-    "edit-label-violet",
-    "edit-label-iris",
-    "edit-label-caribbean",
-    "edit-label-lavender",
-    "edit-label-cerulean",
-    "edit-label-forest",
-    "edit-label-rose",
-    "edit-label-mango",
-    "edit-label-purple",
-    "edit-label-blue",
-    "edit-label-teal",
-    "edit-label-magenta",
-    "edit-label-tan",
-    "edit-label-green",
-    "edit-label-brown",
-    "edit-label-yellow",
-    "edit-label-none",
     "clip-channels-swap",
     "clip-channels-left",
     "clip-channels-right",
@@ -195,7 +178,7 @@ fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
 #[test]
 fn a_row_over_its_own_result_declines_and_records_nothing() {
     use crate::app::decline::Decline;
-    let cases: [(&str, fn() -> AppState, Decline); 7] = [
+    let cases: [(&str, fn() -> AppState, Decline); 8] = [
         ("seq-crop-reset", || Clip.state(), Decline::FullFrame),
         ("seq-matte-clear", || Clip.state(), Decline::NoMatte),
         (
@@ -235,6 +218,7 @@ fn a_row_over_its_own_result_declines_and_records_nothing() {
             },
             Decline::SameSource,
         ),
+        ("edit-label-violet", || Labelled.state(), Decline::SameLabel),
     ];
     let mut wrong = Vec::new();
     for (id, build, why) in cases {

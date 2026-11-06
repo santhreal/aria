@@ -318,7 +318,8 @@ Teal, Magenta, Tan, Green, Brown, and Yellow. Right-click a clip: the menu
 holds their swatches and a clear swatch, an outline with a cross in it.
 **Edit > Label** lists the same sixteen and **None**. Clicking a swatch labels
 every selected clip, the clear swatch clears the label, and each is one undo
-entry per clip.
+step. A swatch or row whose label every selected clip already has is disabled
+or reports `That label is already set`, and writes nothing.
 
 A clip bar is filled with its label color. A clip with no label takes its
 kind's label: Teal for video, Forest for audio, Mango for generators, titles

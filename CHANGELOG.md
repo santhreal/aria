@@ -1356,6 +1356,7 @@ Notes for the latest release. For previous releases, see the
 - A session with unsaved edits writes no recovery copy while it has no edit the last copy does not hold, instead of rewriting the whole project every twenty seconds.
 - `aria export` prints the encoder that wrote the file, instead of a hardware encoder that opened and then could not encode the first frame.
 - Sequence > Source > Insert, Overwrite and Insert Pool Selection and Sequence > Ducking > Cycle Duck Amount draw their chords, and a withheld Source row withholds its chord.
+- Labeling several clips is one undo step, and a label every selected clip or pool item already has is declined instead of recording a step that changes nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

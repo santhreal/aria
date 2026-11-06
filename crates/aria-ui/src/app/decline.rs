@@ -121,11 +121,13 @@ pub enum Decline {
     SourceTooShort,
     /// Replace from Source that would put back the source frames the clip plays.
     SameSource,
+    /// A label write to clips or a pool item that already have that label.
+    SameLabel,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 45] = [
+    pub const ALL: [Decline; 46] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -171,6 +173,7 @@ impl Decline {
         Decline::GeneratedClip,
         Decline::SourceTooShort,
         Decline::SameSource,
+        Decline::SameLabel,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -226,6 +229,7 @@ impl Decline {
                 "The source does not hold enough media around its playhead to fill the clip"
             }
             Decline::SameSource => "The clip already plays those source frames",
+            Decline::SameLabel => "That label is already set",
         }
     }
 }
