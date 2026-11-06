@@ -112,6 +112,97 @@ fn a_replaced_file_keeps_its_mode_and_gains_its_directory() {
     assert_no_transaction_artifacts(dir.path());
 }
 
+/// A configuration or state file linked from a dotfiles checkout stays a link
+/// across a save, and the save lands in the checkout: replacing the link with
+/// a regular file would leave the checkout stale and the link gone. Covers
+/// both writers (`save` for the config, `replace_file` for state files), a
+/// relative and a chained link, a dangling link, and a link cycle.
+#[cfg(unix)]
+mod linked_destination {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    fn is_link(path: &Path) -> bool {
+        std::fs::symlink_metadata(path)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    }
+
+    #[test]
+    fn a_state_file_save_replaces_the_link_target_and_keeps_the_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let dotfiles = dir.path().join("dotfiles");
+        std::fs::create_dir(&dotfiles).unwrap();
+        let target = dotfiles.join("ui-settings.json");
+        std::fs::write(&target, b"old").unwrap();
+        let link = dir.path().join("ui-settings.json");
+        symlink("dotfiles/ui-settings.json", &link).unwrap();
+        let hop = dir.path().join("hop.json");
+        symlink("ui-settings.json", &hop).unwrap();
+
+        replace_file(&hop, b"new").unwrap();
+
+        assert!(is_link(&hop) && is_link(&link), "a link became a file");
+        assert_eq!(std::fs::read(&target).unwrap(), b"new");
+        assert_no_transaction_artifacts(dir.path());
+        assert_no_transaction_artifacts(&dotfiles);
+    }
+
+    #[test]
+    fn a_config_save_replaces_the_link_target_and_keeps_the_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let dotfiles = dir.path().join("dotfiles");
+        std::fs::create_dir(&dotfiles).unwrap();
+        let target = dotfiles.join("config.toml");
+        std::fs::write(&target, b"# mine\n").unwrap();
+        let link = dir.path().join("config.toml");
+        symlink(&target, &link).unwrap();
+        let mut settings = Settings::default();
+        settings.ai.model = "linked-model".into();
+
+        save(&link, &settings).unwrap();
+
+        assert!(is_link(&link), "the config link became a file");
+        let raw = std::fs::read_to_string(&target).unwrap();
+        assert!(raw.contains("# mine\n"), "{raw}");
+        assert_eq!(load(&link).unwrap().ai.model, "linked-model");
+        assert_no_transaction_artifacts(dir.path());
+        assert_no_transaction_artifacts(&dotfiles);
+    }
+
+    #[test]
+    fn a_dangling_link_gains_its_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join("recents.json");
+        symlink("kept/recents.json", &link).unwrap();
+        std::fs::create_dir(dir.path().join("kept")).unwrap();
+
+        replace_file(&link, b"[]").unwrap();
+
+        assert!(is_link(&link));
+        assert_eq!(
+            std::fs::read(dir.path().join("kept/recents.json")).unwrap(),
+            b"[]"
+        );
+    }
+
+    #[test]
+    fn a_link_cycle_fails_and_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.json");
+        let b = dir.path().join("b.json");
+        symlink("b.json", &a).unwrap();
+        symlink("a.json", &b).unwrap();
+
+        let error = replace_file(&a, b"x").unwrap_err();
+
+        assert!(error.contains("chain of more than"), "{error}");
+        assert!(is_link(&a) && is_link(&b));
+        assert_no_transaction_artifacts(dir.path());
+    }
+}
+
 #[test]
 fn fallback_swap_replaces_existing_file_and_cleans_backup() {
     let dir = tempfile::tempdir().unwrap();

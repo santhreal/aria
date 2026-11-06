@@ -55,11 +55,13 @@ impl PersistenceFs for StdPersistenceFs {
 /// Replace `destination` with `contents`, creating its directory when
 /// missing. A crash or a failed write leaves the old file or the new one,
 /// never a truncated file. The file keeps its permissions; a new file takes
-/// the umask default.
+/// the umask default. A symbolic link at `destination` stays a link: the file
+/// it resolves to is replaced.
 pub fn replace_file(destination: &Path, contents: &[u8]) -> Result<(), String> {
     let parent = destination_parent(destination)?;
     std::fs::create_dir_all(parent)
         .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    let destination = &link_target(destination)?;
     let permissions = existing_permissions(destination)?;
     let temporary = write_synced_temp(destination, contents, permissions, Access::Shared)?;
     install_temp_with_ops(destination, &temporary, &StdPersistenceFs)
@@ -85,6 +87,7 @@ pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<
             .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
     }
 
+    let destination = &link_target(destination)?;
     let permissions = existing_permissions(destination)?;
     let temporary = write_synced_temp(destination, contents, permissions, Access::Private)?;
     install_temp_with_ops(destination, &temporary, &StdPersistenceFs)?;
@@ -94,6 +97,34 @@ pub(crate) fn persist_serialized(destination: &Path, contents: &[u8]) -> Result<
         let _ = std::fs::set_permissions(destination, std::fs::Permissions::from_mode(0o600));
     }
     Ok(())
+}
+
+/// Most symbolic links followed to a file's target, as `SYMLOOP_MAX` bounds
+/// path resolution on Linux.
+const MAX_LINK_HOPS: usize = 40;
+
+/// The file a write to `destination` lands in: `destination` itself, or the
+/// end of its chain of symbolic links. A configuration file linked from a
+/// dotfiles checkout is replaced in the checkout, so the link survives the
+/// save. The end of a dangling chain is a file the save creates.
+fn link_target(destination: &Path) -> Result<PathBuf, String> {
+    let mut current = destination.to_path_buf();
+    for _ in 0..MAX_LINK_HOPS {
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let link = std::fs::read_link(&current)
+                    .map_err(|e| format!("could not read the link {}: {e}", current.display()))?;
+                current = destination_parent(&current)?.join(link);
+            }
+            Ok(_) => return Ok(current),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(current),
+            Err(e) => return Err(format!("could not inspect {}: {e}", current.display())),
+        }
+    }
+    Err(format!(
+        "{} is a chain of more than {MAX_LINK_HOPS} symbolic links; point it at a file",
+        destination.display()
+    ))
 }
 
 fn existing_permissions(destination: &Path) -> Result<Option<Permissions>, String> {

@@ -262,7 +262,9 @@ workspace, key set, preset, assistant conversation, and skill files under
 `~/.aria` by writing a temporary file in the same folder, flushing it to disk,
 and renaming it over the old file. An interrupted save leaves the previous copy
 intact. `config.toml` is written with mode `0600`; every other file keeps its
-existing mode.
+existing mode. A file that is a symbolic link, such as a `config.toml` linked
+from a dotfiles checkout, stays a link: the save replaces the file the link
+points at, in that file's folder.
 
 A `ui-settings.json` or `recents.json` that does not parse is renamed to
 `<name>.unreadable-<unix seconds>` before anything is saved over it, and the
