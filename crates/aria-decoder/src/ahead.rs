@@ -202,6 +202,7 @@ fn serve(shared: &Arc<Shared>) {
             state.want = want;
             break;
         };
+        state.serving = want;
         drop(state);
         let mut claim = Claim {
             shared,
@@ -226,6 +227,7 @@ fn serve(shared: &Arc<Shared>) {
                 claim.poison()
             }
         };
+        state.serving = None;
         shared.changed.notify_all();
     }
     state.queued = false;
@@ -278,6 +280,7 @@ impl AheadDecoder {
             || state.broken
             || state.holds(want, frame_rate)
             || (state.queued && state.want.is_none() && state.fills_toward(want, frame_rate))
+            || (state.want.is_none() && state.serving.is_some_and(|serving| serving.is(want)))
         {
             return;
         }
@@ -394,7 +397,12 @@ impl AheadDecoder {
                 }
                 state.broken.then(|| Err(broken()))
             },
-            |state| !state.fills_toward(want, frame_rate),
+            // A request the pool decodes now is the caller's frame: stopping
+            // it would answer `None` and drop the walk the caller waits for.
+            |state| {
+                !state.fills_toward(want, frame_rate)
+                    && !state.serving.is_some_and(|serving| serving.is(want))
+            },
         );
         match claimed {
             Err(result) => result,

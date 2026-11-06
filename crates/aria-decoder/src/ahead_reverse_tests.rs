@@ -476,7 +476,7 @@ fn reverse_backfill_in_flight_serves_boundary_step_and_cancels_on_reposition() {
     use std::time::Duration;
 
     // Part 1: fills_toward while parked and boundary step during in-flight BackFill.
-    let (mock, counts) = Mock::new(40, 10);
+    let (mock, _) = Mock::new(40, 10);
     let (gated, entered_rx, resume_tx) = GateMock::new(mock, 22);
     let mut decoder = AheadDecoder::new(Box::new(gated));
 
@@ -669,4 +669,69 @@ fn reverse_backfill_in_flight_serves_boundary_step_and_cancels_on_reposition() {
         super::tests::plane_fill(77),
         "stale BackFill outcome dropped by settle_fill must recycle its Behind planes"
     );
+}
+
+/// WHY: Closes the defect class where a caller asking for the frame the pool
+/// is walking back to stops that walk: `claim` read the in-flight request as
+/// an idle fill, set `stop`, and the canceled walk answered `None`. The
+/// renderer then showed the GOP's sync frame, so reverse playback flashed the
+/// keyframe on every frame look-ahead had requested. Verifies the gated case
+/// (the caller arrives mid-walk), a reverse sweep that requests each next
+/// frame before asking for it, as the renderer does, and that a finished
+/// request leaves nothing in flight. Does not cover a caller arriving for a
+/// different frame, which still stops the walk.
+#[test]
+fn a_caller_waiting_for_the_walk_in_flight_gets_its_frame() {
+    use std::time::Duration;
+
+    let (mock, _) = Mock::new(40, 10);
+    let (gated, entered_rx, resume_tx) = GateMock::new(mock, 22);
+    let mut decoder = AheadDecoder::new(Box::new(gated));
+    assert_eq!(pts(decoder.frame_at(rt(25))), Some(25));
+    decoder.request(rt(23), false);
+    entered_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the walk back to 23 must reach frame 22 on the pool");
+    decoder.request(rt(23), false);
+    assert!(
+        decoder.shared.lock().want.is_none(),
+        "a repeat request for the frame in flight queues nothing"
+    );
+    let ungate = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        let _ = resume_tx.send(());
+    });
+    assert_eq!(
+        pts(decoder.frame_at(rt(23))),
+        Some(23),
+        "the caller's own request finishes instead of answering None"
+    );
+    ungate.join().unwrap();
+
+    let (mock, _) = Mock::new(40, 10);
+    let mut decoder = ahead(mock);
+    for frame in (0..40).rev() {
+        assert_eq!(
+            pts(decoder.frame_at(rt(frame))),
+            Some(frame),
+            "frame {frame}"
+        );
+        if frame > 0 {
+            decoder.request(rt(frame - 1), false);
+        }
+    }
+
+    // A walk into the first GOP leaves no earlier GOP to pre-walk, so the pool
+    // job ends with the request: nothing stays in flight to swallow a later
+    // request for the same frame.
+    let (mock, _) = Mock::new(40, 10);
+    let mut decoder = ahead(mock);
+    assert_eq!(pts(decoder.frame_at(rt(5))), Some(5));
+    decoder.request(rt(3), false);
+    decoder.idle();
+    assert!(
+        decoder.shared.lock().serving.is_none(),
+        "a finished request is no longer in flight"
+    );
+    assert_eq!(pts(decoder.frame_at(rt(3))), Some(3));
 }

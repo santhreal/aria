@@ -312,6 +312,9 @@ pub(super) struct State {
     pub(super) reach: Reach,
     /// A request for the pool to decode.
     pub(super) want: Option<Want>,
+    /// The request a pool job decodes now, taken from `want`. A caller
+    /// waiting for this request waits for it to finish instead of stopping it.
+    pub(super) serving: Option<Want>,
     pub(super) answer: Option<Answer>,
     /// A pool job is queued or running.
     pub(super) queued: bool,
@@ -340,6 +343,7 @@ impl State {
             behind_fill_frames: BEHIND_FILL_FRAMES,
             reach: Reach::Unknown,
             want: None,
+            serving: None,
             answer: None,
             queued: false,
             stop: false,
