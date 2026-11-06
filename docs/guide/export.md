@@ -80,9 +80,9 @@ project:
   any file is created.
 - **Audio** includes the mix or writes a video-only file.
 - **Range** is the whole timeline or the marked range, which the chip names by
-  its In and Out timecodes. With no In and Out set, the marked range is drawn
-  at 40 % opacity, and clicking it reports how to set them and keeps the whole
-  timeline.
+  its In frame and its Out frame; both frames are exported. With no In and Out
+  set, the marked range is drawn at 40 % opacity, and clicking it reports how
+  to set them and keeps the whole timeline.
 
 **Export as…** prompts for another path and starts the export there. **Export
 frames…** prompts for a folder and writes the frames as an image sequence,

@@ -208,7 +208,7 @@ fn the_marked_range_is_the_span_the_request_renders_and_the_words_it_is_named_by
         marked.format.range,
         Some((
             aria_core::RationalTime::new(24, rate),
-            aria_core::RationalTime::new(48, rate)
+            aria_core::RationalTime::new(49, rate)
         )),
         "the marked span must be the span the request renders"
     );

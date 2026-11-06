@@ -202,9 +202,9 @@ the ruler, and Esc puts the frame back. On a Source tab the pool row's picture
 follows the ruler. `I` marks the source in point and
 `O` the out point while a source is loaded, so those keys mark the take you are
 looking at rather than the sequence; `Ctrl+Shift+I` and `Ctrl+Shift+O` clear them, and
-**Clear** clears both. An out point is exclusive, so the frame you marked is
-included. The ruler shades the marked range, and the line under the picture
-counts the frames kept.
+**Clear** clears both. Out marks the last frame kept, on a Source tab and on
+the sequence alike, so the frame Out was pressed on is in the range. The ruler
+shades the marked range, and the line under the picture counts the frames kept.
 
 A focused Source tab has its own transport. With the Viewer focused, `Space`
 plays or stops the take, `Shift+Space` plays its In to Out, `J` and `L` shuttle

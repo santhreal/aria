@@ -190,6 +190,9 @@ fn the_marked_range_is_refused_until_a_range_is_marked() {
     assert!(!state.export_options.marked_range);
 }
 
+/// Out keeps the frame it was pressed on: the span ends on the tick after it,
+/// and the chip names the Out frame. The span ended on the Out frame's own
+/// tick, so a Marked range export dropped the frame Out was pressed on.
 #[test]
 fn a_marked_range_becomes_the_exported_span() {
     let (mut state, _) = with_clip();
@@ -197,7 +200,7 @@ fn a_marked_range_becomes_the_exported_span() {
     state.set_mark_in();
     state.set_playhead(80);
     state.set_mark_out();
-    assert_eq!(state.marked_range(), Some((20, 80)));
+    assert_eq!(state.marked_range(), Some((20, 81)));
     // The marked choice names its span before it is in force, so the chip
     // says what a press renders.
     assert_eq!(state.marked_range_label(), "00:00:00:20 to 00:00:03:08");
@@ -207,7 +210,7 @@ fn a_marked_range_becomes_the_exported_span() {
     assert!(state.export_options.marked_range);
     let range = state.export_settings().range.expect("a span");
     assert_eq!(range.0.value, 20);
-    assert_eq!(range.1.value, 80);
+    assert_eq!(range.1.value, 81);
     assert_eq!(
         state.export_range_label(),
         "00:00:00:20 to 00:00:03:08",
@@ -220,16 +223,20 @@ fn a_marked_range_becomes_the_exported_span() {
 }
 
 #[test]
-fn an_empty_mark_pair_is_not_a_range() {
+fn in_and_out_on_one_frame_mark_that_frame() {
     let (mut state, _) = with_clip();
     state.set_playhead(30);
     state.set_mark_in();
     state.set_mark_out();
     assert_eq!(
         state.marked_range(),
-        None,
-        "In and Out on the same frame cover nothing"
+        Some((30, 31)),
+        "In and Out on the same frame keep that frame"
     );
+    assert_eq!(state.marked_range_label(), "00:00:01:06 to 00:00:01:06");
+    // Marks that meet keep nothing and are no range.
+    state.mark_out = Some(30);
+    assert_eq!(state.marked_range(), None);
     state.set_export_marked_range(true);
     assert!(!state.export_options.marked_range);
 }
@@ -261,8 +268,8 @@ fn a_ranged_span_covers_the_frames_between_the_marks() {
     };
     let (start, end) = settings.frame_span(&project);
     assert_eq!(start, 30);
-    assert_eq!(end, 90);
-    assert_eq!(end - start, 60, "the span is what was marked");
+    assert_eq!(end, 91);
+    assert_eq!(end - start, 61, "the span keeps both marked frames");
 
     let whole = {
         let mut plain = settings;

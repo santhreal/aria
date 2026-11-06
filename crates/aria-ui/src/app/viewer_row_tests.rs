@@ -227,8 +227,8 @@ fn the_in_and_out_buttons_mark_the_sequence_while_program_is_in_front(
     });
     assert_eq!(
         marks,
-        (Some(5), Some(20)),
-        "the buttons marked another frame"
+        (Some(5), Some(21)),
+        "the buttons marked another frame: Out keeps frame 20"
     );
 
     change(visual, &state, |state| {

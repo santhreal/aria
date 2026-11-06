@@ -209,7 +209,7 @@ impl AppState {
         let Some(view) = self.sources.focused_mut() else {
             return;
         };
-        let out = (view.tick + 1).min(view.duration_ticks.max(1));
+        let out = crate::app::session::out_after(view.tick, view.duration_ticks);
         if view.clip.is_some() {
             let (start, _) = view.window();
             self.trim_linked_source(start, out);

@@ -150,7 +150,10 @@ impl AppState {
     /// The focused Source tab to the last frame its Out keeps, or the take's
     /// last frame with none set.
     pub fn source_to_out(&mut self) {
-        self.park_source(|view| view.mark_out.map_or(i64::MAX, |out| out - 1));
+        self.park_source(|view| {
+            view.mark_out
+                .map_or(i64::MAX, crate::app::session::last_kept)
+        });
     }
 
     /// Left and Right: a frame on the tab that has the keys.

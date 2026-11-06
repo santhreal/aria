@@ -193,7 +193,8 @@ fn extract_across_two_linked_pairs_keeps_each_pairs_surviving_tails_linked() {
     let heads = [link(&state, v0), link(&state, v1)];
     state.set_playhead(12);
     state.set_mark_in();
-    state.set_playhead(36);
+    // Out keeps frame 35, so the cut is at 36.
+    state.set_playhead(35);
     state.set_mark_out();
 
     state.remove_marked_range(true).expect("Extract");

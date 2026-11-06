@@ -21,6 +21,18 @@ pub(crate) fn project_name_of<'a>(path: Option<&'a std::path::Path>, fallback: &
         .unwrap_or(fallback)
 }
 
+/// The Out mark for `frame` marked as the last one kept: the tick after it,
+/// inside `[1, end]`. The sequence and every Source tab store Out this way, so
+/// a marked range `[in, out)` keeps the frame Out was pressed on.
+pub(crate) fn out_after(frame: i64, end: i64) -> i64 {
+    frame.saturating_add(1).min(end.max(1))
+}
+
+/// The last frame an Out mark keeps: the frame Go to Out lands on.
+pub(crate) fn last_kept(out: i64) -> i64 {
+    out.saturating_sub(1).max(0)
+}
+
 impl AppState {
     pub fn save_project(&mut self) -> Result<(), EngineError> {
         let Some(path) = self.project_path.clone() else {
@@ -387,17 +399,23 @@ impl AppState {
     pub fn set_mark_in(&mut self) {
         self.mark_in = Some(self.playhead.value.max(0));
         if let Some(out) = self.mark_out
-            && out < self.playhead.value
+            && out <= self.playhead.value
         {
             self.mark_out = None;
         }
         self.status_message = Some("Mark In".into());
     }
 
+    /// Mark Out on the playhead's frame: the mark is the tick after it, so
+    /// the marked range `[in, out)` keeps the frame Out was pressed on.
     pub fn set_mark_out(&mut self) {
-        self.mark_out = Some(self.playhead.value.max(0));
+        let out = out_after(
+            self.playhead.value.max(0),
+            self.store.sequence.duration_ticks,
+        );
+        self.mark_out = Some(out);
         if let Some(inn) = self.mark_in
-            && inn > self.playhead.value
+            && inn >= out
         {
             self.mark_in = None;
         }
@@ -429,8 +447,8 @@ impl AppState {
             self.source_to_out();
             return;
         }
-        if let Some(tick) = self.mark_out {
-            self.set_playhead(tick);
+        if let Some(out) = self.mark_out {
+            self.set_playhead(last_kept(out));
         }
     }
 

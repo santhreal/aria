@@ -1264,6 +1264,7 @@ Notes for the latest release. For previous releases, see the
 - The Keyframes choice in the Export sheet sets the keyframe spacing on NVENC and VAAPI encoders, and an H.265 export on the x265 software encoder with a keyframe spacing no longer crashes.
 - The Export sheet's Format row and the `aria export` summary read "no audio" for a video-only export instead of naming AAC.
 - A transition dropped on a timeline clip lands on the clip's cut nearer the pointer, so a drop on the last clip of a sequence applies at its cut instead of reporting that no clip is on the other side.
+- The sequence's Out point keeps the frame it was marked on, so a Marked range export, an adjustment layer, Extract, and Lift include the Out frame, and Go to Out lands on it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -82,7 +82,8 @@ fn a_marked_range_wins_over_the_selection() {
 
     state.add_adjustment_layer().expect("place the layer");
 
-    assert_eq!(lanes(&state), vec![("FX1".to_string(), vec![(6, 18)])]);
+    // Out at 18 keeps frame 18.
+    assert_eq!(lanes(&state), vec![("FX1".to_string(), vec![(6, 19)])]);
 }
 
 #[test]
@@ -116,7 +117,7 @@ fn a_second_layer_over_the_same_range_stacks_onto_a_fresh_lane() {
     let lanes = lanes(&state);
     assert_eq!(lanes.len(), 2, "the second bar needed a lane of its own");
     for (name, spans) in &lanes {
-        assert_eq!(spans, &vec![(0, 12)], "{name} holds the wrong span");
+        assert_eq!(spans, &vec![(0, 13)], "{name} holds the wrong span");
     }
     assert_eq!(lanes[1].0, "FX1");
     assert_eq!(lanes[0].0, "FX2", "the newer lane sits above the older one");
@@ -141,7 +142,7 @@ fn a_second_layer_over_a_free_range_reuses_the_lane() {
     assert_eq!(lanes.len(), 1, "a free range must not open a second lane");
     let mut spans = lanes[0].1.clone();
     spans.sort();
-    assert_eq!(spans, vec![(0, 12), (24, 36)]);
+    assert_eq!(spans, vec![(0, 13), (24, 37)]);
 }
 
 #[test]

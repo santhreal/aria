@@ -437,8 +437,8 @@ impl AppState {
         }
     }
 
-    /// The Range row's marked choice: both ends of the marked span, or
-    /// `Marked range` while nothing is marked.
+    /// The Range row's marked choice: the first and last frame of the marked
+    /// span, or `Marked range` while nothing is marked.
     pub fn marked_range_label(&self) -> String {
         let Some((from, to)) = self.marked_range() else {
             return "Marked range".to_string();
@@ -447,7 +447,7 @@ impl AppState {
         format!(
             "{} to {}",
             crate::timecode::display_ticks(from, rate.num, rate.den),
-            crate::timecode::display_ticks(to, rate.num, rate.den)
+            crate::timecode::display_ticks(crate::app::session::last_kept(to), rate.num, rate.den)
         )
     }
 

@@ -47,10 +47,10 @@ fn four_points_retime_the_take_to_fill_the_marked_span() {
     state.set_source_in();
     state.hover_pool_item(media, 47);
     state.set_source_out();
-    state.playhead = aria_models::RationalTime::new(0, state.playhead.rate);
-    state.set_mark_in();
-    state.playhead = aria_models::RationalTime::new(24, state.playhead.rate);
-    state.set_mark_out();
+    // The span being filled, `[0, 24)`. The playhead of an empty sequence
+    // cannot leave 0, so the marks are set directly.
+    state.mark_in = Some(0);
+    state.mark_out = Some(24);
 
     state
         .cut_source_in(crate::types::EditMode::Overwrite)
@@ -72,10 +72,8 @@ fn a_source_in_and_a_marked_span_take_the_span_from_the_source() {
     let (mut state, media) = with_video_monitor();
     state.hover_pool_item(media, 10);
     state.set_source_in();
-    state.playhead = aria_models::RationalTime::new(4, state.playhead.rate);
-    state.set_mark_in();
-    state.playhead = aria_models::RationalTime::new(24, state.playhead.rate);
-    state.set_mark_out();
+    state.mark_in = Some(4);
+    state.mark_out = Some(24);
 
     state
         .cut_source_in(crate::types::EditMode::Overwrite)
@@ -108,10 +106,8 @@ fn a_still_takes_the_marked_span_without_a_retime() {
     state.set_source_in();
     state.hover_pool_item(media, 1);
     state.set_source_out();
-    state.playhead = aria_models::RationalTime::new(0, state.playhead.rate);
-    state.set_mark_in();
-    state.playhead = aria_models::RationalTime::new(30, state.playhead.rate);
-    state.set_mark_out();
+    state.mark_in = Some(0);
+    state.mark_out = Some(30);
 
     state
         .cut_source_in(crate::types::EditMode::Overwrite)

@@ -239,6 +239,8 @@ Native and WASM plugins receive the same kind and payload.
 - `revision` is the engine revision after the command.
 - `at`, `mark_in`, and `mark_out` are times:
   `{"value": 60, "rate": {"num": 24, "den": 1}}`. A cleared mark is `null`.
+  `mark_out` is the time after the last marked frame, so the marked range is
+  `[mark_in, mark_out)`.
 - `speed` is a multiple of real time. A negative speed plays backwards.
 - `path` is a string. In `project-opened` and `project-closed` it is `null`
   for a session that was never saved. Each invalid UTF-8 sequence in a path is

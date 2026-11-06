@@ -371,8 +371,8 @@ Cut a short clip from a longer recording with In/Out and ripple delete:
 
 1. Select the recording on `V1`, move the playhead to the frame where the unwanted section starts, and press <kbd>Ctrl+K</kbd> (`key-split`) or choose **Sequence > Add Edit**. The recording splits into two adjacent clips at the playhead.
 2. Move the playhead to the start of the keep range and press <kbd>I</kbd> (`key-mark-in`) or click [`program-mark-in`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark In**). The timeline ruler work area bar anchors its In point at the playhead.
-3. Move the playhead to the end of the keep range and press <kbd>O</kbd> (`key-mark-out`) or click [`program-mark-out`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark Out**). The work area bar highlights the span between In and Out on the timeline ruler.
-4. Press <kbd>Ctrl+K</kbd> (`key-split`) at the Out point to cut the tail off the keep clip, then select the unwanted tail clip on `V1`. The tail clip highlights with a white selection border.
+3. Move the playhead to the last frame of the keep range and press <kbd>O</kbd> (`key-mark-out`) or click [`program-mark-out`](../reference/controls.md#viewer--source-monitor) (or choose **Markers > Mark Out**). The work area bar highlights the span between In and Out on the timeline ruler, including the Out frame.
+4. Press <kbd>Right</kbd> (`key-step-forward`) to step past the Out frame and press <kbd>Ctrl+K</kbd> (`key-split`) to cut the tail off the keep clip, then select the unwanted tail clip on `V1`. The tail clip highlights with a white selection border.
 5. Press <kbd>Shift+Backspace</kbd> (`key-ripple-delete`) or choose **Edit > Ripple Delete**. Aria removes the unwanted clip and shifts all later clips on sync-locked lanes left to close the gap, leaving the short cut clip on `V1`.
 6. Press <kbd>\</kbd> (`key-fit`) or click [`fit-timeline`](../reference/controls.md#timeline) (or choose **View > Zoom to Sequence**) to fit the edited sequence across the timeline viewport. The timeline zooms to show the shortened sequence end to end.
 

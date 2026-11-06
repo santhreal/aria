@@ -347,7 +347,11 @@ fn marks_belong_to_the_monitor_in_front_of_them() {
     state.mark_in_here();
     assert_eq!(state.mark_in, Some(state.playhead.value));
     state.mark_out_here();
-    assert_eq!(state.mark_out, Some(state.playhead.value));
+    assert_eq!(
+        state.mark_out,
+        Some(state.playhead.value + 1),
+        "Out keeps the playhead's frame"
+    );
     state.clear_mark_out_here();
     assert_eq!(state.mark_out, None);
 }

@@ -13,11 +13,11 @@ fn mark_in_and_out_record_the_playhead_and_clear_independently() {
     state.set_playhead(40);
     state.set_mark_out();
     assert_eq!(state.mark_in, Some(12));
-    assert_eq!(state.mark_out, Some(40));
+    assert_eq!(state.mark_out, Some(41), "Out keeps frame 40");
 
     state.clear_mark_in();
     assert_eq!(state.mark_in, None, "clearing In must not touch Out");
-    assert_eq!(state.mark_out, Some(40));
+    assert_eq!(state.mark_out, Some(41));
     state.clear_mark_out();
     assert_eq!(state.mark_out, None);
 }
@@ -65,6 +65,74 @@ fn go_to_in_and_out_move_the_playhead_and_are_inert_when_unset() {
     assert_eq!(state.playhead.value, 30);
     state.go_to_out();
     assert_eq!(state.playhead.value, 60);
+}
+/// Out keeps the frame it was pressed on, at both ends and the middle of the
+/// sequence and in either order of the two presses: the marked range
+/// `[in, out)` holds it, Go to Out lands on it, and an In on the next frame
+/// leaves nothing marked.
+///
+/// Out was stored on the frame's own tick, so a Marked range export and
+/// every edit over the range dropped the frame Out was pressed on, while a
+/// Source tab kept it. X marks a clip the same way: Go to Out lands on the
+/// clip's last frame, not past it.
+///
+/// Not caught: the drawn position of the Out flag on the ruler.
+#[test]
+fn out_keeps_the_frame_it_was_pressed_on() {
+    let (mut state, clip) = with_clip();
+    let duration = state.store.sequence.duration_ticks;
+    assert!(duration > 2, "the fixture spans {duration} ticks");
+    for frame in [0, 1, duration / 2, duration - 2, duration - 1] {
+        let start = frame / 2;
+        for in_first in [true, false] {
+            state.clear_mark_in();
+            state.clear_mark_out();
+            let mark = |state: &mut AppState, at: i64, out: bool| {
+                state.set_playhead(at);
+                if out {
+                    state.set_mark_out();
+                } else {
+                    state.set_mark_in();
+                }
+            };
+            mark(&mut state, if in_first { start } else { frame }, !in_first);
+            mark(&mut state, if in_first { frame } else { start }, in_first);
+            let case = format!("In {start}, Out {frame}, In first {in_first}");
+            assert_eq!(state.marked_range(), Some((start, frame + 1)), "{case}");
+            state.go_to_out();
+            assert_eq!(state.playhead.value, frame, "{case}: Go to Out");
+            state.go_to_in();
+            assert_eq!(state.playhead.value, start, "{case}: Go to In");
+        }
+        // An In past the kept frame leaves no range behind, and an Out before
+        // the In drops the In.
+        state.set_playhead(frame);
+        state.set_mark_out();
+        state.set_playhead(frame + 1);
+        state.set_mark_in();
+        assert_eq!(state.marked_range(), None, "In after Out {frame}");
+        assert_eq!(state.mark_out, None, "In after Out {frame}");
+        state.set_playhead(frame);
+        state.set_mark_out();
+        assert_eq!(
+            (state.mark_in, state.mark_out),
+            (None, Some(frame + 1)),
+            "Out before In {}",
+            frame + 1
+        );
+    }
+    // Out pressed past the last frame keeps the last frame.
+    state.clear_mark_in();
+    state.set_playhead(duration);
+    state.set_mark_out();
+    assert_eq!(state.mark_out, Some(duration));
+
+    let (start, end) = clip_bounds(&state, clip);
+    state.set_playhead(start);
+    state.mark_clip_at_playhead();
+    assert_eq!(state.marked_range(), Some((start, end)));
+    state.go_to_out();
+    assert_eq!(state.playhead.value, end - 1, "Go to Out after X");
 }
 #[test]
 fn trim_to_playhead_pulls_the_chosen_edge_only() {
