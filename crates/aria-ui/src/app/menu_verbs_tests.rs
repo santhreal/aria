@@ -102,6 +102,58 @@ fn extend_edit_without_a_selected_edit_point_changes_nothing() {
     );
 }
 
+/// Trim Edit and Extend Edit are offered where their bodies act and withheld
+/// in their bodies' words where they do not: every clip locked away, and a
+/// selected edit point already on the playhead.
+#[test]
+fn trim_and_extend_rows_read_the_edit_their_bodies_take() {
+    use crate::app::decline::Decline;
+    let row = |id: &str, state: &AppState| {
+        crate::chrome::menu_items::items_of(crate::types::AppMenu::Sequence, state)
+            .into_iter()
+            .find(|item| item.id == id)
+            .expect("a Sequence row")
+            .blocked_by(state)
+    };
+    let (mut state, clip) = with_clip();
+    let (start, end) = span(&state, clip);
+    state.set_playhead(start + (end - start) / 2);
+    assert_eq!(row("seq-trim-edit", &state), None);
+    let lane = aria_models::TrackId::from_raw(
+        state
+            .ui_clip_ref(clip)
+            .expect("the clip is projected")
+            .track_id,
+    );
+    state.set_track_locked(lane, true).expect("lock");
+    let none = Some(Decline::NoEditPoint.reason());
+    assert_eq!(row("seq-trim-edit", &state), none, "a locked lane");
+    state.selected_edge = None;
+    state.select_nearest_edit();
+    assert_eq!(state.selected_edge, None);
+    assert_eq!(state.status_message.as_deref(), none);
+    state.set_track_locked(lane, false).expect("unlock");
+
+    state.select_edge(clip, TrimSide::Out);
+    assert_eq!(row("seq-extend-edit", &state), None);
+    state.set_playhead(end);
+    let there = Some(Decline::EdgeAtPlayhead.reason());
+    assert_eq!(
+        row("seq-extend-edit", &state),
+        there,
+        "the Out on the playhead"
+    );
+    let steps = state.engine.lock().history_entries().len();
+    state.extend_edit_to_playhead().expect("nothing to move");
+    assert_eq!(state.engine.lock().history_entries().len(), steps);
+    assert_eq!(state.status_message.as_deref(), there);
+    state.selected_edge = None;
+    assert_eq!(
+        row("seq-extend-edit", &state),
+        Some(Decline::NoSelectedEdge.reason())
+    );
+}
+
 #[test]
 fn delete_empty_tracks_keeps_lanes_with_clips_and_one_lane_of_each_kind() {
     let (mut state, _) = with_clip();

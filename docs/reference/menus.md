@@ -122,8 +122,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-delete-render-files` | `none` | Delete Render Files | `none` | Always enabled | Deletes cached preview render files for the sequence. |
 | `seq-add-edit` | `none` | Add Edit | `Ctrl+K` | No unlocked clip the cut would take lies across the playhead (`guards::clip_to_cut`) | Splits the selected clips under the playhead, or the clips on the targeted unlocked tracks when nothing is selected, at the playhead. |
 | `seq-add-edit-all` | `none` | Add Edit to All Tracks | `Ctrl+Shift+K` | No unlocked clip lies across the playhead (`guards::clip_to_cut_all`) | Splits every clip intersecting the playhead across all unlocked tracks. |
-| `seq-trim-edit` | `none` | Trim Edit | `none` | The sequence has no clips (`guards::clips`) | Selects the edit point nearest the playhead for keyboard trim nudging. |
-| `seq-extend-edit` | `none` | Extend Edit | `none` | Select an edit point first (`guards::edge`) | Extends the selected edit point to the current playhead tick. |
+| `seq-trim-edit` | `none` | Trim Edit | `none` | No unlocked track holds a clip (`guards::edit_point`) | Selects the edit point nearest the playhead on an unlocked track for keyboard trim nudging. |
+| `seq-extend-edit` | `none` | Extend Edit | `none` | No edit point is selected, or the selected one is at the playhead (`guards::edge_to_extend`) | Extends the selected edit point to the current playhead tick. |
 | `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The selected edge has no clip on its other side, or with no edge selected no targeted track has a cut between two pictures (`guards::picture_cut`) | Applies the default picture transition (`crossfade`) at the cut of the selected edge, or at the picture cut nearest the playhead on the targeted tracks. |
 | `seq-lift` | `none` | Lift | `;` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and leaves a timeline gap. |
 | `seq-extract` | `none` | Extract | `'` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and ripple-closes the gap. |
@@ -384,6 +384,9 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoMediaClipAtPlayhead` | `No media clip under the playhead` |
 | `NoClipToCut` | `No clip under the playhead to cut` |
 | `NoCutForTransition` | `No cut between two clips to put a transition on` |
+| `NoEditPoint` | `The sequence has no edit points` |
+| `NoSelectedEdge` | `Select an edit point first` |
+| `EdgeAtPlayhead` | `The edit point is already at the playhead` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

@@ -292,12 +292,17 @@ pub(crate) fn clip_property_row(_: &str, state: &AppState) -> Option<&'static st
     (!picked).then_some("Select a property row of the selected clip")
 }
 
-/// The row acts on the selected edit point.
-pub(crate) fn edge(_: &str, state: &AppState) -> Option<&'static str> {
+/// The row selects the edit point Trim Edit finds.
+pub(crate) fn edit_point(_: &str, state: &AppState) -> Option<&'static str> {
     state
-        .selected_edge
+        .nearest_edit()
         .is_none()
-        .then_some("Select an edit point first")
+        .then_some(Decline::NoEditPoint.reason())
+}
+
+/// The row moves the selected edit point to the playhead.
+pub(crate) fn edge_to_extend(_: &str, state: &AppState) -> Option<&'static str> {
+    state.extend_delta().err().map(|why| why.reason())
 }
 
 /// The row reopens the saved file over unsaved edits.

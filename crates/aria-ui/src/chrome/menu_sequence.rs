@@ -68,12 +68,12 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
     MenuItem::new("seq-trim-edit", "Trim Edit", |_, s, _| {
         s.select_nearest_edit()
     })
-    .when(guards::clips),
+    .when(guards::edit_point),
     MenuItem::new("seq-extend-edit", "Extend Edit", |_, s, _| {
         let extended = s.extend_edit_to_playhead();
         report(s, extended)
     })
-    .when(guards::edge),
+    .when(guards::edge_to_extend),
     MenuItem::new(
         "seq-default-transitions",
         "Apply Default Transitions",

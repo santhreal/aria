@@ -529,7 +529,10 @@ fn menus_doc_matches_registry() {
                 | Decline::NoTargetedClipAtPlayhead
                 | Decline::NoMediaClipAtPlayhead
                 | Decline::NoClipToCut
-                | Decline::NoCutForTransition => {}
+                | Decline::NoCutForTransition
+                | Decline::NoEditPoint
+                | Decline::NoSelectedEdge
+                | Decline::EdgeAtPlayhead => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

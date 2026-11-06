@@ -11,6 +11,7 @@ use aria_core::count::counted;
 use aria_engine::EngineError;
 use aria_models::{ClipId, MediaId, RationalTime, TimeRange, TrackId, resample};
 
+use super::decline::Decline;
 use super::settings_form::SettingsSection;
 use super::{AppState, DialogKind};
 use crate::types::{SelectedEdge, TrimSide};
@@ -80,10 +81,25 @@ impl AppState {
     /// Sequence > Trim Edit: select the edit point nearest the playhead on an
     /// unlocked lane, ready for the trim keys.
     pub fn select_nearest_edit(&mut self) {
+        let Some((clip, side)) = self.nearest_edit() else {
+            self.decline(Decline::NoEditPoint);
+            return;
+        };
+        self.select_edge(clip, side);
+        self.status_message = Some(match side {
+            TrimSide::In => "Selected the In point nearest the playhead".into(),
+            TrimSide::Out => "Selected the Out point nearest the playhead".into(),
+        });
+    }
+
+    /// The edit point Trim Edit selects: the clip edge nearest the playhead
+    /// among the clips on unlocked lanes. The Trim Edit row reads the
+    /// same edge.
+    pub(crate) fn nearest_edit(&self) -> Option<(ClipId, TrimSide)> {
         let at = self.playhead.value;
         let mut nearest: Option<(i64, u64, TrimSide)> = None;
         for track in self.store.sequence.tracks.iter().filter(|t| !t.locked) {
-            for clip in track.clips.iter().filter(|c| !c.locked) {
+            for clip in track.clips.iter() {
                 for (tick, side) in [
                     (clip.timeline_start_ticks, TrimSide::In),
                     (clip.timeline_end_ticks, TrimSide::Out),
@@ -95,38 +111,38 @@ impl AppState {
                 }
             }
         }
-        match nearest {
-            Some((_, clip, side)) => {
-                self.select_edge(ClipId::from_raw(clip), side);
-                self.status_message = Some(match side {
-                    TrimSide::In => "Selected the In point nearest the playhead".into(),
-                    TrimSide::Out => "Selected the Out point nearest the playhead".into(),
-                });
-            }
-            None => self.status_message = Some("The sequence has no edit points".into()),
-        }
+        nearest.map(|(_, clip, side)| (ClipId::from_raw(clip), side))
     }
 
     /// Sequence > Extend Edit: move the selected edit point to the playhead,
     /// with the active trim tool and edit mode.
     pub fn extend_edit_to_playhead(&mut self) -> Result<(), EngineError> {
-        let Some(SelectedEdge { clip, side }) = self.selected_edge else {
-            self.status_message = Some("Select an edit point first".into());
-            return Ok(());
-        };
-        let Some(ui) = self.ui_clip_ref(ClipId::from_raw(clip)) else {
-            return Ok(());
-        };
-        let edge = match side {
-            TrimSide::In => ui.timeline_start_ticks,
-            TrimSide::Out => ui.timeline_end_ticks,
-        };
-        let delta = self.playhead.value - edge;
-        if delta == 0 {
-            self.status_message = Some("The edit point is already at the playhead".into());
-            return Ok(());
+        match self.extend_delta() {
+            Ok(delta) => self.trim_selected_edge(delta),
+            Err(why) => {
+                self.decline(why);
+                Ok(())
+            }
         }
-        self.trim_selected_edge(delta)
+    }
+
+    /// The ticks Extend Edit moves the selected edit point by to reach the
+    /// playhead. The Extend Edit row reads the same move.
+    pub(crate) fn extend_delta(&self) -> Result<i64, Decline> {
+        let edge = self
+            .selected_edge
+            .and_then(|SelectedEdge { clip, side }| {
+                let ui = self.ui_clip_ref(ClipId::from_raw(clip))?;
+                Some(match side {
+                    TrimSide::In => ui.timeline_start_ticks,
+                    TrimSide::Out => ui.timeline_end_ticks,
+                })
+            })
+            .ok_or(Decline::NoSelectedEdge)?;
+        match self.playhead.value - edge {
+            0 => Err(Decline::EdgeAtPlayhead),
+            delta => Ok(delta),
+        }
     }
 
     /// The source in the Source monitor: the focused Source tab, or the one

@@ -89,11 +89,17 @@ pub enum Decline {
     /// Ctrl+T or Ctrl+Shift+T sent with no edge selected and no cut of its
     /// kind between two clips on the targeted lanes.
     NoCutForTransition,
+    /// Trim Edit sent with no unlocked clip on an unlocked lane.
+    NoEditPoint,
+    /// Extend Edit sent with no edit point selected.
+    NoSelectedEdge,
+    /// Extend Edit sent with the selected edit point on the playhead.
+    EdgeAtPlayhead,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 29] = [
+    pub const ALL: [Decline; 32] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -123,6 +129,9 @@ impl Decline {
         Decline::NoMediaClipAtPlayhead,
         Decline::NoClipToCut,
         Decline::NoCutForTransition,
+        Decline::NoEditPoint,
+        Decline::NoSelectedEdge,
+        Decline::EdgeAtPlayhead,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -158,6 +167,9 @@ impl Decline {
             Decline::NoMediaClipAtPlayhead => "No media clip under the playhead",
             Decline::NoClipToCut => "No clip under the playhead to cut",
             Decline::NoCutForTransition => "No cut between two clips to put a transition on",
+            Decline::NoEditPoint => "The sequence has no edit points",
+            Decline::NoSelectedEdge => "Select an edit point first",
+            Decline::EdgeAtPlayhead => "The edit point is already at the playhead",
         }
     }
 }
