@@ -18,10 +18,82 @@ pub(crate) fn open_span_reader(span: &Span) -> Result<Box<dyn AudioReader>, Deco
     let reader =
         aria_decoder::open_audio_reader(&span.path, EXPORT_AUDIO_RATE, EXPORT_AUDIO_CHANNELS)
             .map_err(|err| audio_err("open audio source", &span.path, err))?;
-    if span.denoise {
-        Ok(Box::new(DenoiseReader::new(reader, CHANNELS)))
+    let reader: Box<dyn AudioReader> = if span.denoise {
+        Box::new(DenoiseReader::new(reader, CHANNELS))
+    } else {
+        reader
+    };
+    let outside = span.source_start < 0
+        || span
+            .file_len
+            .is_some_and(|len| span.source_start + span.source_len > len);
+    if outside {
+        Ok(Box::new(FileWindow {
+            inner: reader,
+            len: span.file_len,
+            owed: 0,
+            past_end: None,
+        }))
     } else {
         Ok(reader)
+    }
+}
+
+/// A source window reaching outside its file: frame `n < 0` and frame
+/// `n >= len` are silence, and the frames between are the file's own.
+///
+/// A multicam clip reads one camera across the whole group clock, and that
+/// camera can start rolling after the clip's window begins and stop before it
+/// ends. A seek outside the file is answered here, so the decoder is never
+/// asked for a frame it does not hold.
+pub(crate) struct FileWindow {
+    pub(crate) inner: Box<dyn AudioReader>,
+    /// The file's length in frames, when known.
+    pub(crate) len: Option<i64>,
+    /// Silent frames the next read emits before the file's first frame.
+    pub(crate) owed: i64,
+    /// The frame a seek at or past the file's end stopped at; reads return
+    /// nothing from there.
+    pub(crate) past_end: Option<i64>,
+}
+
+impl AudioReader for FileWindow {
+    fn read(&mut self, out: &mut [f32]) -> Result<usize, DecodeError> {
+        if self.past_end.is_some() {
+            return Ok(0);
+        }
+        let want = out.len() / CHANNELS;
+        let quiet = usize::try_from(self.owed).unwrap_or(0).min(want);
+        out[..quiet * CHANNELS].fill(0.0);
+        self.owed -= quiet as i64;
+        if quiet == want {
+            return Ok(want);
+        }
+        Ok(quiet
+            + self
+                .inner
+                .read(&mut out[quiet * CHANNELS..want * CHANNELS])?)
+    }
+
+    fn seek_to_frame(&mut self, frame: i64) -> Result<(), DecodeError> {
+        if self.len.is_some_and(|len| frame >= len) {
+            self.owed = 0;
+            self.past_end = Some(frame);
+            return Ok(());
+        }
+        self.past_end = None;
+        self.owed = frame.saturating_neg().max(0);
+        self.inner.seek_to_frame(frame.max(0))
+    }
+
+    fn position(&self) -> Option<i64> {
+        if self.past_end.is_some() {
+            self.past_end
+        } else if self.owed > 0 {
+            Some(-self.owed)
+        } else {
+            self.inner.position()
+        }
     }
 }
 

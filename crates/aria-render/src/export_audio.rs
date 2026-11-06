@@ -94,6 +94,10 @@ pub struct Span {
     pub reader: Option<Box<dyn AudioReader>>,
     /// Source ran out before the span's out-point: the rest pads as silence.
     pub exhausted: bool,
+    /// Length of the source file in output sample frames, when known. A
+    /// window reaching outside `0..file_len` reads silence there instead of
+    /// seeking the file out of its bounds.
+    pub file_len: Option<i64>,
     /// Which bus this span sums into, as an index into the mixer's own
     /// [`Timeline::audio_buses`] order.
     ///
@@ -117,6 +121,7 @@ impl std::fmt::Debug for Span {
             .field("crossfade_out", &self.crossfade_out)
             .field("has_reader", &self.reader.is_some())
             .field("exhausted", &self.exhausted)
+            .field("file_len", &self.file_len)
             .field("bus", &self.bus)
             .finish_non_exhaustive()
     }
@@ -154,6 +159,7 @@ impl Span {
             crossfade_out: None,
             reader,
             exhausted: false,
+            file_len: None,
             bus,
         }
     }
@@ -356,16 +362,7 @@ impl ExportAudioMixer {
                 if !links.carries_own_audio(track, clip) {
                     continue;
                 }
-                let Some(media_id) = clip.media() else {
-                    continue;
-                };
-                let Some(media) = project.media(media_id) else {
-                    continue;
-                };
-                if !media.has_audio {
-                    continue;
-                };
-                let Some(source) = clip.source_range() else {
+                let Some((media, source)) = project.clip_sound(clip) else {
                     continue;
                 };
                 let warp = if clip.has_speed_curve() {
@@ -390,6 +387,11 @@ impl ExportAudioMixer {
                 // per frame of the clip.
                 let volume = driven_envelope(project, clip, ClipParam::Volume);
                 let pan = driven_envelope(project, clip, ClipParam::Pan);
+                let media_len = ticks_to_samples(
+                    media.duration.value,
+                    media.duration.rate.num,
+                    media.duration.rate.den,
+                );
                 spans.push(Span {
                     path: media.path().to_path_buf(),
                     start: ticks_to_samples(clip.timeline.start.value, fps.num, fps.den),
@@ -422,16 +424,13 @@ impl ExportAudioMixer {
                     crossfade_out: None,
                     reader: None,
                     exhausted: false,
+                    file_len: Some(media_len),
                     bus,
                 });
                 lane.push(xfade::LaneSpan {
                     clip: clip.id,
                     span: spans.len() - 1,
-                    media_len: ticks_to_samples(
-                        media.duration.value,
-                        media.duration.rate.num,
-                        media.duration.rate.den,
-                    ),
+                    media_len,
                 });
                 clip_inserts.push(&clip.audio_effects);
             }

@@ -57,6 +57,7 @@ fn flat_span(value: f32, bus: usize) -> Span {
         crossfade_out: None,
         reader: Some(Box::new(FlatReader { pos: 0, value })),
         exhausted: false,
+        file_len: None,
         bus,
     }
 }

@@ -4,6 +4,7 @@ use super::Project;
 use crate::clip::Clip;
 use crate::error::ModelError;
 use crate::ids::{ClipId, MediaId, MulticamGroupId, TrackId};
+use crate::media::MediaSource;
 use crate::multicam::{MulticamAngle, MulticamGroup};
 use crate::time::{RationalTime, TimeRange, check_same_rate, resample};
 
@@ -221,5 +222,36 @@ impl Project {
 
         let clip = Clip::from_multicam(group_id, source, timeline);
         self.timeline_mut().add_clip(track_id, clip)
+    }
+
+    /// The recorded sound `clip` plays: the pool source it is read from, and
+    /// the window of that source the clip covers.
+    ///
+    /// A media clip reads its own source window. A multicam clip reads the
+    /// first of its group's cameras that recorded sound, which is the clock
+    /// the others are synced against whenever it has any, over the clip's
+    /// window of the group clock moved onto that camera's file. That window
+    /// starts before the file's first sample when the camera started after the
+    /// window does, and runs past its end when the camera stopped first; the
+    /// reader plays silence for either stretch. `None` for a clip with no
+    /// recorded sound: generated content, a nested sequence, a source without
+    /// an audio stream, or a source missing from the pool.
+    pub fn clip_sound(&self, clip: &Clip) -> Option<(&MediaSource, TimeRange)> {
+        let source = clip.source_range()?;
+        if let Some(media) = clip.media() {
+            return self
+                .media(media)
+                .filter(|media| media.has_audio)
+                .map(|m| (m, source));
+        }
+        let group = self.multicam_groups.get(&clip.multicam_group()?)?;
+        group.angles.iter().find_map(|angle| {
+            let media = self.media(angle.media).filter(|media| media.has_audio)?;
+            let start = source.start.value.checked_sub(angle.sync_offset)?;
+            Some((
+                media,
+                TimeRange::at_rate(start, source.duration.value, source.start.rate),
+            ))
+        })
     }
 }

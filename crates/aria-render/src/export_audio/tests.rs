@@ -94,6 +94,7 @@ fn curved_source_bounds_sample_only_interval_endpoints() {
         crossfade_out: None,
         reader: None,
         exhausted: false,
+        file_len: None,
         bus: 0,
     };
     let (forward_min, forward_max, forward_evaluations) =
@@ -147,6 +148,7 @@ fn warped_mix_reads_double_source_for_2x_speed() {
             freq: 440.0,
         })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }]);
     let mut out = vec![0.0; 500 * CHANNELS];
@@ -214,6 +216,7 @@ fn flat_span(pan: Param<f32>, left: f32, right: f32) -> Span {
             right,
         })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }
 }
@@ -378,6 +381,7 @@ fn ramp_span(reversed: bool, len: i64, warp: SpanWarp, source_len: i64) -> Span 
         crossfade_out: None,
         reader: Some(Box::new(RampReader { pos: 0 })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }
 }
@@ -456,4 +460,88 @@ fn reversed_clip_is_included_in_project_mixer() {
         .set_clip_speed(clip, Rational::new(1, 1), true)
         .unwrap();
     assert!(ExportAudioMixer::for_project(&project).unwrap().is_some());
+}
+
+/// A file of `len` frames of one value that fails any seek outside itself,
+/// the way a decoder asked for a frame it does not hold can.
+struct BoundedReader {
+    len: i64,
+    pos: i64,
+}
+
+impl AudioReader for BoundedReader {
+    fn read(&mut self, out: &mut [f32]) -> Result<usize, DecodeError> {
+        let want = (out.len() / CHANNELS) as i64;
+        let frames = want.min(self.len - self.pos).max(0) as usize;
+        out[..frames * CHANNELS].fill(0.5);
+        self.pos += frames as i64;
+        Ok(frames)
+    }
+
+    fn seek_to_frame(&mut self, frame: i64) -> Result<(), DecodeError> {
+        if !(0..self.len).contains(&frame) {
+            return Err(DecodeError::Seek(format!(
+                "frame {frame} is outside the file"
+            )));
+        }
+        self.pos = frame;
+        Ok(())
+    }
+
+    fn position(&self) -> Option<i64> {
+        Some(self.pos)
+    }
+}
+
+/// A file that starts a block into its window and ends a block before the
+/// window does, mixed a block at a time in both directions: the outer blocks
+/// are silence, the inner ones are the file, and the decoder is never seeked
+/// outside the file.
+#[test]
+fn a_window_reaching_outside_its_file_reads_silence_there_in_both_directions() {
+    const B: i64 = 256;
+    for reversed in [false, true] {
+        let file = FileWindow {
+            inner: Box::new(BoundedReader { len: 2 * B, pos: 0 }),
+            len: Some(2 * B),
+            owed: 0,
+            past_end: None,
+        };
+        let mut mixer = ExportAudioMixer::of_spans(vec![Span {
+            path: PathBuf::from("/dev/null"),
+            start: 0,
+            end: 4 * B,
+            source_start: -B,
+            source_len: 4 * B,
+            reversed,
+            warp: SpanWarp::Linear,
+            preserve_pitch: false,
+            denoise: false,
+            volume: Param::Constant(1.0),
+            pan: Param::Constant(0.0),
+            fade_in: 0,
+            fade_out: 0,
+            crossfade_in: None,
+            crossfade_out: None,
+            reader: Some(Box::new(file)),
+            exhausted: false,
+            file_len: Some(2 * B),
+            bus: 0,
+        }]);
+        let peaks: Vec<f32> = (0..4)
+            .map(|block| {
+                let mut out = vec![0.0; B as usize * CHANNELS];
+                mixer
+                    .mix_into(block * B, &mut out)
+                    .unwrap_or_else(|err| panic!("reversed {reversed}, block {block}: {err}"));
+                out.iter().fold(0.0f32, |peak, s| peak.max(s.abs()))
+            })
+            .collect();
+        assert_eq!(peaks[0], 0.0, "reversed {reversed}: {peaks:?}");
+        assert!(
+            peaks[1] > 0.25 && peaks[2] > 0.25,
+            "reversed {reversed}: {peaks:?}"
+        );
+        assert_eq!(peaks[3], 0.0, "reversed {reversed}: {peaks:?}");
+    }
 }

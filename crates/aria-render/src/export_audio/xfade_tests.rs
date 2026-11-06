@@ -66,6 +66,7 @@ fn span(start: i64, end: i64, source_start: i64, reversed: bool, warp: SpanWarp)
         crossfade_out: None,
         reader: Some(Box::new(PositionReader { pos: 0 })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }
 }

@@ -390,3 +390,74 @@ fn moving_an_angle_the_group_does_not_hold_is_refused_by_name() {
         "a group id nothing holds is refused rather than created"
     );
 }
+
+/// A multicam clip sounds like the first camera that recorded sound, read
+/// through that camera's offset on the group clock; a media clip sounds like
+/// its own window; a group with no camera that recorded sound is silent.
+#[test]
+fn a_clip_sounds_like_its_first_sounding_camera_through_that_cameras_offset() {
+    let mut project = Project::new("multicam_sound", R24);
+    let mute = |path: &str| MediaSource::new(path, 1920, 1080, R24, 240, false);
+    let picture = project.add_media(mute("wide.mp4"));
+    let close = project.add_media(sample_media(R24, 240));
+    let overhead = project.add_media(sample_media(R24, 240));
+    let group = project
+        .create_multicam_group(
+            "Stage",
+            vec![
+                MulticamAngle::new(picture, 0),
+                MulticamAngle::new(close, 12),
+                MulticamAngle::new(overhead, -6),
+            ],
+        )
+        .expect("create group");
+    let track = project.add_track(TrackKind::Video, "V1");
+    let clip = project
+        .add_multicam_clip(track, group, tr(30, 60), rt(0))
+        .expect("add multicam clip");
+    let (media, window) = project
+        .clip_sound(project.clip(clip).expect("the clip"))
+        .expect("the second camera recorded sound");
+    assert_eq!(media.id, close, "the first camera that recorded sound");
+    assert_eq!(
+        window,
+        tr(18, 60),
+        "the clip's window on that camera's file"
+    );
+
+    let silent_a = project.add_media(mute("a.mp4"));
+    let silent_b = project.add_media(mute("b.mp4"));
+    let silent = project
+        .create_multicam_group(
+            "Silent",
+            vec![
+                MulticamAngle::new(silent_a, 0),
+                MulticamAngle::new(silent_b, 4),
+            ],
+        )
+        .expect("create group");
+    let clip = project
+        .add_multicam_clip(track, silent, tr(0, 24), rt(120))
+        .expect("add multicam clip");
+    assert!(
+        project
+            .clip_sound(project.clip(clip).expect("the clip"))
+            .is_none()
+    );
+
+    let own = project
+        .add_clip(track, close, tr(40, 24), rt(200))
+        .expect("add clip");
+    let (media, window) = project
+        .clip_sound(project.clip(own).expect("the clip"))
+        .expect("a media clip with sound");
+    assert_eq!((media.id, window), (close, tr(40, 24)));
+    let mute_clip = project
+        .add_clip(track, picture, tr(0, 24), rt(240))
+        .expect("add clip");
+    assert!(
+        project
+            .clip_sound(project.clip(mute_clip).expect("the clip"))
+            .is_none()
+    );
+}

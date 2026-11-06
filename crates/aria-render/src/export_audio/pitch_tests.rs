@@ -81,6 +81,7 @@ fn sine_span(speed: i32, preserve_pitch: bool, len: i64) -> Span {
             freq: 440.0,
         })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }
 }
@@ -172,6 +173,7 @@ fn tone_span(freq: f32, len: i64) -> Span {
         crossfade_out: None,
         reader: Some(Box::new(Tone { pos: 0, freq })),
         exhausted: false,
+        file_len: None,
         bus: 0,
     }
 }
@@ -398,6 +400,7 @@ fn bounded_source_stays_audible_across_all_blocks_for_forward_and_reverse_retime
                             freq: 440.0,
                         })),
                         exhausted: false,
+                        file_len: None,
                         bus: 0,
                     };
                     let mut mixer = ExportAudioMixer::of_spans(vec![span]);

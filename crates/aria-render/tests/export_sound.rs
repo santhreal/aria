@@ -15,7 +15,7 @@
 use std::path::Path;
 
 use aria_core::RationalTime;
-use aria_models::{MediaSource, Project, Rational, TimeRange, TrackKind};
+use aria_models::{MediaSource, MulticamAngle, Project, Rational, TimeRange, TrackKind};
 use aria_render::{EmptyExport, ExportSettings, RenderError, export_audio_to_file_observed};
 
 #[path = "support/tone.rs"]
@@ -147,6 +147,76 @@ fn a_cancelled_export_leaves_the_destination_alone() {
         "the destination was replaced by an abandoned export"
     );
 }
+
+/// A multicam clip sounds like the first of its cameras that recorded any,
+/// read through that camera's place on the group clock: silent where the
+/// camera was not rolling and the camera's own sound where it was, in either
+/// direction. The first camera here has no sound, so a mixer that reads only
+/// the first angle exports silence. One that adds the sync offset instead of
+/// subtracting it moves the tone a second along the clock, and a reversed read
+/// that seeks a camera before its first sample without padding plays the tone
+/// where the camera had not started.
+#[test]
+fn a_multicam_clip_plays_its_first_sounding_camera_where_that_camera_rolls() {
+    for reversed in [false, true] {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let tone = dir.path().join("cam-b.wav");
+        write_tone(&tone, 1000, 440.0);
+        let fps = Rational::FPS_24;
+        let mut project = Project::new("multicam", fps);
+        let picture = MediaSource::new("cam-a.mov", 1920, 1080, fps, 48, false);
+        let picture = project.add_media(picture);
+        let sound = project.add_media(MediaSource::new(&tone, 0, 0, MS, 1000, true));
+        let lane = project.add_track(TrackKind::Video, "V1");
+        // The second camera started half a second (12 frames) into the group
+        // and ran for one second.
+        let group = project
+            .create_multicam_group(
+                "take",
+                vec![
+                    MulticamAngle::new(picture, 0),
+                    MulticamAngle::new(sound, 12),
+                ],
+            )
+            .expect("the group");
+        let span = project.multicam_group_span(group).expect("the span");
+        let clip = project
+            .add_multicam_clip(lane, group, span, RationalTime::new(0, fps))
+            .expect("the multicam clip");
+        project.clip_mut(clip).expect("the clip").reversed = reversed;
+        let out = dir.path().join("bake.wav");
+
+        let frames = export_audio_to_file_observed(
+            &project,
+            &out,
+            ExportSettings::for_project(&project),
+            &mut |_, _| true,
+        )
+        .unwrap_or_else(|err| panic!("reversed {reversed}: a multicam clip is audible: {err}"));
+
+        assert_eq!(frames, 48, "the group runs two seconds at 24 fps");
+        let samples = samples_of(&std::fs::read(&out).expect("the exported file"));
+        let at = |seconds: f64| (seconds * f64::from(RATE)) as usize * CHANNELS;
+        let peak = |from: f64, to: f64| {
+            samples[at(from)..at(to)]
+                .iter()
+                .map(|s| s.unsigned_abs())
+                .max()
+                .unwrap_or(0)
+        };
+        assert_eq!(
+            peak(0.0, 0.45),
+            0,
+            "reversed {reversed}: sound before 0.5 s"
+        );
+        assert!(
+            peak(0.55, 1.45) > 8_000,
+            "reversed {reversed}: the camera's sound is missing while it rolls"
+        );
+        assert_eq!(peak(1.55, 2.0), 0, "reversed {reversed}: sound after 1.5 s");
+    }
+}
+
 #[cfg(target_os = "linux")]
 mod mp4_av_verification {
     use std::path::Path;
