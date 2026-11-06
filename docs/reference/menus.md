@@ -267,7 +267,7 @@ The panel rows are listed by title in alphabetical order, plugin panels among th
 | `win-workspace-colour` | `Workspaces` | Color | `none` | Always enabled | Applies the `Color` workspace layout. |
 | `win-workspace-audio` | `Workspaces` | Audio | `none` | Always enabled | Applies the `Audio` workspace layout. |
 | `win-workspace-effects` | `Workspaces` | Effects | `none` | Always enabled | Applies the `Effects` workspace layout. |
-| `win-workspace-save` | `Workspaces` | Save Workspace | `none` | Always enabled | Saves the current arrangement to the active workspace file and the `Custom` slot. |
+| `win-workspace-save` | `Workspaces` | Save Workspace | `none` | Always enabled | Saves the current arrangement to the `Custom` slot, replacing what it held. |
 | `win-workspace-reset` | `Workspaces` | Reset to Saved Layout | `none` | Always enabled | Resets the active workspace to its saved or shipped layout. |
 | `win-panel:aria.panel.align` | `none` | Align | `none` | Always enabled | Toggles the `aria.panel.align` dock panel. |
 | `win-assistant` | `none` | Assistant | `Shift+0` | Always enabled | Toggles the Assistant tab (`ActivePanel::Ai`). |
@@ -305,10 +305,10 @@ Several menus append rows at render time when session state or mounted plugins p
 
 - `file-recent:<path>` (under **File > Open Recent**): opens the recent `.aria` project at `<path>` from `state.recents()`, disabled when the file is missing on disk (`guards::recent`).
 - `file-import-recent:<path>` (under **File > Import Recent**): imports the recent media file at `<path>` from `state.import_recents()`, disabled when the file is missing on disk (`guards::import_recent`).
-- `file-export-as:<exporter_id>` (under **File > Export**): runs a registered `TimelineExporter` (`fcpxml`, `otio`, `edl`, `srt`, or `vtt` when `aria-interchange` is mounted).
+- `file-export-as:<exporter_id>` (under **File > Export**): runs a registered `TimelineExporter`. With `aria-interchange` mounted the rows are `aria.interchange.edl`, `aria.interchange.fcpxml`, `aria.interchange.otio`, `aria.interchange.srt`, and `aria.interchange.vtt`, in that order.
 - `fx-apply:<effect_id>` (under **Effect > `<Category>`**): appends the catalog video effect `<effect_id>` (`docs/reference/effects.md`) to the selected clip.
 - `fx-apply-audio:<effect_id>` (under **Effect > `<Category>`**): appends the built-in audio effect `<effect_id>` (`docs/reference/audio-effects.md`) to the selected clip.
-- `win-workspace-custom`, `win-workspace-file:<name>`, and `win-workspace-plugin:<id>` (under **Window > Workspaces**): switches to the saved custom workspace, a named workspace JSON file under `<data dir>/workspaces/`, or a plugin-registered workspace.
+- `win-workspace-custom` and `win-workspace-plugin:<id>` (under **Window > Workspaces**): switches to the saved custom workspace or a plugin-registered workspace.
 - `win-panel:<panel_id>` (under **Window**): toggles a plugin-contributed dock panel.
 - `win-project-report` (under **Window**, label `Project Report`): opens `aria.dialog.project-report` once the project has at least one media source or timeline clip (`state.project_report_available()`).
 

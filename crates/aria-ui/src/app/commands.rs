@@ -378,11 +378,16 @@ impl AppState {
             line_drag: None,
             grade_controls: crate::app::grade_controls::GradeControls::default(),
         };
-        // The registry is the only thing that resolves a chord, so the keys the
-        // operator rebound are installed before the first keystroke rather than
-        // consulted at dispatch.
+        // The registry is the only thing that resolves a chord, so rebound keys
+        // are installed before the first keystroke rather than consulted at
+        // dispatch.
         state.apply_key_overrides();
-        if let Some(ws_id) = state.ui_settings.active_workspace.clone() {
+        // A restored id that names no row this build lists, such as a name an
+        // older build saved to a workspace file, would leave every row
+        // unmarked; the shipped default stays marked instead.
+        if let Some(ws_id) = state.ui_settings.active_workspace.clone()
+            && crate::layouts::listable_id(&ws_id, state.ui_settings.workspace.is_some())
+        {
             state.active_workspace_id = ws_id;
         }
         if let Some(saved_tree) = state.ui_settings.dock_tree.clone() {

@@ -1,6 +1,6 @@
 //! Driving the rename bar: every prompt it can show, typed and committed.
 //!
-//! The bar is one field for eight targets, so the registry here is the target
+//! The bar is one field for nine targets, so the registry here is the target
 //! itself: `RenameTarget::label` is the prompt the panel draws, and the state
 //! machine behind it is `begin_rename`, the rename row of `keys::fields`, and
 //! `commit_rename`. A census types one character at a time through
@@ -70,10 +70,6 @@ const RENAME_STAGES: &[Stage] = &[
         dress: a_selection_to_shift,
     },
     Stage {
-        what: "a workspace to save",
-        dress: a_workspace_to_save,
-    },
-    Stage {
         what: "an effect in a clip's chain",
         dress: an_effect,
     },
@@ -96,7 +92,6 @@ fn typed(target: RenameTarget) -> &'static str {
         RenameTarget::SlotLabel => "Logo here",
         RenameTarget::ClipText => "Second title",
         RenameTarget::ShiftFrames => "5",
-        RenameTarget::SaveWorkspace => "My Grading",
         RenameTarget::Effect { .. } => "Soft Blur",
     }
 }
@@ -228,11 +223,6 @@ fn a_selection_to_shift() -> (AppState, RenameTarget) {
     (state, RenameTarget::ShiftFrames)
 }
 
-fn a_workspace_to_save() -> (AppState, RenameTarget) {
-    let (state, _) = with_clip();
-    (state, RenameTarget::SaveWorkspace)
-}
-
 fn an_effect() -> (AppState, RenameTarget) {
     let (state, clip) = crate::app::fixtures::blurred_clip();
     (
@@ -304,11 +294,7 @@ fn every_rename_the_bar_opens_asks_for_something() {
         let (mut state, target) = (stage.dress)();
         let watch = Watch::on(&state);
         commit(&mut state, target, typed(target));
-        let asked = if target == RenameTarget::SaveWorkspace {
-            state.data_dir.join("workspaces/My Grading.json").exists()
-        } else {
-            !watch.take().is_empty()
-        };
+        let asked = !watch.take().is_empty();
         assert!(asked, "renaming {} asked for nothing", stage.what);
         assert_eq!(
             state.rename, None,

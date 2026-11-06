@@ -204,9 +204,8 @@ frames and splits are saved for that workspace; **Window > Workspaces > Reset to
 Layout** restores the workspace's default arrangement. Double-clicking a splitter
 restores that split's saved workspace ratio.
 
-**Window > Workspaces > Save Workspace** saves the current arrangement to the **Custom** slot
-and opens the inline **Save workspace as** prompt; committing a name writes
-`<data dir>/workspaces/<name>.json`. The Custom row appears on the Window menu
+**Window > Workspaces > Save Workspace** saves the current arrangement to the **Custom** slot.
+There is one slot; saving again replaces it. The Custom row appears on the Window menu
 once saved, and **Forget** in the **Workspaces** section of **Settings** removes it again.
 The **Workspaces** section of **Settings** lists every workspace with its measurements, and marks the
 workspace last chosen, as the tool bar's workspace switcher and the Window menu
@@ -331,7 +330,7 @@ Configure project canvas settings, measure and clear a storage cache, and save a
 1. Press <kbd>Ctrl+,</kbd> (`key-settings`) or choose **Edit > Preferences…**. Settings opens with the box empty and lists every section, **Canvas** among them while a project is open. **File > Project Settings…** and **Sequence > Sequence Settings…** open it with `Canvas` in the box, which shows that section alone; Escape clears the box.
 2. Pick an aspect ratio and frame rate for the open sequence, then scroll to the **Caches** section and click [`caches-measure`](../reference/controls.md#settings) to compute disk usage across all cache directories. Each cache row fills in its measured byte size and file count.
 3. Click [`cache-clear`](../reference/controls.md#settings) on an unpinned cache row (or click [`storage-clear`](../reference/controls.md#settings) in the **Storage** section and adjust the download quota with [`quota-dec`](../reference/controls.md#settings) or [`quota-inc`](../reference/controls.md#settings)), then click [`settings-done`](../reference/controls.md#settings) to close Settings. The status line reports the reclaimed bytes.
-4. Drag panel tabs or splitters to arrange the dock layout, then choose **Window > Workspaces > Save Workspace** (or click [`settings-workspace-save`](../reference/controls.md#settings) in the **Workspaces** section of Settings). Aria writes the layout to `<data dir>/workspaces/` and enables the **Custom** workspace slot; choosing **Window > Workspaces > Reset to Saved Layout** restores the saved arrangement at any time.
+4. Drag panel tabs or splitters to arrange the dock layout, then choose **Window > Workspaces > Save Workspace** (or click [`settings-workspace-save`](../reference/controls.md#settings) in the **Workspaces** section of Settings). Aria keeps the layout in `ui-settings.json` as the **Custom** workspace, and a **Custom** row appears under **Window > Workspaces** that restores it at any time.
 
 ## Reference
 

@@ -1,9 +1,9 @@
 //! The editor's own state files are replaced, never rewritten in place.
 //!
 //! The class closed here: a save that truncates the file it replaces. Window
-//! layout and keys (`ui-settings.json`), named workspaces, exported
-//! workspaces, key sets, recents, assistant conversations, installed skills
-//! and baked looks were written with `fs::write`, which empties the file
+//! layout and keys (`ui-settings.json`), key sets, recents, assistant
+//! conversations, installed skills and baked looks were written with
+//! `fs::write`, which empties the file
 //! before the new bytes land: a crash, a kill or a full disk during the write
 //! left a cut-off file, and the next launch read it as corrupt and fell back
 //! to defaults without a word. Each writer now goes through
@@ -38,7 +38,6 @@ use aria_plugin::PluginContext;
 
 use super::AppState;
 use crate::keys::keymap_sets::{self, KEYMAPS_DIR, KeySet};
-use crate::layouts::{self, SavedWorkspace};
 use crate::scratch_pool::scratch;
 use crate::settings::{OUTLINE_MIN, SAVE_DEBOUNCE_MS, UiSettings};
 use crate::types::AgentEntryKind;
@@ -83,21 +82,9 @@ fn assert_replaced(writer: &str, path: &Path, save: impl FnOnce()) {
 fn every_state_file_writer_replaces_the_file_it_saves() {
     let dir = scratch("state-files");
     let mut state = AppState::new(PluginContext::new(), dir.clone()).expect("state");
-    let workspace = SavedWorkspace::new("Mine", state.panes(), state.dock_tree.clone());
 
     assert_replaced("ui-settings", &UiSettings::path(&dir), || {
         UiSettings::default().save(&dir).expect("save ui-settings");
-    });
-
-    let named = layouts::workspace_file_path(&dir, "Mine").expect("a workspace path");
-    assert_replaced("named workspace", &named, || {
-        layouts::save_named_workspace(&dir, "Mine", state.panes(), &state.dock_tree)
-            .expect("save the workspace");
-    });
-
-    let exported = dir.join("exports").join("mine.json");
-    assert_replaced("exported workspace", &exported, || {
-        layouts::export_workspace_json(&exported, &workspace).expect("export the workspace");
     });
 
     let keymap = dir.join(KEYMAPS_DIR).join("Mine.toml");

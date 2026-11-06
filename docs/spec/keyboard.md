@@ -162,7 +162,7 @@ replacing it.
 
 | Key | Result |
 | --- | --- |
-| Alt+Shift+Left / Alt+Shift+Right | Previous / next keyframe on the visible property rows |
+| Shift+Alt+Left / Shift+Alt+Right | Playhead to the selected clip's previous / next keyframe on any property |
 | F9 | Easy Ease |
 | Shift+F9 / Ctrl+Shift+F9 | Easy Ease In / Out |
 | Ctrl+Alt+H | Toggle Hold |
@@ -190,12 +190,12 @@ Pointer gestures on keyframes are in [animation.md](animation.md#keyframes).
 
 ## Customizing
 
-Edit > Keyboard Shortcuts shows a keyboard image with each key colored by the
-kind of command it holds, the command list with search, and the conflict list.
-Dropping a command on a key binds it; pressing a key in a command's row binds
-it; a chord already bound in the same context shows the holder and prompts
-before moving it. Keymaps are saved as named sets in `<data dir>/keymaps/<name>.toml`,
-imported and exported as files.
+Edit > Keyboard Shortcuts… opens Settings > Keyboard Shortcuts: a keyboard
+image with each key colored by the kind of command it holds, the command list
+with search, and the conflict list. Dropping a command on a key binds it;
+pressing a key in a command's row binds it; a chord already bound in the same
+context shows the holder and prompts before moving it. Keymaps are saved as
+named sets in `<data dir>/keymaps/<name>.toml`, imported and exported as files.
 
 Plugins add bindings through their manifest
 ([plugins.md](plugins.md#contribution-points)). A plugin binding never replaces

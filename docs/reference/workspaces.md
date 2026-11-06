@@ -7,7 +7,7 @@ A workspace is a named arrangement of dock frames, split ratios, panel tabs, and
 Switch to the **Audio** workspace, adjust a splitter, save the arrangement, and reset to the saved layout:
 
 1. Press `Shift+Alt+4` or choose **Window > Workspaces > Audio** (`win-workspace-audio`). The dock switches to `Audio`, focuses the Timeline, and filters Effects & Presets to `Audio Effects`.
-2. Choose **Window > Workspaces > Save Workspace** (`win-workspace-save`), type `audio`, and press Enter. Aria stores the arrangement in the `Custom` slot (`win-workspace-custom` in `ui-settings.json`) and writes `<data dir>/workspaces/audio.json`.
+2. Choose **Window > Workspaces > Save Workspace** (`win-workspace-save`). Aria stores the arrangement in the `Custom` slot (`workspace` and `workspaceTrees.win-workspace-custom` in `ui-settings.json`), and the Custom row appears under **Window > Workspaces**.
 3. Choose **Window > Workspaces > Reset to Saved Layout** (`win-workspace-reset`) to restore the active workspace to its saved or shipped frame tree and split ratios.
 
 ## Shipped workspaces
@@ -60,5 +60,5 @@ workspace is chosen.
 ## Custom and plugin workspaces
 
 - **Per-workspace persistence**: splitter drags, tab reorders, docks, and undocks are saved per workspace ID in `workspaceTrees` inside `ui-settings.json`. A resized window lays out a shipped workspace with no saved edits as the Default dock trees table states for the new width; a workspace with saved edits keeps the shares of its frames.
-- **Custom workspace (`win-workspace-custom`)**: created by **Window > Workspaces > Save Workspace** (`win-workspace-save`) or the **Save current** button in **Settings > Workspaces**. Named workspace files are written to `<data dir>/workspaces/<name>.json`. **Reset to Saved Layout** (`win-workspace-reset`) restores the active workspace to its saved or shipped arrangement.
-- **Plugin workspaces (`win-workspace-plugin:<id>`)**: plugins register workspaces on `PluginContext::register_workspace`. A plugin workspace opens with the timeline graph editor closed. Shortcut slots `Shift+Alt+1` through `Shift+Alt+9` address the first nine rows in `AppState::workspace_rows()`: the shipped workspaces in the order of the [Shipped workspaces](#shipped-workspaces) table, then `Custom` when present, then plugin workspaces in registration order.
+- **Custom workspace (`win-workspace-custom`)**: created by **Window > Workspaces > Save Workspace** (`win-workspace-save`) or the **Save as Custom** button in **Settings > Workspaces**, which reads **Replace Custom** once the slot holds an arrangement. There is one slot; saving again replaces it. **Forget** in **Settings > Workspaces** removes it. **Reset to Saved Layout** (`win-workspace-reset`) restores the active workspace to its saved or shipped arrangement.
+- **Plugin workspaces (`win-workspace-plugin:<id>`)**: plugins register workspaces on `PluginContext::register_workspace`. A plugin workspace opens with the timeline graph editor closed. Shortcut slots `Shift+Alt+1` through `Shift+Alt+9` address the first nine rows in `AppState::workspace_rows()`: the shipped workspaces in the order of the [Shipped workspaces](#shipped-workspaces) table, then plugin workspaces in registration order, then `Custom` when present.

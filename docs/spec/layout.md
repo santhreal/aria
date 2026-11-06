@@ -13,7 +13,7 @@
 |   left frame         |                                |   right column       |
 |   400 px             |                                |   300 px             |
 +----------------------+--------------------------------+----------------------+
-| Timeline: Sequence 01 | Sequence 02                              | Audio     |
+| Timeline                                                         | Audio     |
 |                                                                  | meters    |
 |                                                                  | 112 px    |
 +------------------------------------------------------------------------------+
@@ -75,7 +75,7 @@ The menu button and a right-click on a tab open the frame menu under the tab row
 | Grave accent (`` ` ``) | Maximizes the frame under the pointer to the whole area between the tool bar and the status bar. Pressed again, restores it. |
 | Double-click a tab | Same as grave accent. |
 | Middle-click a tab | Closes the panel. |
-| Ctrl+W on a focused panel | Closes the panel, or the sequence tab when the Timeline has focus. |
+| Ctrl+W on a focused panel | Closes the panel. In the Viewer it closes the focused Source tab first; in the Timeline, inside a nested sequence, it leaves the nest first. |
 
 A drag begun in a floating window ends as one begun in the main window: the
 release writes it wherever the button comes up, and Escape puts back what the
@@ -122,9 +122,9 @@ The workspace switcher sits in the tool bar. Changing workspace rearranges the
 frames over 180 ms; panel contents are not rebuilt. A workspace that does not
 open the graph editor closes it. A workspace keeps
 changes made to it. Window > Workspaces > Reset to Saved Layout restores the
-saved arrangement, and Save as New Workspace stores the current arrangement
-under a new name. Workspaces are stored in `<data dir>/workspaces/<name>.json`
-and can be imported and exported.
+saved arrangement, and Save Workspace keeps the current arrangement as the
+Custom workspace. There is one Custom slot; saving again replaces it. It is
+stored in `ui-settings.json`, and Settings > Workspaces > Forget removes it.
 
 Plugins contribute panels and workspaces (see [plugins.md](plugins.md)). A
 plugin panel docks, floats, and tabs the same way a shipped panel does.
@@ -133,15 +133,15 @@ plugin panel docks, floats, and tabs the same way a shipped panel does.
 
 | Menu | Contents |
 | --- | --- |
-| File | New Project, New Sequence, Open, Use Template, Open Recent (one row per recent project, then All Recent Projects), Close, Rename Project, Save, Save As, Save a Copy, Save as Template, Revert, Import, Import Recent (one row per recently imported file, then Clear Recent Imports), Import Timeline, Relink All, Export (Media, Frame, Timeline, then one row per timeline exporter: EDL, OTIO, FCPXML), Install Plugin, Project Settings, Quit |
-| Edit | Undo, Redo, Cut, Copy, Paste, Paste Insert, Paste Attributes, Remove Attributes, Paste To Fit, Clear, Ripple Delete, Duplicate, Select All, Deselect All, Find, Label (one row per label color, then None), Keyboard Shortcuts, Preferences |
-| Clip | Rename, Make Subclip, Speed/Duration, Time Remapping, Enable, Link, Unlink, Group, Ungroup, Nest, Replace with Clip (From Source Monitor), Freeze Frame, Render and Replace, Restore Unrendered, Audio Gain, Audio Channels (Stereo, Swap Channels, Left to Both, Right to Both, Mono), Extract Audio, Transform (Flip Horizontal, Flip Vertical, Reset Framing), Track Matte (Luma, Alpha, Remove) |
-| Sequence | Sequence Settings, Render In to Out, Render Selection, Delete Render Files, Add Edit, Add Edit to All Tracks, Trim Edit, Extend Edit, Apply Default Transitions, Lift, Extract, Snap, Linked Selection, Add Tracks (Video Track, Audio Track), Delete Empty Tracks, Add Adjustment Layer, Match Frame, Source (Insert, Overwrite, Insert Pool Selection), Ripple Trim In, Ripple Trim Out, Add Cross Fade at Cut, Remove Transition at Cut, lane shifts, Ducking, Nested Sequence |
+| File | New Project, New Sequence, Open, Use Template, Open Recent (one row per recent project, then All Recent Projects), Close, Rename Project, Save, Save As, Save a Copy, Save as Template, Revert, Import, Import Recent (one row per recently imported file, then Clear Recent Imports), Import Timeline, Relink All, Export (Media, Frame, Timeline, then one row per timeline exporter: CMX 3600 EDL, Final Cut Pro XML, OpenTimelineIO, SubRip subtitles, WebVTT subtitles), Install Plugin, Project Settings, Quit |
+| Edit | Undo, Redo, Cut, Copy, Paste, Paste Insert, Paste Attributes, Remove Attributes, Paste to Fit, Clear, Ripple Delete, Duplicate, Select All, Deselect All, Find, Label (one row per label color, then None), Keyboard Shortcuts, Preferences |
+| Clip | Rename, Make Subclip, Speed/Duration, Time Remapping, Enable, Link, Unlink, Group, Ungroup, Nest, Replace with Clip (From Source Monitor), Freeze Frame, Render and Replace, Restore Unrendered, Audio Gain, Audio Channels (Stereo, Swap Channels, Left to Both, Right to Both, Mono), Extract Audio, Transform (Flip Horizontal, Flip Vertical, Reset Framing), Track Matte (Luma Matte from Above, Alpha Matte from Above, Remove Track Matte), Analyze (one row per clip analyzer: Detect Beats) |
+| Sequence | Sequence Settings, Render In to Out, Render Selection, Delete Render Files, Add Edit, Add Edit to All Tracks, Trim Edit, Extend Edit, Apply Default Transitions, Lift, Extract, Snap, Linked Selection, Add Tracks (Video Track, Audio Track), Delete Empty Tracks, Add Adjustment Layer, Match Frame, Source (Insert, Overwrite, Insert Pool Selection), Ripple Trim In, Ripple Trim Out, Add Cross Fade at Cut, Remove Transition at Cut, Shift Lane One Second Later, Shift Lane One Second Earlier, Reset Canvas Background, Ducking (Cycle Duck Amount, Cycle Duck Attack, Cycle Duck Release), Nested Sequence (Open Nested Sequence, Leave Nested Sequence, Place Nest at Playhead), Analyze (one row per sequence or In to Out analyzer: Detect Silence, Measure Loudness) |
 | Markers | Mark In, Mark Out, Mark Clip, Go to In, Go to Out, Clear In, Clear Out, Clear In and Out, Add Marker, Go to Next Marker, Go to Previous Marker, Clear Marker, Clear All Markers, Edit Marker, Move Nearest Marker to Playhead |
 | Effect | Effect Controls, Apply (the last applied effect), Paste Effect, Remove All Effects, Reset Effect Parameters, Reset Grade, Remove Mask, Remove Chroma Key, then one submenu per effect category |
 | Animation | Add Keyframe, Toggle Hold Keyframe, Keyframe Interpolation (Linear, Bezier, Hold), Keyframe Velocity, Keyframe Assistant (Easy Ease, Easy Ease In, Easy Ease Out, Time-Reverse Keyframes), Add Expression, Reveal Properties with Keyframes, Reveal Modified Properties, Graph Editor |
-| View | Zoom In, Zoom Out, Zoom to Sequence, Zoom to Selection, Resolution (Playback, Paused), Viewer Display Settings (Split Viewer, Show Rulers, Show Guides, Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, Grid), Proxies, Compare (Current Frame, Still, Source Tab, Vertical Wipe, Horizontal Wipe, Side by Side, Stop Comparing), Scopes, Scope Waveform (Luma, RGB Parade, YCbCr Parade), Fit Preview, Preview 100%, Canvas Handles, Fullscreen Preview, Loop Playback, Timeline Display Settings (Head Thumbnails, Head and Tail Thumbnails, Continuous Thumbnails, Logarithmic Waveforms, Linear Waveforms, Hide Waveforms, Page Scroll, Smooth Scroll) |
-| Window | Workspaces (one row per workspace, then Save Workspace), then one item per panel, checked when open, Command Palette, Home, Project Report |
+| View | Zoom In, Zoom Out, Zoom to Sequence, Zoom to Selection, Resolution (Playback Resolution, Paused Resolution), Viewer Display Settings (Split Viewer, Show Rulers, Show Guides, Snap to Guides, Clear Guides, Title Safe, Action Safe, Transparency Grid, Grid), Proxies, Compare (Current Frame, Still, Source Tab, Vertical Wipe, Horizontal Wipe, Side by Side, Stop Comparing), Scope Strip, Scope Waveform (Luma, RGB Parade, YCbCr Parade), Fit Preview, Preview 100%, Canvas Handles (Transform, Crop, Mask), Fullscreen Preview, Loop Playback, Timeline Display Settings (Head Thumbnails, Head and Tail Thumbnails, Continuous Thumbnails, Logarithmic Waveforms, Linear Waveforms, Hide Waveforms, Page Scroll, Smooth Scroll) |
+| Window | Workspaces (one row per workspace, then Save Workspace, Reset to Saved Layout), then one row per panel in alphabetical order, checked when open, Command Palette, Home, Project Report (once the project holds media or clips) |
 | Help | Learn, Plugin Development, Open Data Folder, Check for Updates, About |
 
 A row with a parenthesised list is a submenu. Plugin menu rows follow the
@@ -212,9 +212,9 @@ row ([viewer.md](viewer.md#anatomy)). Settings opens from Edit > Preferences
 and Ctrl+,; panels open from the Window menu.
 
 Each tool button is 28 x 28 px with a 16 px icon. Tools share a button by
-group: Selection; Track Select Forward and Backward; the trim tools (Ripple
-Edit, Rolling Edit, Rate Stretch, Slip, Slide); Razor; Pen and its vertex
-variants; Hand and Zoom; Type. A group's button shows the active tool when it
+group: Select; Track Select Forward and Backward; the trim tools (Ripple
+Trim, Rolling Edit, Rate Stretch, Slip, Slide); Razor; Pen and its modes;
+Hand and Zoom; Type. A group's button shows the active tool when it
 belongs to the group, otherwise the group's first tool. The active tool has
 the `element_active` plate and an accent icon. A group with more than one
 entry shows a 3 px corner triangle; pressing and holding for 300 ms, or
@@ -223,9 +223,11 @@ its group's button shows it.
 
 ## Status bar
 
-Left: the message line (the last action, an error in `danger`, a refusal
-reason). The error is drawn here and in no panel, so posting or clearing one
-moves no control. Center: background jobs with progress. Clicking a job opens
+Left: inside a nested sequence, a `Nest · <name>` chip that leaves the nest
+when clicked; then the message line (the last action, an error, a refusal
+reason). An error fills the bar with `danger_muted` under body text. The
+error is drawn here and in no panel, so posting or clearing one moves no
+control. Center: background jobs with progress. Clicking a job opens
 the Jobs panel. Right, during playback: the achieved frame rate against the
 sequence's, the playback resolution, and the GPU device name. Once a frame
 drops, the dropped-frame count shows in `warning` until it is clicked. At rest

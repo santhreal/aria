@@ -418,6 +418,37 @@ fn a_saved_slot_from_a_wilder_build_is_pulled_inside_the_pane_bounds() {
     assert_eq!(here.timeline_height, TIMELINE_MIN_HEIGHT);
 }
 
+/// A stored active workspace that names no listable row is not restored: the
+/// shipped default stays marked. Covers a name an older build wrote for a
+/// workspace file, and the Custom id saved with no arrangement left in the
+/// slot. A plugin id is kept, because its row arrives when the plugin mounts.
+#[test]
+fn a_stored_active_workspace_no_row_lists_marks_the_shipped_default() {
+    let editing = layouts::WORKSPACES[0].id;
+    let plugin = format!("{}aria.example.cut", layouts::PLUGIN_PREFIX);
+    let cases = [
+        ("Evening Cut", editing),
+        (CUSTOM_ID, editing),
+        (layouts::WORKSPACES[2].id, layouts::WORKSPACES[2].id),
+        (plugin.as_str(), plugin.as_str()),
+    ];
+    for (stored, marked) in cases {
+        let scratch = dir();
+        let settings = UiSettings {
+            active_workspace: Some(stored.to_string()),
+            ..UiSettings::default()
+        };
+        settings.save(&scratch).expect("save");
+        let cx = gpui::TestAppContext::single();
+        let subject = entity(state_in(&scratch), &cx);
+        assert_eq!(
+            cx.update(|app| subject.read(app).active_workspace_id.clone()),
+            marked,
+            "stored {stored:?}"
+        );
+    }
+}
+
 #[test]
 fn a_workspace_nobody_ships_is_refused_and_changes_nothing() {
     let cx = gpui::TestAppContext::single();
@@ -491,4 +522,56 @@ fn the_menu_row_arranges_the_panes_it_names() {
         Some(panes_of(&subject, &cx)),
         "Save Workspace must keep exactly what is on screen"
     );
+}
+
+/// Every Window > Workspaces row finishes what it starts: it opens no prompt,
+/// and afterwards exactly one listed workspace is marked. The rows are read
+/// from the live menu, so a row added under Workspaces is driven with no edit
+/// here.
+///
+/// WHY: Save Workspace opened a name prompt whose answer went to a file that
+/// no menu, switcher or Settings row read, and the typed name became the
+/// active workspace, which left no row marked. Not caught: a row that marks
+/// the wrong workspace, which `the_menu_row_arranges_the_panes_it_names`
+/// covers for one row.
+#[test]
+fn every_workspace_row_leaves_one_listed_workspace_marked() {
+    let cx = gpui::TestAppContext::single();
+    let subject = entity(state_in(&dir()), &cx);
+    // Saved first, so the Custom row is on offer and driven too.
+    let prompt = cx.update(|app| {
+        subject.update(app, |state: &mut AppState, cx| {
+            state.save_workspace(cx);
+            state.rename
+        })
+    });
+    assert_eq!(prompt, None, "Save Workspace opened a prompt");
+    let rows: Vec<&'static str> = cx.update(|app| {
+        items_of(AppMenu::Window, subject.read(app))
+            .into_iter()
+            .filter(|item| item.under == Some("Workspaces"))
+            .map(|item| item.id)
+            .collect()
+    });
+    assert!(
+        rows.contains(&SAVE_ID) && rows.contains(&CUSTOM_ID),
+        "the Workspaces rows are {rows:?}"
+    );
+    for row in rows {
+        let (prompt, marked) = cx.update(|app| {
+            subject.update(app, |state: &mut AppState, cx| {
+                let ran = crate::chrome::menu_items::run_item(AppMenu::Window, row, state, cx);
+                assert!(ran, "{row} did not run");
+                let marked: Vec<&str> = state
+                    .workspace_rows()
+                    .into_iter()
+                    .filter(|listed| listed.active)
+                    .map(|listed| listed.id)
+                    .collect();
+                (state.rename, marked)
+            })
+        });
+        assert_eq!(prompt, None, "{row} opened a prompt");
+        assert_eq!(marked.len(), 1, "{row} left {marked:?} marked");
+    }
 }

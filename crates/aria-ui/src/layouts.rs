@@ -18,9 +18,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use std::io;
-use std::path::{Path, PathBuf};
-
 use crate::dock::{
     Axis, DOCK_VERSION, DefaultFrame, DockTree, Frame, FrameId, Node, PANEL_ALIGN, PANEL_ASSISTANT,
     PANEL_COLOR, PANEL_EFFECTS, PANEL_INFO, PANEL_INSPECTOR, PANEL_MIXER, PANEL_PROJECT,
@@ -74,9 +71,6 @@ pub const SAVE_ID: &str = "win-workspace-save";
 pub const RESET_ID: &str = "win-workspace-reset";
 /// The label the Custom slot is drawn with, in the menu and in Settings.
 pub const CUSTOM_NAME: &str = "Custom";
-
-/// Subdirectory inside the profile data dir holding named workspace JSON files.
-pub const WORKSPACES_DIR: &str = "workspaces";
 
 /// What ships. Order is menu order.
 pub const WORKSPACES: [Workspace; 5] = [
@@ -250,6 +244,13 @@ impl PaneLayout {
 /// The shipped workspace with this id.
 pub fn workspace(id: &str) -> Option<&'static Workspace> {
     WORKSPACES.iter().find(|ws| ws.id == id)
+}
+
+/// Whether `id` names a row a build can list: a shipped workspace, the Custom
+/// slot while `custom_saved`, or a plugin's, whose row arrives when its plugin
+/// mounts.
+pub fn listable_id(id: &str, custom_saved: bool) -> bool {
+    workspace(id).is_some() || (id == CUSTOM_ID && custom_saved) || id.starts_with(PLUGIN_PREFIX)
 }
 
 /// Build the shipped [`DockTree`] for `id`.
@@ -500,127 +501,6 @@ pub fn plugin_tree(panes: &aria_plugin::WorkspacePanes, registered_panels: &[Pan
         tree.retain_panels(|panel_id| registered_panels.contains(&panel_id));
     }
     tree
-}
-
-/// On-disk workspace file stored in `<data dir>/workspaces/<name>.json` or
-/// imported/exported as JSON.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SavedWorkspace {
-    pub version: u32,
-    pub name: String,
-    #[serde(default)]
-    pub panes: PaneLayout,
-    pub tree: DockTree,
-}
-
-impl SavedWorkspace {
-    pub fn new(name: impl Into<String>, panes: PaneLayout, mut tree: DockTree) -> Self {
-        tree.normalize();
-        Self {
-            version: DOCK_VERSION,
-            name: name.into(),
-            panes: panes.clamped(),
-            tree,
-        }
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(self)
-    }
-
-    pub fn from_json(json: &str) -> Result<Self, String> {
-        #[derive(Deserialize)]
-        struct Probe {
-            version: Option<u32>,
-        }
-        let probe: Probe =
-            serde_json::from_str(json).map_err(|e| format!("invalid workspace JSON: {e}"))?;
-        match probe.version {
-            Some(DOCK_VERSION) => {}
-            Some(other) => {
-                return Err(format!(
-                    "unsupported workspace version {other} (expected {DOCK_VERSION})"
-                ));
-            }
-            None => return Err("missing workspace version field".to_string()),
-        }
-        let mut ws: Self =
-            serde_json::from_str(json).map_err(|e| format!("invalid workspace JSON: {e}"))?;
-        let trimmed = ws.name.trim();
-        if trimmed.is_empty() {
-            return Err("workspace name may not be blank".to_string());
-        }
-        ws.name = trimmed.to_string();
-        ws.panes = ws.panes.clamped();
-        ws.tree.normalize();
-        Ok(ws)
-    }
-}
-
-/// Validate a workspace file stem and return `<data dir>/workspaces/<name>.json`.
-pub fn workspace_file_path(data_dir: &Path, name: &str) -> Result<PathBuf, String> {
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err("workspace name may not be empty".to_string());
-    }
-    if trimmed.len() > 64 {
-        return Err("workspace name may not exceed 64 bytes".to_string());
-    }
-    if trimmed.starts_with('.')
-        || trimmed
-            .chars()
-            .any(|c| matches!(c, '/' | '\\' | '\0' | '\n' | '\r' | ':'))
-    {
-        return Err(format!(
-            "workspace name `{trimmed}` contains invalid path characters"
-        ));
-    }
-    Ok(data_dir
-        .join(WORKSPACES_DIR)
-        .join(format!("{trimmed}.json")))
-}
-
-/// Write `<data dir>/workspaces/<name>.json`.
-pub fn save_named_workspace(
-    data_dir: &Path,
-    name: &str,
-    panes: PaneLayout,
-    tree: &DockTree,
-) -> Result<PathBuf, String> {
-    let path = workspace_file_path(data_dir, name)?;
-    let ws = SavedWorkspace::new(name.trim(), panes, tree.clone());
-    let json = ws
-        .to_json()
-        .map_err(|e| format!("could not serialize workspace: {e}"))?;
-    aria_settings::replace_file(&path, json.as_bytes())?;
-    Ok(path)
-}
-
-/// Read `<data dir>/workspaces/<name>.json`.
-pub fn load_named_workspace(data_dir: &Path, name: &str) -> Result<SavedWorkspace, String> {
-    let path = workspace_file_path(data_dir, name)?;
-    import_workspace_json(&path)
-}
-
-/// Export a workspace as JSON to `path`.
-pub fn export_workspace_json(path: &Path, ws: &SavedWorkspace) -> Result<(), String> {
-    let json = ws
-        .to_json()
-        .map_err(|e| format!("could not serialize workspace: {e}"))?;
-    aria_settings::replace_file(path, json.as_bytes())
-}
-
-/// Import a workspace from a JSON file at `path`.
-pub fn import_workspace_json(path: &Path) -> Result<SavedWorkspace, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            format!("workspace file {} not found", path.display())
-        } else {
-            format!("could not read {}: {e}", path.display())
-        }
-    })?;
-    SavedWorkspace::from_json(&text)
 }
 
 #[cfg(test)]

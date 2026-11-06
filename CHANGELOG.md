@@ -11,11 +11,11 @@ Notes for the latest release. For previous releases, see the
 - `EffectParamKind::ALL` lists every effect slot kind in declaration order.
 - **Settings > Timeline > Zoom bar knobs** sets what a drag on a knob of the timeline zoom bar holds in place: **Hold playhead**, the default, keeps the playhead's pixel while the playhead is in view, and **Hold other end** keeps the view's other end.
 - Editor panels are arranged in a dock tree of splits and tabbed frames with 24 px tab rows, draggable splitters, tab reordering, five drop zones for docking a dragged tab, floating panel windows, and frame maximize.
-- Each workspace keeps its dock arrangement, Window > Workspaces > Reset to Saved Layout restores it, named workspaces are stored as JSON files under `<data dir>/workspaces/` with import and export, an Effects workspace is added, and plugin workspaces can include a dock tree.
-- `` ` `` maximizes or restores the focused frame, Ctrl+Tab and Ctrl+Shift+Tab focus the next and previous frame, and Ctrl+W closes the focused panel tab, or the sequence tab when the Timeline has focus.
+- Each workspace keeps its dock arrangement, Window > Workspaces > Reset to Saved Layout restores it, an Effects workspace is added, and plugin workspaces can include a dock tree.
+- `` ` `` maximizes or restores the focused frame, Ctrl+Tab and Ctrl+Shift+Tab focus the next and previous frame, and Ctrl+W closes the focused panel tab, or leaves an open nested sequence when the Timeline has focus.
 - Double-clicking a splitter restores the workspace's saved ratio for that divider, double-clicking a tab or a tab row maximizes or restores its frame, and middle-clicking a tab closes it.
 - A tab dragged over a frame previews its drop zone after 80 ms, and a tab released outside every window opens its panel in a window of its own that docks again when dragged back.
-- The Editing workspace splits the window 55/45 between the panel row and the Timeline, Window > Workspaces > Save as New Workspace prompts for a name in the rename bar, and the Animation workspace opens the Timeline Graph Editor.
+- The Editing workspace splits the window 55/45 between the panel row and the Timeline, and the Animation workspace opens the Timeline Graph Editor.
 - The main window's size, position, display, and maximized state are restored per display arrangement, and a window smaller than 1024×640 shows the Viewer above the Timeline only.
 - The switch on each effect header in Effect Controls turns the effect off and back on, keeping its parameters and its place in the chain.
 - Each effect header has a reset button and a menu with Reset, Rename Effect, Duplicate, Copy, Paste Below, Save as Preset, and Remove Effect, and Effect > Paste Effect adds the copied effect to every selected clip that draws a picture.
@@ -1312,6 +1312,7 @@ Notes for the latest release. For previous releases, see the
 - The media pool row of a missing file reads Media Offline, the wording of the timeline bar and the Viewer.
 - An `.ariaplugin` archive left in the plugins folder now reports that it installs with File > Install Plugin… instead of naming a Plugins panel that does not exist.
 - Edit > Undo names a ripple trim, roll, rate stretch, or slide drag after the drag instead of after whichever of its edits ran first.
+- Window > Workspaces > Save Workspace saves the Custom workspace without opening a name prompt whose workspace file no menu listed.
 
 ## [alpha-0.7.0] - 2026-07-22
 

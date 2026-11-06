@@ -147,7 +147,7 @@ fn restore_split_weights_restores_workspace_saved_ratio_and_min_sizes_clamp_drag
 }
 
 #[test]
-fn float_open_failure_redocks_frame_and_save_workspace_menu_prompts_for_name() {
+fn float_open_failure_redocks_frame_and_save_workspace_keeps_the_custom_row() {
     let scratch = dir();
     let cx = gpui::TestAppContext::single();
     let subject = entity(state_in(&scratch), &cx);
@@ -168,25 +168,24 @@ fn float_open_failure_redocks_frame_and_save_workspace_menu_prompts_for_name() {
                     .is_some_and(|msg| msg.contains("display server refused window"))
             );
 
-            // Window > Workspaces > Save as New Workspace opens RenameTarget::SaveWorkspace,
-            // and committing the typed name writes `<data dir>/workspaces/<name>.json`.
+            // Window > Workspaces > Save Workspace keeps the arrangement as the
+            // Custom row at once: no prompt opens for a name nothing reads.
             assert!(crate::chrome::menu_items::run_item(
                 AppMenu::Window,
                 layouts::SAVE_ID,
                 state,
                 cx,
             ));
-            assert_eq!(
-                state.rename,
-                Some(crate::types::RenameTarget::SaveWorkspace)
+            assert_eq!(state.rename, None, "Save Workspace opened a prompt");
+            assert!(
+                state
+                    .workspace_rows()
+                    .iter()
+                    .any(|row| row.id == layouts::CUSTOM_ID && row.custom),
+                "Save Workspace left no Custom row"
             );
-            for ch in "Evening Cut".chars() {
-                state.type_key(ch);
-            }
-            state.commit_rename().expect("commit workspace name");
         });
     });
-    assert!(scratch.join("workspaces/Evening Cut.json").exists());
 }
 
 #[test]

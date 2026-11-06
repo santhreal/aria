@@ -120,7 +120,6 @@ impl AppState {
             // A number, not a name: the draft starts empty every time, because the
             // last offset is not a property of anything on the timeline.
             RenameTarget::ShiftFrames => Some(String::new()),
-            RenameTarget::SaveWorkspace => Some(String::new()),
             RenameTarget::Effect { clip, index } => self
                 .effect_on(aria_models::ClipId::from_raw(clip), index)
                 .map(|effect| effect.display_name()),
@@ -180,7 +179,6 @@ impl AppState {
                     Ok(())
                 }
             },
-            RenameTarget::SaveWorkspace => self.save_named_workspace(&name),
             // On the drawn clip, every selected clip holding the same effect
             // there takes the name.
             RenameTarget::Effect { clip, index } => self.effect_verb(

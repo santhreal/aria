@@ -145,9 +145,6 @@ impl AppState {
                 .find(|ws| ws.key() == key)
                 .map(|ws| layouts::plugin_tree(&ws.spec.panes, &registered));
         }
-        if let Ok(saved) = layouts::load_named_workspace(&self.data_dir, id) {
-            return Some(saved.tree);
-        }
         let width = if window_w >= 320.0 {
             window_w
         } else {
@@ -827,35 +824,9 @@ impl AppState {
         self.ui_settings
             .workspace_trees
             .insert(CUSTOM_ID.to_string(), self.dock_tree.clone());
-        self.begin_rename(crate::types::RenameTarget::SaveWorkspace);
         self.status_message = Some(format!("Saved the {CUSTOM_NAME} workspace"));
         self.persist_settings_later(cx);
         cx.notify();
-    }
-
-    /// Save the current arrangement and dock tree under `<data dir>/workspaces/<name>.json`
-    /// from the inline rename prompt (`RenameTarget::SaveWorkspace`).
-    pub(crate) fn save_named_workspace(
-        &mut self,
-        name: &str,
-    ) -> Result<(), aria_engine::EngineError> {
-        let trimmed = name.trim();
-        if trimmed.is_empty() {
-            return Ok(());
-        }
-        match layouts::save_named_workspace(&self.data_dir, trimmed, self.panes(), &self.dock_tree)
-        {
-            Ok(_) => {
-                self.active_workspace_id = trimmed.to_string();
-                self.ui_settings.active_workspace = Some(trimmed.to_string());
-                self.status_message = Some(format!("Saved workspace {trimmed}"));
-                Ok(())
-            }
-            Err(err) => {
-                self.report_error(err);
-                Ok(())
-            }
-        }
     }
 
     /// Drop the saved slot, which takes its row off the menu.
@@ -884,108 +855,6 @@ impl AppState {
             let _ = self.apply_workspace(fallback, cx);
         }
         self.status_message = Some("Reset to saved layout".to_string());
-        self.persist_settings_later(cx);
-        cx.notify();
-    }
-
-    /// Save the current arrangement and dock tree under `<data dir>/workspaces/<name>.json`.
-    pub fn save_workspace_as(
-        &mut self,
-        name: &str,
-        cx: &mut gpui::Context<Self>,
-    ) -> Result<std::path::PathBuf, String> {
-        match layouts::save_named_workspace(&self.data_dir, name, self.panes(), &self.dock_tree) {
-            Ok(path) => {
-                self.status_message = Some(format!("Saved workspace {}", name.trim()));
-                cx.notify();
-                Ok(path)
-            }
-            Err(err) => {
-                self.report_error(err.clone());
-                Err(err)
-            }
-        }
-    }
-
-    /// Load a named workspace from `<data dir>/workspaces/<name>.json` and apply it.
-    pub fn load_named_workspace(
-        &mut self,
-        name: &str,
-        cx: &mut gpui::Context<Self>,
-    ) -> Result<(), String> {
-        let saved = match layouts::load_named_workspace(&self.data_dir, name) {
-            Ok(ws) => ws,
-            Err(err) => {
-                self.report_error(err.clone());
-                return Err(err);
-            }
-        };
-        self.apply_saved_workspace(saved, cx);
-        Ok(())
-    }
-
-    /// Export the current workspace to `path` as JSON.
-    pub fn export_workspace(&mut self, path: &std::path::Path) -> Result<(), String> {
-        let ws = layouts::SavedWorkspace::new(
-            if self.active_workspace_id.is_empty() {
-                CUSTOM_NAME
-            } else {
-                &self.active_workspace_id
-            },
-            self.panes(),
-            self.dock_tree.clone(),
-        );
-        if let Err(err) = layouts::export_workspace_json(path, &ws) {
-            self.report_error(err.clone());
-            return Err(err);
-        }
-        self.status_message = Some(format!("Exported workspace to {}", path.display()));
-        Ok(())
-    }
-
-    /// Import a workspace JSON file from `path`, store it in `<data dir>/workspaces/`
-    /// when a data dir is configured, and apply it.
-    pub fn import_workspace(
-        &mut self,
-        path: &std::path::Path,
-        cx: &mut gpui::Context<Self>,
-    ) -> Result<String, String> {
-        let saved = match layouts::import_workspace_json(path) {
-            Ok(ws) => ws,
-            Err(err) => {
-                self.report_error(err.clone());
-                return Err(err);
-            }
-        };
-        let _ =
-            layouts::save_named_workspace(&self.data_dir, &saved.name, saved.panes, &saved.tree);
-        let name = saved.name.clone();
-        self.apply_saved_workspace(saved, cx);
-        Ok(name)
-    }
-
-    fn apply_saved_workspace(
-        &mut self,
-        saved: layouts::SavedWorkspace,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let panes = saved.panes.clamped();
-        self.ui_settings.sidebar_width = panes.sidebar_width;
-        self.ui_settings.sidebar_collapsed = panes.sidebar_collapsed;
-        self.ui_settings.inspector_width = panes.inspector_width;
-        self.ui_settings.inspector_collapsed = panes.inspector_collapsed;
-        self.ui_settings.timeline_height = panes.timeline_height;
-        self.scopes_open = panes.scopes_open;
-        let mut tree = saved.tree;
-        tree.normalize();
-        self.dock_tree = tree;
-        self.sync_scope_demand();
-        self.active_panel = panes.panel;
-        self.active_workspace_id = saved.name.clone();
-        self.ui_settings.active_workspace = Some(saved.name.clone());
-        self.ui_settings.dock_tree = Some(self.dock_tree.clone());
-        self.workspace_transition_epoch = self.workspace_transition_epoch.wrapping_add(1);
-        self.status_message = Some(format!("{} workspace", saved.name));
         self.persist_settings_later(cx);
         cx.notify();
     }

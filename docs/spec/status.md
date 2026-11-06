@@ -36,9 +36,9 @@ frame maximize (`key-pane-maximize`, `` ` ``), focused-frame accent border, and
 a Viewer-over-Timeline fallback below `1024x640` (`MIN_WINDOW_WIDTH` and
 `MIN_WINDOW_HEIGHT` in `crates/aria-ui/src/settings.rs`). Five workspaces ship (`Editing`,
 `Animation`, `Color`, `Audio`, `Effects` in `crates/aria-ui/src/layouts.rs`),
-with per-workspace remembered dock trees, `Window > Reset to Saved Layout`,
-named workspace files under `<data dir>/workspaces/<name>.json`, JSON import and
-export, and optional serialized `tree` definitions on plugin `WorkspacePanes`.
+with per-workspace remembered dock trees, `Window > Workspaces > Reset to Saved
+Layout`, one saved Custom slot in `ui-settings.json`, and optional serialized
+`tree` definitions on plugin `WorkspacePanes`.
 Project, Viewer, Timeline, Effect Controls, Audio Track Mixer, Assistant,
 Scopes, Color, Info, Effects & Presets, Align, Character, Paragraph, Audio
 Meters, Jobs, History, and Markers are dock panels (`BUILTIN_PANELS` in

@@ -77,8 +77,6 @@ pub enum RenameTarget {
     /// A signed frame offset to shift the selection by, across every lane it
     /// spans.
     ShiftFrames,
-    /// A workspace name to write under `<data dir>/workspaces/<name>.json`.
-    SaveWorkspace,
     /// The name of the effect at `index` in `clip`'s chain. An empty draft is
     /// a value: it gives the header back the catalog's label.
     Effect {
@@ -99,7 +97,6 @@ impl RenameTarget {
             RenameTarget::SlotLabel => "Slot hint",
             RenameTarget::ClipText => "Title text",
             RenameTarget::ShiftFrames => "Shift by (frames)",
-            RenameTarget::SaveWorkspace => "Save workspace as",
             RenameTarget::Effect { .. } => "Rename effect",
         }
     }

@@ -6,10 +6,9 @@
 //! `AppMenu::ALL` drop entries on an editor `AppState` with `UiPlugin` mounted,
 //! asserting Premiere / After Effects Title Case on every shipped label.
 //!
-//! What this does not catch: dynamic user-data rows whose labels come from
-//! filesystem paths or user-chosen names (`file-recent:*`,
-//! `file-import-recent:*`, `win-workspace-file:*`, `fx-apply-preset:*`), and
-//! prose status messages that are not command, menu, or tool captions.
+//! What this does not catch: the recent-file rows, whose labels are file names
+//! (`file-recent:*`, `file-import-recent:*`), and prose status messages that
+//! are not command, menu, or tool captions.
 
 use crate::app::AppState;
 use crate::app::status::LOWER_CASE_MARKS;
@@ -28,10 +27,8 @@ const EXACT_CASE_TOKENS: &[&str] = &[
 ];
 
 fn is_user_data_row(id: &str) -> bool {
-    id.starts_with("file-recent:")
-        || id.starts_with("file-import-recent:")
-        || id.starts_with("win-workspace-file:")
-        || id.starts_with("fx-apply-preset:")
+    use crate::chrome::menu_file::{IMPORT_RECENT_PREFIX, RECENT_PREFIX};
+    id.starts_with(RECENT_PREFIX) || id.starts_with(IMPORT_RECENT_PREFIX)
 }
 
 /// The word in `token`, without the punctuation around it or a possessive `'s`.
