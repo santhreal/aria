@@ -1,7 +1,7 @@
 //! The cache registry as the Caches panel shows it: what each cache is, where it lives,
 //! how much it holds, and how to clear, move, or redirect it.
 //!
-//! `aria-storage` owned the whole model — twelve registered caches, their tiers, their
+//! `aria-storage` owned the whole model — the registered caches, their tiers, their
 //! resolved paths, the walk that measures one, the clear that empties one, and the
 //! transactional relocation that moves one — and none of it had a surface. The one
 //! cache the dialog could reach was the download cache, through `aria-cloud`. So a
@@ -16,17 +16,21 @@
 //!   should answer.
 //! - **Measuring is an action, not a render.** `measure_disk_usage` walks the tree. The
 //!   download-cache row already pays that per render for one directory; doing it for
-//!   twelve would make opening Settings a disk scan. Usage is measured when asked and
-//!   held until asked again.
+//!   every cache would make opening Settings a disk scan. Usage is measured when asked
+//!   and held until asked again.
 //! - **An override is validated before it is written.** `validate_filesystem` runs on
 //!   the candidate layout first, so a path that would collide with another cache or is
 //!   not usable is refused by name instead of being persisted and failing at the next
 //!   download.
+//! - **The row's path is the writer's path.** Every writer resolves its directory
+//!   through [`session_layout`], so Clear, Move, and Redirect act on the bytes the
+//!   app writes, and an override moves the writes and not only the row.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use aria_core::count::counted;
+use aria_settings::Settings;
 use aria_storage::{
     CacheId, CacheKind, CacheTier, NeverCancelled, StorageLayout, clear_cache, measure_disk_usage,
     relocate_cache,
@@ -64,6 +68,9 @@ pub struct UiCache {
     /// invisible: `config.toml` names a path, the layout would not take it, and
     /// every write still lands under the storage root.
     pub override_error: Option<String>,
+    /// Whether **Redirect…** applies. The download cache holds files open
+    /// projects read, so it changes directory only by moving them.
+    pub redirectable: bool,
     /// Measured bytes and files, present only after a measurement.
     pub usage: Option<(u64, u64)>,
 }
@@ -112,13 +119,42 @@ fn tier_label(tier: CacheTier) -> &'static str {
     }
 }
 
+/// The layout a session on `data_dir` resolves through, plus the configured
+/// overrides it refused, by cache key.
+///
+/// The single definition: the live session reads it through
+/// [`AppState::storage_layout_checked`], and the download cache is built from it
+/// before the session exists. The root is the config's `[storage].root` when set
+/// and `data_dir` otherwise, so a test never resolves into the real data tree.
+/// Dropping a bad override is right, since the other caches still have to work,
+/// and the refusal is returned so it is shown rather than silent.
+pub(crate) fn session_layout(
+    data_dir: &Path,
+    settings: &Settings,
+) -> (StorageLayout, BTreeMap<&'static str, String>) {
+    // The configured root arrives absolute or not at all: a relative one is
+    // refused while the config is loaded, and the loader records it, so
+    // `storage_report` can show it. The profile root behind it is absolute
+    // because `AppState::new` resolved it.
+    let root = settings.storage.root.as_deref().unwrap_or(data_dir);
+    let mut layout = StorageLayout::new(root).unwrap_or_else(|_| {
+        StorageLayout::new(data_dir)
+            .expect("AppState::new resolved the profile root to an absolute path")
+    });
+    let mut rejected = BTreeMap::new();
+    for key in aria_settings::StoragePathOverrides::KEYS {
+        let Some(path) = settings.storage.paths.get(key) else {
+            continue;
+        };
+        if let Err(err) = layout.set_override_key(key, path) {
+            rejected.insert(key, format!("{}: {err}", path.display()));
+        }
+    }
+    (layout, rejected)
+}
+
 impl AppState {
     /// The storage layout this session resolves paths through.
-    ///
-    /// The root is the config's `[storage].root` when set and the session's data
-    /// directory otherwise, so a test never resolves into the real data tree.
-    /// A malformed override is dropped rather than failing the whole layout: the
-    /// remaining caches still have to be usable.
     pub fn storage_layout(&self) -> StorageLayout {
         self.storage_layout_checked().0
     }
@@ -126,35 +162,27 @@ impl AppState {
     /// The layout plus the configured overrides it refused, by cache key.
     ///
     /// One function builds the layout so the two answers cannot drift: whoever
-    /// reports what is in force reads the same pass that decided it. Dropping a
-    /// bad override is right — the other eleven caches still have to work — but
-    /// dropping it *silently* is how a full disk stays full while the config
-    /// insists the cache was moved.
+    /// reports what is in force reads the same pass that decided it.
     pub fn storage_layout_checked(&self) -> (StorageLayout, BTreeMap<&'static str, String>) {
-        let settings = self.cloud_settings();
-        // The configured root arrives absolute or not at all: a relative one is
-        // refused while the config is loaded, and the loader records it, so
-        // `storage_report` can name it. The profile root behind it is absolute
-        // because `AppState::new` resolved it.
-        let root = settings
-            .storage
-            .root
-            .clone()
-            .unwrap_or_else(|| self.data_dir.clone());
-        let mut layout = StorageLayout::new(root).unwrap_or_else(|_| {
-            StorageLayout::new(&self.data_dir)
-                .expect("AppState::new resolved the profile root to an absolute path")
-        });
-        let mut rejected = BTreeMap::new();
-        for key in aria_settings::StoragePathOverrides::KEYS {
-            let Some(path) = settings.storage.paths.get(key) else {
-                continue;
-            };
-            if let Err(err) = layout.set_override_key(key, path) {
-                rejected.insert(key, format!("{}: {err}", path.display()));
-            }
+        session_layout(&self.data_dir, self.cloud_settings())
+    }
+
+    /// Point the writer of `id` at the directory the layout now resolves, and
+    /// re-read what the session reports for it.
+    ///
+    /// Called after every clear, move, redirect, reset, and root move. The match
+    /// has no wildcard, so a cache added to the registry does not compile until
+    /// its writer is accounted for here.
+    pub(super) fn after_cache_change(&mut self, id: CacheId) {
+        match id {
+            CacheId::RenderFiles => self.refresh_render_files(),
+            CacheId::AiModels => self.refresh_models(),
+            CacheId::Analysis => self.refresh_analysis_cache_size(),
+            CacheId::Download => self.refresh_download_cache_size(),
+            // Resolved through the layout at each use: nothing holds the path.
+            CacheId::LibraryThumbnails | CacheId::Proxies | CacheId::Catalog | CacheId::Luts => {}
+            CacheId::PreviewFrames | CacheId::TimelineFilmstrips | CacheId::TimelineWaveforms => {}
         }
-        (layout, rejected)
     }
 
     /// Every registered cache, in registry order.
@@ -178,6 +206,7 @@ impl AppState {
                     path: layout.resolve(id),
                     overridden: layout.override_for(id).is_some(),
                     override_error: rejected.get(id.as_str()).cloned(),
+                    redirectable: id != CacheId::Download,
                     usage: self.caches.usage.get(id.as_str()).copied(),
                 }
             })
@@ -250,6 +279,13 @@ impl AppState {
                 id.descriptor().label
             ));
         };
+        if id == CacheId::Download {
+            // Through the live cache: a file an open project reads is pinned, and a
+            // plain directory clear would delete it.
+            self.clear_download_cache()?;
+            self.caches.usage.remove(id.as_str());
+            return Ok(());
+        }
         if !path.exists() {
             self.status_message = Some(format!("{} is already empty", id.descriptor().label));
             return Ok(());
@@ -264,11 +300,7 @@ impl AppState {
             super::storage::format_bytes(report.removed_bytes),
             id.descriptor().label
         ));
-        if id == CacheId::RenderFiles {
-            self.refresh_render_files();
-        }
-        self.refresh_download_cache_size();
-        self.refresh_analysis_cache_size();
+        self.after_cache_change(id);
         Ok(())
     }
 
@@ -300,33 +332,47 @@ impl AppState {
             ));
             return Ok(());
         }
-        let target = destination.to_path_buf();
-        let this = &mut *self;
-        // `relocate_cache` calls this only once the destination is complete, and rolls
-        // back if it fails: the config never names a path the data did not reach.
-        let report = relocate_cache(&source, destination, &NeverCancelled, |_| {
-            this.write_override(id, Some(target))
-        })
-        .map_err(|err| {
-            format!(
-                "moving {} to {}: {err}",
-                source.display(),
+        if id == CacheId::Download {
+            self.relocate_download_cache(destination)?;
+            self.caches.usage.remove(id.as_str());
+            self.status_message = Some(format!(
+                "{} is now at {}",
+                id.descriptor().label,
                 destination.display()
-            )
-        })?;
-        self.caches
-            .usage
-            .insert(id.as_str(), (report.bytes, report.files));
+            ));
+            return Ok(());
+        }
+        if source.exists() {
+            let target = destination.to_path_buf();
+            let this = &mut *self;
+            // `relocate_cache` calls this only once the destination is complete, and
+            // rolls back if it fails: the config never names a path the data did not
+            // reach.
+            let report = relocate_cache(&source, destination, &NeverCancelled, |_| {
+                this.write_override(id, Some(target))
+            })
+            .map_err(|err| {
+                format!(
+                    "moving {} to {}: {err}",
+                    source.display(),
+                    destination.display()
+                )
+            })?;
+            self.caches
+                .usage
+                .insert(id.as_str(), (report.bytes, report.files));
+        } else {
+            // Nothing written yet, so there is nothing to carry: the move is the
+            // new path alone.
+            self.write_override(id, Some(destination.to_path_buf()))?;
+            self.caches.usage.insert(id.as_str(), (0, 0));
+        }
         self.status_message = Some(format!(
             "{} is now at {}",
             id.descriptor().label,
             destination.display()
         ));
-        if id == CacheId::RenderFiles {
-            self.refresh_render_files();
-        }
-        self.refresh_download_cache_size();
-        self.refresh_analysis_cache_size();
+        self.after_cache_change(id);
         Ok(())
     }
 
@@ -342,6 +388,13 @@ impl AppState {
     ) -> Result<(), String> {
         let id = CacheId::parse(key).map_err(|err| format!("{key}: {err}"))?;
         let destination = destination.as_ref();
+        if id == CacheId::Download {
+            return Err(format!(
+                "{} holds files open projects read, so it changes directory only by moving \
+                 them; use Move… instead",
+                id.descriptor().label
+            ));
+        }
         self.validate_override(id, destination)?;
         self.write_override(id, Some(destination.to_path_buf()))?;
         self.status_message = Some(format!(
@@ -349,11 +402,7 @@ impl AppState {
             id.descriptor().label,
             destination.display()
         ));
-        if id == CacheId::RenderFiles {
-            self.refresh_render_files();
-        }
-        self.refresh_download_cache_size();
-        self.refresh_analysis_cache_size();
+        self.after_cache_change(id);
         Ok(())
     }
 
@@ -424,7 +473,22 @@ impl AppState {
             });
             return Ok(());
         }
-        self.write_override(id, None)?;
+        match (id, removed, &landing) {
+            // The live download cache is on the override: bring its files and pins
+            // home with it, so the default it returns to holds what it held.
+            (CacheId::Download, Some(_), Some(default))
+                if *default != self.download_cache_root() =>
+            {
+                self.rehome_download_cache(default).map_err(|err| {
+                    format!(
+                        "{} cannot return to {}: {err}",
+                        id.descriptor().label,
+                        default.display()
+                    )
+                })?;
+            }
+            _ => self.write_override(id, None)?,
+        }
         self.status_message = Some(match landing {
             Some(path) => format!(
                 "{} now resolves to {}",
@@ -433,16 +497,12 @@ impl AppState {
             ),
             None => format!("{} follows the storage root again", id.descriptor().label),
         });
-        if id == CacheId::RenderFiles {
-            self.refresh_render_files();
-        }
-        self.refresh_download_cache_size();
-        self.refresh_analysis_cache_size();
+        self.after_cache_change(id);
         Ok(())
     }
 
     /// Refuse an override the layout could not live with, before it is persisted.
-    fn validate_override(&self, id: CacheId, destination: &Path) -> Result<(), String> {
+    pub(super) fn validate_override(&self, id: CacheId, destination: &Path) -> Result<(), String> {
         if !destination.is_absolute() {
             return Err(format!(
                 "{} is not an absolute path; a cache override must name a full path",
@@ -459,7 +519,11 @@ impl AppState {
     }
 
     /// Persist one override into `[storage.paths]`.
-    fn write_override(&mut self, id: CacheId, value: Option<PathBuf>) -> Result<(), String> {
+    pub(super) fn write_override(
+        &mut self,
+        id: CacheId,
+        value: Option<PathBuf>,
+    ) -> Result<(), String> {
         let path = self.config_path();
         let mut settings = aria_settings::load(&path).map_err(|err| {
             format!(

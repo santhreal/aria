@@ -60,14 +60,14 @@ fn registry_is_exact_unique_and_round_trips() {
             "AI models",
             CacheKind::Disk,
             CacheTier::Redownloadable,
-            Some("ai-models"),
+            Some("models"),
         ),
         (
             "download",
             "Downloads",
             CacheKind::Disk,
             CacheTier::Redownloadable,
-            Some("download-cache"),
+            Some("downloads"),
         ),
         (
             "catalog",
@@ -82,20 +82,6 @@ fn registry_is_exact_unique_and_round_trips() {
             CacheKind::Disk,
             CacheTier::Redownloadable,
             Some("luts"),
-        ),
-        (
-            "lottie",
-            "Lottie assets",
-            CacheKind::Disk,
-            CacheTier::Redownloadable,
-            Some("lottie"),
-        ),
-        (
-            "templates",
-            "Templates",
-            CacheKind::Disk,
-            CacheTier::Redownloadable,
-            Some("templates"),
         ),
     ];
 
@@ -134,7 +120,15 @@ fn registry_is_exact_unique_and_round_trips() {
         assert_ne!(descriptor.tier, CacheTier::UserData);
     }
 
-    for forbidden in ["projects", "config", "agent_sessions"] {
+    // `lottie` and `templates` were rows with no writer: their downloads land in
+    // the download cache. A retired key must not parse back into a cache.
+    for forbidden in [
+        "projects",
+        "config",
+        "agent_sessions",
+        "lottie",
+        "templates",
+    ] {
         assert!(CacheId::parse(forbidden).is_err());
         assert!(cache_descriptor_by_key(forbidden).is_none());
     }
@@ -167,7 +161,7 @@ fn ai_models_cache_has_a_stable_redownloadable_disk_contract() {
     let temporary = TestDirectory::new();
     let layout = StorageLayout::new(&temporary.path).unwrap();
     let descriptor = CacheId::AiModels.descriptor();
-    let root = temporary.path.join("ai-models");
+    let root = temporary.path.join("models");
 
     assert_eq!(CacheId::parse("ai_models"), Ok(CacheId::AiModels));
     assert_eq!("ai_models".parse::<CacheId>(), Ok(CacheId::AiModels));
@@ -176,7 +170,7 @@ fn ai_models_cache_has_a_stable_redownloadable_disk_contract() {
     assert_eq!(descriptor.label, "AI models");
     assert_eq!(descriptor.kind, CacheKind::Disk);
     assert_eq!(descriptor.tier, CacheTier::Redownloadable);
-    assert_eq!(descriptor.default_relative, Some("ai-models"));
+    assert_eq!(descriptor.default_relative, Some("models"));
     assert_eq!(layout.resolve(CacheId::AiModels), Some(root.clone()));
 
     fs::create_dir_all(&root).unwrap();
@@ -230,7 +224,7 @@ fn ai_models_cache_participates_in_overlap_validation() {
     assert!(matches!(
         layout.set_override(
             CacheId::Download,
-            temporary.path.join("ai-models").join("nested")
+            temporary.path.join("models").join("nested")
         ),
         Err(StorageError::CachePathsOverlap {
             cache: CacheId::Download,

@@ -61,9 +61,14 @@ pub struct UiModel {
 }
 
 impl AppState {
-    /// The model store under the session data directory.
+    /// The model store: the layout's `ai_models` entry, so the storage root and
+    /// an override move it.
     pub fn model_manager(&self) -> Result<ModelManager, String> {
-        ModelManager::new(self.data_dir.join("models")).map_err(|err| err.to_string())
+        let root = self
+            .storage_layout()
+            .resolve(aria_storage::CacheId::AiModels)
+            .expect("ai_models is a disk cache");
+        ModelManager::new(root).map_err(|err| err.to_string())
     }
 
     /// Every catalogued model with its held on-disk state.
@@ -80,8 +85,8 @@ impl AppState {
         self.settings_form.installed_model.clone()
     }
 
-    /// Re-read [`Self::model_rows`] and [`Self::installed_model`] from
-    /// `<data_dir>/models`.
+    /// Re-read [`Self::model_rows`] and [`Self::installed_model`] from the
+    /// model store.
     pub fn refresh_models(&mut self) {
         let manager = self.model_manager();
         let mut installed = None;

@@ -131,21 +131,25 @@ pub(super) fn cache_rows(
                 }),
             )
             .into_any_element(),
-            components::ghost_button(
-                crate::motion::MotionKey::new("cache-redirect", key),
-                "Redirect…",
-                theme,
-            )
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state
-                        .update(cx, |state, _| state.pick_cache_redirect(key));
-                    cx.notify();
-                }),
-            )
-            .into_any_element(),
         ];
+        if row.redirectable {
+            actions.push(
+                components::ghost_button(
+                    crate::motion::MotionKey::new("cache-redirect", key),
+                    "Redirect…",
+                    theme,
+                )
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                        this.state
+                            .update(cx, |state, _| state.pick_cache_redirect(key));
+                        cx.notify();
+                    }),
+                )
+                .into_any_element(),
+            );
+        }
         // A refused override is exactly the case that needs the button: the
         // config names a path the layout will not take, and clearing it is the
         // fix. Gating on `overridden` alone hid the button on the only row that

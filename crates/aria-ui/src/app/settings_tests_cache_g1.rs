@@ -17,23 +17,23 @@ fn a_refused_override_reads_as_refused() {
         .storage_layout()
         .resolve(CacheId::Luts)
         .expect("luts is a disk cache");
-    let lottie = |state: &AppState| {
+    let catalog = |state: &AppState| {
         state
             .cache_rows()
             .into_iter()
-            .find(|row| row.key == "lottie")
-            .expect("the lottie row")
+            .find(|row| row.key == "catalog")
+            .expect("the catalog row")
     };
 
     // Straight into the config: `set_cache_override` validates, and the refusal
     // under test is the one that reaches `cache_rows` from a file already saved.
     let path = state.config_path();
     let mut settings = aria_settings::load(&path).expect("load the config");
-    *settings.storage.paths.slot("lottie").expect("overridable") = Some(shared.clone());
+    *settings.storage.paths.slot("catalog").expect("overridable") = Some(shared.clone());
     aria_settings::save(&path, &settings).expect("save the config");
     state.refresh_cloud_settings();
 
-    let row = lottie(&state);
+    let row = catalog(&state);
     assert!(!row.overridden, "a refused override reads as in force");
     let reason = row.override_error.as_deref().expect("no refusal reason");
     assert!(
@@ -48,14 +48,14 @@ fn a_refused_override_reads_as_refused() {
     assert!(
         state
             .storage_report()
-            .contains("refused override for lottie"),
+            .contains("refused override for catalog"),
         "the support report hides the refusal"
     );
 
     // Clearing is offered for a refusal and drops it from the config.
-    state.clear_cache_override("lottie").expect("clear it");
+    state.clear_cache_override("catalog").expect("clear it");
     assert!(
-        lottie(&state).override_error.is_none(),
+        catalog(&state).override_error.is_none(),
         "the refusal survived a clear"
     );
 }

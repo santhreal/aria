@@ -227,15 +227,18 @@ fn clearing_storage_values_preserves_unknown_nested_values() {
         "download",
         "catalog",
         "luts",
-        "lottie",
-        "templates",
     ] {
         assert!(paths.get(key).is_none(), "{key} was not cleared: {raw}");
     }
-    assert_eq!(
-        paths.get("future_cache").and_then(Item::as_str),
-        Some(absolute)
-    );
+    // `lottie` and `templates` are retired keys: the file keeps them as written,
+    // the same as a key from a newer build.
+    for kept in ["future_cache", "lottie", "templates"] {
+        assert_eq!(
+            paths.get(kept).and_then(Item::as_str),
+            Some(absolute),
+            "{raw}"
+        );
+    }
     assert!(raw.contains("# storage heading"), "{raw}");
     assert!(raw.contains("# future policy comment"), "{raw}");
     assert!(raw.contains("# future cache comment"), "{raw}");

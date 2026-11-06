@@ -65,9 +65,12 @@ pub use aria_detect::{
 };
 
 impl AppState {
-    /// Where the moments index and any cached analysis live.
+    /// Where the moments index and any cached analysis live: the layout's
+    /// `analysis` entry, so the storage root and an override move it.
     pub fn analysis_cache_root(&self) -> PathBuf {
-        self.data_dir.join("analysis")
+        self.storage_layout()
+            .resolve(aria_storage::CacheId::Analysis)
+            .expect("analysis is a disk cache")
     }
 
     /// The moments database file, so a read can tell "nothing analyzed yet" from a

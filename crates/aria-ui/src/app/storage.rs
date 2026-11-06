@@ -6,22 +6,19 @@
 //! protected paths and the current root are session state: rebuilding it per call
 //! would forget both.
 //!
-//! Every root here is derived from `data_dir`, and the config file is
-//! `data_dir/config.toml` — the same path `aria_settings::default_config_path()`
-//! resolves to in production, and a temporary directory in a test. Nothing in this
-//! module touches an absolute path from outside that tree, so a test that clears the
-//! cache cannot reach the real one.
+//! The cache's directory is the layout's `download` entry: the storage root's
+//! `downloads` folder, or the `[storage.paths]` override. The config file is
+//! `data_dir/config.toml`: `~/.aria/config.toml` by default, the profile's own
+//! under `ARIA_DATA_DIR`, and a temporary directory in a test.
 
 use std::path::{Path, PathBuf};
 
 use aria_cloud::cache::{DownloadCache, DownloadCacheClear, DownloadCacheSwitchError};
 use aria_core::count::counted;
+use aria_storage::{CacheId, NeverCancelled, StorageLayout, relocate_cache};
 
 use super::AppState;
 use super::picker::{Ask, FileSpec};
-
-/// The directory holding downloaded assets, under the storage root.
-pub(crate) const DOWNLOADS_DIR: &str = "downloads";
 
 const MIB: u64 = 1024 * 1024;
 
@@ -29,19 +26,18 @@ const MIB: u64 = 1024 * 1024;
 /// cache.
 const DOWNLOAD_HELD: &str = "A download is in flight. Clear and Move run once it finishes";
 
-/// Build the session's cache from the config beside `data_dir`.
+/// Build the session's cache from the startup layout and config.
 ///
-/// A storage-root override redirects the cache; an absent or malformed config
-/// yields the defaults rather than failing startup, because a cache that is not
-/// on screen is still better than an editor that will not open.
-pub(super) fn cache_for(data_dir: &Path) -> DownloadCache {
-    let settings = aria_settings::load(&aria_settings::config_in(data_dir)).unwrap_or_default();
-    let root = settings
-        .storage
-        .root
-        .clone()
-        .unwrap_or_else(|| data_dir.to_path_buf())
-        .join(DOWNLOADS_DIR);
+/// The directory comes from [`session_layout`](super::caches::session_layout),
+/// the same resolution the Caches panel shows, so a storage root or a
+/// `download` override moves the writes and not only the row.
+pub(super) fn cache_for(
+    layout: &StorageLayout,
+    settings: &aria_settings::Settings,
+) -> DownloadCache {
+    let root = layout
+        .resolve(CacheId::Download)
+        .expect("the download cache is a disk cache");
     DownloadCache::new(
         root,
         settings.storage.download_quota_mib.saturating_mul(MIB),
@@ -165,11 +161,16 @@ impl AppState {
         Ok(cleared)
     }
 
-    /// Move the storage root, taking the cache with it, and persist the new root.
+    /// Move the storage root, taking every cache that follows it, and persist the
+    /// new root.
     ///
-    /// The move happens before anything is published, so a failed move leaves the old
-    /// root serving. The config is written only after the move succeeds, because a
-    /// config pointing at a root that does not exist is a broken next launch.
+    /// A cache follows the root unless `[storage.paths]` gives it a directory of
+    /// its own. Every destination is checked before anything moves, so a refusal
+    /// leaves the old root serving. The downloads move first, with their pins;
+    /// the config is written next, and the downloads move back if it cannot be;
+    /// the other caches follow one at a time. A cache whose move then fails stays
+    /// where it was and is listed in the error, and is regenerated or downloaded
+    /// again under the new root.
     pub fn relocate_storage_root(&mut self, root: impl AsRef<Path>) -> Result<(), String> {
         if let Some(held) = self.download_cache_held() {
             return Err(held.into());
@@ -181,30 +182,124 @@ impl AppState {
                 root.display()
             ));
         }
-        let destination = root.join(DOWNLOADS_DIR);
-        self.download_cache
-            .switch_root(&destination, move_tree)
-            .map_err(describe_switch_error)?;
+        let before = self.storage_layout();
+        if before.root() == root {
+            return Err("the storage root is already there".into());
+        }
+        let after = layout_at(&before, root)?;
+        let mut moves = Vec::new();
+        for (id, from) in before.resolved_disk_paths() {
+            if before.override_for(id).is_some() {
+                continue;
+            }
+            let to = after.resolve(id).expect("a disk cache resolves");
+            if to.exists() {
+                return Err(format!(
+                    "{} already exists; pick a root Aria can create its caches in",
+                    to.display()
+                ));
+            }
+            // The live download cache moves below even when it holds nothing:
+            // it has to point at the new root either way.
+            if id != CacheId::Download && from.exists() {
+                moves.push((id, from, to));
+            }
+        }
 
+        let download_from = self.download_cache_root();
+        let download_to = before
+            .override_for(CacheId::Download)
+            .is_none()
+            .then(|| after.resolve(CacheId::Download).expect("a disk cache"));
+        if let Some(to) = &download_to {
+            self.download_cache
+                .switch_root(to, move_tree)
+                .map_err(describe_switch_error)?;
+        }
+        if let Err(err) = self.write_storage_root(root) {
+            if download_to.is_some()
+                && let Err(back) = self.download_cache.switch_root(&download_from, move_tree)
+            {
+                return Err(format!(
+                    "{err}; moving the downloads back failed too: {}",
+                    describe_switch_error(back)
+                ));
+            }
+            return Err(err);
+        }
+        let mut stayed = Vec::new();
+        for (id, from, to) in moves {
+            if let Err(err) = relocate_cache(&from, &to, &NeverCancelled, |_| Ok(())) {
+                stayed.push(format!(
+                    "{} stayed in {}: {err}",
+                    id.descriptor().label,
+                    from.display()
+                ));
+            }
+        }
+        for id in CacheId::ALL {
+            self.after_cache_change(id);
+        }
+        let moved = format!("Storage root is now {}", root.display());
+        if stayed.is_empty() {
+            self.status_message = Some(moved);
+            Ok(())
+        } else {
+            Err(format!("{moved}, but {}", stayed.join("; ")))
+        }
+    }
+
+    /// Record `root` as `[storage].root`.
+    fn write_storage_root(&mut self, root: &Path) -> Result<(), String> {
         let path = self.config_path();
-        let mut settings = aria_settings::load(&path).map_err(|err| {
+        let unchanged = |err: String| {
             format!(
-                "{}: {err}; the cache moved but the config was not updated",
+                "{}: {err}; the storage root was not changed",
                 path.display()
             )
-        })?;
+        };
+        let mut settings = aria_settings::load(&path).map_err(unchanged)?;
         settings.storage.root = Some(root.to_path_buf());
-        aria_settings::save(&path, &settings).map_err(|err| {
-            format!(
-                "{}: {err}; the cache moved but the config was not updated",
-                path.display()
-            )
-        })?;
-        self.status_message = Some(format!("Storage root is now {}", root.display()));
-        self.refresh_render_files();
+        aria_settings::save(&path, &settings).map_err(unchanged)?;
         self.refresh_cloud_settings();
-        self.refresh_download_cache_size();
-        self.refresh_analysis_cache_size();
+        Ok(())
+    }
+
+    /// Move the download cache to `destination` with its files and pins, then
+    /// record the override: **Move…** on the Downloads row.
+    ///
+    /// Through the live cache rather than a directory move under it, so the pins
+    /// that keep a project's files from eviction move with the files.
+    pub(super) fn relocate_download_cache(&mut self, destination: &Path) -> Result<(), String> {
+        self.move_download_cache(destination, Some(destination.to_path_buf()))
+    }
+
+    /// Return the download cache to `default` with its files and pins, then drop
+    /// the override: **Use default** on the Downloads row.
+    pub(super) fn rehome_download_cache(&mut self, default: &Path) -> Result<(), String> {
+        self.move_download_cache(default, None)
+    }
+
+    /// Move the live cache to `to` and write `recorded` as the `download`
+    /// override. A config that cannot be written moves the files back.
+    fn move_download_cache(&mut self, to: &Path, recorded: Option<PathBuf>) -> Result<(), String> {
+        if let Some(held) = self.download_cache_held() {
+            return Err(held.into());
+        }
+        let from = self.download_cache_root();
+        self.download_cache
+            .switch_root(to, move_tree)
+            .map_err(describe_switch_error)?;
+        if let Err(err) = self.write_override(CacheId::Download, recorded) {
+            return Err(match self.download_cache.switch_root(&from, move_tree) {
+                Ok(()) => err,
+                Err(back) => format!(
+                    "{err}; moving the downloads back failed too: {}",
+                    describe_switch_error(back)
+                ),
+            });
+        }
+        self.after_cache_change(CacheId::Download);
         Ok(())
     }
 
@@ -227,6 +322,17 @@ impl AppState {
             },
         );
     }
+}
+
+/// `before`'s overrides on a new `root`, or why the new root cannot hold them.
+fn layout_at(before: &StorageLayout, root: &Path) -> Result<StorageLayout, String> {
+    let refused = |err: aria_storage::StorageError| format!("{}: {err}", root.display());
+    let mut after = StorageLayout::new(root).map_err(refused)?;
+    for (id, path) in before.overrides() {
+        after.set_override(*id, path.clone()).map_err(refused)?;
+    }
+    after.validate_filesystem().map_err(refused)?;
+    Ok(after)
 }
 
 /// Move `from` to `to`, falling back to copy-then-delete across filesystems.
@@ -268,12 +374,12 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 fn describe_switch_error(err: DownloadCacheSwitchError<std::io::Error>) -> String {
     match err {
         DownloadCacheSwitchError::RelativeDestination => {
-            "the storage root must be an absolute path".into()
+            "the destination must be an absolute path".into()
         }
         DownloadCacheSwitchError::FilesystemRootDestination => {
-            "the storage root cannot be a filesystem root; pick a directory inside it".into()
+            "the destination cannot be a filesystem root; pick a directory inside it".into()
         }
-        DownloadCacheSwitchError::SameDestination => "the storage root is already there".into(),
+        DownloadCacheSwitchError::SameDestination => "the downloads are already there".into(),
         DownloadCacheSwitchError::ExistingDestination => {
             "that directory already exists; pick a path Aria can create".into()
         }
@@ -283,7 +389,7 @@ fn describe_switch_error(err: DownloadCacheSwitchError<std::io::Error>) -> Strin
         DownloadCacheSwitchError::DestinationIo(err) => {
             format!("checking the destination: {err}")
         }
-        DownloadCacheSwitchError::Migration(err) => format!("moving the cache: {err}"),
+        DownloadCacheSwitchError::Migration(err) => format!("moving the downloads: {err}"),
         DownloadCacheSwitchError::MaintenanceBusy => {
             "a download is in flight; try again once it finishes".into()
         }

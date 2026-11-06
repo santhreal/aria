@@ -53,8 +53,6 @@
 //! # download = "/Volumes/Scratch/Aria/download"
 //! # catalog = "/Volumes/Scratch/Aria/catalog"
 //! # luts = "/Volumes/Scratch/Aria/luts"
-//! # lottie = "/Volumes/Scratch/Aria/lottie"
-//! # templates = "/Volumes/Scratch/Aria/templates"
 //!
 //! [transcription]
 //! connect_timeout_secs = 15        # model download; default 15
@@ -513,10 +511,6 @@ pub struct StoragePathOverrides {
     pub catalog: Option<PathBuf>,
     /// Downloaded LUT packs.
     pub luts: Option<PathBuf>,
-    /// Downloaded Lottie assets.
-    pub lottie: Option<PathBuf>,
-    /// Downloaded and installed template bundles.
-    pub templates: Option<PathBuf>,
 }
 
 impl StoragePathOverrides {
@@ -525,7 +519,7 @@ impl StoragePathOverrides {
     /// A caller that edits overrides enumerates this rather than writing its own
     /// list, so a new override cannot be settable in one place and invisible in
     /// another.
-    pub const KEYS: [&'static str; 10] = [
+    pub const KEYS: [&'static str; 8] = [
         "library_thumbnails",
         "proxies",
         "analysis",
@@ -534,8 +528,6 @@ impl StoragePathOverrides {
         "download",
         "catalog",
         "luts",
-        "lottie",
-        "templates",
     ];
 
     /// Return a known override by its exact TOML key.
@@ -560,8 +552,6 @@ impl StoragePathOverrides {
             "download" => Some(&mut self.download),
             "catalog" => Some(&mut self.catalog),
             "luts" => Some(&mut self.luts),
-            "lottie" => Some(&mut self.lottie),
-            "templates" => Some(&mut self.templates),
             _ => None,
         }
     }
@@ -576,8 +566,6 @@ impl StoragePathOverrides {
             "download" => Some(&self.download),
             "catalog" => Some(&self.catalog),
             "luts" => Some(&self.luts),
-            "lottie" => Some(&self.lottie),
-            "templates" => Some(&self.templates),
             _ => None,
         }
     }

@@ -404,9 +404,9 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `ai-source` (per row) | Local / OpenRouter / Custom | Selects the AI provider: a local OpenAI-compatible server, the OpenRouter gateway, or a custom endpoint. | None |
 | `ai-test-connection` | Test connection | Verifies network and credential connectivity with the configured AI provider. | None |
 | `analysis-cache-clear` | Clear analysis | Deletes cached shot, silence, and loudness analysis records from disk. | None |
-| `cache-clear` (per row) | Clear | Deletes all cached files inside the selected storage cache category. | None |
+| `cache-clear` (per row) | Clear | Deletes the cached files inside the selected storage cache category. On Downloads, files an open project uses are kept. | None |
 | `cache-move` (per row) | Move… | Opens the Move Cache folder picker, moves the category's cache files to the chosen folder, and updates its path. | None |
-| `cache-redirect` (per row) | Redirect… | Opens the Redirect Cache folder picker and points the category at the chosen folder without moving existing files. | None |
+| `cache-redirect` (per row) | Redirect… | Opens the Redirect Cache folder picker and points the category at the chosen folder without moving existing files. Absent on Downloads. | None |
 | `cache-reset` (per row) | Use default | Resets the selected cache category path back to the default storage root. | None |
 | `caches-copy-paths` | Copy paths | Copies the formatted report of all cache directory paths and sizes to the clipboard. | None |
 | `caches-measure` | Measure | Scans disk usage across all registered cache directories and updates their byte totals. | None |
@@ -438,7 +438,7 @@ The Settings dialog (`crates/aria-ui/src/panels/settings_dialog.rs` and `crates/
 | `settings-workspace-save` | Save as Custom / Replace Custom | Saves the current dock pane arrangement into the Custom workspace slot, replacing the one saved there. | None |
 | `settings-zoom-knobs` (per row) | Hold playhead / Hold other end | Sets what a drag on a knob of the timeline's zoom bar holds still: the playhead's pixel while the playhead is inside the view, or the view's other end; drawn on the Zoom bar knobs line. | None |
 | `storage-clear` | Clear cache | Clears downloaded cloud and stock media assets from the download cache. | None |
-| `storage-relocate` | Move storage… | Opens the Move Storage folder picker and moves the root storage directory to the chosen folder. | None |
+| `storage-relocate` | Move storage… | Opens the Move Storage folder picker, moves every cache without its own path to the chosen folder, and records it as the storage root. | None |
 | `timeout-dec` (per row) | Halve | Halves the row's model download timeout: Connect, Read, or Total, down to 1 s. | None |
 | `timeout-inc` (per row) | Double | Doubles the row's model download timeout: Connect, Read, or Total. | None |
 | `wasm-limit-dec` (per row) | Halve | Halves the row's plugin limit: WASM fuel per call or WASM memory. | None |

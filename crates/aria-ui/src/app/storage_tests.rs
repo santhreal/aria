@@ -19,7 +19,18 @@ use aria_settings::{
 
 use super::AppState;
 use super::premiere_tests::with_clip;
-use super::storage::{DOWNLOADS_DIR, format_bytes};
+use super::storage::format_bytes;
+
+#[path = "cache_writers_tests.rs"]
+mod cache_writers_tests;
+
+/// The download cache's directory under a storage root, from the registry.
+fn downloads() -> &'static str {
+    aria_storage::CacheId::Download
+        .descriptor()
+        .default_relative
+        .expect("the download cache is a disk cache")
+}
 
 /// A cached file of `bytes` bytes, so size and clearing have something to observe.
 fn seed_cache(state: &mut AppState, name: &str, bytes: usize) -> PathBuf {
@@ -37,7 +48,7 @@ fn a_fresh_session_reports_the_shipped_quota_and_an_empty_cache() {
     assert_eq!(state.download_cache_size_bytes(), 0);
     assert_eq!(state.protected_download_count(), 0);
     assert!(
-        state.download_cache_root().ends_with(DOWNLOADS_DIR),
+        state.download_cache_root().ends_with(downloads()),
         "the cache root is not under the storage root"
     );
 }
@@ -167,11 +178,11 @@ fn relocating_carries_the_cached_files_and_persists_the_new_root() {
 
     assert_eq!(
         state.download_cache_root(),
-        destination.join(DOWNLOADS_DIR),
+        destination.join(downloads()),
         "the live cache is still on the old root"
     );
     assert!(
-        destination.join(DOWNLOADS_DIR).join("keep.bin").exists(),
+        destination.join(downloads()).join("keep.bin").exists(),
         "the cached file was left behind"
     );
     assert_eq!(state.download_cache_size_bytes(), 512);
@@ -191,7 +202,7 @@ fn relocating_before_the_first_download_still_works() {
     assert!(!state.download_cache_root().exists());
     let destination = state.data_dir.join("early-root");
     state.relocate_storage_root(&destination).expect("relocate");
-    assert_eq!(state.download_cache_root(), destination.join(DOWNLOADS_DIR));
+    assert_eq!(state.download_cache_root(), destination.join(downloads()));
 }
 
 #[test]
@@ -205,7 +216,7 @@ fn a_refused_relocation_leaves_the_cache_where_it_was() {
     // only the cache directory inside it must be Aria's to create.
     let relative = PathBuf::from("relative-root");
     let occupied = state.data_dir.join("occupied");
-    std::fs::create_dir_all(occupied.join(DOWNLOADS_DIR)).expect("occupy the destination");
+    std::fs::create_dir_all(occupied.join(downloads())).expect("occupy the destination");
 
     for refused in [relative, occupied] {
         let err = state
@@ -230,7 +241,7 @@ fn a_refused_relocation_leaves_the_cache_where_it_was() {
 }
 
 #[test]
-fn byte_sizes_are_reported_in_the_unit_the_operator_reads() {
+fn byte_sizes_are_reported_in_binary_units() {
     assert_eq!(format_bytes(0), "0 B");
     assert_eq!(format_bytes(512), "512 B");
     assert_eq!(format_bytes(1_024), "1.0 KiB");

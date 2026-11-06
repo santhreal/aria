@@ -65,9 +65,10 @@ project uses them.
   range is rejected and states the range.
 - **Clear cache** deletes every unpinned cached file and reports how much it removed
   and how many files it kept.
-- **Move storage…** picks a new root, moves the cache into it, and records the root
-  for the next launch. The destination must not already exist. A failed move leaves
-  everything where it was.
+- **Move storage…** picks a new root, moves every cache that has no path of its own
+  into it, and records the root for the next launch. The cache directories under the
+  new root must not already exist. A refused move leaves everything where it was. A
+  cache that fails partway stays where it was and is listed in the error.
 
 Cached downloads are re-fetchable, so clearing them costs bandwidth, not work.
 
@@ -81,8 +82,7 @@ succeeded or failed.
 
 Settings holds a Caches section listing every cache the app keeps: preview frames,
 library thumbnails, timeline filmstrips and waveforms, proxies, render files,
-analysis state, AI model weights, downloads, catalog data, LUTs, Lottie assets,
-and templates.
+analysis state, AI model weights, downloads, catalog data, and LUTs.
 
 Each row states where the bytes are stored (Memory or Disk), what is lost by clearing it
 (regenerated locally, downloaded again, or your own data), when it is evicted
@@ -100,12 +100,15 @@ monitor-sized frame is never written: one picture per source per tile size.
 - **Copy paths** puts the storage root and every resolved cache path on the
   clipboard, for a bug report.
 - **Clear** empties one cache's directory and reports what it removed. A memory cache
-  has no Clear: there is nothing on disk to remove, and the row states that.
+  has no Clear: there is nothing on disk to remove, and the row states that. Clear on
+  Downloads keeps the files an open project uses.
 - **Move…** moves that cache's files to a directory you pick and then records the new
   path. The files are copied or renamed first; the path is written only after they
   arrive, so a failed move leaves the old location serving.
 - **Redirect…** points the cache at a directory without moving what is already there.
+  Downloads has no Redirect; it changes directory only with **Move…**.
 - **Use default** appears on a redirected cache and returns it to the storage root.
+  On Downloads it moves the files back.
 
 Per-cache paths are stored under `[storage.paths]` in `config.toml`. A relative path
 is refused, and so is one that would put two caches in the same directory: one

@@ -614,7 +614,7 @@ Notes for the latest release. For previous releases, see the
 - A drag on either edge of the timeline transition band sets the window length as one edit, and a right-click on it offers Remove plus the blend catalog, both acting on that cut whatever is selected.
 - The preview draws eight crop dots on the selected clip that move an edge or a corner while showing the uncropped frame, and three mask dots that move, resize, and rotate an applied mask, with each drag one edit, Escape abandoning it, and a release that moved nothing writing nothing.
 - Settings Canvas shows the size the project renders at and whether it is explicit or derived, and offers Derived plus one delivery baseline per row from 720p through 4320p on the shorter edge, which preview and export use over the aspect and footage, with an aspect change keeping the baseline, `auto` clearing it, a size the encoder cannot take rejected with the bounds named, and the agent's `set_canvas` taking the same field (`[0, 0]` derives the size again).
-- Settings Caches lists every registered cache with its kind, tier, eviction order, and resolved path, with Measure filling in sizes, Clear emptying a cache, Move carrying its files to a new directory and recording the path once they arrive, Redirect pointing it elsewhere without moving, Use default returning it to the storage root, and Copy paths putting the resolved layout on the clipboard, and per-cache paths persist under `[storage.paths]`, which rejects a relative path or one shared with another cache.
+- Settings Caches lists every registered cache with its kind, tier, eviction order, and resolved path, with Measure filling in sizes, Clear emptying a cache, Move carrying its files to a new directory and recording the path once they arrive, Redirect pointing it elsewhere without moving (absent on Downloads), Use default returning it to the storage root, and Copy paths putting the resolved layout on the clipboard, and per-cache paths persist under `[storage.paths]`, which rejects a relative path or one shared with another cache.
 - Settings edits the AI source, base URL, model, key, key variable, protocol, reasoning summary, and autonomy in the app, where Tab and Shift+Tab save a typed AI field and select the next or previous one, with a status line that shows the assistant's validation and names what is missing, a stored key shown as its length, and the agent directory shown with a control to reveal it.
 - Settings has sections and a filter box, and its Appearance section has an accent choice that retints the accent, playhead, and caret and persists in `[appearance]`.
 - An export, a transcription, or an analysis job that is cancelled before it publishes its result discards the work and names what was not written, and a cancel after it publishes is rejected, so a job never both publishes and reads as cancelled.
@@ -635,7 +635,7 @@ Notes for the latest release. For previous releases, see the
 - The sidebar browses the bundled catalogs, where Stickers places a sticker and Animations, Masks, and Transitions apply an entry to the selected clip.
 - Catalog entries drag out of the sidebar, a sticker onto a lane at the drop time and an animation, mask, or transition onto a clip.
 - The Effects Add list offers every catalog effect and marks an effect with no GPU pass as passthrough instead of hiding it.
-- Settings Storage shows the download cache against its quota, edits the quota in 512 MiB steps, clears the cache naming what it removed and what it kept in use, and moves the storage root along with the cache.
+- Settings Storage shows the download cache against its quota, edits the quota in 512 MiB steps, clears the cache naming what it removed and what it kept in use, and moves the storage root along with every cache that has no path of its own.
 - The Text tab edits a title's content in place, carries the text effect presets, and keeps a title's font, size, color, alignment, stroke, shadow, background, and effect preset when it is retyped instead of discarding them.
 - Aria opens on a full-window Home route that Ctrl+W returns to and Ctrl+O opens a project from, with Recents that keep each file's modified time, mark missing paths, and offer Relink.
 - The editor shows a File, Edit, Sequence, View, Window, and Help menu bar and a tool strip holding the Home / Project breadcrumb, the magnet snap toggle, and the Ripple/Overwrite mode, the A, B, H, and Z keys select tools, and Esc returns to the pointer.
@@ -873,6 +873,7 @@ Notes for the latest release. For previous releases, see the
 - Word buttons in Effects & Presets (`Show all`), Settings > Plugins (`Open folder`, `Hide log`), the Export sheet (`Export frames…`, `Export as…`), and the Keyframes block (`Driver`, `Remove driver`) use sentence case, and `Relink All…` in the Project panel matches `File > Relink All…`.
 - Settings > AI names the assistant's read-only tools as such in the Can do and Active rows.
 - Consolidated per-crate integration test targets into single `tests/it/main.rs` binaries, disabled test-profile symbol debuginfo, and configured `cargo-nextest` profiles and media concurrency limits, cutting warm `aria-ui` incremental test builds from 14.66 s to 7.17 s and full workspace test compilation CPU time by 50%.
+- The Lottie and Templates cache rows and their `storage.paths.lottie` and `storage.paths.templates` keys are deleted, since those downloads are stored in the Downloads cache.
 
 ### Fixed
 
@@ -1314,6 +1315,9 @@ Notes for the latest release. For previous releases, see the
 - Edit > Undo names a ripple trim, roll, rate stretch, or slide drag after the drag instead of after whichever of its edits ran first.
 - Window > Workspaces > Save Workspace saves the Custom workspace without opening a name prompt whose workspace file no menu listed.
 - The operating system's reduced-motion preference skips transitions under every Settings > Appearance > Motion choice instead of being overridden by the default Full at startup.
+- AI models, media analysis, the catalog cache, and render files are written to the directory their Caches row shows, including at launch with a configured storage root or `[storage.paths]` override.
+- Clear, Move…, and Use default on the Downloads row go through the live download cache, so Clear keeps files an open project uses and Move… carries them with their pins.
+- Move… on a cache that holds no files yet records the new path instead of failing with "relocation source does not exist".
 
 ## [alpha-0.7.0] - 2026-07-22
 

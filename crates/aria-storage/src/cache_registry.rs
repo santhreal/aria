@@ -34,15 +34,11 @@ pub enum CacheId {
     Catalog,
     /// Downloaded lookup-table assets.
     Luts,
-    /// Downloaded Lottie animation assets.
-    Lottie,
-    /// Downloaded template assets.
-    Templates,
 }
 
 impl CacheId {
     /// Every cache identifier in deterministic registry order.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 11] = [
         Self::PreviewFrames,
         Self::LibraryThumbnails,
         Self::TimelineFilmstrips,
@@ -54,8 +50,6 @@ impl CacheId {
         Self::Download,
         Self::Catalog,
         Self::Luts,
-        Self::Lottie,
-        Self::Templates,
     ];
 
     /// Return the exact stable key used in settings and tool payloads.
@@ -72,8 +66,6 @@ impl CacheId {
             Self::Download => "download",
             Self::Catalog => "catalog",
             Self::Luts => "luts",
-            Self::Lottie => "lottie",
-            Self::Templates => "templates",
         }
     }
 
@@ -110,8 +102,6 @@ impl FromStr for CacheId {
             "download" => Ok(Self::Download),
             "catalog" => Ok(Self::Catalog),
             "luts" => Ok(Self::Luts),
-            "lottie" => Ok(Self::Lottie),
-            "templates" => Ok(Self::Templates),
             _ => Err(ParseCacheIdError),
         }
     }
@@ -176,7 +166,7 @@ pub struct CacheDescriptor {
 ///
 /// Projects, configuration, and agent sessions are intentionally absent:
 /// they are not clearable caches.
-pub static CACHE_REGISTRY: [CacheDescriptor; 13] = [
+pub static CACHE_REGISTRY: [CacheDescriptor; 11] = [
     CacheDescriptor {
         id: CacheId::PreviewFrames,
         label: "Preview frames",
@@ -231,14 +221,14 @@ pub static CACHE_REGISTRY: [CacheDescriptor; 13] = [
         label: "AI models",
         kind: CacheKind::Disk,
         tier: CacheTier::Redownloadable,
-        default_relative: Some("ai-models"),
+        default_relative: Some("models"),
     },
     CacheDescriptor {
         id: CacheId::Download,
         label: "Downloads",
         kind: CacheKind::Disk,
         tier: CacheTier::Redownloadable,
-        default_relative: Some("download-cache"),
+        default_relative: Some("downloads"),
     },
     CacheDescriptor {
         id: CacheId::Catalog,
@@ -253,20 +243,6 @@ pub static CACHE_REGISTRY: [CacheDescriptor; 13] = [
         kind: CacheKind::Disk,
         tier: CacheTier::Redownloadable,
         default_relative: Some("luts"),
-    },
-    CacheDescriptor {
-        id: CacheId::Lottie,
-        label: "Lottie assets",
-        kind: CacheKind::Disk,
-        tier: CacheTier::Redownloadable,
-        default_relative: Some("lottie"),
-    },
-    CacheDescriptor {
-        id: CacheId::Templates,
-        label: "Templates",
-        kind: CacheKind::Disk,
-        tier: CacheTier::Redownloadable,
-        default_relative: Some("templates"),
     },
 ];
 

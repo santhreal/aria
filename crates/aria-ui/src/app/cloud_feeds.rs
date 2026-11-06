@@ -44,9 +44,6 @@ pub struct ProviderStatus {
 /// The load state of every cloud feed.
 pub(crate) type Feeds = BTreeMap<CloudFeed, FeedState>;
 
-/// Where catalog ETags and downloaded assets live under the storage root.
-const CATALOG_DIR: &str = "catalogs";
-
 impl AppState {
     /// The feed's current state; `Idle` until it is first fetched.
     pub fn feed(&self, feed: CloudFeed) -> FeedState {
@@ -72,14 +69,19 @@ impl AppState {
         self.settings_form.schema = aria_settings::schema_report::report(&path).into();
     }
 
-    fn cloud_client(&self) -> CloudClient {
+    /// The cloud client, caching catalogs in the layout's `catalog` entry.
+    pub(super) fn cloud_client(&self) -> CloudClient {
         let settings = self.cloud_settings();
         let base = if settings.cloud.base_url.trim().is_empty() {
             aria_cloud::DEFAULT_BASE_URL.to_string()
         } else {
             settings.cloud.base_url.clone()
         };
-        CloudClient::new(&base, Some(self.download_cache_root().join(CATALOG_DIR)))
+        CloudClient::new(
+            &base,
+            self.storage_layout()
+                .resolve(aria_storage::CacheId::Catalog),
+        )
     }
 
     /// The provider stock search should use, per the BYOK rule.

@@ -67,7 +67,7 @@ fn holds_rendered_frames(dir: &Path) -> bool {
 impl AppState {
     /// Where a baked starter look is cached, or `None` when the registry puts
     /// LUTs in memory and there is nowhere on disk to write one.
-    fn starter_look_path(&self, id: &str) -> Option<PathBuf> {
+    pub(super) fn starter_look_path(&self, id: &str) -> Option<PathBuf> {
         Some(
             self.storage_layout()
                 .resolve(CacheId::Luts)?

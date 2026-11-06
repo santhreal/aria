@@ -70,8 +70,6 @@ api_key_env = "PEXELS_API_KEY"
 | `storage.paths.download` | `path` | `none` | Absolute directory path | `Caches` | Overrides the downloaded stock and generated asset cache directory. |
 | `storage.paths.catalog` | `path` | `none` | Absolute directory path | `Caches` | Overrides the cached remote catalog response and metadata directory. |
 | `storage.paths.luts` | `path` | `none` | Absolute directory path | `Caches` | Overrides the downloaded LUT pack directory. |
-| `storage.paths.lottie` | `path` | `none` | Absolute directory path | `Caches` | Overrides the downloaded Lottie asset directory. |
-| `storage.paths.templates` | `path` | `none` | Absolute directory path | `Caches` | Overrides the downloaded and installed project template bundle directory. |
 | `transcription.connect_timeout_secs` | `integer` | `15` | `1` to `86400` s | `Transcription` | Connection timeout for transcription model downloads. |
 | `transcription.read_timeout_secs` | `integer` | `30` | `1` to `86400` s | `Transcription` | Per-read stall timeout for transcription model downloads. |
 | `transcription.total_timeout_secs` | `integer` | `1800` | `1` to `86400` s | `Transcription` | Whole-request deadline for transcription model downloads. |
@@ -171,12 +169,10 @@ When `Settings::from_document` encounters a field in `config.toml` that fails va
 | `Proxies` | `proxies` | `Proxies` | `Disk` | `Disposable` | `proxies` |
 | `Analysis` | `analysis` | `Media analysis` | `Disk` | `Disposable` | `analysis` |
 | `RenderFiles` | `render_files` | `Render files` | `Disk` | `Disposable` | `render-files` |
-| `AiModels` | `ai_models` | `AI models` | `Disk` | `Redownloadable` | `ai-models` |
-| `Download` | `download` | `Downloads` | `Disk` | `Redownloadable` | `download-cache` |
+| `AiModels` | `ai_models` | `AI models` | `Disk` | `Redownloadable` | `models` |
+| `Download` | `download` | `Downloads` | `Disk` | `Redownloadable` | `downloads` |
 | `Catalog` | `catalog` | `Catalog` | `Disk` | `Redownloadable` | `catalog-cache` |
 | `Luts` | `luts` | `LUTs` | `Disk` | `Redownloadable` | `luts` |
-| `Lottie` | `lottie` | `Lottie assets` | `Disk` | `Redownloadable` | `lottie` |
-| `Templates` | `templates` | `Templates` | `Disk` | `Redownloadable` | `templates` |
 
 ## Settings dialog text fields and numeric limits (`SettingsField::ALL`, `TimeoutField::ALL`, `WasmLimit::ALL`)
 

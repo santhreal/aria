@@ -96,7 +96,14 @@ impl AppState {
             let start = RationalTime::new(0, engine.project().timeline().frame_rate);
             Snapshot::from_engine(&mut engine, start, &[], None)
         };
-        let download_cache = storage::cache_for(&data_dir);
+        // One read of the config resolves every startup writer, so the download
+        // cache and the render files open where the storage root and the
+        // overrides put them. An absent or malformed config yields the defaults:
+        // the editor still opens, and the Settings schema report shows the fault.
+        let startup_settings =
+            aria_settings::load(&aria_settings::config_in(&data_dir)).unwrap_or_default();
+        let (startup_layout, _) = caches::session_layout(&data_dir, &startup_settings);
+        let download_cache = storage::cache_for(&startup_layout, &startup_settings);
         // One registry per process: the plugin context already holds it, so a session
         // that built its own board would show an empty list while work ran elsewhere.
         let jobs = match plugin_ctx.try_get::<aria_jobs::JobManager>() {
@@ -137,7 +144,9 @@ impl AppState {
         })?;
         let render_files_mounts = plugin_ctx.mounted_revision();
         let render_files_handle = Arc::new(aria_render::RenderFiles::new(
-            data_dir.join("render-files"),
+            startup_layout
+                .resolve(aria_storage::CacheId::RenderFiles)
+                .expect("RenderFiles is a disk cache"),
             crate::app::render_files::render_files_environment(&plugin_ctx),
         ));
         let (ui_settings, ui_settings_notice) = UiSettings::open(&data_dir);
@@ -410,9 +419,11 @@ impl AppState {
             engine.set_preview_proxies(state.ui_settings.use_proxies);
             engine.set_preview_transparency(state.ui_settings.transparency_grid);
         }
+        // The config first: every refresh below resolves its directory through
+        // the layout the config sets.
+        state.refresh_cloud_settings();
         state.refresh_render_files();
         state.refresh_assistant_skills();
-        state.refresh_cloud_settings();
         state.refresh_download_cache_size();
         state.refresh_analysis_cache_size();
         state.refresh_models();

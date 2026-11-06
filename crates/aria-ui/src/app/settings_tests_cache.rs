@@ -195,7 +195,7 @@ fn a_cache_override_is_validated_persisted_and_resettable() {
     // Two caches cannot share a directory: the layout refuses it rather than letting one
     // cache's clear delete the other's files.
     let err = state
-        .set_cache_override("lottie", &elsewhere)
+        .set_cache_override("catalog", &elsewhere)
         .expect_err("two caches were pointed at one directory");
     assert!(
         !err.is_empty(),

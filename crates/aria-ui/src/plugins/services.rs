@@ -9,11 +9,11 @@ use aria_cloud::{CloudClient, DEFAULT_BASE_URL};
 use aria_jobs::{JobManager, JobState};
 use aria_plugin::{
     DropAction, EventBus, JobFinished, JobOutcome, JobProgress, Plugin, PluginContext, PluginError,
-    PluginManifest, ResolveDropped, Service, SettingsService, StorageService,
+    PluginManifest, ResolveDropped, Service, SettingsService,
 };
 use aria_transcription::ModelManager;
 
-use aria_storage::StorageLayout;
+use aria_storage::{CacheId, StorageLayout};
 
 #[derive(Debug)]
 pub struct CloudPlugin {
@@ -36,7 +36,7 @@ impl Plugin for CloudPlugin {
             "Cloud",
             "0.1.0",
             &["aria.storage"],
-            &["StorageService", "SettingsService"],
+            &["StorageLayout", "SettingsService"],
         );
         &MANIFEST
     }
@@ -44,10 +44,11 @@ impl Plugin for CloudPlugin {
     fn mount(&self, ctx: &PluginContext) -> Result<(), PluginError> {
         // No cache rather than a cache in the default profile: storage is a
         // declared requirement, so a context without it is a host that mounted
-        // nothing, not a host with another directory in mind.
+        // nothing, not a host with another directory in mind. The directory is
+        // the layout's `catalog` entry, the one the Caches panel lists.
         let cache = ctx
-            .try_get::<dyn StorageService>()
-            .map(|s| s.cache_dir().join("catalog"));
+            .try_get::<StorageLayout>()
+            .and_then(|layout| layout.resolve(CacheId::Catalog));
         let base = ctx
             .try_get::<dyn SettingsService>()
             .and_then(|s| s.get("cloud.base_url"))
@@ -184,7 +185,9 @@ impl Plugin for TranscriptionPlugin {
                     "storage did not mount, so there is no root to keep models under".into(),
                 ));
             };
-            layout.root().join("models")
+            layout
+                .resolve(CacheId::AiModels)
+                .expect("ai_models is a disk cache")
         };
         match ModelManager::new(&root) {
             Ok(manager) => {

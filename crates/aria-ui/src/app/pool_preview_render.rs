@@ -30,6 +30,12 @@ impl AppState {
             cx.emit(crate::app::PoolTileChanged);
         }
     }
+
+    /// Where pool poster frames are kept between launches, or `None` when the
+    /// registry holds library thumbnails in memory.
+    pub(crate) fn library_thumbnail_dir(&self) -> Option<PathBuf> {
+        self.storage_layout().resolve(CacheId::LibraryThumbnails)
+    }
 }
 
 pub(super) fn render_into(
@@ -76,7 +82,7 @@ pub(super) fn render_into(
     let poster = (!monitor && tick == 0)
         .then(|| {
             let state = state.read(cx);
-            let root = state.storage_layout().resolve(CacheId::LibraryThumbnails)?;
+            let root = state.library_thumbnail_dir()?;
             let path = state
                 .store
                 .media
