@@ -59,7 +59,7 @@ const PAN_WIDTH: f32 = 96.0;
 /// side.
 const PAN_HEIGHT: f32 = Gauge::STRIP.thumb + 2.0;
 /// A strip's width. Inside its border and padding it holds the insert chain's
-/// outlined "+ Audio effect" button whole.
+/// outlined "Add audio effect" button whole.
 const STRIP_WIDTH: f32 = 140.0;
 
 /// Whether the mixer is the pane in front.
@@ -89,7 +89,7 @@ pub(crate) fn render(
         Ok(strips) if strips.iter().all(|strip| soundless.contains(&strip.track)) => {
             crate::components::empty_state(
                 "mixer",
-                "No audio tracks yet. Add one, or add a submix bus, to mix.",
+                "No audio tracks. Add a track or a submix bus to mix.",
                 &theme,
             )
             .into_any_element()
@@ -168,7 +168,7 @@ pub(crate) fn render(
 /// The panel's own row: the one thing it can add, at the row's end. The tab
 /// above the panel states its name.
 fn header(theme: &Theme, cx: &mut gpui::Context<crate::shell::Shell>) -> gpui::AnyElement {
-    let add = crate::components::ghost_button("mixer-add-bus", "+ Submix bus", theme)
+    let add = crate::components::ghost_button("mixer-add-bus", "Add submix bus", theme)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(move |this, _: &MouseDownEvent, _, cx| {

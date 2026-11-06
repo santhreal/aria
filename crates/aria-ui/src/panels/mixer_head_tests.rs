@@ -60,7 +60,7 @@ fn compact(id: MotionKey, label: &str) -> DrawnControl {
 /// The selector of the Add button of the insert chain keyed `base`.
 fn add_button(base: MotionKey) -> String {
     let drawn = Drawn::Labelled {
-        label: SharedString::new_static("+ Audio effect"),
+        label: SharedString::new_static("Add audio effect"),
         inset: GHOST_INSET.0,
         size: Theme::TEXT_UI,
     };

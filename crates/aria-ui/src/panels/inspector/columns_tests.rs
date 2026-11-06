@@ -720,7 +720,7 @@ async fn every_audio_line_stands_in_the_columns(cx: &mut TestAppContext) {
         &held,
         &[
             AudioRole::ALL[1].label().into(),
-            "+ Audio effect".into(),
+            "Add audio effect".into(),
             switch("inspector-reverse"),
             switch("inspector-pitch"),
             switch("denoise-toggle"),

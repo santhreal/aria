@@ -229,7 +229,7 @@ The Audio Mixer (`crates/aria-ui/src/panels/mixer.rs`) renders the submix bus bu
 
 | Control ID | Label | Action | Shortcut |
 | --- | --- | --- | --- |
-| `insert-add` (per row) | + Audio effect | Opens or closes the audio effect picker for the track, clip, or master insert chain. | None |
+| `insert-add` (per row) | Add audio effect | Opens or closes the audio effect picker for the track, clip, or master insert chain. | None |
 | `insert-add-effect` (per row) | Effect name | Appends the audio effect to the end of the insert chain. | None |
 | `insert-bypass` (per row) | Switch | Bypasses the audio insert effect, or puts it back in the signal path; drawn before the effect's name. | None |
 | `insert-down` | Move later | Moves the audio insert effect one slot later in the track, clip, or master insert chain. | None |
@@ -237,7 +237,7 @@ The Audio Mixer (`crates/aria-ui/src/panels/mixer.rs`) renders the submix bus bu
 | `insert-key-none` (per row) | No key | Clears the key lane of the insert effect. | None |
 | `insert-remove` | Remove audio effect | Removes the audio insert effect from the track, clip, or master insert chain. | None |
 | `insert-up` | Move earlier | Moves the audio insert effect one slot earlier in the track, clip, or master insert chain. | None |
-| `mixer-add-bus` | + Submix bus | Appends a submix bus lane to the sequence. | None |
+| `mixer-add-bus` | Add submix bus | Appends a submix bus lane to the sequence. | None |
 | `mixer-auto` (per row) | Off / Read / Write / Touch / Latch | States the strip's automation mode in force, in the warning color while it writes the envelope; a press opens the five modes. | None |
 | `mixer-mute` (per row) | M | Toggles the mute of the lane or the master; a lit mute draws its label in the warning color. | None |
 | `mixer-out` (per row) | Master / bus name | Points the lane's output at the master or at a submix bus. | None |

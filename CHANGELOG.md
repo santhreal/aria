@@ -866,6 +866,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > Appearance draws its mode, accent, theme, and motion choices as four groups, each under a row that reads its value, and the rows read Blue, Shipped, and Off instead of Accent: Blue, Theme: Shipped, and No motion.
 - Bold, Italic, Underline, Kerning, Stroke, Shadow and Card are switches on lines of their own on the Text tab and the Character panel, and the Text tab's case, alignment and preset rows read the choice in force and start on the label column.
 - Rename and Note on a Markers panel row edit the name and note in a text box on that row instead of in the centered rename bar.
+- The Audio Track Mixer's buttons read **Add submix bus** and **Add audio effect** instead of **+ Submix bus** and **+ Audio effect**, and its empty state reads "No audio tracks. Add a track or a submix bus to mix."
 
 ### Fixed
 

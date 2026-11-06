@@ -5,6 +5,9 @@
 //! [`record_controls`], draws, and takes the record with [`drawn_controls`].
 //! A control built while a [`NotingControls`] stands draws under the selector
 //! [`control_selector`] states, so a test finds it by kind, id and label.
+//!
+//! Every labelled control drawn in a test passes [`note`], which rejects a
+//! label that opens with a glyph for its verb.
 
 use gpui::{Div, InteractiveElement as _, Pixels, SharedString, Stateful};
 
@@ -109,6 +112,12 @@ pub(super) fn note(
     id: motion::ControlId,
     drawn: Drawn,
 ) -> Stateful<Div> {
+    if let Drawn::Labelled { label, .. } = &drawn {
+        assert!(
+            !opens_with_glyph(label),
+            "the {kind} `{label}` opens with a glyph for its verb: label it with the word"
+        );
+    }
     if NOTING.get() == 0 {
         return control;
     }
@@ -125,6 +134,17 @@ pub(super) fn note(
         }
     });
     control.debug_selector(move || selector)
+}
+
+/// Whether `label` opens with a glyph standing for its verb, as "+ Submix
+/// bus" does: a mark, then a space. A button's label is a word. A sign on a
+/// quantity, as in "+512 MiB", is part of the quantity.
+pub(crate) fn opens_with_glyph(label: &str) -> bool {
+    let mut chars = label.chars();
+    matches!(
+        (chars.next(), chars.next()),
+        (Some(mark), Some(space)) if !mark.is_alphanumeric() && space.is_whitespace()
+    )
 }
 
 /// The debug selector a `kind` of control `id` drawing `drawn` draws under
@@ -173,5 +193,26 @@ mod tests {
             Vec::new(),
             "no control is recorded once the outer noting drops"
         );
+    }
+
+    /// The class: a button that types its verb as a glyph ("+ Submix bus")
+    /// beside buttons that state it ("Add at playhead"). Every labelled
+    /// control a test draws passes [`note`], which rejects one. Not covered:
+    /// a control no test draws.
+    #[test]
+    fn a_label_opening_with_a_glyph_and_a_space_is_rejected() {
+        for (label, glyph) in [
+            ("+ Submix bus", true),
+            ("× Close", true),
+            ("↺ Reset", true),
+            ("+512 MiB", false),
+            ("−512 MiB", false),
+            ("Add audio effect", false),
+            ("4 K", false),
+            ("…", false),
+            ("", false),
+        ] {
+            assert_eq!(opens_with_glyph(label), glyph, "`{label}`");
+        }
     }
 }

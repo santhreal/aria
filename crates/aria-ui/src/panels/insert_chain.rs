@@ -122,7 +122,7 @@ pub fn render(
                 [pressed(
                     components::ghost_button(
                         ("insert-add", base.with("add")),
-                        "+ Audio effect",
+                        "Add audio effect",
                         theme,
                     ),
                     move || Gesture::TogglePicker(target),

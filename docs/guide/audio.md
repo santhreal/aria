@@ -34,7 +34,7 @@ Each strip holds:
   written once on release wherever the button comes up, so riding a fader is
   one undo step.
 
-**+ Submix bus** at the top right adds a bus, named `Bus 1`, `Bus 2`, and so on.
+**Add submix bus** at the top right adds a bus, named `Bus 1`, `Bus 2`, and so on.
 **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the palette does the same. Deleting a bus returns
 everything that fed it to the master; undo restores both the bus and the routing.
 
@@ -64,7 +64,7 @@ clip with sound. A lane's chain and the master's are the **Inserts** row of each
 mixer strip and of the Master strip. A lane and the master hold up to `MAX_TRACK_AUDIO_EFFECTS` (5) effects
 each; a clip holds any number.
 
-- **+ Audio effect** opens the list of effects; clicking one appends it and
+- **Add audio effect** opens the list of effects; clicking one appends it and
   closes the list.
 - Each effect row holds its name, a chip that reads **On** or **Bypassed**
   (click it to switch), the up and down chevrons that move it one place, absent
@@ -90,7 +90,7 @@ Route dialogue through a submix bus, insert an audio effect chain, and normalize
 
 1. Select the dialogue clips on `A1` and press <kbd>G</kbd> (`key-audio-gain`) or choose **Clip > Audio Gain…**. The Audio Gain dialog opens and reports the measured peak in dBFS across the selection.
 2. Choose **Normalize Max Peak to**, set the target level, and click [`audio-gain-apply`](../reference/controls.md#modal-dialogs). The clip waveforms on `A1` scale to the normalized level in one undo step.
-3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer**, then click **+ Submix bus** or run **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
+3. Press <kbd>Shift+6</kbd> (`key-mixer`) or choose **Window > Audio Track Mixer**, then click **Add submix bus** or run **Mixer: Add a Submix Bus** (`pal-mixer-add-bus`) in the Command Palette. A `Bus 1 · bus` strip appears in the mixer before the `Master` strip.
 4. On the `A1` strip, click the `Bus 1` chip under **Out** to route `A1` into `Bus 1`, then add **Parametric EQ** and **Compressor** under **Inserts** on `Bus 1` and reorder them with [`insert-up`](../reference/controls.md#audio-mixer) or [`insert-down`](../reference/controls.md#audio-mixer) (or remove an insert with [`insert-remove`](../reference/controls.md#audio-mixer)). Press <kbd>Shift+9</kbd> (`key-pane-audio-meters`) or choose **Window > Audio Meters** to watch the summed peak levels in the Audio Meters panel and [`preview-meter`](../reference/controls.md#audio-meters) during playback.
 
 ## Reference
