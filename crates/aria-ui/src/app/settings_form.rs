@@ -648,23 +648,17 @@ impl AppState {
     /// themselves.
     ///
     /// Not a written claim: the edit count is `aria-ai`'s own tool table and the
-    /// host count is the desktop's own, so a tool added or removed changes this
-    /// line without anyone remembering to edit it. The point of the row is that
-    /// "the assistant can edit the timeline" should not have to be taken on
-    /// trust.
+    /// app count is [`crate::app::assistant_host::app_tools`], the list the
+    /// assistant's tool list draws, so a tool added or removed changes this
+    /// line without anyone remembering to edit it.
     pub fn agent_capabilities(&self) -> String {
         let edits = aria_ai::wire::tool_specs().len();
-        let host = crate::app::assistant_host::host_tool_specs();
-        let senses = host
-            .iter()
-            .filter(|spec| spec.tier == aria_ai::ToolTier::ReadOnly)
-            .count();
-        let confirms = host
-            .iter()
-            .filter(|spec| spec.tier == aria_ai::ToolTier::System)
-            .count();
+        let app = crate::app::assistant_host::app_tools();
+        let count = |tier| app.iter().filter(|spec| spec.tier == tier).count();
+        let senses = count(aria_ai::ToolTier::ReadOnly);
+        let confirms = count(aria_ai::ToolTier::System);
         let plugins = crate::app::assistant_host::plugin_tool_specs(&self.ctx).len();
-        format_agent_capabilities(edits, host.len(), senses, confirms, plugins)
+        format_agent_capabilities(edits, app.len(), senses, confirms, plugins)
     }
 
     /// Which parts of a turn are switched on, from the settings that decide it.

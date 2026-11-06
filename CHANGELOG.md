@@ -1238,6 +1238,7 @@ Notes for the latest release. For previous releases, see the
 - Analysis, transcription and the loudness overview refuse an offline or silent clip with the same message, which quotes the media name as written: `“texture” has no audio track`, not `Texture has no audio track` or `texture carries no audio`.
 - Exported MP4 files preserve BT.709 colorimetry at all resolutions, align AAC audio within one frame through the final timeline block, and keep forward and reversed retimed audio spans audible through the end of bounded sources.
 - During a cloud download, Settings > Storage draws Clear cache and Move storage… blocked, and a press posts `A download is in flight. Clear and Move run once it finishes` without opening a folder picker, in place of a Maintenance row and a refusal about a project inventory scan.
+- The assistant's tool list and the Settings > AI Can do count include every tool a prompt is offered, the app tools and the loop's `describe_project`, `commit_progress` and `read_skill`, so both describe the same set.
 
 ## [alpha-0.7.0] - 2026-07-22
 

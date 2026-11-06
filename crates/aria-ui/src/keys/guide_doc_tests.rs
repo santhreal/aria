@@ -635,22 +635,10 @@ fn assistant_guide_matches_ai_registries_bidirectionally() {
     // 3. Built-in loop and host tools.
     let host_sec = heading_body(&doc, "### Built-in loop and host tools");
     let mut expected_host_tools: Vec<(String, String)> = Vec::new();
-    for spec in [
-        aria_ai::wire::describe_project_spec(),
-        aria_ai::agent::commit_progress_spec(),
-        aria_ai::extend::read_skill_spec(),
-    ] {
+    for spec in crate::app::assistant_host::app_tools() {
         assert!(
             !spec.description.trim().is_empty(),
-            "loop tool {} must have non-empty description",
-            spec.name
-        );
-        expected_host_tools.push((spec.name, format!("{:?}", aria_ai::ToolTier::ReadOnly)));
-    }
-    for spec in crate::app::assistant_host::host_tool_specs() {
-        assert!(
-            !spec.description.trim().is_empty(),
-            "host tool {} must have non-empty description",
+            "app tool {} must have non-empty description",
             spec.name
         );
         expected_host_tools.push((spec.name, format!("{:?}", spec.tier)));

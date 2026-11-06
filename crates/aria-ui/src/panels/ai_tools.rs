@@ -1,13 +1,13 @@
 //! What the assistant can actually do, listed rather than counted.
 //!
-//! The Settings AI section says "27 edit(s), 9 app tool(s)". A count answers
+//! The Settings AI section counts the tools ("67 edits, 8 app tools"). A count answers
 //! "is anything wired" and nothing else: it cannot show whether the model can
 //! add a marker, or which of two similar phrasings names a tool that
 //! exists. The vocabulary was a registry with no reader.
 //!
 //! Every row here is read from that registry at draw time
 //! ([`AppState::ai_tool_groups`], which walks `aria_ai::wire::tool_groups` and
-//! appends the two specs the agent adds per turn), so a tool added to `aria-ai`
+//! then the `app` group Settings counts), so a tool added to `aria-ai`
 //! appears here by existing and a tool removed disappears. Nothing in this file
 //! holds a tool name.
 //!
@@ -77,9 +77,13 @@ pub fn render(
 fn group_block(theme: &Theme, name: &SharedString, tools: &[SharedString]) -> impl IntoElement {
     let rows = tools.iter().map(|tool| {
         div()
-            .text_size(Theme::TEXT_TITLE)
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_muted)
             .child(tool.clone())
     });
     crate::card::card(theme, format!("{name} · {}", tools.len())).children(rows)
 }
+
+#[cfg(test)]
+#[path = "ai_tools_tests.rs"]
+mod tests;
