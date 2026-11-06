@@ -31,12 +31,13 @@ impl MotionPreference {
     /// Every choice, in the order Settings lists them.
     pub const ALL: [Self; 4] = [Self::Full, Self::Brisk, Self::Relaxed, Self::Off];
 
+    /// The row's name, drawn under the Motion value row.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Full => "Full motion",
-            Self::Brisk => "Brisk motion",
-            Self::Relaxed => "Relaxed motion",
-            Self::Off => "No motion",
+            Self::Full => "Full",
+            Self::Brisk => "Brisk",
+            Self::Relaxed => "Relaxed",
+            Self::Off => "Off",
         }
     }
 

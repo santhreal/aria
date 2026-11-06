@@ -140,6 +140,6 @@ Motion uses `gpui::motion` from santh-gpui, with the curve set and specs in
 - During playback nothing animates except the playhead, the meters, and the
   dropped-frame indicator. Hover fades and glides are suspended so the frame
   budget belongs to the picture.
-- Settings > Appearance offers Full, Brisk, Relaxed, and No motion. No motion
+- Settings > Appearance > Motion offers Full, Brisk, Relaxed, and Off. Off
   draws every end state immediately and follows the operating system's
   reduced-motion preference by default.

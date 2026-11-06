@@ -34,9 +34,19 @@ fn run<'a>(
         .unwrap_or_else(|| panic!("the Settings dialog draws `{text}`"))
 }
 
+/// The label of the picker row that reads `label`. A value row above a group
+/// reads the choice in force too, so a picker row is found by its label's
+/// selector rather than by its text.
+fn picker(visual: &mut VisualTestContext, label: &str) -> gpui::Bounds<gpui::Pixels> {
+    visual
+        .debug_bounds(crate::interned::intern(&format!("picker-label-{label}")))
+        .unwrap_or_else(|| panic!("the Settings dialog draws no `{label}` row"))
+}
+
 #[gpui::test]
 fn settings_pickers_stand_on_the_section_grid(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "settings-rows");
+    visual.simulate_resize(size(px(MIN_WINDOW_WIDTH), px(1600.0)));
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             state.open_dialog(DialogKind::Settings);
@@ -49,42 +59,42 @@ fn settings_pickers_stand_on_the_section_grid(cx: &mut TestAppContext) {
         .expect("the Settings dialog draws a card");
     let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
     let title = run(&runs, card, "Appearance");
-    let choices = ["System", "Light", "Dark"].map(|text| run(&runs, card, text));
+    let choices = ["System", "Light", "Dark"].map(|text| picker(visual, text));
     let control = run(&runs, card, "Audio scrubbing");
-    for label in choices.iter().chain([&control]) {
+    for (text, left) in ["System", "Light", "Dark"]
+        .into_iter()
+        .zip(choices.map(|bounds| bounds.left()))
+        .chain([("Audio scrubbing", control.bounds.left())])
+    {
         assert!(
-            (label.bounds.left() - title.bounds.left()).abs() < px(EPS),
-            "`{}` starts at {:?}, the section title at {:?}",
-            label.text,
-            label.bounds.left(),
+            (left - title.bounds.left()).abs() < px(EPS),
+            "`{text}` starts at {left:?}, the section title at {:?}",
             title.bounds.left()
         );
     }
     let pitch = px(Theme::ROW_HEIGHT + Theme::SPACE_XS);
     for pair in choices.windows(2) {
-        let step = pair[1].bounds.top() - pair[0].bounds.top();
+        let step = pair[1].top() - pair[0].top();
         assert!(
             (step - pitch).abs() < px(EPS),
-            "`{}` follows `{}` by {step:?}, not one row and the section gap",
-            pair[1].text,
-            pair[0].text
+            "a mode row follows the one above it by {step:?}, not one row and the section gap"
         );
     }
 }
 
 /// WHY: The Appearance card holds four independent single-choice groups
 /// (appearance mode, accent family, theme file, motion preference). Without a
-/// separator between adjacent groups, all twelve rows stand at one pitch with
-/// four rows lit at once and read as one multi-select list.
+/// value row and a separator before each group, all twelve rows stand at one
+/// pitch with four rows lit at once and read as one multi-select list.
 ///
 /// Derives each group's labels from its registry at run time and asserts both
-/// the intra-group row pitch and the larger inter-group step across every group
-/// boundary. Does not catch separator colour, which the test renderer does not
-/// rasterize.
+/// the intra-group row pitch and, across every group boundary, the step over
+/// the hairline and the next group's value row. Does not catch separator
+/// colour, which the test renderer does not rasterize.
 #[gpui::test]
 fn appearance_card_separates_its_four_choice_groups(cx: &mut TestAppContext) {
     let (state, visual) = drawn_shell(cx, "settings-appearance-groups");
-    visual.simulate_resize(size(px(MIN_WINDOW_WIDTH), px(1200.0)));
+    visual.simulate_resize(size(px(MIN_WINDOW_WIDTH), px(1600.0)));
     visual.update(|_, app| {
         state.update(app, |state, cx| {
             state.open_dialog(DialogKind::Settings);
@@ -92,11 +102,6 @@ fn appearance_card_separates_its_four_choice_groups(cx: &mut TestAppContext) {
         });
     });
     visual.run_until_parked();
-    let card = visual
-        .debug_bounds("dialog-card")
-        .expect("the Settings dialog draws a card");
-    let runs = visual.update(|window, _| window.rendered_text_runs().to_vec());
-
     let groups: [Vec<String>; 4] = [
         AppearanceMode::ALL
             .into_iter()
@@ -104,9 +109,9 @@ fn appearance_card_separates_its_four_choice_groups(cx: &mut TestAppContext) {
             .collect(),
         ThemeChoice::ALL
             .into_iter()
-            .map(|choice| format!("Accent: {}", choice.label()))
+            .map(|choice| choice.label().to_string())
             .collect(),
-        vec!["Theme: Shipped".to_string()],
+        vec![super::pickers::SHIPPED_THEME.to_string()],
         MotionPreference::ALL
             .into_iter()
             .map(|pref| pref.label().to_string())
@@ -115,31 +120,32 @@ fn appearance_card_separates_its_four_choice_groups(cx: &mut TestAppContext) {
 
     let intra_pitch = px(Theme::ROW_HEIGHT + Theme::SPACE_XS);
     let divider_step = px(1.0 + 2.0 * Theme::SPACE_XXS + Theme::SPACE_XS);
-    let inter_pitch = intra_pitch + divider_step;
+    let inter_pitch = intra_pitch + divider_step + intra_pitch;
 
     for group in &groups {
-        let group_runs: Vec<&TextRunLayout> =
-            group.iter().map(|label| run(&runs, card, label)).collect();
-        for pair in group_runs.windows(2) {
-            let step = pair[1].bounds.top() - pair[0].bounds.top();
+        let tops: Vec<gpui::Pixels> = group
+            .iter()
+            .map(|label| picker(visual, label).top())
+            .collect();
+        for (pair, names) in tops.windows(2).zip(group.windows(2)) {
+            let step = pair[1] - pair[0];
             assert!(
                 (step - intra_pitch).abs() < px(EPS),
                 "intra-group `{}` -> `{}` is {step:?}, expected {intra_pitch:?}",
-                pair[0].text,
-                pair[1].text
+                names[0],
+                names[1]
             );
         }
     }
 
     for pair in groups.windows(2) {
-        let last_of_prev = run(&runs, card, pair[0].last().expect("non-empty group"));
-        let first_of_next = run(&runs, card, pair[1].first().expect("non-empty group"));
-        let step = first_of_next.bounds.top() - last_of_prev.bounds.top();
+        let last = pair[0].last().expect("non-empty group");
+        let first = pair[1].first().expect("non-empty group");
+        let step = picker(visual, first).top() - picker(visual, last).top();
         assert!(
             (step - inter_pitch).abs() < px(EPS),
-            "inter-group `{}` -> `{}` is {step:?}, expected {inter_pitch:?} with group divider",
-            last_of_prev.text,
-            first_of_next.text
+            "inter-group `{last}` -> `{first}` is {step:?}, expected {inter_pitch:?} \
+             over the hairline and the value row"
         );
     }
 }

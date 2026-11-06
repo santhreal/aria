@@ -218,13 +218,15 @@ whose name or chord contains it. **Edit > Keyboard Shortcuts…** (Ctrl+Alt+K)
 opens Settings with that section's title in the box, and **Edit > Preferences…**
 (Ctrl+,) opens it with the box empty.
 
-In the Appearance section, **System**, **Light**, and **Dark** choose the
-appearance, **Accent** chooses the family used for the accent, the playhead,
-the selection, and the caret (Blue, Ember, Teal, or Graphite), and **Theme**
-chooses a theme file from `~/.aria/themes`, a theme a
-plugin installed, or the shipped palette (see [Theme files](../theme-tokens.md#theme-files)). The accent choice
-persists in `[appearance]`, the theme in `ui-settings.json`, and both apply
-immediately.
+The Appearance section holds four groups, each under a row that reads its
+current value. **Mode** chooses System, Light, or Dark. **Accent** chooses the
+family used for the accent, the playhead, the selection, and the caret (Blue,
+Ember, Teal, or Graphite). **Theme** chooses a theme file from
+`~/.aria/themes`, a theme a plugin installed, or the shipped palette (see
+[Theme files](../theme-tokens.md#theme-files)). **Motion** chooses Full, Brisk,
+Relaxed, or Off (see [Animation catalog](../animation-catalog.md)). The accent
+choice persists in `[appearance]`, the mode, theme, and motion in
+`ui-settings.json`, and each applies immediately.
 
 The Cloud section holds the backend base URL. Left empty it uses the shipped
 default.

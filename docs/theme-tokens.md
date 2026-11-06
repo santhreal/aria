@@ -158,9 +158,9 @@ Tan for nested sequences, Yellow for adjustment clips.
 
 A theme file sets token values over the shipped theme. Every `*.toml` file in
 `~/.aria/themes` (`$ARIA_DATA_DIR/themes` when that is set), and every theme a
-mounted plugin registers, is read each time Settings opens and listed as a
-**Theme** row in the Appearance section. A plugin theme's row reads
-`Theme: <name> from <plugin>`. **Theme: Shipped** removes the file's values.
+mounted plugin registers, is read each time Settings opens and listed in the
+**Theme** group of the Appearance section. A plugin theme's row reads
+`<name> from <plugin>`. **Shipped** removes the file's values.
 The choice is saved in `ui-settings.json` as `theme_file`, the file name
 without `.toml` or `<plugin id>/<theme id>`, and applied at launch.
 

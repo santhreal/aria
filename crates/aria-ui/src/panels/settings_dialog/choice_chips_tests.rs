@@ -83,8 +83,8 @@ struct Switch {
 }
 
 /// The text run of `choice` inside `card`: on the line of a run that reads
-/// `row` and right of it, or the topmost run that reads `choice` when it has
-/// no row.
+/// `row` and right of it, or, when it has no row, the lowest run that reads
+/// `choice`, since the value row above its group reads the choice in force.
 fn locate<'a>(
     runs: &'a [TextRunLayout],
     card: gpui::Bounds<gpui::Pixels>,
@@ -100,7 +100,7 @@ fn locate<'a>(
             .iter()
             .filter(inside)
             .filter(reads(&choice.shown))
-            .min_by(|a, b| {
+            .max_by(|a, b| {
                 a.bounds
                     .top()
                     .partial_cmp(&b.bounds.top())
@@ -184,10 +184,10 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
         |state| state.ui_settings.zoom_bar_knobs,
     );
     for &accent in ThemeChoice::ALL.iter().rev() {
-        let shown = format!("Accent: {}", accent.label());
+        let shown = accent.label().to_owned();
         choices.push(Choice {
             row: None,
-            status: shown.clone(),
+            status: format!("Accent: {shown}"),
             shown,
             chip: None,
             holds: Box::new(move |state| state.theme_choice() == accent),

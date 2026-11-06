@@ -12,23 +12,23 @@ does not exist, and a spec missing from this table all fail.
 
 ## Speed and reduced motion
 
-Settings → Appearance offers four choices. Each one installs a
+Settings → Appearance → Motion offers four choices. Each one installs a
 `gpui::motion::MotionPolicy`: the multiplier applied to every duration below,
 and whether transitions run at all.
 
 | Choice | Multiplier | Transitions |
 | --- | --- | --- |
-| Full motion | 1.0 | run |
-| Brisk motion | 0.6 | run |
-| Relaxed motion | 1.4 | run |
-| No motion | 1.0 | skipped; the end state is drawn immediately |
+| Full | 1.0 | run |
+| Brisk | 0.6 | run |
+| Relaxed | 1.4 | run |
+| Off | 1.0 | skipped; the end state is drawn immediately |
 
 `ARIA_MOTION_SCALE` seeds the multiplier at startup, before the settings file is
 read, and is clamped by `MotionPolicy::parse_duration_scale`. The choice in
 Settings overrides it for the rest of the session and persists to
 `ui-settings.json`.
 
-No motion is honored in two places, not at each call site. A one-shot spec runs
+Off is honored in two places, not at each call site. A one-shot spec runs
 through `with_animation`, which draws the end state and schedules no frames when
 motion is reduced. A traveling value runs through `motion::glide`, which reads
 the policy of the open motion frame, so a new eased value cannot skip it.

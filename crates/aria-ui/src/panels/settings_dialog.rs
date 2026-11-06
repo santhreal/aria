@@ -165,27 +165,38 @@ pub fn render(
     )
 }
 
-/// Light/dark mode, the saved accent choice, the theme file, then how much
-/// motion runs. Theme files are read from `<data dir>/themes`; one that cannot
-/// be read is listed with the reason and cannot be chosen.
+/// Four single-choice groups, each under the row that reads its value now and
+/// a hairline from the group before: light/dark mode, the saved accent, the
+/// theme file, then how much motion runs. Theme files are read from
+/// `<data dir>/themes`; one that cannot be read is listed with the reason and
+/// cannot be chosen.
 fn appearance_rows(
     theme: &Theme,
     state: &Entity<AppState>,
     mode: AppearanceMode,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
-    let mut rows: Vec<gpui::AnyElement> = AppearanceMode::ALL
-        .into_iter()
-        .map(|candidate| pickers::appearance_row(theme, candidate, mode, cx).into_any_element())
-        .collect();
+    let mut rows = vec![kv(theme, "Mode", mode.label()).into_any_element()];
+    rows.extend(
+        AppearanceMode::ALL.into_iter().map(|candidate| {
+            pickers::appearance_row(theme, candidate, mode, cx).into_any_element()
+        }),
+    );
     rows.push(group_divider(theme));
     let current = state.read(cx).theme_choice();
+    rows.push(kv(theme, "Accent", current.label()).into_any_element());
     for candidate in aria_settings::ThemeChoice::ALL {
         rows.push(pickers::theme_row(theme, candidate, current, cx).into_any_element());
     }
     rows.push(group_divider(theme));
     let files = &state.read(cx).theme_files;
     let current_file = state.read(cx).ui_settings.theme_file.clone();
+    let in_force = files
+        .themes
+        .iter()
+        .find(|file| current_file.as_deref() == Some(file.stem.as_str()))
+        .map_or_else(|| pickers::SHIPPED_THEME.to_owned(), |file| file.label());
+    rows.push(kv(theme, "Theme", in_force).into_any_element());
     let candidates: Vec<_> = std::iter::once(None)
         .chain(files.themes.iter().cloned().map(Some))
         .collect();
@@ -201,6 +212,7 @@ fn appearance_rows(
     }
     rows.push(group_divider(theme));
     let motion = state.read(cx).ui_settings.motion;
+    rows.push(kv(theme, "Motion", motion.label()).into_any_element());
     for candidate in crate::motion::MotionPreference::ALL {
         rows.push(pickers::motion_row(theme, candidate, motion, cx).into_any_element());
     }
@@ -421,8 +433,8 @@ mod choice_fit_tests;
 mod choice_chips_tests;
 
 #[cfg(test)]
-#[path = "settings_dialog/canvas_groups_tests.rs"]
-mod canvas_groups_tests;
+#[path = "settings_dialog/choice_groups_tests.rs"]
+mod choice_groups_tests;
 
 #[cfg(test)]
 #[path = "settings_dialog/label_line_tests.rs"]

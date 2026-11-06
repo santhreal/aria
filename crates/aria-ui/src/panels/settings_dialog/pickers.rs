@@ -14,6 +14,9 @@ use crate::surfaces::settings_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::theme::file::ThemeFile;
 
+/// The name of the theme row that removes a theme file's values.
+pub(super) const SHIPPED_THEME: &str = "Shipped";
+
 /// Page, card, and accent from a palette that is not installed.
 ///
 /// A row that only names an appearance or an accent needs a click to find out.
@@ -150,7 +153,7 @@ pub(super) fn theme_row(
     // The accent this key installs, in the appearance that is on screen now.
     let preview = Theme::for_choice(theme.appearance, candidate);
     row_shell(fade, theme, fade, selected)
-        .child(row_label(theme, format!("Accent: {}", candidate.label())))
+        .child(row_label(theme, candidate.label()))
         .child(swatch(&preview))
         .on_mouse_down(
             MouseButton::Left,
@@ -176,9 +179,10 @@ pub(super) fn theme_file_row(
 ) -> impl IntoElement {
     let stem = candidate.as_ref().map(|file| file.stem.clone());
     let selected = stem.as_deref() == current;
-    let label = candidate
-        .as_ref()
-        .map_or_else(|| "Shipped".to_owned(), |file| file.label());
+    let label: SharedString = candidate.as_ref().map_or_else(
+        || SharedString::new_static(SHIPPED_THEME),
+        |file| file.label().into(),
+    );
     let fade = motion::MotionKey::new("theme-file", stem.as_deref().unwrap_or(""));
     let base = Theme::for_choice(theme.appearance, appearance::theme_choice(cx));
     let preview = match &candidate {
@@ -191,7 +195,7 @@ pub(super) fn theme_file_row(
         None => "The built-in palette",
     };
     row_shell(fade, theme, fade, selected)
-        .child(row_label(theme, format!("Theme: {label}")))
+        .child(row_label(theme, label.clone()))
         .child(
             div()
                 .flex()
