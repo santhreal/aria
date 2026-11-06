@@ -1304,6 +1304,7 @@ Notes for the latest release. For previous releases, see the
 - Save as Template and template bundles replace the destination file atomically and fail on a file the media pool plays from or a symbolic link instead of overwriting it in place.
 - The Sample Project tile on Home now opens a 6-second sequence with two generator shots joined by a crossfade, a title on `T1`, and a stereo tone on `A1`, and the tile caption states those contents.
 - Saving settings through a `config.toml` or state file that is a symbolic link replaces the file it points at and keeps the link instead of replacing the link with a copy.
+- A WebAssembly plugin that declares `fs = ["project"]` can read and write files in the saved project's folder instead of being denied every path there.
 
 ## [alpha-0.7.0] - 2026-07-22
 

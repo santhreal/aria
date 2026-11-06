@@ -241,7 +241,7 @@ host service names in `PluginManifest::uses`. `SettingsService` and
 | `media` | `"none"`, `"read"`, or `"read-write"` | `"none"` | Media access level. `"read"` and `"read-write"` add `DecoderService` and `AudioHost`. |
 | `gpu` | boolean | `false` | GPU compute and render access. `true` adds `GpuContext` and `RenderHost`. |
 | `net` | array of strings | `[]` | Allowed network host names (`"api.example.com"`, `"*.cdn.example.com"`). Each entry must be non-empty and contain only ASCII alphanumeric characters, `-`, `.`, or `*`. |
-| `fs` | array of strings | `[]` | File-system scopes (`FsScope`) beyond the package directory and `<data dir>/plugin-data/<id>`. Each entry is `"project"` (the open project folder), `"pick"` (paths chosen in a file dialog), or an absolute path. `project_open` checks read access and `project_save` and `project_save_as` check write access against these scopes. |
+| `fs` | array of strings | `[]` | File-system scopes (`FsScope`). Each entry is `"project"` (the folder of the open project file; no folder until the project is saved), `"pick"`, or an absolute path. `project_open` checks read access and `project_save` and `project_save_as` check write access against these scopes; the WebAssembly `fs-read`, `fs-read-at`, `fs-len`, and `fs-write` imports check them for any path other than the file of the running import, decode, or export call, which needs no scope. `"pick"` grants no path beyond that file. |
 | `process` | `false` or array of strings | `false` | Executables the plugin may spawn. `process = true` and empty executable strings are rejected. |
 | `clipboard` | boolean | `false` | System clipboard read access. |
 

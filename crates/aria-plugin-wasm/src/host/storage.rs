@@ -2,8 +2,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 
-use aria_plugin::package::FsScope;
-use aria_plugin::{LogLevel, host_wire};
+use aria_plugin::{LogLevel, PluginContext, host_wire};
 
 use super::HostState;
 use crate::bindings;
@@ -56,14 +55,13 @@ impl HostState {
             return Ok(active.clone());
         }
 
-        for scope in &self.package.manifest.permissions.fs {
-            if let FsScope::Path(prefix) = scope
-                && path.is_absolute()
-                && !contains_parent_dir(path)
-                && path.starts_with(prefix)
-            {
-                return Ok(path.to_path_buf());
-            }
+        let project_dir = self
+            .active_ctx
+            .as_ref()
+            .and_then(PluginContext::unscoped_project_host)
+            .and_then(|host| host_wire::project_dir(&host));
+        if host_wire::fs_scope_grants(&self.package, project_dir.as_deref(), path) {
+            return Ok(path.to_path_buf());
         }
 
         if let Ok(ctx) = self.require_ctx() {
@@ -198,7 +196,6 @@ pub(crate) fn sanitize_relative_path(raw: &str) -> Option<PathBuf> {
     }
 }
 
-fn contains_parent_dir(path: &Path) -> bool {
-    path.components()
-        .any(|comp| matches!(comp, Component::ParentDir))
-}
+#[cfg(test)]
+#[path = "storage_tests.rs"]
+mod tests;

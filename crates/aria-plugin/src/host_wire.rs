@@ -277,9 +277,43 @@ pub fn sanitize_fault_widget_id(reason: &str, fallback: &str) -> Arc<str> {
     }
 }
 
+/// Whether `permissions.fs` of `package` covers `path`: an absolute path
+/// without `..` under an [`FsScope::Path`] prefix, or, with
+/// [`FsScope::Project`], under `project_dir`, the folder of the open project
+/// file. An unsaved project has no folder, so the project scope covers no path
+/// until the project is saved. [`FsScope::Pick`] covers no path here: the file
+/// picked for an import, decode or export call is readable or writable for
+/// that call without any scope.
+pub fn fs_scope_grants(package: &Package, project_dir: Option<&Path>, path: &Path) -> bool {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|comp| matches!(comp, Component::ParentDir))
+    {
+        return false;
+    }
+    package
+        .manifest
+        .permissions
+        .fs
+        .iter()
+        .any(|scope| match scope {
+            FsScope::Path(prefix) => path.starts_with(prefix),
+            FsScope::Project => project_dir.is_some_and(|dir| path.starts_with(dir)),
+            FsScope::Pick => false,
+        })
+}
+
+/// The folder of the project file open on `host`, the root of
+/// [`FsScope::Project`].
+pub fn project_dir(host: &ProjectHost) -> Option<PathBuf> {
+    host.project_path()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+}
+
 /// Check whether `raw_path` is an absolute path without `..` covered by
-/// `package.manifest.permissions.fs` (including [`FsScope::Project`] when the
-/// open project on `host` has a file path).
+/// `package.manifest.permissions.fs` ([`fs_scope_grants`] over the folder of
+/// the project open on `host`).
 pub fn check_project_fs_path(
     package: &Package,
     host: &ProjectHost,
@@ -301,23 +335,8 @@ pub fn check_project_fs_path(
             raw_path
         ));
     }
-    let project_dir = host
-        .project_path()
-        .and_then(|p| p.parent().map(Path::to_path_buf));
-    for scope in &package.manifest.permissions.fs {
-        match scope {
-            FsScope::Path(prefix) if raw_path.starts_with(prefix) => {
-                return Ok(raw_path.to_path_buf());
-            }
-            FsScope::Project => {
-                if let Some(dir) = &project_dir
-                    && raw_path.starts_with(dir)
-                {
-                    return Ok(raw_path.to_path_buf());
-                }
-            }
-            _ => {}
-        }
+    if fs_scope_grants(package, project_dir(host).as_deref(), raw_path) {
+        return Ok(raw_path.to_path_buf());
     }
     Err(format!(
         "permission denied: {}: fs {mode} for {:?} is not granted by permissions.fs",
