@@ -674,3 +674,89 @@ fn command_line_doc_and_usage_match_cli_registries_bidirectionally() {
         ]
     );
 }
+
+/// WHY: every usage error printed the whole 50-line usage block after the
+/// reason, so a one-word typo buried its own message, and the block ran the
+/// `analyze` entry into `plugin new` with no blank line between them. A usage
+/// error now prints the reason, the entries of the command it names, and a
+/// pointer to `--help`; a runtime failure prints the reason alone. Every verb
+/// is enumerated from `Verb::ALL`, so a verb added without a `USAGE` entry
+/// fails here. Not caught: the wording of an entry's description.
+#[test]
+fn a_usage_error_prints_the_named_command_and_not_the_whole_block() {
+    let entry_starts = |text: &str| -> Vec<String> {
+        text.lines()
+            .filter(|line| line.len() - line.trim_start().len() == 4)
+            .map(str::to_owned)
+            .collect()
+    };
+    for verb in Verb::ALL {
+        let key = verb.key();
+        let entry = synopsis(verb);
+        let starts = entry_starts(&entry);
+        assert!(!starts.is_empty(), "`{key}` has no USAGE entry");
+        for start in &starts {
+            assert!(
+                start.starts_with(&format!("    {key} ")),
+                "`{key}` printed another command's entry: {start}"
+            );
+        }
+        for flag in verb.flags() {
+            assert!(
+                entry.contains(&format!("--{flag}")),
+                "`{key}` synopsis omits --{flag}"
+            );
+        }
+        assert!(
+            !entry.contains("COMMANDS") && !entry.contains("EXIT CODES"),
+            "`{key}` printed section headings"
+        );
+        let failure = crate::fail::Failure::Usage("bad".into());
+        assert_eq!(
+            crate::report_text(&failure, Some(verb)),
+            format!("aria: bad\n\n{entry}\nRun `aria --help` for every command.\n"),
+            "`{key}`"
+        );
+    }
+    let plugin = synopsis(Verb::Plugin);
+    for sub in crate::plugin::Subcommand::ALL {
+        assert!(
+            plugin.contains(&format!("    plugin {} ", sub.key())),
+            "`plugin {}` missing from the plugin synopsis",
+            sub.key()
+        );
+    }
+
+    assert_eq!(
+        crate::report_text(
+            &crate::fail::Failure::Usage("unknown command \"exprot\"".into()),
+            None
+        ),
+        "aria: unknown command \"exprot\"\n\nRun `aria --help` for every command.\n"
+    );
+    assert_eq!(
+        crate::report_text(
+            &crate::fail::Failure::Failed("no codec".into()),
+            Some(Verb::Export)
+        ),
+        "aria: no codec\n"
+    );
+
+    // Every entry in COMMANDS starts after a blank line.
+    let commands = USAGE
+        .split_once("COMMANDS\n")
+        .and_then(|(_, rest)| rest.split_once("\nEXIT CODES"))
+        .map(|(body, _)| body)
+        .expect("COMMANDS section");
+    let lines: Vec<&str> = commands.lines().collect();
+    for (index, line) in lines.iter().enumerate().skip(1) {
+        if line.len() - line.trim_start().len() == 4 {
+            assert_eq!(lines[index - 1], "", "no blank line before {line:?}");
+        }
+    }
+    assert_eq!(
+        entry_starts(commands).len(),
+        Verb::ALL.len() - 1 + crate::plugin::Subcommand::ALL.len(),
+        "one entry per verb and per plugin sub-command"
+    );
+}

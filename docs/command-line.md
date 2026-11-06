@@ -21,8 +21,9 @@ The binary is `target/release/aria`.
 | `2` | The command line was wrong |
 
 Running `aria` with no arguments, `aria --help`, or `aria -h` in any position
-prints the usage block on stdout and exits `0`. A usage error prints the reason
-and the usage block on stderr and exits `2`. A runtime failure prints the reason
+prints the usage block on stdout and exits `0`. A usage error prints the reason,
+the synopsis of the command it names, and a line pointing to `aria --help` on
+stderr and exits `2`. A runtime failure prints the reason
 on stderr and exits `1` (or the child exit code when `aria plugin dev` runs the
 editor). Progress goes to stderr and results go to stdout, so
 `aria inspect project.aria > facts.txt` captures the output alone.
@@ -63,6 +64,10 @@ aria frame <project.aria> [out.png] [--at SECONDS] [--fit WxH]
 
 Render one timeline instant to an 8-bit straight-alpha RGBA PNG. When `[out.png]`
 is omitted, the image is written to `aria-frame.png`.
+
+An `--at` at or past the end of the timeline fails with exit code `2`, the
+same refusal `aria export --at` prints. An empty timeline fails with exit code
+`1`. Neither writes the PNG.
 
 ```
 aria frame rough.aria thumb.png --at 12.5 --fit 640x360
@@ -108,9 +113,10 @@ skipped vaapih264enc could not open its device
 ```
 
 The flags build an `ExportFormat` resolved by `ExportSettings::resolved`, matching
-the editor's export sheet. An export with zero frames (an empty timeline or an
-`--at`/`--to` span covering no frames) fails with exit code `1` and states which
-condition occurred.
+the editor's export sheet. An `--at` at or past the end of the timeline, or a
+`--to` at or before `--at` once both are rounded to frames, fails with exit
+code `2`. An export with zero frames (an empty timeline) fails with exit code
+`1` and states the reason.
 
 ```
 aria export rough.aria out.mp4 --at 0 --to 30 --codec h265 --bitrate 8000

@@ -1,7 +1,7 @@
 //! How a command fails, and what the shell sees when it does.
 //!
 //! Two kinds, because a script has to tell them apart: a wrong command line is
-//! the caller's mistake (exit 2, print the usage block), and a failed command is
+//! the caller's mistake (exit 2, print the command's synopsis), and a failed command is
 //! the machine's (exit 1, print the reason). Collapsing them into one code makes
 //! a typo indistinguishable from a missing codec.
 

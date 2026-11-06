@@ -86,7 +86,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         exported.frames,
         settings.size.0,
         settings.size.1,
-        aria_encoder::capability().label_for(settings.video_codec),
+        aria_encoder::capability().label_for(settings.video_codec, settings.audio),
         out.display()
     );
     // The encoder line, then one `skipped` line per encoder that did not open.
@@ -135,18 +135,11 @@ pub(crate) fn resolve_export_range(
     {
         return Err("--to cannot be negative".into());
     }
-    let from = project::time_for_seconds(at.unwrap_or(0.0), rate);
+    let from = project::instant_before_end(at.unwrap_or(0.0), duration, rate)?;
     let end = match to {
         Some(to) => project::time_for_seconds(to, rate),
         None => duration,
     };
-    if from.value >= duration.value {
-        return Err(format!(
-            "--at ({}) must be before project duration ({})",
-            project::clock(from.seconds()),
-            project::clock(duration.seconds())
-        ));
-    }
     if end.value <= from.value {
         return Err(format!(
             "--to ({}) must be after --at ({})",

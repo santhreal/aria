@@ -31,16 +31,17 @@ use fail::Failure;
 fn main() -> ! {
     let code = {
         let argv: Vec<String> = std::env::args().skip(1).collect();
+        let verb = argv.first().and_then(|word| Verb::named(word));
         match Args::parse(argv) {
             Ok(args) => match run(&args) {
                 Ok(()) => 0,
-                Err(failure) => report(failure),
+                Err(failure) => report(&failure, verb),
             },
             Err(ArgsError::NoVerb | ArgsError::Help) => {
                 print!("{}", args::USAGE);
                 0
             }
-            Err(err) => report(Failure::from(err)),
+            Err(err) => report(&Failure::from(err), verb),
         }
     };
     // An export decodes its sources, and a process that decoded on NVDEC must
@@ -74,13 +75,23 @@ fn run(args: &Args) -> Result<(), Failure> {
     }
 }
 
-/// Print a failure the way a shell expects: the reason on stderr, the usage
-/// block only when the command line itself was wrong, and the matching code.
-fn report(failure: Failure) -> u8 {
-    eprintln!("aria: {}", failure.message());
-    if matches!(failure, Failure::Usage(_)) {
-        eprintln!();
-        eprint!("{}", args::USAGE);
-    }
+/// Print a failure the way a shell expects and return its code.
+fn report(failure: &Failure, verb: Option<Verb>) -> u8 {
+    eprint!("{}", report_text(failure, verb));
     u8::try_from(failure.code()).unwrap_or(1)
+}
+
+/// The reason, then for a wrong command line the synopsis of the command it
+/// names (none for an unknown command) and where the full list is.
+fn report_text(failure: &Failure, verb: Option<Verb>) -> String {
+    let mut text = format!("aria: {}\n", failure.message());
+    if matches!(failure, Failure::Usage(_)) {
+        text.push('\n');
+        if let Some(verb) = verb {
+            text.push_str(&args::synopsis(verb));
+            text.push('\n');
+        }
+        text.push_str("Run `aria --help` for every command.\n");
+    }
+    text
 }

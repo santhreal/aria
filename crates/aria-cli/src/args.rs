@@ -86,7 +86,8 @@ impl Verb {
             Verb::New | Verb::Plugin => None,
         }
     }
-    fn parse(word: &str) -> Option<Verb> {
+    /// The verb spelled `word`, or `None` for a word that names no verb.
+    pub(crate) fn named(word: &str) -> Option<Verb> {
         Verb::ALL.iter().copied().find(|verb| verb.key() == word)
     }
 }
@@ -125,7 +126,7 @@ impl Args {
         let Some(first) = words.next() else {
             return Err(ArgsError::NoVerb);
         };
-        let verb = Verb::parse(&first)
+        let verb = Verb::named(&first)
             .ok_or_else(|| ArgsError::Usage(format!("unknown command \"{first}\"")))?;
 
         let mut positional = Vec::new();
@@ -270,7 +271,32 @@ impl Args {
     }
 }
 
-/// The usage block, printed for no arguments, `--help`, and every usage error.
+/// The `USAGE` entries for `verb`: each synopsis line and its description,
+/// every sub-command's for `plugin`, entries separated by a blank line. A
+/// usage error prints these instead of the whole block.
+pub(crate) fn synopsis(verb: Verb) -> String {
+    let start = format!("    {} ", verb.key());
+    let mut out = String::new();
+    let mut keep = false;
+    for line in USAGE.lines() {
+        let indent = line.len() - line.trim_start().len();
+        if !line.is_empty() && indent == 0 {
+            keep = false;
+        } else if indent == 4 {
+            keep = line.starts_with(&start);
+            if keep && !out.is_empty() {
+                out.push('\n');
+            }
+        }
+        if keep && !line.is_empty() {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// The usage block, printed for no arguments and `--help`.
 pub(crate) const USAGE: &str = "\
 aria — the Aria editor's command line
 
@@ -302,6 +328,7 @@ COMMANDS
     analyze <media> [--beats] [--silence] [--loudness] [--shots] [--limit N]
         Run detectors over a media file and print what they found. With no
         detector flag, every audio detector runs.
+
     plugin new <id> [--tier wasm|native] [--dir PARENT] [--sdk PATH]
         Create a plugin package with a manifest, a sample effect, and a
         sample command.

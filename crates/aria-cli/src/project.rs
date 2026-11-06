@@ -41,6 +41,25 @@ pub(crate) fn time_for_seconds(seconds: f64, rate: Rational) -> RationalTime {
     RationalTime::new(tick_for_seconds(seconds.max(0.0), rate), rate)
 }
 
+/// The `--at` instant on `rate`, refused unless it lands on a frame before
+/// `duration`. `frame` and `export` share it, so an instant past the last
+/// frame is a usage error on both verbs rather than a black frame on one.
+pub(crate) fn instant_before_end(
+    seconds: f64,
+    duration: RationalTime,
+    rate: Rational,
+) -> Result<RationalTime, String> {
+    let at = time_for_seconds(seconds, rate);
+    if at.value >= duration.value {
+        return Err(format!(
+            "--at ({}) must be before project duration ({})",
+            clock(at.seconds()),
+            clock(duration.seconds())
+        ));
+    }
+    Ok(at)
+}
+
 /// `seconds` formatted as `H:MM:SS.mmm`.
 pub(crate) fn clock(seconds: f64) -> String {
     let seconds = seconds.max(0.0);
