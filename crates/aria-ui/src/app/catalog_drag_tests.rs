@@ -12,6 +12,7 @@
 use aria_models::{ClipId, MaskKind, TrackId, mask_catalog};
 
 use super::AppState;
+use super::decline::Decline;
 use super::premiere_tests::with_clip;
 use crate::types::{CatalogDrag, CatalogDragKind};
 
@@ -261,7 +262,7 @@ fn every_clip_payload_lands_on_the_dropped_clip_and_selects_it() {
             );
             state.drop_catalog_on_track(&drag, Some(track), (start + end) / 2)
         } else {
-            state.drop_catalog_on_clip(&drag, target)
+            state.drop_catalog_on_clip(&drag, target, None)
         };
         landed.unwrap_or_else(|err| panic!("{:?} {}: {err:?}", drag.kind, drag.id));
 
@@ -348,7 +349,9 @@ fn each_payload_is_inert_on_the_target_class_it_does_not_belong_to() {
                 drag.kind
             );
         } else {
-            state.drop_catalog_on_clip(&drag, target).expect("inert");
+            state
+                .drop_catalog_on_clip(&drag, target, None)
+                .expect("inert");
             assert_eq!(
                 state.store.sequence.clip_count(),
                 before,
@@ -368,7 +371,9 @@ fn an_unknown_mask_id_is_inert_rather_than_applying_a_default_shape() {
         id: "not_a_shape".into(),
         label: "stale".into(),
     };
-    state.drop_catalog_on_clip(&stale, target).expect("inert");
+    state
+        .drop_catalog_on_clip(&stale, target, None)
+        .expect("inert");
     assert!(state.selected_ui_clip().expect("clip").masks.is_empty());
     // The catalog is the only source of legal ids, so the guard is the resolver.
     assert_eq!(MaskKind::from_id("not_a_shape"), None);
@@ -382,7 +387,7 @@ fn a_drop_on_a_clip_that_no_longer_exists_changes_nothing() {
     let held = state.selected_clip().expect("clip");
     let ghost = ClipId::from_raw(u64::MAX);
     state
-        .drop_catalog_on_clip(&payloads()[1], ghost)
+        .drop_catalog_on_clip(&payloads()[1], ghost, None)
         .expect("a stale target is a no-op");
     assert_eq!(state.selected_clip(), Some(held), "the selection moved");
     let ui = state.selected_ui_clip().expect("clip");
@@ -511,7 +516,7 @@ fn every_payload_dropped_on_effect_controls_lands_on_the_selection_or_is_refused
                 let (mut twin, _) = with_clip();
                 seed(&mut twin, &drag);
                 let twin_target = twin.selected_clip().expect("clip");
-                twin.drop_catalog_on_clip(&drag, twin_target)
+                twin.drop_catalog_on_clip(&drag, twin_target, None)
                     .expect("the same payload dropped on the clip");
                 assert_eq!(landed(&state), landed(&twin), "{:?}", drag.kind);
                 assert_eq!(state.selected_clip(), Some(target));
@@ -558,4 +563,112 @@ fn a_generator_placed_over_an_occupied_lane_lands_on_a_free_one() {
         .drop_generated_on_timeline(Generator::text("C"), None, end)
         .expect("a title after both");
     assert_eq!(counts(&state), [2, 1]);
+}
+
+/// The fixture's clip cut into `pieces` abutting clips on its lane, nothing
+/// selected, with each piece's lane and span in timeline order.
+fn cut_into(pieces: i64) -> (AppState, Vec<(ClipId, TrackId, i64, i64)>) {
+    let in_order = |state: &AppState| {
+        let mut clips: Vec<_> = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|track| {
+                track.clips.iter().map(move |clip| {
+                    (
+                        ClipId::from_raw(clip.id),
+                        TrackId::from_raw(track.id),
+                        clip.timeline_start_ticks,
+                        clip.timeline_end_ticks,
+                    )
+                })
+            })
+            .collect();
+        clips.sort_by_key(|&(_, _, start, _)| start);
+        clips
+    };
+    let (mut state, _) = with_clip();
+    let (_, _, start, end) = in_order(&state)[0];
+    for k in 1..pieces {
+        let at = start + (end - start) * k / pieces;
+        let (piece, ..) = in_order(&state)
+            .into_iter()
+            .find(|&(_, _, from, to)| from < at && at < to)
+            .expect("a piece spans the cut");
+        state.select_clip(piece);
+        state.set_playhead(at);
+        state.split_at_playhead().expect("split");
+    }
+    let clips = in_order(&state);
+    assert_eq!(clips.len() as i64, pieces, "the cuts made {clips:?}");
+    state.selection.clear();
+    state.rebuild_store();
+    (state, clips)
+}
+
+/// A transition dropped on a clip lands on the cut nearer the pointer, or on
+/// the clip's one cut from either half, and selects the clip keyed on that
+/// cut. Every drop went to the right cut of the clip under the pointer, so a
+/// transition dropped on the last clip of a sequence, or on the head of any
+/// clip, declined "No clip on the other side of that cut" or blended the far
+/// cut. A drop with no position (Effect Controls) takes the right cut first.
+///
+/// Not caught: a transition the model refuses at the picked cut for its
+/// length; the drag hint drawn before release.
+#[test]
+fn a_dropped_transition_lands_on_the_cut_nearer_the_pointer() {
+    #[derive(Debug, Clone, Copy)]
+    enum Released {
+        Head,
+        Tail,
+        Unplaced,
+    }
+    let drag = payloads()
+        .into_iter()
+        .find(|drag| drag.kind == CatalogDragKind::Transition)
+        .expect("a transition payload");
+    // (pieces, piece dropped on, where, piece whose right cut takes it)
+    let cases = [
+        (2, 1, Released::Head, 0),
+        (2, 1, Released::Tail, 0),
+        (2, 1, Released::Unplaced, 0),
+        (2, 0, Released::Head, 0),
+        (2, 0, Released::Tail, 0),
+        (3, 1, Released::Head, 0),
+        (3, 1, Released::Tail, 1),
+        (3, 1, Released::Unplaced, 1),
+        (3, 2, Released::Tail, 1),
+    ];
+    for (pieces, on, released, expected) in cases {
+        let case = format!("{pieces} pieces, on {on} at {released:?}");
+        let (mut state, clips) = cut_into(pieces);
+        let (target, track, start, end) = clips[on];
+        let tenth = (end - start) / 10;
+        match released {
+            Released::Head => state.drop_catalog_on_track(&drag, Some(track), start + tenth),
+            Released::Tail => state.drop_catalog_on_track(&drag, Some(track), end - tenth),
+            Released::Unplaced => state.drop_catalog_on_clip(&drag, target, None),
+        }
+        .unwrap_or_else(|err| panic!("{case}: {err:?}"));
+
+        assert_ne!(
+            state.status_message.as_deref(),
+            Some(Decline::NoAbuttingCut.reason()),
+            "{case}: declined"
+        );
+        let carried: Vec<Option<String>> = clips
+            .iter()
+            .map(|&(clip, ..)| state.clip_transition_id(clip))
+            .collect();
+        let wanted: Vec<Option<String>> = (0..clips.len())
+            .map(|piece| (piece == expected).then(|| drag.id.to_string()))
+            .collect();
+        assert_eq!(carried, wanted, "{case}: the blend landed elsewhere");
+        assert_eq!(
+            state.selected_clip(),
+            Some(clips[expected].0),
+            "{case}: the selection is not the clip keyed on the cut"
+        );
+    }
 }

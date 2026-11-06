@@ -13,14 +13,18 @@ use super::AppState;
 use crate::types::{CatalogDrag, CatalogDragKind};
 
 impl AppState {
-    /// Apply a dragged catalog entry to `clip`.
+    /// Apply a dragged catalog entry to `clip`, released at tick `at` when the
+    /// drop has a position.
     ///
     /// Inert for a payload that belongs on empty lane space, and inert for an id
-    /// this build does not know, so a stale drag cannot half-apply.
+    /// this build does not know, so a stale drag cannot half-apply. A
+    /// transition lands on the cut [`Self::transition_junction`] picks and
+    /// selects the clip keyed on it, the clip the inspector draws that cut for.
     pub fn drop_catalog_on_clip(
         &mut self,
         drag: &CatalogDrag,
         clip: ClipId,
+        at: Option<i64>,
     ) -> Result<(), EngineError> {
         if !drag.targets_a_clip() {
             return Ok(());
@@ -39,7 +43,11 @@ impl AppState {
                 Some(kind) => self.add_selected_mask(kind),
                 None => Ok(()),
             },
-            CatalogDragKind::Transition => self.set_selected_transition(&drag.id),
+            CatalogDragKind::Transition => {
+                let junction = self.transition_junction(clip, at);
+                self.select_clip(junction);
+                self.set_clip_transition(junction, &drag.id)
+            }
             CatalogDragKind::Effect => self.add_effect_to_selected(drag.id.as_str()),
             CatalogDragKind::AudioEffect => self.add_audio_effect_to_selection(&drag.id),
             CatalogDragKind::Preset => self.apply_preset(&drag.id),
@@ -76,7 +84,7 @@ impl AppState {
             | CatalogDragKind::Effect
             | CatalogDragKind::AudioEffect
             | CatalogDragKind::Preset => match track.and_then(|track| self.clip_on(track, at)) {
-                Some(clip) => self.drop_catalog_on_clip(drag, clip),
+                Some(clip) => self.drop_catalog_on_clip(drag, clip, Some(at)),
                 None => Ok(()),
             },
         }
@@ -114,7 +122,7 @@ impl AppState {
             | CatalogDragKind::Transition
             | CatalogDragKind::AudioEffect
             | CatalogDragKind::Preset => match self.selected_clip_or_decline() {
-                Some(clip) => self.drop_catalog_on_clip(drag, clip),
+                Some(clip) => self.drop_catalog_on_clip(drag, clip, None),
                 None => Ok(()),
             },
             CatalogDragKind::Sticker | CatalogDragKind::Generator | CatalogDragKind::ClipType => {

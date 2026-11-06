@@ -31,8 +31,9 @@ applies an entry reports why. Markers are listed in the Markers panel; see
 Drag instead of clicking to choose the target. Drag a sticker onto a lane to place
 it at that lane and time. Drag an animation, mask, or transition onto a clip to
 apply it there; the clip becomes selected, so Effect Controls shows what landed. A
-sticker dropped on a lane that cannot hold it keeps the time and moves to the
-sticker lane.
+transition lands on the clip's cut nearer the pointer, and the clip on the left
+of that cut becomes selected. A sticker dropped on a lane that cannot hold it
+keeps the time and moves to the sticker lane.
 
 Hover an **Animations** entry to preview it on the selected clip before choosing it.
 The preview is not an edit: it makes no undo step, and moving the pointer off the

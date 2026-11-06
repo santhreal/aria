@@ -192,6 +192,30 @@ impl AppState {
         self.set_clip_transition(clip, transition_id)
     }
 
+    /// The clip keyed on the cut a transition dropped on `clip` lands at.
+    ///
+    /// Of the clip's two cuts, the one that takes a transition and is nearer
+    /// `at` wins; with `at` unknown, the right cut. A clip whose one cut takes
+    /// a transition lands there from either half, and a clip with neither is
+    /// its own key, so the setter declines it by name.
+    pub fn transition_junction(&self, clip: ClipId, at: Option<i64>) -> ClipId {
+        let out_cut = self.clip_transition_media(clip).map(|_| clip);
+        let in_cut = self
+            .abutting(clip)
+            .0
+            .map(|left| left.clip)
+            .filter(|&left| self.clip_transition_media(left).is_some());
+        let nearer_start = at
+            .zip(self.ui_clip_ref(clip))
+            .is_some_and(|(at, ui)| at - ui.timeline_start_ticks < ui.timeline_end_ticks - at);
+        let (first, second) = if nearer_start {
+            (in_cut, out_cut)
+        } else {
+            (out_cut, in_cut)
+        };
+        first.or(second).unwrap_or(clip)
+    }
+
     /// Remove the transition at this clip's right junction, or say there is
     /// none.
     pub fn clear_clip_transition(&mut self, clip: ClipId) -> Result<(), EngineError> {

@@ -1263,6 +1263,7 @@ Notes for the latest release. For previous releases, see the
 - The Install Plugin prompt reads "with no publisher" for a package that names none instead of "from ,".
 - The Keyframes choice in the Export sheet sets the keyframe spacing on NVENC and VAAPI encoders, and an H.265 export on the x265 software encoder with a keyframe spacing no longer crashes.
 - The Export sheet's Format row and the `aria export` summary read "no audio" for a video-only export instead of naming AAC.
+- A transition dropped on a timeline clip lands on the clip's cut nearer the pointer, so a drop on the last clip of a sequence applies at its cut instead of reporting that no clip is on the other side.
 
 ## [alpha-0.7.0] - 2026-07-22
 
