@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::components;
-use crate::panels::inspector::blocks::widgets::{Columns, pick_button, under_labels};
+use crate::panels::inspector::blocks::widgets::{Columns, label_note, pick_button, under_labels};
 use crate::panels::sidebar::DragGhost;
 use crate::surfaces::effects_rack::{self, Gesture};
 use crate::theme::Theme;
@@ -19,10 +19,6 @@ use crate::types::{CatalogDrag, ContextTarget, RenameTarget, UiClip};
 use gpui::prelude::FluentBuilder;
 
 use crate::components::section_label;
-
-/// The line an empty chain draws under the Effects heading.
-const NO_EFFECTS: &str =
-    "This clip has no effects. Drag one here from Effects & Presets, or choose one under Add.";
 
 pub fn effects_tab(
     theme: &Theme,
@@ -254,22 +250,21 @@ pub fn effects_tab(
         })
         .collect();
 
+    // One wrapping line under the labels, as the Look tab's filter chips.
     let catalog: Vec<_> = state
         .read(cx)
         .effect_browse_list()
         .into_iter()
         .map(|(spec, label)| {
-            under_labels(
-                Columns::Keyed,
-                [pick_button(
-                    crate::motion::MotionKey::new("fx-add", spec.id.as_str()),
-                    label,
-                    theme,
-                    cx,
-                    move |state| effects_rack::apply(state, Gesture::Add(spec.id.clone())),
-                )
-                .into_any_element()],
+            let selector = format!("fx-add-{}", spec.id);
+            pick_button(
+                crate::motion::MotionKey::new("fx-add", spec.id.as_str()),
+                label,
+                theme,
+                cx,
+                move |state| effects_rack::apply(state, Gesture::Add(spec.id.clone())),
             )
+            .debug_selector(move || selector)
             .into_any_element()
         })
         .collect();
@@ -494,11 +489,7 @@ pub fn effects_tab(
         }))
         .child(section_label(theme, "Effects"))
         .when(remove_rows.is_empty(), |el| {
-            el.child(components::list_empty(
-                "inspector-fx-chain",
-                NO_EFFECTS,
-                theme,
-            ))
+            el.child(label_note(Columns::Keyed, theme.text_faint, "None"))
         })
         .children(remove_rows)
         .child(section_label(theme, "Presets"))
@@ -514,13 +505,7 @@ pub fn effects_tab(
                 .child(under_labels(Columns::Keyed, [save.into_any_element()])),
         )
         .child(section_label(theme, "Add"))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(Theme::SPACE_XS))
-                .children(catalog),
-        )
+        .child(under_labels(Columns::Keyed, catalog))
 }
 
 /// Land a catalog entry dragged onto the tab: before the effect at `at`, or at

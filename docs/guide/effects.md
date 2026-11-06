@@ -73,9 +73,8 @@ proxy or a reduced preview draws the same picture.
 The Effects tab of Effect Controls lists the effect chain in render order. Each effect
 has a header: a switch, the effect's name, the up and down chevrons that move it
 one place (the first effect has no up chevron and the last no down chevron), a
-reset button, a menu button, and a bin to remove it. A clip with no effects
-reads `This clip has no effects.` under the heading, with where an effect
-comes from.
+reset button, a menu button, and a bin to remove it.
+With no effect on the clip, the chain reads None.
 
 - The switch turns the effect off and back on, one undo step per press. A
   switched-off effect keeps its parameters and its place in the chain, renders
@@ -134,8 +133,8 @@ refused; the field stays open with what you typed. Escape leaves without
 saving. Presets are stored with your settings, so they are there on the next
 launch.
 
-**Add** lists every effect the compositor can render. Clicking one appends it
-to the end of the chain.
+**Add** draws one button per effect the compositor can render, on wrapping
+lines. Clicking one appends it to the end of the chain.
 
 The **Effect** menu lists every video effect and every audio effect, one
 submenu per category: Blur & Sharpen, Color, Distort, Noise & Grain, and

@@ -830,7 +830,7 @@ Notes for the latest release. For previous releases, see the
 - A clip's filmstrip keeps its last pictures through an edit, an undo, or a redo until the new ones render, instead of going blank while it refills.
 - Every workspace docks Audio Meters at 64 px right of the Timeline; the Audio workspace no longer shows them as a wide frame in the upper right.
 - The Markers panel's color filter draws the Edit Marker dialog's swatches, rings the color in force, and names each color in a tooltip.
-- Effect Controls with no clip selected reads `Select a clip to edit its properties.` instead of offering a gap press that edits the sequence, and the Effects tab over a clip with no effects states where an effect comes from under its Effects heading.
+- Effect Controls with no clip selected reads `Select a clip to edit its properties.` instead of offering a gap press that edits the sequence.
 - Effect Controls color swatches ring the color in force, draw Clear as an outline with a cross, and name their color on hover, and every color swatch keeps a visible edge on a dark panel.
 - Settings draws the download timeouts, WASM limits, download quota, cache and plugin actions, a missing model's Install and each plugin's switch on the label and controls columns, with each row's actions at its end, and labels the timeouts Connect timeout, Read timeout and Total timeout.
 - An empty text box draws its placeholder, such as Search, in the dimmer hint color so it no longer reads as a typed value.
@@ -1201,6 +1201,7 @@ Notes for the latest release. For previous releases, see the
 - File > Open Recent and File > Import Recent rows, and their palette entries, read the file's name, with its folder only when two listed files share a name, instead of a full path cut off before the name.
 - Effect Controls draws the stopwatch, keyframe navigator, reset button and time area on each crop inset row, so a keyed crop shows its keyframes and can be keyed, stepped and flattened from the Transform tab.
 - Effect Controls opens each tab at the top of its body instead of at the depth the previous tab was scrolled to.
+- The Effects tab of Effect Controls reads None under Effects when the clip has no effect, and draws its Add buttons on wrapping lines instead of one per line.
 
 ## [alpha-0.7.0] - 2026-07-22
 

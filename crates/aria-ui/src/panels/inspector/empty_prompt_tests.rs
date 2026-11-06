@@ -5,12 +5,12 @@
 //! a clip, or click a gap to edit the sequence.", but a gap press selects the
 //! gap for Delete and leaves the panel as it was, and nothing in the panel
 //! edits the sequence; the Effects tab over a clip with no effects drew its
-//! `Effects` heading over nothing, straight into `Presets`. Each statement is
-//! read where the panel draws it, and goes once there is something to show.
-//! The sentences are written here rather than read from the panel's
-//! constants, so a reworded statement turns this red until the copy is
-//! checked against the panel's behavior. Not covered: the Sequence readouts
-//! under the prompt.
+//! `Effects` heading over nothing, straight into `Presets`. It now reads None
+//! there, as Keyframes and Masks read over nothing. Each statement is read
+//! where the panel draws it, and goes once there is something to show. The
+//! words are written here rather than read from the panel, so a reworded
+//! statement turns this red until the copy is checked against the panel's
+//! behavior. Not covered: the Sequence readouts under the prompt.
 
 use aria_models::{ClipId, TrackId};
 use gpui::{TestAppContext, VisualTestContext};
@@ -20,8 +20,9 @@ use crate::app::AppState;
 use super::strip_tests::drawn_with;
 
 const PROMPT: &str = "Select a clip to edit its properties.";
-const NO_EFFECTS: &str =
-    "This clip has no effects. Drag one here from Effects & Presets, or choose one under Add.";
+/// The Effects heading, the note under it over an empty chain, and the next
+/// heading, as [`body_words`] joins them.
+const NO_EFFECTS: &str = "Effects None Presets";
 
 /// The words the Inspector's body draws, in order, one space apart.
 fn body_words(visual: &mut VisualTestContext) -> String {
@@ -107,7 +108,7 @@ async fn the_empty_panel_states_what_puts_a_clip_in_it(cx: &mut TestAppContext) 
 }
 
 #[gpui::test]
-async fn an_empty_effect_chain_states_where_an_effect_comes_from(cx: &mut TestAppContext) {
+async fn an_empty_effect_chain_reads_none_between_its_headings(cx: &mut TestAppContext) {
     let (state, visual) = drawn_with(
         cx,
         "inspector-empty-chain",
@@ -116,13 +117,9 @@ async fn an_empty_effect_chain_states_where_an_effect_comes_from(cx: &mut TestAp
         |_| {},
     );
     let drawn = body_words(visual);
-    let said = drawn
-        .find(NO_EFFECTS)
-        .unwrap_or_else(|| panic!("the Effects tab over a clip with no effects draws {drawn}"));
     assert!(
-        drawn[..said].ends_with("Effects ")
-            && drawn[said + NO_EFFECTS.len()..].starts_with(" Presets"),
-        "the statement stands between the Effects and Presets headings: {drawn}"
+        drawn.contains(NO_EFFECTS),
+        "the Effects tab over a clip with no effects draws {drawn}"
     );
 
     change(visual, &state, |state| {
@@ -132,7 +129,7 @@ async fn an_empty_effect_chain_states_where_an_effect_comes_from(cx: &mut TestAp
     });
     let drawn = body_words(visual);
     assert!(
-        !drawn.contains(NO_EFFECTS),
-        "a chain with a blur still states it is empty: {drawn}"
+        !drawn.contains("Effects None"),
+        "a chain with a blur still reads None: {drawn}"
     );
 }

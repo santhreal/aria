@@ -9,6 +9,8 @@ mod columns_tests;
 #[cfg(test)]
 mod empty_prompt_tests;
 #[cfg(test)]
+mod fx_tab_tests;
+#[cfg(test)]
 mod graph_tests;
 #[cfg(test)]
 mod keyframes_tests;
