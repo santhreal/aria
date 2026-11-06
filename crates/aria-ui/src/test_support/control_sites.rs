@@ -92,6 +92,10 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 0,
     },
     Forwarder {
+        name: "draft_box",
+        arg: 1,
+    },
+    Forwarder {
         name: "marker_action",
         arg: 1,
     },

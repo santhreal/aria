@@ -865,6 +865,7 @@ Notes for the latest release. For previous releases, see the
 - The fx badge on a clip with nothing applied draws in the clip's own ink and reads the same in the dark and light looks.
 - Settings > Appearance draws its mode, accent, theme, and motion choices as four groups, each under a row that reads its value, and the rows read Blue, Shipped, and Off instead of Accent: Blue, Theme: Shipped, and No motion.
 - Bold, Italic, Underline, Kerning, Stroke, Shadow and Card are switches on lines of their own on the Text tab and the Character panel, and the Text tab's case, alignment and preset rows read the choice in force and start on the label column.
+- Rename and Note on a Markers panel row edit the name and note in a text box on that row instead of in the centered rename bar.
 
 ### Fixed
 
@@ -1217,6 +1218,7 @@ Notes for the latest release. For previous releases, see the
 - Hold the crash recovery offer on `AppState` and refresh it on Home entry and recovery writes instead of reading `recovery.aria` from disk on every Home frame.
 - Hold the merged assistant skills list as shared strings on `AppState` and refresh it when the Assistant panel comes forward or a skill is installed instead of walking the skills directory on every frame.
 - The Assistant panel's empty-conversation prompt ends with a period, as every other empty-state prompt does.
+- The controls on a hovered Markers row stand on the row's own color instead of a darker box.
 
 ## [alpha-0.7.0] - 2026-07-22
 

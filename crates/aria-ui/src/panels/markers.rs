@@ -3,10 +3,10 @@
 //! A row states the time, the label, the color and the note of one marker, so
 //! a marker off screen on the ruler is still found here. Every control on a
 //! row is an existing marker command: click seeks, the swatch cycles the
-//! palette, Edit… opens the marker's dialog, Rename edits the label, Note
-//! edits the comment, and Remove deletes it. The four commands after the
-//! swatch are drawn on the row under the pointer. The color filter above the
-//! rows shows the markers of one color.
+//! palette, Edit… opens the marker's dialog, Rename edits the label and Note
+//! the comment in a text box on the row, and Remove deletes it. The four
+//! commands after the swatch are drawn on the row under the pointer. The
+//! color filter above the rows shows the markers of one color.
 //!
 //! The rows are the projected markers in projection order (by tick), which is
 //! the order the ruler draws them in; nothing here is computed beyond what the
@@ -15,7 +15,7 @@
 use crate::components::Wraps as _;
 use aria_core::count::counted;
 use gpui::{
-    CursorStyle, Entity, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
+    CursorStyle, Entity, Hsla, InteractiveElement, IntoElement, MouseButton, MouseDownEvent,
     ParentElement, SharedString, StatefulInteractiveElement, Styled, div, px,
 };
 
@@ -75,9 +75,22 @@ fn markers_panel(
             .into_any_element();
     }
 
+    // The draft of a Rename or Note begun on a row, which that row draws.
+    let draft = {
+        let app = state.read(cx);
+        app.open_draft().filter(|_| app.rename_in_row)
+    };
     let mut rows = Vec::with_capacity(markers.len());
     for (index, marker) in markers.iter().enumerate() {
-        rows.push(row(theme, marker, index, playhead, rate.num, rate.den, cx));
+        rows.push(row(
+            theme,
+            marker,
+            index,
+            playhead,
+            rate,
+            draft.as_ref(),
+            cx,
+        ));
     }
 
     div()
@@ -200,17 +213,22 @@ fn press(state: &mut AppState, pick: Pick) {
 /// seek. The controls stand over the end of the first line while the pointer
 /// is on the row, so a list of markers reads as a list rather than as a grid
 /// of buttons, and no row's name is covered while nothing points at it.
+///
+/// A Rename or Note begun on the row draws its `draft` in a text box in
+/// place of the name or under the first line, and the row holds no controls
+/// while it does.
 fn row(
     theme: &Theme,
     marker: &UiMarker,
     index: usize,
     playhead: i64,
-    rate_num: i32,
-    rate_den: i32,
+    rate: aria_models::Rational,
+    draft: Option<&crate::app::rename::OpenDraft>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let id = marker.id;
     let tick = marker.tick;
+    let (rate_num, rate_den) = (rate.num, rate.den);
     let at_playhead = tick == playhead;
     let key = motion::MotionKey::new("markers.row", id);
     let name = if marker.name.is_empty() {
@@ -219,18 +237,18 @@ fn row(
         marker.name.clone()
     };
     let comment = marker.comment.clone();
+    let editing = draft.filter(|(target, ..)| {
+        matches!(target, RenameTarget::Marker(m) | RenameTarget::MarkerComment(m) if *m == id)
+    });
+    let (name_draft, note_draft) = match editing {
+        Some((RenameTarget::Marker(_), line, selection)) => (Some((line, *selection)), None),
+        Some((_, line, selection)) => (None, Some((line, *selection))),
+        None => (None, None),
+    };
     let lit = motion::hover_t(key);
-    let fill = motion::mix(
-        if at_playhead {
-            theme.wash(0.11)
-        } else {
-            crate::components::band_fill(theme, index)
-        },
-        theme.wash(if at_playhead { 0.17 } else { 0.06 }),
-        lit,
-    );
+    let (fill, plate) = row_fills(theme, at_playhead, index, lit);
     // Drawn only while seen: a control at no opacity would still take a click.
-    let actions = (lit > 0.0).then(|| {
+    let actions = (lit > 0.0 && editing.is_none()).then(|| {
         div()
             .absolute()
             .top(px(Theme::SPACE_XS))
@@ -240,7 +258,7 @@ fn row(
             .items_center()
             .gap(px(Theme::SPACE_XS))
             .pl(px(Theme::SPACE_SM))
-            .bg(fill)
+            .bg(plate)
             .opacity(lit)
             .debug_selector(move || format!("marker-actions-{id}"))
             .child(edit_dialog_action(theme, id, cx))
@@ -308,15 +326,21 @@ fn row(
                             .child(SharedString::from(format!("+{dur}"))),
                     )
                 })
-                .child(
-                    div()
+                .child(match name_draft {
+                    Some(draft) => {
+                        draft_box(theme, "marker-name-draft", id, draft, "Marker name", cx)
+                            .flex_1()
+                            .into_any_element()
+                    }
+                    None => div()
                         .flex_1()
                         .min_w_0()
                         .truncate()
                         .text_size(Theme::TEXT_UI)
                         .text_color(theme.text)
-                        .child(name),
-                )
+                        .child(name)
+                        .into_any_element(),
+                })
                 .when(marker.kind != aria_models::MarkerKind::Comment, |el| {
                     el.child(
                         div()
@@ -334,18 +358,36 @@ fn row(
                     )
                 }),
         )
-        .when(!comment.is_empty(), |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_muted)
-                    .child(comment),
-            )
+        .map(|el| match note_draft {
+            Some(draft) => el.child(draft_box(theme, "marker-note-draft", id, draft, "Note", cx)),
+            None => el.when(!comment.is_empty(), |el| {
+                el.child(
+                    div()
+                        .text_size(Theme::TEXT_UI)
+                        .text_color(theme.text_muted)
+                        .child(comment),
+                )
+            }),
         })
         .when_some(actions, |el, actions| el.child(actions));
     // The rows arrive in their own order rather than all at once: a list that
     // blinks into place says nothing about how long it is.
     crate::pending::arriving(crate::motion::MotionKey::new("marker-in", id), index, card)
+}
+
+/// The fill of a marker row at hover `lit`, and the plate its controls stand
+/// on. The plate is the row's fill over the panel ground, opaque: it hides the
+/// end of the name under the controls and reads as the row itself, where the
+/// row's translucent fill drawn a second time reads as a darker box.
+fn row_fills(theme: &Theme, at_playhead: bool, index: usize, lit: f32) -> (Hsla, Hsla) {
+    let rest = if at_playhead {
+        theme.wash(0.11)
+    } else {
+        components::band_fill(theme, index)
+    };
+    let hover = theme.wash(if at_playhead { 0.17 } else { 0.06 });
+    let fill = motion::mix(rest, hover, lit);
+    (fill, crate::theme::flatten(fill, theme.bg))
 }
 
 /// The color chip. Clicking it advances the palette, which is the only edit a
@@ -412,11 +454,34 @@ fn marker_action(
         MouseButton::Left,
         cx.listener(move |this, _: &MouseDownEvent, _, cx| {
             cx.stop_propagation();
-            this.state.update(cx, |state, _| state.begin_rename(target));
+            this.state
+                .update(cx, |state, _| state.begin_rename_in_row(target));
             cx.notify();
         }),
     )
     .into_any_element()
+}
+
+/// The text box a Rename or Note begun on a row draws its draft in. The keys
+/// reach the draft through the rename route, as they reach the rename bar; a
+/// press in the box is not a seek, and a press anywhere else cancels the
+/// draft, as one off the rename bar does.
+fn draft_box(
+    theme: &Theme,
+    id_prefix: &'static str,
+    marker: u64,
+    (line, selection): (&String, (usize, usize)),
+    placeholder: &'static str,
+    cx: &mut gpui::Context<crate::shell::Shell>,
+) -> gpui::Stateful<gpui::Div> {
+    let key = motion::MotionKey::new(id_prefix, marker);
+    components::text_box(key, line, placeholder, Some(selection), theme)
+        .debug_selector(move || format!("{id_prefix}-{marker}"))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_mouse_down_out(cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            this.state.update(cx, |state, _| state.cancel_rename());
+            cx.notify();
+        }))
 }
 
 fn edit_dialog_action(
@@ -441,3 +506,7 @@ fn edit_dialog_action(
     )
     .into_any_element()
 }
+
+#[cfg(test)]
+#[path = "markers_tests.rs"]
+mod tests;

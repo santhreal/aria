@@ -224,6 +224,10 @@ pub struct AppState {
     pub rename: Option<crate::types::RenameTarget>,
     /// The draft of the rename in progress, with its caret and selection.
     pub rename_draft: super::line_text::LineText,
+    /// Whether the rename in progress is drawn in the row that lists its
+    /// target rather than in the rename bar: a Markers panel row's Rename and
+    /// Note.
+    pub rename_in_row: bool,
     /// The clock's draft while a playhead field holds focus. `None` means the
     /// fields are showing the playhead.
     pub clock_draft: Option<super::line_text::LineText>,

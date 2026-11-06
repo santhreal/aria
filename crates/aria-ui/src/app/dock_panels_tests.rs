@@ -12,6 +12,8 @@
 //! - A click on a History row moves the project to that step.
 //! - A Markers row is one line and draws its controls only under the pointer,
 //!   over the end of that line, and Remove there deletes without seeking.
+//! - Rename and Note on a Markers row edit in a text box on that row, with no
+//!   rename bar; Enter applies the draft and a press off the box cancels it.
 //! - The Color panel draws for a selected clip, and Reset grade returns the
 //!   grade to neutral.
 //!
@@ -456,5 +458,153 @@ fn a_marker_row_is_one_line_and_draws_its_controls_under_the_pointer(
     assert_eq!(
         playhead, later,
         "the click on Remove also seeked to the marker"
+    );
+}
+
+/// WHY: Rename and Note on a Markers row opened the centered rename bar over a
+/// scrim across the window, away from the row they edit. Each opens a text box
+/// on its own row: Rename on the first line in place of the name, Note under
+/// that line. No rename bar is drawn, the row draws no controls over the box,
+/// no other row draws one, typed text and Enter apply to that marker, and a
+/// press off the box cancels the draft. Not covered: Escape, which the rename
+/// key route handles for every target alike.
+#[gpui::test]
+fn a_markers_rename_and_note_edit_in_their_row(cx: &mut gpui::TestAppContext) {
+    use crate::surfaces::markers_pick::{self, Pick};
+    use crate::theme::Theme;
+    use gpui::{Modifiers, point, px};
+
+    cx.executor().allow_parking();
+    let (state, visual) = crate::test_support::drawn_shell(cx, "markers-drafts");
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let (first, second) = visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            let media = state.import_media(fixture()).expect("import fixture");
+            state
+                .drop_media_on_timeline(media, None, 0)
+                .expect("place clip");
+            let later = state.store.sequence.duration_ticks / 2;
+            for tick in [0, later] {
+                state.set_playhead(tick);
+                markers_pick::apply(state, Pick::AddAtPlayhead).expect("a marker at the playhead");
+            }
+            let drawn = state.visible_markers();
+            assert_eq!(drawn.len(), 2, "two markers on the ruler");
+            state.focus_dock_panel(PANEL_MARKERS);
+            cx.notify();
+            (drawn[0].id, drawn[1].id)
+        })
+    });
+    visual.run_until_parked();
+
+    let bounds = |visual: &mut gpui::VisualTestContext, name: String| {
+        visual.debug_bounds(crate::interned::intern(&name))
+    };
+    let texts = |visual: &mut gpui::VisualTestContext| {
+        visual.update(|window, _| window.rendered_text_runs().to_vec())
+    };
+    let held = |visual: &mut gpui::VisualTestContext| {
+        visual.read(|app| {
+            let state = state.read(app);
+            let marker = state.visible_markers().into_iter().find(|m| m.id == first);
+            let marker = marker.expect("the first marker is gone");
+            (marker.name.to_string(), marker.comment.to_string())
+        })
+    };
+    // The first line of a row: its top inset and one control.
+    let line = px(Theme::SPACE_XS + Theme::CONTROL_HEIGHT);
+    let eps = px(0.5);
+    // Opens `label` on the first row from the control under the pointer.
+    let open = |visual: &mut gpui::VisualTestContext, label: &str| {
+        visual.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+        let row = bounds(visual, format!("marker-row-{first}")).expect("no first row");
+        visual.simulate_mouse_move(row.center(), None, Modifiers::none());
+        visual.run_until_parked();
+        let shown = bounds(visual, format!("marker-actions-{first}"))
+            .expect("the row under the pointer draws no controls");
+        let control = texts(visual)
+            .into_iter()
+            .find(|run| run.text.as_ref() == label && shown.contains(&run.bounds.center()))
+            .unwrap_or_else(|| panic!("the row's controls draw no {label}"));
+        visual.simulate_click(control.bounds.center(), Modifiers::none());
+        visual.run_until_parked();
+    };
+
+    for (label, field, typed) in [
+        ("Rename", "marker-name-draft", "Wide shot"),
+        ("Note", "marker-note-draft", "Check focus"),
+    ] {
+        open(visual, label);
+        assert!(
+            !texts(visual)
+                .iter()
+                .any(|run| run.text.as_ref() == "Enter to apply, Esc to cancel"),
+            "{label} on a Markers row opened the rename bar"
+        );
+        let row = bounds(visual, format!("marker-row-{first}")).expect("no first row");
+        let draft = bounds(visual, format!("{field}-{first}"))
+            .unwrap_or_else(|| panic!("{label} draws no text box on its row"));
+        assert!(
+            draft.left() >= row.left() && draft.right() <= row.right(),
+            "{label}'s box {draft:?} stands outside its row {row:?}"
+        );
+        let (top, bottom) = match label {
+            "Rename" => (row.top(), row.top() + line),
+            _ => (row.top() + line, row.bottom()),
+        };
+        assert!(
+            draft.top() >= top - eps && draft.bottom() <= bottom + eps,
+            "{label}'s box {draft:?} is not in {top:?}..{bottom:?} of its row {row:?}"
+        );
+        assert_eq!(
+            bounds(visual, format!("{field}-{second}")),
+            None,
+            "a row with no draft draws a text box"
+        );
+        assert_eq!(
+            bounds(visual, format!("marker-actions-{first}")),
+            None,
+            "the row draws its controls over its draft"
+        );
+        // A press in the box keeps the draft and is not a seek to the marker.
+        let playhead = visual.read(|app| state.read(app).playhead.value);
+        visual.simulate_click(draft.center(), Modifiers::none());
+        visual.run_until_parked();
+        let (after, kept) = visual.read(|app| {
+            let state = state.read(app);
+            (state.playhead.value, state.rename.is_some())
+        });
+        assert_eq!(after, playhead, "a press in {label}'s box seeked");
+        assert!(kept, "a press in {label}'s box dropped the draft");
+
+        visual.simulate_input(typed);
+        visual.simulate_keystrokes("enter");
+        visual.run_until_parked();
+        let (name, comment) = held(visual);
+        let applied = if label == "Rename" { name } else { comment };
+        assert_eq!(applied, typed, "{label} applied the wrong text");
+        assert_eq!(
+            bounds(visual, format!("{field}-{first}")),
+            None,
+            "{label}'s box outlived Enter"
+        );
+    }
+
+    // A press off the box drops the draft and leaves the name as it was.
+    open(visual, "Rename");
+    visual.simulate_input("Discarded");
+    let other = bounds(visual, format!("marker-row-{second}")).expect("no second row");
+    visual.simulate_click(other.center(), Modifiers::none());
+    visual.run_until_parked();
+    assert_eq!(visual.read(|app| state.read(app).rename), None);
+    assert_eq!(
+        held(visual).0,
+        "Wide shot",
+        "a press off the box applied it"
+    );
+    assert_eq!(
+        bounds(visual, format!("marker-name-draft-{first}")),
+        None,
+        "the box outlived a press off it"
     );
 }

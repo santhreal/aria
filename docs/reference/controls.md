@@ -280,9 +280,11 @@ The Markers panel (`crates/aria-ui/src/panels/markers.rs`) renders playhead mark
 | `marker-add` | Add at playhead | Adds a new sequence marker at the current playhead frame. | None |
 | `marker-edit` (per row) | Edit… | Opens the Marker Edit dialog for the marker row. | None |
 | `marker-filter-all` | All | Clears the marker color filter in the Markers panel to show all markers. | None |
-| `marker-note` (per row) | Note | Opens the inline editor for the marker's comment. | None |
+| `marker-name-draft` (per row) | Marker name | Holds the name a Rename on the row edits. Enter applies it; Esc or a press outside the box cancels. | None |
+| `marker-note` (per row) | Note | Opens a text box on the row for the marker's comment. | None |
+| `marker-note-draft` (per row) | Note | Holds the comment a Note on the row edits. Enter applies it; Esc or a press outside the box cancels. | None |
 | `marker-remove` (per row) | Remove | Deletes the marker row from the sequence or clip. | None |
-| `marker-rename` (per row) | Rename | Opens the inline editor for the marker's name. | None |
+| `marker-rename` (per row) | Rename | Opens a text box on the row for the marker's name. | None |
 
 ## Color
 

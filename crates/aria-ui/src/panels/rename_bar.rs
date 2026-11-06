@@ -1,8 +1,11 @@
 //! The visible surface for an in-progress inline rename.
 //!
-//! A single centered bar serves every [`RenameTarget`], because the rename state
-//! is one field rather than one field per surface. Keys are routed by the shell,
-//! so this draws the draft, its selection and its caret, and nothing else.
+//! A single centered bar serves every [`crate::types::RenameTarget`] begun
+//! outside a list row, because the rename state is one field rather than one
+//! field per surface. A rename begun in the row that lists its target, such
+//! as a Markers panel row's Rename, is drawn in that row and has no bar. Keys are
+//! routed by the shell, so this draws the draft, its selection and its caret,
+//! and nothing else.
 
 use std::cell::RefCell;
 
@@ -15,12 +18,10 @@ use crate::app::AppState;
 use crate::motion::{self, CARET_BLINK};
 use crate::plugins::overlay_host::{self as overlays, OverlayWhen};
 use crate::theme::Theme;
-use crate::types::RenameTarget;
 use gpui::prelude::FluentBuilder;
 
-/// A rename as the bar draws it: the target, the draft, and the draft's
-/// `(anchor, caret)` in characters.
-type Drawn = (RenameTarget, String, (usize, usize));
+/// A rename as the bar draws it.
+type Drawn = crate::app::rename::OpenDraft;
 
 thread_local! {
     /// The rename the bar drew last, so the exit has something to draw.
@@ -35,13 +36,12 @@ pub fn render(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
-    let open = {
-        let app = state.read(cx);
-        app.rename.map(|target| {
-            let draft = &app.rename_draft;
-            (target, draft.to_string(), draft.selection())
-        })
-    };
+    // A rename drawn in its own row has no bar, and leaves none to fade out.
+    if state.read(cx).rename.is_some() && state.read(cx).rename_in_row {
+        LAST_DRAFT.with(|slot| *slot.borrow_mut() = None);
+        return div().into_any_element();
+    }
+    let open = state.read(cx).open_draft();
     let exiting = match open {
         Some(_) => None,
         None => overlays::exit_t(OverlayWhen::Rename, state, cx),

@@ -25,9 +25,11 @@ marker's color, timecode, duration when positive, name, kind badge when not
 `Comment`, clip badge for clip markers, and note. Clicking a row moves the
 playhead to the marker. Clicking the color swatch cycles the eight-color
 palette. The row under the pointer shows **Edit…**, which opens the Edit
-Marker dialog, **Rename**, which edits the name inline, **Note**, which edits
-the comment inline (an empty note clears the comment), and **Remove**, which
-deletes the marker. Every edit is one undo step. A marker with a positive
+Marker dialog, **Rename**, which edits the name in a text box in place of it,
+**Note**, which edits the comment in a text box under the row's first line (an
+empty note clears the comment), and **Remove**, which deletes the marker.
+Enter applies the text in a box; Esc or a click outside the box discards it.
+Every edit is one undo step. A marker with a positive
 duration draws as a range bar on the timeline ruler or on its clip card, and
 snapping targets both ends of a range marker.
 

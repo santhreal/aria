@@ -207,6 +207,7 @@ impl AppState {
             palette_scroll: gpui::ScrollHandle::new(),
             rename: None,
             rename_draft: Default::default(),
+            rename_in_row: false,
             clock_draft: None,
             clock_site: Default::default(),
             clock_display: gpui::SharedString::new_static("00:00:00:00"),

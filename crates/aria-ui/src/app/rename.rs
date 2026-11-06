@@ -29,6 +29,10 @@ pub(crate) const RENAME_MAX_LEN: usize = 64;
 /// What a rename draft takes.
 pub(crate) const RENAME_RULE: LineRule = LineRule::chars(RENAME_MAX_LEN);
 
+/// An open rename as a surface draws it: its target, its draft, and the
+/// draft's `(anchor, caret)` in characters.
+pub(crate) type OpenDraft = (RenameTarget, String, (usize, usize));
+
 impl AppState {
     /// Begin renaming `target`, seeding the draft with its current name, all of
     /// it selected.
@@ -36,11 +40,30 @@ impl AppState {
     /// Inert when the target no longer exists, so a stale menu cannot open a
     /// rename over nothing.
     pub fn begin_rename(&mut self, target: RenameTarget) {
+        self.open_rename(target, false);
+    }
+
+    /// Begin renaming `target` in the row that lists it, which draws the draft
+    /// in place of the rename bar. Inert, as [`Self::begin_rename`] is, when
+    /// the target no longer exists.
+    pub fn begin_rename_in_row(&mut self, target: RenameTarget) {
+        self.open_rename(target, true);
+    }
+
+    fn open_rename(&mut self, target: RenameTarget, in_row: bool) {
         let Some(current) = self.current_name(target) else {
             return;
         };
         self.rename_draft = LineText::selecting_all(current);
         self.rename = Some(target);
+        self.rename_in_row = in_row;
+    }
+
+    /// The open rename as a surface draws it, or `None` while none is open.
+    pub(crate) fn open_draft(&self) -> Option<OpenDraft> {
+        let draft = &self.rename_draft;
+        self.rename
+            .map(|target| (target, draft.to_string(), draft.selection()))
     }
 
     /// Begin renaming the marker under the playhead. Inert when there is none.
