@@ -190,3 +190,147 @@ fn resolved_for_encoder_respects_audio_capability_and_validates_bounds() {
         }))
     ));
 }
+
+/// A one-second project whose pool holds `media` and nothing on its timeline
+/// that reads it, so a refusal can only come from the destination check.
+fn with_media(media: &std::path::Path) -> Project {
+    let mut project = one_second();
+    project.add_media(aria_models::MediaSource::new(
+        media, 64, 64, FPS, FRAMES, true,
+    ));
+    project
+}
+
+fn destination_refusal(result: Result<(), RenderError>) -> Option<ExportInput> {
+    match result {
+        Ok(()) => None,
+        Err(RenderError::DestinationIsInput { what, .. }) => Some(what),
+        Err(other) => panic!("expected the destination check, got {other:?}"),
+    }
+}
+
+/// WHY: `aria export p.aria clip.mp4` with `clip.mp4` in the pool, and
+/// `aria export p.aria p.aria`, exited 0 after replacing the footage or the
+/// project with the export. The check is the one owner of "is this destination
+/// an input", every spelling of one file matches, and a file that is not an
+/// input, or a destination that does not exist yet, passes. Not caught: a
+/// hard link to a source, which publishing leaves intact anyway.
+#[test]
+fn a_destination_that_is_an_input_is_refused_in_every_spelling() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let sub = dir.path().join("sub");
+    std::fs::create_dir(&sub).expect("sub");
+    let media = dir.path().join("clip.mp4");
+    let project_file = dir.path().join("p.aria");
+    let other = dir.path().join("other.mp4");
+    for file in [&media, &project_file, &other] {
+        std::fs::write(file, b"input").expect("write input");
+    }
+    let project = with_media(&media);
+    let check = |destination: &std::path::Path| {
+        destination_refusal(check_export_destination(
+            &project,
+            destination,
+            Some(&project_file),
+        ))
+    };
+
+    assert_eq!(check(&media), Some(ExportInput::Media));
+    assert_eq!(check(&sub.join("../clip.mp4")), Some(ExportInput::Media));
+    assert_eq!(check(&project_file), Some(ExportInput::Project));
+    assert_eq!(check(&sub.join("./../p.aria")), Some(ExportInput::Project));
+    #[cfg(unix)]
+    {
+        let link = dir.path().join("link.mp4");
+        std::os::unix::fs::symlink(&media, &link).expect("symlink");
+        assert_eq!(check(&link), Some(ExportInput::Media));
+    }
+    assert_eq!(check(&other), None, "a file the export does not read");
+    assert_eq!(check(&dir.path().join("new.mp4")), None, "a new file");
+    assert_eq!(
+        destination_refusal(check_export_destination(&project, &project_file, None)),
+        None,
+        "without a project file only the media are inputs"
+    );
+
+    let message = check_export_destination(&project, &media, None)
+        .expect_err("media")
+        .to_string();
+    assert_eq!(
+        message,
+        format!(
+            "{} is media this project uses; export to another file",
+            media.display()
+        )
+    );
+}
+
+/// Every file publisher runs the check before it opens an encoder or renders,
+/// and the input is left byte for byte. The sound export needs no GPU; the
+/// video and frame exports run where a headless renderer opens.
+#[test]
+fn every_file_publisher_leaves_an_input_destination_as_it_was() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let media = dir.path().join("clip.mp4");
+    std::fs::write(&media, b"the footage").expect("write media");
+    let project = with_media(&media);
+    let settings = ExportSettings::for_project(&project);
+    let unchanged = |what: &str| {
+        assert_eq!(
+            std::fs::read(&media).expect("read media"),
+            b"the footage",
+            "{what} changed the input"
+        );
+    };
+
+    let sound = crate::export_audio_to_file_observed(&project, &media, settings, &mut |_, _| {
+        panic!("the sound export started before the destination check")
+    });
+    assert!(
+        matches!(
+            sound,
+            Err(RenderError::DestinationIsInput {
+                what: ExportInput::Media,
+                ..
+            })
+        ),
+        "sound: {sound:?}"
+    );
+    unchanged("the sound export");
+
+    let Ok(mut renderer) = crate::Renderer::new_headless() else {
+        return;
+    };
+    let video = export_to_file_with_encoder_observed(
+        &mut renderer,
+        &project,
+        &media,
+        settings,
+        &mut |_, _| panic!("the video export opened an encoder before the destination check"),
+        &mut |_, _| true,
+    );
+    assert!(
+        matches!(
+            video,
+            Err(RenderError::DestinationIsInput {
+                what: ExportInput::Media,
+                ..
+            })
+        ),
+        "video: {video:?}"
+    );
+    unchanged("the video export");
+
+    let frame = crate::export_frame_png(&mut renderer, &project, RationalTime::new(0, FPS), &media);
+    assert!(
+        matches!(
+            frame,
+            Err(RenderError::DestinationIsInput {
+                what: ExportInput::Media,
+                ..
+            })
+        ),
+        "frame: {frame:?}"
+    );
+    unchanged("the frame export");
+}

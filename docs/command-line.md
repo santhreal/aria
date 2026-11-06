@@ -54,6 +54,9 @@ file starts where every lane it lands on is free. Assembly runs through
 `Engine::apply`, so the saved project satisfies every timeline invariant and
 opens in the editor without repair.
 
+An `<out.aria>` that already exists, as a file, a folder, or a link, fails
+with exit code `2` and is left as it was.
+
 `--fps` selects an exact rational rate (`23.976` is `24000/1001` and `29.97` is
 `30000/1001`). Any rate outside the list is rejected with exit code `2`.
 
@@ -77,7 +80,8 @@ is omitted, the image is written to `aria-frame.png`.
 
 An `--at` at or past the end of the timeline fails with exit code `2`, the
 same refusal `aria export --at` prints. An empty timeline fails with exit code
-`1`. Neither writes the PNG.
+`1`. An `[out.png]` that is the project file or a media file the project uses
+fails with exit code `2`. None of these writes the PNG.
 
 ```
 aria frame rough.aria thumb.png --at 12.5 --fit 640x360
@@ -109,7 +113,9 @@ encoded file starts at timestamp zero regardless of where the span begins.
 
 A codec this machine cannot write is rejected by name, with the list of
 supported codecs. A `--bitrate` that the selected encoder cannot honor is
-rejected as well. `aria export` prints the frame count, dimensions, container,
+rejected as well, and so is an `<out.mp4>` that is the project file or a media
+file the project uses (exit code `2`, the file unchanged). `aria export` prints
+the frame count, dimensions, container,
 and codec on stdout, followed by the encoder that opened (with `hardware` or
 `software`) and one `skipped` line for each earlier encoder candidate that did
 not open:

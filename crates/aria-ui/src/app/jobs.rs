@@ -642,6 +642,14 @@ impl AppState {
         // A snapshot, not a copy: the project is copied once, by the next edit,
         // only if one lands while the export still reads it.
         let project = self.host.snapshot();
+        // An export over the project file or one of its media replaced the
+        // input with the export; it is refused here, before a job exists.
+        aria_render::check_export_destination(
+            &project,
+            &request.destination,
+            self.project_path.as_deref(),
+        )
+        .map_err(|err| describe_export_refusal(&err))?;
         // One map for both arms, so an export with a plugin encoder and one
         // without are refused in the same words.
         let settings = match request.plugin_encoder.as_deref() {

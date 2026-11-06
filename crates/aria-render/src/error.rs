@@ -58,6 +58,17 @@ pub enum RenderError {
     #[error("{0}")]
     Format(#[from] ExportFormatError),
 
+    /// The destination is a file the export reads.
+    ///
+    /// Publishing replaces the destination, so an export over a source
+    /// replaced the footage the project plays, and an export over the project
+    /// file replaced the project.
+    #[error("{} is {what}; export to another file", path.display())]
+    DestinationIsInput {
+        path: std::path::PathBuf,
+        what: ExportInput,
+    },
+
     /// The work was abandoned because whoever asked for it no longer wants it.
     ///
     /// Two callers raise this. An observed export cancelled by its progress
@@ -96,6 +107,24 @@ impl EmptyExport {
     /// set rather than against whichever reason someone remembered. Adding a
     /// variant changes this array's length and breaks both.
     pub const ALL: [Self; 3] = [Self::Sequence, Self::Range, Self::Silence];
+}
+
+/// The input an export destination would have replaced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportInput {
+    /// The project file being exported.
+    Project,
+    /// A media file in the project's pool.
+    Media,
+}
+
+impl std::fmt::Display for ExportInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ExportInput::Project => "the project file",
+            ExportInput::Media => "media this project uses",
+        })
+    }
 }
 
 /// A choice an export asked for that this machine cannot honor.

@@ -88,6 +88,10 @@ project:
 frames…** prompts for a folder and writes the frames as an image sequence,
 with the same scale, rate, and range.
 
+An export to the project file, or to a file the project uses as media, fails
+before a job starts and leaves the file as it was. The status line names the
+file. Pick another path.
+
 The status line states the size, whether audio is included, and the span when the
 export starts.
 

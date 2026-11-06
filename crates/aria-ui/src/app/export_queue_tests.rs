@@ -642,3 +642,49 @@ fn cancel_mid_export_and_duplicate_destination_clean_up_partial_file_within_boun
         Some("Cancelled exporting partial.mp4")
     );
 }
+
+/// WHY: Export As… onto the project file or onto a file in the pool queued
+/// the job, and publishing the export replaced the project or the footage
+/// with it. Both are refused at enqueue, before a job exists, with the render
+/// path's words. The runner here writes nothing, so a regression queues a job
+/// rather than overwriting the fixture. Not caught: a project path set by
+/// something other than `project_path`.
+#[test]
+fn an_export_over_the_project_file_or_a_pool_file_is_refused_before_a_job_exists() {
+    let (mut state, _clip) = with_clip();
+    let runner: ExportRunner = Arc::new(|_, _, _, _| Err("the runner ran".to_string()));
+    state.export_queue.set_runner(runner);
+    let dir = crate::scratch_pool::scratch("export_over_input");
+    let project_file = dir.join("p.aria");
+    std::fs::write(&project_file, b"the project").expect("write project file");
+    state.project_path = Some(project_file.clone());
+    let media = state
+        .host
+        .snapshot()
+        .media_iter()
+        .next()
+        .expect("the clip's media")
+        .path()
+        .to_path_buf();
+
+    for (destination, what) in [
+        (project_file.clone(), "the project file"),
+        (media.clone(), "media this project uses"),
+    ] {
+        let err = state
+            .export_job(destination.clone())
+            .expect_err("an export over an input is queued");
+        assert_eq!(
+            err,
+            format!(
+                "{} is {what}; export to another file",
+                destination.display()
+            )
+        );
+        assert!(state.export_queue.snapshot().is_empty(), "{what}: queued");
+    }
+    assert_eq!(
+        std::fs::read(&project_file).expect("read project file"),
+        b"the project"
+    );
+}

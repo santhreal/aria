@@ -47,6 +47,7 @@ pub fn export_audio_to_file_observed(
     settings: ExportSettings,
     observer: ExportObserver<'_>,
 ) -> Result<u64, RenderError> {
+    crate::export::check_export_destination(project, path, None)?;
     let frames = export_frame_count(project, settings)?;
     if !settings.audio {
         return Err(RenderError::Unsupported(

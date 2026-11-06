@@ -1273,6 +1273,8 @@ Notes for the latest release. For previous releases, see the
 - `aria export` prints its progress line only when stderr is a terminal.
 - `aria --version` prints the version.
 - On Linux, exported MP4 files trim the AAC encoder's priming delay and trailing frame padding in the sound track's edit list so decoded audio starts on sample 0 and ends at the sequence duration.
+- An export or `aria frame` to the project file or to a media file the project uses fails before writing instead of replacing that file.
+- `aria new` fails with exit 2 when its output already exists instead of saving a project over it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

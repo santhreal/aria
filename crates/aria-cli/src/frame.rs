@@ -22,6 +22,8 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let fit = args.size("fit")?;
 
     let project = project::load(&path)?;
+    aria_render::check_export_destination(&project, &out, Some(&path))
+        .map_err(|err| Failure::Usage(err.to_string()))?;
     let rate = project.timeline().frame_rate;
     let duration = project.timeline().duration();
     if duration.value <= 0 {
@@ -129,6 +131,71 @@ mod tests {
             );
             assert_eq!(err.code(), 2, "--at {at}");
             assert!(!png.exists(), "--at {at} wrote {}", png.display());
+        }
+    }
+
+    /// WHY: `aria frame p.aria p.aria` and `aria export p.aria p.aria`
+    /// replaced the project with a PNG or an MP4 and exited 0, and naming a
+    /// file in the pool as the output replaced the footage. Both verbs fail
+    /// with a usage error (exit 2) before a renderer opens, and the input keeps
+    /// its bytes. Not caught: `demo`, which reads no project.
+    #[test]
+    fn an_output_that_is_an_input_is_a_usage_error_for_every_verb_that_writes() {
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let media = dir.path().join("clip.mp4");
+        std::fs::copy(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/fixture-640x360-30fps-3s.mp4"),
+            &media,
+        )
+        .expect("copy the fixture");
+        let project = dir.path().join("p.aria");
+        let new = [
+            "new".to_owned(),
+            project.to_string_lossy().into_owned(),
+            media.to_string_lossy().into_owned(),
+        ];
+        crate::new::run(&Args::parse(new.iter().map(String::as_str)).expect("parse"))
+            .expect("aria new");
+        let inputs = [
+            (project.clone(), "the project file"),
+            (media.clone(), "media this project uses"),
+        ];
+        let before: Vec<Vec<u8>> = inputs
+            .iter()
+            .map(|(path, _)| std::fs::read(path).expect("read input"))
+            .collect();
+        for verb in ["frame", "export"] {
+            for (output, what) in &inputs {
+                let argv = [
+                    verb.to_owned(),
+                    project.to_string_lossy().into_owned(),
+                    output.to_string_lossy().into_owned(),
+                ];
+                let args = Args::parse(argv.iter().map(String::as_str)).expect("parse");
+                let run = if verb == "frame" {
+                    run
+                } else {
+                    crate::export::run
+                };
+                let err = run(&args).expect_err("an output over an input was written");
+                assert_eq!(
+                    err,
+                    Failure::Usage(format!(
+                        "{} is {what}; export to another file",
+                        output.display()
+                    )),
+                    "{verb} over {what}"
+                );
+            }
+        }
+        for ((path, _), bytes) in inputs.iter().zip(&before) {
+            assert_eq!(
+                &std::fs::read(path).expect("read input"),
+                bytes,
+                "{}",
+                path.display()
+            );
         }
     }
 

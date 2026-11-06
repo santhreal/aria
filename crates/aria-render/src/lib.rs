@@ -50,12 +50,12 @@ pub use driver::{
     driver_faults_revision, driver_input, driver_languages, driver_reference, driver_target,
     driver_template, register_driver_language, set_driver_budget,
 };
-pub use error::{EmptyExport, ExportFormatError, MIN_EXPORT_DIM, RenderError};
+pub use error::{EmptyExport, ExportFormatError, ExportInput, MIN_EXPORT_DIM, RenderError};
 pub use export::{
-    EncoderOpener, ExportObserver, ExportSettings, Exported, PngSequenceEncoder, decode_png,
-    encode_png, even_export_size, export, export_config, export_config_with, export_frame_count,
-    export_frame_png, export_observed, export_to_file, export_to_file_observed,
-    export_to_file_with_encoder_observed,
+    EncoderOpener, ExportObserver, ExportSettings, Exported, PngSequenceEncoder,
+    check_export_destination, decode_png, encode_png, even_export_size, export, export_config,
+    export_config_with, export_frame_count, export_frame_png, export_observed, export_to_file,
+    export_to_file_observed, export_to_file_with_encoder_observed,
 };
 #[doc(hidden)]
 pub use export_audio::export_audio_bench;

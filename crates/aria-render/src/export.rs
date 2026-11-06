@@ -21,7 +21,7 @@ use aria_core::{
 };
 use aria_models::Project;
 
-use crate::error::{EmptyExport, ExportFormatError, MIN_EXPORT_DIM, RenderError};
+use crate::error::{EmptyExport, ExportFormatError, ExportInput, MIN_EXPORT_DIM, RenderError};
 use crate::export_audio::feed::AudioFeed;
 use crate::export_audio::{
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
@@ -303,6 +303,35 @@ pub fn export_to_file_observed(
     .map(|exported| exported.frames)
 }
 
+/// Fail when `destination` names a file the export reads: one of `project`'s
+/// media, or `project_file` when the caller has one. Every file publisher
+/// calls this before anything renders, since publishing replaces the
+/// destination: an export over a source replaced the footage the project
+/// plays, and one over the project file replaced the project. Paths are
+/// compared after resolving links and `..`, so two spellings of one file
+/// match. A destination that does not exist yet is no input.
+pub fn check_export_destination(
+    project: &Project,
+    destination: &Path,
+    project_file: Option<&Path>,
+) -> Result<(), RenderError> {
+    let Ok(target) = std::fs::canonicalize(destination) else {
+        return Ok(());
+    };
+    let is_target = |path: &Path| std::fs::canonicalize(path).is_ok_and(|path| path == target);
+    let what = if project_file.is_some_and(is_target) {
+        ExportInput::Project
+    } else if project.media_iter().any(|media| is_target(media.path())) {
+        ExportInput::Media
+    } else {
+        return Ok(());
+    };
+    Err(RenderError::DestinationIsInput {
+        path: destination.to_path_buf(),
+        what,
+    })
+}
+
 /// A finished file export: the frames written and the encoder that wrote them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Exported {
@@ -326,6 +355,7 @@ pub fn export_to_file_with_encoder_observed(
     open_encoder: EncoderOpener<'_>,
     observer: ExportObserver<'_>,
 ) -> Result<Exported, RenderError> {
+    check_export_destination(project, path, None)?;
     let settings = settings.evened();
     export_frame_count(project, settings)?;
     let staging = TransactionalFile::new(path)?;

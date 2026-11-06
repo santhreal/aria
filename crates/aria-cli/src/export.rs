@@ -39,6 +39,8 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     }
 
     let project = project::load(&source)?;
+    aria_render::check_export_destination(&project, &out, Some(&source))
+        .map_err(|err| Failure::Usage(err.to_string()))?;
     let rate = project.timeline().frame_rate;
     let duration = project.timeline().duration();
     let range = match resolve_export_range(at, to, duration, rate) {

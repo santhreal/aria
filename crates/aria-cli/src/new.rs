@@ -38,6 +38,14 @@ pub(crate) const RATES: [(&str, Rational); 7] = [
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let out = args.required_path(0, "an output project file")?;
+    // Saving replaces the output, so `aria new clip.mp4 other.mp4`, the output
+    // left out, replaced the footage with a project.
+    if std::fs::symlink_metadata(&out).is_ok() {
+        return Err(Failure::Usage(format!(
+            "{} already exists; aria new writes a new project file",
+            out.display()
+        )));
+    }
     let media: Vec<PathBuf> = args.positional[1..].iter().map(PathBuf::from).collect();
     let rate = rate_from(args)?;
 
@@ -338,5 +346,43 @@ mod tests {
             .collect();
         assert!(links[0].is_some(), "the shot's sound is linked");
         assert_eq!(links[0], links[1], "the picture and its sound share a link");
+    }
+
+    /// WHY: `aria new a.mp4 b.mp4`, with the output left out, saved a project
+    /// over `a.mp4`, and `aria new p.aria` replaced an existing project; both
+    /// exited 0. An output that exists, as a file, a folder or a link, is a
+    /// usage error and keeps its bytes. Not caught: a file created between the
+    /// check and the save.
+    #[test]
+    fn an_output_that_exists_is_a_usage_error_and_keeps_its_bytes() {
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let file = dir.path().join("a.mp4");
+        std::fs::write(&file, b"the footage").expect("write file");
+        let folder = dir.path().join("folder.aria");
+        std::fs::create_dir(&folder).expect("create folder");
+        let mut outputs = vec![file.clone(), folder];
+        #[cfg(unix)]
+        {
+            let dangling = dir.path().join("dangling.aria");
+            std::os::unix::fs::symlink(dir.path().join("missing"), &dangling).expect("symlink");
+            outputs.push(dangling);
+        }
+        for out in outputs {
+            let args = Args::parse(["new", out.to_str().expect("utf-8 path")]).expect("parse");
+            assert_eq!(
+                run(&args),
+                Err(Failure::Usage(format!(
+                    "{} already exists; aria new writes a new project file",
+                    out.display()
+                ))),
+                "{}",
+                out.display()
+            );
+        }
+        assert_eq!(std::fs::read(&file).expect("read file"), b"the footage");
+        assert!(
+            !dir.path().join("missing").exists(),
+            "the link was followed"
+        );
     }
 }
