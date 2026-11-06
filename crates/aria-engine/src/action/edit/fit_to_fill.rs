@@ -1,4 +1,7 @@
-use aria_models::{ClipId, MediaId, Rational, RationalTime, TimeRange, TrackId, resample};
+use aria_models::{
+    ClipId, MediaId, ModelError, Rational, RationalTime, TimeError, TimeRange, TrackId,
+    check_same_rate, resample,
+};
 
 use crate::action::edit::{add_clip, move_clip, overwrite, set_speed, shift_clips};
 use crate::action::{ApplyContext, CompoundAction, EditAction};
@@ -47,6 +50,9 @@ pub(crate) fn span_ticks(
     ctx: &ApplyContext<'_>,
     duration: RationalTime,
 ) -> Result<i64, EngineError> {
+    if !duration.rate.is_valid() {
+        return Err(ModelError::InvalidRange.into());
+    }
     let fill = resample(duration, ctx.project.timeline().frame_rate).value;
     if fill <= 0 {
         return Err(EngineError::Refused(
@@ -68,6 +74,11 @@ pub(crate) fn open_span(
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
     let tl_rate = ctx.project.timeline().frame_rate;
+    check_same_rate(at.rate, tl_rate)?;
+    if at.value < 0 {
+        return Err(ModelError::InvalidRange.into());
+    }
+    let end = at.value.checked_add(fill).ok_or(TimeError::Overflow)?;
     if ripple {
         return shift_clips::open_lanes_for_insert(
             ctx,
@@ -78,7 +89,7 @@ pub(crate) fn open_span(
         );
     }
     for &lane in lanes {
-        clear_span(ctx, lane, at.value, at.value + fill, tl_rate, inverses)?;
+        clear_span(ctx, lane, at.value, end, tl_rate, inverses)?;
     }
     Ok(())
 }
@@ -95,11 +106,18 @@ pub(crate) fn place_retimed(
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<ClipId, EngineError> {
     let tl_rate = ctx.project.timeline().frame_rate;
+    if !source.duration.rate.is_valid() {
+        return Err(ModelError::InvalidRange.into());
+    }
     // Mirror Project::add_clip's source→timeline resampling: the speed is the
     // ratio of what the take is worth on this timeline to what it must fill.
     let source_ticks = resample(source.duration, tl_rate).value.max(1);
+    let after_fill = at.value.checked_add(fill).ok_or(TimeError::Overflow)?;
     // Where the clip is placed while it is still at full length.
-    let park = (source_ticks > fill).then(|| park_tick(ctx, track, at.value + fill));
+    let park = (source_ticks > fill).then(|| park_tick(ctx, track, after_fill));
+    if let Some(tick) = park {
+        tick.checked_add(source_ticks).ok_or(TimeError::Overflow)?;
+    }
     let place_at = park.map_or(at, |tick| RationalTime::new(tick, tl_rate));
 
     let (id, inverse) = add_clip::execute(ctx, track, media, source, place_at)?;

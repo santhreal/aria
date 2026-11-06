@@ -64,7 +64,11 @@ impl Timeline {
         marker.duration = resample(marker.duration, self.frame_rate);
         if marker.duration.value > 0 {
             let seq_end = self.duration().value;
-            let marker_end = marker.tick.value + marker.duration.value;
+            let marker_end = marker
+                .tick
+                .value
+                .checked_add(marker.duration.value)
+                .ok_or(ModelError::TimeOverflow)?;
             if marker_end > seq_end {
                 return Err(ModelError::InvalidParam(format!(
                     "marker range end ({marker_end}) exceeds sequence end ({seq_end})"

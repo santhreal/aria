@@ -54,6 +54,8 @@ impl AppState {
             .into_iter()
             .map(|(_, id)| ClipId::from_raw(id))
             .collect();
+        self.selected_edge = None;
+        self.selected_gap = None;
         self.status_message = Some(format!("Selected {count}"));
         self.refresh_projected_selection();
     }

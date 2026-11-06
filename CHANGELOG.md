@@ -866,7 +866,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > Appearance draws its mode, accent, theme, and motion choices as four groups, each under a row that reads its value, and the rows read Blue, Shipped, and Off instead of Accent: Blue, Theme: Shipped, and No motion.
 - Bold, Italic, Underline, Kerning, Stroke, Shadow and Card are switches on lines of their own on the Text tab and the Character panel, and the Text tab's case, alignment and preset rows read the choice in force and start on the label column.
 - Rename and Note on a Markers panel row edit the name and note in a text box on that row instead of in the centered rename bar.
-- The Audio Track Mixer's buttons read **Add submix bus** and **Add audio effect** instead of **+ Submix bus** and **+ Audio effect**, and its empty state reads "No audio tracks. Add a track or a submix bus to mix."
+- The Audio Track Mixer's buttons read **Add submix bus** and **Add audio effect** instead of **+ Submix bus** and **+ Audio effect**, and its empty state reads `No audio tracks. Add a track or a submix bus to mix.`.
 - The Learn pane heads its Home shortcuts "On Home", beside "In the editor".
 - The Captions tab sets one clip per word with a **Per word** switch in place of a lone chip.
 - Word buttons in Effects & Presets (`Show all`), Settings > Plugins (`Open folder`, `Hide log`), the Export sheet (`Export frames…`, `Export as…`), and the Keyframes block (`Driver`, `Remove driver`) use sentence case, and `Relink All…` in the Project panel matches `File > Relink All…`.
@@ -874,7 +874,8 @@ Notes for the latest release. For previous releases, see the
 
 ### Fixed
 
-- Plugin storage calls (`PluginContext::storage_*`, `AriaHostV1::storage_*`, and WebAssembly `storage-*`) read and write a per-plugin store in the open `.aria` project file (schema version 4) and mark the session unsaved on change, instead of sharing one directory under `<data dir>/plugin-data/<id>` across every project.
+- Plugin storage calls (`PluginContext::storage_*`, `AriaHostV1::storage_*`, and WebAssembly `storage-*`) read and write a per-plugin store in the open `.aria` project file (schema version 4) instead of sharing one directory under `<data dir>/plugin-data/<id>` across every project.
+- Sample Project places its bundled still on V1, starting forward playback from the end of the sequence or work area rewinds to the start and reverse playback at the start jumps to the end, starting playback on an empty sequence reports "The sequence has no clips" in the status line, and playback vsyncs publish the advancing playhead to EditorView.
 - Changing clip speed or editing a speed curve prunes the transitions it invalidates and restores them across undo and redo.
 - `Project::is_media_referenced` and `remove_media` check inactive timelines, nested sequences, and baked clip snapshots before removing media from the bin.
 - Shot detection samples 30 frames per second and finds the cuts of fast-cut footage on their frames, including dark and partial-frame cuts, instead of finding none.
@@ -1234,6 +1235,16 @@ Notes for the latest release. For previous releases, see the
 - Settings > AI draws Reveal agent files at the end of the Agent files row and Test connection and List models on the values' column.
 - A media item's import time in the Info list now ends in "UTC", so it no longer reads as local time.
 - Status-line refusals that depend on the current selection now clear as soon as the selection changes, while unrelated errors remain on the status strip until an action succeeds.
+- A title's Text tab in Effect Controls stops scrolling at its last row instead of scrolling past it into blank ground the height of every installed font family.
+- The timeline and editing guide, keyboard spec, and editing spec state the `Ctrl+Left` / `Ctrl+Right` and `Ctrl+Shift+Left` / `Ctrl+Shift+Right` clip-nudge chords and the `Alt` drag-magnet modifier, and the guide test suite checks the timeline, interchange format, and project schema registries.
+- Analysis, transcription and the loudness overview refuse an offline or silent clip with the same message, which quotes the media name as written: `“texture” has no audio track`, not `Texture has no audio track` or `texture carries no audio`.
+- Exported MP4 files preserve BT.709 colorimetry at all resolutions, align AAC audio within one frame through the final timeline block, and keep forward and reversed retimed audio spans audible through the end of bounded sources.
+- During a cloud download, Settings > Storage draws Clear cache and Move storage… blocked, and a press posts `A download is in flight. Clear and Move run once it finishes` without opening a folder picker, in place of a Maintenance row and a refusal about a project inventory scan.
+- The assistant's tool list and the Settings > AI Can do count include every tool a prompt is offered, the app tools and the loop's `describe_project`, `commit_progress` and `read_skill`, so both describe the same set.
+- Project loading normalizes lane zones across secondary sequences, transitions clamp to and prune against adjacent clip junction limits across trims and undo/redo, and clip placement, shifting, trimming, retiming, and marker operations validate tick bounds atomically before mutating state.
+- Timeline clip shifts, moves, trims, overwrites, four-point edits, nested sequence creation, send routing edits, and sequence rate changes reject overflowing ticks, duplicate or gapped selections, out-of-bounds send indices, and clip-collapsing frame rates without panicking or leaving partial mutations on the timeline.
+- The Assistant panel lists its available tool groups in its empty transcript area rather than under Effect Controls, and the `Assistant: What the Assistant Can Do` palette command opens and focuses the Assistant dock panel.
+- `Ctrl+arrow` nudges now move every selected clip as one undo step without colliding on abutting selections, `Shift+click` and single-lane Track Select respect the Linked Selection toggle, clip-selection actions clear any active edge or gap selection and skip locked clips on Select All, and multi-lane selection shifts undo in one step.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -21,7 +21,7 @@ use aria_settings::Autonomy;
 
 use super::AppState;
 use super::assistant::Beat;
-use super::assistant_host::{HostRequest, ShellHost, host_tool_specs};
+use super::assistant_host::{HostRequest, ShellHost, app_tools, host_tool_specs};
 use crate::types::AgentEntryKind;
 
 fn state() -> AppState {
@@ -397,7 +397,7 @@ fn settings_counts_the_real_vocabularies() {
         "{line}"
     );
     assert!(
-        line.contains(&format!("{} app tools", host_tool_specs().len())),
+        line.contains(&format!("{} app tools", app_tools().len())),
         "{line}"
     );
 }

@@ -199,8 +199,8 @@ the Viewer, and the release writes it wherever the button comes up.
 
 In Crop mode, the preview draws crop handles on the selected clip: one dot per edge and one per
 corner. Drag a dot to move that edge; a corner moves both of its edges. While you
-drag, the preview shows the uncropped frame, so the cut edge stays visible
-into. The window stops before it collapses instead of inverting. Escape abandons
+drag, the preview shows the uncropped frame, so the cut edge stays visible.
+The window stops before it collapses instead of inverting. Escape abandons
 the drag and writes nothing; releasing commits the whole drag as one edit, so one
 undo restores the frame you started from.
 

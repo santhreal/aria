@@ -547,3 +547,43 @@ fn analyzer_menus_and_palette_reflect_registrations_and_unmount_and_apply_in_one
             .any(|offer| offer.id.as_ref() == "clip-analyze:test.custom_transients")
     );
 }
+
+/// Every run that refuses its media (each detector in `AnalysisKind::ALL`,
+/// transcription and the loudness overview) reaches the strip with the media
+/// named as written, in quotes, in one wording. A bare name led the line, so
+/// `status::as_sentence` recapitalized "texture" into "Texture", and the
+/// overview said "carries no audio" where the others said "has no audio
+/// track". Variants: a silent still and an offline still. Not covered: status
+/// lines that lead with a name and do not refuse media (keys, workspaces).
+#[test]
+fn a_refused_media_is_named_as_written_by_every_run() {
+    for offline in [false, true] {
+        let (mut state, _) = with_clip();
+        let media = &mut state.store_mut().media[0];
+        media.name = "texture".into();
+        media.missing = offline;
+        let posted = if offline {
+            "“texture” is offline. Relink it first"
+        } else {
+            "“texture” has no audio track"
+        };
+        let mut refusals = Vec::new();
+        for kind in AnalysisKind::ALL {
+            if offline || kind.needs_audio() {
+                let refusal = state.analysis_precheck(kind).map(drop);
+                refusals.push((kind.label(), refusal.expect_err("a refused still ran")));
+            }
+        }
+        let refusal = state.transcription_precheck().map(drop);
+        refusals.push(("Transcribe", refusal.expect_err("a refused still ran")));
+        state.status_message = None;
+        state.file_loudness_overview();
+        let overview = state.status_message.take().expect("the overview refused");
+        refusals.push(("Loudness overview", overview));
+        assert!(refusals.len() > 2, "no detector reads audio");
+        for (run, refusal) in refusals {
+            state.report_error(&refusal);
+            assert_eq!(state.last_error.as_deref(), Some(posted), "{run}");
+        }
+    }
+}

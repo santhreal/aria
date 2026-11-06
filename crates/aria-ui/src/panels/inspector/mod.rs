@@ -23,6 +23,8 @@ mod reveal;
 mod slot_track_tests;
 #[cfg(test)]
 mod strip_tests;
+#[cfg(test)]
+mod tab_end_tests;
 pub mod tab_host;
 mod tab_strip;
 #[cfg(test)]
@@ -65,8 +67,7 @@ pub fn render(
         )
     };
 
-    // The stacked sub panels (the assistant's tools) scroll with the body, so a
-    // short frame reaches them.
+    // Stacked sub panels scroll with the body, so a short frame reaches them.
     let subs: Vec<AnyElement> = {
         let read = state.read(cx);
         crate::plugins::panel_host::host_of(&read.ctx)

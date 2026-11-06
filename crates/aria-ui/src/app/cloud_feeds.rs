@@ -55,13 +55,14 @@ impl AppState {
 
     /// Where stock search would be routed with the current config.
     pub fn stock_route(&self) -> StockRoute {
-        stock_route(&self.cloud_settings())
+        stock_route(self.cloud_settings())
     }
 
     /// The config that owns the cloud endpoint and the BYOK keys, held on
-    /// [`SettingsForm`] so a draw does not read `config.toml` per frame.
-    pub(crate) fn cloud_settings(&self) -> aria_settings::Settings {
-        self.settings_form.cloud.clone()
+    /// [`SettingsForm`] so a draw neither reads `config.toml` nor copies it per
+    /// frame.
+    pub(crate) fn cloud_settings(&self) -> &aria_settings::Settings {
+        &self.settings_form.cloud
     }
 
     /// Re-read `config.toml` and its schema report into `SettingsForm`.
@@ -76,7 +77,7 @@ impl AppState {
         let base = if settings.cloud.base_url.trim().is_empty() {
             aria_cloud::DEFAULT_BASE_URL.to_string()
         } else {
-            settings.cloud.base_url
+            settings.cloud.base_url.clone()
         };
         CloudClient::new(&base, Some(self.download_cache_root().join(CATALOG_DIR)))
     }
@@ -84,7 +85,7 @@ impl AppState {
     /// The provider stock search should use, per the BYOK rule.
     fn stock_provider(&self) -> Box<dyn StockProvider> {
         let settings = self.cloud_settings();
-        match stock_route(&settings) {
+        match stock_route(settings) {
             StockRoute::Direct => Box::new(DirectStockProvider::new(
                 settings.provider(STOCK_PROVIDERS[0]).resolve_key(),
                 settings.provider(STOCK_PROVIDERS[1]).resolve_key(),

@@ -306,6 +306,14 @@ fn a_typed_offset_shifts_the_selection_on_every_lane_it_spans() {
     assert_eq!(clip_start(&state, lane_a, clip_a), 12);
     assert_eq!(clip_start(&state, lane_b, clip_b), 12);
 
+    // A multi-lane shift commits as a single undo step across every lane it
+    // spans, and redo restores the shift on both lanes together.
+    assert!(state.undo(), "multi-lane shift is one undo step");
+    assert_eq!(clip_start(&state, lane_a, clip_a), 0);
+    assert_eq!(clip_start(&state, lane_b, clip_b), 0);
+    assert!(state.redo(), "redo restores both lanes");
+    assert_eq!(clip_start(&state, lane_a, clip_a), 12);
+    assert_eq!(clip_start(&state, lane_b, clip_b), 12);
     // Back the other way lands on the original.
     state.shift_selection(-12).expect("shift back");
     assert_eq!(clip_start(&state, lane_a, clip_a), 0);

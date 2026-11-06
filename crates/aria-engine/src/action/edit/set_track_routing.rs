@@ -1,4 +1,4 @@
-use aria_models::{AudioSend, AutomationMode, Param, TrackId, TrackOutput};
+use aria_models::{AudioSend, AutomationMode, ModelError, Param, TrackId, TrackOutput};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -95,6 +95,9 @@ pub(crate) fn execute(
             level,
             pre_fader,
         } => {
+            if level.is_none() && pre_fader.is_none() && index >= lane.sends.len() {
+                return Err(ModelError::UnknownSend { track, index }.into());
+            }
             if let Some(level) = level {
                 timeline.set_send_level(track, index, level)?;
             }

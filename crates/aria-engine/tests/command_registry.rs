@@ -582,3 +582,6 @@ fn no_edit_touches_the_root_timeline_while_a_sequence_is_open() {
         );
     }
 }
+
+#[path = "command_registry_fuzz.rs"]
+mod fuzz;

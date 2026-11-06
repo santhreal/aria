@@ -82,7 +82,15 @@ pub(super) fn ai_rows(
     state: &Entity<AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
-    let config = state.read(cx).cloud_settings();
+    let (source, protocol, summary, autonomy) = {
+        let ai = &state.read(cx).cloud_settings().ai;
+        (
+            ai.source,
+            ai.api_protocol,
+            ai.reasoning_summary,
+            ai.autonomy,
+        )
+    };
     let status = state.read(cx).ai_status();
     let agent_dir = state.read(cx).agent_dir();
     let agent_label = agent_dir.display().to_string();
@@ -116,7 +124,7 @@ pub(super) fn ai_rows(
         "Source",
         &AiSource::ALL,
         AiSource::label,
-        config.ai.source,
+        source,
         cx,
         |state, source, _| state.set_ai_source(source),
     )];
@@ -129,7 +137,7 @@ pub(super) fn ai_rows(
             "Protocol",
             &AiApiProtocol::ALL,
             AiApiProtocol::label,
-            config.ai.api_protocol,
+            protocol,
             cx,
             |state, protocol, _| state.set_ai_protocol(protocol),
         ),
@@ -139,7 +147,7 @@ pub(super) fn ai_rows(
             "Reasoning",
             &ReasoningSummary::ALL,
             ReasoningSummary::label,
-            config.ai.reasoning_summary,
+            summary,
             cx,
             |state, summary, _| state.set_reasoning_summary(summary),
         ),
@@ -149,7 +157,7 @@ pub(super) fn ai_rows(
             "Autonomy",
             &Autonomy::ALL,
             Autonomy::label,
-            config.ai.autonomy,
+            autonomy,
             cx,
             |state, autonomy, _| state.set_autonomy(autonomy),
         ),

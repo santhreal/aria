@@ -33,9 +33,8 @@ Open the **Scopes** and **Color** panels from the keyboard and maximize the focu
 | `aria.panel.effects` | Effects & Presets | `Sidebar` | `Right` | `160` | `80` | `Media` |
 | `aria.panel.assistant` | Assistant | `Viewer` | `Center` | `160` | `80` | `Ai` |
 | `aria.panel.home` | Home | `Home` | `none` | `none` | `none` | `none` |
-| `aria.panel.ai-tools` | Tools | `Inspector` | `none` | `none` | `none` | `none` |
 
-Rows with a default frame have a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. Rows without one render on the Home route (`aria.panel.home`) or as a conditional card inside the Inspector column while the assistant is open (`ai_tools::visible`).
+Rows with a default frame have a `DockSpec` and appear as dockable tabs in the workspace tree and on the **Window** menu. The row without one renders on the Home route (`aria.panel.home`).
 
 ## Built-in dialogs and overlays
 

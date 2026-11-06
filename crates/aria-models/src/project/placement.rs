@@ -25,6 +25,7 @@ impl Project {
         let tl_rate = self.timeline().frame_rate;
 
         check_same_rate(source.start.rate, media.frame_rate)?;
+        check_same_rate(source.duration.rate, media.frame_rate)?;
         check_same_rate(timeline_start.rate, tl_rate)?;
 
         if source.is_empty() {
@@ -33,7 +34,8 @@ impl Project {
         // Stills have no real material bound: one frame repeats for any
         // extent, and the pool duration is only the default placement
         // length — so any window length is legal on image media.
-        if source.start.value < 0 || (!media.is_image && source.end_tick() > media.duration.value) {
+        let source_end = source.end()?.value;
+        if source.start.value < 0 || (!media.is_image && source_end > media.duration.value) {
             return Err(ModelError::SourceOutOfBounds);
         }
 
@@ -53,6 +55,8 @@ impl Project {
         timeline: TimeRange,
     ) -> Result<ClipId, ModelError> {
         check_same_rate(timeline.start.rate, self.timeline().frame_rate)?;
+        check_same_rate(timeline.duration.rate, self.timeline().frame_rate)?;
+        timeline.end()?;
         if timeline.is_empty() {
             return Err(ModelError::InvalidRange);
         }
@@ -82,6 +86,7 @@ impl Project {
         let tl_rate = self.timeline().frame_rate;
 
         check_same_rate(source.start.rate, seq_fps)?;
+        check_same_rate(source.duration.rate, seq_fps)?;
         check_same_rate(timeline_start.rate, tl_rate)?;
 
         if source.is_empty() {
@@ -90,6 +95,7 @@ impl Project {
         if source.start.value < 0 {
             return Err(ModelError::SourceOutOfBounds);
         }
+        source.end()?;
 
         if self.would_create_sequence_cycle(self.active_sequence, sequence_id) {
             return Err(ModelError::SequenceCycle(sequence_id));
@@ -257,12 +263,14 @@ impl Project {
             .get(&media_id)
             .ok_or(ModelError::UnknownMedia(media_id))?;
         check_same_rate(source.start.rate, media.frame_rate)?;
+        check_same_rate(source.duration.rate, media.frame_rate)?;
         if source.is_empty() {
             return Err(ModelError::InvalidRange);
         }
         // Stills repeat one frame for any window; real media must contain the
         // requested span.
-        if source.start.value < 0 || (!media.is_image && source.end_tick() > media.duration.value) {
+        let source_end = source.end()?.value;
+        if source.start.value < 0 || (!media.is_image && source_end > media.duration.value) {
             return Err(ModelError::SourceOutOfBounds);
         }
         let content = ClipSource::Media {

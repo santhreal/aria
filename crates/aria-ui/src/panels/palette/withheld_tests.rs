@@ -59,9 +59,22 @@ fn a_palette_row_is_drawn_faint_exactly_while_choosing_it_is_rejected(cx: &mut T
                             .unwrap_or_else(|| panic!("{id} is offered but not in the catalog"));
                         (false, spec.unavailable().is_some())
                     }
-                    Offered::Command(_) | Offered::Windowed(_) | Offered::Generator(_) => {
-                        (false, false)
+                    Offered::Command(_, _) | Offered::Windowed(_, _) => {
+                        let host = crate::commands::host::host_of(&state.ctx)
+                            .expect("the ui plugin mounts commands");
+                        let entry = host
+                            .all()
+                            .into_iter()
+                            .find(|entry| entry.id == offer.id.as_str())
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "{} is offered as a command but not in CommandHost",
+                                    offer.id
+                                )
+                            });
+                        (false, entry.blocked_by(state).is_some())
                     }
+                    Offered::Generator(_) => (false, false),
                 };
                 (offer.id.to_string(), menu_row, rejected)
             })

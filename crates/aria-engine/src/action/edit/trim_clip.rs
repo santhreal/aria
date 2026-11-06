@@ -1,4 +1,4 @@
-use aria_models::{ClipId, ModelError, TimeRange};
+use aria_models::{ClipId, ModelError, TimeError, TimeRange};
 
 use crate::action::edit::restore_clip::RestoreClipAction;
 use crate::action::{ApplyContext, CompoundAction, EditAction};
@@ -12,8 +12,16 @@ pub(crate) fn execute(
     timeline: TimeRange,
 ) -> Result<Box<dyn EditAction>, EngineError> {
     let primary = ctx.project.require_clip(clip)?;
-    let start_delta = timeline.start.value - primary.timeline.start.value;
-    let end_delta = timeline.end_tick() - primary.timeline.end_tick();
+    let timeline_end = timeline.end()?.value;
+    let primary_end = primary.timeline.end()?.value;
+    let start_delta = timeline
+        .start
+        .value
+        .checked_sub(primary.timeline.start.value)
+        .ok_or(TimeError::Overflow)?;
+    let end_delta = timeline_end
+        .checked_sub(primary_end)
+        .ok_or(TimeError::Overflow)?;
     let ids = match primary.link {
         Some(link) => ctx.project.linked_clips(link),
         None => vec![clip],
@@ -29,11 +37,20 @@ pub(crate) fn execute(
             timeline
         } else {
             let other = ctx.project.require_clip(id)?;
-            let new_start = other.timeline.start.value + start_delta;
-            let new_end = other.timeline.end_tick() + end_delta;
+            let other_end = other.timeline.end()?.value;
+            let new_start = other
+                .timeline
+                .start
+                .value
+                .checked_add(start_delta)
+                .ok_or(TimeError::Overflow)?;
+            let new_end = other_end
+                .checked_add(end_delta)
+                .ok_or(TimeError::Overflow)?;
+            let new_dur = new_end.checked_sub(new_start).ok_or(TimeError::Overflow)?;
             // The model refuses a companion taken before the sequence start
             // or down to nothing.
-            TimeRange::at_rate(new_start, new_end - new_start, timeline.start.rate)
+            TimeRange::at_rate(new_start, new_dur, timeline.start.rate)
         };
         match trim_one(ctx, id, target) {
             Ok(inverse) => inverses.push(inverse),

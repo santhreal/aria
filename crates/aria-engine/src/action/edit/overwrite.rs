@@ -1,4 +1,7 @@
-use aria_models::{Clip, ClipId, MediaId, ModelError, RationalTime, TimeRange, TrackId, resample};
+use aria_models::{
+    Clip, ClipId, MediaId, ModelError, RationalTime, TimeError, TimeRange, TrackId,
+    check_same_rate, resample,
+};
 
 use crate::action::edit::{add_clip, remove_clip::RemoveClipAction, trim_clip};
 use crate::action::{ApplyContext, CompoundAction, EditAction};
@@ -23,12 +26,21 @@ pub(crate) fn execute(
     at: RationalTime,
 ) -> Result<(ClipId, Box<dyn EditAction>), EngineError> {
     let tl_rate = ctx.project.timeline().frame_rate;
+    check_same_rate(at.rate, tl_rate)?;
+    if !source.duration.rate.is_valid()
+        || at.value < 0
+        || source.is_empty()
+        || source.start.value < 0
+    {
+        return Err(ModelError::InvalidRange.into());
+    }
     // Mirror Project::add_clip's source→timeline resampling so the span cleared
     // is exactly the span the clip will occupy.
     let duration_ticks = resample(source.duration, tl_rate).value.max(1);
     let start = at.value;
-    let end = start + duration_ticks;
-
+    let end = start
+        .checked_add(duration_ticks)
+        .ok_or(TimeError::Overflow)?;
     let mut inverses: Vec<Box<dyn EditAction>> = Vec::new();
     for step in cover_plan(ctx, track, start, end) {
         if let Err(err) = clear(ctx, step, start, end, tl_rate, &mut inverses) {

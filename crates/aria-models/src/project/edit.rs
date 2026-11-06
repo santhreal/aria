@@ -221,6 +221,9 @@ impl Project {
         new_timeline: TimeRange,
         lane: bool,
     ) -> Result<(TrackId, Option<TimeRange>), ModelError> {
+        check_same_rate(new_timeline.start.rate, self.timeline().frame_rate)?;
+        check_same_rate(new_timeline.duration.rate, self.timeline().frame_rate)?;
+        new_timeline.end()?;
         if new_timeline.is_empty() || (lane && new_timeline.start.value < 0) {
             return Err(ModelError::InvalidRange);
         }
@@ -272,7 +275,10 @@ impl Project {
                 if media.is_image {
                     Some(TimeRange::at_rate(start.max(0), duration, media.frame_rate))
                 } else {
-                    if start < 0 || start + duration > media.duration.value {
+                    let end = start
+                        .checked_add(duration)
+                        .ok_or(ModelError::TimeOverflow)?;
+                    if start < 0 || end > media.duration.value {
                         return Err(ModelError::SourceOutOfBounds);
                     }
                     Some(TimeRange::at_rate(start, duration, media.frame_rate))
@@ -839,10 +845,7 @@ impl Project {
         let source = clip
             .source_range()
             .ok_or_else(|| ModelError::InvalidParam("beats require a media-backed clip".into()))?;
-        let (lo, hi) = (
-            source.start.value,
-            source.start.value + source.duration.value,
-        );
+        let (lo, hi) = (source.start.value, source.end()?.value);
         let mut beats: Vec<i64> = beats
             .into_iter()
             .filter(|&b| (lo..hi).contains(&b))
@@ -961,19 +964,28 @@ fn trimmed_window(
         };
         resample(RationalTime::new(scaled, new_timeline.start.rate), rate).value
     };
-    let head = shift(new_timeline.start.value - clip.timeline.start.value);
-    let tail = shift(new_timeline.end_tick() - clip.timeline.end_tick());
+    let head = shift(
+        new_timeline
+            .start
+            .value
+            .saturating_sub(clip.timeline.start.value),
+    );
+    let tail = shift(
+        new_timeline
+            .end_tick()
+            .saturating_sub(clip.timeline.end_tick()),
+    );
     let (low, high) = if clip.reversed {
-        (-tail, -head)
+        (tail.saturating_neg(), head.saturating_neg())
     } else {
         (head, tail)
     };
-    let start = source.start.value + low;
-    let end = source.end_tick() + high;
+    let start = source.start.value.saturating_add(low);
+    let end = source.end_tick().saturating_add(high);
     if end > start {
-        (start, end - start)
+        (start, end.saturating_sub(start))
     } else if high == 0 {
-        (end - 1, 1)
+        (end.saturating_sub(1), 1)
     } else {
         (start, 1)
     }

@@ -1,35 +1,25 @@
 //! What the assistant can actually do, listed rather than counted.
 //!
-//! The Settings AI section says "27 edit(s), 9 app tool(s)". A count answers
+//! The Settings AI section counts the tools ("67 edits, 8 app tools"). A count answers
 //! "is anything wired" and nothing else: it cannot show whether the model can
 //! add a marker, or which of two similar phrasings names a tool that
 //! exists. The vocabulary was a registry with no reader.
 //!
 //! Every row here is read from that registry at draw time
 //! ([`AppState::ai_tool_groups`], which walks `aria_ai::wire::tool_groups` and
-//! appends the two specs the agent adds per turn), so a tool added to `aria-ai`
+//! then the `app` group Settings counts), so a tool added to `aria-ai`
 //! appears here by existing and a tool removed disappears. Nothing in this file
 //! holds a tool name.
 //!
-//! Docked in the inspector column beside the assistant, and only while the
-//! assistant is the panel being looked at: it explains the surface next to it,
-//! and a capability list over a timeline is a list of things nothing asked
-//! about.
+//! Drawn in the Assistant panel's transcript area while no conversation, plan,
+//! permission prompt, or turn is in flight: it states what a prompt can ask
+//! for before anything has been asked.
 
 use aria_core::count::{counted, noun};
 use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::AppState;
 use crate::theme::Theme;
-use crate::types::ActivePanel;
-
-/// Whether the panel is worth a column: only while the assistant is open.
-///
-/// The same shape `duck` uses — the panel decides its own relevance from the
-/// state rather than the shell deciding for it.
-pub fn visible(state: &AppState) -> bool {
-    state.active_panel == ActivePanel::Ai
-}
 
 pub fn render(
     state: &gpui::Entity<AppState>,
@@ -44,7 +34,6 @@ pub fn render(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
-        .p(px(Theme::SPACE_MD))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)
@@ -77,9 +66,13 @@ pub fn render(
 fn group_block(theme: &Theme, name: &SharedString, tools: &[SharedString]) -> impl IntoElement {
     let rows = tools.iter().map(|tool| {
         div()
-            .text_size(Theme::TEXT_TITLE)
+            .text_size(Theme::TEXT_UI)
             .text_color(theme.text_muted)
             .child(tool.clone())
     });
     crate::card::card(theme, format!("{name} · {}", tools.len())).children(rows)
 }
+
+#[cfg(test)]
+#[path = "ai_tools_tests.rs"]
+mod tests;

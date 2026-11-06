@@ -18,7 +18,7 @@ use crate::dock::DefaultFrame;
 use crate::keys::KeyHost;
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::panels::{
-    about_dialog, ai_panel, ai_tools, align_panel, audio_gain_dialog, audio_meters, color_panel,
+    about_dialog, ai_panel, align_panel, audio_gain_dialog, audio_meters, color_panel,
     context_menu, effects_browser, export_dialog, history_panel, home, info_panel, inspector,
     install_dialog, jobs_dialog, keyframe_velocity_dialog, marker_edit_dialog, markers,
     media_support, mixer, palette, preview, project_report, remove_attributes_dialog, rename_bar,
@@ -39,8 +39,8 @@ pub struct UiPlugin;
 ///
 /// A table rather than a call each: the test below enumerates it, so a panel added
 /// here is covered without a second list. The docked panes are always on; the rest
-/// carry a predicate, because the assistant replaces the preview, Home replaces the
-/// editor, and the assistant's tools show in the Inspector only while it is open.
+/// carry a predicate, because the assistant and the mixer share the viewer slot and
+/// Home replaces the editor.
 /// `PanelLocation::Overlay` has no built-in entry — an overlay contribution is
 /// drawn over the viewer. The second field is the panel's title, the one name its
 /// tab, its Window row and its frame menu's Add row draw.
@@ -262,14 +262,6 @@ const BUILTIN_PANELS: &[(
         PanelLocation::Home,
         draw_home,
         |state| state.route == UiRoute::Home,
-        None,
-    ),
-    (
-        "aria.panel.ai-tools",
-        "Tools",
-        PanelLocation::Inspector,
-        draw_ai_tools,
-        ai_tools::visible,
         None,
     ),
 ];
@@ -501,10 +493,6 @@ fn draw_audio_meters(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) ->
 
 fn draw_effects_browser(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
     effects_browser::effects_dock_panel(&crate::theme::Theme::of(cx), state, cx)
-}
-
-fn draw_ai_tools(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
-    ai_tools::render(state, cx).into_any_element()
 }
 
 fn draw_media_support(state: &Entity<AppState>, cx: &mut gpui::Context<Shell>) -> AnyElement {
@@ -802,18 +790,6 @@ mod tests {
         assert!(
             !visible_inspector.is_empty(),
             "primary inspector is always docked and visible"
-        );
-
-        // AI tools panel is visible in inspector only when assistant is active
-        state.active_panel = ActivePanel::Ai;
-        assert!(
-            crate::panels::ai_tools::visible(&state),
-            "ai tools must be visible when ActivePanel is Ai"
-        );
-        state.active_panel = ActivePanel::Preview;
-        assert!(
-            !crate::panels::ai_tools::visible(&state),
-            "ai tools must be hidden when ActivePanel is not Ai"
         );
     }
 

@@ -1,4 +1,4 @@
-use aria_models::{RationalTime, Timeline, TrackId};
+use aria_models::{ModelError, RationalTime, TimeError, Timeline, TrackId};
 
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
@@ -18,6 +18,25 @@ pub(crate) fn execute(
     from: RationalTime,
     delta: RationalTime,
 ) -> Result<Box<dyn EditAction>, EngineError> {
+    let neg_delta = delta.value.checked_neg().ok_or(TimeError::Overflow)?;
+    if let Some(lane) = ctx.project.timeline().track(track) {
+        for clip in lane.clips() {
+            if clip.timeline.start.value >= from.value {
+                let new_start = clip
+                    .timeline
+                    .start
+                    .value
+                    .checked_add(delta.value)
+                    .ok_or(TimeError::Overflow)?;
+                if new_start < 0 {
+                    return Err(ModelError::InvalidRange.into());
+                }
+                new_start
+                    .checked_add(clip.timeline.duration.value)
+                    .ok_or(TimeError::Overflow)?;
+            }
+        }
+    }
     let first_new_start = ctx.project.shift_clips(track, from, delta)?;
     // The inverse must select exactly the clips that moved. Their new starts
     // all sit at/after the first shifted clip's new start, while unshifted
@@ -26,7 +45,7 @@ pub(crate) fn execute(
     Ok(Box::new(ShiftClipsAction {
         track,
         from: first_new_start.unwrap_or(from),
-        delta: RationalTime::new(-delta.value, delta.rate),
+        delta: RationalTime::new(neg_delta, delta.rate),
     }))
 }
 
@@ -134,7 +153,11 @@ pub(crate) fn close_for_ripple_delete(
     to: RationalTime,
     inverses: &mut Vec<Box<dyn EditAction>>,
 ) -> Result<(), EngineError> {
-    let span = RationalTime::new(from.value - to.value, from.rate);
+    let span_ticks = from
+        .value
+        .checked_sub(to.value)
+        .ok_or(TimeError::Overflow)?;
+    let span = RationalTime::new(span_ticks, from.rate);
     let riders = rider_lanes(ctx.project.timeline(), excluded);
     cut_at(ctx, &riders, from, inverses)?;
     cut_at(ctx, &riders, to, inverses)?;

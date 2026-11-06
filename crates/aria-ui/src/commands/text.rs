@@ -17,6 +17,7 @@
 //! wired in [`crate::panels::preview`].
 
 use crate::app::AppState;
+use crate::chrome::menu_guards as guards;
 
 use super::host::CommandEntry;
 
@@ -35,15 +36,18 @@ pub(super) const TEXT_ROWS: &[CommandEntry] = &[
         id: "pal-font-check",
         label: "Text: Check a Font File",
         run: AppState::check_font_file,
+        blocked: guards::ready,
     },
     CommandEntry {
         id: "pal-title-ink",
         label: "Text: Report the Selected Title's Ink",
         run: AppState::report_title_ink,
+        blocked: guards::title_clip,
     },
     CommandEntry {
         id: "pal-models-verify",
         label: "Transcription: Verify Installed Models",
         run: verify_models,
+        blocked: guards::ready,
     },
 ];

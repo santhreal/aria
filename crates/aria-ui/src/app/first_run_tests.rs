@@ -576,7 +576,7 @@ fn every_app_menu_has_named_items() {
 fn shuttle_jkl_steps_and_stops() {
     let dir = scratch();
     let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    state.new_project().unwrap();
+    state.open_sample_project().unwrap();
     state.set_shuttle(1);
     assert!(state.playing);
     assert_eq!(state.shuttle, 1);
@@ -593,7 +593,7 @@ fn shuttle_jkl_steps_and_stops() {
 fn shuttle_from_stop_keeps_requested_speed() {
     let dir = scratch();
     let mut state = AppState::new(PluginContext::new(), dir).unwrap();
-    state.new_project().unwrap();
+    state.open_sample_project().unwrap();
     assert!(!state.playing);
     state.set_shuttle(-1);
     assert!(state.playing);

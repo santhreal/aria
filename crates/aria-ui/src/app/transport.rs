@@ -141,63 +141,38 @@ impl AppState {
         }
     }
 
-    pub(super) fn active_playback_end(&self) -> i64 {
+    pub(super) fn active_playback_bounds(&self) -> (i64, i64) {
+        let duration = self.store.sequence.duration_ticks.max(0);
         if self.work_area_playback || self.looping {
-            self.work_area().1
+            self.work_area()
         } else {
-            self.store.sequence.duration_ticks.max(0)
+            (0, duration)
         }
     }
 
+    pub(super) fn active_playback_end(&self) -> i64 {
+        self.active_playback_bounds().1
+    }
+
     pub fn toggle_playback(&mut self) {
-        self.playing = !self.playing;
-        self.work_area_playback = false;
-        self.k_crawl = 0;
-        self.shuttle = ShuttleSpeed::ONE;
-        self.interaction.set_playing(self.playing);
         if self.playing {
-            self.clear_mixer_automation_pass();
-            self.playback_generation = self.playback_generation.saturating_add(1);
-            self.playback_anchor_tick = self.playhead.value;
-            self.playback_started = Some(Instant::now());
-            self.playback = aria_render::PlaybackMeter::at_rate(self.shuttle_rate());
-            self.republish_audio();
+            self.stop_transport();
         } else {
-            self.clear_mixer_automation_pass();
-            self.playback_started = None;
-            self.audio.publish_stop();
-            self.stop_presenting();
+            self.work_area_playback = false;
+            self.k_crawl = 0;
+            self.apply_shuttle_speed(ShuttleSpeed::ONE);
         }
     }
 
     /// Play the work area (`mark_in` to `mark_out`, or the whole sequence when
     /// unset) from its start at 1x.
     pub fn play_work_area(&mut self) {
-        let (start, end) = self.work_area();
+        let (start, _) = self.work_area();
         self.set_playhead(start);
-        self.k_crawl = 0;
-        self.shuttle = ShuttleSpeed::ONE;
-        if end <= start {
-            self.playing = false;
-            self.work_area_playback = false;
-            self.interaction.set_playing(false);
-            self.playback_started = None;
-            self.audio.publish_stop();
-            self.stop_presenting();
-            return;
-        }
         self.work_area_playback = true;
-        self.playing = true;
-        self.interaction.set_playing(true);
-        self.playback_generation = self.playback_generation.saturating_add(1);
+        self.k_crawl = 0;
         self.clear_mixer_automation_pass();
-        self.playback_anchor_tick = start;
-        self.playback_started = Some(Instant::now());
-        self.playback = aria_render::PlaybackMeter::at_rate(self.shuttle_rate());
-        self.republish_audio();
-        if self.playback_cadence.is_some() {
-            self.arm_presenting();
-        }
+        self.apply_shuttle_speed(ShuttleSpeed::ONE);
     }
 
     fn stop_transport(&mut self) {
@@ -219,6 +194,20 @@ impl AppState {
         if speed.num == 0 {
             self.stop_transport();
             return;
+        }
+        let (bound_start, bound_end) = self.active_playback_bounds();
+        if bound_end <= bound_start {
+            self.stop_transport();
+            self.status_message = Some("The sequence has no clips".into());
+            return;
+        }
+        if !self.playing {
+            self.clear_mixer_automation_pass();
+        }
+        if speed.num > 0 && self.playhead.value >= bound_end {
+            self.set_playhead(bound_start);
+        } else if speed.num < 0 && self.playhead.value <= bound_start {
+            self.set_playhead(bound_end);
         }
         self.shuttle = speed;
         self.playing = true;
@@ -677,13 +666,7 @@ impl AppState {
                 self.shuttle.den,
             )
         };
-        let duration = self.store.sequence.duration_ticks.max(0);
-        let (work_start, work_end) = self.work_area();
-        let (bound_start, bound_end) = if self.work_area_playback || self.looping {
-            (work_start, work_end)
-        } else {
-            (0, duration)
-        };
+        let (bound_start, bound_end) = self.active_playback_bounds();
         let hit_end = bound_end <= bound_start
             || (self.shuttle.num > 0 && tick >= bound_end)
             || (self.shuttle.num < 0 && tick <= bound_start);

@@ -81,6 +81,7 @@ pub(super) fn video_caps(
     width: u32,
     height: u32,
     rate: aria_core::Rational,
+    matrix: YuvMatrix,
 ) -> Result<gst::Caps, EncodeError> {
     if rate.num <= 0 || rate.den <= 0 {
         return Err(EncodeError::unsupported(
@@ -92,6 +93,7 @@ pub(super) fn video_caps(
         .field("width", width as i32)
         .field("height", height as i32)
         .field("framerate", gst::Fraction::new(rate.num, rate.den))
+        .field("colorimetry", matrix.gst_colorimetry())
         .build())
 }
 
@@ -254,7 +256,8 @@ mod tests {
                         .copy_from_slice(&tight);
                     layout.describe(buffer).expect("describe");
                 }
-                let caps = video_caps(width, height, Rational::FPS_30).expect("caps");
+                let caps =
+                    video_caps(width, height, Rational::FPS_30, YuvMatrix::Bt709).expect("caps");
                 let info = gst_video::VideoInfo::from_caps(&caps).expect("info");
                 let frame = gst_video::VideoFrame::from_buffer_readable(buffer, &info)
                     .unwrap_or_else(|_| panic!("{width}x{height}: the encoder cannot map it"));
@@ -284,7 +287,7 @@ mod tests {
         let (width, height) = (854, 480);
         let layout = FrameLayout::new(width, height).expect("layout");
         assert!(layout.tight.is_some(), "an 854-wide frame needs its layout");
-        let caps = video_caps(width, height, Rational::FPS_30).expect("caps");
+        let caps = video_caps(width, height, Rational::FPS_30, YuvMatrix::Bt709).expect("caps");
         let pool = open_buffer_pool(&caps, layout.buffer_bytes).expect("pool");
         let mut first = None;
         for round in 0..4 {
@@ -301,5 +304,32 @@ mod tests {
             assert_eq!(metas, 1, "round {round}: {metas} layout metas");
         }
         pool.set_active(false).expect("deactivate");
+    }
+
+    /// WHY: GStreamer defaults `video/x-raw` without a `colorimetry` field to
+    /// BT.601 at SD heights (`<= 576`) and BT.709 at HD heights, while
+    /// `write_frame_to_nv12` converts RGB with `YuvMatrix`. Omitting the field
+    /// tags SD exports as BT.601 after a BT.709 conversion, shifting decoded
+    /// green `[20, 220, 20]` to `[35, 254, 25]`.
+    #[test]
+    fn video_caps_signals_the_conversion_matrix_at_sd_and_hd_sizes() {
+        ensure_init().expect("GStreamer");
+        for matrix in YuvMatrix::ALL {
+            let expected = match matrix {
+                YuvMatrix::Bt601 => gst_video::VideoColorMatrix::Bt601,
+                YuvMatrix::Bt709 => gst_video::VideoColorMatrix::Bt709,
+                YuvMatrix::Bt2020 => gst_video::VideoColorMatrix::Bt2020,
+            };
+            for (width, height) in [(320, 180), (640, 480), (1920, 1080)] {
+                let caps = video_caps(width, height, Rational::FPS_30, matrix).expect("caps");
+                let info = gst_video::VideoInfo::from_caps(&caps).expect("info");
+                assert_eq!(
+                    info.colorimetry().matrix(),
+                    expected,
+                    "{width}x{height} with {matrix:?} resolved to {:?}",
+                    info.colorimetry().matrix()
+                );
+            }
+        }
     }
 }

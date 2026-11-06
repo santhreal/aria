@@ -322,3 +322,102 @@ fn shuttle_above_4x_outputs_silence() {
         );
     }
 }
+/// A bounded 440 Hz tone that returns zero frames once `pos >= limit`, matching
+/// a finite file on disk.
+struct BoundedTone {
+    pos: i64,
+    limit: i64,
+    freq: f32,
+}
+
+impl AudioReader for BoundedTone {
+    fn read(&mut self, out: &mut [f32]) -> Result<usize, DecodeError> {
+        let req = out.len() / CHANNELS;
+        let avail = (self.limit - self.pos).max(0) as usize;
+        let frames = req.min(avail);
+        for frame in 0..frames {
+            let t = (self.pos + frame as i64) as f32 / EXPORT_AUDIO_RATE as f32;
+            let sample = (std::f32::consts::TAU * self.freq * t).sin() * 0.8;
+            for ch in 0..CHANNELS {
+                out[frame * CHANNELS + ch] = sample;
+            }
+        }
+        self.pos += frames as i64;
+        Ok(frames)
+    }
+
+    fn seek_to_frame(&mut self, frame: i64) -> Result<(), DecodeError> {
+        self.pos = frame.max(0);
+        Ok(())
+    }
+
+    fn position(&self) -> Option<i64> {
+        Some(self.pos)
+    }
+}
+
+/// WHY: `ola_source_bounds` pads `src_ceil` by `OLA_PAD` (1,154 frames) above
+/// the highest anchor in the block. On a bounded source of `source_len` frames,
+/// block 0 of a reversed pitch-locked clip requests up to `source_len + 1154`
+/// frames and receives `got < need` at EOF. Marking `span.exhausted = true` on
+/// a partial warped read silenced every subsequent block of reversed retimed
+/// clips and truncated the final `OLA_PAD` window of forward stretched clips.
+#[test]
+fn bounded_source_stays_audible_across_all_blocks_for_forward_and_reverse_retimed_spans() {
+    let source_len = 48_000_i64;
+    let block_frames = 1_600usize;
+    for reversed in [false, true] {
+        for preserve_pitch in [false, true] {
+            for (num, den, out_len) in [(1, 1, 48_000_i64), (2, 1, 24_000), (1, 2, 96_000)] {
+                // Also test when the file on disk is 32 samples shorter than
+                // `source_len` (millisecond container duration rounding).
+                for file_limit in [source_len, source_len - 32] {
+                    let span = Span {
+                        path: std::path::PathBuf::from("/dev/null"),
+                        start: 0,
+                        end: out_len,
+                        source_start: 0,
+                        source_len,
+                        reversed,
+                        warp: if num == den {
+                            SpanWarp::Linear
+                        } else {
+                            SpanWarp::FlatSpeed { num, den }
+                        },
+                        preserve_pitch,
+                        denoise: false,
+                        volume: aria_models::Param::Constant(1.0),
+                        pan: aria_models::Param::Constant(0.0),
+                        fade_in: 0,
+                        fade_out: 0,
+                        crossfade_in: None,
+                        crossfade_out: None,
+                        reader: Some(Box::new(BoundedTone {
+                            pos: 0,
+                            limit: file_limit,
+                            freq: 440.0,
+                        })),
+                        exhausted: false,
+                        bus: 0,
+                    };
+                    let mut mixer = ExportAudioMixer::of_spans(vec![span]);
+                    let blocks = (out_len as usize) / block_frames;
+                    // Skip block 0 and the last block when `file_limit < source_len`
+                    // only for the 32 missing boundary samples; every interior block
+                    // and the final block must stay audible.
+                    for b in 0..blocks {
+                        let mut buf = vec![0.0; block_frames * CHANNELS];
+                        mixer
+                            .mix_into((b * block_frames) as i64, &mut buf)
+                            .expect("mix block");
+                        let peak = buf.iter().map(|s| s.abs()).fold(0.0_f32, f32::max);
+                        assert!(
+                            peak > 0.5,
+                            "reversed={reversed} preserve_pitch={preserve_pitch} speed={num}/{den} limit={file_limit}: block {b}/{blocks} went silent (peak {peak})"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

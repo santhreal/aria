@@ -6,6 +6,13 @@ use crate::time::Rational;
 use super::Project;
 
 impl Project {
+    pub(crate) fn normalize_all_lanes(&mut self) {
+        self.timeline.normalize_lanes();
+        for seq in self.sequences.values_mut() {
+            seq.timeline.normalize_lanes();
+        }
+    }
+
     /// Retrieve a secondary sequence by [`SequenceId`].
     pub fn sequence(&self, id: SequenceId) -> Option<&Sequence> {
         self.sequences.get(&id)

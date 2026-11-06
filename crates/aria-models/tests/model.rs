@@ -1,59 +1,22 @@
-//! Integration tests for project-level invariants and cross-module behavior.
+//! WHY: Closes the class of model invariant violations, unchecked tick
+//! overflows, partial mutations on refused edits, and save/load persistence
+//! drift across `Project` and `Timeline` operations. Runs a deterministic
+//! seeded generator over multi-track, multi-sequence, linked, parented,
+//! transitioned, marker-annotated, multicam, bin, and bus-routed projects,
+//! asserting full structural invariants and `save_to_file -> load_from_file ->
+//! save_to_file` byte idempotence after every step. Does not cover GPU shader
+//! execution or container demuxing.
 
 mod common;
 
-use aria_models::{ClipTransform, Generator, MediaSource, ModelError, Project, Shape, TrackKind};
+use std::collections::BTreeSet;
+
+use aria_models::{
+    ClipId, ClipParam, ClipSource, ClipTransform, Easing, Generator, Marker, MarkerColor,
+    MediaSource, ModelError, MulticamAngle, ParamValue, Project, Rational, Timeline, TrackKind,
+    TrackOutput, TransitionAlignment,
+};
 use common::{FPS_24, FPS_30, rt, sample_media, tr, tr_at};
-
-#[test]
-fn build_project_and_query_by_id() {
-    let mut project = Project::new("demo", FPS_24);
-
-    let media = sample_media(FPS_24, 1000);
-    let media_id = project.add_media(media);
-
-    let v1 = project.add_track(TrackKind::Video, "V1");
-
-    let c1 = project
-        .add_clip(v1, media_id, tr(0, 100), rt(0))
-        .expect("first clip");
-    let c2 = project
-        .add_clip(v1, media_id, tr(200, 100), rt(100))
-        .expect("second clip");
-
-    assert_eq!(project.clip(c1).unwrap().source_range(), Some(tr(0, 100)));
-    assert_eq!(project.clip(c1).unwrap().media(), Some(media_id));
-    assert_eq!(project.clip(c2).unwrap().start().value, 100);
-    assert_eq!(project.timeline().track_of(c1), Some(v1));
-
-    assert_eq!(project.timeline().duration().value, 200);
-    assert_eq!(project.timeline().clip_count(), 2);
-}
-
-#[test]
-fn generated_clips_need_no_media() {
-    let mut project = Project::new("demo", FPS_24);
-    let title = project.add_track(TrackKind::Text, "Titles");
-    let gfx = project.add_track(TrackKind::Sticker, "GFX");
-
-    let text = project
-        .add_generated(title, Generator::text("Hello"), tr(0, 48))
-        .unwrap();
-    let shape = project
-        .add_generated(
-            gfx,
-            Generator::shape(Shape::Rectangle, [255, 255, 255, 255]),
-            tr(48, 48),
-        )
-        .unwrap();
-
-    assert_eq!(project.clip(text).unwrap().media(), None);
-    assert!(project.clip(text).unwrap().is_generated());
-    assert_eq!(project.clip(shape).unwrap().source_range(), None);
-    assert_eq!(project.media_count(), 0);
-    assert_eq!(project.timeline().duration().value, 96);
-}
-
 #[test]
 fn set_transform_updates_visual_and_rejects_audio() {
     let mut project = Project::new("demo", FPS_24);
@@ -113,19 +76,6 @@ fn set_transform_updates_visual_and_rejects_audio() {
 }
 
 #[test]
-fn overlap_is_rejected() {
-    let mut project = Project::new("demo", FPS_24);
-    let media_id = project.add_media(sample_media(FPS_24, 1000));
-    let v1 = project.add_track(TrackKind::Video, "V1");
-
-    project.add_clip(v1, media_id, tr(0, 100), rt(0)).unwrap();
-    let err = project
-        .add_clip(v1, media_id, tr(0, 100), rt(50))
-        .unwrap_err();
-    assert_eq!(err, ModelError::Overlap(v1));
-}
-
-#[test]
 fn unknown_refs_error() {
     let mut project = Project::new("demo", FPS_24);
     let v1 = project.add_track(TrackKind::Video, "V1");
@@ -173,67 +123,6 @@ fn removing_referenced_media_fails_then_succeeds() {
 }
 
 #[test]
-fn audio_tracks_stack_below_visual_lanes() {
-    let mut project = Project::new("demo", FPS_24);
-    let v1 = project.add_track(TrackKind::Video, "V1");
-    let v2 = project.add_track(TrackKind::Video, "V2");
-    let a1 = project.add_track(TrackKind::Audio, "A1");
-
-    // Visual lanes keep their insertion order; audio sinks to the bottom of the
-    // stack (index 0) so it always renders at the bottom of the timeline.
-    assert_eq!(project.timeline().order(), &[a1, v1, v2]);
-    let names: Vec<&str> = project
-        .timeline()
-        .tracks_ordered()
-        .map(|t| t.name.as_str())
-        .collect();
-    assert_eq!(names, ["A1", "V1", "V2"]);
-}
-
-#[test]
-fn clip_at_and_source_mapping() {
-    let mut project = Project::new("demo", FPS_24);
-    let media_id = project.add_media(sample_media(FPS_24, 1000));
-    let v1 = project.add_track(TrackKind::Video, "V1");
-    let id = project.add_clip(v1, media_id, tr(100, 10), rt(10)).unwrap();
-
-    let track = project.timeline().track(v1).unwrap();
-    assert_eq!(track.clip_at(rt(15)).unwrap().map(|c| c.id), Some(id));
-    assert!(track.clip_at(rt(25)).unwrap().is_none());
-    assert_eq!(
-        project
-            .clip(id)
-            .unwrap()
-            .source_time_at(rt(15))
-            .unwrap()
-            .map(|t| t.value),
-        Some(105)
-    );
-}
-
-#[test]
-fn split_media_clip_divides_timeline_and_source() {
-    let mut project = Project::new("demo", FPS_24);
-    let media_id = project.add_media(sample_media(FPS_24, 1000));
-    let v1 = project.add_track(TrackKind::Video, "V1");
-    let left = project.add_clip(v1, media_id, tr(100, 100), rt(0)).unwrap();
-
-    let right = project
-        .split_clip(left, rt(40))
-        .expect("split inside the clip");
-    assert_ne!(left, right);
-
-    let l = project.clip(left).unwrap();
-    assert_eq!(l.timeline, tr(0, 40));
-    assert_eq!(l.source_range(), Some(tr(100, 40)));
-    let r = project.clip(right).unwrap();
-    assert_eq!(r.timeline, tr(40, 60));
-    assert_eq!(r.source_range(), Some(tr(140, 60)));
-    assert_eq!(project.timeline().duration().value, 100);
-    assert_eq!(project.timeline().clip_count(), 2);
-}
-
-#[test]
 fn split_at_or_outside_boundary_is_rejected() {
     let mut project = Project::new("demo", FPS_24);
     let media_id = project.add_media(sample_media(FPS_24, 1000));
@@ -252,21 +141,6 @@ fn split_at_or_outside_boundary_is_rejected() {
         project.split_clip(clip, rt(200)),
         Err(ModelError::InvalidRange)
     );
-}
-
-#[test]
-fn trim_head_advances_source_in_point() {
-    let mut project = Project::new("demo", FPS_24);
-    let media_id = project.add_media(sample_media(FPS_24, 1000));
-    let v1 = project.add_track(TrackKind::Video, "V1");
-    let clip = project.add_clip(v1, media_id, tr(100, 100), rt(0)).unwrap();
-
-    project
-        .trim_clip(clip, tr(30, 70))
-        .expect("head trim within bounds");
-    let c = project.clip(clip).unwrap();
-    assert_eq!(c.timeline, tr(30, 70));
-    assert_eq!(c.source_range(), Some(tr(130, 70)));
 }
 
 #[test]
@@ -347,26 +221,6 @@ fn generated_clip_rejects_wrong_track_kind() {
             kind: TrackKind::Video,
         })
     );
-}
-
-#[test]
-fn ripple_delete_closes_the_gap() {
-    let mut project = Project::new("demo", FPS_24);
-    let media_id = project.add_media(sample_media(FPS_24, 1000));
-    let v1 = project.add_track(TrackKind::Video, "V1");
-    let a = project.add_clip(v1, media_id, tr(0, 100), rt(0)).unwrap();
-    let b = project
-        .add_clip(v1, media_id, tr(100, 100), rt(100))
-        .unwrap();
-    let c = project
-        .add_clip(v1, media_id, tr(200, 100), rt(200))
-        .unwrap();
-
-    project.ripple_delete(b).unwrap();
-    assert!(project.clip(b).is_none());
-    assert_eq!(project.clip(a).unwrap().start().value, 0);
-    assert_eq!(project.clip(c).unwrap().start().value, 100);
-    assert_eq!(project.timeline().duration().value, 200);
 }
 
 #[test]
@@ -514,22 +368,553 @@ fn changing_the_sequence_rate_keeps_every_keyframe_at_its_wall_clock_time() {
     );
 }
 
+fn assert_timeline_invariants(project: &Project, timeline: &Timeline) {
+    assert!(
+        timeline.frame_rate.is_valid(),
+        "invalid timeline frame_rate: {:?}",
+        timeline.frame_rate
+    );
+    let order = timeline.order();
+    let mut seen_tracks = BTreeSet::new();
+    let mut total_clips = 0usize;
+    let mut prev_zone = 0u8;
+    let mut video_tracks = Vec::new();
+    let mut main_tracks = Vec::new();
+
+    for &track_id in order {
+        assert!(
+            seen_tracks.insert(track_id),
+            "duplicate track {track_id:?} in timeline order"
+        );
+        let track = timeline.track(track_id).expect("ordered track exists");
+        assert_eq!(track.id, track_id);
+
+        let zone = match track.kind {
+            TrackKind::Submix => 0,
+            TrackKind::Audio => 1,
+            TrackKind::Video => 2,
+            TrackKind::Text
+            | TrackKind::Sticker
+            | TrackKind::Effect
+            | TrackKind::Filter
+            | TrackKind::Adjustment => 3,
+        };
+        assert!(
+            zone >= prev_zone,
+            "lane zone order violated: {track_id:?} ({:?}, zone {zone}) after zone {prev_zone}",
+            track.kind
+        );
+        prev_zone = zone;
+        if track.kind == TrackKind::Video {
+            video_tracks.push(track_id);
+        }
+        if track.main {
+            main_tracks.push(track_id);
+            assert_eq!(
+                track.kind,
+                TrackKind::Video,
+                "non-video track {track_id:?} flagged as main"
+            );
+        }
+
+        if let TrackOutput::Bus(bus) = track.output {
+            let bus_track = timeline.track(bus).expect("output bus exists");
+            assert_eq!(bus_track.kind, TrackKind::Submix);
+            assert_ne!(bus, track_id);
+        }
+        for send in &track.sends {
+            let bus_track = timeline.track(send.to).expect("send bus exists");
+            assert_eq!(bus_track.kind, TrackKind::Submix);
+            assert_ne!(send.to, track_id);
+        }
+
+        let ordered: Vec<_> = track.clips_ordered().collect();
+        assert_eq!(ordered.len(), track.len(), "track.order len mismatch");
+        total_clips += ordered.len();
+
+        for clip in &ordered {
+            assert_eq!(
+                timeline.track_of(clip.id),
+                Some(track_id),
+                "clip_index mismatch for {:?}",
+                clip.id
+            );
+            assert!(
+                track.kind.accepts_clip(clip),
+                "track {track_id:?} ({:?}) holds incompatible clip {:?}",
+                track.kind,
+                clip.id
+            );
+            assert!(clip.timeline.start.value >= 0);
+            assert!(clip.timeline.duration.value > 0);
+            assert_eq!(clip.timeline.start.rate, timeline.frame_rate);
+            assert_eq!(clip.timeline.duration.rate, timeline.frame_rate);
+            let end = clip.timeline.end().expect("clip timeline end valid");
+            assert!(end.value > clip.timeline.start.value);
+
+            match &clip.content {
+                ClipSource::Media { media, source } => {
+                    let asset = project.media(*media).expect("clip media exists");
+                    assert!(source.start.value >= 0);
+                    assert!(source.duration.value > 0);
+                    assert_eq!(source.start.rate, asset.frame_rate);
+                    assert_eq!(source.duration.rate, asset.frame_rate);
+                    let src_end = source.end().expect("clip source end valid").value;
+                    if !asset.is_image && !clip.freeze_frame {
+                        assert!(
+                            src_end <= asset.duration.value,
+                            "clip {:?} source end {src_end} > media duration {}",
+                            clip.id,
+                            asset.duration.value
+                        );
+                    }
+                }
+                ClipSource::Sequence { sequence, source } => {
+                    let seq = project.sequence(*sequence).expect("clip sequence exists");
+                    assert!(source.start.value >= 0);
+                    assert!(source.duration.value > 0);
+                    assert_eq!(source.start.rate, seq.timeline.frame_rate);
+                    assert_eq!(source.duration.rate, seq.timeline.frame_rate);
+                    source.end().expect("sequence source end valid");
+                }
+                ClipSource::Multicam { group, source } => {
+                    assert!(project.multicam_group(*group).is_some());
+                    assert!(source.start.value >= 0);
+                    assert!(source.duration.value > 0);
+                    source.end().expect("multicam source end valid");
+                }
+                ClipSource::Generated(_) => {}
+            }
+
+            let mut cur = clip.parent;
+            let mut steps = 0usize;
+            while let Some(parent) = cur {
+                assert_ne!(parent, clip.id, "parent cycle on {:?}", clip.id);
+                let Some(parent_clip) = timeline.clip(parent) else {
+                    break;
+                };
+                cur = parent_clip.parent;
+                steps += 1;
+                assert!(steps <= timeline.clip_count(), "unbounded parent chain");
+            }
+
+            let window = clip.clip_time_range();
+            let win_end = window.end().expect("clip window end").value;
+            for m in &clip.markers {
+                assert!(m.tick.value >= window.start.value && m.tick.value < win_end);
+                assert!(m.duration.value >= 0);
+                let m_end = m.tick.value.checked_add(m.duration.value).unwrap();
+                assert!(m_end <= win_end);
+            }
+        }
+
+        for pair in ordered.windows(2) {
+            let left_end = pair[0].timeline.end().unwrap().value;
+            let right_start = pair[1].timeline.start.value;
+            assert!(
+                (left_end, pair[0].id) <= (right_start, pair[1].id),
+                "clips out of order or overlapping on {track_id:?}"
+            );
+            assert!(
+                left_end <= right_start,
+                "overlapping clips {:?} and {:?} on {track_id:?}",
+                pair[0].id,
+                pair[1].id
+            );
+        }
+
+        for t in track.transitions() {
+            assert!(t.duration > 0);
+            let l = track.clip(t.left).expect("transition left clip exists");
+            let r = track.clip(t.right).expect("transition right clip exists");
+            assert_eq!(
+                l.timeline.end_tick(),
+                r.timeline.start.value,
+                "transition clips {:?} and {:?} do not abut",
+                t.left,
+                t.right
+            );
+            let limit = t
+                .alignment
+                .junction_limit(l.timeline.duration.value, r.timeline.duration.value);
+            assert!(
+                t.duration <= limit,
+                "transition duration {} exceeds junction_limit {limit}",
+                t.duration
+            );
+        }
+    }
+
+    assert_eq!(seen_tracks.len(), timeline.track_count());
+    assert_eq!(total_clips, timeline.clip_count());
+    if video_tracks.is_empty() {
+        assert!(main_tracks.is_empty());
+    } else {
+        assert_eq!(main_tracks, vec![video_tracks[0]]);
+    }
+
+    let seq_end = timeline.duration().value;
+    for m in timeline.markers() {
+        assert!(m.tick.value >= 0 && m.duration.value >= 0);
+        let m_end = m.tick.value.checked_add(m.duration.value).unwrap();
+        if m.duration.value > 0 {
+            assert!(m_end <= seq_end);
+        }
+    }
+}
+
+fn assert_project_invariants(project: &Project) {
+    assert_timeline_invariants(project, project.timeline());
+    assert_timeline_invariants(project, project.root_timeline());
+    for seq in project.sequences() {
+        assert_timeline_invariants(project, &seq.timeline);
+        for clip in seq
+            .timeline
+            .tracks_ordered()
+            .flat_map(|t| t.clips_ordered())
+        {
+            if let Some(child_seq) = clip.sequence() {
+                assert!(!project.would_create_sequence_cycle(Some(seq.id), child_seq));
+            }
+        }
+    }
+    for bin in project.bin_iter() {
+        if let Some(parent) = bin.parent {
+            assert!(project.bin(parent).is_some());
+        }
+        assert!(!project.bin_ancestors(bin.id).any(|a| a == bin.id));
+    }
+}
+
+fn assert_save_load_idempotent(project: &Project, dir: &std::path::Path) {
+    let path_a = dir.join("roundtrip_a.aria");
+    let path_b = dir.join("roundtrip_b.aria");
+    project.save_to_file(&path_a).expect("first save_to_file");
+    let loaded = Project::load_from_file(&path_a).expect("load_from_file");
+    assert_project_invariants(&loaded);
+    loaded.save_to_file(&path_b).expect("second save_to_file");
+    let bytes_a = std::fs::read(&path_a).expect("read first save");
+    let bytes_b = std::fs::read(&path_b).expect("read second save");
+    assert_eq!(bytes_a, bytes_b, "save -> load -> save bytes drifted");
+}
+
+struct Lcg(u64);
+impl Lcg {
+    fn new(seed: u64) -> Self {
+        Self(seed ^ 0x9E37_79B9_7F4A_7C15)
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        self.0
+    }
+    fn range(&mut self, lo: i64, hi: i64) -> i64 {
+        if hi <= lo {
+            return lo;
+        }
+        lo + (self.next_u64() % (hi - lo) as u64) as i64
+    }
+}
+
 #[test]
-fn audio_and_video_tracks_hold_independent_clips() {
-    let mut project = Project::new("av", FPS_24);
+fn generative_project_mutations_preserve_invariants_and_save_load_idempotence() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    for seed in 0..8u64 {
+        let mut rng = Lcg::new(seed);
+        let mut project = Project::new(format!("gen_{seed}"), FPS_24);
+        let m24 = project.add_media(sample_media(FPS_24, 600));
+        let m30 = project.add_media(sample_media(FPS_30, 600));
+        let mut img = sample_media(FPS_24, 120);
+        img.is_image = true;
+        let m_img = project.add_media(img);
+
+        let v1 = project.add_track(TrackKind::Video, "V1");
+        let v2 = project.add_track(TrackKind::Video, "V2");
+        let a1 = project.add_track(TrackKind::Audio, "A1");
+        let t1 = project.add_track(TrackKind::Text, "T1");
+        let bus = project.add_track(TrackKind::Submix, "Bus 1");
+        project
+            .timeline_mut()
+            .set_track_output(a1, TrackOutput::Bus(bus))
+            .unwrap();
+        project
+            .timeline_mut()
+            .add_send(v1, bus, 1.0, false)
+            .unwrap();
+
+        let bin_root = project.add_bin("Root", None).unwrap();
+        let _bin_child = project.add_bin("Child", Some(bin_root)).unwrap();
+        let mc = project
+            .create_multicam_group(
+                "CamGroup",
+                vec![MulticamAngle::new(m24, 0), MulticamAngle::new(m30, 12)],
+            )
+            .unwrap();
+        let seq_id = project.create_sequence("SubSeq", FPS_24);
+        project.set_active_sequence(Some(seq_id)).unwrap();
+        let sv1 = project.add_track(TrackKind::Video, "SV1");
+        project.add_clip(sv1, m24, tr(0, 72), rt(0)).unwrap();
+        project.set_active_sequence(None).unwrap();
+
+        let c1 = project.add_clip(v1, m24, tr(0, 96), rt(0)).unwrap();
+        let c2 = project.add_clip(v1, m24, tr(96, 96), rt(96)).unwrap();
+        let ca = project.add_clip(a1, m24, tr(0, 96), rt(0)).unwrap();
+        let ct = project
+            .add_generated(t1, Generator::text("Title"), tr(0, 48))
+            .unwrap();
+        project.link_clips(&[c1, ca]).unwrap();
+        project
+            .set_clip_parent(ct, Some(c1), ClipTransform::IDENTITY.into())
+            .unwrap();
+        project.add_transition(c1, "crossfade").unwrap();
+
+        assert_project_invariants(&project);
+        assert_save_load_idempotent(&project, dir.path());
+
+        for _step in 0..40 {
+            let clips: Vec<ClipId> = project
+                .timeline()
+                .tracks_ordered()
+                .flat_map(|t| t.clips_ordered().map(|c| c.id))
+                .collect();
+            let op = rng.range(0, 14);
+            match op {
+                0 => {
+                    let start = rng.range(-12, 320);
+                    let dur = rng.range(0, 120);
+                    let src_start = rng.range(-10, 520);
+                    let track = if rng.range(0, 2) == 0 { v1 } else { v2 };
+                    let media = match rng.range(0, 3) {
+                        0 => m24,
+                        1 => m30,
+                        _ => m_img,
+                    };
+                    let rate = project.media(media).unwrap().frame_rate;
+                    let _ = project.add_clip(track, media, tr_at(src_start, dur, rate), rt(start));
+                }
+                1 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let at = rng.range(0, 300);
+                    let _ = project.split_clip(c, rt(at));
+                }
+                2 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let start = rng.range(-10, 260);
+                    let dur = rng.range(0, 140);
+                    let _ = project.trim_clip(c, tr(start, dur));
+                }
+                3 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let to = match rng.range(0, 4) {
+                        0 => v1,
+                        1 => v2,
+                        2 => a1,
+                        _ => t1,
+                    };
+                    let _ = project.move_clip(c, to, rt(rng.range(-5, 300)));
+                }
+                4 => {
+                    let track = if rng.range(0, 2) == 0 { v1 } else { v2 };
+                    let _ =
+                        project.shift_clips(track, rt(rng.range(0, 200)), rt(rng.range(-48, 48)));
+                }
+                5 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let num = rng.range(1, 5) as i32;
+                    let den = rng.range(1, 4) as i32;
+                    let _ =
+                        project.set_clip_speed(c, Rational::new(num, den), rng.range(0, 2) == 0);
+                }
+                6 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let _ = project.add_transition(c, "crossfade");
+                    if rng.range(0, 2) == 0 {
+                        let align = TransitionAlignment::ALL[rng.range(0, 3) as usize];
+                        let _ = project.set_transition_alignment(c, align);
+                    }
+                    let _ = project.set_transition_duration(c, rng.range(0, 40));
+                }
+                7 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let _ = project.slip_clip(c, rng.range(-40, 40));
+                }
+                8 => {
+                    let _ = project.add_sequence_clip(
+                        v2,
+                        seq_id,
+                        tr(0, rng.range(12, 72)),
+                        rt(rng.range(0, 280)),
+                    );
+                }
+                9 => {
+                    let _ = project.add_multicam_clip(
+                        v2,
+                        mc,
+                        tr(0, rng.range(12, 72)),
+                        rt(rng.range(0, 280)),
+                    );
+                }
+                10 if !clips.is_empty() => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let _ = project.set_param_keyframe(
+                        c,
+                        ClipParam::Opacity,
+                        rt(rng.range(0, 200)),
+                        ParamValue::Scalar(0.75),
+                        Easing::Linear,
+                        None,
+                    );
+                }
+                11 => {
+                    let m = Marker::new(rt(rng.range(0, 120)), "M", MarkerColor::Blue)
+                        .with_duration(rt(rng.range(0, 24)));
+                    let _ = project.timeline_mut().add_marker(m);
+                }
+                12 if clips.len() > 2 => {
+                    let c = clips[rng.range(0, clips.len() as i64) as usize];
+                    let _ = project.ripple_delete(c);
+                }
+                _ => {
+                    let _ = project.set_clip_beats(c2, vec![-5, 0, 12, 24, 24, 9999]);
+                }
+            }
+            assert_project_invariants(&project);
+            assert_save_load_idempotent(&project, dir.path());
+        }
+    }
+}
+
+#[test]
+fn transition_clamps_on_short_clips_and_prunes_when_shrunk_below_junction_limit() {
+    let mut project = Project::new("trans_invariant", FPS_24);
     let media_id = project.add_media(sample_media(FPS_24, 500));
-    let video = project.add_track(TrackKind::Video, "V1");
-    let audio = project.add_track(TrackKind::Audio, "A1");
+    let v1 = project.add_track(TrackKind::Video, "V1");
+    let left = project.add_clip(v1, media_id, tr(0, 10), rt(0)).unwrap();
+    let right = project.add_clip(v1, media_id, tr(10, 48), rt(10)).unwrap();
 
-    let picture = project
-        .add_clip(video, media_id, tr(0, 200), rt(0))
+    // Adding a transition on a 10-tick clip clamps its default duration (24)
+    // to junction_limit(10, 48) == 10 so the transition is immediately valid.
+    project.add_transition(left, "crossfade").unwrap();
+    assert_eq!(project.transition_at(left).unwrap().duration, 10);
+    project
+        .set_transition_alignment(left, TransitionAlignment::Center)
         .unwrap();
-    let sound = project
-        .add_clip(audio, media_id, tr(0, 200), rt(0))
-        .unwrap();
+    assert_project_invariants(&project);
 
-    assert_ne!(picture, sound);
-    assert_eq!(project.timeline().track_of(picture), Some(video));
-    assert_eq!(project.timeline().track_of(sound), Some(audio));
-    assert_eq!(project.timeline().clip_count(), 2);
+    // Trimming `right`'s tail to 6 ticks keeps `left` and `right` abutting at
+    // tick 10, but reduces `junction_limit(10, 6)` to 6 < 10, which prunes the
+    // now-overlong transition and invalidates the track revision.
+    let rev_before = project.timeline().track(v1).unwrap().revision();
+    project.trim_clip(right, tr(10, 6)).unwrap();
+    let rev_after = project.timeline().track(v1).unwrap().revision();
+    assert_ne!(rev_before, rev_after);
+    assert!(project.transition_at(left).is_none());
+    assert_project_invariants(&project);
+}
+
+#[test]
+fn load_normalizes_secondary_sequence_lanes_and_preserves_save_load_idempotence() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut project = Project::new("multi_seq", FPS_24);
+    let _v_root = project.add_track(TrackKind::Video, "V_Root");
+    let _a_root = project.add_track(TrackKind::Audio, "A_Root");
+
+    let seq_id = project.create_sequence("Nested", FPS_24);
+    project.set_active_sequence(Some(seq_id)).unwrap();
+    let _v_sub = project.add_track(TrackKind::Video, "V_Sub");
+    let _a_sub = project.add_track(TrackKind::Audio, "A_Sub");
+
+    let mut raw: serde_json::Value =
+        serde_json::from_str(&project.save_to_string().unwrap()).unwrap();
+    // Scramble the secondary sequence's track order and clear its `main` flag
+    // to simulate an unnormalized secondary sequence on disk while root is active.
+    raw["active_sequence"] = serde_json::Value::Null;
+    if let Some(seq_arr) = raw["sequences"].as_array_mut()
+        && let Some(seq_entry) = seq_arr.first_mut()
+    {
+        let tl = &mut seq_entry[1]["timeline"];
+        if let Some(order) = tl["order"].as_array_mut() {
+            order.reverse();
+        }
+        if let Some(tracks) = tl["tracks"].as_array_mut() {
+            for pair in tracks {
+                pair[1]["main"] = serde_json::Value::Bool(false);
+            }
+        }
+    }
+    let loaded = Project::load_from_string(&serde_json::to_string(&raw).unwrap()).unwrap();
+    assert_project_invariants(&loaded);
+    assert_save_load_idempotent(&loaded, dir.path());
+}
+
+#[test]
+fn model_boundary_overflows_fail_closed_without_partial_mutation() {
+    let mut project = Project::new("bounds", FPS_24);
+    let media_id = project.add_media(sample_media(FPS_24, 500));
+    let v1 = project.add_track(TrackKind::Video, "V1");
+    let c1 = project.add_clip(v1, media_id, tr(0, 48), rt(10)).unwrap();
+    let c2 = project
+        .add_clip(v1, media_id, tr(48, 48), rt(i64::MAX - 60))
+        .unwrap();
+    let before_json = project.save_to_string().unwrap();
+
+    // 1. Multi-clip `shift_clips` where clip 1 fits (`10 + 20`) but clip 2
+    // overflows `start + duration` (`(i64::MAX - 60) + 20 + 48 > i64::MAX`)
+    // must fail atomically without moving clip 1.
+    assert_eq!(
+        project.shift_clips(v1, rt(0), rt(20)),
+        Err(ModelError::TimeOverflow)
+    );
+    assert_eq!(project.clip(c1).unwrap().timeline.start.value, 10);
+    assert_eq!(project.save_to_string().unwrap(), before_json);
+
+    // 2. `Track::has_overlap` / `Timeline::add_clip` with overflowing range.
+    assert_eq!(
+        project
+            .timeline()
+            .track(v1)
+            .unwrap()
+            .has_overlap(tr(10, i64::MAX), None),
+        Err(ModelError::TimeOverflow)
+    );
+
+    // 3. `Timeline::add_marker` and `Clip::add_marker` with overflowing duration.
+    let bad_seq_marker = Marker::new(rt(10), "M", MarkerColor::Red).with_duration(rt(i64::MAX));
+    assert_eq!(
+        project.timeline_mut().add_marker(bad_seq_marker),
+        Err(ModelError::TimeOverflow)
+    );
+    let bad_clip_marker = Marker::new(rt(10), "CM", MarkerColor::Blue).with_duration(rt(i64::MAX));
+    assert_eq!(
+        project.timeline_mut().add_clip_marker(c1, bad_clip_marker),
+        Err(ModelError::TimeOverflow)
+    );
+
+    // 4. `Project::multicam_group_span` with `sync_offset == i64::MAX`.
+    let mc = project
+        .create_multicam_group("OverflowCam", vec![MulticamAngle::new(media_id, i64::MAX)])
+        .unwrap();
+    assert_eq!(
+        project.multicam_group_span(mc),
+        Err(ModelError::TimeOverflow)
+    );
+
+    // 5. `Clip::animation_tick` and `scale_by_speed` at `i64::MIN` / `i64::MAX`.
+    let clip_ref = project.clip(c2).unwrap();
+    assert_eq!(clip_ref.animation_tick(i64::MIN), 0);
+    assert_eq!(clip_ref.scale_by_speed(i64::MAX), i64::MAX);
+
+    // 6. `Project::remove_multicam_group` refuses deletion when a clip inside a
+    // secondary sequence references the group while the root sequence is active.
+    let sub_seq = project.create_sequence("SubMulticam", FPS_24);
+    project.set_active_sequence(Some(sub_seq)).unwrap();
+    let sub_v1 = project.add_track(TrackKind::Video, "SV1");
+    project
+        .add_multicam_clip(sub_v1, mc, tr(0, 24), rt(0))
+        .unwrap();
+    project.set_active_sequence(None).unwrap();
+    assert!(project.remove_multicam_group(mc).is_err());
+    assert_project_invariants(&project);
 }

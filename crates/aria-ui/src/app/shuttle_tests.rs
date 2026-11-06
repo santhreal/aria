@@ -235,6 +235,7 @@ fn running_out_of_sequence_returns_the_transport_to_one_speed() {
     assert_eq!(state.shuttle, -2);
     assert!(state.playing);
 
+    state.playback_started = Some(Instant::now() - Duration::from_secs(10));
     assert!(
         !state.advance_playhead(),
         "the playhead ran out of sequence"
@@ -261,4 +262,298 @@ fn a_toggle_plays_forward_from_any_rate() {
     assert!(state.playing);
     assert_eq!(state.shuttle, 1);
     assert!(state.audio_follows(), "and the mixer is back");
+}
+
+type StartFn = fn(&mut crate::app::AppState);
+
+fn transport_start_paths() -> Vec<(&'static str, &'static str, i32, StartFn)> {
+    vec![
+        ("toggle_playback", "toggle_playback", 1, |state| {
+            state.toggle_playback();
+        }),
+        ("play_work_area", "play_work_area", 1, |state| {
+            state.play_work_area();
+        }),
+        ("set_shuttle(+1)", "set_shuttle", 1, |state| {
+            state.set_shuttle(1);
+        }),
+        ("set_shuttle(-1)", "set_shuttle", -1, |state| {
+            state.set_shuttle(-1);
+        }),
+        ("set_shuttle_speed(+1x)", "set_shuttle_speed", 1, |state| {
+            state.set_shuttle_speed(ShuttleSpeed::ONE);
+        }),
+        (
+            "set_shuttle_speed(-1x)",
+            "set_shuttle_speed",
+            -1,
+            |state| {
+                state.set_shuttle_speed(ShuttleSpeed::hundredths(-100));
+            },
+        ),
+        ("step_shuttle_fine(+1)", "step_shuttle_fine", 1, |state| {
+            state.step_shuttle_fine(1);
+        }),
+        ("step_shuttle_fine(-1)", "step_shuttle_fine", -1, |state| {
+            state.shuttle = ShuttleSpeed::hundredths(10);
+            state.step_shuttle_fine(-1);
+        }),
+        (
+            "shuttle_key_down(+1, false)",
+            "shuttle_key_down",
+            1,
+            |state| {
+                state.shuttle_key_down(1, false);
+            },
+        ),
+        (
+            "shuttle_key_down(-1, false)",
+            "shuttle_key_down",
+            -1,
+            |state| {
+                state.shuttle_key_down(-1, false);
+            },
+        ),
+        (
+            "shuttle_key_down(+1, true) with K",
+            "shuttle_key_down",
+            1,
+            |state| {
+                state.k_down(false);
+                state.shuttle_key_down(1, true);
+            },
+        ),
+        (
+            "shuttle_key_down(-1, true) with K",
+            "shuttle_key_down",
+            -1,
+            |state| {
+                state.k_down(false);
+                state.shuttle_key_down(-1, true);
+            },
+        ),
+        ("space", "toggle_playback", 1, |state| {
+            state.space();
+        }),
+        ("shift_space", "play_work_area", 1, |state| {
+            state.shift_space();
+        }),
+        (
+            "toggle_viewer_playback",
+            "toggle_playback",
+            1,
+            |state| {
+                state.toggle_viewer_playback();
+            },
+        ),
+    ]
+}
+
+/// Parse `app/transport.rs` (with test items and comments stripped) and return
+/// the set of `pub fn` methods whose bodies call `apply_shuttle_speed` or
+/// `set_shuttle`.
+fn source_transport_start_pub_fns() -> std::collections::BTreeSet<String> {
+    let sources = crate::test_support::sources::production_sources();
+    let (_, transport) = sources
+        .iter()
+        .find(|(rel, _)| rel == "app/transport.rs")
+        .expect("app/transport.rs in production_sources");
+    let mut found = std::collections::BTreeSet::new();
+    let mut current_pub_fn: Option<(String, i32)> = None;
+    let mut depth = 0i32;
+    for line in transport.lines() {
+        let trimmed = line.trim();
+        if current_pub_fn.is_none()
+            && let Some(rest) = trimmed.strip_prefix("pub fn ")
+            && let Some(name) = rest.split('(').next()
+        {
+            current_pub_fn = Some((name.trim().to_owned(), depth));
+        }
+        if let Some((name, _)) = &current_pub_fn
+            && (trimmed.contains("self.apply_shuttle_speed(")
+                || trimmed.contains("self.set_shuttle("))
+        {
+            found.insert(name.clone());
+        }
+        for c in line.chars() {
+            match c {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+        }
+        if let Some((_, start_depth)) = current_pub_fn
+            && depth <= start_depth
+        {
+            current_pub_fn = None;
+        }
+    }
+    found
+}
+
+/// Every sequence playback start in the crate goes through
+/// `AppState::apply_shuttle_speed`, and starting playback on an empty sequence
+/// declines in the status line rather than entering a 0-tick play state.
+///
+/// The class closed here is a playback start path that sets `self.playing = true`
+/// directly without checking the sequence bounds or rewinding from the end, or
+/// a new `pub fn` start path added to `app/transport.rs` outside the test table.
+/// Not caught: a plugin or external clock mutating `EditorView` without going
+/// through `AppState`.
+#[test]
+fn every_playback_start_path_goes_through_apply_shuttle_speed_and_refuses_an_empty_sequence() {
+    let sources = crate::test_support::sources::production_sources();
+    let mut playing_true_sites = Vec::new();
+    for (rel, code) in &sources {
+        let mut current_fn = String::new();
+        for (idx, line) in code.lines().enumerate() {
+            let trimmed = line.trim();
+            if let Some( pos) = trimmed.find("fn ") {
+                let after = &trimmed[pos + 3..];
+                if let Some(name) = after.split('(').next() {
+                    current_fn = name.trim().to_owned();
+                }
+            }
+            if let Some(pos) = trimmed.find(".playing") {
+                let rest = trimmed[pos + ".playing".len()..].trim_start();
+                if let Some(rhs) = rest.strip_prefix('=')
+                    && !rhs.starts_with('=')
+                {
+                    let rhs = rhs.trim();
+                    if !rhs.starts_with("false;") {
+                        playing_true_sites.push(format!(
+                            "{rel}:{}:{current_fn}: {trimmed}",
+                            idx + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(
+        playing_true_sites.len(),
+        1,
+        "only AppState::apply_shuttle_speed may set `.playing` to a playing state:\n  {}",
+        playing_true_sites.join("\n  ")
+    );
+    assert!(
+        playing_true_sites[0].starts_with("app/transport.rs:")
+            && playing_true_sites[0].contains(":apply_shuttle_speed:"),
+        "unexpected `.playing = true` owner: {}",
+        playing_true_sites[0]
+    );
+
+    let from_source = source_transport_start_pub_fns();
+    assert!(
+        !from_source.is_empty(),
+        "found no public start paths in app/transport.rs"
+    );
+    let paths = transport_start_paths();
+    let covered: std::collections::BTreeSet<String> = paths
+        .iter()
+        .map(|(_, method, _, _)| (*method).to_owned())
+        .collect();
+    assert_eq!(
+        covered, from_source,
+        "transport_start_paths() must cover every pub fn start path in app/transport.rs"
+    );
+
+    for (label, _, _, start) in &paths {
+        let mut state = crate::app::AppState::new(
+            aria_plugin::PluginContext::new(),
+            crate::scratch_pool::scratch("empty-seq-play"),
+        )
+        .expect("state");
+        state.new_project().expect("empty project");
+        state.status_message = None;
+        start(&mut state);
+        assert!(
+            !state.playing,
+            "{label}: entered playing state on an empty sequence"
+        );
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some("The sequence has no clips"),
+            "{label}: did not explain why an empty sequence cannot play"
+        );
+    }
+}
+
+/// Starting forward playback with the playhead parked at or past the active end
+/// rewinds to the active start and plays; starting reverse playback at or
+/// before the active start jumps to the active end and plays backward.
+#[test]
+fn starting_forward_from_the_end_or_reverse_from_the_start_rewinds_across_every_start_path() {
+    for (label, _, dir, start) in transport_start_paths() {
+        for looping in [false, true] {
+            let (mut state, _) = with_clip();
+            let duration = state.store.sequence.duration_ticks;
+            assert!(duration >= 72);
+            let (bound_start, bound_end) = if looping {
+                state.mark_in = Some(24);
+                state.mark_out = Some(72);
+                state.toggle_loop();
+                (24, 72)
+            } else if label == "play_work_area" || label == "shift_space" {
+                state.mark_in = Some(24);
+                state.mark_out = Some(72);
+                (24, 72)
+            } else {
+                (0, duration)
+            };
+            if dir > 0 {
+                state.set_playhead(bound_end);
+                assert_eq!(state.playhead.value, bound_end);
+                start(&mut state);
+                assert!(
+                    state.playing,
+                    "{label} (loop={looping}): did not start forward playback"
+                );
+                assert_eq!(
+                    state.playhead.value, bound_start,
+                    "{label} (loop={looping}): forward start at {bound_end} did not rewind to {bound_start}"
+                );
+                assert_eq!(
+                    state.playback_anchor_tick, bound_start,
+                    "{label} (loop={looping}): playback_anchor_tick stayed at {bound_end}"
+                );
+                state.playback_started = Some(Instant::now() - Duration::from_millis(500));
+                assert!(
+                    state.advance_playhead(),
+                    "{label} (loop={looping}): stopped on the first advance after rewinding from end"
+                );
+                assert!(
+                    state.playhead.value > bound_start && state.playhead.value < bound_end,
+                    "{label} (loop={looping}): playhead did not advance from {bound_start} (got {})",
+                    state.playhead.value
+                );
+            } else {
+                state.set_playhead(bound_start);
+                assert_eq!(state.playhead.value, bound_start);
+                start(&mut state);
+                assert!(
+                    state.playing,
+                    "{label} (loop={looping}): did not start reverse playback"
+                );
+                assert_eq!(
+                    state.playhead.value, bound_end,
+                    "{label} (loop={looping}): reverse start at {bound_start} did not jump to {bound_end}"
+                );
+                assert_eq!(
+                    state.playback_anchor_tick, bound_end,
+                    "{label} (loop={looping}): playback_anchor_tick stayed at {bound_start}"
+                );
+                state.playback_started = Some(Instant::now() - Duration::from_millis(500));
+                assert!(
+                    state.advance_playhead(),
+                    "{label} (loop={looping}): stopped on the first advance after jumping to end"
+                );
+                assert!(
+                    state.playhead.value > bound_start && state.playhead.value < bound_end,
+                    "{label} (loop={looping}): playhead did not advance backward from {bound_end} (got {})",
+                    state.playhead.value
+                );
+            }
+        }
+    }
 }

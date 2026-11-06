@@ -167,6 +167,7 @@ fn takes_frames(element: &gst::Element, frames: &gst::Caps) -> bool {
     let mut any_format = frames.clone();
     for structure in any_format.make_mut().iter_mut() {
         structure.remove_field("format");
+        structure.remove_field("colorimetry");
     }
     sink.query_caps(None).can_intersect(&any_format)
 }
@@ -282,8 +283,13 @@ mod tests {
 
     /// NV12 frames of `width` by `height` at 30 fps, as an export pushes them.
     fn frames(width: u32, height: u32) -> gst::Caps {
-        super::super::frame::video_caps(width, height, Rational::new(30, 1))
-            .expect("a positive rate builds caps")
+        super::super::frame::video_caps(
+            width,
+            height,
+            Rational::new(30, 1),
+            crate::yuv::YuvMatrix::Bt709,
+        )
+        .expect("a positive rate builds caps")
     }
 
     /// The walk returns the first candidate that opens and stops there; a

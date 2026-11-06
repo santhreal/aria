@@ -313,6 +313,66 @@ fn a_turn_calls_plugin_tools_that_read_and_edit_the_project() {
     assert!(markers(&state).is_empty());
 }
 
+/// The assistant's tool list and the Settings count describe the tools a turn
+/// offers, every one of them. The list left out the app tools and
+/// `commit_progress`, and the count left out the loop's three, so the two read
+/// 69 and 72 for a turn that offered 75. Read from a turn of the shipped loop
+/// with the shipped extensions and a plugin mounted. Not covered: a session
+/// with every skill switched off, where a turn drops `read_skill` and the
+/// list keeps it.
+#[test]
+fn the_listed_and_counted_tools_are_the_tools_a_turn_offers() {
+    let state = state();
+    let provider = ScriptedProvider::new(vec![ChatTurn {
+        text: "Done.".to_owned(),
+        reasoning_summary: String::new(),
+        tool_calls: Vec::new(),
+        finish: FinishReason::Stop,
+    }]);
+    let (beats, _wakes) = crate::handoff::wakes::<Beat>();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let mut bridge = SessionBridge::new(
+        Arc::clone(state.host()),
+        crate::handoff::Wake::clone(&beats),
+        Arc::clone(&cancel),
+    );
+    let (mut host, _rx) = host(&state, Autonomy::Ask);
+    let (extensions, _) = state.assistant_extensions();
+    assert!(!extensions.skills.is_empty(), "no skill is bundled");
+    let outcome = run_prompt_with_host(
+        &provider,
+        &mut bridge,
+        &mut host,
+        &EditorContext::default(),
+        &extensions,
+        &[],
+        "what can you do",
+        &AgentConfig::default(),
+        &cancel,
+        &mut |_: AgentEvent| {},
+    );
+    assert_eq!(outcome.status, PromptStatus::Completed);
+
+    let mut offered = provider.tool_names()[0].clone();
+    offered.sort();
+    let mut listed: Vec<String> = state
+        .ai_tool_groups()
+        .into_iter()
+        .flat_map(|(_, tools)| tools)
+        .map(|tool| tool.to_string())
+        .collect();
+    listed.sort();
+    assert_eq!(listed, offered, "the tool list is not what a turn offers");
+
+    let line = state.agent_capabilities();
+    let counted: usize = line
+        .split(", ")
+        .filter(|part| part.contains("edit") || part.contains("tool"))
+        .filter_map(|part| part.split(' ').next()?.parse::<usize>().ok())
+        .sum();
+    assert_eq!(counted, offered.len(), "Settings counts {line:?}");
+}
+
 /// A System tool asks first under Ask, names the plugin in the question, and
 /// does not run when refused.
 #[test]

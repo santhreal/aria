@@ -391,6 +391,7 @@ impl Shell {
     /// gesture that wrote to the project while it moved the view is drawn in
     /// full.
     pub fn redraw(&mut self, moved: Moved, cx: &mut Context<Self>) {
+        self.state.read(cx).publish_view();
         if self.state.read(cx).projections != self.drawn_projections {
             self.redraw_bodies(cx);
         } else {

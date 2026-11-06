@@ -112,14 +112,21 @@ impl Project {
             return Ok(None);
         };
 
-        let new_first = first + delta.value;
+        let new_first = first
+            .checked_add(delta.value)
+            .ok_or(ModelError::TimeOverflow)?;
         if new_first < 0 {
             return Err(ModelError::InvalidRange);
         }
         if delta.value < 0 && new_first < prev_end {
             return Err(ModelError::Overlap(track_id));
         }
-
+        for clip in track.clips() {
+            if clip.timeline.start.value >= from.value {
+                let new_start = time_add(&clip.timeline.start, &delta)?;
+                TimeRange::at_rate(new_start.value, clip.timeline.duration.value, tl_rate).end()?;
+            }
+        }
         let track = self
             .timeline_mut()
             .track_mut(track_id)

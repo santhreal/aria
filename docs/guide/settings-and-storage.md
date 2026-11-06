@@ -71,9 +71,10 @@ project uses them.
 
 Cached downloads are re-fetchable, so clearing them costs bandwidth, not work.
 
-The **Maintenance** row reads `held` while a cloud download is in flight. Clear and
-Move are refused then: either one would delete or move the partial file the download
-is still writing. It returns to `available` when the download ends, whether it
+While a cloud download is in flight, **Clear cache** and **Move storage…** draw dimmed
+with the arrow cursor: either one would delete or move the partial file the download
+is still writing. A press posts `A download is in flight. Clear and Move run once it
+finishes` and opens no folder picker. Both return when the download ends, whether it
 succeeded or failed.
 
 ## Caches
@@ -166,9 +167,13 @@ Settings holds an AI section.
   provider turns, and images. They come from the AI plugin, so with that plugin
   disabled the row states that instead of listing a cap nothing enforces.
 - **Can do** counts the tools a prompt is offered: the validated edit vocabulary,
-  then the app tools, with the read-only ones and the ones that prompt first in
-  parentheses, then the plugin tools. The counts are taken from those tables, not
-  written here, so they cannot claim a capability this build does not have.
+  then the app tools (the loop's `describe_project`, `commit_progress` and
+  `read_skill`, then the host tools listed in the
+  [assistant guide](assistant.md#built-in-loop-and-host-tools)), with the
+  read-only ones and the ones that prompt first in parentheses, then the plugin
+  tools. The assistant's tool list draws the same tools, grouped. The counts are
+  taken from those tables, not written here, so they cannot claim a capability
+  this build does not have.
 - **Active** lists which parts of a turn are switched on right now: edits,
   read-only tools, reasoning when a summary is requested, and whether a
   destructive call prompts.
