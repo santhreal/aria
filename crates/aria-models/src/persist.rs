@@ -26,7 +26,21 @@ impl Project {
     /// of what was loaded: the writer defines the format. (A project opened
     /// from a v1 file may now hold v2-only data like keyframes; persisting
     /// it as "v1" would lie to older readers.)
+    ///
+    /// A path the media pool plays from fails with
+    /// [`io::ErrorKind::InvalidInput`] before anything is written: the save
+    /// would replace that footage with the project, which would then point at
+    /// itself.
     pub fn save_to_file(&self, path: &Path) -> io::Result<()> {
+        if self.plays_file(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "{} is media this project uses; save the project to another file",
+                    path.display()
+                ),
+            ));
+        }
         let mut stale = None;
         let doc = self.stamped_for_save(&mut stale);
         persist_streaming(path, doc, &StdPersistenceFs)
@@ -749,7 +763,9 @@ fn migrate_v2_clip(clip: &mut serde_json::Map<String, serde_json::Value>) {
 /// initializes an empty map.
 fn migrate_v3_to_v4(doc: &mut serde_json::Value) {
     if let Some(obj) = doc.as_object_mut()
-        && obj.get("plugin_data").is_some_and(serde_json::Value::is_null)
+        && obj
+            .get("plugin_data")
+            .is_some_and(serde_json::Value::is_null)
     {
         obj.remove("plugin_data");
     }

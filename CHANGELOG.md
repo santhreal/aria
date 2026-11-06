@@ -1275,7 +1275,8 @@ Notes for the latest release. For previous releases, see the
 - On Linux, exported MP4 files trim the AAC encoder's priming delay and trailing frame padding in the sound track's edit list so decoded audio starts on sample 0 and ends at the sequence duration.
 - An export or `aria frame` to the project file or to a media file the project uses fails before writing instead of replacing that file.
 - `aria new` fails with exit 2 when its output already exists instead of saving a project over it.
-- `aria-desktop --help` and `aria-desktop --version` print the usage or the version instead of starting the editor, and any other dash word exits 2 before a window opens.
+- Save, Save As and Save a Copy fail on a file the media pool plays from instead of replacing that footage with the project.
+- File > Export > Frame fails on the project file or a media file the project uses instead of replacing it with the PNG.
 
 ## [alpha-0.7.0] - 2026-07-22
 

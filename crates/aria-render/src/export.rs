@@ -318,10 +318,11 @@ pub fn check_export_destination(
     let Ok(target) = std::fs::canonicalize(destination) else {
         return Ok(());
     };
-    let is_target = |path: &Path| std::fs::canonicalize(path).is_ok_and(|path| path == target);
-    let what = if project_file.is_some_and(is_target) {
+    let what = if project_file
+        .is_some_and(|path| std::fs::canonicalize(path).is_ok_and(|path| path == target))
+    {
         ExportInput::Project
-    } else if project.media_iter().any(|media| is_target(media.path())) {
+    } else if project.plays_file(destination) {
         ExportInput::Media
     } else {
         return Ok(());

@@ -245,12 +245,15 @@ impl AppState {
 
     /// Export Frame: render the frame under the playhead at the canvas size
     /// and write it to `path` as a PNG, as a job. A path with no extension
-    /// gets `.png`.
-    pub fn export_frame_job(&mut self, mut path: PathBuf) -> u64 {
+    /// gets `.png`. A path naming the project file or one of its media is
+    /// refused before a job exists, as an export is.
+    pub fn export_frame_job(&mut self, mut path: PathBuf) -> Result<u64, String> {
         if path.extension().is_none() {
             path.set_extension("png");
         }
         let project = self.host().snapshot();
+        aria_render::check_export_destination(&project, &path, self.project_path.as_deref())
+            .map_err(|err| super::error_copy::describe_export_refusal(&err))?;
         let at = self.playhead;
         let gpu = super::render_device::shared_device(&self.ctx);
         let label = format!("Exporting frame to {}", folder_label(&path));
@@ -269,7 +272,7 @@ impl AppState {
             },
         );
         self.set_job_status_line(format!("Exporting frame {}", self.playhead.value));
-        id.raw()
+        Ok(id.raw())
     }
 
     /// Ctrl+Shift+E: ask where the frame goes, then export it.
@@ -280,8 +283,10 @@ impl AppState {
                 let Some(path) = answer.one() else {
                     return;
                 };
-                state.export_frame_job(path);
-                state.open_dialog(DialogKind::Jobs);
+                match state.export_frame_job(path) {
+                    Ok(_) => state.open_dialog(DialogKind::Jobs),
+                    Err(err) => state.report_error(err),
+                }
             },
         );
     }

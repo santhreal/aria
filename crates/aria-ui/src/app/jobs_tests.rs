@@ -616,7 +616,9 @@ fn every_registered_job_kind_projects_state_titles_and_terminal_status_without_c
 
     // 1. Frame export ("Exporting frame to ...") carries JobKind::Other, not Export.
     let dir = crate::scratch_pool::scratch("frame_kind");
-    let frame_id = state.export_frame_job(dir.join("still.png"));
+    let frame_id = state
+        .export_frame_job(dir.join("still.png"))
+        .expect("a frame export to a new file is queued");
     let frame_row = state
         .job_view
         .iter()
@@ -756,6 +758,52 @@ fn every_registered_job_kind_projects_state_titles_and_terminal_status_without_c
             spec.kind
         );
     }
+}
+
+/// WHY: Export Frame onto the project file or onto a file in the pool started
+/// the job, and the PNG it published replaced the project or the footage.
+/// Both are refused when the frame export is asked for, before a job exists,
+/// in the words an export over an input prints, and neither file changes.
+/// Not caught: a project path set by something other than `project_path`.
+#[test]
+fn a_frame_export_over_the_project_file_or_a_pool_file_is_refused_before_a_job_exists() {
+    let (mut state, _clip) = with_clip();
+    let dir = crate::scratch_pool::scratch("frame_over_input");
+    let project_file = dir.join("p.aria");
+    std::fs::write(&project_file, b"the project").expect("write project file");
+    state.project_path = Some(project_file.clone());
+    let media = state
+        .host
+        .snapshot()
+        .media_iter()
+        .next()
+        .expect("the clip's media")
+        .path()
+        .to_path_buf();
+    let footage = std::fs::read(&media).expect("read the footage");
+    let jobs = state.job_view.len();
+
+    for (destination, what) in [
+        (project_file.clone(), "the project file"),
+        (media.clone(), "media this project uses"),
+    ] {
+        let err = state
+            .export_frame_job(destination.clone())
+            .expect_err("a frame export over an input is queued");
+        assert_eq!(
+            err,
+            format!(
+                "{} is {what}; export to another file",
+                destination.display()
+            )
+        );
+        assert_eq!(state.job_view.len(), jobs, "{what}: a job exists");
+    }
+    assert_eq!(
+        std::fs::read(&project_file).expect("read project file"),
+        b"the project"
+    );
+    assert_eq!(std::fs::read(&media).expect("read the footage"), footage);
 }
 
 /// WHY: closing or switching projects while background jobs were in flight

@@ -682,6 +682,11 @@ impl AppState {
                     Ok(()) => {
                         state.status_message = Some(format!("Saved a copy to {}", path.display()));
                     }
+                    // A pool file is refused with its own next step; the
+                    // folder hint is for a write the filesystem failed.
+                    Err(err) if err.kind() == std::io::ErrorKind::InvalidInput => {
+                        state.report_error(format!("Could not save a copy: {err}"))
+                    }
                     Err(err) => state.report_error(format!(
                         "Could not save a copy to {}: {err}. Choose a folder you can write to.",
                         path.display()

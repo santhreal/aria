@@ -217,3 +217,78 @@ fn load_tolerates_missing_media() {
         missing.as_path()
     );
 }
+
+/// WHY: Save, Save As and Save a Copy wrote the project to any path, so saving
+/// to a file the pool plays from replaced the footage with project JSON and
+/// left a project whose media was itself. `Project::save_to_file` is the write
+/// every one of them, the plugin host and `aria new` reach, so the refusal is
+/// asserted through the engine's Save command, in every spelling of the media
+/// path (canonical, as stored with `..`, with `.`, a link), with the footage
+/// bytes, the project path and the name unchanged. The pool holds a spelling
+/// that is not canonical, so a check that compares spellings fails here. A
+/// save beside the footage, and over a different file with the footage's
+/// name, still succeeds. Not caught: a hard link to the footage, which
+/// canonicalizes to its own path.
+#[test]
+fn a_save_over_a_file_the_pool_uses_is_refused_and_the_footage_keeps_its_bytes() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let footage = dir.path().join("take.mp4");
+    std::fs::write(&footage, b"footage bytes").expect("footage");
+    std::fs::create_dir(dir.path().join("sub")).expect("sub");
+    let stored = dir.path().join("sub").join("..").join("take.mp4");
+    let mut fixture = Project::new("pool", Rational::FPS_24);
+    fixture.add_media(aria_models::MediaSource::new(
+        &stored,
+        1280,
+        720,
+        Rational::FPS_24,
+        48,
+        false,
+    ));
+    let mut engine = Engine::with_project(engine_config(), fixture).expect("engine");
+
+    let mut spellings = vec![
+        footage.clone(),
+        dir.path().join(".").join("take.mp4"),
+        stored.clone(),
+    ];
+    #[cfg(unix)]
+    {
+        let link = dir.path().join("link.mp4");
+        std::os::unix::fs::symlink(&footage, &link).expect("symlink");
+        spellings.push(link);
+    }
+    for path in spellings {
+        let err = engine
+            .apply(Command::Project(ProjectCommand::Save {
+                path: path.clone(),
+            }))
+            .expect_err("a save over pool media is refused");
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "{} is media this project uses; save the project to another file",
+                path.display()
+            )
+        );
+        assert_eq!(std::fs::read(&footage).expect("footage"), b"footage bytes");
+        assert_eq!(engine.project_path(), None, "{}", path.display());
+        assert_eq!(engine.project().name, "pool", "{}", path.display());
+    }
+
+    let namesake = dir.path().join("sub").join("take.mp4");
+    std::fs::write(&namesake, b"other bytes").expect("namesake");
+    engine
+        .apply(Command::Project(ProjectCommand::Save {
+            path: namesake.clone(),
+        }))
+        .expect("a save over another file with the footage's name");
+    assert_ne!(std::fs::read(&namesake).expect("namesake"), b"other bytes");
+
+    let cut = dir.path().join("cut.aria");
+    engine
+        .apply(Command::Project(ProjectCommand::Save { path: cut.clone() }))
+        .expect("a save beside the footage");
+    assert_eq!(engine.project_path(), Some(&cut));
+    assert_eq!(std::fs::read(&footage).expect("footage"), b"footage bytes");
+}

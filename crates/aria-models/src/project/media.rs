@@ -74,6 +74,28 @@ impl Project {
             .map(|m| m.id)
     }
 
+    /// Whether `path` names a file the media pool plays from, in any spelling:
+    /// `.`, `..`, or a link. A path that does not exist names no pool file.
+    ///
+    /// Every writer that replaces a file checks this first. Pool paths are
+    /// canonical from import, so only a source with the same file name as the
+    /// resolved path is resolved itself, and a save of a large pool costs one
+    /// `canonicalize` rather than one per source.
+    pub fn plays_file(&self, path: &Path) -> bool {
+        let Ok(target) = path.canonicalize() else {
+            return false;
+        };
+        let Some(name) = target.file_name() else {
+            return false;
+        };
+        self.media_iter().any(|media| {
+            let source = media.path();
+            source == target
+                || source.file_name() == Some(name)
+                    && source.canonicalize().is_ok_and(|source| source == target)
+        })
+    }
+
     /// Whether any clip (on the root timeline, inside any secondary sequence,
     /// or inside a baked clip snapshot) or multicam group currently references
     /// `media_id`.

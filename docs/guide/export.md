@@ -33,7 +33,10 @@ See [Templates](#templates) for the marks.
 
 - Ctrl+S prompts for a `.aria` path the first time, or saves to the current
   project path.
-- Ctrl+Shift+S saves to a new path.
+- Ctrl+Shift+S saves to a new path. Ctrl+Alt+S saves a copy and keeps the
+  open project's path.
+- A save to a file the media pool plays from fails and leaves that file as it
+  was.
 - Ctrl+O opens a project. Ctrl+Shift+W returns to Home.
 - Ctrl+M opens Export. Choose a destination or accept the default `.mp4` beside
   the project (or in the platform videos directory when the project has not been
@@ -88,9 +91,9 @@ project:
 frames…** prompts for a folder and writes the frames as an image sequence,
 with the same scale, rate, and range.
 
-An export to the project file, or to a file the project uses as media, fails
-before a job starts and leaves the file as it was. The status line names the
-file. Pick another path.
+An export or a **File > Export > Frame…** to the project file, or to a file the
+project uses as media, fails before a job starts and leaves the file as it was.
+The status line names the file. Pick another path.
 
 The status line states the size, whether audio is included, and the span when the
 export starts.
