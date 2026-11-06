@@ -17,9 +17,9 @@ use std::ops::Range;
 
 use gpui::{
     AnyElement, App, Axis, Bounds, Div, EdgeFade, Edges, Element, ElementId, GlobalElementId,
-    InspectorElementId, IntoElement, LayoutId, ListSizingBehavior, Pixels, ScrollHandle,
-    ScrollStrategy, Stateful, StatefulInteractiveElement as _, Styled as _, UniformList,
-    UniformListScrollHandle, Window, div, px, uniform_list,
+    InspectorElementId, IntoElement, LayoutId, Pixels, ScrollHandle, ScrollStrategy, Stateful,
+    StatefulInteractiveElement as _, Styled as _, UniformList, UniformListScrollHandle, Window,
+    div, px, uniform_list,
 };
 
 #[cfg(test)]
@@ -100,10 +100,16 @@ pub fn scroll_x(frame: Stateful<Div>) -> ScrollFrame {
     ScrollFrame::new(Scrolled::Div(frame.overflow_x_scroll()), Axis::Horizontal)
 }
 
-/// `rows` rows of one height, scrolled on the vertical axis in a frame at most
+/// `rows` rows `row` px tall, scrolled on the vertical axis in a frame at most
 /// `tallest` px tall, with its top and bottom edges faded while rows continue
 /// past them. `render` draws the rows of a range, and only the rows in view are
 /// drawn, so a list of a thousand rows costs a draw what a list of ten does.
+///
+/// The frame is laid out at its height, the rows' or `tallest`, whichever is
+/// less, in any parent. A list measured by its rows instead counts every row
+/// toward the height of a flex parent while it draws `tallest`, so a font list
+/// under a title's Text tab grew the tab by every installed family and the
+/// wheel scrolled the tab into blank ground.
 ///
 /// Row `reveal` is brought into view on the first draw and on each draw it
 /// differs from the row brought in last, centered when it was out of view.
@@ -112,14 +118,14 @@ pub fn scroll_x(frame: Stateful<Div>) -> ScrollFrame {
 pub fn scroll_list<R: IntoElement>(
     id: impl Into<ElementId>,
     rows: usize,
+    row: Pixels,
     tallest: Pixels,
     reveal: Option<usize>,
     render: impl Fn(Range<usize>, &mut Window, &mut App) -> Vec<R> + 'static,
 ) -> ScrollFrame {
     let list = uniform_list(id, rows, render)
-        .with_sizing_behavior(ListSizingBehavior::Infer)
         .w_full()
-        .max_h(tallest);
+        .h((row * rows as f32).min(tallest));
     ScrollFrame::new(Scrolled::List { list, reveal }, Axis::Vertical)
 }
 

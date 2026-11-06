@@ -250,7 +250,7 @@ fn converse(state: &mut AppState) {
 /// Place a media clip, a title and a shape, pick the media in the pool and
 /// read a frame for the Info panel. Returns every clip with its kind, the media
 /// clip first.
-fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
+pub(super) fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
     let movie = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
     let media = state.import_media(movie).expect("import the movie");

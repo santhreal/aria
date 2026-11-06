@@ -23,6 +23,8 @@ mod reveal;
 mod slot_track_tests;
 #[cfg(test)]
 mod strip_tests;
+#[cfg(test)]
+mod tab_end_tests;
 pub mod tab_host;
 mod tab_strip;
 #[cfg(test)]
