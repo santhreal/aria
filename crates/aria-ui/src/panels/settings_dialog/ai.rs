@@ -22,6 +22,7 @@ use crate::app::settings_form::SettingsField;
 use crate::components;
 use crate::theme::Theme;
 
+use super::value_row::value_row;
 use super::widgets::{choice_row, kv, row_label};
 
 // Beside this file rather than in a directory: the module tree is still
@@ -98,6 +99,17 @@ pub(super) fn ai_rows(
         )
         .into_any_element()
     });
+    let reveal = components::ghost_button("agent-dir-reveal", "Reveal agent files", theme)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                this.state.update(cx, |state, _| {
+                    state.reveal_agent_dir();
+                });
+                cx.notify();
+            }),
+        )
+        .into_any_element();
     let mut rows = vec![choice_row(
         theme,
         "ai-source",
@@ -142,7 +154,7 @@ pub(super) fn ai_rows(
             |state, autonomy, _| state.set_autonomy(autonomy),
         ),
         kv(theme, "Status", status).into_any_element(),
-        kv(theme, "Agent files", agent_label).into_any_element(),
+        value_row(theme, "Agent files", agent_label, [reveal]),
         kv(theme, "Limits", state.read(cx).agent_limits()).into_any_element(),
         kv(theme, "Can do", state.read(cx).agent_capabilities()).into_any_element(),
         kv(theme, "Active", state.read(cx).agent_phases()).into_any_element(),
@@ -152,19 +164,6 @@ pub(super) fn ai_rows(
     // model and will accept this key.
     rows.extend(models::rows(theme, state, cx));
     rows.extend(asking);
-    rows.push(
-        components::ghost_button("agent-dir-reveal", "Reveal agent files", theme)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                    this.state.update(cx, |state, _| {
-                        state.reveal_agent_dir();
-                    });
-                    cx.notify();
-                }),
-            )
-            .into_any_element(),
-    );
     rows
 }
 

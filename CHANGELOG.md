@@ -1229,6 +1229,7 @@ Notes for the latest release. For previous releases, see the
 - The Analysis tab draws a detector or Measure at 40 % opacity while the selected clip cannot be analyzed by it.
 - The export sheet draws the marked range at 40 % opacity while no In and Out are set.
 - A disabled button or chip no longer brightens to full strength while it is pressed.
+- Settings > AI draws Reveal agent files at the end of the Agent files row and Test connection and List models on the values' column.
 
 ## [alpha-0.7.0] - 2026-07-22
 

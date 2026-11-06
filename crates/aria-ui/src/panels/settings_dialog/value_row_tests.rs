@@ -7,10 +7,12 @@
 //! the two WASM limit rows and the download quota did the same. A missing
 //! model's Install, Clear analysis, and every line of section and cache
 //! actions started on the label column, Install and Clear analysis filling
-//! the line.
+//! the line. In the AI section, Reveal agent files filled a line of its own
+//! under the folder it reveals, and Test connection and List models started
+//! on the label column.
 //!
-//! Opens the Transcription, Plugins, Storage and Caches sections in the drawn
-//! shell and reads every value and action back from the text the dialog
+//! Opens the Transcription, Plugins, Storage, Caches and AI sections in the
+//! drawn shell and reads every value and action back from the text the dialog
 //! draws: each row's label starts on the section title's edge and its value
 //! on the column the read-only values start on; the actions at a row's end
 //! end on one edge, and a line of actions of its own starts on the values'
@@ -299,4 +301,29 @@ fn settings_values_with_actions_stand_on_the_section_grid(cx: &mut TestAppContex
         (clears - column).abs() < px(EPS),
         "the caches' Clears start at {clears:?}, the values' column at {column:?}"
     );
+
+    // AI: Reveal agent files at the end of the Agent files row, and the
+    // provider probes on a line of their own on the values' column. The
+    // folder wraps, and a wrapped value is one run as tall as its lines, so
+    // the action is held to the row's one-line label, not to the folder.
+    let (card, all) = drawn(&state, visual, SettingsSection::Ai);
+    let folder = visual.update(|_, app| state.read(app).agent_dir().display().to_string());
+    let path = all
+        .iter()
+        .find(|run| {
+            card.contains(&run.bounds.center())
+                && !run.text.is_empty()
+                && folder.starts_with(run.text.as_ref())
+        })
+        .unwrap_or_else(|| panic!("the Settings dialog draws `{folder}`"))
+        .bounds;
+    let label = one(&all, card, "Agent files");
+    let reveal = one(&all, card, "Reveal agent files");
+    assert!(
+        (reveal.center().y - label.center().y).abs() < px(EPS),
+        "Reveal agent files stands at {:?}, its row's label at {:?}",
+        reveal.center().y,
+        label.center().y
+    );
+    on_column(&all, card, path.left(), "Test connection");
 }
