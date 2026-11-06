@@ -305,3 +305,63 @@ fn selecting_a_plugin_encoder_updates_destination_extension_and_request_id() {
     assert_eq!(req.plugin_encoder.as_deref(), Some("webm.vp9"));
     assert_eq!(req.format.audio, Some(false));
 }
+
+/// An empty project saved as `cut.aria` in a fresh scratch directory, and the
+/// destination the sheet prints for it, beside the project.
+fn saved_empty(tag: &str) -> (AppState, std::path::PathBuf) {
+    let dir = crate::scratch_pool::scratch(tag);
+    let mut state = AppState::new(aria_plugin::PluginContext::new(), dir).expect("state");
+    state.new_project().expect("new project");
+    state.project_path = Some(state.data_dir.join("cut.aria"));
+    let destination = state.export_destination();
+    assert_eq!(destination.parent(), Some(state.data_dir.as_path()));
+    (state, destination)
+}
+
+/// Export writes to a free destination without a prompt, and asks before it
+/// replaces a file already there.
+///
+/// Defect class closed: the Export button and the sheet's Enter key queued
+/// the export at the printed destination unasked, and an unsaved project
+/// exports into the platform videos directory under its own name, so an
+/// earlier export, or another project's of the same name, was overwritten
+/// without a prompt. The queue refusing an empty sequence is the proof that
+/// the press reached it: no encoder runs.
+///
+/// What this does not catch: a destination created between the press and the
+/// encoder opening it.
+#[test]
+fn export_asks_before_it_replaces_a_file_at_the_destination() {
+    use super::picker::Answer;
+
+    let queued = crate::app::describe_engine_error(&aria_engine::EngineError::Render(
+        aria_render::RenderError::Empty(aria_render::EmptyExport::Sequence),
+    ));
+
+    let (mut state, _) = saved_empty("export-replace-free");
+    state.export_to_destination();
+    assert_eq!(state.picks_asked(), 0, "a free destination needs no prompt");
+    assert_eq!(state.last_error.as_deref(), Some(queued.as_str()));
+
+    let (mut state, destination) = saved_empty("export-replace-held");
+    std::fs::write(&destination, b"earlier export").expect("write");
+
+    state.supply_pick(Answer::Confirmed(false));
+    state.export_to_destination();
+    assert_eq!(state.picks_asked(), 1, "a held destination asks first");
+    assert_eq!(state.picks_unused(), 0);
+    assert_eq!(state.last_error, None, "declining queues nothing");
+    assert_eq!(
+        std::fs::read(&destination).expect("read"),
+        b"earlier export"
+    );
+
+    state.supply_pick(Answer::Confirmed(true));
+    state.export_to_destination();
+    assert_eq!(state.picks_asked(), 2);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some(queued.as_str()),
+        "a yes queues the export a free destination queues"
+    );
+}

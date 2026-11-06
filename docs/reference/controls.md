@@ -384,7 +384,7 @@ The Export surface (`crates/aria-ui/src/panels/export_dialog.rs`) renders a chip
 | `export-dest` | Export as… | Opens the Export save dialog with the format's extension and the proposed file name, then starts the export to the chosen path and opens the Jobs dialog. | None |
 | `export-format` (per row) | Platform format / plugin encoder | Selects the platform encoder or a mounted plugin encoder. Shown when a plugin registers an encoder. | None |
 | `export-frames` | Export frames… | Opens a folder picker and starts an image-sequence export job to the chosen folder, opening the Jobs dialog. | None |
-| `export-go` | Export | Starts rendering the sequence or selected range with the current export settings. | None |
+| `export-go` | Export | Starts rendering the sequence or selected range with the current export settings. When a file is already at the destination, prompts before replacing it. | None |
 | `export-gop` (per row) | Codec default / Every 15 / Every 30 / Every 60 | Sets the maximum keyframe interval in frames. | None |
 | `export-range` (per row) | Whole timeline / marked span | Renders the whole timeline or only the span between In and Out; with nothing marked, the marked choice reports how to mark one. | None |
 | `export-rate` (per row) | Project / 24 / 25 / 30 / 50 / 60 | Sets the output frame rate: the sequence's own or a fixed delivery rate. | None |

@@ -61,7 +61,8 @@ states it as text. None of the choices is an edit or is saved with the
 project:
 
 - **Destination** shows the file **Export** writes. A path wider than the
-  sheet loses its start to an ellipsis, and the file name stays in view.
+  sheet loses its start to an ellipsis, and the file name stays in view. When
+  a file is already at that path, **Export** prompts before replacing it.
 - **Format** is the platform encoder or a plugin encoder. The row is drawn as
   chips when a plugin registers an encoder. The platform encoder's line names
   the audio codec when **Audio** includes the mix and reads `no audio`

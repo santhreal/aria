@@ -83,8 +83,35 @@ impl AppState {
     /// by the pointer. The destination is read here rather than passed in, so a
     /// project saved while the sheet was open exports beside the file it was
     /// saved as.
+    ///
+    /// A file already at the destination is not replaced unasked: it is an
+    /// earlier export, or a file of the same name from another project, since
+    /// every unsaved project exports into one directory. A dialog asks first,
+    /// and the export is queued on yes.
     pub fn export_to_destination(&mut self) {
         let destination = self.export_destination();
+        if std::fs::symlink_metadata(&destination).is_err() {
+            self.queue_export_at(destination);
+            return;
+        }
+        let question = format!(
+            "{} already exists. Replace it with this export?",
+            destination.display()
+        );
+        let ask = Ask::Confirm {
+            title: "Replace File".into(),
+            question,
+        };
+        self.request_pick(ask, move |state, answer| {
+            if answer.is_yes() {
+                state.queue_export_at(destination);
+            }
+        });
+    }
+
+    /// Queue the export the sheet is describing at `destination`, and show
+    /// the Jobs board, or report why it was refused.
+    fn queue_export_at(&mut self, destination: PathBuf) {
         match self.export_job(destination) {
             // The job owns the progress now, so the sheet closes and the Jobs
             // board reports the pass. A modal sheet over a background export
@@ -110,12 +137,8 @@ impl AppState {
             .filter(self.export_format_label(), &[ext.as_str()])
             .file_name(name);
         self.request_pick(Ask::SaveFile(spec), |state, answer| {
-            let Some(path) = answer.one() else {
-                return;
-            };
-            match state.export_job(path) {
-                Ok(_) => state.open_dialog(DialogKind::Jobs),
-                Err(err) => state.report_error(err),
+            if let Some(path) = answer.one() {
+                state.queue_export_at(path);
             }
         });
     }

@@ -1368,6 +1368,7 @@ Notes for the latest release. For previous releases, see the
 - Move Track Up and Move Track Down past the end of a lane's part of the stack, Open Gap and Close Gap on a track with no clip at or after the playhead, Reset Transform on a clip at the default transform, and the checked lane height now record no undo step, the context menu and the palette offer those rows only when they act, and the Transform reset in Effect Controls is drawn blocked over a clip at the default transform.
 - A key pressed behind an open dialog that the dialog does not use no longer redraws the window.
 - Undo, redo and a history jump redraw only the filmstrip frames inside the edits they change back, instead of every frame of every strip.
+- **Export** prompts before replacing a file already at its destination instead of overwriting it.
 
 ## [alpha-0.7.0] - 2026-07-22
 

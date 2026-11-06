@@ -87,6 +87,9 @@ fn enter_on_the_export_sheet_runs_the_export() {
     let dir = crate::scratch_pool::scratch("dialog-primary");
     let mut state = AppState::new(PluginContext::new(), dir).expect("state");
     state.new_project().expect("new project");
+    // Beside a project in the scratch directory, so no file of the same name
+    // in the platform videos directory turns the press into a Replace prompt.
+    state.project_path = Some(state.data_dir.join("enter.aria"));
     state.open_dialog(DialogKind::Export);
     let rows = state.job_view.len();
 
