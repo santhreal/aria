@@ -487,7 +487,6 @@ pub fn effects_tab(
         .on_drop(cx.listener(|this, drag: &EffectDrag, _, cx| {
             move_on_chain(this, drag, None, cx);
         }))
-        .child(section_label(theme, "Effects"))
         .when(remove_rows.is_empty(), |el| {
             el.child(label_note(Columns::Keyed, theme.text_faint, "None"))
         })

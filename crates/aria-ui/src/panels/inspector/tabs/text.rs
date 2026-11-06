@@ -77,7 +77,6 @@ pub fn text_tab(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .child(section_label(theme, "Text"))
         .when_some(content.clone(), |el, content| {
             el.child(
                 div()

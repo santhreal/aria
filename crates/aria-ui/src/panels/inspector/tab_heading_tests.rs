@@ -39,7 +39,7 @@ const WITH_RESET: [(&str, &str); 1] = [("transform", "inspector-reset")];
 /// Tabs whose files are held by other lanes in flight (`OverlayBatch1` for
 /// `effects.rs`, `WrapEdge` for `text.rs`) and still open with a bare
 /// `section_label` repeating the tab's label.
-const PENDING: [&str; 2] = ["effects", "text"];
+const PENDING: &[&str] = &[];
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

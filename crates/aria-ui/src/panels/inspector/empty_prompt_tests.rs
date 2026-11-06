@@ -20,9 +20,9 @@ use crate::app::AppState;
 use super::strip_tests::drawn_with;
 
 const PROMPT: &str = "Select a clip to edit its properties.";
-/// The Effects heading, the note under it over an empty chain, and the next
-/// heading, as [`body_words`] joins them.
-const NO_EFFECTS: &str = "Effects None Presets";
+/// The note at the top of the Effects tab over an empty chain, and the
+/// Presets heading after it, as [`body_words`] joins them.
+const NO_EFFECTS: &str = "None Presets";
 
 /// The words the Inspector's body draws, in order, one space apart.
 fn body_words(visual: &mut VisualTestContext) -> String {
@@ -129,7 +129,7 @@ async fn an_empty_effect_chain_reads_none_between_its_headings(cx: &mut TestAppC
     });
     let drawn = body_words(visual);
     assert!(
-        !drawn.contains("Effects None"),
+        !drawn.starts_with("None "),
         "a chain with a blur still reads None: {drawn}"
     );
 }
