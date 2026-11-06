@@ -67,8 +67,7 @@ pub fn render(
         )
     };
 
-    // The stacked sub panels (the assistant's tools) scroll with the body, so a
-    // short frame reaches them.
+    // Stacked sub panels scroll with the body, so a short frame reaches them.
     let subs: Vec<AnyElement> = {
         let read = state.read(cx);
         crate::plugins::panel_host::host_of(&read.ctx)

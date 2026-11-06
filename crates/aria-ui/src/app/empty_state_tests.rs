@@ -61,7 +61,10 @@ const PANELS: &[(PanelId, Empty)] = &[
         Empty::Content("the sequence's rate, frame and duration"),
     ),
     (PANEL_MIXER, Empty::Line("mixer", None)),
-    (PANEL_ASSISTANT, Empty::Line("assistant", None)),
+    (
+        PANEL_ASSISTANT,
+        Empty::Content("the assistant's tool groups"),
+    ),
     (PANEL_SCOPES, Empty::Content("the scope cards")),
     (PANEL_COLOR, Empty::Line("color", None)),
     (PANEL_INFO, Empty::Content("a line under each section")),

@@ -1241,6 +1241,7 @@ Notes for the latest release. For previous releases, see the
 - The assistant's tool list and the Settings > AI Can do count include every tool a prompt is offered, the app tools and the loop's `describe_project`, `commit_progress` and `read_skill`, so both describe the same set.
 - Project loading normalizes lane zones across secondary sequences, transitions clamp to and prune against adjacent clip junction limits across trims and undo/redo, and clip placement, shifting, trimming, retiming, and marker operations validate tick bounds atomically before mutating state.
 - Timeline clip shifts, moves, trims, overwrites, four-point edits, nested sequence creation, send routing edits, and sequence rate changes reject overflowing ticks, duplicate or gapped selections, out-of-bounds send indices, and clip-collapsing frame rates without panicking or leaving partial mutations on the timeline.
+- The Assistant panel lists its available tool groups in its empty transcript area rather than under Effect Controls, and the `Assistant: What the Assistant Can Do` palette command opens and focuses the Assistant dock panel.
 
 ## [alpha-0.7.0] - 2026-07-22
 

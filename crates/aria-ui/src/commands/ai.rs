@@ -25,11 +25,9 @@ pub(super) const AI_ROWS: &[CommandEntry] = &[
         id: "pal-ai-tools",
         label: "Assistant: What the Assistant Can Do",
         run: |state| {
-            // The capability panel is docked beside the assistant and shows
-            // itself when the assistant is open, so opening the assistant is
-            // what makes the list reachable.
-            state.active_panel = ActivePanel::Ai;
-            state.status_message = Some("The assistant's tools are listed beside it".into());
+            state.focus_pane(ActivePanel::Ai);
+            state.status_message =
+                Some("The assistant's tools are listed in the Assistant panel".into());
         },
         blocked: guards::ready,
     },

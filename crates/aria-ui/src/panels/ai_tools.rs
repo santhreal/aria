@@ -11,25 +11,15 @@
 //! appears here by existing and a tool removed disappears. Nothing in this file
 //! holds a tool name.
 //!
-//! Docked in the inspector column beside the assistant, and only while the
-//! assistant is the panel being looked at: it explains the surface next to it,
-//! and a capability list over a timeline is a list of things nothing asked
-//! about.
+//! Drawn in the Assistant panel's transcript area while no conversation, plan,
+//! permission prompt, or turn is in flight: it states what a prompt can ask
+//! for before anything has been asked.
 
 use aria_core::count::{counted, noun};
 use gpui::{IntoElement, ParentElement, SharedString, Styled, div, px};
 
 use crate::app::AppState;
 use crate::theme::Theme;
-use crate::types::ActivePanel;
-
-/// Whether the panel is worth a column: only while the assistant is open.
-///
-/// The same shape `duck` uses — the panel decides its own relevance from the
-/// state rather than the shell deciding for it.
-pub fn visible(state: &AppState) -> bool {
-    state.active_panel == ActivePanel::Ai
-}
 
 pub fn render(
     state: &gpui::Entity<AppState>,
@@ -44,7 +34,6 @@ pub fn render(
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_SM))
-        .p(px(Theme::SPACE_MD))
         .child(
             div()
                 .text_size(Theme::TEXT_UI)

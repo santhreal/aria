@@ -63,7 +63,15 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
         })
     });
     visual.run_until_parked();
-    let project = visual.read(|app| project_text(state.read(app)));
+    let project = visual.read(|app| {
+        let read = state.read(app);
+        let mut exempt = project_text(read);
+        for (name, tools) in read.ai_tool_groups() {
+            exempt.insert(format!("{name} · {}", tools.len()));
+            exempt.extend(tools.into_iter().map(|t| t.to_string()));
+        }
+        exempt
+    });
     let (media, _) = clips[0];
 
     let mut offenders = Vec::new();

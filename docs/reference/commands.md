@@ -65,7 +65,7 @@ Mask a clip, keyframe its opacity, and cut it at the playhead from the Command P
 | `pal-font-prev` | Previous Font on Title | `none` | Selected clip is not a title clip | Steps the font family of every selected title clip backward through the installed fonts, wrapping at the start. |
 | `pal-proxy-clear-all` | Decode Everything from Originals | `none` | Always enabled | Detaches generated proxy files from all media pool items so decoding uses original files. |
 | `pal-proxy-create-all` | Proxy Every Pool Item | `none` | Media pool has no video items | Queues proxy transcode jobs for every video item in the media pool. |
-| `pal-ai-tools` | Assistant: What the Assistant Can Do | `none` | Always enabled | Opens the Assistant panel (`ActivePanel::Ai`) and displays the assistant tool catalog (`aria.panel.ai-tools`). |
+| `pal-ai-tools` | Assistant: What the Assistant Can Do | `none` | Always enabled | Opens the Assistant panel (`ActivePanel::Ai`), which lists the assistant tool catalog in its empty state. |
 | `pal-ai-system-prompt` | Assistant: Show the System Prompt | `none` | Always enabled | Displays the active AI assistant system prompt in the status/transcript view. |
 | `pal-ai-slash` | Assistant: List the Slash Commands | `none` | Always enabled | Lists available `/command` templates from `<agent_dir>/commands/` on the status line. |
 | `pal-ai-models` | AI: Choose the Model | `none` | Always enabled | Opens `aria.dialog.settings` filtered to the `AI` section. |
