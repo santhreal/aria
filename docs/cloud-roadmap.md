@@ -1,6 +1,6 @@
 # Cloud Roadmap: backend, asset catalog, and BYOK architecture
 
-**Status (macos-dev, Jul 2026):** desktop v1 ships **anonymous cloud + BYOK
+**Status:** desktop v1 ships **anonymous cloud + BYOK
 only**. Aria account / device sign-in / managed credits are **not in the
 desktop client** for this release (backend/website may still exist out of
 tree). This doc is the client-side architecture for everything cloud-shaped

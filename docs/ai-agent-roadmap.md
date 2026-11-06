@@ -1,6 +1,6 @@
 # AI Agent Roadmap: the Everything Agent (v2)
 
-**Status (macos-dev, Jul 2026):** v2. v1 (M3) shipped the closed-vocabulary
+**Status:** v2. v1 (M3) shipped the closed-vocabulary
 timeline agent (wire format + validation, OpenAI-compatible provider,
 sandbox-rehearse-then-replay loop, chat panel, eval harness) end to end in
 `crates/aria-ai`; see

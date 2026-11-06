@@ -1,7 +1,6 @@
 # Lottie support: decoder, frame strategy, asset model
 
-**Status (macos-dev, Jul 2026):** design locked, implementation landing with
-this doc. Lottie is for **stickers and overlays** (Workstream 8 of the cloud
+**Status:** shipped. Lottie is for **stickers and overlays** (Workstream 8 of the cloud
 roadmap): vector animations downloaded from the asset catalog and placed on
 sticker lanes. Lottie-based *text* stays off the table: Lottie text layers
 aren't content-editable in practice; animated titles are native text presets

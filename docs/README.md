@@ -41,12 +41,12 @@ compares the current build with it.
 
 ## Design notes and roadmaps
 
-These describe intent, not shipped behavior. A claim here is not a feature.
+These describe intent. The guide and the reference describe shipped behavior.
 
 | Document | Concern |
 | --- | --- |
 | [ai-agent-roadmap.md](ai-agent-roadmap.md) | Planned assistant capability |
 | [mcp-design.md](mcp-design.md) | Model Context Protocol surface, planned |
 | [cloud-roadmap.md](cloud-roadmap.md) | Planned cloud catalog work |
-| [lottie-design.md](lottie-design.md) | Planned Lottie import |
+| [lottie-design.md](lottie-design.md) | Decoder and frame strategy behind Lottie import, which ships ([stickers and masks](reference/stickers-and-masks.md)) |
 | [deferred.md](deferred.md) | Items parked with the reason, and what would land them |
