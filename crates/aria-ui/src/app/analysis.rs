@@ -132,26 +132,39 @@ impl AppState {
         Ok(freed)
     }
 
-    /// The selected clip's media, or why analysis cannot run on it.
-    ///
-    /// Split from the run so every refusal is reachable without a window.
-    pub(crate) fn analysis_precheck(&self, kind: AnalysisKind) -> Result<AnalysisRequest, String> {
-        let clip = self.selected_ui_clip().ok_or("Select a clip to analyze")?;
-        let media_id = clip
-            .media_id
-            .ok_or("A generated clip has no media to analyze")?;
+    /// The selected clip and its media while `kind` can analyze them, or why
+    /// not, read from the project alone: no disk is touched, so the Analysis
+    /// panel asks on every draw and draws a run blocked while this refuses.
+    pub(crate) fn analysis_target(
+        &self,
+        kind: AnalysisKind,
+    ) -> Result<AnalysisTarget<'_>, AnalysisRefusal<'_>> {
+        let clip = self
+            .selected_ui_clip_ref()
+            .ok_or(AnalysisRefusal::Unselected)?;
+        let media_id = clip.media_id.ok_or(AnalysisRefusal::Generated)?;
         let media = self
             .store
             .media
             .iter()
             .find(|item| item.id == media_id)
-            .ok_or("The clip's media is no longer in the pool")?;
+            .ok_or(AnalysisRefusal::Gone)?;
         if media.missing {
-            return Err(format!("{} is offline. Relink it first", media.name));
+            return Err(AnalysisRefusal::Offline(media));
         }
         if kind.needs_audio() && !media.has_audio {
-            return Err(format!("{} has no audio track", media.name));
+            return Err(AnalysisRefusal::Silent(media));
         }
+        Ok((clip, media))
+    }
+
+    /// The selected clip's media, or why analysis cannot run on it.
+    ///
+    /// Split from the run so every refusal is reachable without a window.
+    pub(crate) fn analysis_precheck(&self, kind: AnalysisKind) -> Result<AnalysisRequest, String> {
+        let (clip, media) = self
+            .analysis_target(kind)
+            .map_err(|refusal| refusal.to_string())?;
         let path = PathBuf::from(&*media.path);
         let content_key = content_key_for(&path)?;
         Ok(AnalysisRequest {
@@ -673,5 +686,36 @@ impl AppState {
             counted(spans.len(), "silent span", "silent spans")
         ));
         Ok(())
+    }
+}
+
+/// The selected clip and its media, as [`AppState::analysis_target`] finds
+/// them.
+pub(crate) type AnalysisTarget<'a> = (&'a crate::types::UiClip, &'a crate::types::UiMediaItem);
+
+/// Why [`AppState::analysis_target`] refuses the selection.
+#[derive(Debug)]
+pub(crate) enum AnalysisRefusal<'a> {
+    /// No clip is selected.
+    Unselected,
+    /// The selected clip is generated, with no media behind it.
+    Generated,
+    /// The clip's media is no longer in the pool.
+    Gone,
+    /// The media is offline.
+    Offline(&'a crate::types::UiMediaItem),
+    /// The detector reads audio and the media has none.
+    Silent(&'a crate::types::UiMediaItem),
+}
+
+impl std::fmt::Display for AnalysisRefusal<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unselected => f.write_str("Select a clip to analyze"),
+            Self::Generated => f.write_str("A generated clip has no media to analyze"),
+            Self::Gone => f.write_str("The clip's media is no longer in the pool"),
+            Self::Offline(media) => write!(f, "{} is offline. Relink it first", media.name),
+            Self::Silent(media) => write!(f, "{} has no audio track", media.name),
+        }
     }
 }

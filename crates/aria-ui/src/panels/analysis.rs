@@ -53,7 +53,7 @@ pub(crate) fn analysis_panel(
     // One borrow, scalars out. Nothing below needs the rows themselves — the
     // list is drawn by `moment_rows`, which reads them in place — so cloning the
     // whole form (rows, contour and all) once per frame bought nothing.
-    let (kind_filter, minimum, total, shots, silence, selected, peak, clipping, stored) = {
+    let (kind_filter, minimum, total, shots, silence, selected, peak, clipping, stored, refused) = {
         let state = state.read(cx);
         let count = |kind: &str| {
             state
@@ -73,6 +73,10 @@ pub(crate) fn analysis_panel(
             state.loudness_peak_dbfs(),
             state.loudness_clips(),
             AnalysisKind::ALL.map(|kind| state.analysis_exists(kind)),
+            (
+                AnalysisKind::ALL.map(|kind| state.analysis_target(kind).is_err()),
+                state.loudness_target().is_err(),
+            ),
         )
     };
     let jobs = crate::pending::job_rows(theme, state, JOB_LIMIT, mine, cx);
@@ -124,13 +128,13 @@ pub(crate) fn analysis_panel(
             "Detect",
             AnalysisKind::ALL
                 .iter()
-                .zip(stored)
-                .map(|(kind, stored)| detect_button(theme, *kind, stored, selected, cx)),
+                .zip(stored.into_iter().zip(refused.0))
+                .map(|(kind, (stored, refused))| detect_button(theme, *kind, stored, refused, cx)),
         ))
         .child(components::form_row(
             theme,
             "Loudness",
-            std::iter::once(measure_button(theme, selected && peak.is_none(), cx)).chain(peak.map(
+            std::iter::once(measure_button(theme, peak.is_none(), refused.1, cx)).chain(peak.map(
                 |dbfs| {
                     div()
                         .text_size(Theme::TEXT_UI)
@@ -211,19 +215,22 @@ fn pressing(
     )
 }
 
-/// The loudness measurement: solid while a clip is selected and has no
-/// contour, a ghost otherwise, as a detector's button is.
+/// The loudness measurement: solid while the clip has no contour and the
+/// selection takes it, a ghost otherwise, and blocked while the selection
+/// refuses it. A blocked run keeps its press, which puts the refusal on the
+/// status line.
 fn measure_button(
     theme: &Theme,
-    offered: bool,
+    unmeasured: bool,
+    refused: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
-    let button = if offered {
+    let button = if unmeasured && !refused {
         components::button("analysis-loudness", "Measure", theme)
     } else {
         components::ghost_button("analysis-loudness", "Measure", theme)
     };
-    button
+    components::blocked::blocked(button, refused)
         .on_mouse_down(
             MouseButton::Left,
             cx.listener(|this, _: &MouseDownEvent, _, cx| {
@@ -238,26 +245,23 @@ fn measure_button(
         .into_any_element()
 }
 
-/// One detector: run it, and clear what it already stored.
-///
-/// While a clip is selected and the detector has nothing stored, the run gets
-/// the solid button, because running it is the action the panel is offering.
-/// With no clip selected, or once it holds results, the same control is a
-/// ghost, and a stored detector has the clear beside it. A clear with nothing
-/// to clear is not drawn at all.
+/// One detector: solid while it has nothing stored and the selection takes
+/// it, a ghost otherwise, and blocked like [`measure_button`]; the clear of
+/// what it stored beside it. A clear with nothing to clear is not drawn at all.
 fn detect_button(
     theme: &Theme,
     kind: AnalysisKind,
     stored: bool,
-    selected: bool,
+    refused: bool,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> gpui::AnyElement {
     let label = SharedString::from(kind.label());
-    let run = if selected && !stored {
+    let run = if !stored && !refused {
         components::button(("analysis-run", kind.id()), label, theme)
     } else {
         components::ghost_button(("analysis-run", kind.id()), label, theme)
     };
+    let run = components::blocked::blocked(run, refused);
     div()
         .flex()
         .gap(px(Theme::SPACE_XXS))

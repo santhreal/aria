@@ -15,10 +15,11 @@ their results in a moments index under `analysis/` in the data directory.
 The **Detect** row has one button per detector. A detector with stored results
 shows a `×` beside its button that clears its results for that
 media file. A run is a job: it decodes and detects on a background thread, reports
-progress, and can be cancelled. A run fails before it starts, by name, when
-nothing is selected, the clip is generated, the media is offline, or an audio
-detector is run on media with no audio track. 10-bit video is rejected for
-shot detection rather than reported as having no cuts.
+progress, and can be cancelled. While nothing is selected, the clip is
+generated, the media is offline, or an audio detector has media with no audio
+track, the button is drawn at 40 % opacity, and a press prints the reason on the
+status line and starts nothing. 10-bit video is rejected for shot detection
+rather than reported as having no cuts.
 The palette's **Detect Shots** (`pal-detect-shots`), **Detect Silence**
 (`pal-detect-silence`), and **Detect Beats** (`pal-detect-beats`) rows start the
 same runs as the **Detect** buttons.
@@ -51,7 +52,8 @@ the selected clips linked to it, and is one undo step:
 **Measure** in the **Loudness** row measures the clip's loudness contour, prints
 the peak level beside the button with a clipping flag, and draws the contour in
 the Effect Controls panel's Audio tab, one column per window. The contour is
-measured on demand, not per frame. **Measure Loudness** (`pal-loudness`) in the
+measured on demand, not per frame. **Measure** is drawn at 40 % opacity under
+the same conditions as **Silence**. **Measure Loudness** (`pal-loudness`) in the
 palette does the same.
 
 Results are keyed on the media file, identified by its path, length, and

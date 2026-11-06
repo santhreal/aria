@@ -6,10 +6,20 @@ use aria_core::count::counted;
 
 use super::*;
 
+/// The detector whose precheck a loudness measurement passes: one that reads
+/// the audio a measurement reads.
+const MEASURES: AnalysisKind = AnalysisKind::Silence;
+
 impl AppState {
+    /// The selected clip and its media while a loudness measurement can read
+    /// them, or why not, from the project alone.
+    pub(crate) fn loudness_target(&self) -> Result<AnalysisTarget<'_>, AnalysisRefusal<'_>> {
+        self.analysis_target(MEASURES)
+    }
+
     /// Measure the selected clip's loudness contour as a job.
     pub fn measure_loudness(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
-        let request = self.analysis_precheck(AnalysisKind::Silence)?;
+        let request = self.analysis_precheck(MEASURES)?;
         let (wake, wakes) = crate::handoff::wakes::<Result<Vec<UiLoudness>, String>>();
         let label = format!("Measuring loudness for {}", request.media_path.display());
         let offset = self.selected_ui_clip().map_or(0, |clip| {

@@ -319,3 +319,7 @@ mod tiles_tests;
 #[cfg(test)]
 #[path = "sidebar_press_tests.rs"]
 mod press_tests;
+
+#[cfg(test)]
+#[path = "sidebar_analysis_tests.rs"]
+mod analysis_tests;
