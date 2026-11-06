@@ -68,18 +68,21 @@ impl MotionPreference {
         matches!(self, Self::Off)
     }
 
-    /// The motion policy this choice installs.
-    pub fn policy(self) -> MotionPolicy {
+    /// The motion policy this choice installs while the operating system's
+    /// reduced-motion preference is `system_reduced`: the choice's scale, and
+    /// reduced motion when the choice is Off or the system asks for it.
+    pub fn policy(self, system_reduced: bool) -> MotionPolicy {
         MotionPolicy::DEFAULT
-            .with_reduced(self.reduced())
+            .with_reduced(self.reduced() || system_reduced)
             .with_duration_scale(self.scale())
     }
 
     /// Installs the choice as the app's [`MotionPolicy`], which redraws every
     /// window. The scale and the reduced flag are set together, so a scale left
-    /// over from the previous choice never applies to the next transition.
+    /// over from the previous choice never applies to the next transition, and
+    /// the reduced flag keeps the system preference gpui read at startup.
     pub fn apply(self, cx: &mut App) {
-        cx.set_motion_policy(self.policy());
+        cx.set_motion_policy(self.policy(cx.system_reduce_motion()));
     }
 }
 

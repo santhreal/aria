@@ -23,6 +23,9 @@ and whether transitions run at all.
 | Relaxed | 1.4 | run |
 | Off | 1.0 | skipped; the end state is drawn immediately |
 
+The operating system's reduced-motion preference skips transitions under every
+choice and keeps the choice's multiplier.
+
 `ARIA_MOTION_SCALE` seeds the multiplier at startup, before the settings file is
 read, and is clamped by `MotionPolicy::parse_duration_scale`. The choice in
 Settings overrides it for the rest of the session and persists to

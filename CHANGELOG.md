@@ -1313,6 +1313,7 @@ Notes for the latest release. For previous releases, see the
 - An `.ariaplugin` archive left in the plugins folder now reports that it installs with File > Install Plugin… instead of naming a Plugins panel that does not exist.
 - Edit > Undo names a ripple trim, roll, rate stretch, or slide drag after the drag instead of after whichever of its edits ran first.
 - Window > Workspaces > Save Workspace saves the Custom workspace without opening a name prompt whose workspace file no menu listed.
+- The operating system's reduced-motion preference skips transitions under every Settings > Appearance > Motion choice instead of being overridden by the default Full at startup.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -350,7 +350,7 @@ fn a_motion_preference_changes_what_a_transition_costs() {
         });
         assert_eq!(
             installed,
-            pref.policy(),
+            pref.policy(false),
             "{} was not installed",
             pref.label()
         );
@@ -369,6 +369,36 @@ fn a_motion_preference_changes_what_a_transition_costs() {
         cx.motion_policy()
     });
     assert_eq!(after, MotionPolicy::DEFAULT);
+}
+
+/// The operating system's reduced-motion preference holds under every Motion
+/// choice, and Off reduces motion with the system preference off.
+///
+/// WHY: installing a choice set the reduced flag to the choice alone, so the
+/// default Full, applied at startup and on every click in Settings > Motion,
+/// turned motion back on over a system that asked for reduced motion. Derived
+/// from `MotionPreference::ALL`, so a new choice is covered with no edit here.
+/// Not caught: a system preference that changes while Off is installed, which
+/// gpui writes to the reduced flag directly.
+#[test]
+fn every_motion_choice_keeps_the_system_reduced_motion_preference() {
+    for system in [true, false] {
+        for pref in MotionPreference::ALL {
+            let cx = gpui::TestAppContext::single();
+            cx.simulate_reduce_motion_change(system);
+            let installed = cx.update(|cx| {
+                pref.apply(cx);
+                cx.motion_policy()
+            });
+            assert_eq!(
+                installed.reduced(),
+                system || pref.reduced(),
+                "{} with the system preference {system}",
+                pref.label()
+            );
+            assert_eq!(installed, pref.policy(system), "{}", pref.label());
+        }
+    }
 }
 
 /// A pulse is a phase in one cycle of its spec, shared by every view that

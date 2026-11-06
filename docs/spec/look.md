@@ -5,9 +5,10 @@
 Two themes from one token set: Dark (default) and Light. Settings >
 Appearance switches between them, or follows the operating system, and picks
 the accent family: Blue (default), Ember, Teal, or Graphite. A theme is a
-TOML file of token values; plugins and users add themes by dropping a file in
-`<data dir>/themes/`. [theme-tokens.md](../theme-tokens.md) lists the current
-tokens and each family's values.
+TOML file of token values, read from `<data dir>/themes/` and from the
+`themes/` directory of each installed plugin package.
+[theme-tokens.md](../theme-tokens.md) lists the current tokens and each
+family's values.
 
 ### Dark surfaces
 
@@ -141,5 +142,5 @@ Motion uses `gpui::motion` from santh-gpui, with the curve set and specs in
   dropped-frame indicator. Hover fades and glides are suspended so the frame
   budget belongs to the picture.
 - Settings > Appearance > Motion offers Full, Brisk, Relaxed, and Off. Off
-  draws every end state immediately and follows the operating system's
-  reduced-motion preference by default.
+  draws every end state immediately, and so does every choice while the
+  operating system's reduced-motion preference is on.
