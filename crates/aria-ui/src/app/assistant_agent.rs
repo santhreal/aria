@@ -480,6 +480,7 @@ impl AppState {
         // again: the transcript and the provider history are what the next
         // prompt is built from.
         self.persist_conversation();
+        self.refresh_assistant_skills();
         self.sync_from_engine();
     }
 }

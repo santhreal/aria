@@ -16,15 +16,30 @@
 //!   would install outside the skills directory.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use gpui::SharedString;
 
 use super::AppState;
 
-/// One installed skill as the panel needs it.
+/// One skill offered to the assistant as the panel draws it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UiSkill {
-    pub id: String,
-    pub name: String,
-    pub description: String,
+    pub id: SharedString,
+    pub name: SharedString,
+    pub description: SharedString,
+}
+
+/// Read the bundled and installed skills for `data_dir` from disk.
+pub(crate) fn load_assistant_skills(data_dir: &Path) -> Vec<UiSkill> {
+    aria_ai::merge_skills(aria_ai::extend::load_agent_dir(&data_dir.join("agent")).skills)
+        .into_iter()
+        .map(|skill| UiSkill {
+            id: SharedString::from(skill.id),
+            name: SharedString::from(skill.name),
+            description: SharedString::from(skill.description),
+        })
+        .collect()
 }
 
 impl AppState {
@@ -41,18 +56,17 @@ impl AppState {
     /// by id. The same merge builds the prompt, so the panel lists what the
     /// agent receives.
     ///
-    /// Read from disk on demand rather than cached: skills are also installed by hand
-    /// and by the agent's own tooling, and a cache would show a stale list until
-    /// restart.
-    pub fn assistant_skills(&self) -> Vec<UiSkill> {
-        aria_ai::merge_skills(aria_ai::extend::load_agent_dir(&self.agent_dir()).skills)
-            .into_iter()
-            .map(|skill| UiSkill {
-                id: skill.id,
-                name: skill.name,
-                description: skill.description,
-            })
-            .collect()
+    /// Held on [`AppState`] and refreshed when the Assistant panel comes
+    /// forward, after a skill is installed from the catalog or a dropped
+    /// `SKILL.md`, and when an assistant turn finishes, so a draw of the panel
+    /// does not read the disk.
+    pub fn assistant_skills(&self) -> Arc<[UiSkill]> {
+        Arc::clone(&self.assistant_skills)
+    }
+
+    /// Re-read [`Self::assistant_skills`] from `<data_dir>/agent/skills`.
+    pub fn refresh_assistant_skills(&mut self) {
+        self.assistant_skills = load_assistant_skills(&self.data_dir).into();
     }
 
     /// Install a downloaded skill file, validating it first.
@@ -72,6 +86,7 @@ impl AppState {
         std::fs::create_dir_all(&dir).map_err(|err| format!("{}: {err}", dir.display()))?;
         let dest = dir.join("SKILL.md");
         std::fs::write(&dest, &text).map_err(|err| format!("{}: {err}", dest.display()))?;
+        self.refresh_assistant_skills();
         self.status_message = Some(format!("Installed skill {}", skill.name));
         Ok(())
     }
@@ -101,6 +116,7 @@ impl AppState {
         std::fs::create_dir_all(&dir).map_err(|err| format!("{}: {err}", dir.display()))?;
         let dest = dir.join("SKILL.md");
         std::fs::write(&dest, &text).map_err(|err| format!("{}: {err}", dest.display()))?;
+        self.refresh_assistant_skills();
         self.status_message = Some(format!("Installed skill {}", skill.name));
         Ok(())
     }

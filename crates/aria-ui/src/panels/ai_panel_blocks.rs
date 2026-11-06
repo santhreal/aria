@@ -91,10 +91,10 @@ pub(super) fn skills_block(
         .count();
     let total = skills.len();
     let mut rows: Vec<gpui::AnyElement> = Vec::new();
-    for skill in skills {
-        let id = skill.id;
+    for skill in skills.iter() {
+        let id = skill.id.clone();
         let on = state.read(cx).assistant_skill_enabled(&id);
-        let key = crate::motion::MotionKey::new("ai-skill", &id);
+        let key = crate::motion::MotionKey::new("ai-skill", id.clone());
         let selector = format!("ai-skill-switch-{id}");
         // The row presses the switch, as the Plan only label does: the name is
         // the larger target, and the switch states the answer.
@@ -116,14 +116,14 @@ pub(super) fn skills_block(
                             div()
                                 .flex_none()
                                 .text_color(theme.text)
-                                .child(gpui::SharedString::from(skill.name)),
+                                .child(skill.name.clone()),
                         )
                         .child(
                             div()
                                 .min_w_0()
                                 .truncate()
                                 .text_color(theme.text_faint)
-                                .child(gpui::SharedString::from(skill.description)),
+                                .child(skill.description.clone()),
                         ),
                 )
                 .child(

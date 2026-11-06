@@ -124,6 +124,12 @@ pub struct AppState {
     /// list changes and when Home is entered, which is when it can have changed
     /// under the editor.
     pub(super) recents: Arc<[crate::app::recents::RecentView]>,
+    /// The recovery copy Home offers to restore or discard, if any.
+    ///
+    /// Held rather than read per draw, for the same reason as [`Self::recents`]:
+    /// refreshed when Home is entered and kept in step across every recovery
+    /// write, clear, restore, and discard.
+    pub(super) pending_recovery: Option<crate::app::recovery::RecoveryOffer>,
     /// The Home body's scroll position, shared by every rail's pane. Choosing
     /// a rail puts it back at the top.
     pub(crate) home_scroll: gpui::ScrollHandle,
@@ -308,6 +314,12 @@ pub struct AppState {
     >,
     /// The composer, the conversation, and the turn in flight.
     pub assistant: assistant::AssistantForm,
+    /// Bundled and installed skills as the Assistant panel draws them.
+    ///
+    /// Held rather than read from `<data_dir>/agent/skills` per draw: refreshed
+    /// when the panel comes forward, when a skill is installed, and when an
+    /// assistant turn finishes.
+    pub(super) assistant_skills: Arc<[crate::app::skills::UiSkill]>,
     /// The conversation as the panel draws it.
     ///
     /// Behind a handle for the same reason as [`Self::expanded_clips`], and it

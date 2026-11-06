@@ -347,6 +347,9 @@ impl AppState {
     /// then on screen rather than the one they were hidden on. Call it after
     /// anything that opens the strip or changes which dock tab is in front.
     pub(crate) fn sync_scope_demand(&mut self) {
+        if self.dock_tree.is_active(crate::dock::PANEL_ASSISTANT) {
+            self.refresh_assistant_skills();
+        }
         let wanted = self.scopes_wanted();
         if !self.preview_worker.set_scopes(wanted) {
             return;

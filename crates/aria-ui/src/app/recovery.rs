@@ -137,6 +137,29 @@ fn write_copy(data_dir: &Path, project: &Project, origin: &str) -> io::Result<()
     Ok(())
 }
 
+/// Read the recovery offer in `data_dir` from disk, if a recovery copy exists.
+pub(crate) fn load_pending_recovery(data_dir: &Path) -> Option<RecoveryOffer> {
+    let file = recovery_path(data_dir);
+    if !file.is_file() {
+        return None;
+    }
+    let project = std::fs::read_to_string(sidecar_path(data_dir))
+        .ok()
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+        .map(PathBuf::from);
+    let name = project
+        .as_ref()
+        .and_then(|path| path.file_stem())
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Untitled project".into());
+    Some(RecoveryOffer {
+        file,
+        project,
+        name,
+    })
+}
+
 impl AppState {
     /// Start a recovery copy if one is due. Returns true when one started.
     ///
@@ -173,6 +196,7 @@ impl AppState {
     /// tick apart from the write, such as a benchmark.
     pub fn finish_autosave(&mut self) {
         self.autosave.finish();
+        self.refresh_pending_recovery();
     }
 
     /// Write the recovery copy and its sidecar now, on this thread, whatever
@@ -186,7 +210,9 @@ impl AppState {
         self.autosave.finish();
         let project = self.engine.lock().snapshot();
         let write = self.recovery_write(project);
-        write().map_err(EngineError::Io)
+        write().map_err(EngineError::Io)?;
+        self.refresh_pending_recovery();
+        Ok(())
     }
 
     /// The write of a recovery copy of `project`, a snapshot of the session.
@@ -215,29 +241,21 @@ impl AppState {
         let _ = std::fs::remove_file(recovery_path(&self.data_dir));
         let _ = std::fs::remove_file(sidecar_path(&self.data_dir));
         self.autosave.last = None;
+        self.pending_recovery = None;
     }
 
     /// The recovery copy waiting to be offered, if any.
+    ///
+    /// Held on [`AppState`], refreshed when arriving at Home, and kept in step
+    /// across every recovery write, clear, restore, and discard so a draw of
+    /// Home does not read the disk.
     pub fn pending_recovery(&self) -> Option<RecoveryOffer> {
-        let file = recovery_path(&self.data_dir);
-        if !file.is_file() {
-            return None;
-        }
-        let project = std::fs::read_to_string(sidecar_path(&self.data_dir))
-            .ok()
-            .map(|text| text.trim().to_string())
-            .filter(|text| !text.is_empty())
-            .map(PathBuf::from);
-        let name = project
-            .as_ref()
-            .and_then(|path| path.file_stem())
-            .map(|stem| stem.to_string_lossy().to_string())
-            .unwrap_or_else(|| "Untitled project".into());
-        Some(RecoveryOffer {
-            file,
-            project,
-            name,
-        })
+        self.pending_recovery.clone()
+    }
+
+    /// Re-read [`Self::pending_recovery`] from `data_dir`.
+    pub fn refresh_pending_recovery(&mut self) {
+        self.pending_recovery = load_pending_recovery(&self.data_dir);
     }
 
     /// Load the recovery copy, aimed back at the project it shadowed.

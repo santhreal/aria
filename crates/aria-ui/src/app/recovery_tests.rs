@@ -17,6 +17,10 @@
 //! decode. A tick that waited for it would hold the window's thread just as
 //! long, so a tick that finds the session held starts nothing, and the next
 //! tick starts the copy.
+//! Home is animated, so a draw that checked `recovery.aria` and its sidecar on
+//! disk read the filesystem every frame. The offer is held on [`AppState`],
+//! refreshed when arriving at Home, and kept in step across every recovery
+//! write, clear, restore, and discard.
 //!
 //! Not covered: the half-second ticker that calls `autosave_tick`, which needs a
 //! window, and that the tick returns before the write finishes; the
@@ -358,4 +362,109 @@ fn restoring_nothing_is_not_an_error() {
     state
         .restore_recovery()
         .expect("a missing copy is no error");
+}
+
+/// WHY: Closes "a draw reads the disk" for the Home recovery banner. Home's
+/// `home_body` calls [`AppState::pending_recovery`] on every frame; reading
+/// `recovery.aria` and `recovery.path` inside `pending_recovery` hit the
+/// filesystem at frame rate. The offer is held on `AppState`, refreshed on
+/// `go_home`, and kept in step across `write_recovery`, `clear_recovery`,
+/// `restore_recovery`, and `discard_recovery`. Does not catch a new caller that
+/// reads `recovery_path` directly instead of `pending_recovery`.
+#[gpui::test]
+fn home_draws_the_recovery_offer_the_state_holds(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = crate::test_support::drawn_shell(cx, "recovery_held");
+    let data_dir = visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            let dir = state.data_dir.clone();
+            state.project_path = Some(dir.join("cut.aria"));
+            state.save_project().expect("baseline");
+            state
+                .add_track(aria_models::TrackKind::Video, "V2")
+                .expect("unsaved edit");
+            state.write_recovery().expect("recovery copy");
+            state.go_home();
+            cx.notify();
+            dir
+        })
+    });
+    visual.run_until_parked();
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+
+    let banner_shown = |visual: &mut gpui::VisualTestContext| {
+        visual.update(|window, _| {
+            window.rendered_text_runs().iter().any(|run| {
+                run.text.contains(
+                    "\u{201c}cut\u{201d} has unsaved work from a session that ended early.",
+                )
+            })
+        })
+    };
+    assert!(
+        banner_shown(visual),
+        "Home must show the recovery banner when arriving with a recovery copy"
+    );
+
+    std::fs::remove_file(recovery_path(&data_dir)).expect("delete recovery copy behind state");
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    assert!(
+        banner_shown(visual),
+        "Home read the recovery file during a draw instead of drawing the held offer"
+    );
+
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.go_home();
+            cx.notify();
+        });
+    });
+    visual.run_until_parked();
+    visual.update(|window, _| window.refresh());
+    visual.run_until_parked();
+    assert!(
+        !banner_shown(visual),
+        "go_home did not refresh pending_recovery from disk"
+    );
+
+    visual.update(|_, app| {
+        state.update(app, |state, _| {
+            state.write_recovery().expect("write recovery");
+            assert_eq!(
+                state.pending_recovery().map(|o| o.name),
+                Some("cut".to_string()),
+                "write_recovery did not refresh pending_recovery"
+            );
+
+            state.clear_recovery();
+            assert!(
+                state.pending_recovery().is_none(),
+                "clear_recovery did not clear pending_recovery"
+            );
+
+            state.write_recovery().expect("write recovery for restore");
+            assert!(state.pending_recovery().is_some());
+            state.restore_recovery().expect("restore recovery");
+            assert!(
+                state.pending_recovery().is_none(),
+                "restore_recovery did not clear pending_recovery"
+            );
+
+            state.write_recovery().expect("write recovery for discard");
+            assert!(state.pending_recovery().is_some());
+            state.discard_recovery();
+            assert!(
+                state.pending_recovery().is_none(),
+                "discard_recovery did not clear pending_recovery"
+            );
+
+            assert!(state.autosave_tick(Instant::now()));
+            state.finish_autosave();
+            assert!(
+                state.pending_recovery().is_some(),
+                "finish_autosave did not refresh pending_recovery"
+            );
+        });
+    });
 }

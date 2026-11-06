@@ -146,9 +146,10 @@ impl AppState {
         self.dialog = DialogKind::None;
         self.close_popovers();
         self.route = UiRoute::Home;
-        // The list is about files on disk, and anything could have happened to
-        // them while the editor was open.
+        // The list and the recovery offer are about files on disk, and anything
+        // could have happened to them while the editor was open.
         self.refresh_recents();
+        self.refresh_pending_recovery();
     }
 
     /// A click on a title: open its drop with nothing lit, or close it. A drop

@@ -1213,6 +1213,8 @@ Notes for the latest release. For previous releases, see the
 - Effects & Presets no longer lists an Animation Presets folder reading (0) before a preset is saved.
 - The model names in Settings > AI start on the section's label edge instead of 8 px right of it.
 - The Viewer context menu's Fit Preview row fits the Viewer instead of the Timeline, and Reset Transform appears only when a clip with a picture is selected.
+- Hold the crash recovery offer on `AppState` and refresh it on Home entry and recovery writes instead of reading `recovery.aria` from disk on every Home frame.
+- Hold the merged assistant skills list as shared strings on `AppState` and refresh it when the Assistant panel comes forward or a skill is installed instead of walking the skills directory on every frame.
 
 ## [alpha-0.7.0] - 2026-07-22
 

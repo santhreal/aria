@@ -120,6 +120,9 @@ impl AppState {
         // than on the first frame that draws it.
         let recents: Arc<[crate::app::recents::RecentView]> =
             crate::app::recents::visible_recents(&data_dir).into();
+        let pending_recovery = crate::app::recovery::load_pending_recovery(&data_dir);
+        let assistant_skills: Arc<[crate::app::skills::UiSkill]> =
+            crate::app::skills::load_assistant_skills(&data_dir).into();
         let import_recents: Arc<[PathBuf]> = crate::app::import_recents::load(&data_dir).into();
         let (presets, broken_presets) = crate::app::presets::load_presets(&data_dir);
         let theme_files = crate::theme::file::scan(&data_dir, &plugin_ctx.themes());
@@ -163,6 +166,7 @@ impl AppState {
             theme_files,
             data_dir,
             recents,
+            pending_recovery,
             home_scroll: gpui::ScrollHandle::new(),
             import_recents,
             store: std::sync::Arc::new(snapshot.store),
@@ -324,6 +328,7 @@ impl AppState {
             media_reach: media_reach::MediaReachForm::default(),
             timeline_report: None,
             assistant: assistant::AssistantForm::default(),
+            assistant_skills,
             caches: caches::CacheForm::default(),
             settings_form: settings_form::SettingsForm::default(),
             key_form: super::keymaps::KeyForm::default(),
