@@ -1,4 +1,5 @@
-//! Scratch directories for the crate's tests: five fixed paths, reused forever.
+//! Scratch directories for the crate's tests: one fixed path per hardware
+//! thread, reused forever.
 //!
 //! Three designs failed here, all the same way, because all three let the number
 //! of directories follow the number of calls:
@@ -21,9 +22,10 @@
 //! when the thread ends. A thread only ever empties its own directories, so a
 //! fast thread cannot delete the files a slow test on another thread is still
 //! asserting on. A thread that finds every slot held *waits* for one: two live
-//! threads in one slot would wipe each other's files, and the suite is larger
-//! than the pool on purpose, so the pool bounds concurrency instead of refusing
-//! work. `cargo test` therefore needs no `--test-threads` flag at any width.
+//! threads in one slot would wipe each other's files. The shared pool has a
+//! slot per hardware thread, the width libtest and nextest both run at by
+//! default, so a default run never waits and a wider one queues instead of
+//! failing. `cargo test` therefore needs no `--test-threads` flag at any width.
 //!
 //! The lease is the whole design. libtest runs each test on its own thread, so a
 //! slot claimed for the life of the process is a slot lost: five tests would
@@ -57,6 +59,14 @@
 //! `.lease` file, a slot that is free here but locked by another process is
 //! skipped, and a waiter polls for it, because a release in another process
 //! signals nothing in this one.
+//!
+//! The seventh defect was the count. Five slots, shared by every process in the
+//! temp dir, capped the suite at five concurrent tests that touch the disk
+//! whatever the runner's width. nextest runs one test per process on every
+//! hardware thread, so on a sixteen-thread host eleven processes sat polling
+//! for a lease, and the poll was billed as test time. The shared pool now has
+//! [`shared_slots`] slots: still a fixed set of paths on a given host, and
+//! never fewer than [`SLOTS`].
 
 use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
@@ -76,9 +86,15 @@ const LEASE_FILE: &str = ".lease";
 /// another process signals nothing here, so the wait for one is a poll.
 const CROSS_PROCESS_POLL: Duration = Duration::from_millis(25);
 
-/// How many scratch slots exist. Not a budget, a count: these are all of them,
-/// for every run, on every machine.
+/// How many slots a test's own pool has, and the fewest the shared pool has.
 pub(crate) const SLOTS: usize = 5;
+
+/// How many slots the shared pool has: one per hardware thread, never fewer
+/// than [`SLOTS`]. Fixed on a given host, so the set of paths does not grow
+/// with the number of calls.
+pub(crate) fn shared_slots() -> usize {
+    std::thread::available_parallelism().map_or(SLOTS, |threads| threads.get().max(SLOTS))
+}
 
 /// How long a thread waits without a single slot coming back before it calls the
 /// pool deadlocked.
@@ -191,7 +207,7 @@ impl Pool {
         self.root.join(format!("{NAME}-{index}"))
     }
 
-    /// Every path this pool can name, for the rule that asserts there are five.
+    /// Every path this pool can name, for the rule that asserts their count.
     fn paths(&self) -> Vec<PathBuf> {
         (0..self.slots).map(|index| self.slot(index)).collect()
     }
@@ -296,8 +312,10 @@ impl Stall {
     }
 }
 
-/// The one pool the suite shares: five slots in the system temp dir.
-static POOL: LazyLock<Pool> = LazyLock::new(|| Pool::new(std::env::temp_dir(), SLOTS, WAIT));
+/// The one pool the suite shares: [`shared_slots`] slots in the system temp
+/// dir.
+static POOL: LazyLock<Pool> =
+    LazyLock::new(|| Pool::new(std::env::temp_dir(), shared_slots(), WAIT));
 
 /// The shared pool, borrowed for the life of the process.
 fn pool() -> &'static Pool {
@@ -314,7 +332,7 @@ pub(crate) fn scratch(prefix: &str) -> PathBuf {
     SLOT.with(|slot| slot.get_or_init(|| pool().lease()).dir(prefix))
 }
 
-/// Every scratch path that exists, for the rule that asserts there are five.
+/// Every scratch path that exists, for the rule that asserts their count.
 pub(crate) fn slot_paths() -> Vec<PathBuf> {
     pool().paths()
 }
@@ -433,7 +451,7 @@ mod tests {
     /// rule below counts the site.
     #[test]
     fn a_slot_comes_back_when_its_thread_ends() {
-        for round in 0..SLOTS + 1 {
+        for round in 0..shared_slots() + 1 {
             let dir = std::thread::spawn(move || scratch(&format!("lease-{}", round % 3)))
                 .join()
                 .expect("the thread took a slot");
@@ -643,7 +661,24 @@ mod tests {
         let dir = scratch("pooled");
         assert!(is_pooled(&dir), "{dir:?} is outside the pool");
         assert!(!is_pooled(&std::env::temp_dir().join("aria-elsewhere")));
-        assert_eq!(slot_paths().len(), SLOTS);
+        assert_eq!(slot_paths().len(), shared_slots());
+    }
+
+    /// A runner at its default width never queues on the shared pool: libtest
+    /// and nextest both run one test per hardware thread, so the pool needs a
+    /// slot for each. With five shared slots, a nextest run on a sixteen-thread
+    /// host kept eleven test processes polling for a lease, billed as test time.
+    /// Does not catch a runner configured wider than the host's thread count,
+    /// which queues by design.
+    #[test]
+    fn the_shared_pool_has_a_slot_for_every_default_test_thread() {
+        let width = std::thread::available_parallelism().map_or(1, |threads| threads.get());
+        assert!(
+            slot_paths().len() >= width,
+            "{} shared slots for {width} hardware threads: a default-width run queues on \
+             the pool",
+            slot_paths().len()
+        );
     }
 
     /// An expression that puts the lines after it on a thread of its own. The
@@ -662,7 +697,7 @@ mod tests {
     /// **Only one test leases a shared slot from a thread it spawned.**
     ///
     /// A test that spawns threads which each call [`scratch`] holds more than one
-    /// of the five shared slots at once, and while it holds them every other
+    /// of the shared slots at once, and while it holds them every other
     /// test in a 1400-test suite queues behind it. One such test existed: it
     /// held all five deliberately, to prove the wait, and it made the rest of
     /// the suite wait for real, failed several tests at the deadlock bound, and
