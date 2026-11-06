@@ -104,6 +104,83 @@ fn a_row_that_records_a_step_changes_the_project() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
+/// Rows whose repeat still records a step over its own result. Each is red
+/// here once it no longer does, so the list only shrinks.
+const REPEATS_A_STEP: &[&str] = &[
+    "edit-label-violet",
+    "edit-label-iris",
+    "edit-label-caribbean",
+    "edit-label-lavender",
+    "edit-label-cerulean",
+    "edit-label-forest",
+    "edit-label-rose",
+    "edit-label-mango",
+    "edit-label-purple",
+    "edit-label-blue",
+    "edit-label-teal",
+    "edit-label-magenta",
+    "edit-label-tan",
+    "edit-label-green",
+    "edit-label-brown",
+    "edit-label-yellow",
+    "edit-label-none",
+    "clip-channels-swap",
+    "clip-channels-left",
+    "clip-channels-right",
+    "clip-channels-mono",
+    "seq-matte-luma",
+    "seq-matte-alpha",
+    "seq-default-transitions",
+    "seq-transition-crossfade",
+    "seq-marker-snap",
+    "anim-add-keyframe",
+    "anim-interp-bezier",
+    "anim-interp-hold",
+    "anim-easy-ease",
+    "anim-easy-ease-in",
+    "anim-easy-ease-out",
+];
+
+/// A row run a second time over its own result changes the project again, as
+/// a toggle or a paste does, or records nothing, as a row whose result is
+/// already in place must. The census runs every row that recorded a step once
+/// more in the same state; a repeat that records a step and changes nothing
+/// spends the next Undo on nothing. Rows that open a form are not repeated.
+///
+/// A new row is held to this with no edit here. The rows in
+/// [`REPEATS_A_STEP`] are known to repeat a step; a listed row that stops is
+/// red until it leaves the list.
+#[test]
+fn a_row_run_over_its_own_result_changes_the_project_or_records_nothing() {
+    let repeats: Vec<&str> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| !row.again.is_empty() && !row.again_changed)
+        .map(|row| row.id.as_str())
+        .collect();
+    let new: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| {
+            let id = row.id.as_str();
+            repeats.contains(&id) && !REPEATS_A_STEP.contains(&id)
+        })
+        .map(|row| {
+            format!(
+                "{} against {:?} repeated {:?}",
+                row.id, row.dress, row.again
+            )
+        })
+        .collect();
+    let stale: Vec<&str> = REPEATS_A_STEP
+        .iter()
+        .copied()
+        .filter(|id| !repeats.contains(id))
+        .collect();
+    assert!(new.is_empty(), "{}", new.join("\n"));
+    assert!(stale.is_empty(), "no longer repeat a step: {stale:?}");
+}
+
 /// WHY: closes the class of rows that record an undo step over nothing when
 /// the state already holds their result: Reset Framing on a whole frame,
 /// Remove Track Matte with no matte, Linear on Linear keyframes, Time-Reverse

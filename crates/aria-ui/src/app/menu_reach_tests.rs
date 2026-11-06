@@ -367,6 +367,10 @@ struct RowOutcome {
     status: Option<String>,
     opened_form: bool,
     changed: bool,
+    /// What the row recorded when run a second time over its own result.
+    again: Vec<String>,
+    /// Whether that second run changed the project.
+    again_changed: bool,
 }
 
 /// One row run against the bare state: one clip, nothing selected, the playhead
@@ -390,6 +394,11 @@ struct Probe {
     asked_pick: bool,
     /// Whether the project reads differently after the row ran.
     changed: bool,
+    /// What a second run over the first run's result recorded. Run only when
+    /// the first recorded a step.
+    again: Vec<String>,
+    /// Whether the second run changed the project.
+    again_changed: bool,
 }
 
 struct MenuCensus {
@@ -419,51 +428,54 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
     let text = project_text(&state);
     let watch = super::sent_census::Watch::on(&state);
     let entity = cx.update(|app| app.new(|_| state));
-    let (found, blocked) = cx.update(|app| {
+    let probe = cx.update(|app| {
         entity.update(app, |state: &mut AppState, cx| {
             // The item list is read from the immutable state, then the row runs
             // against the mutable one: two borrows, in order.
             let item = items_of(menu, &*state).into_iter().find(|it| it.id == id);
-            let Some(item) = item else {
-                return (false, None);
-            };
+            let item =
+                item.unwrap_or_else(|| panic!("{id} vanished between enumeration and running"));
             let blocked = item.blocked_by(&*state);
             let run = item.run;
-            state.status_message = None;
-            run(id, state, cx);
-            if enter {
-                assert!(
-                    state.run_dialog_primary(),
-                    "{id} opened no form Enter commits"
-                );
+            // Whether Enter committed a form, or `true` for a row without one.
+            let once = |state: &mut AppState, cx: &mut gpui::Context<AppState>| {
+                state.status_message = None;
+                run(id, state, cx);
+                !enter || state.run_dialog_primary()
+            };
+            assert!(once(state, cx), "{id} opened no form Enter commits");
+            let after = history_labels(state);
+            let opened_form = matches!(
+                crate::app::dialog_primary::primary(state.dialog),
+                crate::app::dialog_primary::Primary::Run(_)
+            );
+            let mut probe = Probe {
+                wrote: after.iter().skip(before.len()).cloned().collect(),
+                asked: watch.take(),
+                blocked,
+                status: state.status_message.clone(),
+                opened_form,
+                asked_pick: state.picks_asked() > 0,
+                changed: project_text(state) != text,
+                again: Vec::new(),
+                again_changed: false,
+            };
+            // A row that recorded a step runs once more over its own result,
+            // where a repeat must change the project again or decline. A
+            // repeat that declines opens no form for Enter to commit.
+            if !probe.wrote.is_empty() && !opened_form {
+                let text = project_text(state);
+                once(state, cx);
+                probe.again = history_labels(state)
+                    .into_iter()
+                    .skip(after.len())
+                    .collect();
+                probe.again_changed = project_text(state) != text;
             }
-            (true, blocked)
+            probe
         })
     });
-    assert!(found, "{id} vanished between enumeration and running");
-    let (after, opened_form, asked_pick, status, changed) = cx.update(|app| {
-        let state = entity.read(app);
-        let opened_form = matches!(
-            crate::app::dialog_primary::primary(state.dialog),
-            crate::app::dialog_primary::Primary::Run(_)
-        );
-        (
-            history_labels(state),
-            opened_form,
-            state.picks_asked() > 0,
-            state.status_message.clone(),
-            project_text(state) != text,
-        )
-    });
-    Probe {
-        wrote: after.into_iter().skip(before.len()).collect(),
-        asked: watch.take(),
-        blocked,
-        status,
-        opened_form,
-        asked_pick,
-        changed,
-    }
+    probe
 }
 
 /// The project as it saves, plus the sequence it has open, to tell an edit or
@@ -539,6 +551,8 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             status: outcome.status,
             opened_form: outcome.opened_form,
             changed: outcome.changed,
+            again: outcome.again,
+            again_changed: outcome.again_changed,
         });
     }
     // A row that opens a file dialog is driven a second time, answered. The
