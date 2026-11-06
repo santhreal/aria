@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Plugin host framework for Aria: service registry, typed events, and plugin lifecycle."
 
 [dependencies]
@@ -41,6 +42,10 @@ tempfile = "3"
 aria-encoder = { path = "../aria-encoder" }
 aria-sdk = { path = "../aria-sdk" }
 aria-notes-plugin = { path = "../../examples/notes-plugin" }
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

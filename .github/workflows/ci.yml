@@ -90,8 +90,13 @@ jobs:
       - name: Compile benchmarks
         run: cargo bench --workspace --no-run --locked --bench '*'
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Test
-        run: cargo test --workspace --locked
+        run: |
+          cargo nextest run --workspace --locked --profile ci
+          cargo test --doc -p aria-core -p aria-text -p aria-sdk --locked
 
   coverage:
     name: contract crate coverage

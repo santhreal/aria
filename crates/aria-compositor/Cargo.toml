@@ -66,80 +66,8 @@ name = "blend_pipeline"
 harness = false
 
 [[test]]
-name = "adjust"
-path = "tests/adjust.rs"
-
-[[test]]
-name = "blend"
-path = "tests/blend.rs"
-
-[[test]]
-name = "cpu_effect_readback"
-path = "tests/cpu_effect_readback.rs"
-
-[[test]]
-name = "effects"
-path = "tests/effects.rs"
-
-[[test]]
-name = "effect_graph"
-path = "tests/effect_graph.rs"
-
-[[test]]
-name = "generators"
-path = "tests/generators.rs"
-
-[[test]]
-name = "glyphs"
-path = "tests/glyphs.rs"
-
-[[test]]
-name = "mask_stacks"
-path = "tests/mask_stacks.rs"
-
-[[test]]
-name = "masks"
-path = "tests/masks.rs"
-
-[[test]]
-name = "matte"
-path = "tests/matte.rs"
-
-[[test]]
-name = "motion_blur"
-path = "tests/motion_blur.rs"
-
-[[test]]
-name = "nests"
-path = "tests/nests.rs"
-
-[[test]]
-name = "pair_sides"
-path = "tests/pair_sides.rs"
-
-[[test]]
-name = "render"
-path = "tests/render.rs"
-
-[[test]]
-name = "registered_passes"
-path = "tests/registered_passes.rs"
-
-[[test]]
-name = "scopes"
-path = "tests/scopes.rs"
-
-[[test]]
-name = "stencils"
-path = "tests/stencils.rs"
-
-[[test]]
-name = "styles"
-path = "tests/styles.rs"
-
-[[test]]
-name = "transitions"
-path = "tests/transitions.rs"
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

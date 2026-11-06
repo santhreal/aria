@@ -28,17 +28,9 @@ ureq = "2"
 aria-engine = { path = "../aria-engine" }
 tempfile = "3"
 
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+
 [lints]
 workspace = true
-
-[[test]]
-name = "agent_eval"
-path = "tests/agent_eval.rs"
-
-[[test]]
-name = "engine_roundtrip"
-path = "tests/engine_roundtrip.rs"
-
-[[test]]
-name = "tool_schema"
-path = "tests/tool_schema.rs"

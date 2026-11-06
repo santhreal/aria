@@ -22,24 +22,8 @@ sqlite = ["dep:rusqlite"]
 tempfile = "3.27.0"
 
 [[test]]
-name = "audio_analysis"
-path = "tests/audio_analysis.rs"
-
-[[test]]
-name = "moment_adapters"
-path = "tests/moment_adapters.rs"
-
-[[test]]
-name = "moments"
-path = "tests/moments.rs"
-
-[[test]]
-name = "moments_sqlite"
-path = "tests/moments_sqlite.rs"
-
-[[test]]
-name = "shot_detection"
-path = "tests/shot_detection.rs"
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

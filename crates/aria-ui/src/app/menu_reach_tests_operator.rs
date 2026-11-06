@@ -72,6 +72,13 @@ fn export_frame_starts_a_job_for_the_chosen_file() {
                 .any(|label| *label == format!("Exporting frame to {name}")),
             "no job exports to {name}: {labels:?}"
         );
+        let jobs = state.jobs.clone();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !jobs.snapshot().iter().all(|j| j.state.is_terminal())
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     });
 }
 /// A path typed with no extension still names a PNG: the job writes
@@ -100,6 +107,13 @@ fn export_frame_to_a_bare_name_writes_a_png() {
                 .any(|label| label == "Exporting frame to still.png"),
             "the job does not write still.png: {labels:?}"
         );
+        let jobs = state.jobs.clone();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !jobs.snapshot().iter().all(|j| j.state.is_terminal())
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     });
 }
 #[test]

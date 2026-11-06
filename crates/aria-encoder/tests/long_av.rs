@@ -177,19 +177,19 @@ fn a_video_coder_delay_of_many_seconds_does_not_wedge_the_audio_branch() {
 fn a_full_disk_fails_the_export_with_its_reason_instead_of_wedging_it() {
     for (fps, sound) in [(30, false), (30, true), (1, true)] {
         let (done, finished) = mpsc::channel();
-        std::thread::spawn(move || {
+        let worker = std::thread::spawn(move || {
             let rate = Rational::new(fps, 1);
             let audio_rate = 48_000u32;
             let mut config = EncoderConfig::new((320, 240), rate, ColorSpace::BT709);
             if sound {
                 config = config.with_audio(AudioEncoderConfig::new(audio_rate, 2));
             }
-            let mut encoder = NativeEncoder::open(std::path::Path::new("/dev/full"), config)
-                .expect("open encoder");
             let per_frame = (audio_rate / fps as u32) as usize;
             let block: Vec<f32> = vec![0.1; per_frame * 2];
             let audio_time = Rational::new(audio_rate as i32, 1);
-            let mut export = || {
+            let export = move || {
+                let mut encoder = NativeEncoder::open(std::path::Path::new("/dev/full"), config)
+                    .expect("open encoder");
                 for i in 0..600i64 {
                     encoder.push(&noise_rgba_frame(320, 240, i, rate))?;
                     if sound {
@@ -205,6 +205,7 @@ fn a_full_disk_fails_the_export_with_its_reason_instead_of_wedging_it() {
         let result = finished.recv_timeout(DEADLINE).unwrap_or_else(|_| {
             panic!("an export at {fps} fps {case} into a full disk wedged for {DEADLINE:?}")
         });
+        let _ = worker.join();
         let reason = result.expect_err("an export into a full disk succeeded");
         assert!(
             reason.contains("No space left"),

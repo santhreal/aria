@@ -54,72 +54,8 @@ name = "text_anim"
 harness = false
 
 [[test]]
-name = "audio_inserts"
-path = "tests/audio_inserts.rs"
-
-[[test]]
-name = "export_frame"
-path = "tests/export_frame.rs"
-
-[[test]]
-name = "export_mp4"
-path = "tests/export_mp4.rs"
-
-[[test]]
-name = "export_sequence"
-path = "tests/export_sequence.rs"
-
-[[test]]
-name = "export_sound"
-path = "tests/export_sound.rs"
-
-[[test]]
-name = "lottie_render"
-path = "tests/lottie_render.rs"
-
-[[test]]
-name = "lut_render"
-path = "tests/lut_render.rs"
-
-[[test]]
-name = "registered_render"
-path = "tests/registered_render.rs"
-
-[[test]]
-name = "render_files"
-path = "tests/render_files.rs"
-
-[[test]]
-name = "render_frame"
-path = "tests/render_frame.rs"
-
-[[test]]
-name = "sticker_render"
-path = "tests/sticker_render.rs"
-
-[[test]]
-name = "still_render"
-path = "tests/still_render.rs"
-
-[[test]]
-name = "text_glyph_smoke"
-path = "tests/text_glyph_smoke.rs"
-
-[[test]]
-name = "text_composite"
-path = "tests/text_composite.rs"
-
-[[test]]
-name = "text_caret_placement"
-path = "tests/text_caret_placement.rs"
-
-[[test]]
-name = "text_keyframe_smoke"
-path = "tests/text_keyframe_smoke.rs"
-
-[[test]]
-name = "zero_copy"
-path = "tests/zero_copy.rs"
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Aria's command line: render a frame, export a span, inspect a project, run the detectors."
 
 [[bin]]
@@ -34,6 +35,10 @@ wit-component = "0.258"
 [dev-dependencies]
 object = { version = "0.40", default-features = false, features = ["write"] }
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

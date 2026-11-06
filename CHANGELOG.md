@@ -871,6 +871,7 @@ Notes for the latest release. For previous releases, see the
 - The Captions tab sets one clip per word with a **Per word** switch in place of a lone chip.
 - Word buttons in Effects & Presets (`Show all`), Settings > Plugins (`Open folder`, `Hide log`), the Export sheet (`Export frames…`, `Export as…`), and the Keyframes block (`Driver`, `Remove driver`) use sentence case, and `Relink All…` in the Project panel matches `File > Relink All…`.
 - Settings > AI names the assistant's read-only tools as such in the Can do and Active rows.
+- Consolidated per-crate integration test targets into single `tests/it/main.rs` binaries, disabled test-profile symbol debuginfo, and configured `cargo-nextest` profiles and media concurrency limits, cutting warm `aria-ui` incremental test builds from 14.66 s to 7.17 s and full workspace test compilation CPU time by 50%.
 
 ### Fixed
 

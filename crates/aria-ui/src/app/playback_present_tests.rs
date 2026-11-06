@@ -349,7 +349,10 @@ async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
                 view.playhead, state.playhead,
                 "{label}: plugin EditorView playhead disagreed with sequence playhead"
             );
-            assert!(view.playing, "{label}: plugin EditorView not marked playing");
+            assert!(
+                view.playing,
+                "{label}: plugin EditorView not marked playing"
+            );
         });
         visual.update(|_, app| state.update(app, |state, _| state.toggle_playback()));
         assert_eq!(vsync(&state, visual, 3), 0, "{label}: loop outlived stop");

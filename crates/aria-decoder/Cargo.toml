@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Platform-native video decoding behind the aria-core VideoDecoder trait. AVFoundation on Apple, Media Foundation on Windows, MediaCodec on Android, GStreamer on Linux."
 
 [dependencies]
@@ -104,6 +105,10 @@ glib = "0.20"
 rustix = { version = "1.1", features = ["process"] }
 # `_exit` for `exit_process`.
 libc = "0.2"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

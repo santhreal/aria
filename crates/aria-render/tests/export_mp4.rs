@@ -51,7 +51,8 @@ fn decode_mp4_corner(path: &Path, x: u32, y: u32) -> [u8; 4] {
 fn temp_mp4() -> PathBuf {
     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    std::env::temp_dir().join(format!("aria_render_export_{seq}.mp4"))
+    let slot = std::env::var("NEXTEST_TEST_GLOBAL_SLOT").unwrap_or_default();
+    std::env::temp_dir().join(format!("aria_render_export_{slot}_{seq}.mp4"))
 }
 
 /// A quick 3-frame generated timeline (solid + title) on a 16:9 canvas.

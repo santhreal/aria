@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Mobile FFI bridge for Aria: renders frames for the iOS/Android test apps (C ABI + JNI)."
 
 # `staticlib` for the iOS app (linked into the binary), `cdylib` (.so) for the
@@ -34,6 +35,10 @@ tempfile = "3"
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 android_logger = "0.14"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true

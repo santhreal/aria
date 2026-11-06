@@ -283,14 +283,9 @@ fn transport_start_paths() -> Vec<(&'static str, &'static str, i32, StartFn)> {
         ("set_shuttle_speed(+1x)", "set_shuttle_speed", 1, |state| {
             state.set_shuttle_speed(ShuttleSpeed::ONE);
         }),
-        (
-            "set_shuttle_speed(-1x)",
-            "set_shuttle_speed",
-            -1,
-            |state| {
-                state.set_shuttle_speed(ShuttleSpeed::hundredths(-100));
-            },
-        ),
+        ("set_shuttle_speed(-1x)", "set_shuttle_speed", -1, |state| {
+            state.set_shuttle_speed(ShuttleSpeed::hundredths(-100));
+        }),
         ("step_shuttle_fine(+1)", "step_shuttle_fine", 1, |state| {
             state.step_shuttle_fine(1);
         }),
@@ -338,14 +333,9 @@ fn transport_start_paths() -> Vec<(&'static str, &'static str, i32, StartFn)> {
         ("shift_space", "play_work_area", 1, |state| {
             state.shift_space();
         }),
-        (
-            "toggle_viewer_playback",
-            "toggle_playback",
-            1,
-            |state| {
-                state.toggle_viewer_playback();
-            },
-        ),
+        ("toggle_viewer_playback", "toggle_playback", 1, |state| {
+            state.toggle_viewer_playback();
+        }),
     ]
 }
 
@@ -408,7 +398,7 @@ fn every_playback_start_path_goes_through_apply_shuttle_speed_and_refuses_an_emp
         let mut current_fn = String::new();
         for (idx, line) in code.lines().enumerate() {
             let trimmed = line.trim();
-            if let Some( pos) = trimmed.find("fn ") {
+            if let Some(pos) = trimmed.find("fn ") {
                 let after = &trimmed[pos + 3..];
                 if let Some(name) = after.split('(').next() {
                     current_fn = name.trim().to_owned();
@@ -421,10 +411,8 @@ fn every_playback_start_path_goes_through_apply_shuttle_speed_and_refuses_an_emp
                 {
                     let rhs = rhs.trim();
                     if !rhs.starts_with("false;") {
-                        playing_true_sites.push(format!(
-                            "{rel}:{}:{current_fn}: {trimmed}",
-                            idx + 1
-                        ));
+                        playing_true_sites
+                            .push(format!("{rel}:{}:{current_fn}: {trimmed}", idx + 1));
                     }
                 }
             }

@@ -144,6 +144,7 @@ debug = false
 # time and the CPU a run costs the machine it runs on.
 [profile.test]
 opt-level = 2
+debug = false
 
 [profile.release]
 opt-level = 3

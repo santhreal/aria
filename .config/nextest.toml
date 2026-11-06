@@ -1,0 +1,48 @@
+# Nextest configuration for the Aria workspace.
+#
+# `cargo nextest run` uses `[profile.default]` for fast inner-loop verification,
+# skipping multi-second subprocess packaging, long media synthesis, and benchmark
+# harness tests.
+#
+# `cargo nextest run --profile ci` runs the complete workspace suite with zero
+# tests skipped.
+#
+# `cargo nextest run --profile slow` runs only the multi-second suite skipped by
+# `[profile.default]`.
+
+[test-groups.gpu-media]
+max-threads = 4
+
+[profile.default]
+default-filter = "not (package(~aria-bench) | test(end_to_end_new_pack_check_and_mount_for_native_and_wasm) | (package(~aria-cli) & binary(~it) & (test(export_encoder) | test(drivers))) | (package(~aria-analysis) & test(moments_sqlite)) | (package(~aria-encoder) & (test(long_av) | test(roundtrip))))"
+slow-timeout = { period = "30s", terminate-after = 4 }
+fail-fast = false
+
+# Schedule long-running tests first when active so they never create a tail at
+# the end of a full workspace run.
+[[profile.default.overrides]]
+filter = "test(end_to_end_new_pack_check_and_mount_for_native_and_wasm) | package(~aria-bench) | binary(~wasm_plugins) | test(agent_eval) | (package(~aria-analysis) & test(moments_sqlite)) | (package(~aria-cli) & (test(export_encoder) | test(drivers))) | (package(~aria-encoder) & (test(long_av) | test(roundtrip)))"
+priority = 100
+slow-timeout = { period = "60s", terminate-after = 4 }
+
+# Bound concurrent GStreamer / Vulkan / CUDA media pipelines across processes so
+# preroll waits do not contend across 16 simultaneous GPU processes.
+[[profile.default.overrides]]
+filter = "package(~aria-render) | package(~aria-encoder) | package(~aria-decoder)"
+test-group = "gpu-media"
+
+# Wall-clock budget assertions require uncontended cores and GPU.
+[[profile.default.overrides]]
+filter = "binary(~frame_budget) | test(first_interactive_frame_is_measured_cold_and_warm) | test(steady_realize_allocates_zero_heap_blocks_across_all_clip_and_transition_kinds)"
+threads-required = "num-test-threads"
+priority = 90
+
+[profile.ci]
+default-filter = "all()"
+slow-timeout = { period = "60s", terminate-after = 4 }
+fail-fast = false
+
+[profile.slow]
+default-filter = "package(~aria-bench) | test(end_to_end_new_pack_check_and_mount_for_native_and_wasm) | (package(~aria-cli) & binary(~it) & (test(export_encoder) | test(drivers))) | (package(~aria-analysis) & test(moments_sqlite)) | (package(~aria-encoder) & (test(long_av) | test(roundtrip)))"
+slow-timeout = { period = "60s", terminate-after = 4 }
+fail-fast = false

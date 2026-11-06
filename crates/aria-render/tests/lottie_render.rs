@@ -58,7 +58,8 @@ fn lottie_project(path: &str) -> Project {
 fn temp_lottie(source: &str) -> std::path::PathBuf {
     static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let path = std::env::temp_dir().join(format!("aria_lottie_test_{seq}.json"));
+    let slot = std::env::var("NEXTEST_TEST_GLOBAL_SLOT").unwrap_or_default();
+    let path = std::env::temp_dir().join(format!("aria_lottie_test_{slot}_{seq}.json"));
     std::fs::write(&path, source).unwrap();
     path
 }

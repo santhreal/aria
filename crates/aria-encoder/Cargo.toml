@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+autotests = false
 description = "Platform-native video encoding behind the aria-core VideoEncoder trait. AVFoundation on Apple, Media Foundation on Windows, MediaCodec on Android, GStreamer on Linux."
 
 [dependencies]
@@ -59,6 +60,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "rgba_to_bgra"
 harness = false
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
 
 [lints]
 workspace = true
