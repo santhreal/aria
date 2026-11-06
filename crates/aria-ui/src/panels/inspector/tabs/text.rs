@@ -7,7 +7,6 @@
 //! with the Character and Paragraph dock panels, so a title has one set of
 //! writes whichever surface edits it.
 
-use crate::components::Wraps as _;
 use gpui::{
     AnyElement, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, div, px,
@@ -16,16 +15,15 @@ use gpui::{
 use aria_models::{TextAlignH, TextAlignV, TextCase};
 
 use crate::app::clip_text::TextSwitch;
-use crate::components::{self, ChipSize};
 use crate::motion::MotionKey;
 use crate::surfaces::clip_pick::{self, Pick};
 use crate::theme::Theme;
 use crate::types::{RenameTarget, UiClip};
-use gpui::prelude::FluentBuilder;
 
 use crate::panels::inspector::blocks::font_list::font_list;
 use crate::panels::inspector::blocks::widgets::{
-    Columns, color_rows, param_rows, pick_button, switch_line,
+    Chip, Columns, chip_row, choice_chip, color_rows, label_note, param_rows, pick_button,
+    switch_line, under_labels,
 };
 
 use crate::components::section_label;
@@ -49,61 +47,57 @@ pub fn text_tab(
 
     // The chips come from the model catalog, so a new preset needs no edit here.
     // The active one is lit, as every chip in force is; pressing it clears it.
-    let presets = chip_wrap(
-        crate::catalog_text::text_effects()
-            .iter()
-            .map(|choice| {
-                let id = choice.id.as_str();
-                let on = active.as_deref() == Some(id);
-                pick_chip(
-                    theme,
-                    MotionKey::new("text-effect", id),
-                    choice.label.clone(),
-                    on,
-                    move || {
-                        if on {
-                            Pick::ClearTextEffect
-                        } else {
-                            Pick::TextEffect(id.to_string())
-                        }
-                    },
-                    cx,
-                )
-            })
-            .collect(),
-    );
+    let effects = crate::catalog_text::text_effects();
+    let current = effects
+        .iter()
+        .find(|choice| active.as_deref() == Some(choice.id.as_str()))
+        .map_or(SharedString::new_static("None"), |choice| {
+            choice.label.clone()
+        });
+    let presets: Vec<Chip> = effects
+        .iter()
+        .map(|choice| {
+            let id = choice.id.as_str();
+            let on = active.as_deref() == Some(id);
+            choice_chip(
+                MotionKey::new("text-effect", id),
+                choice.label.clone(),
+                on,
+                theme,
+                cx,
+                move |state| {
+                    let pick = if on {
+                        Pick::ClearTextEffect
+                    } else {
+                        Pick::TextEffect(id.to_string())
+                    };
+                    clip_pick::apply(state, pick)
+                },
+            )
+        })
+        .collect();
+    let content = match content {
+        Some(content) => label_note(Columns::Keyed, theme.text, content),
+        None => label_note(Columns::Keyed, theme.text_faint, "No text"),
+    };
+    let edit = pick_button("text-edit", "Edit text…", theme, cx, |state| {
+        state.begin_rename(RenameTarget::ClipText);
+        Ok(())
+    });
 
     div()
         .flex()
         .flex_col()
         .gap(px(Theme::SPACE_XS))
-        .when_some(content.clone(), |el, content| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text)
-                    .child(content),
-            )
-        })
-        .when(content.is_none(), |el| {
-            el.child(
-                div()
-                    .text_size(Theme::TEXT_UI)
-                    .text_color(theme.text_faint)
-                    .child("No text"),
-            )
-        })
-        .child(div().flex().child(pick_button(
-            "text-edit",
-            "Edit text…",
+        .child(content)
+        .child(under_labels(Columns::Keyed, [edit.into_any_element()]))
+        .children(character_controls(
             theme,
+            INSPECTOR,
+            Columns::Keyed,
+            state,
             cx,
-            |state| {
-                state.begin_rename(RenameTarget::ClipText);
-                Ok(())
-            },
-        )))
-        .children(character_controls(theme, INSPECTOR, state, cx))
+        ))
         .children(paragraph_controls(
             theme,
             INSPECTOR,
@@ -112,9 +106,22 @@ pub fn text_tab(
             cx,
         ))
         .child(section_label(theme, "Effect"))
-        .child(presets)
+        .child(chip_row(
+            theme,
+            MotionKey::new("insp.row", "text-effect"),
+            "Preset",
+            Columns::Keyed,
+            current,
+            presets,
+        ))
         .child(section_label(theme, "Cloud presets"))
-        .child(cloud_presets(theme, state, cx))
+        .child(under_labels(
+            Columns::Keyed,
+            [div()
+                .w_full()
+                .child(cloud_presets(theme, state, cx))
+                .into_any_element()],
+        ))
 }
 
 /// The cloud text presets: the pack catalog, then whatever pack is loaded.
@@ -192,58 +199,50 @@ fn cloud_presets(
 /// rows. Empty when the selection is not a title.
 ///
 /// `surface` names where the controls are drawn and is folded into every key.
+/// `columns` places the switch and case lines: the keyed rows' columns on the
+/// Text tab, free on the Character panel, as [`paragraph_controls`] places
+/// its lines.
 pub fn character_controls(
     theme: &Theme,
     surface: &'static str,
+    columns: Columns,
     state: &gpui::Entity<crate::app::AppState>,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<AnyElement> {
     let Some(face) = state.read(cx).selected_text_face() else {
         return Vec::new();
     };
-    let switches = |set: &[TextSwitch], cx: &mut gpui::Context<crate::shell::Shell>| {
-        chip_wrap(
-            set.iter()
-                .map(|&switch| {
-                    pick_chip(
-                        theme,
-                        MotionKey::new("text-switch", switch.label()).with(surface),
-                        switch.label(),
-                        face.is_on(switch),
-                        move || Pick::TextSwitch(switch),
-                        cx,
-                    )
-                })
-                .collect(),
-        )
-    };
-    let face_row = switches(&TextSwitch::FACE, cx);
-    let treatments = switches(&TextSwitch::TREATMENTS, cx);
-    let cases = chip_wrap(
-        TextCase::ALL
-            .iter()
-            .map(|&case| {
-                pick_chip(
-                    theme,
-                    MotionKey::new("text-case", case.label()).with(surface),
-                    case.label(),
-                    face.case == case,
-                    move || Pick::TextCase(case),
-                    cx,
-                )
-            })
-            .collect(),
-    );
+    let cases: Vec<Chip> = TextCase::ALL
+        .iter()
+        .map(|&case| {
+            choice_chip(
+                MotionKey::new("text-case", case.label()).with(surface),
+                case.label(),
+                face.case == case,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::TextCase(case)),
+            )
+        })
+        .collect();
     let mut out = vec![
         section_label(theme, "Font").into_any_element(),
         font_picker(theme, surface, state, cx).into_any_element(),
         section_label(theme, "Style").into_any_element(),
-        face_row,
-        cases,
-        section_label(theme, "Treatments").into_any_element(),
-        treatments,
-        section_label(theme, "Size and spacing").into_any_element(),
     ];
+    for &switch in &TextSwitch::FACE {
+        let on = face.is_on(switch);
+        out.push(text_switch(theme, surface, columns, switch, on, cx));
+    }
+    let case = MotionKey::new("insp.row", "text-case").with(surface);
+    let case = chip_row(theme, case, "Case", columns, face.case.label(), cases);
+    out.push(case.into_any_element());
+    out.push(section_label(theme, "Treatments").into_any_element());
+    for &switch in &TextSwitch::TREATMENTS {
+        let on = face.is_on(switch);
+        out.push(text_switch(theme, surface, columns, switch, on, cx));
+    }
+    out.push(section_label(theme, "Size and spacing").into_any_element());
     out.extend(param_rows(theme, "text", state, cx));
     out.push(section_label(theme, "Color").into_any_element());
     out.extend(color_rows(theme, "text", state, cx));
@@ -254,10 +253,9 @@ pub fn character_controls(
 /// block sits down it, and whether long lines wrap. Empty when the selection is
 /// not a title.
 ///
-/// `columns` places the Wrap line: the keyed rows' columns on the Text tab,
-/// beside the rows that key; free on the Paragraph panel, which draws no
-/// keyed rows, so its label stands at the panel's edge and its switch at the
-/// other.
+/// `columns` places the lines: the keyed rows' columns on the Text tab, beside
+/// the rows that key; free on the Paragraph panel, which draws no keyed rows,
+/// so a label stands at the panel's edge and its value at the other.
 pub fn paragraph_controls(
     theme: &Theme,
     surface: &'static str,
@@ -268,89 +266,83 @@ pub fn paragraph_controls(
     let Some(face) = state.read(cx).selected_text_face() else {
         return Vec::new();
     };
-    let across = chip_wrap(
-        TextAlignH::ALL
-            .iter()
-            .map(|&align| {
-                pick_chip(
-                    theme,
-                    MotionKey::new("text-align-h", align.label()).with(surface),
-                    align.label(),
-                    face.align_h == align,
-                    move || Pick::TextAlignH(align),
-                    cx,
-                )
-            })
-            .collect(),
-    );
-    let down = chip_wrap(
-        TextAlignV::ALL
-            .iter()
-            .map(|&align| {
-                pick_chip(
-                    theme,
-                    MotionKey::new("text-align-v", align.label()).with(surface),
-                    align.label(),
-                    face.align_v == align,
-                    move || Pick::TextAlignV(align),
-                    cx,
-                )
-            })
-            .collect(),
-    );
-    let wrap = switch_line(
+    let across: Vec<Chip> = TextAlignH::ALL
+        .iter()
+        .map(|&align| {
+            choice_chip(
+                MotionKey::new("text-align-h", align.label()).with(surface),
+                align.label(),
+                face.align_h == align,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::TextAlignH(align)),
+            )
+        })
+        .collect();
+    let down: Vec<Chip> = TextAlignV::ALL
+        .iter()
+        .map(|&align| {
+            choice_chip(
+                MotionKey::new("text-align-v", align.label()).with(surface),
+                align.label(),
+                face.align_v == align,
+                theme,
+                cx,
+                move |state| clip_pick::apply(state, Pick::TextAlignV(align)),
+            )
+        })
+        .collect();
+    let across = chip_row(
         theme,
-        MotionKey::new("insp.row", "text-wrap").with(surface),
-        TextSwitch::Wrap.label(),
+        MotionKey::new("insp.row", "text-align-h").with(surface),
+        "Across",
         columns,
-        MotionKey::new("text-switch", TextSwitch::Wrap.label()).with(surface),
-        Some(face.is_on(TextSwitch::Wrap)),
-        cx,
-        |state| clip_pick::apply(state, Pick::TextSwitch(TextSwitch::Wrap)),
+        face.align_h.label(),
+        across,
     );
+    let down = chip_row(
+        theme,
+        MotionKey::new("insp.row", "text-align-v").with(surface),
+        "Down",
+        columns,
+        face.align_v.label(),
+        down,
+    );
+    let wrap = face.is_on(TextSwitch::Wrap);
     vec![
         section_label(theme, "Alignment").into_any_element(),
-        across,
-        down,
+        across.into_any_element(),
+        down.into_any_element(),
         section_label(theme, "Lines").into_any_element(),
-        wrap.into_any_element(),
+        text_switch(theme, surface, columns, TextSwitch::Wrap, wrap, cx),
     ]
 }
 
-/// A wrapping row of chips.
-fn chip_wrap(chips: Vec<AnyElement>) -> AnyElement {
-    div()
-        .flex()
-        .flex_row()
-        .wraps()
-        .gap(px(Theme::SPACE_XXS))
-        .children(chips)
-        .into_any_element()
-}
-
-/// One chip that hands `pick` to the registry when pressed. The pick is built
-/// on the press, so the chip holds only the copyable choice it stands for.
-fn pick_chip(
+/// The line of `switch` on `surface` in `columns`: its label, and a switch on
+/// while the selected title wears it. A press toggles it on every selected
+/// title. Every [`TextSwitch`] is drawn through here, so an on/off property of
+/// a title reads as a switch on every surface.
+fn text_switch(
     theme: &Theme,
-    key: MotionKey,
-    label: impl Into<SharedString>,
-    active: bool,
-    pick: impl Fn() -> Pick + 'static,
-    cx: &mut gpui::Context<crate::shell::Shell>,
+    surface: &'static str,
+    columns: Columns,
+    switch: TextSwitch,
+    on: bool,
+    cx: &gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
-    components::chip(key, label, active, ChipSize::Compact, theme)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                this.state.update(cx, |state, _| {
-                    if let Err(err) = clip_pick::apply(state, pick()) {
-                        state.report_error(&err);
-                    }
-                });
-                cx.notify();
-            }),
-        )
-        .into_any_element()
+    switch_line(
+        theme,
+        MotionKey::new("insp.row", "text-switch")
+            .with(switch.label())
+            .with(surface),
+        switch.label(),
+        columns,
+        MotionKey::new("text-switch", switch.label()).with(surface),
+        Some(on),
+        cx,
+        move |state| clip_pick::apply(state, Pick::TextSwitch(switch)),
+    )
+    .into_any_element()
 }
 
 /// The typeface picker: the system default, which an empty family means in the

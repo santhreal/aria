@@ -421,6 +421,150 @@ fn the_character_panel_scrolls_rather_than_squeezing_the_font_list(cx: &mut gpui
     }
 }
 
+/// The class closed here: an on/off property of a title drawn as a chip. Bold,
+/// Italic, Underline, Kerning, Stroke, Shadow and Card were chips in a wrapping
+/// row, where an off chip read as plain text and "Bold Italic Underline
+/// Kerning" read as a sentence with one word lit, while Wrap, their sibling,
+/// was a switch. Every switch of `TextSwitch::ALL` must draw a line of its own
+/// with a switch in its value, and no chip, on the Text tab in the keyed rows'
+/// columns and on one of the Character and Paragraph panels in free ones, so a
+/// switch added to the model fails until both surfaces draw it.
+///
+/// Also closes "a Text tab control at the section heading's edge": the case,
+/// alignment and preset chips and Edit text… started left of the label column
+/// every other tab sets its controls on. Every chip and ghost button the tab
+/// draws from Edit text… down starts its frame on or right of that column.
+///
+/// Not covered: a control drawn without `components::chip`, `ghost_button` or
+/// `switch`, such as a font row or a cloud preset row.
+#[gpui::test]
+fn every_text_switch_is_a_switch_on_a_line_of_its_own(cx: &mut gpui::TestAppContext) {
+    use crate::components::noted::{
+        Drawn, NotingControls, control_selector, drawn_controls, record_controls,
+    };
+    use crate::dock::{PANEL_CHARACTER, PANEL_INSPECTOR, PANEL_PARAGRAPH};
+    use crate::interned::intern;
+    use crate::motion::{ControlId, MotionKey};
+
+    let (state, visual) = title_panel(cx, "text-switch-lines", PANEL_CHARACTER);
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let _noting = NotingControls::start();
+    let paragraph = vec![TextSwitch::Wrap];
+    let character: Vec<TextSwitch> = TextSwitch::ALL
+        .into_iter()
+        .filter(|switch| !paragraph.contains(switch))
+        .collect();
+    let surfaces = [
+        ("insp-text", PANEL_INSPECTOR, true, TextSwitch::ALL.to_vec()),
+        ("character-panel", PANEL_CHARACTER, false, character),
+        ("paragraph-panel", PANEL_PARAGRAPH, false, paragraph),
+    ];
+    for (surface, panel, keyed, switches) in surfaces {
+        record_controls();
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                if !state.dock_tree.is_open(panel) {
+                    let row = format!("{}{panel}", crate::chrome::menu_window::PANEL_PREFIX);
+                    let menu = crate::types::AppMenu::Window;
+                    assert!(
+                        crate::chrome::menu_items::run_item(menu, &row, state, cx),
+                        "Window has no row for {panel}"
+                    );
+                }
+                state.focus_dock_panel(panel);
+                state.inspector_tab = "text".to_string();
+                cx.notify();
+            })
+        });
+        visual.run_until_parked();
+        let (controls, _) = drawn_controls();
+        for switch in switches {
+            let label = switch.label();
+            let cell = |cell: &str| {
+                intern(&if keyed {
+                    format!("insp-{cell}-{label}")
+                } else {
+                    format!("insp-{cell}-free-{label}")
+                })
+            };
+            let line = visual
+                .debug_bounds(cell("label"))
+                .unwrap_or_else(|| panic!("{surface}: {label} draws no line of its own"));
+            let value = visual
+                .debug_bounds(cell("value"))
+                .unwrap_or_else(|| panic!("{surface}: {label}'s line draws no value"));
+            let id = ControlId::from(MotionKey::new("text-switch", label).with(surface));
+            let toggle = control_selector("switch", id, &Drawn::Switch);
+            assert!(
+                controls.iter().any(|control| control.selector == toggle),
+                "{surface}: {label} draws no switch"
+            );
+            let drawn = visual
+                .debug_bounds(intern(&toggle))
+                .unwrap_or_else(|| panic!("{surface}: {label}'s switch is not drawn"));
+            assert!(
+                value.contains(&drawn.center())
+                    && (f32::from(drawn.center().y) - f32::from(line.center().y)).abs() < 1.0,
+                "{surface}: {label}'s switch at {drawn:?} is not in its value at {value:?} on its line at {line:?}"
+            );
+            let chip = format!("chip-{id:?}-");
+            assert!(
+                !controls
+                    .iter()
+                    .any(|control| control.selector.starts_with(&chip)),
+                "{surface}: {label} is drawn as a chip"
+            );
+        }
+        if panel != PANEL_INSPECTOR {
+            continue;
+        }
+        let column = visual
+            .debug_bounds("insp-label-Bold")
+            .expect("the Text tab draws no Bold line")
+            .left();
+        let body = visual
+            .debug_bounds("inspector-body")
+            .expect("the Inspector draws no body");
+        let edit = Drawn::Labelled {
+            label: "Edit text…".into(),
+            inset: 0.0,
+            size: gpui::px(0.0),
+        };
+        let edit = visual
+            .debug_bounds(intern(&control_selector(
+                "ghost",
+                ControlId::from("text-edit"),
+                &edit,
+            )))
+            .expect("the Text tab draws no Edit text…");
+        let mut held = 0;
+        for control in &controls {
+            let Drawn::Labelled { label, .. } = &control.drawn else {
+                continue;
+            };
+            let Some(drawn) = visual.debug_bounds(intern(&control.selector)) else {
+                continue;
+            };
+            let outside = drawn.left() < body.left() || drawn.right() > body.right();
+            if outside || drawn.top() < edit.top() {
+                continue;
+            }
+            held += 1;
+            assert!(
+                f32::from(drawn.left()) > f32::from(column) - 0.51,
+                "the Text tab's {label} starts its frame at {:?}, left of the label column at {column:?}",
+                drawn.left()
+            );
+        }
+        // Edit text…, the four cases, the alignments and the presets.
+        let least = 1 + TextCase::ALL.len() + TextAlignH::ALL.len() + TextAlignV::ALL.len();
+        assert!(
+            held >= least,
+            "the Text tab held {held} chips and buttons to the label column, fewer than {least}"
+        );
+    }
+}
+
 #[test]
 fn every_bundled_sticker_places_a_clip_that_the_model_accepts() {
     // The Stickers tab is generated from this catalog, so a bundled asset the model

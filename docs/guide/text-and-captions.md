@@ -3,8 +3,9 @@
 ## Text
 
 Select a title. The Text tab shows its content and **Edit text…**, which renames
-the text in place. Below it, the Effect chips are the text presets: neon, shadow,
-outline, glow, retro, and chrome. Click a chip to apply it, click the active chip
+the text in place. Under **Effect**, the **Preset** row reads the text preset in
+force, and its chips are the presets: neon, shadow, outline, glow, retro, and
+chrome. Click a chip to apply it, click the active chip
 to clear it. A preset writes stroke, shadow, and background onto the style, so
 clearing the chip stops marking the preset but leaves what it wrote; edit those
 rows to change them. A preset writes only when chosen: an edited stroke stays
@@ -13,16 +14,16 @@ when the title is retyped or the same preset is sent again.
 Under **Font**, the list holds the system default and every installed family,
 scrolls, and opens on the family in use; click a family to set it. **Next Font
 on Title** and **Previous Font on Title** in the Command Palette step through
-the families. **Style** holds Bold, Italic, Underline, and Kerning, then the
-case: As typed, Upper, Lower, Title. **Treatments** switches
-the stroke, the shadow, and the card on and off; switching one clears the
-preset mark. **Size and spacing** holds size, tracking, leading, and the
-treatment sizes, and **Color** holds a swatch row per color: fill, then the
+the families. **Style** holds a switch each for Bold, Italic, Underline, and
+Kerning, then the **Case** row: As typed, Upper, Lower, or Title. **Treatments**
+holds a switch each for the stroke, the shadow, and the card; switching one
+clears the preset mark. **Size and spacing** holds size, tracking, leading, and
+the treatment sizes, and **Color** holds a swatch row per color: fill, then the
 stroke, shadow, and card colors while those are on. A color keyframed at the
 playhead takes a new keyframe; any other color is set for the whole clip.
-**Alignment** sets the lines Left, Center, Right, or Justify across the frame
-and the block Top, Middle, or Bottom down it; **Wrap** breaks long lines at the
-frame edge.
+Under **Alignment**, the **Across** row sets the lines Left, Center, Right, or
+Justify across the frame and the **Down** row sets the block Top, Middle, or
+Bottom down it; the **Wrap** switch breaks long lines at the frame edge.
 
 **Window > Character** and **Window > Paragraph** dock the same controls as
 panels, in the right frame beside Effects & Presets in the Editing workspace.
@@ -71,7 +72,7 @@ selected, the clip is generated, the media has no audio track, the media is
 offline, no model is installed, or the language is one Whisper does not support.
 
 The **Output** chips, **Text clips** and **Markers**, choose what a commit
-writes. **One clip per word** in the **Split** row splits each segment by its
+writes. The **Per word** switch splits each segment by its
 word timings; a segment the model gave no word timings for stays whole.
 **Commit** writes the units at their own times as one `Commit captions` undo
 entry: caption clips onto the text lane, markers onto the timeline.

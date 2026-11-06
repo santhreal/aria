@@ -92,10 +92,6 @@ const FORWARDERS: &[Forwarder] = &[
         arg: 0,
     },
     Forwarder {
-        name: "pick_chip",
-        arg: 1,
-    },
-    Forwarder {
         name: "marker_action",
         arg: 1,
     },

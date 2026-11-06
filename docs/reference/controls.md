@@ -269,7 +269,7 @@ The Character, Paragraph, and Inspector Text surfaces (`crates/aria-ui/src/panel
 | `text-case` (per row) | As typed / Upper / Lower / Title | Sets the letter case the selected title is drawn in. | None |
 | `text-edit` | Edit text… | Opens the text content prompt for the selected title clip. | None |
 | `text-effect` (per row) | Neon / Shadow / Outline / Glow / Retro / Chrome | Applies the text effect preset to the selected title, or removes it when it is already applied. | None |
-| `text-switch` (per row) | Bold / Italic / Underline / Kerning / Stroke / Shadow / Card / Wrap switch | Toggles the text style on the selected title; Wrap is a switch on the Paragraph controls' Wrap line, and the others are chips lit while on. | None |
+| `text-switch` (per row) | Bold / Italic / Underline / Kerning / Stroke / Shadow / Card / Wrap switch | Toggles the text style on the selected title. Each is a switch on a line of its own, on the Text tab and on the Character and Paragraph panels. | None |
 
 ## Markers
 

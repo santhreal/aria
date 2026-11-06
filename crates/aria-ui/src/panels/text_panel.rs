@@ -28,7 +28,7 @@ pub fn render_character(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> AnyElement {
     let theme = Theme::of(cx);
-    let controls = character_controls(&theme, CHARACTER, state, cx);
+    let controls = character_controls(&theme, CHARACTER, Columns::Free, state, cx);
     panel(&theme, CHARACTER, controls)
 }
 
