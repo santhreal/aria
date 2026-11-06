@@ -1,16 +1,39 @@
-//! Defect class: Retimed paste missing from command registry and engine actions.
+//! Pastes of a clipboard copy, plain and retimed.
 //!
-//! A paste variant places a copy retimed to a target duration (or a chosen rate),
-//! as one atomic undo entry. The pasted clip reports the new speed through the same
-//! speed fields the inspector reads. Out-of-bounds targets and non-positive durations
-//! are refused with named errors.
+//! A copy is a clip value taken when it was copied, so a paste places it whether
+//! or not the clip it came from is still on the timeline: Cut, then Paste, puts
+//! the clip back. A paste is one atomic undo entry, gives the clip a fresh id,
+//! and refuses a copy that plays something the project no longer holds, or a
+//! sequence that would contain itself.
+//!
+//! A retimed paste places the copy retimed to a target duration (or a chosen
+//! rate). The pasted clip reports the new speed through the same speed fields
+//! the inspector reads. Out-of-bounds targets and non-positive durations are
+//! refused with named errors.
+//!
+//! What this does not catch: the editor's choice of lane and position, which
+//! `aria-ui`'s clipboard tests cover.
 
 mod common;
 
 use aria_commands::{Command, EditCommand, EditOutcome};
-use aria_engine::{ApplyOutcome, Engine};
-use aria_models::{ClipId, MediaId, MediaSource, Project, Rational, TrackId, TrackKind};
-use common::{add_track, rt, tr};
+use aria_engine::{ApplyOutcome, Engine, EngineError};
+use aria_models::{
+    Clip, ClipId, ClipSource, MediaId, MediaSource, ModelError, Project, Rational, TimeRange,
+    TrackId, TrackKind,
+};
+use common::{add_track, created_clip, rt, tr};
+
+/// The clipboard copy of `clip`: the clip as it is now.
+fn copy_of(engine: &Engine, clip: ClipId) -> Box<Clip> {
+    Box::new(
+        engine
+            .project()
+            .clip(clip)
+            .expect("the copied clip")
+            .clone(),
+    )
+}
 
 fn engine_with_media(media_duration: i64) -> (tempfile::TempDir, Engine, MediaId, TrackId, ClipId) {
     let dir = tempfile::tempdir().expect("tempdir");
@@ -43,8 +66,8 @@ fn paste_retimed_with_target_duration_derives_speed_and_undoes_in_one_step() {
     // Paste retimed to target duration 50 ticks (should derive 2.0x speed).
     let outcome = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: Some(rt(50)),
             target_speed: None,
@@ -81,8 +104,8 @@ fn paste_retimed_with_target_speed_derives_duration_and_reads_back_in_inspector(
     // Paste with explicit target speed 0.5x (1/2), occupying 200 ticks.
     let outcome = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(100),
             target_duration: None,
             target_speed: Some(Rational::new(1, 2)),
@@ -108,8 +131,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 1. Zero target duration
     let err_zero_dur = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: Some(rt(0)),
             target_speed: None,
@@ -125,8 +148,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 2. Negative target duration
     let err_neg_dur = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: Some(rt(-50)),
             target_speed: None,
@@ -142,8 +165,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 3. Speed below minimum (0.05)
     let err_too_slow = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: None,
             target_speed: Some(Rational::new(1, 100)), // 0.01x
@@ -157,8 +180,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 4. Speed above maximum (100.0)
     let err_too_fast = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: None,
             target_speed: Some(Rational::new(200, 1)), // 200.0x
@@ -172,8 +195,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 5. Target duration that implies speed below min (100 ticks stretched to 10000 ticks = 0.01x)
     let err_implied_slow = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: Some(rt(10000)),
             target_speed: None,
@@ -189,8 +212,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 6. Missing both duration and speed
     let err_missing_both = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: None,
             target_speed: None,
@@ -220,8 +243,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     };
     let err_gen = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: gen_id,
-            to_track: sticker_track,
+            copy: copy_of(&engine, gen_id),
+            track: sticker_track,
             start: rt(100),
             target_duration: Some(rt(25)),
             target_speed: None,
@@ -237,8 +260,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
     // 8. Overlap on destination track
     let err_overlap = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(50), // overlaps [0, 100)
             target_duration: Some(rt(100)),
             target_speed: None,
@@ -259,8 +282,8 @@ fn paste_retimed_roundtrips_save_and_load() {
 
     let outcome = engine
         .apply(Command::Edit(EditCommand::PasteRetimed {
-            clip: source_clip,
-            to_track: track,
+            copy: copy_of(&engine, source_clip),
+            track,
             start: rt(200),
             target_duration: Some(rt(40)),
             target_speed: None,
@@ -281,4 +304,131 @@ fn paste_retimed_roundtrips_save_and_load() {
     assert_eq!(clip.timeline, tr(200, 40));
     assert_eq!(clip.speed, Rational::new(5, 2)); // 100/40 = 5/2 = 2.5x
     assert_eq!(clip.speed.num as f32 / clip.speed.den as f32, 2.5);
+}
+
+fn remove(engine: &mut Engine, clip: ClipId) {
+    engine
+        .apply(Command::Edit(EditCommand::RemoveClip { clip }))
+        .expect("remove the clip");
+}
+
+fn paste(
+    engine: &mut Engine,
+    copy: Box<Clip>,
+    track: TrackId,
+    at: i64,
+) -> Result<ClipId, ModelError> {
+    match engine.apply(Command::Edit(EditCommand::PasteClip {
+        copy,
+        track,
+        start: rt(at),
+    })) {
+        Ok(outcome) => Ok(created_clip(outcome)),
+        Err(EngineError::Model(err)) => Err(err),
+        Err(other) => panic!("a paste fails on the model, got {other}"),
+    }
+}
+
+/// Cut is a copy and a removal; the paste that follows places the clip as it
+/// was, under a fresh id, as one undo step.
+#[test]
+fn a_copy_pastes_after_the_clip_it_came_from_is_gone() {
+    let (_dir, mut engine, _media, track, source) = engine_with_media(1000);
+    let copy = copy_of(&engine, source);
+    remove(&mut engine, source);
+    assert!(engine.project().clip(source).is_none());
+    let depth = engine.history_depth();
+
+    let pasted = paste(&mut engine, copy.clone(), track, 300).expect("paste the cut clip");
+
+    assert_ne!(pasted, source, "a paste places a new clip");
+    let placed = engine
+        .project()
+        .clip(pasted)
+        .expect("the pasted clip")
+        .clone();
+    assert_eq!(placed.timeline, tr(300, 100));
+    assert_eq!(
+        placed.content, copy.content,
+        "the copy's content came across"
+    );
+    assert_eq!(placed.link, None);
+    assert_eq!(
+        engine.history_depth(),
+        depth + 1,
+        "one paste is one undo step"
+    );
+    assert!(engine.undo(), "undo the paste");
+    assert!(engine.project().clip(pasted).is_none());
+}
+
+/// A copy taken in a sequence at another rate keeps its length in time: four
+/// seconds at 30 fps lands as four seconds at the open sequence's 24 fps, in
+/// that sequence's ticks.
+#[test]
+fn a_copy_from_another_rate_keeps_its_length_in_time() {
+    let (_dir, mut engine, _media, track, source) = engine_with_media(1000);
+    let mut copy = copy_of(&engine, source);
+    copy.timeline = TimeRange::at_rate(0, 120, Rational::FPS_30);
+
+    let pasted = paste(&mut engine, copy, track, 300).expect("paste");
+
+    let placed = engine.project().clip(pasted).expect("the pasted clip");
+    assert_eq!(placed.timeline, tr(300, 96));
+}
+
+/// A copy is a value: a change to the clip after the copy does not reach it.
+#[test]
+fn a_paste_places_the_clip_as_it_was_when_copied() {
+    let (_dir, mut engine, _media, track, source) = engine_with_media(1000);
+    let copy = copy_of(&engine, source);
+    engine
+        .apply(Command::Edit(EditCommand::SetClipSpeed {
+            clip: source,
+            speed: Rational::new(2, 1),
+            reversed: false,
+        }))
+        .expect("retime the source");
+
+    let pasted = paste(&mut engine, copy, track, 300).expect("paste");
+
+    let placed = engine.project().clip(pasted).expect("the pasted clip");
+    assert_eq!(placed.speed, Rational::new(1, 1));
+    assert_eq!(placed.timeline, tr(300, 100));
+}
+
+/// A copy that plays media the pool no longer holds, or a sequence placed
+/// inside itself, is refused and leaves the timeline as it was.
+#[test]
+fn a_copy_of_something_the_project_cannot_play_is_refused() {
+    let (_dir, mut engine, media, track, source) = engine_with_media(1000);
+    let copy = copy_of(&engine, source);
+    remove(&mut engine, source);
+    common::remove_media(&mut engine, media);
+    let before = engine.project().timeline().clip_count();
+    let err = paste(&mut engine, copy, track, 0).expect_err("the media is gone");
+    assert_eq!(err, ModelError::UnknownMedia(media));
+    assert_eq!(engine.project().timeline().clip_count(), before);
+
+    let (_dir, mut engine, _media, _track, source) = engine_with_media(1000);
+    let nest = created_clip(
+        engine
+            .apply(Command::Edit(EditCommand::CreateNestedSequence {
+                name: "Nest".into(),
+                clips: vec![source],
+            }))
+            .expect("nest the clip"),
+    );
+    let copy = copy_of(&engine, nest);
+    let ClipSource::Sequence { sequence, .. } = copy.content else {
+        panic!("a nest clip plays its sequence");
+    };
+    engine
+        .apply(Command::Edit(EditCommand::OpenSequence {
+            sequence: Some(sequence),
+        }))
+        .expect("open the nest");
+    let inside = engine.project().timeline().order()[0];
+    let err = paste(&mut engine, copy, inside, 500).expect_err("a sequence inside itself");
+    assert_eq!(err, ModelError::SequenceCycle(sequence));
 }

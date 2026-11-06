@@ -1,19 +1,24 @@
 //! Contracts for the clipboard and for zoom fitting.
 //!
-//! The class closed here is "a paste variant exists as a menu label but does the
-//! same thing as plain paste". Each assertion reads the projected store after the
-//! edit, because that is what the timeline draws: Insert has to be visible as a
-//! *moved* neighbor, Attributes as a changed look on an *unmoved* clip.
+//! Two classes are closed here. "A paste variant exists as a menu label but
+//! does the same thing as plain paste": each assertion reads the projected
+//! store after the edit, because that is what the timeline draws: Insert has to
+//! be visible as a *moved* neighbor, Attributes as a changed look on an
+//! *unmoved* clip. And "the clipboard holds a reference to a clip": Cut then
+//! Paste has to put the clip back, a change after the copy must not reach the
+//! paste, and a copy taken in one sequence has to paste into another.
 //!
 //! Fitting is asserted as a relation between two zooms rather than an absolute
 //! number, so the test survives a change to the chrome widths it divides by.
 //!
 //! Not covered: the drawn rows, and dragging the playhead — both need a render
-//! surface.
+//! surface. A copy refused for playing media the project lost is asserted in
+//! `aria-engine`'s paste tests.
 
 use aria_models::{ClipId, ClipParam, MediaId, TrackId};
 
 use super::AppState;
+use super::decline::Decline;
 use super::premiere_tests::with_clip;
 
 fn clips(state: &AppState) -> Vec<(u64, i64, i64)> {
@@ -250,6 +255,161 @@ fn paste_attributes_onto_the_source_is_inert() {
     let before = state.selected_ui_clip().expect("clip");
     state.paste_attributes().expect("inert");
     assert_eq!(state.selected_ui_clip().expect("clip"), before);
+}
+
+#[test]
+fn cut_then_paste_puts_the_clip_back_as_one_step() {
+    let (mut state, clip) = with_clip();
+    let (_, end) = span(&state, clip);
+    state.cut_selected().expect("cut");
+    assert!(clips(&state).is_empty(), "cut removed the clip");
+    state.set_playhead(0);
+    let history = state.history_depth();
+    state.paste_clipboard().expect("paste");
+    let pasted = clips(&state);
+    assert_eq!(pasted.len(), 1, "the cut clip came back: {pasted:?}");
+    assert_eq!((pasted[0].1, pasted[0].2), (0, end));
+    assert_ne!(pasted[0].0, clip.raw(), "a paste is a new clip");
+    assert_eq!(state.history_depth(), history + 1);
+    assert!(
+        state.paste_clipboard().is_err(),
+        "a second paste over the first overlaps it"
+    );
+    assert_eq!(clips(&state).len(), 1, "the refused paste placed nothing");
+}
+
+#[test]
+fn a_paste_places_the_clip_as_it_was_when_copied() {
+    let (mut state, clip) = with_clip();
+    let (_, end) = span(&state, clip);
+    state.copy_selected();
+    let mut transform = state.selected_ui_clip().expect("clip").transform;
+    transform.opacity = 0.25;
+    state.set_selected_transform(transform).expect("transform");
+    state.set_playhead(end * 4);
+    let at = state.playhead.value;
+    state.paste_clipboard().expect("paste");
+    let pasted = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .flat_map(|track| track.clips.iter())
+        .find(|c| c.timeline_start_ticks == at && c.id != clip.raw())
+        .expect("the pasted clip");
+    assert!(
+        (pasted.transform.opacity - 1.0).abs() < 1e-4,
+        "the change after the copy reached the paste: {}",
+        pasted.transform.opacity
+    );
+}
+
+#[test]
+fn a_copy_pastes_into_another_sequence() {
+    let (mut state, clip) = with_clip();
+    let (start, end) = span(&state, clip);
+    state.copy_selected();
+    state.new_sequence().expect("a new sequence");
+    assert!(clips(&state).is_empty());
+    state.paste_clipboard().expect("paste");
+    let pasted = clips(&state);
+    assert_eq!(pasted.len(), 1, "the copy landed in the open sequence");
+    assert_eq!((pasted[0].1, pasted[0].2), (0, end - start));
+}
+
+#[test]
+fn paste_insert_is_one_undo_step() {
+    let (mut state, first, second) = packed();
+    let before = clips(&state);
+    let (second_start, _) = span(&state, second);
+    state.select_clip(first);
+    state.copy_selected();
+    state.set_playhead(second_start);
+    let history = state.history_depth();
+    state.paste_insert().expect("paste insert");
+    assert_eq!(state.history_depth(), history + 1);
+    assert!(state.undo(), "undo the paste insert");
+    assert_eq!(clips(&state), before, "one undo closes the hole too");
+}
+
+/// Cut takes every selected clip, so a paste puts them all back, spaced as
+/// they were, as one undo step.
+#[test]
+fn cut_of_several_clips_pastes_them_all_back() {
+    let (mut state, _, _) = packed();
+    let spans = |state: &AppState| -> Vec<(i64, i64)> {
+        let mut spans: Vec<_> = clips(state).into_iter().map(|(_, s, e)| (s, e)).collect();
+        spans.sort_unstable();
+        spans
+    };
+    let before = spans(&state);
+    assert_eq!(before.len(), 2);
+    state.select_all_unlocked();
+    state.cut_selected().expect("cut");
+    assert!(clips(&state).is_empty(), "cut removed both clips");
+    state.set_playhead(before[0].0);
+    let history = state.history_depth();
+    state.paste_clipboard().expect("paste");
+    assert_eq!(
+        spans(&state),
+        before,
+        "both clips came back where they were"
+    );
+    assert_eq!(state.history_depth(), history + 1, "one paste is one step");
+    assert!(state.undo(), "undo the paste");
+    assert!(clips(&state).is_empty(), "one undo takes both back");
+}
+
+#[test]
+fn copy_with_nothing_selected_keeps_the_clipboard() {
+    let (mut state, _) = with_clip();
+    state.copy_selected();
+    let copied = state.clipboard.clone();
+    assert!(copied.is_some());
+    state.clear_selection();
+    state.copy_selected();
+    assert_eq!(state.clipboard, copied);
+}
+
+#[test]
+fn paste_to_fit_with_several_copied_says_so() {
+    let (mut state, _, _) = packed();
+    state.select_all_unlocked();
+    state.copy_selected();
+    state.mark_in = Some(0);
+    state.mark_out = Some(10);
+    let before = clips(&state);
+    state.paste_to_fit().expect("declines");
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some(Decline::SeveralCopied.reason())
+    );
+    assert_eq!(clips(&state), before);
+}
+
+#[test]
+fn every_paste_with_nothing_copied_says_so() {
+    type Paste = fn(&mut AppState) -> Result<(), aria_engine::EngineError>;
+    let pastes: [(&str, Paste); 4] = [
+        ("paste", AppState::paste_clipboard),
+        ("paste insert", AppState::paste_insert),
+        ("paste attributes", AppState::paste_attributes),
+        ("paste to fit", AppState::paste_to_fit),
+    ];
+    for (name, paste) in pastes {
+        let (mut state, _) = with_clip();
+        state.mark_in = Some(0);
+        state.mark_out = Some(10);
+        let before = clips(&state);
+        state.status_message = None;
+        paste(&mut state).expect("declines");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(Decline::NothingCopied.reason()),
+            "{name}"
+        );
+        assert_eq!(clips(&state), before, "{name}");
+    }
 }
 
 #[test]

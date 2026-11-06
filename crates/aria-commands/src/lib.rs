@@ -22,7 +22,7 @@ pub use spec::{EditSpec, Inverse, Junctions, ProjectSpec, edit_specs, project_sp
 // agent, tests) can build any command from this crate alone.
 pub use aria_models::{
     AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, AutomationMode,
-    BlendMode, CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments,
+    BlendMode, CanvasAspect, ChromaKey, Clip, ClipId, ClipParam, ClipTransform, ColorAdjustments,
     CropRect, DriverCode, Easing, EffectInstance, Filter, Generator, LabelColor, LayerShadow,
     LayerStyles, Lut, MarkerColor, MarkerId, Mask, MaskKind, MaskMode, MaskParam, MatteSource,
     MediaId, MotionBlur, MulticamAngle, MulticamCut, MulticamGroup, MulticamGroupId, Param,

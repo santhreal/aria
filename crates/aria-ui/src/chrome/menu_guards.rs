@@ -142,7 +142,7 @@ pub(crate) fn clipboard(_: &str, state: &AppState) -> Option<&'static str> {
     state
         .clipboard
         .is_none()
-        .then_some("Nothing has been copied or cut")
+        .then_some(Decline::NothingCopied.reason())
 }
 
 /// The row steps back through the history.

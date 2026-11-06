@@ -65,11 +65,17 @@ pub enum Decline {
     /// A marker command that acts on the marker under the playhead, sent with
     /// none within a second of it.
     NoMarkerAtPlayhead,
+    /// A paste with nothing on the clipboard.
+    NothingCopied,
+    /// A paste whose copy no lane of the open sequence takes.
+    NoLaneForCopy,
+    /// Paste to Fit retimes one clip, sent with several on the clipboard.
+    SeveralCopied,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 19] = [
+    pub const ALL: [Decline; 22] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -89,6 +95,9 @@ impl Decline {
         Decline::NoSound,
         Decline::NoMarkers,
         Decline::NoMarkerAtPlayhead,
+        Decline::NothingCopied,
+        Decline::NoLaneForCopy,
+        Decline::SeveralCopied,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -114,6 +123,9 @@ impl Decline {
             Decline::NoSound => "No selected clip carries sound",
             Decline::NoMarkers => "The sequence has no markers",
             Decline::NoMarkerAtPlayhead => "No marker is within a second of the playhead",
+            Decline::NothingCopied => "Nothing has been copied or cut",
+            Decline::NoLaneForCopy => "No lane in this sequence takes the copied clip",
+            Decline::SeveralCopied => "The copy holds more than one clip",
         }
     }
 }

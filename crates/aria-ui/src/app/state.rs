@@ -330,7 +330,9 @@ pub struct AppState {
     /// matters more here: this is the one list that grows while a model streams,
     /// so a frame that copied it would copy the whole answer per token.
     pub transcript: std::sync::Arc<Vec<UiAgentEntry>>,
-    pub clipboard: Option<ClipId>,
+    /// What Copy and Cut took. A value rather than a reference: the source can
+    /// change or go after the copy, and Cut removes it.
+    pub(crate) clipboard: Option<super::clipboard::Copied>,
     /// The effect an effect header's Copy took, with every parameter and
     /// keyframe, which a paste adds to a clip's chain. A value rather than a
     /// reference: the source can change or go after the copy.

@@ -6,7 +6,7 @@
 
 use aria_models::{
     AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, AutomationMode, BinId,
-    BlendMode, CanvasAspect, ChromaKey, ClipAttribute, ClipId, ClipParam, ClipTransform,
+    BlendMode, CanvasAspect, ChromaKey, Clip, ClipAttribute, ClipId, ClipParam, ClipTransform,
     ColorAdjustments, CropRect, DriverCode, Easing, EffectInstance, Filter, Generator, LabelColor,
     LayerStyles, Lut, MarkerColor, MarkerId, Mask, MediaId, MotionBlur, MulticamAngle,
     MulticamGroupId, Param, ParamValue, ParentKeep, Patch, PiecewiseEasingPreset, Preset, Rational,
@@ -59,24 +59,32 @@ pub enum EditCommand {
         to_track: TrackId,
         start: RationalTime,
     },
-    /// Deep-copy one clip to an explicit track/start with time remap (target
-    /// duration or target playback rate). The copy receives a fresh id, is
-    /// unlinked, and is retimed to match the requested duration or speed;
-    /// every other clip property and keyframe is preserved. One atomic undo
-    /// entry.
+    /// Place a copy of a clip taken earlier (the editor's clipboard) on `track`
+    /// at `start`. The copy is a value, so the clip it was taken from may have
+    /// changed or gone since. The placed clip receives a fresh id and is
+    /// unlinked; every other clip property and keyframe is preserved. The
+    /// media, camera group, or sequence it plays must be in the project. One
+    /// atomic undo entry.
+    PasteClip {
+        copy: Box<Clip>,
+        track: TrackId,
+        start: RationalTime,
+    },
+    /// [`EditCommand::PasteClip`] retimed to a target duration or a target
+    /// playback rate. The copy must be media-backed. One atomic undo entry.
     PasteRetimed {
-        clip: ClipId,
-        to_track: TrackId,
+        copy: Box<Clip>,
+        track: TrackId,
         start: RationalTime,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target_duration: Option<RationalTime>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         target_speed: Option<Rational>,
     },
-    /// Copy the source clip's transform, filter, and complete effect chain onto
-    /// the target as one atomic edit. Timing, content, and audio properties are
+    /// Write the copy's transform, filter, and complete effect chain onto the
+    /// target as one atomic edit. Timing, content, and audio properties are
     /// unchanged. The target must be visual.
-    PasteAttributes { source: ClipId, clip: ClipId },
+    PasteAttributes { copy: Box<Clip>, clip: ClipId },
     /// Return each group in `attributes` to the values a new clip starts with,
     /// keyframes and drivers included, as one atomic edit. Clearing the speed
     /// ramp re-derives the clip's duration and is refused when the longer clip

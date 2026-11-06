@@ -48,8 +48,9 @@ const REACH: &[(&str, Reach, Reach)] = &[
     ("AddClip", Refused, Refused),
     ("ExtractAudio", Refused, Refused),
     ("DuplicateClip", Lanes, Lanes),
+    ("PasteClip", Lanes, Refused),
     ("PasteRetimed", Refused, Lanes),
-    ("PasteAttributes", Refused, Refused),
+    ("PasteAttributes", Lanes, Refused),
     ("RemoveAttributes", Lanes, Lanes),
     ("FreezeFrame", Refused, Refused),
     ("BakeClip", Lanes, Refused),
@@ -314,7 +315,8 @@ fn fixture(aim: Aim) -> (Engine, Targets) {
 }
 
 /// Point a census sample at the fixture's clip, lane and media, by the names
-/// every command gives those fields on the wire.
+/// every command gives those fields on the wire. A clipboard copy keeps its
+/// content, with a media source pointed at the fixture's media.
 fn retarget(command: &EditCommand, fixture: &Targets) -> EditCommand {
     let (clip, track) = (fixture.clip, fixture.track);
     let mut wire = serde_json::to_value(command).expect("a command serializes");
@@ -327,6 +329,12 @@ fn retarget(command: &EditCommand, fixture: &Targets) -> EditCommand {
             "clips" => serde_json::to_value([clip]),
             "track" | "to_track" => serde_json::to_value(track),
             "media" => serde_json::to_value(fixture.media),
+            "copy" => {
+                if let Some(media) = value.pointer_mut("/content/Media/media") {
+                    *media = serde_json::to_value(fixture.media).expect("an id serializes");
+                }
+                continue;
+            }
             "target" => match value.as_object().and_then(|chain| chain.keys().next()) {
                 Some(kind) if kind == "Clip" => serde_json::to_value(AudioInsertTarget::Clip(clip)),
                 Some(kind) if kind == "Track" => {

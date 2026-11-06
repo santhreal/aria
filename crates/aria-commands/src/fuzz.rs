@@ -10,7 +10,7 @@
 mod tracks;
 
 use aria_models::{
-    AnimationRef, AnimationSlot, AudioInsertTarget, AudioRole, BinId, BlendMode, ChromaKey,
+    AnimationRef, AnimationSlot, AudioInsertTarget, AudioRole, BinId, BlendMode, ChromaKey, Clip,
     ClipAttribute, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, DriverCode,
     Easing, EffectInstance, Filter, Generator, Keyframe, LabelColor, LayerShadow, LayerStyles,
     LookParam, Lut, MarkerId, Mask, MaskKind, MaskMode, MatteSource, MediaId, MotionBlur,
@@ -198,6 +198,26 @@ impl CommandRng {
     pub(crate) fn clip_ids(&mut self, project: &Project) -> Vec<ClipId> {
         let count = *self.pick(&[0usize, 1, 2, 3]);
         (0..count).map(|_| self.clip_id(project)).collect()
+    }
+
+    /// A clipboard copy: a live clip as it is now, or a stand-alone clip under
+    /// a stale id that plays a live or stale media id over hostile ranges. The
+    /// stand-alone copy takes the stale id the draw picked rather than one
+    /// from the process-wide counter, so one seed draws one command list.
+    pub(crate) fn copied_clip(&mut self, project: &Project) -> Box<Clip> {
+        let rate = project.timeline().frame_rate;
+        let live = self.clip_id(project);
+        if let Some(clip) = project.clip(live) {
+            return Box::new(clip.clone());
+        }
+        let media = self.media_id(project);
+        let mut clip = if self.next_bool() {
+            Clip::from_media(media, self.range(rate), self.range(rate))
+        } else {
+            Clip::generated(self.generator(), self.range(rate))
+        };
+        clip.id = live;
+        Box::new(clip)
     }
 
     pub(crate) fn track_id(&mut self, project: &Project) -> TrackId {
@@ -407,15 +427,20 @@ pub fn random_edit_command_for(
             to_track: rng.track_id(project),
             start: rng.time(rate),
         },
+        "PasteClip" => EditCommand::PasteClip {
+            copy: rng.copied_clip(project),
+            track: rng.track_id(project),
+            start: rng.time(rate),
+        },
         "PasteRetimed" => EditCommand::PasteRetimed {
-            clip: rng.clip_id(project),
-            to_track: rng.track_id(project),
+            copy: rng.copied_clip(project),
+            track: rng.track_id(project),
             start: rng.time(rate),
             target_duration: rng.next_bool().then(|| rng.time(rate)),
             target_speed: rng.next_bool().then(|| rng.rate(rate)),
         },
         "PasteAttributes" => EditCommand::PasteAttributes {
-            source: rng.clip_id(project),
+            copy: rng.copied_clip(project),
             clip: rng.clip_id(project),
         },
         "RemoveAttributes" => {

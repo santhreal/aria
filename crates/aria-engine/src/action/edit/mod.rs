@@ -22,6 +22,7 @@ pub(crate) mod nested_sequence;
 pub(crate) mod overwrite;
 pub(crate) mod overwrite_move;
 pub(crate) mod paste_attributes;
+pub(crate) mod paste_clip;
 pub(crate) mod paste_retimed;
 pub(crate) mod remove_attributes;
 pub(crate) mod remove_clip;

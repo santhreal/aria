@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use aria_models::LabelColor;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::app::settings_form::SettingsSection;
 
 use super::menu_items::{MenuItem, MenuItems, report};
@@ -131,19 +132,19 @@ static EDIT_TAIL: &[MenuItem] = &[
     .key("key-settings"),
 ];
 
-fn live_clipboard(state: &AppState) -> Option<&'static str> {
-    state
-        .clipboard_ui_clip()
-        .is_none()
-        .then_some("Nothing has been copied or cut")
-}
-
 fn paste_attributes_ready(id: &str, state: &AppState) -> Option<&'static str> {
-    live_clipboard(state).or_else(|| super::menu_guards::selection(id, state))
+    super::menu_guards::clipboard(id, state).or_else(|| super::menu_guards::selection(id, state))
 }
 
-fn paste_fit_ready(_: &str, state: &AppState) -> Option<&'static str> {
-    live_clipboard(state).or_else(|| {
+fn paste_fit_ready(id: &str, state: &AppState) -> Option<&'static str> {
+    super::menu_guards::clipboard(id, state).or_else(|| {
+        if state
+            .clipboard
+            .as_ref()
+            .is_some_and(|copied| copied.clips.len() > 1)
+        {
+            return Some(Decline::SeveralCopied.reason());
+        }
         state
             .marked_range()
             .is_none()

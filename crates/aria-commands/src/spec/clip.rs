@@ -137,8 +137,6 @@ macro_rules! clip_rows {
             addresses clip_and_lane {
                 DuplicateClip { label: "Duplicate clip", reach: operator("the duplicate chord, and the clip context menu"), junctions: breaks, lock: guarded,
                     undo: restores("nothing of the original; it removes the copy"), },
-                PasteRetimed { label: "Paste retimed", reach: operator("the Edit menu's Paste To Fit row, over a marked range"), junctions: breaks, lock: guarded,
-                    undo: restores("nothing of the original; it removes the copy"), },
                 MoveClip { label: "Move clip", reach: operator("the step chords, a typed timecode offset, and a slide on the timeline"), junctions: breaks, lock: guarded,
                     undo: restores("the clip's previous lane and start"), },
                 MoveClipUnlinked { label: "Move clip without links", reach: operator("the step chords, a typed timecode offset, and a slide on the timeline, with linked selection off, and the clip context menu's Move into Sync row"), junctions: breaks, lock: guarded,

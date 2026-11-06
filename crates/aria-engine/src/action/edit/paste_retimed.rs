@@ -1,5 +1,5 @@
 use aria_models::{
-    ClipId, ClipSource, MAX_SPEED, MIN_SPEED, ModelError, Rational, RationalTime, TrackId,
+    Clip, ClipId, ClipSource, MAX_SPEED, MIN_SPEED, ModelError, Rational, RationalTime, TrackId,
     check_same_rate, resample, retimed_duration,
 };
 
@@ -7,11 +7,11 @@ use crate::action::edit::remove_clip::RemoveClipAction;
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-/// Deep-copy one clip to an explicit destination retimed to a target duration or speed.
+/// Place a clipboard copy on `track` retimed to a target duration or speed.
 pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
-    clip: ClipId,
-    to_track: TrackId,
+    copy: Clip,
+    track: TrackId,
     start: RationalTime,
     target_duration: Option<RationalTime>,
     target_speed: Option<Rational>,
@@ -22,9 +22,7 @@ pub(crate) fn execute(
         return Err(EngineError::from(ModelError::InvalidRange));
     }
 
-    let source_clip = ctx.project.require_clip(clip)?;
-
-    let ClipSource::Media { media: _, source } = &source_clip.content else {
+    let ClipSource::Media { media: _, source } = &copy.content else {
         return Err(EngineError::from(ModelError::InvalidParam(
             "speed requires a media-backed clip".to_string(),
         )));
@@ -50,8 +48,8 @@ pub(crate) fn execute(
         let dur = retimed_duration(
             src_dur_tl,
             speed,
-            source_clip.speed_curve_average(),
-            source_clip.has_speed_curve(),
+            copy.speed_curve_average(),
+            copy.has_speed_curve(),
         );
         (speed, dur)
     } else if let Some(speed) = target_speed {
@@ -69,8 +67,8 @@ pub(crate) fn execute(
         let dur = retimed_duration(
             src_dur_tl,
             speed,
-            source_clip.speed_curve_average(),
-            source_clip.has_speed_curve(),
+            copy.speed_curve_average(),
+            copy.has_speed_curve(),
         );
         (speed, dur)
     } else {
@@ -81,6 +79,6 @@ pub(crate) fn execute(
 
     let new_id =
         ctx.project
-            .duplicate_clip_retimed(clip, to_track, start, derived_speed, duration_ticks)?;
+            .place_copy(copy, track, start, Some((derived_speed, duration_ticks)))?;
     Ok((new_id, Box::new(RemoveClipAction { clip: new_id })))
 }

@@ -331,11 +331,10 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
     state.clear_selected().expect("remove copied clip");
     assert_eq!(
         blocked(AppMenu::Edit, &state, "edit-paste-attributes"),
-        Some("Nothing has been copied or cut")
+        Some("No clip is selected"),
+        "the copy outlives the clip it was taken from"
     );
-    state
-        .paste_attributes()
-        .expect("deleted clipboard clip is inert");
+    state.paste_attributes().expect("nothing selected declines");
     assert_eq!(
         blocked(AppMenu::Edit, &Dress::Fitted.state(), "edit-paste-fit"),
         None

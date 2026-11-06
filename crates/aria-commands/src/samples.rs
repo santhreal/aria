@@ -15,7 +15,7 @@ use std::path::PathBuf;
 
 use crate::{
     AnimationRef, AnimationSlot, AudioInsertTarget, AudioLayout, AudioRole, AutomationMode,
-    BlendMode, CanvasAspect, ChromaKey, ClipId, ClipParam, ClipTransform, ColorAdjustments,
+    BlendMode, CanvasAspect, ChromaKey, Clip, ClipId, ClipParam, ClipTransform, ColorAdjustments,
     CropRect, DriverCode, Easing, EditCommand, EffectInstance, ExportFormat, Filter, Generator,
     LabelColor, LayerShadow, LayerStyles, Lut, MarkerColor, MarkerId, Mask, MaskKind, MaskMode,
     MediaId, MotionBlur, MulticamAngle, MulticamGroupId, Param, ParamValue, ParentKeep, Patch,
@@ -45,6 +45,12 @@ fn track(raw: u64) -> TrackId {
 
 fn media(raw: u64) -> MediaId {
     MediaId::from_raw(raw)
+}
+
+/// A clipboard copy of clip 4, as it was when it was copied.
+fn copied(mut copy: Clip) -> Box<Clip> {
+    copy.id = clip(4);
+    Box::new(copy)
 }
 
 /// One sample per [`ProjectCommand`] variant, in declaration order.
@@ -123,15 +129,20 @@ pub fn every_edit_command() -> Vec<EditCommand> {
             to_track: track(2),
             start: t(120),
         },
+        EditCommand::PasteClip {
+            copy: copied(Clip::generated(Generator::text("t"), tr(0, 24))),
+            track: track(2),
+            start: t(120),
+        },
         EditCommand::PasteRetimed {
-            clip: clip(4),
-            to_track: track(2),
+            copy: copied(Clip::from_media(media(2), tr(0, 90), tr(30, 90))),
+            track: track(2),
             start: t(120),
             target_duration: Some(t(60)),
             target_speed: None,
         },
         EditCommand::PasteAttributes {
-            source: clip(4),
+            copy: copied(Clip::generated(Generator::text("t"), tr(0, 24))),
             clip: clip(5),
         },
         EditCommand::RemoveAttributes {

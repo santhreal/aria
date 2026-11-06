@@ -113,44 +113,15 @@ impl Project {
     /// property except identity, placement start, and linkage.
     ///
     /// The destination is explicit: this primitive performs no placement
-    /// search or ripple. Placement validation is completed before allocating
-    /// the fresh [`ClipId`], avoiding allocator advances on validation errors.
+    /// search or ripple.
     pub fn duplicate_clip(
         &mut self,
         clip_id: ClipId,
         to_track: TrackId,
         start: RationalTime,
     ) -> Result<ClipId, ModelError> {
-        let timeline_rate = self.timeline().frame_rate;
-        check_same_rate(start.rate, timeline_rate)?;
-        if start.value < 0 {
-            return Err(ModelError::InvalidRange);
-        }
-
-        let source = self.timeline().require_clip(clip_id)?;
-        let destination = self.timeline().require_track(to_track)?;
-        if !destination.kind.accepts_content(&source.content) {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: to_track,
-                kind: destination.kind,
-            });
-        }
-
-        let mut destination_range = source.timeline;
-        destination_range.start = start;
-        if destination.has_overlap(destination_range, None)? {
-            return Err(ModelError::Overlap(to_track));
-        }
-
-        // Clone first so every current and future content/property field rides
-        // along by default. Duplication deliberately resets only these three
-        // identity/placement fields; transitions live on tracks, not clips.
-        let mut duplicate = source.clone();
-        duplicate.id = ClipId::next();
-        duplicate.timeline.start = start;
-        duplicate.link = None;
-
-        self.timeline_mut().add_clip(to_track, duplicate)
+        let source = self.timeline().require_clip(clip_id)?.clone();
+        self.place_copy(source, to_track, start, None)
     }
 
     /// Clone `clip_id` onto `to_track` at `start` with explicit `speed` and `timeline_duration`.
@@ -162,33 +133,80 @@ impl Project {
         speed: Rational,
         timeline_duration: i64,
     ) -> Result<ClipId, ModelError> {
+        let source = self.timeline().require_clip(clip_id)?.clone();
+        self.place_copy(source, to_track, start, Some((speed, timeline_duration)))
+    }
+
+    /// Place `copy`, a clip held apart from the timeline (a clipboard copy, or
+    /// a clone of a live clip), on `to_track` at `start`.
+    ///
+    /// The placed clip gets a fresh id and no link; every other property and
+    /// keyframe rides along. `retime` replaces its speed and its timeline
+    /// duration. The media, camera group, or sequence the copy plays must be in
+    /// this project, and a sequence must not contain the open one. Validation
+    /// completes before the fresh [`ClipId`] is allocated, so a refusal does
+    /// not advance the allocator.
+    pub fn place_copy(
+        &mut self,
+        mut copy: Clip,
+        to_track: TrackId,
+        start: RationalTime,
+        retime: Option<(Rational, i64)>,
+    ) -> Result<ClipId, ModelError> {
         let timeline_rate = self.timeline().frame_rate;
         check_same_rate(start.rate, timeline_rate)?;
-        if start.value < 0 || timeline_duration <= 0 {
+        if start.value < 0 {
             return Err(ModelError::InvalidRange);
         }
+        match &copy.content {
+            ClipSource::Media { media, .. } if !self.media.contains_key(media) => {
+                return Err(ModelError::UnknownMedia(*media));
+            }
+            ClipSource::Multicam { group, .. } if !self.multicam_groups.contains_key(group) => {
+                return Err(ModelError::UnknownMulticamGroup(*group));
+            }
+            ClipSource::Sequence { sequence, .. } => {
+                if !self.sequences.contains_key(sequence) {
+                    return Err(ModelError::UnknownSequence(*sequence));
+                }
+                if self.would_create_sequence_cycle(self.active_sequence, *sequence) {
+                    return Err(ModelError::SequenceCycle(*sequence));
+                }
+            }
+            _ => {}
+        }
 
-        let source = self.timeline().require_clip(clip_id)?;
         let destination = self.timeline().require_track(to_track)?;
-        if !destination.kind.accepts_content(&source.content) {
+        if !destination.kind.accepts_content(&copy.content) {
             return Err(ModelError::IncompatibleTrackKind {
                 track: to_track,
                 kind: destination.kind,
             });
         }
 
-        let destination_range = TimeRange::at_rate(start.value, timeline_duration, timeline_rate);
+        // A copy taken in a sequence at another rate keeps its length in time,
+        // not in ticks.
+        let duration = resample(copy.timeline.duration, timeline_rate).value.max(1);
+        let mut destination_range = TimeRange::at_rate(start.value, duration, timeline_rate);
+        if let Some((speed, duration)) = retime {
+            if duration <= 0 {
+                return Err(ModelError::InvalidRange);
+            }
+            destination_range = TimeRange::at_rate(start.value, duration, timeline_rate);
+            copy.speed = speed;
+        }
         if destination.has_overlap(destination_range, None)? {
             return Err(ModelError::Overlap(to_track));
         }
 
-        let mut duplicate = source.clone();
-        duplicate.id = ClipId::next();
-        duplicate.timeline = destination_range;
-        duplicate.speed = speed;
-        duplicate.link = None;
+        // Every current and future content/property field rides along by
+        // default. Placement resets only these three identity/placement
+        // fields; transitions live on tracks, not clips.
+        copy.id = ClipId::next();
+        copy.timeline = destination_range;
+        copy.link = None;
 
-        self.timeline_mut().add_clip(to_track, duplicate)
+        self.timeline_mut().add_clip(to_track, copy)
     }
 
     /// Replace a generated clip's content (edit a title's text, recolor a

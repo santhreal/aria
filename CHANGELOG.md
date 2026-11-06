@@ -874,6 +874,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > AI names the assistant's read-only tools as such in the Can do and Active rows.
 - Consolidated per-crate integration test targets into single `tests/it/main.rs` binaries, disabled test-profile symbol debuginfo, and configured `cargo-nextest` profiles and media concurrency limits, cutting warm `aria-ui` incremental test builds from 14.66 s to 7.17 s and full workspace test compilation CPU time by 50%.
 - The Lottie and Templates cache rows and their `storage.paths.lottie` and `storage.paths.templates` keys are deleted, since those downloads are stored in the Downloads cache.
+- `PasteRetimed` and `PasteAttributes` take the copied clip in `copy` instead of a source clip id, and the new `PasteClip` edit places a copied clip on a lane.
 
 ### Fixed
 
@@ -1322,6 +1323,12 @@ Notes for the latest release. For previous releases, see the
 - Plugins read settings from the profile's own `config.toml` under `ARIA_DATA_DIR`, and read values Aria changed during the session.
 - The Export sheet of an unsaved project no longer reads `user-dirs.dirs` on every frame.
 - Opening a project, starting a new one, applying a template, or a plugin's open clears the clip, edge, gap, keyframe, pool item and folder selections, the clipboard, the parent pick whip, and the open property rows, instead of leaving them on whatever clip, item or folder of the new project has the same id.
+- Cut then Paste puts the cut clips back, because the clipboard holds the clips as they were copied instead of references to them.
+- Copy and Cut take every selected clip, and a paste places them with their copied spacing as one undo step.
+- Copy with nothing selected keeps the clipboard instead of emptying it.
+- A clip copied in one sequence pastes into another, onto the first lane of the same kind.
+- Paste Insert is one undo step, and Paste is named Paste in the history instead of Duplicate clip.
+- A copy pasted into a sequence at another frame rate keeps its length in time.
 
 ## [alpha-0.7.0] - 2026-07-22
 

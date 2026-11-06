@@ -40,6 +40,8 @@ struct Incoming {
 /// open or the pool root.
 fn holding(folder_open: bool) -> (AppState, Incoming) {
     let (mut state, clip) = with_clip();
+    state.copy_selected();
+    let copied = state.clipboard.clone();
     let track = state.store.sequence.tracks[0].id;
     let media = state.store.media[0].id;
     state.create_bin().expect("a folder");
@@ -62,7 +64,7 @@ fn holding(folder_open: bool) -> (AppState, Incoming) {
         start_ticks: 0,
         end_ticks: 1,
     });
-    state.clipboard = Some(clip);
+    state.clipboard = copied;
     state.parent_whip = Some(clip);
     state.expanded_clips = Arc::new(vec![clip.raw()]);
     let key = SelectedKeyframe {

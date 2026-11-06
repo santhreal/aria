@@ -96,13 +96,17 @@
 
 ## Copy, paste, and timecode entry
 
-Ctrl+C copies the selected clip, and there are four pastes:
+Ctrl+C copies the selected clips, Ctrl+X copies them and removes them, and there
+are four pastes:
 
-- **Ctrl+V** drops the copy at the playhead, on the copied clip's own lane. What
-  is already there is not moved, so a paste over a clip is refused.
-- **Ctrl+Shift+V** (Paste Insert) first slides that lane right by the copy's
-  length from the playhead on, then fills the hole. Nothing is overwritten.
-- **Ctrl+Alt+V** (Paste Attributes) writes the copied clip's transform, filter,
+- **Ctrl+V** drops the copies at the playhead with their copied spacing, each on
+  its own lane, or on the first lane of the same kind when the open sequence
+  lacks that lane. What is already there is not moved, so a paste over a clip is
+  refused and places nothing.
+- **Ctrl+Shift+V** (Paste Insert) first slides each of those lanes right by the
+  copy's length from the playhead on, then fills the hole. Nothing is
+  overwritten.
+- **Ctrl+Alt+V** (Paste Attributes) writes the first copied clip's transform, filter,
   and whole effect chain onto the selected clip. Its position, length, media, and
   audio levels are unchanged. The target's existing effects are replaced, not
   added to, so pasting from a clip with no effects clears them.
@@ -111,8 +115,10 @@ Ctrl+C copies the selected clip, and there are four pastes:
   the playhead. Mark In and Out first: with no range marked the row reports it and
   changes nothing.
 
-The clipboard holds a reference, not a copy: deleting the copied clip makes the
-pastes do nothing rather than paste a stale version of it.
+The clipboard holds the clips as they were when they were copied. Removing or
+changing a copied clip afterwards does not change what a paste places. Copy
+with nothing selected keeps the clipboard. Opening or creating a project empties
+it. Paste to Fit takes one copied clip.
 
 The Effect Controls panel shows transform, look, effects, audio, text, and
 info for the selected clip. Tabs hide when they do not apply.

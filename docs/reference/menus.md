@@ -46,13 +46,13 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | --- | --- | --- | --- | --- | --- |
 | `edit-undo` | `none` | Undo | `Ctrl+Z` | Nothing to undo (`guards::undo`) | Reverts the most recent edit step on the undo stack. |
 | `edit-redo` | `none` | Redo | `Ctrl+Shift+Z` | Nothing to redo (`guards::redo`) | Reapplies the most recently undone edit step. |
-| `edit-cut` | `none` | Cut | `Ctrl+X` | No clip is selected (`guards::selection`) | Copies selected clips to the clipboard and removes them from the sequence. |
-| `edit-copy` | `none` | Copy | `Ctrl+C` | No clip is selected (`guards::selection`) | Copies selected clips and their attributes to the clipboard. |
-| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut, or the copied clip is no longer in the sequence (`live_clipboard`) | Pastes the clipboard clip onto its source track at the playhead when the target span is free. |
-| `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut, or the copied clip is no longer in the sequence (`live_clipboard`) | Ripple-inserts clipboard clips at the playhead, shifting downstream clips right. |
-| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing is on the clipboard, or no clip is selected (`paste_attributes_ready`) | Copies the animated transform, filter preset, and video effect chain from the clipboard clip onto selected clips. |
+| `edit-cut` | `none` | Cut | `Ctrl+X` | No clip is selected (`guards::selection`) | Copies the selected clips to the clipboard and removes them from the sequence. |
+| `edit-copy` | `none` | Copy | `Ctrl+C` | No clip is selected (`guards::selection`) | Copies the selected clips, as they are now, to the clipboard. |
+| `edit-paste` | `none` | Paste | `Ctrl+V` | Nothing has been copied or cut (`guards::clipboard`) | Places the clipboard clips at the playhead with their copied spacing, each on its source lane or the first lane of the same kind, as one undo step. |
+| `edit-paste-insert` | `none` | Paste Insert | `Ctrl+Shift+V` | Nothing has been copied or cut (`guards::clipboard`) | Ripples each paste lane right from the playhead by the length of the clipboard clips and places them in the hole, as one undo step. |
+| `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut, or no clip is selected (`paste_attributes_ready`) | Copies the transform, filter preset, and video effect chain of the first clipboard clip onto the selected clip. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
-| `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing is on the clipboard, or no In and Out range is marked (`paste_fit_ready`) | Pastes the clipboard clip scaled in speed to fit the active In-to-Out span. |
+| `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut, more than one clip was copied, or no In and Out range is marked (`paste_fit_ready`) | Places the clipboard clip at the In point, retimed to fill the In-to-Out span. |
 | `edit-clear` | `none` | Clear | `Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips without closing the timeline gap. |
 | `edit-ripple` | `none` | Ripple Delete | `Shift+Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips and shifts subsequent clips left to close the gap. |
 | `edit-dup` | `none` | Duplicate | `Ctrl+D` | No clip is selected (`guards::selection`) | Places a copy of each selected clip immediately after the original on the same track. |
@@ -374,6 +374,9 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoSound` | `No selected clip carries sound` |
 | `NoMarkers` | `The sequence has no markers` |
 | `NoMarkerAtPlayhead` | `No marker is within a second of the playhead` |
+| `NothingCopied` | `Nothing has been copied or cut` |
+| `NoLaneForCopy` | `No lane in this sequence takes the copied clip` |
+| `SeveralCopied` | `The copy holds more than one clip` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

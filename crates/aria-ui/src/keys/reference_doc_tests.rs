@@ -519,7 +519,10 @@ fn menus_doc_matches_registry() {
                 | Decline::NoSoundToExtract
                 | Decline::NoSound
                 | Decline::NoMarkers
-                | Decline::NoMarkerAtPlayhead => {}
+                | Decline::NoMarkerAtPlayhead
+                | Decline::NothingCopied
+                | Decline::NoLaneForCopy
+                | Decline::SeveralCopied => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
