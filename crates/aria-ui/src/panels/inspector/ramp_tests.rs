@@ -69,9 +69,16 @@ async fn a_ramp_point_dragged_off_the_graph_follows_the_pointer_and_lands_on_its
     let preset = speed_presets()
         .first()
         .expect("the model ships a speed preset");
-    let (state, visual) = drawn_with(cx, "ramp-drag-out", "texture.png", "speed", |state| {
-        clip_pick::apply(state, Pick::SpeedPreset(preset.id.to_string())).expect("ramp the clip");
-    });
+    let (state, visual) = drawn_with(
+        cx,
+        "ramp-drag-out",
+        "fixture-640x360-24fps-3s.mp4",
+        "speed",
+        |state| {
+            clip_pick::apply(state, Pick::SpeedPreset(preset.id.to_string()))
+                .expect("ramp the clip");
+        },
+    );
     let graph = scrolled_to(visual, "speed-graph");
 
     let middle = SPEED_CURVE_SCALE / 2;

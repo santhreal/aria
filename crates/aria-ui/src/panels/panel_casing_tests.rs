@@ -70,7 +70,8 @@ fn every_line_a_panel_draws_starts_in_sentence_case(cx: &mut TestAppContext) {
 
     let mut drawn_tabs = BTreeSet::new();
     for (clip, kind) in clips {
-        for tab in tab_host().visible(kind) {
+        let ui = visual.read(|app| state.read(app).ui_clip(clip).expect("a projected clip"));
+        for tab in tab_host().visible(&ui) {
             let id = tab.id.to_string();
             let what = format!("the Inspector's {id} tab for a {kind:?} clip");
             let lines = drawn_lines(&state, visual, PANEL_INSPECTOR, |state| {
@@ -199,11 +200,12 @@ fn converse(state: &mut AppState) {
 /// read a frame for the Info panel. Returns every clip with its kind, the media
 /// clip first.
 fn dress(state: &mut AppState) -> Vec<(ClipId, UiClipKind)> {
-    let still = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
-    let media = state.import_media(still).expect("import the still");
+    let movie = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4");
+    let media = state.import_media(movie).expect("import the movie");
     state
         .drop_media_on_timeline(media, None, 0)
-        .expect("place the still");
+        .expect("place the movie");
     state
         .add_generated(Generator::text("Title"))
         .expect("place a title");

@@ -369,6 +369,11 @@ pub struct UiClip {
     pub audio_inserts: Vec<UiInsert>,
     /// Whether the clip carries sound, so an insert chain on it is accepted.
     pub can_hold_inserts: bool,
+    /// Whether the clip has sound on its own lane: accepted as an audio
+    /// insert target and not detached to a linked audio-lane clip or frozen.
+    pub has_audio: bool,
+    /// Whether the clip places a still image from the media pool.
+    pub still: bool,
     pub generator: Option<UiGenerator>,
     pub kind: UiClipKind,
     pub locked: bool,
@@ -474,6 +479,12 @@ impl UiClip {
                     .map(aria_models::LabelColor::from)
             })
             .unwrap_or(self.default_label)
+    }
+
+    /// Whether the clip places moving media (video or audio, not a still image
+    /// or a generator).
+    pub fn has_motion(&self) -> bool {
+        matches!(self.kind, UiClipKind::Media | UiClipKind::Audio) && !self.still
     }
 
     /// The animation in `slot`, if one is applied there.

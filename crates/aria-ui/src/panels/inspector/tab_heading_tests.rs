@@ -53,8 +53,8 @@ fn place_clip(state: &mut AppState, kind: UiClipKind) -> ClipId {
     match kind {
         UiClipKind::Media => {
             let media = state
-                .import_media(fixture("texture.png"))
-                .expect("import the still fixture");
+                .import_media(fixture("fixture-640x360-24fps-3s.mp4"))
+                .expect("import the video fixture");
             state
                 .drop_media_on_timeline(media, None, 0)
                 .expect("place the media clip");
@@ -156,7 +156,8 @@ fn no_inspector_tab_opens_with_a_bare_heading_repeating_its_label(cx: &mut TestA
     let mut reached_pending = BTreeSet::new();
 
     for (kind, clip) in clips {
-        for tab in host.tabs().iter().filter(|tab| (tab.applies)(kind)) {
+        let ui = visual.read(|app| state.read(app).ui_clip(clip).expect("projected clip"));
+        for tab in host.tabs().iter().filter(|tab| (tab.applies)(&ui)) {
             let id = tab.id.as_ref();
             let label = tab.label.as_ref();
             let what = format!("Effect Controls tab `{id}` ({label:?}) on a {kind:?} clip");

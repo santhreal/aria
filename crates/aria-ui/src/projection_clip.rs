@@ -208,6 +208,7 @@ pub(super) fn clip_to_ui(
     } = Placement::of(clip, project.timeline().frame_rate, track.kind.is_audio());
 
     let model_transition = track.transition_at(clip.id);
+    let can_hold_inserts = project.clip_insert_refusal(clip, track).is_ok();
     UiClip {
         id: clip_id(clip.id),
         track_id: track_id(track.id),
@@ -239,7 +240,9 @@ pub(super) fn clip_to_ui(
         filter: clip.filter.as_ref().map(filter_to_ui),
         effects: clip.effects.iter().map(effect_to_ui).collect(),
         audio_inserts: crate::app::audio_inserts::rows(&clip.audio_effects),
-        can_hold_inserts: project.clip_insert_refusal(clip, track).is_ok(),
+        can_hold_inserts,
+        has_audio: can_hold_inserts && links.audio.carries_own_audio(track, clip),
+        still: fact.is_some_and(|fact| fact.is_image),
         generator,
         kind,
         locked: track.locked,

@@ -243,7 +243,7 @@ pub(super) struct MediaFact {
     pub(super) name: SharedString,
     pub(super) path: SharedString,
     kind: MediaKind,
-    is_image: bool,
+    pub(super) is_image: bool,
     has_audio: bool,
     pub(super) missing: bool,
 }

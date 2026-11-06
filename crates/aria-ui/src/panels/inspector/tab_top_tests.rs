@@ -39,17 +39,16 @@ fn open(state: &Entity<AppState>, visual: &mut VisualTestContext, tab: &str) {
 #[gpui::test]
 fn every_tab_opens_at_its_top_whatever_the_last_one_was_scrolled_to(cx: &mut TestAppContext) {
     let (state, visual) = drawn_with(cx, "tab-top", "texture.png", DEFAULT_INSPECTOR_TAB, |_| {});
-    let kind = visual.read(|app| {
-        state
+    let tabs: Vec<String> = visual.read(|app| {
+        let clip = state
             .read(app)
-            .selected_ui_clip()
-            .expect("the texture is selected")
-            .kind
+            .selected_ui_clip_ref()
+            .expect("the texture is selected");
+        host_of()
+            .visible(clip)
+            .map(|tab| tab.id.to_string())
+            .collect()
     });
-    let tabs: Vec<String> = host_of()
-        .visible(kind)
-        .map(|tab| tab.id.to_string())
-        .collect();
     let mut tall = Vec::new();
     for from in &tabs {
         open(&state, visual, from);

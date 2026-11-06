@@ -180,7 +180,7 @@ fn clip_body(
     let host = host_of();
     // The strip and the body resolve the same tab once: a strip underlining one
     // tab while the body draws another is the bug this shape rules out.
-    let (active_id, active_body) = match host.resolve(&requested, clip.kind) {
+    let (active_id, active_body) = match host.resolve(&requested, &clip) {
         Some(tab) => (tab.id.clone(), Some(tab.body)),
         None => (gpui::SharedString::new_static(""), None),
     };
@@ -203,7 +203,7 @@ fn clip_body(
         .child(tab_strip::tab_row(
             theme,
             host,
-            clip.kind,
+            &clip,
             active_id.clone(),
             cx,
         ))

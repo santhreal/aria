@@ -22,7 +22,7 @@ use gpui::{
 use crate::motion::{self, glide};
 use crate::theme::Theme;
 use crate::tooltip::WithTip as _;
-use crate::types::UiClipKind;
+use crate::types::UiClip;
 
 use super::tab_host::TabHost;
 
@@ -34,7 +34,7 @@ const SLIDE_KEY: &str = "inspector.tab-underline";
 pub(super) fn tab_row(
     theme: &Theme,
     host: &TabHost,
-    kind: UiClipKind,
+    clip: &UiClip,
     active: gpui::SharedString,
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
@@ -58,12 +58,12 @@ pub(super) fn tab_row(
         ) + 2.0 * Theme::SPACE_SM
     };
     let total: f32 = host
-        .visible(kind)
+        .visible(clip)
         .map(|tab| weight(tab.label.as_ref()))
         .sum();
     let mut before = 0.0;
     let mut front = None;
-    for tab in host.visible(kind) {
+    for tab in host.visible(clip) {
         let share = weight(tab.label.as_ref());
         if tab.id.as_ref() == active.as_ref() {
             front = Some((before, share));
@@ -72,7 +72,7 @@ pub(super) fn tab_row(
         before += share;
     }
     let mut row = div().relative().flex().flex_row().w_full();
-    for tab in host.visible(kind) {
+    for tab in host.visible(clip) {
         let selected = tab.id.as_ref() == active.as_ref();
         // Keyed per tab, so two tabs fading at once do not share a curve.
         let key = motion::MotionKey::new("insp.tab", &tab.id);

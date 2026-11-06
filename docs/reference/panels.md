@@ -106,6 +106,8 @@ When `UiRoute::Home` is active (`aria.panel.home`), the left rail starts with tw
 | `shape` | Shape | `Shape` |
 | `info` | Info | `Media, Text, Shape, Generator` |
 
+Within `Media` and `Audio`, `audio` applies when the clip has sound on its own lane (`UiClip::has_audio`), and `speed` applies when the clip places moving media (`UiClip::has_motion`, excluding still images).
+
 ## Media pool views and sort orders
 
 Defined in `crates/aria-ui/src/types_pool.rs` (`PoolView::ALL`, `PoolLayout`, `POOL_CELL_WIDTH = 96.0`) and `crates/aria-ui/src/types_editor.rs` (`MediaSort::ALL`).

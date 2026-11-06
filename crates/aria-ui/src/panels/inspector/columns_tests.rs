@@ -879,7 +879,7 @@ async fn every_speed_line_stands_in_the_free_columns(cx: &mut TestAppContext) {
         .expect("the model ships a speed preset");
     let (_, choices, held) = every_line_stands_in_the_free_columns(
         cx,
-        ("texture.png", "speed"),
+        ("fixture-640x360-24fps-3s.mp4", "speed"),
         ("Ramp", &["speed-graph"]),
         |state| {
             clip_pick::apply(state, ClipPick::SpeedPreset(preset.id.to_string()))

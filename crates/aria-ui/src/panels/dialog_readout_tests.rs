@@ -33,7 +33,7 @@ use crate::keys::fields;
 use crate::motion::MotionKey;
 use crate::panels::value_readout::{DrawnReadout, drawn_readouts, record_readouts};
 use crate::plugins::overlay_host::host_of;
-use crate::test_support::{drawn_shell, select_a_still};
+use crate::test_support::drawn_shell;
 
 /// Pointer travel, in pixels, past either end of every finite span drawn.
 const TRAVEL: f32 = 1.0e6;
@@ -88,7 +88,22 @@ fn drawn<'a>(
     let (state, visual) = drawn_shell(cx, tag);
     visual.update(|_, app| app.set_reduce_motion(true));
     act(&state, visual, |state| {
-        select_a_still(state);
+        let movie = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
+        let media = state.import_media(movie).expect("import the movie");
+        state
+            .drop_media_on_timeline(media, None, 0)
+            .expect("place the movie");
+        let clip = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|track| track.clips.iter())
+            .next()
+            .map(|clip| aria_models::ClipId::from_raw(clip.id))
+            .expect("the movie placed a clip");
+        state.select_clip(clip);
         state.inspector_tab = "transform".to_string();
         state.dock_tree.open(crate::dock::PANEL_INSPECTOR);
     });

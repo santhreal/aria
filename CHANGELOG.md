@@ -858,6 +858,7 @@ Notes for the latest release. For previous releases, see the
 - Keyboard Shortcuts lists every shipped binding by its full Title Case command name instead of a truncated key-id stem.
 - History entries for track display, fader, pan, automation, output, and source placement use track terminology and "Place media", and generator specs define per-kind "Add <kind>" history labels.
 - Project Report rows, command palette labels, tooltips, and status readouts use "track" instead of "lane" and "Viewer" instead of "preview".
+- Effect Controls shows the Audio tab only for clips with sound on their own lane and the Speed tab only for clips with moving media, and the Speed / Duration dialog offers Speed and Reverse Speed only when a selected clip has moving media and Maintain Audio Pitch only when a selected clip has sound.
 
 ### Fixed
 

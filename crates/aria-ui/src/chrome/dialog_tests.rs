@@ -232,9 +232,7 @@ fn setting_rows(kind: DialogKind) -> &'static [&'static str] {
             "Audio",
             "Range",
         ],
-        DialogKind::SpeedDuration => {
-            &["Speed", "Duration", "Reverse Speed", "Maintain Audio Pitch"]
-        }
+        DialogKind::SpeedDuration => &["Duration"],
         DialogKind::AudioGain => &["Gain"],
         DialogKind::MarkerEdit => &["Name", "Comment", "Duration (timecode)", "Color", "Kind"],
         DialogKind::RemoveAttributes => &["Attributes"],
@@ -334,9 +332,91 @@ fn every_setting_row_dialog_stands_its_labels_and_values_on_one_grid(cx: &mut Te
             }
         }
     }
+    for (label, fixture, tick, mode_expected) in [
+        (
+            "SpeedDuration(SilentMovie)",
+            "../../tests/fixtures/fixture-640x360-24fps-3s.mp4",
+            240,
+            &["Speed", "Duration", "Reverse Speed"][..],
+        ),
+        (
+            "SpeedDuration(SoundMovie)",
+            "../../tests/fixtures/fixture-640x360-24fps-3s-av.mp4",
+            480,
+            &["Speed", "Duration", "Reverse Speed", "Maintain Audio Pitch"][..],
+        ),
+    ] {
+        visual.update(|_, app| {
+            state.update(app, |state, cx| {
+                state.open_dialog(DialogKind::None);
+                let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(fixture);
+                let media = state.import_media(path).expect("import movie fixture");
+                state
+                    .drop_media_on_timeline(media, None, tick)
+                    .expect("place movie fixture");
+                let clip = state
+                    .store
+                    .sequence
+                    .tracks
+                    .iter()
+                    .filter(|track| track.kind == crate::types::UiTrackKind::Video)
+                    .flat_map(|track| track.clips.iter())
+                    .last()
+                    .map(|clip| ClipId::from_raw(clip.id))
+                    .expect("movie fixture placed a video clip");
+                state.select_clip_linked(clip, true);
+                cx.notify();
+            })
+        });
+        visual.run_until_parked();
+        let behind = runs_behind(visual);
+        open(&state, visual, DialogKind::SpeedDuration);
+        check_setting_rows_frame(
+            label,
+            DialogKind::SpeedDuration,
+            mode_expected,
+            &behind,
+            visual,
+            &mut checked_dialogs,
+            &mut first_dialog_label_width,
+            &mut offenders,
+        );
+    }
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.open_dialog(DialogKind::None);
+            let clips: Vec<ClipId> = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .filter(|track| track.kind == crate::types::UiTrackKind::Video)
+                .flat_map(|track| track.clips.iter())
+                .take(2)
+                .map(|clip| ClipId::from_raw(clip.id))
+                .collect();
+            assert_eq!(clips.len(), 2, "expected still and silent movie on V1");
+            state.selection = clips;
+            state.refresh_projected_selection();
+            cx.notify();
+        })
+    });
+    visual.run_until_parked();
+    let behind = runs_behind(visual);
+    open(&state, visual, DialogKind::SpeedDuration);
+    check_setting_rows_frame(
+        "SpeedDuration(MixedStillAndMovie)",
+        DialogKind::SpeedDuration,
+        &["Speed", "Duration", "Reverse Speed"],
+        &behind,
+        visual,
+        &mut checked_dialogs,
+        &mut first_dialog_label_width,
+        &mut offenders,
+    );
     assert!(
-        checked_dialogs >= 9,
-        "expected all six setting-row dialogs and four Audio Gain modes, checked {checked_dialogs}"
+        checked_dialogs >= 12,
+        "expected all six setting-row dialogs, four Audio Gain modes, and four Speed/Duration selections, checked {checked_dialogs}"
     );
     assert!(offenders.is_empty(), "{}", offenders.join("\n"));
 }

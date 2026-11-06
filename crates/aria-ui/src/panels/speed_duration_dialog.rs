@@ -35,12 +35,22 @@ pub fn render(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> impl IntoElement {
     let theme = Theme::of(cx);
-    let (form, selected_count, rate) = {
+    let (form, selected_count, rate, has_motion, has_sound) = {
         let s = state.read(cx);
+        let mut has_motion = false;
+        let mut has_sound = false;
+        for &id in &s.selection {
+            if let Some(clip) = s.ui_clip_ref(id) {
+                has_motion |= clip.has_motion();
+                has_sound |= clip.has_audio;
+            }
+        }
         (
             s.speed_duration.clone(),
             s.selection.len(),
             s.store.sequence.frame_rate,
+            has_motion,
+            has_sound,
         )
     };
     let duration_span = form.duration_span();
@@ -62,54 +72,71 @@ pub fn render(
         }),
     );
 
-    let speed_presets =
+    let mut content = div().flex().flex_col().gap(px(Theme::SPACE_MD)).child(
         div()
-            .flex()
-            .wraps()
-            .gap(px(Theme::SPACE_XS))
-            .children(SPEED_PRESETS.iter().map(|&(pct, id, label)| {
-                let active = (form.speed_percent - pct).abs() < 0.05;
-                components::chip(
-                    ("speed-duration-preset", id),
-                    label,
-                    active,
-                    ChipSize::Compact,
-                    &theme,
-                )
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, _, cx| {
-                        this.state.update(cx, |state, _| {
-                            let _ = state.set_speed_duration_percent(pct);
-                        });
-                        cx.notify();
-                    }),
-                )
-            }));
-
-    let units = Units::SPEED;
-    let speed = value_readout::readout(
-        &theme,
-        state,
-        ScrubTarget {
-            key: MotionKey::new("speed-duration", "speed"),
-            value: form.speed_percent,
-            unit: units.number.drag,
-            kind: units.number.kind(),
-            write: Write::Draft {
-                set: Rc::new(|state: &mut AppState, percent| {
-                    state.set_speed_duration_percent(percent)
-                }),
-                span: SPEED_PERCENT_SPAN,
-            },
-        },
-        units.print(units.number.scale.stored(form.speed_percent)),
-        Look {
-            size: Theme::TEXT_UI,
-            ink: theme.value,
-        },
-        cx,
+            .text_size(Theme::TEXT_UI)
+            .text_color(theme.text_muted)
+            .child(counted(selected_count, "selected clip", "selected clips").to_string()),
     );
+    if has_motion {
+        let speed_presets =
+            div()
+                .flex()
+                .wraps()
+                .gap(px(Theme::SPACE_XS))
+                .children(SPEED_PRESETS.iter().map(|&(pct, id, label)| {
+                    let active = (form.speed_percent - pct).abs() < 0.05;
+                    components::chip(
+                        ("speed-duration-preset", id),
+                        label,
+                        active,
+                        ChipSize::Compact,
+                        &theme,
+                    )
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _: &MouseDownEvent, _, cx| {
+                            this.state.update(cx, |state, _| {
+                                let _ = state.set_speed_duration_percent(pct);
+                            });
+                            cx.notify();
+                        }),
+                    )
+                }));
+        let units = Units::SPEED;
+        let speed = value_readout::readout(
+            &theme,
+            state,
+            ScrubTarget {
+                key: MotionKey::new("speed-duration", "speed"),
+                value: form.speed_percent,
+                unit: units.number.drag,
+                kind: units.number.kind(),
+                write: Write::Draft {
+                    set: Rc::new(|state: &mut AppState, percent| {
+                        state.set_speed_duration_percent(percent)
+                    }),
+                    span: SPEED_PERCENT_SPAN,
+                },
+            },
+            units.print(units.number.scale.stored(form.speed_percent)),
+            Look {
+                size: Theme::TEXT_UI,
+                ink: theme.value,
+            },
+            cx,
+        );
+        content = content.child(setting_row(
+            &theme,
+            "Speed",
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(Theme::SPACE_XS))
+                .child(speed)
+                .child(speed_presets),
+        ));
+    }
     let duration = value_readout::readout(
         &theme,
         state,
@@ -135,65 +162,46 @@ pub fn render(
         },
         cx,
     );
-
-    let mut content = div()
-        .flex()
-        .flex_col()
-        .gap(px(Theme::SPACE_MD))
-        .child(
-            div()
-                .text_size(Theme::TEXT_UI)
-                .text_color(theme.text_muted)
-                .child(counted(selected_count, "selected clip", "selected clips").to_string()),
-        )
-        .child(setting_row(
-            &theme,
-            "Speed",
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(Theme::SPACE_XS))
-                .child(speed)
-                .child(speed_presets),
-        ))
-        .child(setting_row(
-            &theme,
-            "Duration",
-            div()
-                .flex()
-                .items_center()
-                .gap(px(Theme::SPACE_XS))
-                .child(duration)
-                .child(
-                    div()
-                        .text_size(Theme::TEXT_UI)
-                        .text_color(theme.text_muted)
-                        .font_features(crate::theme::tabular_figures())
-                        .child(counted(form.duration_ticks, "frame", "frames").to_string()),
-                ),
-        ))
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(Theme::SPACE_XS))
-                .child(toggle_row(
-                    &theme,
-                    "speed-duration-reverse",
-                    "Reverse Speed",
-                    form.reverse,
-                    AppState::toggle_speed_duration_reverse,
-                    cx,
-                ))
-                .child(toggle_row(
-                    &theme,
-                    "speed-duration-pitch",
-                    "Maintain Audio Pitch",
-                    form.preserve_pitch,
-                    AppState::toggle_speed_duration_preserve_pitch,
-                    cx,
-                )),
-        );
+    content = content.child(setting_row(
+        &theme,
+        "Duration",
+        div()
+            .flex()
+            .items_center()
+            .gap(px(Theme::SPACE_XS))
+            .child(duration)
+            .child(
+                div()
+                    .text_size(Theme::TEXT_UI)
+                    .text_color(theme.text_muted)
+                    .font_features(crate::theme::tabular_figures())
+                    .child(counted(form.duration_ticks, "frame", "frames").to_string()),
+            ),
+    ));
+    if has_motion || has_sound {
+        let mut toggles = div().flex().flex_col().gap(px(Theme::SPACE_XS));
+        if has_motion {
+            toggles = toggles.child(toggle_row(
+                &theme,
+                "speed-duration-reverse",
+                "Reverse Speed",
+                form.reverse,
+                AppState::toggle_speed_duration_reverse,
+                cx,
+            ));
+        }
+        if has_sound {
+            toggles = toggles.child(toggle_row(
+                &theme,
+                "speed-duration-pitch",
+                "Maintain Audio Pitch",
+                form.preserve_pitch,
+                AppState::toggle_speed_duration_preserve_pitch,
+                cx,
+            ));
+        }
+        content = content.child(toggles);
+    }
 
     if let Some(err) = form.error {
         content = content.child(

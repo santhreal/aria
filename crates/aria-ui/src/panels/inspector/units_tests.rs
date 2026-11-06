@@ -587,12 +587,18 @@ async fn every_wheel_master_reads_as_its_grade_row(cx: &mut TestAppContext) {
 /// graph, whose drag follows the pointer.
 #[gpui::test]
 async fn every_speed_readout_reads_in_the_units_of_a_speed(cx: &mut TestAppContext) {
-    let (state, visual) = drawn_with(cx, "units-speed", "texture.png", "speed", |state| {
-        state
-            .set_selected_ramp_point(SPEED_CURVE_SCALE / 2, 1.5)
-            .expect("ramp the clip");
-        state.open_speed_duration();
-    });
+    let (state, visual) = drawn_with(
+        cx,
+        "units-speed",
+        "fixture-640x360-24fps-3s.mp4",
+        "speed",
+        |state| {
+            state
+                .set_selected_ramp_point(SPEED_CURVE_SCALE / 2, 1.5)
+                .expect("ramp the clip");
+            state.open_speed_duration();
+        },
+    );
     let drawn = redraw(visual);
     let speed = Units::SPEED;
     let surfaces = RAMP_POINTS
