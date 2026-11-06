@@ -38,10 +38,10 @@ pub enum EngineError {
     #[error("unsupported on this build: {0}")]
     Unsupported(String),
 
-    /// A host policy or plugin refused the command before it reached the model,
-    /// or another thread held the project: the project is untouched and the
-    /// reason is the refusal, not a failure. Produced by the project host, never
-    /// by dispatch.
+    /// A host policy, a plugin or the edit itself refused the command before it
+    /// changed the project, or another thread held the project: the project is
+    /// untouched and the reason is the refusal, not a failure. The reason states
+    /// the obstacle and the next action.
     #[error("refused: {0}")]
     Refused(String),
 }
