@@ -194,3 +194,27 @@ fn every_quit_in_the_crate_goes_through_session_end() {
         offenders.join("\n  ")
     );
 }
+
+#[test]
+fn dropping_app_state_cancels_in_flight_jobs() {
+    let (state, _) = crate::app::premiere_tests::with_clip();
+    let jobs = state.jobs.clone();
+    let epoch_before = jobs.project_epoch();
+    let job_id = state.jobs.spawn("background-job", |ctx| {
+        while !ctx.cancelled() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        Err("cancelled".into())
+    });
+    drop(state);
+    assert!(
+        jobs.project_epoch() > epoch_before,
+        "dropping AppState must advance the project epoch"
+    );
+    let settled = jobs.settle_all(std::time::Duration::from_secs(1));
+    assert!(settled, "in-flight job did not settle after AppState drop");
+    let snapshot = jobs
+        .get(job_id)
+        .expect("spawned job stays in registry history");
+    assert_eq!(snapshot.state, aria_jobs::JobState::Cancelled);
+}

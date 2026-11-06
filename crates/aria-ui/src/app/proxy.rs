@@ -210,8 +210,12 @@ impl AppState {
         // Frames rendered ahead from the other files are stale.
         self.picture_changed();
         if self.playback_cadence.is_none() {
-            let state = cx.entity();
-            cx.defer(move |app| super::spawn_preview(state, app));
+            let state = cx.entity().downgrade();
+            cx.defer(move |app| {
+                if let Some(state) = state.upgrade() {
+                    super::spawn_preview(state, app);
+                }
+            });
         }
         self.status_message = Some(if on {
             "Viewer: proxies".to_string()

@@ -117,10 +117,10 @@ pub(super) fn render_into(
             }
             crate::frame::rgba_to_render(&frame)
         });
-    let state = state.clone();
+    let state = state.downgrade();
     cx.spawn(async move |cx| {
         let rendered = rendered.await.flatten();
-        state.update(cx, |state, cx| {
+        let _ = state.update(cx, |state, cx| {
             if monitor {
                 // The monitor's frame is drawn by the bodies that draw the
                 // Viewer's frame; every other body replays.

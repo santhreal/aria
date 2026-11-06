@@ -1283,6 +1283,11 @@ Notes for the latest release. For previous releases, see the
 - H.264 and H.265 exports with a bitrate set stay within a few percent of it on every Linux encoder instead of overshooting by up to 2x.
 - On Linux without a portal file chooser, file dialogs open as modal windows on top of the editor, close when the editor exits, and report a missing picker instead of acting as a cancel.
 - Edit, Clip and Sequence menu items stay disabled until they can act, and Freeze Frame, Ungroup, Shift Lane One Second Earlier and Duplicate Selection to Next Lane report in the status bar why they did nothing.
+- Relinking a missing or replaced media item clears its failed-waveform marker and cached peaks so timeline and multicam waveforms decode from the relinked file.
+- Clearing the analysis cache resets the Analysis panel's detector completion markers.
+- Moving an analyzed clip moves its shot-split, silence-cut and moment-seek positions with it.
+- Loudness normalization uses only a contour measured for the selected clip's media.
+- An editor session that ends without Quit cancels its queued and running exports.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -141,6 +141,12 @@ pub struct AnalysisForm {
     /// Bytes the analysis cache occupies on disk, refreshed when Settings
     /// opens and whenever the moments index is read or cleared.
     pub cache_bytes: u64,
+    /// Media entry the current `moments` and `stored` rows were projected for.
+    pub(crate) media_id: Option<u64>,
+    /// `timeline_start_ticks - source_start_ticks` when `moments` were projected.
+    pub(crate) offset_ticks: i64,
+    /// Media entry the current `loudness` contour was measured from.
+    pub(crate) loudness_media_id: Option<u64>,
 }
 
 /// Everything a run needs, resolved before it costs anything.

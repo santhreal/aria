@@ -205,3 +205,44 @@ fn a_slice_of_the_bars_ramps_as_the_whole_clip_does() {
         }
     }
 }
+
+#[test]
+fn forgetting_or_relinking_a_source_clears_its_refusal_and_drops_stale_flights() {
+    let mut store = WaveformStore::default();
+    let missing = std::path::Path::new("/nonexistent/missing.wav");
+    let relinked = std::path::Path::new("/nonexistent/relinked.wav");
+
+    let first_token = store
+        .start_request(7, missing)
+        .expect("first request starts");
+    assert!(
+        store.start_request(7, missing).is_none(),
+        "same path in flight is not started twice"
+    );
+    assert!(store.finish(7, first_token, None));
+    assert!(store.refused(7));
+    assert!(!store.wants(7));
+
+    // Relinking to a new path invalidates the previous refusal automatically.
+    let second_token = store
+        .start_request(7, relinked)
+        .expect("changed path starts a fresh decode");
+    assert!(!store.refused(7));
+
+    // If the source is forgotten or the store is cleared while a decode is in
+    // flight, the stale decode landing afterwards is ignored.
+    store.forget(7);
+    assert!(
+        !store.finish(
+            7,
+            second_token,
+            Some(aria_decoder::AudioPeaks {
+                peaks: vec![0.9],
+                per_second: 40.0,
+            }),
+        ),
+        "stale decode after forget must not populate the store"
+    );
+    assert!(store.get(7).is_none());
+    assert!(store.wants(7));
+}

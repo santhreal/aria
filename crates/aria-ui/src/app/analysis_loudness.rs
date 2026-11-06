@@ -25,6 +25,7 @@ impl AppState {
         let offset = self.selected_ui_clip().map_or(0, |clip| {
             clip.timeline_start_ticks - clip.source_start_ticks
         });
+        let measured_media = self.selected_ui_clip_ref().and_then(|clip| clip.media_id);
         let epoch = self.jobs.project_epoch();
         let jobs = self.jobs.clone();
         let spec =
@@ -66,6 +67,7 @@ impl AppState {
                             ));
                         }
                         state.analysis.loudness = points.into();
+                        state.analysis.loudness_media_id = measured_media;
                     }
                     Some(Err(reason)) if reason.is_empty() => {
                         if state.can_replace_job_status() {
@@ -84,6 +86,11 @@ impl AppState {
 
     /// The loudest window in the contour, so a clipping row has one owner.
     pub fn loudness_peak_dbfs(&self) -> Option<f32> {
+        if let Some(measured_media) = self.analysis.loudness_media_id
+            && self.selected_ui_clip_ref().and_then(|clip| clip.media_id) != Some(measured_media)
+        {
+            return None;
+        }
         self.analysis
             .loudness
             .iter()

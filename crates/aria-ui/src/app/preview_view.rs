@@ -89,8 +89,12 @@ impl AppState {
         // Frames rendered over the other background are stale.
         self.picture_changed();
         if self.playback_cadence.is_none() {
-            let state = cx.entity();
-            cx.defer(move |app| super::spawn_preview(state, app));
+            let state = cx.entity().downgrade();
+            cx.defer(move |app| {
+                if let Some(state) = state.upgrade() {
+                    super::spawn_preview(state, app);
+                }
+            });
         }
         cx.notify();
     }

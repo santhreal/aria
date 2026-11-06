@@ -76,8 +76,12 @@ impl AppState {
         self.ui_settings.paused_resolution = choice;
         self.persist_settings_later(cx);
         if self.playback_cadence.is_none() {
-            let state = cx.entity();
-            cx.defer(move |app| spawn_preview(state, app));
+            let state = cx.entity().downgrade();
+            cx.defer(move |app| {
+                if let Some(state) = state.upgrade() {
+                    spawn_preview(state, app);
+                }
+            });
         }
         self.status_message = Some(format!("Paused resolution: {}", choice.label()));
         cx.notify();

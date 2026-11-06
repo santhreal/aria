@@ -40,8 +40,10 @@ pub struct Waveform {
 #[derive(Debug, Default)]
 pub struct WaveformStore {
     ready: HashMap<u64, Waveform>,
-    pending: HashSet<u64>,
+    pending: HashMap<u64, u64>,
     refused: HashSet<u64>,
+    paths: HashMap<u64, PathBuf>,
+    generation: u64,
 }
 
 impl WaveformStore {
@@ -53,7 +55,7 @@ impl WaveformStore {
     /// it, nothing is in flight, and it has not already refused.
     pub fn wants(&self, media: u64) -> bool {
         !self.ready.contains_key(&media)
-            && !self.pending.contains(&media)
+            && !self.pending.contains_key(&media)
             && !self.refused.contains(&media)
     }
 
@@ -67,8 +69,47 @@ impl WaveformStore {
         self.refused.contains(&media)
     }
 
-    fn mark_pending(&mut self, media: u64) {
-        self.pending.insert(media);
+    fn mark_pending(&mut self, media: u64) -> u64 {
+        self.generation = self.generation.wrapping_add(1);
+        let token = self.generation;
+        self.pending.insert(media, token);
+        token
+    }
+
+    fn start_request(&mut self, media: u64, path: &std::path::Path) -> Option<u64> {
+        if self.paths.get(&media).is_some_and(|old| old != path) {
+            self.forget(media);
+        }
+        if !self.wants(media) {
+            return None;
+        }
+        self.paths.insert(media, path.to_path_buf());
+        Some(self.mark_pending(media))
+    }
+
+    fn finish(
+        &mut self,
+        media: u64,
+        token: u64,
+        decoded: Option<aria_decoder::AudioPeaks>,
+    ) -> bool {
+        if self.pending.get(&media).copied() != Some(token) {
+            return false;
+        }
+        match decoded {
+            Some(peaks) if !peaks.peaks.is_empty() => self.insert(
+                media,
+                Waveform {
+                    peaks: Arc::new(peaks.peaks),
+                    per_second: peaks.per_second,
+                },
+            ),
+            // A still image, a video with no audio stream, an unreadable
+            // file, or a panicked decode all mean the same thing to the
+            // timeline: this source has no waveform to draw.
+            _ => self.refuse(media),
+        }
+        true
     }
 
     /// Hold a decoded source's peaks.
@@ -79,12 +120,23 @@ impl WaveformStore {
     /// the refusal and nothing else.
     pub(crate) fn insert(&mut self, media: u64, waveform: Waveform) {
         self.pending.remove(&media);
+        self.refused.remove(&media);
         self.ready.insert(media, waveform);
     }
 
     fn refuse(&mut self, media: u64) {
         self.pending.remove(&media);
+        self.ready.remove(&media);
         self.refused.insert(media);
+    }
+
+    /// Drop any held peaks, refusal, or in-flight decode for `media` so a
+    /// relinked source decodes from its new file.
+    pub fn forget(&mut self, media: u64) {
+        self.ready.remove(&media);
+        self.pending.remove(&media);
+        self.refused.remove(&media);
+        self.paths.remove(&media);
     }
 
     /// Forget everything. Media ids are re-allocated per session, so a new or
@@ -93,6 +145,7 @@ impl WaveformStore {
         self.ready.clear();
         self.pending.clear();
         self.refused.clear();
+        self.paths.clear();
     }
 }
 
@@ -219,11 +272,11 @@ pub fn apply_gain(
 /// Marking pending before the thread starts is what makes this safe to call
 /// from a render: a second call in the same frame does nothing.
 pub fn request(state: &Entity<AppState>, cx: &mut App, media: u64, path: PathBuf) {
-    if !state.read(cx).waveforms.wants(media) {
+    let Some(token) = state.update(cx, |state, _| state.waveforms.start_request(media, &path))
+    else {
         return;
-    }
-    state.update(cx, |state, _| state.waveforms.mark_pending(media));
-    let state = state.clone();
+    };
+    let state = state.downgrade();
     cx.spawn(async move |cx| {
         // Its own thread, so a file that panics the decoder cannot take the
         // window with it, and the wait is as long as the decode: waiting on the
@@ -234,21 +287,13 @@ pub fn request(state: &Entity<AppState>, cx: &mut App, media: u64, path: PathBuf
                 aria_decoder::audio_peaks_per_second(&path, PEAKS_PER_SECOND, MAX_PEAKS)
             })
             .await;
-        state.update(cx, |state, cx| {
-            match decoded {
-                Some(Ok(peaks)) if !peaks.peaks.is_empty() => state.waveforms.insert(
-                    media,
-                    Waveform {
-                        peaks: Arc::new(peaks.peaks),
-                        per_second: peaks.per_second,
-                    },
-                ),
-                // A still image, a video with no audio stream, an unreadable
-                // file, or a panicked decode all mean the same thing to the
-                // timeline: this source has no waveform to draw.
-                _ => state.waveforms.refuse(media),
+        let _ = state.update(cx, |state, cx| {
+            if state
+                .waveforms
+                .finish(media, token, decoded.and_then(Result::ok))
+            {
+                cx.notify();
             }
-            cx.notify();
         });
     })
     .detach();

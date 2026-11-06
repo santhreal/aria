@@ -44,6 +44,7 @@ impl AppState {
 
     pub fn relink_media(&mut self, media: MediaId, path: PathBuf) -> Result<(), EngineError> {
         crate::projection::invalidate_media_statuses();
+        self.waveforms.forget(media.raw());
         self.apply_command(Command::Project(ProjectCommand::RelinkMedia {
             media,
             path,

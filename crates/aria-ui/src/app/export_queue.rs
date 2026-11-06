@@ -674,3 +674,10 @@ impl ExportQueue {
         }
     }
 }
+
+impl Drop for ExportQueue {
+    fn drop(&mut self) {
+        self.cancel_all();
+        self.shared.job_manager.advance_project_epoch();
+    }
+}

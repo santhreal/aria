@@ -123,8 +123,9 @@ impl AppState {
             std::fs::remove_dir_all(&root).map_err(|err| format!("{}: {err}", root.display()))?;
         }
         self.analysis.cache_bytes = 0;
-        self.analysis.moments.clear();
+        self.clear_analysis_rows();
         self.analysis.loudness = std::sync::Arc::from([]);
+        self.analysis.loudness_media_id = None;
         self.status_message = Some(format!(
             "Cleared the analysis cache, {}",
             super::storage::format_bytes(freed)
@@ -525,13 +526,25 @@ impl AppState {
             self.clear_analysis_rows();
             return Ok(());
         };
-        let Some(path) = clip.media_id.and_then(|id| {
-            self.store
-                .media
-                .iter()
-                .find(|item| item.id == id)
-                .map(|item| PathBuf::from(&*item.path))
-        }) else {
+        let Some(media_id) = clip.media_id else {
+            self.clear_analysis_rows();
+            return Ok(());
+        };
+        if self
+            .analysis
+            .loudness_media_id
+            .is_some_and(|id| id != media_id)
+        {
+            self.analysis.loudness = std::sync::Arc::default();
+            self.analysis.loudness_media_id = None;
+        }
+        let Some(path) = self
+            .store
+            .media
+            .iter()
+            .find(|item| item.id == media_id)
+            .map(|item| PathBuf::from(&*item.path))
+        else {
             self.clear_analysis_rows();
             return Ok(());
         };
@@ -556,6 +569,8 @@ impl AppState {
 
         let rate = self.playhead.rate;
         let offset = clip.timeline_start_ticks - clip.source_start_ticks;
+        self.analysis.media_id = Some(media_id);
+        self.analysis.offset_ticks = offset;
         self.analysis.moments = self
             .filtered_moments(&stored, content_key)
             .into_iter()
@@ -569,6 +584,8 @@ impl AppState {
     fn clear_analysis_rows(&mut self) {
         self.analysis.moments.clear();
         self.analysis.stored.clear();
+        self.analysis.media_id = None;
+        self.analysis.offset_ticks = 0;
     }
 
     /// The stored records the panel's filters accept, in canonical order.

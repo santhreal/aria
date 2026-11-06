@@ -353,6 +353,10 @@ fn the_analysis_cache_is_measurable_and_clearable() {
     let freed = state.clear_analysis_cache().expect("clear");
     assert!(freed > 0, "clearing reported no bytes");
     assert!(state.analysis.moments.is_empty());
+    assert!(
+        !state.analysis_exists(AnalysisKind::Beats),
+        "clearing the analysis cache must also clear the stored detector set"
+    );
     assert_eq!(state.analysis_cache_size_bytes(), 0);
 }
 
@@ -586,4 +590,65 @@ fn a_refused_media_is_named_as_written_by_every_run() {
             assert_eq!(state.last_error.as_deref(), Some(posted), "{run}");
         }
     }
+}
+
+#[test]
+fn moving_a_clip_after_analysis_shifts_its_moments_and_cuts_with_it() {
+    let (mut state, clip) = with_clip();
+    let ui = state.selected_ui_clip().expect("selected clip");
+    let track = aria_models::TrackId::from_raw(ui.track_id);
+    let clip_seconds = (ui.timeline_end_ticks - ui.timeline_start_ticks) as f64 / 24.0;
+    store(
+        &state,
+        AnalysisKind::Shots,
+        &[(clip_seconds / 2.0, clip_seconds / 2.0, 1.0)],
+    );
+    state.refresh_moments().expect("read moments at tick 0");
+
+    let mid_ticks = (ui.timeline_end_ticks - ui.timeline_start_ticks) / 2;
+    let new_start = ui.timeline_end_ticks + 48;
+    state
+        .move_clip(clip, track, new_start)
+        .expect("move clip past original range");
+    state.set_playhead(0);
+    state.seek_next_moment();
+    assert_eq!(
+        state.store.playhead_ticks,
+        new_start + mid_ticks,
+        "moment seek must follow the moved clip to its new timeline position"
+    );
+    let before = state.store.sequence.clip_count();
+    state
+        .split_at_shots()
+        .expect("split moved clip at shot boundary");
+    assert_eq!(
+        state.store.sequence.clip_count(),
+        before + 1,
+        "split_at_shots must split the moved clip at its shifted shot boundary"
+    );
+}
+
+#[test]
+fn normalising_a_clip_ignores_a_loudness_contour_measured_for_another_media_item() {
+    let (mut state, clip) = with_clip();
+    let media_id = state
+        .selected_ui_clip()
+        .and_then(|ui| ui.media_id)
+        .expect("selected media id");
+    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness {
+        start_tick: 0,
+        dbfs: -20.0,
+    }]);
+    state.analysis.loudness_media_id = Some(media_id + 999);
+    assert_eq!(
+        state.loudness_peak_dbfs(),
+        None,
+        "loudness measured for another media entry must not be reported for the current selection"
+    );
+    state.normalise_selected_clip();
+    assert_eq!(
+        state.ui_clip(clip).expect("clip").volume,
+        1.0,
+        "normalise_selected_clip must not apply another media entry's loudness contour"
+    );
 }
