@@ -1329,6 +1329,9 @@ Notes for the latest release. For previous releases, see the
 - A clip copied in one sequence pastes into another, onto the first lane of the same kind.
 - Paste Insert is one undo step, and Paste is named Paste in the history instead of Duplicate clip.
 - A copy pasted into a sequence at another frame rate keeps its length in time.
+- A shortcut pressed while its menu row is disabled changes nothing and shows the row's reason on the status line.
+- Edit > Clear, Ripple Delete and Deselect All are enabled while a timeline gap is selected.
+- Lift, Extract and Paste to Fit with no In and Out range show the same status line as their disabled menu rows.
 
 ## [alpha-0.7.0] - 2026-07-22
 

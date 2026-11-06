@@ -11,22 +11,29 @@
 //! - No clip being selected is worded once, by the registry: no production
 //!   source outside it writes the words, so a menu row's tooltip and the line
 //!   its command writes read the same.
+//! - A chord is withheld with the menu row that draws it, in the row's words,
+//!   and a row withholds no edit its chord's body would make.
 //!
 //! The transition family's own three refusals are asserted next to the family,
 //! in `transition_tests.rs`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use aria_engine::EngineError;
+use aria_models::TrackId;
 
 use super::super::AppState;
 use super::super::premiere_tests::with_clip;
 use super::Decline;
 use crate::chrome::menu_clip::{AUDIO_GAIN, EXTRACT_AUDIO, FREEZE, GROUP, LINK, TIME_REMAP};
 use crate::chrome::menu_items::MenuItem as BarRow;
+use crate::chrome::menu_items::{chord_rows, items_of};
+use crate::keys::bindings::SHIPPED_BINDINGS;
+use crate::keys::{KeyBody, dispatch_plain_key_down};
 use crate::test_support::collect_rs;
 use crate::test_support::sources::{string_literals, without_test_items};
+use crate::types::AppMenu;
 
 #[test]
 fn every_reason_has_its_own_words() {
@@ -195,4 +202,141 @@ fn a_withheld_clip_command_declines_in_its_rows_words() {
         );
         assert_eq!(state.last_error, None, "{id} reported an error");
     }
+}
+
+/// A chord pressed while the menu row that draws it is withheld declines in
+/// that row's words and changes nothing, and the chord's own body, run past the
+/// withholding, changes nothing either.
+///
+/// The class closed: a chord and the row that draws it disagreeing about one
+/// state. A chord ran past its row's guard, so the bar drew Lift disabled with
+/// one sentence while its key wrote another, and a key bound to a disabled row
+/// did nothing and said nothing. A guard was stricter than the code it guards,
+/// so the bar drew Clear, Ripple Delete and Deselect All disabled over a
+/// selected gap their keys acted on. A chord is withheld with its row,
+/// so a guard that withholds a working edit would take it from the keyboard
+/// too, and the body is run past the guard to show it would not.
+///
+/// The rows are walked from the live menus and the chords from the shipped key
+/// table, on three dressings: a clip with nothing selected, a selected gap,
+/// and an empty sequence. A keyed row added later is checked without being
+/// listed, and the chord index built once for the keypress is the keyed rows
+/// each dressing draws, so a keyed row drawn on some states only is red.
+///
+/// Not covered: a row withheld only on a state no dressing reaches, a chord
+/// body's effect outside the project, the selection, the playhead and the open
+/// dialog, and the chord of a plugin command, which no shipped row draws.
+#[test]
+fn a_chord_past_its_withheld_row_declines_in_the_rows_words() {
+    type Dress = fn() -> AppState;
+    let unselected: Dress = || {
+        let (mut state, _) = with_clip();
+        state.clear_selection();
+        state
+    };
+    let gap: Dress = || {
+        let (mut state, _) = with_clip();
+        let lane = &state.store.sequence.tracks[0];
+        let (track, end) = (TrackId::from_raw(lane.id), lane.clips[0].timeline_end_ticks);
+        let texture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
+        let media = state
+            .import_media(texture)
+            .expect("the fixture imports again");
+        state
+            .drop_media_on_timeline(media, Some(track), end + 48)
+            .expect("a second clip lands after a gap");
+        state
+            .select_gap_at(track, end + 1)
+            .expect("the span between the clips is a gap");
+        state
+    };
+    let empty: Dress = || {
+        let (mut state, _) = with_clip();
+        state.new_sequence().expect("an empty sequence opens");
+        state
+    };
+    let seen = |state: &AppState| {
+        (
+            state.history_depth(),
+            state.dialog,
+            state.store.clone(),
+            state.selection.clone(),
+            state.selected_gap,
+            state.playhead,
+        )
+    };
+    let mut wrong = Vec::new();
+    for (dressing, dress) in [("unselected", unselected), ("gap", gap), ("empty", empty)] {
+        // One state serves every row of the dressing while each row leaves it
+        // as it found it, and is dressed again after a row that did not: a
+        // dressed state costs a renderer, and two never live at once because
+        // each claims the same scratch.
+        let mut state = Some(dress());
+        let mut drawn = BTreeMap::new();
+        for menu in AppMenu::ALL {
+            for row in items_of(menu, state.as_ref().expect("dressed")) {
+                if let Some(key) = row.key {
+                    drawn.entry(key).or_insert(row.id);
+                }
+            }
+        }
+        let indexed: BTreeMap<&str, &str> = chord_rows(state.as_ref().expect("dressed"))
+            .iter()
+            .map(|(&key, &(row, _))| (key, row))
+            .collect();
+        assert_eq!(
+            indexed, drawn,
+            "the chords read on a keypress are not the rows drawn on the {dressing} dressing"
+        );
+        let withheld: Vec<(&str, &str, &str)> = AppMenu::ALL
+            .into_iter()
+            .flat_map(|menu| items_of(menu, state.as_ref().expect("dressed")))
+            .filter_map(|row| {
+                let reason = row.blocked_by(state.as_ref().expect("dressed"))?;
+                Some((row.id, row.key?, reason))
+            })
+            .collect();
+        assert!(
+            !withheld.is_empty(),
+            "no keyed row is withheld on the {dressing} dressing"
+        );
+        for (id, key, reason) in withheld {
+            let binding = SHIPPED_BINDINGS
+                .iter()
+                .find(|binding| binding.id == key)
+                .unwrap_or_else(|| panic!("{id} draws {key}, which no shipped binding is"));
+            let KeyBody::Plain(run) = binding.run else {
+                wrong.push(format!(
+                    "{key} past {id} ({dressing}): its chord is not withheld"
+                ));
+                continue;
+            };
+            let found = wrong.len();
+            let at = state.get_or_insert_with(dress);
+            let before = seen(at);
+            at.status_message = None;
+            at.last_error = None;
+            dispatch_plain_key_down(at, binding, false, run);
+            if at.status_message.as_deref() != Some(reason) {
+                wrong.push(format!(
+                    "{key} past {id} ({dressing}): row says {reason:?}, chord wrote {:?}",
+                    at.status_message
+                ));
+            }
+            if seen(at) != before || at.last_error.is_some() {
+                wrong.push(format!("{key} past {id} ({dressing}): the chord edited"));
+            }
+            run(at);
+            if seen(at) != before {
+                wrong.push(format!(
+                    "{key} past {id} ({dressing}): its row withholds an edit its body makes"
+                ));
+            }
+            if wrong.len() > found {
+                state = None;
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

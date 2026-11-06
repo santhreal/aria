@@ -145,7 +145,7 @@ impl AppState {
     /// each lane's later clips left by the range's length.
     pub fn remove_marked_range(&mut self, close_gap: bool) -> Result<(), EngineError> {
         let Some((from, to)) = self.marked_range() else {
-            self.status_message = Some("Mark In and Out first".into());
+            self.decline(Decline::NoMarkedRange);
             return Ok(());
         };
         let label = if close_gap { "Extract" } else { "Lift" };

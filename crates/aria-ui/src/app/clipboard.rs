@@ -204,7 +204,7 @@ impl AppState {
             return Ok(());
         }
         let Some((from, to)) = self.marked_range() else {
-            self.status_message = Some("Mark In and Out to paste into a range".into());
+            self.decline(Decline::NoMarkedRange);
             return Ok(());
         };
         let Placement { copy, track, .. } = placements.remove(0);

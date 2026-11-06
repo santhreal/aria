@@ -15,6 +15,10 @@ overriding the binding that holds it. See
 Two keys are the shell's own and not in the table: text keys while a text box
 holds focus, and Escape in the editor, which cancels whatever drag is in flight.
 
+A shortcut that a menu row draws runs only while that row is enabled. Pressed
+while the row is disabled, it changes nothing and the status line shows the
+row's reason, as choosing the disabled row does.
+
 ## Inside a text box
 
 A box takes keys only while it holds focus, so the bare-letter tool shortcuts

@@ -23,6 +23,12 @@ pub(crate) fn selection(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some(Decline::NoSelection.reason())
 }
 
+/// The row acts on the selected clips or on the selected gap.
+pub(crate) fn clip_or_gap(_: &str, state: &AppState) -> Option<&'static str> {
+    (state.selection.is_empty() && state.selected_gap.is_none())
+        .then_some(Decline::NoClipOrGap.reason())
+}
+
 /// The row acts on the selected clip's active mask.
 pub(crate) fn mask(_: &str, state: &AppState) -> Option<&'static str> {
     state
@@ -205,7 +211,7 @@ pub(crate) fn range(_: &str, state: &AppState) -> Option<&'static str> {
     state
         .marked_range()
         .is_none()
-        .then_some("Mark an In and an Out point first")
+        .then_some(Decline::NoMarkedRange.reason())
 }
 
 /// The row acts on the selected keyframes, or on the keyframes under the

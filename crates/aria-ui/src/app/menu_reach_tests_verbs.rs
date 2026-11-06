@@ -321,7 +321,7 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
     );
     assert_eq!(
         blocked(AppMenu::Edit, &state, "edit-paste-fit"),
-        Some("Mark In and Out to paste into a range")
+        Some("Mark an In and an Out point first")
     );
     state.select_clip(clip);
     assert_eq!(

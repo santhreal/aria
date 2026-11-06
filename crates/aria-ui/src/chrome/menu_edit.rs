@@ -38,7 +38,7 @@ pub(crate) const CLEAR: MenuItem = MenuItem::new("edit-clear", "Clear", |_, s, _
     report(s, cleared)
 })
 .key("key-delete")
-.when(super::menu_guards::selection)
+.when(super::menu_guards::clip_or_gap)
 .rule();
 
 /// Edit > Ripple Delete, which the clip context menu mirrors.
@@ -48,7 +48,7 @@ pub(crate) const RIPPLE_DELETE: MenuItem =
         report(s, deleted)
     })
     .key("key-ripple-delete")
-    .when(super::menu_guards::selection);
+    .when(super::menu_guards::clip_or_gap);
 
 /// Edit > Duplicate, which the clip context menu mirrors.
 pub(crate) const DUPLICATE: MenuItem = MenuItem::new("edit-dup", "Duplicate", |_, s, _| {
@@ -112,7 +112,7 @@ static EDIT_ITEMS: &[MenuItem] = &[
         s.clear_selection()
     })
     .key("key-deselect-all")
-    .when(super::menu_guards::selection),
+    .when(super::menu_guards::clip_or_gap),
     MenuItem::new("edit-find", "Find…", |_, s, _| s.find_in_project())
         .key("key-find")
         .rule(),
@@ -148,7 +148,7 @@ fn paste_fit_ready(id: &str, state: &AppState) -> Option<&'static str> {
         state
             .marked_range()
             .is_none()
-            .then_some("Mark In and Out to paste into a range")
+            .then_some(Decline::NoMarkedRange.reason())
     })
 }
 

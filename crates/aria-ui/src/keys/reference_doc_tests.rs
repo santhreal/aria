@@ -522,7 +522,9 @@ fn menus_doc_matches_registry() {
                 | Decline::NoMarkerAtPlayhead
                 | Decline::NothingCopied
                 | Decline::NoLaneForCopy
-                | Decline::SeveralCopied => {}
+                | Decline::SeveralCopied
+                | Decline::NoMarkedRange
+                | Decline::NoClipOrGap => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

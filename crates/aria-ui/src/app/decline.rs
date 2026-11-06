@@ -71,11 +71,16 @@ pub enum Decline {
     NoLaneForCopy,
     /// Paste to Fit retimes one clip, sent with several on the clipboard.
     SeveralCopied,
+    /// A command that acts on the span from In to Out, sent with no span marked.
+    NoMarkedRange,
+    /// A command that acts on the selected clips or the selected gap, sent with
+    /// neither selected.
+    NoClipOrGap,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 22] = [
+    pub const ALL: [Decline; 24] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -98,6 +103,8 @@ impl Decline {
         Decline::NothingCopied,
         Decline::NoLaneForCopy,
         Decline::SeveralCopied,
+        Decline::NoMarkedRange,
+        Decline::NoClipOrGap,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -126,6 +133,8 @@ impl Decline {
             Decline::NothingCopied => "Nothing has been copied or cut",
             Decline::NoLaneForCopy => "No lane in this sequence takes the copied clip",
             Decline::SeveralCopied => "The copy holds more than one clip",
+            Decline::NoMarkedRange => "Mark an In and an Out point first",
+            Decline::NoClipOrGap => "No clip or gap is selected",
         }
     }
 }

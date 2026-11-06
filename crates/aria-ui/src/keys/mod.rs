@@ -418,12 +418,19 @@ pub fn mounted(cx: &gpui::App) -> Option<&KeyHost> {
 
 /// Run a plain binding for a key-down event, forwarding `is_held` to the J/K/L
 /// transport handlers so `K` + `J`/`L` distinguishes a tap from a hold.
+///
+/// A chord whose menu row is withheld runs nothing and writes the row's reason
+/// on the status line, as choosing the row from the bar or the palette does.
 pub fn dispatch_plain_key_down(
     state: &mut AppState,
     binding: &Binding,
     is_held: bool,
     run: fn(&mut AppState),
 ) {
+    if let Some(reason) = crate::chrome::menu_items::chord_withheld(binding.id, state) {
+        state.status_message = Some(reason.to_string());
+        return;
+    }
     match binding.id {
         "key-shuttle-stop" => state.k_down(is_held),
         "key-shuttle-back" => state.shuttle_key_down(-1, is_held),

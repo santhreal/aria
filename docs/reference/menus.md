@@ -1,6 +1,6 @@
 # Menus Reference
 
-The application menu bar contains the top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`). A submenu whose every row is disabled draws as a disabled row with its first row's reason (`DropEntry::blocked_by`) and opens no flyout; a click, Right, or Enter on it shows the reason on the status line.
+The application menu bar contains the top-level menus (`AppMenu::ALL` in `crates/aria-ui/src/types_editor.rs`), assembled by `items_for(menu, state)` in `crates/aria-ui/src/chrome/menu_items.rs` from one module per menu: `menu_file.rs`, `menu_edit.rs`, `menu_clip.rs`, `menu_sequence.rs`, `menu_markers.rs`, `menu_effect.rs`, `menu_animation.rs`, `menu_view_rows.rs`, `menu_window.rs`, and `menu_help.rs`. Each row includes a stable ID, an optional submenu caption (`under`), a display label, an optional keyboard binding ID (`key`), a disabled-when condition (`RowBlocked` in `crates/aria-ui/src/chrome/menu_guards.rs`), an optional check-mark predicate (`RowChecked`), and an action handler (`RowRun`). A submenu whose every row is disabled draws as a disabled row with its first row's reason (`DropEntry::blocked_by`) and opens no flyout; a click, Right, or Enter on it shows the reason on the status line. A row's shortcut runs only while the row can run: pressed while the row is disabled, it changes nothing and shows the row's reason on the status line (`chord_withheld` in `menu_items.rs`).
 
 A row also marks where a group starts: `rule` starts a group of the drop at the entry the row is drawn as, and `flyout_rule` starts a group of its submenu's flyout. The bar draws a hairline rule above each entry that starts a group, never above the first entry of a list, and the macOS menu bar draws a separator in the same place. The rows plugins add start a group of their own below the shipped rows; a plugin row placed in a shipped submenu starts a group of that flyout instead. The tables below list rows in registry order and do not mark the groups.
 
@@ -53,11 +53,11 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `edit-paste-attributes` | `none` | Paste Attributes | `Ctrl+Alt+V` | Nothing has been copied or cut, or no clip is selected (`paste_attributes_ready`) | Copies the transform, filter preset, and video effect chain of the first clipboard clip onto the selected clip. |
 | `edit-remove-attributes` | `none` | Remove Attributes… | `none` | No clip is selected (`guards::selection`) | Opens `aria.dialog.remove-attributes` to reset chosen attribute categories on selected clips. |
 | `edit-paste-fit` | `none` | Paste to Fit | `none` | Nothing has been copied or cut, more than one clip was copied, or no In and Out range is marked (`paste_fit_ready`) | Places the clipboard clip at the In point, retimed to fill the In-to-Out span. |
-| `edit-clear` | `none` | Clear | `Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips without closing the timeline gap. |
-| `edit-ripple` | `none` | Ripple Delete | `Shift+Backspace` | No clip is selected (`guards::selection`) | Deletes selected clips and shifts subsequent clips left to close the gap. |
+| `edit-clear` | `none` | Clear | `Backspace` | No clip or gap is selected (`guards::clip_or_gap`) | Deletes selected clips without closing the timeline gap, or closes the selected gap. |
+| `edit-ripple` | `none` | Ripple Delete | `Shift+Backspace` | No clip or gap is selected (`guards::clip_or_gap`) | Deletes selected clips and shifts subsequent clips left to close the gap, or closes the selected gap. |
 | `edit-dup` | `none` | Duplicate | `Ctrl+D` | No clip is selected (`guards::selection`) | Places a copy of each selected clip immediately after the original on the same track. |
 | `edit-select-all` | `none` | Select All | `Ctrl+A` | Always enabled | Selects every clip on unlocked tracks in the active sequence. |
-| `edit-deselect` | `none` | Deselect All | `Ctrl+Shift+A` | No clip is selected (`guards::selection`) | Clears the clip, transition, and keyframe selection. |
+| `edit-deselect` | `none` | Deselect All | `Ctrl+Shift+A` | No clip or gap is selected (`guards::clip_or_gap`) | Clears the clip, edit point, and gap selection. |
 | `edit-find` | `none` | Find… | `Ctrl+F` | Always enabled | Focuses the Project panel media search field. |
 | `edit-label-violet` | `Label` | Violet | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Violet`. |
 | `edit-label-iris` | `Label` | Iris | `none` | No clip is selected (`guards::selection`) | Sets the label color of selected clips to `LabelColor::Iris`. |
@@ -89,9 +89,9 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-time-remap` | `none` | Time Remapping | `Ctrl+Alt+T` | No clip is selected, or the selected clip plays no source media (`guards::remappable`) | Toggles variable-speed time remapping on the selected clip. |
 | `clip-enable` | `none` | Enable | `Shift+E` | No clip is selected (`guards::selection`) | Toggles `enabled` on every selected clip. |
 | `seq-link` | `none` | Link | `none` | Fewer than two clips are selected, or they are already linked (`guards::linkable`) | Links selected clips into a shared `link_group`. |
-| `seq-unlink` | `none` | Unlink | `none` | Selected clips are not linked (`guards::linked`) | Clears the `link_group` on selected clips. |
+| `seq-unlink` | `none` | Unlink | `none` | The selected clips are not linked (`guards::linked`) | Clears the `link_group` on selected clips. |
 | `clip-group` | `none` | Group | `Ctrl+G` | Fewer than two clips are selected, or they are already a group (`guards::groupable`) | Assigns a shared group ID to all selected clips. |
-| `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | Selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
+| `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | The selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
 | `seq-nest` | `none` | Nest… | `none` | No clip is selected (`guards::selection`) | Moves selected clips into a new nested sequence and replaces them with a compound clip. |
 | `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first (`guards::source`) | Replaces the selected clip's media source with the active Source monitor item. |
 | `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame, is on a locked track, is linked, does not span the playhead, or has a boundary animation at the playhead (`freeze_ready`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
@@ -180,11 +180,11 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `fx-controls` | `none` | Effect Controls | `none` | Always enabled | Opens and focuses `aria.panel.inspector`. |
 | `fx-last` | `none` | Apply Last Effect | `none` | No effect has been applied yet or no clip is selected (`guards::last_effect`) | Applies the most recently applied video effect (`last_effect`) to the selected clips. |
 | `fx-paste` | `none` | Paste Effect | `none` | No effect has been copied or no clip is selected (`guards::copied_effect`) | Pastes the copied effect onto the selected clips. |
-| `fx-remove-all` | `none` | Remove All Effects | `none` | Selected clips have no effects (`guards::effects`) | Removes all video effects from the selected clips. |
-| `seq-effect-reset` | `none` | Reset Effect Parameters | `Ctrl+Alt+R` | Selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
-| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected (`guards::selection`) | Clears color adjustments (`ColorAdjustments`) on the selected clips. |
+| `fx-remove-all` | `none` | Remove All Effects | `none` | No clip is selected, or the selected clips have no effects (`guards::effects`) | Removes all video effects from the selected clips. |
+| `seq-effect-reset` | `none` | Reset Effect Parameters | `Ctrl+Alt+R` | No clip is selected, or the selected clips have no effects (`guards::effects`) | Resets every parameter of every effect on the selected clip to its catalog default. |
+| `seq-grade-reset` | `none` | Reset Grade | `none` | No clip is selected, or the selected clip has no grade (`guards::grade`) | Clears color adjustments (`ColorAdjustments`) on the selected clips. |
 | `seq-mask-clear` | `none` | Remove Mask | `none` | The selected clip has no mask (`guards::mask`) | Removes all masks from the selected clips. |
-| `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected (`guards::selection`) | Removes the chroma keyer from the selected clips. |
+| `seq-chroma-clear` | `none` | Remove Chroma Key | `none` | No clip is selected, or the selected clip has no chroma key (`guards::chroma`) | Removes the chroma keyer from the selected clips. |
 
 After the fixed rows, `items_for(AppMenu::Effect, state)` appends:
 - One `fx-apply:<id>` row under its category submenu for every `EntryKind::VideoEffect` in `crate::catalog_text::effect_entries()` (`docs/reference/effects.md`), disabled when no clip is selected (`guards::selection`).
@@ -377,6 +377,8 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NothingCopied` | `Nothing has been copied or cut` |
 | `NoLaneForCopy` | `No lane in this sequence takes the copied clip` |
 | `SeveralCopied` | `The copy holds more than one clip` |
+| `NoMarkedRange` | `Mark an In and an Out point first` |
+| `NoClipOrGap` | `No clip or gap is selected` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

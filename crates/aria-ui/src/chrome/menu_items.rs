@@ -240,6 +240,40 @@ pub(crate) fn press(
     true
 }
 
+/// The row that draws each binding's chord, by binding id: the row's id and its
+/// guard, first row in bar order when two draw one chord.
+///
+/// Built once, from the shipped rows. A keyed row is drawn on every state and
+/// a plugin row draws no chord, so the index read on a keypress holds for every
+/// state and a held key repeats without building ten menus per repeat.
+pub(crate) type ChordRows = std::collections::HashMap<&'static str, (&'static str, RowBlocked)>;
+
+pub(crate) fn chord_rows(state: &AppState) -> &'static ChordRows {
+    static ROWS: std::sync::OnceLock<ChordRows> = std::sync::OnceLock::new();
+    ROWS.get_or_init(|| {
+        let mut rows = ChordRows::new();
+        for menu in AppMenu::ALL {
+            for row in items_for(menu, state).iter() {
+                if let Some(key) = row.key {
+                    rows.entry(key).or_insert((row.id, row.blocked));
+                }
+            }
+        }
+        rows
+    })
+}
+
+/// Why the menu row that draws the chord of binding `id` cannot run now, or
+/// `None` when it can or no row draws that chord.
+///
+/// A chord is one more way to choose its row, so it is withheld while the row
+/// is, with the row's reason, as the bar and the palette withhold it through
+/// [`press`].
+pub(crate) fn chord_withheld(id: &str, state: &AppState) -> Option<&'static str> {
+    let &(row, blocked) = chord_rows(state).get(id)?;
+    blocked(row, state)
+}
+
 pub type MenuItems = Cow<'static, [MenuItem]>;
 
 pub(crate) fn items_for(menu: AppMenu, state: &AppState) -> MenuItems {
