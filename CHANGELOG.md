@@ -1236,6 +1236,7 @@ Notes for the latest release. For previous releases, see the
 - A title's Text tab in Effect Controls stops scrolling at its last row instead of scrolling past it into blank ground the height of every installed font family.
 - The timeline and editing guide, keyboard spec, and editing spec state the `Ctrl+Left` / `Ctrl+Right` and `Ctrl+Shift+Left` / `Ctrl+Shift+Right` clip-nudge chords and the `Alt` drag-magnet modifier, and the guide test suite checks the timeline, interchange format, and project schema registries.
 - Analysis, transcription and the loudness overview refuse an offline or silent clip with the same message, which quotes the media name as written: `“texture” has no audio track`, not `Texture has no audio track` or `texture carries no audio`.
+- Exported MP4 files preserve BT.709 colorimetry at all resolutions, align AAC audio within one frame through the final timeline block, and keep forward and reversed retimed audio spans audible through the end of bounded sources.
 
 ## [alpha-0.7.0] - 2026-07-22
 

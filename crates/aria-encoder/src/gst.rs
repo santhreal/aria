@@ -90,7 +90,7 @@ impl GstEncoder {
                 "encoder size must be greater than zero.",
             ));
         }
-        let frames = video_caps(width, height, config.frame_rate)?;
+        let frames = video_caps(width, height, config.frame_rate, matrix_for(&config.color))?;
         let (choice, encoder) = pick_encoder(config.video_codec, &frames)?;
         match Self::assemble(path, config, choice, &encoder, &frames) {
             Ok(opened) => Ok(opened),
@@ -395,7 +395,7 @@ fn add_audio_branch(
     mux: &gst::Element,
     audio: AudioEncoderConfig,
 ) -> Result<gst_app::AppSrc, EncodeError> {
-    let Some(aac_name) = ["fdkaacenc", "voaacenc", "avenc_aac"]
+    let Some(aac_name) = ["avenc_aac", "fdkaacenc", "voaacenc"]
         .into_iter()
         .find(|n| gst::ElementFactory::find(n).is_some())
     else {
