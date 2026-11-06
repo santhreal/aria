@@ -19,7 +19,10 @@ impl EditAction for RestoreClipAction {
             .clip(id)
             .cloned()
             .ok_or(ModelError::UnknownClip(id))?;
-        *ctx.project.timeline_mut().require_clip_mut(id)? = self.clip;
+        *ctx.project
+            .timeline_mut()
+            .clip_timeline_mut(id)
+            .ok_or(ModelError::UnknownClip(id))? = self.clip;
         Ok(Box::new(RestoreClipAction { clip: current }))
     }
 }

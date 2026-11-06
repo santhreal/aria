@@ -646,7 +646,7 @@ impl Track {
         range: TimeRange,
         ignore: Option<ClipId>,
     ) -> Result<bool, ModelError> {
-        let end = range.end_tick();
+        let end = range.end()?.value;
         let idx = self.order.partition_point(|id| {
             #[cfg(test)]
             ORDER_PROBES.with(|c| c.set(c.get() + 1));
@@ -767,20 +767,21 @@ impl Track {
     /// Whether `left` and `right` abut on this track: `left` ends exactly
     /// where `right` starts and both are present.
     pub fn clips_abut(&self, left: ClipId, right: ClipId) -> bool {
-        match (self.clip(left), self.clip(right)) {
-            (Some(l), Some(r)) => l.timeline.end_tick() == r.timeline.start.value,
-            _ => false,
-        }
+        self.clip(left)
+            .zip(self.clip(right))
+            .is_some_and(|(l, r)| l.timeline.end_tick() == r.timeline.start.value)
     }
 
-    /// Drop transitions whose junction no longer abuts (a clip moved, trimmed,
-    /// split, or was removed). Returns whether anything was pruned.
+    /// Drop transitions whose junction no longer abuts or fits.
     pub(crate) fn prune_dead_transitions(&mut self) -> bool {
-        let before = self.transitions.len();
-        let clips = &self.clips;
+        let (before, clips) = (self.transitions.len(), &self.clips);
         self.transitions
             .retain(|t| match (clips.get(&t.left), clips.get(&t.right)) {
-                (Some(l), Some(r)) => l.timeline.end_tick() == r.timeline.start.value,
+                (Some(l), Some(r)) => {
+                    let (ld, rd) = (l.timeline.duration.value, r.timeline.duration.value);
+                    l.timeline.end_tick() == r.timeline.start.value
+                        && t.duration <= t.alignment.junction_limit(ld, rd)
+                }
                 _ => false,
             });
         self.transitions.len() != before

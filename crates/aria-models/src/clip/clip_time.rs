@@ -239,14 +239,18 @@ impl Clip {
         marker.tick = crate::time::resample(marker.tick, window.start.rate);
         marker.duration = crate::time::resample(marker.duration, window.start.rate);
         let start = window.start.value;
-        let end = window.end_tick();
+        let end = window.end()?.value;
         if marker.tick.value < start || marker.tick.value >= end {
             return Err(ModelError::InvalidParam(format!(
                 "clip marker tick ({}) is outside clip source range [{start}..{end})",
                 marker.tick.value
             )));
         }
-        let marker_end = marker.tick.value + marker.duration.value;
+        let marker_end = marker
+            .tick
+            .value
+            .checked_add(marker.duration.value)
+            .ok_or(ModelError::TimeOverflow)?;
         if marker_end > end {
             return Err(ModelError::InvalidParam(format!(
                 "clip marker range end ({marker_end}) exceeds clip source end ({end})"

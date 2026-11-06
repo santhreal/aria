@@ -1239,6 +1239,7 @@ Notes for the latest release. For previous releases, see the
 - Exported MP4 files preserve BT.709 colorimetry at all resolutions, align AAC audio within one frame through the final timeline block, and keep forward and reversed retimed audio spans audible through the end of bounded sources.
 - During a cloud download, Settings > Storage draws Clear cache and Move storage… blocked, and a press posts `A download is in flight. Clear and Move run once it finishes` without opening a folder picker, in place of a Maintenance row and a refusal about a project inventory scan.
 - The assistant's tool list and the Settings > AI Can do count include every tool a prompt is offered, the app tools and the loop's `describe_project`, `commit_progress` and `read_skill`, so both describe the same set.
+- Project loading normalizes lane zones across secondary sequences, transitions clamp to and prune against adjacent clip junction limits across trims and undo/redo, and clip placement, shifting, trimming, retiming, and marker operations validate tick bounds atomically before mutating state.
 
 ## [alpha-0.7.0] - 2026-07-22
 

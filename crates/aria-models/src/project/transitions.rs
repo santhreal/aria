@@ -53,11 +53,13 @@ impl Project {
         let right = self.right_neighbor(track_id, left).ok_or_else(|| {
             ModelError::InvalidParam("clip has no abutting clip to its right".into())
         })?;
+        let (_, max_duration) =
+            self.transition_junction_for(left, TransitionAlignment::default())?;
         let transition = Transition::new(
             left,
             right,
             transition_id,
-            crate::transition::DEFAULT_TRANSITION_TICKS,
+            crate::transition::DEFAULT_TRANSITION_TICKS.min(max_duration),
         );
         self.timeline_mut()
             .track_mut(track_id)
@@ -260,11 +262,11 @@ impl Project {
             .clip(clip)
             .ok_or(ModelError::UnknownClip(clip))?
             .timeline;
-        let head = at.value - range.start.value;
-        let tail = range.end_tick() - at.value;
-        if head <= 0 || tail <= 0 {
+        if at.value <= range.start.value || at.value >= range.end_tick() {
             return Err(ModelError::InvalidRange);
         }
+        let head = at.value - range.start.value;
+        let tail = range.end_tick() - at.value;
         let ticks = |id: ClipId| track.clip(id).map(|clip| clip.timeline.duration.value);
         for transition in track.transitions() {
             let limit = if transition.left == clip {
