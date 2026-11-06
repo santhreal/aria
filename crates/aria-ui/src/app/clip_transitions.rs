@@ -148,31 +148,16 @@ impl AppState {
         self.clip_transition_alignment(self.selected_clip()?)
     }
 
-    /// Apply (or replace) a transition at this clip's right junction.
-    ///
-    /// Declines an unknown id, a junction that cannot carry one, and a
-    /// transition of the other kind: a stale surface must not raise an error
-    /// no edit caused, and it must not swallow the press either, so each
-    /// case names itself in the status line.
+    /// Apply (or replace) a transition at this clip's right junction, or
+    /// decline for the reason [`Self::transition_to_set`] returns: a stale
+    /// surface must not raise an error no edit caused, and it must not swallow
+    /// the press either, so each case names itself in the status line.
     pub fn set_clip_transition(
         &mut self,
         clip: ClipId,
         transition_id: &str,
     ) -> Result<(), EngineError> {
-        let Some(media) = self.clip_transition_media(clip) else {
-            self.decline(Decline::NoAbuttingCut);
-            return Ok(());
-        };
-        let picture = aria_models::transition_spec(transition_id).is_some();
-        let sound = AudioTransition::from_id(transition_id).is_some();
-        let refused = match media {
-            TransitionMedia::Picture if sound => Some(Decline::PictureCut),
-            TransitionMedia::Audio if picture => Some(Decline::SoundCut),
-            TransitionMedia::Picture if !picture => Some(Decline::UnknownTransition),
-            TransitionMedia::Audio if !sound => Some(Decline::UnknownTransition),
-            _ => None,
-        };
-        if let Some(why) = refused {
+        if let Err(why) = self.transition_to_set(clip, transition_id) {
             self.decline(why);
             return Ok(());
         }
@@ -182,6 +167,37 @@ impl AppState {
             clip,
             transition_id: transition_id.to_string(),
         }))?;
+        Ok(())
+    }
+
+    /// Whether `transition_id` can go on this clip's right junction: the
+    /// junction takes a transition of its kind, the id is one, and the
+    /// junction does not already hold it. The rows that apply a transition
+    /// read this as their guard.
+    pub(crate) fn transition_to_set(
+        &self,
+        clip: ClipId,
+        transition_id: &str,
+    ) -> Result<(), Decline> {
+        let media = self
+            .clip_transition_media(clip)
+            .ok_or(Decline::NoAbuttingCut)?;
+        let picture = aria_models::transition_spec(transition_id).is_some();
+        let sound = AudioTransition::from_id(transition_id).is_some();
+        match media {
+            TransitionMedia::Picture if sound => return Err(Decline::PictureCut),
+            TransitionMedia::Audio if picture => return Err(Decline::SoundCut),
+            TransitionMedia::Picture if !picture => return Err(Decline::UnknownTransition),
+            TransitionMedia::Audio if !sound => return Err(Decline::UnknownTransition),
+            _ => {}
+        }
+        let held = self
+            .ui_clip_ref(clip)
+            .and_then(|ui| ui.transition.as_ref())
+            .is_some_and(|transition| *transition.id == *transition_id);
+        if held {
+            return Err(Decline::SameTransition);
+        }
         Ok(())
     }
 

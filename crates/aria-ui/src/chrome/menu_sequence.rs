@@ -17,6 +17,8 @@ const ADD_TRACKS: &str = "Add Tracks";
 const NESTED: &str = "Nested Sequence";
 const SOURCE: &str = "Source";
 const DUCKING: &str = "Ducking";
+/// The transition Add Cross Fade at Cut applies.
+const CROSSFADE: &str = "crossfade";
 
 /// The id prefix of a Sequence > Analyze row for one registered sequence analyzer.
 pub(crate) const SEQ_ANALYZE_PREFIX: &str = "seq-analyze:";
@@ -170,7 +172,7 @@ static SEQUENCE_ITEMS: &[MenuItem] = &[
         "seq-transition-crossfade",
         "Add Cross Fade at Cut",
         |_, s, _| {
-            let set = s.set_selected_transition("crossfade");
+            let set = s.set_selected_transition(CROSSFADE);
             report(s, set)
         },
     )
@@ -269,11 +271,10 @@ fn picture_cut_at_selection(id: &str, state: &AppState) -> Option<&'static str> 
     use crate::app::decline::Decline;
     guards::selection(id, state).or_else(|| {
         let clip = state.selected_clip()?;
-        match state.clip_transition_media(clip) {
-            None => Some(Decline::NoAbuttingCut.reason()),
-            Some(aria_models::TransitionMedia::Audio) => Some(Decline::SoundCut.reason()),
-            Some(aria_models::TransitionMedia::Picture) => None,
-        }
+        state
+            .transition_to_set(clip, CROSSFADE)
+            .err()
+            .map(Decline::reason)
     })
 }
 

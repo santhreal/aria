@@ -1360,6 +1360,7 @@ Notes for the latest release. For previous releases, see the
 - An Audio Channels choice every selected clip already plays is disabled instead of recording an undo step that changes nothing.
 - Luma and Alpha Matte from Above are disabled on a clip whose matte already reads that source instead of recording an undo step that changes nothing.
 - Move Nearest Marker to Playhead is disabled when that marker is already at the playhead instead of recording an undo step that changes nothing.
+- Applying a transition to a cut that already holds it is declined instead of recording an undo step that changes nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

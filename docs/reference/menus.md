@@ -124,7 +124,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-add-edit-all` | `none` | Add Edit to All Tracks | `Ctrl+Shift+K` | No unlocked clip lies across the playhead (`guards::clip_to_cut_all`) | Splits every clip intersecting the playhead across all unlocked tracks. |
 | `seq-trim-edit` | `none` | Trim Edit | `none` | No unlocked track holds a clip (`guards::edit_point`) | Selects the edit point nearest the playhead on an unlocked track for keyboard trim nudging. |
 | `seq-extend-edit` | `none` | Extend Edit | `none` | No edit point is selected, or the selected one is at the playhead (`guards::edge_to_extend`) | Extends the selected edit point to the current playhead tick. |
-| `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The selected edge has no clip on its other side, or with no edge selected no targeted track has a cut between two pictures (`guards::picture_cut`) | Applies the default picture transition (`crossfade`) at the cut of the selected edge, or at the picture cut nearest the playhead on the targeted tracks. |
+| `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The selected edge has no clip on its other side, or with no edge selected no targeted track has a cut between two pictures, or that cut already has the default transition (`guards::picture_cut`) | Applies the default picture transition (`crossfade`) at the cut of the selected edge, or at the picture cut nearest the playhead on the targeted tracks. |
 | `seq-lift` | `none` | Lift | `;` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and leaves a timeline gap. |
 | `seq-extract` | `none` | Extract | `'` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and ripple-closes the gap. |
 | `seq-snap` | `none` | Snap | `S` | Always enabled | Toggles magnetic timeline snapping (`snap_enabled`). |
@@ -139,7 +139,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-ripple-insert` | `Source` | Insert Pool Selection | `Shift+,` | No media is selected in the pool (`guards::pool_selection`) | Ripple-inserts the selected media pool items at the playhead. |
 | `seq-ripple-in` | `none` | Ripple Trim In | `Q` | The sequence has no clips, or no clip starts at or before the playhead on the targeted tracks (`ripple_in_ready`) | Removes the span from the previous cut on the targeted tracks to the playhead from every targeted track, closes the gap, and moves the playhead to the span's start. |
 | `seq-ripple-out` | `none` | Ripple Trim Out | `W` | The sequence has no clips, or no clip ends at or after the playhead on the targeted tracks (`ripple_out_ready`) | Removes the span from the playhead to the next cut on the targeted tracks from every targeted track and closes the gap. |
-| `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected, or the selected clip has no picture cut at its right edge (`picture_cut_at_selection`) | Applies a `crossfade` transition to the selected clip's cut. |
+| `seq-transition-crossfade` | `none` | Add Cross Fade at Cut | `none` | No clip is selected, the selected clip has no picture cut at its right edge, or that cut already has a `crossfade` (`picture_cut_at_selection`) | Applies a `crossfade` transition to the selected clip's cut. |
 | `seq-transition-clear` | `none` | Remove Transition at Cut | `none` | No clip is selected, or no transition is applied at the selected cut (`transition_at_selection`) | Removes the transition from the selected clip's cut. |
 | `seq-lane-shift-later` | `none` | Shift Lane One Second Later | `Alt+Right` | No clip is selected (`guards::selection`) | Shifts every clip on the selected clip's track later by one second. |
 | `seq-lane-shift-earlier` | `none` | Shift Lane One Second Earlier | `Alt+Left` | No clip is selected, or the lane's first clip starts less than one second in (`guards::lane_shift_earlier`) | Shifts every clip on the selected clip's track earlier by one second. |
@@ -404,6 +404,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `SameChannels` | `The selected clips already play those channels` |
 | `SameMatte` | `The selected clip's matte already reads that source` |
 | `MarkerAtPlayhead` | `The nearest marker is already at the playhead` |
+| `SameTransition` | `That cut already has that transition` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 
