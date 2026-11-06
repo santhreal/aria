@@ -102,6 +102,9 @@ pub(super) fn recovery_banner(
     )
 }
 
+pub(crate) const SAMPLE_PROJECT_DETAIL: &str =
+    "Two generator shots with a crossfade, a title on T1, and a tone on A1.";
+
 pub(super) fn recents_pane(
     theme: &Theme,
     recents: &[RecentView],
@@ -138,7 +141,7 @@ pub(super) fn recents_pane(
                     "home-sample",
                     crate::icons::CLAPPERBOARD,
                     "Sample Project",
-                    "A new project with a bundled still in Media.",
+                    SAMPLE_PROJECT_DETAIL,
                     2,
                     theme,
                     cx,
@@ -173,7 +176,7 @@ pub(super) fn samples_pane(
                     "home-sample",
                     crate::icons::CLAPPERBOARD,
                     "Sample Project",
-                    "A new project with a bundled still in Media.",
+                    SAMPLE_PROJECT_DETAIL,
                     0,
                     theme,
                     cx,
@@ -270,6 +273,218 @@ mod learn_tests {
         assert!(
             unbound.is_empty(),
             "the Learn pane lists key ids the registry does not bind: {unbound:?}"
+        );
+    }
+
+    /// WHY: Sample Project previously imported a 1x1 still on V1 with no second
+    /// shot, no transition, no title, and no audio, so pressing Play or
+    /// exporting produced a constant-color frame and silent audio. Opening the
+    /// sample through `home_pick::apply` must populate a 5-10 s sequence from
+    /// the shipped generator, text, and transition catalogs plus a synthesized
+    /// tone on A1, keep every element editable, and render non-constant video
+    /// frames and non-silent audio on export.
+    #[test]
+    fn sample_project_demonstrates_editing_and_exports_non_constant_frames_and_audio() {
+        struct RecordingEncoder {
+            frames: Vec<Vec<u8>>,
+            audio_peak: f32,
+            audio_frames: usize,
+        }
+        impl aria_core::VideoEncoder for RecordingEncoder {
+            fn push(
+                &mut self,
+                frame: &aria_core::VideoFrame,
+            ) -> Result<(), aria_core::EncodeError> {
+                let cpu = frame.cpu().expect("cpu frame");
+                self.frames.push(cpu.planes[0].data.clone());
+                Ok(())
+            }
+            fn choice(&self) -> aria_core::EncoderChoice {
+                aria_core::EncoderChoice::only("recording", Some(true))
+            }
+            fn push_audio(
+                &mut self,
+                samples: &[f32],
+                _pts: aria_core::RationalTime,
+            ) -> Result<(), aria_core::EncodeError> {
+                for &s in samples {
+                    self.audio_peak = self.audio_peak.max(s.abs());
+                }
+                self.audio_frames += samples.len() / 2;
+                Ok(())
+            }
+            fn finish(&mut self) -> Result<(), aria_core::EncodeError> {
+                Ok(())
+            }
+        }
+
+        assert!(super::SAMPLE_PROJECT_DETAIL.contains("generator"));
+        assert!(super::SAMPLE_PROJECT_DETAIL.contains("crossfade"));
+        assert!(super::SAMPLE_PROJECT_DETAIL.contains("title"));
+        assert!(super::SAMPLE_PROJECT_DETAIL.contains("tone on A1"));
+
+        let ctx = aria_plugin::PluginContext::new();
+        ctx.mount(&crate::plugins::UiPlugin)
+            .expect("mount ui plugin");
+        let gpu = crate::test_support::mounted_gpu(&ctx).expect("mounted gpu");
+        let dir = crate::scratch_pool::scratch("sample-worth");
+        let mut state = crate::app::AppState::new(ctx, dir.clone()).expect("editor state");
+        crate::surfaces::home_pick::apply(&mut state, crate::surfaces::home_pick::Pick::OpenSample)
+            .expect("open sample through home_pick");
+        assert_eq!(state.route, crate::types::UiRoute::Editor);
+
+        let rate = state.playhead.rate;
+        let duration_secs =
+            state.store.sequence.duration_ticks as f64 * f64::from(rate.den) / f64::from(rate.num);
+        assert!(
+            (5.0..=10.0).contains(&duration_secs),
+            "sample duration must be in 5..=10 s, got {duration_secs}s ({} ticks)",
+            state.store.sequence.duration_ticks
+        );
+
+        let sticker_lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.kind == crate::types::UiTrackKind::Generator)
+            .expect("Sticker lane S1 present");
+        assert_eq!(
+            sticker_lane.clips.len(),
+            2,
+            "S1 must hold two generator shots"
+        );
+        let shot_a_id = aria_models::ClipId::from_raw(sticker_lane.clips[0].id);
+        let shot_b_id = aria_models::ClipId::from_raw(sticker_lane.clips[1].id);
+        assert_eq!(sticker_lane.clips[0].name.as_ref(), "Linear Gradient");
+        assert_eq!(sticker_lane.clips[1].name.as_ref(), "Color Bars");
+        assert_eq!(
+            sticker_lane.clips[0]
+                .transition
+                .as_ref()
+                .map(|tr| tr.id.as_ref()),
+            Some("crossfade"),
+            "first shot must carry a crossfade transition at the cut"
+        );
+
+        let text_lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.kind == crate::types::UiTrackKind::Text)
+            .expect("Text lane T1 present");
+        assert_eq!(text_lane.clips.len(), 1, "T1 must hold the title clip");
+        let title_id = aria_models::ClipId::from_raw(text_lane.clips[0].id);
+
+        let audio_lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|t| t.kind == crate::types::UiTrackKind::Audio && !t.clips.is_empty())
+            .expect("Audio lane A1 with tone clip present");
+        assert_eq!(
+            audio_lane.clips.len(),
+            1,
+            "A1 must hold the generated tone clip"
+        );
+        let audio_id = aria_models::ClipId::from_raw(audio_lane.clips[0].id);
+
+        for (id, renamed) in [
+            (shot_a_id, "Intro Shot"),
+            (shot_b_id, "Second Shot"),
+            (title_id, "Opening Title"),
+            (audio_id, "Synth Tone"),
+        ] {
+            state
+                .apply_command(aria_commands::Command::Edit(
+                    aria_commands::EditCommand::SetClipName {
+                        clip: id,
+                        name: Some(renamed.to_owned()),
+                    },
+                ))
+                .expect("every sample clip must be editable");
+        }
+
+        let project = state.host().snapshot();
+        let wav_out = dir.join("sample-export.wav");
+        let audio_frames_exported = aria_render::export_audio_to_file_observed(
+            &project,
+            &wav_out,
+            aria_render::ExportSettings::for_project(&project),
+            &mut |_, _| true,
+        )
+        .expect("export sample audio to wav");
+        assert_eq!(
+            audio_frames_exported,
+            state.store.sequence.duration_ticks as u64
+        );
+        let wav_bytes = std::fs::read(&wav_out).expect("read exported wav");
+        let pcm_peak = wav_bytes[44..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b).saturating_abs())
+            .max()
+            .unwrap_or(0);
+        assert!(
+            pcm_peak > 4_000,
+            "exported sample audio must be non-silent, got peak {pcm_peak}"
+        );
+
+        let mut renderer = aria_render::Renderer::with_gpu(gpu);
+        let mut settings = aria_render::ExportSettings::for_project(&project);
+        settings.size = (160, 90);
+        let mut rec = RecordingEncoder {
+            frames: Vec::new(),
+            audio_peak: 0.0,
+            audio_frames: 0,
+        };
+        let written = aria_render::export_observed(
+            &mut renderer,
+            &project,
+            &mut rec,
+            settings,
+            &mut |_, _| true,
+        )
+        .expect("export sample project frames and audio");
+        assert_eq!(written, state.store.sequence.duration_ticks as u64);
+        assert_eq!(rec.frames.len(), written as usize);
+        assert!(
+            rec.audio_peak > 0.15 && rec.audio_frames >= 48_000 * 5,
+            "export_observed must push non-silent audio across the sample (peak={}, frames={})",
+            rec.audio_peak,
+            rec.audio_frames
+        );
+
+        let has_spatial_variance = |rgba: &[u8]| -> bool {
+            let first = &rgba[0..3];
+            rgba.chunks_exact(4).any(|px| &px[0..3] != first)
+        };
+        assert!(
+            has_spatial_variance(&rec.frames[10]),
+            "Shot 1 frame must not be a constant color"
+        );
+        assert!(
+            has_spatial_variance(&rec.frames[72]),
+            "Crossfade midpoint frame must not be a constant color"
+        );
+        assert!(
+            has_spatial_variance(&rec.frames[120]),
+            "Shot 2 frame must not be a constant color"
+        );
+        assert_ne!(
+            rec.frames[10], rec.frames[72],
+            "Transition midpoint must differ from Shot 1"
+        );
+        assert_ne!(
+            rec.frames[72], rec.frames[120],
+            "Transition midpoint must differ from Shot 2"
+        );
+        assert_ne!(
+            rec.frames[10], rec.frames[120],
+            "Shot 1 and Shot 2 must render distinct frames"
         );
     }
 }

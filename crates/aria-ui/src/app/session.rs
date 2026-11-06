@@ -608,9 +608,63 @@ impl AppState {
 
     pub fn open_sample_project(&mut self) -> Result<(), EngineError> {
         self.new_project()?;
-        let still = crate::app::recents::sample_still(&self.data_dir);
-        self.import_dropped_paths(vec![still])?;
+        let tone = crate::app::recents::sample_tone(&self.data_dir);
+        self.import_dropped_paths(vec![tone])?;
+        let rate = self.playhead.rate;
+        let shot_ticks = (3 * i64::from(rate.num.max(1))) / i64::from(rate.den.max(1));
+        let total_ticks = shot_ticks * 2;
+        let s1 = self.ensure_kind_track(aria_models::TrackKind::Sticker)?;
+        let t1 = self.ensure_kind_track(aria_models::TrackKind::Text)?;
+        let shot_a = self.place_sample_generator_shot(
+            s1,
+            "linear_gradient",
+            "Linear Gradient",
+            aria_models::TimeRange::at_rate(0, shot_ticks, rate),
+        )?;
+        self.place_sample_generator_shot(
+            s1,
+            "color_bars",
+            "Color Bars",
+            aria_models::TimeRange::at_rate(shot_ticks, shot_ticks, rate),
+        )?;
+        self.set_clip_transition(shot_a, "crossfade")?;
+        self.apply_command(Command::Edit(EditCommand::AddGenerated {
+            track: t1,
+            generator: aria_models::Generator::text("Aria Sample"),
+            timeline: aria_models::TimeRange::at_rate(0, total_ticks, rate),
+        }))?;
+        self.playhead = aria_models::RationalTime::new(0, rate);
         Ok(())
+    }
+
+    fn place_sample_generator_shot(
+        &mut self,
+        track: aria_models::TrackId,
+        effect_id: &str,
+        label: &str,
+        timeline: aria_models::TimeRange,
+    ) -> Result<ClipId, EngineError> {
+        let clip = match self.apply_command(Command::Edit(EditCommand::AddGenerated {
+            track,
+            generator: aria_models::Generator::SolidColor { rgba: [0; 4] },
+            timeline,
+        }))? {
+            ApplyOutcome::Edited(aria_commands::EditOutcome::Created(clip)) => clip,
+            other => {
+                return Err(EngineError::Refused(format!(
+                    "placing sample generator shot produced {other:?}, not a clip"
+                )));
+            }
+        };
+        self.apply_command(Command::Edit(EditCommand::AddEffect {
+            clip,
+            effect_id: effect_id.to_owned(),
+        }))?;
+        self.apply_command(Command::Edit(EditCommand::SetClipName {
+            clip,
+            name: Some(label.to_owned()),
+        }))?;
+        Ok(clip)
     }
 
     pub fn open_dialog(&mut self, kind: DialogKind) {

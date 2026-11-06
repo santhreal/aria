@@ -538,7 +538,7 @@ fn every_home_pick_failure_and_cli_open_failure_draws_on_home_until_the_next_suc
                 decided.push("OpenSample");
                 reset_to_clean_home(visual, &state);
                 let still =
-                    visual.read(|app| crate::app::recents::sample_still(&state.read(app).data_dir));
+                    visual.read(|app| crate::app::recents::sample_tone(&state.read(app).data_dir));
                 std::fs::remove_file(&still).expect("remove sample still file");
                 std::fs::create_dir_all(&still).expect("replace sample still with a directory");
                 press_selector(visual, "hero-tile-2");

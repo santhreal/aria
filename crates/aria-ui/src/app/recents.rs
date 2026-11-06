@@ -180,20 +180,50 @@ pub fn reveal_in_folder(path: &Path) {
     }
 }
 
-pub fn sample_still(data_dir: &Path) -> PathBuf {
-    let dest = data_dir.join("samples").join("stills").join("texture.png");
-    if !dest.exists() {
-        if let Some(parent) = dest.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        if let Err(err) = fs::write(
-            &dest,
-            include_bytes!("../../../../tests/fixtures/texture.png"),
-        ) {
-            tracing::warn!(error = %err, "could not write sample still");
-        }
+const SAMPLE_TONE_RATE: u32 = 48_000;
+const SAMPLE_TONE_CHANNELS: u16 = 2;
+const SAMPLE_TONE_SECONDS: u32 = 6;
+
+pub fn sample_tone(data_dir: &Path) -> PathBuf {
+    let dest = data_dir.join("samples").join("audio").join("tone.wav");
+    if !dest.exists()
+        && let Err(err) = write_sample_tone(&dest)
+    {
+        tracing::warn!(error = %err, "could not write sample tone");
     }
     dest
+}
+
+fn write_sample_tone(dest: &Path) -> std::io::Result<()> {
+    let frames = (SAMPLE_TONE_RATE * SAMPLE_TONE_SECONDS) as usize;
+    let half = frames / 2;
+    let channels = usize::from(SAMPLE_TONE_CHANNELS);
+    let data_bytes = (frames * channels * 2) as u32;
+    let byte_rate = SAMPLE_TONE_RATE * u32::from(SAMPLE_TONE_CHANNELS) * 2;
+    let block_align = SAMPLE_TONE_CHANNELS * 2;
+    let mut wav = Vec::with_capacity(44 + data_bytes as usize);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_bytes).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&SAMPLE_TONE_CHANNELS.to_le_bytes());
+    wav.extend_from_slice(&SAMPLE_TONE_RATE.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&block_align.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_bytes.to_le_bytes());
+    for frame in 0..frames {
+        let hz = if frame < half { 440.0_f32 } else { 554.37_f32 };
+        let t = frame as f32 / SAMPLE_TONE_RATE as f32;
+        let sample = ((std::f32::consts::TAU * hz * t).sin() * 12_000.0) as i16;
+        let bytes = sample.to_le_bytes();
+        for _ in 0..channels {
+            wav.extend_from_slice(&bytes);
+        }
+    }
+    aria_settings::replace_file(dest, &wav).map_err(std::io::Error::other)
 }
 
 /// The recents list in `data_dir` as Home draws it, and the status line when
