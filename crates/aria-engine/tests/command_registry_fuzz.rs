@@ -153,7 +153,18 @@ fn build_seeded_engine() -> (Engine, TrackId, TrackId, ClipId, ClipId) {
     (engine, v1, a1, clip_v1_a, clip_v1_b)
 }
 
-fn assert_timeline_invariants(timeline: &Timeline) {
+/// Where a project came from, which sets two rules: an edit never makes an
+/// empty clip or an overlap, and a file may hold either (the model's layout
+/// tests pin that both load; an edit separates an overlap).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Made {
+    ByEdit,
+    FromFile,
+}
+
+/// The rules every sequence holds, for a project `made` as stated.
+fn assert_timeline_invariants(timeline: &Timeline, made: Made) {
+    let shortest = i64::from(made == Made::ByEdit);
     assert!(
         timeline.frame_rate.is_valid(),
         "invalid timeline frame_rate: {:?}",
@@ -198,8 +209,8 @@ fn assert_timeline_invariants(timeline: &Timeline) {
                 clip.id
             );
             assert!(
-                clip.timeline.duration.value > 0,
-                "non-positive clip duration {} on clip {:?}",
+                clip.timeline.duration.value >= shortest,
+                "clip duration {} under {shortest} on clip {:?}",
                 clip.timeline.duration.value,
                 clip.id
             );
@@ -217,7 +228,10 @@ fn assert_timeline_invariants(timeline: &Timeline) {
                 .timeline
                 .end()
                 .expect("clip start + duration does not overflow");
-            assert!(end.value > clip.timeline.start.value);
+            assert_eq!(
+                end.value - clip.timeline.start.value,
+                clip.timeline.duration.value
+            );
             assert!(
                 clip.speed.is_valid(),
                 "invalid clip speed {:?} on {:?}",
@@ -227,7 +241,7 @@ fn assert_timeline_invariants(timeline: &Timeline) {
             clip.transform.validate().expect("valid clip transform");
             clip.crop.validate_shape().expect("valid clip crop");
         }
-        for pair in clips.windows(2) {
+        for pair in clips.windows(2).filter(|_| made == Made::ByEdit) {
             let left_end = pair[0].timeline.end().expect("left end").value;
             let right_start = pair[1].timeline.start.value;
             assert!(
@@ -257,10 +271,14 @@ fn assert_timeline_invariants(timeline: &Timeline) {
 }
 
 fn assert_project_invariants(project: &Project) {
-    assert_timeline_invariants(project.timeline());
-    assert_timeline_invariants(project.root_timeline());
+    assert_sequence_invariants(project, Made::ByEdit);
+}
+
+fn assert_sequence_invariants(project: &Project, made: Made) {
+    assert_timeline_invariants(project.timeline(), made);
+    assert_timeline_invariants(project.root_timeline(), made);
     for seq in project.sequences() {
-        assert_timeline_invariants(&seq.timeline);
+        assert_timeline_invariants(&seq.timeline, made);
         for clip in seq
             .timeline
             .tracks_ordered()
@@ -293,8 +311,39 @@ fn assert_project_invariants(project: &Project) {
     }
 }
 
+/// The project as its saved text: the state undo, redo and a refusal are
+/// compared by.
+fn saved(engine: &Engine, id: &str) -> String {
+    engine
+        .project()
+        .save_to_string()
+        .unwrap_or_else(|err| panic!("{id} left a project that does not save: {err}"))
+}
+
+/// The first line where two saved projects differ, with its neighbours, so a
+/// failure prints the field that changed instead of two whole files.
+fn first_difference(left: &str, right: &str) -> String {
+    let (l, r): (Vec<&str>, Vec<&str>) = (left.lines().collect(), right.lines().collect());
+    let at = l
+        .iter()
+        .zip(&r)
+        .position(|(a, b)| a != b)
+        .unwrap_or(l.len().min(r.len()));
+    let from = at.saturating_sub(3);
+    format!(
+        "line {}:\n  expected: {:?}\n  found:    {:?}",
+        at + 1,
+        l.get(from..(at + 3).min(l.len())).unwrap_or_default(),
+        r.get(from..(at + 3).min(r.len())).unwrap_or_default(),
+    )
+}
+
+/// Applies `cmd` and checks the state it leaves: an edit undoes to the saved
+/// text it started from and redoes to the text it made, a refusal changes
+/// nothing, and every state saves, opens, and saves again to the same text.
 fn dispatch_and_check(engine: &mut Engine, cmd: EditCommand) -> bool {
     let spec = cmd.spec();
+    let before = saved(engine, spec.id);
     let gen_before = engine.history_generation();
     let undo_before = engine.history_depth();
     let t0 = Instant::now();
@@ -351,19 +400,56 @@ fn dispatch_and_check(engine: &mut Engine, cmd: EditCommand) -> bool {
     };
 
     assert_project_invariants(engine.project());
-    // Every state an edit leaves has to open again. A value the save writes
-    // and the load rejects, such as a non-finite float written as `null`,
-    // leaves a project that cannot be reopened.
-    let text = engine
-        .project()
-        .save_to_string()
-        .unwrap_or_else(|err| panic!("{} left a project that does not save: {err}", spec.id));
-    if let Err(err) = Project::load_from_string(&text) {
-        panic!(
-            "{} left a project that saves but does not open: {err}",
-            spec.id
+    let after = saved(engine, spec.id);
+    if applied {
+        assert!(engine.undo(), "{} applied but does not undo", spec.id);
+        let undone = saved(engine, spec.id);
+        assert!(
+            undone == before,
+            "undo of {} left a project other than the one it edited, {}",
+            spec.id,
+            first_difference(&before, &undone)
+        );
+        assert!(engine.redo(), "{} undid but does not redo", spec.id);
+        let redone = saved(engine, spec.id);
+        assert!(
+            redone == after,
+            "redo of {} left a project other than the one it made, {}",
+            spec.id,
+            first_difference(&after, &redone)
+        );
+    } else {
+        assert!(
+            after == before,
+            "{} was refused but changed the project, {}",
+            spec.id,
+            first_difference(&before, &after)
         );
     }
+    // Every state an edit leaves has to open again, as itself: a value the
+    // save writes and the load rejects, such as a non-finite float written as
+    // `null`, leaves a project that cannot be reopened, and one the load reads
+    // differently changes on the next save.
+    let reopened = Project::load_from_string(&after)
+        .unwrap_or_else(|err| {
+            panic!(
+                "{} left a project that saves but does not open: {err}",
+                spec.id
+            )
+        })
+        .save_to_string()
+        .unwrap_or_else(|err| {
+            panic!(
+                "{} reopened to a project that does not save: {err}",
+                spec.id
+            )
+        });
+    assert!(
+        reopened == after,
+        "{} left a project that reopens as another, {}",
+        spec.id,
+        first_difference(&after, &reopened)
+    );
     applied
 }
 
@@ -686,4 +772,148 @@ fn set_sequence_rate_rejects_collapsing_or_overflowing_rate_atomically() {
         tr(48, 48)
     );
     assert_project_invariants(engine.project());
+}
+
+/// The JSON pointer of every value under `value`, `at` included.
+fn pointers(value: &serde_json::Value, at: String, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, child) in map {
+                let key = key.replace('~', "~0").replace('/', "~1");
+                pointers(child, format!("{at}/{key}"), out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (index, child) in items.iter().enumerate() {
+                pointers(child, format!("{at}/{index}"), out);
+            }
+        }
+        _ => {}
+    }
+    out.push(at);
+}
+
+/// The message of a caught panic.
+fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| {
+            payload
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_owned())
+        })
+        .unwrap_or_default()
+}
+
+/// The rule a hand-edited or damaged file breaks, or `None` when it opens as
+/// a project that keeps the rules a file may hold and saves and reopens as
+/// itself, or is refused with a message, within the command time budget.
+fn load_fault(text: &str) -> Option<String> {
+    let t0 = Instant::now();
+    let loaded = Project::load_from_string(text);
+    if t0.elapsed() >= MAX_COMMAND_TIME {
+        return Some(format!("loading took {:?}", t0.elapsed()));
+    }
+    let project = match loaded {
+        Ok(project) => project,
+        Err(err) if err.to_string().trim().is_empty() => {
+            return Some("refused with an empty message".to_owned());
+        }
+        Err(_) => return None,
+    };
+    assert_sequence_invariants(&project, Made::FromFile);
+    let saved = match project.save_to_string() {
+        Ok(saved) => saved,
+        Err(err) => return Some(format!("opened but does not save: {err}")),
+    };
+    let reopened = match Project::load_from_string(&saved) {
+        Ok(reopened) => reopened,
+        Err(err) => {
+            return Some(format!(
+                "opened and saved, and the save does not open: {err}"
+            ));
+        }
+    };
+    let again = reopened.save_to_string().expect("a reopened project saves");
+    (again != saved).then(|| {
+        format!(
+            "reopens as another project, {}",
+            first_difference(&saved, &again)
+        )
+    })
+}
+
+/// WHY: the loader is the one entry for a file from disk, and a file edited
+/// by hand, by a script, or cut short holds values no edit writes. Every value
+/// of a project the fuzzer built is replaced in turn by each hostile value,
+/// and every key and element is removed in turn; each file must open as a
+/// project that saves and reopens as itself, or be refused. Values are drawn
+/// from the saved file at run time, so a field a new version adds is in the
+/// census. Does not catch a wrong value the loader accepts as valid, or a
+/// field the fuzzed project leaves at its default, which a save omits.
+#[test]
+fn every_value_of_a_project_file_replaced_or_removed_opens_or_is_refused() {
+    let mut rng = CommandRng::new(7);
+    let (mut engine, _v1, _a1, _c1, _c2) = build_seeded_engine();
+    for _ in 0..60 {
+        let cmd = random_edit_command(&mut rng, engine.project());
+        let _ = engine.apply(Command::Edit(cmd));
+    }
+    let text = saved(&engine, "the fuzzed project");
+    let doc: serde_json::Value = serde_json::from_str(&text).expect("a saved project is JSON");
+    let hostile = [
+        serde_json::Value::Null,
+        serde_json::json!(true),
+        serde_json::json!(-1),
+        serde_json::json!(0),
+        serde_json::json!(i64::MAX),
+        serde_json::json!(u64::MAX),
+        serde_json::json!(-1.0e308),
+        serde_json::json!(0.5),
+        serde_json::json!(""),
+        serde_json::json!([]),
+        serde_json::json!({}),
+    ];
+    let mut all = Vec::new();
+    pointers(&doc, String::new(), &mut all);
+    assert!(
+        all.len() > 200,
+        "the fuzzed project holds {} values",
+        all.len()
+    );
+    let mut faults = Vec::new();
+    let mut check = |edited: &serde_json::Value, what: String| {
+        let text = edited.to_string();
+        let fault = std::panic::catch_unwind(|| load_fault(&text))
+            .unwrap_or_else(|payload| Some(format!("panicked: {}", panic_text(&*payload))));
+        if let Some(fault) = fault {
+            faults.push(format!("{what}: {fault}"));
+        }
+    };
+    for pointer in all.iter().filter(|p| !p.is_empty()) {
+        for value in &hostile {
+            let mut edited = doc.clone();
+            *edited.pointer_mut(pointer).expect("a collected pointer") = value.clone();
+            check(&edited, format!("{pointer} = {value}"));
+        }
+        let (parent, last) = pointer.rsplit_once('/').expect("a pointer below the root");
+        let mut edited = doc.clone();
+        match edited.pointer_mut(parent).expect("a collected parent") {
+            serde_json::Value::Object(map) => {
+                map.remove(&last.replace("~1", "/").replace("~0", "~"));
+            }
+            serde_json::Value::Array(items) => {
+                items.remove(last.parse::<usize>().expect("an array index"));
+            }
+            _ => unreachable!("a parent holds children"),
+        }
+        check(&edited, format!("{pointer} removed"));
+    }
+    assert!(
+        faults.is_empty(),
+        "{} damaged files break a rule; the first 60:\n{}",
+        faults.len(),
+        faults[..faults.len().min(60)].join("\n")
+    );
 }

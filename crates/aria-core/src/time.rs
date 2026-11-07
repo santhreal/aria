@@ -326,9 +326,11 @@ impl TimeRange {
         }
     }
 
-    /// Exclusive end tick (`start + duration`) at the range's rate.
+    /// Exclusive end tick (`start + duration`) at the range's rate, saturated
+    /// to `i64`: a range whose end no tick holds reads as ending at the first
+    /// or last tick, and [`end`](Self::end) reports it as an error.
     pub fn end_tick(self) -> i64 {
-        self.start.value + self.duration.value
+        self.start.value.saturating_add(self.duration.value)
     }
 
     /// Exclusive end as a [`RationalTime`].
@@ -429,6 +431,32 @@ mod tests {
 
     fn rt(value: i64, rate: Rational) -> RationalTime {
         RationalTime::new(value, rate)
+    }
+
+    /// WHY: a project file states each clip's start and length, and the loader
+    /// read the end of a clip starting at `i64::MAX` before it checked the
+    /// range, so the add overflowed: a panic in a debug build, a wrapped
+    /// negative end in a release one. The end saturates at both bounds and
+    /// `end` still reports the overflow. Does not cover a caller that adds
+    /// to the end itself.
+    #[test]
+    fn an_end_past_the_last_tick_saturates_and_end_reports_it() {
+        for (start, duration, end) in [
+            (i64::MAX, 1, i64::MAX),
+            (1, i64::MAX, i64::MAX),
+            (i64::MIN, -1, i64::MIN),
+            (i64::MAX - 1, 1, i64::MAX),
+            (-5, 2, -3),
+        ] {
+            let range = TimeRange::at_rate(start, duration, R24);
+            assert_eq!(range.end_tick(), end, "{start} + {duration}");
+            let exact = start.checked_add(duration);
+            assert_eq!(
+                range.end().ok().map(|t| t.value),
+                exact,
+                "{start} + {duration}"
+            );
+        }
     }
 
     #[test]

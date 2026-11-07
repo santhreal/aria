@@ -2,13 +2,14 @@
 //! with the field and the clip in the refusal, on both parse paths.
 //!
 //! The class: a value the edit path refuses ([`crate::Timeline::add_clip`],
-//! the speed setter, the sequence rate edit) that reaches the model through
-//! the deserializer instead, where a render or an edit then fails on it with
-//! an internal error. Each case edits one value of a saved project and loads
-//! the result through the current-schema fast path and the migrating path.
-//! The accepted cases pin the boundary: a zero-length clip and a clip at tick
-//! zero load. What this does not catch: a rule `add_clip` gains later that
-//! [`crate::Timeline::layout_fault`] does not repeat.
+//! the speed setter, the sequence rate edit, the setter of a clip's transform
+//! or level) that reaches the model through the deserializer instead, where a
+//! render or an edit then fails on it with an internal error. Each case edits
+//! one value of a saved project and loads the result through the
+//! current-schema fast path and the migrating path. The accepted cases pin
+//! the boundary: a zero-length clip, a clip at tick zero, and a clip value at
+//! its bound load. What this does not catch: a rule `add_clip` or a setter
+//! gains later that [`crate::Timeline::layout_fault`] does not repeat.
 //!
 //! The lane order and clip index restate the lanes, and a file can misstate
 //! them: a lane left out of the order is drawn and rendered nowhere, and a
@@ -143,6 +144,30 @@ const REFUSED: &[(&str, Edit, &str, &str)] = &[
         "plays at speed 0/1, and a speed needs",
     ),
     (
+        "opacity below zero",
+        |d: &mut Value| clip(d)["transform"]["opacity"] = json!(-1.0),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
+        "opacity above one",
+        |d: &mut Value| clip(d)["transform"]["opacity"] = json!(2.0),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
+        "volume above the ceiling",
+        |d: &mut Value| clip(d)["volume"] = json!(1000.0),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
+        "pan past full right",
+        |d: &mut Value| clip(d)["pan"] = json!(2.0),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
         "nested sequence rate",
         |d: &mut Value| d["sequences"][0][1]["timeline"]["frame_rate"]["num"] = json!(0),
         "sequences.timeline.frame_rate",
@@ -195,6 +220,32 @@ fn a_zero_length_clip_and_a_clip_at_tick_zero_load() {
         ("at tick zero", |d: &mut Value| {
             clip(d)["timeline"]["start"]["value"] = json!(0);
         }),
+    ];
+    for (case, edit) in edits {
+        let mut doc = saved();
+        edit(&mut doc);
+        for (route, text) in both_paths(doc) {
+            if let Err(err) = load(route, &text) {
+                panic!("{case} ({route}) was refused: {err}");
+            }
+        }
+    }
+}
+
+/// A value at the bound an edit accepts loads: the check refuses past the
+/// bound, not at it.
+#[test]
+fn a_clip_value_at_its_bound_loads() {
+    let edits: [(&str, Edit); 5] = [
+        ("opacity 0", |d: &mut Value| {
+            clip(d)["transform"]["opacity"] = json!(0.0)
+        }),
+        ("opacity 1", |d: &mut Value| {
+            clip(d)["transform"]["opacity"] = json!(1.0)
+        }),
+        ("volume 0", |d: &mut Value| clip(d)["volume"] = json!(0.0)),
+        ("pan -1", |d: &mut Value| clip(d)["pan"] = json!(-1.0)),
+        ("pan 1", |d: &mut Value| clip(d)["pan"] = json!(1.0)),
     ];
     for (case, edit) in edits {
         let mut doc = saved();

@@ -1,12 +1,13 @@
 //! The placement rules a timeline read from a file holds before an edit or a
 //! render reads it.
 //!
-//! [`Timeline::add_clip`] keeps these rules for every placement. A file
-//! reaches the model through the deserializer instead, so the loader rebuilds
-//! what the file states twice ([`Timeline::rederive_order_and_index`]), then
-//! reads [`Timeline::layout_fault`] once per sequence and refuses a file that
-//! breaks a rule. Overlapping clips are not refused: an edit separates them,
-//! and a refusal would leave the project unopenable.
+//! [`Timeline::add_clip`] keeps these rules for every placement, and each
+//! clip setter keeps the rule of the value it stores. A file reaches the model
+//! through the deserializer instead, so the loader rebuilds what the file
+//! states twice ([`Timeline::rederive_order_and_index`]), then reads
+//! [`Timeline::layout_fault`] once per sequence and refuses a file that breaks
+//! a rule. Overlapping clips are not refused: an edit separates them, and a
+//! refusal would leave the project unopenable.
 
 use rustc_hash::FxHashSet;
 
@@ -49,7 +50,8 @@ impl Timeline {
     /// timeline that holds the fault (`frame_rate` or `tracks`) and a sentence
     /// stating it, or `None` when the sequence rate is valid and every clip is
     /// timed at it, with ranges and a speed [`Timeline::add_clip`] and the
-    /// speed setter accept.
+    /// speed setter accept and values its setters accept
+    /// ([`Clip::check_values`]).
     pub(crate) fn layout_fault(&self) -> Option<(&'static str, String)> {
         let rate = self.frame_rate;
         if !rate.is_valid() {
@@ -115,7 +117,9 @@ fn clip_fault(track: &Track, clip: &Clip, rate: Rational) -> Option<String> {
             shown(clip.speed)
         ));
     }
-    None
+    clip.check_values()
+        .err()
+        .map(|err| format!("{} holds a value an edit rejects: {err}", which()))
 }
 
 fn range_fault(range: TimeRange) -> Option<&'static str> {

@@ -1457,6 +1457,9 @@ Notes for the latest release. For previous releases, see the
 - The Python API raises `ValueError` for a time in seconds that is not finite, is before 0, or is past 2^53 ticks, instead of reading it as 0, failing as an overlap, or failing as an arithmetic overflow, and a failed call changes nothing.
 - Undo of a link, group or enable that names a clip twice restores that clip's earlier link, group or state instead of leaving the new one.
 - A link or group of fewer than two different clips is rejected instead of making a link of one clip, and an unlink or ungroup of clips in no link or group states that instead of reporting an invalid time range.
+- Opening a project file that states an id above 4611686018427387903 is refused, so a later edit no longer replaces or deletes an item the file holds.
+- Opening a project file whose clip holds a value its edit rejects, such as an opacity of -1, a scale of 0, a volume above the ceiling or a shadow blur that saves as `null`, is refused with the clip and lane in the message.
+- Opening a project file with a clip starting at the last tick no longer panics.
 
 ## [alpha-0.7.0] - 2026-07-22
 

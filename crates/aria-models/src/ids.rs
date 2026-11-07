@@ -9,6 +9,29 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
+/// The largest id a file or a command may state.
+///
+/// Every id read through [`Deserialize`] advances its type's allocator past
+/// itself, and [`next`](ClipId::next) counts up from there. An id near
+/// `u64::MAX` would wrap the allocator to ids already in use, and a map insert
+/// at a re-handed id replaces the entity that holds it. Capped at `2^62 - 1`,
+/// the allocator has `3 * 2^62` ids left before it wraps. An id this process
+/// allocates after reading one within that many of the ceiling lies above it,
+/// so a project saved from a file stating such an id does not open again; no
+/// Aria build allocates near the ceiling.
+const MAX_ID: u64 = (1 << 62) - 1;
+
+/// `value` as an id of the type `name`, or the error stating that it is above
+/// [`MAX_ID`].
+fn within_ceiling(name: &str, value: u64) -> Result<u64, String> {
+    if value > MAX_ID {
+        return Err(format!(
+            "{name} {value} is above {MAX_ID}, the largest id a project holds"
+        ));
+    }
+    Ok(value)
+}
+
 macro_rules! define_id {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
@@ -58,7 +81,8 @@ macro_rules! define_id {
             where
                 D: serde::Deserializer<'de>,
             {
-                let value = u64::deserialize(deserializer)?;
+                let value = within_ceiling(stringify!($name), u64::deserialize(deserializer)?)
+                    .map_err(serde::de::Error::custom)?;
                 // A loaded id is now live in this process: bump the allocator
                 // so freshly created entities can't reuse (and silently
                 // overwrite) it. Without this, per-process counters reset to 1
@@ -248,6 +272,80 @@ mod tests {
         assert!(
             MediaId::next().raw() > before,
             "a low deserialized id leaves the allocator monotonic"
+        );
+    }
+
+    /// `name`'s reader rejects every id above [`MAX_ID`] with a message stating
+    /// the type, the value and the ceiling.
+    fn rejects_above_the_ceiling<T: serde::de::DeserializeOwned + std::fmt::Debug>(name: &str) {
+        for value in [MAX_ID + 1, i64::MAX as u64, u64::MAX] {
+            let err = serde_json::from_str::<T>(&value.to_string())
+                .expect_err(&format!("{name} {value} read as an id"));
+            let expected =
+                format!("{name} {value} is above {MAX_ID}, the largest id a project holds");
+            assert!(
+                err.to_string().starts_with(&expected),
+                "{name} {value}: {err}"
+            );
+        }
+    }
+
+    /// WHY: every id a file or a command states advances its type's
+    /// allocator past itself, so an id of `u64::MAX` wrapped the allocator,
+    /// the next allocation re-handed that id, and creating a bin replaced the
+    /// bin a loaded file held at it; undoing the creation deleted both. Every
+    /// id type is read from a value above the ceiling, and the list is checked
+    /// against the `define_id!` invocations in this file, so a new id type
+    /// fails here until it is listed. Does not catch an id that reaches the
+    /// model through `from_raw`, which does not advance the allocator.
+    #[test]
+    fn every_id_type_rejects_an_id_above_the_ceiling() {
+        let checked = [
+            (
+                "ProjectId",
+                rejects_above_the_ceiling::<ProjectId> as fn(&str),
+            ),
+            ("MediaId", rejects_above_the_ceiling::<MediaId>),
+            ("TrackId", rejects_above_the_ceiling::<TrackId>),
+            ("ClipId", rejects_above_the_ceiling::<ClipId>),
+            ("LinkId", rejects_above_the_ceiling::<LinkId>),
+            ("GroupId", rejects_above_the_ceiling::<GroupId>),
+            ("MarkerId", rejects_above_the_ceiling::<MarkerId>),
+            ("BinId", rejects_above_the_ceiling::<BinId>),
+            ("TemplateId", rejects_above_the_ceiling::<TemplateId>),
+            (
+                "MulticamGroupId",
+                rejects_above_the_ceiling::<MulticamGroupId>,
+            ),
+            ("SequenceId", rejects_above_the_ceiling::<SequenceId>),
+        ];
+        let defined = include_str!("ids.rs")
+            .matches(concat!("define_", "id!(\n"))
+            .count();
+        assert_eq!(
+            checked.len(),
+            defined,
+            "an id type is missing from this list"
+        );
+        for (name, check) in checked {
+            check(name);
+        }
+    }
+
+    /// The ceiling itself is an id and the next value is not. Checked on the
+    /// bound rather than read: a read at the ceiling advances that type's
+    /// allocator past it for the rest of the test process, and every id
+    /// allocated after it would then be refused when a later test reopens
+    /// what it saved.
+    #[test]
+    fn the_ceiling_is_the_largest_id_read() {
+        assert_eq!(within_ceiling("BinId", MAX_ID), Ok(MAX_ID));
+        assert_eq!(
+            within_ceiling("BinId", MAX_ID + 1),
+            Err(format!(
+                "BinId {} is above {MAX_ID}, the largest id a project holds",
+                MAX_ID + 1
+            ))
         );
     }
 

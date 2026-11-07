@@ -25,6 +25,7 @@ mod split;
 mod template;
 mod text;
 mod transform;
+mod values;
 
 #[cfg(test)]
 mod tests;
