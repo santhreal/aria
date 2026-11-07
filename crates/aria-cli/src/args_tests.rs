@@ -672,7 +672,7 @@ fn command_line_doc_and_usage_match_cli_registries_bidirectionally() {
     // 6. `plugin new`, `plugin dev`, `plugin check`, and `plugin pack` specifics.
     let p_new_sec = doc_subsection(plugin_sec, "plugin new");
     let (_, after_tier) = p_new_sec
-        .split_once("| Execution tier: ")
+        .split_once("| Execution tier (`NewTier::ALL` in `crates/aria-cli/src/plugin/new.rs`): ")
         .expect("`--tier` row in `plugin new` table");
     let (tier_cell, _) = after_tier
         .split_once(" |")

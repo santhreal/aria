@@ -1408,7 +1408,7 @@ Notes for the latest release. For previous releases, see the
 - `aria inspect --clips` prints each clip's source window as the source times it plays from and to instead of raw ticks in the source's own rate.
 - The animation catalog states that `ARIA_MOTION_SCALE` replaces the saved speed at startup and is clamped to `0.01` through `100`.
 - `aria new` help and the command-line page state that each file starts at the latest clip end on the lanes it lands on, not after the previous file.
-- `aria export` refuses a `--at`/`--to` span inside one frame with the instants as typed and the length of one frame, instead of two equal rounded times.
+- `aria export` rejects a `--at`/`--to` span inside one frame with the instants as typed and the length of one frame, instead of two equal rounded times.
 - A template file that is missing, unreadable, not a template, newer than this build, or damaged is refused with its path and the `.ariat` fix instead of as a damaged `.aria` project.
 - A template whose project breaks a layout or reference rule a project file is checked against is refused on load instead of applied.
 - `aria new`, `frame`, `export` and `demo` refuse an output that is a directory or a symbolic link as a usage error (exit code `2`) before reading an input, instead of an i/o error with exit code `1`.
@@ -1416,7 +1416,7 @@ Notes for the latest release. For previous releases, see the
 - Writing, opening or installing a `.ariab` template bundle that fails states the bundle, the obstacle and the fix instead of reporting a damaged `.aria` project.
 - Installing a template bundle with an entry outside its layout writes no file; the entries before that one were extracted.
 - `aria plugin` commands state a failed read or write as the path and the reason, such as "permission denied", without the OS error code.
-- `aria plugin pack --out` refuses a name that does not end in `.ariaplugin`, a directory, and a symbolic link with exit code 2 before the build, instead of writing the archive over a package file such as `plugin.toml`.
+- `aria plugin pack --out` rejects a name that does not end in `.ariaplugin`, a directory, and a symbolic link with exit code 2 before the build, instead of writing the archive over a package file such as `plugin.toml`.
 - Installing, checking and packing a plugin state a failed read or write by its path and reason, and a plugin folder that cannot be written by that folder, instead of a hidden lock file and the OS error code.
 - The features page no longer lists object detection, which the build does not have.
 - A failed save states the reason without the OS error code, and Save a Copy no longer suggests choosing another folder for a failure a folder does not cause.
