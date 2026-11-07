@@ -25,12 +25,25 @@ fn press(visual: &mut VisualTestContext, keys: &str) {
     visual.run_until_parked();
 }
 
-#[gpui::test]
-fn the_palette_chord_over_an_open_drop_closes_it_and_takes_the_query(cx: &mut TestAppContext) {
-    let (state, visual) = drawn_shell(cx, "menu-dialog-palette");
+/// Opens each of `menus`, bare and with each flyout out, then sends the
+/// palette chord and a query. The menus are split in two halves, one test
+/// each, so the halves run side by side; together they are [`AppMenu::ALL`].
+fn chord_over_each_drop(cx: &mut TestAppContext, tag: &str, menus: &[AppMenu]) {
+    let (state, visual) = drawn_shell(cx, tag);
     visual.update(|_, app| app.set_reduce_motion(true));
-    let mut flyouts_opened = 0;
-    for menu in AppMenu::ALL {
+    let flyouts: usize = visual.read(|app| {
+        AppMenu::ALL
+            .iter()
+            .map(|&menu| {
+                drop_entries(&state.read(app).menu_rows(menu))
+                    .iter()
+                    .filter(|entry| matches!(entry, DropEntry::Sub { .. }))
+                    .count()
+            })
+            .sum()
+    });
+    assert!(flyouts > 0, "no menu of the bar has a flyout");
+    for &menu in menus {
         let subs: Vec<usize> = visual.read(|app| {
             drop_entries(&state.read(app).menu_rows(menu))
                 .iter()
@@ -39,7 +52,6 @@ fn the_palette_chord_over_an_open_drop_closes_it_and_takes_the_query(cx: &mut Te
                 .map(|(at, _)| at)
                 .collect()
         });
-        flyouts_opened += subs.len();
         for flyout in std::iter::once(None).chain(subs.into_iter().map(Some)) {
             let case = format!("{} with flyout {flyout:?}", menu.label());
             visual.update(|_, app| {
@@ -74,7 +86,18 @@ fn the_palette_chord_over_an_open_drop_closes_it_and_takes_the_query(cx: &mut Te
             );
         }
     }
-    assert!(flyouts_opened > 0, "no menu of the bar has a flyout");
+}
+
+#[gpui::test]
+fn the_palette_chord_over_an_open_drop_closes_it_and_takes_the_query(cx: &mut TestAppContext) {
+    let (first, _) = AppMenu::ALL.split_at(AppMenu::ALL.len() / 2);
+    chord_over_each_drop(cx, "menu-dialog-palette", first);
+}
+
+#[gpui::test]
+fn the_palette_chord_over_a_later_open_drop_closes_it_and_takes_the_query(cx: &mut TestAppContext) {
+    let (_, later) = AppMenu::ALL.split_at(AppMenu::ALL.len() / 2);
+    chord_over_each_drop(cx, "menu-dialog-palette-later", later);
 }
 
 /// Every dialog kind. The match has no wildcard, so a new kind fails to

@@ -114,31 +114,45 @@ fn a_press_on_a_submenu_entry_opens_its_flyout_and_keeps_the_drop(cx: &mut gpui:
     assert!(pressed > 0, "no menu draws a submenu");
 }
 
-#[gpui::test]
-fn a_press_on_a_disabled_row_states_why_and_keeps_the_drop(cx: &mut gpui::TestAppContext) {
-    let (state, visual) = drawn_shell(cx, "menu-press-disabled");
-    visual.update(|_, app| app.set_reduce_motion(true));
-    let mut pressed = 0;
-    for menu in AppMenu::ALL {
-        // Every disabled row, with the submenu entry it sits under.
-        let blocked: Vec<(Option<usize>, &'static str, &'static str)> = visual.read(|app| {
-            let state = state.read(app);
-            let items = state.menu_rows(menu);
-            let mut blocked = Vec::new();
-            for (at, entry) in drop_entries(&items).iter().enumerate() {
-                let (flyout, rows) = match entry {
-                    DropEntry::Row(row) => (None, std::slice::from_ref(row)),
-                    DropEntry::Sub { rows, .. } => (Some(at), rows.as_slice()),
-                };
-                for row in rows {
-                    let item = &items[*row];
-                    if let Some(reason) = item.blocked_by(state) {
-                        blocked.push((flyout, item.id, reason));
-                    }
-                }
+/// Every disabled row of `menu`, with the submenu entry it sits under and the
+/// reason it is disabled.
+fn blocked_rows(
+    state: &AppState,
+    menu: AppMenu,
+) -> Vec<(Option<usize>, &'static str, &'static str)> {
+    let items = state.menu_rows(menu);
+    let mut blocked = Vec::new();
+    for (at, entry) in drop_entries(&items).iter().enumerate() {
+        let (flyout, rows) = match entry {
+            DropEntry::Row(row) => (None, std::slice::from_ref(row)),
+            DropEntry::Sub { rows, .. } => (Some(at), rows.as_slice()),
+        };
+        for row in rows {
+            let item = &items[*row];
+            if let Some(reason) = item.blocked_by(state) {
+                blocked.push((flyout, item.id, reason));
             }
-            blocked
-        });
+        }
+    }
+    blocked
+}
+
+/// Presses every disabled row of `menus`, each with its drop open, and reads
+/// the reason the status line states. The menus are split in two halves, one
+/// test each, so the halves run side by side; together they are
+/// [`AppMenu::ALL`].
+fn press_disabled_rows(cx: &mut gpui::TestAppContext, tag: &str, menus: &[AppMenu]) {
+    let (state, visual) = drawn_shell(cx, tag);
+    visual.update(|_, app| app.set_reduce_motion(true));
+    let offered: usize = visual.read(|app| {
+        AppMenu::ALL
+            .iter()
+            .map(|&menu| blocked_rows(state.read(app), menu).len())
+            .sum()
+    });
+    assert!(offered > 0, "an empty project offers no disabled menu row");
+    for &menu in menus {
+        let blocked = visual.read(|app| blocked_rows(state.read(app), menu));
         for (flyout, id, reason) in blocked {
             open(visual, &state, menu, flyout);
             let at = center(visual, &format!("menu-row-{id}"));
@@ -152,10 +166,22 @@ fn a_press_on_a_disabled_row_states_why_and_keeps_the_drop(cx: &mut gpui::TestAp
                 (Some(menu), Some(reason.to_owned())),
                 "pressing the disabled {menu:?} row {id}"
             );
-            pressed += 1;
         }
     }
-    assert!(pressed > 0, "an empty project offers no disabled menu row");
+}
+
+#[gpui::test]
+fn a_press_on_a_disabled_row_states_why_and_keeps_the_drop(cx: &mut gpui::TestAppContext) {
+    let (first, _) = AppMenu::ALL.split_at(AppMenu::ALL.len() / 2);
+    press_disabled_rows(cx, "menu-press-disabled", first);
+}
+
+#[gpui::test]
+fn a_press_on_a_disabled_row_of_a_later_menu_states_why_and_keeps_the_drop(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (_, later) = AppMenu::ALL.split_at(AppMenu::ALL.len() / 2);
+    press_disabled_rows(cx, "menu-press-disabled-later", later);
 }
 
 /// Every button drawn through `display_btn`, by its element id.

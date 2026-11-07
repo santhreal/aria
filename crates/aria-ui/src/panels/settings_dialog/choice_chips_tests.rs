@@ -143,57 +143,11 @@ fn open_settings(cx: &mut TestAppContext) -> (gpui::Entity<AppState>, &mut Visua
     (state, visual)
 }
 
-#[gpui::test]
-fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAppContext) {
+/// Presses each of `choices` in Settings and reads what the press set and
+/// reported. The choices are split in two tests, AI and display, which run side
+/// by side.
+fn press_choices(cx: &mut TestAppContext, choices: Vec<Choice>) {
     let (state, visual) = open_settings(cx);
-
-    let mut choices = Vec::new();
-    chip_choices(
-        &mut choices,
-        ("Source", "ai-source", "AI source"),
-        &AiSource::ALL,
-        AiSource::label,
-        |state| state.cloud_settings().ai.source,
-    );
-    chip_choices(
-        &mut choices,
-        ("Protocol", "ai-protocol", "AI protocol"),
-        &AiApiProtocol::ALL,
-        AiApiProtocol::label,
-        |state| state.cloud_settings().ai.api_protocol,
-    );
-    chip_choices(
-        &mut choices,
-        ("Reasoning", "ai-reasoning", "AI reasoning"),
-        &ReasoningSummary::ALL,
-        ReasoningSummary::label,
-        |state| state.cloud_settings().ai.reasoning_summary,
-    );
-    chip_choices(
-        &mut choices,
-        ("Autonomy", "ai-autonomy", "AI autonomy"),
-        &Autonomy::ALL,
-        Autonomy::label,
-        |state| state.cloud_settings().ai.autonomy,
-    );
-    chip_choices(
-        &mut choices,
-        ("Zoom bar knobs", "settings-zoom-knobs", "Zoom bar knobs"),
-        &ZoomBarKnobs::ALL,
-        ZoomBarKnobs::label,
-        |state| state.ui_settings.zoom_bar_knobs,
-    );
-    for &accent in ThemeChoice::ALL.iter().rev() {
-        let shown = accent.label().to_owned();
-        choices.push(Choice {
-            row: None,
-            status: format!("Accent: {shown}"),
-            shown,
-            chip: None,
-            holds: Box::new(move |state| state.theme_choice() == accent),
-        });
-    }
-
     let mut faults = Vec::new();
     for choice in &choices {
         if choice.chip.is_some() && !sentence_case(&choice.shown) {
@@ -241,6 +195,63 @@ fn every_settings_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAp
         "Settings choice faults:\n  {}",
         faults.join("\n  ")
     );
+}
+
+#[gpui::test]
+fn every_ai_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAppContext) {
+    let mut choices = Vec::new();
+    chip_choices(
+        &mut choices,
+        ("Source", "ai-source", "AI source"),
+        &AiSource::ALL,
+        AiSource::label,
+        |state| state.cloud_settings().ai.source,
+    );
+    chip_choices(
+        &mut choices,
+        ("Protocol", "ai-protocol", "AI protocol"),
+        &AiApiProtocol::ALL,
+        AiApiProtocol::label,
+        |state| state.cloud_settings().ai.api_protocol,
+    );
+    chip_choices(
+        &mut choices,
+        ("Reasoning", "ai-reasoning", "AI reasoning"),
+        &ReasoningSummary::ALL,
+        ReasoningSummary::label,
+        |state| state.cloud_settings().ai.reasoning_summary,
+    );
+    chip_choices(
+        &mut choices,
+        ("Autonomy", "ai-autonomy", "AI autonomy"),
+        &Autonomy::ALL,
+        Autonomy::label,
+        |state| state.cloud_settings().ai.autonomy,
+    );
+    press_choices(cx, choices);
+}
+
+#[gpui::test]
+fn every_display_choice_is_a_chip_that_sets_the_choice_it_names(cx: &mut TestAppContext) {
+    let mut choices = Vec::new();
+    chip_choices(
+        &mut choices,
+        ("Zoom bar knobs", "settings-zoom-knobs", "Zoom bar knobs"),
+        &ZoomBarKnobs::ALL,
+        ZoomBarKnobs::label,
+        |state| state.ui_settings.zoom_bar_knobs,
+    );
+    for &accent in ThemeChoice::ALL.iter().rev() {
+        let shown = accent.label().to_owned();
+        choices.push(Choice {
+            row: None,
+            status: format!("Accent: {shown}"),
+            shown,
+            chip: None,
+            holds: Box::new(move |state| state.theme_choice() == accent),
+        });
+    }
+    press_choices(cx, choices);
 }
 
 #[gpui::test]

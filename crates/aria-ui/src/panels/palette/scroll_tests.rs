@@ -95,16 +95,22 @@ fn expect_shown(
     );
 }
 
+/// Down to the last row, then once more wraps to the first.
 #[gpui::test]
-fn every_row_the_arrow_keys_reach_is_shown(cx: &mut TestAppContext) {
-    let (state, visual) = open_palette(cx, "palette-walk");
+fn every_row_the_down_key_reaches_is_shown(cx: &mut TestAppContext) {
+    let (state, visual) = open_palette(cx, "palette-walk-down");
     let count = hit_count(&state, visual);
-    // Down to the last row, then once more wraps to the first.
     for step in 1..=count {
         press(visual, "down");
         expect_shown(&state, visual, step % count, &format!("Down #{step}"));
     }
-    // Up from the first row wraps to the last, then walks back to the first.
+}
+
+/// Up from the first row wraps to the last, then walks back to the first.
+#[gpui::test]
+fn every_row_the_up_key_reaches_is_shown(cx: &mut TestAppContext) {
+    let (state, visual) = open_palette(cx, "palette-walk-up");
+    let count = hit_count(&state, visual);
     for step in 1..=count {
         press(visual, "up");
         expect_shown(&state, visual, count - step, &format!("Up #{step}"));
