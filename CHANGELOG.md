@@ -1376,6 +1376,7 @@ Notes for the latest release. For previous releases, see the
 - **Export Timeline** proposes the name of the saved project file instead of `untitled`.
 - On Linux, reading the sound of a file with no audio track, such as `aria analyze` on a video-only clip, fails with "source has no audio track" instead of a GStreamer stream error and an instruction to install plugins.
 - `aria new`, `frame`, `demo` and `export` reject an output whose extension is not the format they write, instead of writing MP4 into `out.webm` or a PNG into `still.jpg`.
+- `aria new` names the media file that failed to import.
 
 ## [alpha-0.7.0] - 2026-07-22
 

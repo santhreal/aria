@@ -77,7 +77,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
             .apply(Command::Project(ProjectCommand::Import {
                 path: path.clone(),
             }))
-            .map_err(|err| err.to_string())?
+            .map_err(|err| format!("{}: {err}", path.display()))?
         else {
             return Err(Failure::Failed(format!(
                 "{}: the engine did not report an import",
@@ -384,5 +384,36 @@ mod tests {
             !dir.path().join("missing").exists(),
             "the link was followed"
         );
+    }
+
+    /// WHY: a file among several that failed to import printed the decoder's
+    /// reason alone, "decode failed: GStreamer: Could not determine type of
+    /// stream", with no word of which file it was. The failure names the file,
+    /// wherever in the list it is, and no project is written.
+    #[test]
+    fn a_file_that_does_not_import_is_named_in_the_failure() {
+        let shot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let junk = dir.path().join("junk.mp4");
+        std::fs::write(&junk, b"not a video").expect("write the junk file");
+        let out = dir.path().join("cut.aria");
+        let args = Args::parse([
+            "new",
+            out.to_str().expect("utf-8 path"),
+            shot.to_str().expect("utf-8 path"),
+            junk.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse");
+        let err = run(&args).expect_err("a file that is not media imported");
+        let named = format!("{}: ", junk.canonicalize().expect("junk exists").display());
+        assert!(
+            err.message().starts_with(&named),
+            "the failure does not name {}: {}",
+            junk.display(),
+            err.message()
+        );
+        assert_eq!(err.code(), 1);
+        assert!(!out.exists(), "a project was written");
     }
 }
