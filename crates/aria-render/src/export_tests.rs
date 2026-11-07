@@ -636,6 +636,49 @@ fn every_file_publisher_refuses_a_missing_source_before_it_opens_anything() {
     assert!(!out.exists(), "the video export wrote a file");
 }
 
+/// WHY: `aria export p.aria out.mp4 --size 99999x99999` opened the encoder
+/// before anything rendered, and GStreamer, with no NV12 layout for the frame,
+/// failed it with "encode error: unsupported: GStreamer has no NV12 layout for
+/// a 99998x99998 frame". The export checks the size against the device before
+/// the staging file or the encoder opens, for a side past the largest texture
+/// on either axis. Not caught: a size the device renders and no encoder takes.
+#[test]
+fn a_size_past_the_device_is_refused_before_the_encoder_opens() {
+    let Ok(mut renderer) = crate::Renderer::new_headless() else {
+        return;
+    };
+    let gpu = renderer.gpu().expect("a headless renderer has its device");
+    let past = gpu.device.limits().max_texture_dimension_2d + 2;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let out = dir.path().join("out.mp4");
+    let project = one_second();
+    for size in [(past, 16), (16, past), (99_998, 99_998)] {
+        let mut settings = ranged(&project, 0, 2);
+        settings.size = size;
+        let result = export_to_file_with_encoder_observed(
+            &mut renderer,
+            &project,
+            &out,
+            settings,
+            &mut |_, _| panic!("the export opened an encoder for {size:?}"),
+            &mut |_, _| true,
+        );
+        assert!(
+            matches!(
+                &result,
+                Err(RenderError::Compositor(
+                    aria_compositor::CompositorError::CanvasTooLarge { width, height, .. }
+                )) if (*width, *height) == size
+            ),
+            "{size:?}: {result:?}"
+        );
+        let left = std::fs::read_dir(dir.path())
+            .expect("list the tempdir")
+            .count();
+        assert_eq!(left, 0, "{size:?} left a file beside the destination");
+    }
+}
+
 /// WHY: an encoder can change while it encodes. The GStreamer encoder reopens
 /// on the next candidate when a hardware encoder opens and then rejects the
 /// first frame, and the export read the encoder's choice before the first

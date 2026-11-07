@@ -178,6 +178,14 @@ impl Renderer {
         result
     }
 
+    /// Fails unless this renderer's device renders a `width`×`height` canvas,
+    /// bringing a deferred device up first. An export checks before it opens
+    /// an encoder for frames of that size.
+    pub(crate) fn check_canvas(&mut self, (width, height): (u32, u32)) -> Result<(), RenderError> {
+        let (gpu, _) = self.device.ready()?;
+        Ok(aria_compositor::check_canvas(gpu, width, height)?)
+    }
+
     /// Attach or detach the content-addressed [`RenderFiles`] store consulted by
     /// preview frame entry points.
     pub fn set_render_files(&mut self, files: Option<Arc<RenderFiles>>) {

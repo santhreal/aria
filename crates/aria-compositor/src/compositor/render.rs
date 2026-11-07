@@ -305,7 +305,7 @@ impl Compositor {
             .as_ref()
             .is_some_and(|pool| pool.width == config.width && pool.height == config.height)
         {
-            canvas_fits(&gpu.device.limits(), config.width, config.height)?;
+            check_canvas(gpu, config.width, config.height)?;
         }
 
         let device = &gpu.device;
@@ -398,6 +398,13 @@ impl Compositor {
 
         Ok(encoder)
     }
+}
+
+/// Fails unless `gpu` renders a `width`×`height` canvas, as the first frame at
+/// that size checks: [`CompositorError::CanvasTooLarge`] states both limits. A
+/// caller that opens an encoder for the frames checks first.
+pub fn check_canvas(gpu: &GpuContext, width: u32, height: u32) -> Result<(), CompositorError> {
+    canvas_fits(&gpu.device.limits(), width, height)
 }
 
 /// Fails unless a `width`×`height` canvas fits `limits`: each side within the

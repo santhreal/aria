@@ -125,7 +125,7 @@ aria export <project.aria> <out.mp4> [--at SECONDS] [--to SECONDS]
 | --- | --- | --- |
 | `--at <SECONDS>` | `0` | Start of the exported half-open timeline span in seconds |
 | `--to <SECONDS>` | project duration | End of the exported half-open timeline span in seconds; a value past the end of the timeline ends the span there |
-| `--size <WxH>` | project canvas | Output dimensions (`WIDTHxHEIGHT`), each at least `16` and rounded down to even |
+| `--size <WxH>` | project canvas | Output dimensions (`WIDTHxHEIGHT`), each at least `16` and rounded down to even; a size larger than the GPU renders is rejected before encoding starts, with the GPU's limits (exit code `1`) |
 | `--fps <N>` | project rate | Output frame rate: a whole number from `1` to `1000`, or `23.976` or `29.97`, which are the exact rates `aria new` sets for them |
 | `--codec <CODEC>` | `h264` | Video codec: `h264` or `h265` |
 | `--bitrate <KBPS>` | encoder default | Target video bitrate in kilobits per second |

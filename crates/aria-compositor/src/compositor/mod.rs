@@ -51,6 +51,7 @@ use lru::FrameLru;
 pub use readback::PendingReadback;
 use readback::ReadbackPool;
 pub(crate) use readback::map_read;
+pub use render::check_canvas;
 pub use upload::TexturePoolStats;
 use upload::{PlaneTexturePool, RgbaTextureCache};
 

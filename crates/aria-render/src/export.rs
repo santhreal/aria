@@ -448,6 +448,10 @@ pub fn export_to_file_with_encoder_observed(
     let settings = settings.evened();
     export_frame_count(project, settings)?;
     check_export_media(project, settings, true)?;
+    // A size the device cannot render is refused before the staging file and
+    // the encoder open: past GStreamer's frame layouts the encoder failed
+    // first, with GStreamer's text.
+    renderer.check_canvas(settings.size)?;
     let staging = TransactionalFile::new(path)?;
     let config = export_config_with(project, settings);
     let audio = config.audio.is_some();

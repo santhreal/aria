@@ -55,8 +55,8 @@ mod vulkan_import;
 pub use aria_core::RgbaImage;
 pub use aria_shapes::{SdfParams, SdfShape, Stroke};
 pub use compositor::{
-    Compositor, FrameSink, ImageSink, PendingReadback, TexturePoolStats, check_frame_target,
-    create_frame_target, identity_instances,
+    Compositor, FrameSink, ImageSink, PendingReadback, TexturePoolStats, check_canvas,
+    check_frame_target, create_frame_target, identity_instances,
 };
 pub use cpu_effect::{
     CpuEffect, CpuEffectDefinition, CpuFrameIn, CpuFrameOut, EffectCostSink, EffectFault,
