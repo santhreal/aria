@@ -94,7 +94,7 @@ mod tests {
     /// WHY: `aria frame cut.aria --at 99` on a 3 s cut wrote a black PNG and
     /// exited 0, and a frame of an empty timeline did the same, so a script
     /// could not tell a rendered picture from no picture. An instant at or past
-    /// the last frame is a usage error (exit 2) with the same words `export`
+    /// the end of the span is a usage error (exit 2) with the same words `export`
     /// prints, an empty timeline is a failure (exit 1) naming the reason, and
     /// neither writes the PNG. Both refusals come before a renderer opens, so
     /// this runs without a GPU. Not caught: a picture that is wrong inside the
@@ -113,20 +113,15 @@ mod tests {
         assert_eq!(err.code(), 1);
         assert!(!png.exists(), "an empty timeline wrote {}", png.display());
 
-        // 3 s of picture on a 24 fps timeline: ticks 0..72. 2.98 s rounds to
-        // tick 72, the first instant with no frame.
+        // 3 s of picture on a 24 fps timeline: ticks 0..72.
         let cut = new_project(dir.path(), "cut.aria", &["fixture-640x360-30fps-3s.mp4"]);
-        for (at, shown) in [
-            ("99", "0:01:39.000"),
-            ("3", "0:00:03.000"),
-            ("2.98", "0:00:03.000"),
-        ] {
+        for at in ["99", "3", "1e300"] {
             let err = frame(&cut, &png, Some(at)).expect_err("an instant past the end rendered");
             assert_eq!(
                 err,
-                Failure::Usage(format!(
-                    "--at ({shown}) must be before project duration (0:00:03.000)"
-                )),
+                Failure::Usage(
+                    "--at must be before the end of the project (0:00:03.000)".to_owned()
+                ),
                 "--at {at}"
             );
             assert_eq!(err.code(), 2, "--at {at}");
@@ -199,24 +194,37 @@ mod tests {
         }
     }
 
-    /// The last frame of a span is an instant `frame` renders and the next one
-    /// is not, on every rate `aria new` offers. A check written in seconds
-    /// rather than ticks drifts on the 1001 rates.
+    /// The last frame of a span is an instant `frame` renders and the end is
+    /// not, on every rate `aria new` offers and every span up to 200 frames,
+    /// and an instant in the last half frame, which rounds to the end, lands on
+    /// the last frame. The end read back from seconds falls a hair short of its
+    /// tick on several of these spans, so a check without slack accepts it. The
+    /// last half frame was once refused as "--at (0:00:03.000) must be before
+    /// project duration (0:00:03.000)" for `--at 2.98` on a 3 s span.
     #[test]
-    fn the_last_frame_is_inside_the_span_and_the_next_is_past_it_at_every_rate() {
+    fn the_last_frame_is_inside_the_span_and_the_end_is_past_it_at_every_rate() {
         for (key, rate) in crate::new::RATES {
-            let duration = RationalTime::new(10, rate);
-            let last = RationalTime::new(9, rate).seconds();
-            let past = duration.seconds();
-            assert_eq!(
-                project::instant_before_end(last, duration, rate).map(|t| t.value),
-                Ok(9),
-                "{key} fps"
-            );
-            assert!(
-                project::instant_before_end(past, duration, rate).is_err(),
-                "{key} fps accepted the instant after the last frame"
-            );
+            let tick = 1.0 / rate.as_f64();
+            for frames in 2..=200 {
+                let duration = RationalTime::new(frames, rate);
+                let last = frames - 1;
+                let start = RationalTime::new(last, rate).seconds();
+                for (into, lands) in [(0.0, last), (0.49, last), (0.75, last), (0.999, last)]
+                    .into_iter()
+                    .chain([(-0.75, last - 1)])
+                {
+                    assert_eq!(
+                        project::instant_before_end(start + into * tick, duration, rate)
+                            .map(|t| t.value),
+                        Ok(lands),
+                        "{key} fps, {frames} frames, {into} of a frame into the last"
+                    );
+                }
+                assert!(
+                    project::instant_before_end(duration.seconds(), duration, rate).is_err(),
+                    "{key} fps accepted the end of a {frames}-frame span"
+                );
+            }
         }
     }
 

@@ -77,7 +77,7 @@ aria frame <project.aria> [out.png] [--at SECONDS] [--fit WxH]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--at <SECONDS>` | `0` | Timeline position in seconds, rounded to the nearest frame at the project rate |
+| `--at <SECONDS>` | `0` | Timeline position in seconds, rounded to the nearest frame at the project rate; a position in the last half frame takes the last frame |
 | `--fit <WxH>` | canvas size | Bounding box (`WIDTHxHEIGHT`) that scales the canvas down to fit and never enlarges it |
 
 Render one timeline instant to an 8-bit straight-alpha RGBA PNG. When `[out.png]`

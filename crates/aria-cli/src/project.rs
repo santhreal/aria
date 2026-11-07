@@ -41,23 +41,27 @@ pub(crate) fn time_for_seconds(seconds: f64, rate: Rational) -> RationalTime {
     RationalTime::new(tick_for_seconds(seconds.max(0.0), rate), rate)
 }
 
-/// The `--at` instant on `rate`, refused unless it lands on a frame before
-/// `duration`. `frame` and `export` share it, so an instant past the last
-/// frame is a usage error on both verbs rather than a black frame on one.
+/// The `--at` instant on `rate`, refused unless it lies before `duration`.
+/// `frame` and `export` share it, so an instant past the last frame is a usage
+/// error on both verbs rather than a black frame on one. An instant in the
+/// last half frame rounds to the end, which has no frame, so it lands on the
+/// last frame, the one on screen at that instant.
 pub(crate) fn instant_before_end(
     seconds: f64,
     duration: RationalTime,
     rate: Rational,
 ) -> Result<RationalTime, String> {
-    let at = time_for_seconds(seconds, rate);
-    if at.value >= duration.value {
+    // Compared in ticks with a millionth of a tick of slack, so the end read
+    // back from seconds on a 1001 rate is still the end.
+    let ticks = seconds * f64::from(rate.num) / f64::from(rate.den);
+    if ticks + 1e-6 >= duration.value as f64 {
         return Err(format!(
-            "--at ({}) must be before project duration ({})",
-            clock(at.seconds()),
+            "--at must be before the end of the project ({})",
             clock(duration.seconds())
         ));
     }
-    Ok(at)
+    let at = time_for_seconds(seconds, rate);
+    Ok(RationalTime::new(at.value.min(duration.value - 1), rate))
 }
 
 /// `seconds` formatted as `H:MM:SS.mmm`.

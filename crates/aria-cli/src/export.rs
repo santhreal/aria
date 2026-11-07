@@ -193,9 +193,16 @@ mod tests {
             )))
         );
 
-        // at >= duration
+        // at >= duration, and an instant in the last half frame
         let err = resolve_export_range(Some(10.0), None, duration, rate).unwrap_err();
-        assert!(err.contains("must be before project duration"), "{err}");
+        assert_eq!(
+            err,
+            "--at must be before the end of the project (0:00:10.000)"
+        );
+        assert_eq!(
+            resolve_export_range(Some(9.99), None, duration, rate),
+            Ok(Some((aria_core::RationalTime::new(239, rate), duration)))
+        );
 
         // at >= to
         let err = resolve_export_range(Some(6.0), Some(4.0), duration, rate).unwrap_err();
