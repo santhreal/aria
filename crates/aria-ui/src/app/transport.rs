@@ -587,8 +587,8 @@ impl AppState {
         let scopes = self.adopt_scopes(self.preview_worker.take_measured());
         let probed = self.adopt_probe(self.preview_worker.take_probed());
         let failed = match self.preview_worker.take_failure() {
-            Some(reason) => {
-                self.report_error(reason);
+            Some(err) => {
+                self.report_error(&err);
                 true
             }
             None => false,

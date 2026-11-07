@@ -481,6 +481,41 @@ async fn a_viewer_frame_over_a_missing_file_shows_the_offline_slate(cx: &mut gpu
     );
 }
 
+/// WHY: a render-ahead frame that failed during playback put the render
+/// error's own text ("decode error: …") on the error line, while the same
+/// failure on a paused Viewer frame read as the editor's copy for it. Both
+/// reach the error line through `describe_engine_error`. Not covered: the
+/// wording of that copy, which `error_copy_tests` owns.
+#[gpui::test]
+async fn a_failed_render_ahead_frame_reads_as_a_failed_viewer_frame(cx: &mut gpui::TestAppContext) {
+    let executor = cx.executor();
+    executor.allow_parking();
+    let broken = crate::scratch_pool::scratch("ahead-failure").join("broken.png");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/texture.png");
+    std::fs::copy(fixture, &broken).expect("copy the fixture");
+    let (mut state, _) = crate::app::premiere_tests::with_media(broken.clone());
+    std::fs::write(&broken, b"not a png").expect("break the file");
+    let at = RationalTime::new(3, state.playhead.rate);
+    let viewer = state
+        .preview_worker
+        .frame(&executor, at, None, Cancel::never())
+        .await;
+    let Some(Err(viewer)) = viewer else {
+        panic!("a Viewer frame over a broken file rendered: {viewer:?}");
+    };
+
+    state.playing = true;
+    state.arm_presenting();
+    assert_eq!(state.preview_worker.run(&executor, || ()).await, Some(()));
+    state.take_preview_mail();
+    assert_eq!(
+        state.last_error,
+        Some(crate::app::describe_engine_error(&viewer)),
+        "the render-ahead failure read differently from the Viewer frame's ({viewer})"
+    );
+}
+
 /// Starting a run renders the next [`RENDER_AHEAD`] slots; a clear empties the
 /// cache at once; an edit renders them again from the new project.
 ///

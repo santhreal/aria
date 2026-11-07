@@ -161,8 +161,9 @@ impl Plan {
 struct Mailbox {
     /// Scopes measured for the frame on screen when the strip opened.
     measured: Option<ScopeTextures>,
-    /// Why a render-ahead frame failed, reported once per failure.
-    failed: Option<String>,
+    /// The error a render-ahead frame failed with, reported once per failure
+    /// through the same copy a Viewer frame's failure reads as.
+    failed: Option<EngineError>,
     /// The colour read under the pointer for the Info panel.
     probed: Option<Probed>,
 }
@@ -464,8 +465,8 @@ impl PreviewWorker {
         self.shared.mailbox.lock().measured.take()
     }
 
-    /// Why the most recent failed render-ahead frame failed, once.
-    pub fn take_failure(&self) -> Option<String> {
+    /// The error the most recent failed render-ahead frame failed with, once.
+    pub fn take_failure(&self) -> Option<EngineError> {
         self.shared.mailbox.lock().failed.take()
     }
 
@@ -693,7 +694,7 @@ fn ahead(
         Some(Err(err)) if err.is_cancelled() => true,
         Some(Err(err)) => {
             failed.push(tick);
-            shared.mailbox.lock().failed = Some(err.to_string());
+            shared.mailbox.lock().failed = Some(err);
             shared.wake.wake(());
             true
         }
