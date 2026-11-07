@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{ModelError, ProjectLoadError};
+use crate::error::{ModelError, ProjectLoadError, unwritable_directory};
 use crate::project::Project;
 use crate::schema::{PROJECT_SCHEMA_VERSION, ProjectSchema};
 
@@ -494,9 +494,9 @@ fn create_unique_temp(destination: &Path, fs: &impl PersistenceFs) -> io::Result
             Ok(file) => return Ok((candidate, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => {
-                return Err(contextual_error(
-                    "could not create a temporary project file",
-                    error,
+                return Err(unwritable_directory(
+                    destination_parent(destination)?,
+                    &error,
                 ));
             }
         }

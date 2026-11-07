@@ -50,7 +50,9 @@ Each command that writes a file writes one format: `new` a `.aria` project,
 name ends in another extension, or in none, is a usage error, and the
 message states the name to use instead. An output that is a directory or a
 symbolic link, and an output in a directory that does not exist, are usage
-errors as well, raised before the command reads an input.
+errors as well, raised before the command reads an input. An output in a
+directory that cannot be written exits `1`, and the message states the
+directory and the reason.
 
 Progress goes to stderr and results go to stdout, so
 `aria inspect project.aria > facts.txt` captures the output alone. A reader

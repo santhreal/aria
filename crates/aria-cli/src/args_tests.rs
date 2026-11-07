@@ -931,7 +931,8 @@ fn a_verb_refuses_an_output_named_for_another_format() {
 /// output that is not a file, or whose directory is missing or is a file, and
 /// accepts a file, a new name in a directory that exists, or a bare name.
 ///
-/// Not caught: a directory that exists but cannot be written.
+/// Not caught: a directory that exists but cannot be written; the write
+/// states that directory.
 #[test]
 fn a_verb_refuses_an_output_it_cannot_write_as_a_file() {
     let dir = tempfile::tempdir().expect("tempdir");

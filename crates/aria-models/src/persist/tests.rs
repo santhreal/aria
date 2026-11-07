@@ -20,6 +20,7 @@ struct FaultFs {
     fail_flush: bool,
     fail_permissions: bool,
     fail_sync: bool,
+    deny_create_new: bool,
     failed_renames: Vec<usize>,
     failed_remove_files: Vec<usize>,
 }
@@ -49,6 +50,9 @@ impl PersistenceFs for FaultFs {
                 io::ErrorKind::AlreadyExists,
                 "injected temporary-path collision",
             ));
+        }
+        if self.deny_create_new {
+            return Err(io::Error::from(io::ErrorKind::PermissionDenied));
         }
         open_new_temp(path)
     }
@@ -504,6 +508,41 @@ fn unique_path_allocation_is_bounded_under_collisions() {
     assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
     assert_eq!(backup_fs.create_dir_calls.get(), UNIQUE_PATH_ATTEMPTS);
     assert_no_transaction_artifacts(dir.path());
+}
+
+/// WHY: `aria new` into a folder that cannot be written failed as "could not
+/// create a temporary project file: Permission denied (os error 13)", naming
+/// a file nobody asked for and no folder. A refused temporary file, for a new
+/// project or a replaced one, states the folder, keeps the kind, leaves the
+/// old file as it was and leaves nothing behind.
+#[test]
+fn a_folder_that_refuses_a_write_is_stated_by_path() {
+    for existing in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cut.aria");
+        if existing {
+            std::fs::write(&path, b"old project").unwrap();
+        }
+        let fs = FaultFs {
+            deny_create_new: true,
+            ..FaultFs::default()
+        };
+        let error = persist_serialized(&path, b"new project", &fs).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "cannot write in \"{}\": permission denied",
+                dir.path().display()
+            ),
+            "existing {existing}"
+        );
+        assert_eq!(
+            std::fs::read(&path).ok(),
+            existing.then(|| b"old project".to_vec())
+        );
+        assert_no_transaction_artifacts(dir.path());
+    }
 }
 
 #[cfg(unix)]

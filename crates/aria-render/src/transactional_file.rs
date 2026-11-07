@@ -65,7 +65,7 @@ impl TransactionalFile {
             match fs::create_dir(&staging_directory) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(error),
+                Err(error) => return Err(aria_models::unwritable_directory(&parent, &error)),
             }
 
             let staging_file = staging_directory.join(&staging_file_name);
@@ -91,7 +91,7 @@ impl TransactionalFile {
                 }
                 Err(error) => {
                     drop(guard);
-                    return Err(error);
+                    return Err(aria_models::unwritable_directory(&parent, &error));
                 }
             }
         }
@@ -477,6 +477,38 @@ mod tests {
 
         assert!(!destination.exists());
         assert_no_staging_directories(root.path());
+    }
+
+    /// WHY: `aria frame` and `aria export` into a folder that cannot be
+    /// written failed as "i/o error: Permission denied (os error 13)", naming
+    /// no path. The staging allocation states the folder and the reason and
+    /// keeps the kind. Not caught when the test runs with the right to write
+    /// anywhere (as root), which the probe write detects.
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_that_cannot_be_written_is_stated_by_path() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().expect("tempdir");
+        let locked = root.path().join("locked");
+        fs::create_dir(&locked).expect("make a folder");
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).expect("lock");
+        let writable = fs::write(locked.join("probe"), b"").is_ok();
+        let result = TransactionalFile::new(&locked.join("movie.mp4"));
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("unlock");
+        if writable {
+            return;
+        }
+        let error = result.expect_err("a staging folder in a locked folder");
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "cannot write in \"{}\": permission denied",
+                locked.display()
+            )
+        );
+        assert_no_staging_directories(&locked);
     }
 
     #[cfg(windows)]

@@ -684,3 +684,34 @@ fn waiting_status_persists_until_answered_and_missing_backend_posts_named_error(
         Some("No file picker is available. Install xdg-desktop-portal or zenity.")
     );
 }
+
+/// WHY: Save As into a folder that cannot be written posted "Couldn't read or
+/// write that file. Check the path and that the disk is not full.", naming no
+/// folder and blaming the disk. The refusal states the folder and the reason,
+/// and the project keeps no path. Not caught when the test runs with the right
+/// to write anywhere (as root), which the probe write detects.
+#[cfg(unix)]
+#[test]
+fn saving_into_a_folder_that_cannot_be_written_states_the_folder() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let locked = scratch("locked");
+    std::fs::create_dir(&locked).expect("make a folder");
+    let mode = |bits| std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(bits));
+    mode(0o555).expect("lock");
+    let writable = std::fs::write(locked.join("probe"), b"").is_ok();
+    let (mut state, _) = with_clip();
+    state.supply_pick(Answer::file(&locked.join("cut.aria")));
+    state.save_or_pick();
+    mode(0o755).expect("unlock");
+    if writable {
+        return;
+    }
+    let copy = format!(
+        "Couldn't read or write that file (cannot write in \"{}\": permission denied). Check \
+         the path, its permissions and the free disk space.",
+        locked.display()
+    );
+    assert_eq!(state.last_error.as_deref(), Some(copy.as_str()));
+    assert_eq!(state.project_path, None);
+}

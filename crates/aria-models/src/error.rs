@@ -11,6 +11,34 @@ use crate::schema::ProjectSchema;
 use crate::time::{Rational, TimeError};
 use crate::track::TrackKind;
 
+/// The reason an I/O error states, without the code an OS error is numbered
+/// by: "Permission denied (os error 13)" reads as "permission denied", and
+/// any other OS error as the OS states it. An error built with a message of
+/// its own reads as that message.
+pub fn io_reason(err: &io::Error) -> String {
+    if err.raw_os_error().is_none() {
+        return err.to_string();
+    }
+    if err.kind() == io::ErrorKind::PermissionDenied {
+        return "permission denied".to_owned();
+    }
+    let text = err.to_string();
+    match text.split_once(" (os error ") {
+        Some((reason, _)) => reason.to_owned(),
+        None => text,
+    }
+}
+
+/// An error writing a new file in `dir` that states the directory: creating
+/// a file reports only the OS error, so a folder that cannot be written read
+/// as "Permission denied (os error 13)" with no path. The kind is kept.
+pub fn unwritable_directory(dir: &Path, err: &io::Error) -> io::Error {
+    io::Error::new(
+        err.kind(),
+        format!("cannot write in \"{}\": {}", dir.display(), io_reason(err)),
+    )
+}
+
 /// Category of failure when loading a `.aria` project file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProjectLoadErrorKind {
@@ -77,16 +105,10 @@ impl ProjectLoadError {
                 path: path.to_path_buf(),
                 reason: "permission denied".to_owned(),
             },
-            _ => {
-                let text = err.to_string();
-                let reason = text
-                    .split_once(" (os error ")
-                    .map_or(text.as_str(), |(reason, _)| reason);
-                Self::Unreadable {
-                    path: path.to_path_buf(),
-                    reason: sanitize_load_reason(reason),
-                }
-            }
+            _ => Self::Unreadable {
+                path: path.to_path_buf(),
+                reason: sanitize_load_reason(&io_reason(err)),
+            },
         }
     }
 
@@ -821,5 +843,41 @@ mod tests {
                 reason: reason.to_owned(),
             }
         );
+    }
+
+    /// WHY: a folder that cannot be written failed `aria new`, `aria frame`,
+    /// `aria export` and a save as "Permission denied (os error 13)", naming
+    /// no path. An error writing in a directory states the directory and the
+    /// reason without its OS code, keeps its kind, and an error that already
+    /// has a message keeps the message rather than the bare kind.
+    #[test]
+    fn an_unwritable_directory_is_stated_with_its_reason() {
+        let dir = Path::new("renders/out");
+        let eio = io::Error::from_raw_os_error(5).to_string();
+        let mut cases = vec![
+            (
+                io::Error::from(io::ErrorKind::PermissionDenied),
+                "permission denied".to_owned(),
+            ),
+            (
+                io::Error::new(io::ErrorKind::PermissionDenied, "read-only share"),
+                "read-only share".to_owned(),
+            ),
+            (
+                io::Error::from_raw_os_error(5),
+                eio.split_once(" (os error ").expect("code").0.to_owned(),
+            ),
+        ];
+        #[cfg(unix)]
+        cases.push((io::Error::from_raw_os_error(13), "permission denied".into()));
+        for (err, reason) in cases {
+            assert_eq!(io_reason(&err), reason, "{err:?}");
+            let stated = unwritable_directory(dir, &err);
+            assert_eq!(stated.kind(), err.kind());
+            assert_eq!(
+                stated.to_string(),
+                format!("cannot write in \"renders/out\": {reason}")
+            );
+        }
     }
 }

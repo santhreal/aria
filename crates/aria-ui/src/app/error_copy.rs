@@ -18,9 +18,11 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
         EngineError::Decode(_) => {
             "Couldn't decode this file. Use a supported video, audio, or image format.".into()
         }
-        EngineError::Io(_) => {
-            "Couldn't read or write that file. Check the path and that the disk is not full.".into()
-        }
+        EngineError::Io(err) => format!(
+            "Couldn't read or write that file ({}). Check the path, its permissions and the free \
+             disk space.",
+            aria_models::io_reason(err)
+        ),
         EngineError::Render(_) => {
             "Couldn't render this frame. Scrub the playhead or reopen the project.".into()
         }
