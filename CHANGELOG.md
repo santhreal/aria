@@ -1402,6 +1402,7 @@ Notes for the latest release. For previous releases, see the
 - `aria frame` and `aria export` print a warning for each effect, audio effect, generator, or transition id no catalog lists, stating what renders in its place.
 - `aria <command> --help` prints the synopsis of that command and a pointer to `aria --help` instead of every command's entry.
 - A `--size` or `--fit` with a zero side, or a whole-number flag past 4294967295, is refused with that reason instead of a request for the shape it already has.
+- Opening a text file, such as a `.aria` project, as media states "Pick another file." and no longer suggests installing plugins.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -524,13 +524,16 @@ const POSTED_WAIT: Duration = Duration::from_millis(500);
 
 /// The decode error for `err`, an error GStreamer posted. GStreamer ends its
 /// own messages with a period, and the sentence after it starts its own. A
-/// resource error, such as a directory or a file that cannot be read, is not
-/// one a plugin decodes, so only the other domains suggest installing one.
+/// resource error, such as a directory or a file that cannot be read, and a
+/// file typefind reads as text are not ones a plugin decodes, so only the
+/// other errors suggest installing one.
 fn posted(err: &glib::Error) -> DecodeError {
-    let hint = if err.kind::<gst::ResourceError>().is_some() {
-        "Pick another file."
-    } else {
+    let plugin_decodes = err.kind::<gst::ResourceError>().is_none()
+        && err.kind::<gst::StreamError>() != Some(gst::StreamError::WrongType);
+    let hint = if plugin_decodes {
         "Install missing plugins or pick another file."
+    } else {
+        "Pick another file."
     };
     DecodeError::Decode(format!(
         "GStreamer: {}. {hint}",
@@ -713,8 +716,8 @@ mod tests {
 
     /// WHY: GStreamer ends its messages with a period, and the sentence
     /// appended after it doubled it: "Internal data stream error.. Install".
-    /// A directory was told to install missing plugins: a resource error
-    /// suggests another file and no plugin.
+    /// A directory and a text file, such as a `.aria` project, were told to
+    /// install missing plugins: neither suggests a plugin.
     #[test]
     fn a_posted_error_reads_as_two_sentences() {
         let cases = [
@@ -733,6 +736,13 @@ mod tests {
             (
                 glib::Error::new(gst::ResourceError::OpenRead, "Could not open file."),
                 "Could not open file. Pick another file.",
+            ),
+            (
+                glib::Error::new(
+                    gst::StreamError::WrongType,
+                    "This appears to be a text file.",
+                ),
+                "This appears to be a text file. Pick another file.",
             ),
         ];
         for (err, wording) in cases {
@@ -827,10 +837,10 @@ mod tests {
                 err.contains("GStreamer: "),
                 "the {open} open of a {input} does not state the error GStreamer posted: {err}"
             );
-            // A plugin decodes a stream it finds; none reads a directory.
-            assert_eq!(
-                err.contains("Install missing plugins"),
-                input == "text file",
+            // A plugin decodes a stream it finds; none reads a directory or
+            // a text file.
+            assert!(
+                !err.contains("Install missing plugins"),
                 "the {open} open of a {input}: {err}"
             );
         }
