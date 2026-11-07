@@ -899,3 +899,57 @@ fn a_verb_refuses_an_output_named_for_another_format() {
         );
     }
 }
+
+/// WHY: `aria frame p.aria nodir/still.png` rendered and then failed with
+/// "i/o error: No such file or directory (os error 2)", naming no path, and
+/// `aria new nodir/p.aria clip.mp4` imported every file before failing the
+/// same way. Every verb in `Verb::ALL` that writes a file refuses an output
+/// whose directory is missing or is a file, and accepts one in a directory
+/// that exists or with no directory at all.
+///
+/// Not caught: a directory that exists but cannot be written; the write
+/// reports that one.
+#[test]
+fn a_verb_refuses_an_output_in_a_directory_that_does_not_exist() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let file = dir.path().join("plain");
+    std::fs::write(&file, b"a file").expect("write a file");
+    let mut writers = 0;
+    for verb in Verb::ALL {
+        let Some((index, extension)) = verb.writes() else {
+            continue;
+        };
+        writers += 1;
+        let line = |out: &std::path::Path| {
+            let mut words = vec![verb.key().to_string()];
+            words.extend((0..index).map(|_| "p.aria".to_string()));
+            words.push(out.display().to_string());
+            Args::parse(words).expect("parse")
+        };
+        let name = format!("cut.{extension}");
+        for missing in [dir.path().join("nodir"), file.clone()] {
+            let out = missing.join(&name);
+            assert_eq!(
+                line(&out).reject_missing_output_directory(),
+                Err(ArgsError::Usage(format!(
+                    "there is no directory \"{}\" to write \"{}\" in",
+                    missing.display(),
+                    out.display()
+                ))),
+                "{} {}",
+                verb.key(),
+                out.display()
+            );
+        }
+        for out in [dir.path().join(&name), std::path::PathBuf::from(&name)] {
+            assert_eq!(
+                line(&out).reject_missing_output_directory(),
+                Ok(()),
+                "{} {}",
+                verb.key(),
+                out.display()
+            );
+        }
+    }
+    assert!(writers >= 4, "only {writers} verbs write a file");
+}

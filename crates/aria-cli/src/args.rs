@@ -319,6 +319,27 @@ impl Args {
             path.with_extension(extension).display()
         )))
     }
+
+    /// Reject an output file whose directory does not exist. The write came
+    /// after the work and failed with "i/o error: No such file or directory
+    /// (os error 2)", naming no path; `new` had imported every file first.
+    pub(crate) fn reject_missing_output_directory(&self) -> Result<(), ArgsError> {
+        let Some((index, _)) = self.verb.writes() else {
+            return Ok(());
+        };
+        let Some(out) = self.positional.get(index) else {
+            return Ok(());
+        };
+        match Path::new(out).parent() {
+            Some(dir) if !dir.as_os_str().is_empty() && !dir.is_dir() => {
+                Err(ArgsError::Usage(format!(
+                    "there is no directory \"{}\" to write \"{out}\" in",
+                    dir.display()
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 /// The `USAGE` entries for `verb`: each synopsis line and its description,
