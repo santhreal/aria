@@ -76,6 +76,31 @@ pub fn speed_to_f64(speed: Rational) -> f64 {
     f64::from(speed.num) / f64::from(speed.den)
 }
 
+/// A stored `f32` as the Python float that writes it: the shortest decimal
+/// that reads back as the same `f32`. Widening with `f64::from` returns the
+/// binary value, so `clip.opacity = 0.3` read back `0.30000001192092896` and
+/// compared unequal to what the script wrote.
+pub fn py_float(value: f32) -> f64 {
+    use std::io::Write;
+    // `Display` writes the shortest round-trip digits with no exponent: at
+    // most 48 bytes for the smallest subnormal, 40 for the largest finite.
+    let mut buf = [0u8; 64];
+    let mut rest = &mut buf[..];
+    if write!(rest, "{value}").is_err() {
+        return f64::from(value);
+    }
+    let len = 64 - rest.len();
+    std::str::from_utf8(&buf[..len])
+        .ok()
+        .and_then(|digits| digits.parse().ok())
+        .unwrap_or(f64::from(value))
+}
+
+/// [`py_float`] for each axis of a pair.
+pub fn py_float2((x, y): (f32, f32)) -> (f64, f64) {
+    (py_float(x), py_float(y))
+}
+
 /// Parse a track-kind string into a [`TrackKind`].
 ///
 /// The wire names are the lane catalog's own `id` column, so a new lane kind is
@@ -229,9 +254,9 @@ pub fn param_spec_dict(
     let dict = PyDict::new(py);
     dict.set_item("name", name)?;
     dict.set_item("label", label)?;
-    dict.set_item("default", default)?;
-    dict.set_item("min", min)?;
-    dict.set_item("max", max)?;
+    dict.set_item("default", py_float(default))?;
+    dict.set_item("min", py_float(min))?;
+    dict.set_item("max", py_float(max))?;
     Ok(dict.into())
 }
 
@@ -346,5 +371,37 @@ mod tests {
         assert!(parse_color_str("#12345").is_err());
         assert!(parse_color_str("#gggggg").is_err());
         assert!(parse_color_str("chartreuse").is_err());
+    }
+
+    /// WHY: every float getter widened the stored `f32`, so a script that
+    /// wrote `clip.opacity = 0.3` read back `0.30000001192092896`. A decimal
+    /// a script writes reads back equal, and every `f32`, swept across its
+    /// bit patterns with each boundary, narrows back to itself, so the read
+    /// never states a different stored value. Not caught: a getter that
+    /// returns an `f32` without this conversion (the Python suite covers the
+    /// getters).
+    #[test]
+    fn a_stored_float_reads_back_as_the_decimal_that_wrote_it() {
+        for written in [0.3, 1.1, 12.7, 0.1, -2.5e-7, 123_456.79, 0.0, -0.4, 1e30] {
+            assert_eq!(py_float(written as f32), written, "{written}");
+        }
+        let edges = [
+            f32::MIN_POSITIVE,
+            f32::from_bits(1),
+            f32::MAX,
+            f32::MIN,
+            -0.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+        ];
+        let sweep = (0..u32::MAX / 65_521).map(|n| f32::from_bits(n * 65_521));
+        for value in edges.into_iter().chain(sweep) {
+            let read = py_float(value);
+            if value.is_nan() {
+                assert!(read.is_nan());
+            } else {
+                assert_eq!((read as f32).to_bits(), value.to_bits(), "{value:e}");
+            }
+        }
     }
 }

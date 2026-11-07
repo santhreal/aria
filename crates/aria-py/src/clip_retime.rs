@@ -19,9 +19,9 @@ use crate::slot::Slot;
 /// Normalized, so the ramp survives a trim or a base-speed change — the same
 /// domain the model stores.
 fn parse_curve_point(item: &Bound<'_, PyAny>) -> PyResult<Keyframe<f32>> {
-    let tuple = item.cast::<PyTuple>().map_err(|_| {
-        PyValueError::new_err("a speed ramp point is (position, speed[, easing])")
-    })?;
+    let tuple = item
+        .cast::<PyTuple>()
+        .map_err(|_| PyValueError::new_err("a speed ramp point is (position, speed[, easing])"))?;
     if tuple.len() != 2 && tuple.len() != 3 {
         return Err(PyValueError::new_err(
             "a speed ramp point is (position, speed[, easing])",
@@ -77,10 +77,11 @@ fn parse_curve(curve: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Param<f32>>>
         ));
     }
     keyframes.sort_by_key(|key| key.tick);
-    if keyframes.windows(2).any(|pair| pair[0].tick == pair[1].tick) {
-        return Err(PyValueError::new_err(
-            "two ramp points share one position",
-        ));
+    if keyframes
+        .windows(2)
+        .any(|pair| pair[0].tick == pair[1].tick)
+    {
+        return Err(PyValueError::new_err("two ramp points share one position"));
     }
     Ok(Some(Param::Keyframed { keyframes }))
 }
@@ -99,7 +100,7 @@ pub(super) fn set_speed_curve(
     })
 }
 
-pub(super) fn speed_curve(handle: &Clip, py: Python) -> PyResult<Option<Vec<(f64, f32)>>> {
+pub(super) fn speed_curve(handle: &Clip, py: Python) -> PyResult<Option<Vec<(f64, f64)>>> {
     handle.with_project_ref(py, |project| {
         let clip = Clip::require(project, handle.id)?;
         Ok(match &clip.speed_curve {
@@ -107,7 +108,12 @@ pub(super) fn speed_curve(handle: &Clip, py: Python) -> PyResult<Option<Vec<(f64
             Param::Keyframed { keyframes } => Some(
                 keyframes
                     .iter()
-                    .map(|key| (key.tick as f64 / SPEED_CURVE_SCALE as f64, key.value))
+                    .map(|key| {
+                        (
+                            key.tick as f64 / SPEED_CURVE_SCALE as f64,
+                            py_float(key.value),
+                        )
+                    })
                     .collect(),
             ),
         })

@@ -12,8 +12,11 @@ and x264enc.
 
 from __future__ import annotations
 
+import inspect
 import json
+import math
 import struct
+import wave
 import zlib
 
 import pytest
@@ -986,6 +989,113 @@ class TestSpeedCurves:
             c.set_speed_curve([(0.0, 1.0), (1.5, 2.0)])
         with pytest.raises(ValueError):
             c.set_speed_curve("not-a-preset")
+
+
+# --- float read-back ---------------------------------------------------------
+
+
+def write_tone_wav(path: str, seconds: float = 1.0, rate: int = 48_000) -> None:
+    """Write a mono 16-bit 440 Hz tone (stdlib only)."""
+    samples = b"".join(
+        struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * n / rate)))
+        for n in range(int(seconds * rate))
+    )
+    with wave.open(path, "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        out.writeframes(samples)
+
+
+class TestFloatReadBack:
+    """WHY: the model stores clip values as 32-bit floats and the getters
+    widened them, so ``clip.opacity = 0.3`` read back ``0.30000001192092896``
+    and an equality check in a script failed. Every float or float-pair
+    property of ``Clip`` is enumerated from the class, written on the first
+    clip kind that takes it, and must read back as written; a property no clip
+    kind takes fails until it is handled here. Effect parameters,
+    ``transform_at``, speed ramps, and the catalogs' stored floats are checked
+    the same way. Not caught: a float returned by a method these tests do not
+    call."""
+
+    def test_every_float_property_reads_back_as_written(
+        self, media_path: str, tmp_path: object
+    ) -> None:
+        wav = str(tmp_path / "tone.wav")  # type: ignore[operator]
+        write_tone_wav(wav)
+        p = Project("floats", fps=30)
+        clips = [
+            p.add_track("sticker").add(Solid("red"), start=0.0, duration=2.0),
+            p.add_track("video").add(p.import_media(media_path), start=0.0),
+            p.add_track("audio").add(p.import_media(wav), start=0.0),
+            p.add_track("text").add(Text("Aria"), start=0.0, duration=2.0),
+        ]
+        checked = set()
+        for name, _ in inspect.getmembers(aria.Clip, inspect.isdatadescriptor):
+            if name.startswith("_"):
+                continue
+            value = None
+            for clip in clips:
+                try:
+                    value = getattr(clip, name)
+                    break
+                except (AriaError, ValueError):
+                    continue  # a property of another clip kind
+            if isinstance(value, float):
+                written: object = 0.3
+            elif isinstance(value, tuple) and len(value) == 2 and all(
+                isinstance(axis, float) for axis in value
+            ):
+                written = (0.1, 0.3)
+            else:
+                continue
+            for clip in clips:
+                try:
+                    setattr(clip, name, written)
+                except AttributeError:
+                    break  # read-only: a placement time, not a stored float
+                except (AriaError, ValueError):
+                    continue
+                assert getattr(clip, name) == written, name
+                checked.add(name)
+                break
+            else:
+                pytest.fail(f"no clip kind takes {name} = {written!r}")
+        stored = {"position", "anchor", "scale", "rotation", "opacity", "volume"}
+        assert stored <= checked
+
+    def test_a_sampled_transform_and_an_effect_read_back_as_written(
+        self, p: Project
+    ) -> None:
+        c = p.add_track("sticker").add(Solid("red"), start=0.0, duration=2.0)
+        c.position = (0.1, 0.3)
+        c.scale = 0.3
+        c.rotation = 12.7
+        c.opacity = 0.3
+        assert c.transform_at(0.0) == ((0.1, 0.3), 0.3, 12.7, 0.3)
+        fx = c.add_effect("gaussian_blur")
+        fx["radius"] = 0.3
+        assert fx["radius"] == 0.3
+
+    def test_a_speed_ramp_reads_back_as_written(self, image_path: str) -> None:
+        p = Project("ramp", fps=30)
+        c = p.add_track("video").add(p.import_media(image_path), start=0.0, duration=2.0)
+        c.set_speed_curve([(0.0, 0.4), (1.0, 2.5)])
+        assert c.speed_curve == [(0.0, 0.4), (1.0, 2.5)]
+
+    def test_every_catalog_float_is_the_decimal_its_data_file_states(self) -> None:
+        import numpy
+
+        stored = [
+            value
+            for effect in aria.effects()
+            for param in effect["params"]
+            for value in (param["default"], param["min"], param["max"])
+        ]
+        stored += [speed for preset in aria.speed_presets() for _, speed in preset["points"]]
+        assert 0.4 in stored
+        for value in stored:
+            assert value == float(str(numpy.float32(value))), value
 
 
 # --- relink ------------------------------------------------------------------

@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use crate::clip::Clip;
-use crate::convert::{clip_key_time, parse_easing, parse_keyframe_pairs};
+use crate::convert::{clip_key_time, parse_easing, parse_keyframe_pairs, py_float};
 use crate::errors::{AriaError, model_err};
 use crate::project::Project;
 
@@ -98,7 +98,7 @@ impl Effect {
 
 #[pymethods]
 impl Effect {
-    fn __getitem__(&self, py: Python, name: &str) -> PyResult<f32> {
+    fn __getitem__(&self, py: Python, name: &str) -> PyResult<f64> {
         self.with_project(py, |project| {
             let clip = project
                 .model()
@@ -109,9 +109,11 @@ impl Effect {
             let param = spec.param(name).ok_or_else(|| {
                 PyValueError::new_err(format!("unknown effect parameter {name:?}"))
             })?;
-            Ok(effect
-                .sample_param(&param.name, 0.0)
-                .unwrap_or(param.default))
+            Ok(py_float(
+                effect
+                    .sample_param(&param.name, 0.0)
+                    .unwrap_or(param.default),
+            ))
         })
     }
 

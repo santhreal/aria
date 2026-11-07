@@ -1451,6 +1451,7 @@ Notes for the latest release. For previous releases, see the
 - Video whose container states a rotation, such as video a phone recorded upright, imports at its upright size and draws upright, instead of sideways on Linux and squashed across its frame on macOS, Windows, and Android.
 - A project saved before rotated video imported upright opens with each such video at its upright size, in the editor, `aria`, and the Python module, and a proxy or pool thumbnail made from such a video before then is made again.
 - `aria new` and `aria analyze` state the kind of an Aria project, template, template bundle, preset, or plugin archive named as media, instead of a GStreamer decode error.
+- The Python API reads a stored clip, effect, speed ramp, or catalog float back as the decimal written, so `clip.opacity = 0.3` reads `0.3`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

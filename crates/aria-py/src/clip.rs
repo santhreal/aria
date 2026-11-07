@@ -10,8 +10,8 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::content::apply_text_style;
 use crate::convert::{
-    clip_key_time, parse_color, parse_easing, parse_keyframe_pairs, seconds, span, speed_from_f64,
-    speed_to_f64, ticks, time_at,
+    clip_key_time, parse_color, parse_easing, parse_keyframe_pairs, py_float, py_float2, seconds,
+    span, speed_from_f64, speed_to_f64, ticks, time_at,
 };
 use crate::effect::Effect;
 use crate::errors::{AriaError, model_err};
@@ -23,10 +23,6 @@ use crate::track::Track;
 // The Python surface is the `#[pymethods]` block below: pyo3 permits exactly one
 // per class, so it holds every signature and each body lives in the topic child
 // it belongs to. Each child opens with `use super::*`.
-#[path = "clip_place.rs"]
-mod clip_place;
-#[path = "clip_transform.rs"]
-mod clip_transform;
 #[path = "clip_anim.rs"]
 mod clip_anim;
 #[path = "clip_audio.rs"]
@@ -35,8 +31,12 @@ mod clip_audio;
 mod clip_look;
 #[path = "clip_params.rs"]
 mod clip_params;
+#[path = "clip_place.rs"]
+mod clip_place;
 #[path = "clip_retime.rs"]
 mod clip_retime;
+#[path = "clip_transform.rs"]
+mod clip_transform;
 
 // The parameter helpers are shared by the children above, so the parent
 // re-exports them into its own namespace for `use super::*` to pick up.
@@ -78,7 +78,6 @@ impl Clip {
         }
         f(&project)
     }
-
 
     pub(crate) fn require(project: &Project, id: ClipId) -> PyResult<&aria_models::Clip> {
         project
@@ -180,7 +179,7 @@ impl Clip {
     }
 
     #[getter]
-    fn position(&self, py: Python) -> PyResult<(f32, f32)> {
+    fn position(&self, py: Python) -> PyResult<(f64, f64)> {
         clip_transform::position(self, py)
     }
 
@@ -190,7 +189,7 @@ impl Clip {
     }
 
     #[getter]
-    fn anchor(&self, py: Python) -> PyResult<(f32, f32)> {
+    fn anchor(&self, py: Python) -> PyResult<(f64, f64)> {
         clip_transform::anchor(self, py)
     }
 
@@ -200,7 +199,7 @@ impl Clip {
     }
 
     #[getter]
-    fn scale(&self, py: Python) -> PyResult<f32> {
+    fn scale(&self, py: Python) -> PyResult<f64> {
         clip_transform::scale(self, py)
     }
 
@@ -210,7 +209,7 @@ impl Clip {
     }
 
     #[getter]
-    fn rotation(&self, py: Python) -> PyResult<f32> {
+    fn rotation(&self, py: Python) -> PyResult<f64> {
         clip_transform::rotation(self, py)
     }
 
@@ -220,7 +219,7 @@ impl Clip {
     }
 
     #[getter]
-    fn opacity(&self, py: Python) -> PyResult<f32> {
+    fn opacity(&self, py: Python) -> PyResult<f64> {
         clip_transform::opacity(self, py)
     }
 
@@ -249,7 +248,7 @@ impl Clip {
         clip_anim::set_animation(self, py, slot, animation_id)
     }
 
-    fn transform_at(&self, py: Python, t: f64) -> PyResult<((f32, f32), f32, f32, f32)> {
+    fn transform_at(&self, py: Python, t: f64) -> PyResult<((f64, f64), f64, f64, f64)> {
         clip_transform::transform_at(self, py, t)
     }
 
@@ -269,7 +268,7 @@ impl Clip {
     }
 
     #[getter]
-    fn volume(&self, py: Python) -> PyResult<f32> {
+    fn volume(&self, py: Python) -> PyResult<f64> {
         clip_audio::volume(self, py)
     }
 
@@ -364,7 +363,7 @@ impl Clip {
     /// The clip's speed ramp as `[(position, speed), …]`, or `None` when it
     /// plays at one rate. Positions run 0.0…1.0 across the clip.
     #[getter]
-    fn speed_curve(&self, py: Python) -> PyResult<Option<Vec<(f64, f32)>>> {
+    fn speed_curve(&self, py: Python) -> PyResult<Option<Vec<(f64, f64)>>> {
         clip_retime::speed_curve(self, py)
     }
 

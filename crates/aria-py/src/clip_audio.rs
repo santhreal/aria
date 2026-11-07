@@ -7,10 +7,10 @@
 
 use super::*;
 
-pub(super) fn volume(handle: &Clip, py: Python) -> PyResult<f32> {
+pub(super) fn volume(handle: &Clip, py: Python) -> PyResult<f64> {
     handle.with_project_ref(py, |project| {
         let clip = Clip::require(project, handle.id)?;
-        Ok(clip.volume.sample(0))
+        Ok(py_float(clip.volume.sample(0)))
     })
 }
 

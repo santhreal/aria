@@ -8,10 +8,10 @@
 
 use super::*;
 
-pub(super) fn position(handle: &Clip, py: Python) -> PyResult<(f32, f32)> {
+pub(super) fn position(handle: &Clip, py: Python) -> PyResult<(f64, f64)> {
     handle.with_project_ref(py, |project| {
         let t = Clip::current_transform(project, handle.id)?;
-        Ok((t.position[0], t.position[1]))
+        Ok(py_float2((t.position[0], t.position[1])))
     })
 }
 
@@ -23,10 +23,10 @@ pub(super) fn set_position(handle: &Clip, py: Python, value: (f32, f32)) -> PyRe
     })
 }
 
-pub(super) fn anchor(handle: &Clip, py: Python) -> PyResult<(f32, f32)> {
+pub(super) fn anchor(handle: &Clip, py: Python) -> PyResult<(f64, f64)> {
     handle.with_project_ref(py, |project| {
         let t = Clip::current_transform(project, handle.id)?;
-        Ok((t.anchor_point[0], t.anchor_point[1]))
+        Ok(py_float2((t.anchor_point[0], t.anchor_point[1])))
     })
 }
 
@@ -38,10 +38,12 @@ pub(super) fn set_anchor(handle: &Clip, py: Python, value: (f32, f32)) -> PyResu
     })
 }
 
-pub(super) fn scale(handle: &Clip, py: Python) -> PyResult<f32> {
+pub(super) fn scale(handle: &Clip, py: Python) -> PyResult<f64> {
     handle.with_project_ref(py, |project| {
         // Uniform X (Python API stays a single float until per-axis lands).
-        Ok(Clip::current_transform(project, handle.id)?.scale.x)
+        Ok(py_float(
+            Clip::current_transform(project, handle.id)?.scale.x,
+        ))
     })
 }
 
@@ -53,9 +55,11 @@ pub(super) fn set_scale(handle: &Clip, py: Python, value: f32) -> PyResult<()> {
     })
 }
 
-pub(super) fn rotation(handle: &Clip, py: Python) -> PyResult<f32> {
+pub(super) fn rotation(handle: &Clip, py: Python) -> PyResult<f64> {
     handle.with_project_ref(py, |project| {
-        Ok(Clip::current_transform(project, handle.id)?.rotation)
+        Ok(py_float(
+            Clip::current_transform(project, handle.id)?.rotation,
+        ))
     })
 }
 
@@ -67,9 +71,11 @@ pub(super) fn set_rotation(handle: &Clip, py: Python, value: f32) -> PyResult<()
     })
 }
 
-pub(super) fn opacity(handle: &Clip, py: Python) -> PyResult<f32> {
+pub(super) fn opacity(handle: &Clip, py: Python) -> PyResult<f64> {
     handle.with_project_ref(py, |project| {
-        Ok(Clip::current_transform(project, handle.id)?.opacity)
+        Ok(py_float(
+            Clip::current_transform(project, handle.id)?.opacity,
+        ))
     })
 }
 
@@ -85,21 +91,21 @@ pub(super) fn transform_at(
     handle: &Clip,
     py: Python,
     t: f64,
-)-> PyResult<((f32, f32), f32, f32, f32)> {
+) -> PyResult<((f64, f64), f64, f64, f64)> {
     handle.with_project_ref(py, |project| {
         let clip = Clip::require(project, handle.id)?;
         let tick = ticks(t, project.rate());
         let xf = clip.transform.sample(tick);
         Ok((
-            (xf.position[0], xf.position[1]),
-            xf.scale.x,
-            xf.rotation,
-            xf.opacity,
+            py_float2((xf.position[0], xf.position[1])),
+            py_float(xf.scale.x),
+            py_float(xf.rotation),
+            py_float(xf.opacity),
         ))
     })
 }
 
-    #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn crop(
     handle: &Clip,
     py: Python,

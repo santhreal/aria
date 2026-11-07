@@ -192,6 +192,6 @@ python tests/smoke.py               # quick GPU frame smoke test
 python examples/tour.py             # optional; needs sample media paths
 ```
 
-> **Export:** uses the platform-native encoder: Apple (VideoToolbox) and Windows
-> (Media Foundation), both H.264 + AAC → mp4. Other platforms raise until their
-> backends land.
+> **Export:** uses the platform-native encoder: VideoToolbox on Apple, Media
+> Foundation on Windows, and GStreamer on Linux (a hardware H.264 encoder when
+> one opens, else `x264enc`). Each writes H.264 + AAC in an mp4.

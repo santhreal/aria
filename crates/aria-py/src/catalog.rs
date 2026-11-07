@@ -8,7 +8,7 @@ use aria_models::{
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use crate::convert::param_spec_dict;
+use crate::convert::{param_spec_dict, py_float};
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(effects, m)?)?;
@@ -94,10 +94,10 @@ fn speed_presets(py: Python) -> PyResult<Vec<Py<PyDict>>> {
             let dict = PyDict::new(py);
             dict.set_item("id", spec.id.as_str())?;
             dict.set_item("label", spec.label.as_str())?;
-            let points: Vec<(f64, f32)> = spec
+            let points: Vec<(f64, f64)> = spec
                 .points
                 .iter()
-                .map(|point| (point.at, point.value))
+                .map(|point| (point.at, py_float(point.value)))
                 .collect();
             dict.set_item("points", points)?;
             Ok(dict.into())
