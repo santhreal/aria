@@ -200,14 +200,26 @@ fn lane_for(engine: &mut Engine, kind: TrackKind) -> Result<TrackId, Failure> {
         .ok_or_else(|| Failure::Failed(format!("the engine did not add a {kind:?} lane")))
 }
 
+/// `raw` as a rate is spelled in [`RATES`]: zeros that end a decimal fraction
+/// are dropped, and the point when nothing follows it, so `29.970` is `29.97`
+/// and `24.0` is `24`, the spellings a script printing a float writes.
+pub(crate) fn rate_spelling(raw: &str) -> &str {
+    if raw.contains('.') {
+        raw.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        raw
+    }
+}
+
 /// The `--fps` flag as an exact [`Rational`].
 fn rate_from(args: &Args) -> Result<Rational, Failure> {
     let Some(raw) = args.value("fps")? else {
         return Ok(Rational::FPS_24);
     };
+    let spelled = rate_spelling(raw);
     RATES
         .iter()
-        .find(|(key, _)| *key == raw)
+        .find(|(key, _)| *key == spelled)
         .map(|(_, rate)| *rate)
         .ok_or_else(|| {
             Failure::Usage(format!(
@@ -227,7 +239,9 @@ mod tests {
 
     /// The class closed here is "a rounded rate silently replaces a broadcast
     /// one", which drifts a whole project against its footage. Every offered
-    /// rate is exact, and a rate nobody offers is refused with the list.
+    /// rate is exact, and a rate nobody offers is refused with the list. A
+    /// spelling with zeros after the decimal point, such as `29.970`, was
+    /// refused as well, though it is the same number.
     #[test]
     fn a_frame_rate_is_exact_or_refused_with_the_alternatives() {
         let args = Args::parse(["new", "out.aria", "--fps", "23.976"]).unwrap();
@@ -243,6 +257,15 @@ mod tests {
         let err = rate_from(&args).expect_err("23.98 was accepted");
         assert!(err.message().contains("23.976"), "{}", err.message());
         assert_eq!(err.code(), 2);
+
+        // A rate spelled with zeros after its decimal point is that rate.
+        for (key, rate) in RATES {
+            let point = if key.contains('.') { "" } else { "." };
+            for raw in [format!("{key}{point}0"), format!("{key}{point}00")] {
+                let args = Args::parse(["new", "out.aria", "--fps", raw.as_str()]).unwrap();
+                assert_eq!(rate_from(&args).ok(), Some(rate), "{raw}");
+            }
+        }
     }
 
     /// Every offered rate is a valid, reduced rational — a typo in the table

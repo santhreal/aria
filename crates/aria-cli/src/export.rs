@@ -139,10 +139,11 @@ fn rate_from(args: &Args) -> Result<Option<aria_core::Rational>, Failure> {
     let Some(raw) = args.value("fps")? else {
         return Ok(None);
     };
-    if let Some((_, rate)) = crate::new::RATES.iter().find(|(key, _)| *key == raw) {
+    let spelled = crate::new::rate_spelling(raw);
+    if let Some((_, rate)) = crate::new::RATES.iter().find(|(key, _)| *key == spelled) {
         return Ok(Some(*rate));
     }
-    match raw.parse::<i64>() {
+    match spelled.parse::<i64>() {
         Ok(fps) if fps > 0 => i32::try_from(fps)
             .ok()
             .filter(|fps| *fps <= MAX_FPS)
@@ -398,5 +399,39 @@ mod tests {
         }
         let args = Args::parse(["export", "a.aria", "b.mp4"]).unwrap();
         assert_eq!(rate_from(&args), Ok(None));
+    }
+
+    /// WHY: `--fps 24.0` and `--fps 29.970` were usage errors ("wants a whole
+    /// number"), though each names a rate the flag takes; a script printing a
+    /// float writes those spellings. Every rate `aria new` offers and every
+    /// whole number, spelled with zeros after its decimal point, parses as
+    /// written without them, and a fraction that is not zero is still refused.
+    /// Not caught: a spelling with a leading `+` or zero, which stays refused.
+    #[test]
+    fn a_rate_spelled_with_trailing_zeros_is_the_rate() {
+        let parse = |raw: &str| {
+            rate_from(&Args::parse(["export", "a.aria", "b.mp4", "--fps", raw]).unwrap())
+        };
+        let whole = ["1", "12", "1000"];
+        let keys = crate::new::RATES.iter().map(|(key, _)| *key);
+        for key in keys.chain(whole) {
+            let want = parse(key).expect(key);
+            let point = if key.contains('.') { "" } else { "." };
+            for zeros in ["0", "000"] {
+                let raw = format!("{key}{point}{zeros}");
+                assert_eq!(parse(&raw), Ok(want), "{raw}");
+            }
+            if !key.contains('.') {
+                assert_eq!(parse(&format!("{key}.")), Ok(want), "{key}.");
+            }
+        }
+        for (raw, says) in [
+            ("24.50", "whole number"),
+            ("0.0", "above zero"),
+            ("1001.0", "up to 1000"),
+        ] {
+            let err = parse(raw).expect_err(raw);
+            assert!(err.message().contains(says), "{raw}: {}", err.message());
+        }
     }
 }

@@ -81,7 +81,9 @@ An `<out.aria>` that already exists, as a file, a folder, or a link, fails
 with exit code `2` and is left as it was.
 
 `--fps` selects an exact rational rate (`23.976` is `24000/1001` and `29.97` is
-`30000/1001`). Any rate outside the list is rejected with exit code `2`.
+`30000/1001`). Zeros after the decimal point are ignored, so `29.970` is
+`29.97` and `24.0` is `24`, here and in `aria export --fps`. Any rate outside
+the list is rejected with exit code `2`.
 
 ```
 aria new rough.aria takes/*.mp4 --fps 23.976
