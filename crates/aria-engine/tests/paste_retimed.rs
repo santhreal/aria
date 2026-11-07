@@ -172,9 +172,9 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
             target_speed: Some(Rational::new(1, 100)), // 0.01x
         }))
         .unwrap_err();
-    assert!(
-        err_too_slow.to_string().contains("outside documented min"),
-        "expected min speed error, got: {err_too_slow}"
+    assert_eq!(
+        err_too_slow.to_string(),
+        "refused: 0.01x speed is outside 0.05x to 100x"
     );
 
     // 4. Speed above maximum (100.0)
@@ -187,9 +187,9 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
             target_speed: Some(Rational::new(200, 1)), // 200.0x
         }))
         .unwrap_err();
-    assert!(
-        err_too_fast.to_string().contains("outside documented min"),
-        "expected max speed error, got: {err_too_fast}"
+    assert_eq!(
+        err_too_fast.to_string(),
+        "refused: 200x speed is outside 0.05x to 100x"
     );
 
     // 5. Target duration that implies speed below min (100 ticks stretched to 10000 ticks = 0.01x)
@@ -202,11 +202,10 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
             target_speed: None,
         }))
         .unwrap_err();
-    assert!(
-        err_implied_slow
-            .to_string()
-            .contains("outside documented min"),
-        "expected implied min speed error, got: {err_implied_slow}"
+    assert_eq!(
+        err_implied_slow.to_string(),
+        "refused: filling that span takes 0.01x speed, outside 0.05x to 100x; mark a span \
+         closer to the clip's length"
     );
 
     // 6. Missing both duration and speed
@@ -226,7 +225,8 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
         "expected missing target error, got: {err_missing_both}"
     );
 
-    // 7. Generated clip rejected
+    // 7. A generated clip has no source to retime: a target speed is refused
+    // by name, and a target duration is filled by taking that length.
     let sticker_track = add_track(&mut engine, TrackKind::Sticker, "Stickers");
     let generated = engine
         .apply(Command::Edit(EditCommand::AddGenerated {
@@ -246,15 +246,16 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
             copy: copy_of(&engine, gen_id),
             track: sticker_track,
             start: rt(100),
-            target_duration: Some(rt(25)),
-            target_speed: None,
+            target_duration: None,
+            target_speed: Some(Rational::new(2, 1)),
         }))
         .unwrap_err();
     assert!(
-        err_gen
-            .to_string()
-            .contains("speed requires a media-backed clip"),
-        "expected media-backed requirement error, got: {err_gen}"
+        matches!(
+            err_gen,
+            EngineError::Model(ModelError::Generated(aria_models::GeneratedRefusal::Speed))
+        ),
+        "expected the generated speed refusal, got: {err_gen}"
     );
 
     // 8. Overlap on destination track
@@ -273,6 +274,47 @@ fn paste_retimed_refuses_out_of_bounds_and_invalid_targets_with_named_errors() {
             aria_engine::EngineError::Model(aria_models::ModelError::Overlap(_))
         ),
         "expected overlap error, got: {err_overlap}"
+    );
+}
+
+/// WHY: a retimed paste took media clips alone, so a title or shape pasted to
+/// fit a span was refused as a bad value. A generated copy fills the span by
+/// taking its length, at its own speed, and one undo takes it back. Not
+/// caught: a multicam or nested copy, which retimes through its source window
+/// as a media copy does.
+#[test]
+fn a_generated_copy_fills_the_span_by_taking_its_length() {
+    let (_dir, mut engine, _media, _track, _clip) = engine_with_media(1000);
+    let sticker_track = add_track(&mut engine, TrackKind::Sticker, "Stickers");
+    let shape = created_clip(
+        engine
+            .apply(Command::Edit(EditCommand::AddGenerated {
+                track: sticker_track,
+                generator: aria_models::Generator::SolidColor {
+                    rgba: [255, 0, 0, 255],
+                },
+                timeline: tr(0, 50),
+            }))
+            .expect("add generated"),
+    );
+    let pasted = created_clip(
+        engine
+            .apply(Command::Edit(EditCommand::PasteRetimed {
+                copy: copy_of(&engine, shape),
+                track: sticker_track,
+                start: rt(100),
+                target_duration: Some(rt(25)),
+                target_speed: None,
+            }))
+            .expect("a generated copy fills the span"),
+    );
+    let placed = engine.project().clip(pasted).expect("the pasted clip");
+    assert_eq!(placed.timeline, tr(100, 25));
+    assert_eq!(placed.speed, Rational::new(1, 1));
+    assert!(engine.undo(), "the paste left no history entry");
+    assert!(
+        engine.project().clip(pasted).is_none(),
+        "one undo left the paste"
     );
 }
 

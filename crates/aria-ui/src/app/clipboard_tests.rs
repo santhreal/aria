@@ -15,7 +15,7 @@
 //! surface. A copy refused for playing media the project lost is asserted in
 //! `aria-engine`'s paste tests.
 
-use aria_models::{ClipId, ClipParam, MediaId, TrackId};
+use aria_models::{ClipId, ClipParam, Generator, MediaId, TrackId};
 
 use super::AppState;
 use super::decline::Decline;
@@ -385,6 +385,54 @@ fn paste_to_fit_with_several_copied_says_so() {
         Some(Decline::SeveralCopied.reason())
     );
     assert_eq!(clips(&state), before);
+}
+
+/// WHY: Paste to Fit of a copied title, shape or other generated clip answered
+/// "That value isn't accepted here. Enter another value, then try again.": the
+/// retimed paste took media clips alone and refused every other copy as a bad
+/// value. A copy that plays no source fills the marked span by taking its
+/// length; one that plays a source is retimed to it. Each content kind the
+/// fixtures dress is pasted over the same span. Not caught: a multicam or
+/// nested copy, which no fixture here dresses; the engine's paste tests hold
+/// the speed a retimed copy derives.
+#[test]
+fn paste_to_fit_fills_the_marked_span_with_every_kind_of_copy() {
+    let dressed: [(&str, fn() -> AppState); 3] = [
+        ("media", || with_clip().0),
+        ("title", super::fixtures::a_title),
+        ("shape", || {
+            super::fixtures::generated(Generator::SolidColor {
+                rgba: [255, 0, 0, 255],
+            })
+        }),
+    ];
+    let (from, to) = (600, 648);
+    for (name, dress) in dressed {
+        let mut state = dress();
+        state.copy_selected();
+        let before = clips(&state);
+        state.mark_in = Some(from);
+        state.mark_out = Some(to);
+        state
+            .paste_to_fit()
+            .unwrap_or_else(|err| panic!("{name}: Paste to Fit was refused: {err}"));
+        let added: Vec<(i64, i64)> = clips(&state)
+            .into_iter()
+            .filter(|clip| !before.contains(clip))
+            .map(|(_, start, end)| (start, end))
+            .collect();
+        assert_eq!(
+            added,
+            vec![(from, to)],
+            "{name}: the paste does not fill the marked span"
+        );
+        assert!(state.undo(), "{name}: the paste left no history entry");
+        assert_eq!(
+            clips(&state),
+            before,
+            "{name}: one undo did not take the paste back"
+        );
+    }
 }
 
 #[test]

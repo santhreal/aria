@@ -111,9 +111,11 @@ are four pastes:
   audio levels are unchanged. The target's existing effects are replaced, not
   added to, so pasting from a clip with no effects clears them.
 - **Paste to Fit**, on the Edit menu, drops the copy into the marked range and
-  retimes it to fill the range. The copy lands at the In point, not at
-  the playhead. Mark In and Out first: with no range marked the row reports it and
-  changes nothing.
+  retimes it to fill the range. A title, shape or other generated copy plays no
+  footage, so it fills the range by taking its length instead. The copy lands
+  at the In point, not at the playhead. Mark In and Out first: with no range
+  marked the row reports it and changes nothing. A range that would need a
+  speed outside 0.05x to 100x is refused.
 
 The clipboard holds the clips as they were when they were copied. Removing or
 changing a copied clip afterwards does not change what a paste places. Copy

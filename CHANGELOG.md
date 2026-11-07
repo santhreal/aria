@@ -1491,6 +1491,7 @@ Notes for the latest release. For previous releases, see the
 - A rate stretch or a volume edit on a generated clip states that the clip plays no footage or no sound instead of reporting that a value is not accepted, and a generated clip draws no fade handles.
 - The Duck Under Voice row states the reason a duck cannot run, such as an empty duck source track or a selection on the voice track, instead of one sentence about flagging a voice track for every case.
 - The Render and Replace row and its run state why a render is refused for the selected clip, which is already rendered, a lane bar, or a media clip with nothing applied, instead of one sentence about nothing to render for every case.
+- Paste to Fit places a copied title, shape or other generated clip over the marked range at the range's length instead of rejecting it as an invalid value, and a range that needs a speed outside 0.05x to 100x is refused with the speed it would take.
 
 ## [alpha-0.7.0] - 2026-07-22
 
