@@ -34,7 +34,9 @@ impl PngSequenceEncoder {
     /// Create the output directory (if needed) and start at frame 0.
     pub fn new(dir: impl Into<PathBuf>) -> Result<Self, EncodeError> {
         let dir = dir.into();
-        std::fs::create_dir_all(&dir).map_err(|e| EncodeError::Start(e.to_string()))?;
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            EncodeError::Start(format!("{}: {}", dir.display(), aria_models::io_reason(&e)))
+        })?;
         Ok(Self { dir, index: 0 })
     }
 
@@ -112,7 +114,8 @@ pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, RenderError> {
 pub fn write_png(image: &RgbaImage, path: &Path) -> Result<(), RenderError> {
     let bytes = encode_png(image)?;
     let staged = TransactionalFile::new(path)?;
-    std::fs::write(staged.staging_path(), &bytes)?;
+    std::fs::write(staged.staging_path(), &bytes)
+        .map_err(|error| aria_models::path_error(path, &error))?;
     staged.publish()?;
     Ok(())
 }
@@ -212,18 +215,17 @@ pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, RenderError> {
 /// Write one RGBA8 plane to an 8-bit PNG, compacting away any row padding.
 fn write_plane_png(path: &Path, width: u32, height: u32, plane: &Plane) -> Result<(), EncodeError> {
     let row_bytes = width as usize * 4;
-    let file = File::create(path).map_err(|e| EncodeError::Encode(e.to_string()))?;
+    let failed = |reason: String| EncodeError::Encode(format!("{}: {reason}", path.display()));
+    let file = File::create(path).map_err(|e| failed(aria_models::io_reason(&e)))?;
     let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder
-        .write_header()
-        .map_err(|e| EncodeError::Encode(e.to_string()))?;
+    let mut writer = encoder.write_header().map_err(|e| failed(e.to_string()))?;
 
     if plane.stride == row_bytes {
         writer
             .write_image_data(&plane.data[..row_bytes * height as usize])
-            .map_err(|e| EncodeError::Encode(e.to_string()))?;
+            .map_err(|e| failed(e.to_string()))?;
     } else {
         // Decoder/compositor readback may pad rows; PNG wants tight rows.
         let mut tight = Vec::with_capacity(row_bytes * height as usize);
@@ -233,7 +235,7 @@ fn write_plane_png(path: &Path, width: u32, height: u32, plane: &Plane) -> Resul
         }
         writer
             .write_image_data(&tight)
-            .map_err(|e| EncodeError::Encode(e.to_string()))?;
+            .map_err(|e| failed(e.to_string()))?;
     }
     Ok(())
 }

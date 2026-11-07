@@ -311,6 +311,13 @@ fn apply_template_with_missing_pick_leaves_session_untouched() {
         }))
         .expect_err("missing pick file");
     assert!(matches!(err, EngineError::Io(_)), "unexpected: {err}");
+    let pick = std::path::Path::new("/nonexistent/pick.mp4");
+    let missing = std::fs::metadata(pick).expect_err("the pick is missing");
+    assert_eq!(
+        err.to_string(),
+        format!("{}: {}", pick.display(), aria_models::io_reason(&missing)),
+        "a missing pick names the file"
+    );
 
     // The failed apply replaced nothing: same project, history intact.
     assert_eq!(engine.project().name, "untitled");

@@ -208,8 +208,8 @@ impl AppState {
             dest.clone(),
             move |context| {
                 let mut renderer = super::render_device::renderer_on(gpu, "the render")?;
-                let mut encoder = aria_render::PngSequenceEncoder::new(&dest)
-                    .map_err(|err| format!("opening {}: {err}", dest.display()))?;
+                let mut encoder =
+                    aria_render::PngSequenceEncoder::new(&dest).map_err(|err| err.to_string())?;
                 let mut observer = |done: u64, total: u64| {
                     let fraction = if total == 0 {
                         0.0

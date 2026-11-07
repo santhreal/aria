@@ -36,5 +36,7 @@ mod text_composite;
 mod text_glyph_smoke;
 #[path = "../text_keyframe_smoke.rs"]
 mod text_keyframe_smoke;
+#[path = "../write_errors.rs"]
+mod write_errors;
 #[path = "../zero_copy.rs"]
 mod zero_copy;

@@ -26,7 +26,10 @@ pub(crate) fn execute(
 
     let mut resolved = Vec::with_capacity(picks.len());
     for pick in picks {
-        let media_path = pick.path.canonicalize().map_err(EngineError::Io)?;
+        // `dunce`, as import: a `\\?\`-verbatim path on Windows is one Media
+        // Foundation cannot open on mapped drives.
+        let media_path = dunce::canonicalize(&pick.path)
+            .map_err(|err| EngineError::Io(aria_models::path_error(&pick.path, &err)))?;
         let media = import_media(&media_path)?;
         resolved.push(Pick {
             media,

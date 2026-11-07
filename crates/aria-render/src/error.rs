@@ -24,8 +24,9 @@ pub enum RenderError {
     #[error("encode error: {0}")]
     Encode(#[from] EncodeError),
 
-    /// Reading or writing a file failed (project load, frame output).
-    #[error("i/o error: {0}")]
+    /// Reading or writing a file failed. The error states the path and the
+    /// reason, as [`aria_models::io_reason`] words it.
+    #[error("{0}")]
     Io(#[from] std::io::Error),
 
     /// A clip references a media id that isn't in the project's media pool.

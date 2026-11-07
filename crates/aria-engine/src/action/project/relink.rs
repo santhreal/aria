@@ -30,7 +30,8 @@ pub(crate) fn execute(
     }
     // Same verbatim-path hazard as import: the pool must hold a path Media
     // Foundation can open and later comparisons can match.
-    let path = dunce::canonicalize(path).map_err(EngineError::Io)?;
+    let path = dunce::canonicalize(path)
+        .map_err(|err| EngineError::Io(aria_models::path_error(path, &err)))?;
     // Probe exactly like an import; only the freshly allocated id is discarded —
     // the pool entry keeps its identity.
     let probed = import_media(&path)?;

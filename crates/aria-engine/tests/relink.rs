@@ -97,13 +97,20 @@ fn relink_to_missing_file_errors_and_leaves_entry_untouched() {
     let media = import_asset(&mut engine, &asset);
     let before = engine.project().media(media).expect("entry").clone();
 
+    let target = dir.path().join("does-not-exist.mp4");
     let err = engine
         .apply(Command::Project(ProjectCommand::RelinkMedia {
             media,
-            path: dir.path().join("does-not-exist.mp4"),
+            path: target.clone(),
         }))
         .expect_err("dead target path must fail");
     assert!(matches!(err, EngineError::Io(_)), "got: {err}");
+    let missing = std::fs::metadata(&target).expect_err("the target is missing");
+    assert_eq!(
+        err.to_string(),
+        format!("{}: {}", target.display(), aria_models::io_reason(&missing)),
+        "a relink to a missing file names the file"
+    );
     assert_eq!(
         engine.project().media(media),
         Some(&before),

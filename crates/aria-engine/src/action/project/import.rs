@@ -21,7 +21,8 @@ pub(crate) fn execute(
     // `dunce`: `canonicalize` spells the result `\\?\`-verbatim on Windows,
     // which Media Foundation cannot open on mapped drives and which poisons
     // every later path comparison against the pre-canonical form.
-    let path = dunce::canonicalize(path).map_err(EngineError::Io)?;
+    let path = dunce::canonicalize(path)
+        .map_err(|err| EngineError::Io(aria_models::path_error(path, &err)))?;
     let media = import_media(&path)?;
     let id = ctx.project.add_media(media);
     Ok((id, Some(Box::new(RemoveMediaAction { media: id }))))

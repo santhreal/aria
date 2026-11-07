@@ -134,6 +134,13 @@ fn import_via_command_from_missing_file_fails_cleanly() {
         matches!(err, aria_engine::EngineError::Io(_)),
         "expected I/O error for missing file, got: {err}"
     );
+    let path = std::path::Path::new("/nonexistent/aria-engine.mp4");
+    let missing = std::fs::metadata(path).expect_err("the path is missing");
+    assert_eq!(
+        err.to_string(),
+        format!("{}: {}", path.display(), aria_models::io_reason(&missing)),
+        "an import of a missing file names the file"
+    );
 }
 
 #[test]

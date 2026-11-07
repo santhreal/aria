@@ -49,6 +49,16 @@ pub fn unwritable_directory(dir: &Path, err: &io::Error) -> io::Error {
     )
 }
 
+/// `err` as a failure of `path`: the path, then the reason as [`io_reason`]
+/// states it, so "No such file or directory (os error 2)" reads as "<path>: no
+/// such file or directory". The kind is kept.
+pub fn path_error(path: &Path, err: &io::Error) -> io::Error {
+    io::Error::new(
+        err.kind(),
+        format!("{}: {}", path.display(), io_reason(err)),
+    )
+}
+
 /// Category of failure when loading a `.aria` project file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProjectLoadErrorKind {

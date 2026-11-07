@@ -1424,6 +1424,8 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin check` on an archive states the temporary directory, not the archive, when it cannot make its scratch directory there.
 - `aria` rejects a flag given twice, such as `--fps 24 --fps 30`, as a usage error instead of keeping the last value.
 - A second Aria window process no longer replaces or deletes the first process's recovery copy; each session writes its own slot, and Home offers a copy only once the session that wrote it has ended.
+- `aria frame`, `aria export`, Export Frame and Export Image Sequence state the path and the reason of a file they cannot write, without an "i/o error:" prefix or an OS error number.
+- An import, relink or template pick of a missing file states the file's path.
 
 ## [alpha-0.7.0] - 2026-07-22
 

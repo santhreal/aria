@@ -112,7 +112,7 @@ pub use effects::{
     shipped_effect_catalog,
 };
 pub use error::{
-    ModelError, ProjectLoadError, ProjectLoadErrorKind, io_reason, unwritable_directory,
+    ModelError, ProjectLoadError, ProjectLoadErrorKind, io_reason, path_error, unwritable_directory,
 };
 pub use ids::{
     BinId, ClipId, GroupId, LinkId, MarkerId, MediaId, MulticamGroupId, ProjectId, SequenceId,

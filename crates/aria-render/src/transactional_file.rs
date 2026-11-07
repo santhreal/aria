@@ -35,15 +35,16 @@ impl TransactionalFile {
     /// Allocate a unique sibling staging directory and an empty file whose
     /// extension matches `destination`.
     pub(crate) fn new(destination: &Path) -> io::Result<Self> {
-        validate_destination_path(destination)?;
-        let destination = absolute_path(destination)?;
+        let at = |error: io::Error| aria_models::path_error(destination, &error);
+        validate_destination_path(destination).map_err(at)?;
+        let destination = absolute_path(destination).map_err(at)?;
         validate_destination_shape(&destination)?;
 
         let parent = destination
             .parent()
-            .ok_or_else(|| invalid_input("export destination has no parent directory"))?
+            .ok_or_else(|| at(invalid_input("export destination has no parent directory")))?
             .to_owned();
-        let staging_file_name = staging_file_name(&destination)?;
+        let staging_file_name = staging_file_name(&destination).map_err(at)?;
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_else(|error| error.duration())
@@ -117,14 +118,15 @@ impl TransactionalFile {
     /// not happen.
     pub(crate) fn publish(mut self) -> io::Result<()> {
         validate_destination_shape(&self.destination)?;
+        let at = |error: io::Error| aria_models::path_error(&self.destination, &error);
 
         // Inspect the directory entry itself before opening it. In particular,
         // never follow a symlink left at the encoder's output path.
-        let metadata = fs::symlink_metadata(&self.staging_file)?;
+        let metadata = fs::symlink_metadata(&self.staging_file).map_err(at)?;
         if !metadata.file_type().is_file() {
-            return Err(invalid_input(
+            return Err(at(invalid_input(
                 "export staging path is not a regular file after encoding",
-            ));
+            )));
         }
 
         // `sync_all` flushes file buffers, which needs write access on Windows
@@ -132,22 +134,24 @@ impl TransactionalFile {
         let staged_file = fs::OpenOptions::new()
             .read(true)
             .write(true)
-            .open(&self.staging_file)?;
-        if !staged_file.metadata()?.is_file() {
-            return Err(invalid_input(
+            .open(&self.staging_file)
+            .map_err(at)?;
+        if !staged_file.metadata().map_err(at)?.is_file() {
+            return Err(at(invalid_input(
                 "opened export staging artifact is not a regular file",
-            ));
+            )));
         }
-        staged_file.sync_all()?;
+        staged_file.sync_all().map_err(at)?;
         drop(staged_file);
 
         // The source and destination entries live in different directories,
         // so sync the source directory before moving the durable file.
-        sync_directory_if_supported(&self.staging_directory)?;
+        sync_directory_if_supported(&self.staging_directory).map_err(at)?;
 
-        let staged_path = tempfile::TempPath::try_from_path(self.staging_file.clone())?;
+        let staged_path =
+            tempfile::TempPath::try_from_path(self.staging_file.clone()).map_err(at)?;
         if let Err(error) = staged_path.persist(&self.destination) {
-            return Err(error.error);
+            return Err(at(error.error));
         }
 
         // The destination now names the complete file. Everything after this
@@ -239,7 +243,7 @@ fn validate_destination_shape(destination: &Path) -> io::Result<()> {
             ),
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
+        Err(error) => Err(aria_models::path_error(destination, &error)),
     }
 }
 
