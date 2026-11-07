@@ -1474,6 +1474,7 @@ Notes for the latest release. For previous releases, see the
 - A picture edit (mask, crop, transform, look, effect or visual keyframe) on a clip on an audio track is rejected naming the clip and its lane instead of reading "track cannot hold this clip" and "Drop it on a matching track".
 - An audio role set on a clip on a picture track is rejected naming the lane it needs instead of the drop message.
 - A generator write on a media clip is rejected stating the clip is media-backed instead of reporting a track kind mismatch.
+- A cut inside a fade, off a combo animation cycle, too close to an entrance or exit animation or a speed-ramp keyframe, or on a Lottie clip or animated sticker is rejected with copy naming that obstacle and its fix instead of reporting that a value is not accepted.
 
 ## [alpha-0.7.0] - 2026-07-22
 

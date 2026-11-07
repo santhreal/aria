@@ -15,6 +15,61 @@ use crate::time::Rational;
 use super::retiming::{SPEED_CURVE_SCALE, validate_speed_curve};
 use super::{Clip, ClipSource, Generator};
 
+/// Why a cut at a point would change what a clip renders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitRefusal {
+    /// The cut lands inside the clip's fade-in.
+    InsideFadeIn,
+    /// The cut lands inside the clip's fade-out.
+    InsideFadeOut,
+    /// The cut is off a whole cycle of the clip's combo animation.
+    OffComboCycle,
+    /// The head would be too short for the clip's entrance animation.
+    ShortensEntrance,
+    /// The tail would be too short for the clip's exit animation.
+    ShortensExit,
+    /// The clip plays a Lottie file, which holds no animation-time offset.
+    Lottie,
+    /// The clip shows an animated sticker, which holds no animation-time
+    /// offset.
+    AnimatedSticker,
+    /// A speed-ramp keyframe sits less than one curve tick from the cut.
+    RampKeyframeAtCut,
+}
+
+impl SplitRefusal {
+    /// Every refusal, in declaration order.
+    pub const ALL: [SplitRefusal; 8] = [
+        Self::InsideFadeIn,
+        Self::InsideFadeOut,
+        Self::OffComboCycle,
+        Self::ShortensEntrance,
+        Self::ShortensExit,
+        Self::Lottie,
+        Self::AnimatedSticker,
+        Self::RampKeyframeAtCut,
+    ];
+}
+
+impl std::fmt::Display for SplitRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InsideFadeIn => "the cut lands inside the clip's fade-in",
+            Self::InsideFadeOut => "the cut lands inside the clip's fade-out",
+            Self::OffComboCycle => "the cut is off a whole cycle of the clip's combo animation",
+            Self::ShortensEntrance => {
+                "the cut leaves the head too short for its entrance animation"
+            }
+            Self::ShortensExit => "the cut leaves the tail too short for its exit animation",
+            Self::Lottie => "a Lottie clip holds no animation-time offset, so it cannot be cut",
+            Self::AnimatedSticker => {
+                "an animated sticker holds no animation-time offset, so it cannot be cut"
+            }
+            Self::RampKeyframeAtCut => "a speed-ramp keyframe sits too close to the cut",
+        })
+    }
+}
+
 /// Reject splits that the current clip representation cannot express without
 /// changing the rendered result. Ordinary keyframes can be rebased, while
 /// edge-anchored fades/look animations are partitioned after these checks.
@@ -24,59 +79,37 @@ pub(crate) fn validate_split_render_continuity(
     right_duration: i64,
     rate: Rational,
 ) -> Result<(), ModelError> {
-    if clip.fade_in > left_duration {
-        return Err(ModelError::InvalidParam(
-            "cannot split inside a clip's fade-in".into(),
-        ));
-    }
-    if clip.fade_out > right_duration {
-        return Err(ModelError::InvalidParam(
-            "cannot split inside a clip's fade-out".into(),
-        ));
-    }
-
-    if clip.animation_combo.is_some() {
+    let refusal = if clip.fade_in > left_duration {
+        Some(SplitRefusal::InsideFadeIn)
+    } else if clip.fade_out > right_duration {
+        Some(SplitRefusal::InsideFadeOut)
+    } else if clip.animation_combo.is_some() {
         let period = super::look_animation_combo_period_ticks(rate);
-        if left_duration % period != 0 {
-            return Err(ModelError::InvalidParam(format!(
-                "cannot split a combo-animated clip away from its {period}-tick phase boundary"
-            )));
-        }
+        (left_duration % period != 0).then_some(SplitRefusal::OffComboCycle)
     } else {
-        let original_window =
-            super::look_animation_window_ticks(clip.timeline.duration.value, rate);
-        if clip.animation_in.is_some()
-            && super::look_animation_window_ticks(left_duration, rate) != original_window
-        {
-            return Err(ModelError::InvalidParam(
-                "split would retime the clip's entrance animation".into(),
-            ));
+        let window = |duration| super::look_animation_window_ticks(duration, rate);
+        let original = window(clip.timeline.duration.value);
+        if clip.animation_in.is_some() && window(left_duration) != original {
+            Some(SplitRefusal::ShortensEntrance)
+        } else if clip.animation_out.is_some() && window(right_duration) != original {
+            Some(SplitRefusal::ShortensExit)
+        } else {
+            None
         }
-        if clip.animation_out.is_some()
-            && super::look_animation_window_ticks(right_duration, rate) != original_window
-        {
-            return Err(ModelError::InvalidParam(
-                "split would retime the clip's exit animation".into(),
-            ));
-        }
-    }
-
-    match &clip.content {
-        ClipSource::Generated(Generator::Lottie { .. }) => Err(ModelError::InvalidParam(
-            "cannot split a Lottie clip without an animation-time offset".into(),
-        )),
+    };
+    let refusal = refusal.or(match &clip.content {
+        ClipSource::Generated(Generator::Lottie { .. }) => Some(SplitRefusal::Lottie),
         ClipSource::Generated(Generator::Sticker { asset })
             if crate::sticker::sticker_spec(asset).is_some_and(|spec| spec.animated) =>
         {
-            Err(ModelError::InvalidParam(
-                "cannot split an animated sticker without an animation-time offset".into(),
-            ))
+            Some(SplitRefusal::AnimatedSticker)
         }
         ClipSource::Media { .. }
         | ClipSource::Multicam { .. }
         | ClipSource::Sequence { .. }
-        | ClipSource::Generated(_) => Ok(()),
-    }
+        | ClipSource::Generated(_) => None,
+    });
+    refusal.map_or(Ok(()), |refusal| Err(ModelError::Split(refusal)))
 }
 
 /// Divide a normalized speed curve at timeline fraction `split`, stretching
@@ -138,9 +171,7 @@ fn speed_curve_subsegment(
             .last()
             .is_some_and(|previous: &Keyframe<f32>| previous.tick >= tick)
         {
-            return Err(ModelError::InvalidParam(
-                "speed-ramp keyframe is too close to the split boundary".into(),
-            ));
+            return Err(ModelError::Split(SplitRefusal::RampKeyframeAtCut));
         }
         let easing = positions
             .get(index + 1)

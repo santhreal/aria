@@ -1,7 +1,7 @@
 //! Human-readable engine errors. Every message names the next action.
 
 use aria_engine::EngineError;
-use aria_models::{ClipSetRefusal, MAX_PARENT_DEPTH, ModelError};
+use aria_models::{ClipSetRefusal, MAX_PARENT_DEPTH, ModelError, SplitRefusal};
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
     match err {
@@ -200,6 +200,36 @@ fn model_copy(err: &ModelError) -> String {
             }
             ClipSetRefusal::NoneGrouped => {
                 "None of the selected clips is in a group. Select a grouped clip to ungroup."
+            }
+        },
+        ModelError::Split(refusal) => match refusal {
+            SplitRefusal::InsideFadeIn => {
+                "That cut lands inside the clip's fade-in. Cut after the fade-in ends, or shorten \
+                 the fade-in first."
+            }
+            SplitRefusal::InsideFadeOut => {
+                "That cut lands inside the clip's fade-out. Cut before the fade-out starts, or \
+                 shorten the fade-out first."
+            }
+            SplitRefusal::OffComboCycle => {
+                "That cut splits a cycle of the clip's combo animation. Cut a whole cycle (about \
+                 one second) into the clip, or remove the combo animation first."
+            }
+            SplitRefusal::ShortensEntrance => {
+                "That cut leaves the first part too short for the clip's entrance animation. Cut \
+                 later, or remove the entrance animation first."
+            }
+            SplitRefusal::ShortensExit => {
+                "That cut leaves the second part too short for the clip's exit animation. Cut \
+                 earlier, or remove the exit animation first."
+            }
+            SplitRefusal::Lottie => "A Lottie clip can't be cut. Trim its ends instead.",
+            SplitRefusal::AnimatedSticker => {
+                "An animated sticker can't be cut. Trim its ends instead."
+            }
+            SplitRefusal::RampKeyframeAtCut => {
+                "That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, \
+                 then try again."
             }
         },
     };

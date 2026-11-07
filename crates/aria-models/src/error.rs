@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::clip::SlotMedia;
+use crate::clip::{SlotMedia, SplitRefusal};
 use crate::ids::{BinId, ClipId, MarkerId, MediaId, SequenceId, TrackId};
 use crate::media::MediaKind;
 use crate::schema::ProjectSchema;
@@ -608,6 +608,10 @@ pub enum ModelError {
     /// A link, group or enable request names no clips it can act on.
     #[error("{0}")]
     ClipSet(ClipSetRefusal),
+
+    /// A cut at that point would change what the clip renders.
+    #[error("{0}")]
+    Split(SplitRefusal),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

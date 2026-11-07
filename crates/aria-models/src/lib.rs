@@ -93,7 +93,9 @@ pub use clip::{
     validate_speed_curve, validate_volume, validate_volume_envelope, visit_clip_keyframes,
     visit_clip_params,
 };
-pub use clip::{GeneratorSpec, generator_spec, generator_spec_by_id, generator_specs};
+pub use clip::{
+    GeneratorSpec, SplitRefusal, generator_spec, generator_spec_by_id, generator_specs,
+};
 pub use clip_types::{
     CLIP_TYPE_ID_MAX_BYTES, CLIP_TYPE_MAX_HANDLES, CLIP_TYPE_NAME_MAX_BYTES, ClipTypeIcon,
     ClipTypeSpec, clip_type_catalog, clip_type_spec,

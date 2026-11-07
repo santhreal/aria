@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use aria_engine::EngineError;
 use aria_models::{
     BinId, ClipId, ClipSetRefusal, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId,
-    Rational, SequenceId, SlotMedia, TrackId, TrackKind,
+    Rational, SequenceId, SlotMedia, SplitRefusal, TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -173,9 +173,9 @@ fn an_edit_on_the_wrong_lane_reads_as_the_lane_not_a_drop() {
     );
 }
 
-/// Variants of [`ModelError`], each [`ClipSetRefusal`] counted as its own;
-/// [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 54;
+/// Variants of [`ModelError`], each [`ClipSetRefusal`] and [`SplitRefusal`]
+/// counted as its own; [`variant`] numbers them `0..VARIANTS`.
+const VARIANTS: usize = 62;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -233,6 +233,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::NotOnPicture { .. } => 47,
         ModelError::NotOnSound { .. } => 48,
         ModelError::ClipSet(refusal) => 49 + clip_set_index(*refusal),
+        ModelError::Split(refusal) => 54 + split_index(*refusal),
     }
 }
 
@@ -245,6 +246,21 @@ fn clip_set_index(refusal: ClipSetRefusal) -> usize {
         ClipSetRefusal::GroupOfOne => 2,
         ClipSetRefusal::NoneLinked => 3,
         ClipSetRefusal::NoneGrouped => 4,
+    }
+}
+
+/// Where `refusal` sits in [`SplitRefusal`]. No catch-all, so a new refusal
+/// stops compiling here until it is numbered and [`VARIANTS`] grows.
+fn split_index(refusal: SplitRefusal) -> usize {
+    match refusal {
+        SplitRefusal::InsideFadeIn => 0,
+        SplitRefusal::InsideFadeOut => 1,
+        SplitRefusal::OffComboCycle => 2,
+        SplitRefusal::ShortensEntrance => 3,
+        SplitRefusal::ShortensExit => 4,
+        SplitRefusal::Lottie => 5,
+        SplitRefusal::AnimatedSticker => 6,
+        SplitRefusal::RampKeyframeAtCut => 7,
     }
 }
 
@@ -336,6 +352,7 @@ fn every_refusal() -> Vec<ModelError> {
     ]
     .into_iter()
     .chain(ClipSetRefusal::ALL.map(ModelError::ClipSet))
+    .chain(SplitRefusal::ALL.map(ModelError::Split))
     .collect()
 }
 
@@ -374,6 +391,29 @@ fn every_model_refusal_names_its_obstacle_and_the_fix() {
                 !copy.contains(token),
                 "{what} shows the model's own {token:?}: {copy}"
             );
+        }
+    }
+}
+
+/// No two model refusals read the same copy, but the two value refusals: a
+/// shared sentence names one obstacle for two, and one of them reads the
+/// wrong fix.
+///
+/// Closes the class where a structural refusal borrowed another's copy: a
+/// blade inside a fade-in read "That value isn't accepted here. Enter another
+/// value", and a look edit on an audio clip read the drop-on-a-track copy.
+/// Derived from [`every_refusal`], so a new refusal is checked on arrival.
+#[test]
+fn every_model_refusal_reads_its_own_copy() {
+    let mut seen = std::collections::BTreeMap::new();
+    for err in every_refusal() {
+        if matches!(err, ModelError::InvalidTransform(_)) {
+            continue;
+        }
+        let what = format!("{err:?}");
+        let copy = describe_engine_error(&EngineError::Model(err));
+        if let Some(first) = seen.insert(copy.clone(), what.clone()) {
+            panic!("{what} reads the copy of {first}: {copy}");
         }
     }
 }

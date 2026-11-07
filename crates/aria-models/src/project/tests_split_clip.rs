@@ -1,6 +1,8 @@
 //! `split_clip` cases.
 
 use super::*;
+use crate::clip::{SPEED_CURVE_SCALE, SplitRefusal};
+use crate::param::Keyframe;
 use crate::transition::TransitionAlignment;
 
 // --- remove_clip ------------------------------------------------------
@@ -423,32 +425,101 @@ fn split_clip_rejects_at_boundaries() {
     );
 }
 
+/// Every [`SplitRefusal`] is what a split returns for the clip state that
+/// raises it, and the refused split leaves the clip and its lane as they were.
+///
+/// Closes the class where a cut the clip cannot express returned
+/// `InvalidParam`, which the editor reads as "That value isn't accepted here.
+/// Enter another value": a blade inside a fade-in pointed at a value field.
+/// Derived from [`SplitRefusal::ALL`] through an exhaustive match, so a new
+/// refusal fails to build until it has a fixture. Not covered: refusals a
+/// split raises after these checks (rate, overflow, unknown media).
 #[test]
-fn split_clip_fails_closed_when_time_anchored_state_cannot_continue() {
-    let (mut project, media_id, track) = project_with_media(500);
-    let clip_id = project
-        .add_clip(track, media_id, tr(0, 100), rt(0))
-        .unwrap();
-
-    project.timeline_mut().clip_mut(clip_id).unwrap().fade_in = 40;
-    let before = project.clip(clip_id).unwrap().clone();
-    assert!(matches!(
-        project.split_clip(clip_id, rt(20)),
-        Err(ModelError::InvalidParam(message)) if message.contains("fade-in")
-    ));
-    assert_eq!(project.clip(clip_id), Some(&before));
-    assert_eq!(project.timeline().clip_count(), 1);
-
-    let clip = project.timeline_mut().clip_mut(clip_id).unwrap();
-    clip.fade_in = 0;
-    clip.animation_combo = Some(AnimationRef::new("pulse"));
-    let before = project.clip(clip_id).unwrap().clone();
-    assert!(matches!(
-        project.split_clip(clip_id, rt(25)),
-        Err(ModelError::InvalidParam(message)) if message.contains("phase boundary")
-    ));
-    assert_eq!(project.clip(clip_id), Some(&before));
-    assert_eq!(project.timeline().clip_count(), 1);
+fn every_split_refusal_is_raised_by_its_clip_and_leaves_it_whole() {
+    fn generated(project: &mut Project, generator: Generator) -> ClipId {
+        let kind = TrackKind::for_generator(&generator).expect("a lane takes the generator");
+        let lane = project.add_track(kind, "G1");
+        project.add_generated(lane, generator, tr(0, 100)).unwrap()
+    }
+    for refusal in SplitRefusal::ALL {
+        let (mut project, media_id, track) = project_with_media(500);
+        let mut media_clip = |duration| {
+            project
+                .add_clip(track, media_id, tr(0, duration), rt(0))
+                .unwrap()
+        };
+        let (clip, at) = match refusal {
+            SplitRefusal::InsideFadeIn => {
+                let clip = media_clip(100);
+                project.timeline_mut().clip_mut(clip).unwrap().fade_in = 40;
+                (clip, 20)
+            }
+            SplitRefusal::InsideFadeOut => {
+                let clip = media_clip(100);
+                project.timeline_mut().clip_mut(clip).unwrap().fade_out = 40;
+                (clip, 80)
+            }
+            SplitRefusal::OffComboCycle => {
+                let clip = media_clip(100);
+                project
+                    .timeline_mut()
+                    .clip_mut(clip)
+                    .unwrap()
+                    .animation_combo = Some(AnimationRef::new("pulse"));
+                (clip, 25)
+            }
+            SplitRefusal::ShortensEntrance => {
+                let clip = media_clip(100);
+                project.timeline_mut().clip_mut(clip).unwrap().animation_in =
+                    Some(AnimationRef::new("fade_in"));
+                (clip, 5)
+            }
+            SplitRefusal::ShortensExit => {
+                let clip = media_clip(100);
+                project.timeline_mut().clip_mut(clip).unwrap().animation_out =
+                    Some(AnimationRef::new("drop"));
+                (clip, 95)
+            }
+            SplitRefusal::Lottie => (
+                generated(&mut project, Generator::lottie("anim.json", 64, 64)),
+                50,
+            ),
+            SplitRefusal::AnimatedSticker => {
+                let asset = crate::sticker::sticker_catalog()
+                    .iter()
+                    .find(|spec| spec.animated)
+                    .expect("the catalog holds an animated sticker")
+                    .id
+                    .to_string();
+                (generated(&mut project, Generator::sticker(asset)), 50)
+            }
+            // A cut one tick into a six-tick clip starts the tail at curve
+            // tick 166.7, so the keyframe at 167 lands on the tail's first
+            // curve tick.
+            SplitRefusal::RampKeyframeAtCut => {
+                let clip = media_clip(6);
+                let key = |tick, value| Keyframe {
+                    tick,
+                    value,
+                    easing: Easing::Linear,
+                    tangents: None,
+                };
+                project.timeline_mut().clip_mut(clip).unwrap().speed_curve = Param::Keyframed {
+                    keyframes: vec![key(0, 1.0), key(167, 2.0), key(SPEED_CURVE_SCALE, 1.0)],
+                };
+                (clip, 1)
+            }
+        };
+        let before = project.clip(clip).unwrap().clone();
+        let clips = project.timeline().clip_count();
+        assert_eq!(
+            project.split_clip(clip, rt(at)),
+            Err(ModelError::Split(refusal)),
+            "{refusal:?}"
+        );
+        assert_eq!(project.clip(clip), Some(&before), "{refusal:?}");
+        assert_eq!(project.timeline().clip_count(), clips, "{refusal:?}");
+    }
 }
 
 #[test]
