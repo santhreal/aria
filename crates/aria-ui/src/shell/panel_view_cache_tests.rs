@@ -13,7 +13,12 @@
 //! after a refresh, which builds every body anew. Every panel must also draw
 //! differently after at least one change, so a panel added to the registry
 //! whose drawing no change here reaches fails until a change it draws is added
-//! to [`CHANGES`].
+//! to [`CHANGES`]. A panel listed in [`UNMOVED`] must draw differently after
+//! the change of each kind its entry leaves out: a kind that leaves it as it
+//! was would pass as unmoved whether the entry lists it or not, so the census
+//! could not tell a wrong entry from a right one. The kinds the census's
+//! fixture cannot show on a panel are listed in [`BLIND`], and the census
+//! fails when one starts to show or another stops.
 //!
 //! The panels are cut into [`SHARDS`] tests by their place in the registry, so
 //! the harness draws them on as many threads. Each panel takes the same steps
@@ -25,7 +30,39 @@
 
 use gpui::TestAppContext;
 
-use super::tests::{CHANGES, dock_right, drawing, make, opened, shell_of};
+use super::tests::{CHANGES, change_of, dock_right, drawing, make, opened, shell_of};
+use super::{Moved, UNMOVED};
+use crate::dock::{PANEL_INSPECTOR, PANEL_PROJECT, PANEL_TIMELINE, PANEL_VIEWER, PanelId};
+
+/// The kinds of change an [`UNMOVED`] entry leaves out whose change in
+/// [`CHANGES`] draws nothing on the panel over the census's fixture: a still
+/// with no keyframes, its frame rendered again unchanged, and a filmstrip cell
+/// the timeline does not draw. An entry wrongly listing one of these kinds
+/// passes the census.
+const BLIND: &[(PanelId, Moved)] = &[
+    (PANEL_PROJECT, Moved::PoolHover),
+    (PANEL_VIEWER, Moved::Frame),
+    (PANEL_INSPECTOR, Moved::Playhead),
+    (PANEL_INSPECTOR, Moved::Frame),
+    (PANEL_TIMELINE, Moved::Filmstrip),
+];
+
+/// Every [`BLIND`] entry is a kind its panel's [`UNMOVED`] entry leaves out,
+/// so the census reads each one.
+#[test]
+fn every_blind_kind_is_one_its_unmoved_entry_leaves_out() {
+    for &(panel, moved) in BLIND {
+        let kinds = UNMOVED
+            .iter()
+            .find(|(listed, _)| *listed == panel)
+            .map(|(_, kinds)| *kinds)
+            .unwrap_or_else(|| panic!("{panel} is in BLIND and not in UNMOVED"));
+        assert!(
+            !kinds.contains(&moved),
+            "{panel} lists {moved:?} as unmoved"
+        );
+    }
+}
 
 /// Tests the registry's panels are cut into.
 const SHARDS: usize = 4;
@@ -71,6 +108,7 @@ fn cached_bodies_draw_what_a_full_redraw_draws(cx: &mut TestAppContext, shard: u
 
     let mut stale = Vec::new();
     let mut unchanged = Vec::new();
+    let mut blind = Vec::new();
     for (index, panel) in shard_of(&panels, shard) {
         // Each panel starts from the same project, so a list that grew under
         // the panels before it (History's steps, the Jobs rows) does not push
@@ -82,6 +120,20 @@ fn cached_bodies_draw_what_a_full_redraw_draws(cx: &mut TestAppContext, shard: u
             continue;
         };
         let mut changed = false;
+        // A listed panel is redrawn by every kind of narrow change its entry
+        // in `UNMOVED` leaves out, so each of those changes has to show in its
+        // drawing here: one that does not leaves a wrong entry for that kind
+        // as green as a right one.
+        let mut unseen: Vec<Moved> = UNMOVED
+            .iter()
+            .find(|(listed, _)| *listed == panel)
+            .map(|(_, kinds)| {
+                Moved::ALL
+                    .into_iter()
+                    .filter(|moved| !kinds.contains(moved))
+                    .collect()
+            })
+            .unwrap_or_default();
         let mut before = drawing(visual);
         for (at, change) in CHANGES.into_iter().enumerate() {
             make(visual, &shell, change, index * CHANGES.len() + at + 1);
@@ -95,8 +147,18 @@ fn cached_bodies_draw_what_a_full_redraw_draws(cx: &mut TestAppContext, shard: u
                     cached.differences(&full)
                 ));
             }
-            changed |= before.inside(rect) != full.inside(rect);
+            if before.inside(rect) != full.inside(rect) {
+                changed = true;
+                unseen.retain(|&moved| change_of(moved) != change);
+            }
             before = full;
+        }
+        let known: Vec<Moved> = Moved::ALL
+            .into_iter()
+            .filter(|moved| BLIND.contains(&(panel, *moved)))
+            .collect();
+        if unseen != known {
+            blind.push(format!("{panel}: unseen {unseen:?}, BLIND lists {known:?}"));
         }
         if !changed {
             unchanged.push(panel);
@@ -107,6 +169,12 @@ fn cached_bodies_draw_what_a_full_redraw_draws(cx: &mut TestAppContext, shard: u
     assert!(
         unchanged.is_empty(),
         "no change in CHANGES alters the drawing of {unchanged:?}: add one each draws"
+    );
+    assert!(
+        blind.is_empty(),
+        "the changes a panel's UNMOVED entry leaves out that leave it as it was \
+         differ from BLIND:\n{}",
+        blind.join("\n")
     );
 }
 

@@ -150,7 +150,7 @@ pub(super) fn drawing(visual: &mut VisualTestContext) -> Drawing {
 }
 
 /// A change to what a panel draws, made the way the app makes it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Change {
     /// A wheel notch: the timeline view pans and its lanes scroll.
     View,
@@ -237,7 +237,18 @@ pub(super) fn moving(
     moved: Moved,
     step: usize,
 ) -> Change {
-    let change = match moved {
+    let change = change_of(moved);
+    match moved {
+        Moved::Pointer => make(visual, shell, change, step + 1),
+        Moved::Drag => make(visual, shell, change, step),
+        Moved::View | Moved::Playhead | Moved::PoolHover | Moved::Filmstrip | Moved::Frame => {}
+    }
+    change
+}
+
+/// The change in [`CHANGES`] that moves only `moved`.
+pub(super) fn change_of(moved: Moved) -> Change {
+    match moved {
         Moved::View => Change::View,
         Moved::Playhead => Change::Playhead,
         Moved::PoolHover => Change::PoolHover,
@@ -245,13 +256,7 @@ pub(super) fn moving(
         Moved::Frame => Change::Frame,
         Moved::Pointer => Change::Pointer,
         Moved::Drag => Change::Drag,
-    };
-    match moved {
-        Moved::Pointer => make(visual, shell, change, step + 1),
-        Moved::Drag => make(visual, shell, change, step),
-        Moved::View | Moved::Playhead | Moved::PoolHover | Moved::Filmstrip | Moved::Frame => {}
     }
-    change
 }
 
 pub(super) fn shell_of(visual: &mut VisualTestContext) -> gpui::Entity<Shell> {
@@ -374,7 +379,10 @@ pub(super) fn make(
             match change {
                 Change::View => {
                     shell.state.update(cx, |state, _| {
-                        let by = if step.is_multiple_of(2) { 24.0 } else { -12.0 };
+                        // The offset never goes below zero, so a step back
+                        // from the start would leave the view where it was.
+                        let back = !step.is_multiple_of(2) && state.scroll_x >= 12.0;
+                        let by = if back { -12.0 } else { 24.0 };
                         state.scroll_timeline_to(state.scroll_x + by, false);
                         state.video_scroll_y = (step % 3) as f32 * 8.0;
                     });
