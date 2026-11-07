@@ -167,7 +167,7 @@ aria inspect <project.aria> [--clips]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--clips` | off | List every clip on every lane with its timeline span and source description |
+| `--clips` | off | List every clip on every lane with its timeline span, what it plays, and the source times it plays from and to |
 
 Print the project's schema version, canvas size, frame rate, duration, marker
 count when the project has markers, media pool, and lanes from bottom to top.

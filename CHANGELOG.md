@@ -1405,6 +1405,7 @@ Notes for the latest release. For previous releases, see the
 - A `--size` or `--fit` with a zero side, or a whole-number flag past 4294967295, is refused with that reason instead of a request for the shape it already has.
 - Opening a text file, such as a `.aria` project, as media states "Pick another file." and no longer suggests installing plugins.
 - `aria export --fps` rejects a rate above `1000`, where the H.264 hardware encoder held the last frame for 1/29.97 s past the span.
+- `aria inspect --clips` prints each clip's source window as the source times it plays from and to instead of raw ticks in the source's own rate.
 
 ## [alpha-0.7.0] - 2026-07-22
 
