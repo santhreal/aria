@@ -340,6 +340,19 @@ impl Project {
         &mut self.model
     }
 
+    /// Run `edit`, which writes in more than one step, and put the model back
+    /// as it was when any step fails, so the call fails whole. A call that
+    /// writes in one model step needs none of this: the model leaves itself
+    /// unchanged on its own failure.
+    pub(crate) fn atomic<R>(&mut self, edit: impl FnOnce(&mut Self) -> PyResult<R>) -> PyResult<R> {
+        let before = self.model.clone();
+        let outcome = edit(self);
+        if outcome.is_err() {
+            self.model = before;
+        }
+        outcome
+    }
+
     pub(crate) fn ensure_renderer(&mut self) -> PyResult<()> {
         if self.renderer.is_none() {
             self.renderer = Some(Renderer::new_headless().map_err(render_err)?);

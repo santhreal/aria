@@ -28,6 +28,10 @@ mod binding_cost;
 #[path = "binding_library_tests.rs"]
 mod scripted_library;
 
+#[cfg(all(test, feature = "embedded-python"))]
+#[path = "binding_atomic_tests.rs"]
+mod scripted_atomic;
+
 use content::{
     Arrow, Ellipse, Heart, Line, Polygon, Rect, ShapeStrokeSpec, Solid, Star, Sticker, Text,
     TextBackground, TextShadow, TextStroke,

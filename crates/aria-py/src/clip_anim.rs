@@ -70,32 +70,34 @@ pub(super) fn animate(
         None => None,
     };
     handle.with_project(py, |project| {
-        let clip_span = Clip::span_ticks(project, handle.id)?;
-        let rate = project.rate();
-        let mut applied = 0usize;
-        for (key, value) in dict.iter() {
-            let name: String = key.extract()?;
-            if name == "at" || name == "easing" {
-                continue;
+        project.atomic(|project| {
+            let clip_span = Clip::span_ticks(project, handle.id)?;
+            let rate = project.rate();
+            let mut applied = 0usize;
+            for (key, value) in dict.iter() {
+                let name: String = key.extract()?;
+                if name == "at" || name == "easing" {
+                    continue;
+                }
+                apply_clip_animation(
+                    project,
+                    handle.id,
+                    clip_span,
+                    rate,
+                    &name,
+                    &value,
+                    at_override,
+                    default_easing,
+                )?;
+                applied += 1;
             }
-            apply_clip_animation(
-                project,
-                handle.id,
-                clip_span,
-                rate,
-                &name,
-                &value,
-                at_override,
-                default_easing,
-            )?;
-            applied += 1;
-        }
-        if applied == 0 {
-            return Err(PyValueError::new_err(
-                "animate() requires at least one property",
-            ));
-        }
-        Ok(())
+            if applied == 0 {
+                return Err(PyValueError::new_err(
+                    "animate() requires at least one property",
+                ));
+            }
+            Ok(())
+        })
     })
 }
 
@@ -125,14 +127,16 @@ pub(super) fn clear_animation(
         ));
     }
     handle.with_project(py, |project| {
-        for name in list {
-            let param = clip_param(&name)?;
-            let value = sample_param_at_clip_start(project, handle.id, &param)?;
-            project
-                .model_mut()
-                .set_param_constant(handle.id, param, value)
-                .map_err(model_err)?;
-        }
-        Ok(())
+        project.atomic(|project| {
+            for name in list {
+                let param = clip_param(&name)?;
+                let value = sample_param_at_clip_start(project, handle.id, &param)?;
+                project
+                    .model_mut()
+                    .set_param_constant(handle.id, param, value)
+                    .map_err(model_err)?;
+            }
+            Ok(())
+        })
     })
 }

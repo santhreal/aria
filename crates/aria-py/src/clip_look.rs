@@ -15,19 +15,21 @@ pub(super) fn add_effect(
     params: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Effect> {
     handle.with_project(py, |project| {
-        let index = project
-            .model_mut()
-            .add_effect(handle.id, effect_id)
-            .map_err(model_err)?;
-        if let Some(dict) = params {
-            let fx = Effect::new(handle.project.clone_ref(py), handle.id, index);
-            for (key, value) in dict.iter() {
-                let name: String = key.extract()?;
-                let v: f32 = value.extract()?;
-                fx.set_param(project, &name, v)?;
+        project.atomic(|project| {
+            let index = project
+                .model_mut()
+                .add_effect(handle.id, effect_id)
+                .map_err(model_err)?;
+            if let Some(dict) = params {
+                let fx = Effect::new(handle.project.clone_ref(py), handle.id, index);
+                for (key, value) in dict.iter() {
+                    let name: String = key.extract()?;
+                    let v: f32 = value.extract()?;
+                    fx.set_param(project, &name, v)?;
+                }
             }
-        }
-        Ok(Effect::new(handle.project.clone_ref(py), handle.id, index))
+            Ok(Effect::new(handle.project.clone_ref(py), handle.id, index))
+        })
     })
 }
 
@@ -57,22 +59,24 @@ pub(super) fn transition(
     duration: Option<f64>,
 ) -> PyResult<()> {
     handle.with_project(py, |project| {
-        // Read before the transition is added, so a bad duration adds none.
-        let length = duration
-            .map(|dur| ticks(dur, project.rate()))
-            .transpose()?
-            .map(|length| length.max(1));
-        project
-            .model_mut()
-            .add_transition(handle.id, transition_id)
-            .map_err(model_err)?;
-        if let Some(length) = length {
+        project.atomic(|project| {
+            // Read before the transition is added, so a bad duration adds none.
+            let length = duration
+                .map(|dur| ticks(dur, project.rate()))
+                .transpose()?
+                .map(|length| length.max(1));
             project
                 .model_mut()
-                .set_transition_duration(handle.id, length)
+                .add_transition(handle.id, transition_id)
                 .map_err(model_err)?;
-        }
-        Ok(())
+            if let Some(length) = length {
+                project
+                    .model_mut()
+                    .set_transition_duration(handle.id, length)
+                    .map_err(model_err)?;
+            }
+            Ok(())
+        })
     })
 }
 
@@ -123,62 +127,64 @@ pub(super) fn set_style(
     let kwargs =
         kwargs.ok_or_else(|| PyValueError::new_err("set_style requires keyword arguments"))?;
     handle.with_project(py, |project| {
-        enum Target {
-            Text,
-            Shape,
-        }
-        // Which style block a clip opens is the generator's own `has_text` /
-        // `has_shape` column, not a list of variants kept here.
-        let target = match &Clip::require(project, handle.id)?.content {
-            aria_models::ClipSource::Media { .. }
-            | aria_models::ClipSource::Multicam { .. }
-            | aria_models::ClipSource::Sequence { .. } => None,
-            aria_models::ClipSource::Generated(generator) => {
-                let spec = generator.spec();
-                if spec.has_text {
-                    Some(Target::Text)
-                } else if spec.has_shape {
-                    Some(Target::Shape)
-                } else {
-                    None
+        project.atomic(|project| {
+            enum Target {
+                Text,
+                Shape,
+            }
+            // Which style block a clip opens is the generator's own `has_text` /
+            // `has_shape` column, not a list of variants kept here.
+            let target = match &Clip::require(project, handle.id)?.content {
+                aria_models::ClipSource::Media { .. }
+                | aria_models::ClipSource::Multicam { .. }
+                | aria_models::ClipSource::Sequence { .. } => None,
+                aria_models::ClipSource::Generated(generator) => {
+                    let spec = generator.spec();
+                    if spec.has_text {
+                        Some(Target::Text)
+                    } else if spec.has_shape {
+                        Some(Target::Shape)
+                    } else {
+                        None
+                    }
                 }
             }
-        }
-        .ok_or_else(|| PyValueError::new_err("set_style applies to text or shape clips"))?;
-        match target {
-            Target::Text => {
-                let clip = Clip::require(project, handle.id)?;
-                let aria_models::ClipSource::Generated(Generator::Text { content, style }) =
-                    &clip.content
-                else {
-                    unreachable!("target checked above");
-                };
-                let text = content.clone();
-                let mut new_style = style.clone();
-                apply_text_style(&mut new_style, kwargs)?;
-                project
-                    .model_mut()
-                    .set_generator(
-                        handle.id,
-                        Generator::Text {
-                            content: text,
-                            style: new_style,
-                        },
-                    )
-                    .map_err(model_err)
-            }
-            Target::Shape => {
-                for (key, value) in kwargs.iter() {
-                    let key: String = key.extract()?;
-                    let (param, val) = shape_style_param(&key, &value)?;
+            .ok_or_else(|| PyValueError::new_err("set_style applies to text or shape clips"))?;
+            match target {
+                Target::Text => {
+                    let clip = Clip::require(project, handle.id)?;
+                    let aria_models::ClipSource::Generated(Generator::Text { content, style }) =
+                        &clip.content
+                    else {
+                        unreachable!("target checked above");
+                    };
+                    let text = content.clone();
+                    let mut new_style = style.clone();
+                    apply_text_style(&mut new_style, kwargs)?;
                     project
                         .model_mut()
-                        .set_param_constant(handle.id, ClipParam::Shape { param }, val)
-                        .map_err(model_err)?;
+                        .set_generator(
+                            handle.id,
+                            Generator::Text {
+                                content: text,
+                                style: new_style,
+                            },
+                        )
+                        .map_err(model_err)
                 }
-                Ok(())
+                Target::Shape => {
+                    for (key, value) in kwargs.iter() {
+                        let key: String = key.extract()?;
+                        let (param, val) = shape_style_param(&key, &value)?;
+                        project
+                            .model_mut()
+                            .set_param_constant(handle.id, ClipParam::Shape { param }, val)
+                            .map_err(model_err)?;
+                    }
+                    Ok(())
+                }
             }
-        }
+        })
     })
 }
 

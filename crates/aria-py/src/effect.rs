@@ -137,58 +137,62 @@ impl Effect {
             None => None,
         };
         self.with_project(py, |project| {
-            let (clip_start, clip_dur) = Clip::span_ticks(project, self.clip_id)?;
-            let rate = project.rate();
-            let mut applied = 0usize;
-            for (key, value) in dict.iter() {
-                let name: String = key.extract()?;
-                if name == "easing" || name == "at" {
-                    continue;
-                }
-                let param_idx = Self::param_index(project, self.clip_id, self.index, &name)?;
-                let param = ClipParam::Effect {
-                    effect: self.index as u32,
-                    param: param_idx as u32,
-                };
-                if value.is_instance_of::<PyList>() {
-                    let list = value.cast::<PyList>()?;
-                    let pairs = parse_keyframe_pairs(py, list, default_easing, |v| {
-                        Ok(ParamValue::Scalar(v.extract::<f32>()?))
-                    })?;
-                    // Every time is read before the first key is set, so a
-                    // bad time in the list sets none of them.
-                    let keys = pairs
-                        .into_iter()
-                        .map(|(rel, val, easing)| {
-                            clip_key_time(clip_start, clip_dur, rel, rate)
-                                .map(|abs| (abs, val, easing))
-                        })
-                        .collect::<PyResult<Vec<_>>>()?;
-                    for (abs, val, easing) in keys {
+            project.atomic(|project| {
+                let (clip_start, clip_dur) = Clip::span_ticks(project, self.clip_id)?;
+                let rate = project.rate();
+                let mut applied = 0usize;
+                for (key, value) in dict.iter() {
+                    let name: String = key.extract()?;
+                    if name == "easing" || name == "at" {
+                        continue;
+                    }
+                    let param_idx = Self::param_index(project, self.clip_id, self.index, &name)?;
+                    let param = ClipParam::Effect {
+                        effect: self.index as u32,
+                        param: param_idx as u32,
+                    };
+                    if value.is_instance_of::<PyList>() {
+                        let list = value.cast::<PyList>()?;
+                        let pairs = parse_keyframe_pairs(py, list, default_easing, |v| {
+                            Ok(ParamValue::Scalar(v.extract::<f32>()?))
+                        })?;
+                        // Every time is read before the first key is set, so a
+                        // bad time in the list sets none of them.
+                        let keys = pairs
+                            .into_iter()
+                            .map(|(rel, val, easing)| {
+                                clip_key_time(clip_start, clip_dur, rel, rate)
+                                    .map(|abs| (abs, val, easing))
+                            })
+                            .collect::<PyResult<Vec<_>>>()?;
+                        for (abs, val, easing) in keys {
+                            project
+                                .model_mut()
+                                .set_param_keyframe(self.clip_id, param, abs, val, easing, None)
+                                .map_err(model_err)?;
+                        }
+                    } else {
+                        let at = at_override.ok_or_else(|| {
+                            PyValueError::new_err(format!(
+                                "single keyframe for {name} requires at="
+                            ))
+                        })?;
+                        let val = ParamValue::Scalar(value.extract::<f32>()?);
+                        let abs = clip_key_time(clip_start, clip_dur, at, rate)?;
                         project
                             .model_mut()
-                            .set_param_keyframe(self.clip_id, param, abs, val, easing, None)
+                            .set_param_keyframe(self.clip_id, param, abs, val, default_easing, None)
                             .map_err(model_err)?;
                     }
-                } else {
-                    let at = at_override.ok_or_else(|| {
-                        PyValueError::new_err(format!("single keyframe for {name} requires at="))
-                    })?;
-                    let val = ParamValue::Scalar(value.extract::<f32>()?);
-                    let abs = clip_key_time(clip_start, clip_dur, at, rate)?;
-                    project
-                        .model_mut()
-                        .set_param_keyframe(self.clip_id, param, abs, val, default_easing, None)
-                        .map_err(model_err)?;
+                    applied += 1;
                 }
-                applied += 1;
-            }
-            if applied == 0 {
-                return Err(PyValueError::new_err(
-                    "animate() requires at least one parameter",
-                ));
-            }
-            Ok(())
+                if applied == 0 {
+                    return Err(PyValueError::new_err(
+                        "animate() requires at least one parameter",
+                    ));
+                }
+                Ok(())
+            })
         })
     }
 

@@ -1499,6 +1499,7 @@ Notes for the latest release. For previous releases, see the
 - Add Edit and Add Edit to All Tracks are disabled where a cut at the playhead is refused, such as inside a fade, and state the reason the run states instead of an engine error.
 - Lift and Extract are disabled while no unlocked track is targeted, and state the reason their run states.
 - A frame with the Clip menu or a clip's badge menu open no longer waits for a preview decode to finish.
+- A Python `animate`, `clear_animation`, `add_effect`, `transition` or `set_style` call that fails now leaves the project as it was instead of keeping the steps before the failure.
 
 ## [alpha-0.7.0] - 2026-07-22
 
