@@ -9,7 +9,7 @@
 //!   naming the flag.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Flags across the CLI surface that take no value (`[--flag]` in `USAGE`).
 pub(crate) const VALUELESS_FLAGS: &[&str] = &[
@@ -89,6 +89,19 @@ impl Verb {
     /// The verb spelled `word`, or `None` for a word that names no verb.
     pub(crate) fn named(word: &str) -> Option<Verb> {
         Verb::ALL.iter().copied().find(|verb| verb.key() == word)
+    }
+
+    /// The positional argument naming the file this verb writes, and the
+    /// extension of the one format it writes there. `None` for a verb that
+    /// writes no file named by a positional argument.
+    pub(crate) fn writes(self) -> Option<(usize, &'static str)> {
+        match self {
+            Verb::Demo => Some((0, "png")),
+            Verb::New => Some((0, aria_models::PROJECT_FILE_EXTENSION)),
+            Verb::Frame => Some((1, "png")),
+            Verb::Export => Some((1, aria_encoder::capability().extension)),
+            Verb::Inspect | Verb::Analyze | Verb::Plugin => None,
+        }
     }
 }
 
@@ -281,6 +294,30 @@ impl Args {
             }
         }
         Ok(())
+    }
+
+    /// Refuse an output file named for a format other than the one this verb
+    /// writes. Each verb writes one format whatever the name says, so
+    /// `export p.aria out.webm` wrote MP4 into `out.webm`.
+    pub(crate) fn reject_misnamed_output(&self) -> Result<(), ArgsError> {
+        let Some((index, extension)) = self.verb.writes() else {
+            return Ok(());
+        };
+        let Some(out) = self.positional.get(index) else {
+            return Ok(());
+        };
+        let path = Path::new(out);
+        if path
+            .extension()
+            .is_some_and(|named| named.eq_ignore_ascii_case(extension))
+        {
+            return Ok(());
+        }
+        Err(ArgsError::Usage(format!(
+            "{} writes a .{extension} file; name the output \"{}\" rather than \"{out}\"",
+            self.verb.key(),
+            path.with_extension(extension).display()
+        )))
     }
 }
 

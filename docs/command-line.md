@@ -32,6 +32,11 @@ Flags are spelled `--name`. A word that starts with `-` and is not the value of
 a flag is a usage error, so `aria frame project.aria -o` writes no file named
 `-o`. Write a path that starts with `-` as `./-name`.
 
+Each command that writes a file writes one format: `new` a `.aria` project,
+`frame` and `demo` a `.png` image, `export` an `.mp4` file. An output whose
+name ends in another extension, or in none, is a usage error, and the
+message states the name to use instead.
+
 Progress goes to stderr and results go to stdout, so
 `aria inspect project.aria > facts.txt` captures the output alone. A reader
 that closes either stream early, such as `head`, ends the output on that

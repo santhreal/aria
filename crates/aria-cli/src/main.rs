@@ -86,6 +86,7 @@ fn run(args: &Args) -> Result<(), Failure> {
         if let Some(max) = args.verb.max_positionals() {
             args.reject_extra_positional(max)?;
         }
+        args.reject_misnamed_output()?;
     }
     match args.verb {
         Verb::Demo => demo::run(args.positional.first().map(Into::into)).map_err(Failure::Failed),

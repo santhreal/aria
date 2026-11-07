@@ -1375,6 +1375,7 @@ Notes for the latest release. For previous releases, see the
 - A name typed without an extension in a save dialog is saved with the extension the dialog offers, so `cut` in **Save As** writes `cut.aria` instead of a file the Open dialog does not list.
 - **Export Timeline** proposes the name of the saved project file instead of `untitled`.
 - On Linux, reading the sound of a file with no audio track, such as `aria analyze` on a video-only clip, fails with "source has no audio track" instead of a GStreamer stream error and an instruction to install plugins.
+- `aria new`, `frame`, `demo` and `export` reject an output whose extension is not the format they write, instead of writing MP4 into `out.webm` or a PNG into `still.jpg`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

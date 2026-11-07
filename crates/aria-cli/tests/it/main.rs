@@ -7,3 +7,5 @@ mod drivers;
 mod export_encoder;
 #[path = "../headless_render.rs"]
 mod headless_render;
+#[path = "../output_names.rs"]
+mod output_names;

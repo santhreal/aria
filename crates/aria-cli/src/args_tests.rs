@@ -826,3 +826,76 @@ fn a_usage_error_prints_the_named_command_and_not_the_whole_block() {
         "one entry per verb and per plugin sub-command"
     );
 }
+
+/// WHY: `export p.aria out.webm` wrote MP4 into `out.webm`, and `frame p.aria
+/// still.jpg` wrote a PNG named `.jpg`: each verb writes one format whatever
+/// the output is named. Every verb in `Verb::ALL` that writes a file refuses
+/// a name with no extension or with another verb's, and accepts its own in
+/// either case, with any dots in the directory; a default output name is in
+/// the verb's format. `Verb::writes` is an exhaustive match, so a new verb
+/// does not compile until it states what it writes.
+///
+/// Not caught: `plugin pack --out`, whose archive name is a flag value.
+#[test]
+fn a_verb_refuses_an_output_named_for_another_format() {
+    let writers: Vec<(Verb, usize, &str)> = Verb::ALL
+        .into_iter()
+        .filter_map(|verb| {
+            verb.writes()
+                .map(|(index, extension)| (verb, index, extension))
+        })
+        .collect();
+    assert!(writers.len() >= 4, "only {writers:?} write a file");
+    let line = |verb: Verb, index: usize, out: &str| {
+        let mut words = vec![verb.key().to_string()];
+        words.extend((0..index).map(|_| "p.aria".to_string()));
+        words.push(out.to_string());
+        Args::parse(words).expect("parse")
+    };
+    for &(verb, index, extension) in &writers {
+        let others = writers
+            .iter()
+            .map(|(_, _, other)| *other)
+            .filter(|other| *other != extension)
+            .chain(["webm"]);
+        for wrong in std::iter::once(String::new()).chain(others.map(|other| format!(".{other}"))) {
+            let out = format!("cut{wrong}");
+            let err = line(verb, index, &out)
+                .reject_misnamed_output()
+                .expect_err("an output named for another format was accepted");
+            assert_eq!(
+                err,
+                ArgsError::Usage(format!(
+                    "{} writes a .{extension} file; name the output \"cut.{extension}\" rather than \"{out}\"",
+                    verb.key()
+                )),
+                "{} {out}",
+                verb.key()
+            );
+        }
+        for right in [
+            format!("cut.{extension}"),
+            format!("cut.{}", extension.to_uppercase()),
+            format!("v1.2/cut.{extension}"),
+        ] {
+            assert_eq!(
+                line(verb, index, &right).reject_misnamed_output(),
+                Ok(()),
+                "{} {right}",
+                verb.key()
+            );
+        }
+    }
+    for (verb, default) in [
+        (Verb::Frame, crate::frame::DEFAULT_OUT),
+        (Verb::Demo, crate::demo::DEFAULT_OUT),
+    ] {
+        let (_, extension) = verb.writes().expect("the verb writes a file");
+        assert_eq!(
+            std::path::Path::new(default).extension(),
+            Some(std::ffi::OsStr::new(extension)),
+            "{} writes {default} by default",
+            verb.key()
+        );
+    }
+}
