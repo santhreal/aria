@@ -1418,6 +1418,7 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin` commands state a failed read or write as the path and the reason, such as "permission denied", without the OS error code.
 - `aria plugin pack --out` refuses a name that does not end in `.ariaplugin`, a directory, and a symbolic link with exit code 2 before the build, instead of writing the archive over a package file such as `plugin.toml`.
 - Installing, checking and packing a plugin state a failed read or write by its path and reason, and a plugin folder that cannot be written by that folder, instead of a hidden lock file and the OS error code.
+- The features page no longer lists object detection, which the build does not have.
 
 ## [alpha-0.7.0] - 2026-07-22
 

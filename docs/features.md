@@ -217,7 +217,7 @@ Anything not listed here is not in the build.
 ## Jobs, analysis, and cloud
 
 - A jobs board with progress and cancellation for every long operation.
-- Shot detection, transcription, and object detection over decoded media.
+- Shot detection and transcription over decoded media.
 - Cloud catalogs with a quota and an evicting cache.
 
 ## Export
