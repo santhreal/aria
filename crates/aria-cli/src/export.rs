@@ -126,9 +126,15 @@ fn codec_from(args: &Args) -> Result<Option<VideoCodec>, Failure> {
         })
 }
 
+/// The highest `--fps`. Above it `nvh264enc` writes the last frame of an MP4
+/// with a `1001/30000` s duration instead of one frame period, so a 2000 fps
+/// export of a 0.1 s span played 0.133 s. At and below it every encoder writes
+/// one period per frame.
+const MAX_FPS: i32 = 1000;
+
 /// The `--fps` flag: a rate [`crate::new::RATES`] holds, kept exact, so
 /// `29.97` is `30000/1001` as it is for `aria new`, or a whole number of frames
-/// a second.
+/// a second from 1 to [`MAX_FPS`].
 fn rate_from(args: &Args) -> Result<Option<aria_core::Rational>, Failure> {
     let Some(raw) = args.value("fps")? else {
         return Ok(None);
@@ -138,12 +144,11 @@ fn rate_from(args: &Args) -> Result<Option<aria_core::Rational>, Failure> {
     }
     match raw.parse::<i64>() {
         Ok(fps) if fps > 0 => i32::try_from(fps)
+            .ok()
+            .filter(|fps| *fps <= MAX_FPS)
             .map(|fps| Some(aria_core::Rational::new(fps, 1)))
-            .map_err(|_| {
-                Failure::Usage(format!(
-                    "--fps {raw} is past the largest rate, {}",
-                    i32::MAX
-                ))
+            .ok_or_else(|| {
+                Failure::Usage(format!("--fps wants a rate up to {MAX_FPS}, got {raw}"))
             }),
         Ok(_) => Err(Failure::Usage("--fps wants a rate above zero".into())),
         Err(_) => Err(Failure::Usage(format!(
@@ -288,11 +293,14 @@ mod tests {
     }
 
     /// WHY: `aria export --fps` took only whole numbers, so a timeline could
-    /// not be exported at 23.976 or 29.97, rates `aria new` offers. Every rate
-    /// `aria new` offers parses to the same exact rate here, a whole number
-    /// parses to itself, and zero, a negative, a rounded broadcast rate, a
-    /// word, and a number past `i32` are usage errors. Not caught: an encoder
-    /// that rounds the rate it is given.
+    /// not be exported at 23.976 or 29.97, rates `aria new` offers. Then it took
+    /// every whole number up to `i32::MAX`, and above 1000 fps `nvh264enc` held
+    /// the last frame for 1/29.97 s, so the file ran past the span. Every rate
+    /// `aria new` offers parses to the same exact rate here, a whole number up
+    /// to [`MAX_FPS`] parses to itself, and zero, a negative, a rounded
+    /// broadcast rate, a word, one past the ceiling, and a number past `i32` are
+    /// usage errors. Not caught: an encoder that rounds a rate at or below the
+    /// ceiling.
     #[test]
     fn every_rate_new_offers_exports_exactly_and_a_bad_rate_is_a_usage_error() {
         let parse = |raw: &str| {
@@ -301,13 +309,23 @@ mod tests {
         for (key, rate) in crate::new::RATES {
             assert_eq!(parse(key), Ok(Some(rate)), "{key}");
         }
-        assert_eq!(parse("12"), Ok(Some(aria_core::Rational::new(12, 1))));
+        for fps in [1, 12, MAX_FPS] {
+            assert_eq!(
+                parse(&fps.to_string()),
+                Ok(Some(aria_core::Rational::new(fps, 1)))
+            );
+        }
         for (raw, says) in [
-            ("0", "above zero"),
-            ("-5", "above zero"),
+            ("0", "--fps wants a rate above zero"),
+            ("-5", "--fps wants a rate above zero"),
             ("23.98", "one of 23.976, 29.97,"),
             ("fast", "whole number"),
-            ("2147483648", "past the largest rate"),
+            ("1001", "--fps wants a rate up to 1000, got 1001"),
+            ("5000", "--fps wants a rate up to 1000, got 5000"),
+            (
+                "2147483648",
+                "--fps wants a rate up to 1000, got 2147483648",
+            ),
         ] {
             let err = parse(raw).expect_err(raw);
             assert!(err.message().contains(says), "{raw}: {}", err.message());
