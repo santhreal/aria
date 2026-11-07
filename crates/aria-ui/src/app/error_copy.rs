@@ -277,6 +277,85 @@ fn model_copy(err: &ModelError) -> String {
     copy.into()
 }
 
+/// Whether `err` refuses an edit of the selected clips, so selecting other
+/// clips leaves it stale. Neither match has a catch-all: a new error stops
+/// compiling here until it is placed on one side.
+pub(crate) fn refuses_the_selection(err: &EngineError) -> bool {
+    match err {
+        EngineError::Model(model) => model_refuses_the_selection(model),
+        EngineError::MissingMedia(_)
+        | EngineError::Import(_)
+        | EngineError::Export(_)
+        | EngineError::Render(_)
+        | EngineError::Decode(_)
+        | EngineError::Io(_)
+        | EngineError::Time(_)
+        | EngineError::Unsupported(_)
+        | EngineError::Refused(_) => false,
+    }
+}
+
+fn model_refuses_the_selection(err: &ModelError) -> bool {
+    match err {
+        ModelError::UnknownClip { .. }
+        | ModelError::DuplicateClip { .. }
+        | ModelError::ParentCycle { .. }
+        | ModelError::ParentElsewhere { .. }
+        | ModelError::ParentApart { .. }
+        | ModelError::ParentOffPicture { .. }
+        | ModelError::ParentFlattened { .. }
+        | ModelError::ParentTooDeep { .. }
+        | ModelError::Overlap { .. }
+        | ModelError::IncompatibleTrackKind { .. }
+        | ModelError::NotOnPicture { .. }
+        | ModelError::NotOnSound { .. }
+        | ModelError::SourceOutOfBounds
+        | ModelError::InvalidRange
+        | ModelError::InvalidTransform { .. }
+        | ModelError::InvalidParam { .. }
+        | ModelError::UnknownMulticamGroup { .. }
+        | ModelError::EmptyMulticamGroup
+        | ModelError::DuplicateMulticamMedia { .. }
+        | ModelError::MulticamAngleOutOfBounds { .. }
+        | ModelError::InvalidMulticamCuts
+        | ModelError::InvalidMulticamOffset { .. }
+        | ModelError::ClipCarriesNoSound { .. }
+        | ModelError::ClipSet { .. }
+        | ModelError::Split { .. }
+        | ModelError::MasksFull { .. }
+        | ModelError::Slip { .. }
+        | ModelError::FrozenMedia { .. }
+        | ModelError::Generated { .. }
+        | ModelError::Bake { .. } => true,
+        ModelError::ProjectLoad { .. }
+        | ModelError::TemplateLoad { .. }
+        | ModelError::TemplateBundle { .. }
+        | ModelError::InvalidProjectFile { .. }
+        | ModelError::UnknownTrack { .. }
+        | ModelError::UnknownMedia { .. }
+        | ModelError::UnknownMarker { .. }
+        | ModelError::UnknownBin { .. }
+        | ModelError::BinCycle { .. }
+        | ModelError::UnknownSequence { .. }
+        | ModelError::SequenceCycle { .. }
+        | ModelError::MediaReferenced { .. }
+        | ModelError::RateMismatch { .. }
+        | ModelError::TimeOverflow
+        | ModelError::SlotMediaMismatch { .. }
+        | ModelError::SlotDurationUnmet { .. }
+        | ModelError::SlotRetimeUnsupported { .. }
+        | ModelError::TooManyPicks { .. }
+        | ModelError::NotABus { .. }
+        | ModelError::LaneCarriesNoSound { .. }
+        | ModelError::RoutingCycle { .. }
+        | ModelError::DuplicateSend { .. }
+        | ModelError::UnknownSend { .. }
+        | ModelError::UnknownAudioEffect { .. }
+        | ModelError::UnknownInsert { .. }
+        | ModelError::InsertsFull { .. } => false,
+    }
+}
+
 /// The copy for a render that cannot stand in for a clip: the run's error and
 /// the reason Render and Replace's row is disabled, so the two read the same.
 pub(crate) fn bake_copy(refusal: BakeRefusal) -> &'static str {

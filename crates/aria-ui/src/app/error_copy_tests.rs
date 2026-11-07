@@ -460,3 +460,64 @@ fn every_model_refusal_reads_its_own_copy() {
         }
     }
 }
+
+/// A new selection takes down every model refusal of an edit of the clips it
+/// replaced, and leaves every other error up.
+///
+/// Closes "a refusal outlives the clip it named": the error line was cleared
+/// by matching phrases in the copy, so a refusal worded after the phrases
+/// were (a slip of a freeze frame, a cut inside a fade-in, a speed on a
+/// title) stayed up over the next clip selected. Derived from
+/// [`every_refusal`], whose typed refusals come from their registries, so a
+/// new one is checked on arrival. Not covered: an error posted as a line of
+/// text, which `status_tests` checks by its wording.
+#[test]
+fn a_new_selection_takes_down_every_refusal_of_the_last_one() {
+    let (mut state, clip) = super::premiere_tests::with_clip();
+    for err in every_refusal() {
+        let what = format!("{err:?}");
+        let of_a_clip = matches!(
+            err,
+            ModelError::ClipSet { .. }
+                | ModelError::Split { .. }
+                | ModelError::Slip { .. }
+                | ModelError::Generated { .. }
+                | ModelError::Bake { .. }
+                | ModelError::FrozenMedia { .. }
+                | ModelError::MasksFull { .. }
+                | ModelError::UnknownClip { .. }
+                | ModelError::Overlap { .. }
+                | ModelError::NotOnPicture { .. }
+                | ModelError::NotOnSound { .. }
+                | ModelError::ClipCarriesNoSound { .. }
+        );
+        let elsewhere = matches!(
+            err,
+            ModelError::InvalidProjectFile { .. }
+                | ModelError::UnknownTrack { .. }
+                | ModelError::MediaReferenced { .. }
+                | ModelError::RoutingCycle { .. }
+                | ModelError::TimeOverflow
+        );
+        let err = EngineError::Model(err);
+        let typed = super::error_copy::refuses_the_selection(&err);
+        state.select_clip(clip);
+        state.report_error(&err);
+        assert!(state.last_error.is_some(), "{what} was not posted");
+        state.clear_selection();
+        let cleared = state.last_error.is_none();
+        assert!(
+            !typed || cleared,
+            "{what} refuses the selection and stayed up"
+        );
+        assert!(
+            !of_a_clip || cleared,
+            "{what} stayed up over the new selection"
+        );
+        assert!(
+            !elsewhere || !cleared,
+            "{what} is not about the selection and went"
+        );
+        state.clear_error();
+    }
+}

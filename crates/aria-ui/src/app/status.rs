@@ -63,14 +63,16 @@ impl AppState {
         self.last_error = None;
     }
 
-    /// Forget the error when it is about the selection that was replaced.
+    /// Forget the error when it refuses an edit of the selection that was
+    /// replaced.
     ///
     /// Called from [`AppState::refresh_projected_selection`], the single path
     /// every selection write finishes with. An export failure, storage error or
     /// plugin fault is not about the selection and stays on the strip.
     pub(crate) fn clear_selection_error(&mut self) {
-        if self.last_error.as_deref().is_some_and(about_selection) {
+        if self.error_on_selection {
             self.last_error = None;
+            self.error_on_selection = false;
         }
     }
 }

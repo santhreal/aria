@@ -186,6 +186,9 @@ pub struct AppState {
     pub(crate) preview_worker: crate::preview_worker::PreviewWorker,
     pub playing: bool,
     pub last_error: Option<String>,
+    /// Whether [`Self::last_error`] refuses an edit of the selection, so a new
+    /// selection takes it down. Set with it by [`AppState::report_error`].
+    pub(crate) error_on_selection: bool,
     pub dialog: DialogKind,
     pub route: UiRoute,
     pub project_path: Option<PathBuf>,

@@ -757,9 +757,13 @@ impl AppState {
     }
 
     /// Post `err` on the error line, started with a capital when it is written
-    /// in lower case, as an error from below the editor is.
+    /// in lower case, as an error from below the editor is. A refusal of an
+    /// edit of the selection is marked so a new selection clears it.
     pub fn report_error(&mut self, err: impl ReportableError) {
-        self.last_error = Some(super::status::as_sentence(err.into_error_message()));
+        let typed = err.refuses_the_selection();
+        let line = super::status::as_sentence(err.into_error_message());
+        self.error_on_selection = typed || super::status::about_selection(&line);
+        self.last_error = Some(line);
     }
 
     pub fn persist_settings_later(&mut self, cx: &mut Context<Self>) {
@@ -829,6 +833,12 @@ pub(super) fn write_settings(
 
 pub trait ReportableError {
     fn into_error_message(self) -> String;
+
+    /// Whether the error refuses an edit of the selected clips. A line of
+    /// text answers by its wording instead, in [`AppState::report_error`].
+    fn refuses_the_selection(&self) -> bool {
+        false
+    }
 }
 
 impl ReportableError for &EngineError {
@@ -837,11 +847,19 @@ impl ReportableError for &EngineError {
         tracing::warn!(error = %self, "engine error reported");
         describe_engine_error(self)
     }
+
+    fn refuses_the_selection(&self) -> bool {
+        super::error_copy::refuses_the_selection(self)
+    }
 }
 
 impl ReportableError for EngineError {
     fn into_error_message(self) -> String {
         (&self).into_error_message()
+    }
+
+    fn refuses_the_selection(&self) -> bool {
+        super::error_copy::refuses_the_selection(self)
     }
 }
 

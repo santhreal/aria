@@ -199,6 +199,7 @@ impl AppState {
             preview_worker,
             playing: false,
             last_error: None,
+            error_on_selection: false,
             dialog: DialogKind::None,
             route: UiRoute::Home,
             project_path: None,
