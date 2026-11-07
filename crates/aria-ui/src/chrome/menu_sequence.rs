@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::app::settings_form::SettingsSection;
 use crate::commands::reach;
 
@@ -252,59 +253,54 @@ fn targeted_cuts(state: &AppState) -> impl Iterator<Item = i64> + '_ {
         .flat_map(|clip| [clip.timeline_start_ticks, clip.timeline_end_ticks])
 }
 
-fn ripple_in_ready(id: &str, state: &AppState) -> Option<&'static str> {
+fn ripple_in_ready(id: &str, state: &AppState) -> Option<Decline> {
     guards::clips(id, state).or_else(|| {
         let at = state.playhead.value;
-        (!targeted_cuts(state).any(|tick| tick < at))
-            .then_some("No earlier edit on a targeted track")
+        (!targeted_cuts(state).any(|tick| tick < at)).then_some(Decline::NoEarlierEdit)
     })
 }
 
-fn ripple_out_ready(id: &str, state: &AppState) -> Option<&'static str> {
+fn ripple_out_ready(id: &str, state: &AppState) -> Option<Decline> {
     guards::clips(id, state).or_else(|| {
         let at = state.playhead.value;
-        (!targeted_cuts(state).any(|tick| tick > at)).then_some("No later edit on a targeted track")
+        (!targeted_cuts(state).any(|tick| tick > at)).then_some(Decline::NoLaterEdit)
     })
 }
 
-fn picture_cut_at_selection(id: &str, state: &AppState) -> Option<&'static str> {
-    use crate::app::decline::Decline;
+fn picture_cut_at_selection(id: &str, state: &AppState) -> Option<Decline> {
     guards::selection(id, state).or_else(|| {
         let clip = state.selected_clip()?;
-        state
-            .transition_to_set(clip, CROSSFADE)
-            .err()
-            .map(Decline::reason)
+        state.transition_to_set(clip, CROSSFADE).err()
     })
 }
 
-fn transition_at_selection(id: &str, state: &AppState) -> Option<&'static str> {
+fn transition_at_selection(id: &str, state: &AppState) -> Option<Decline> {
     guards::selection(id, state).or_else(|| {
         state
             .selected_clip()
             .and_then(|clip| state.clip_transition_ticks(clip))
             .is_none()
-            .then_some(crate::app::decline::Decline::NoTransitionAtCut.reason())
+            .then_some(Decline::NoTransitionAtCut)
     })
 }
 
 /// Open and Place Nested Sequence: the selection plays a nest. Worded by the
 /// declines the verbs write when run past the row.
-fn nested_clip_selected(id: &str, state: &AppState) -> Option<&'static str> {
+fn nested_clip_selected(id: &str, state: &AppState) -> Option<Decline> {
     guards::selection(id, state).or_else(|| {
         state
             .selected_nested_sequence()
             .is_none()
-            .then_some(crate::app::decline::Decline::NotANest.reason())
+            .then_some(Decline::NotANest)
     })
 }
 
-fn inside_nested_sequence(_: &str, state: &AppState) -> Option<&'static str> {
+fn inside_nested_sequence(_: &str, state: &AppState) -> Option<Decline> {
     state
         .store
         .open_sequence
         .is_none()
-        .then_some(crate::app::decline::Decline::AtRootSequence.reason())
+        .then_some(Decline::AtRootSequence)
 }
 
 fn run_sequence_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {

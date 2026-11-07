@@ -131,7 +131,7 @@ fn a_gap_shift_that_would_move_nothing_declines_and_records_nothing() {
             .iter()
             .find(|row| row.id == id)
             .unwrap_or_else(|| panic!("the palette has no {id} row"));
-        (row.blocked)(id, state)
+        row.blocked_by(state)
     };
     let second = state.store.sequence.frame_rate.nominal_fps();
     let gap_rows = ["pal-track-open-gap", "pal-track-close-gap"];

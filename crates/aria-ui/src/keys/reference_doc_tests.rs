@@ -562,7 +562,76 @@ fn menus_doc_matches_registry() {
                 | Decline::NotANest
                 | Decline::AtRootSequence
                 | Decline::UnsavedRender
-                | Decline::GapTooShort => {}
+                | Decline::GapTooShort
+                | Decline::NoMask
+                | Decline::NoGrade
+                | Decline::NoChromaKey
+                | Decline::SelectSound
+                | Decline::ImportMissing
+                | Decline::NoImports
+                | Decline::FewerThanTwo
+                | Decline::NotLinked
+                | Decline::NotGrouped
+                | Decline::NothingToUndo
+                | Decline::NothingToRedo
+                | Decline::NoMarks
+                | Decline::NoInPoint
+                | Decline::NoOutPoint
+                | Decline::NoClips
+                | Decline::NoPropertyRow
+                | Decline::NeverSaved
+                | Decline::NoUnsavedChanges
+                | Decline::NoPoolSelection
+                | Decline::NotComparing
+                | Decline::NoEffectApplied
+                | Decline::NoEffectCopied
+                | Decline::NoEffects
+                | Decline::ProjectMissing
+                | Decline::NoExporter
+                | Decline::NoImporter
+                | Decline::NoEmptyTrack
+                | Decline::AtPoolTop
+                | Decline::NoMoments
+                | Decline::NoMomentBefore
+                | Decline::NoMomentAfter
+                | Decline::NotSlotMedia
+                | Decline::NotATitle
+                | Decline::PlayheadOutsideClip
+                | Decline::NoSuchProperty
+                | Decline::NoOpacityKeyAtPlayhead
+                | Decline::NotOnAudioTrack
+                | Decline::NoClipAtPlayhead
+                | Decline::NoOtherTrack
+                | Decline::NoHistory
+                | Decline::NothingToMeasure
+                | Decline::FilterEmpty
+                | Decline::NoProxies
+                | Decline::PoolEmpty
+                | Decline::NoPoolFocus
+                | Decline::NoFrameRendered
+                | Decline::NoPoolEntry
+                | Decline::NoFrameOnScreen
+                | Decline::NoLoudness
+                | Decline::GeneratedAnalysis
+                | Decline::MediaGone
+                | Decline::MediaOffline
+                | Decline::NoTranscriptionModel
+                | Decline::NoMaskClip
+                | Decline::NoMaskToTrack
+                | Decline::NothingAheadToTrack
+                | Decline::AiCheckRunning
+                | Decline::TrackLocked
+                | Decline::PlayheadOffClip
+                | Decline::FreezeLinked
+                | Decline::FreezeLinkedAfter
+                | Decline::FreezeEntrance
+                | Decline::FreezeExit
+                | Decline::NotBakeable
+                | Decline::NotRendered
+                | Decline::NoEarlierEdit
+                | Decline::NoLaterEdit
+                | Decline::Duck(_)
+                | Decline::Bake(_) => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

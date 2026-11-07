@@ -33,8 +33,8 @@ use super::host::CommandEntry;
 /// `add_keyframe_at_playhead`'s own rule — a row for a property an image clip has
 /// no volume for stays quiet rather than erroring.
 pub(crate) fn keyframe(state: &mut AppState, param: ClipParam) {
-    if let Some(reason) = guards::keyframe_param_blocked(state, param) {
-        state.status_message = Some(reason.to_string());
+    if let Some(why) = guards::keyframe_param_blocked(state, param) {
+        state.decline(why);
         return;
     }
     if let Err(err) = state.add_keyframe_at_playhead(param) {
@@ -141,8 +141,8 @@ pub(crate) fn reset_canvas_background(state: &mut AppState) {
 /// Character list files through, so a step reaches the titles a press on the
 /// list reaches. Inert off a title.
 pub(crate) fn cycle_font(state: &mut AppState, forward: bool) {
-    if let Some(reason) = guards::title_clip("pal-font-next", state) {
-        state.status_message = Some(reason.to_string());
+    if let Some(why) = guards::title_clip("pal-font-next", state) {
+        state.decline(why);
         return;
     }
     let pick = crate::surfaces::clip_pick::Pick::CycleFont { forward };
@@ -222,8 +222,8 @@ pub(super) const REACH_ROWS: &[CommandEntry] = &[
         id: "pal-media-filter-clear",
         label: "Clear Pool Filter",
         run: |state| {
-            if let Some(reason) = guards::media_filter("pal-media-filter-clear", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::media_filter("pal-media-filter-clear", state) {
+                state.decline(why);
                 return;
             }
             state.clear_media_query();

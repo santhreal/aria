@@ -169,7 +169,7 @@ fn the_duck_row_states_the_reason_the_run_would_post() {
             DuckRefusal::NoSelection => Decline::NoSelection.reason(),
             _ => why.reason(),
         };
-        assert_eq!((row.blocked)(row.id, &state), Some(expected), "{why:?}");
+        assert_eq!(row.blocked_by(&state), Some(expected), "{why:?}");
     }
 }
 

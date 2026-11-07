@@ -379,8 +379,8 @@ impl AppState {
         let offer = self.palette_hits().get(index).cloned()?;
         match offer.action {
             Offered::Command(run, blocked) => {
-                if let Some(reason) = blocked(offer.id.as_str(), self) {
-                    self.status_message = Some(reason.to_string());
+                if let Some(why) = blocked(offer.id.as_str(), self) {
+                    self.decline(why);
                 } else {
                     run(self);
                 }

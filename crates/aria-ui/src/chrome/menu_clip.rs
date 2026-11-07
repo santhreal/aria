@@ -34,13 +34,13 @@ fn audio_channels_checked(id: &str, state: &AppState) -> bool {
 
 /// Disables an Audio Channels row with no selected clip with sound, or whose
 /// choice every such clip already plays, through the plan its body runs.
-fn audio_channels_ready(id: &str, state: &AppState) -> Option<&'static str> {
+fn audio_channels_ready(id: &str, state: &AppState) -> Option<Decline> {
     let choice = AudioChannels::of_row(id)?;
     super::menu_guards::sound(id, state).or_else(|| {
         state
             .channel_targets(choice)
             .is_empty()
-            .then_some(Decline::SameChannels.reason())
+            .then_some(Decline::SameChannels)
     })
 }
 
@@ -105,8 +105,8 @@ pub(crate) const GROUP: MenuItem = MenuItem::new("clip-group", "Group", |_, s, _
 
 /// Clip > Ungroup, which the clip context menu mirrors.
 pub(crate) const UNGROUP: MenuItem = MenuItem::new("clip-ungroup", "Ungroup", |_, s, _| {
-    if let Some(reason) = super::menu_guards::grouped("clip-ungroup", s) {
-        s.status_message = Some(reason.to_string());
+    if let Some(why) = super::menu_guards::grouped("clip-ungroup", s) {
+        s.decline(why);
         return;
     }
     let ungrouped = s.ungroup_selected();
@@ -173,8 +173,8 @@ static CLIP_ITEMS: &[MenuItem] = &[
     })
     .when(bake_ready),
     MenuItem::new("seq-bake-restore", "Restore Unrendered", |_, s, _| {
-        if let Some(reason) = baked_clip("seq-bake-restore", s) {
-            s.status_message = Some(reason.to_string());
+        if let Some(why) = baked_clip("seq-bake-restore", s) {
+            s.decline(why);
             return;
         }
         if let Err(err) = s.restore_unrendered() {
@@ -247,11 +247,11 @@ static CLIP_ITEMS: &[MenuItem] = &[
 
 /// Disables a Matte from Above row with no clip selected, or whose source the
 /// selected clip's matte already reads, through the plan its body runs.
-fn matte_source_ready(state: &AppState, source: aria_models::MatteSource) -> Option<&'static str> {
-    state.matte_source_to_set(source).err().map(Decline::reason)
+fn matte_source_ready(state: &AppState, source: aria_models::MatteSource) -> Option<Decline> {
+    state.matte_source_to_set(source).err()
 }
 
-pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
+pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::freezable(id, state).or_else(|| {
         let ui = state.selected_ui_clip()?;
         let track = state
@@ -261,14 +261,14 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
             .iter()
             .find(|t| t.id == ui.track_id)?;
         if track.kind != crate::types::UiTrackKind::Video {
-            return Some(crate::app::decline::Decline::NoFrameToHold.reason());
+            return Some(Decline::NoFrameToHold);
         }
         if track.locked {
-            return Some("Unlock the track first");
+            return Some(Decline::TrackLocked);
         }
         let at = state.playhead.value;
         if at < ui.timeline_start_ticks || at > ui.timeline_end_ticks {
-            return Some("Move the playhead onto the selected clip");
+            return Some(Decline::PlayheadOffClip);
         }
         if ui.linked_to.is_some_and(|link| {
             state
@@ -279,7 +279,7 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
                 .flat_map(|t| t.clips.iter())
                 .any(|c| c.id != ui.id && c.linked_to == Some(link))
         }) {
-            return Some("Unlink the clip before freezing a frame");
+            return Some(Decline::FreezeLinked);
         }
         if track
             .clips
@@ -297,7 +297,7 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
                     .any(|c| c.track_id != ui.track_id || c.timeline_start_ticks < at)
             })
         {
-            return Some("Unlink the linked clip after the playhead before freezing a frame");
+            return Some(Decline::FreezeLinkedAfter);
         }
         if (at == ui.timeline_start_ticks || at == ui.timeline_end_ticks)
             && let Some(clip) = state
@@ -309,16 +309,12 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
             if at == ui.timeline_start_ticks
                 && (clip.animation_in.is_some() || clip.animation_combo.is_some())
             {
-                return Some(
-                    "Move the playhead inside the clip or remove its entrance animation before freezing",
-                );
+                return Some(Decline::FreezeEntrance);
             }
             if at == ui.timeline_end_ticks
                 && (clip.animation_out.is_some() || clip.animation_combo.is_some())
             {
-                return Some(
-                    "Move the playhead inside the clip or remove its exit animation before freezing",
-                );
+                return Some(Decline::FreezeExit);
             }
         }
         None
@@ -328,21 +324,21 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
 /// Render and Replace's row: disabled for the reason the run would post. Reads
 /// `Project::bake_medium` rather than building the render's pass, which clones
 /// the whole project, because a guard runs on every draw of the menu.
-fn bake_ready(id: &str, state: &AppState) -> Option<&'static str> {
+fn bake_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::selection(id, state).or_else(|| {
         if state.project_path.is_none() {
-            return Some(crate::app::decline::Decline::UnsavedRender.reason());
+            return Some(Decline::UnsavedRender);
         }
         let clip = state.selected_clip()?;
         match state.engine().lock().project().bake_medium(clip) {
             Ok(_) => None,
-            Err(aria_models::ModelError::Bake(why)) => Some(crate::app::bake_copy(why)),
-            Err(_) => Some("The selected clip is on a track a render cannot stand in for"),
+            Err(aria_models::ModelError::Bake(why)) => Some(Decline::Bake(why)),
+            Err(_) => Some(Decline::NotBakeable),
         }
     })
 }
 
-fn baked_clip(id: &str, state: &AppState) -> Option<&'static str> {
+fn baked_clip(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::selection(id, state).or_else(|| {
         let clip = state.selected_clip()?;
         (!state
@@ -351,7 +347,7 @@ fn baked_clip(id: &str, state: &AppState) -> Option<&'static str> {
             .project()
             .clip(clip)
             .is_some_and(|c| c.is_baked()))
-        .then_some("Select a rendered clip to restore")
+        .then_some(Decline::NotRendered)
     })
 }
 

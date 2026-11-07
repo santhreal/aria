@@ -159,7 +159,8 @@ fn out_keeps_the_frame_it_was_pressed_on() {
 fn mark_clip_is_disabled_where_x_finds_no_targeted_clip() {
     use crate::app::decline::Decline;
     use crate::chrome::menu_guards::targeted_clip_at_playhead;
-    let reason = Some(Decline::NoTargetedClipAtPlayhead.reason());
+    let why = Some(Decline::NoTargetedClipAtPlayhead);
+    let reason = why.map(Decline::reason);
     let (mut state, clip) = with_clip();
     let (start, end) = clip_bounds(&state, clip);
     let lane = state
@@ -175,14 +176,14 @@ fn mark_clip_is_disabled_where_x_finds_no_targeted_clip() {
     assert_eq!(targeted_clip_at_playhead("mark-clip", &state), None);
 
     state.toggle_track_targeted(lane).expect("untarget");
-    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), reason);
+    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), why);
     state.mark_clip_at_playhead();
     assert_eq!(state.marked_range(), None);
     assert_eq!(state.status_message.as_deref(), reason);
 
     state.toggle_track_targeted(lane).expect("target");
     state.set_playhead(end);
-    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), reason);
+    assert_eq!(targeted_clip_at_playhead("mark-clip", &state), why);
 }
 /// The Add Edit rows read the clips Ctrl+K and Ctrl+Shift+K cut: a clip the
 /// playhead lies strictly inside. On a clip's first tick, or with the clip's

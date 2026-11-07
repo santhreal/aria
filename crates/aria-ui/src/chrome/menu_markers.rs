@@ -81,10 +81,8 @@ static MARKER_ITEMS: &[MenuItem] = &[
 
 /// Disables Move Nearest Marker to Playhead with no marker within a second of
 /// the playhead, or with that marker on it, through the plan its body runs.
-fn snap_ready(_: &str, state: &AppState) -> Option<&'static str> {
-    crate::commands::reach::marker_to_snap(state)
-        .err()
-        .map(Decline::reason)
+fn snap_ready(_: &str, state: &AppState) -> Option<Decline> {
+    crate::commands::reach::marker_to_snap(state).err()
 }
 
 pub(super) fn marker_items(_state: &AppState) -> MenuItems {

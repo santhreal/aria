@@ -206,7 +206,7 @@ fn driven(row: &crate::commands::host::CommandEntry) -> Driven {
     }
     let watch = super::sent_census::Watch::on(&state);
     let before = history_labels(&state);
-    let blocked = (row.blocked)(row.id, &state);
+    let blocked = row.blocked_by(&state);
     (state.status_message, state.last_error) = (None, None);
     (row.run)(&mut state);
     let after = history_labels(&state);
@@ -334,6 +334,35 @@ fn an_enabled_palette_row_never_answers_with_a_decline() {
     assert!(
         CENSUS.rows.iter().any(|row| row.blocked.is_some()),
         "no palette row is drawn disabled over the census's state, so no guard is read"
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// WHY: closes, for the palette, the class of a row withheld for a reason
+/// outside `Decline::ALL`: every reason a palette row is drawn disabled for
+/// over the census's state is read through `blocked_by`, where a `Decline`
+/// becomes text, so a sentence worded there, or a `Decline` left out of `ALL`,
+/// is red. The menu bar is held to the same rule in `menu_reach_tests`.
+///
+/// What this does not catch: a reason given only in another state.
+#[test]
+fn every_withheld_palette_row_states_a_decline() {
+    let reasons: BTreeSet<&str> = super::decline::Decline::ALL
+        .iter()
+        .map(|why| why.reason())
+        .collect();
+    let wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter_map(|row| {
+            row.blocked
+                .filter(|why| !reasons.contains(why))
+                .map(|why| format!("{}: {why:?}", row.id))
+        })
+        .collect();
+    assert!(
+        CENSUS.rows.iter().any(|row| row.blocked.is_some()),
+        "no palette row is withheld over the census's state, so no guard is read"
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

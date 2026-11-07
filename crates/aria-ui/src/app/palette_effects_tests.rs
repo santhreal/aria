@@ -280,7 +280,8 @@ fn an_effect_row_with_no_selection_says_so_and_adds_nothing() {
     state.clear_selection();
     state.status_message = None;
     let spec = first_effect();
-    let reason = crate::chrome::menu_guards::selection("", &state);
+    let reason =
+        crate::chrome::menu_guards::selection("", &state).map(crate::app::decline::Decline::reason);
     assert!(reason.is_some(), "the Effect rows need a selection");
     run_effect_row(state, &spec, |state| {
         assert_eq!(state.status_message.as_deref(), reason);

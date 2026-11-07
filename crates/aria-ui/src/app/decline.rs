@@ -15,9 +15,10 @@
 //! registry rather than strings at the call sites: a command declines for one of
 //! a handful of reasons, and the words for each have one owner.
 
-use aria_models::ClipId;
+use aria_models::{BakeRefusal, ClipId};
 
 use super::AppState;
+use super::duck::DuckRefusal;
 
 /// A reason a command found nothing to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,11 +166,150 @@ pub enum Decline {
     /// Close Gap at Playhead where the free span before the first clip at or
     /// after the playhead is shorter than the close.
     GapTooShort,
+    /// A mask row sent to a clip with no active mask.
+    NoMask,
+    /// A grade row sent to a clip whose color is not adjusted.
+    NoGrade,
+    /// A chroma key row sent to a clip with no chroma key.
+    NoChromaKey,
+    /// A sound row sent with no selected clip that carries sound.
+    SelectSound,
+    /// An Import Recent row whose file is no longer at its path.
+    ImportMissing,
+    /// A row that clears Import Recent, sent with the list empty.
+    NoImports,
+    /// A row that acts on several clips, sent with fewer than two selected.
+    FewerThanTwo,
+    /// Unlink sent to a selection that is not linked.
+    NotLinked,
+    /// Ungroup sent to a selection that is not a clip group.
+    NotGrouped,
+    /// Undo sent with no step behind.
+    NothingToUndo,
+    /// Redo sent with no step ahead.
+    NothingToRedo,
+    /// A row that clears In and Out, sent with neither set.
+    NoMarks,
+    /// A row that reads the In point, sent with none set.
+    NoInPoint,
+    /// A row that reads the Out point, sent with none set.
+    NoOutPoint,
+    /// A row that acts on the sequence's clips, sent to an empty sequence.
+    NoClips,
+    /// A property row command sent with no row of the selected clip selected.
+    NoPropertyRow,
+    /// A revert row sent to a project that has no file.
+    NeverSaved,
+    /// A revert row sent with no edit since the last save.
+    NoUnsavedChanges,
+    /// A row that places pool media, sent with none selected online.
+    NoPoolSelection,
+    /// A comparison row sent while the Viewer compares nothing.
+    NotComparing,
+    /// A row that applies the last effect, sent before any is applied.
+    NoEffectApplied,
+    /// A row that pastes effects, sent with none copied.
+    NoEffectCopied,
+    /// An effects row sent to clips that hold no effect.
+    NoEffects,
+    /// A recent project row whose file is gone.
+    ProjectMissing,
+    /// A timeline export row with no exporter mounted.
+    NoExporter,
+    /// A timeline import row with no importer mounted.
+    NoImporter,
+    /// A row that deletes empty tracks, sent when every track holds a clip.
+    NoEmptyTrack,
+    /// A row that leaves the open folder, sent at the top of the media pool.
+    AtPoolTop,
+    /// A moment row sent before analysis detects any moment.
+    NoMoments,
+    /// A previous moment row with no detected moment before the playhead.
+    NoMomentBefore,
+    /// A next moment row with no detected moment after the playhead.
+    NoMomentAfter,
+    /// A template slot row sent to a clip that plays no media.
+    NotSlotMedia,
+    /// A title row sent to a clip that is not a title.
+    NotATitle,
+    /// A keyframe row sent with the playhead outside the selected clip.
+    PlayheadOutsideClip,
+    /// A keyframe row for a property the selected clip does not have.
+    NoSuchProperty,
+    /// Remove Opacity Keyframe with no opacity keyframe at the playhead.
+    NoOpacityKeyAtPlayhead,
+    /// A duck source row sent to a clip on a picture track.
+    NotOnAudioTrack,
+    /// A row that selects a clip under the playhead, sent with none there.
+    NoClipAtPlayhead,
+    /// A row that duplicates the clip to another track, with none of its kind.
+    NoOtherTrack,
+    /// A history row sent with no step to undo or redo.
+    NoHistory,
+    /// A row that measures drawn content, sent to a clip that draws none.
+    NothingToMeasure,
+    /// A row that clears the pool filter, sent with none typed.
+    FilterEmpty,
+    /// A row that clears proxies, sent with no pool item on one.
+    NoProxies,
+    /// A pool row sent to an empty media pool.
+    PoolEmpty,
+    /// A row that reloads the focused pool item, sent with none focused.
+    NoPoolFocus,
+    /// A row that reports the last frame's cost, sent before any frame is rendered.
+    NoFrameRendered,
+    /// A source row sent to a clip that plays no pool entry.
+    NoPoolEntry,
+    /// A measurement row sent with no frame in the Viewer.
+    NoFrameOnScreen,
+    /// A normalize row sent before loudness is measured.
+    NoLoudness,
+    /// An analysis row sent to a generated clip.
+    GeneratedAnalysis,
+    /// An analysis row sent to a clip whose media left the pool.
+    MediaGone,
+    /// An analysis row sent to a clip whose media is offline.
+    MediaOffline,
+    /// A transcribe row sent with no transcription model installed.
+    NoTranscriptionModel,
+    /// A mask tracking row sent with no clip selected.
+    NoMaskClip,
+    /// A mask tracking row sent to a clip with no active mask.
+    NoMaskToTrack,
+    /// A mask tracking row sent with the playhead on the clip's last frame.
+    NothingAheadToTrack,
+    /// An AI endpoint check sent while one runs.
+    AiCheckRunning,
+    /// Freeze Frame sent to a clip on a locked track.
+    TrackLocked,
+    /// Freeze Frame sent with the playhead off the selected clip.
+    PlayheadOffClip,
+    /// Freeze Frame sent to a clip linked to another clip.
+    FreezeLinked,
+    /// Freeze Frame where a clip after the playhead shares a link the shift would
+    /// split.
+    FreezeLinkedAfter,
+    /// Freeze Frame on the first frame of a clip with an entrance animation.
+    FreezeEntrance,
+    /// Freeze Frame on the last frame of a clip with an exit animation.
+    FreezeExit,
+    /// Render and Replace sent to a clip on a track a render cannot stand in for.
+    NotBakeable,
+    /// Restore Unrendered sent to a clip that is not a rendered stand-in.
+    NotRendered,
+    /// Ripple Trim In with no edit before the playhead on a targeted track.
+    NoEarlierEdit,
+    /// Ripple Trim Out with no edit after the playhead on a targeted track.
+    NoLaterEdit,
+    /// A duck that cannot run, in the words the run states.
+    Duck(DuckRefusal),
+    /// Render and Replace sent to a clip a render cannot stand in for.
+    Bake(BakeRefusal),
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 62] = [
+    pub const ALL: [Decline; 137] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -232,6 +372,81 @@ impl Decline {
         Decline::AtRootSequence,
         Decline::UnsavedRender,
         Decline::GapTooShort,
+        Decline::NoMask,
+        Decline::NoGrade,
+        Decline::NoChromaKey,
+        Decline::SelectSound,
+        Decline::ImportMissing,
+        Decline::NoImports,
+        Decline::FewerThanTwo,
+        Decline::NotLinked,
+        Decline::NotGrouped,
+        Decline::NothingToUndo,
+        Decline::NothingToRedo,
+        Decline::NoMarks,
+        Decline::NoInPoint,
+        Decline::NoOutPoint,
+        Decline::NoClips,
+        Decline::NoPropertyRow,
+        Decline::NeverSaved,
+        Decline::NoUnsavedChanges,
+        Decline::NoPoolSelection,
+        Decline::NotComparing,
+        Decline::NoEffectApplied,
+        Decline::NoEffectCopied,
+        Decline::NoEffects,
+        Decline::ProjectMissing,
+        Decline::NoExporter,
+        Decline::NoImporter,
+        Decline::NoEmptyTrack,
+        Decline::AtPoolTop,
+        Decline::NoMoments,
+        Decline::NoMomentBefore,
+        Decline::NoMomentAfter,
+        Decline::NotSlotMedia,
+        Decline::NotATitle,
+        Decline::PlayheadOutsideClip,
+        Decline::NoSuchProperty,
+        Decline::NoOpacityKeyAtPlayhead,
+        Decline::NotOnAudioTrack,
+        Decline::NoClipAtPlayhead,
+        Decline::NoOtherTrack,
+        Decline::NoHistory,
+        Decline::NothingToMeasure,
+        Decline::FilterEmpty,
+        Decline::NoProxies,
+        Decline::PoolEmpty,
+        Decline::NoPoolFocus,
+        Decline::NoFrameRendered,
+        Decline::NoPoolEntry,
+        Decline::NoFrameOnScreen,
+        Decline::NoLoudness,
+        Decline::GeneratedAnalysis,
+        Decline::MediaGone,
+        Decline::MediaOffline,
+        Decline::NoTranscriptionModel,
+        Decline::NoMaskClip,
+        Decline::NoMaskToTrack,
+        Decline::NothingAheadToTrack,
+        Decline::AiCheckRunning,
+        Decline::TrackLocked,
+        Decline::PlayheadOffClip,
+        Decline::FreezeLinked,
+        Decline::FreezeLinkedAfter,
+        Decline::FreezeEntrance,
+        Decline::FreezeExit,
+        Decline::NotBakeable,
+        Decline::NotRendered,
+        Decline::NoEarlierEdit,
+        Decline::NoLaterEdit,
+        Decline::Duck(DuckRefusal::NoSelection),
+        Decline::Duck(DuckRefusal::NoSource),
+        Decline::Duck(DuckRefusal::SilentSource),
+        Decline::Duck(DuckRefusal::OnlyVoice),
+        Decline::Duck(DuckRefusal::NoMusic),
+        Decline::Bake(BakeRefusal::Rendered),
+        Decline::Bake(BakeRefusal::LaneBar),
+        Decline::Bake(BakeRefusal::Undressed),
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -312,6 +527,85 @@ impl Decline {
             Decline::GapTooShort => {
                 "The gap before the next clip on the track is shorter than one second"
             }
+            Decline::NoMask => "The selected clip has no mask",
+            Decline::NoGrade => "The selected clip has no grade",
+            Decline::NoChromaKey => "The selected clip has no chroma key",
+            Decline::SelectSound => "Select a clip with sound",
+            Decline::ImportMissing => "The file is missing",
+            Decline::NoImports => "No file has been imported yet",
+            Decline::FewerThanTwo => "Select two or more clips",
+            Decline::NotLinked => "The selected clips are not linked",
+            Decline::NotGrouped => "The selected clips are not a group",
+            Decline::NothingToUndo => "Nothing to undo",
+            Decline::NothingToRedo => "Nothing to redo",
+            Decline::NoMarks => "Neither an In nor an Out point is set",
+            Decline::NoInPoint => "No In point is set",
+            Decline::NoOutPoint => "No Out point is set",
+            Decline::NoClips => "The sequence has no clips",
+            Decline::NoPropertyRow => "Select a property row of the selected clip",
+            Decline::NeverSaved => "The project has never been saved",
+            Decline::NoUnsavedChanges => "There are no changes since the last save",
+            Decline::NoPoolSelection => "No media is selected in the pool",
+            Decline::NotComparing => "Nothing is being compared",
+            Decline::NoEffectApplied => "No effect has been applied yet",
+            Decline::NoEffectCopied => "No effect has been copied",
+            Decline::NoEffects => "The selected clips have no effects",
+            Decline::ProjectMissing => "The project file is missing",
+            Decline::NoExporter => "No timeline exporter is mounted",
+            Decline::NoImporter => "No timeline importer is mounted",
+            Decline::NoEmptyTrack => "Every track holds a clip",
+            Decline::AtPoolTop => "Already at the top of the media pool",
+            Decline::NoMoments => "No detected moments",
+            Decline::NoMomentBefore => "No detected moment before the playhead",
+            Decline::NoMomentAfter => "No detected moment after the playhead",
+            Decline::NotSlotMedia => "Only media clips can be template slots",
+            Decline::NotATitle => "Select a title clip first",
+            Decline::PlayheadOutsideClip => "Move the playhead inside the selected clip",
+            Decline::NoSuchProperty => "The selected clip does not have that property",
+            Decline::NoOpacityKeyAtPlayhead => {
+                "The selected clip has no opacity keyframe at the playhead"
+            }
+            Decline::NotOnAudioTrack => "Select a clip on an audio track",
+            Decline::NoClipAtPlayhead => "No clip under the playhead",
+            Decline::NoOtherTrack => "No other track accepts this clip",
+            Decline::NoHistory => "No steps to undo or redo",
+            Decline::NothingToMeasure => "The selection draws no measurable content",
+            Decline::FilterEmpty => "The pool filter is already empty",
+            Decline::NoProxies => "No proxies in use",
+            Decline::PoolEmpty => "The pool is empty",
+            Decline::NoPoolFocus => "Pick a pool item to reload",
+            Decline::NoFrameRendered => "No frame has been rendered yet",
+            Decline::NoPoolEntry => "Select a clip that plays a pool entry",
+            Decline::NoFrameOnScreen => "No frame on screen to measure",
+            Decline::NoLoudness => "Measure loudness in the Analysis panel first, then normalize",
+            Decline::GeneratedAnalysis => "A generated clip has no media file to analyze",
+            Decline::MediaGone => "The clip's media is no longer in the pool",
+            Decline::MediaOffline => "The clip's media is offline",
+            Decline::NoTranscriptionModel => "Install a transcription model in Settings first",
+            Decline::NoMaskClip => "Select a clip with a mask to track",
+            Decline::NoMaskToTrack => "Draw a mask on the clip before tracking it",
+            Decline::NothingAheadToTrack => {
+                "The playhead is at the end of the clip, so there is nothing ahead to track"
+            }
+            Decline::AiCheckRunning => "An AI endpoint check is already running",
+            Decline::TrackLocked => "Unlock the track first",
+            Decline::PlayheadOffClip => "Move the playhead onto the selected clip",
+            Decline::FreezeLinked => "Unlink the clip before freezing a frame",
+            Decline::FreezeLinkedAfter => {
+                "Unlink the linked clip after the playhead before freezing a frame"
+            }
+            Decline::FreezeEntrance => {
+                "Move the playhead inside the clip or remove its entrance animation before freezing"
+            }
+            Decline::FreezeExit => {
+                "Move the playhead inside the clip or remove its exit animation before freezing"
+            }
+            Decline::NotBakeable => "The selected clip is on a track a render cannot stand in for",
+            Decline::NotRendered => "Select a rendered clip to restore",
+            Decline::NoEarlierEdit => "No earlier edit on a targeted track",
+            Decline::NoLaterEdit => "No later edit on a targeted track",
+            Decline::Duck(why) => why.reason(),
+            Decline::Bake(why) => super::bake_copy(why),
         }
     }
 }

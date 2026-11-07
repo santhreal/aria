@@ -121,7 +121,8 @@ fn source_tab_needs_a_source_in_the_monitor() {
     let (mut state, _) = with_clip();
     state.compare_with_source();
     assert!(!state.viewer_compare.comparing());
-    let reason = crate::chrome::menu_guards::source("view-compare-source", &state);
+    let reason = crate::chrome::menu_guards::source("view-compare-source", &state)
+        .map(crate::app::decline::Decline::reason);
     assert!(reason.is_some(), "the row is drawn enabled with no source");
     assert_eq!(state.status_message.as_deref(), reason);
 }

@@ -7,12 +7,10 @@
 //! preview it` did, or that ended one way beside lines ending the other, as
 //! `Select a clip with sound.` did beside `Select a clip first`. The lines are
 //! read from the crate's sources with test items and comments blanked: the
-//! literal each write to the status or error line starts with, and each reason
-//! a menu guard returns, in every source that declares one, which is a disabled
-//! row's tooltip and the status line when the row runs anyway. Render and
-//! Replace's guard, outside the guards module, ended its one sentence with a
-//! period while no source but that module was read. Each reason a command declines for is walked from
-//! [`Decline::ALL`]. A line added later is checked on the run that adds it.
+//! literal each write to the status or error line starts with. Each reason a
+//! command declines for, and each reason a menu row is withheld for, is walked
+//! from [`Decline::ALL`]: a guard returns a `Decline`, so no guard words a
+//! reason of its own. A line added later is checked on the run that adds it.
 //! An error from below the editor is started with a capital where it is
 //! posted, by [`super::as_sentence`].
 //!
@@ -26,25 +24,6 @@ use crate::test_support::sources::{production_sources, string_literals};
 
 /// The writes whose argument the status strip draws.
 const SINKS: [&str; 2] = ["status_message = Some(", "report_error("];
-
-/// The returns of a menu guard.
-const GUARD_RETURNS: [&str; 2] = ["then_some(", "Some("];
-
-/// A menu row's guard as `RowBlocked` declares it, with whitespace removed:
-/// every production source that declares one is read for the reasons it
-/// returns, so a guard outside `chrome/menu_guards.rs` is read too.
-const GUARD_SIGNATURES: [&str; 2] = [
-    "&AppState)->Option<&'staticstr>",
-    "&AppState,)->Option<&'staticstr>",
-];
-
-/// Whether `text` declares a menu row's guard.
-fn declares_a_guard(text: &str) -> bool {
-    let compact: String = text.split_whitespace().collect();
-    GUARD_SIGNATURES
-        .iter()
-        .any(|signature| compact.contains(signature))
-}
 
 /// How `line` departs from the shape of a status line, or `None`.
 fn misshapen(line: &str) -> Option<String> {
@@ -218,26 +197,14 @@ fn written_lines(files: &[(String, String)], calls: &[&str]) -> Vec<(String, Str
 fn every_status_line_the_crate_writes_reads_as_its_sentences() {
     let sources = production_sources();
     let posted = written_lines(&sources, &SINKS);
-    let guards: Vec<_> = sources
-        .iter()
-        .filter(|(_, text)| declares_a_guard(text))
-        .cloned()
-        .collect();
-    let reasons = written_lines(&guards, &GUARD_RETURNS);
     assert!(
         posted.len() > 400,
         "read only {} posted lines",
         posted.len()
     );
-    assert!(
-        reasons.len() > 30,
-        "read only {} guard reasons",
-        reasons.len()
-    );
     let declined = Decline::ALL.map(|why| (format!("{why:?}"), why.reason().to_string()));
     let offenders: Vec<String> = posted
         .iter()
-        .chain(&reasons)
         .chain(&declined)
         .filter_map(|(at, text)| misshapen(text).map(|why| format!("{at}: {text:?} {why}")))
         .collect();

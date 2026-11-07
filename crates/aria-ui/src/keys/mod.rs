@@ -427,8 +427,8 @@ pub fn dispatch_plain_key_down(
     is_held: bool,
     run: fn(&mut AppState),
 ) {
-    if let Some(reason) = crate::chrome::menu_items::chord_withheld(binding.id, state) {
-        state.status_message = Some(reason.to_string());
+    if let Some(why) = crate::chrome::menu_items::chord_withheld(binding.id, state) {
+        state.decline(why);
         return;
     }
     match binding.id {

@@ -351,7 +351,7 @@ Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by
 
 ## Action decline reasons (`Decline::ALL`)
 
-Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command finds no applicable target in the current selection or cut, the status line displays `reason()`:
+Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command finds no applicable target in the current selection or cut, the status line displays `reason()`. A menu or palette row withheld for a `Decline` displays the same `reason()` as its tooltip, and on the status line when the row is chosen from the keyboard. `Duck` holds the reasons Duck Under Voice cannot run; `Bake` holds the reasons a render cannot stand in for the selected clip:
 
 | Variant | Status line (`reason()`) |
 | --- | --- |
@@ -417,6 +417,81 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `AtRootSequence` | `The root sequence is already open` |
 | `UnsavedRender` | `Save the project first: a rendered clip is kept beside the project file` |
 | `GapTooShort` | `The gap before the next clip on the track is shorter than one second` |
+| `NoMask` | `The selected clip has no mask` |
+| `NoGrade` | `The selected clip has no grade` |
+| `NoChromaKey` | `The selected clip has no chroma key` |
+| `SelectSound` | `Select a clip with sound` |
+| `ImportMissing` | `The file is missing` |
+| `NoImports` | `No file has been imported yet` |
+| `FewerThanTwo` | `Select two or more clips` |
+| `NotLinked` | `The selected clips are not linked` |
+| `NotGrouped` | `The selected clips are not a group` |
+| `NothingToUndo` | `Nothing to undo` |
+| `NothingToRedo` | `Nothing to redo` |
+| `NoMarks` | `Neither an In nor an Out point is set` |
+| `NoInPoint` | `No In point is set` |
+| `NoOutPoint` | `No Out point is set` |
+| `NoClips` | `The sequence has no clips` |
+| `NoPropertyRow` | `Select a property row of the selected clip` |
+| `NeverSaved` | `The project has never been saved` |
+| `NoUnsavedChanges` | `There are no changes since the last save` |
+| `NoPoolSelection` | `No media is selected in the pool` |
+| `NotComparing` | `Nothing is being compared` |
+| `NoEffectApplied` | `No effect has been applied yet` |
+| `NoEffectCopied` | `No effect has been copied` |
+| `NoEffects` | `The selected clips have no effects` |
+| `ProjectMissing` | `The project file is missing` |
+| `NoExporter` | `No timeline exporter is mounted` |
+| `NoImporter` | `No timeline importer is mounted` |
+| `NoEmptyTrack` | `Every track holds a clip` |
+| `AtPoolTop` | `Already at the top of the media pool` |
+| `NoMoments` | `No detected moments` |
+| `NoMomentBefore` | `No detected moment before the playhead` |
+| `NoMomentAfter` | `No detected moment after the playhead` |
+| `NotSlotMedia` | `Only media clips can be template slots` |
+| `NotATitle` | `Select a title clip first` |
+| `PlayheadOutsideClip` | `Move the playhead inside the selected clip` |
+| `NoSuchProperty` | `The selected clip does not have that property` |
+| `NoOpacityKeyAtPlayhead` | `The selected clip has no opacity keyframe at the playhead` |
+| `NotOnAudioTrack` | `Select a clip on an audio track` |
+| `NoClipAtPlayhead` | `No clip under the playhead` |
+| `NoOtherTrack` | `No other track accepts this clip` |
+| `NoHistory` | `No steps to undo or redo` |
+| `NothingToMeasure` | `The selection draws no measurable content` |
+| `FilterEmpty` | `The pool filter is already empty` |
+| `NoProxies` | `No proxies in use` |
+| `PoolEmpty` | `The pool is empty` |
+| `NoPoolFocus` | `Pick a pool item to reload` |
+| `NoFrameRendered` | `No frame has been rendered yet` |
+| `NoPoolEntry` | `Select a clip that plays a pool entry` |
+| `NoFrameOnScreen` | `No frame on screen to measure` |
+| `NoLoudness` | `Measure loudness in the Analysis panel first, then normalize` |
+| `GeneratedAnalysis` | `A generated clip has no media file to analyze` |
+| `MediaGone` | `The clip's media is no longer in the pool` |
+| `MediaOffline` | `The clip's media is offline` |
+| `NoTranscriptionModel` | `Install a transcription model in Settings first` |
+| `NoMaskClip` | `Select a clip with a mask to track` |
+| `NoMaskToTrack` | `Draw a mask on the clip before tracking it` |
+| `NothingAheadToTrack` | `The playhead is at the end of the clip, so there is nothing ahead to track` |
+| `AiCheckRunning` | `An AI endpoint check is already running` |
+| `TrackLocked` | `Unlock the track first` |
+| `PlayheadOffClip` | `Move the playhead onto the selected clip` |
+| `FreezeLinked` | `Unlink the clip before freezing a frame` |
+| `FreezeLinkedAfter` | `Unlink the linked clip after the playhead before freezing a frame` |
+| `FreezeEntrance` | `Move the playhead inside the clip or remove its entrance animation before freezing` |
+| `FreezeExit` | `Move the playhead inside the clip or remove its exit animation before freezing` |
+| `NotBakeable` | `The selected clip is on a track a render cannot stand in for` |
+| `NotRendered` | `Select a rendered clip to restore` |
+| `NoEarlierEdit` | `No earlier edit on a targeted track` |
+| `NoLaterEdit` | `No later edit on a targeted track` |
+| `Duck(NoSelection)` | `Select the music clip or clips to duck` |
+| `Duck(NoSource)` | `Flag the voice track as the duck source first` |
+| `Duck(SilentSource)` | `The duck source track has no audio to measure` |
+| `Duck(OnlyVoice)` | `The selected clips are on the duck source track: select the music to duck under it` |
+| `Duck(NoMusic)` | `Select an audio clip to duck` |
+| `Bake(Rendered)` | `That clip is already rendered. Choose Restore Unrendered, then render it again.` |
+| `Bake(LaneBar)` | `A lane bar reprocesses the tracks beneath it and has no picture of its own. Render a clip with a picture instead.` |
+| `Bake(Undressed)` | `Nothing is applied to that clip, so a render would only re-encode its file. Apply an effect, a look or a speed change first, then render it.` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

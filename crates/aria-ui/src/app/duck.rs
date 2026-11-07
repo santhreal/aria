@@ -113,7 +113,7 @@ pub(crate) struct DuckRequest {
 /// button and the status line of a run past both read [`Self::reason`], so the
 /// three surfaces state one reason for one state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DuckRefusal {
+pub enum DuckRefusal {
     /// No clip is selected to duck.
     NoSelection,
     /// No audio track is flagged as the duck source.

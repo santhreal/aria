@@ -84,7 +84,7 @@ fn extract_audio_runs_exactly_where_its_row_is_offered() {
         assert_eq!(state.selected_clip(), Some(clip), "{name}: the selection");
         assert_eq!(
             extractable("seq-extract-audio", &state),
-            want.map(Decline::reason),
+            want,
             "{name}: the row's guard"
         );
         let lane = state

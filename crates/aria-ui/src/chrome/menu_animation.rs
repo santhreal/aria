@@ -107,14 +107,14 @@ static ANIMATION_ITEMS: &[MenuItem] = &[
 
 /// Disables Add Keyframe with no selected property row under the playhead, or
 /// none a keyframe would change, through the plan its body runs.
-fn add_keyframe_ready(_: &str, state: &AppState) -> Option<&'static str> {
-    state.keyframe_writes().err().map(Decline::reason)
+fn add_keyframe_ready(_: &str, state: &AppState) -> Option<Decline> {
+    state.keyframe_writes().err()
 }
 
 /// Disables an ease row with no target keyframe, or none `ease` would change,
 /// through the plan its body runs.
-fn ease_ready(state: &AppState, ease: EaseWrite) -> Option<&'static str> {
-    state.ease_targets(ease).err().map(Decline::reason)
+fn ease_ready(state: &AppState, ease: EaseWrite) -> Option<Decline> {
+    state.ease_targets(ease).err()
 }
 
 pub(super) fn animation_items(_state: &AppState) -> MenuItems {

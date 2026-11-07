@@ -583,8 +583,8 @@ impl AppState {
         let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
-        if let Some(reason) = crate::chrome::menu_guards::extractable("seq-extract-audio", self) {
-            self.status_message = Some(reason.to_string());
+        if let Some(why) = crate::chrome::menu_guards::extractable("seq-extract-audio", self) {
+            self.decline(why);
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::ExtractAudio {
@@ -600,8 +600,8 @@ impl AppState {
         let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
-        if let Some(reason) = crate::chrome::menu_clip::freeze_ready("seq-freeze", self) {
-            self.status_message = Some(reason.to_string());
+        if let Some(why) = crate::chrome::menu_clip::freeze_ready("seq-freeze", self) {
+            self.decline(why);
             return Ok(());
         }
         let rate = self.playhead.rate;

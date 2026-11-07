@@ -82,8 +82,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-mask-invert",
         label: "Invert Mask",
         run: |state| {
-            if let Some(reason) = guards::mask("pal-mask-invert", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::mask("pal-mask-invert", state) {
+                state.decline(why);
                 return;
             }
             if let Err(err) = state.toggle_active_mask_invert() {
@@ -129,8 +129,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-text-editable",
         label: "Text Editable in Template",
         run: |state| {
-            if let Some(reason) = guards::title_clip("pal-text-editable", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::title_clip("pal-text-editable", state) {
+                state.decline(why);
                 return;
             }
             if let Err(err) = state.toggle_selected_text_editable() {
@@ -161,8 +161,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-key-remove",
         label: "Remove Opacity Keyframe at Playhead",
         run: |state| {
-            if let Some(reason) = guards::opacity_keyframe_at_playhead("pal-key-remove", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::opacity_keyframe_at_playhead("pal-key-remove", state) {
+                state.decline(why);
                 return;
             }
             if let Err(err) = state.remove_keyframe_at_playhead(aria_models::ClipParam::Opacity) {
@@ -186,8 +186,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-up",
         label: "Move Track Up",
         run: |state| {
-            if let Some(reason) = guards::track_up("pal-track-up", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::track_up("pal-track-up", state) {
+                state.decline(why);
                 return;
             }
             if let Some(track) = state.selected_track()
@@ -202,8 +202,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-down",
         label: "Move Track Down",
         run: |state| {
-            if let Some(reason) = guards::track_down("pal-track-down", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::track_down("pal-track-down", state) {
+                state.decline(why);
                 return;
             }
             if let Some(track) = state.selected_track()
@@ -232,8 +232,8 @@ pub(super) const CLIP_ROWS: &[CommandEntry] = &[
         id: "pal-track-duck",
         label: "Toggle Track as Duck Source",
         run: |state| {
-            if let Some(reason) = guards::audio_track("pal-track-duck", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::audio_track("pal-track-duck", state) {
+                state.decline(why);
                 return;
             }
             if let Some(track) = state.selected_track()

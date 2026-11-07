@@ -75,6 +75,38 @@ fn an_enabled_row_never_answers_with_a_decline() {
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+/// WHY: closes, for the menu bar, the class of a row withheld for a reason
+/// outside `Decline::ALL`. Guards worded reasons of their own, which no
+/// decline census, status-line rule or reference table read. A guard
+/// now returns a `Decline`, so a sentence typed in a guard does not compile;
+/// this reads every reason a row is drawn disabled for, under its own dressing
+/// and under the bare state, through `blocked_by`, where a `Decline` becomes
+/// text. A sentence worded there, or a `Decline` left out of `ALL`, is red.
+///
+/// What this does not catch: a reason given only in a state neither covers.
+#[test]
+fn every_withheld_row_states_a_decline() {
+    let reasons: BTreeSet<&str> = crate::app::decline::Decline::ALL
+        .iter()
+        .map(|why| why.reason())
+        .collect();
+    let outside = |blocked: Option<&'static str>| blocked.filter(|why| !reasons.contains(why));
+    let mut wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter_map(|row| {
+            outside(row.blocked).map(|why| format!("{} against {:?}: {why:?}", row.id, row.dress))
+        })
+        .collect();
+    wrong.extend(CENSUS.bare.iter().filter_map(|row| {
+        outside(row.blocked).map(|why| format!("{} against the bare state: {why:?}", row.id))
+    }));
+    assert!(
+        CENSUS.bare.iter().any(|row| row.blocked.is_some()),
+        "no row is withheld in the bare state, so no guard is read"
+    );
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
 /// WHY: closes, for the menu bar, the class of a structural refusal shown as
 /// the value copy, "That value isn't accepted here", whose fix names a field a
 /// menu row does not have: an extraction from a clip that shares its link, or

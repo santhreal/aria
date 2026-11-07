@@ -12,6 +12,7 @@ use std::borrow::Cow;
 use aria_engine::EngineError;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::types::AppMenu;
 
 /// What a row does, told which row ran it.
@@ -24,9 +25,9 @@ use crate::types::AppMenu;
 pub type RowRun = fn(&str, &mut AppState, &mut gpui::Context<AppState>);
 
 /// Why the row cannot run against this state, or `None` when it can. The
-/// reason is the disabled row's tooltip, and the status line when the row is
-/// chosen from the keyboard or the palette anyway.
-pub type RowBlocked = fn(&str, &AppState) -> Option<&'static str>;
+/// decline's reason is the disabled row's tooltip, and the status line when the
+/// row is chosen from the keyboard or the palette anyway.
+pub type RowBlocked = fn(&str, &AppState) -> Option<Decline>;
 
 /// Whether a toggle row draws its check mark.
 pub type RowChecked = fn(&str, &AppState) -> bool;
@@ -112,7 +113,7 @@ impl MenuItem {
 
     /// Why the row cannot run now, or `None` when it can.
     pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
-        (self.blocked)(self.id, state)
+        (self.blocked)(self.id, state).map(Decline::reason)
     }
 
     /// Whether the row draws a check mark now.
@@ -231,8 +232,8 @@ pub(crate) fn press(
     state: &mut AppState,
     cx: &mut gpui::Context<AppState>,
 ) -> bool {
-    if let Some(reason) = item.blocked_by(state) {
-        state.status_message = Some(reason.to_string());
+    if let Some(why) = (item.blocked)(item.id, state) {
+        state.decline(why);
         return false;
     }
     (item.run)(item.id, state, cx);
@@ -269,7 +270,7 @@ pub(crate) fn chord_rows(state: &AppState) -> &'static ChordRows {
 /// A chord is one more way to choose its row, so it is withheld while the row
 /// is, with the row's reason, as the bar and the palette withhold it through
 /// [`press`].
-pub(crate) fn chord_withheld(id: &str, state: &AppState) -> Option<&'static str> {
+pub(crate) fn chord_withheld(id: &str, state: &AppState) -> Option<Decline> {
     let &(row, blocked) = chord_rows(state).get(id)?;
     blocked(row, state)
 }

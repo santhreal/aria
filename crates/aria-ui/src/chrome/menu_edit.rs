@@ -132,23 +132,23 @@ static EDIT_TAIL: &[MenuItem] = &[
     .key("key-settings"),
 ];
 
-fn paste_attributes_ready(_: &str, state: &AppState) -> Option<&'static str> {
-    state.attributes_target().err().map(|why| why.reason())
+fn paste_attributes_ready(_: &str, state: &AppState) -> Option<Decline> {
+    state.attributes_target().err()
 }
 
-fn paste_fit_ready(id: &str, state: &AppState) -> Option<&'static str> {
+fn paste_fit_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::clipboard(id, state).or_else(|| {
         if state
             .clipboard
             .as_ref()
             .is_some_and(|copied| copied.clips.len() > 1)
         {
-            return Some(Decline::SeveralCopied.reason());
+            return Some(Decline::SeveralCopied);
         }
         state
             .marked_range()
             .is_none()
-            .then_some(Decline::NoMarkedRange.reason())
+            .then_some(Decline::NoMarkedRange)
     })
 }
 
@@ -174,8 +174,8 @@ fn label_row(color: Option<LabelColor>) -> MenuItem {
 
 /// Disables a Label row whose color every selected clip already has, through
 /// the plan its body runs.
-fn label_ready(id: &str, state: &AppState) -> Option<&'static str> {
-    state.label_targets(label_of(id)).err().map(Decline::reason)
+fn label_ready(id: &str, state: &AppState) -> Option<Decline> {
+    state.label_targets(label_of(id)).err()
 }
 
 /// The color an Edit > Label row sets, by its id.

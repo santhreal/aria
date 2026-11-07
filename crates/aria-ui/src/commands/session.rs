@@ -14,8 +14,8 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-play",
         label: "Play / Pause",
         run: |state| {
-            if let Some(reason) = guards::clips("pal-play", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::clips("pal-play", state) {
+                state.decline(why);
                 return;
             }
             state.toggle_playback();
@@ -42,8 +42,8 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-bin-up",
         label: "Leave Bin",
         run: |state| {
-            if let Some(reason) = guards::bin_up("pal-bin-up", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::bin_up("pal-bin-up", state) {
+                state.decline(why);
                 return;
             }
             let parent = state.bin_path().iter().rev().nth(1).map(|item| item.id);
@@ -67,8 +67,8 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-next-moment",
         label: "Next Detected Moment",
         run: |state| {
-            if let Some(reason) = guards::moment("pal-next-moment", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::moment("pal-next-moment", state) {
+                state.decline(why);
                 return;
             }
             state.seek_next_moment();
@@ -79,8 +79,8 @@ pub(super) const SESSION_ROWS: &[CommandEntry] = &[
         id: "pal-previous-moment",
         label: "Previous Detected Moment",
         run: |state| {
-            if let Some(reason) = guards::moment("pal-previous-moment", state) {
-                state.status_message = Some(reason.to_string());
+            if let Some(why) = guards::moment("pal-previous-moment", state) {
+                state.decline(why);
                 return;
             }
             state.seek_previous_moment();

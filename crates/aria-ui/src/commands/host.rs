@@ -11,6 +11,7 @@ use aria_plugin::{PluginContext, Service};
 use parking_lot::RwLock;
 
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::chrome::menu_items::RowBlocked;
 
 /// What a command does with the state alone. A plain function pointer, not a
@@ -40,7 +41,7 @@ pub struct CommandEntry {
 impl CommandEntry {
     /// Why the command cannot run against `state` now, or `None` when it can.
     pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
-        (self.blocked)(self.id, state)
+        (self.blocked)(self.id, state).map(Decline::reason)
     }
 }
 
@@ -57,7 +58,7 @@ pub struct WindowedEntry {
 impl WindowedEntry {
     /// Why the command cannot run against `state` now, or `None` when it can.
     pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
-        (self.blocked)(self.id, state)
+        (self.blocked)(self.id, state).map(Decline::reason)
     }
 }
 
@@ -80,7 +81,7 @@ pub struct Registered {
 impl Registered {
     /// Why the command cannot run against `state` now, or `None` when it can.
     pub fn blocked_by(&self, state: &AppState) -> Option<&'static str> {
-        (self.blocked)(self.id, state)
+        (self.blocked)(self.id, state).map(Decline::reason)
     }
 }
 

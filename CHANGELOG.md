@@ -885,6 +885,7 @@ Notes for the latest release. For previous releases, see the
 - `aria analyze` states the track a requested detector needs and the file lacks before it decodes, and points a video with no sound at `--shots`.
 - Settings > Provider keys no longer lists an ElevenLabs key, which no feature read; Generate's Voice kind uses the fal.ai key.
 - The documentation no longer includes the assistant, cloud and MCP roadmaps, which described planned work rather than shipped behavior.
+- The menu reference lists every reason a menu or palette row is drawn disabled for, with the text its tooltip and the status line show.
 
 ### Fixed
 

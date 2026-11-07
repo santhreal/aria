@@ -21,6 +21,7 @@ use gpui::AppContext;
 
 use super::drawn_entries;
 use crate::app::AppState;
+use crate::app::decline::Decline;
 use crate::app::menu_keys::MenuNav;
 use crate::chrome::menu_items::{DropEntry, MenuItem, drop_entries};
 use crate::types::AppMenu;
@@ -158,12 +159,16 @@ fn a_submenu_with_every_row_disabled_opens_nothing_and_states_why() {
 /// states its first row's reason.
 #[test]
 fn a_submenu_is_blocked_only_when_every_row_is() {
-    fn shut(_: &str, _: &AppState) -> Option<&'static str> {
-        Some("Shut")
+    fn shut(_: &str, _: &AppState) -> Option<Decline> {
+        Some(Decline::NothingToUndo)
     }
-    fn also_shut(_: &str, _: &AppState) -> Option<&'static str> {
-        Some("Also shut")
+    fn also_shut(_: &str, _: &AppState) -> Option<Decline> {
+        Some(Decline::NothingToRedo)
     }
+    let (shut_reason, also_reason) = (
+        Decline::NothingToUndo.reason(),
+        Decline::NothingToRedo.reason(),
+    );
     let live = MenuItem::new("live", "Live", |_, _, _| {}).under("Sub");
     let (blocked, other) = (live.when(shut), live.when(also_shut));
     let state = state();
@@ -172,8 +177,8 @@ fn a_submenu_is_blocked_only_when_every_row_is() {
         (vec![blocked, live], None, "blocked, then live"),
         (vec![live, blocked], None, "live, then blocked"),
         (vec![blocked, live, other], None, "live between two blocked"),
-        (vec![blocked, other], Some("Shut"), "two blocked"),
-        (vec![other, blocked, other], Some("Also shut"), "all three"),
+        (vec![blocked, other], Some(shut_reason), "two blocked"),
+        (vec![other, blocked, other], Some(also_reason), "all three"),
     ] {
         let entries = drop_entries(&rows);
         assert_eq!(entries.len(), 1, "{case}: the rows share one submenu");
