@@ -26,7 +26,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::clip::{Clip, Generator, SlotMedia};
-use crate::error::ModelError;
+use crate::error::{ModelError, ProjectLoadError};
 use crate::ids::{ProjectId, TemplateId};
 use crate::media::MediaSource;
 use crate::project::Project;
@@ -325,31 +325,41 @@ impl Template {
         crate::persist::save_document(path, &doc)
     }
 
-    /// Deserialize a template from a `.ariat` JSON file. Files that are not
-    /// templates, or that are newer than this build, are refused.
+    /// Deserialize a template from a `.ariat` JSON file.
     ///
-    /// Mirrors the project loader's order (see `persist.rs`): the schema is
-    /// read and validated *before* the strict typed parse — a future-version
-    /// file whose shape changed is refused as
-    /// [`ModelError::UnsupportedProjectSchema`], never half-parsed into a
-    /// confusing [`ModelError::InvalidProjectFile`] — and the embedded
-    /// project document is migrated up to the current shape first
-    /// (`.ariat` versions in lockstep with the project schema).
+    /// Mirrors the project loader (see `persist.rs`) and fails with
+    /// [`ModelError::TemplateLoad`] in the same classes: a missing or
+    /// unreadable file, a file that is not a template, a newer format, and
+    /// a damaged field. The schema is read and validated *before* the strict
+    /// typed parse, so a future-version file is never half-parsed; the
+    /// embedded project document is migrated up to the current shape first
+    /// (`.ariat` versions in lockstep with the project schema), and the
+    /// embedded project passes the layout and reference checks a project
+    /// file passes.
     pub fn load_from_file(path: &Path) -> Result<Template, ModelError> {
-        let text = std::fs::read_to_string(path)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-        let mut doc: serde_json::Value = serde_json::from_str(&text)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        Self::load_document(path).map_err(|err| match err {
+            ModelError::ProjectLoad(err) => ModelError::TemplateLoad(err),
+            other => other,
+        })
+    }
 
-        let schema = crate::persist::read_schema(&doc)?;
+    fn load_document(path: &Path) -> Result<Template, ModelError> {
+        let at = Some(path);
+        let bytes = std::fs::read(path).map_err(|err| ProjectLoadError::from_io(path, &err))?;
+        let not_a_template = |reason| ProjectLoadError::not_a_project(at, reason);
+        let text = std::str::from_utf8(&bytes).map_err(|_| not_a_template("not JSON"))?;
+        let mut doc: serde_json::Value =
+            serde_json::from_str(text).map_err(|_| not_a_template("not JSON"))?;
+        if !doc.is_object() {
+            return Err(not_a_template("not a JSON object").into());
+        }
+
+        let schema = crate::persist::read_schema(&doc, at)?;
         if schema.kind != TEMPLATE_SCHEMA_KIND
             || schema.version < 1
             || schema.version > PROJECT_SCHEMA_VERSION
         {
-            return Err(ModelError::UnsupportedProjectSchema {
-                found: schema,
-                expected: Self::current_schema(),
-            });
+            return Err(ProjectLoadError::from_schema(at, &schema, &Self::current_schema()).into());
         }
         // The saver stamps the whole document (outer schema) with the version
         // that describes the embedded project's shape, so migrate that
@@ -358,14 +368,24 @@ impl Template {
             crate::persist::migrate_document(project, schema.version);
         }
 
-        let mut template: Template = serde_json::from_value(doc)
-            .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+        let mut template = match Template::deserialize(&doc) {
+            Ok(template) => template,
+            Err(_) => {
+                // Reparse the pretty text so the refusal states the field and
+                // its JSON path, as the project loader does.
+                let pretty = serde_json::to_string_pretty(&doc).unwrap_or_else(|_| text.to_owned());
+                let err = serde_json::from_str::<Template>(&pretty)
+                    .expect_err("document rejected as a value must fail as text");
+                return Err(ProjectLoadError::from_serde(at, &pretty, &err).into());
+            }
+        };
         // Keep the file's original schema as provenance; the writer re-stamps
         // the current version on save (mirroring the project loader).
         template.schema = schema;
         // Mirror the project loader: pre-main-track files re-derive the
         // lane-zone / main-track invariants on entry.
-        template.project.timeline_mut().normalize_lanes();
+        template.project.normalize_all_lanes();
+        crate::persist::check_layout(&template.project, at, "project.")?;
         Ok(template)
     }
 }
@@ -581,35 +601,147 @@ mod tests {
 
     const STILL_TICKS: i64 = crate::media::STILL_DEFAULT_DURATION_TICKS;
 
+    /// The class closed here is "a template that fails to load is refused
+    /// as a project": a missing, unreadable, foreign, newer or damaged
+    /// `.ariat` file is stated as a template with its path and the `.ariat`
+    /// fix, in the classes a project file is, and a template whose project
+    /// plays media its pool does not hold is refused the way a project file
+    /// is rather than applied. Every [`ProjectLoadErrorKind`] has a case; a
+    /// new kind does not compile here until it has one.
     #[test]
-    fn load_rejects_non_template_document() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("not.ariat");
-        let project = Project::new("plain", R24);
-        project.save_to_file(&path).unwrap();
-        // The kind check runs before the typed parse, so the refusal is the
-        // schema error, deterministically — not a shape-dependent parse error.
-        assert!(matches!(
-            Template::load_from_file(&path),
-            Err(ModelError::UnsupportedProjectSchema { .. })
-        ));
-    }
+    fn every_template_load_refusal_states_the_template_and_its_fix() {
+        use crate::error::ProjectLoadErrorKind;
+        use std::path::PathBuf;
 
-    #[test]
-    fn load_refuses_future_version_before_parsing() {
+        #[cfg(unix)]
+        fn locked(path: PathBuf) -> Vec<(PathBuf, String)> {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+            let msg = format!(
+                "Could not read template at {} (permission denied). Check the file permissions and try again.",
+                path.display()
+            );
+            vec![(path, msg)]
+        }
+        #[cfg(not(unix))]
+        fn locked(_: PathBuf) -> Vec<(PathBuf, String)> {
+            Vec::new()
+        }
+
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("future.ariat");
-        // The body is garbage a strict parse would reject; a future-version
-        // file must be refused by the schema check, never half-parsed.
-        std::fs::write(
-            &path,
-            r#"{"schema":{"version":99,"kind":"aria.template"},"project":5}"#,
-        )
-        .unwrap();
-        assert!(matches!(
-            Template::load_from_file(&path),
-            Err(ModelError::UnsupportedProjectSchema { .. })
-        ));
+        let refusal = |path: &Path| match Template::load_from_file(path) {
+            Err(ModelError::TemplateLoad(err)) => {
+                (err.kind(), ModelError::TemplateLoad(err).to_string())
+            }
+            other => panic!("{} loaded as {other:?}", path.display()),
+        };
+        let saved = |name: &str, edit: &dyn Fn(&mut serde_json::Value)| {
+            let path = dir.path().join(name);
+            sample_template().0.save_to_file(&path).unwrap();
+            let mut doc: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            edit(&mut doc);
+            std::fs::write(&path, doc.to_string()).unwrap();
+            path
+        };
+        let v = PROJECT_SCHEMA_VERSION;
+        for kind in ProjectLoadErrorKind::ALL {
+            let cases: Vec<(PathBuf, String)> = match kind {
+                ProjectLoadErrorKind::NotFound => {
+                    let path = dir.path().join("missing.ariat");
+                    let msg = format!(
+                        "No template at {}. Check the path or pick another .ariat file.",
+                        path.display()
+                    );
+                    vec![(path, msg)]
+                }
+                ProjectLoadErrorKind::Unreadable => {
+                    locked(saved("locked.ariat", &|_: &mut serde_json::Value| {}))
+                }
+                ProjectLoadErrorKind::NotAProject => {
+                    let project = dir.path().join("plain.ariat");
+                    Project::new("plain", R24).save_to_file(&project).unwrap();
+                    let text = dir.path().join("notes.ariat");
+                    std::fs::write(&text, "not json at all").unwrap();
+                    let folder = dir.path().join("folder.ariat");
+                    std::fs::create_dir(&folder).unwrap();
+                    let not = |path: &Path, reason: &str| {
+                        format!(
+                            "Couldn't open {}: it is not an Aria template file ({reason}). Pick a valid .ariat template file.",
+                            path.display()
+                        )
+                    };
+                    vec![
+                        (
+                            project.clone(),
+                            not(
+                                &project,
+                                &format!(
+                                    "its format is 'aria.project' version {v}, and this build reads 'aria.template' versions 1 to {v}"
+                                ),
+                            ),
+                        ),
+                        (text.clone(), not(&text, "not JSON")),
+                        (folder.clone(), not(&folder, "a directory")),
+                    ]
+                }
+                ProjectLoadErrorKind::NewerSchema => {
+                    // The body is garbage a strict parse would reject; a
+                    // future-version file is refused by the schema check,
+                    // never half-parsed.
+                    let path = dir.path().join("future.ariat");
+                    std::fs::write(
+                        &path,
+                        r#"{"schema":{"version":99,"kind":"aria.template"},"project":5}"#,
+                    )
+                    .unwrap();
+                    let msg = format!(
+                        "Couldn't open {}: it uses template format version 99, which is newer than this build reads ('aria.template' versions 1 to {v}). Update Aria to open it.",
+                        path.display()
+                    );
+                    vec![(path, msg)]
+                }
+                ProjectLoadErrorKind::Damaged => {
+                    let rate = saved("rate.ariat", &|doc: &mut serde_json::Value| {
+                        doc["project"]["timeline"]["frame_rate"]["num"] = "bad".into();
+                    });
+                    let pool = saved("pool.ariat", &|doc: &mut serde_json::Value| {
+                        doc["project"]["media"] = serde_json::json!([]);
+                    });
+                    let damaged = |path: &Path, at: &str| {
+                        format!(
+                            "Couldn't open {}: the template file is damaged or corrupted at {at}",
+                            path.display()
+                        )
+                    };
+                    vec![
+                        (
+                            rate.clone(),
+                            damaged(&rate, "field 'num' in 'project.timeline.frame_rate.num'"),
+                        ),
+                        (
+                            pool.clone(),
+                            damaged(&pool, "field 'tracks' in 'project.timeline.tracks'"),
+                        ),
+                    ]
+                }
+            };
+            for (path, expected) in cases {
+                let (found, msg) = refusal(&path);
+                assert_eq!(found, kind, "{msg}");
+                match kind {
+                    ProjectLoadErrorKind::Damaged => {
+                        assert!(
+                            msg.starts_with(&expected)
+                                && msg.ends_with("Pick another .ariat file."),
+                            "{msg}"
+                        );
+                        assert!(!msg.contains("at line "), "{msg}");
+                    }
+                    _ => assert_eq!(msg, expected),
+                }
+            }
+        }
     }
 
     #[test]

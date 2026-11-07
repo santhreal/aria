@@ -423,7 +423,8 @@ fn the_reveal_row_asks_and_applies_the_answer() {
 }
 
 /// A cancelled describe leaves the session alone, and a path that is not a
-/// bundle is reported as an error rather than as a summary.
+/// bundle is reported as an error rather than as a summary, stated as a
+/// template with the `.ariat` fix rather than as a damaged project.
 #[test]
 fn describing_a_template_refuses_a_file_that_is_not_one() {
     let mut state = inside();
@@ -435,10 +436,17 @@ fn describing_a_template_refuses_a_file_that_is_not_one() {
     let item = state.store.media.first().cloned().expect("a pool entry");
     state.supply_pick(Answer::file(std::path::PathBuf::from(&*item.path)));
     state.pick_and_describe_template();
+    let error = state
+        .last_error
+        .as_deref()
+        .expect("a file that is not a bundle must be refused");
     assert!(
-        state.last_error.is_some(),
-        "a file that is not a bundle must be refused"
+        error.contains(&*item.path) && error.contains(" template") && error.contains(".ariat"),
+        "{error}"
     );
+    for project in [".aria ", "Aria project", "No project", "project file"] {
+        assert!(!error.contains(project), "{error}");
+    }
 }
 
 /// Headless there is no GPU raster, so the content readout must take its empty

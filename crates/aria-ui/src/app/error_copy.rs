@@ -54,8 +54,8 @@ fn missing_media_copy(paths: &[String]) -> String {
 fn model_copy(err: &ModelError) -> String {
     let copy = match err {
         ModelError::ProjectLoad(_)
-        | ModelError::InvalidProjectFile(_)
-        | ModelError::UnsupportedProjectSchema { .. } => {
+        | ModelError::TemplateLoad(_)
+        | ModelError::InvalidProjectFile(_) => {
             return err.to_string();
         }
         ModelError::Overlap(_) => {

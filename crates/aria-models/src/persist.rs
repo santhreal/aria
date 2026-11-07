@@ -102,7 +102,7 @@ impl Project {
             && let Ok(mut project) = serde_json::from_str::<Project>(text)
         {
             project.normalize_all_lanes();
-            check_layout(&project, path)?;
+            check_layout(&project, path, "")?;
             return Ok(project);
         }
         Self::load_from_value_str_at(text, path)
@@ -134,7 +134,7 @@ impl Project {
         }
 
         unwrap_legacy_envelope(&mut doc);
-        let mut schema = read_schema_at(&doc, path)?;
+        let mut schema = read_schema(&doc, path)?;
         normalize_legacy_schema(&mut schema);
         validate_schema_at(&schema, path)?;
         migrate_document(&mut doc, schema.version);
@@ -147,7 +147,7 @@ impl Project {
                 // Files written before the main-track flag (or edited externally)
                 // re-derive the lane-zone / main-track invariants on entry.
                 project.normalize_all_lanes();
-                check_layout(&project, path)?;
+                check_layout(&project, path, "")?;
                 Ok(project)
             }
             Err(_) => {
@@ -167,9 +167,15 @@ impl Project {
 /// project does not hold or a sequence containing itself
 /// ([`Project::reference_fault`]), or a multicam group of which is invalid
 /// ([`Project::multicam_fault`]), naming the field and the clip or group.
-/// Both parse paths read this, so no edit or render reads a clip
-/// [`crate::Timeline::add_clip`] or [`Project::add_clip`] refuses.
-fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError> {
+/// Both parse paths and the template loader read this, so no edit or render
+/// reads a clip [`crate::Timeline::add_clip`] or [`Project::add_clip`]
+/// refuses. `json_root` is the JSON path of the project inside the file:
+/// empty for a `.aria` file, `project.` for a `.ariat` one.
+pub(crate) fn check_layout(
+    project: &Project,
+    path: Option<&Path>,
+    json_root: &str,
+) -> Result<(), ModelError> {
     let timeline_fault = |timeline: &crate::Timeline, holder: Option<crate::SequenceId>| {
         timeline.layout_fault().or_else(|| {
             project
@@ -178,13 +184,13 @@ fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError
         })
     };
     let fault = timeline_fault(project.root_timeline(), None)
-        .map(|(field, reason)| (field, format!("timeline.{field}"), reason))
+        .map(|(field, reason)| (field, format!("{json_root}timeline.{field}"), reason))
         .or_else(|| {
             project.sequences().find_map(|sequence| {
                 timeline_fault(&sequence.timeline, Some(sequence.id)).map(|(field, reason)| {
                     (
                         field,
-                        format!("sequences.timeline.{field}"),
+                        format!("{json_root}sequences.timeline.{field}"),
                         format!("in sequence '{}', {reason}", sequence.name),
                     )
                 })
@@ -194,7 +200,7 @@ fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError
             let field = "multicam_groups";
             project
                 .multicam_fault()
-                .map(|reason| (field, field.to_owned(), reason))
+                .map(|reason| (field, format!("{json_root}{field}"), reason))
         });
     match fault {
         Some((field, json_path, reason)) => {
@@ -760,11 +766,7 @@ fn unwrap_legacy_envelope(doc: &mut serde_json::Value) {
 /// Read the document's schema (object or legacy bare-integer form) without
 /// deserializing the whole project. Shared with the template loader, which
 /// wraps a project document and versions in lockstep with it.
-pub(crate) fn read_schema(doc: &serde_json::Value) -> Result<ProjectSchema, ModelError> {
-    read_schema_at(doc, None)
-}
-
-fn read_schema_at(
+pub(crate) fn read_schema(
     doc: &serde_json::Value,
     path: Option<&Path>,
 ) -> Result<ProjectSchema, ModelError> {
@@ -775,10 +777,10 @@ fn read_schema_at(
     let raw = doc
         .get("schema")
         .or_else(|| doc.get("schema_version"))
-        .ok_or_else(|| err("missing project schema"))?;
+        .ok_or_else(|| err("missing schema"))?;
     serde_json::from_value::<Holder>(raw.clone())
         .map(|holder| holder.0)
-        .map_err(|_| err("invalid project schema"))
+        .map_err(|_| err("invalid schema"))
 }
 
 /// Rewrite a raw project document from `from`'s shape to the current
@@ -794,7 +796,7 @@ fn read_schema_at(
 ///   `migrate_vN_to_vN1` step here rewriting the previous shape into the
 ///   new one.
 /// - **Newer documents are refused** before this runs
-///   ([`ModelError::UnsupportedProjectSchema`] from `validate_schema`) —
+///   ([`ProjectLoadError::NewerSchema`] from `validate_schema`) —
 ///   guessing at a future format risks silent data loss.
 ///
 /// The template loader reuses this on its embedded project document

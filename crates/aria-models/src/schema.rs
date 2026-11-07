@@ -34,7 +34,7 @@ pub const PROJECT_SCHEMA_KIND: &str = "aria.project";
 ///   `migrate_document` in `persist.rs` (a test fails if the step is
 ///   missing).
 /// - **Files newer than this build are refused** on load with
-///   [`ModelError::UnsupportedProjectSchema`](crate::ModelError) — never
+///   [`ProjectLoadError::NewerSchema`](crate::ProjectLoadError) — never
 ///   guessed at.
 pub const PROJECT_SCHEMA_VERSION: u32 = 4;
 

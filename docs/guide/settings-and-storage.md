@@ -324,7 +324,7 @@ A saved project is a UTF-8 JSON document with the `.aria` extension (`PROJECT_FI
 | `3` | Per-clip `mask` is replaced by the `masks` array (`MAX_CLIP_MASKS`), and expression drivers on mask parameters address `{"mask": {"mask": <index>, "param": <name>}}`. |
 | `4` | Per-project plugin key-value storage (`plugin_data`, keyed by plugin ID then key, with byte values encoded as lowercase hex strings; omitted when empty). |
 
-On load, documents at schema versions `1`, `2`, and `3` migrate step by step (`v1 -> v2 -> v3 -> v4`) before typed deserialization; saving writes schema version `4`. Documents with an unknown `schema.kind`, version `0`, or a `schema.version` greater than `4` fail closed with `ModelError::UnsupportedProjectSchema`, which states the file's schema version, the versions this build reads (1 to 4), and the corrective action. The file is left unchanged.
+On load, documents at schema versions `1`, `2`, and `3` migrate step by step (`v1 -> v2 -> v3 -> v4`) before typed deserialization; saving writes schema version `4`. A document with an unknown `schema.kind` or version `0` is refused with the kind and version it holds and the versions this build reads (1 to 4); a document with a `schema.version` greater than `4` is refused with both versions and a prompt to update Aria. A `.ariat` template is checked the same way, and its refusal states the template and the `.ariat` fix. The file is left unchanged.
 
 ## Example
 

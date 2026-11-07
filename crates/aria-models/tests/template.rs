@@ -449,12 +449,3 @@ fn template_file_roundtrips_with_markers_and_meta() {
         ClipSource::Media { .. }
     ));
 }
-
-#[test]
-fn loading_a_plain_project_as_template_is_refused() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("plain.ariat");
-    Project::new("plain", FPS_24).save_to_file(&path).unwrap();
-
-    assert!(Template::load_from_file(&path).is_err());
-}

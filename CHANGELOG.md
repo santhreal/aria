@@ -1409,6 +1409,8 @@ Notes for the latest release. For previous releases, see the
 - The animation catalog states that `ARIA_MOTION_SCALE` replaces the saved speed at startup and is clamped to `0.01` through `100`.
 - `aria new` help and the command-line page state that each file starts at the latest clip end on the lanes it lands on, not after the previous file.
 - `aria export` refuses a `--at`/`--to` span inside one frame with the instants as typed and the length of one frame, instead of two equal rounded times.
+- A template file that is missing, unreadable, not a template, newer than this build, or damaged is refused with its path and the `.ariat` fix instead of as a damaged `.aria` project.
+- A template whose project breaks a layout or reference rule a project file is checked against is refused on load instead of applied.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -257,22 +257,31 @@ impl ProjectLoadError {
 
     /// Format the refusal sentence pair for the status strip and CLI.
     pub fn describe(&self) -> String {
+        self.describe_document("project", ".aria")
+    }
+
+    /// The refusal for the same failure on a `.ariat` template file.
+    pub fn describe_template(&self) -> String {
+        self.describe_document("template", ".ariat")
+    }
+
+    fn describe_document(&self, noun: &str, ext: &str) -> String {
         match self {
             Self::NotFound { path } => format!(
-                "No project at {}. Check the path or pick another .aria file.",
+                "No {noun} at {}. Check the path or pick another {ext} file.",
                 path.display()
             ),
             Self::Unreadable { path, reason } => format!(
-                "Could not read project at {} ({reason}). Check the file permissions and try again.",
+                "Could not read {noun} at {} ({reason}). Check the file permissions and try again.",
                 path.display()
             ),
             Self::NotAProject { path, reason } => match path {
                 Some(path) => format!(
-                    "Couldn't open {}: it is not an Aria project file ({reason}). Pick a valid .aria project file.",
+                    "Couldn't open {}: it is not an Aria {noun} file ({reason}). Pick a valid {ext} {noun} file.",
                     path.display()
                 ),
                 None => format!(
-                    "Couldn't open this project: it is not an Aria project file ({reason}). Pick a valid .aria project file."
+                    "Couldn't open this {noun}: it is not an Aria {noun} file ({reason}). Pick a valid {ext} {noun} file."
                 ),
             },
             Self::NewerSchema {
@@ -283,12 +292,12 @@ impl ProjectLoadError {
                 let supported = format!("'{}' versions 1 to {}", expected.kind, expected.version);
                 match path {
                     Some(path) => format!(
-                        "Couldn't open {}: it uses project format version {}, which is newer than this build reads ({supported}). Update Aria to open it.",
+                        "Couldn't open {}: it uses {noun} format version {}, which is newer than this build reads ({supported}). Update Aria to open it.",
                         path.display(),
                         found.version
                     ),
                     None => format!(
-                        "Couldn't open this project: it uses project format version {}, which is newer than this build reads ({supported}). Update Aria to open it.",
+                        "Couldn't open this {noun}: it uses {noun} format version {}, which is newer than this build reads ({supported}). Update Aria to open it.",
                         found.version
                     ),
                 }
@@ -300,18 +309,18 @@ impl ProjectLoadError {
                 reason,
             } => match (path, field.is_empty()) {
                 (Some(path), false) => format!(
-                    "Couldn't open {}: the project file is damaged or corrupted at field '{field}' in '{json_path}' ({reason}). Pick another .aria file.",
+                    "Couldn't open {}: the {noun} file is damaged or corrupted at field '{field}' in '{json_path}' ({reason}). Pick another {ext} file.",
                     path.display()
                 ),
                 (Some(path), true) => format!(
-                    "Couldn't open {}: the project file is damaged or corrupted ({reason}). Pick another .aria file.",
+                    "Couldn't open {}: the {noun} file is damaged or corrupted ({reason}). Pick another {ext} file.",
                     path.display()
                 ),
                 (None, false) => format!(
-                    "Couldn't open this project: the project file is damaged or corrupted at field '{field}' in '{json_path}' ({reason}). Pick another .aria file."
+                    "Couldn't open this {noun}: the {noun} file is damaged or corrupted at field '{field}' in '{json_path}' ({reason}). Pick another {ext} file."
                 ),
                 (None, true) => format!(
-                    "Couldn't open this project: the project file is damaged or corrupted ({reason}). Pick another .aria file."
+                    "Couldn't open this {noun}: the {noun} file is damaged or corrupted ({reason}). Pick another {ext} file."
                 ),
             },
         }
@@ -391,10 +400,6 @@ fn byte_offset_for_line_col(text: &str, line: usize, col: usize) -> usize {
     bytes.len()
 }
 
-fn format_unsupported_project_schema(found: &ProjectSchema, expected: &ProjectSchema) -> String {
-    ProjectLoadError::from_schema(None, found, expected).describe()
-}
-
 /// Errors from model mutations that would violate a referential or layout
 /// invariant.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -402,11 +407,10 @@ pub enum ModelError {
     #[error("{}", .0.describe())]
     ProjectLoad(ProjectLoadError),
 
-    #[error("{}", format_unsupported_project_schema(found, expected))]
-    UnsupportedProjectSchema {
-        found: ProjectSchema,
-        expected: ProjectSchema,
-    },
+    /// A `.ariat` template file failed to load, classified as a project
+    /// file is and stated as a template.
+    #[error("{}", .0.describe_template())]
+    TemplateLoad(ProjectLoadError),
 
     #[error("{}", ProjectLoadError::damaged(None, "", "", .0).describe())]
     InvalidProjectFile(String),

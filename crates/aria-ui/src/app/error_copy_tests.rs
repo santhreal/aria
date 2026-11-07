@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    BinId, ClipId, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId, PROJECT_SCHEMA_KIND,
-    PROJECT_SCHEMA_VERSION, ProjectSchema, Rational, SequenceId, SlotMedia, TrackId, TrackKind,
+    BinId, ClipId, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId, Rational, SequenceId,
+    SlotMedia, TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -117,61 +117,6 @@ fn corrupt_project_names_the_file_and_the_fix() {
     assert!(msg.contains(".aria"));
 }
 
-#[test]
-fn unsupported_project_schema_names_both_versions_and_the_fix() {
-    let expected = aria_models::ProjectSchema::current();
-    let future = aria_models::ProjectSchema {
-        version: aria_models::PROJECT_SCHEMA_VERSION + 2,
-        kind: aria_models::PROJECT_SCHEMA_KIND.into(),
-        extensions: Vec::new(),
-    };
-    let future_msg = describe_engine_error(&EngineError::Model(
-        aria_models::ModelError::UnsupportedProjectSchema {
-            found: future,
-            expected: expected.clone(),
-        },
-    ));
-    assert!(
-        future_msg.contains(&format!(
-            "version {}",
-            aria_models::PROJECT_SCHEMA_VERSION + 2
-        )),
-        "{future_msg}"
-    );
-    assert!(
-        future_msg.contains(&format!(
-            "versions 1 to {}",
-            aria_models::PROJECT_SCHEMA_VERSION
-        )),
-        "{future_msg}"
-    );
-    assert!(future_msg.contains("Update Aria"), "{future_msg}");
-
-    let foreign = aria_models::ProjectSchema {
-        version: aria_models::PROJECT_SCHEMA_VERSION,
-        kind: "aria.foreign".into(),
-        extensions: Vec::new(),
-    };
-    let foreign_msg = describe_engine_error(&EngineError::Model(
-        aria_models::ModelError::UnsupportedProjectSchema {
-            found: foreign,
-            expected,
-        },
-    ));
-    assert!(foreign_msg.contains("aria.foreign"), "{foreign_msg}");
-    assert!(
-        foreign_msg.contains(&format!(
-            "versions 1 to {}",
-            aria_models::PROJECT_SCHEMA_VERSION
-        )),
-        "{foreign_msg}"
-    );
-    assert!(
-        foreign_msg.contains("Pick a valid .aria project file"),
-        "{foreign_msg}"
-    );
-}
-
 /// Variants of [`ModelError`]; [`variant`] numbers them `0..VARIANTS`.
 const VARIANTS: usize = 46;
 
@@ -181,7 +126,7 @@ const VARIANTS: usize = 46;
 /// [`every_refusal`] holds one of it.
 fn variant(err: &ModelError) -> usize {
     match err {
-        ModelError::UnsupportedProjectSchema { .. } => 0,
+        ModelError::TemplateLoad(_) => 0,
         ModelError::InvalidProjectFile(_) => 1,
         ModelError::UnknownTrack(_) => 2,
         ModelError::UnknownMedia(_) => 3,
@@ -239,14 +184,9 @@ fn every_refusal() -> Vec<ModelError> {
     let bin = BinId::from_raw(6);
     let sequence = SequenceId::from_raw(7);
     vec![
-        ModelError::UnsupportedProjectSchema {
-            found: ProjectSchema {
-                version: PROJECT_SCHEMA_VERSION + 1,
-                kind: PROJECT_SCHEMA_KIND.into(),
-                extensions: Vec::new(),
-            },
-            expected: ProjectSchema::current(),
-        },
+        ModelError::TemplateLoad(aria_models::ProjectLoadError::NotFound {
+            path: "missing.ariat".into(),
+        }),
         ModelError::InvalidProjectFile("expected value at line 1".into()),
         ModelError::UnknownTrack(track),
         ModelError::UnknownMedia(media),
