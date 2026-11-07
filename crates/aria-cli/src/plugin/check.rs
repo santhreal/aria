@@ -39,7 +39,15 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
 /// check to stdout.
 pub(crate) fn check_path(path: &Path) -> Result<Package, Failure> {
     if is_archive(path) {
-        let scratch = tempfile::tempdir().map_err(|err| Failure::io(&path, &err))?;
+        // The scratch directory is made under the temporary directory, not
+        // beside the archive, so a failure states the temporary directory.
+        // tempfile's error appends the name it tried, so a temporary
+        // directory that cannot be read states the folder's own error.
+        let temp = std::env::temp_dir();
+        let scratch = tempfile::tempdir_in(&temp).map_err(|err| {
+            let err = std::fs::metadata(&temp).err().unwrap_or(err);
+            Failure::io(&temp, &err)
+        })?;
         let unpacked_dir = scratch.path().join("package");
         unpack(path, &unpacked_dir).map_err(|err| Failure::Failed(err.to_string()))?;
         check_dir(&unpacked_dir)

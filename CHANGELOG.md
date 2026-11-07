@@ -1421,6 +1421,7 @@ Notes for the latest release. For previous releases, see the
 - The features page no longer lists object detection, which the build does not have.
 - A failed save states the reason without the OS error code, and Save a Copy no longer suggests choosing another folder for a failure a folder does not cause.
 - `aria new` fails on a folder among its media with "<path>: is a directory; name a media file" before importing any file.
+- `aria plugin check` on an archive states the temporary directory, not the archive, when it cannot make its scratch directory there.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -15,3 +15,5 @@ mod inspect_pool;
 mod missing_plugins;
 #[path = "../output_names.rs"]
 mod output_names;
+#[path = "../temp_dir.rs"]
+mod temp_dir;

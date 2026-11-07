@@ -1,5 +1,9 @@
 //! The one place the `aria-cli` integration tests start the `aria` binary this
 //! crate builds, and the scratch directory each case writes to.
+//!
+//! Each test file declares its own copy of this module and uses a subset of it.
+
+#![allow(dead_code)]
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -20,7 +24,18 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
+    aria_with(&[], args)
+}
+
+/// Run the `aria` binary with `args` and the environment variables `vars`
+/// set, and wait for it to exit.
+pub(crate) fn aria_with<I, S>(vars: &[(&str, &OsStr)], args: I) -> Output
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
     Command::new(env!("CARGO_BIN_EXE_aria"))
+        .envs(vars.iter().copied())
         .args(args)
         .output()
         .expect("run aria")
