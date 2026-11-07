@@ -100,7 +100,7 @@ impl AppState {
             });
             return;
         };
-        let name = format!("{}.{}", self.host().snapshot().name, first.extension);
+        let name = super::picker::file_name_for(self.project_display_name(), &first.extension);
         let mut spec = FileSpec::new("Export Timeline").file_name(name);
         for exporter in &exporters {
             spec = spec.filter(exporter.name.as_str(), &[exporter.extension.as_str()]);

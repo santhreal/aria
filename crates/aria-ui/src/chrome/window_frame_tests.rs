@@ -520,11 +520,14 @@ fn every_project_name_surface_reads_one_owner_across_open_save_as_and_recovery()
 
     let expected_sites: BTreeSet<String> = [
         "app/export_request.rs",
+        "app/key_verbs.rs",
         "app/recents.rs",
         "app/recovery.rs",
         "app/rename.rs",
+        "app/render_reach.rs",
         "app/session.rs",
         "app/templates.rs",
+        "app/timeline_files.rs",
         "app/unsaved.rs",
         "chrome.rs",
         "panels/settings_dialog.rs",

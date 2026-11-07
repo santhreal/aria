@@ -192,7 +192,8 @@ impl AppState {
     /// Ask where to write the rebindings in force as a keymap file.
     pub fn export_keymap(&mut self) {
         use super::picker::{Ask, FileSpec};
-        let name = format!("{}.toml", self.active_keymap().unwrap_or("Aria keys"));
+        let name =
+            super::picker::file_name_for(self.active_keymap().unwrap_or("Aria keys"), "toml");
         self.request_pick(
             Ask::SaveFile(
                 FileSpec::new("Export the Keymap")

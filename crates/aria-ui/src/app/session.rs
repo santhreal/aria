@@ -530,18 +530,32 @@ impl AppState {
     }
 
     pub(crate) fn pick_and_save_project(&mut self, after: fn(&mut Self)) {
-        self.request_pick(
-            Ask::SaveFile(FileSpec::new("Save As").filter("Aria project", &["aria"])),
-            move |state, answer| {
-                let Some(path) = answer.one() else {
-                    return;
-                };
-                match state.save_project_to(path) {
-                    Ok(()) => after(state),
-                    Err(err) => state.report_error(&err),
-                }
-            },
-        );
+        let spec = self.project_save_spec("Save As", self.project_display_name());
+        self.request_pick(Ask::SaveFile(spec), move |state, answer| {
+            let Some(path) = answer.one() else {
+                return;
+            };
+            match state.save_project_to(path) {
+                Ok(()) => after(state),
+                Err(err) => state.report_error(&err),
+            }
+        });
+    }
+
+    /// A save dialog for a project file titled `title`, proposing `name` as a
+    /// `.aria` file in the open project's folder.
+    pub(crate) fn project_save_spec(&self, title: &str, name: &str) -> FileSpec {
+        let spec = FileSpec::new(title)
+            .filter("Aria project", &["aria"])
+            .file_name(super::picker::file_name_for(name, "aria"));
+        match self
+            .project_path
+            .as_deref()
+            .and_then(std::path::Path::parent)
+        {
+            Some(dir) => spec.directory(dir),
+            None => spec,
+        }
     }
 
     pub fn select_all_unlocked(&mut self) {

@@ -275,20 +275,25 @@ impl AppState {
         Ok(id.raw())
     }
 
-    /// Ctrl+Shift+E: ask where the frame goes, then export it.
+    /// Ctrl+Shift+E: ask where the frame goes, then export it. The dialog
+    /// proposes `<project> <frame>.png` beside the project.
     pub fn pick_and_export_frame(&mut self) {
-        self.request_pick(
-            Ask::SaveFile(FileSpec::new("Export Frame").filter("PNG image", &["png"])),
-            |state, answer| {
-                let Some(path) = answer.one() else {
-                    return;
-                };
-                match state.export_frame_job(path) {
-                    Ok(_) => state.open_dialog(DialogKind::Jobs),
-                    Err(err) => state.report_error(err),
-                }
-            },
-        );
+        let name = format!("{} {}", self.project_display_name(), self.playhead.value);
+        let mut spec = FileSpec::new("Export Frame")
+            .filter("PNG image", &["png"])
+            .file_name(super::picker::file_name_for(&name, "png"));
+        if let Some(dir) = self.project_path.as_deref().and_then(Path::parent) {
+            spec = spec.directory(dir);
+        }
+        self.request_pick(Ask::SaveFile(spec), |state, answer| {
+            let Some(path) = answer.one() else {
+                return;
+            };
+            match state.export_frame_job(path) {
+                Ok(_) => state.open_dialog(DialogKind::Jobs),
+                Err(err) => state.report_error(err),
+            }
+        });
     }
 
     /// Ask where the frames go, then start the render.

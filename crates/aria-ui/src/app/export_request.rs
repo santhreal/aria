@@ -20,7 +20,7 @@ use std::sync::LazyLock;
 
 use aria_core::ExportFormat;
 
-use super::picker::{Ask, FileSpec};
+use super::picker::{Ask, FileSpec, file_name_for};
 use super::{AppState, DialogKind};
 
 /// The platform videos directory, else home. Read once: on Linux each lookup
@@ -28,32 +28,6 @@ use super::{AppState, DialogKind};
 /// every frame.
 static UNSAVED_EXPORT_DIR: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| dirs::video_dir().or_else(dirs::home_dir));
-
-/// The file an export of the project named `name` writes in its directory:
-/// `<name>.<ext>`, where each character that a file name on some platform
-/// cannot hold (a path separator, a drive colon, a character Windows rejects,
-/// a control character) is `-`, and a blank name is `Untitled`.
-///
-/// A project's name is free text. Joined onto the directory as typed, a name
-/// such as `../clips` or `/home/clips` would write the export outside that
-/// directory, and `a/b` into a folder that need not exist. The result is one
-/// path component, the same on every platform, so the path the sheet prints is
-/// the path the export writes.
-pub(super) fn export_file_name(name: &str, ext: &str) -> String {
-    let name = name.trim();
-    let mut file = String::with_capacity(name.len().max(8) + 1 + ext.len());
-    if name.is_empty() {
-        file.push_str("Untitled");
-    }
-    file.extend(name.chars().map(|ch| match ch {
-        '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*' => '-',
-        ch if ch.is_control() => '-',
-        ch => ch,
-    }));
-    file.push('.');
-    file.push_str(ext);
-    file
-}
 
 /// One export, as the sheet's rows describe it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,7 +61,7 @@ impl AppState {
                 .clone()
                 .unwrap_or_else(|| self.data_dir.clone()),
         };
-        dir.join(export_file_name(self.project_display_name(), &ext))
+        dir.join(file_name_for(self.project_display_name(), &ext))
     }
 
     /// The export the sheet is currently describing, addressed at `destination`.

@@ -170,6 +170,9 @@ pub struct Picks {
     /// How many picks have been asked for, so a test can tell "asked and not
     /// answered" from "never asked".
     asked: usize,
+    /// The last save dialog asked for, so a test reads what it proposes.
+    #[cfg(test)]
+    last_save: Option<FileSpec>,
 }
 
 impl Picks {
@@ -197,6 +200,8 @@ impl Default for Picks {
             supplied: VecDeque::new(),
             waiting: None,
             asked: 0,
+            #[cfg(test)]
+            last_save: None,
         }
     }
 }
@@ -219,7 +224,7 @@ impl AppState {
         #[cfg(test)]
         hold_title_case(&ask);
         #[cfg(test)]
-        hold_save_extension(&ask);
+        self.hold_save_spec(&ask);
         let mut then: Continuation = Box::new(then);
         if let Ask::SaveFile(spec) = &ask
             && let Some(extension) = spec.first_extension()
@@ -323,6 +328,66 @@ impl AppState {
     pub(crate) fn picks_unused(&self) -> usize {
         self.picks.supplied.len()
     }
+
+    /// The last save dialog this session asked for.
+    #[cfg(test)]
+    pub(crate) fn last_save_spec(&self) -> Option<&FileSpec> {
+        self.picks.last_save.as_ref()
+    }
+
+    /// Refuse a save pick that offers no extension, or proposes no file name
+    /// with it, and record the one that passes for [`Self::last_save_spec`].
+    ///
+    /// A name typed without an extension would be written bare, a file no
+    /// dialog filtered by type lists; a dialog that proposes no name leaves the
+    /// name to be typed in full, though the project already has one. Checked
+    /// at the seam, as [`hold_title_case`] is, so a new save pick fails in
+    /// whichever test first reaches it.
+    ///
+    /// Not caught: a save pick that no test reaches.
+    #[cfg(test)]
+    fn hold_save_spec(&mut self, ask: &Ask) {
+        let Ask::SaveFile(spec) = ask else {
+            return;
+        };
+        let title = spec.title();
+        let extension = spec.first_extension().unwrap_or_else(|| {
+            panic!("the save pick titled `{title}` offers no extension to complete a name with")
+        });
+        let proposed = spec
+            .proposed_name()
+            .unwrap_or_else(|| panic!("the save pick titled `{title}` proposes no file name"));
+        assert!(
+            proposed.ends_with(&format!(".{extension}")) && !proposed.contains(['/', '\\']),
+            "the save pick titled `{title}` proposes `{proposed}`, not one `.{extension}` file"
+        );
+        self.picks.last_save = Some(spec.clone());
+    }
+}
+
+/// The file name a save dialog proposes for `name`: `<name>.<ext>`, where
+/// each character that a file name on some platform cannot hold (a path
+/// separator, a drive colon, a character Windows rejects, a control
+/// character) is `-`, and a blank name is `Untitled`.
+///
+/// A project's name is free text. Joined onto a directory as typed, a name
+/// such as `../clips` or `/home/clips` would write outside that directory,
+/// and `a/b` into a folder that need not exist. The result is one path
+/// component, the same on every platform.
+pub(crate) fn file_name_for(name: &str, ext: &str) -> String {
+    let name = name.trim();
+    let mut file = String::with_capacity(name.len().max(8) + 1 + ext.len());
+    if name.is_empty() {
+        file.push_str("Untitled");
+    }
+    file.extend(name.chars().map(|ch| match ch {
+        '/' | '\\' | ':' | '<' | '>' | '"' | '|' | '?' | '*' => '-',
+        ch if ch.is_control() => '-',
+        ch => ch,
+    }));
+    file.push('.');
+    file.push_str(ext);
+    file
 }
 
 /// Refuse a pick whose title is not in Title Case.
@@ -344,23 +409,6 @@ fn hold_title_case(ask: &Ask) {
     let authored = title.split_once(": ").map_or(title, |(head, _)| head);
     if let Err(reason) = crate::commands::casing_tests::check_title_case(authored) {
         panic!("the pick titled `{title}` is not in Title Case: {reason}");
-    }
-}
-
-/// Refuse a save pick that offers no extension: a name typed without one would
-/// be written bare, a file no dialog filtered by type lists and no viewer
-/// opens. Checked at the seam, as [`hold_title_case`] is, so a new save pick
-/// fails in whichever test first reaches it.
-///
-/// Not caught: a save pick that no test reaches.
-#[cfg(test)]
-fn hold_save_extension(ask: &Ask) {
-    if let Ask::SaveFile(spec) = ask {
-        assert!(
-            spec.first_extension().is_some(),
-            "the save pick titled `{}` offers no extension to complete a typed name with",
-            spec.title()
-        );
     }
 }
 

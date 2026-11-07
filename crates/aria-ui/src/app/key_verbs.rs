@@ -696,32 +696,33 @@ impl AppState {
     }
 
     /// Ctrl+Alt+S: write the project to a chosen file without adopting it. The
-    /// open project keeps its own path and its unsaved state.
+    /// open project keeps its own path and its unsaved state. The dialog
+    /// proposes `<name> copy.aria` beside the project, so accepting it does
+    /// not write over the project file.
     pub fn save_project_copy(&mut self) {
-        use super::picker::{Ask, FileSpec};
-        self.request_pick(
-            Ask::SaveFile(FileSpec::new("Save a Copy").filter("Aria project", &["aria"])),
-            |state, answer| {
-                let Some(path) = answer.one() else {
-                    return;
-                };
-                let written = state.engine.lock().project().save_to_file(&path);
-                match written {
-                    Ok(()) => {
-                        state.status_message = Some(format!("Saved a copy to {}", path.display()));
-                    }
-                    // A pool file is refused with its own next step; the
-                    // folder hint is for a write the filesystem failed.
-                    Err(err) if err.kind() == std::io::ErrorKind::InvalidInput => {
-                        state.report_error(format!("Could not save a copy: {err}"))
-                    }
-                    Err(err) => state.report_error(format!(
-                        "Could not save a copy to {}: {err}. Choose a folder you can write to.",
-                        path.display()
-                    )),
+        use super::picker::Ask;
+        let name = format!("{} copy", self.project_display_name().trim());
+        let spec = self.project_save_spec("Save a Copy", &name);
+        self.request_pick(Ask::SaveFile(spec), |state, answer| {
+            let Some(path) = answer.one() else {
+                return;
+            };
+            let written = state.engine.lock().project().save_to_file(&path);
+            match written {
+                Ok(()) => {
+                    state.status_message = Some(format!("Saved a copy to {}", path.display()));
                 }
-            },
-        );
+                // A pool file is refused with its own next step; the
+                // folder hint is for a write the filesystem failed.
+                Err(err) if err.kind() == std::io::ErrorKind::InvalidInput => {
+                    state.report_error(format!("Could not save a copy: {err}"))
+                }
+                Err(err) => state.report_error(format!(
+                    "Could not save a copy to {}: {err}. Choose a folder you can write to.",
+                    path.display()
+                )),
+            }
+        });
     }
 
     /// Ctrl+X: copy the selection, then clear it from the timeline.

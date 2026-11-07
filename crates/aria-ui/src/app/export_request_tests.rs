@@ -132,7 +132,7 @@ fn a_project_name_becomes_the_file_name_with_each_unwritable_character_a_dash() 
     ];
     for (name, want) in cases {
         assert_eq!(
-            super::export_request::export_file_name(name, "mp4"),
+            super::picker::file_name_for(name, "mp4"),
             want,
             "project {name:?}"
         );

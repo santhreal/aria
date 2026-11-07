@@ -82,6 +82,11 @@ impl FileSpec {
             .map(String::as_str)
     }
 
+    /// The name a save dialog proposes, if any.
+    pub fn proposed_name(&self) -> Option<&str> {
+        self.file_name.as_deref()
+    }
+
     /// Offer one named group of extensions, written without the dot. Groups
     /// accumulate in the order they are added, which is the order the dialog
     /// lists them in.

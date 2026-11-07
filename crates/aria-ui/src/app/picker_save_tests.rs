@@ -42,6 +42,7 @@ fn saved(
     for (name, extensions) in filters {
         spec = spec.filter(*name, *extensions);
     }
+    let spec = spec.file_name(format!("proposed.{}", filters[0].1[0]));
     state.status_message = None;
     state.supply_pick(Answer::file(typed));
     for reply in replies {
@@ -49,6 +50,13 @@ fn saved(
     }
     state.request_pick(Ask::SaveFile(spec), record);
     state.status_message.take()
+}
+
+/// A Save As dialog for a project file.
+fn aria_save_spec() -> FileSpec {
+    FileSpec::new("Save As")
+        .filter("Aria project", &["aria"])
+        .file_name("cut.aria")
 }
 
 #[test]
@@ -77,7 +85,7 @@ fn a_save_name_with_no_extension_takes_the_first_one_offered() {
     }
     let cancelled = {
         state.supply_pick(Answer::cancelled());
-        let spec = FileSpec::new("Save As").filter("Aria project", &["aria"]);
+        let spec = aria_save_spec();
         state.request_pick(Ask::SaveFile(spec), record);
         state.status_message.take()
     };
@@ -113,7 +121,7 @@ fn a_completed_name_over_an_existing_file_is_replaced_only_on_yes() {
 
     // Unanswered, the question waits and nothing is written.
     state.supply_pick(Answer::file(dir.join("cut")));
-    let spec = FileSpec::new("Save As").filter("Aria project", &["aria"]);
+    let spec = aria_save_spec();
     state.request_pick(Ask::SaveFile(spec), record);
     assert_eq!(
         state.status_message.as_deref(),
@@ -148,4 +156,70 @@ fn each_save_command_writes_the_completed_name() {
         );
         assert!(!typed.exists(), "{command} wrote a file with no extension");
     }
+}
+
+/// What each save dialog proposes, for an unsaved project whose name holds a
+/// path separator and for a saved one.
+///
+/// Defect class: Save As and Save a Copy proposed no name, so the project's
+/// name was typed again; Export Timeline proposed the project's internal
+/// name (`untitled` until renamed) rather than the file it was saved as; and
+/// a name with a `/` was proposed as a path.
+#[test]
+fn each_save_dialog_proposes_the_project_name_as_one_file() {
+    type Run = fn(&mut AppState);
+    let (mut state, _) = with_clip();
+    state
+        .ctx
+        .mount(&aria_interchange::InterchangePlugin)
+        .expect("mount the timeline interchange plugin");
+    let timeline = state
+        .ctx
+        .exporters()
+        .first()
+        .map(|exporter| exporter.extension.clone())
+        .expect("the plugin registers an exporter");
+    let frame = state.playhead.value;
+    let video = state.export_extension();
+    let dir = crate::scratch_pool::scratch("picker-save-names");
+    for (saved, stem) in [(false, "Wedding-Day"), (true, "cut")] {
+        state.store_mut().project_name = "Wedding/Day".into();
+        state.project_path = saved.then(|| dir.join("cut.aria"));
+        let runs: [(Run, String); 7] = [
+            (AppState::save_project_as, format!("{stem}.aria")),
+            (AppState::save_project_copy, format!("{stem} copy.aria")),
+            (AppState::pick_and_save_template, format!("{stem}.ariat")),
+            (
+                AppState::pick_and_export_frame,
+                format!("{stem} {frame}.png"),
+            ),
+            (
+                AppState::pick_and_export_timeline,
+                format!("{stem}.{timeline}"),
+            ),
+            (AppState::pick_export_destination, format!("{stem}.{video}")),
+            (AppState::export_keymap, "Aria keys.toml".to_string()),
+        ];
+        for (run, want) in runs {
+            run(&mut state);
+            let spec = state.last_save_spec().expect("a save dialog was asked for");
+            assert_eq!(
+                spec.proposed_name(),
+                Some(want.as_str()),
+                "{} (saved: {saved})",
+                spec.title()
+            );
+        }
+    }
+
+    let want = FileSpec::new("Save As")
+        .filter("Aria project", &["aria"])
+        .file_name("cut.aria")
+        .directory(&dir);
+    state.save_project_as();
+    assert_eq!(
+        state.last_save_spec(),
+        Some(&want),
+        "Save As opens in the project's folder"
+    );
 }

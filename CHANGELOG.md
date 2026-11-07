@@ -879,6 +879,7 @@ Notes for the latest release. For previous releases, see the
 - The Ctrl+L binding is named Link or Unlink in Settings > Keyboard Shortcuts.
 - The Analysis panel keeps the moments index open for the session instead of opening and closing it for every read and write, which removes four disk syncs from every clear and detector run.
 - The command palette lays out only the rows in view, so a key that moves the highlight or edits the query draws one screen of rows instead of every command.
+- Save dialogs propose a file named after the project, and **Save As**, **Save a Copy**, **Export Frame** and **Export Timeline** open in the project's folder once it has been saved.
 
 ### Fixed
 
@@ -1371,6 +1372,7 @@ Notes for the latest release. For previous releases, see the
 - **Export** prompts before replacing a file already at its destination instead of overwriting it.
 - **Export** writes an unsaved project whose name holds a path separator, such as `../clips`, inside the default directory instead of outside it.
 - A name typed without an extension in a save dialog is saved with the extension the dialog offers, so `cut` in **Save As** writes `cut.aria` instead of a file the Open dialog does not list.
+- **Export Timeline** proposes the name of the saved project file instead of `untitled`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

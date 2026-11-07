@@ -37,6 +37,12 @@ See [Templates](#templates) for the marks.
   project path.
 - Ctrl+Shift+S saves to a new path. Ctrl+Alt+S saves a copy and keeps the
   open project's path.
+- A save dialog proposes a file named after the project: `<name>.aria` for
+  Save As, `<name> copy.aria` for a copy, `<name> <frame>.png` for **Export
+  Frame**, and `<name>.<ext>` for a template, a timeline file or an export. The
+  name is written as the Export default is. Save As, Save a Copy, **Export
+  Frame** and **Export Timeline** open in the project's folder once the project
+  has been saved.
 - A name typed without an extension in a save dialog is saved with the
   extension the dialog offers: `cut` in Save As writes `cut.aria`. When a file
   already has that name, the save prompts before replacing it.

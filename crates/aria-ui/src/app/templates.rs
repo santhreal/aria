@@ -69,7 +69,7 @@ impl AppState {
             Ask::SaveFile(
                 FileSpec::new("Save as Template")
                     .filter("Aria template", &[TEMPLATE_EXTENSION])
-                    .file_name(format!("{name}.{TEMPLATE_EXTENSION}")),
+                    .file_name(super::picker::file_name_for(&name, TEMPLATE_EXTENSION)),
             ),
             move |state, answer| {
                 let Some(path) = answer.one() else {
