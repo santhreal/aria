@@ -462,34 +462,15 @@ fn window_title_tracks_project_name_and_dirty_state_across_every_open_path() {
 #[test]
 fn every_project_name_surface_reads_one_owner_across_open_save_as_and_recovery() {
     use std::collections::BTreeSet;
-    use std::path::Path;
 
     use crate::app::picker::Answer;
-    use crate::test_support::collect_rs;
-    use crate::test_support::control_sites::strip_comments;
-    use crate::test_support::sources::without_test_items;
     use crate::types::RenameTarget;
     use aria_commands::{Command, EditCommand};
-
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
-    assert!(files.len() > 200);
 
     let mut direct_store_reads = Vec::new();
     let mut owner_sites = BTreeSet::new();
 
-    for file in &files {
-        let rel = file
-            .strip_prefix(&src)
-            .unwrap_or(file)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
-            continue;
-        }
-        let raw = std::fs::read_to_string(file).expect("read source file");
-        let code = strip_comments(&without_test_items(&raw));
+    for (rel, code) in crate::test_support::sources::production_sources() {
         for (line_idx, line) in code.lines().enumerate() {
             let trimmed = line.trim();
             if trimmed.contains("project_name")

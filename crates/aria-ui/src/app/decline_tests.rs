@@ -31,8 +31,7 @@ use crate::chrome::menu_items::MenuItem as BarRow;
 use crate::chrome::menu_items::{chord_rows, items_of};
 use crate::keys::bindings::SHIPPED_BINDINGS;
 use crate::keys::{KeyBody, dispatch_plain_key_down};
-use crate::test_support::collect_rs;
-use crate::test_support::sources::{string_literals, without_test_items};
+use crate::test_support::sources::{production_sources, string_literals};
 use crate::types::AppMenu;
 
 #[test]
@@ -110,29 +109,13 @@ fn only_the_registry_words_an_empty_selection() {
         WORDINGS.contains(&Decline::NoSelection.reason().to_lowercase().as_str()),
         "the registry's wording is not one the census reads"
     );
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
-    assert!(
-        files.len() > 200,
-        "found {} files under {src:?}, which cannot be this crate",
-        files.len()
-    );
     let mut read = 0usize;
     let mut offenders = Vec::new();
-    for file in &files {
-        let rel = file
-            .strip_prefix(&src)
-            .unwrap_or(file)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if rel == "app/decline.rs" || rel.starts_with("test_support/") || rel.ends_with("_tests.rs")
-        {
+    for (rel, code) in production_sources() {
+        if rel == "app/decline.rs" {
             continue;
         }
-        let code = std::fs::read_to_string(file)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", file.display()));
-        for (line, literal) in string_literals(&without_test_items(&code)) {
+        for (line, literal) in string_literals(code) {
             read += 1;
             let words = literal.trim().trim_end_matches('.').to_lowercase();
             if WORDINGS.contains(&words.as_str()) {

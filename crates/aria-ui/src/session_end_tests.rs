@@ -19,9 +19,7 @@ use std::path::Path;
 use gpui::{Bounds, TestAppContext, point, px, size};
 
 use crate::settings::{UiSettings, WindowPlacement};
-use crate::test_support::control_sites::strip_comments;
-use crate::test_support::sources::without_test_items;
-use crate::test_support::{collect_rs, drawn_shell_at};
+use crate::test_support::drawn_shell_at;
 
 /// How a test ends the session.
 #[derive(Debug, Clone, Copy)]
@@ -154,28 +152,9 @@ fn every_way_a_session_ends_closes_decode_sessions(cx: &mut TestAppContext) {
 /// so a renamed owner does not leave a rule that matches nothing.
 #[test]
 fn every_quit_in_the_crate_goes_through_session_end() {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut files = Vec::new();
-    collect_rs(&src, &mut files);
-    assert!(
-        files.len() > 200,
-        "found {} files under {src:?}, which cannot be this crate",
-        files.len()
-    );
     let mut owner = 0usize;
     let mut offenders = Vec::new();
-    for file in &files {
-        let rel = file
-            .strip_prefix(&src)
-            .unwrap_or(file)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if rel.starts_with("test_support/") || rel.ends_with("_tests.rs") {
-            continue;
-        }
-        let raw = std::fs::read_to_string(file)
-            .unwrap_or_else(|err| panic!("failed to read {}: {err}", file.display()));
-        let code = strip_comments(&without_test_items(&raw));
+    for (rel, code) in crate::test_support::sources::production_sources() {
         for (number, line) in code.lines().enumerate() {
             if !line.contains(".quit()") {
                 continue;
