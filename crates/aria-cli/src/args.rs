@@ -146,6 +146,7 @@ impl Args {
         if words.first().is_some_and(|word| word == "help") {
             return Err(match &words[1..] {
                 [] => ArgsError::Help(None),
+                [name] if name == "help" => ArgsError::Help(None),
                 [name] => {
                     ArgsError::Help(Some(Verb::named(name).ok_or_else(|| {
                         ArgsError::Usage(format!("unknown command \"{name}\""))

@@ -220,13 +220,15 @@ fn no_verb_and_help_are_not_errors() {
 
 /// WHY: `aria help frame` failed with "unknown command \"help\"", exit 2,
 /// though `cargo help build` and `git help log` take that spelling. `help`
-/// alone is the usage block and `help <command>` that command's entries for
-/// every verb in `Verb::ALL`; a word that is no command after it, or two words,
-/// is a usage error. Not caught: `help` after a verb, which is that verb's
-/// positional.
+/// and `help help` are the usage block and `help <command>` that command's
+/// entries for every verb in `Verb::ALL`; a word that is no command after it,
+/// or two words, is a usage error. Not caught: `help` after a verb, which is
+/// that verb's positional.
 #[test]
 fn help_as_the_first_word_names_the_command_after_it() {
-    assert_eq!(Args::parse(["help"]).err(), Some(ArgsError::Help(None)));
+    for argv in [vec!["help"], vec!["help", "help"]] {
+        assert_eq!(Args::parse(argv).err(), Some(ArgsError::Help(None)));
+    }
     for verb in Verb::ALL {
         assert_eq!(
             Args::parse(["help", verb.key()]).err(),
