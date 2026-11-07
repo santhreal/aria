@@ -160,19 +160,27 @@ impl AppState {
 
     /// Place the plugin generator `effect_id` on `track` at `at`: a transparent
     /// solid named after the effect, with the effect first in its chain, as one
-    /// undo step. Refused when no registered effect with that id is a
-    /// generator.
+    /// undo step. Refused, with the reason on the error line, when no
+    /// registered effect with that id is a generator.
     pub fn drop_effect_generator_on_timeline(
         &mut self,
         effect_id: &str,
         track: Option<TrackId>,
         at: i64,
     ) -> Result<(), EngineError> {
-        let spec = aria_models::effect_spec(effect_id)
-            .filter(|spec| spec.generator)
-            .ok_or_else(|| {
-                aria_models::ModelError::InvalidParam(format!("no generator `{effect_id}`"))
-            })?;
+        let spec = match aria_models::effect_spec(effect_id) {
+            Some(spec) if spec.generator => spec,
+            Some(_) => {
+                return Err(EngineError::Refused(format!(
+                    "The effect `{effect_id}` is not a generator"
+                )));
+            }
+            None => {
+                return Err(EngineError::Refused(format!(
+                    "The generator `{effect_id}` is not registered"
+                )));
+            }
+        };
         self.place_effect_generator(&spec.id, &spec.label, None, track, at)
     }
 
@@ -184,7 +192,8 @@ impl AppState {
     /// Place the plugin clip type `type_id` on `track` at `at`: its generator,
     /// placed as [`Self::drop_effect_generator_on_timeline`] places one, named
     /// after the type and holding the type's id, as one undo step. Refused when
-    /// no plugin lists the type or its generator cannot draw it.
+    /// no plugin lists the type or its generator cannot draw it, with the
+    /// reason the Generators list shows under the type on the error line.
     pub fn drop_clip_type_on_timeline(
         &mut self,
         type_id: &str,
@@ -192,14 +201,13 @@ impl AppState {
         at: i64,
     ) -> Result<(), EngineError> {
         let spec = aria_models::clip_type_spec(type_id).ok_or_else(|| {
-            aria_models::ModelError::InvalidParam(format!("no clip type `{type_id}`"))
+            EngineError::Refused(format!("No plugin lists the clip type `{type_id}`"))
         })?;
         if let Some(reason) = spec.unavailable() {
-            return Err(aria_models::ModelError::InvalidParam(format!(
+            return Err(EngineError::Refused(format!(
                 "{} cannot be placed: {reason}",
                 spec.label
-            ))
-            .into());
+            )));
         }
         self.place_effect_generator(&spec.generator, &spec.label, Some(&spec.id), track, at)
     }

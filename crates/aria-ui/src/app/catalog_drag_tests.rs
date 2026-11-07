@@ -170,29 +170,34 @@ fn a_sticker_dropped_on_a_lane_that_cannot_hold_it_still_lands_at_that_tick() {
     assert_eq!(placed.timeline_start_ticks, at);
 }
 
+/// A refused generator drop states why on the error line, not that a value is
+/// not accepted.
 #[test]
 fn a_generator_drop_with_no_generator_behind_the_id_is_refused_and_places_nothing() {
     // An id nothing registers, and a shipped effect that changes its input
     // rather than drawing a picture of its own.
-    let ids = [
-        "test.unregistered_generator".to_owned(),
-        aria_models::shipped_effect_catalog()[0].id.clone(),
+    let unregistered = "test.unregistered_generator";
+    let effect = aria_models::shipped_effect_catalog()[0].id.as_str();
+    let cases = [
+        (
+            unregistered,
+            format!("The generator `{unregistered}` is not registered"),
+        ),
+        (effect, format!("The effect `{effect}` is not a generator")),
     ];
-    for id in ids {
+    for (id, shown) in cases {
         let (mut state, _) = with_clip();
         let before = state.store.sequence.clip_count();
         let drag = CatalogDrag {
             kind: CatalogDragKind::Generator,
-            id: id.clone().into(),
+            id: id.into(),
             label: "generator".into(),
         };
         let err = state
             .drop_catalog_on_track(&drag, None, 1_000)
             .expect_err("no generator renders this id");
-        assert!(
-            err.to_string().contains(&format!("no generator `{id}`")),
-            "{id}: {err}"
-        );
+        state.report_error(&err);
+        assert_eq!(state.last_error.as_deref(), Some(shown.as_str()), "{id}");
         assert_eq!(
             state.store.sequence.clip_count(),
             before,
@@ -212,10 +217,10 @@ fn a_clip_type_drop_with_no_type_behind_the_id_is_refused_and_places_nothing() {
     let err = state
         .drop_catalog_on_track(&drag, None, 1_000)
         .expect_err("no plugin lists this type");
-    assert!(
-        err.to_string()
-            .contains("no clip type `test.unregistered_clip_type`"),
-        "{err}"
+    state.report_error(&err);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some("No plugin lists the clip type `test.unregistered_clip_type`")
     );
     assert_eq!(state.store.sequence.clip_count(), before);
 }
@@ -768,4 +773,89 @@ fn catalog_drop_tick_marks_the_transition_cut_or_the_pointer_tick_for_other_kind
             }
         }
     }
+}
+
+/// WHY: closes, for a sidebar catalog entry dropped on a clip, the class of a
+/// structural refusal shown as the value copy, "That value isn't accepted
+/// here. Enter another value", whose fix names a field a drop does not have.
+/// Every payload that targets a clip, one per kind from its catalog, is
+/// dropped on every clip of every dressed state: a still, a video with sound,
+/// an audio clip, a title, a linked pair, a stacked pair, a blended junction,
+/// a parented pair and a nest. A drop that edits is undone before the next.
+///
+/// What this does not catch: an id other than the one per kind that a clip
+/// refuses, and a state no fixture dresses.
+#[test]
+fn no_catalog_drop_on_a_clip_answers_with_the_value_copy() {
+    use super::fixtures;
+    use super::menu_reach_tests::history_labels;
+
+    let preset = {
+        let (mut state, _) = with_clip();
+        let drag = payloads()
+            .into_iter()
+            .find(|drag| drag.kind == CatalogDragKind::Preset)
+            .expect("a preset payload");
+        seed(&mut state, &drag);
+        state
+            .presets
+            .iter()
+            .find(|preset| preset.name == PRESET)
+            .cloned()
+            .expect("the seed saves the preset")
+    };
+    let states: [(&str, fn() -> AppState); 9] = [
+        ("a still", || with_clip().0),
+        ("a video with sound", || fixtures::with_video().0),
+        ("an audio clip", || fixtures::with_audio().0),
+        ("a title", fixtures::a_title),
+        ("a linked pair", fixtures::linked_pair),
+        ("a stacked pair", || fixtures::stacked_pair().0),
+        ("a blended junction", || fixtures::blended_junction().0),
+        ("a parented pair", || fixtures::parented_pair().0),
+        ("a nest", || {
+            let (mut state, _) = with_clip();
+            state.nest_selection("Nest").expect("nest the clip");
+            state
+        }),
+    ];
+    // The copy every model refusal of a value reads.
+    let copy = super::describe_engine_error(&aria_engine::EngineError::Model(
+        aria_models::ModelError::InvalidParam(String::new()),
+    ));
+    let mut wrong = Vec::new();
+    for (name, build) in states {
+        let mut state = build();
+        state.presets.push(preset.clone());
+        let clips: Vec<u64> = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .flat_map(|track| track.clips.iter().map(|clip| clip.id))
+            .collect();
+        for clip in clips {
+            for drag in payloads().into_iter().filter(CatalogDrag::targets_a_clip) {
+                let steps = history_labels(&state).len();
+                match state.drop_catalog_on_clip(&drag, ClipId::from_raw(clip), None) {
+                    Err(err) if super::describe_engine_error(&err) == copy => {
+                        wrong.push(format!("{:?} on clip {clip} of {name}: {err}", drag.kind));
+                    }
+                    _ => {}
+                }
+                if history_labels(&state).len() > steps {
+                    assert!(
+                        state.undo(),
+                        "{:?} on {name}: the drop is not undone",
+                        drag.kind
+                    );
+                }
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "these drops answered with the value copy:\n{}",
+        wrong.join("\n")
+    );
 }

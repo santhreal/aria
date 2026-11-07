@@ -1483,6 +1483,7 @@ Notes for the latest release. For previous releases, see the
 - A save syncs the project's folder to disk after it replaces the file, so a crash soon after a save no longer brings back the replaced project or loses a first save.
 - Close Gap at Playhead is offered only when at least one second is free before the next clip, instead of failing with the copy of a clip left with no length.
 - File > Import Timeline… is disabled, with the reason, when no timeline importer is mounted.
+- Placing a clip type or generator that cannot be placed shows the reason the Generators list gives instead of reporting that a value is not accepted.
 
 ## [alpha-0.7.0] - 2026-07-22
 

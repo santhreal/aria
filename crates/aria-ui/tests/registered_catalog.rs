@@ -256,9 +256,11 @@ fn a_registered_generator_is_offered_and_placed_as_one_clip_in_one_undo_step() {
     let err = state
         .add_effect_generator(id)
         .expect_err("no generator renders a removed id");
-    assert!(
-        err.to_string().contains(&format!("no generator `{id}`")),
-        "{err}"
+    state.report_error(&err);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some(format!("The generator `{id}` is not registered").as_str()),
+        "the error line does not state why the generator was not placed"
     );
     assert_eq!(clip_count(&state), before);
 }
@@ -318,13 +320,25 @@ fn a_registered_clip_type_is_offered_placed_and_detached_one_undo_step_each() {
         row.unavailable.as_deref(),
         Some(format!("the generator `{generator}` is not registered").as_str())
     );
-    let err = state
-        .add_clip_type(id)
-        .expect_err("a type with no generator was placed");
-    assert!(
-        err.to_string().contains("Lower third cannot be placed"),
-        "{err}"
+    // Placed anyway, by a click and by a drag, the error line shows the
+    // reason the row shows, not a refusal of a value.
+    let shown = format!(
+        "Lower third cannot be placed: {}",
+        row.unavailable.expect("a reason")
     );
+    let drag = CatalogDrag {
+        kind: CatalogDragKind::ClipType,
+        id: id.into(),
+        label: "Lower third".into(),
+    };
+    for (way, placed) in [
+        ("click", state.add_clip_type(id)),
+        ("drag", state.drop_catalog_on_track(&drag, None, 24)),
+    ] {
+        let err = placed.expect_err("a type with no generator was placed");
+        state.report_error(&err);
+        assert_eq!(state.last_error.as_deref(), Some(shown.as_str()), "{way}");
+    }
     assert_eq!(clip_count(&state), 0, "a refused placement left a clip");
 
     let card = register_generator(generator, "Card", vec![vec2_param("anchor")]);
