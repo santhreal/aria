@@ -185,6 +185,83 @@ fn dropped_files_land_end_to_end() {
     assert_eq!(clips[1].0, clips[0].1);
 }
 
+/// WHY: a drop or File > Import of several files stopped at the first file
+/// that did not import. The files before it stayed in the pool, unplaced; the
+/// files after it were never read; and the error line, "Couldn't decode this
+/// file", named none of them. Every file that imports is placed in the order
+/// given and returned, and the error line names the file that did not, or
+/// counts them and names the first. With no file imported the error names
+/// the file and the pool and the timeline are as they were. Not caught: a
+/// file that imports and then fails to place.
+#[test]
+fn a_file_that_does_not_import_is_named_and_the_rest_land() {
+    let dir = scratch();
+    let (a, b) = (dir.join("a.png"), dir.join("b.png"));
+    std::fs::copy(fixture(), &a).unwrap();
+    std::fs::copy(fixture(), &b).unwrap();
+    let (bad, worse) = (dir.join("notes.mp4"), dir.join("noise.mp4"));
+    std::fs::write(&bad, "not a video").unwrap();
+    std::fs::write(&worse, "not a video either").unwrap();
+    let fresh = || {
+        let mut state = AppState::new(PluginContext::new(), dir.clone()).unwrap();
+        state.new_project().unwrap();
+        state
+    };
+    // What one file's import reports alone; the drop states it after the name.
+    let reason = |path: &PathBuf| {
+        let err = fresh().import_media(path.clone()).expect_err("not media");
+        describe_engine_error(&err)
+    };
+    let (decode, noise) = (reason(&bad), reason(&worse));
+    let pictures = |state: &AppState| spans_of(state, crate::types::UiTrackKind::Video);
+
+    let mut state = fresh();
+    let imported = state
+        .import_dropped_paths(vec![a.clone(), bad.clone(), b.clone()])
+        .expect("the stills land");
+    assert_eq!(imported, vec![a.clone(), b.clone()]);
+    let lane = pictures(&state).remove(0);
+    assert_eq!(lane.len(), 2, "both stills are placed: {lane:?}");
+    assert_eq!(
+        (lane[0].0, lane[1].0),
+        (0, lane[0].1),
+        "end to end in order"
+    );
+    assert_eq!(state.store.media.len(), 2);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some(format!("Not imported: notes.mp4. {decode}").as_str())
+    );
+
+    let mut state = fresh();
+    state
+        .import_dropped_paths(vec![bad.clone(), a, worse.clone()])
+        .expect("the still lands");
+    assert_eq!(pictures(&state).remove(0).len(), 1);
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some(format!("Not imported: 2 files, starting with notes.mp4. {decode}").as_str())
+    );
+
+    let mut state = fresh();
+    let err = state
+        .import_dropped_paths(vec![worse, bad.clone()])
+        .expect_err("nothing imports");
+    assert_eq!(
+        describe_engine_error(&err),
+        format!("Not imported: 2 files, starting with noise.mp4. {noise}")
+    );
+    assert!(state.store.media.is_empty());
+    assert!(pictures(&state).iter().all(Vec::is_empty));
+    assert!(!state.undo(), "a refused import left an undo step");
+
+    // File > Import lists the files that arrived, and only those, in Import
+    // Recent.
+    let mut state = fresh();
+    state.import_paths(vec![b.clone(), bad]);
+    assert_eq!(&state.import_recents[..], [b]);
+}
+
 /// A drop places files in free space. In either edit mode nothing on the
 /// timeline before the drop moves or is covered, and each file starts at the
 /// first tick, from the playhead or from where the file before it ends, at

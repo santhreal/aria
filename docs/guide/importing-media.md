@@ -18,6 +18,9 @@ What a dropped file becomes follows its type, on Home and in Aria alike:
 A project file dropped alongside other files wins: opening one replaces the
 session, so the rest would be discarded.
 
+A media file that cannot be imported is skipped. The other files are placed,
+and the error line states the skipped file's name and the reason.
+
 ## Timeline files
 
 **File > Import Timeline…** reads another editor's cut into the open project,

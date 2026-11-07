@@ -281,8 +281,8 @@ impl AppState {
             }
         }
         if !media.is_empty() {
-            match self.import_dropped_paths(media.clone()) {
-                Ok(()) => arrived.extend(media),
+            match self.import_dropped_paths(media) {
+                Ok(imported) => arrived.extend(imported),
                 Err(err) => self.report_error(&err),
             }
         }

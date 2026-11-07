@@ -30,6 +30,26 @@ pub(crate) fn media_import_extensions() -> Vec<String> {
     all
 }
 
+/// The error line for the files of one import that did not import: the
+/// file's name and why, or the count and the first file's name and why. It
+/// opens with a fixed phrase, so a file name is never started with a capital.
+/// `None` when every file imported.
+fn unimported_copy(refused: &[(PathBuf, EngineError)]) -> Option<String> {
+    let (path, err) = refused.first()?;
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |name| name.to_string_lossy().into_owned(),
+    );
+    let reason = crate::app::describe_engine_error(err);
+    Some(match refused.len() {
+        1 => format!("Not imported: {name}. {reason}"),
+        count => format!(
+            "Not imported: {}, starting with {name}. {reason}",
+            aria_core::count::counted(count, "file", "files")
+        ),
+    })
+}
+
 impl AppState {
     pub fn import_media(&mut self, path: PathBuf) -> Result<MediaId, EngineError> {
         match self.apply_command(Command::Project(ProjectCommand::Import { path }))? {
@@ -68,12 +88,29 @@ impl AppState {
         });
     }
 
-    pub fn import_dropped_paths(&mut self, paths: Vec<PathBuf>) -> Result<(), EngineError> {
+    /// Import each of `paths`, then place every file that imported as one
+    /// chain in the order given, as one undo step. A file that does not import
+    /// is skipped so the rest still land, and the error line names it. Returns
+    /// the files that imported; when none did, the error names the first file
+    /// and the project is unchanged.
+    pub fn import_dropped_paths(
+        &mut self,
+        paths: Vec<PathBuf>,
+    ) -> Result<Vec<PathBuf>, EngineError> {
         let mut video = Vec::new();
         let mut audio = Vec::new();
+        let mut arrived = Vec::with_capacity(paths.len());
+        let mut refused = Vec::new();
         for path in paths {
             self.load_plugins_for_file(&path);
-            let media = self.import_media(path)?;
+            let media = match self.import_media(path.clone()) {
+                Ok(media) => media,
+                Err(err) => {
+                    refused.push((path, err));
+                    continue;
+                }
+            };
+            arrived.push(path);
             let Some(item) = self.store.media.iter().find(|item| item.id == media.raw()) else {
                 continue;
             };
@@ -82,6 +119,11 @@ impl AppState {
             } else {
                 video.push(media);
             }
+        }
+        if arrived.is_empty()
+            && let Some(copy) = unimported_copy(&refused)
+        {
+            return Err(EngineError::Refused(copy));
         }
         // Every placement and every lane it needs is one undo step, named
         // after the first edit: one drop, one `Source edit`.
@@ -92,7 +134,10 @@ impl AppState {
                 Ok(pictures.or(state.place_chain(TrackKind::Audio, &audio)?))
             },
         )?;
-        Ok(())
+        if let Some(copy) = unimported_copy(&refused) {
+            self.report_error(copy);
+        }
+        Ok(arrived)
     }
 
     pub fn add_generated(&mut self, generator: Generator) -> Result<(), EngineError> {
