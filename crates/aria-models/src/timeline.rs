@@ -14,6 +14,8 @@ use crate::track_routing::{AutomationMode, LaneRoute};
 
 #[path = "timeline_canvas.rs"]
 mod canvas;
+#[path = "timeline_layout.rs"]
+mod layout;
 #[path = "timeline_markers.rs"]
 mod markers;
 #[path = "timeline_master.rs"]
@@ -363,10 +365,12 @@ impl Timeline {
             .find(|id| self.tracks.get(id).is_some_and(|t| t.main))
     }
 
-    /// Re-derive the lane-zone and main-track invariants from scratch —
-    /// the chokepoint for projects loaded from disk (files written before
-    /// the main-track flag existed, or edited externally).
+    /// Re-derive the lane order, the clip index, and the lane-zone and
+    /// main-track invariants from scratch — the chokepoint for projects loaded
+    /// from disk (files written before the main-track flag existed, or edited
+    /// externally).
     pub fn normalize_lanes(&mut self) {
+        self.rederive_order_and_index();
         self.designate_main();
         self.enforce_lane_zones();
     }

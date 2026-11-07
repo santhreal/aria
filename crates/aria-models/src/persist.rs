@@ -102,6 +102,7 @@ impl Project {
             && let Ok(mut project) = serde_json::from_str::<Project>(text)
         {
             project.normalize_all_lanes();
+            check_layout(&project, path)?;
             return Ok(project);
         }
         Self::load_from_value_str_at(text, path)
@@ -146,6 +147,7 @@ impl Project {
                 // Files written before the main-track flag (or edited externally)
                 // re-derive the lane-zone / main-track invariants on entry.
                 project.normalize_all_lanes();
+                check_layout(&project, path)?;
                 Ok(project)
             }
             Err(_) => {
@@ -157,6 +159,34 @@ impl Project {
                 )))
             }
         }
+    }
+}
+
+/// Refuse a project a sequence of which breaks a placement rule
+/// ([`crate::Timeline::layout_fault`]), naming the field and the clip. Both
+/// parse paths read this, so no edit or render reads a clip
+/// [`crate::Timeline::add_clip`] refuses.
+fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError> {
+    let fault = project
+        .root_timeline()
+        .layout_fault()
+        .map(|(field, reason)| (field, format!("timeline.{field}"), reason))
+        .or_else(|| {
+            project.sequences().find_map(|sequence| {
+                sequence.timeline.layout_fault().map(|(field, reason)| {
+                    (
+                        field,
+                        format!("sequences.timeline.{field}"),
+                        format!("in sequence '{}', {reason}", sequence.name),
+                    )
+                })
+            })
+        });
+    match fault {
+        Some((field, json_path, reason)) => {
+            Err(ProjectLoadError::damaged(path, field, json_path, reason).into())
+        }
+        None => Ok(()),
     }
 }
 
@@ -860,6 +890,9 @@ fn validate_schema_at(found: &ProjectSchema, path: Option<&Path>) -> Result<(), 
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "persist/tests_layout.rs"]
+mod tests_layout;
 #[cfg(test)]
 #[path = "persist/tests_mask_stack.rs"]
 mod tests_mask_stack;

@@ -1389,6 +1389,8 @@ Notes for the latest release. For previous releases, see the
 - A canvas larger than the GPU renders, such as `aria export p.aria out.mp4 --size 32768x32768`, is refused with the GPU's size limits instead of panicking.
 - `aria export --fps` takes `23.976` and `29.97` as the exact rates `aria new` sets for them instead of refusing every rate that is not a whole number.
 - An export or frame over a source file that ends before its clip does states the file and the second it ends at instead of an internal media id and time.
+- Opening a project file whose sequence rate is invalid, or whose clip is timed at another rate than its sequence, has a negative or overflowing range, or a zero speed, fails with the field, clip and lane at fault instead of failing later at the first frame or export.
+- Opening a project file whose lane order leaves out, repeats or invents a lane, or whose clip index places a clip on the wrong lane, rebuilds both from the lanes, so every lane draws and renders once and every clip is editable; one clip id on two lanes fails as a damaged file.
 
 ## [alpha-0.7.0] - 2026-07-22
 
