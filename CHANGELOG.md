@@ -1471,6 +1471,9 @@ Notes for the latest release. For previous releases, see the
 - An export of a project whose frame rate is above 1000 fps is refused naming the ceiling instead of writing a file whose last frame runs past one period, on every export path and not only `aria export --fps`.
 - A sequence rate above 1000 fps set by a plugin, a script or an imported cut is refused instead of leaving a sequence no export writes.
 - An export rate refusal states the rate as `num/den fps` and the ceiling instead of a debug struct.
+- A picture edit (mask, crop, transform, look, effect or visual keyframe) on a clip on an audio track is rejected naming the clip and its lane instead of reading "track cannot hold this clip" and "Drop it on a matching track".
+- An audio role set on a clip on a picture track is rejected naming the lane it needs instead of the drop message.
+- A generator write on a media clip is rejected stating the clip is media-backed instead of reporting a track kind mismatch.
 
 ## [alpha-0.7.0] - 2026-07-22
 

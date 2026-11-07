@@ -6,7 +6,7 @@
 //! `Fit Timeline` (`zoom_fit_sequence`), which zoomed the Timeline instead of
 //! the Viewer, and offered `Reset Transform` (`when: always()`) with no clip
 //! selected (where `reset_selected_transform` changes nothing) or an audio clip
-//! selected (where `set_transform` fails with `IncompatibleTrackKind`).
+//! selected (where `set_transform` fails with `NotOnPicture`).
 //!
 //! Every row in `PREVIEW_ITEMS` is enumerated from the table at run time and
 //! pressed in every stage of [`PREVIEW_STAGES`] that offers it. Each press must

@@ -871,6 +871,16 @@ class TestMedia:
         with pytest.raises(AriaError):
             c.crop(w=0.0)
 
+    def test_a_picture_edit_on_an_audio_clip_names_its_lane(
+        self, tmp_path: object
+    ) -> None:
+        wav = str(tmp_path / "tone.wav")  # type: ignore[operator]
+        write_tone_wav(wav)
+        p = Project("m", fps=30)
+        c = p.add_track("audio").add(p.import_media(wav), start=0.0)
+        with pytest.raises(TrackKindError, match="sound lane .* shows no picture"):
+            c.crop(x=0.1, y=0.0, w=0.8, h=1.0)
+
     def test_transitions(self, media_path: str) -> None:
         p = Project("m", fps=30)
         m = p.import_media(media_path)

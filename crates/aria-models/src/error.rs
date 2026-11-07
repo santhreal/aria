@@ -511,6 +511,14 @@ pub enum ModelError {
     #[error("track {track} ({kind:?}) cannot hold this clip")]
     IncompatibleTrackKind { track: TrackId, kind: TrackKind },
 
+    #[error("clip {clip} is on the sound lane {track}, which shows no picture")]
+    NotOnPicture { clip: ClipId, track: TrackId },
+
+    #[error(
+        "clip {clip} is on the picture lane {track}; only a clip on a sound lane takes an audio role"
+    )]
+    NotOnSound { clip: ClipId, track: TrackId },
+
     #[error("media {0} is still referenced by one or more clips")]
     MediaReferenced(MediaId),
 

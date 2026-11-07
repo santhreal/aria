@@ -23,23 +23,24 @@ impl Project {
         Ok((track_id, kind))
     }
 
-    /// Guard for edits that only make sense where pixels show.
-    fn require_visual(&self, clip_id: ClipId, what: &str) -> Result<(), ModelError> {
-        let (track_id, kind) = self.track_kind_of(clip_id)?;
+    /// The clip sits on a lane that shows pictures. The one check behind every
+    /// look, crop, transform and visual-parameter edit, so each rejects a clip
+    /// on a sound lane with [`ModelError::NotOnPicture`].
+    pub(super) fn require_visual(&self, clip_id: ClipId) -> Result<(), ModelError> {
+        let (track, kind) = self.track_kind_of(clip_id)?;
         if !kind.is_visual() {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: track_id,
-                kind,
+            return Err(ModelError::NotOnPicture {
+                clip: clip_id,
+                track,
             });
         }
-        let _ = what;
         Ok(())
     }
 
     /// Guard for edits that need decoded source pixels (mask, chroma, …):
     /// a media-backed clip on a visual lane.
     fn require_visual_media(&self, clip_id: ClipId, what: &str) -> Result<(), ModelError> {
-        self.require_visual(clip_id, what)?;
+        self.require_visual(clip_id)?;
         let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
             return Err(ModelError::InvalidParam(format!(
@@ -54,7 +55,7 @@ impl Project {
     /// first, and a stack holds at most [`MAX_CLIP_MASKS`].
     pub fn add_clip_mask(&mut self, clip_id: ClipId, mask: Mask) -> Result<u32, ModelError> {
         mask.validate()?;
-        self.require_visual(clip_id, "a mask")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             if clip.masks.len() >= MAX_CLIP_MASKS {
                 return Err(ModelError::InvalidParam(format!(
@@ -75,7 +76,7 @@ impl Project {
         mask: Mask,
     ) -> Result<(), ModelError> {
         mask.validate()?;
-        self.require_visual(clip_id, "a mask")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             *mask_mut(&mut clip.masks, index)? = mask;
             Ok(())
@@ -119,7 +120,7 @@ impl Project {
     /// Set how the clip composites over the stack below (M-blend). Visual
     /// clips only; audio has nothing to blend.
     pub fn set_blend_mode(&mut self, clip_id: ClipId, mode: BlendMode) -> Result<(), ModelError> {
-        self.require_visual(clip_id, "a blend mode")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.blend_mode = mode;
             Ok(())
@@ -134,7 +135,7 @@ impl Project {
         clip_id: ClipId,
         motion_blur: MotionBlur,
     ) -> Result<(), ModelError> {
-        self.require_visual(clip_id, "motion blur")?;
+        self.require_visual(clip_id)?;
         motion_blur.validate()?;
         self.edit_clip(clip_id, |clip| {
             clip.motion_blur = motion_blur;
@@ -149,7 +150,7 @@ impl Project {
         clip_id: ClipId,
         styles: LayerStyles,
     ) -> Result<(), ModelError> {
-        self.require_visual(clip_id, "layer styles")?;
+        self.require_visual(clip_id)?;
         styles.validate()?;
         self.edit_clip(clip_id, |clip| {
             clip.styles = styles;
@@ -187,7 +188,7 @@ impl Project {
         if let Some(matte) = &matte {
             matte.validate()?;
         }
-        self.require_visual(clip_id, "a track matte")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.matte = matte;
             Ok(())
@@ -228,7 +229,7 @@ impl Project {
         if let Some(filter) = &filter {
             filter.validate()?;
         }
-        self.require_visual(clip_id, "a filter")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.filter = filter;
             Ok(())
@@ -242,7 +243,7 @@ impl Project {
         if let Some(lut) = &lut {
             lut.validate()?;
         }
-        self.require_visual(clip_id, "a LUT")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.lut = lut;
             Ok(())
@@ -258,7 +259,7 @@ impl Project {
         adjust: ColorAdjustments,
     ) -> Result<(), ModelError> {
         adjust.validate()?;
-        self.require_visual(clip_id, "adjustments")?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.adjust = adjust;
             Ok(())
@@ -277,7 +278,7 @@ impl Project {
         slot: AnimationSlot,
         animation: Option<AnimationRef>,
     ) -> Result<(), ModelError> {
-        self.require_visual(clip_id, "animations")?;
+        self.require_visual(clip_id)?;
         let animation = if let Some(animation) = animation {
             let spec = animation_spec(&animation.id).ok_or_else(|| {
                 ModelError::InvalidParam(format!("unknown animation '{}'", animation.id))
@@ -334,11 +335,11 @@ impl Project {
         clip_id: ClipId,
         role: Option<AudioRole>,
     ) -> Result<(), ModelError> {
-        let (track_id, kind) = self.track_kind_of(clip_id)?;
+        let (track, kind) = self.track_kind_of(clip_id)?;
         if kind != TrackKind::Audio {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: track_id,
-                kind,
+            return Err(ModelError::NotOnSound {
+                clip: clip_id,
+                track,
             });
         }
         self.edit_clip(clip_id, |clip| {

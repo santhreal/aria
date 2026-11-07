@@ -155,7 +155,7 @@ locked length; `t.texts` reports the editable titles.
 | Exception | When |
 |-----------|------|
 | `OverlapError` | Clips overlap on the same track |
-| `TrackKindError` | Wrong track kind for content |
+| `TrackKindError` | Wrong track kind for the content, or a picture edit on an audio clip |
 | `MediaError` | Import/probe failure |
 | `RenderError` | GPU frame or export failure |
 

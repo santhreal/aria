@@ -41,7 +41,7 @@ impl Project {
         at: Option<RationalTime>,
     ) -> Result<(), ModelError> {
         transform.validate()?;
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }
@@ -68,7 +68,7 @@ impl Project {
         transform: AnimatedTransform,
     ) -> Result<(), ModelError> {
         transform.validate()?;
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.transform = transform;
             Ok(())
@@ -83,26 +83,9 @@ impl Project {
     /// declaring its lane rather than by being named in an `if` chain here.
     fn check_param_target(&self, clip_id: ClipId, param: ClipParam) -> Result<(), ModelError> {
         match param.scope() {
-            ParamScope::Visual => self.check_visual_target(clip_id),
+            ParamScope::Visual => self.require_visual(clip_id),
             ParamScope::Audio => self.check_audio_target(clip_id),
         }
-    }
-
-    /// The clip exists on a visual track. Audio lanes have no canvas
-    /// placement to animate.
-    fn check_visual_target(&self, clip_id: ClipId) -> Result<(), ModelError> {
-        let track_id = self
-            .timeline()
-            .track_of(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self.timeline().require_track(track_id)?.kind;
-        if !kind.is_visual() {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: track_id,
-                kind,
-            });
-        }
-        Ok(())
     }
 
     /// The clip exists and is media-backed (generators have nothing to hear).
@@ -178,7 +161,7 @@ impl Project {
         if let Some(t) = tangents {
             t.validate()?;
         }
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         let tick = self.keyframe_tick(clip_id, at)?;
         self.edit_clip(clip_id, |clip| {
             clip.transform
@@ -338,7 +321,7 @@ impl Project {
         let instance = EffectInstance::new(effect_id);
         // Reject unknown ids up front (validate also covers an empty chain).
         instance.validate()?;
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             clip.effects.push(instance);
             Ok(clip.effects.len() - 1)
@@ -371,7 +354,7 @@ impl Project {
             effect.validate()?;
             effect.mark_from_catalog();
         }
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             let mask_len = clip.masks.len() as u32;
             for effect in &mut effects {
@@ -412,7 +395,7 @@ impl Project {
                 .iter()
                 .any(|(_, spec, _)| spec.scope == ParamScope::Visual);
         if needs_visual {
-            self.check_visual_target(clip_id)?;
+            self.require_visual(clip_id)?;
         }
         if !shifted.audio_effects.is_empty() {
             self.insert_target_refusal(crate::AudioInsertTarget::Clip(clip_id))?;
@@ -621,7 +604,7 @@ impl Project {
     ) -> Result<(), ModelError> {
         effect.validate()?;
         effect.mark_from_catalog();
-        self.check_visual_target(clip_id)?;
+        self.require_visual(clip_id)?;
         if let Some(err) = self.effect_layer_ref_error(clip_id, &effect) {
             return Err(ModelError::InvalidParam(err));
         }

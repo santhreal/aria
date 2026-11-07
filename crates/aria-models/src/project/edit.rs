@@ -797,17 +797,7 @@ impl Project {
         flip_v: bool,
         at: Option<RationalTime>,
     ) -> Result<(), ModelError> {
-        let track_id = self
-            .timeline()
-            .track_of(clip_id)
-            .ok_or(ModelError::UnknownClip(clip_id))?;
-        let kind = self.timeline().require_track(track_id)?.kind;
-        if !kind.is_visual() {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: track_id,
-                kind,
-            });
-        }
+        self.require_visual(clip_id)?;
         if let Some(at) = at {
             check_same_rate(at.rate, self.timeline().frame_rate)?;
         }

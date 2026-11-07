@@ -282,7 +282,7 @@ fn set_clip_crop_rejects_invalid_targets() {
     let audio_clip = project.add_clip(audio, media_id, tr(0, 50), rt(0)).unwrap();
     assert!(matches!(
         project.set_clip_crop(audio_clip, CropRect::FULL, true, false, None),
-        Err(ModelError::IncompatibleTrackKind { .. })
+        Err(ModelError::NotOnPicture { .. })
     ));
 
     let missing = ClipId::next();

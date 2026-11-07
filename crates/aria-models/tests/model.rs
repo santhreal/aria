@@ -45,7 +45,7 @@ fn set_transform_updates_visual_and_rejects_audio() {
     // Audio clips have nothing to place on the canvas.
     assert!(matches!(
         project.set_transform(audio, t, None),
-        Err(ModelError::IncompatibleTrackKind { .. })
+        Err(ModelError::NotOnPicture { .. })
     ));
 
     // Invalid values are rejected and leave the stored transform unchanged.

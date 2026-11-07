@@ -49,7 +49,7 @@ fn look_setters_reject_wrong_content() {
     assert!(
         matches!(
             project.set_blend_mode(aclip, BlendMode::Multiply),
-            Err(ModelError::IncompatibleTrackKind { .. })
+            Err(ModelError::NotOnPicture { .. })
         ),
         "blend modes need pixels"
     );
@@ -62,7 +62,7 @@ fn look_setters_reject_wrong_content() {
                     ..MotionBlur::default()
                 }
             ),
-            Err(ModelError::IncompatibleTrackKind { .. })
+            Err(ModelError::NotOnPicture { .. })
         ),
         "motion blur needs pixels"
     );
@@ -75,7 +75,7 @@ fn look_setters_reject_wrong_content() {
                     ..Default::default()
                 }
             ),
-            Err(ModelError::IncompatibleTrackKind { .. })
+            Err(ModelError::NotOnPicture { .. })
         ),
         "layer styles need pixels"
     );
@@ -378,4 +378,140 @@ fn speed_preset_catalog_ids_resolve_and_match_back() {
         assert_eq!(crate::speed_preset_id(&curve), Some(spec.id.as_str()));
     }
     assert_eq!(crate::speed_preset_id(&Param::Constant(1.0)), None);
+}
+
+/// Every edit that needs a picture rejects a clip on a sound lane with
+/// [`ModelError::NotOnPicture`] naming that clip and lane, an audio role
+/// rejects a clip on a picture lane with [`ModelError::NotOnSound`], and the
+/// clip is left as it was.
+///
+/// Closes the class where such an edit reported `IncompatibleTrackKind`
+/// ("track 2 (Audio) cannot hold this clip"), whose copy reads as a drop onto
+/// the wrong track though the clip was not moving. The visual parameters are
+/// read from [`crate::clip::clip_param_catalog`], so a new one is covered on
+/// arrival. Not covered: whether a surface offers these edits for a clip on a
+/// sound lane.
+#[test]
+fn an_edit_on_the_wrong_lane_names_the_clip_and_its_lane() {
+    use crate::clip::{ParamScope, clip_param_catalog};
+
+    let (mut project, media_id, video) = project_with_media(100);
+    let audio = project.add_track(TrackKind::Audio, "A1");
+    let sound = project.add_clip(audio, media_id, tr(0, 50), rt(0)).unwrap();
+    let picture = project.add_clip(video, media_id, tr(0, 50), rt(0)).unwrap();
+    let before = project.clip(sound).unwrap().clone();
+    let mask = Mask::new(MaskKind::Circle);
+    let edits: Vec<(String, Result<(), ModelError>)> = vec![
+        (
+            "add_clip_mask".into(),
+            project.add_clip_mask(sound, mask.clone()).map(drop),
+        ),
+        (
+            "set_clip_mask".into(),
+            project.set_clip_mask(sound, 0, mask),
+        ),
+        (
+            "set_blend_mode".into(),
+            project.set_blend_mode(sound, BlendMode::Screen),
+        ),
+        (
+            "set_motion_blur".into(),
+            project.set_motion_blur(sound, MotionBlur::default()),
+        ),
+        (
+            "set_layer_styles".into(),
+            project.set_layer_styles(sound, LayerStyles::default()),
+        ),
+        (
+            "set_clip_chroma_key".into(),
+            project.set_clip_chroma_key(sound, None),
+        ),
+        ("set_clip_matte".into(), project.set_clip_matte(sound, None)),
+        (
+            "set_clip_stabilize".into(),
+            project.set_clip_stabilize(sound, None),
+        ),
+        (
+            "set_clip_filter".into(),
+            project.set_clip_filter(sound, None),
+        ),
+        ("set_clip_lut".into(), project.set_clip_lut(sound, None)),
+        (
+            "set_clip_adjustments".into(),
+            project.set_clip_adjustments(sound, ColorAdjustments::default()),
+        ),
+        (
+            "set_clip_animation".into(),
+            project.set_clip_animation(sound, AnimationSlot::In, None),
+        ),
+        (
+            "set_clip_crop".into(),
+            project.set_clip_crop(sound, CropRect::FULL, true, false, None),
+        ),
+        (
+            "set_transform".into(),
+            project.set_transform(sound, ClipTransform::IDENTITY, None),
+        ),
+        (
+            "set_animated_transform".into(),
+            project.set_animated_transform(sound, ClipTransform::IDENTITY.into()),
+        ),
+        (
+            "set_param_keyframe_tangents".into(),
+            project.set_param_keyframe_tangents(sound, ClipParam::Position, rt(0), None),
+        ),
+        (
+            "add_effect".into(),
+            project.add_effect(sound, "gaussian_blur").map(drop),
+        ),
+        (
+            "set_clip_effects".into(),
+            project.set_clip_effects(sound, Vec::new()),
+        ),
+    ];
+    let params = clip_param_catalog()
+        .iter()
+        .filter(|spec| spec.scope == ParamScope::Visual)
+        .map(|spec| {
+            (
+                format!("remove_param_keyframe {}", spec.id),
+                project.remove_param_keyframe(sound, spec.param, rt(0)),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !params.is_empty(),
+        "the registry declares no visual parameter"
+    );
+    for (edit, result) in edits.into_iter().chain(params) {
+        assert_eq!(
+            result,
+            Err(ModelError::NotOnPicture {
+                clip: sound,
+                track: audio,
+            }),
+            "{edit}"
+        );
+    }
+    assert_eq!(project.clip(sound), Some(&before));
+
+    assert_eq!(
+        project.set_clip_audio_role(picture, Some(AudioRole::Music)),
+        Err(ModelError::NotOnSound {
+            clip: picture,
+            track: video,
+        })
+    );
+    assert_eq!(project.clip(picture).unwrap().audio_role, None);
+    project
+        .set_clip_audio_role(sound, Some(AudioRole::Music))
+        .unwrap();
+
+    match project.set_generator(picture, Generator::text("title")) {
+        Err(ModelError::InvalidParam(why)) => assert_eq!(
+            why,
+            format!("clip {picture} is media-backed and has no generator to replace")
+        ),
+        other => panic!("a generator write on a media clip returned {other:?}"),
+    }
 }

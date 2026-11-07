@@ -77,7 +77,7 @@ fn an_invalid_mask_or_a_non_visual_clip_is_refused_and_nothing_changes() {
     let sound = project.add_clip(audio, media, tr(0, 48), rt(0)).unwrap();
     assert!(matches!(
         project.add_clip_mask(sound, Mask::new(MaskKind::Circle)),
-        Err(ModelError::IncompatibleTrackKind { .. })
+        Err(ModelError::NotOnPicture { .. })
     ));
 }
 

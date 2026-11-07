@@ -229,10 +229,9 @@ impl Project {
         let clip = self.timeline().require_clip(clip_id)?;
         // Media clips have no generator to replace; reject rather than convert.
         if !clip.is_generated() {
-            return Err(ModelError::IncompatibleTrackKind {
-                track: track_id,
-                kind,
-            });
+            return Err(ModelError::InvalidParam(format!(
+                "clip {clip_id} is media-backed and has no generator to replace"
+            )));
         }
         let stored = match &clip.content {
             ClipSource::Generated(stored) => text_preset(stored),

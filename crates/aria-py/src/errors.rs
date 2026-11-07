@@ -25,7 +25,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 pub fn model_err(e: ModelError) -> PyErr {
     match e {
         ModelError::Overlap(_) => OverlapError::new_err(e.to_string()),
-        ModelError::IncompatibleTrackKind { .. } => TrackKindError::new_err(e.to_string()),
+        ModelError::IncompatibleTrackKind { .. }
+        | ModelError::NotOnPicture { .. }
+        | ModelError::NotOnSound { .. } => TrackKindError::new_err(e.to_string()),
         ModelError::UnknownMedia(_)
         | ModelError::MediaReferenced(_)
         | ModelError::SourceOutOfBounds => MediaError::new_err(e.to_string()),

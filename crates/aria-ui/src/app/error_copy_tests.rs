@@ -152,9 +152,30 @@ fn corrupt_project_names_the_file_and_the_fix() {
     assert!(msg.contains(".aria"));
 }
 
+/// A picture edit on an audio clip, or an audio role on a picture clip, reads
+/// as the lane the clip sits on, not as a clip dropped on the wrong track: the
+/// clip was not moving, so "Drop it on a matching track" sends the reader
+/// after the wrong fix.
+#[test]
+fn an_edit_on_the_wrong_lane_reads_as_the_lane_not_a_drop() {
+    let clip = ClipId::from_raw(4);
+    let track = TrackId::from_raw(2);
+    let copy = |err| describe_engine_error(&EngineError::Model(err));
+    assert_eq!(
+        copy(ModelError::NotOnPicture { clip, track }),
+        "That clip is on an audio track, which shows no picture. Select a clip on a video \
+         track, then try again."
+    );
+    assert_eq!(
+        copy(ModelError::NotOnSound { clip, track }),
+        "Only a clip on an audio track takes an audio role. Select a clip on an audio track, \
+         then try again."
+    );
+}
+
 /// Variants of [`ModelError`], each [`ClipSetRefusal`] counted as its own;
 /// [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 52;
+const VARIANTS: usize = 54;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -209,7 +230,9 @@ fn variant(err: &ModelError) -> usize {
         ModelError::InsertsFull(_) => 44,
         ModelError::ProjectLoad(_) => 45,
         ModelError::TemplateBundle(_) => 46,
-        ModelError::ClipSet(refusal) => 47 + clip_set_index(*refusal),
+        ModelError::NotOnPicture { .. } => 47,
+        ModelError::NotOnSound { .. } => 48,
+        ModelError::ClipSet(refusal) => 49 + clip_set_index(*refusal),
     }
 }
 
@@ -264,6 +287,8 @@ fn every_refusal() -> Vec<ModelError> {
             track,
             kind: TrackKind::Audio,
         },
+        ModelError::NotOnPicture { clip, track },
+        ModelError::NotOnSound { clip, track },
         ModelError::MediaReferenced(media),
         ModelError::SourceOutOfBounds,
         ModelError::InvalidRange,

@@ -65,6 +65,12 @@ fn model_copy(err: &ModelError) -> String {
         ModelError::IncompatibleTrackKind { .. } => {
             "That track can't hold this kind of clip. Drop it on a matching video or audio track."
         }
+        ModelError::NotOnPicture { .. } => {
+            "That clip is on an audio track, which shows no picture. Select a clip on a video track, then try again."
+        }
+        ModelError::NotOnSound { .. } => {
+            "Only a clip on an audio track takes an audio role. Select a clip on an audio track, then try again."
+        }
         ModelError::SourceOutOfBounds => {
             "That reaches past the ends of the source media. Trim within the media's length."
         }
