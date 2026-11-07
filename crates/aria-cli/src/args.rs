@@ -9,6 +9,7 @@
 //!   naming the flag.
 
 use std::collections::BTreeMap;
+use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
 
 /// Flags across the CLI surface that take no value (`[--flag]` in `USAGE`).
@@ -255,23 +256,23 @@ impl Args {
     pub(crate) fn number(&self, name: &str) -> Result<Option<u32>, ArgsError> {
         match self.value(name)? {
             None => Ok(None),
-            Some(raw) => raw.parse::<u32>().map(Some).map_err(|_| {
-                ArgsError::Usage(format!("--{name} wants a whole number, got \"{raw}\""))
-            }),
+            Some(raw) => whole(name, raw, raw).map(Some),
         }
     }
 
-    /// A `WIDTHxHEIGHT` flag.
+    /// A `WIDTHxHEIGHT` flag, each side above zero.
     pub(crate) fn size(&self, name: &str) -> Result<Option<(u32, u32)>, ArgsError> {
         let Some(raw) = self.value(name)? else {
             return Ok(None);
         };
-        let bad = || ArgsError::Usage(format!("--{name} wants WIDTHxHEIGHT, got \"{raw}\""));
-        let (width, height) = raw.split_once(['x', 'X']).ok_or_else(bad)?;
-        let width = width.parse::<u32>().map_err(|_| bad())?;
-        let height = height.parse::<u32>().map_err(|_| bad())?;
+        let (width, height) = raw.split_once(['x', 'X']).ok_or_else(|| {
+            ArgsError::Usage(format!("--{name} wants WIDTHxHEIGHT, got \"{raw}\""))
+        })?;
+        let (width, height) = (whole(name, width, raw)?, whole(name, height, raw)?);
         if width == 0 || height == 0 {
-            return Err(bad());
+            return Err(ArgsError::Usage(format!(
+                "--{name} wants a width and a height above zero, got \"{raw}\""
+            )));
         }
         Ok(Some((width, height)))
     }
@@ -343,6 +344,23 @@ impl Args {
             _ => Ok(()),
         }
     }
+}
+
+/// `part` of the `--name` value `raw` as a `u32`, or a usage error that states
+/// the largest value when `part` is a whole number past it.
+fn whole(name: &str, part: &str, raw: &str) -> Result<u32, ArgsError> {
+    part.parse::<u32>().map_err(|err| {
+        ArgsError::Usage(match err.kind() {
+            IntErrorKind::PosOverflow => {
+                format!(
+                    "--{name} wants a whole number up to {}, got \"{raw}\"",
+                    u32::MAX
+                )
+            }
+            _ if raw == part => format!("--{name} wants a whole number, got \"{raw}\""),
+            _ => format!("--{name} wants WIDTHxHEIGHT, got \"{raw}\""),
+        })
+    })
 }
 
 /// The `USAGE` entries for `verb`: each synopsis line and its description,
@@ -429,3 +447,7 @@ EXIT CODES
 #[cfg(test)]
 #[path = "args_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "args_values_tests.rs"]
+mod values_tests;

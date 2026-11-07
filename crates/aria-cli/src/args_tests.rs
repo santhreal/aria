@@ -47,44 +47,6 @@ fn run_refuses_an_unknown_flag_for_every_verb() {
     }
 }
 
-#[test]
-fn flags_parse_either_spelling_and_positionals_keep_order() {
-    let args = Args::parse([
-        "export", "in.aria", "out.mp4", "--fps=30", "--size", "640x480",
-    ])
-    .unwrap();
-    assert_eq!(args.verb, Verb::Export);
-    assert_eq!(args.positional, vec!["in.aria", "out.mp4"]);
-    assert_eq!(args.number("fps").unwrap(), Some(30));
-    assert_eq!(args.size("size").unwrap(), Some((640, 480)));
-    assert!(args.present("size"));
-    assert!(!args.present("codec"));
-    assert_eq!(args.value("codec").unwrap(), None);
-}
-
-/// A malformed value names the flag and what it wanted, so the message is
-/// actionable without reading the usage block.
-#[test]
-fn a_malformed_value_names_the_flag_and_the_shape() {
-    let args = Args::parse(["export", "a.aria", "b.mp4", "--size", "1080"]).unwrap();
-    let err = args.size("size").expect_err("1080 parsed as a size");
-    assert_eq!(
-        err,
-        ArgsError::Usage("--size wants WIDTHxHEIGHT, got \"1080\"".into())
-    );
-
-    let args = Args::parse(["frame", "a.aria", "--at", "soon"]).unwrap();
-    let err = args.seconds("at").expect_err("\"soon\" parsed as seconds");
-    assert!(matches!(err, ArgsError::Usage(message) if message.contains("--at")));
-
-    let args = Args::parse(["export", "a.aria", "b.mp4", "--size", "0x480"]).unwrap();
-    assert!(args.size("size").is_err(), "a zero width was accepted");
-    let args = Args::parse(["export", "a.aria", "b.mp4", "--size", "640x0"]).unwrap();
-    assert!(args.size("size").is_err(), "a zero height was accepted");
-    let args = Args::parse(["frame", "a.aria", "--fit", "0x0"]).unwrap();
-    assert!(args.size("fit").is_err(), "0x0 fit was accepted");
-}
-
 /// Closes the defect classes where:
 /// 1. A valueless flag (`--no-audio`, `--quiet`, `--clips`, `--beats`,
 ///    `--silence`, `--loudness`, `--shots`, `--no-build`) placed before a

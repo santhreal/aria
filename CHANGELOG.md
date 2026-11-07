@@ -1401,6 +1401,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a project drops a transition whose clips do not meet or whose window is zero ticks, negative, or longer than its junction allows, as the next edit of its lane would.
 - `aria frame` and `aria export` print a warning for each effect, audio effect, generator, or transition id no catalog lists, stating what renders in its place.
 - `aria <command> --help` prints the synopsis of that command and a pointer to `aria --help` instead of every command's entry.
+- A `--size` or `--fit` with a zero side, or a whole-number flag past 4294967295, is refused with that reason instead of a request for the shape it already has.
 
 ## [alpha-0.7.0] - 2026-07-22
 
