@@ -15,7 +15,7 @@ use aria_core::AudioReader;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 
-use super::GstAudioReader;
+use super::{GstAudioReader, SOUND, STREAM, stream_bit};
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -80,4 +80,51 @@ fn a_file_of_sound_alone_reads_all_of_it() {
     let mut reader = GstAudioReader::open(&fixture("fixture-sine-48k-2s.wav"), 48_000, 2)
         .expect("open a sound file");
     assert_eq!(frames(&mut reader), 96_000);
+}
+
+/// WHY: a file with no sound exposed its other streams, linked none of them,
+/// and failed with GStreamer's "Internal data stream error" and an
+/// instruction to install plugins, which no install fixes. Every other
+/// platform's reader states "no audio track". A source GStreamer cannot read
+/// at all keeps the error it posted: having no sound is decided from the
+/// streams the file exposed, not from the error.
+///
+/// Not caught: a file whose only sound stream has no decoder installed; it
+/// exposes an audio stream, so its error stays the install hint. Nor an open
+/// whose state change neither fails nor completes within its wait, which no
+/// fixture reaches.
+#[test]
+fn a_file_with_no_sound_is_refused_as_having_no_audio_track() {
+    for name in ["fixture-640x360-24fps-3s.mp4", "texture.png"] {
+        let err = GstAudioReader::open(&fixture(name), 16_000, 1)
+            .expect_err("a file with no sound opened for its sound");
+        assert!(
+            matches!(&err, aria_core::DecodeError::Unsupported(why) if why == "source has no audio track"),
+            "{name}: {err}"
+        );
+    }
+    let err = GstAudioReader::open(Path::new("/dev/null"), 16_000, 1)
+        .expect_err("an empty source opened");
+    assert!(
+        !err.to_string().contains("no audio track"),
+        "a source with no streams at all was reported as soundless: {err}"
+    );
+}
+
+/// A file is soundless only when every stream it exposed was something other
+/// than sound; one audio pad among them keeps the open's own error.
+#[test]
+fn an_audio_pad_counts_as_sound_and_any_other_does_not() {
+    crate::gst::ensure_init().expect("init GStreamer");
+    let caps = |name: &str| gst::Caps::builder(name).build();
+    for (name, bit) in [
+        ("audio/x-raw", SOUND),
+        ("audio/mpeg", SOUND),
+        ("video/x-h264", STREAM),
+        ("image/png", STREAM),
+        ("application/x-subtitle", STREAM),
+    ] {
+        assert_eq!(stream_bit(Some(&*caps(name))), bit, "{name}");
+    }
+    assert_eq!(stream_bit(None), STREAM, "a pad with no caps yet");
 }

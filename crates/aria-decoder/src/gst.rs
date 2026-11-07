@@ -522,10 +522,13 @@ pub(crate) fn stream_time_ns(sample: &gst::Sample, buffer: &gst::BufferRef) -> O
 /// can read the bus before the error is on it.
 const POSTED_WAIT: Duration = Duration::from_millis(500);
 
-/// The decode error for `err`, an error GStreamer posted.
+/// The decode error for `err`, an error GStreamer posted. GStreamer ends its
+/// own messages with a period, and the sentence after it starts its own.
 fn posted(err: &glib::Error) -> DecodeError {
+    let message = err.message();
     DecodeError::Decode(format!(
-        "GStreamer: {err}. Install missing plugins or pick another file."
+        "GStreamer: {}. Install missing plugins or pick another file.",
+        message.trim_end_matches('.')
     ))
 }
 
@@ -701,6 +704,17 @@ fn record_aborted_drop(pipeline: &gst::Pipeline) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// WHY: GStreamer ends its messages with a period, and the sentence
+    /// appended after it doubled it: "Internal data stream error.. Install".
+    #[test]
+    fn a_posted_error_reads_as_two_sentences() {
+        let err = glib::Error::new(gst::CoreError::Failed, "Internal data stream error.");
+        assert_eq!(
+            posted(&err).to_string(),
+            "decode failed: GStreamer: Internal data stream error. Install missing plugins or pick another file."
+        );
+    }
 
     /// WHY: Opening an unreadable or empty source (`/dev/null`, a truncated
     /// capture, or a timeline fixture stub) fails in `READY -> PAUSED` after

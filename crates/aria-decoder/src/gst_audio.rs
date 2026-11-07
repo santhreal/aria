@@ -4,6 +4,8 @@
 //! and channel count, matching AVFoundation's LPCM request.
 
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 use aria_core::{AudioReader, DecodeError, Rational, RationalTime};
@@ -80,12 +82,24 @@ impl GstAudioReader {
         // creates no video parser or decoder: on a host with a CUDA decoder,
         // each one opened a GPU context of its own.
         crate::gst::plug_only(&src, plugs_for_audio)?;
+        let streams = exposed_streams(&src);
         let sink = pipeline
             .by_name("out")
             .ok_or_else(|| DecodeError::Open("audio pipeline is missing appsink.".into()))?
             .downcast::<gst_app::AppSink>()
             .map_err(|_| DecodeError::Open("audio sink is not an appsink.".into()))?;
 
+        // A file with no sound exposes its other streams, links none of them,
+        // and fails with a bare "Internal data stream error". That is the
+        // fault of the file, not of the install, and every other platform's
+        // reader states it as one.
+        let soundless = |err: DecodeError| {
+            if streams.load(Ordering::Acquire) == STREAM {
+                DecodeError::unsupported("source has no audio track")
+            } else {
+                err
+            }
+        };
         pipeline
             .set_state(gst::State::Playing)
             .map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;
@@ -96,8 +110,8 @@ impl GstAudioReader {
         };
         match pipeline.state(gst::ClockTime::from_seconds(8)).0 {
             Ok(gst::StateChangeSuccess::Success | gst::StateChangeSuccess::NoPreroll) => {}
-            Ok(_) => return Err(bus_or(&pipeline, not_opened())),
-            Err(_) => return Err(failed_change_or(&pipeline, not_opened())),
+            Ok(_) => return Err(soundless(bus_or(&pipeline, not_opened()))),
+            Err(_) => return Err(soundless(failed_change_or(&pipeline, not_opened()))),
         }
 
         Ok(Self {
@@ -181,6 +195,31 @@ fn plugs_for_audio(caps: &gst::CapsRef, factory: &gst::ElementFactory) -> bool {
         || factory
             .metadata(gst::ELEMENT_METADATA_KLASS)
             .is_some_and(|klass| klass.contains("Demuxer"))
+}
+
+/// A stream other than sound was exposed.
+const STREAM: u8 = 1;
+/// A sound stream was exposed.
+const SOUND: u8 = 2;
+
+/// What `src`, a `uridecodebin`, has exposed so far: [`STREAM`] and
+/// [`SOUND`] bits, set on the streaming thread as each pad appears.
+fn exposed_streams(src: &gst::Element) -> Arc<AtomicU8> {
+    let streams = Arc::new(AtomicU8::new(0));
+    let seen = Arc::clone(&streams);
+    src.connect_pad_added(move |_, pad| {
+        seen.fetch_or(stream_bit(pad.current_caps().as_deref()), Ordering::AcqRel);
+    });
+    streams
+}
+
+/// The bit a pad of `caps` sets: [`SOUND`] for an audio stream, else
+/// [`STREAM`].
+fn stream_bit(caps: Option<&gst::CapsRef>) -> u8 {
+    let sound = caps
+        .and_then(|caps| caps.structure(0))
+        .is_some_and(|stream| stream.name().starts_with("audio/"));
+    if sound { SOUND } else { STREAM }
 }
 
 impl AudioReader for GstAudioReader {
