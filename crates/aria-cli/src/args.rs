@@ -336,16 +336,32 @@ impl Args {
         )))
     }
 
-    /// Reject an output file whose directory does not exist. The write came
-    /// after the work and failed with "i/o error: No such file or directory
-    /// (os error 2)", naming no path; `new` had imported every file first.
-    pub(crate) fn reject_missing_output_directory(&self) -> Result<(), ArgsError> {
+    /// Reject an output that exists and is not a regular file, and one whose
+    /// directory does not exist. A missing directory failed after the work
+    /// with "i/o error: No such file or directory (os error 2)", naming no
+    /// path, and a directory or a symbolic link failed as an i/o error with
+    /// exit code 1; `new` had imported every file first.
+    pub(crate) fn reject_unwritable_output(&self) -> Result<(), ArgsError> {
         let Some((index, _)) = self.verb.writes() else {
             return Ok(());
         };
         let Some(out) = self.positional.get(index) else {
             return Ok(());
         };
+        if let Ok(meta) = std::fs::symlink_metadata(out)
+            && !meta.is_file()
+        {
+            let what = if meta.is_dir() {
+                "a directory"
+            } else if meta.is_symlink() {
+                "a symbolic link"
+            } else {
+                "a special file"
+            };
+            return Err(ArgsError::Usage(format!(
+                "\"{out}\" is {what}; name a file to write"
+            )));
+        }
         match Path::new(out).parent() {
             Some(dir) if !dir.as_os_str().is_empty() && !dir.is_dir() => {
                 Err(ArgsError::Usage(format!(

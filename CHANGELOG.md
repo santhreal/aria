@@ -1411,6 +1411,7 @@ Notes for the latest release. For previous releases, see the
 - `aria export` refuses a `--at`/`--to` span inside one frame with the instants as typed and the length of one frame, instead of two equal rounded times.
 - A template file that is missing, unreadable, not a template, newer than this build, or damaged is refused with its path and the `.ariat` fix instead of as a damaged `.aria` project.
 - A template whose project breaks a layout or reference rule a project file is checked against is refused on load instead of applied.
+- `aria new`, `frame`, `export` and `demo` refuse an output that is a directory or a symbolic link as a usage error (exit code `2`) before reading an input, instead of an i/o error with exit code `1`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

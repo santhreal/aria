@@ -48,9 +48,9 @@ a flag is a usage error, so `aria frame project.aria -o` writes no file named
 Each command that writes a file writes one format: `new` a `.aria` project,
 `frame` and `demo` a `.png` image, `export` an `.mp4` file. An output whose
 name ends in another extension, or in none, is a usage error, and the
-message states the name to use instead. An output in a directory that does
-not exist is a usage error as well, raised before the command reads an
-input.
+message states the name to use instead. An output that is a directory or a
+symbolic link, and an output in a directory that does not exist, are usage
+errors as well, raised before the command reads an input.
 
 Progress goes to stderr and results go to stdout, so
 `aria inspect project.aria > facts.txt` captures the output alone. A reader

@@ -926,18 +926,25 @@ fn a_verb_refuses_an_output_named_for_another_format() {
 
 /// WHY: `aria frame p.aria nodir/still.png` rendered and then failed with
 /// "i/o error: No such file or directory (os error 2)", naming no path, and
-/// `aria new nodir/p.aria clip.mp4` imported every file before failing the
-/// same way. Every verb in `Verb::ALL` that writes a file refuses an output
-/// whose directory is missing or is a file, and accepts one in a directory
-/// that exists or with no directory at all.
+/// an output that is a directory or a symbolic link failed as an i/o error
+/// with exit code 1. Every verb in `Verb::ALL` that writes a file refuses an
+/// output that is not a file, or whose directory is missing or is a file, and
+/// accepts a file, a new name in a directory that exists, or a bare name.
 ///
-/// Not caught: a directory that exists but cannot be written; the write
-/// reports that one.
+/// Not caught: a directory that exists but cannot be written.
 #[test]
-fn a_verb_refuses_an_output_in_a_directory_that_does_not_exist() {
+fn a_verb_refuses_an_output_it_cannot_write_as_a_file() {
     let dir = tempfile::tempdir().expect("tempdir");
     let file = dir.path().join("plain");
     std::fs::write(&file, b"a file").expect("write a file");
+    let mut not_files = vec![(dir.path().join("folder.png"), "a directory")];
+    std::fs::create_dir(&not_files[0].0).expect("make a directory");
+    #[cfg(unix)]
+    {
+        let link = dir.path().join("link.mp4");
+        std::os::unix::fs::symlink(&file, &link).expect("link to a file");
+        not_files.push((link, "a symbolic link"));
+    }
     let mut writers = 0;
     for verb in Verb::ALL {
         let Some((index, extension)) = verb.writes() else {
@@ -954,7 +961,7 @@ fn a_verb_refuses_an_output_in_a_directory_that_does_not_exist() {
         for missing in [dir.path().join("nodir"), file.clone()] {
             let out = missing.join(&name);
             assert_eq!(
-                line(&out).reject_missing_output_directory(),
+                line(&out).reject_unwritable_output(),
                 Err(ArgsError::Usage(format!(
                     "there is no directory \"{}\" to write \"{}\" in",
                     missing.display(),
@@ -965,9 +972,18 @@ fn a_verb_refuses_an_output_in_a_directory_that_does_not_exist() {
                 out.display()
             );
         }
-        for out in [dir.path().join(&name), std::path::PathBuf::from(&name)] {
+        for (out, what) in &not_files {
             assert_eq!(
-                line(&out).reject_missing_output_directory(),
+                line(out).reject_unwritable_output(),
+                Err(ArgsError::Usage(format!(
+                    "\"{}\" is {what}; name a file to write",
+                    out.display()
+                )))
+            );
+        }
+        for out in [dir.path().join(&name), name.clone().into(), file.clone()] {
+            assert_eq!(
+                line(&out).reject_unwritable_output(),
                 Ok(()),
                 "{} {}",
                 verb.key(),
