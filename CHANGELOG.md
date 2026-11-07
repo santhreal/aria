@@ -1507,6 +1507,7 @@ Notes for the latest release. For previous releases, see the
 - `aria export`, `aria frame` and `aria new` print their refusals and summary lines with a semicolon or colon instead of an em dash.
 - Configuration: What This Build Reads reports `Unreadable by this build: [cloud]` instead of `refused: cloud`, and each Configuration row separates its version from where the table is read with a semicolon instead of an em dash.
 - Splitting a clip at or past one of its ends reports `the cut is at or past an end of the clip` instead of `invalid time range (negative or zero duration where positive required)`.
+- Removing a keyframe that does not exist reports `opacity has no keyframe 0.500 s into the clip` instead of `no Opacity keyframe at tick 15`, and a keyframe position off the clip states the clip's span in seconds instead of its id and a tick.
 
 ## [alpha-0.7.0] - 2026-07-22
 

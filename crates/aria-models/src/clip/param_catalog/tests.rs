@@ -294,3 +294,6 @@ mod defaults;
 
 #[path = "tests_clip_keyframes.rs"]
 mod clip_keyframes;
+
+#[path = "tests_remove_keyframe.rs"]
+mod remove_keyframe;

@@ -683,7 +683,10 @@ mod tests {
             .apply_preset(clip_a, &valid, t(500))
             .unwrap_err()
             .to_string();
-        assert!(err.contains("outside clip"), "got: {err}");
+        assert!(
+            err.contains("20.833 s is outside the clip, which runs 0.000 s to 4.167 s"),
+            "got: {err}"
+        );
 
         // Audio part on a video clip without sound is refused and leaves
         // existing effects untouched (all-or-nothing).

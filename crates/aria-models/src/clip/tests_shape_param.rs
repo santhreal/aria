@@ -44,8 +44,8 @@ fn shape_param_routing_rejects_wrong_targets() {
 /// `animate` on a shape with no stroke used to report "set one via
 /// SetGenerator first". Derived from `generator_specs()` and both params'
 /// `ALL`, so a new generator kind or property is checked without a row here.
-/// Not covered: the "no keyframe at tick" refusal of a keyframe removal, which
-/// still prints the param's Rust name and a tick.
+/// The refusal of a keyframe removal is held in `param_catalog`'s
+/// `remove_keyframe` tests.
 #[test]
 fn generator_param_refusals_name_no_rust_identifier() {
     let mut generators: Vec<Generator> = generator_specs()

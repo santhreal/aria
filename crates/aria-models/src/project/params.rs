@@ -9,9 +9,12 @@
 //! falls inside the clip. Nothing here matches on a `ClipParam` variant, which
 //! is why a new property needs no arm in it.
 
+use std::borrow::Cow;
+
 use crate::clip::{
     AnimatedTransform, Clip, ClipParam, ClipSource, ClipTransform, DriverCode, GeneratedRefusal,
-    Generator, ParamScope, ParamValue, effect_mut, index_after_move, index_after_remove,
+    Generator, ParamScope, ParamValue, clip_params_for, effect_mut, index_after_move,
+    index_after_remove, param_spec,
 };
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
@@ -108,8 +111,10 @@ impl Project {
         let clip = self.timeline().require_clip(clip_id)?;
         if !clip.timeline.contains(at)? {
             return Err(ModelError::InvalidParam(format!(
-                "keyframe position {} is outside clip {clip_id}",
-                at.value
+                "keyframe position {:.3} s is outside the clip, which runs {:.3} s to {:.3} s",
+                at.seconds(),
+                clip.timeline.start.seconds(),
+                RationalTime::new(clip.timeline.end_tick(), at.rate).seconds()
             )));
         }
         Ok(clip.param_tick(at.value))
@@ -213,7 +218,8 @@ impl Project {
     }
 
     /// Remove the keyframe at exactly `at` (absolute timeline position) on
-    /// one property. Errors when no keyframe sits there.
+    /// one property. Errors when no keyframe sits there, stating the property
+    /// by its row id and `at` by its time into the clip.
     pub fn remove_param_keyframe(
         &mut self,
         clip_id: ClipId,
@@ -222,6 +228,26 @@ impl Project {
     ) -> Result<(), ModelError> {
         self.check_param_target(clip_id, param)?;
         let tick = self.keyframe_tick(clip_id, at)?;
+        let clip = self.timeline().require_clip(clip_id)?;
+        // A row the clip does not offer falls through to the erase, which
+        // states what the clip lacks.
+        let row = match param_spec(param) {
+            Some(row) => row.available(clip).then_some(Cow::Borrowed(row)),
+            None => clip_params_for(clip)
+                .into_iter()
+                .find(|row| row.param == param)
+                .map(Cow::Owned),
+        };
+        if let Some(row) = row
+            && row.easing_at(clip, tick).is_none()
+        {
+            let into = RationalTime::new(at.value - clip.timeline.start.value, at.rate);
+            return Err(ModelError::InvalidParam(format!(
+                "{} has no keyframe {:.3} s into the clip",
+                row.id,
+                into.seconds()
+            )));
+        }
         self.edit_clip(clip_id, |clip| param.remove_keyframe(clip, tick))
     }
 
