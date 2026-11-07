@@ -267,9 +267,9 @@ mod tests {
         assert!(!caps.can_extract_audio);
     }
 
-    /// `can_freeze_frame` must mirror the engine's own gate in
-    /// `action/edit/freeze_frame.rs`: media-backed video only, and never twice.
-    /// It does not cover the engine's range check on `at`.
+    /// `can_freeze_frame` must agree with [`Project::freeze_check`]'s refusals
+    /// of the clip itself: media-backed video only, and never twice. It does
+    /// not cover the checks that read the track, the tick or the links.
     #[test]
     fn freeze_frame_needs_video_media_and_is_not_repeatable() {
         let (mut project, media) = project_with_media(true);

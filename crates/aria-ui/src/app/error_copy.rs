@@ -2,8 +2,8 @@
 
 use aria_engine::EngineError;
 use aria_models::{
-    BakeRefusal, ClipSetRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError,
-    SlipRefusal, SplitRefusal,
+    BakeRefusal, ClipSetRefusal, FreezeRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH,
+    ModelError, SlipRefusal, SplitRefusal,
 };
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
@@ -210,36 +210,7 @@ fn model_copy(err: &ModelError) -> String {
                 "None of the selected clips is in a group. Select a grouped clip to ungroup."
             }
         },
-        ModelError::Split(refusal) => match refusal {
-            SplitRefusal::InsideFadeIn => {
-                "That cut lands inside the clip's fade-in. Cut after the fade-in ends, or shorten \
-                 the fade-in first."
-            }
-            SplitRefusal::InsideFadeOut => {
-                "That cut lands inside the clip's fade-out. Cut before the fade-out starts, or \
-                 shorten the fade-out first."
-            }
-            SplitRefusal::OffComboCycle => {
-                "That cut splits a cycle of the clip's combo animation. Cut a whole cycle (about \
-                 one second) into the clip, or remove the combo animation first."
-            }
-            SplitRefusal::ShortensEntrance => {
-                "That cut leaves the first part too short for the clip's entrance animation. Cut \
-                 later, or remove the entrance animation first."
-            }
-            SplitRefusal::ShortensExit => {
-                "That cut leaves the second part too short for the clip's exit animation. Cut \
-                 earlier, or remove the exit animation first."
-            }
-            SplitRefusal::Lottie => "A Lottie clip can't be cut. Trim its ends instead.",
-            SplitRefusal::AnimatedSticker => {
-                "An animated sticker can't be cut. Trim its ends instead."
-            }
-            SplitRefusal::RampKeyframeAtCut => {
-                "That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, \
-                 then try again."
-            }
-        },
+        ModelError::Split(refusal) => split_copy(*refusal),
         ModelError::Slip(refusal) => match refusal {
             SlipRefusal::FreezeFrame => {
                 "A freeze frame holds one frame, so it has nothing to slip. Trim or move the clip \
@@ -273,6 +244,7 @@ fn model_copy(err: &ModelError) -> String {
             }
         },
         ModelError::Bake(refusal) => bake_copy(*refusal),
+        ModelError::Freeze(refusal) => freeze_copy(*refusal),
     };
     copy.into()
 }
@@ -326,7 +298,8 @@ fn model_refuses_the_selection(err: &ModelError) -> bool {
         | ModelError::Slip { .. }
         | ModelError::FrozenMedia { .. }
         | ModelError::Generated { .. }
-        | ModelError::Bake { .. } => true,
+        | ModelError::Bake { .. }
+        | ModelError::Freeze { .. } => true,
         ModelError::ProjectLoad { .. }
         | ModelError::TemplateLoad { .. }
         | ModelError::TemplateBundle { .. }
@@ -370,6 +343,84 @@ pub(crate) fn bake_copy(refusal: BakeRefusal) -> &'static str {
         BakeRefusal::Undressed => {
             "Nothing is applied to that clip, so a render would only re-encode its file. Apply \
              an effect, a look or a speed change first, then render it."
+        }
+    }
+}
+
+/// The copy for a cut that would change what a clip renders: the run's error
+/// of a split and of the freeze that cuts there, and the reason Freeze Frame's
+/// row is disabled for that cut.
+pub(crate) fn split_copy(refusal: SplitRefusal) -> &'static str {
+    match refusal {
+        SplitRefusal::InsideFadeIn => {
+            "That cut lands inside the clip's fade-in. Cut after the fade-in ends, or shorten \
+             the fade-in first."
+        }
+        SplitRefusal::InsideFadeOut => {
+            "That cut lands inside the clip's fade-out. Cut before the fade-out starts, or \
+             shorten the fade-out first."
+        }
+        SplitRefusal::OffComboCycle => {
+            "That cut splits a cycle of the clip's combo animation. Cut a whole cycle (about \
+             one second) into the clip, or remove the combo animation first."
+        }
+        SplitRefusal::ShortensEntrance => {
+            "That cut leaves the first part too short for the clip's entrance animation. Cut \
+             later, or remove the entrance animation first."
+        }
+        SplitRefusal::ShortensExit => {
+            "That cut leaves the second part too short for the clip's exit animation. Cut \
+             earlier, or remove the exit animation first."
+        }
+        SplitRefusal::Lottie => "A Lottie clip can't be cut. Trim its ends instead.",
+        SplitRefusal::AnimatedSticker => "An animated sticker can't be cut. Trim its ends instead.",
+        SplitRefusal::RampKeyframeAtCut => {
+            "That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, \
+             then try again."
+        }
+    }
+}
+
+/// The copy for a frame a clip cannot hold: the run's error and the reason
+/// Freeze Frame's row is disabled, so the two read the same.
+pub(crate) fn freeze_copy(refusal: FreezeRefusal) -> &'static str {
+    match refusal {
+        FreezeRefusal::NotOnVideoTrack => {
+            "A freeze frame holds a picture, and that clip is not on a video track. Select a clip \
+             on a video track."
+        }
+        FreezeRefusal::TrackLocked => {
+            "That clip's track is locked. Unlock the track, then freeze the frame."
+        }
+        FreezeRefusal::NotMedia => {
+            "That clip does not play a video file, so it has no frame of its own to hold. Freeze \
+             a clip of a video file instead."
+        }
+        FreezeRefusal::AlreadyFrozen => {
+            "That clip is already a freeze frame. Trim it to hold the frame longer."
+        }
+        FreezeRefusal::NoVideo => {
+            "That clip's media has no video frames. Freeze a clip of a video file instead."
+        }
+        FreezeRefusal::OffClip => {
+            "The playhead is off that clip. Move the playhead onto the clip, then freeze the \
+             frame."
+        }
+        FreezeRefusal::Entrance => {
+            "The playhead is on the clip's first frame, where its entrance animation plays. Move \
+             the playhead inside the clip or remove the animation."
+        }
+        FreezeRefusal::Exit => {
+            "The playhead is on the clip's last frame, where its exit animation plays. Move the \
+             playhead inside the clip or remove the animation."
+        }
+        FreezeRefusal::Linked => {
+            "That clip is linked to another clip, which the freeze would push out of sync. \
+             Unlink the clip, then freeze the frame."
+        }
+        FreezeRefusal::SplitsLink => {
+            "A linked clip after the playhead would move apart from its partner. Unlink it, then \
+             freeze the frame."
         }
     }
 }

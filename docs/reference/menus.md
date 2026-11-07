@@ -94,7 +94,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-ungroup` | `none` | Ungroup | `Ctrl+Shift+G` | The selected clips are not a group (`guards::grouped`) | Clears the group ID on selected clips. |
 | `seq-nest` | `none` | Nest… | `none` | No clip is selected (`guards::selection`) | Moves selected clips into a new nested sequence and replaces them with a compound clip. |
 | `clip-replace-source` | `Replace with Clip` | From Source Monitor | `none` | Open a source in the Source monitor first, no clip is selected, the clip is generated, the source does not hold enough media around its playhead, or the clip already plays those source frames (`guards::source_replacement`) | Replaces the selected clip's media source with the active Source monitor item. |
-| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, or the selected clip has no video frame, is on a locked track, is linked, does not span the playhead, or has a boundary animation at the playhead (`freeze_ready`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
+| `seq-freeze` | `none` | Freeze Frame | `none` | No clip is selected, the selected clip has no video frame, or the freeze check the edit applies fails at the playhead: a locked track, a playhead off the clip, a link the freeze would split, an edge animation at the playhead, or a cut there that would change what the clip renders (`freeze_ready`) | Inserts a frozen still-frame hold at the playhead on the selected clip. |
 | `seq-bake-clip` | `none` | Render and Replace | `none` | No clip is selected, the project has not been saved yet, or the selected clip is already rendered, is a lane bar, or is a media clip with nothing applied (`bake_ready`) | Renders the selected clip with its effects to a media file and replaces its source. |
 | `seq-bake-restore` | `none` | Restore Unrendered | `none` | No clip is selected, or the selected clip has no unrendered source to restore (`baked_clip`) | Restores a rendered-and-replaced clip back to its original source and effects. |
 | `clip-audio-gain` | `none` | Audio Gain… | `G` | No clip is selected, or no selected clip or linked or grouped companion carries sound (`guards::gain`) | Opens `aria.dialog.audio-gain`. |
@@ -351,7 +351,7 @@ Defined in `crates/aria-models/src/look/matte.rs` (`MatteSource::ALL`, cycled by
 
 ## Action decline reasons (`Decline::ALL`)
 
-Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command finds no applicable target in the current selection or cut, the status line displays `reason()`. A menu or palette row withheld for a `Decline` displays the same `reason()` as its tooltip, and on the status line when the row is chosen from the keyboard. `Duck` holds the reasons Duck Under Voice cannot run; `Bake` holds the reasons a render cannot stand in for the selected clip:
+Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command finds no applicable target in the current selection or cut, the status line displays `reason()`. A menu or palette row withheld for a `Decline` displays the same `reason()` as its tooltip, and on the status line when the row is chosen from the keyboard. `Duck` holds the reasons Duck Under Voice cannot run; `Bake` holds the reasons a render cannot stand in for the selected clip; `Freeze` holds the reasons the selected clip cannot hold the frame under the playhead, and `Split` the reasons the cut a freeze makes there would change what the clip renders:
 
 | Variant | Status line (`reason()`) |
 | --- | --- |
@@ -474,12 +474,6 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoMaskToTrack` | `Draw a mask on the clip before tracking it` |
 | `NothingAheadToTrack` | `The playhead is at the end of the clip, so there is nothing ahead to track` |
 | `AiCheckRunning` | `An AI endpoint check is already running` |
-| `TrackLocked` | `Unlock the track first` |
-| `PlayheadOffClip` | `Move the playhead onto the selected clip` |
-| `FreezeLinked` | `Unlink the clip before freezing a frame` |
-| `FreezeLinkedAfter` | `Unlink the linked clip after the playhead before freezing a frame` |
-| `FreezeEntrance` | `Move the playhead inside the clip or remove its entrance animation before freezing` |
-| `FreezeExit` | `Move the playhead inside the clip or remove its exit animation before freezing` |
 | `NotBakeable` | `The selected clip is on a track a render cannot stand in for` |
 | `NotRendered` | `Select a rendered clip to restore` |
 | `NoEarlierEdit` | `No earlier edit on a targeted track` |
@@ -492,6 +486,24 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `Bake(Rendered)` | `That clip is already rendered. Choose Restore Unrendered, then render it again.` |
 | `Bake(LaneBar)` | `A lane bar reprocesses the tracks beneath it and has no picture of its own. Render a clip with a picture instead.` |
 | `Bake(Undressed)` | `Nothing is applied to that clip, so a render would only re-encode its file. Apply an effect, a look or a speed change first, then render it.` |
+| `Freeze(NotOnVideoTrack)` | `A freeze frame holds a picture, and that clip is not on a video track. Select a clip on a video track.` |
+| `Freeze(TrackLocked)` | `That clip's track is locked. Unlock the track, then freeze the frame.` |
+| `Freeze(NotMedia)` | `That clip does not play a video file, so it has no frame of its own to hold. Freeze a clip of a video file instead.` |
+| `Freeze(AlreadyFrozen)` | `That clip is already a freeze frame. Trim it to hold the frame longer.` |
+| `Freeze(NoVideo)` | `That clip's media has no video frames. Freeze a clip of a video file instead.` |
+| `Freeze(OffClip)` | `The playhead is off that clip. Move the playhead onto the clip, then freeze the frame.` |
+| `Freeze(Entrance)` | `The playhead is on the clip's first frame, where its entrance animation plays. Move the playhead inside the clip or remove the animation.` |
+| `Freeze(Exit)` | `The playhead is on the clip's last frame, where its exit animation plays. Move the playhead inside the clip or remove the animation.` |
+| `Freeze(Linked)` | `That clip is linked to another clip, which the freeze would push out of sync. Unlink the clip, then freeze the frame.` |
+| `Freeze(SplitsLink)` | `A linked clip after the playhead would move apart from its partner. Unlink it, then freeze the frame.` |
+| `Split(InsideFadeIn)` | `That cut lands inside the clip's fade-in. Cut after the fade-in ends, or shorten the fade-in first.` |
+| `Split(InsideFadeOut)` | `That cut lands inside the clip's fade-out. Cut before the fade-out starts, or shorten the fade-out first.` |
+| `Split(OffComboCycle)` | `That cut splits a cycle of the clip's combo animation. Cut a whole cycle (about one second) into the clip, or remove the combo animation first.` |
+| `Split(ShortensEntrance)` | `That cut leaves the first part too short for the clip's entrance animation. Cut later, or remove the entrance animation first.` |
+| `Split(ShortensExit)` | `That cut leaves the second part too short for the clip's exit animation. Cut earlier, or remove the exit animation first.` |
+| `Split(Lottie)` | `A Lottie clip can't be cut. Trim its ends instead.` |
+| `Split(AnimatedSticker)` | `An animated sticker can't be cut. Trim its ends instead.` |
+| `Split(RampKeyframeAtCut)` | `That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, then try again.` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

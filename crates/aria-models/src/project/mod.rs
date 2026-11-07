@@ -86,6 +86,7 @@ mod attributes;
 mod audio_inserts;
 mod bake;
 mod edit;
+mod freeze;
 mod helpers;
 mod layout;
 mod link;
@@ -105,6 +106,7 @@ mod sequence;
 mod transitions;
 mod trim_reach;
 
+pub use freeze::FreezeRefusal;
 pub use link::{EnableAssignment, GroupAssignment, LinkAssignment};
 pub use missing_plugins::MissingPlugin;
 pub use trim_reach::TrimReach;

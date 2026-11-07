@@ -307,7 +307,9 @@ mod zoom;
 pub mod zoom_bar;
 
 pub use edits::{MarkerEditField, MarkerEditForm};
-pub(crate) use error_copy::{bake_copy, describe_engine_error, describe_export_refusal};
+pub(crate) use error_copy::{
+    bake_copy, describe_engine_error, describe_export_refusal, freeze_copy, split_copy,
+};
 pub use render_bar::compute_render_segments;
 pub use render_files::{RenderQuality, RenderSegment};
 #[cfg(test)]

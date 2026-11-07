@@ -1,10 +1,11 @@
 //! Production freeze-frame command integration, validation, and history.
 
 use aria_commands::{Command, EditCommand, EditOutcome};
-use aria_engine::{ApplyOutcome, Engine, EngineConfig};
+use aria_engine::{ApplyOutcome, Engine, EngineConfig, EngineError};
 use aria_models::{
-    AnimationRef, ClipId, Easing, Generator, Keyframe, LinkId, MediaId, MediaSource, Param,
-    Project, Rational, RationalTime, TimeRange, TrackId, TrackKind,
+    AnimationRef, ClipId, Easing, FreezeRefusal, Generator, Keyframe, LinkId, MediaId, MediaSource,
+    ModelError, Param, Project, Rational, RationalTime, SplitRefusal, TimeRange, TrackId,
+    TrackKind,
 };
 
 const FPS: Rational = Rational::FPS_24;
@@ -102,17 +103,15 @@ fn freeze_command(clip: ClipId, at: RationalTime, duration: RationalTime) -> Edi
     EditCommand::FreezeFrame { clip, at, duration }
 }
 
-fn assert_rejected_unchanged(project: Project, command: EditCommand, message_fragment: &str) {
+/// Apply `command`, which must fail, and return its error once the project,
+/// revision and history read as they did before it.
+fn rejected_unchanged(project: Project, command: EditCommand) -> EngineError {
     let mut engine = engine(project);
     let before = snapshot(engine.project());
     let revision = engine.revision();
     let error = engine
         .apply(Command::Edit(command))
         .expect_err("command must reject");
-    assert!(
-        error.to_string().contains(message_fragment),
-        "expected '{message_fragment}' in '{error}'"
-    );
     assert_eq!(
         snapshot(engine.project()),
         before,
@@ -121,6 +120,24 @@ fn assert_rejected_unchanged(project: Project, command: EditCommand, message_fra
     assert_eq!(engine.revision(), revision);
     assert!(!engine.can_undo(), "rejected freeze added history");
     assert!(!engine.can_redo());
+    error
+}
+
+fn assert_rejected_unchanged(project: Project, command: EditCommand, message_fragment: &str) {
+    let error = rejected_unchanged(project, command);
+    assert!(
+        error.to_string().contains(message_fragment),
+        "expected '{message_fragment}' in '{error}'"
+    );
+}
+
+/// As [`assert_rejected_unchanged`], for a refusal of the model's freeze check.
+fn assert_refused_unchanged(project: Project, command: EditCommand, want: FreezeRefusal) {
+    let error = rejected_unchanged(project, command);
+    assert!(
+        matches!(error, EngineError::Model(ModelError::Freeze(why)) if why == want),
+        "expected {want:?}, got {error:?}"
+    );
 }
 
 #[path = "freeze_frame_insertion_and_undo.rs"]

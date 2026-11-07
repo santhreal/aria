@@ -150,7 +150,8 @@ pub use preset::{
     PresetParts, PresetProperty,
 };
 pub use project::{
-    EnableAssignment, GroupAssignment, LinkAssignment, MissingPlugin, Project, TrimReach,
+    EnableAssignment, FreezeRefusal, GroupAssignment, LinkAssignment, MissingPlugin, Project,
+    TrimReach,
 };
 pub use registered::{
     Catalog, CatalogIter, CatalogKind, Registered, register_audio_effect, register_clip_type,

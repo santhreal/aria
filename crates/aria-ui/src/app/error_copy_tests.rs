@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    BakeRefusal, BinId, ClipId, ClipSetRefusal, GeneratedRefusal, MarkerId, MediaId, MediaKind,
-    ModelError, MulticamGroupId, Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal,
-    TrackId, TrackKind,
+    BakeRefusal, BinId, ClipId, ClipSetRefusal, FreezeRefusal, GeneratedRefusal, MarkerId, MediaId,
+    MediaKind, ModelError, MulticamGroupId, Rational, SequenceId, SlipRefusal, SlotMedia,
+    SplitRefusal, TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -188,9 +188,10 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
 }
 
 /// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`],
-/// [`SlipRefusal`], [`GeneratedRefusal`] and [`BakeRefusal`] counted as its
-/// own; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 73;
+/// [`SlipRefusal`], [`GeneratedRefusal`], [`BakeRefusal`] and
+/// [`FreezeRefusal`] counted as its own; [`variant`] numbers them
+/// `0..VARIANTS`.
+const VARIANTS: usize = 83;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -261,6 +262,24 @@ fn variant(err: &ModelError) -> usize {
             BakeRefusal::LaneBar => 71,
             BakeRefusal::Undressed => 72,
         },
+        ModelError::Freeze(refusal) => 73 + freeze_index(*refusal),
+    }
+}
+
+/// Where `refusal` sits in [`FreezeRefusal`]. No catch-all, so a new refusal
+/// stops compiling here until it is numbered and [`VARIANTS`] grows.
+fn freeze_index(refusal: FreezeRefusal) -> usize {
+    match refusal {
+        FreezeRefusal::NotOnVideoTrack => 0,
+        FreezeRefusal::TrackLocked => 1,
+        FreezeRefusal::NotMedia => 2,
+        FreezeRefusal::AlreadyFrozen => 3,
+        FreezeRefusal::NoVideo => 4,
+        FreezeRefusal::OffClip => 5,
+        FreezeRefusal::Entrance => 6,
+        FreezeRefusal::Exit => 7,
+        FreezeRefusal::Linked => 8,
+        FreezeRefusal::SplitsLink => 9,
     }
 }
 
@@ -396,6 +415,7 @@ fn every_refusal() -> Vec<ModelError> {
     .chain(SlipRefusal::ALL.map(ModelError::Slip))
     .chain(GeneratedRefusal::ALL.map(ModelError::Generated))
     .chain(BakeRefusal::ALL.map(ModelError::Bake))
+    .chain(FreezeRefusal::ALL.map(ModelError::Freeze))
     .collect()
 }
 
@@ -483,6 +503,7 @@ fn a_new_selection_takes_down_every_refusal_of_the_last_one() {
                 | ModelError::Slip { .. }
                 | ModelError::Generated { .. }
                 | ModelError::Bake { .. }
+                | ModelError::Freeze { .. }
                 | ModelError::FrozenMedia { .. }
                 | ModelError::MasksFull { .. }
                 | ModelError::UnknownClip { .. }

@@ -15,7 +15,7 @@
 //! registry rather than strings at the call sites: a command declines for one of
 //! a handful of reasons, and the words for each have one owner.
 
-use aria_models::{BakeRefusal, ClipId};
+use aria_models::{BakeRefusal, ClipId, FreezeRefusal, SplitRefusal};
 
 use super::AppState;
 use super::duck::DuckRefusal;
@@ -280,19 +280,6 @@ pub enum Decline {
     NothingAheadToTrack,
     /// An AI endpoint check sent while one runs.
     AiCheckRunning,
-    /// Freeze Frame sent to a clip on a locked track.
-    TrackLocked,
-    /// Freeze Frame sent with the playhead off the selected clip.
-    PlayheadOffClip,
-    /// Freeze Frame sent to a clip linked to another clip.
-    FreezeLinked,
-    /// Freeze Frame where a clip after the playhead shares a link the shift would
-    /// split.
-    FreezeLinkedAfter,
-    /// Freeze Frame on the first frame of a clip with an entrance animation.
-    FreezeEntrance,
-    /// Freeze Frame on the last frame of a clip with an exit animation.
-    FreezeExit,
     /// Render and Replace sent to a clip on a track a render cannot stand in for.
     NotBakeable,
     /// Restore Unrendered sent to a clip that is not a rendered stand-in.
@@ -305,11 +292,17 @@ pub enum Decline {
     Duck(DuckRefusal),
     /// Render and Replace sent to a clip a render cannot stand in for.
     Bake(BakeRefusal),
+    /// Freeze Frame sent where the clip cannot hold the frame under the
+    /// playhead, in the words the run states.
+    Freeze(FreezeRefusal),
+    /// Freeze Frame sent where the cut the freeze makes under the playhead
+    /// would change what the clip renders, in the words the run states.
+    Split(SplitRefusal),
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 137] = [
+    pub const ALL: [Decline; 149] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -429,12 +422,6 @@ impl Decline {
         Decline::NoMaskToTrack,
         Decline::NothingAheadToTrack,
         Decline::AiCheckRunning,
-        Decline::TrackLocked,
-        Decline::PlayheadOffClip,
-        Decline::FreezeLinked,
-        Decline::FreezeLinkedAfter,
-        Decline::FreezeEntrance,
-        Decline::FreezeExit,
         Decline::NotBakeable,
         Decline::NotRendered,
         Decline::NoEarlierEdit,
@@ -447,6 +434,24 @@ impl Decline {
         Decline::Bake(BakeRefusal::Rendered),
         Decline::Bake(BakeRefusal::LaneBar),
         Decline::Bake(BakeRefusal::Undressed),
+        Decline::Freeze(FreezeRefusal::NotOnVideoTrack),
+        Decline::Freeze(FreezeRefusal::TrackLocked),
+        Decline::Freeze(FreezeRefusal::NotMedia),
+        Decline::Freeze(FreezeRefusal::AlreadyFrozen),
+        Decline::Freeze(FreezeRefusal::NoVideo),
+        Decline::Freeze(FreezeRefusal::OffClip),
+        Decline::Freeze(FreezeRefusal::Entrance),
+        Decline::Freeze(FreezeRefusal::Exit),
+        Decline::Freeze(FreezeRefusal::Linked),
+        Decline::Freeze(FreezeRefusal::SplitsLink),
+        Decline::Split(SplitRefusal::InsideFadeIn),
+        Decline::Split(SplitRefusal::InsideFadeOut),
+        Decline::Split(SplitRefusal::OffComboCycle),
+        Decline::Split(SplitRefusal::ShortensEntrance),
+        Decline::Split(SplitRefusal::ShortensExit),
+        Decline::Split(SplitRefusal::Lottie),
+        Decline::Split(SplitRefusal::AnimatedSticker),
+        Decline::Split(SplitRefusal::RampKeyframeAtCut),
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -588,24 +593,14 @@ impl Decline {
                 "The playhead is at the end of the clip, so there is nothing ahead to track"
             }
             Decline::AiCheckRunning => "An AI endpoint check is already running",
-            Decline::TrackLocked => "Unlock the track first",
-            Decline::PlayheadOffClip => "Move the playhead onto the selected clip",
-            Decline::FreezeLinked => "Unlink the clip before freezing a frame",
-            Decline::FreezeLinkedAfter => {
-                "Unlink the linked clip after the playhead before freezing a frame"
-            }
-            Decline::FreezeEntrance => {
-                "Move the playhead inside the clip or remove its entrance animation before freezing"
-            }
-            Decline::FreezeExit => {
-                "Move the playhead inside the clip or remove its exit animation before freezing"
-            }
             Decline::NotBakeable => "The selected clip is on a track a render cannot stand in for",
             Decline::NotRendered => "Select a rendered clip to restore",
             Decline::NoEarlierEdit => "No earlier edit on a targeted track",
             Decline::NoLaterEdit => "No later edit on a targeted track",
             Decline::Duck(why) => why.reason(),
             Decline::Bake(why) => super::bake_copy(why),
+            Decline::Freeze(why) => super::freeze_copy(why),
+            Decline::Split(why) => super::split_copy(why),
         }
     }
 }

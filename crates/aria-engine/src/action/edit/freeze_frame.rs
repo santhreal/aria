@@ -1,6 +1,5 @@
 use aria_models::{
-    Clip, ClipId, ClipSource, MediaKind, ModelError, Project, RationalTime, TimeRange, TrackId,
-    TrackKind, check_same_rate,
+    Clip, ClipId, ModelError, Project, RationalTime, TimeRange, TrackId, check_same_rate,
 };
 
 use crate::action::edit::insert_clip::InsertClipAction;
@@ -89,20 +88,11 @@ fn build_plan(
         return Err(ModelError::InvalidRange);
     }
 
+    project.freeze_check(clip_id, at.value)?;
     let track_id = timeline
         .track_of(clip_id)
         .ok_or(ModelError::UnknownClip(clip_id))?;
     let track = timeline.require_track(track_id)?;
-    if track.kind != TrackKind::Video {
-        return Err(ModelError::InvalidParam(format!(
-            "freeze frame requires a clip on a video track (clip {clip_id} is on {track_id})"
-        )));
-    }
-    if track.locked {
-        return Err(ModelError::InvalidParam(format!(
-            "source video track {track_id} is locked"
-        )));
-    }
     let ordered = track.clips_ordered();
     for candidate in &ordered {
         check_same_rate(candidate.timeline.start.rate, timeline_rate)?;
@@ -122,79 +112,12 @@ fn build_plan(
         .clip(clip_id)
         .cloned()
         .ok_or(ModelError::UnknownClip(clip_id))?;
-    let ClipSource::Media { media, .. } = &source.content else {
-        return Err(ModelError::InvalidParam(
-            "freeze frame requires a media-backed clip".into(),
-        ));
-    };
-    if source.freeze_frame {
-        return Err(ModelError::InvalidParam(format!(
-            "clip {clip_id} is already a freeze frame"
-        )));
-    }
-    let media_source = project
-        .media(*media)
-        .ok_or(ModelError::UnknownMedia(*media))?;
-    if media_source.kind() != MediaKind::Video {
-        return Err(ModelError::InvalidParam(format!(
-            "clip {clip_id} does not reference video media"
-        )));
-    }
-
     let source_end = source.timeline.end()?;
-    if at.value < source.timeline.start.value || at.value > source_end.value {
-        return Err(ModelError::InvalidRange);
-    }
     let at_start = at.value == source.timeline.start.value;
     let at_end = at.value == source_end.value;
-    if at_start && (source.animation_in.is_some() || source.animation_combo.is_some()) {
-        return Err(ModelError::InvalidParam(
-            "cannot freeze at a clip start with an active entrance/combo animation".into(),
-        ));
-    }
-    if at_end && (source.animation_out.is_some() || source.animation_combo.is_some()) {
-        return Err(ModelError::InvalidParam(
-            "cannot freeze at a clip end with an active exit/combo animation".into(),
-        ));
-    }
-
-    let clear_orphan_link = if let Some(link) = source.link {
-        if let Some(partner) = timeline
-            .tracks_ordered()
-            .flat_map(|candidate_track| candidate_track.clips())
-            .find(|candidate| candidate.id != clip_id && candidate.link == Some(link))
-        {
-            return Err(ModelError::InvalidParam(format!(
-                "clip {clip_id} is linked to {}; unlink the group before freezing a frame",
-                partner.id
-            )));
-        }
-        true
-    } else {
-        false
-    };
-    for shifted in track
-        .clips()
-        .filter(|candidate| candidate.timeline.start.value >= at.value)
-    {
-        let Some(link) = shifted.link else {
-            continue;
-        };
-        let group_moves_together = timeline
-            .tracks_ordered()
-            .flat_map(|candidate_track| candidate_track.clips())
-            .filter(|candidate| candidate.link == Some(link))
-            .all(|member| {
-                timeline.track_of(member.id) == Some(track_id)
-                    && member.timeline.start.value >= at.value
-            });
-        if !group_moves_together {
-            return Err(ModelError::InvalidParam(format!(
-                "freezing would desynchronize linked clip {}; unlink the group first",
-                shifted.id
-            )));
-        }
-    }
+    // The freeze check refused a link shared with any other clip, so a link
+    // left on the source names no partner and goes with the split.
+    let clear_orphan_link = source.link.is_some();
 
     let resolved_at = if at_end {
         RationalTime::new(

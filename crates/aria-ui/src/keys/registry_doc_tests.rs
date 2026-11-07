@@ -673,6 +673,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "reasons a render cannot stand in for a clip; the error copy census and the render row census read every reason",
         ),
         (
+            "FreezeRefusal",
+            "reasons a clip cannot hold the frame at a tick; the error copy census and the freeze row census read every reason",
+        ),
+        (
             "FixtureId",
             "benchmark fixture identifier internal to aria-bench",
         ),

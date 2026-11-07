@@ -251,73 +251,24 @@ fn matte_source_ready(state: &AppState, source: aria_models::MatteSource) -> Opt
     state.matte_source_to_set(source).err()
 }
 
+/// Disables Freeze Frame with no clip selected, a clip with no video frame to
+/// hold, or one [`aria_models::Project::freeze_check`], which the engine's
+/// freeze edit applies, refuses at the playhead, in the words the run's error
+/// states.
 pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::freezable(id, state).or_else(|| {
-        let ui = state.selected_ui_clip()?;
-        let track = state
-            .store
-            .sequence
-            .tracks
-            .iter()
-            .find(|t| t.id == ui.track_id)?;
-        if track.kind != crate::types::UiTrackKind::Video {
-            return Some(Decline::NoFrameToHold);
+        let clip = state.selected_clip()?;
+        let checked = state
+            .engine()
+            .lock()
+            .project()
+            .freeze_check(clip, state.playhead.value);
+        match checked {
+            Ok(()) => None,
+            Err(aria_models::ModelError::Freeze(why)) => Some(Decline::Freeze(why)),
+            Err(aria_models::ModelError::Split(why)) => Some(Decline::Split(why)),
+            Err(_) => Some(Decline::NoFrameToHold),
         }
-        if track.locked {
-            return Some(Decline::TrackLocked);
-        }
-        let at = state.playhead.value;
-        if at < ui.timeline_start_ticks || at > ui.timeline_end_ticks {
-            return Some(Decline::PlayheadOffClip);
-        }
-        if ui.linked_to.is_some_and(|link| {
-            state
-                .store
-                .sequence
-                .tracks
-                .iter()
-                .flat_map(|t| t.clips.iter())
-                .any(|c| c.id != ui.id && c.linked_to == Some(link))
-        }) {
-            return Some(Decline::FreezeLinked);
-        }
-        if track
-            .clips
-            .iter()
-            .filter(|c| c.timeline_start_ticks >= at)
-            .filter_map(|c| c.linked_to)
-            .any(|link| {
-                state
-                    .store
-                    .sequence
-                    .tracks
-                    .iter()
-                    .flat_map(|t| t.clips.iter())
-                    .filter(|c| c.linked_to == Some(link))
-                    .any(|c| c.track_id != ui.track_id || c.timeline_start_ticks < at)
-            })
-        {
-            return Some(Decline::FreezeLinkedAfter);
-        }
-        if (at == ui.timeline_start_ticks || at == ui.timeline_end_ticks)
-            && let Some(clip) = state
-                .engine()
-                .lock()
-                .project()
-                .clip(aria_models::ClipId::from_raw(ui.id))
-        {
-            if at == ui.timeline_start_ticks
-                && (clip.animation_in.is_some() || clip.animation_combo.is_some())
-            {
-                return Some(Decline::FreezeEntrance);
-            }
-            if at == ui.timeline_end_ticks
-                && (clip.animation_out.is_some() || clip.animation_combo.is_some())
-            {
-                return Some(Decline::FreezeExit);
-            }
-        }
-        None
     })
 }
 

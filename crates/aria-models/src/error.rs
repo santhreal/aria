@@ -630,6 +630,10 @@ pub enum ModelError {
     /// A render cannot stand in for the clip.
     #[error("{0}")]
     Bake(BakeRefusal),
+
+    /// A clip cannot hold the frame at a tick.
+    #[error("{0}")]
+    Freeze(crate::project::FreezeRefusal),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

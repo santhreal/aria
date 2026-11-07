@@ -629,14 +629,10 @@ impl Clip {
         timeline: TimeRange,
     ) -> Result<Self, ModelError> {
         let ClipSource::Media { media, source } = &self.content else {
-            return Err(ModelError::InvalidParam(
-                "freeze frame requires a media-backed clip".into(),
-            ));
+            return Err(ModelError::Freeze(crate::FreezeRefusal::NotMedia));
         };
         if self.freeze_frame {
-            return Err(ModelError::InvalidParam(
-                "clip is already a freeze frame".into(),
-            ));
+            return Err(ModelError::Freeze(crate::FreezeRefusal::AlreadyFrozen));
         }
         check_same_rate(source_time.rate, source.start.rate)?;
         check_same_rate(timeline.start.rate, self.timeline.start.rate)?;

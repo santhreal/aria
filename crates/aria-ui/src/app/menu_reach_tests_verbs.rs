@@ -531,19 +531,111 @@ fn ungroup_and_duplicate_to_next_lane_decline_without_engine_errors() {
     linked_video.select_clip(v_clip);
     assert_eq!(
         blocked(AppMenu::Clip, &linked_video, "seq-freeze"),
-        Some("Move the playhead onto the selected clip")
+        Some(crate::app::freeze_copy(aria_models::FreezeRefusal::OffClip))
     );
     linked_video.set_playhead(end + 5);
     assert_eq!(
         blocked(AppMenu::Clip, &linked_video, "seq-freeze"),
-        Some("Unlink the clip before freezing a frame")
+        Some(crate::app::freeze_copy(aria_models::FreezeRefusal::Linked))
     );
     linked_video
         .freeze_selected_frame()
         .expect("linked video clip declines without engine error");
     assert_eq!(
         linked_video.status_message.as_deref(),
-        Some("Unlink the clip before freezing a frame")
+        Some(crate::app::freeze_copy(aria_models::FreezeRefusal::Linked))
     );
     assert_eq!(linked_video.last_error, None);
+}
+
+/// A dropped video clip linked to its sound, selected, with the playhead at
+/// tick `at`, after unlinking the pair and locking V1 when asked. Returns the
+/// state, the playhead as set, and the clip's first and last ticks.
+fn freeze_dressed(
+    unlink: bool,
+    lock: bool,
+    at: impl Fn(i64, i64) -> i64,
+) -> (AppState, i64, i64, i64) {
+    let mut state = Dress::Sound.state();
+    let media = aria_models::MediaId::from_raw(state.store.media[0].id);
+    let end = state.store.sequence.duration_ticks;
+    state
+        .drop_media_on_timeline(media, None, end)
+        .expect("drop a linked video and sound pair");
+    let video = state.store.sequence.tracks[0]
+        .clips
+        .iter()
+        .find(|ui| ui.timeline_start_ticks == end)
+        .expect("the dropped video clip");
+    let clip = aria_models::ClipId::from_raw(video.id);
+    let (start, stop) = (video.timeline_start_ticks, video.timeline_end_ticks);
+    let lane = aria_models::TrackId::from_raw(video.track_id);
+    state.select_clip(clip);
+    if unlink {
+        state.unlink_selected().expect("the pair comes apart");
+        state.select_clip(clip);
+    }
+    if lock {
+        state.set_track_locked(lane, true).expect("lock V1");
+    }
+    state.set_playhead(at(start, stop));
+    let at = state.playhead.value;
+    (state, at, start, stop)
+}
+
+/// Freeze Frame's row is enabled exactly where its run freezes a frame in one
+/// undo step, and a withheld row states the line the run states, at the ticks
+/// around a video clip's edges, linked to its sound and not, on an open and a
+/// locked lane.
+///
+/// Closes "the row offers what the run refuses": the row re-derived the
+/// engine's freeze rules from the projection, so a rule it missed drew the row
+/// enabled over a run the engine refused. The row and the edit now both read
+/// `Project::freeze_check`. Not covered: refusals no dressing here reaches,
+/// which the model's freeze census and the engine's freeze tests read.
+#[test]
+fn freeze_frame_runs_exactly_where_its_row_is_offered() {
+    use aria_models::FreezeRefusal;
+    let ticks: [fn(i64, i64) -> i64; 7] = [
+        |start, _| start - 1,
+        |start, _| start,
+        |start, _| start + 1,
+        |start, stop| (start + stop) / 2,
+        |_, stop| stop - 1,
+        |_, stop| stop,
+        |_, stop| stop + 1,
+    ];
+    for (unlink, lock) in [(false, false), (true, false), (true, true)] {
+        for tick in ticks {
+            let (mut state, at, start, stop) = freeze_dressed(unlink, lock, tick);
+            let case = format!("unlinked {unlink}, locked {lock}, at {at} of {start}..={stop}");
+            let want = if lock {
+                Some(FreezeRefusal::TrackLocked)
+            } else if at < start || at > stop {
+                Some(FreezeRefusal::OffClip)
+            } else if !unlink {
+                Some(FreezeRefusal::Linked)
+            } else {
+                None
+            };
+            let reason = blocked(AppMenu::Clip, &state, "seq-freeze");
+            assert_eq!(reason, want.map(crate::app::freeze_copy), "{case}: the row");
+            let depth = state.history_depth();
+            state.status_message = None;
+            state
+                .freeze_selected_frame()
+                .unwrap_or_else(|err| panic!("{case}: failed instead of declining: {err}"));
+            let (said, steps) = match reason {
+                Some(why) => (why, 0),
+                None => ("Froze frame", 1),
+            };
+            assert_eq!(
+                state.status_message.as_deref(),
+                Some(said),
+                "{case}: the run"
+            );
+            assert_eq!(state.history_depth(), depth + steps, "{case}: undo steps");
+            assert_eq!(state.last_error, None, "{case}: an error");
+        }
+    }
 }

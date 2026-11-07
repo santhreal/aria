@@ -886,6 +886,7 @@ Notes for the latest release. For previous releases, see the
 - Settings > Provider keys no longer lists an ElevenLabs key, which no feature read; Generate's Voice kind uses the fal.ai key.
 - The documentation no longer includes the assistant, cloud and MCP roadmaps, which described planned work rather than shipped behavior.
 - The menu reference lists every reason a menu or palette row is drawn disabled for, with the text its tooltip and the status line show.
+- A disabled Freeze Frame row and a refused freeze state the obstacle and the fix from one set of reasons the freeze edit applies.
 
 ### Fixed
 
@@ -1494,6 +1495,7 @@ Notes for the latest release. For previous releases, see the
 - The Render and Replace row and its run state why a render is refused for the selected clip, which is already rendered, a lane bar, or a media clip with nothing applied, instead of one sentence about nothing to render for every case.
 - Paste to Fit places a copied title, shape or other generated clip over the marked range at the range's length instead of rejecting it as an invalid value, and a range that needs a speed outside 0.05x to 100x is refused with the speed it would take.
 - An edit refusal about the selected clips, such as a slip of a freeze frame or a cut inside a fade-in, is cleared from the error line when the selection changes.
+- Freeze Frame is disabled, with the reason its run states, where the freeze would cut inside an edge animation or a fade, instead of offered and then refused.
 
 ## [alpha-0.7.0] - 2026-07-22
 

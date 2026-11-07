@@ -620,18 +620,14 @@ fn menus_doc_matches_registry() {
                 | Decline::NoMaskToTrack
                 | Decline::NothingAheadToTrack
                 | Decline::AiCheckRunning
-                | Decline::TrackLocked
-                | Decline::PlayheadOffClip
-                | Decline::FreezeLinked
-                | Decline::FreezeLinkedAfter
-                | Decline::FreezeEntrance
-                | Decline::FreezeExit
                 | Decline::NotBakeable
                 | Decline::NotRendered
                 | Decline::NoEarlierEdit
                 | Decline::NoLaterEdit
                 | Decline::Duck(_)
-                | Decline::Bake(_) => {}
+                | Decline::Bake(_)
+                | Decline::Freeze(_)
+                | Decline::Split(_) => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
