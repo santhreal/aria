@@ -120,9 +120,10 @@ jobs:
 
   # Both publish jobs authenticate with PyPI Trusted Publishing (OIDC): the
   # index is configured to trust this repo + workflow + environment, so no
-  # API token is stored in the repo. Configure the publisher on
-  # (test.)pypi.org for project `aria-py`, repository santhreal/aria,
-  # workflow pywheels.yml, environment testpypi/pypi before the first run.
+  # API token is stored in the repo. The `aria-py` project on pypi.org belongs
+  # to an unrelated owner, so a publish fails until `name` in pyproject.toml is
+  # a distribution this repository holds and its publisher is configured for
+  # repository santhreal/aria, workflow pywheels.yml, environment testpypi/pypi.
   publish-testpypi:
     name: publish to testpypi
     if: github.event_name == 'workflow_dispatch' && inputs.publish == 'testpypi'

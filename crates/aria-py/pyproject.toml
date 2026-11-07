@@ -3,9 +3,9 @@
 requires = ["maturin>=1.9,<2.0"]
 build-backend = "maturin"
 
-# Distribution name is `aria-py` (the bare `aria` name on PyPI belongs to
-# an unrelated project); the import name stays `aria` via [tool.maturin]
-# module-name below.
+# The `aria` and `aria-py` names on PyPI belong to unrelated projects, so this
+# distribution cannot be published under `aria-py`. The import name stays
+# `aria` via [tool.maturin] module-name below.
 [project]
 name = "aria-py"
 description = "MoviePy-style Python bindings for the Aria video engine."

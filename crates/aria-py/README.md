@@ -9,16 +9,9 @@ See [api-design.md](./api-design.md) for the full v2 API reference.
 
 ## Install
 
-```bash
-pip install --pre aria-py   # imports as `aria`
-```
-
-Wheels ship for macOS (Apple Silicon) and Windows (x64), Python 3.9+. The
-distribution is named `aria-py` (the bare `aria` name on PyPI belongs to
-an unrelated project); the module you import is `aria`. `--pre` is needed
-while releases carry a pre-release version (e.g. `0.5.3a0`).
-
-## Install (from source)
+The bindings are built from source; no wheel is published. The `aria-py`
+and `aria` names on PyPI belong to unrelated projects, so `pip install
+aria-py` installs a different package.
 
 Requires the Rust toolchain and [maturin](https://www.maturin.rs/).
 
