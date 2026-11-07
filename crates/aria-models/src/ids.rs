@@ -70,9 +70,11 @@ macro_rules! define_id {
             }
         }
 
+        /// `#<n>`: an error states "clip {id}" as "clip #4", the number a
+        /// script reads from the clip's `id`, and no Rust type name.
         impl std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}#{}", stringify!($name), self.0)
+                write!(f, "#{}", self.0)
             }
         }
 
@@ -351,13 +353,17 @@ mod tests {
 
     // --- Display ----------------------------------------------------------
 
+    /// An id reaches script, CLI and assistant callers inside error text, so
+    /// it prints as its number and never as a Rust type name: "clip overlaps
+    /// an existing clip on TrackId#1" once reached a Python script. Every id
+    /// type shares the one `define_id!` impl, so these cases cover the impl.
     #[test]
-    fn display_formats_type_name_and_raw_value() {
-        assert_eq!(ProjectId::from_raw(1).to_string(), "ProjectId#1");
-        assert_eq!(MediaId::from_raw(2).to_string(), "MediaId#2");
-        assert_eq!(TrackId::from_raw(3).to_string(), "TrackId#3");
-        assert_eq!(ClipId::from_raw(4).to_string(), "ClipId#4");
-        assert_eq!(TemplateId::from_raw(5).to_string(), "TemplateId#5");
+    fn display_prints_the_raw_value_without_the_type_name() {
+        assert_eq!(ProjectId::from_raw(1).to_string(), "#1");
+        assert_eq!(MediaId::from_raw(2).to_string(), "#2");
+        assert_eq!(TrackId::from_raw(3).to_string(), "#3");
+        assert_eq!(ClipId::from_raw(4).to_string(), "#4");
+        assert_eq!(TemplateId::from_raw(5).to_string(), "#5");
     }
 
     // --- Ord ----------------------------------------------------------------

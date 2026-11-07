@@ -470,7 +470,7 @@ pub enum ModelError {
     #[error("unknown clip: {0}")]
     UnknownClip(ClipId),
 
-    #[error("clip id {0} already exists on the timeline")]
+    #[error("clip {0} already exists on the timeline")]
     DuplicateClip(ClipId),
 
     #[error("unknown marker: {0}")]
@@ -505,7 +505,7 @@ pub enum ModelError {
     #[error("clip {0} would sit under more than {max} parents", max = crate::clip::MAX_PARENT_DEPTH)]
     ParentTooDeep(ClipId),
 
-    #[error("clip overlaps an existing clip on {0}")]
+    #[error("clip overlaps an existing clip on track {0}")]
     Overlap(TrackId),
 
     #[error("track {track} ({kind:?}) cannot hold this clip")]
@@ -708,11 +708,11 @@ mod tests {
         );
         assert_eq!(
             ModelError::UnknownTrack(TrackId::from_raw(5)).to_string(),
-            "unknown track: TrackId#5"
+            "unknown track: #5"
         );
         assert_eq!(
             ModelError::UnknownClip(ClipId::from_raw(12)).to_string(),
-            "unknown clip: ClipId#12"
+            "unknown clip: #12"
         );
         assert_eq!(
             ModelError::SourceOutOfBounds.to_string(),
@@ -721,6 +721,10 @@ mod tests {
         assert_eq!(
             ModelError::InvalidRange.to_string(),
             "invalid time range (negative or zero duration where positive required)"
+        );
+        assert_eq!(
+            ModelError::Overlap(TrackId::from_raw(1)).to_string(),
+            "clip overlaps an existing clip on track #1"
         );
     }
 
