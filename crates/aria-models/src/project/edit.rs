@@ -1,5 +1,6 @@
 use crate::clip::{
-    Clip, ClipSource, CropRect, SlipRefusal, split_speed_curve, validate_split_render_continuity,
+    Clip, ClipSource, CropRect, GeneratedRefusal, SlipRefusal, split_speed_curve,
+    validate_split_render_continuity,
 };
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
@@ -514,9 +515,7 @@ impl Project {
             ));
         }
         if clip.source_range().is_none() {
-            return Err(ModelError::InvalidParam(
-                "speed ramps require a media-backed clip".into(),
-            ));
+            return Err(ModelError::Generated(GeneratedRefusal::Speed));
         }
         let new_curve = curve.unwrap_or(Param::Constant(1.0));
         let new_dur = self
@@ -741,9 +740,7 @@ impl Project {
 
         let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
-            return Err(ModelError::InvalidParam(
-                "audio parameters require a media-backed clip".into(),
-            ));
+            return Err(ModelError::Generated(GeneratedRefusal::Sound));
         }
         let duration = clip.timeline.duration.value;
         for (name, fade) in [("fade_in", fade_in.value), ("fade_out", fade_out.value)] {

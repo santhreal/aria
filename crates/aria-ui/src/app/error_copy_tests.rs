@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    BinId, ClipId, ClipSetRefusal, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId,
-    Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal, TrackId, TrackKind,
+    BinId, ClipId, ClipSetRefusal, GeneratedRefusal, MarkerId, MediaId, MediaKind, ModelError,
+    MulticamGroupId, Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal, TrackId,
+    TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -186,10 +187,10 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
     );
 }
 
-/// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`] and
-/// [`SlipRefusal`] counted as its own; [`variant`] numbers them
-/// `0..VARIANTS`.
-const VARIANTS: usize = 68;
+/// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`],
+/// [`SlipRefusal`] and [`GeneratedRefusal`] counted as its own; [`variant`]
+/// numbers them `0..VARIANTS`.
+const VARIANTS: usize = 70;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -251,6 +252,10 @@ fn variant(err: &ModelError) -> usize {
         ModelError::MasksFull(_) => 62,
         ModelError::Slip(refusal) => 63 + slip_index(*refusal),
         ModelError::FrozenMedia(_) => 67,
+        ModelError::Generated(refusal) => match refusal {
+            GeneratedRefusal::Speed => 68,
+            GeneratedRefusal::Sound => 69,
+        },
     }
 }
 
@@ -384,6 +389,7 @@ fn every_refusal() -> Vec<ModelError> {
     .chain(ClipSetRefusal::ALL.map(ModelError::ClipSet))
     .chain(SplitRefusal::ALL.map(ModelError::Split))
     .chain(SlipRefusal::ALL.map(ModelError::Slip))
+    .chain(GeneratedRefusal::ALL.map(ModelError::Generated))
     .collect()
 }
 

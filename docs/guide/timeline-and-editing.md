@@ -238,8 +238,9 @@ Drag it along the card to set the fade in or the fade out; Effect Controls shows
 the same numbers. A drag past either end of the card stops at zero or at the
 whole clip. While the button is down the card and its wave draw the fade the
 release sets, and the readout states its length. One drag is one undo entry,
-and a drag that ends where it started changes nothing. A locked clip, or a
-card narrower than 28 pixels, draws no handles.
+and a drag that ends where it started changes nothing. A locked clip, a
+generated clip such as a title or a shape, which plays no sound, or a card
+narrower than 28 pixels draws no handles.
 
 ## Filmstrips
 

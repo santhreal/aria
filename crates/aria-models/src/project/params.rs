@@ -10,8 +10,8 @@
 //! is why a new property needs no arm in it.
 
 use crate::clip::{
-    AnimatedTransform, Clip, ClipParam, ClipSource, ClipTransform, DriverCode, Generator,
-    ParamScope, ParamValue, effect_mut, index_after_move, index_after_remove,
+    AnimatedTransform, Clip, ClipParam, ClipSource, ClipTransform, DriverCode, GeneratedRefusal,
+    Generator, ParamScope, ParamValue, effect_mut, index_after_move, index_after_remove,
 };
 use crate::effects::EffectInstance;
 use crate::error::ModelError;
@@ -95,9 +95,7 @@ impl Project {
     fn check_audio_target(&self, clip_id: ClipId) -> Result<(), ModelError> {
         let clip = self.timeline().require_clip(clip_id)?;
         if clip.is_generated() {
-            return Err(ModelError::InvalidParam(
-                "audio parameters require a media-backed clip".into(),
-            ));
+            return Err(ModelError::Generated(GeneratedRefusal::Sound));
         }
         Ok(())
     }

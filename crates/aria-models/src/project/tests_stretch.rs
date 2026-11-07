@@ -74,9 +74,7 @@ fn nothing_stretches_a_generated_clip_or_to_no_length() {
     let (project, solid, _, _) = project_with_abutting_pair();
     assert_eq!(
         project.clip(solid).unwrap().speed_for(24, R24),
-        Err(ModelError::InvalidParam(
-            "speed requires a media-backed clip".into()
-        ))
+        Err(ModelError::Generated(crate::clip::GeneratedRefusal::Speed))
     );
     let (mut project, media, track) = project_with_media(200);
     let clip = project.add_clip(track, media, tr(0, 48), rt(0)).unwrap();
@@ -85,4 +83,28 @@ fn nothing_stretches_a_generated_clip_or_to_no_length() {
         Err(ModelError::InvalidRange)
     );
     assert_eq!(stretched(&mut project, clip, 1), 1);
+}
+
+/// A generated clip plays no source and no sound, so a speed, a volume or
+/// fade, and an audio envelope are each rejected with the typed reason the
+/// editor words, never as a rejected value.
+#[test]
+fn a_generated_clip_has_no_speed_or_sound_to_set() {
+    use crate::clip::GeneratedRefusal;
+    let (mut project, solid, _, _) = project_with_abutting_pair();
+    fn refused<T>(why: GeneratedRefusal) -> Result<T, ModelError> {
+        Err(ModelError::Generated(why))
+    }
+    assert_eq!(
+        project.clip(solid).unwrap().retimed_source(),
+        refused(GeneratedRefusal::Speed)
+    );
+    assert_eq!(
+        project.set_clip_audio(solid, Some(0.5), rt(0), rt(0)),
+        refused(GeneratedRefusal::Sound)
+    );
+    assert_eq!(
+        project.set_param_constant(solid, ClipParam::Volume, ParamValue::Scalar(0.5)),
+        refused(GeneratedRefusal::Sound)
+    );
 }

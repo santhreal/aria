@@ -28,7 +28,7 @@ use crate::app::drag_steps::{Plan, Step};
 use crate::app::trim_gestures::{Neighbour, roll_steps, slide_steps, stretch_steps};
 use crate::snap::SnapCandidate;
 use crate::tool_catalog::{BodyDrag, EdgeDrag};
-use crate::types::HeldEdge;
+use crate::types::{HeldEdge, UiClip};
 
 /// What the pointer took hold of, and how far it went.
 ///
@@ -234,6 +234,14 @@ fn snapped(
         span.threshold,
         !span.magnet,
     )
+}
+
+/// Whether a clip card offers the fade drag: an unlocked clip that plays
+/// sound. A fade is a sound fade, so a generated clip, which plays none, has
+/// no fade to drag. The panel adds the pixel condition, a bar wide enough to
+/// hold both handles.
+pub(crate) fn offers_fade(clip: &UiClip) -> bool {
+    !clip.locked && clip.generator.is_none()
 }
 
 /// Where a drag a room holds lets go.

@@ -2,7 +2,8 @@
 
 use aria_engine::EngineError;
 use aria_models::{
-    ClipSetRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SlipRefusal, SplitRefusal,
+    ClipSetRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SlipRefusal,
+    SplitRefusal,
 };
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
@@ -261,6 +262,16 @@ fn model_copy(err: &ModelError) -> String {
             "That clip is a freeze frame, which holds one frame of its media. Delete it, then \
              place the new media."
         }
+        ModelError::Generated(refusal) => match refusal {
+            GeneratedRefusal::Speed => {
+                "A generated clip plays no footage, so it has no speed to change. Trim the clip \
+                 to change its length."
+            }
+            GeneratedRefusal::Sound => {
+                "A generated clip plays no sound, so it has no volume or fades to set. Select a \
+                 clip with sound instead."
+            }
+        },
     };
     copy.into()
 }

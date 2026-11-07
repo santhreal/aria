@@ -17,6 +17,7 @@ use gpui::{
 
 use crate::panels::timeline::property_rows::paint_rect;
 use crate::panels::timeline::{COLLAPSED_H, ticks_to_px};
+use crate::surfaces::timeline_gesture;
 use crate::theme::Theme;
 use crate::transport::ticks_to_px_f;
 use crate::types::{SelectedEdge, SelectedGap, TrimFeedback, TrimSide, UiClip};
@@ -112,6 +113,13 @@ pub(crate) fn ink(theme: &Theme, clip: &UiClip) -> Hsla {
 /// Opacity multiplier for a timeline clip bar (`1.0` when enabled, `0.4` when disabled).
 pub(crate) fn clip_opacity(clip: &UiClip) -> f32 {
     if clip.enabled { 1.0 } else { 0.4 }
+}
+
+/// Whether a bar `w` pixels wide draws fade handles and answers a press on
+/// them: a clip that offers the fade drag (see
+/// [`timeline_gesture::offers_fade`]) on a bar wide enough to hold both.
+pub(crate) fn has_fade_grips(clip: &UiClip, w: f32) -> bool {
+    timeline_gesture::offers_fade(clip) && w >= 28.0
 }
 
 /// Paint all visible lanes, clips, waveforms, filmstrips, transitions,
@@ -439,7 +447,7 @@ fn paint_clip(
     let content_top = card_y + bar::NAME_STRIP;
     let content_bottom = card_y + card_h - 1.0;
     let content_h = content_bottom - content_top;
-    let grips = !clip.locked && w >= 28.0;
+    let grips = has_fade_grips(clip, w);
     // The transition bars paint over the bar's ends, so the strip starts
     // after the one over its start and ends before the one over its end.
     let at = |tick: i64| origin_x + ticks_to_px(tick, data.fps, data.pps) - data.scroll_x;
@@ -545,8 +553,9 @@ fn paint_clip(
         );
     }
 
-    // The fade handles of an unlocked bar wide enough to hold them: each shows
-    // while the pointer is on the bar, and at all times once its fade is set.
+    // The fade handles of a bar that has them (see [`has_fade_grips`]): each
+    // shows while the pointer is on the bar, and at all times once its fade is
+    // set.
     if grips {
         let fade_in = clip.fade_in_ticks.max(0);
         let fade_out = clip.fade_out_ticks.max(0);

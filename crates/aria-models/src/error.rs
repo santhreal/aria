@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::clip::{SlipRefusal, SlotMedia, SplitRefusal};
+use crate::clip::{GeneratedRefusal, SlipRefusal, SlotMedia, SplitRefusal};
 use crate::ids::{BinId, ClipId, MarkerId, MediaId, SequenceId, TrackId};
 use crate::media::MediaKind;
 use crate::schema::ProjectSchema;
@@ -622,6 +622,10 @@ pub enum ModelError {
 
     #[error("clip {0} is a freeze frame, so its media cannot be replaced")]
     FrozenMedia(ClipId),
+
+    /// A generated clip has no speed or sound to change.
+    #[error("{0}")]
+    Generated(GeneratedRefusal),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

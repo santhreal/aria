@@ -516,7 +516,7 @@ fn set_clip_speed_curve_rejects_bad_targets() {
         .unwrap();
     assert!(matches!(
         project.set_clip_speed_curve(generated, Some(crate::clip::speed_preset("hero").unwrap())),
-        Err(ModelError::InvalidParam(_))
+        Err(ModelError::Generated(crate::clip::GeneratedRefusal::Speed))
     ));
 }
 
@@ -557,7 +557,7 @@ fn set_clip_speed_rejects_invalid_targets() {
         .unwrap();
     assert!(matches!(
         project.set_clip_speed(generated, Rational::new(2, 1), false),
-        Err(ModelError::InvalidParam(_))
+        Err(ModelError::Generated(crate::clip::GeneratedRefusal::Speed))
     ));
 
     let missing = ClipId::next();

@@ -54,9 +54,9 @@ pub use param_catalog::{
 pub use param_value::ParamValue;
 pub use parent::{MAX_PARENT_DEPTH, ParentFrame, ParentKeep};
 pub use retiming::{
-    MAX_SPEED, MIN_SPEED, ParamTime, SPEED_CURVE_SCALE, SlipRefusal, SpeedPresetSpec,
-    retimed_duration, speed_curve_integral, speed_curve_source_fraction, speed_preset,
-    speed_preset_catalog, speed_preset_id, validate_speed_curve,
+    GeneratedRefusal, MAX_SPEED, MIN_SPEED, ParamTime, SPEED_CURVE_SCALE, SlipRefusal,
+    SpeedPresetSpec, retimed_duration, speed_curve_integral, speed_curve_source_fraction,
+    speed_preset, speed_preset_catalog, speed_preset_id, validate_speed_curve,
 };
 pub use split::SplitRefusal;
 pub(crate) use split::{split_speed_curve, validate_split_render_continuity};

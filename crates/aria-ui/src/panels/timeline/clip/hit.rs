@@ -239,7 +239,7 @@ pub(crate) fn hit_test(
                     end_ticks: clip.timeline_end_ticks,
                 });
             }
-            if w >= 28.0 && local_y <= name_bottom {
+            if super::has_fade_grips(clip, w) && local_y <= name_bottom {
                 let fi = ticks_to_px(clip.fade_in_ticks.max(0), fps, pps);
                 let fo = ticks_to_px(clip.fade_out_ticks.max(0), fps, pps);
                 let fi_x = (x0 + TRIM + fi).min(x1 - FADE_GRIP);

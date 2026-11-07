@@ -661,6 +661,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "reasons a clip's take cannot slip inside it; the error copy census reads every reason",
         ),
         (
+            "GeneratedRefusal",
+            "what a generated clip has none of, which a speed or sound edit asked it to change; the error copy census reads every reason",
+        ),
+        (
             "FixtureId",
             "benchmark fixture identifier internal to aria-bench",
         ),

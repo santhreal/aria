@@ -34,6 +34,9 @@ mod room;
 #[path = "drawn_census_timeline_preview.rs"]
 mod preview;
 
+#[path = "drawn_census_timeline_refusals.rs"]
+mod refusals;
+
 /// How far a drag goes, in ticks. Six frames at the fixture's rate: far enough
 /// that every verb has something to do, near enough that the magnet's threshold
 /// can reach across it in the test that wants it to.

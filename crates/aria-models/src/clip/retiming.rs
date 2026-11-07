@@ -57,6 +57,29 @@ impl std::fmt::Display for SlipRefusal {
     }
 }
 
+/// What a generated clip has none of, which a request asked it to change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedRefusal {
+    /// A speed: the clip plays no source to retime.
+    Speed,
+    /// Sound: the clip has no volume, fades or audio envelope.
+    Sound,
+}
+
+impl GeneratedRefusal {
+    /// Every refusal, in declaration order.
+    pub const ALL: [GeneratedRefusal; 2] = [Self::Speed, Self::Sound];
+}
+
+impl std::fmt::Display for GeneratedRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Speed => "speed requires a media-backed clip",
+            Self::Sound => "audio parameters require a media-backed clip",
+        })
+    }
+}
+
 /// Which time a clip's parameter keyframes are addressed in.
 ///
 /// A picture clip's transform is clip-local: the animation belongs to the
@@ -154,7 +177,7 @@ impl Clip {
     /// has none.
     pub(crate) fn retimed_source(&self) -> Result<TimeRange, ModelError> {
         self.source_range()
-            .ok_or_else(|| ModelError::InvalidParam("speed requires a media-backed clip".into()))
+            .ok_or(ModelError::Generated(GeneratedRefusal::Speed))
     }
 
     /// Where the clip plays at `speed`: from where it starts, as long as its

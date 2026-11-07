@@ -133,7 +133,7 @@ fn set_clip_audio_rejects_invalid_inputs() {
         .unwrap();
     assert!(matches!(
         project.set_clip_audio(generated, Some(0.5), rt(0), rt(0)),
-        Err(ModelError::InvalidParam(_))
+        Err(ModelError::Generated(crate::clip::GeneratedRefusal::Sound))
     ));
 
     let missing = ClipId::next();
@@ -219,7 +219,7 @@ fn pan_param_keyframe_through_project_api() {
         .unwrap();
     assert!(matches!(
         project.set_param_constant(generated, ClipParam::Pan, ParamValue::Scalar(0.5)),
-        Err(ModelError::InvalidParam(_))
+        Err(ModelError::Generated(crate::clip::GeneratedRefusal::Sound))
     ));
 }
 
