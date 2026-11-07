@@ -5,7 +5,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
-use crate::convert::{fps_float, ticks};
+use crate::convert::{Seconds, fps_float, ticks};
 use crate::errors::{AriaError, model_err};
 use crate::project::Project;
 
@@ -199,12 +199,12 @@ pub(crate) fn slice_source_range(
 ) -> PyResult<TimeRange> {
     let media = Media::require(project, slice.media)?;
     let rate = media.frame_rate;
-    let start = ticks(slice.start_sec, rate)?;
+    let start = ticks(slice.start_sec, rate, Seconds::Media)?;
     let end_tick = if let Some(dur) = duration_override {
-        start + ticks(dur, rate)?.max(1)
+        start + ticks(dur, rate, Seconds::Length("duration"))?.max(1)
     } else {
         match slice.end_sec {
-            Some(end) => ticks(end, rate)?,
+            Some(end) => ticks(end, rate, Seconds::Media)?,
             None => media.duration.value,
         }
     };

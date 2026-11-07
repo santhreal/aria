@@ -10,8 +10,8 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 
 use crate::content::apply_text_style;
 use crate::convert::{
-    clip_key_time, parse_color, parse_easing, parse_keyframe_pairs, py_float, py_float2, seconds,
-    span, speed_from_f64, speed_to_f64, ticks, time_at,
+    Seconds, clip_key_time, parse_color, parse_easing, parse_keyframe_pairs, py_float, py_float2,
+    seconds, span, speed_from_f64, speed_to_f64, ticks, time_at,
 };
 use crate::effect::Effect;
 use crate::errors::{AriaError, model_err};

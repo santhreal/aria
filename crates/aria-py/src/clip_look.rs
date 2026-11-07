@@ -62,7 +62,7 @@ pub(super) fn transition(
         project.atomic(|project| {
             // Read before the transition is added, so a bad duration adds none.
             let length = duration
-                .map(|dur| ticks(dur, project.rate()))
+                .map(|dur| ticks(dur, project.rate(), Seconds::Length("duration")))
                 .transpose()?
                 .map(|length| length.max(1));
             project

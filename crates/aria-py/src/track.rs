@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 
 use crate::clip::Clip;
 use crate::content::generator_from;
-use crate::convert::{seconds, span, ticks, time_at, track_kind_name};
+use crate::convert::{Seconds, seconds, span, ticks, time_at, track_kind_name};
 use crate::errors::{AriaError, model_err};
 use crate::media::{Media, MediaSlice, full_source_range, slice_source_range};
 use crate::project::Project;
@@ -284,7 +284,11 @@ fn place_content(
         let source = match duration {
             Some(d) => {
                 let media_rate = Media::require(project, media.id())?.frame_rate;
-                TimeRange::at_rate(0, ticks(d, media_rate)?.max(1), media_rate)
+                TimeRange::at_rate(
+                    0,
+                    ticks(d, media_rate, Seconds::Length("duration"))?.max(1),
+                    media_rate,
+                )
             }
             None => full_source_range(project, media.id())?,
         };

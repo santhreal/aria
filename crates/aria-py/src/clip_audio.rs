@@ -14,19 +14,29 @@ pub(super) fn volume(handle: &Clip, py: Python) -> PyResult<f64> {
     })
 }
 
+/// Sets a flat gain. The model writes the fades it is given, so the clip's
+/// own fades are passed back unchanged.
 pub(super) fn set_volume(handle: &Clip, py: Python, value: f32) -> PyResult<()> {
     handle.with_project(py, |project| {
+        let clip = Clip::require(project, handle.id)?;
         let rate = project.rate();
+        let (fade_in, fade_out) = (
+            RationalTime::new(clip.fade_in, rate),
+            RationalTime::new(clip.fade_out, rate),
+        );
         project
             .model_mut()
-            .set_clip_audio(
-                handle.id,
-                Some(value),
-                RationalTime::zero(rate),
-                RationalTime::zero(rate),
-            )
+            .set_clip_audio(handle.id, Some(value), fade_in, fade_out)
             .map_err(model_err)
     })
+}
+
+/// A fade length from seconds, stated by its attribute when negative.
+fn fade(value: f64, rate: aria_models::Rational, what: &'static str) -> PyResult<RationalTime> {
+    Ok(RationalTime::new(
+        ticks(value, rate, Seconds::Length(what))?,
+        rate,
+    ))
 }
 
 pub(super) fn fade_in(handle: &Clip, py: Python) -> PyResult<f64> {
@@ -43,7 +53,7 @@ pub(super) fn set_fade_in(handle: &Clip, py: Python, value: f64) -> PyResult<()>
         let fade_out = RationalTime::new(clip.fade_out, rate);
         project
             .model_mut()
-            .set_clip_audio(handle.id, None, time_at(value, rate)?, fade_out)
+            .set_clip_audio(handle.id, None, fade(value, rate, "fade_in")?, fade_out)
             .map_err(model_err)
     })
 }
@@ -62,7 +72,7 @@ pub(super) fn set_fade_out(handle: &Clip, py: Python, value: f64) -> PyResult<()
         let fade_in = RationalTime::new(clip.fade_in, rate);
         project
             .model_mut()
-            .set_clip_audio(handle.id, None, fade_in, time_at(value, rate)?)
+            .set_clip_audio(handle.id, None, fade_in, fade(value, rate, "fade_out")?)
             .map_err(model_err)
     })
 }

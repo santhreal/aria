@@ -58,11 +58,26 @@ pub fn fps_float(rate: Rational) -> f64 {
 /// one tick, and the end of a span overflows `i64` arithmetic.
 const MAX_TICKS: f64 = 9_007_199_254_740_992.0;
 
+/// What a number of seconds a script passed measures, so a negative one is
+/// stated against its own origin: a fade of `-1` is not a time before the
+/// timeline starts.
+#[derive(Clone, Copy, Debug)]
+pub enum Seconds {
+    /// A position on the timeline.
+    Timeline,
+    /// A position into a clip, from its first frame.
+    Clip,
+    /// A position in a media file.
+    Media,
+    /// A length, stated by the argument that holds it.
+    Length(&'static str),
+}
+
 /// Seconds → tick count at `rate`, rounded. A time that is not finite, that
 /// rounds below zero, or that holds more than `2^53` ticks is a `ValueError`
 /// naming it, raised by the call that takes the time rather than later as an
 /// overlap or an arithmetic overflow.
-pub fn ticks(seconds: f64, rate: Rational) -> PyResult<i64> {
+pub fn ticks(seconds: f64, rate: Rational, of: Seconds) -> PyResult<i64> {
     if !seconds.is_finite() {
         return Err(PyValueError::new_err(format!(
             "{seconds} is not a finite number of seconds"
@@ -73,9 +88,12 @@ pub fn ticks(seconds: f64, rate: Rational) -> PyResult<i64> {
     }
     let t = (seconds * f64::from(rate.num) / f64::from(rate.den)).round();
     if t < 0.0 {
-        return Err(PyValueError::new_err(format!(
-            "{seconds} s is before the start of the timeline"
-        )));
+        return Err(PyValueError::new_err(match of {
+            Seconds::Timeline => format!("{seconds} s is before the start of the timeline"),
+            Seconds::Clip => format!("{seconds} s is before the start of the clip"),
+            Seconds::Media => format!("{seconds} s is before the start of the media"),
+            Seconds::Length(what) => format!("{what} must be >= 0, got {seconds}"),
+        }));
     }
     if t > MAX_TICKS {
         return Err(PyValueError::new_err(format!(
@@ -95,14 +113,17 @@ pub fn seconds(tick: i64, rate: Rational) -> f64 {
 
 /// A `[start, start+duration)` timeline range from seconds (duration ≥ 1 tick).
 pub fn span(start: f64, duration: f64, rate: Rational) -> PyResult<TimeRange> {
-    let start = ticks(start, rate)?;
-    let dur = ticks(duration, rate)?.max(1);
+    let start = ticks(start, rate, Seconds::Timeline)?;
+    let dur = ticks(duration, rate, Seconds::Length("duration"))?.max(1);
     Ok(TimeRange::at_rate(start, dur, rate))
 }
 
 /// Timeline instant from seconds.
 pub fn time_at(seconds: f64, rate: Rational) -> PyResult<RationalTime> {
-    Ok(RationalTime::new(ticks(seconds, rate)?, rate))
+    Ok(RationalTime::new(
+        ticks(seconds, rate, Seconds::Timeline)?,
+        rate,
+    ))
 }
 
 /// Clip-relative keyframe seconds → absolute timeline time for a clip
@@ -115,7 +136,7 @@ pub fn clip_key_time(
     rel_sec: f64,
     rate: Rational,
 ) -> PyResult<RationalTime> {
-    let mut tick = ticks(rel_sec, rate)?;
+    let mut tick = ticks(rel_sec, rate, Seconds::Clip)?;
     if tick == clip_duration && tick > 0 {
         tick -= 1;
     }
@@ -333,7 +354,7 @@ mod tests {
 
     #[test]
     fn ticks_round_trip_at_30fps() {
-        assert_eq!(ticks(1.0, R30).ok(), Some(30));
+        assert_eq!(ticks(1.0, R30, Seconds::Timeline).ok(), Some(30));
         assert!((seconds(30, R30) - 1.0).abs() < 1e-9);
     }
 
@@ -346,17 +367,17 @@ mod tests {
     /// seconds without these helpers.
     #[test]
     fn a_time_is_a_tick_from_zero_to_the_ceiling_or_an_error() {
-        assert_eq!(ticks(0.4999 / 30.0, R30).ok(), Some(0));
-        assert_eq!(ticks(0.5001 / 30.0, R30).ok(), Some(1));
-        assert_eq!(ticks(-0.4999 / 30.0, R30).ok(), Some(0));
-        assert!(ticks(-0.5001 / 30.0, R30).is_err());
-        assert!(ticks(-5.0, R30).is_err());
+        assert_eq!(ticks(0.4999 / 30.0, R30, Seconds::Timeline).ok(), Some(0));
+        assert_eq!(ticks(0.5001 / 30.0, R30, Seconds::Timeline).ok(), Some(1));
+        assert_eq!(ticks(-0.4999 / 30.0, R30, Seconds::Timeline).ok(), Some(0));
+        assert!(ticks(-0.5001 / 30.0, R30, Seconds::Timeline).is_err());
+        assert!(ticks(-5.0, R30, Seconds::Timeline).is_err());
         let one = Rational::new(1, 1);
-        assert_eq!(ticks(MAX_TICKS, one).ok(), Some(1 << 53));
-        assert!(ticks(MAX_TICKS + 2.0, one).is_err());
-        assert!(ticks(f64::MAX, one).is_err());
+        assert_eq!(ticks(MAX_TICKS, one, Seconds::Timeline).ok(), Some(1 << 53));
+        assert!(ticks(MAX_TICKS + 2.0, one, Seconds::Timeline).is_err());
+        assert!(ticks(f64::MAX, one, Seconds::Timeline).is_err());
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            assert!(ticks(bad, R30).is_err(), "{bad}");
+            assert!(ticks(bad, R30, Seconds::Timeline).is_err(), "{bad}");
             assert!(span(bad, 1.0, R30).is_err(), "span start {bad}");
             assert!(span(0.0, bad, R30).is_err(), "span duration {bad}");
             assert!(time_at(bad, R30).is_err(), "time_at {bad}");

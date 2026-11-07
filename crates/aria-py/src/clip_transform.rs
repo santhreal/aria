@@ -94,7 +94,7 @@ pub(super) fn transform_at(
 ) -> PyResult<((f64, f64), f64, f64, f64)> {
     handle.with_project_ref(py, |project| {
         let clip = Clip::require(project, handle.id)?;
-        let tick = ticks(t, project.rate())?;
+        let tick = ticks(t, project.rate(), Seconds::Timeline)?;
         let xf = clip.transform.sample(tick);
         Ok((
             py_float2((xf.position[0], xf.position[1])),

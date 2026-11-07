@@ -122,10 +122,14 @@ fn set_clip_audio_rejects_invalid_inputs() {
         project.set_clip_audio(clip, Some(1.0), rt(-1), rt(0)),
         Err(ModelError::InvalidParam(_))
     ));
-    assert!(matches!(
+    // The lengths are stated in seconds, the unit a script and the inspector
+    // write a fade in, never in ticks.
+    assert_eq!(
         project.set_clip_audio(clip, Some(1.0), rt(0), rt(101)),
-        Err(ModelError::InvalidParam(_))
-    ));
+        Err(ModelError::InvalidParam(
+            "fade_out (4.208 s) is longer than the clip (4.167 s)".into()
+        ))
+    );
 
     let fx = project.add_track(TrackKind::Adjustment, "FX");
     let generated = project

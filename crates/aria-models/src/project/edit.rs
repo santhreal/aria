@@ -737,7 +737,9 @@ impl Project {
             }
             if fade > duration {
                 return Err(ModelError::InvalidParam(format!(
-                    "{name} ({fade} ticks) is longer than the clip ({duration} ticks)"
+                    "{name} ({:.3} s) is longer than the clip ({:.3} s)",
+                    RationalTime::new(fade, tl_rate).seconds(),
+                    RationalTime::new(duration, tl_rate).seconds()
                 )));
             }
         }

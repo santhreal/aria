@@ -1509,6 +1509,8 @@ Notes for the latest release. For previous releases, see the
 - Splitting a clip at or past one of its ends reports `the cut is at or past an end of the clip` instead of `invalid time range (negative or zero duration where positive required)`.
 - Removing a keyframe that does not exist reports `opacity has no keyframe 0.500 s into the clip` instead of `no Opacity keyframe at tick 15`, and a keyframe position off the clip states the clip's span in seconds instead of its id and a tick.
 - Errors state a clip, track or media item as `#4` instead of `ClipId#4`, and an overlap names the track as `track #1`.
+- Setting `volume` on a clip from Python no longer clears its fades.
+- A negative fade, transition length, keyframe time or media time passed from Python is stated against its own origin instead of as a time before the start of the timeline, and a fade longer than its clip is stated in seconds instead of ticks.
 
 ## [alpha-0.7.0] - 2026-07-22
 
