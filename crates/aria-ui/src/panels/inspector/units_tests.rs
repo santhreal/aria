@@ -201,11 +201,11 @@ fn assert_each_reads_back(surface: &str, drawn: &[DrawnReadout]) {
 /// records no edit may leave the value where a bound holds it. Each recorded
 /// write is undone before the next, and the frame after the next write draws
 /// both: no readout is read off the undo itself.
-fn assert_each_moves_by_its_unit(
+fn assert_each_moves_by_its_unit<'d>(
     surface: &str,
     state: &Entity<AppState>,
     visual: &mut VisualTestContext,
-    drawn: &[DrawnReadout],
+    drawn: impl IntoIterator<Item = &'d DrawnReadout>,
 ) {
     for readout in drawn {
         let target = &readout.target;
@@ -367,10 +367,21 @@ fn inspector_keys(state: &AppState, params: &[ClipParam]) -> Vec<(String, Motion
         .collect()
 }
 
+/// The transition readouts' writes are cut into this many tests by their place
+/// in the draw order: each write redraws the Look tab.
+const SHARDS: usize = 6;
+
+/// Whether the readout drawn `at` is written in `shard`; every readout is
+/// written when there is no shard.
+fn in_shard(at: usize, shard: Option<usize>) -> bool {
+    shard.is_none_or(|shard| at % SHARDS == shard)
+}
+
 /// Draws the shell over `media` with the Inspector on `tab` and only the
 /// selected clip's `group` rows open on the timeline, after `dress`, and holds
-/// every readout it draws to the three rules. Each of `required` must be drawn,
-/// and at least `both` properties must be drawn on both surfaces.
+/// every readout it draws to the three rules, writing through those in
+/// `shard`. Each of `required` must be drawn, and at least `both` properties
+/// must be drawn on both surfaces.
 fn assert_readouts_hold(
     cx: &mut TestAppContext,
     (media, tab): (&str, &str),
@@ -378,6 +389,7 @@ fn assert_readouts_hold(
     dress: impl FnOnce(&mut AppState),
     required: impl FnOnce(&AppState) -> Vec<(String, MotionKey)>,
     both: usize,
+    shard: Option<usize>,
 ) {
     let (state, visual) = drawn_with(cx, &format!("units-{tab}"), media, tab, |state| {
         dress(state);
@@ -413,7 +425,17 @@ fn assert_readouts_hold(
             .map(|readout| &readout.text)
             .collect::<Vec<_>>()
     );
-    assert_each_moves_by_its_unit(tab, &state, visual, &drawn);
+    assert!(
+        shard.is_none() || drawn.len() >= SHARDS,
+        "{tab}: {} readouts leave a shard with none to write",
+        drawn.len()
+    );
+    let writing = drawn
+        .iter()
+        .enumerate()
+        .filter(|&(at, _)| in_shard(at, shard))
+        .map(|(_, readout)| readout);
+    assert_each_moves_by_its_unit(tab, &state, visual, writing);
 }
 
 #[gpui::test]
@@ -430,6 +452,7 @@ async fn every_transform_readout_reads_in_the_units_it_prints(cx: &mut TestAppCo
             )
         },
         2,
+        None,
     );
 }
 
@@ -442,6 +465,7 @@ async fn every_audio_readout_reads_in_the_units_it_prints(cx: &mut TestAppContex
         |_| {},
         |state| inspector_keys(state, &[ClipParam::Volume]),
         1,
+        None,
     );
 }
 
@@ -476,12 +500,13 @@ async fn every_effect_readout_reads_in_the_units_it_prints(cx: &mut TestAppConte
                 inspector_keys(state, &slots)
             },
             2,
+            None,
         );
     });
 }
 
-#[gpui::test]
-async fn every_transition_readout_reads_in_the_units_it_prints(cx: &mut TestAppContext) {
+/// The transition readouts written in `shard`, each shard a test of its own.
+fn transition_readouts_hold(cx: &mut TestAppContext, shard: usize) {
     // Registers and drops a transition every other library test can list.
     crate::test_support::catalogs::own_process(|| {
         let _registration = aria_models::register_transition(
@@ -519,8 +544,60 @@ async fn every_transition_readout_reads_in_the_units_it_prints(cx: &mut TestAppC
                     .collect()
             },
             0,
+            Some(shard),
         );
     });
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_0(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 0);
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_1(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 1);
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_2(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 2);
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_3(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 3);
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_4(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 4);
+}
+
+#[gpui::test]
+async fn every_transition_readout_reads_in_the_units_it_prints_5(cx: &mut TestAppContext) {
+    transition_readouts_hold(cx, 5);
+}
+
+/// Every readout's place falls in one shard and no other, for any count of
+/// readouts, and each shard has a test: a shard added to [`SHARDS`] without
+/// one leaves its readouts unwritten.
+#[test]
+fn the_transition_shards_write_each_readout_once() {
+    for count in 0..=3 * SHARDS + 1 {
+        for at in 0..count {
+            let shards: Vec<usize> = (0..SHARDS)
+                .filter(|&shard| in_shard(at, Some(shard)))
+                .collect();
+            assert_eq!(
+                shards.len(),
+                1,
+                "readout {at} of {count} is in shards {shards:?}"
+            );
+            assert!(in_shard(at, None), "readout {at} unwritten without a shard");
+        }
+    }
+    assert_eq!(SHARDS, 6, "one `every_transition_readout` test per shard");
 }
 
 /// Every crop row prints and drags in the units of a crop, which the Info panel
