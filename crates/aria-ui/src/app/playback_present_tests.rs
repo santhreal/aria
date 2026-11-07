@@ -403,9 +403,30 @@ async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
             "{label}: playback stopped on the first vsync (duration_ticks = {})",
             visual.read(|app| state.read(app).store.sequence.duration_ticks)
         );
-        visual.run_until_parked();
-        settle(&state, visual).await;
-        assert_eq!(vsync(&state, visual, 2), 1, "{label}: second vsync");
+        // The sample project has sound, so on a host with an output device the
+        // run follows the audio clock, which holds the playhead at the start
+        // for the device's output latency. The playhead gets a deadline to
+        // move rather than a count of vsyncs.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut periods = 2;
+        loop {
+            visual.run_until_parked();
+            settle(&state, visual).await;
+            assert_eq!(
+                vsync(&state, visual, periods),
+                1,
+                "{label}: vsync {periods}"
+            );
+            if visual.read(|app| state.read(app).playhead.value) > 0 {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{label}: playhead stayed at 0 for 5 s of vsyncs"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+            periods += 1;
+        }
         visual.run_until_parked();
 
         visual.read(|app| {
