@@ -40,7 +40,7 @@ data dir (ARIA_DATA_DIR, else the platform default)
 
 The data directory is resolved once and passed to both: the mount reads catalog
 overrides and external plugins from it, and the session writes settings, caches
-and the recovery file into it. A start is measured against the boot cover's
+and recovery copies into it. A start is measured against the boot cover's
 ceiling by `cargo test -p aria-desktop first_interactive_frame`; the numbers are
 in `docs/performance.md`.
 

@@ -385,6 +385,8 @@ fn window_title_tracks_project_name_and_dirty_state_across_every_open_path() {
             OpenPath::Recovery => {
                 state.project_path = Some(project_file.clone());
                 state.write_recovery().expect("write recovery copy");
+                // A relaunch: the session that wrote the copy has ended.
+                drop(state);
                 state =
                     crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir.clone())
                         .expect("relaunch AppState with pending recovery");
@@ -670,6 +672,8 @@ fn every_project_name_surface_reads_one_owner_across_open_save_as_and_recovery()
     raw_rec
         .save_to_file(&crate::app::recovery::recovery_path(&data_dir))
         .expect("overwrite recovery file with stale internal name");
+    // A relaunch: the session that wrote the copy has ended.
+    drop(state);
 
     let mut relaunched = crate::app::AppState::new(aria_plugin::PluginContext::new(), data_dir)
         .expect("relaunch AppState");

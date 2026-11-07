@@ -243,6 +243,8 @@ fn a_tick_while_the_session_is_held_starts_nothing() {
 #[test]
 fn rewriting_the_copy_waits_for_the_one_in_flight() {
     let mut state = dirty(scratch("recovery"));
+    // The session's own slot: a copy in flight writes only there.
+    state.write_recovery().expect("the first copy");
     state
         .autosave
         .start(Instant::now(), 0, late_copy(&state.data_dir, "older work"))
@@ -261,6 +263,7 @@ fn rewriting_the_copy_waits_for_the_one_in_flight() {
 #[test]
 fn clearing_the_copy_waits_for_the_one_in_flight() {
     let mut state = dirty(scratch("recovery"));
+    state.write_recovery().expect("the first copy");
     state
         .autosave
         .start(Instant::now(), 0, late_copy(&state.data_dir, "older work"))
@@ -448,6 +451,23 @@ fn discarding_the_offer_removes_it() {
     assert!(state.status_message.is_some());
 }
 
+/// WHY: the sidecar naming the project a copy shadows was written after the
+/// copy, and a failed write was dropped: such a copy read back with whatever
+/// sidecar an earlier copy left, and a restore aimed it at that project's
+/// file. A sidecar that cannot be replaced now fails the copy. A directory in
+/// the sidecar's place can be neither removed nor written over. Not caught: a
+/// sidecar removed and then not written, which reads back as untitled work.
+#[test]
+fn a_sidecar_that_cannot_be_replaced_fails_the_copy() {
+    let dir = scratch("recovery");
+    let mut state = dirty(dir.clone());
+    std::fs::create_dir_all(dir.join("recovery.path").join("held")).expect("a held sidecar");
+    assert!(
+        state.write_recovery().is_err(),
+        "a copy whose sidecar was not written reported success"
+    );
+}
+
 #[test]
 fn restoring_nothing_is_not_an_error() {
     let mut state = AppState::new(PluginContext::new(), scratch("recovery")).expect("state");
@@ -559,4 +579,68 @@ fn home_draws_the_recovery_offer_the_state_holds(cx: &mut gpui::TestAppContext) 
             );
         });
     });
+}
+
+/// WHY: two processes over one data directory shared one recovery copy. The
+/// second session's autosave replaced the first session's copy, and a save in
+/// the second deleted it, so a crash of the first lost its unsaved work. Each
+/// session holds a slot of its own: a second session neither replaces, offers
+/// nor clears the first session's copy, and once the first session is gone its
+/// copy is offered to the next launch. A second `AppState` stands in for the
+/// second process: the slot lock belongs to one open file, so two sessions in
+/// one process conflict as two processes do. Not caught: more sessions or
+/// left-behind copies than the slots hold.
+#[test]
+fn a_second_session_neither_replaces_nor_clears_the_first_sessions_copy() {
+    const FIRST: &str = "only the first session has this lane";
+    let dir = scratch("recovery");
+    let holds_first = |file: &Path| {
+        aria_models::Project::load_from_file(file)
+            .expect("a recovery copy")
+            .timeline()
+            .tracks_ordered()
+            .any(|track| track.name == FIRST)
+    };
+    let mut first = dirty(dir.clone());
+    first
+        .add_track(aria_models::TrackKind::Audio, FIRST)
+        .expect("the first session's work");
+    first.write_recovery().expect("the first session's copy");
+
+    let mut second = dirty(dir.clone());
+    second.write_recovery().expect("the second session's copy");
+    assert!(
+        holds_first(&recovery_path(&dir)),
+        "the second session's copy replaced the first session's"
+    );
+    second.project_path = Some(dir.join("second.aria"));
+    second.save_project().expect("the second session saves");
+    assert!(
+        recovery_path(&dir).is_file() && holds_first(&recovery_path(&dir)),
+        "the second session's save deleted the first session's copy"
+    );
+    assert_eq!(
+        second.pending_recovery(),
+        None,
+        "the second session offered the live first session's copy"
+    );
+
+    // The first session ends without saving; a new one edits before it takes
+    // up the offer.
+    drop(first);
+    let mut relaunched = dirty(dir.clone());
+    relaunched
+        .write_recovery()
+        .expect("the relaunched session's copy");
+    assert!(
+        holds_first(&recovery_path(&dir)),
+        "the relaunched session's copy replaced the ended session's"
+    );
+    let offer = relaunched
+        .pending_recovery()
+        .expect("the ended first session's copy was not offered");
+    assert!(
+        holds_first(&offer.file),
+        "the offer is not the first session's copy"
+    );
 }

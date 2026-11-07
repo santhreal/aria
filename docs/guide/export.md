@@ -138,15 +138,20 @@ Home?`:
   replace the project with an empty one, so Quit on Home does not prompt again.
 - **Stay** cancels. Nothing is saved and nothing is replaced.
 
-While a project has unsaved edits, a copy is written to `~/.aria/recovery.aria`
+While a project has unsaved edits, a recovery copy is written to `~/.aria/`
 at most every twenty seconds, in the background, so editing continues while it
-is written. No copy is written while the session has no edit the last copy does
-not hold. Saving, opening, or starting a project deletes it, as does **Discard**
-on Close, Home, or Quit, so the copy only ever exists when the file on disk is
-behind the session.
+is written. Each Aria process writes its copy to the first of `recovery.aria`,
+`recovery-1.aria`, `recovery-2.aria`, and so on, that holds no copy and that no
+other running process writes, and writes and deletes only that copy. No copy is
+written while the session has no edit the last copy does not hold. Saving,
+opening, or starting a project deletes the session's copy, as does **Discard**
+on Close, Home, or Quit, so a session's copy only exists while the file on disk
+is behind the session.
 
 If the app stops without saving (a crash, a kill, a power cut), Home shows the
-copy on the next launch:
+copy on the next launch. A copy that a running Aria process is still writing is
+not shown. With more than one copy left behind, Home shows the next one after
+each Restore or Discard:
 
 - **Restore** loads it and aims Save back at the project it came from. The
   session reads unsaved, because the project file still holds the older content.

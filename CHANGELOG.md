@@ -1423,6 +1423,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new` fails on a folder among its media with "<path>: is a directory; name a media file" before importing any file.
 - `aria plugin check` on an archive states the temporary directory, not the archive, when it cannot make its scratch directory there.
 - `aria` rejects a flag given twice, such as `--fps 24 --fps 30`, as a usage error instead of keeping the last value.
+- A second Aria window process no longer replaces or deletes the first process's recovery copy; each session writes its own slot, and Home offers a copy only once the session that wrote it has ended.
 
 ## [alpha-0.7.0] - 2026-07-22
 

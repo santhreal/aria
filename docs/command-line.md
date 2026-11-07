@@ -356,7 +356,7 @@ code `2` before a window opens. Write a path that starts with `-` as `./-name`.
 
 | Variable | Effect |
 | --- | --- |
-| `ARIA_DATA_DIR` | Profile directory for settings, caches, the recovery file, installed plugins, and catalog overrides |
+| `ARIA_DATA_DIR` | Profile directory for settings, caches, recovery copies, installed plugins, and catalog overrides |
 | `ARIA_PLUGIN_DEV` | Plugin package directory loaded for development over any installed plugin with the same id and reloaded when its files change |
 | `ARIA_MOTION_SCALE` | Duration multiplier for UI transitions from `0.01` to `100`, applied at startup over the speed saved in Settings |
 | `RUST_LOG` | `tracing_subscriber::EnvFilter` directive string (`warn` default with `info` on Aria crates) |

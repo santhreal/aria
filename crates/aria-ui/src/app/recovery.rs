@@ -20,9 +20,18 @@
 //! copy, and dropping the session, first wait for the copy in flight, so a
 //! late copy never replaces a newer one or lands after the offer was cleared.
 //!
+//! Each session writes to a slot of its own, `recovery.aria` for the first
+//! and `recovery-N.aria` for the rest, and holds a lock on the slot for as
+//! long as it lives. Two processes over one data directory used to share one
+//! copy: each autosave replaced the other's, and a save in one deleted the
+//! other's, so a crash of the second lost its work. A session now writes,
+//! offers and clears only its own copy, and a copy whose session is gone is
+//! offered on the next launch.
+//!
 //! Time is a parameter, never `Instant::now()` read in here, so the interval is
 //! testable without sleeping.
 
+use std::fs::{File, TryLockError};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -46,14 +55,50 @@ pub const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(20);
 /// it.
 const THREAD_NAME: &str = "aria-autosave";
 
-/// The recovery copy for `data_dir`.
+/// The most recovery slots a data directory holds: one for each session open
+/// at once, and one for each session that ended without saving its work.
+const SLOTS: usize = 16;
+
+/// The recovery copy in the first slot of `data_dir`, the one a lone session
+/// writes.
 pub fn recovery_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("recovery.aria")
+    slot_file(data_dir, 0, "aria")
 }
 
-/// The sidecar naming the project the recovery copy shadows.
-fn sidecar_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("recovery.path")
+/// Slot `index`'s file with `extension`: the copy (`aria`), the sidecar naming
+/// the project the copy shadows (`path`), and the lock a live session holds on
+/// the slot (`lock`).
+fn slot_file(data_dir: &Path, index: usize, extension: &str) -> PathBuf {
+    if index == 0 {
+        data_dir.join(format!("recovery.{extension}"))
+    } else {
+        data_dir.join(format!("recovery-{index}.{extension}"))
+    }
+}
+
+/// Lock slot `index` of `data_dir` for as long as the returned file stays
+/// open, or `None` while another session holds it. The operating system
+/// releases the lock when the session's process ends, so a slot whose lock is
+/// free holds no live session.
+fn lock_slot(data_dir: &Path, index: usize) -> io::Result<Option<File>> {
+    let lock = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(slot_file(data_dir, index, "lock"))?;
+    match lock.try_lock() {
+        Ok(()) => Ok(Some(lock)),
+        Err(TryLockError::WouldBlock) => Ok(None),
+        Err(TryLockError::Error(err)) => Err(err),
+    }
+}
+
+/// Remove slot `index`'s copy and sidecar. The lock file stays: removing it
+/// while another session opens it would let two sessions hold one slot.
+fn remove_slot(data_dir: &Path, index: usize) {
+    let _ = std::fs::remove_file(slot_file(data_dir, index, "aria"));
+    let _ = std::fs::remove_file(slot_file(data_dir, index, "path"));
 }
 
 /// Work found on disk that no save accounts for.
@@ -65,6 +110,16 @@ pub struct RecoveryOffer {
     pub project: Option<PathBuf>,
     /// What to call it on screen.
     pub name: String,
+    /// The slot the copy is in.
+    pub(crate) slot: usize,
+}
+
+/// The slot a session writes its recovery copy to, and the lock that marks the
+/// slot as held while the session lives.
+#[derive(Debug)]
+struct Slot {
+    index: usize,
+    _lock: File,
 }
 
 /// When the last recovery copy started, and the one still being written.
@@ -83,9 +138,44 @@ pub(crate) struct Autosave {
     /// the session, so the next due tick writes one; a due tick at this
     /// revision writes nothing, since the copy on disk already holds it.
     copied: Option<u64>,
+    /// The slot this session's copy goes to, locked at the first copy.
+    slot: Option<Slot>,
 }
 
 impl Autosave {
+    /// The slot this session holds, if it has written a copy.
+    fn slot_index(&self) -> Option<usize> {
+        self.slot.as_ref().map(|slot| slot.index)
+    }
+
+    /// The slot this session writes its copy to, locking the first free one
+    /// on first use. A slot that holds a copy is passed over: the copy is
+    /// another session's, live or ended, and stays until it is restored or
+    /// discarded. Sessions in two processes over one data directory each
+    /// write, offer and clear only their own copy.
+    fn claim(&mut self, data_dir: &Path) -> io::Result<usize> {
+        if let Some(index) = self.slot_index() {
+            return Ok(index);
+        }
+        std::fs::create_dir_all(data_dir)?;
+        for index in 0..SLOTS {
+            let Some(lock) = lock_slot(data_dir, index)? else {
+                continue;
+            };
+            // Checked under the lock: a session that held the slot may have
+            // written its copy and ended before the lock was taken.
+            if slot_file(data_dir, index, "aria").exists() {
+                continue;
+            }
+            self.slot = Some(Slot { index, _lock: lock });
+            return Ok(index);
+        }
+        Err(io::Error::other(format!(
+            "each of the {SLOTS} recovery slots in {} holds a copy or a live session",
+            data_dir.display()
+        )))
+    }
+
     /// Whether a copy may start at `now`: the interval since the last one has
     /// passed and no copy is still being written.
     pub(super) fn due(&self, now: Instant) -> bool {
@@ -142,31 +232,48 @@ impl Drop for Autosave {
     }
 }
 
-/// Write `project` as the recovery copy in `data_dir`, then the sidecar naming
-/// `origin`, the project file it shadows.
-fn write_copy(data_dir: &Path, project: &Project, origin: &str) -> io::Result<()> {
-    let _ = std::fs::create_dir_all(data_dir);
-    project.save_to_file(&recovery_path(data_dir))?;
-    let _ = std::fs::write(sidecar_path(data_dir), origin);
-    Ok(())
+/// Write `project` as the copy in slot `index` of `data_dir`, then the sidecar
+/// naming `origin`, the project file it shadows. The old sidecar is removed
+/// first, so a copy is never read with a sidecar that names another project:
+/// a copy without one is offered as untitled work.
+fn write_copy(data_dir: &Path, index: usize, project: &Project, origin: &str) -> io::Result<()> {
+    let sidecar = slot_file(data_dir, index, "path");
+    match std::fs::remove_file(&sidecar) {
+        Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
+        _ => {}
+    }
+    project.save_to_file(&slot_file(data_dir, index, "aria"))?;
+    std::fs::write(sidecar, origin)
 }
 
-/// Read the recovery offer in `data_dir` from disk, if a recovery copy exists.
+/// Read the recovery offer in `data_dir` from disk: the first copy no live
+/// session holds.
 pub(crate) fn load_pending_recovery(data_dir: &Path) -> Option<RecoveryOffer> {
-    let file = recovery_path(data_dir);
-    if !file.is_file() {
-        return None;
-    }
-    let project = std::fs::read_to_string(sidecar_path(data_dir))
-        .ok()
-        .map(|text| text.trim().to_string())
-        .filter(|text| !text.is_empty())
-        .map(PathBuf::from);
-    let name = super::session::project_name_of(project.as_deref(), "Untitled project").to_owned();
-    Some(RecoveryOffer {
-        file,
-        project,
-        name,
+    offer_in(data_dir, None)
+}
+
+/// The first copy in `data_dir` that is in slot `own` or in a slot no live
+/// session holds. A copy in another live session's slot is that session's
+/// work in progress, not work a crash left behind.
+fn offer_in(data_dir: &Path, own: Option<usize>) -> Option<RecoveryOffer> {
+    (0..SLOTS).find_map(|slot| {
+        let file = slot_file(data_dir, slot, "aria");
+        if !file.is_file() || (own != Some(slot) && matches!(lock_slot(data_dir, slot), Ok(None))) {
+            return None;
+        }
+        let project = std::fs::read_to_string(slot_file(data_dir, slot, "path"))
+            .ok()
+            .map(|text| text.trim().to_string())
+            .filter(|text| !text.is_empty())
+            .map(PathBuf::from);
+        let name =
+            super::session::project_name_of(project.as_deref(), "Untitled project").to_owned();
+        Some(RecoveryOffer {
+            file,
+            project,
+            name,
+            slot,
+        })
     })
 }
 
@@ -204,7 +311,16 @@ impl AppState {
         if self.autosave.copied == Some(revision) {
             return false;
         }
-        let write = self.recovery_write(project);
+        let write = match self.recovery_write(project) {
+            Ok(write) => write,
+            Err(err) => {
+                // The next attempt waits out the interval, so a data directory
+                // with no free slot is not retried at every tick.
+                self.autosave.last = Some(now);
+                tracing::warn!(error = %err, "the recovery copy has no slot to go to");
+                return false;
+            }
+        };
         match self.autosave.start(now, revision, write) {
             Ok(()) => true,
             Err(err) => {
@@ -239,7 +355,7 @@ impl AppState {
             let engine = self.engine.lock();
             (engine.snapshot(), engine.revision())
         };
-        let write = self.recovery_write(project);
+        let write = self.recovery_write(project).map_err(EngineError::Io)?;
         self.autosave.copied = None;
         write().map_err(EngineError::Io)?;
         self.autosave.copied = Some(revision);
@@ -247,34 +363,37 @@ impl AppState {
         Ok(())
     }
 
-    /// The write of a recovery copy of `project`, a snapshot of the session.
+    /// The write of a recovery copy of `project`, a snapshot of the session,
+    /// into the slot this session holds.
     ///
     /// The snapshot costs a reference count; an edit made while the write
     /// still holds it copies the project once.
     fn recovery_write(
-        &self,
+        &mut self,
         project: Arc<Project>,
-    ) -> impl FnOnce() -> io::Result<()> + Send + 'static {
+    ) -> io::Result<impl FnOnce() -> io::Result<()> + Send + 'static> {
+        let index = self.autosave.claim(&self.data_dir)?;
         let data_dir = self.data_dir.clone();
         let origin = self
             .project_path
             .as_ref()
             .map(|path| path.display().to_string())
             .unwrap_or_default();
-        move || write_copy(&data_dir, &project, &origin)
+        Ok(move || write_copy(&data_dir, index, &project, &origin))
     }
 
-    /// Forget any recovery copy. Called whenever the real file catches up with
-    /// the session: a stale offer would hand back older work than the file
-    /// already holds.
+    /// Forget this session's recovery copy. Called whenever the real file
+    /// catches up with the session: a stale offer would hand back older work
+    /// than the file already holds. The copies of other sessions stay.
     pub fn clear_recovery(&mut self) {
         // A copy still in flight would land after the removal and offer it.
         self.autosave.finish();
-        let _ = std::fs::remove_file(recovery_path(&self.data_dir));
-        let _ = std::fs::remove_file(sidecar_path(&self.data_dir));
+        if let Some(index) = self.autosave.slot_index() {
+            remove_slot(&self.data_dir, index);
+        }
         self.autosave.last = None;
         self.autosave.copied = None;
-        self.pending_recovery = None;
+        self.refresh_pending_recovery();
     }
 
     /// The recovery copy waiting to be offered, if any.
@@ -288,7 +407,7 @@ impl AppState {
 
     /// Re-read [`Self::pending_recovery`] from `data_dir`.
     pub fn refresh_pending_recovery(&mut self) {
-        self.pending_recovery = load_pending_recovery(&self.data_dir);
+        self.pending_recovery = offer_in(&self.data_dir, self.autosave.slot_index());
     }
 
     /// Load the recovery copy, aimed back at the project it shadowed.
@@ -309,6 +428,7 @@ impl AppState {
         self.engine
             .lock()
             .adopt_recovered_path(offer.project.clone());
+        remove_slot(&self.data_dir, offer.slot);
         self.clear_recovery();
         self.enter_editor();
         self.sync_from_engine();
@@ -322,8 +442,11 @@ impl AppState {
         Ok(())
     }
 
-    /// Throw the recovery copy away.
+    /// Throw the offered recovery copy away.
     pub fn discard_recovery(&mut self) {
+        if let Some(offer) = self.pending_recovery.take() {
+            remove_slot(&self.data_dir, offer.slot);
+        }
         self.clear_recovery();
         self.clear_error();
         self.status_message = Some("Discarded the recovered work".into());
