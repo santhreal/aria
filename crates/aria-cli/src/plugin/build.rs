@@ -30,8 +30,8 @@ pub(crate) enum BuildTier {
 /// Detect the build tier of a source plugin directory.
 pub(crate) fn detect_build_tier(dir: &Path) -> Result<BuildTier, Failure> {
     let cargo_path = dir.join("Cargo.toml");
-    let cargo_text = fs::read_to_string(&cargo_path)
-        .map_err(|err| Failure::Failed(format!("{}: {err}", cargo_path.display())))?;
+    let cargo_text =
+        fs::read_to_string(&cargo_path).map_err(|err| Failure::io(&cargo_path, &err))?;
 
     if let Some(tier) = parse_metadata_tier(&cargo_text) {
         return Ok(tier);
@@ -281,8 +281,7 @@ pub(crate) fn stage_artifact(
     match tier {
         BuildTier::Native => {
             let lib_dir = dir.join(LIBRARY_DIR);
-            fs::create_dir_all(&lib_dir)
-                .map_err(|err| Failure::Failed(format!("{}: {err}", lib_dir.display())))?;
+            fs::create_dir_all(&lib_dir).map_err(|err| Failure::io(&lib_dir, &err))?;
             let file_name = library_name();
             let dest = lib_dir.join(&file_name);
             let tmp = lib_dir.join(format!(".{file_name}.tmp.{}", std::process::id()));
@@ -290,16 +289,16 @@ pub(crate) fn stage_artifact(
             if let Err(err) = copied {
                 let _ = fs::remove_file(&tmp);
                 return Err(Failure::Failed(format!(
-                    "{} -> {}: {err}",
+                    "{} -> {}: {}",
                     artifact.display(),
-                    dest.display()
+                    dest.display(),
+                    aria_models::io_reason(&err)
                 )));
             }
             Ok(dest)
         }
         BuildTier::Wasm => {
-            let core_bytes = fs::read(artifact)
-                .map_err(|err| Failure::Failed(format!("{}: {err}", artifact.display())))?;
+            let core_bytes = fs::read(artifact).map_err(|err| Failure::io(&artifact, &err))?;
             let component_bytes = ComponentEncoder::default()
                 .module(&core_bytes)
                 .and_then(|encoder| encoder.validate(true).encode())
@@ -315,7 +314,7 @@ pub(crate) fn stage_artifact(
                 write_and_sync(&tmp, &component_bytes).and_then(|()| fs::rename(&tmp, &dest));
             if let Err(err) = written {
                 let _ = fs::remove_file(&tmp);
-                return Err(Failure::Failed(format!("{}: {err}", dest.display())));
+                return Err(Failure::io(&dest, &err));
             }
             Ok(dest)
         }

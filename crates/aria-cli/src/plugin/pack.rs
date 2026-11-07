@@ -43,8 +43,7 @@ pub(crate) fn pack_dir(
     if let Some(parent) = archive_path.parent()
         && !parent.as_os_str().is_empty()
     {
-        fs::create_dir_all(parent)
-            .map_err(|err| Failure::Failed(format!("{}: {err}", parent.display())))?;
+        fs::create_dir_all(parent).map_err(|err| Failure::io(&parent, &err))?;
     }
     let packed = pack(dir, &archive_path).map_err(|err| Failure::Failed(err.to_string()))?;
     println!("packed       {}", archive_path.display());

@@ -49,9 +49,13 @@ pub(crate) fn cargo_build(
     }
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let output = cmd
-        .output()
-        .map_err(|err| format!("failed to run cargo for {}: {err}", manifest_path.display()))?;
+    let output = cmd.output().map_err(|err| {
+        format!(
+            "failed to run cargo for {}: {}",
+            manifest_path.display(),
+            aria_models::io_reason(&err)
+        )
+    })?;
     if !output.stderr.is_empty() {
         let _ = std::io::stderr().write_all(&output.stderr);
     }
@@ -76,5 +80,5 @@ pub(crate) fn spawn_editor(
         cmd.env("ARIA_DATA_DIR", data_dir);
     }
     cmd.spawn()
-        .map_err(|err| format!("{}: {err}", editor.display()))
+        .map_err(|err| format!("{}: {}", editor.display(), aria_models::io_reason(&err)))
 }

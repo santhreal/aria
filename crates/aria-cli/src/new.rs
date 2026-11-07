@@ -78,9 +78,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let mut video_cursor = 0_i64;
     let mut audio_cursor = 0_i64;
     for path in &media {
-        let path = path
-            .canonicalize()
-            .map_err(|err| format!("{}: {err}", path.display()))?;
+        let path = path.canonicalize().map_err(|err| Failure::io(path, &err))?;
         let ApplyOutcome::Imported { media } = engine
             .apply(Command::Project(ProjectCommand::Import {
                 path: path.clone(),

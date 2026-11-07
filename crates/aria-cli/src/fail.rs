@@ -35,6 +35,17 @@ impl Failure {
             }
         }
     }
+
+    /// A failed read or write of `path`: the path, then the reason as
+    /// [`aria_models::io_reason`] states it, so "Permission denied (os error
+    /// 13)" reads as "<path>: permission denied".
+    pub(crate) fn io(path: &std::path::Path, err: &std::io::Error) -> Self {
+        Failure::Failed(format!(
+            "{}: {}",
+            path.display(),
+            aria_models::io_reason(err)
+        ))
+    }
 }
 
 impl From<ArgsError> for Failure {

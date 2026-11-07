@@ -5,8 +5,12 @@
 //! 2. `--sdk` with a wasm plugin is now a wrong command line, and so is a
 //! malformed id; neither writes anything.
 //!
+//! A parent folder that cannot be written printed the OS text with its code,
+//! "Permission denied (os error 13)". Every plugin command states a failed
+//! read or write through `Failure::io`, as the path and the reason alone.
+//!
 //! Not caught: a flag a later tier reads that wasm ignores, unless it is
-//! added to the cases here.
+//! added to the cases here; a write failure under root, which writes anyway.
 
 use super::NewTier;
 use crate::args::Args;
@@ -107,4 +111,26 @@ fn a_malformed_id_is_a_wrong_command_line_and_writes_nothing() {
             "{id}: nothing is written"
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_parent_that_cannot_be_written_is_stated_with_its_reason() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mode = |bits| std::fs::Permissions::from_mode(bits);
+    std::fs::set_permissions(dir.path(), mode(0o555)).expect("make read-only");
+    let probe = std::fs::write(dir.path().join("probe"), b"");
+    let parent = dir.path().to_string_lossy().into_owned();
+    let ran = run(&["plugin", "new", "com.example.q", "--dir", &parent]);
+    std::fs::set_permissions(dir.path(), mode(0o755)).expect("restore");
+    if probe.is_ok() {
+        return;
+    }
+    assert_eq!(
+        ran,
+        Err(Failure::Failed(format!(
+            "{parent}/com.example.q: permission denied"
+        )))
+    );
 }

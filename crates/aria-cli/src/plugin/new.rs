@@ -162,7 +162,7 @@ pub(crate) fn resolve_sdk_dependency_with(
     if let Some(sdk_path) = sdk_arg {
         let canonical = sdk_path
             .canonicalize()
-            .map_err(|err| Failure::Failed(format!("{}: {err}", sdk_path.display())))?;
+            .map_err(|err| Failure::io(&sdk_path, &err))?;
         if !canonical.join("Cargo.toml").is_file() {
             return Err(Failure::Failed(format!(
                 "{}: no Cargo.toml found for --sdk",
@@ -236,10 +236,9 @@ fn write_file(path: &Path, contents: &str) -> Result<(), Failure> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
     {
-        fs::create_dir_all(parent)
-            .map_err(|err| Failure::Failed(format!("{}: {err}", parent.display())))?;
+        fs::create_dir_all(parent).map_err(|err| Failure::io(&parent, &err))?;
     }
-    fs::write(path, contents).map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))
+    fs::write(path, contents).map_err(|err| Failure::io(&path, &err))
 }
 
 #[cfg(test)]

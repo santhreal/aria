@@ -11,10 +11,12 @@ use crate::schema::ProjectSchema;
 use crate::time::{Rational, TimeError};
 use crate::track::TrackKind;
 
-/// The reason an I/O error states, without the code an OS error is numbered
-/// by: "Permission denied (os error 13)" reads as "permission denied", and
-/// any other OS error as the OS states it. An error built with a message of
-/// its own reads as that message.
+/// The reason an I/O error states, as a clause that follows a path: an OS
+/// error reads in lower case, without the code the OS numbers it by and
+/// without a closing period, so "Permission denied (os error 13)" reads as
+/// "permission denied" and "Is a directory (os error 21)" as "is a
+/// directory". An error built with a message of its own reads as that
+/// message.
 pub fn io_reason(err: &io::Error) -> String {
     if err.raw_os_error().is_none() {
         return err.to_string();
@@ -23,9 +25,17 @@ pub fn io_reason(err: &io::Error) -> String {
         return "permission denied".to_owned();
     }
     let text = err.to_string();
-    match text.split_once(" (os error ") {
-        Some((reason, _)) => reason.to_owned(),
-        None => text,
+    let reason = text
+        .split_once(" (os error ")
+        .map_or(text.as_str(), |(reason, _)| reason)
+        .trim_end_matches('.');
+    let mut chars = reason.chars();
+    match (chars.next(), chars.next()) {
+        (Some(first), Some(second)) if first.is_uppercase() && !second.is_uppercase() => first
+            .to_lowercase()
+            .chain(reason[first.len_utf8()..].chars())
+            .collect(),
+        _ => reason.to_owned(),
     }
 }
 
@@ -830,22 +840,18 @@ mod tests {
     }
 
     /// An OS read error other than a missing file, a refused read or a
-    /// directory reads as the OS states it, without the error code the OS
-    /// numbers it by.
+    /// directory reads as the OS states it, in lower case and without the
+    /// error code the OS numbers it by.
+    #[cfg(unix)]
     #[test]
     fn an_os_read_error_reads_without_its_code() {
         let err =
             ProjectLoadError::from_io(Path::new("cut.aria"), &io::Error::from_raw_os_error(5));
-        let stated = io::Error::from_raw_os_error(5).to_string();
-        let (reason, code) = stated
-            .split_once(" (os error ")
-            .expect("an OS error states its code");
-        assert_eq!(code, "5)");
         assert_eq!(
             err,
             ProjectLoadError::Unreadable {
                 path: "cut.aria".into(),
-                reason: reason.to_owned(),
+                reason: "input/output error".to_owned(),
             }
         );
     }
@@ -858,7 +864,6 @@ mod tests {
     #[test]
     fn an_unwritable_directory_is_stated_with_its_reason() {
         let dir = Path::new("renders/out");
-        let eio = io::Error::from_raw_os_error(5).to_string();
         let mut cases = vec![
             (
                 io::Error::from(io::ErrorKind::PermissionDenied),
@@ -868,13 +873,17 @@ mod tests {
                 io::Error::new(io::ErrorKind::PermissionDenied, "read-only share"),
                 "read-only share".to_owned(),
             ),
-            (
-                io::Error::from_raw_os_error(5),
-                eio.split_once(" (os error ").expect("code").0.to_owned(),
-            ),
         ];
         #[cfg(unix)]
-        cases.push((io::Error::from_raw_os_error(13), "permission denied".into()));
+        cases.extend([
+            (io::Error::from_raw_os_error(13), "permission denied".into()),
+            (io::Error::from_raw_os_error(5), "input/output error".into()),
+            (io::Error::from_raw_os_error(21), "is a directory".into()),
+            (
+                io::Error::from_raw_os_error(30),
+                "read-only file system".into(),
+            ),
+        ]);
         for (err, reason) in cases {
             assert_eq!(io_reason(&err), reason, "{err:?}");
             let stated = unwritable_directory(dir, &err);

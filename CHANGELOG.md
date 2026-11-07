@@ -1415,6 +1415,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new`, `aria frame`, `aria export` and Save As into a folder that cannot be written state the folder and the reason instead of a bare "Permission denied (os error 13)".
 - Writing, opening or installing a `.ariab` template bundle that fails states the bundle, the obstacle and the fix instead of reporting a damaged `.aria` project.
 - Installing a template bundle with an entry outside its layout writes no file; the entries before that one were extracted.
+- `aria plugin` commands state a failed read or write as the path and the reason, such as "permission denied", without the OS error code.
 
 ## [alpha-0.7.0] - 2026-07-22
 

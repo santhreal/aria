@@ -250,9 +250,12 @@ sample palette command in `src/lib.rs`, `Cargo.toml`, and `.gitignore`. `--tier`
 defaults to `wasm` and also writes `wit/plugin.wit` from the host world
 definition. `--tier native` generates a crate against `aria-sdk`, resolved from
 `--sdk PATH` when given, then `crates/aria-sdk` from the build tree when
-present, then the repository git URL. Exits `1` without writing files if the
-target directory already exists or `<id>` fails manifest validation. Prints the
-created directory path and the `dev` and `pack` commands on stdout.
+present, then the repository git URL. An `<id>` that fails manifest
+validation, and `--sdk` without `--tier native`, exit `2` without writing
+files. A target directory that already exists exits `1` without writing
+files, and a parent directory that cannot be written exits `1` and states
+the path and the reason. Prints the created directory path and the `dev` and
+`pack` commands on stdout.
 
 ```
 aria plugin new com.example.color-tools

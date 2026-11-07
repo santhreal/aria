@@ -42,13 +42,11 @@ pub(crate) fn run_dev(
     data_dir_arg: Option<&Path>,
 ) -> Result<(), Failure> {
     super::require_dir(dir, "a plugin directory")?;
-    let abs_dir = dir
-        .canonicalize()
-        .map_err(|err| Failure::Failed(format!("{}: {err}", dir.display())))?;
+    let abs_dir = dir.canonicalize().map_err(|err| Failure::io(&dir, &err))?;
 
     let manifest_path = abs_dir.join(MANIFEST_FILE);
-    let manifest_text = fs::read_to_string(&manifest_path)
-        .map_err(|err| Failure::Failed(format!("{}: {err}", manifest_path.display())))?;
+    let manifest_text =
+        fs::read_to_string(&manifest_path).map_err(|err| Failure::io(&manifest_path, &err))?;
     PackageManifest::parse(&manifest_text)
         .map_err(|reason| Failure::Failed(format!("{}: {reason}", manifest_path.display())))?;
 
@@ -57,12 +55,8 @@ pub(crate) fn run_dev(
 
     let data_dir = match data_dir_arg {
         Some(raw) => {
-            fs::create_dir_all(raw)
-                .map_err(|err| Failure::Failed(format!("{}: {err}", raw.display())))?;
-            Some(
-                raw.canonicalize()
-                    .map_err(|err| Failure::Failed(format!("{}: {err}", raw.display())))?,
-            )
+            fs::create_dir_all(raw).map_err(|err| Failure::io(&raw, &err))?;
+            Some(raw.canonicalize().map_err(|err| Failure::io(&raw, &err))?)
         }
         None => None,
     };
@@ -83,7 +77,7 @@ pub(crate) fn run_dev(
             thread::sleep(POLL_INTERVAL);
             if let Some(status) = child
                 .try_wait()
-                .map_err(|err| Failure::Failed(format!("{}: {err}", editor_path.display())))?
+                .map_err(|err| Failure::io(&editor_path, &err))?
             {
                 break status;
             }
@@ -99,7 +93,7 @@ pub(crate) fn run_dev(
     } else {
         child
             .wait()
-            .map_err(|err| Failure::Failed(format!("{}: {err}", editor_path.display())))?
+            .map_err(|err| Failure::io(&editor_path, &err))?
     };
 
     exit_for_editor_status(status)

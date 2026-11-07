@@ -39,8 +39,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
 /// check to stdout.
 pub(crate) fn check_path(path: &Path) -> Result<Package, Failure> {
     if is_archive(path) {
-        let scratch = tempfile::tempdir()
-            .map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))?;
+        let scratch = tempfile::tempdir().map_err(|err| Failure::io(&path, &err))?;
         let unpacked_dir = scratch.path().join("package");
         unpack(path, &unpacked_dir).map_err(|err| Failure::Failed(err.to_string()))?;
         check_dir(&unpacked_dir)
@@ -56,8 +55,8 @@ pub(crate) fn check_dir(dir: &Path) -> Result<Package, Failure> {
     // manifest syntax first and then tell the developer how to build it.
     if is_unbuilt_source_dir(dir) {
         let manifest_path = dir.join(MANIFEST_FILE);
-        let text = fs::read_to_string(&manifest_path)
-            .map_err(|err| Failure::Failed(format!("{}: {err}", manifest_path.display())))?;
+        let text =
+            fs::read_to_string(&manifest_path).map_err(|err| Failure::io(&manifest_path, &err))?;
         PackageManifest::parse(&text)
             .map_err(|reason| Failure::Failed(format!("{}: {reason}", manifest_path.display())))?;
         return Err(Failure::Failed(format!(
@@ -258,12 +257,10 @@ fn check_code(package: &Package) -> Result<(), Failure> {
 /// format and architecture match its `<os>-<arch>.<ext>` name and that it
 /// exports `aria_plugin_entry`.
 fn inspect_lib_directory(lib_dir: &Path) -> Result<Vec<String>, Failure> {
-    let entries = fs::read_dir(lib_dir)
-        .map_err(|err| Failure::Failed(format!("{}: {err}", lib_dir.display())))?;
+    let entries = fs::read_dir(lib_dir).map_err(|err| Failure::io(&lib_dir, &err))?;
     let mut files = Vec::new();
     for entry in entries {
-        let entry =
-            entry.map_err(|err| Failure::Failed(format!("{}: {err}", lib_dir.display())))?;
+        let entry = entry.map_err(|err| Failure::io(&lib_dir, &err))?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if name.starts_with('.') {
             continue;
@@ -289,8 +286,7 @@ fn inspect_lib_directory(lib_dir: &Path) -> Result<Vec<String>, Failure> {
 }
 
 fn inspect_library_file(path: &Path, file_name: &str) -> Result<(), Failure> {
-    let meta = fs::symlink_metadata(path)
-        .map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))?;
+    let meta = fs::symlink_metadata(path).map_err(|err| Failure::io(&path, &err))?;
     if !meta.is_file() {
         return Err(Failure::Failed(format!(
             "{}: expected a shared library file in {LIBRARY_DIR}/",
@@ -301,8 +297,7 @@ fn inspect_library_file(path: &Path, file_name: &str) -> Result<(), Failure> {
     let (expected_os, expected_arch_name, expected_format, expected_arch) =
         parse_library_filename(path, file_name)?;
 
-    let bytes =
-        fs::read(path).map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))?;
+    let bytes = fs::read(path).map_err(|err| Failure::io(&path, &err))?;
     let parsed = object::File::parse(&*bytes).map_err(|err| {
         Failure::Failed(format!(
             "{}: invalid {expected_os}-{expected_arch_name} shared library: {err}",
