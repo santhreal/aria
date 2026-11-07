@@ -11,7 +11,7 @@
 
 use aria_core::count::counted;
 use aria_core::{ExportFormat, VideoCodec};
-use aria_render::{ExportSettings, Renderer, export_to_file_with_encoder_observed};
+use aria_render::{ExportSettings, RenderError, Renderer, export_to_file_with_encoder_observed};
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -59,6 +59,10 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     project::warn_missing_plugins(&project);
 
     let mut renderer = Renderer::new_headless().map_err(|err| err.to_string())?;
+    // A signal stops the export between frames, so the export discards its
+    // staging directory instead of leaving it, with a partial file, beside
+    // `out`.
+    let interrupt = crate::interrupt::Interrupt::install()?;
     let mut last_percent = u64::MAX;
     let mut observer = |done: u64, total: u64| {
         if progress && total > 0 {
@@ -68,7 +72,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
                 eprint!("\rencoding {percent}% ({done}/{total})");
             }
         }
-        true
+        interrupt.status().is_none()
     };
     let exported = export_to_file_with_encoder_observed(
         &mut renderer,
@@ -77,11 +81,18 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         settings,
         &mut aria_encoder::open_encoder,
         &mut observer as _,
-    )
-    .map_err(|err| err.to_string())?;
+    );
+    // Ends the progress line before a failure as well as before the receipt.
     if progress {
         eprintln!();
     }
+    let exported = exported.map_err(|err| match (err, interrupt.status()) {
+        (RenderError::Cancelled, Some(code)) => Failure::Exit {
+            code,
+            message: format!("interrupted; nothing was written to {}", out.display()),
+        },
+        (err, _) => Failure::Failed(err.to_string()),
+    })?;
     project::warn_driver_faults(&project);
     println!(
         "wrote {} of {}x{} {} to {}",

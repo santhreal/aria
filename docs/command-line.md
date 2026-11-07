@@ -161,6 +161,12 @@ code `2`. When `--to` is after `--at` but both land on the same frame, the
 message states the length of one frame. An export with zero frames (an empty
 timeline) fails with exit code `1` and states the reason.
 
+SIGINT, SIGTERM, or SIGHUP stops the export before its next frame. The
+partial file is deleted, an existing `<out.mp4>` is left as it was, and the
+command prints `interrupted; nothing was written to <out.mp4>` and exits `128`
+plus the signal number: `130` for SIGINT, `143` for SIGTERM. A second signal
+ends the process at once.
+
 ```
 aria export rough.aria out.mp4 --at 0 --to 30 --codec h265 --bitrate 8000
 ```

@@ -41,6 +41,7 @@ mod export;
 mod fail;
 mod frame;
 mod inspect;
+mod interrupt;
 mod new;
 mod out;
 mod plugin;

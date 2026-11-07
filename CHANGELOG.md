@@ -1447,6 +1447,7 @@ Notes for the latest release. For previous releases, see the
 - A new project or `.ariat` template takes the umask default mode, as an export does, instead of a mode readable by its owner alone.
 - The Python bindings README no longer gives `pip install --pre aria-py`, which installs an unrelated PyPI package; the bindings install from source with `maturin develop`.
 - `aria plugin pack` and `aria plugin dev` print cargo's build output as cargo writes it, instead of all at once after the build ends.
+- `aria export` stopped by SIGINT, SIGTERM, or SIGHUP deletes its partial file and exits `128` plus the signal number, instead of leaving a staging folder with the partial file beside the output.
 
 ## [alpha-0.7.0] - 2026-07-22
 

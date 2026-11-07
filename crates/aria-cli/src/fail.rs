@@ -13,7 +13,8 @@ pub(crate) enum Failure {
     Usage(String),
     /// The command ran and could not finish.
     Failed(String),
-    /// A child process exited with a specific non-zero status code.
+    /// A specific non-zero status: a child process's, or 128 plus the number
+    /// of a signal that stopped the command.
     Exit { code: i32, message: String },
 }
 

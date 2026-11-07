@@ -29,6 +29,7 @@ aria-plugin-abi = { path = "../aria-plugin-abi" }
 aria-plugin-wasm = { path = "../aria-plugin-wasm" }
 object = { version = "0.40", default-features = false, features = ["read_core", "elf", "macho", "pe", "std"] }
 serde_json = { workspace = true }
+signal-hook = { version = "0.3", default-features = false }
 tempfile = "3"
 wit-component = "0.258"
 
