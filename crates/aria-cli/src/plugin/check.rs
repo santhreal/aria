@@ -237,9 +237,13 @@ fn check_code(package: &Package) -> Result<(), Failure> {
             let _plugin = aria_plugin::external::load(package)
                 .map_err(|reason| Failure::Failed(format!("{}: {reason}", library.display())))?;
             println!(
-                "abi          native v{} (AriaPluginV1 {} bytes, {})",
+                "abi          native v{} (AriaPluginV1 {}, {})",
                 aria_plugin::external::ABI_VERSION,
-                std::mem::size_of::<aria_plugin_abi::AriaPluginV1>(),
+                counted(
+                    std::mem::size_of::<aria_plugin_abi::AriaPluginV1>(),
+                    "byte",
+                    "bytes"
+                ),
                 checked.join(", ")
             );
             println!(

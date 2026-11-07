@@ -38,9 +38,9 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     println!("rate      {}/{}", rate.num, rate.den);
     let empty_label = if duration.value == 0 { " (empty)" } else { "" };
     println!(
-        "duration  {} ({} ticks){empty_label}",
+        "duration  {} ({}){empty_label}",
         project::clock(duration.seconds()),
-        duration.value
+        counted(duration.value, "tick", "ticks")
     );
     let markers = timeline.markers();
     if !markers.is_empty() {
@@ -149,34 +149,38 @@ fn describe(project: &Project, content: &ClipSource) -> String {
                         .unwrap_or_else(|| entry.path.display().to_string())
                 })
                 .unwrap_or_else(|| "<missing pool entry>".to_string());
-            format!(
-                "{name} (source {} + {})",
-                source.start.value, source.duration.value
-            )
+            format!("{name} ({})", source_span(*source))
         }
         ClipSource::Generated(generator) => match generator_detail(generator) {
             Some(detail) => format!("{} {detail}", generator.spec().id),
             None => generator.spec().id.to_string(),
         },
         ClipSource::Multicam { group, source } => {
-            format!(
-                "Multicam {} (source {} + {})",
-                group.raw(),
-                source.start.value,
-                source.duration.value
-            )
+            format!("Multicam {} ({})", group.raw(), source_span(*source))
         }
         ClipSource::Sequence { sequence, source } => {
             let name = project
                 .sequence(*sequence)
                 .map(|s| s.name.clone())
                 .unwrap_or_else(|| format!("Sequence {}", sequence.raw()));
-            format!(
-                "{name} (source {} + {})",
-                source.start.value, source.duration.value
-            )
+            format!("{name} ({})", source_span(*source))
         }
     }
+}
+
+/// The part of a source a clip plays, as the times it plays from and to. The
+/// ticks are in the source's own rate, a video's frames and a sound's
+/// milliseconds, so two clips' raw ticks compare nothing.
+fn source_span(source: aria_core::TimeRange) -> String {
+    let end = aria_core::RationalTime::new(
+        source.start.value.saturating_add(source.duration.value),
+        source.start.rate,
+    );
+    format!(
+        "source {} → {}",
+        project::clock(source.start.seconds()),
+        project::clock(end.seconds())
+    )
 }
 
 /// The part of a generated clip its catalog row cannot name: the words in a
@@ -201,10 +205,10 @@ fn generator_detail(generator: &Generator) -> Option<String> {
 }
 #[cfg(test)]
 mod tests {
-    use aria_core::Rational;
-    use aria_models::{MediaKind, MediaSource};
+    use aria_core::{Rational, TimeRange};
+    use aria_models::{ClipSource, MediaKind, MediaSource, MulticamGroupId, Project, SequenceId};
 
-    use super::media_line;
+    use super::{describe, media_line};
 
     /// WHY: `aria inspect` printed a sound as `0x0 1000/1 0:00:02.000`, the
     /// size and tick rate its probe fills in for no picture, and a still with
@@ -237,6 +241,69 @@ mod tests {
         for (source, kind, line) in cases {
             assert_eq!(source.kind(), kind, "{}", source.path.display());
             assert_eq!(media_line(&source), line, "{}", source.path.display());
+        }
+    }
+
+    /// WHY: `aria inspect --clips` printed a clip's source window as raw ticks,
+    /// `(source 0 + 90)` for three seconds of a 30 fps video and `(source 0 +
+    /// 2000)` for two seconds of sound, each in its own source's rate with no
+    /// unit. Every kind of source window, media at a frame rate and at a sound's
+    /// tick rate, a multicam group, and a sequence, prints as the source times
+    /// it plays from and to, and a window whose end tick is past `i64::MAX`
+    /// prints without overflow. Not caught: a source whose `start` and
+    /// `duration` rates differ, which loading refuses.
+    #[test]
+    fn a_clip_source_window_prints_as_the_times_it_plays() {
+        let mut project = Project::new("p", Rational::FPS_24);
+        let video = project.add_media(MediaSource::new(
+            "v.mp4",
+            640,
+            360,
+            Rational::FPS_30,
+            90,
+            true,
+        ));
+        let ms = Rational::new(1000, 1);
+        let sound = project.add_media(MediaSource::new("s.wav", 0, 0, ms, 2000, true));
+        let cases = [
+            (
+                ClipSource::Media {
+                    media: video,
+                    source: TimeRange::at_rate(15, 60, Rational::FPS_30),
+                },
+                "v.mp4 (source 0:00:00.500 → 0:00:02.500)",
+            ),
+            (
+                ClipSource::Media {
+                    media: sound,
+                    source: TimeRange::at_rate(250, 2000, ms),
+                },
+                "s.wav (source 0:00:00.250 → 0:00:02.250)",
+            ),
+            (
+                ClipSource::Multicam {
+                    group: MulticamGroupId::from_raw(7),
+                    source: TimeRange::at_rate(48, 24, Rational::FPS_24),
+                },
+                "Multicam 7 (source 0:00:02.000 → 0:00:03.000)",
+            ),
+            (
+                ClipSource::Sequence {
+                    sequence: SequenceId::from_raw(9),
+                    source: TimeRange::at_rate(0, 72, Rational::FPS_24),
+                },
+                "Sequence 9 (source 0:00:00.000 → 0:00:03.000)",
+            ),
+            (
+                ClipSource::Media {
+                    media: video,
+                    source: TimeRange::at_rate(i64::MAX - 10, 30, Rational::new(i32::MAX, 1)),
+                },
+                "v.mp4 (source 1193046:28:18.000 → 1193046:28:18.000)",
+            ),
+        ];
+        for (content, line) in cases {
+            assert_eq!(describe(&project, &content), line);
         }
     }
 }

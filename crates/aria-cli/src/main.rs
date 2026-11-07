@@ -34,6 +34,8 @@ macro_rules! eprintln {
 
 mod analyze;
 mod args;
+#[cfg(test)]
+mod count_tests;
 mod demo;
 mod export;
 mod fail;

@@ -8,6 +8,7 @@
 use std::path::Path;
 
 use aria_analysis::{BeatConfig, LoudnessConfig, ShotDetectionConfig, SilenceConfig};
+use aria_core::count::counted;
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -141,7 +142,7 @@ fn run_audio(
     }
     if loudness {
         let contour = view.loudness_contour(LoudnessConfig::default());
-        println!("loudness  {} windows", contour.len());
+        println!("loudness  {}", counted(contour.len(), "window", "windows"));
         if contour.is_empty() {
             println!("  (the file is shorter than one loudness window)");
             return Ok(());

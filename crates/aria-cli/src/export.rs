@@ -9,6 +9,7 @@
 //! only owns what is a *usage* error: a rate of zero, or a `--to` at or before
 //! its `--at`.
 
+use aria_core::count::counted;
 use aria_core::{ExportFormat, VideoCodec};
 use aria_render::{ExportSettings, Renderer, export_to_file_with_encoder_observed};
 
@@ -82,8 +83,8 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     }
     project::warn_driver_faults(&project);
     println!(
-        "wrote {} frames of {}x{} {} to {}",
-        exported.frames,
+        "wrote {} of {}x{} {} to {}",
+        counted(exported.frames, "frame", "frames"),
         settings.size.0,
         settings.size.1,
         aria_encoder::capability().label_for(settings.video_codec, settings.audio),
