@@ -223,15 +223,21 @@ fn the_beat_run_writes_what_it_found() {
 #[test]
 fn the_two_edits_reach_the_timeline() {
     // Both are drawn only once the count is above zero, so both are pressed on
-    // a project that has the moments they act on.
-    for (pick, label) in [
+    // a project that has the moments they act on. Each builds its own analyzed
+    // project, so the two run on threads of their own.
+    let picks = [
         (Pick::SplitAtShots, "Split clip"),
         (Pick::CutSilence, "Ripple delete"),
-    ] {
-        let (mut state, _) = analyzed();
-        let watch = Watch::on(&state);
-        press(&mut state, pick);
-        let sent = watch.take();
+    ];
+    let sent = super::on_threads(picks.map(|(pick, _)| {
+        move || {
+            let (mut state, _) = analyzed();
+            let watch = Watch::on(&state);
+            press(&mut state, pick);
+            watch.take()
+        }
+    }));
+    for ((pick, label), sent) in picks.into_iter().zip(sent) {
         assert!(
             sent.contains(&label),
             "{} sent {sent:?} rather than `{label}`",
