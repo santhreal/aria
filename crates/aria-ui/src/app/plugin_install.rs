@@ -167,7 +167,7 @@ impl AppState {
             let staged = match self.plugin_installs.installed.stage(&archive) {
                 Ok(staged) => staged,
                 Err(err) => {
-                    self.report_error(format!("Could not install a plugin: {err}"));
+                    self.report_error(format!("Couldn't install a plugin: {err}"));
                     continue;
                 }
             };

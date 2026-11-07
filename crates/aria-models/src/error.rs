@@ -304,7 +304,7 @@ impl ProjectLoadError {
                 path.display()
             ),
             Self::Unreadable { path, reason } => format!(
-                "Could not read {noun} at {} ({reason}). Check the file permissions and try again.",
+                "Couldn't read {noun} at {} ({reason}). Check the file permissions and try again.",
                 path.display()
             ),
             Self::NotAProject { path, reason } => match path {

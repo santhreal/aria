@@ -205,7 +205,10 @@ impl AppState {
             .name("plugin menu row".into())
             .spawn(move || run());
         if let Err(err) = spawned {
-            self.report_error(format!("Could not start the plugin's action: {err}"));
+            self.report_error(format!(
+                "Couldn't start the plugin's action: {}",
+                aria_models::io_reason(&err)
+            ));
         }
     }
 }

@@ -605,7 +605,7 @@ impl AppState {
         if !self.redock_floating_frame(frame_id, cx) {
             return false;
         }
-        let msg = format!("Could not open floating window: {}", error_text.into());
+        let msg = format!("Couldn't open a floating window: {}", error_text.into());
         self.status_message = Some(msg.clone());
         self.report_error(msg);
         cx.notify();

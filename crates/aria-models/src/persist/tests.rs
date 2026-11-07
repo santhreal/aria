@@ -990,3 +990,11 @@ fn load_from_file_streams_current_schema_without_value_tree() {
         "older-schema documents must still take the Value migration fallback"
     );
 }
+
+/// WHY: a failed save step read as "...: No space left on device (os error 28)".
+#[cfg(unix)]
+#[test]
+fn a_failed_save_step_states_the_os_reason_without_its_code() {
+    let error = contextual_error("could not sync", io::Error::from_raw_os_error(28));
+    assert_eq!(error.to_string(), "could not sync: no space left on device");
+}

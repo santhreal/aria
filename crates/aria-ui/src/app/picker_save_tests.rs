@@ -130,20 +130,24 @@ fn a_completed_name_over_an_existing_file_is_replaced_only_on_yes() {
     assert_eq!(std::fs::read(&held).expect("read"), b"earlier");
 }
 
+type Run = fn(&mut AppState);
+
+/// Every command that saves the project, or a file made from it, through a
+/// save pick: its name, and the extension it writes.
+const SAVE_COMMANDS: [(&str, Run, &str); 3] = [
+    ("Save As", AppState::save_project_as, "aria"),
+    ("Save a Copy", AppState::save_project_copy, "aria"),
+    (
+        "Save as Template",
+        AppState::pick_and_save_template,
+        crate::app::templates::TEMPLATE_EXTENSION,
+    ),
+];
+
 /// The save commands write where the completed answer points.
 #[test]
 fn each_save_command_writes_the_completed_name() {
-    type Run = fn(&mut AppState);
-    let runs: [(&str, Run, &str); 3] = [
-        ("Save As", AppState::save_project_as, "aria"),
-        ("Save a Copy", AppState::save_project_copy, "aria"),
-        (
-            "Save as Template",
-            AppState::pick_and_save_template,
-            crate::app::templates::TEMPLATE_EXTENSION,
-        ),
-    ];
-    for (index, (command, run, extension)) in runs.into_iter().enumerate() {
+    for (index, (command, run, extension)) in SAVE_COMMANDS.into_iter().enumerate() {
         let (mut state, _) = with_clip();
         let dir = crate::scratch_pool::scratch(&format!("picker-save-command-{index}"));
         let typed: PathBuf = dir.join("cut");
@@ -156,6 +160,38 @@ fn each_save_command_writes_the_completed_name() {
         );
         assert!(!typed.exists(), "{command} wrote a file with no extension");
     }
+}
+
+/// A save into a folder that is a file states the OS reason without its code.
+///
+/// Defect class: a failed step of a save formatted the OS error whole, so
+/// every save read "...: Not a directory (os error 20)", and Save a Copy added
+/// "Choose a folder you can write to." to a full disk as well. Not caught: an
+/// OS error a save formats outside `aria_models::persist`.
+#[cfg(unix)]
+#[test]
+fn each_save_command_states_a_failed_write_by_its_reason() {
+    for (index, (command, run, extension)) in SAVE_COMMANDS.into_iter().enumerate() {
+        let (mut state, _) = with_clip();
+        let dir = crate::scratch_pool::scratch(&format!("picker-save-refused-{index}"));
+        let file = dir.join("a-file");
+        std::fs::write(&file, b"").expect("a file where a folder is expected");
+        state.supply_pick(Answer::file(file.join(format!("cut.{extension}"))));
+        run(&mut state);
+        let error = state.last_error.clone().unwrap_or_default();
+        let reason = "could not inspect the project destination: not a directory";
+        assert!(error.contains(reason), "{command}: {error}");
+        assert!(!error.contains("os error"), "{command}: {error}");
+    }
+    let (mut state, _) = with_clip();
+    let file = crate::scratch_pool::scratch("picker-save-refused-copy").join("a-file");
+    std::fs::write(&file, b"").expect("a file where a folder is expected");
+    state.supply_pick(Answer::file(file.join("cut.aria")));
+    state.save_project_copy();
+    assert_eq!(
+        state.last_error.as_deref(),
+        Some("Couldn't save a copy: could not inspect the project destination: not a directory")
+    );
 }
 
 /// What each save dialog proposes, for an unsaved project whose name holds a

@@ -234,7 +234,7 @@ fn an_archive_that_does_not_unpack_is_reported_and_the_next_still_prompts() {
         .last_error
         .clone()
         .expect("the bad archive is reported");
-    assert!(error.starts_with("Could not install a plugin"), "{error}");
+    assert!(error.starts_with("Couldn't install a plugin"), "{error}");
     assert_eq!(
         state.install_prompt().map(|prompt| prompt.id),
         Some(LOOKS.to_owned())

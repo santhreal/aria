@@ -618,7 +618,7 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
             let msg = format!(
-                "Could not read template at {} (permission denied). Check the file permissions and try again.",
+                "Couldn't read template at {} (permission denied). Check the file permissions and try again.",
                 path.display()
             );
             vec![(path, msg)]

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{ModelError, ProjectLoadError, unwritable_directory};
+use crate::error::{ModelError, ProjectLoadError, io_reason, unwritable_directory};
 use crate::project::Project;
 use crate::schema::{PROJECT_SCHEMA_VERSION, ProjectSchema};
 
@@ -601,8 +601,10 @@ fn install_temp_with_ops(
             let error = io::Error::new(
                 error.kind(),
                 format!(
-                    "atomic project replacement failed ({atomic_error}); \
-                     rollback backup creation also failed: {error}"
+                    "atomic project replacement failed ({}); \
+                     rollback backup creation also failed: {}",
+                    io_reason(&atomic_error),
+                    io_reason(&error)
                 ),
             );
             return Err(cleanup_temp_after_error(fs, temporary, error));
@@ -613,9 +615,11 @@ fn install_temp_with_ops(
         let error = io::Error::new(
             backup_error.kind(),
             format!(
-                "atomic project replacement failed ({atomic_error}); moving the existing project \
-                 to a rollback backup also failed: {backup_error}; the existing project was left \
-                 in place"
+                "atomic project replacement failed ({}); moving the existing project \
+                 to a rollback backup also failed: {}; the existing project was left \
+                 in place",
+                io_reason(&atomic_error),
+                io_reason(&backup_error)
             ),
         );
         let error = cleanup_empty_backup_after_error(fs, &backup.container, error);
@@ -637,7 +641,8 @@ fn install_temp_with_ops(
                     install_error.kind(),
                     format!(
                         "could not install the new project after creating a rollback backup: \
-                         {install_error}; the original project was restored"
+                         {}; the original project was restored",
+                        io_reason(&install_error)
                     ),
                 );
                 let error = cleanup_empty_backup_after_error(fs, &backup.container, error);
@@ -648,8 +653,10 @@ fn install_temp_with_ops(
                     install_error.kind(),
                     format!(
                         "could not install the new project after creating a rollback backup: \
-                         {install_error}; restoring the original project failed: {rollback_error}; \
-                         the original project was retained in a sibling backup"
+                         {}; restoring the original project failed: {}; \
+                         the original project was retained in a sibling backup",
+                        io_reason(&install_error),
+                        io_reason(&rollback_error)
                     ),
                 );
                 Err(cleanup_temp_after_error(fs, temporary, error))
@@ -699,8 +706,10 @@ fn cleanup_temp_after_error(
         Err(error) => io::Error::new(
             primary_error.kind(),
             format!(
-                "{primary_error}; temporary project cleanup also failed: {error}; \
-                 a temporary sibling may remain"
+                "{}; temporary project cleanup also failed: {}; \
+                 a temporary sibling may remain",
+                io_reason(&primary_error),
+                io_reason(&error)
             ),
         ),
     }
@@ -717,15 +726,19 @@ fn cleanup_empty_backup_after_error(
         Err(error) => io::Error::new(
             primary_error.kind(),
             format!(
-                "{primary_error}; empty rollback-backup cleanup also failed: {error}; \
-                 an empty sibling directory may remain"
+                "{}; empty rollback-backup cleanup also failed: {}; \
+                 an empty sibling directory may remain",
+                io_reason(&primary_error),
+                io_reason(&error)
             ),
         ),
     }
 }
 
+/// `error` after `context`, as the OS reason alone: "could not sync the
+/// temporary project: no space left on device", not its `(os error 28)` text.
 fn contextual_error(context: &'static str, error: io::Error) -> io::Error {
-    io::Error::new(error.kind(), format!("{context}: {error}"))
+    io::Error::new(error.kind(), format!("{context}: {}", io_reason(&error)))
 }
 
 /// Unwrap the legacy `{ "version", "project" }` envelope (early v1 saves)
