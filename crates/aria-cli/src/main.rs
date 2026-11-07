@@ -46,6 +46,8 @@ mod out;
 mod plugin;
 mod project;
 
+use std::borrow::Cow;
+
 use args::{Args, ArgsError, Verb};
 use fail::Failure;
 
@@ -58,8 +60,12 @@ fn main() -> ! {
                 Ok(()) => 0,
                 Err(failure) => report(&failure, verb),
             },
-            Err(ArgsError::NoVerb | ArgsError::Help) => {
+            Err(ArgsError::NoVerb) => {
                 print!("{}", args::USAGE);
+                0
+            }
+            Err(ArgsError::Help(verb)) => {
+                print!("{}", help_text(verb));
                 0
             }
             Err(ArgsError::Version) => {
@@ -118,7 +124,19 @@ fn report_text(failure: &Failure, verb: Option<Verb>) -> String {
             text.push_str(&args::synopsis(verb));
             text.push('\n');
         }
-        text.push_str("Run `aria --help` for every command.\n");
+        text.push_str(EVERY_COMMAND);
     }
     text
+}
+
+/// The line after a single command's entries that points to the full list.
+const EVERY_COMMAND: &str = "Run `aria --help` for every command.\n";
+
+/// What `--help` prints: after a command, the entries of that command and
+/// where the full list is; otherwise the usage block.
+fn help_text(verb: Option<Verb>) -> Cow<'static, str> {
+    match verb {
+        Some(verb) => Cow::Owned(format!("{}\n{EVERY_COMMAND}", args::synopsis(verb))),
+        None => Cow::Borrowed(args::USAGE),
+    }
 }

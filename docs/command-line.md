@@ -27,12 +27,14 @@ The binary is `target/release/aria`.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success, or usage printed for `--help`, `-h`, or no arguments, or the version printed for `--version` |
+| `0` | Success, or help printed for `--help`, `-h`, or no arguments, or the version printed for `--version` |
 | `1` | The command ran and failed |
 | `2` | The command line was wrong |
 
-Running `aria` with no arguments, `aria --help`, or `aria -h` in any position
-prints the usage block on stdout and exits `0`. A usage error prints the reason,
+Running `aria` with no arguments, `aria --help`, or `aria -h` prints the usage
+block on stdout and exits `0`. `--help` or `-h` after a command, in any
+position, prints that command's synopsis and a line pointing to `aria --help`
+on stdout and exits `0`. A usage error prints the reason,
 the synopsis of the command it names, and a line pointing to `aria --help` on
 stderr and exits `2`. A runtime failure prints the reason
 on stderr and exits `1` (or the child exit code when `aria plugin dev` runs the

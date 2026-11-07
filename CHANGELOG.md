@@ -1400,6 +1400,7 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin pack` and `aria plugin dev` state how the compiler exited when a build stops without a compiler diagnostic, such as on a signal.
 - Opening a project drops a transition whose clips do not meet or whose window is zero ticks, negative, or longer than its junction allows, as the next edit of its lane would.
 - `aria frame` and `aria export` print a warning for each effect, audio effect, generator, or transition id no catalog lists, stating what renders in its place.
+- `aria <command> --help` prints the synopsis of that command and a pointer to `aria --help` instead of every command's entry.
 
 ## [alpha-0.7.0] - 2026-07-22
 

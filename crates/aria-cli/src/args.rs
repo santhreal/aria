@@ -118,8 +118,9 @@ pub(crate) struct Args {
 pub(crate) enum ArgsError {
     /// No verb at all: print the usage block on stdout, exit 0.
     NoVerb,
-    /// `--help` anywhere: same block, exit 0.
-    Help,
+    /// `--help` or `-h` anywhere: after a command, that command's `USAGE`
+    /// entries ([`synopsis`]); otherwise the usage block. Exit 0.
+    Help(Option<Verb>),
     /// `--version` as the first word: print the version on stdout, exit 0.
     Version,
     /// A usage mistake, exit 2.
@@ -135,7 +136,9 @@ impl Args {
     {
         let words: Vec<String> = argv.into_iter().map(Into::into).collect();
         if words.iter().any(|word| word == "--help" || word == "-h") {
-            return Err(ArgsError::Help);
+            return Err(ArgsError::Help(
+                words.first().and_then(|word| Verb::named(word)),
+            ));
         }
         if words.first().is_some_and(|word| word == "--version") {
             return Err(ArgsError::Version);
@@ -374,6 +377,7 @@ aria — the Aria editor's command line
 USAGE
     aria <command> [arguments]
     aria --help | --version
+    aria <command> --help
 
 COMMANDS
     demo [out.png]

@@ -223,14 +223,33 @@ fn valueless_flags_extra_positionals_and_negative_seconds_are_validated_across_a
 }
 
 /// No verb and `--help` are not failures: both print usage and exit 0.
+/// `--help` after a command names the command; before one, or after a word
+/// that is no command, it names none.
 #[test]
 fn no_verb_and_help_are_not_errors() {
     assert_eq!(
         Args::parse::<[&str; 0], &str>([]).err(),
         Some(ArgsError::NoVerb)
     );
-    assert_eq!(Args::parse(["--help"]).err(), Some(ArgsError::Help));
-    assert_eq!(Args::parse(["export", "-h"]).err(), Some(ArgsError::Help));
+    assert_eq!(Args::parse(["--help"]).err(), Some(ArgsError::Help(None)));
+    assert_eq!(
+        Args::parse(["-h", "export"]).err(),
+        Some(ArgsError::Help(None))
+    );
+    assert_eq!(
+        Args::parse(["exprot", "--help"]).err(),
+        Some(ArgsError::Help(None))
+    );
+    for verb in Verb::ALL {
+        for help in ["--help", "-h"] {
+            assert_eq!(
+                Args::parse([verb.key(), "p.aria", help, "--at"]).err(),
+                Some(ArgsError::Help(Some(verb))),
+                "{} {help}",
+                verb.key()
+            );
+        }
+    }
     assert_eq!(
         Args::parse(["render"]).err(),
         Some(ArgsError::Usage("unknown command \"render\"".into()))
@@ -284,7 +303,10 @@ fn a_single_dash_word_is_a_usage_error_and_not_a_path() {
             .ok(),
         Some(vec!["p.aria".to_owned(), "./-o".to_owned()])
     );
-    assert_eq!(Args::parse(["frame", "-h"]).err(), Some(ArgsError::Help));
+    assert_eq!(
+        Args::parse(["frame", "-h"]).err(),
+        Some(ArgsError::Help(Some(Verb::Frame)))
+    );
 }
 
 /// `aria --version` prints the version and exits 0; it is a top-level word,
@@ -745,9 +767,11 @@ fn command_line_doc_and_usage_match_cli_registries_bidirectionally() {
 /// reason, so a one-word typo buried its own message, and the block ran the
 /// `analyze` entry into `plugin new` with no blank line between them. A usage
 /// error now prints the reason, the entries of the command it names, and a
-/// pointer to `--help`; a runtime failure prints the reason alone. Every verb
-/// is enumerated from `Verb::ALL`, so a verb added without a `USAGE` entry
-/// fails here. Not caught: the wording of an entry's description.
+/// pointer to `--help`; a runtime failure prints the reason alone. `aria
+/// frame --help` printed the whole block as well; `--help` after a command
+/// prints that command's entries and the pointer. Every verb is enumerated
+/// from `Verb::ALL`, so a verb added without a `USAGE` entry fails here. Not
+/// caught: the wording of an entry's description.
 #[test]
 fn a_usage_error_prints_the_named_command_and_not_the_whole_block() {
     let entry_starts = |text: &str| -> Vec<String> {
@@ -783,7 +807,13 @@ fn a_usage_error_prints_the_named_command_and_not_the_whole_block() {
             format!("aria: bad\n\n{entry}\nRun `aria --help` for every command.\n"),
             "`{key}`"
         );
+        assert_eq!(
+            crate::help_text(Some(verb)),
+            format!("{entry}\nRun `aria --help` for every command.\n"),
+            "`{key} --help`"
+        );
     }
+    assert_eq!(crate::help_text(None), USAGE);
     let plugin = synopsis(Verb::Plugin);
     for sub in crate::plugin::Subcommand::ALL {
         assert!(

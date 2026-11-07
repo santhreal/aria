@@ -1,6 +1,8 @@
 //! Consolidated integration test binary for `aria-cli`.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "../command_help.rs"]
+mod command_help;
 #[path = "../drivers.rs"]
 mod drivers;
 #[path = "../export_encoder.rs"]

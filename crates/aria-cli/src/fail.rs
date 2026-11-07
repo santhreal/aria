@@ -44,7 +44,7 @@ impl From<ArgsError> for Failure {
             // `--help` and a bare invocation are handled before a command runs;
             // reaching here at all is a parser mistake, and it is reported as
             // one rather than becoming a silent success.
-            ArgsError::Help => Failure::Usage("--help is not a command".into()),
+            ArgsError::Help(_) => Failure::Usage("--help is not a command".into()),
             ArgsError::Version => Failure::Usage("--version is not a command".into()),
             ArgsError::NoVerb => Failure::Usage("no command given".into()),
         }
