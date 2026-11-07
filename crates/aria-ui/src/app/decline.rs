@@ -229,7 +229,7 @@ impl Decline {
             Decline::AnglesStillDecoding => "The angles' sound is still being read",
             Decline::NoAngleSound => "An angle has no sound to sync by",
             Decline::AnglesDoNotMatch => "The angles' sound does not match",
-            Decline::AnglesRepeat => "The angles' sound repeats, so it cannot say where it is",
+            Decline::AnglesRepeat => "The angles' sound matches at more than one offset",
             Decline::AlreadyLinked => "The selected clips are already linked",
             Decline::AlreadyGrouped => "The selected clips are already a group",
             Decline::NoSourceToRemap => "The selected clip plays no source media to remap",

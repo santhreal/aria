@@ -365,7 +365,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `AnglesStillDecoding` | `The angles' sound is still being read` |
 | `NoAngleSound` | `An angle has no sound to sync by` |
 | `AnglesDoNotMatch` | `The angles' sound does not match` |
-| `AnglesRepeat` | `The angles' sound repeats, so it cannot say where it is` |
+| `AnglesRepeat` | `The angles' sound matches at more than one offset` |
 | `AlreadyLinked` | `The selected clips are already linked` |
 | `AlreadyGrouped` | `The selected clips are already a group` |
 | `NoSourceToRemap` | `The selected clip plays no source media to remap` |

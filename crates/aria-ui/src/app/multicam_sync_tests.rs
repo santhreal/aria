@@ -194,7 +194,7 @@ fn a_camera_whose_sound_repeats_is_refused_by_name() {
     assert_eq!(
         measure(&[Ok(&tick), Ok(&shifted)], 0, TICKS_PER_SAMPLE),
         Err(Decline::AnglesRepeat),
-        "a sound that repeats cannot say where it is, and a guess is not an answer"
+        "a sound that matches at two offsets has no one offset to sync at, and a guess is not an answer"
     );
 }
 
