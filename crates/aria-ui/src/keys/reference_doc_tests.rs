@@ -561,7 +561,8 @@ fn menus_doc_matches_registry() {
                 | Decline::DefaultTransform
                 | Decline::NotANest
                 | Decline::AtRootSequence
-                | Decline::UnsavedRender => {}
+                | Decline::UnsavedRender
+                | Decline::GapTooShort => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })
@@ -630,7 +631,8 @@ fn menus_doc_matches_registry() {
         duck_source: false,
         up: false,
         down: false,
-        from_playhead: false,
+        opens_gap: false,
+        closes_gap: false,
         lane: aria_models::TrackDisplay::default(),
     };
     let pool_facts = PoolMenu {

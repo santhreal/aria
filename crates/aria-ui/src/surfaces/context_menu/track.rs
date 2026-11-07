@@ -26,9 +26,11 @@ pub struct TrackMenu {
     /// within its part of the stack, read from the plan the move follows.
     pub up: bool,
     pub down: bool,
-    /// A clip on the lane starts at or after the playhead, so the gap rows have
-    /// something to shift.
-    pub from_playhead: bool,
+    /// A one-second shift from the playhead moves the lane's clips: later for
+    /// Open Gap (`opens_gap`), earlier for Close Gap (`closes_gap`), read from
+    /// the check the shift makes.
+    pub opens_gap: bool,
+    pub closes_gap: bool,
     /// How the lane is drawn: height, waveforms, filmstrips, collapsed.
     pub lane: TrackDisplay,
 }
@@ -44,6 +46,7 @@ impl TrackMenu {
             .iter()
             .find(|lane| lane.id == track)?;
         let id = TrackId::from_raw(track);
+        let second = state.store.sequence.frame_rate.nominal_fps();
         Some(Self {
             track,
             muted: lane.muted,
@@ -51,7 +54,8 @@ impl TrackMenu {
             duck_source: lane.duck_source,
             up: state.track_step(id, true).is_ok(),
             down: state.track_step(id, false).is_ok(),
-            from_playhead: state.lane_starts_from_playhead(id),
+            opens_gap: state.playhead_shift_decline(id, second).is_none(),
+            closes_gap: state.playhead_shift_decline(id, -second).is_none(),
             lane: state.lane_display(track),
         })
     }
@@ -173,7 +177,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-track-open-gap",
         label: |_| "Open Gap at Playhead",
-        when: |lane| lane.from_playhead,
+        when: |lane| lane.opens_gap,
         checked: None,
         run: |state, lane| {
             // One second of gap, so the amount reads the same at any frame rate.
@@ -184,7 +188,7 @@ pub const TRACK_ITEMS: &[MenuItem<TrackMenu>] = &[
     MenuItem::Row(MenuRow {
         id: "ctx-track-close-gap",
         label: |_| "Close Gap at Playhead",
-        when: |lane| lane.from_playhead,
+        when: |lane| lane.closes_gap,
         checked: None,
         run: |state, lane| {
             let delta = state.store.sequence.frame_rate.nominal_fps();

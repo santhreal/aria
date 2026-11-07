@@ -281,9 +281,10 @@ impl AppState {
     }
 
     /// Shift every clip on `track` that starts at or after the playhead by
-    /// `delta` ticks. Positive opens a hole, negative closes a gap. A lane with
-    /// no such clip declines. A shift the engine rejects (a collision, or below
-    /// tick 0) is reported: the request is something the timeline cannot hold.
+    /// `delta` ticks. Positive opens a hole, negative closes a gap. Declines,
+    /// for the reason [`Self::playhead_shift_decline`] gives, when there is no
+    /// clip to move or the gap is shorter than the close. A shift the engine
+    /// still rejects is reported.
     pub fn shift_clips_from_playhead(
         &mut self,
         track: TrackId,
@@ -292,8 +293,8 @@ impl AppState {
         if delta == 0 {
             return Ok(());
         }
-        if !self.lane_starts_from_playhead(track) {
-            self.decline(Decline::NothingAfterPlayhead);
+        if let Some(why) = self.playhead_shift_decline(track, delta) {
+            self.decline(why);
             return Ok(());
         }
         let rate = self.playhead.rate;
@@ -305,20 +306,35 @@ impl AppState {
         Ok(())
     }
 
-    /// Whether a clip on `track` starts at or after the playhead: what a shift
-    /// from the playhead moves. The track menu's gap rows and the shift read
-    /// this.
-    pub(crate) fn lane_starts_from_playhead(&self, track: TrackId) -> bool {
-        self.store
+    /// Why shifting the clips on `track` that start at or after the playhead
+    /// by `delta` ticks moves nothing, or `None` when it moves them: no clip
+    /// starts there, or a close is longer than the free span before the first
+    /// of them, which ends at the clip before it or at tick 0. The shift, the
+    /// palette's gap rows and the track menu's gap rows read this.
+    pub(crate) fn playhead_shift_decline(&self, track: TrackId, delta: i64) -> Option<Decline> {
+        let at = self.playhead.value;
+        let clips = self
+            .store
             .sequence
             .tracks
             .iter()
             .find(|lane| lane.id == track.raw())
-            .is_some_and(|lane| {
-                lane.clips
-                    .iter()
-                    .any(|clip| clip.timeline_start_ticks >= self.playhead.value)
-            })
+            .map_or(&[][..], |lane| &*lane.clips);
+        let Some(first) = clips
+            .iter()
+            .map(|clip| clip.timeline_start_ticks)
+            .filter(|&start| start >= at)
+            .min()
+        else {
+            return Some(Decline::NothingAfterPlayhead);
+        };
+        let free_from = clips
+            .iter()
+            .filter(|clip| clip.timeline_start_ticks < at)
+            .map(|clip| clip.timeline_end_ticks)
+            .max()
+            .unwrap_or(0);
+        (first - free_from < -delta).then_some(Decline::GapTooShort)
     }
 
     /// The lanes the selection spans, each with the earliest selected clip start on

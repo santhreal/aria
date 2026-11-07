@@ -24,10 +24,11 @@ Right-click a track header for the rest:
   row is offered only where the next row holds a track of the same part of the
   stack.
 - **Open Gap at Playhead** shifts every clip on that track starting at or after
-  the playhead one second later. **Close Gap at Playhead** shifts them back.
-  Both are offered on a track with a clip starting at or after the playhead. A
-  shift that would collide with another clip, or move one before the start of the
-  sequence, is refused.
+  the playhead one second later. **Close Gap at Playhead** shifts them one
+  second earlier. Open Gap is offered on a track with a clip starting at or
+  after the playhead. Close Gap is offered when, in addition, at least one
+  second is free before the first such clip, back to the clip before it or the
+  start of the sequence.
 - **Collapse Lane** / **Expand Lane** does what the chevron does.
 - **Hide Waveforms** / **Show Waveforms** on an audio track and **Hide
   Filmstrips** / **Show Filmstrips** on a video track turn that lane's strips on

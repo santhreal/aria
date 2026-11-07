@@ -31,7 +31,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `file-revert` | `none` | Revert | `none` | Project has never been saved or has no unsaved changes (`guards::revertible`) | Reloads the project from its last saved `.aria` file on disk. |
 | `file-import` | `none` | Import… | `Ctrl+I` | Always enabled | Opens the Import file picker: preset files go to the preset library, a timeline file is read into the timeline, and other files are imported into the media pool and placed on the timeline from the playhead. Each timeline or media file that arrives heads File > Import Recent. |
 | `file-import-recent-clear` | `Import Recent` | Clear Recent Imports | `none` | No file has been imported yet (`guards::import_recents`) | Clears the persisted recent imports list (`import-recents.json`). |
-| `file-import-timeline` | `none` | Import Timeline… | `none` | Always enabled | Opens the file picker for timeline interchange files (`.fcpxml`, `.otio`, `.edl`, `.srt`, `.vtt`). |
+| `file-import-timeline` | `none` | Import Timeline… | `none` | No timeline importer is mounted (`guards::importers`) | Opens the file picker for timeline interchange files (`.fcpxml`, `.otio`, `.edl`, `.srt`, `.vtt`). |
 | `file-relink-all` | `none` | Relink All… | `none` | Always enabled | Prompts for a search folder and relinks each offline media pool item that has a unique filename match with matching frame size, duration, and audio presence. |
 | `file-export` | `Export` | Media… | `Ctrl+M` | Always enabled | Opens the Export dialog (`aria.dialog.export`). |
 | `file-export-frame` | `Export` | Frame… | `Ctrl+Shift+E` | Always enabled | Renders the frame at the playhead at full sequence resolution and saves it as a PNG file. |
@@ -416,6 +416,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NotANest` | `The selected clip is not a nested sequence` |
 | `AtRootSequence` | `The root sequence is already open` |
 | `UnsavedRender` | `Save the project first: a rendered clip is kept beside the project file` |
+| `GapTooShort` | `The gap before the next clip on the track is shorter than one second` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

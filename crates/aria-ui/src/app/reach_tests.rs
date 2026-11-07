@@ -69,8 +69,8 @@ const ROWS: &[(&str, Kind)] = &[
     ("pal-key-scale", Edits),
     ("pal-track-solo", Edits),
     // Run with the playhead on the clip's first frame (`AT_CLIP_START`). The
-    // clip starts the sequence, so closing a gap before it would move it
-    // before the start, which the engine rejects with an error.
+    // clip starts the sequence, so no free span before it takes a close, and
+    // Close Gap is drawn disabled with the reason.
     ("pal-track-open-gap", Edits),
     ("pal-track-close-gap", NoEdit),
     // Each keyframe row pins a property the fixture clip has: it is a media
@@ -358,6 +358,27 @@ fn no_palette_row_answers_with_the_value_copy() {
     assert!(
         wrong.is_empty(),
         "these palette rows answered with the value copy: {wrong:?}"
+    );
+}
+
+/// WHY: closes, for the palette, the class of a row drawn enabled that fails
+/// when run: its guard reads less than its action. Every row is checked over
+/// the census's state, and every error counts, whatever its copy.
+///
+/// What this does not catch: a row that fails only in another state, and a
+/// failure outside the project, such as a disk that is full.
+#[test]
+fn an_enabled_palette_row_never_answers_with_an_error() {
+    let wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| row.blocked.is_none() && row.error.is_some())
+        .map(|row| format!("{}: {:?}", row.id, row.error))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "enabled, then failed:\n{}",
+        wrong.join("\n")
     );
 }
 

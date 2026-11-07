@@ -81,7 +81,8 @@ static FILE_IMPORT_CLEAR: MenuItem = MenuItem::new(
 static FILE_IMPORT: &[MenuItem] = &[
     MenuItem::new("file-import-timeline", "Import Timeline…", |_, s, _| {
         s.pick_and_import_timeline()
-    }),
+    })
+    .when(super::menu_guards::importers),
     MenuItem::new("file-relink-all", "Relink All…", |_, s, _| s.relink_all()),
     MenuItem::new("file-export", "Media…", |_, s, _| {
         s.open_dialog(DialogKind::Export)

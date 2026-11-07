@@ -408,6 +408,15 @@ pub(crate) fn exporters(_: &str, state: &AppState) -> Option<&'static str> {
         .then_some("No timeline exporter is mounted")
 }
 
+/// The row imports through a timeline importer.
+pub(crate) fn importers(_: &str, state: &AppState) -> Option<&'static str> {
+    state
+        .ctx
+        .importers()
+        .is_empty()
+        .then_some("No timeline importer is mounted")
+}
+
 /// The row deletes tracks that hold no clips.
 pub(crate) fn empty_tracks(_: &str, state: &AppState) -> Option<&'static str> {
     state
@@ -512,12 +521,27 @@ pub(crate) fn track_down(_: &str, state: &AppState) -> Option<&'static str> {
     track_move(state, false)
 }
 
-/// The row shifts the clips on the selected clip's track that start at or
-/// after the playhead: read from the check the shift makes.
-pub(crate) fn shift_from_playhead(id: &str, state: &AppState) -> Option<&'static str> {
+/// The row opens a one-second gap at the playhead on the selected clip's
+/// track: read from the check the shift makes.
+pub(crate) fn open_gap(id: &str, state: &AppState) -> Option<&'static str> {
+    gap_shift(id, state, 1)
+}
+
+/// The row closes a one-second gap at the playhead on the selected clip's
+/// track: read from the check the shift makes.
+pub(crate) fn close_gap(id: &str, state: &AppState) -> Option<&'static str> {
+    gap_shift(id, state, -1)
+}
+
+/// Why a shift of one second in the direction of `sign` from the playhead on
+/// the selected clip's track moves nothing.
+fn gap_shift(id: &str, state: &AppState, sign: i64) -> Option<&'static str> {
     selection(id, state).or_else(|| {
         let track = state.selected_track()?;
-        (!state.lane_starts_from_playhead(track)).then_some(Decline::NothingAfterPlayhead.reason())
+        let delta = sign * state.store.sequence.frame_rate.nominal_fps();
+        state
+            .playhead_shift_decline(track, delta)
+            .map(Decline::reason)
     })
 }
 

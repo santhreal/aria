@@ -72,8 +72,8 @@ struct Pressed {
     /// Rows that recorded a step, were still offered, and recorded another
     /// step over their own result that left the project as it was.
     repeats: Vec<String>,
-    /// Presses refused with the copy of a model refusal of a value.
-    value_copy: Vec<String>,
+    /// Presses of an offered row that failed: where, and the copy shown.
+    refusals: Vec<(String, String)>,
 }
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
@@ -108,7 +108,7 @@ fn press_all() -> Pressed {
         declined: Vec::new(),
         empty_steps: Vec::new(),
         repeats: Vec::new(),
-        value_copy: Vec::new(),
+        refusals: Vec::new(),
     };
     press(CLIP_ITEMS, CLIP_STAGES, &mut out);
     press(TRANSITION_ITEMS, JUNCTION_STAGES, &mut out);
@@ -169,7 +169,6 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             .filter_map(MenuItem::row)
             .filter(|row| row.checked.is_some())
     };
-    let copy = crate::app::menu_reach_tests::value_copy();
     for entry in items {
         let Some(row) = entry.row() else {
             continue;
@@ -198,10 +197,11 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             let watch = crate::app::sent_census::Watch::on(&state);
             let result = (row.run)(&mut state, &facts);
             let refused = result.is_err();
-            if let Err(err) = &result
-                && crate::app::error_copy::describe_engine_error(err) == copy
-            {
-                out.value_copy.push(format!("{} on {}", row.id, stage.what));
+            if let Err(err) = &result {
+                out.refusals.push((
+                    format!("{} on {}", row.id, stage.what),
+                    crate::app::error_copy::describe_engine_error(err),
+                ));
             }
             let sent = watch.take();
             // Choosing the option a check mark already marks keeps it, as a
@@ -396,7 +396,8 @@ const JUNCTION_STAGES: &[Stage<ClipMenu>] = &[
 ];
 
 /// A lane menu opens on the lane the pointer is over: a picture lane, a sound
-/// lane, and one with lanes on both sides of it.
+/// lane, one with lanes on both sides of it, and one whose clip starts a second
+/// after the playhead, so the gap before it can close.
 const LANE_STAGES: &[Stage<TrackMenu>] = &[
     Stage {
         what: "the only video lane",
@@ -427,6 +428,20 @@ const LANE_STAGES: &[Stage<TrackMenu>] = &[
         what: "a lane with lanes above and below it",
         dress: || {
             let (state, lane) = fixtures::middle_lane();
+            let facts = TrackMenu::of(&state, lane).expect("the lane is projected");
+            (state, facts)
+        },
+    },
+    Stage {
+        what: "a lane with a second of gap before its clip",
+        dress: || {
+            let (mut state, _) = with_clip();
+            let lane = first_lane(&state);
+            let second = state.store.sequence.frame_rate.nominal_fps();
+            state.set_playhead(0);
+            state
+                .shift_clips_from_playhead(aria_models::TrackId::from_raw(lane), second)
+                .expect("the clip moves a second later");
             let facts = TrackMenu::of(&state, lane).expect("the lane is projected");
             (state, facts)
         },

@@ -112,13 +112,15 @@ fn only_an_audio_lane_can_be_the_duck_source() {
         .unwrap();
     assert!(!state.track_is_duck_source(TrackId::from_raw(audio)));
 }
-/// A shift from the playhead on a lane whose clips all start before it moves
-/// nothing, so it declines and records nothing, in either direction, and the
-/// palette draws both gap rows disabled with the same reason. The palette
-/// census runs these rows with the playhead on the clip's first frame, where
-/// they edit, so it never reads their guards over a lane they cannot shift.
+/// A shift from the playhead that would move nothing declines and records
+/// nothing, and the palette draws its row disabled with the same reason: a
+/// lane whose clips all start before the playhead, in either direction, and a
+/// close longer than the free span before the first clip after the playhead,
+/// which the engine rejects because it pushes that clip into the one before it
+/// or before tick 0. Close Gap was offered over a clip at tick 0 and failed
+/// with the copy of a clip left with no length.
 #[test]
-fn a_gap_shift_with_no_clip_after_the_playhead_declines_and_records_nothing() {
+fn a_gap_shift_that_would_move_nothing_declines_and_records_nothing() {
     use crate::app::decline::Decline;
     use crate::app::menu_reach_tests::{history_labels, project_text};
     let (mut state, clip) = with_clip();
@@ -131,11 +133,58 @@ fn a_gap_shift_with_no_clip_after_the_playhead_declines_and_records_nothing() {
             .unwrap_or_else(|| panic!("the palette has no {id} row"));
         (row.blocked)(id, state)
     };
+    let second = state.store.sequence.frame_rate.nominal_fps();
     let gap_rows = ["pal-track-open-gap", "pal-track-close-gap"];
+    let unchanged = |state: &mut AppState, delta: i64, why: Decline| {
+        state.status_message = None;
+        let (steps, text) = (history_labels(state).len(), project_text(state));
+        state.shift_clips_from_playhead(track, delta).unwrap();
+        assert_eq!(
+            history_labels(state).len(),
+            steps,
+            "{delta}: a step was recorded"
+        );
+        assert_eq!(project_text(state), text, "{delta}: the project changed");
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(why.reason()),
+            "{delta}"
+        );
+    };
+    // Over the clip's first frame at tick 0: the clip can move later, and no
+    // free span before it takes an earlier move.
     state.set_playhead(0);
-    for id in gap_rows {
-        assert_eq!(guard(&state, id), None, "{id} over the clip's first frame");
-    }
+    assert_eq!(
+        guard(&state, gap_rows[0]),
+        None,
+        "open over the first frame"
+    );
+    assert_eq!(
+        guard(&state, gap_rows[1]),
+        Some(Decline::GapTooShort.reason()),
+        "close with no gap before the clip"
+    );
+    unchanged(&mut state, -second, Decline::GapTooShort);
+    // A gap one tick short of a second still declines; a full second closes.
+    state.shift_clips_from_playhead(track, second - 1).unwrap();
+    assert_eq!(
+        guard(&state, gap_rows[1]),
+        Some(Decline::GapTooShort.reason())
+    );
+    unchanged(&mut state, -second, Decline::GapTooShort);
+    state.shift_clips_from_playhead(track, 1).unwrap();
+    assert_eq!(
+        guard(&state, gap_rows[1]),
+        None,
+        "close over a one-second gap"
+    );
+    state.shift_clips_from_playhead(track, -second).unwrap();
+    assert_eq!(
+        guard(&state, gap_rows[1]),
+        Some(Decline::GapTooShort.reason())
+    );
+    // Past the clip's first frame nothing starts after the playhead, which
+    // both rows state first.
     state.set_playhead(1);
     for id in gap_rows {
         assert_eq!(
@@ -145,19 +194,7 @@ fn a_gap_shift_with_no_clip_after_the_playhead_declines_and_records_nothing() {
         );
     }
     for delta in [12, -12] {
-        state.status_message = None;
-        let (steps, text) = (history_labels(&state).len(), project_text(&state));
-        state.shift_clips_from_playhead(track, delta).unwrap();
-        assert_eq!(
-            history_labels(&state).len(),
-            steps,
-            "{delta}: a step was recorded"
-        );
-        assert_eq!(project_text(&state), text, "{delta}: the project changed");
-        assert_eq!(
-            state.status_message.as_deref(),
-            Some(Decline::NothingAfterPlayhead.reason())
-        );
+        unchanged(&mut state, delta, Decline::NothingAfterPlayhead);
     }
 }
 #[test]

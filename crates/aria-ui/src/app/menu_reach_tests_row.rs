@@ -105,6 +105,37 @@ fn no_menu_row_answers_with_the_value_copy() {
         wrong.join("\n")
     );
 }
+/// WHY: closes, for the menu bar, the class of a row drawn enabled that fails
+/// when chosen: its guard reads less than its action, so the menu offers an
+/// edit the engine rejects and the error line reports a failure the menu
+/// invited. Every row is checked under its own dressing and under the bare
+/// state, and every error counts, whatever its copy.
+///
+/// What this does not catch: a row that fails only in a state neither covers,
+/// and a failure outside the project, such as a disk that is full.
+#[test]
+fn an_enabled_row_never_answers_with_an_error() {
+    let failed =
+        |blocked: Option<&str>, error: &Option<String>| blocked.is_none() && error.is_some();
+    let mut wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| failed(row.blocked, &row.error))
+        .map(|row| format!("{} against {:?}: {:?}", row.id, row.dress, row.error))
+        .collect();
+    wrong.extend(
+        CENSUS
+            .bare
+            .iter()
+            .filter(|row| failed(row.blocked, &row.error))
+            .map(|row| format!("{} against the bare state: {:?}", row.id, row.error)),
+    );
+    assert!(
+        wrong.is_empty(),
+        "enabled, then failed:\n{}",
+        wrong.join("\n")
+    );
+}
 /// A row that records an undo step changes the project. A step over no edit
 /// spends the next Undo on nothing and marks the project unsaved with nothing
 /// to save, while the status line reports an edit. Every row is checked under

@@ -162,11 +162,14 @@ pub enum Decline {
     /// Render and Replace in a project that has never been saved: the render
     /// is kept beside the project file.
     UnsavedRender,
+    /// Close Gap at Playhead where the free span before the first clip at or
+    /// after the playhead is shorter than the close.
+    GapTooShort,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 61] = [
+    pub const ALL: [Decline; 62] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -228,6 +231,7 @@ impl Decline {
         Decline::NotANest,
         Decline::AtRootSequence,
         Decline::UnsavedRender,
+        Decline::GapTooShort,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -304,6 +308,9 @@ impl Decline {
             Decline::AtRootSequence => "The root sequence is already open",
             Decline::UnsavedRender => {
                 "Save the project first: a rendered clip is kept beside the project file"
+            }
+            Decline::GapTooShort => {
+                "The gap before the next clip on the track is shorter than one second"
             }
         }
     }
