@@ -365,6 +365,8 @@ struct RowOutcome {
     wrote: Vec<String>,
     blocked: Option<&'static str>,
     status: Option<String>,
+    /// The error line the row left.
+    error: Option<String>,
     opened_form: bool,
     changed: bool,
     /// What the row recorded when run a second time over its own result.
@@ -381,6 +383,7 @@ struct BareOutcome {
     id: String,
     blocked: Option<&'static str>,
     status: Option<String>,
+    error: Option<String>,
     wrote: Vec<String>,
     changed: bool,
 }
@@ -390,6 +393,7 @@ struct Probe {
     asked: Vec<&'static str>,
     blocked: Option<&'static str>,
     status: Option<String>,
+    error: Option<String>,
     opened_form: bool,
     asked_pick: bool,
     /// Whether the project reads differently after the row ran.
@@ -439,7 +443,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
             let run = item.run;
             // Whether Enter committed a form, or `true` for a row without one.
             let once = |state: &mut AppState, cx: &mut gpui::Context<AppState>| {
-                state.status_message = None;
+                (state.status_message, state.last_error) = (None, None);
                 run(id, state, cx);
                 !enter || state.run_dialog_primary()
             };
@@ -454,6 +458,7 @@ fn probe(menu: AppMenu, id: &str, state: AppState, enter: bool) -> Probe {
                 asked: watch.take(),
                 blocked,
                 status: state.status_message.clone(),
+                error: state.last_error.clone(),
                 opened_form,
                 asked_pick: state.picks_asked() > 0,
                 changed: project_text(state) != text,
@@ -485,6 +490,15 @@ pub(super) fn project_text(state: &AppState) -> String {
     let project = engine.project();
     let text = project.save_to_string().expect("the project saves");
     format!("{:?}\n{text}", project.active_sequence())
+}
+
+/// The line a model refusal of a value reads: the copy every `InvalidParam`
+/// and `InvalidTransform` shows. A control that offers no value to enter must
+/// never leave it, because its fix names a field the control does not have.
+pub(super) fn value_copy() -> String {
+    super::error_copy::describe_engine_error(&aria_engine::EngineError::Model(
+        aria_models::ModelError::InvalidParam(String::new()),
+    ))
 }
 
 pub(super) fn history_labels(state: &AppState) -> Vec<String> {
@@ -533,6 +547,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             id: id.clone(),
             blocked: outcome.blocked,
             status: outcome.status,
+            error: outcome.error,
             wrote: outcome.wrote,
             changed: outcome.changed,
         });
@@ -549,6 +564,7 @@ static CENSUS: std::sync::LazyLock<MenuCensus> = std::sync::LazyLock::new(|| {
             wrote: outcome.wrote,
             blocked: outcome.blocked,
             status: outcome.status,
+            error: outcome.error,
             opened_form: outcome.opened_form,
             changed: outcome.changed,
             again: outcome.again,

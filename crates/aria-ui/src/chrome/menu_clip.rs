@@ -328,9 +328,7 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
 fn bake_ready(id: &str, state: &AppState) -> Option<&'static str> {
     super::menu_guards::selection(id, state).or_else(|| {
         if state.project_path.is_none() {
-            return Some(
-                "Save the project first: a rendered clip is kept beside the project file.",
-            );
+            return Some(crate::app::decline::Decline::UnsavedRender.reason());
         }
         let clip = state.selected_clip()?;
         aria_engine::bake_project(state.engine().lock().project(), clip)

@@ -15,19 +15,18 @@ use aria_engine::EngineError;
 use aria_models::{ModelError, RationalTime, SequenceId, TimeRange};
 
 use super::AppState;
+use super::decline::Decline;
 
 impl AppState {
     /// Nest the selected clips into a sequence of their own.
     ///
     /// The selection is replaced by one clip that plays the new sequence, on
-    /// the lane the first selected clip came from. Refused with the engine's
-    /// own error when nothing is selected, so the shown message is the message
-    /// the command layer would have produced anyway.
+    /// the lane the first selected clip came from. With nothing selected it
+    /// declines on the status line and sends nothing.
     pub fn nest_selection(&mut self, name: impl Into<String>) -> Result<(), EngineError> {
         if self.selection.is_empty() {
-            return Err(EngineError::Model(ModelError::InvalidParam(
-                "select the clips to nest first".into(),
-            )));
+            self.decline(Decline::NoSelection);
+            return Ok(());
         }
         let clips = self.selection.to_vec();
         self.apply_command(Command::Edit(EditCommand::CreateNestedSequence {
@@ -76,23 +75,21 @@ impl AppState {
 
     /// Open the nest the selection points at.
     ///
-    /// Refused when the selection is not a nest: the alternative is opening
+    /// Declines when the selection is not a nest: the alternative is opening
     /// whichever sequence happens to be first, which is not what was clicked.
     pub fn open_selected_nest(&mut self) -> Result<(), EngineError> {
-        let sequence = self.selected_nested_sequence().ok_or_else(|| {
-            EngineError::Model(ModelError::InvalidParam(
-                "select a nested sequence clip to open it".into(),
-            ))
-        })?;
-        self.open_sequence(Some(sequence))
+        match self.selected_nest_or_decline() {
+            Some(sequence) => self.open_sequence(Some(sequence)),
+            None => Ok(()),
+        }
     }
 
-    /// Leave the open sequence for the root timeline.
+    /// Leave the open sequence for the root timeline. Declines on the root
+    /// timeline itself.
     pub fn leave_sequence(&mut self) -> Result<(), EngineError> {
         if self.store.open_sequence.is_none() {
-            return Err(EngineError::Model(ModelError::InvalidParam(
-                "the root timeline is already open".into(),
-            )));
+            self.decline(Decline::AtRootSequence);
+            return Ok(());
         }
         self.open_sequence(None)
     }
@@ -133,14 +130,27 @@ impl AppState {
         Ok(())
     }
 
-    /// Place the selected nest again at the playhead.
+    /// Place the selected nest again at the playhead. Declines when the
+    /// selection is not a nest.
     pub fn place_selected_nest(&mut self) -> Result<(), EngineError> {
-        let sequence = self.selected_nested_sequence().ok_or_else(|| {
-            EngineError::Model(ModelError::InvalidParam(
-                "select a nested sequence clip to place another copy of it".into(),
-            ))
-        })?;
-        self.place_nested_sequence(sequence)
+        match self.selected_nest_or_decline() {
+            Some(sequence) => self.place_nested_sequence(sequence),
+            None => Ok(()),
+        }
+    }
+
+    /// The nest the selection plays, or nothing plus the status line that
+    /// states why: no clip is selected, or the selected clip plays no nest.
+    fn selected_nest_or_decline(&mut self) -> Option<SequenceId> {
+        if self.selection.is_empty() {
+            self.decline(Decline::NoSelection);
+            return None;
+        }
+        let nest = self.selected_nested_sequence();
+        if nest.is_none() {
+            self.decline(Decline::NotANest);
+        }
+        nest
     }
 
     /// The sequence the selection plays, when a single nest is selected.

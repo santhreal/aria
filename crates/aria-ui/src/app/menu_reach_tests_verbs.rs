@@ -344,7 +344,7 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
     let (mut plain, _) = with_clip();
     assert_eq!(
         blocked(AppMenu::Clip, &plain, "seq-bake-clip"),
-        Some("Save the project first: a rendered clip is kept beside the project file.")
+        Some(crate::app::decline::Decline::UnsavedRender.reason())
     );
     assert_eq!(
         blocked(AppMenu::Clip, &plain, "seq-bake-restore"),
@@ -444,17 +444,19 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
         "shifted back to where it started"
     );
 
+    // A media clip is selected: the rows read in the declines their verbs write.
+    let not_a_nest = Some(crate::app::decline::Decline::NotANest.reason());
     assert_eq!(
         blocked(AppMenu::Sequence, &ripple, "seq-nest-open"),
-        Some("No nested sequence is selected")
+        not_a_nest
     );
     assert_eq!(
         blocked(AppMenu::Sequence, &ripple, "seq-nest-place"),
-        Some("No nested sequence is selected")
+        not_a_nest
     );
     assert_eq!(
         blocked(AppMenu::Sequence, &ripple, "seq-nest-leave"),
-        Some("Already at the root sequence")
+        Some(crate::app::decline::Decline::AtRootSequence.reason())
     );
     let nest = Dress::Nest.state();
     assert_eq!(blocked(AppMenu::Sequence, &nest, "seq-nest-open"), None);

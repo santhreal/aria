@@ -35,6 +35,7 @@ use aria_render::ExportSettings;
 use sha2::{Digest, Sha256};
 
 use super::AppState;
+use super::decline::Decline;
 
 impl AppState {
     /// Render the selected clip and put the rendered file in its place.
@@ -87,9 +88,10 @@ impl AppState {
     /// disk where this says it goes, which is how a fixture reaches the adoption
     /// path without spending a minute of GPU on an encode.
     pub(super) fn bake_file(&self, clip: ClipId, pass: &BakePass) -> Result<PathBuf, String> {
-        let project = self.project_path.as_ref().ok_or_else(|| {
-            "Save the project first: a rendered clip is kept beside the project file.".to_string()
-        })?;
+        let project = self
+            .project_path
+            .as_ref()
+            .ok_or_else(|| Decline::UnsavedRender.reason().to_string())?;
         let stem = project
             .file_stem()
             .map(|stem| stem.to_string_lossy().into_owned())

@@ -7,10 +7,11 @@
 //! cases are: nesting replaces the selection with one clip that names its
 //! sequence; opening a nest swaps the timeline under the editor and the
 //! breadcrumb says which; leaving returns to the root; placing puts a second
-//! clip on the same sequence; and each refusal states what is missing rather
-//! than picking a sequence nobody asked for.
+//! clip on the same sequence; and each refusal declines with what is missing
+//! rather than picking a sequence nobody asked for.
 
 use super::AppState;
+use super::Decline;
 use crate::app::transform_handle_tests::selected;
 
 /// Every clip on the timeline that is open, as `(id, nested sequence)`.
@@ -133,35 +134,86 @@ fn placing_the_selected_nest_adds_a_second_clip_on_the_same_sequence() {
     );
 }
 
+/// WHY: closes the class of a nest verb run with nothing to act on that
+/// answered on the error line with the value copy, "That value isn't accepted
+/// here", whose fix names a field the verb does not have. Each verb is run
+/// past its menu row's guard, as from the palette or a key, on every state its
+/// guard withholds it on, and must state the missing thing on the status line,
+/// fail nothing, and leave the project as it was.
+///
+/// What this does not catch: a verb outside this module; the menu census
+/// (`no_menu_row_answers_with_the_value_copy`) reads every row's error.
 #[test]
-fn every_refusal_names_what_is_missing() {
-    let mut state = selected();
-    state.selection.clear();
-    let empty = state
-        .nest_selection("nothing")
-        .expect_err("nesting an empty selection is refused");
-    assert!(
-        format!("{empty}").contains("select the clips to nest"),
-        "got {empty}"
-    );
-
-    let root = state
-        .leave_sequence()
-        .expect_err("there is nothing to leave on the root timeline");
-    assert!(format!("{root}").contains("already open"), "got {root}");
-
-    let mut media = selected();
-    let not_a_nest = media
-        .open_selected_nest()
-        .expect_err("a still is not a nest");
-    assert!(
-        format!("{not_a_nest}").contains("nested sequence"),
-        "got {not_a_nest}"
-    );
-    assert!(
-        media.place_selected_nest().is_err(),
-        "a still cannot be placed as a nest"
-    );
+fn every_refusal_declines_with_what_is_missing() {
+    type Verb = fn(&mut AppState) -> Result<(), aria_engine::EngineError>;
+    let nothing_selected = || {
+        let mut state = selected();
+        state.selection.clear();
+        state
+    };
+    let cases: [(&str, fn() -> AppState, Verb, Decline); 6] = [
+        (
+            "nest",
+            nothing_selected,
+            |s| s.nest_selection("x"),
+            Decline::NoSelection,
+        ),
+        (
+            "leave",
+            selected,
+            AppState::leave_sequence,
+            Decline::AtRootSequence,
+        ),
+        (
+            "open",
+            nothing_selected,
+            AppState::open_selected_nest,
+            Decline::NoSelection,
+        ),
+        (
+            "open",
+            selected,
+            AppState::open_selected_nest,
+            Decline::NotANest,
+        ),
+        (
+            "place",
+            nothing_selected,
+            AppState::place_selected_nest,
+            Decline::NoSelection,
+        ),
+        (
+            "place",
+            selected,
+            AppState::place_selected_nest,
+            Decline::NotANest,
+        ),
+    ];
+    for (verb, state, run, why) in cases {
+        let mut state = state();
+        let before = (
+            clips(&state),
+            state.store.sequences.len(),
+            state.store.open_sequence,
+        );
+        let ran = run(&mut state);
+        assert!(
+            ran.is_ok(),
+            "{verb} failed with {ran:?} instead of declining"
+        );
+        assert_eq!(
+            state.status_message.as_deref(),
+            Some(why.reason()),
+            "{verb}"
+        );
+        assert_eq!(state.last_error, None, "{verb}");
+        let after = (
+            clips(&state),
+            state.store.sequences.len(),
+            state.store.open_sequence,
+        );
+        assert_eq!(after, before, "{verb} changed the project while declining");
+    }
 }
 
 #[test]

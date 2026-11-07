@@ -144,6 +144,57 @@ pub(super) fn linked_pair() -> AppState {
     state
 }
 
+/// Two clips with a picture and sound on two picture lanes, linked, the first
+/// selected: a clip whose link partner is another picture, which keeps its
+/// sound in its picture until the link is undone.
+pub(super) fn linked_pictures() -> (AppState, ClipId) {
+    let (mut state, first) = with_video();
+    let lane = state
+        .add_lane_of_kind(aria_models::TrackKind::Video, None)
+        .expect("a second picture lane");
+    let second = video_in_picture(&mut state, lane);
+    state.selection = vec![first, second];
+    state.sync_from_engine();
+    state.link_selected().expect("link the pictures");
+    state.sync_from_engine();
+    state.select_clip(first);
+    (state, first)
+}
+
+/// The video fixture as [`with_video`] places it, in an editor with every
+/// built-in plugin mounted, as the product runs, and a sound lane added. Its
+/// picture lane is locked (`own`), or every other lane is: a clip whose edits
+/// reach a locked lane, as their source or as the lane extracted sound would
+/// land on.
+pub(super) fn locked_around_video(own: bool) -> (AppState, ClipId) {
+    let plugins = PluginContext::new();
+    let dir = crate::scratch_pool::scratch("census-locked");
+    let _ = crate::plugins::mount_all(&plugins, &dir);
+    let mut state = AppState::new(plugins, dir).expect("state");
+    state.new_project().expect("project");
+    let picture = state.store.sequence.tracks[0].id;
+    let clip = video_in_picture(&mut state, TrackId::from_raw(picture));
+    state
+        .add_lane_of_kind(aria_models::TrackKind::Audio, None)
+        .expect("a sound lane");
+    let lanes: Vec<u64> = state
+        .store
+        .sequence
+        .tracks
+        .iter()
+        .map(|lane| lane.id)
+        .filter(|&lane| (lane == picture) == own)
+        .collect();
+    for lane in lanes {
+        state
+            .set_track_locked(TrackId::from_raw(lane), true)
+            .expect("the lane locks");
+    }
+    state.sync_from_engine();
+    state.select_clip(clip);
+    (state, clip)
+}
+
 /// The video fixture dropped at the start, its sound on a lane of its own and
 /// linked to the picture, then the picture moved `by` frames on its own: a
 /// linked pair out of sync, the picture's bar drawing `+by`. The picture and

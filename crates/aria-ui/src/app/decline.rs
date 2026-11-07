@@ -154,11 +154,19 @@ pub enum Decline {
     /// Reset Transform on a clip whose transform is already the default and
     /// not animated.
     DefaultTransform,
+    /// Open or Place Nested Sequence sent to a selected clip that plays no
+    /// nested sequence.
+    NotANest,
+    /// Leave Nested Sequence sent with the root sequence open.
+    AtRootSequence,
+    /// Render and Replace in a project that has never been saved: the render
+    /// is kept beside the project file.
+    UnsavedRender,
 }
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 58] = [
+    pub const ALL: [Decline; 61] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -217,6 +225,9 @@ impl Decline {
         Decline::TrackAtBottom,
         Decline::NothingAfterPlayhead,
         Decline::DefaultTransform,
+        Decline::NotANest,
+        Decline::AtRootSequence,
+        Decline::UnsavedRender,
     ];
 
     /// The status line text. Present tense, about the state on screen rather
@@ -289,6 +300,11 @@ impl Decline {
             Decline::TrackAtBottom => "The track cannot move lower in the stack",
             Decline::NothingAfterPlayhead => "No clip on the track starts at or after the playhead",
             Decline::DefaultTransform => "The selected clip already has the default transform",
+            Decline::NotANest => "The selected clip is not a nested sequence",
+            Decline::AtRootSequence => "The root sequence is already open",
+            Decline::UnsavedRender => {
+                "Save the project first: a rendered clip is kept beside the project file"
+            }
         }
     }
 }

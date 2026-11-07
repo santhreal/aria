@@ -75,6 +75,36 @@ fn an_enabled_row_never_answers_with_a_decline() {
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+/// WHY: closes, for the menu bar, the class of a structural refusal shown as
+/// the value copy, "That value isn't accepted here", whose fix names a field a
+/// menu row does not have: an extraction from a clip that shares its link, or
+/// a 33rd mask. Every row is held to it under its own dressing and under the
+/// bare state, so a new row is held to it with no edit here.
+///
+/// What this does not catch: a refusal reached only in a state neither covers,
+/// and a form row's committed value, which may be a value the model rejects.
+#[test]
+fn no_menu_row_answers_with_the_value_copy() {
+    let copy = value_copy();
+    let mut wrong: Vec<String> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| row.error.as_deref() == Some(copy.as_str()))
+        .map(|row| format!("{} against {:?}", row.id, row.dress))
+        .collect();
+    wrong.extend(
+        CENSUS
+            .bare
+            .iter()
+            .filter(|row| row.error.as_deref() == Some(copy.as_str()))
+            .map(|row| format!("{} against the bare state", row.id)),
+    );
+    assert!(
+        wrong.is_empty(),
+        "these rows answered with the value copy:\n{}",
+        wrong.join("\n")
+    );
+}
 /// A row that records an undo step changes the project. A step over no edit
 /// spends the next Undo on nothing and marks the project unsaved with nothing
 /// to save, while the status line reports an edit. Every row is checked under

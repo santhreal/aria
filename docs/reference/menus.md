@@ -413,6 +413,9 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `TrackAtBottom` | `The track cannot move lower in the stack` |
 | `NothingAfterPlayhead` | `No clip on the track starts at or after the playhead` |
 | `DefaultTransform` | `The selected clip already has the default transform` |
+| `NotANest` | `The selected clip is not a nested sequence` |
+| `AtRootSequence` | `The root sequence is already open` |
+| `UnsavedRender` | `Save the project first: a rendered clip is kept beside the project file` |
 
 ## Context menu item tables (`PREVIEW_ITEMS`, `CLIP_ITEMS`, `TRANSITION_ITEMS`, `TRACK_ITEMS`, `POOL_ITEMS`, `RECENT_ITEMS`, `EFFECT_ITEMS`, `BADGE_ITEMS`, `KEYFRAME_ITEMS`, `MASK_PATH_KEY_ITEMS`)
 

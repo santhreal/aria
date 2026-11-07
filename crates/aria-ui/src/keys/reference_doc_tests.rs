@@ -558,7 +558,10 @@ fn menus_doc_matches_registry() {
                 | Decline::TrackAtTop
                 | Decline::TrackAtBottom
                 | Decline::NothingAfterPlayhead
-                | Decline::DefaultTransform => {}
+                | Decline::DefaultTransform
+                | Decline::NotANest
+                | Decline::AtRootSequence
+                | Decline::UnsavedRender => {}
             }
             (format!("{d:?}"), d.reason().to_string())
         })

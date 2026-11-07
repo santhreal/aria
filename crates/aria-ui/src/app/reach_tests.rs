@@ -177,6 +177,8 @@ struct Driven {
     blocked: Option<&'static str>,
     /// The status line it left.
     status: Option<String>,
+    /// The error line it left.
+    error: Option<String>,
 }
 
 /// Run one palette row against a fresh state and report what it did.
@@ -205,7 +207,7 @@ fn driven(row: &crate::commands::host::CommandEntry) -> Driven {
     let watch = super::sent_census::Watch::on(&state);
     let before = history_labels(&state);
     let blocked = (row.blocked)(row.id, &state);
-    state.status_message = None;
+    (state.status_message, state.last_error) = (None, None);
     (row.run)(&mut state);
     let after = history_labels(&state);
     Driven {
@@ -215,6 +217,7 @@ fn driven(row: &crate::commands::host::CommandEntry) -> Driven {
         asked_pick: state.picks_asked() > 0,
         blocked,
         status: state.status_message.take(),
+        error: state.last_error.take(),
     }
 }
 
@@ -333,6 +336,29 @@ fn an_enabled_palette_row_never_answers_with_a_decline() {
         "no palette row is drawn disabled over the census's state, so no guard is read"
     );
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// WHY: closes, for the palette, the class of a structural refusal shown as
+/// the value copy, "That value isn't accepted here", whose fix names a field a
+/// palette row does not have. Every row is held to it over the census's state,
+/// one selected still with the playhead inside it, so a new row is held to it
+/// with no edit here.
+///
+/// What this does not catch: a refusal reached only in another state; the
+/// menu bar and the context menus hold their rows to the same rule.
+#[test]
+fn no_palette_row_answers_with_the_value_copy() {
+    let copy = super::menu_reach_tests::value_copy();
+    let wrong: Vec<&str> = CENSUS
+        .rows
+        .iter()
+        .filter(|row| row.error.as_deref() == Some(copy.as_str()))
+        .map(|row| row.id)
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "these palette rows answered with the value copy: {wrong:?}"
+    );
 }
 
 #[test]

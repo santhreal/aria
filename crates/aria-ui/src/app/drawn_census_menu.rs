@@ -40,6 +40,9 @@ use reread::Reread;
 #[path = "drawn_census_menu_steps.rs"]
 mod steps;
 
+#[path = "drawn_census_menu_refusals.rs"]
+mod refusals;
+
 use crate::app::menu_reach_tests::{history_labels, project_text};
 
 /// What pressing every table produced.
@@ -69,6 +72,8 @@ struct Pressed {
     /// Rows that recorded a step, were still offered, and recorded another
     /// step over their own result that left the project as it was.
     repeats: Vec<String>,
+    /// Presses refused with the copy of a model refusal of a value.
+    value_copy: Vec<String>,
 }
 
 /// One dressed state a table is pressed against, with the facts a menu opened on
@@ -103,6 +108,7 @@ fn press_all() -> Pressed {
         declined: Vec::new(),
         empty_steps: Vec::new(),
         repeats: Vec::new(),
+        value_copy: Vec::new(),
     };
     press(CLIP_ITEMS, CLIP_STAGES, &mut out);
     press(TRANSITION_ITEMS, JUNCTION_STAGES, &mut out);
@@ -163,6 +169,7 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             .filter_map(MenuItem::row)
             .filter(|row| row.checked.is_some())
     };
+    let copy = crate::app::menu_reach_tests::value_copy();
     for entry in items {
         let Some(row) = entry.row() else {
             continue;
@@ -189,7 +196,13 @@ fn press<F: Reread>(items: &'static [MenuItem<F>], stages: &[Stage<F>], out: &mu
             let (steps, text) = (history_labels(&state).len(), project_text(&state));
             let said = state.status_message.clone();
             let watch = crate::app::sent_census::Watch::on(&state);
-            let refused = (row.run)(&mut state, &facts).is_err();
+            let result = (row.run)(&mut state, &facts);
+            let refused = result.is_err();
+            if let Err(err) = &result
+                && crate::app::error_copy::describe_engine_error(err) == copy
+            {
+                out.value_copy.push(format!("{} on {}", row.id, stage.what));
+            }
             let sent = watch.take();
             // Choosing the option a check mark already marks keeps it, as a
             // menu does; every other press acts.
@@ -282,9 +295,10 @@ fn facts_over((state, clip): (AppState, ClipId)) -> (AppState, ClipMenu) {
 }
 
 /// A clip menu opens over a still, in both edit modes and under the playhead,
-/// a clip with a picture and sound, a linked pair, a linked pair out of sync, a
-/// parented clip, a group, and a disabled, remapped clip: between them they
-/// offer every clip row and draw each mark both ways.
+/// a clip with a picture and sound, a linked pair, two pictures linked to each
+/// other, a linked pair out of sync, a parented clip, a group, and a disabled,
+/// remapped clip: between them they offer every clip row and draw each mark
+/// both ways.
 pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
     Stage {
         what: "a still image on the timeline",
@@ -319,6 +333,10 @@ pub(super) const CLIP_STAGES: &[Stage<ClipMenu>] = &[
             let facts = ClipMenu::of(&state, clip.raw());
             (state, facts)
         },
+    },
+    Stage {
+        what: "two pictures, linked",
+        dress: || facts_over(fixtures::linked_pictures()),
     },
     Stage {
         what: "a picture moved out of sync with its sound",

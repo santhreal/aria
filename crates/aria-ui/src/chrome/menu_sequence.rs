@@ -288,11 +288,15 @@ fn transition_at_selection(id: &str, state: &AppState) -> Option<&'static str> {
     })
 }
 
-fn nested_clip_selected(_: &str, state: &AppState) -> Option<&'static str> {
-    state
-        .selected_nested_sequence()
-        .is_none()
-        .then_some("No nested sequence is selected")
+/// Open and Place Nested Sequence: the selection plays a nest. Worded by the
+/// declines the verbs write when run past the row.
+fn nested_clip_selected(id: &str, state: &AppState) -> Option<&'static str> {
+    guards::selection(id, state).or_else(|| {
+        state
+            .selected_nested_sequence()
+            .is_none()
+            .then_some(crate::app::decline::Decline::NotANest.reason())
+    })
 }
 
 fn inside_nested_sequence(_: &str, state: &AppState) -> Option<&'static str> {
@@ -300,7 +304,7 @@ fn inside_nested_sequence(_: &str, state: &AppState) -> Option<&'static str> {
         .store
         .open_sequence
         .is_none()
-        .then_some("Already at the root sequence")
+        .then_some(crate::app::decline::Decline::AtRootSequence.reason())
 }
 
 fn run_sequence_analyzer(id: &str, state: &mut AppState, cx: &mut gpui::Context<AppState>) {
