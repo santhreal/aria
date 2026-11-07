@@ -547,25 +547,6 @@ fn a_folder_that_refuses_a_write_is_stated_by_path() {
 
 #[cfg(unix)]
 #[test]
-fn save_preserves_existing_file_permissions() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("permissions.aria");
-    std::fs::write(&path, b"old project").unwrap();
-    std::fs::set_permissions(&path, Permissions::from_mode(0o640)).unwrap();
-
-    Project::new("permissions", R24)
-        .save_to_file(&path)
-        .unwrap();
-
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o640);
-    assert_no_transaction_artifacts(dir.path());
-}
-
-#[cfg(unix)]
-#[test]
 fn save_rejects_symlink_destination_without_touching_target() {
     use std::os::unix::fs::symlink;
 

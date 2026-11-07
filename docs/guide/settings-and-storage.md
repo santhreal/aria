@@ -326,6 +326,8 @@ A saved project is a UTF-8 JSON document with the `.aria` extension (`PROJECT_FI
 
 On load, documents at schema versions `1`, `2`, and `3` migrate step by step (`v1 -> v2 -> v3 -> v4`) before typed deserialization; saving writes schema version `4`. A document with an unknown `schema.kind` or version `0` is refused with the kind and version it holds and the versions this build reads (1 to 4); a document with a `schema.version` greater than `4` is refused with both versions and a prompt to update Aria. A `.ariat` template is checked the same way, and its refusal states the template and the `.ariat` fix. The file is left unchanged.
 
+Aria saves a project or a `.ariat` template by writing a temporary file in the same folder and renaming it over the old file. A new file takes the umask default mode, as an export does; a file saved over keeps its existing mode.
+
 ## Example
 
 Configure project canvas settings, measure and clear a storage cache, and save a custom workspace arrangement:

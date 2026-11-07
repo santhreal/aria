@@ -841,18 +841,22 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn template_save_keeps_the_existing_file_mode() {
+    fn template_save_gives_a_new_file_the_umask_default_and_keeps_an_existing_mode() {
         use std::os::unix::fs::PermissionsExt;
         let (template, _, _) = sample_template();
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("shared.ariat");
+        let mode =
+            |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        let reference = dir.path().join("reference");
+        std::fs::File::create(&reference).unwrap();
         template.save_to_file(&path).unwrap();
+        assert_eq!(mode(&path), mode(&reference));
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
 
         template.save_to_file(&path).unwrap();
 
-        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o640);
+        assert_eq!(mode(&path), 0o640);
     }
 
     #[test]

@@ -508,15 +508,11 @@ fn create_unique_temp(destination: &Path, fs: &impl PersistenceFs) -> io::Result
     ))
 }
 
+/// Open a new temporary for a document. It takes the umask default, as any
+/// new file does; [`write_temp`] gives it the replaced file's mode when there
+/// is one.
 fn open_new_temp(path: &Path) -> io::Result<File> {
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    options.open(path)
+    OpenOptions::new().write(true).create_new(true).open(path)
 }
 
 #[derive(Debug)]
@@ -928,6 +924,9 @@ mod tests_layout;
 #[cfg(test)]
 #[path = "persist/tests_mask_stack.rs"]
 mod tests_mask_stack;
+#[cfg(all(test, unix))]
+#[path = "persist/tests_mode.rs"]
+mod tests_mode;
 #[cfg(test)]
 #[path = "persist/tests_refs.rs"]
 mod tests_refs;
