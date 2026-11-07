@@ -1,5 +1,5 @@
 //! Verification tests for code-backed claims in `docs/architecture.md`,
-//! `docs/features.md`, `docs/install.md`, `docs/mcp-design.md`, and
+//! `docs/features.md`, `docs/install.md`, and
 //! `docs/plugins/worked-example.md`.
 
 use std::collections::BTreeSet;
@@ -493,40 +493,6 @@ fn install_doc_claims_match_packaging_and_manifests() {
             && cargo_toml.contains("https://github.com/santhreal/santh-gpui"),
         "docs/install.md santh-gpui link must match root Cargo.toml"
     );
-}
-/// `ActionLogEntry`, `AgentConfig` caps, or host-tool name validation).
-/// Does not test unimplemented Workstream 11 MCP transport runtime.
-#[test]
-fn mcp_design_doc_claims_match_aria_ai() {
-    let doc_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/mcp-design.md");
-    let doc = std::fs::read_to_string(&doc_path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", doc_path.display()));
-
-    const { assert!(aria_ai::TOOL_SCHEMA_VERSION >= 1) };
-    assert!(doc.contains("`TOOL_SCHEMA_VERSION`"));
-
-    let specs = aria_ai::wire::tool_specs();
-    assert!(!specs.is_empty());
-    assert!(doc.contains("`WireCommand`"));
-
-    let step_type = std::any::type_name::<aria_ai::ActionLogEntry>();
-    assert!(
-        step_type.ends_with("ActionLogEntry"),
-        "expected ActionLogEntry type name, got {step_type}"
-    );
-    assert!(
-        doc.contains("`ActionLogEntry`"),
-        "docs/mcp-design.md must reference `ActionLogEntry`"
-    );
-
-    let cfg = aria_ai::AgentConfig::default();
-    assert_eq!(cfg.max_tool_calls, 1000);
-    assert!(
-        !aria_ai::tools::is_host_tool_name("mcp__server__tool")
-            && aria_ai::tools::is_host_tool_name("plugin_lut_preview"),
-        "mcp__<server>__<tool> is fenced outside existing host tool namespaces"
-    );
-    assert!(doc.contains("`mcp__<server>__<tool>`"));
 }
 
 /// WHY: closes the defect class where the expanded `plugin.toml` in

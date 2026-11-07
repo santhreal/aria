@@ -1,4 +1,4 @@
-//! AI agent foundation for Aria (v1-roadmap M3, `ai-agent-roadmap.md`).
+//! AI agent foundation for Aria.
 //!
 //! Phase 1 of the agent: the machine-callable surface over the command
 //! layer, with no network anywhere.

@@ -1,5 +1,4 @@
-//! Prompt extensibility: user rules, skills, and slash commands
-//! (cloud-roadmap Workstream 10).
+//! Prompt extensibility: user rules, skills, and slash commands.
 //!
 //! Everything here is **prompt-level only** — the closed command
 //! vocabulary, validation, dry-run, and one-undo-group invariants are

@@ -58,7 +58,7 @@ still oversells it.
   draws a confirmation naming the exact file, nothing is read until it is
   accepted, refusing it leaves the project untouched, and `Open` / `Save` /
   `Export` are still rejected.
-- **Where:** [docs/ai-agent-roadmap.md](ai-agent-roadmap.md) Phase 5.
+- **Where:** `crates/aria-ai/src/wire`.
 
 ### Local-model tool-calling quality
 
