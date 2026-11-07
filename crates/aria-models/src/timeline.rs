@@ -368,11 +368,30 @@ impl Timeline {
     /// Re-derive the lane order, the clip index, and the lane-zone and
     /// main-track invariants from scratch — the chokepoint for projects loaded
     /// from disk (files written before the main-track flag existed, or edited
-    /// externally).
+    /// externally). A transition no edit keeps is dropped, as the next edit
+    /// of its lane drops it: a window longer than its junction otherwise
+    /// blends the clips on both sides of the cut from start to end until an
+    /// unrelated edit removes it.
     pub fn normalize_lanes(&mut self) {
         self.rederive_order_and_index();
         self.designate_main();
         self.enforce_lane_zones();
+        self.prune_loaded_transitions();
+    }
+
+    /// Drop each lane's dead transitions, writing only to a lane that has one.
+    fn prune_loaded_transitions(&mut self) {
+        let dead: Vec<TrackId> = self
+            .tracks
+            .iter()
+            .filter(|(_, track)| track.has_dead_transition())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in dead {
+            if let Some(track) = self.lane_mut(&id) {
+                track.prune_dead_transitions();
+            }
+        }
     }
 
     /// Keep the main-track invariant: clear the flag from non-video lanes,

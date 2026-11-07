@@ -93,6 +93,9 @@ mod style_params;
 #[path = "tests_add_transition.rs"]
 mod add_transition;
 
+#[path = "tests_loaded_transitions.rs"]
+mod loaded_transitions;
+
 #[path = "tests_missing_plugin.rs"]
 mod missing_plugin;
 

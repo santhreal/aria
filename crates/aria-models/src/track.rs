@@ -772,19 +772,19 @@ impl Track {
             .is_some_and(|(l, r)| l.timeline.end_tick() == r.timeline.start.value)
     }
 
-    /// Drop transitions whose junction no longer abuts or fits.
+    /// Drop transitions whose junction no longer abuts or fits, and any with
+    /// no length ([`junction_lives`]).
     pub(crate) fn prune_dead_transitions(&mut self) -> bool {
         let (before, clips) = (self.transitions.len(), &self.clips);
-        self.transitions
-            .retain(|t| match (clips.get(&t.left), clips.get(&t.right)) {
-                (Some(l), Some(r)) => {
-                    let (ld, rd) = (l.timeline.duration.value, r.timeline.duration.value);
-                    l.timeline.end_tick() == r.timeline.start.value
-                        && t.duration <= t.alignment.junction_limit(ld, rd)
-                }
-                _ => false,
-            });
+        self.transitions.retain(|t| junction_lives(clips, t));
         self.transitions.len() != before
+    }
+
+    /// Whether a transition on this track is one [`Track::prune_dead_transitions`]
+    /// drops.
+    pub(crate) fn has_dead_transition(&self) -> bool {
+        let clips = &self.clips;
+        self.transitions.iter().any(|t| !junction_lives(clips, t))
     }
 
     /// Keep the transitions at the two cuts of a clip split into `head` and
@@ -860,6 +860,21 @@ impl Drop for ClipMut<'_> {
         {
             self.track.sort_order();
         }
+    }
+}
+
+/// Whether `transition` holds among `clips`: both of its clips are there and
+/// abut, and its window is longer than zero and fits the junction
+/// ([`crate::TransitionAlignment::junction_limit`]).
+fn junction_lives(clips: &LaneClips, transition: &Transition) -> bool {
+    match (clips.get(&transition.left), clips.get(&transition.right)) {
+        (Some(l), Some(r)) => {
+            let (ld, rd) = (l.timeline.duration.value, r.timeline.duration.value);
+            transition.duration > 0
+                && l.timeline.end_tick() == r.timeline.start.value
+                && transition.duration <= transition.alignment.junction_limit(ld, rd)
+        }
+        _ => false,
     }
 }
 
