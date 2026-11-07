@@ -90,7 +90,7 @@ fn is_default_master_volume_envelope(envelope: &Param<f32>) -> bool {
 pub struct Timeline {
     /// Editing/playback frame rate. Clip `timeline` ranges are in these frames.
     pub frame_rate: Rational,
-    #[serde(with = "crate::serde_map")]
+    #[serde(with = "crate::serde_map::keyed")]
     tracks: Map<TrackId, Track>,
     order: Vec<TrackId>,
     #[serde(with = "crate::serde_map")]

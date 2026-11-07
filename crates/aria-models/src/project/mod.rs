@@ -39,13 +39,13 @@ pub struct Project {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub plugin_data: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
-    #[serde(with = "crate::serde_map")]
+    #[serde(with = "crate::serde_map::keyed")]
     media: Map<MediaId, MediaSource>,
     /// Pool folders. Absent from saves while empty, so a flat pool costs
     /// nothing on disk and an old file loads with no bins.
     #[serde(
         default,
-        with = "crate::serde_map",
+        with = "crate::serde_map::keyed",
         skip_serializing_if = "Map::is_empty"
     )]
     bins: Map<BinId, crate::bin::Bin>,
@@ -60,14 +60,14 @@ pub struct Project {
     /// Multicam groups. Absent from saves while empty.
     #[serde(
         default,
-        with = "crate::serde_map",
+        with = "crate::serde_map::keyed",
         skip_serializing_if = "Map::is_empty"
     )]
     multicam_groups: Map<crate::ids::MulticamGroupId, crate::multicam::MulticamGroup>,
     /// Secondary sequences. Absent from saves while empty.
     #[serde(
         default,
-        with = "crate::serde_map",
+        with = "crate::serde_map::keyed",
         skip_serializing_if = "Map::is_empty"
     )]
     sequences: Map<crate::ids::SequenceId, crate::sequence::Sequence>,

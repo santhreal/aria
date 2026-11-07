@@ -905,6 +905,9 @@ fn validate_schema_at(found: &ProjectSchema, path: Option<&Path>) -> Result<(), 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+#[path = "persist/tests_keys.rs"]
+mod tests_keys;
+#[cfg(test)]
 #[path = "persist/tests_layout.rs"]
 mod tests_layout;
 #[cfg(test)]

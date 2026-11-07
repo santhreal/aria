@@ -398,7 +398,7 @@ struct TrackData {
     pub sends: Vec<AudioSend>,
     #[serde(default)]
     pub audio_effects: Vec<AudioEffectInstance>,
-    #[serde(with = "crate::serde_map")]
+    #[serde(with = "crate::serde_map::keyed")]
     pub clips: Map<ClipId, Clip>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transitions: Vec<Transition>,

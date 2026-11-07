@@ -1,9 +1,10 @@
 //! Serialize [`Map`] as a stable key-sorted sequence of pairs for JSON project
-//! files, and read the pairs back with each key once.
+//! files, and read the pairs back with each key once. A map whose entries hold
+//! their own id reads through [`keyed`], which also holds each key to the id
+//! its entry holds.
 
 use std::fmt;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 use serde::de::{Error as _, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
@@ -71,10 +72,86 @@ where
     V: Deserialize<'de>,
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_seq(Pairs(PhantomData))
+    deserializer.deserialize_seq(Pairs {
+        fault: |_: &K, _: &V| None,
+    })
 }
 
-struct Pairs<K, V>(PhantomData<(K, V)>);
+/// An entry that holds the id it is filed under.
+pub(crate) trait Keyed {
+    type Key: Copy + Eq;
+
+    /// The id the entry holds.
+    fn key(&self) -> Self::Key;
+
+    /// The number `key` is written as.
+    fn raw(key: Self::Key) -> u64;
+}
+
+macro_rules! keyed {
+    ($($entry:ty => $key:ty),* $(,)?) => {
+        $(impl Keyed for $entry {
+            type Key = $key;
+
+            fn key(&self) -> $key {
+                self.id
+            }
+
+            fn raw(key: $key) -> u64 {
+                key.raw()
+            }
+        })*
+    };
+}
+
+keyed! {
+    crate::track::Track => crate::ids::TrackId,
+    crate::clip::Clip => crate::ids::ClipId,
+    crate::media::MediaSource => crate::ids::MediaId,
+    crate::bin::Bin => crate::ids::BinId,
+    crate::multicam::MulticamGroup => crate::ids::MulticamGroupId,
+    crate::sequence::Sequence => crate::ids::SequenceId,
+}
+
+/// [`serialize`] and [`deserialize`](keyed::deserialize) for a map of
+/// [`Keyed`] entries. Edits file an entry under the id it holds, and the
+/// model looks entries up by either one, so a file that lists an entry under
+/// another key is refused.
+pub(crate) mod keyed {
+    use std::hash::Hash;
+
+    use serde::{Deserialize, Deserializer};
+
+    pub(crate) use super::serialize;
+    use super::{Keyed, Map, Pairs};
+
+    pub(crate) fn deserialize<'de, K, V, D>(deserializer: D) -> Result<Map<K, V>, D::Error>
+    where
+        K: Deserialize<'de> + Eq + Hash + Copy,
+        V: Deserialize<'de> + Keyed<Key = K>,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(Pairs {
+            fault: |key: &K, entry: &V| {
+                let held = entry.key();
+                (held != *key).then(|| {
+                    format!(
+                        "an entry is listed under key {} and holds id {}, and each entry is \
+                         listed under its own id",
+                        V::raw(*key),
+                        V::raw(held)
+                    )
+                })
+            },
+        })
+    }
+}
+
+/// The visitor both readers share. `fault` states why an entry cannot sit
+/// under its key.
+struct Pairs<K, V> {
+    fault: fn(&K, &V) -> Option<String>,
+}
 
 impl<'de, K, V> Visitor<'de> for Pairs<K, V>
 where
@@ -91,6 +168,9 @@ where
         let reserved = pairs.size_hint().unwrap_or(0).min(MAX_RESERVED);
         let mut map = Map::with_capacity_and_hasher(reserved, Default::default());
         while let Some((key, value)) = pairs.next_element::<(K, V)>()? {
+            if let Some(fault) = (self.fault)(&key, &value) {
+                return Err(A::Error::custom(fault));
+            }
             if map.insert(key, value).is_some() {
                 return Err(A::Error::custom(LISTED_TWICE));
             }
@@ -130,8 +210,8 @@ mod tests {
 
     /// WHY: a map keeps one entry per key, so a file listing a key twice lost
     /// every entry but the last on load, without a refusal: a clip listed twice
-    /// on a lane loaded as one. Every `serde_map` field reads through
-    /// [`deserialize`], so this covers lanes, clips, the clip index, media,
+    /// on a lane loaded as one. Every `serde_map` field reads through the
+    /// [`Pairs`] visitor, so this covers lanes, clips, the clip index, media,
     /// sequences and parameters, read from text (the current-schema path) and
     /// from a parsed `Value` (the migrating path). Not caught: a map a project
     /// file holds without `serde_map`.
