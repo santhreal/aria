@@ -1386,6 +1386,7 @@ Notes for the latest release. For previous releases, see the
 - An export with a target bitrate of 0 kbit/s, such as `aria export p.aria out.mp4 --bitrate 0`, is refused instead of encoding at the encoder's default bitrate.
 - An `aria` command whose output is in a directory that does not exist exits 2 naming the directory before it reads an input, instead of failing after the work with an OS error that names no path.
 - `aria plugin check`, `pack`, and `dev` report a missing path as missing and a file as not a plugin directory, instead of a missing `plugin.toml` or an OS error code.
+- A canvas larger than the GPU renders, such as `aria export p.aria out.mp4 --size 32768x32768`, is refused with the GPU's size limits instead of panicking.
 
 ## [alpha-0.7.0] - 2026-07-22
 

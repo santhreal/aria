@@ -297,6 +297,16 @@ impl Compositor {
                 height: config.height,
             });
         }
+        // A canvas past the device's limits is a wgpu validation panic at the
+        // first texture or readback buffer, so the size is checked whenever
+        // the pools are built for a new one.
+        if !self
+            .offscreen
+            .as_ref()
+            .is_some_and(|pool| pool.width == config.width && pool.height == config.height)
+        {
+            canvas_fits(&gpu.device.limits(), config.width, config.height)?;
+        }
 
         let device = &gpu.device;
         self.ensure_offscreen(gpu, config.width, config.height, scene_demand(scene));
@@ -388,6 +398,24 @@ impl Compositor {
 
         Ok(encoder)
     }
+}
+
+/// Fails unless a `width`×`height` canvas fits `limits`: each side within the
+/// largest 2D texture, and the readback buffer, rows padded to the copy
+/// alignment, within the largest buffer.
+fn canvas_fits(limits: &wgpu::Limits, width: u32, height: u32) -> Result<(), CompositorError> {
+    let align = u64::from(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+    let readback = (u64::from(width) * 4).div_ceil(align) * align * u64::from(height);
+    let max_side = limits.max_texture_dimension_2d;
+    if width <= max_side && height <= max_side && readback <= limits.max_buffer_size {
+        return Ok(());
+    }
+    Err(CompositorError::CanvasTooLarge {
+        width,
+        height,
+        max_side,
+        max_pixels: limits.max_buffer_size / 4,
+    })
 }
 
 pub(super) fn draw_built_layer(

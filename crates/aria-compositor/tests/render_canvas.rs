@@ -95,3 +95,52 @@ fn opacity_blends_over_background() {
 
     assert_px(&img, 8, 8, [128, 0, 128, 255], 2);
 }
+
+/// WHY: a canvas past the device's limits reached wgpu as a texture or a
+/// readback buffer the device cannot hold, and wgpu's validation panicked,
+/// so `aria export --size 32768x32768` exited 101. Each case is one limit
+/// the device reports: a side one past the largest texture, and, where the
+/// device's sides allow one, a canvas whose readback passes the largest
+/// buffer. Each is refused with the device's limits, and the compositor
+/// renders the next frame.
+///
+/// Not caught: a canvas inside every limit that the device still cannot
+/// allocate for want of memory.
+#[test]
+fn a_canvas_past_the_device_limits_is_refused_and_the_next_frame_renders() {
+    let gpu = gpu_or_skip!();
+    let limits = gpu.device.limits();
+    let side = limits.max_texture_dimension_2d;
+    let row = u64::from(side) * 4;
+    let row = row.div_ceil(256) * 256;
+    let mut cases = vec![(side + 1, 8), (8, side + 1)];
+    let rows = limits.max_buffer_size / row + 1;
+    if rows <= u64::from(side) {
+        cases.push((side, rows as u32));
+    }
+    let mut comp = Compositor::new(&gpu);
+    for (width, height) in cases {
+        let config = CompositorConfig::new(width, height);
+        match comp
+            .render(&gpu, &config, &[])
+            .map(|img| (img.width, img.height))
+        {
+            Err(CompositorError::CanvasTooLarge {
+                width: w,
+                height: h,
+                max_side,
+                max_pixels,
+            }) => {
+                assert_eq!((w, h), (width, height));
+                assert_eq!(max_side, side, "{width}x{height}");
+                assert_eq!(max_pixels, limits.max_buffer_size / 4, "{width}x{height}");
+            }
+            other => panic!("{width}x{height}: {other:?}"),
+        }
+        let small = CompositorConfig::new(8, 8).with_background([1, 2, 3, 255]);
+        let img = comp
+            .render(&gpu, &small, &[])
+            .expect("a frame after the refusal");
+        assert_px(&img, 4, 4, [1, 2, 3, 255], 1);
+    }
+}

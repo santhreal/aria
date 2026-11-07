@@ -17,6 +17,18 @@ pub enum CompositorError {
     #[error("invalid canvas dimensions: {width}x{height}")]
     InvalidDimensions { width: u32, height: u32 },
 
+    /// The canvas, or the buffer its frame is read back through, is larger
+    /// than the device allows.
+    #[error(
+        "a {width}x{height} canvas is larger than this GPU renders: at most {max_side} pixels a side and {max_pixels} pixels in all"
+    )]
+    CanvasTooLarge {
+        width: u32,
+        height: u32,
+        max_side: u32,
+        max_pixels: u64,
+    },
+
     /// A frame's pixel format isn't handled by the compositor yet (e.g. 10-bit
     /// P010, which needs a 16-bit sampling path).
     #[error("unsupported frame format: {0}")]
