@@ -1443,6 +1443,7 @@ Notes for the latest release. For previous releases, see the
 - `aria export` of a timeline with nothing audible prints `no audio` in its `wrote` line instead of naming an AAC track the file does not hold.
 - `aria analyze` on a folder or a missing path states the path and the reason before a decode, as `aria new` does, instead of printing the GStreamer error.
 - An export larger than the GPU renders, such as `aria export p.aria out.mp4 --size 99999x99999`, is refused with the GPU's size limits before the encoder opens, instead of failing with a GStreamer frame layout error.
+- Importing an empty file states that the file is empty, instead of a GStreamer error that advises installing missing plugins.
 
 ## [alpha-0.7.0] - 2026-07-22
 

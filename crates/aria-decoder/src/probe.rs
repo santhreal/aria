@@ -107,9 +107,18 @@ const AUDIO_TICK_RATE: Rational = Rational::new(1000, 1);
 /// audio-only: zero dimensions, millisecond ticks, and the audio track's
 /// duration. Returns [`DecodeError::Unsupported`] on platforms without a
 /// native decoder.
+///
+/// An empty file is refused before any decoder reads it: no decoder has a
+/// stream to find, and GStreamer's text for one advises installing plugins.
 pub fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
+    if std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.len() == 0) {
+        return Err(DecodeError::Open(EMPTY_FILE.to_owned()));
+    }
     crate::external::dispatch(path, |decoder| decoder.probe(path), || probe_native(path))
 }
+
+/// What a probe of an empty file fails with.
+const EMPTY_FILE: &str = "the file is empty. Pick another file.";
 
 fn probe_native(path: &Path) -> Result<MediaProbe, DecodeError> {
     if crate::image::sniff_image(path).is_some() {
@@ -230,4 +239,37 @@ fn audio_track_duration(path: &Path) -> Option<RationalTime> {
 #[cfg(not(any(target_vendor = "apple", target_os = "windows", target_os = "linux")))]
 fn audio_track_duration(_path: &Path) -> Option<RationalTime> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use aria_core::DecodeError;
+
+    /// WHY: an empty file, such as a download that never arrived, failed to
+    /// import with "GStreamer: Stream contains no data. Install missing
+    /// plugins or pick another file.", advice no plugin answers. The probe
+    /// states that the file is empty before a decoder reads it, whatever its
+    /// extension claims, and a file with one byte still reaches the decoders.
+    /// Not caught: a file truncated to a few bytes, which a decoder refuses.
+    #[test]
+    fn an_empty_file_is_refused_as_empty_whatever_its_extension() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let probe = |name: &str, bytes: &[u8]| {
+            let path = dir.path().join(name);
+            std::fs::write(&path, bytes).expect("write the file");
+            super::probe(&path).map(|_| ())
+        };
+        for name in ["clip.mp4", "song.wav", "still.png", "noext"] {
+            match probe(name, b"") {
+                Err(DecodeError::Open(why)) => assert_eq!(why, super::EMPTY_FILE, "{name}"),
+                other => panic!("an empty {name} probed as {other:?}"),
+            }
+            match probe(name, b"x") {
+                Err(DecodeError::Open(why)) if why == super::EMPTY_FILE => {
+                    panic!("a one-byte {name} was refused as empty")
+                }
+                _ => {}
+            }
+        }
+    }
 }
