@@ -319,21 +319,10 @@ impl Args {
         let Some((index, extension)) = self.verb.writes() else {
             return Ok(());
         };
-        let Some(out) = self.positional.get(index) else {
-            return Ok(());
-        };
-        let path = Path::new(out);
-        if path
-            .extension()
-            .is_some_and(|named| named.eq_ignore_ascii_case(extension))
-        {
-            return Ok(());
+        match self.positional.get(index) {
+            Some(out) => reject_misnamed(self.verb.key(), out, extension),
+            None => Ok(()),
         }
-        Err(ArgsError::Usage(format!(
-            "{} writes a .{extension} file; name the output \"{}\" rather than \"{out}\"",
-            self.verb.key(),
-            path.with_extension(extension).display()
-        )))
     }
 
     /// Reject an output that exists and is not a regular file, and one whose
@@ -348,20 +337,7 @@ impl Args {
         let Some(out) = self.positional.get(index) else {
             return Ok(());
         };
-        if let Ok(meta) = std::fs::symlink_metadata(out)
-            && !meta.is_file()
-        {
-            let what = if meta.is_dir() {
-                "a directory"
-            } else if meta.is_symlink() {
-                "a symbolic link"
-            } else {
-                "a special file"
-            };
-            return Err(ArgsError::Usage(format!(
-                "\"{out}\" is {what}; name a file to write"
-            )));
-        }
+        reject_non_file(out)?;
         match Path::new(out).parent() {
             Some(dir) if !dir.as_os_str().is_empty() && !dir.is_dir() => {
                 Err(ArgsError::Usage(format!(
@@ -372,6 +348,42 @@ impl Args {
             _ => Ok(()),
         }
     }
+}
+
+/// Refuse an output `out` that `command`, which writes one format whatever
+/// the name says, would write under another extension than `extension`.
+pub(crate) fn reject_misnamed(command: &str, out: &str, extension: &str) -> Result<(), ArgsError> {
+    let path = Path::new(out);
+    if path
+        .extension()
+        .is_some_and(|named| named.eq_ignore_ascii_case(extension))
+    {
+        return Ok(());
+    }
+    Err(ArgsError::Usage(format!(
+        "{command} writes a .{extension} file; name the output \"{}\" rather than \"{out}\"",
+        path.with_extension(extension).display()
+    )))
+}
+
+/// Refuse an output `out` that exists and is not a regular file.
+pub(crate) fn reject_non_file(out: &str) -> Result<(), ArgsError> {
+    let Ok(meta) = std::fs::symlink_metadata(out) else {
+        return Ok(());
+    };
+    if meta.is_file() {
+        return Ok(());
+    }
+    let what = if meta.is_dir() {
+        "a directory"
+    } else if meta.is_symlink() {
+        "a symbolic link"
+    } else {
+        "a special file"
+    };
+    Err(ArgsError::Usage(format!(
+        "\"{out}\" is {what}; name a file to write"
+    )))
 }
 
 /// `part` of the `--name` value `raw` as a `u32`, or a usage error that states

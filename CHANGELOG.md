@@ -1416,6 +1416,7 @@ Notes for the latest release. For previous releases, see the
 - Writing, opening or installing a `.ariab` template bundle that fails states the bundle, the obstacle and the fix instead of reporting a damaged `.aria` project.
 - Installing a template bundle with an entry outside its layout writes no file; the entries before that one were extracted.
 - `aria plugin` commands state a failed read or write as the path and the reason, such as "permission denied", without the OS error code.
+- `aria plugin pack --out` refuses a name that does not end in `.ariaplugin`, a directory, and a symbolic link with exit code 2 before the build, instead of writing the archive over a package file such as `plugin.toml`.
 
 ## [alpha-0.7.0] - 2026-07-22
 

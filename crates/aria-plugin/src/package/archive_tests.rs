@@ -180,6 +180,43 @@ fn pack_refuses_what_is_not_a_package_and_a_linked_file() {
     }
 }
 
+/// WHY: `pack` wrote the archive over `out` whatever its name, and leaves
+/// out of the archive only `.ariaplugin` files, so an `out` naming a file of
+/// the package being packed, such as its `plugin.toml`, replaced that file
+/// with the archive. Every file the package holds is tried as `out`, and a
+/// name outside it with another extension; each is refused and no file
+/// changes. An `out` named `*.ariaplugin` inside the package packs, and the
+/// next pack leaves it out.
+///
+/// Not caught: an `*.ariaplugin` file the package holds as data, which the
+/// packer leaves out and an `out` of that name replaces.
+#[test]
+fn pack_refuses_an_output_not_named_as_an_archive() {
+    let root = scratch();
+    let source = root.path().join("tools");
+    write(&source, "plugin.toml", MANIFEST.as_bytes());
+    write(&source, "shaders/tint.wgsl", b"// tint");
+    write(&source, "data/notes.txt", b"notes");
+    let before = tree(&source);
+    let mut outs: Vec<_> = before.iter().map(|(name, _)| source.join(name)).collect();
+    outs.push(root.path().join("tools.zip"));
+    outs.push(root.path().join("tools"));
+    for out in &outs {
+        let err = pack(&source, out).expect_err("a name that is not an archive's");
+        assert_eq!(err.path, *out);
+        assert_eq!(err.reason, "a package archive is named *.ariaplugin");
+        assert_eq!(tree(&source), before, "{}", out.display());
+    }
+    assert!(!root.path().join("tools.zip").exists());
+
+    let inside = source.join("tools.ariaplugin");
+    pack(&source, &inside).expect("packs inside the package");
+    pack(&source, &inside).expect("packs again");
+    let into = root.path().join("unpacked");
+    unpack(&inside, &into).expect("unpacks");
+    assert_eq!(tree(&into), before);
+}
+
 #[test]
 fn a_package_in_one_top_folder_unpacks_to_its_contents() {
     let root = scratch();

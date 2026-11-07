@@ -40,8 +40,16 @@ pub const SOURCE_ENTRIES: [&str; 5] = ["Cargo.toml", "Cargo.lock", "src", "wit",
 /// opens. Hidden files and folders, `.ariaplugin` archives, and, when `dir`
 /// holds a `Cargo.toml`, the [`SOURCE_ENTRIES`] are left out; a symbolic link
 /// refuses the package. The archive is written beside `out` and renamed over
-/// it once complete.
+/// it once complete. An `out` not named `*.ariaplugin` is refused: packing
+/// leaves out only archives, so `out` named for a package file, such as
+/// `plugin.toml`, wrote the archive over that file.
 pub fn pack(dir: &Path, out: &Path) -> Result<Package, PackageError> {
+    if !is_archive(out) {
+        return Err(PackageError::new(
+            out,
+            format!("a package archive is named *.{ARCHIVE_EXTENSION}"),
+        ));
+    }
     let package = Package::open(dir)?;
     let source = dir.join("Cargo.toml").is_file();
     let mut files = Vec::new();

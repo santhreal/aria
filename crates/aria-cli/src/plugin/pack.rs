@@ -7,7 +7,7 @@ use aria_plugin::package::{ARCHIVE_EXTENSION, Package, pack};
 
 use super::build::{self, BuildProfile};
 use super::check;
-use crate::args::Args;
+use crate::args::{Args, reject_misnamed, reject_non_file};
 use crate::fail::Failure;
 
 pub(crate) const FLAGS: &[&str] = &["out", "no-build"];
@@ -16,7 +16,14 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let dir = args.required_path(1, "a plugin directory")?;
     args.reject_extra_positional(2)?;
     let no_build = args.flag("no-build")?;
-    let out = args.value("out")?.map(PathBuf::from);
+    let out = args.value("out")?;
+    if let Some(out) = out {
+        // An archive is written over `--out` whatever its name, so
+        // `--out <dir>/plugin.toml` wrote the archive over the manifest.
+        reject_misnamed("plugin pack", out, ARCHIVE_EXTENSION)?;
+        reject_non_file(out)?;
+    }
+    let out = out.map(PathBuf::from);
 
     pack_dir(&dir, out.as_deref(), no_build).map(drop)
 }
@@ -49,3 +56,7 @@ pub(crate) fn pack_dir(
     println!("packed       {}", archive_path.display());
     Ok((packed, archive_path))
 }
+
+#[cfg(test)]
+#[path = "pack_tests.rs"]
+mod tests;

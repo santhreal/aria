@@ -329,9 +329,13 @@ aria plugin check com.example.color-tools-0.1.0.ariaplugin
 Build the crate in release mode and stage the output when `<dir>/Cargo.toml`
 exists (skipped with `--no-build`), run the `plugin check` validations on
 `<dir>`, and write the `.ariaplugin` archive excluding crate build entries
-(`Cargo.toml`, `Cargo.lock`, `src`, `wit`, `target`). `--out` sets the archive
-path and defaults to `<dir>/<id>-<version>.ariaplugin`. Prints the check lines
-and the written archive path on stdout.
+(`Cargo.toml`, `Cargo.lock`, `src`, `wit`, `target`), hidden entries, and
+other `.ariaplugin` files. `--out` sets the archive path and defaults to
+`<dir>/<id>-<version>.ariaplugin`; a missing directory in it is created. An
+`--out` whose name does not end in `.ariaplugin` exits `2`, and the message
+states the name to use instead. An `--out` that is a directory or a symbolic
+link exits `2` as well. Both are raised before the build. Prints the check
+lines and the written archive path on stdout.
 
 ```
 aria plugin pack com.example.color-tools --out dist/color-tools.ariaplugin
