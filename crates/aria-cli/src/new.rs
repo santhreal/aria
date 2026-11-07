@@ -142,7 +142,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         .map_err(|err| err.to_string())?;
     let duration = engine.project().timeline().duration();
     println!(
-        "wrote {} — {} at {}/{}, {}",
+        "wrote {}: {} at {}/{}, {}",
         out.display(),
         clock(duration.seconds()),
         rate.num,

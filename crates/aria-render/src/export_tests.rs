@@ -132,7 +132,9 @@ fn the_count_is_the_span_the_frame_loop_walks() {
 
 /// Every reason says something of its own, and says it inside the refusal.
 /// Derived from [`EmptyExport::ALL`], so a new reason that reuses another's
-/// words, or has none, fails here rather than in the export dialog.
+/// words, or has none, fails here rather than in the export dialog. The way
+/// out follows a semicolon, the separator of every export refusal in this
+/// crate, and no reason holds an em dash, which the CLI printed verbatim.
 #[test]
 fn every_reason_names_its_own_way_out() {
     let mut seen: Vec<String> = Vec::new();
@@ -140,9 +142,11 @@ fn every_reason_names_its_own_way_out() {
         let text = reason.to_string();
         assert!(text.len() > 20, "{reason:?} explains nothing: {text}");
         assert!(
-            text.contains('—'),
+            text.split_once("; ")
+                .is_some_and(|(_, action)| !action.is_empty()),
             "{reason:?} names no corrective action: {text}"
         );
+        assert!(!text.contains('—'), "{reason:?} holds an em dash: {text}");
         assert!(
             !seen.contains(&text),
             "{reason:?} reuses another reason's words: {text}"

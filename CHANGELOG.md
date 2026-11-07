@@ -1504,6 +1504,7 @@ Notes for the latest release. For previous releases, see the
 - Animating a stroke, shadow or background on a clip without one reports the missing block without naming an engine command.
 - Python `load_font` and `import_media` state the path and the reason when the file is missing or is a folder.
 - Python `export` rejects a path that does not end in the encoder's extension instead of writing an MP4 under that name.
+- `aria export`, `aria frame` and `aria new` print their refusals and summary lines with a semicolon or colon instead of an em dash.
 
 ## [alpha-0.7.0] - 2026-07-22
 

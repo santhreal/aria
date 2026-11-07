@@ -102,14 +102,14 @@ pub enum RenderError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum EmptyExport {
     /// No track holds a clip, so the timeline has no duration to render.
-    #[error("the sequence has no content — place a clip first")]
+    #[error("the sequence has no content; place a clip first")]
     Sequence,
     /// The timeline has content, but the requested range covers no frame of it.
-    #[error("the requested range covers no frame — move the in and out points apart")]
+    #[error("the requested range covers no frame; move the in and out points apart")]
     Range,
     /// A sound-only export whose mix is silent. There is no picture to carry
     /// the file, so a silent one holds nothing at all.
-    #[error("nothing in the sequence is audible — unmute a lane or raise a fader")]
+    #[error("nothing in the sequence is audible; unmute a lane or raise a fader")]
     Silence,
 }
 

@@ -3,8 +3,10 @@
 //! WHY: a sound printed as `0x0 1000/1 0:00:02.000`, the size and tick rate
 //! its probe fills in for no picture, and a still printed the rate and length
 //! a placement starts at. `inspect::tests` holds the line of each kind; this
-//! holds that the binary prints those lines for a project `aria new` built.
-//! Does not cover a video, whose line did not change.
+//! holds that the binary prints those lines for a project `aria new` built,
+//! and that `aria new` ends with a `wrote` line in the CLI's separators: it
+//! printed an em dash after the path. Does not cover a video, whose line did
+//! not change.
 
 mod support;
 
@@ -33,6 +35,17 @@ fn inspect_prints_a_sound_and_a_still_as_their_kinds() {
         new.status.success(),
         "aria new: {}",
         String::from_utf8_lossy(&new.stderr)
+    );
+    let made = String::from_utf8_lossy(&new.stdout);
+    let wrote = made.lines().last().unwrap_or_default();
+    let rest = wrote.strip_prefix(&format!("wrote {}: ", project.display()));
+    let (length, rate) = rest
+        .and_then(|rest| rest.strip_suffix(", 2 files"))
+        .and_then(|rest| rest.split_once(" at "))
+        .unwrap_or_else(|| panic!("aria new ended with {wrote:?}"));
+    assert!(
+        length.split(':').count() == 3 && rate.contains('/') && !wrote.contains('—'),
+        "aria new ended with {wrote:?}"
     );
     let shown = aria([OsStr::new("inspect"), project.as_os_str()]);
     assert!(
