@@ -88,3 +88,47 @@ fn the_export_prints_the_encoder_it_opened_and_every_skipped_one() {
     );
     assert_eq!(lines.collect::<Vec<_>>(), expected, "stdout:\n{stdout}");
 }
+
+/// WHY: `aria export --fps` took only whole numbers, so a timeline could not
+/// be exported at 29.97, a rate `aria new` offers. The file written with
+/// `--fps 29.97` reads back at `30000/1001`, and holds the frames of the half
+/// second at that rate. Not caught: a player that rounds the rate it reads.
+#[test]
+fn an_export_at_29_97_writes_the_exact_broadcast_rate() {
+    if Renderer::new_headless().is_err() {
+        return;
+    }
+    let dir = scratch("export-rate");
+    let project = project();
+    if aria_encoder::open_encoder(&dir.join("probe.mp4"), export_config(&project)).is_err() {
+        return;
+    }
+    let path = dir.join("cut.aria");
+    project.save_to_file(&path).expect("save the project");
+    let out = dir.join("cut.mp4");
+    let output = aria([
+        OsStr::new("export"),
+        path.as_os_str(),
+        out.as_os_str(),
+        OsStr::new("--fps"),
+        OsStr::new("29.97"),
+        OsStr::new("--size"),
+        OsStr::new("160x90"),
+        OsStr::new("--quiet"),
+    ]);
+    assert!(
+        output.status.success(),
+        "aria export --fps 29.97 failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.starts_with("wrote 15 frames of 160x90 "),
+        "stdout:\n{stdout}"
+    );
+    let probe = aria_decoder::probe(&out).expect("probe the export");
+    assert_eq!(
+        (probe.frame_rate, probe.frame_count),
+        (Rational::FPS_29_97, 15)
+    );
+}

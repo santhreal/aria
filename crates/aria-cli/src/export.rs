@@ -26,17 +26,13 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let at = args.seconds("at")?;
     let to = args.seconds("to")?;
     let size = args.size("size")?;
-    let fps = args.number("fps")?;
+    let fps = rate_from(args)?;
     let bitrate = args.number("bitrate")?;
     let codec = codec_from(args)?;
     let progress = shows_progress(
         args.present("quiet"),
         std::io::IsTerminal::is_terminal(&std::io::stderr()),
     );
-
-    if fps == Some(0) {
-        return Err(Failure::Usage("--fps wants a rate above zero".into()));
-    }
 
     let project = project::load(&source)?;
     aria_render::check_export_destination(&project, &out, Some(&source))
@@ -50,8 +46,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
 
     let format = ExportFormat {
         size,
-        frame_rate: fps
-            .map(|fps| aria_core::Rational::new(i32::try_from(fps).unwrap_or(i32::MAX), 1)),
+        frame_rate: fps,
         video_codec: codec,
         bitrate_kbps: bitrate,
         audio: args.present("no-audio").then_some(false),
@@ -127,6 +122,38 @@ fn codec_from(args: &Args) -> Result<Option<VideoCodec>, Failure> {
                     .join(", ")
             ))
         })
+}
+
+/// The `--fps` flag: a rate [`crate::new::RATES`] holds, kept exact, so
+/// `29.97` is `30000/1001` as it is for `aria new`, or a whole number of frames
+/// a second.
+fn rate_from(args: &Args) -> Result<Option<aria_core::Rational>, Failure> {
+    let Some(raw) = args.value("fps")? else {
+        return Ok(None);
+    };
+    if let Some((_, rate)) = crate::new::RATES.iter().find(|(key, _)| *key == raw) {
+        return Ok(Some(*rate));
+    }
+    match raw.parse::<i64>() {
+        Ok(fps) if fps > 0 => i32::try_from(fps)
+            .map(|fps| Some(aria_core::Rational::new(fps, 1)))
+            .map_err(|_| {
+                Failure::Usage(format!(
+                    "--fps {raw} is past the largest rate, {}",
+                    i32::MAX
+                ))
+            }),
+        Ok(_) => Err(Failure::Usage("--fps wants a rate above zero".into())),
+        Err(_) => Err(Failure::Usage(format!(
+            "--fps wants a whole number or one of {}, got \"{raw}\"",
+            crate::new::RATES
+                .iter()
+                .map(|(key, _)| *key)
+                .filter(|key| key.contains('.'))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))),
+    }
 }
 
 pub(crate) fn resolve_export_range(
@@ -256,5 +283,35 @@ mod tests {
                 "--quiet {quiet}, stderr a terminal {terminal}"
             );
         }
+    }
+
+    /// WHY: `aria export --fps` took only whole numbers, so a timeline could
+    /// not be exported at 23.976 or 29.97, rates `aria new` offers. Every rate
+    /// `aria new` offers parses to the same exact rate here, a whole number
+    /// parses to itself, and zero, a negative, a rounded broadcast rate, a
+    /// word, and a number past `i32` are usage errors. Not caught: an encoder
+    /// that rounds the rate it is given.
+    #[test]
+    fn every_rate_new_offers_exports_exactly_and_a_bad_rate_is_a_usage_error() {
+        let parse = |raw: &str| {
+            rate_from(&Args::parse(["export", "a.aria", "b.mp4", "--fps", raw]).unwrap())
+        };
+        for (key, rate) in crate::new::RATES {
+            assert_eq!(parse(key), Ok(Some(rate)), "{key}");
+        }
+        assert_eq!(parse("12"), Ok(Some(aria_core::Rational::new(12, 1))));
+        for (raw, says) in [
+            ("0", "above zero"),
+            ("-5", "above zero"),
+            ("23.98", "one of 23.976, 29.97,"),
+            ("fast", "whole number"),
+            ("2147483648", "past the largest rate"),
+        ] {
+            let err = parse(raw).expect_err(raw);
+            assert!(err.message().contains(says), "{raw}: {}", err.message());
+            assert_eq!(err.code(), 2, "{raw}");
+        }
+        let args = Args::parse(["export", "a.aria", "b.mp4"]).unwrap();
+        assert_eq!(rate_from(&args), Ok(None));
     }
 }
