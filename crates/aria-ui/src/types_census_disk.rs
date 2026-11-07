@@ -490,7 +490,7 @@ fn settings_dialog_draws_the_held_cloud_settings_and_schema(cx: &mut gpui::TestA
     pump(visual);
     assert_eq!(
         visual.update(|_, app| state.read(app).settings_schema_status()),
-        "refused: cloud"
+        "Unreadable by this build: [cloud]"
     );
     std::fs::write(&config_path, "").unwrap();
     visual.update(|_, app| {

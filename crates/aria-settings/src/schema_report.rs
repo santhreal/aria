@@ -61,10 +61,10 @@ impl ShapeStatus {
         };
         match self.decision {
             Some(VersionDecision::Current) => {
-                format!("Version {recorded}, current — {where_from}")
+                format!("Version {recorded}, current; {where_from}")
             }
             Some(VersionDecision::Migrate { from }) => format!(
-                "Version {from}, migrated to {} on load — {where_from}",
+                "Version {from}, migrated to {} on load; {where_from}",
                 self.current
             ),
             Some(VersionDecision::Refuse(_)) | None => format!(

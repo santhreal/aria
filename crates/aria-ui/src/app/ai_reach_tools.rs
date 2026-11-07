@@ -187,10 +187,10 @@ impl AppState {
     /// The one-line verdict for the whole configuration file.
     pub fn settings_schema_status(&self) -> String {
         let rows = &self.settings_form.schema;
-        let refused: Vec<&str> = rows
+        let refused: Vec<String> = rows
             .iter()
             .filter(|row| row.refused())
-            .map(|row| row.table)
+            .map(|row| format!("[{}]", row.table))
             .collect();
         if refused.is_empty() {
             format!(
@@ -198,7 +198,7 @@ impl AppState {
                 counted(rows.len(), "table", "tables")
             )
         } else {
-            format!("refused: {}", refused.join(", "))
+            format!("Unreadable by this build: {}", refused.join(", "))
         }
     }
 

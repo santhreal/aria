@@ -213,3 +213,56 @@ fn every_table_individually_migrates_or_reports_correctly() {
         );
     }
 }
+
+/// WHY: a served table's row printed `Version 1, current — in the file`, and
+/// the Settings dialog showed the em dash beside rows that separate a clause
+/// with a semicolon. Every shape under every decision, present and absent,
+/// reads as one line with no em dash, and a served table states where it is
+/// read from after the semicolon. Does not check the wording of the clauses.
+#[test]
+fn every_summary_reads_without_an_em_dash() {
+    for shape in PersistedShape::all() {
+        let current = shape.current_version();
+        let decisions = [
+            None,
+            Some(VersionDecision::Current),
+            Some(VersionDecision::Migrate { from: 0 }),
+            Some(VersionDecision::Refuse(RefusalReason::FromNewerBuild)),
+            Some(VersionDecision::Refuse(RefusalReason::TooOld)),
+        ];
+        for (decision, present) in decisions
+            .into_iter()
+            .flat_map(|decision| [(decision, true), (decision, false)])
+        {
+            let row = ShapeStatus {
+                shape,
+                table: shape.table(),
+                recorded: decision.map(|_| current),
+                current,
+                oldest_migratable: shape.oldest_migratable_version(),
+                decision,
+                present,
+            };
+            let line = row.summary();
+            assert!(
+                !line.contains('\u{2014}') && !line.contains('\n'),
+                "{shape:?} {decision:?}: {line}"
+            );
+            if matches!(
+                decision,
+                Some(VersionDecision::Current | VersionDecision::Migrate { .. })
+            ) {
+                let place = if present {
+                    "in the file"
+                } else {
+                    "not in the file"
+                };
+                assert!(
+                    line.split_once("; ")
+                        .is_some_and(|(_, from)| from.starts_with(place)),
+                    "{shape:?} {decision:?}: {line}"
+                );
+            }
+        }
+    }
+}
