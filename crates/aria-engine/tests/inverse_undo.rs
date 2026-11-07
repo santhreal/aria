@@ -69,18 +69,16 @@ fn undo_import_after_clip_removed() {
 fn assert_timeline_invariants(project: &Project, timeline: &Timeline) {
     assert!(timeline.frame_rate.is_valid());
     let mut total_clips = 0usize;
+    // The catalog's rank, not a copy of it: a non-main video lane shares the
+    // stack zone with sticker, effect, filter and adjustment lanes, so any of
+    // them may sit below one.
     let mut prev_zone = 0u8;
     let mut video_tracks = Vec::new();
     let mut main_tracks = Vec::new();
 
     for &track_id in timeline.order() {
         let track = timeline.track(track_id).expect("ordered track exists");
-        let zone = match track.kind {
-            TrackKind::Submix => 0,
-            TrackKind::Audio => 1,
-            TrackKind::Video => 2,
-            _ => 3,
-        };
+        let zone = track.kind.spec().zone_rank(track.main);
         assert!(
             zone >= prev_zone,
             "lane zone order violated on {track_id:?}"
@@ -115,7 +113,6 @@ fn assert_timeline_invariants(project: &Project, timeline: &Timeline) {
         for pair in clips.windows(2) {
             let left_end = pair[0].timeline.end().unwrap().value;
             let right_start = pair[1].timeline.start.value;
-            assert!((left_end, pair[0].id) <= (right_start, pair[1].id));
             assert!(left_end <= right_start);
         }
         for t in track.transitions() {

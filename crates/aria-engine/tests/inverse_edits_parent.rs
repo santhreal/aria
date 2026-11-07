@@ -105,6 +105,35 @@ fn releasing_restores_the_parent_on_undo() {
     assert_eq!(clip(&engine, child), parented);
 }
 
+/// Parenting reaches a clip on any sequence, so its undo restores the clip on
+/// the sequence that holds it, not only on the open one.
+#[test]
+fn a_clip_off_the_open_sequence_undoes_and_redoes_its_parent() {
+    let (_dir, mut engine) = temp_engine();
+    let (parent, child) = parent_and_child(&mut engine);
+    engine
+        .apply(Command::Edit(EditCommand::CreateSequence {
+            name: "Scene".into(),
+        }))
+        .expect("open another sequence");
+    let before = clip(&engine, child);
+    engine
+        .apply(Command::Edit(EditCommand::SetClipParent {
+            clip: child,
+            parent: Some(parent),
+            at: rt(24),
+            keep: ParentKeep::Place,
+        }))
+        .expect("parent a clip on the root");
+    let after = clip(&engine, child);
+    assert_eq!(after.parent, Some(parent));
+
+    assert!(engine.undo(), "the undo finds the clip on the root");
+    assert_eq!(clip(&engine, child), before);
+    assert!(engine.redo());
+    assert_eq!(clip(&engine, child), after);
+}
+
 #[test]
 fn a_refused_parent_changes_nothing_and_records_no_step() {
     let (_dir, mut engine) = temp_engine();

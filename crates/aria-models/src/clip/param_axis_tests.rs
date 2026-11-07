@@ -393,6 +393,62 @@ fn an_accepted_easing_preset_expands_the_segment_it_names() {
     assert!(exercised > 0, "no slot row advertises an easing preset");
 }
 
+/// WHY: an elastic or back preset overshoots its segment's ends, and the
+/// expansion stored the overshoot as written: an opacity eased from 0 to 1
+/// held keyframes above 1, a value the loader refuses, so the project saved
+/// and did not reopen (found by the payload census). Every parameter of every
+/// axis that accepts a preset and declares a bound is eased by every preset
+/// from its bound and back, and the clip passes the load check.
+///
+/// Not caught: a parameter whose route is absent on a media clip (a mask or
+/// an effect slot that does not exist yet); it has no segment to ease here.
+#[test]
+fn an_eased_segment_from_a_bound_stays_inside_it() {
+    let mut candidates: Vec<ClipParam> = clip_param_axis().map(|(param, _)| param).collect();
+    for axis in ParamAxis::ALL {
+        candidates.extend(axis.params());
+    }
+    let mut eased = Vec::new();
+    for param in candidates {
+        let range = param.range();
+        let (lo, hi) = match (range.min, range.max) {
+            (Some(lo), Some(hi)) => (lo, hi),
+            (Some(lo), None) => (lo, lo + 1.0),
+            (None, Some(hi)) => (hi - 1.0, hi),
+            (None, None) => continue,
+        };
+        if !param.supports_easing_preset() {
+            continue;
+        }
+        for spec in crate::piecewise_presets() {
+            for (from, to) in [(lo, hi), (hi, lo)] {
+                let mut clip = media_clip();
+                let (Some(a), Some(b)) = (in_range_value(param, from), in_range_value(param, to))
+                else {
+                    continue;
+                };
+                if param.set_keyframe(&mut clip, 0, a, Easing::Linear).is_err() {
+                    continue;
+                }
+                param
+                    .set_keyframe(&mut clip, 48, b, Easing::Linear)
+                    .expect("a second keyframe on a route that took the first");
+                param
+                    .apply_easing_preset(&mut clip, 0, spec.preset)
+                    .unwrap_or_else(|e| panic!("{param:?} {:?}: {e}", spec.preset));
+                clip.check_values().unwrap_or_else(|e| {
+                    panic!("{param:?} {:?} {from} -> {to} stored {e}", spec.preset)
+                });
+                eased.push(param);
+            }
+        }
+    }
+    assert!(
+        eased.contains(&ClipParam::Opacity),
+        "opacity was not eased: {eased:?}"
+    );
+}
+
 /// The validator column refuses a value of the wrong shape before anything is
 /// written, for every variant that declares a kind. A row that accepted a
 /// color where it stores a scalar would corrupt on write instead of failing.

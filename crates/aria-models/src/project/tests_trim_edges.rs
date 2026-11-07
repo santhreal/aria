@@ -222,3 +222,96 @@ fn an_inward_trim_of_a_multicam_clip_keeps_the_edge_it_leaves() {
         }
     }
 }
+
+/// The kind of source `clip` plays, with its window replaced by `to` of it.
+/// A new kind of source fails to compile here until the test below places it.
+fn window_of(clip: &mut Clip, to: impl Fn(TimeRange) -> TimeRange) -> &'static str {
+    match &mut clip.content {
+        ClipSource::Media { source, .. } => {
+            *source = to(*source);
+            "media"
+        }
+        ClipSource::Multicam { source, .. } => {
+            *source = to(*source);
+            "multicam"
+        }
+        ClipSource::Sequence { source, .. } => {
+            *source = to(*source);
+            "sequence"
+        }
+        ClipSource::Generated(_) => "generated",
+    }
+}
+
+/// Closes the class where a trim saturated each edge of a source window at
+/// the last tick a time holds and kept one frame past a start that sat
+/// there: a window ending past the last tick, which a project file does not
+/// open with. Each kind of source, a still, a freeze frame, forward and
+/// reversed, has its window moved to end at the last tick and is trimmed
+/// right and longer by up to 2^40 ticks through [`Project::trim_source`],
+/// the window every trim takes: it is refused, or its window ends at a tick
+/// a time holds. Does not catch a window that ends on a tick but past a
+/// nested sequence or angle, which has no take length to hold it to.
+#[test]
+fn a_trim_past_a_window_at_the_last_tick_is_refused_or_ends_on_one() {
+    let mut project = Project::new("test", R24);
+    let video = project.add_media(sample_media(R24, 100));
+    let angle = project.add_media(sample_media(R24, 100));
+    let still = project.add_media(MediaSource::image("still.png", 800, 600));
+    let still_window = project.media(still).unwrap().full_range();
+    let v1 = project.add_track(TrackKind::Video, "V1");
+    let fx = project.add_track(TrackKind::Adjustment, "FX");
+    let nest = project.create_sequence("Nest", R24);
+    let group = project
+        .create_multicam_group(
+            "Rig",
+            vec![
+                crate::multicam::MulticamAngle::new(video, 0),
+                crate::multicam::MulticamAngle::new(angle, 6),
+            ],
+        )
+        .unwrap();
+    let clips = [
+        project.add_clip(v1, video, tr(0, 10), rt(0)).unwrap(),
+        project.add_clip(v1, still, still_window, rt(20)).unwrap(),
+        project
+            .add_sequence_clip(v1, nest, tr(0, 10), rt(200))
+            .unwrap(),
+        project
+            .add_multicam_clip(v1, group, tr(0, 10), rt(300))
+            .unwrap(),
+        project
+            .add_generated(fx, Generator::Adjustment, tr(0, 10))
+            .unwrap(),
+    ];
+    let mut kinds = Vec::new();
+    for id in clips {
+        let placed = project.clip(id).unwrap().clone();
+        for (freeze, reversed) in [(false, false), (false, true), (true, false)] {
+            let mut clip = placed.clone();
+            clip.freeze_frame = freeze;
+            clip.reversed = reversed;
+            let kind = window_of(&mut clip, |w| {
+                TimeRange::at_rate(i64::MAX - 10, 10, w.start.rate)
+            });
+            kinds.push(kind);
+            let (start, length) = (clip.timeline.start.value, clip.timeline.duration.value);
+            for shift in [1, 10, 100, 1 << 40] {
+                for new in [tr(start + shift, length), tr(start, length + shift)] {
+                    match project.trim_source(&clip, new) {
+                        Ok(Some(window)) => assert!(
+                            window.end().is_ok(),
+                            "{kind} freeze {freeze} reversed {reversed} trimmed to {new:?} \
+                             plays {window:?}"
+                        ),
+                        Ok(None) => assert_eq!(kind, "generated"),
+                        Err(_) => {}
+                    }
+                }
+            }
+        }
+    }
+    kinds.sort_unstable();
+    kinds.dedup();
+    assert_eq!(kinds, ["generated", "media", "multicam", "sequence"]);
+}

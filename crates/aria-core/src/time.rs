@@ -399,7 +399,8 @@ pub fn time_sub(a: &RationalTime, b: &RationalTime) -> Result<RationalTime, Time
     Ok(RationalTime::new(value, a.rate))
 }
 
-/// Resample `time` to `to`, rounding to the nearest tick.
+/// Resample `time` to `to`, rounding to the nearest tick and saturated to
+/// `i64`.
 pub fn resample(time: RationalTime, to: Rational) -> RationalTime {
     if !time.rate.is_valid() || !to.is_valid() {
         return RationalTime::zero(to);
@@ -419,7 +420,8 @@ pub fn resample(time: RationalTime, to: Rational) -> RationalTime {
     } else {
         -magnitude
     };
-    RationalTime::new(q as i64, to)
+    let ticks = q.clamp(i128::from(i64::MIN), i128::from(i64::MAX));
+    RationalTime::new(ticks as i64, to)
 }
 
 #[cfg(test)]
@@ -628,6 +630,26 @@ mod tests {
     fn resample_handles_negative_and_degenerate() {
         assert_eq!(resample(rt(-2, R24), R30).value, -3);
         assert_eq!(resample(rt(5, Rational::new(0, 1)), R30), rt(0, R30));
+    }
+
+    /// WHY: a marker stated at `i64::MAX` ticks of a slow rate resampled to
+    /// the sequence rate past `i64`, and the narrowing cast wrapped it to a
+    /// negative tick: the add stored it, and redo of the add then rejected
+    /// the negative tick and cleared the history. Every rate pair saturates
+    /// at both bounds and keeps its sign. Does not cover `within`, which
+    /// clamps on its own.
+    #[test]
+    fn resample_past_the_last_tick_saturates_with_its_sign() {
+        let slow = Rational::new(1, 1000);
+        for (value, bound) in [(i64::MAX, i64::MAX), (i64::MIN, i64::MIN)] {
+            for (from, to) in [(slow, R24), (R24, Rational::new(i32::MAX, 1))] {
+                assert_eq!(
+                    resample(rt(value, from), to),
+                    rt(bound, to),
+                    "{from:?} to {to:?}"
+                );
+            }
+        }
     }
 
     #[test]

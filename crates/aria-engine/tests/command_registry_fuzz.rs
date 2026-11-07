@@ -917,3 +917,6 @@ fn every_value_of_a_project_file_replaced_or_removed_opens_or_is_refused() {
         faults[..faults.len().min(60)].join("\n")
     );
 }
+
+#[path = "command_payload_census.rs"]
+mod payload;

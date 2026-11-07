@@ -61,6 +61,43 @@ fn add_clip_rejects_duplicate_id_without_mutating() {
     assert!(timeline.track(v2).unwrap().is_empty());
 }
 
+/// Closes the class where a clip reached a lane holding a value no setter
+/// stores: a clipboard copy or a scripted clip at speed 0 or with a speed
+/// ramp at 0 saved a project that did not open. Every path that puts a clip
+/// on a lane passes through `check_clip`, reached here through `add_clip`
+/// and `replace_clip`: each breach is refused on both and the lane keeps
+/// what it held. Does not catch a rule `check_clip` does not state.
+#[test]
+fn a_clip_breaking_a_lane_rule_is_refused_on_add_and_on_replace() {
+    let cases: [(&str, fn(&mut Clip)); 6] = [
+        ("speed 0", |c| c.speed = Rational::new(0, 1)),
+        ("speed below 0", |c| c.speed = Rational::new(-1, 1)),
+        ("speed ramp at 0", |c| {
+            c.speed_curve = crate::Param::Constant(0.0)
+        }),
+        ("speed ramp not finite", |c| {
+            c.speed_curve = crate::Param::Constant(f32::NAN)
+        }),
+        ("negative start", |c| c.timeline.start.value = -1),
+        ("end past the last tick", |c| {
+            c.timeline.start.value = i64::MAX
+        }),
+    ];
+    for (case, breach) in cases {
+        let (mut timeline, track) = timeline_with_track();
+        let placed = timeline.add_clip(track, generated_clip(0, 50)).unwrap();
+        let before = timeline.clip(placed).unwrap().clone();
+        let mut fresh = generated_clip(100, 50);
+        breach(&mut fresh);
+        assert!(timeline.add_clip(track, fresh).is_err(), "{case} added");
+        let mut copy = before.clone();
+        breach(&mut copy);
+        assert!(timeline.replace_clip(copy).is_err(), "{case} replaced");
+        assert_eq!(timeline.clip_count(), 1, "{case}");
+        assert_eq!(timeline.clip(placed), Some(&before), "{case}");
+    }
+}
+
 #[test]
 fn add_clip_allows_same_range_on_different_tracks() {
     let mut timeline = Timeline::new(R24);

@@ -7,14 +7,16 @@
 //! value no edit stores: an opacity of -1, a scale of 0, a shadow blur that
 //! saves as `null` and then does not open.
 //!
-//! Effects, audio effects, the filter and the LUT are not checked here: their
-//! rules come from catalogs, and a file naming an entry this build lacks opens
-//! with that entry reported missing.
+//! Effects, audio effects, and the filter and LUT names are not checked here:
+//! their rules come from catalogs, and a file naming an entry this build lacks
+//! opens with that entry reported missing. The filter and LUT strengths are
+//! checked like every other level.
 
 use crate::error::ModelError;
 
 use super::clip_param::ClipParam;
 use super::param_value::ParamValue;
+use super::retiming::validate_speed_curve;
 use super::{Clip, ClipSource};
 
 impl Clip {
@@ -24,8 +26,8 @@ impl Clip {
         self.transform.validate()?;
         self.crop.validate_shape()?;
         self.crop.for_each_value(|rect| rect.validate())?;
+        validate_speed_curve(&self.speed_curve)?;
         for (param, curve) in [
-            (ClipParam::Speed, &self.speed_curve),
             (ClipParam::Volume, &self.volume),
             (ClipParam::Pan, &self.pan),
         ] {
@@ -40,6 +42,12 @@ impl Clip {
         }
         if let Some(matte) = &self.matte {
             matte.validate()?;
+        }
+        if let Some(filter) = &self.filter {
+            filter.validate_intensity()?;
+        }
+        if let Some(lut) = &self.lut {
+            lut.validate_intensity()?;
         }
         self.drivers
             .iter()

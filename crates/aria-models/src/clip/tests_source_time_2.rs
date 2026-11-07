@@ -32,6 +32,26 @@ fn source_time_at_clamps_rounding_into_the_window() {
     }
 }
 
+/// WHY: `source_time_at` added the scaled offset to the window's first tick
+/// unchecked, so a source window ending at the last tick, read at a timeline
+/// tick past the window's length, overflowed: a panic in a debug build and a
+/// tick wrapped to the far end of the range in a release one. The sum
+/// saturates and the result clamps to the edge the offset ran past, forward
+/// and reversed.
+#[test]
+fn a_window_ending_at_the_last_tick_reads_its_edge_instead_of_wrapping() {
+    let first = i64::MAX - 3;
+    for (reversed, edge) in [(false, i64::MAX), (true, first)] {
+        let mut clip = media_clip(MediaId::from_raw(1), tr(first, 4, R24), tr(0, 100, R24));
+        clip.reversed = reversed;
+        assert_eq!(
+            clip.source_time_at(rt(50, R24)).unwrap(),
+            Some(rt(edge, R24)),
+            "reversed {reversed}"
+        );
+    }
+}
+
 // --- speed serde shape --------------------------------------------------
 
 #[test]

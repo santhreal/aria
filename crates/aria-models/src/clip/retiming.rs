@@ -415,7 +415,7 @@ impl Clip {
                 }
                 let offset_tl = time_sub(&timeline_pos, &self.timeline.start)?;
                 let first = source.start.value;
-                let last = first + (source.duration.value - 1).max(0);
+                let last = first.saturating_add(source.duration.value.saturating_sub(1).max(0));
                 let offset_src = if self.has_speed_curve() {
                     // Speed is a rate: the fraction of the source window swept
                     // by clip-relative position `p` is `∫₀ᵖ curve ÷ ∫₀¹ curve`.
@@ -438,10 +438,13 @@ impl Clip {
                         RationalTime::new(self.scale_by_speed(offset_tl.value), offset_tl.rate);
                     resample(scaled, source.start.rate).value
                 };
+                // Saturating: the result clamps into the window, so a scaled
+                // offset past either end reads the edge it ran past instead
+                // of wrapping.
                 let tick = if self.reversed {
-                    last - offset_src
+                    last.saturating_sub(offset_src)
                 } else {
-                    first + offset_src
+                    first.saturating_add(offset_src)
                 };
                 Ok(Some(RationalTime::new(
                     tick.clamp(first, last),

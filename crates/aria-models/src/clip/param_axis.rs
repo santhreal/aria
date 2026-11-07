@@ -328,16 +328,38 @@ impl ClipParam {
 
     /// Expand the outgoing keyframe segment at `tick` with a piecewise easing
     /// preset.
+    ///
+    /// Elastic and back presets overshoot the segment's ends, and a value past
+    /// this parameter's range (an opacity above 1, a scale below 0) is not one
+    /// the model stores or a project file opens with, so each expanded value
+    /// is held at the bound it ran past. The expansion runs on a copy, so a
+    /// refusal leaves `clip` as it was.
     pub fn apply_easing_preset(
         self,
         clip: &mut Clip,
         tick: i64,
         preset: PiecewiseEasingPreset,
     ) -> Result<(), ModelError> {
-        match self.spec().ease {
-            Some(ease) if self.supports_easing_preset() => ease(clip, self, tick, preset),
-            _ => Err(no_easing_preset(self)),
+        let ease = match self.spec().ease {
+            Some(ease) if self.supports_easing_preset() => ease,
+            _ => return Err(no_easing_preset(self)),
+        };
+        let mut eased = clip.clone();
+        ease(&mut eased, self, tick, preset)?;
+        let range = self.range();
+        let mut idx = 0;
+        while let Some(at) = keyframe_tick_at_index(self, &eased, idx) {
+            let (_, _, value, easing) = keyframe_entry_at(self, &eased, at)?;
+            // The declared range, not the row's validator: a delegated row's
+            // validator checks the kind only and its axis checks the range.
+            let held = clamped(value, range);
+            if held != value {
+                self.set_keyframe(&mut eased, at, held, easing)?;
+            }
+            idx += 1;
         }
+        *clip = eased;
+        Ok(())
     }
 
     /// Set incoming/outgoing temporal ease and/or hold state on the keyframe
@@ -403,6 +425,16 @@ fn no_easing_preset_for_rect() -> ModelError {
     ModelError::InvalidParam(
         "easing presets are not supported on crop (no safe extrapolation)".into(),
     )
+}
+
+/// `value` with each component held inside `range`.
+fn clamped(value: ParamValue, range: ParamRange) -> ParamValue {
+    match value {
+        ParamValue::Scalar(v) => ParamValue::Scalar(range.clamp(v)),
+        ParamValue::Vec2(v) => ParamValue::Vec2(v.map(|c| range.clamp(c))),
+        ParamValue::Vec3(v) => ParamValue::Vec3(v.map(|c| range.clamp(c))),
+        other => other,
+    }
 }
 
 fn keyframe_entry_at(

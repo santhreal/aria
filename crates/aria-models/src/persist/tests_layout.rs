@@ -2,14 +2,15 @@
 //! with the field and the clip in the refusal, on both parse paths.
 //!
 //! The class: a value the edit path refuses ([`crate::Timeline::add_clip`],
-//! the speed setter, the sequence rate edit, the setter of a clip's transform
-//! or level) that reaches the model through the deserializer instead, where a
-//! render or an edit then fails on it with an internal error. Each case edits
-//! one value of a saved project and loads the result through the
-//! current-schema fast path and the migrating path. The accepted cases pin
-//! the boundary: a zero-length clip, a clip at tick zero, and a clip value at
-//! its bound load. What this does not catch: a rule `add_clip` or a setter
-//! gains later that [`crate::Timeline::layout_fault`] does not repeat.
+//! the speed setter, the sequence rate edit, the setter of a clip's transform,
+//! level, or filter or LUT strength) that reaches the model through the
+//! deserializer instead, where a render or an edit then fails on it with an
+//! internal error. Each case edits one value of a saved project and loads the
+//! result through the current-schema fast path and the migrating path. The
+//! accepted cases pin the boundary: a zero-length clip, a clip at tick zero,
+//! and a clip value at its bound load. What this does not catch: a rule
+//! `add_clip` or a setter gains later that [`crate::Timeline::layout_fault`]
+//! does not repeat.
 //!
 //! The lane order and clip index restate the lanes, and a file can misstate
 //! them: a lane left out of the order is drawn and rendered nowhere, and a
@@ -168,6 +169,18 @@ const REFUSED: &[(&str, Edit, &str, &str)] = &[
         "on lane 'V1' holds a value an edit rejects",
     ),
     (
+        "filter intensity above one",
+        |d: &mut Value| clip(d)["filter"] = json!({ "id": "no-such-filter", "intensity": 2.0 }),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
+        "LUT intensity below zero",
+        |d: &mut Value| clip(d)["lut"] = json!({ "path": "look.cube", "intensity": -1.0 }),
+        "timeline.tracks",
+        "on lane 'V1' holds a value an edit rejects",
+    ),
+    (
         "nested sequence rate",
         |d: &mut Value| d["sequences"][0][1]["timeline"]["frame_rate"]["num"] = json!(0),
         "sequences.timeline.frame_rate",
@@ -236,7 +249,7 @@ fn a_zero_length_clip_and_a_clip_at_tick_zero_load() {
 /// bound, not at it.
 #[test]
 fn a_clip_value_at_its_bound_loads() {
-    let edits: [(&str, Edit); 5] = [
+    let edits: [(&str, Edit); 7] = [
         ("opacity 0", |d: &mut Value| {
             clip(d)["transform"]["opacity"] = json!(0.0)
         }),
@@ -246,6 +259,12 @@ fn a_clip_value_at_its_bound_loads() {
         ("volume 0", |d: &mut Value| clip(d)["volume"] = json!(0.0)),
         ("pan -1", |d: &mut Value| clip(d)["pan"] = json!(-1.0)),
         ("pan 1", |d: &mut Value| clip(d)["pan"] = json!(1.0)),
+        ("filter intensity 1", |d: &mut Value| {
+            clip(d)["filter"] = json!({ "id": "no-such-filter", "intensity": 1.0 })
+        }),
+        ("LUT intensity 0", |d: &mut Value| {
+            clip(d)["lut"] = json!({ "path": "look.cube", "intensity": 0.0 })
+        }),
     ];
     for (case, edit) in edits {
         let mut doc = saved();

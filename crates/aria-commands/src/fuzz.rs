@@ -14,9 +14,9 @@ use aria_models::{
     ClipAttribute, ClipId, ClipParam, ClipTransform, ColorAdjustments, CropRect, DriverCode,
     Easing, EffectInstance, Filter, Generator, Keyframe, LabelColor, LayerShadow, LayerStyles,
     LookParam, Lut, MarkerId, Mask, MaskKind, MaskMode, MatteSource, MediaId, MotionBlur,
-    MulticamGroupId, Param, ParamValue, ParentKeep, PiecewiseEasingPreset, Preset, Project,
-    Rational, RationalTime, Replaceable, SequenceId, Shape, SpatialTangents, StabilizeLevel,
-    TimeRange, TrackId, TrackKind, TrackMatte, Transition, TransitionAlignment,
+    MulticamGroupId, Param, ParamKind, ParamValue, ParentKeep, PiecewiseEasingPreset, Preset,
+    Project, Rational, RationalTime, Replaceable, SequenceId, Shape, SpatialTangents,
+    StabilizeLevel, TimeRange, TrackId, TrackKind, TrackMatte, Transition, TransitionAlignment,
 };
 
 use crate::{EditCommand, edit_specs};
@@ -146,6 +146,81 @@ impl CommandRng {
         RationalTime::new(self.tick(), rate)
     }
 
+    /// A time on `clip`'s span half the time, at its first, second, middle or
+    /// last tick, and otherwise [`Self::time`]. A keyframe edit names a tick of
+    /// the clip it edits, and a later edit naming the same tick reaches the
+    /// keyframe an earlier one wrote.
+    pub(crate) fn time_on(&mut self, project: &Project, clip: ClipId) -> RationalTime {
+        let rate = project.timeline().frame_rate;
+        match project.timeline().clip(clip) {
+            Some(placed) if self.next_bool() => {
+                let span = placed.timeline.duration.value.max(1);
+                let offset = *self.pick(&[0, 1, span / 2, span - 1]);
+                let tick = placed
+                    .timeline
+                    .start
+                    .value
+                    .saturating_add(offset.min(span - 1));
+                RationalTime::new(tick, rate)
+            }
+            _ => self.time(rate),
+        }
+    }
+
+    /// A property holding a keyframe on `clip` half the time, when one of
+    /// sixteen drawn holds one, and otherwise [`Self::clip_param`]. A second
+    /// keyframe edit lands on a property an earlier one keyed, which gives an
+    /// easing preset the segment it expands.
+    pub(crate) fn keyed_param(&mut self, project: &Project, clip: ClipId) -> ClipParam {
+        if let Some(placed) = project.timeline().clip(clip)
+            && self.next_bool()
+        {
+            for _ in 0..16 {
+                let param = self.clip_param();
+                let mut keyed = false;
+                param.visit_keyframe_ticks(placed, |_| keyed = true);
+                if keyed {
+                    return param;
+                }
+            }
+        }
+        self.clip_param()
+    }
+
+    /// The timeline time of a keyframe `param` holds on `clip` half the time,
+    /// when it holds one, and otherwise [`Self::time_on`]. An edit of one
+    /// keyframe names the tick it sits at; with `segment`, the last keyframe
+    /// is left out, so an edit of the segment a keyframe starts names one
+    /// that has a successor.
+    pub(crate) fn keyframe_time(
+        &mut self,
+        project: &Project,
+        clip: ClipId,
+        param: ClipParam,
+        segment: bool,
+    ) -> RationalTime {
+        if let Some(placed) = project.timeline().clip(clip)
+            && self.next_bool()
+        {
+            let mut keys = Vec::new();
+            param.visit_keyframe_ticks(placed, |tick| keys.push(tick));
+            if segment {
+                keys.pop();
+            }
+            if !keys.is_empty() {
+                let key = *self.pick(&keys);
+                let start = placed.timeline.start.value;
+                let span = placed.timeline.duration.value.clamp(0, 1 << 16);
+                if let Some(tick) =
+                    (start..start.saturating_add(span)).find(|&tick| placed.param_tick(tick) == key)
+                {
+                    return RationalTime::new(tick, project.timeline().frame_rate);
+                }
+            }
+        }
+        self.time_on(project, clip)
+    }
+
     /// Pick a [`TimeRange`] mixing valid ranges with zero-length, negative, and
     /// overflowing spans.
     pub fn range(&mut self, timeline_rate: Rational) -> TimeRange {
@@ -182,17 +257,33 @@ impl CommandRng {
         *self.pick(&[0, 1, 2, 3, 16, u32::MAX])
     }
 
+    /// A live id from `live` three times in four, and otherwise a raw id no
+    /// entity holds: 0, below the first id an allocator hands out, or
+    /// `u64::MAX`, above the largest id a file or command states.
+    ///
+    /// One seed draws one command list only if nothing drawn depends on the
+    /// ids' values, which the process-wide allocators hand out in whatever
+    /// order the threads beside this one leave them. So `live` is taken in id
+    /// order, which follows creation, not in the order of the hash map that
+    /// holds it; and the absent ids are ones no allocator reaches, since every
+    /// id read from JSON advances its allocator past itself and a mid-range id
+    /// is live or not by which test read or allocated first.
+    fn live_or_absent<T: Ord + Copy>(&mut self, mut live: Vec<T>, raw: fn(u64) -> T) -> T {
+        live.sort_unstable();
+        if !live.is_empty() && self.next_usize(4) < 3 {
+            *self.pick(&live)
+        } else {
+            raw(*self.pick(&[0, u64::MAX]))
+        }
+    }
+
     pub(crate) fn clip_id(&mut self, project: &Project) -> ClipId {
-        let live: Vec<ClipId> = project
+        let live = project
             .timeline()
             .tracks_ordered()
             .flat_map(|t| t.clips_ordered().map(|c| c.id))
             .collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            ClipId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        self.live_or_absent(live, ClipId::from_raw)
     }
 
     pub(crate) fn clip_ids(&mut self, project: &Project) -> Vec<ClipId> {
@@ -221,30 +312,17 @@ impl CommandRng {
     }
 
     pub(crate) fn track_id(&mut self, project: &Project) -> TrackId {
-        let live = project.timeline().order();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(live)
-        } else {
-            TrackId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        self.live_or_absent(project.timeline().order().to_vec(), TrackId::from_raw)
     }
 
     pub(crate) fn media_id(&mut self, project: &Project) -> MediaId {
-        let live: Vec<MediaId> = project.media_iter().map(|m| m.id).collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            MediaId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        let live = project.media_iter().map(|m| m.id).collect();
+        self.live_or_absent(live, MediaId::from_raw)
     }
 
     pub(crate) fn bin_id(&mut self, project: &Project) -> BinId {
-        let live: Vec<BinId> = project.bin_iter().map(|b| b.id).collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            BinId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        let live = project.bin_iter().map(|b| b.id).collect();
+        self.live_or_absent(live, BinId::from_raw)
     }
 
     pub(crate) fn opt_bin_id(&mut self, project: &Project) -> Option<BinId> {
@@ -256,30 +334,18 @@ impl CommandRng {
     }
 
     pub(crate) fn marker_id(&mut self, project: &Project) -> MarkerId {
-        let live: Vec<MarkerId> = project.timeline().markers().iter().map(|m| m.id).collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            MarkerId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        let live = project.timeline().markers().iter().map(|m| m.id).collect();
+        self.live_or_absent(live, MarkerId::from_raw)
     }
 
     pub(crate) fn multicam_id(&mut self, project: &Project) -> MulticamGroupId {
-        let live: Vec<MulticamGroupId> = project.multicam_group_iter().map(|g| g.id).collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            MulticamGroupId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        let live = project.multicam_group_iter().map(|g| g.id).collect();
+        self.live_or_absent(live, MulticamGroupId::from_raw)
     }
 
     pub(crate) fn sequence_id(&mut self, project: &Project) -> SequenceId {
-        let live: Vec<SequenceId> = project.sequences().map(|s| s.id).collect();
-        if !live.is_empty() && self.next_usize(4) < 3 {
-            *self.pick(&live)
-        } else {
-            SequenceId::from_raw(*self.pick(&[0, 1, 999_999, u64::MAX]))
-        }
+        let live = project.sequences().map(|s| s.id).collect();
+        self.live_or_absent(live, SequenceId::from_raw)
     }
 
     pub(crate) fn track_kind(&mut self) -> TrackKind {
@@ -326,6 +392,23 @@ impl CommandRng {
             1 => ParamValue::Vec2([self.float(), self.float()]),
             2 => ParamValue::Color([255, 128, 64, 255]),
             _ => ParamValue::Rect([self.float(), self.float(), self.float(), self.float()]),
+        }
+    }
+
+    /// A value of `param`'s own kind half the time, and otherwise
+    /// [`Self::param_value`]. A keyframe edit carrying the kind its property
+    /// takes reaches the checks past the kind check, and leaves the keyframes
+    /// a later easing edit expands.
+    pub(crate) fn param_value_for(&mut self, param: ClipParam) -> ParamValue {
+        match param.kind().filter(|_| self.next_bool()) {
+            Some(ParamKind::Scalar) => ParamValue::Scalar(self.float()),
+            Some(ParamKind::Vec2) => ParamValue::Vec2([self.float(), self.float()]),
+            Some(ParamKind::Vec3) => ParamValue::Vec3([self.float(), self.float(), self.float()]),
+            Some(ParamKind::Color) => ParamValue::Color([255, 128, 64, 255]),
+            Some(ParamKind::Rect) => {
+                ParamValue::Rect([self.float(), self.float(), self.float(), self.float()])
+            }
+            None => self.param_value(),
         }
     }
 
@@ -509,38 +592,57 @@ pub fn random_edit_command_for(
                 ParentKeep::Snap
             },
         },
-        "SetParamKeyframe" => EditCommand::SetParamKeyframe {
-            clip: rng.clip_id(project),
-            param: rng.clip_param(),
-            at: rng.time(rate),
-            value: rng.param_value(),
-            easing: *rng.pick(&[
-                Easing::Linear,
-                Easing::Hold,
-                Easing::EaseIn,
-                Easing::EaseOut,
-                Easing::EaseInOut,
-            ]),
-            tangents: rng.next_bool().then(|| SpatialTangents {
-                out_t: [rng.float(), rng.float()],
-                in_t: [rng.float(), rng.float()],
-            }),
-        },
-        "RemoveParamKeyframe" => EditCommand::RemoveParamKeyframe {
-            clip: rng.clip_id(project),
-            param: rng.clip_param(),
-            at: rng.time(rate),
-        },
-        "ApplyEasingPreset" => EditCommand::ApplyEasingPreset {
-            clip: rng.clip_id(project),
-            param: rng.clip_param(),
-            at: rng.time(rate),
-            preset: *rng.pick(&[
-                PiecewiseEasingPreset::BounceOut,
-                PiecewiseEasingPreset::ElasticOut,
-                PiecewiseEasingPreset::BackOut,
-            ]),
-        },
+        "SetParamKeyframe" => {
+            let clip = rng.clip_id(project);
+            let param = rng.keyed_param(project, clip);
+            EditCommand::SetParamKeyframe {
+                clip,
+                param,
+                at: rng.time_on(project, clip),
+                value: rng.param_value_for(param),
+                easing: *rng.pick(&[
+                    Easing::Linear,
+                    Easing::Hold,
+                    Easing::EaseIn,
+                    Easing::EaseOut,
+                    Easing::EaseInOut,
+                ]),
+                // Position takes tangents; any other property rejects them,
+                // so they ride one draw in sixteen there.
+                tangents: (if param == ClipParam::Position {
+                    rng.next_bool()
+                } else {
+                    rng.next_usize(16) == 0
+                })
+                .then(|| SpatialTangents {
+                    out_t: [rng.float(), rng.float()],
+                    in_t: [rng.float(), rng.float()],
+                }),
+            }
+        }
+        "RemoveParamKeyframe" => {
+            let clip = rng.clip_id(project);
+            let param = rng.keyed_param(project, clip);
+            EditCommand::RemoveParamKeyframe {
+                clip,
+                param,
+                at: rng.keyframe_time(project, clip, param, false),
+            }
+        }
+        "ApplyEasingPreset" => {
+            let clip = rng.clip_id(project);
+            let param = rng.keyed_param(project, clip);
+            EditCommand::ApplyEasingPreset {
+                clip,
+                param,
+                at: rng.keyframe_time(project, clip, param, true),
+                preset: *rng.pick(&[
+                    PiecewiseEasingPreset::BounceOut,
+                    PiecewiseEasingPreset::ElasticOut,
+                    PiecewiseEasingPreset::BackOut,
+                ]),
+            }
+        }
         "SetParamConstant" => EditCommand::SetParamConstant {
             clip: rng.clip_id(project),
             param: rng.clip_param(),
@@ -852,20 +954,5 @@ pub fn random_edit_command_for(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_fuzzed_edit_command_covers_every_spec_and_is_deterministic() {
-        let project = Project::new("Fuzz", Rational::FPS_24);
-        let mut rng_a = CommandRng::new(42);
-        let mut rng_b = CommandRng::new(42);
-        let list_a = every_fuzzed_edit_command(&mut rng_a, &project);
-        let list_b = every_fuzzed_edit_command(&mut rng_b, &project);
-        assert_eq!(list_a.len(), edit_specs().len());
-        assert_eq!(format!("{list_a:?}"), format!("{list_b:?}"));
-        for (cmd, spec) in list_a.iter().zip(edit_specs()) {
-            assert_eq!(cmd.spec().id, spec.id);
-        }
-    }
-}
+#[path = "fuzz_tests.rs"]
+mod tests;

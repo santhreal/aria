@@ -40,6 +40,11 @@ impl Filter {
                 self.id
             )));
         }
+        self.validate_intensity()
+    }
+
+    /// The intensity check alone, for a file naming a filter this build lacks.
+    pub(crate) fn validate_intensity(&self) -> Result<(), ModelError> {
         validate_unit_param("filter intensity", &self.intensity)
     }
 }
@@ -132,6 +137,11 @@ impl Lut {
         if self.path.trim().is_empty() {
             return Err(ModelError::InvalidParam("empty LUT path".into()));
         }
+        self.validate_intensity()
+    }
+
+    /// The intensity check alone, for a file naming a LUT this build lacks.
+    pub(crate) fn validate_intensity(&self) -> Result<(), ModelError> {
         validate_unit_param("LUT intensity", &self.intensity)
     }
 }

@@ -3,7 +3,9 @@ use aria_models::{Clip, ModelError};
 use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
-/// Swap a clip back to a captured snapshot (trim undo/redo).
+/// Swap a clip back to a captured snapshot (trim undo/redo), on whichever
+/// sequence holds it: an edit such as parenting reaches a clip off the open
+/// sequence, and its undo restores that clip there.
 pub(crate) struct RestoreClipAction {
     pub clip: Clip,
 }
@@ -20,7 +22,6 @@ impl EditAction for RestoreClipAction {
             .cloned()
             .ok_or(ModelError::UnknownClip(id))?;
         *ctx.project
-            .timeline_mut()
             .clip_timeline_mut(id)
             .ok_or(ModelError::UnknownClip(id))? = self.clip;
         Ok(Box::new(RestoreClipAction { clip: current }))

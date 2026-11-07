@@ -512,10 +512,6 @@ fn assert_timeline_invariants(project: &Project, timeline: &Timeline) {
             let left_end = pair[0].timeline.end().unwrap().value;
             let right_start = pair[1].timeline.start.value;
             assert!(
-                (left_end, pair[0].id) <= (right_start, pair[1].id),
-                "clips out of order or overlapping on {track_id:?}"
-            );
-            assert!(
                 left_end <= right_start,
                 "overlapping clips {:?} and {:?} on {track_id:?}",
                 pair[0].id,

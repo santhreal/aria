@@ -65,6 +65,30 @@ fn slip_clamps_at_both_ends_of_the_take() {
     );
 }
 
+/// A nested sequence shorter than the window has no tail to stop a slip, so
+/// a slip by as far as a tick goes stops where the window ends at the last
+/// tick a time holds, not past it, from any start. Red when the room on is
+/// `i64::MAX` from the window's start.
+#[test]
+fn a_nested_sequence_slips_on_until_its_window_ends_at_the_last_tick() {
+    for start in [0, 5, i64::MAX - 20] {
+        let mut project = Project::new("slip", R24);
+        let track = project.add_track(TrackKind::Video, "V1");
+        let nest = project.create_sequence("Nest", R24);
+        let clip = project
+            .add_sequence_clip(track, nest, tr(0, 10), rt(0))
+            .unwrap();
+        project.slip_clip(clip, start).unwrap();
+        project.slip_clip(clip, i64::MAX).unwrap();
+        let window = project.clip(clip).unwrap().source_range().unwrap();
+        assert_eq!(
+            (window.start.value, window.end().map(|end| end.value)),
+            (i64::MAX - 10, Ok(i64::MAX)),
+            "slipped from {start}"
+        );
+    }
+}
+
 #[test]
 fn slip_is_refused_where_there_is_no_take_to_slip_within() {
     // A generated clip has no source at all.

@@ -397,20 +397,28 @@ pub(super) fn random_track_or_project_command(
                 String::new()
             },
         },
-        "SetKeyframeEase" => EditCommand::SetKeyframeEase {
-            clip: rng.clip_id(project),
-            param: rng.clip_param(),
-            at: rng.time(rate),
-            in_ease: rng.next_bool().then(|| TemporalEase::EASY_EASE),
-            out_ease: rng.next_bool().then(|| TemporalEase::EASY_EASE),
-            hold: rng.next_bool(),
-        },
-        "SetKeyframeRoving" => EditCommand::SetKeyframeRoving {
-            clip: rng.clip_id(project),
-            param: rng.clip_param(),
-            at: rng.time(rate),
-            roving: rng.next_bool(),
-        },
+        "SetKeyframeEase" => {
+            let clip = rng.clip_id(project);
+            let param = rng.keyed_param(project, clip);
+            EditCommand::SetKeyframeEase {
+                clip,
+                param,
+                at: rng.keyframe_time(project, clip, param, false),
+                in_ease: rng.next_bool().then(|| TemporalEase::EASY_EASE),
+                out_ease: rng.next_bool().then(|| TemporalEase::EASY_EASE),
+                hold: rng.next_bool(),
+            }
+        }
+        "SetKeyframeRoving" => {
+            let clip = rng.clip_id(project);
+            let param = rng.keyed_param(project, clip);
+            EditCommand::SetKeyframeRoving {
+                clip,
+                param,
+                at: rng.keyframe_time(project, clip, param, false),
+                roving: rng.next_bool(),
+            }
+        }
         "SetSourcePatch" => EditCommand::SetSourcePatch {
             channel: *rng.pick(&[SourceChannel::Video, SourceChannel::Audio]),
             patch: match rng.next_usize(3) {

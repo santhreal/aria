@@ -257,7 +257,7 @@ impl Project {
     ) -> Result<Option<TimeRange>, ModelError> {
         let tl_rate = self.timeline().frame_rate;
         check_same_rate(new_timeline.start.rate, tl_rate)?;
-        Ok(match &clip.content {
+        let window = match &clip.content {
             ClipSource::Media { media: _, source } if clip.freeze_frame => {
                 Some(TimeRange::at_rate(source.start.value, 1, source.start.rate))
             }
@@ -308,7 +308,11 @@ impl Project {
                 Some(TimeRange::at_rate(start, duration, seq_fps))
             }
             ClipSource::Generated(_) => None,
-        })
+        };
+        // Edges saturate at the last tick, and a window that rounds to
+        // nothing keeps one frame past its start, which can end past it.
+        window.map(|w| w.end()).transpose()?;
+        Ok(window)
     }
 
     /// Slip a clip's source window by `by` source ticks, keeping its
@@ -346,8 +350,8 @@ impl Project {
 
     /// `clip`'s source window, and how far its take may slip, in the ticks of
     /// the take: back to the head of the take and on to its tail. A nested
-    /// sequence shorter than the window has no tail, and `i64::MAX` is how far
-    /// it slips on.
+    /// sequence shorter than the window has no tail, and it slips on until the
+    /// window ends at the last tick a time holds.
     ///
     /// Refused for a generated clip (no source), a freeze frame (one held
     /// frame), a still (whose window is duration bookkeeping, not a position
@@ -400,7 +404,7 @@ impl Project {
         };
         let back = source.start.value.saturating_neg();
         let on = if limit == i64::MAX {
-            limit
+            i64::MAX - source.start.value.saturating_add(source.duration.value)
         } else {
             limit - source.start.value
         };

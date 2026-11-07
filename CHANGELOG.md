@@ -1460,6 +1460,14 @@ Notes for the latest release. For previous releases, see the
 - Opening a project file that states an id above 4611686018427387903 is refused, so a later edit no longer replaces or deletes an item the file holds.
 - Opening a project file whose clip holds a value its edit rejects, such as an opacity of -1, a scale of 0, a volume above the ceiling or a shadow blur that saves as `null`, is refused with the clip and lane in the message.
 - Opening a project file with a clip starting at the last tick no longer panics.
+- Pasting a clip copy holding an opacity, scale, speed, speed ramp, shadow or other value no edit stores is refused instead of saving a project that does not open.
+- A marker or other time stated past the last tick of a slower rate saturates when resampled instead of wrapping to a negative time that broke redo and cleared the history.
+- Slipping a nested sequence clip far past its end stops where its source window reaches the last tick instead of saving a project that does not open.
+- Undoing a parent set on a clip outside the open sequence restores the clip instead of failing and clearing the undo history.
+- A pasted clip copy holding a filter or LUT strength outside 0 to 1 is refused instead of saving a project that does not open, and a project file holding one is refused on open.
+- A clip whose source window ends at the last tick reads that window's last frame past its end instead of wrapping to its first.
+- An easing preset on a bounded property such as opacity holds its overshoot at the bound instead of saving a project that does not open.
+- Trimming a still, nested sequence or multicam clip whose source window ends at the last tick is refused instead of saving a project that does not open.
 
 ## [alpha-0.7.0] - 2026-07-22
 
