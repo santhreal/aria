@@ -1,6 +1,6 @@
 # Command line
 
-The `aria` binary (`crates/aria-cli`, `Verb::ALL` in `crates/aria-cli/src/args.rs`) drives the same crates the editor drives. A frame rendered
+The `aria` binary (`Verb::ALL` in `crates/aria-cli/src/args.rs`) drives the same crates the editor drives. A frame rendered
 here is the frame the editor shows, a file exported here is the file the export
 sheet writes, and a detector run here finds what the analysis panel finds.
 
@@ -70,9 +70,9 @@ aria new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
 
 Import each media file and place it after the previous one: the picture on
 `V1` and the sound on `A1`, linked, as a drop in the editor places them. Each
-file starts where every lane it lands on is free. Assembly runs through
-`Engine::apply`, so the saved project satisfies every timeline invariant and
-opens in the editor without repair.
+file starts where every lane it lands on is free. Assembly applies the edits a
+drop in the editor applies, so the saved project opens in the editor without
+repair.
 
 An `<out.aria>` that already exists, as a file, a folder, or a link, fails
 with exit code `2` and is left as it was.
@@ -149,8 +149,8 @@ skipped nvcudah264enc is not installed
 skipped vaapih264enc could not open its device
 ```
 
-The flags build an `ExportFormat` resolved by `ExportSettings::resolved`, matching
-the editor's export sheet. An `--at` at or past the end of the timeline, or a
+The flags resolve to the export settings the editor's export sheet resolves for
+the same choices. An `--at` at or past the end of the timeline, or a
 `--to` at or before `--at` once both are rounded to frames, fails with exit
 code `2`. An export with zero frames (an empty timeline) fails with exit code
 `1` and states the reason.
@@ -347,7 +347,7 @@ code `2` before a window opens. Write a path that starts with `-` as `./-name`.
 | --- | --- |
 | `ARIA_DATA_DIR` | Profile directory for settings, caches, the recovery file, installed plugins, and catalog overrides |
 | `ARIA_PLUGIN_DEV` | Plugin package directory loaded for development over any installed plugin with the same id and reloaded when its files change |
-| `ARIA_MOTION_SCALE` | Startup duration multiplier for UI transitions (`MotionPolicy::parse_duration_scale`) |
+| `ARIA_MOTION_SCALE` | Duration multiplier for UI transitions from `0.01` to `100`, applied at startup over the speed saved in Settings |
 | `RUST_LOG` | `tracing_subscriber::EnvFilter` directive string (`warn` default with `info` on Aria crates) |
 
 `aria-desktop` exits with status 1 and prints the reason and the fix to

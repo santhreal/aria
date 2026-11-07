@@ -26,10 +26,10 @@ and whether transitions run at all.
 The operating system's reduced-motion preference skips transitions under every
 choice and keeps the choice's multiplier.
 
-`ARIA_MOTION_SCALE` seeds the multiplier at startup, before the settings file is
-read, and is clamped by `MotionPolicy::parse_duration_scale`. The choice in
-Settings overrides it for the rest of the session and persists to
-`ui-settings.json`.
+`ARIA_MOTION_SCALE` replaces the saved choice's multiplier at startup. A value
+outside `0.01` to `100` is clamped to that range, and a value that is not a
+finite number is ignored with a warning. Choosing a speed in Settings replaces
+it for the rest of the session and persists to `ui-settings.json`.
 
 Off is honored in two places, not at each call site. A one-shot spec runs
 through `with_animation`, which draws the end state and schedules no frames when
