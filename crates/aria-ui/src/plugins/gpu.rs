@@ -11,7 +11,7 @@ use aria_compositor::{
     LayerPlacement, PassInstance, pass_id, renders_effect, renders_transition,
 };
 use aria_core::RgbaImage;
-use aria_models::{Generator, Lut, TimeRange, TrackKind};
+use aria_models::{Generator, Lut, TimeRange, TrackKind, io_reason};
 use aria_plugin::{
     ApplyOutcome, Command, DropAction, EditCommand, EffectService, Importer, ImporterSpec,
     InterchangeReport, Plugin, PluginContext, PluginError, PluginManifest, ResolveDropped, Service,
@@ -174,16 +174,14 @@ impl Importer for CubeImporter {
         file: &Path,
         tx: &mut Transaction<'_>,
     ) -> Result<InterchangeReport, TransactError> {
-        let aborted =
-            |reason: String| TransactError::Aborted(format!("{} {reason}", file.display()));
-        let path = std::path::absolute(file)
-            .map_err(|err| aborted(format!("could not be read: {err}")))?;
+        let aborted = TransactError::Aborted;
+        let path = std::path::absolute(file).map_err(|err| aborted(io_reason(&err)))?;
         let lut_path = path
             .to_str()
-            .ok_or_else(|| aborted("could not be read: the path is not UTF-8".to_owned()))?
+            .ok_or_else(|| aborted("the path is not UTF-8".to_owned()))?
             .to_owned();
-        let text = read_cube(&path).map_err(|err| aborted(format!("could not be read: {err}")))?;
-        CubeLut::parse(&text).map_err(|err| aborted(format!("is not a Cube LUT: {err}")))?;
+        let text = read_cube(&path).map_err(|err| aborted(io_reason(&err)))?;
+        CubeLut::parse(&text).map_err(|err| aborted(format!("not a Cube LUT: {err}")))?;
 
         let project = tx.project();
         let timeline = project.timeline();

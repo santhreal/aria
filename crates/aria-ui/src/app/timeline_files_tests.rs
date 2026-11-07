@@ -313,6 +313,45 @@ fn a_file_the_importer_cannot_read_leaves_the_project_as_it_was() {
     assert_eq!(state.timeline_report, None);
 }
 
+/// WHY: the cube, timeline, and subtitle importers put the file's path in
+/// their own error, which `InterchangeError::Import` prefixes with the path
+/// again, so a refused import read "could not import /a/Short.cube:
+/// /a/Short.cube is not a Cube LUT". Every extension of every registered
+/// importer is refused for a missing file and, where the importer refuses
+/// it, for a file of bytes no format holds; each refusal states the path
+/// once and leaves the project as it was. Not caught: a refusal raised after
+/// the importer read the file, such as a media file a cut names.
+#[test]
+fn every_importer_refusal_states_the_file_once() {
+    let mut state = editing();
+    let mut cut = placed(&state);
+    let dir = out_dir();
+    let mut refused_garbage = 0;
+    for importer in state.ctx.importers() {
+        for extension in &importer.extensions {
+            let missing = dir.join(format!("gone-{}.{extension}", importer.id));
+            let garbage = dir.join(format!("garbage-{}.{extension}", importer.id));
+            std::fs::write(&garbage, "\u{0}\u{1}not a timeline").expect("write");
+            for (file, must_refuse) in [(&missing, true), (&garbage, false)] {
+                if state.import_timeline(file) {
+                    assert!(!must_refuse, "{} read a missing {extension}", importer.id);
+                    cut = placed(&state);
+                    continue;
+                }
+                refused_garbage += usize::from(!must_refuse);
+                let error = state.last_error.clone().unwrap_or_default();
+                let path = file.display().to_string();
+                assert_eq!(error.matches(&path).count(), 1, "{}: {error}", importer.id);
+                assert_eq!(placed(&state), cut, "{}: {error}", importer.id);
+            }
+        }
+    }
+    assert!(
+        refused_garbage > 0,
+        "no importer refused a file of no format"
+    );
+}
+
 /// A bare context mounts no interchange plugin, so neither dialog opens and
 /// the error states how to get one.
 #[test]

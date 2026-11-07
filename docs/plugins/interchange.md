@@ -98,7 +98,9 @@ plugins mount before external ones.
 An import is one transaction named `Import <file name>`, or
 `<plugin id>: Import <file name>` for a plugin's importer: one undo step. When
 the importer returns an error or panics, nothing of the import remains and
-`import_file` returns `InterchangeError::Import`.
+`import_file` returns `InterchangeError::Import`, which reads
+`<importer id> could not import <path>: <error>`. An importer states the
+reason only, such as `not a WebVTT subtitles file: ...`, not the path.
 
 An export writes to `.<file name>.partial` beside the destination, syncs it,
 and renames it over the destination after the exporter returns. When the

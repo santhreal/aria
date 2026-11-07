@@ -580,8 +580,8 @@ fn a_file_another_format_wrote_is_refused_and_leaves_the_project_as_it_was() {
     assert_eq!(
         err.to_string(),
         format!(
-            "aria.interchange.vtt could not import {path}: {path} is not a WebVTT subtitles \
-             file: the file does not start with WEBVTT",
+            "aria.interchange.vtt could not import {path}: not a WebVTT subtitles file: the \
+             file does not start with WEBVTT",
             path = file.display()
         )
     );

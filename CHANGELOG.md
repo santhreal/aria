@@ -1431,6 +1431,7 @@ Notes for the latest release. For previous releases, see the
 - A multicam sync refused because the angles' sound matches at more than one offset states that reason.
 - Importing a WebP, GIF, BMP, or TIFF still on Linux and Windows decodes it instead of failing with "no portable decoder".
 - The Import dialog and file drops accept every still the decoder reads, and the Import Still dialog no longer offers HEIC, HEIF, or AVIF where only macOS and iOS decode them.
+- A refused timeline, subtitle, or LUT import states the file's path once rather than twice.
 
 ## [alpha-0.7.0] - 2026-07-22
 

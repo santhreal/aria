@@ -156,12 +156,12 @@ fn a_file_that_is_not_a_cube_lut_is_refused_and_changes_nothing() {
         (
             "Short.cube",
             "LUT_3D_SIZE 2\n0 0 0\n",
-            "is not a Cube LUT: expected 8 data rows, found 1",
+            "not a Cube LUT: expected 8 data rows, found 1",
         ),
         (
             "Flat.cube",
             "0 0 0\n",
-            "is not a Cube LUT: missing LUT_3D_SIZE (1D LUTs are not supported)",
+            "not a Cube LUT: missing LUT_3D_SIZE (1D LUTs are not supported)",
         ),
     ];
     for (name, text, reason) in cases {
@@ -177,7 +177,7 @@ fn a_file_that_is_not_a_cube_lut_is_refused_and_changes_nothing() {
         assert_eq!(
             state.last_error,
             Some(format!(
-                "aria.effects.cube could not import {path}: {path} {reason}",
+                "aria.effects.cube could not import {path}: {reason}",
                 path = cube.display()
             )),
             "{name}"
@@ -194,11 +194,12 @@ fn a_missing_file_is_refused_with_the_read_error() {
 
     assert!(!state.import_timeline(&cube));
 
-    let error = state.last_error.clone().expect("an error");
-    let prefix = format!(
-        "aria.effects.cube could not import {path}: {path} could not be read: ",
-        path = cube.display()
+    assert_eq!(
+        state.last_error,
+        Some(format!(
+            "aria.effects.cube could not import {}: no such file or directory",
+            cube.display()
+        ))
     );
-    assert!(error.starts_with(&prefix), "{error}");
     assert_eq!(layout(&project(&state)), before);
 }

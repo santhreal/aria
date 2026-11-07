@@ -72,7 +72,9 @@ pub struct InterchangeReport {
 pub trait Importer: Send + Sync {
     /// Read `file` into the project through `tx`. Every command applied
     /// through `tx` lands as one undo step; an error or a panic leaves the
-    /// project as it was.
+    /// project as it was. An error states the reason only, such as "not a
+    /// WebVTT subtitles file: ..."; [`InterchangeError::Import`] prefixes
+    /// the importer and `file`.
     fn import(
         &self,
         file: &Path,

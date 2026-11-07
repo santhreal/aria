@@ -21,7 +21,7 @@ mod url;
 use std::io::{self, Read as _, Write};
 use std::path::Path;
 
-use aria_models::{Project, Rational};
+use aria_models::{Project, Rational, io_reason};
 use aria_plugin::{
     Exporter, ExporterSpec, Importer, ImporterSpec, InterchangeReport, Plugin, PluginContext,
     PluginError, PluginManifest, TransactError, Transaction,
@@ -146,17 +146,11 @@ impl Importer for FormatImporter {
         file: &Path,
         tx: &mut Transaction<'_>,
     ) -> Result<InterchangeReport, TransactError> {
-        let text = read_text(file).map_err(|err| {
-            TransactError::Aborted(format!("{} could not be read: {err}", file.display()))
-        })?;
+        let text = read_text(file).map_err(|err| TransactError::Aborted(io_reason(&err)))?;
         let rate = tx.project().timeline().frame_rate;
         let name = model::file_stem(file, "Imported timeline");
         let Read { cut, mut skipped } = (self.0.read)(&text, rate, &name).map_err(|reason| {
-            TransactError::Aborted(format!(
-                "{} is not a {} file: {reason}",
-                file.display(),
-                self.0.name
-            ))
+            TransactError::Aborted(format!("not a {} file: {reason}", self.0.name))
         })?;
         let base = file.parent().unwrap_or_else(|| Path::new(""));
         skipped.extend(import::place(&cut, base, tx)?);
@@ -182,15 +176,9 @@ impl Importer for SubtitleImporter {
         file: &Path,
         tx: &mut Transaction<'_>,
     ) -> Result<InterchangeReport, TransactError> {
-        let text = read_text(file).map_err(|err| {
-            TransactError::Aborted(format!("{} could not be read: {err}", file.display()))
-        })?;
+        let text = read_text(file).map_err(|err| TransactError::Aborted(io_reason(&err)))?;
         let Cues { cues, skipped } = (self.0.read)(&text).map_err(|reason| {
-            TransactError::Aborted(format!(
-                "{} is not a {} file: {reason}",
-                file.display(),
-                self.0.name
-            ))
+            TransactError::Aborted(format!("not a {} file: {reason}", self.0.name))
         })?;
         subtitles::place(&cues, &model::file_stem(file, "Subtitles"), tx)?;
         Ok(InterchangeReport { skipped })
