@@ -59,7 +59,7 @@ impl Template {
         Ok(match start {
             Some(start) => {
                 let rate = source.frame_rate;
-                Pick::at(source, time_at(start, rate))
+                Pick::at(source, time_at(start, rate)?)
             }
             None => Pick::new(source),
         })

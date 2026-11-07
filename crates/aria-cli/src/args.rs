@@ -464,7 +464,7 @@ COMMANDS
     demo [out.png]
         Composite a text layer on a headless GPU and write the canvas.
 
-    new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
+    new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|59.94|60]
         Assemble a project: import each file and lay it at the end of the
         lanes it lands on, the picture on V1 and the sound on A1.
 

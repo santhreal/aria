@@ -34,7 +34,7 @@ class Project:
     def __init__(
         self,
         name: str,
-        fps: int = 30,
+        fps: float | str = 30,
         canvas: CanvasAspect = "auto",
         background: Color | None = None,
     ) -> None: ...

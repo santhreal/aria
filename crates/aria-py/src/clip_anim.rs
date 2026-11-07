@@ -56,8 +56,8 @@ pub(super) fn animate(
     py: Python,
     kwargs: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
-    let dict = kwargs
-        .ok_or_else(|| PyValueError::new_err("animate() requires at least one property"))?;
+    let dict =
+        kwargs.ok_or_else(|| PyValueError::new_err("animate() requires at least one property"))?;
     let default_easing = match dict.get_item("easing")? {
         Some(v) => parse_easing(&v)?,
         None => Easing::Linear,
@@ -102,7 +102,7 @@ pub(super) fn animate(
 pub(super) fn remove_keyframe(handle: &Clip, py: Python, name: &str, at: f64) -> PyResult<()> {
     handle.with_project(py, |project| {
         let (clip_start, clip_dur) = Clip::span_ticks(project, handle.id)?;
-        let abs = clip_key_time(clip_start, clip_dur, at, project.rate());
+        let abs = clip_key_time(clip_start, clip_dur, at, project.rate())?;
         let param = clip_param(name)?;
         project
             .model_mut()
@@ -116,9 +116,9 @@ pub(super) fn clear_animation(
     py: Python,
     names: &Bound<'_, PyTuple>,
 ) -> PyResult<()> {
-    let list: Vec<String> = names.extract().map_err(|_| {
-        PyValueError::new_err("clear_animation expects property names as strings")
-    })?;
+    let list: Vec<String> = names
+        .extract()
+        .map_err(|_| PyValueError::new_err("clear_animation expects property names as strings"))?;
     if list.is_empty() {
         return Err(PyValueError::new_err(
             "clear_animation requires at least one property name",

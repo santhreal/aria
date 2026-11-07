@@ -110,6 +110,83 @@ impl Rational {
         }
         Rational::new(num as i32, den as i32)
     }
+
+    /// The [`NAMED_RATES`] rate `raw` spells. Zeros that end a decimal
+    /// fraction are dropped first, and the point when nothing follows it, so
+    /// `29.970` is `29.97` and `24.0` is `24`, the spellings a script printing
+    /// a float writes.
+    pub fn named(raw: &str) -> Option<Rational> {
+        let spelled = trim_rate_spelling(raw);
+        NAMED_RATES
+            .iter()
+            .find(|(key, _)| *key == spelled)
+            .map(|(_, rate)| *rate)
+    }
+
+    /// The rate `raw` writes as frames a second: a [`NAMED_RATES`] rate, kept
+    /// exact, or a whole number from 1 to `max`. Trailing fraction zeros are
+    /// dropped as [`Rational::named`] drops them, so `30.0` is `30/1`.
+    pub fn from_fps(raw: &str, max: i32) -> Result<Rational, FpsError> {
+        if let Some(rate) = Rational::named(raw) {
+            return Ok(rate);
+        }
+        match trim_rate_spelling(raw).parse::<i64>() {
+            Ok(fps) if fps < 1 => Err(FpsError::NotPositive),
+            Ok(fps) => i32::try_from(fps)
+                .ok()
+                .filter(|fps| *fps <= max)
+                .map(|fps| Rational::new(fps, 1))
+                .ok_or(FpsError::AboveMax),
+            Err(_) => Err(FpsError::NotARate),
+        }
+    }
+
+    /// The [`NAMED_RATES`] decimal of this rate, or `None` for a rate no
+    /// surface offers. Compared in lowest terms, so `48000/2002` is `23.976`.
+    pub fn spelling(self) -> Option<&'static str> {
+        let reduced = self.reduced();
+        NAMED_RATES
+            .iter()
+            .find(|(_, rate)| *rate == reduced)
+            .map(|(key, _)| *key)
+    }
+}
+
+/// The sequence frame rates every surface offers, in the order a picker draws
+/// them, each with the decimal that names it. 23.976, 29.97 and 59.94 are
+/// `24000/1001`, `30000/1001` and `60000/1001`: a project written at a rounded
+/// `24/1` drifts against its footage.
+pub const NAMED_RATES: [(&str, Rational); 8] = [
+    ("23.976", Rational::FPS_23_976),
+    ("24", Rational::FPS_24),
+    ("25", Rational::FPS_25),
+    ("29.97", Rational::FPS_29_97),
+    ("30", Rational::FPS_30),
+    ("50", Rational::FPS_50),
+    ("59.94", Rational::FPS_59_94),
+    ("60", Rational::FPS_60),
+];
+
+/// Why [`Rational::from_fps`] read no rate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FpsError {
+    /// A whole number below 1.
+    NotPositive,
+    /// A whole number above the caller's ceiling.
+    AboveMax,
+    /// Neither a [`NAMED_RATES`] decimal nor a whole number.
+    NotARate,
+}
+
+/// `raw` as a [`NAMED_RATES`] key spells it: zeros that end a decimal fraction
+/// are dropped, and the point when nothing follows it, so `29.970` is `29.97`
+/// and `24.0` is `24`, the spellings a script printing a float writes.
+fn trim_rate_spelling(raw: &str) -> &str {
+    if raw.contains('.') {
+        raw.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        raw
+    }
 }
 
 /// Greatest common divisor of two `i32`s, never zero so it is safe to divide
@@ -358,6 +435,53 @@ mod tests {
     fn rational_as_f64_approximates_ntsc() {
         assert!((Rational::FPS_23_976.as_f64() - 23.976).abs() < 0.001);
         assert!((Rational::FPS_29_97.as_f64() - 29.97).abs() < 0.001);
+    }
+
+    /// WHY: three surfaces kept three rate lists. The editor offered 59.94,
+    /// `aria new --fps` rejected it, and Python `Project(fps=29.97)` raised a
+    /// TypeError. One table now feeds all three. Every named rate is valid
+    /// and in lowest terms, reads from its decimal and from that decimal with
+    /// trailing zeros, and spells back as the decimal from any equal ratio;
+    /// [`Rational::from_fps`] reads a whole number from 1 to the ceiling and
+    /// rejects zero, a negative, one past the ceiling, a number past `i32`, a
+    /// fraction no row names, and a word. Not caught: a row whose decimal
+    /// names the wrong rate, such as `29.97` for `24000/1001`.
+    #[test]
+    fn a_named_rate_reads_from_its_decimal_and_spells_back_as_it() {
+        for (key, rate) in NAMED_RATES {
+            assert!(rate.is_valid(), "{key}");
+            assert_eq!(rate.reduced(), rate, "{key} is not in lowest terms");
+            let point = if key.contains('.') { "" } else { "." };
+            for raw in [
+                key.to_owned(),
+                format!("{key}{point}0"),
+                format!("{key}{point}00"),
+            ] {
+                assert_eq!(Rational::named(&raw), Some(rate), "{raw}");
+                assert_eq!(Rational::from_fps(&raw, 1000), Ok(rate), "{raw}");
+            }
+            let doubled = Rational::new(rate.num * 2, rate.den * 2);
+            assert_eq!(doubled.spelling(), Some(key), "{doubled:?}");
+        }
+        assert_eq!(Rational::new(12, 1).spelling(), None);
+        for fps in [1, 12, 1000] {
+            assert_eq!(
+                Rational::from_fps(&fps.to_string(), 1000),
+                Ok(Rational::new(fps, 1))
+            );
+        }
+        for (raw, why) in [
+            ("0", FpsError::NotPositive),
+            ("-24", FpsError::NotPositive),
+            ("1001", FpsError::AboveMax),
+            ("2147483648", FpsError::AboveMax),
+            ("23.98", FpsError::NotARate),
+            ("12.5", FpsError::NotARate),
+            ("fast", FpsError::NotARate),
+            ("", FpsError::NotARate),
+        ] {
+            assert_eq!(Rational::from_fps(raw, 1000), Err(why), "{raw}");
+        }
     }
 
     #[test]

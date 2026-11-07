@@ -71,7 +71,10 @@ pub(super) fn speed(handle: &Clip, py: Python) -> PyResult<f64> {
 }
 
 pub(super) fn reversed(handle: &Clip, py: Python) -> PyResult<bool> {
-    handle.with_project_ref(py, |project| Ok(Clip::require(project, handle.id)?.reversed))
+    handle.with_project_ref(
+        py,
+        |project| Ok(Clip::require(project, handle.id)?.reversed),
+    )
 }
 
 pub(super) fn split(handle: &Clip, py: Python, at: f64) -> PyResult<Clip> {
@@ -79,7 +82,7 @@ pub(super) fn split(handle: &Clip, py: Python, at: f64) -> PyResult<Clip> {
         let rate = project.rate();
         let new_id = project
             .model_mut()
-            .split_clip(handle.id, time_at(at, rate))
+            .split_clip(handle.id, time_at(at, rate)?)
             .map_err(model_err)?;
         Ok(Clip::new(handle.project.clone_ref(py), new_id))
     })
@@ -102,7 +105,7 @@ pub(super) fn trim(
         if end <= start {
             return Err(PyValueError::new_err("end must be greater than start"));
         }
-        let timeline = span(start, end - start, rate);
+        let timeline = span(start, end - start, rate)?;
         project
             .model_mut()
             .trim_clip(handle.id, timeline)
@@ -110,20 +113,13 @@ pub(super) fn trim(
     })
 }
 
-pub(super) fn move_(
-    handle: &Clip,
-    py: Python,
-    start: f64,
-    track: Option<&Track>,
-) -> PyResult<()> {
+pub(super) fn move_(handle: &Clip, py: Python, start: f64, track: Option<&Track>) -> PyResult<()> {
     handle.with_project(py, |project| {
         let rate = project.rate();
         let to_track = match track {
             Some(t) => {
                 if !t.project().is(handle.project.bind(py)) {
-                    return Err(AriaError::new_err(
-                        "track belongs to a different project",
-                    ));
+                    return Err(AriaError::new_err("track belongs to a different project"));
                 }
                 t.id()
             }
@@ -135,7 +131,7 @@ pub(super) fn move_(
         };
         project
             .model_mut()
-            .move_clip(handle.id, to_track, time_at(start, rate))
+            .move_clip(handle.id, to_track, time_at(start, rate)?)
             .map_err(model_err)
     })
 }

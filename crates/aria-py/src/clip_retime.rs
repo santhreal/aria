@@ -150,7 +150,7 @@ pub(super) fn set_media(
             .source_range()
             .ok_or_else(|| AriaError::new_err("only a media clip can be relinked"))?;
         let start_tick = match start {
-            Some(start) => ticks(start, rate),
+            Some(start) => ticks(start, rate)?,
             None => 0,
         };
         // The window keeps the clip's length so the edit is a relink, not a

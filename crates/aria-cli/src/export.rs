@@ -10,8 +10,10 @@
 //! its `--at`.
 
 use aria_core::count::counted;
-use aria_core::{ExportFormat, VideoCodec};
-use aria_render::{ExportSettings, RenderError, Renderer, export_to_file_with_encoder_observed};
+use aria_core::{ExportFormat, FpsError, VideoCodec};
+use aria_render::{
+    ExportSettings, MAX_FPS, RenderError, Renderer, export_to_file_with_encoder_observed,
+};
 
 use crate::args::Args;
 use crate::fail::Failure;
@@ -137,42 +139,30 @@ fn codec_from(args: &Args) -> Result<Option<VideoCodec>, Failure> {
         })
 }
 
-/// The highest `--fps`. Above it `nvh264enc` writes the last frame of an MP4
-/// with a `1001/30000` s duration instead of one frame period, so a 2000 fps
-/// export of a 0.1 s span played 0.133 s. At and below it every encoder writes
-/// one period per frame.
-const MAX_FPS: i32 = 1000;
-
-/// The `--fps` flag: a rate [`crate::new::RATES`] holds, kept exact, so
+/// The `--fps` flag: a rate [`aria_core::NAMED_RATES`] holds, kept exact, so
 /// `29.97` is `30000/1001` as it is for `aria new`, or a whole number of frames
-/// a second from 1 to [`MAX_FPS`].
+/// a second from 1 to [`aria_render::MAX_FPS`].
 fn rate_from(args: &Args) -> Result<Option<aria_core::Rational>, Failure> {
     let Some(raw) = args.value("fps")? else {
         return Ok(None);
     };
-    let spelled = crate::new::rate_spelling(raw);
-    if let Some((_, rate)) = crate::new::RATES.iter().find(|(key, _)| *key == spelled) {
-        return Ok(Some(*rate));
-    }
-    match spelled.parse::<i64>() {
-        Ok(fps) if fps > 0 => i32::try_from(fps)
-            .ok()
-            .filter(|fps| *fps <= MAX_FPS)
-            .map(|fps| Some(aria_core::Rational::new(fps, 1)))
-            .ok_or_else(|| {
+    aria_core::Rational::from_fps(raw, MAX_FPS)
+        .map(Some)
+        .map_err(|err| match err {
+            FpsError::NotPositive => Failure::Usage("--fps wants a rate above zero".into()),
+            FpsError::AboveMax => {
                 Failure::Usage(format!("--fps wants a rate up to {MAX_FPS}, got {raw}"))
-            }),
-        Ok(_) => Err(Failure::Usage("--fps wants a rate above zero".into())),
-        Err(_) => Err(Failure::Usage(format!(
-            "--fps wants a whole number or one of {}, got \"{raw}\"",
-            crate::new::RATES
-                .iter()
-                .map(|(key, _)| *key)
-                .filter(|key| key.contains('.'))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))),
-    }
+            }
+            FpsError::NotARate => Failure::Usage(format!(
+                "--fps wants a whole number or one of {}, got \"{raw}\"",
+                aria_core::NAMED_RATES
+                    .iter()
+                    .map(|(key, _)| *key)
+                    .filter(|key| key.contains('.'))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        })
 }
 
 pub(crate) fn resolve_export_range(
@@ -383,7 +373,7 @@ mod tests {
         let parse = |raw: &str| {
             rate_from(&Args::parse(["export", "a.aria", "b.mp4", "--fps", raw]).unwrap())
         };
-        for (key, rate) in crate::new::RATES {
+        for (key, rate) in aria_core::NAMED_RATES {
             assert_eq!(parse(key), Ok(Some(rate)), "{key}");
         }
         for fps in [1, 12, MAX_FPS] {
@@ -424,7 +414,7 @@ mod tests {
             rate_from(&Args::parse(["export", "a.aria", "b.mp4", "--fps", raw]).unwrap())
         };
         let whole = ["1", "12", "1000"];
-        let keys = crate::new::RATES.iter().map(|(key, _)| *key);
+        let keys = aria_core::NAMED_RATES.iter().map(|(key, _)| *key);
         for key in keys.chain(whole) {
             let want = parse(key).expect(key);
             let point = if key.contains('.') { "" } else { "." };

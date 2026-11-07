@@ -189,8 +189,15 @@ pub(super) fn apply_clip_animation(
         let pairs = parse_keyframe_pairs(value.py(), list, default_easing, |v| {
             param_value_for(param, v)
         })?;
-        for (rel, val, easing) in pairs {
-            let abs = clip_key_time(clip_start, clip_dur, rel, rate);
+        // Every time is read before the first key is set, so a bad time in
+        // the list sets none of them.
+        let keys = pairs
+            .into_iter()
+            .map(|(rel, val, easing)| {
+                clip_key_time(clip_start, clip_dur, rel, rate).map(|abs| (abs, val, easing))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        for (abs, val, easing) in keys {
             project
                 .model_mut()
                 .set_param_keyframe(clip_id, param, abs, val, easing, None)
@@ -201,7 +208,7 @@ pub(super) fn apply_clip_animation(
     let at = at
         .ok_or_else(|| PyValueError::new_err(format!("single keyframe for {name} requires at=")))?;
     let val = param_value_for(param, value)?;
-    let abs = clip_key_time(clip_start, clip_dur, at, rate);
+    let abs = clip_key_time(clip_start, clip_dur, at, rate)?;
     project
         .model_mut()
         .set_param_keyframe(clip_id, param, abs, val, default_easing, None)

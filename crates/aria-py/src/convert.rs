@@ -6,18 +6,83 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 
-/// Integer frame rate → exact [`Rational`] (`fps/1`), clamped to ≥ 1.
-pub fn rate_from_fps(fps: u32) -> Rational {
-    Rational::new(fps.max(1) as i32, 1)
+/// A `Project(fps=)` value as an exact rate: a whole number from 1 to
+/// [`aria_render::MAX_FPS`], or a rate [`aria_core::NAMED_RATES`] names,
+/// written as a number (`29.97`) or a string (`"29.97"`). `29.97` is
+/// `30000/1001`, the rate `aria new --fps 29.97` and the editor set.
+pub fn rate_from_fps(fps: &Bound<'_, PyAny>) -> PyResult<Rational> {
+    let raw = if let Ok(whole) = fps.extract::<i64>() {
+        whole.to_string()
+    } else if let Ok(number) = fps.extract::<f64>() {
+        // `Display` writes the shortest decimal that reads back, so the float
+        // `29.97` is the text `29.97`.
+        number.to_string()
+    } else if let Ok(text) = fps.extract::<String>() {
+        text
+    } else {
+        return Err(PyValueError::new_err(format!(
+            "fps must be a number, got {}",
+            fps.get_type().name()?
+        )));
+    };
+    rate_from_spelling(&raw)
 }
 
-/// Seconds → tick count at `rate`, rounded, clamped to ≥ 0.
-pub fn ticks(seconds: f64, rate: Rational) -> i64 {
-    if rate.den == 0 {
-        return 0;
+/// [`rate_from_fps`] for the decimal text of the value.
+pub fn rate_from_spelling(raw: &str) -> PyResult<Rational> {
+    Rational::from_fps(raw, aria_render::MAX_FPS).map_err(|_| {
+        let named: Vec<&str> = aria_core::NAMED_RATES
+            .iter()
+            .map(|(key, _)| *key)
+            .filter(|key| key.contains('.'))
+            .collect();
+        PyValueError::new_err(format!(
+            "fps must be a whole number from 1 to {} or one of {}, got {raw}",
+            aria_render::MAX_FPS,
+            named.join(", ")
+        ))
+    })
+}
+
+/// A rate as the Python float of its frames a second: the decimal that names
+/// it when [`aria_core::NAMED_RATES`] holds it, so `Project(fps=p.fps)`
+/// rebuilds the same rate, else its value.
+pub fn fps_float(rate: Rational) -> f64 {
+    rate.spelling()
+        .and_then(|key| key.parse().ok())
+        .unwrap_or_else(|| rate.as_f64())
+}
+
+/// The most ticks a time from seconds may hold: `2^53`, the last whole number
+/// an `f64` holds exactly. Past it two times a script wrote apart read back as
+/// one tick, and the end of a span overflows `i64` arithmetic.
+const MAX_TICKS: f64 = 9_007_199_254_740_992.0;
+
+/// Seconds → tick count at `rate`, rounded. A time that is not finite, that
+/// rounds below zero, or that holds more than `2^53` ticks is a `ValueError`
+/// naming it, raised by the call that takes the time rather than later as an
+/// overlap or an arithmetic overflow.
+pub fn ticks(seconds: f64, rate: Rational) -> PyResult<i64> {
+    if !seconds.is_finite() {
+        return Err(PyValueError::new_err(format!(
+            "{seconds} is not a finite number of seconds"
+        )));
     }
-    let t = seconds * f64::from(rate.num) / f64::from(rate.den);
-    t.round().max(0.0) as i64
+    if rate.den == 0 {
+        return Ok(0);
+    }
+    let t = (seconds * f64::from(rate.num) / f64::from(rate.den)).round();
+    if t < 0.0 {
+        return Err(PyValueError::new_err(format!(
+            "{seconds} s is before the start of the timeline"
+        )));
+    }
+    if t > MAX_TICKS {
+        return Err(PyValueError::new_err(format!(
+            "{seconds} s is past the longest time a project holds"
+        )));
+    }
+    Ok(t as i64)
 }
 
 /// Tick count → seconds at `rate`.
@@ -29,15 +94,15 @@ pub fn seconds(tick: i64, rate: Rational) -> f64 {
 }
 
 /// A `[start, start+duration)` timeline range from seconds (duration ≥ 1 tick).
-pub fn span(start: f64, duration: f64, rate: Rational) -> TimeRange {
-    let start = ticks(start, rate);
-    let dur = ticks(duration, rate).max(1);
-    TimeRange::at_rate(start, dur, rate)
+pub fn span(start: f64, duration: f64, rate: Rational) -> PyResult<TimeRange> {
+    let start = ticks(start, rate)?;
+    let dur = ticks(duration, rate)?.max(1);
+    Ok(TimeRange::at_rate(start, dur, rate))
 }
 
 /// Timeline instant from seconds.
-pub fn time_at(seconds: f64, rate: Rational) -> RationalTime {
-    RationalTime::new(ticks(seconds, rate), rate)
+pub fn time_at(seconds: f64, rate: Rational) -> PyResult<RationalTime> {
+    Ok(RationalTime::new(ticks(seconds, rate)?, rate))
 }
 
 /// Clip-relative keyframe seconds → absolute timeline time for a clip
@@ -49,12 +114,12 @@ pub fn clip_key_time(
     clip_duration: i64,
     rel_sec: f64,
     rate: Rational,
-) -> RationalTime {
-    let mut tick = ticks(rel_sec, rate);
+) -> PyResult<RationalTime> {
+    let mut tick = ticks(rel_sec, rate)?;
     if tick == clip_duration && tick > 0 {
         tick -= 1;
     }
-    RationalTime::new(clip_start + tick, rate)
+    Ok(RationalTime::new(clip_start + tick, rate))
 }
 
 /// Positive playback speed as an approximate rational, between 0.05 and 100.0.
@@ -264,19 +329,41 @@ pub fn param_spec_dict(
 mod tests {
     use super::*;
 
-    #[test]
-    fn ticks_round_trip_at_30fps() {
-        let rate = rate_from_fps(30);
-        assert_eq!(ticks(1.0, rate), 30);
-        assert!((seconds(30, rate) - 1.0).abs() < 1e-9);
-    }
+    const R30: Rational = Rational::new(30, 1);
 
     #[test]
-    fn ticks_rounds_and_clamps_negative() {
-        let rate = rate_from_fps(30);
-        assert_eq!(ticks(0.4999 / 30.0, rate), 0);
-        assert_eq!(ticks(0.5001 / 30.0, rate), 1);
-        assert_eq!(ticks(-5.0, rate), 0);
+    fn ticks_round_trip_at_30fps() {
+        assert_eq!(ticks(1.0, R30).ok(), Some(30));
+        assert!((seconds(30, R30) - 1.0).abs() < 1e-9);
+    }
+
+    /// WHY: `ticks` clamped and saturated: `start=nan` read as tick 0 and
+    /// failed as an overlap with the clip there, `-5` read as tick 0, and
+    /// `inf` saturated to `i64::MAX` and failed as "time arithmetic overflow".
+    /// A time that rounds to a tick from 0 to `2^53` reads as that tick, every
+    /// other time is an error at each boundary, and `span`, `time_at` and
+    /// `clip_key_time` pass the error on. Not caught: a call site that reads
+    /// seconds without these helpers.
+    #[test]
+    fn a_time_is_a_tick_from_zero_to_the_ceiling_or_an_error() {
+        assert_eq!(ticks(0.4999 / 30.0, R30).ok(), Some(0));
+        assert_eq!(ticks(0.5001 / 30.0, R30).ok(), Some(1));
+        assert_eq!(ticks(-0.4999 / 30.0, R30).ok(), Some(0));
+        assert!(ticks(-0.5001 / 30.0, R30).is_err());
+        assert!(ticks(-5.0, R30).is_err());
+        let one = Rational::new(1, 1);
+        assert_eq!(ticks(MAX_TICKS, one).ok(), Some(1 << 53));
+        assert!(ticks(MAX_TICKS + 2.0, one).is_err());
+        assert!(ticks(f64::MAX, one).is_err());
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(ticks(bad, R30).is_err(), "{bad}");
+            assert!(span(bad, 1.0, R30).is_err(), "span start {bad}");
+            assert!(span(0.0, bad, R30).is_err(), "span duration {bad}");
+            assert!(time_at(bad, R30).is_err(), "time_at {bad}");
+            assert!(clip_key_time(0, 60, bad, R30).is_err(), "key {bad}");
+        }
+        assert!(time_at(-1.0, R30).is_err());
+        assert!(clip_key_time(0, 60, -1.0, R30).is_err());
     }
 
     #[test]
@@ -284,33 +371,65 @@ mod tests {
         assert_eq!(seconds(30, Rational::new(0, 1)), 0.0);
     }
 
+    /// WHY: `Project(fps=29.97)` raised a TypeError, `fps=0` built a 1 fps
+    /// project, and `p.fps` read a 29.97 project as `29.970029970029973`, so
+    /// `Project(fps=p.fps)` could not rebuild its rate. Every named rate reads
+    /// exact from its decimal and from the float of it, and reads back as that
+    /// decimal; a whole number up to the ceiling reads as itself; zero, a
+    /// negative, an unnamed fraction, one past the ceiling, and a non-number
+    /// are errors. Not caught: an argument type other than a number or a
+    /// string (the Python suite covers it).
     #[test]
-    fn rate_from_fps_clamps_zero() {
-        assert_eq!(rate_from_fps(0), Rational::new(1, 1));
-        assert_eq!(rate_from_fps(24), Rational::new(24, 1));
+    fn a_frame_rate_reads_exact_and_back_as_its_decimal() {
+        for (key, rate) in aria_core::NAMED_RATES {
+            assert_eq!(rate_from_spelling(key).ok(), Some(rate), "{key}");
+            let float: f64 = key.parse().expect("a decimal");
+            assert_eq!(rate_from_spelling(&float.to_string()).ok(), Some(rate));
+            assert_eq!(fps_float(rate), float, "{key}");
+        }
+        for fps in [1, 12, aria_render::MAX_FPS] {
+            let rate = Rational::new(fps, 1);
+            assert_eq!(rate_from_spelling(&fps.to_string()).ok(), Some(rate));
+            assert_eq!(fps_float(rate), f64::from(fps));
+        }
+        let over = (aria_render::MAX_FPS + 1).to_string();
+        for bad in [
+            "0",
+            "-24",
+            "29.98",
+            "12.5",
+            over.as_str(),
+            "NaN",
+            "inf",
+            "fast",
+            "",
+        ] {
+            assert!(rate_from_spelling(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]
     fn span_has_at_least_one_tick() {
-        let rate = rate_from_fps(30);
-        let range = span(1.0, 0.0, rate);
+        let range = span(1.0, 0.0, R30).expect("a span");
         assert_eq!(range.start.value, 30);
         assert_eq!(range.duration.value, 1);
     }
 
     #[test]
     fn clip_key_time_offsets_from_clip_start() {
-        let rate = rate_from_fps(30);
-        assert_eq!(clip_key_time(60, 60, 1.0, rate).value, 90);
+        assert_eq!(
+            clip_key_time(60, 60, 1.0, R30).ok().map(|t| t.value),
+            Some(90)
+        );
     }
 
     #[test]
     fn clip_key_time_clamps_exclusive_end_to_last_frame() {
-        let rate = rate_from_fps(30);
+        let at = |rel: f64| clip_key_time(0, 60, rel, R30).ok().map(|t| t.value);
         // A keyframe at the clip's full duration lands on the final frame.
-        assert_eq!(clip_key_time(0, 60, 2.0, rate).value, 59);
+        assert_eq!(at(2.0), Some(59));
         // Past-the-end stays out of range so the model can reject it.
-        assert_eq!(clip_key_time(0, 60, 2.5, rate).value, 75);
+        assert_eq!(at(2.5), Some(75));
     }
 
     #[test]

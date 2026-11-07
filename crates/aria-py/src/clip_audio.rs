@@ -43,7 +43,7 @@ pub(super) fn set_fade_in(handle: &Clip, py: Python, value: f64) -> PyResult<()>
         let fade_out = RationalTime::new(clip.fade_out, rate);
         project
             .model_mut()
-            .set_clip_audio(handle.id, None, time_at(value, rate), fade_out)
+            .set_clip_audio(handle.id, None, time_at(value, rate)?, fade_out)
             .map_err(model_err)
     })
 }
@@ -62,7 +62,7 @@ pub(super) fn set_fade_out(handle: &Clip, py: Python, value: f64) -> PyResult<()
         let fade_in = RationalTime::new(clip.fade_in, rate);
         project
             .model_mut()
-            .set_clip_audio(handle.id, None, fade_in, time_at(value, rate))
+            .set_clip_audio(handle.id, None, fade_in, time_at(value, rate)?)
             .map_err(model_err)
     })
 }

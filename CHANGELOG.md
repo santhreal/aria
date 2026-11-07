@@ -1452,6 +1452,9 @@ Notes for the latest release. For previous releases, see the
 - A project saved before rotated video imported upright opens with each such video at its upright size, in the editor, `aria`, and the Python module, and a proxy or pool thumbnail made from such a video before then is made again.
 - `aria new` and `aria analyze` state the kind of an Aria project, template, template bundle, preset, or plugin archive named as media, instead of a GStreamer decode error.
 - The Python API reads a stored clip, effect, speed ramp, or catalog float back as the decimal written, so `clip.opacity = 0.3` reads `0.3`.
+- `aria new --fps` takes `59.94`, a rate the Project Settings dialog offers, and `aria export --fps` takes it as `60000/1001`.
+- Python `Project(fps=)` takes `23.976`, `29.97` and `59.94` as the exact NTSC rates and raises `ValueError` for a rate outside 1 to 1000 instead of building a 1 fps project, and `p.fps` reads a named rate back as the decimal that set it.
+- The Python API raises `ValueError` for a time in seconds that is not finite, is before 0, or is past 2^53 ticks, instead of reading it as 0, failing as an overlap, or failing as an arithmetic overflow, and a failed call changes nothing.
 
 ## [alpha-0.7.0] - 2026-07-22
 

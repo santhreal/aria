@@ -540,7 +540,7 @@ fn command_line_doc_and_usage_match_cli_registries_bidirectionally() {
         .and_then(|(_, rest)| rest.strip_suffix(']'))
         .expect("--fps rate list in `new` synopsis");
     let doc_rates: Vec<&str> = rate_list.split('|').collect();
-    let code_rates: Vec<&str> = crate::new::RATES.iter().map(|(k, _)| *k).collect();
+    let code_rates: Vec<&str> = aria_core::NAMED_RATES.iter().map(|(k, _)| *k).collect();
     assert_eq!(doc_rates, code_rates, "`aria new --fps` rates drifted");
 
     let frame_sec = doc_section(COMMAND_LINE_DOC, "frame");

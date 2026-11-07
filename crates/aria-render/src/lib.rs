@@ -50,7 +50,9 @@ pub use driver::{
     driver_faults_revision, driver_input, driver_languages, driver_reference, driver_target,
     driver_template, register_driver_language, set_driver_budget,
 };
-pub use error::{EmptyExport, ExportFormatError, ExportInput, MIN_EXPORT_DIM, RenderError};
+pub use error::{
+    EmptyExport, ExportFormatError, ExportInput, MAX_FPS, MIN_EXPORT_DIM, RenderError,
+};
 pub use export::{
     EncoderOpener, ExportObserver, ExportSettings, Exported, PngSequenceEncoder,
     check_export_destination, check_export_media, decode_png, encode_png, even_export_size, export,

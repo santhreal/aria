@@ -52,7 +52,6 @@ impl Track {
         f(&project)
     }
 
-
     pub(crate) fn require(project: &Project, id: TrackId) -> PyResult<&aria_models::Track> {
         project
             .model()
@@ -122,7 +121,7 @@ impl Track {
     fn clip_at(&self, py: Python, t: f64) -> PyResult<Option<Clip>> {
         self.with_project_ref(py, |project| {
             let track = Self::require(project, self.id)?;
-            let pos = time_at(t, project.rate());
+            let pos = time_at(t, project.rate())?;
             Ok(track
                 .clip_at(pos)
                 .map_err(model_err)?
@@ -279,21 +278,19 @@ fn place_content(
 
     if let Ok(media) = content.extract::<PyRef<Media>>() {
         if !media.project().is(project_py.bind(py)) {
-            return Err(AriaError::new_err(
-                "media belongs to a different project",
-            ));
+            return Err(AriaError::new_err("media belongs to a different project"));
         }
         // `duration=d` on whole media is shorthand for `subclip(0, d)`.
         let source = match duration {
             Some(d) => {
                 let media_rate = Media::require(project, media.id())?.frame_rate;
-                TimeRange::at_rate(0, ticks(d, media_rate).max(1), media_rate)
+                TimeRange::at_rate(0, ticks(d, media_rate)?.max(1), media_rate)
             }
             None => full_source_range(project, media.id())?,
         };
         let clip_id = project
             .model_mut()
-            .add_clip(track_id, media.id(), source, time_at(start, rate))
+            .add_clip(track_id, media.id(), source, time_at(start, rate)?)
             .map_err(model_err)?;
         return Ok(Clip::new(project_py, clip_id));
     }
@@ -302,7 +299,7 @@ fn place_content(
         let source = slice_source_range(project, &slice, duration)?;
         let clip_id = project
             .model_mut()
-            .add_clip(track_id, slice.media, source, time_at(start, rate))
+            .add_clip(track_id, slice.media, source, time_at(start, rate)?)
             .map_err(model_err)?;
         return Ok(Clip::new(project_py, clip_id));
     }
@@ -310,7 +307,7 @@ fn place_content(
     let generator = generator_from(content)?;
     let dur = duration
         .ok_or_else(|| PyValueError::new_err("duration is required for generated content"))?;
-    let timeline = span(start, dur, rate);
+    let timeline = span(start, dur, rate)?;
     let clip_id = project
         .model_mut()
         .add_generated(track_id, generator, timeline)

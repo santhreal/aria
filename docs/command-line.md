@@ -64,12 +64,12 @@ failed write to stdout, such as a full disk, exits `1`.
 ## new
 
 ```
-aria new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
+aria new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|59.94|60]
 ```
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--fps <RATE>` | `24` | Sequence frame rate: `23.976`, `24`, `25`, `29.97`, `30`, `50`, or `60` |
+| `--fps <RATE>` | `24` | Sequence frame rate: `23.976`, `24`, `25`, `29.97`, `30`, `50`, `59.94`, or `60` |
 
 Import each media file in order: the picture on `V1` and the sound on `A1`,
 linked, as a drop in the editor places them. Each file starts at the latest
@@ -80,10 +80,10 @@ the saved project opens in the editor without repair.
 An `<out.aria>` that already exists, as a file, a folder, or a link, fails
 with exit code `2` and is left as it was.
 
-`--fps` selects an exact rational rate (`23.976` is `24000/1001` and `29.97` is
-`30000/1001`). Zeros after the decimal point are ignored, so `29.970` is
-`29.97` and `24.0` is `24`, here and in `aria export --fps`. Any rate outside
-the list is rejected with exit code `2`.
+`--fps` selects an exact rational rate (`23.976` is `24000/1001`, `29.97` is
+`30000/1001`, and `59.94` is `60000/1001`). Zeros after the decimal point are
+ignored, so `29.970` is `29.97` and `24.0` is `24`, here and in
+`aria export --fps`. Any rate outside the list is rejected with exit code `2`.
 
 ```
 aria new rough.aria takes/*.mp4 --fps 23.976
@@ -126,7 +126,7 @@ aria export <project.aria> <out.mp4> [--at SECONDS] [--to SECONDS]
 | `--at <SECONDS>` | `0` | Start of the exported half-open timeline span in seconds |
 | `--to <SECONDS>` | project duration | End of the exported half-open timeline span in seconds; a value past the end of the timeline ends the span there |
 | `--size <WxH>` | project canvas | Output dimensions (`WIDTHxHEIGHT`), each at least `16` and rounded down to even; a size larger than the GPU renders is rejected before encoding starts, with the GPU's limits (exit code `1`) |
-| `--fps <N>` | project rate | Output frame rate: a whole number from `1` to `1000`, or `23.976` or `29.97`, which are the exact rates `aria new` sets for them |
+| `--fps <N>` | project rate | Output frame rate: a whole number from `1` to `1000`, or `23.976`, `29.97`, or `59.94`, which are the exact rates `aria new` sets for them |
 | `--codec <CODEC>` | `h264` | Video codec: `h264` or `h265` |
 | `--bitrate <KBPS>` | encoder default | Target video bitrate in kilobits per second |
 | `--no-audio` | off | Omit the audio track and write video only |

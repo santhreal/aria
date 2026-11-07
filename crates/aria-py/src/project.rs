@@ -10,7 +10,7 @@ use numpy::{IntoPyArray, PyArray3};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
-use crate::convert::{parse_color, parse_track_kind, rate_from_fps, time_at};
+use crate::convert::{fps_float, parse_color, parse_track_kind, rate_from_fps, time_at};
 use crate::errors::{AriaError, media_err, model_err, render_err};
 use crate::marker::Marker;
 use crate::media::Media;
@@ -32,14 +32,18 @@ pub struct Project {
 #[pymethods]
 impl Project {
     #[new]
-    #[pyo3(signature = (name, fps = 30, canvas = "auto", background = None))]
+    #[pyo3(signature = (name, fps = None, canvas = "auto", background = None))]
     fn new(
         name: &str,
-        fps: u32,
+        fps: Option<&Bound<'_, PyAny>>,
         canvas: &str,
         background: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let mut model = Model::new(name, rate_from_fps(fps));
+        let rate = match fps {
+            Some(fps) => rate_from_fps(fps)?,
+            None => Rational::FPS_30,
+        };
+        let mut model = Model::new(name, rate);
         let aspect = CanvasAspect::from_name(canvas)
             .ok_or_else(|| PyValueError::new_err(format!("unknown aspect {canvas:?}")))?;
         let background = match background {
@@ -213,9 +217,9 @@ impl Project {
     }
 
     fn get_frame<'py>(&mut self, py: Python<'py>, t: f64) -> PyResult<Bound<'py, PyArray3<u8>>> {
-        let rate = self.rate();
+        // Read before a renderer opens, so a bad time fails without a device.
+        let time = time_at(t, self.rate())?;
         self.ensure_renderer()?;
-        let time = time_at(t, rate);
         let renderer = self.renderer.as_mut().expect("renderer initialized");
         let model = &self.model;
         let image = py
@@ -248,7 +252,7 @@ impl Project {
 
     #[getter]
     fn fps(&self) -> f64 {
-        self.model.timeline().frame_rate.as_f64()
+        fps_float(self.model.timeline().frame_rate)
     }
 
     /// Drop a marker on the ruler at `t` seconds. Without a color the palette

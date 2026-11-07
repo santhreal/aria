@@ -204,7 +204,7 @@ mod tests {
     /// project duration (0:00:03.000)" for `--at 2.98` on a 3 s span.
     #[test]
     fn the_last_frame_is_inside_the_span_and_the_end_is_past_it_at_every_rate() {
-        for (key, rate) in crate::new::RATES {
+        for (key, rate) in aria_core::NAMED_RATES {
             let tick = 1.0 / rate.as_f64();
             for frames in 2..=200 {
                 let duration = RationalTime::new(frames, rate);

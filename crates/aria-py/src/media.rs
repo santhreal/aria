@@ -5,7 +5,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PySlice;
 
-use crate::convert::ticks;
+use crate::convert::{fps_float, ticks};
 use crate::errors::{AriaError, model_err};
 use crate::project::Project;
 
@@ -49,10 +49,7 @@ impl Media {
         f(&project)
     }
 
-    pub(crate) fn require(
-        project: &Project,
-        id: MediaId,
-    ) -> PyResult<&aria_models::MediaSource> {
+    pub(crate) fn require(project: &Project, id: MediaId) -> PyResult<&aria_models::MediaSource> {
         project
             .model()
             .media(id)
@@ -103,7 +100,7 @@ impl Media {
     fn fps(&self, py: Python) -> PyResult<f64> {
         self.with_project_ref(py, |project| {
             let media = Self::require(project, self.id)?;
-            Ok(media.frame_rate.as_f64())
+            Ok(fps_float(media.frame_rate))
         })
     }
 
@@ -141,7 +138,9 @@ impl Media {
             if !v.is_finite() {
                 return Err(PyValueError::new_err("media slice bounds must be finite"));
             }
-            let resolved = if v < 0.0 { duration + v } else { v };
+            // A negative bound counts back from the end and stops at the start,
+            // as a Python sequence slice does.
+            let resolved = if v < 0.0 { (duration + v).max(0.0) } else { v };
             Ok(resolved)
         };
         let start = resolve(slice.getattr("start")?, 0.0)?;
@@ -200,12 +199,12 @@ pub(crate) fn slice_source_range(
 ) -> PyResult<TimeRange> {
     let media = Media::require(project, slice.media)?;
     let rate = media.frame_rate;
-    let start = ticks(slice.start_sec, rate);
+    let start = ticks(slice.start_sec, rate)?;
     let end_tick = if let Some(dur) = duration_override {
-        start + ticks(dur, rate).max(1)
+        start + ticks(dur, rate)?.max(1)
     } else {
         match slice.end_sec {
-            Some(end) => ticks(end, rate),
+            Some(end) => ticks(end, rate)?,
             None => media.duration.value,
         }
     };

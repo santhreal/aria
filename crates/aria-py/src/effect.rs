@@ -155,8 +155,16 @@ impl Effect {
                     let pairs = parse_keyframe_pairs(py, list, default_easing, |v| {
                         Ok(ParamValue::Scalar(v.extract::<f32>()?))
                     })?;
-                    for (rel, val, easing) in pairs {
-                        let abs = clip_key_time(clip_start, clip_dur, rel, rate);
+                    // Every time is read before the first key is set, so a
+                    // bad time in the list sets none of them.
+                    let keys = pairs
+                        .into_iter()
+                        .map(|(rel, val, easing)| {
+                            clip_key_time(clip_start, clip_dur, rel, rate)
+                                .map(|abs| (abs, val, easing))
+                        })
+                        .collect::<PyResult<Vec<_>>>()?;
+                    for (abs, val, easing) in keys {
                         project
                             .model_mut()
                             .set_param_keyframe(self.clip_id, param, abs, val, easing, None)
@@ -167,7 +175,7 @@ impl Effect {
                         PyValueError::new_err(format!("single keyframe for {name} requires at="))
                     })?;
                     let val = ParamValue::Scalar(value.extract::<f32>()?);
-                    let abs = clip_key_time(clip_start, clip_dur, at, rate);
+                    let abs = clip_key_time(clip_start, clip_dur, at, rate)?;
                     project
                         .model_mut()
                         .set_param_keyframe(self.clip_id, param, abs, val, default_easing, None)

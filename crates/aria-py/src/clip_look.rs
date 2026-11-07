@@ -57,15 +57,19 @@ pub(super) fn transition(
     duration: Option<f64>,
 ) -> PyResult<()> {
     handle.with_project(py, |project| {
+        // Read before the transition is added, so a bad duration adds none.
+        let length = duration
+            .map(|dur| ticks(dur, project.rate()))
+            .transpose()?
+            .map(|length| length.max(1));
         project
             .model_mut()
             .add_transition(handle.id, transition_id)
             .map_err(model_err)?;
-        if let Some(dur) = duration {
-            let ticks = ticks(dur, project.rate()).max(1);
+        if let Some(length) = length {
             project
                 .model_mut()
-                .set_transition_duration(handle.id, ticks)
+                .set_transition_duration(handle.id, length)
                 .map_err(model_err)?;
         }
         Ok(())
@@ -96,8 +100,7 @@ pub(super) fn text(handle: &Clip, py: Python) -> PyResult<String> {
 pub(super) fn set_text(handle: &Clip, py: Python, content: String) -> PyResult<()> {
     handle.with_project(py, |project| {
         let clip = Clip::require(project, handle.id)?;
-        let aria_models::ClipSource::Generated(Generator::Text { style, .. }) =
-            &clip.content
+        let aria_models::ClipSource::Generated(Generator::Text { style, .. }) = &clip.content
         else {
             return Err(PyValueError::new_err("clip is not a text clip"));
         };

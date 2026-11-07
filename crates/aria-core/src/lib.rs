@@ -71,6 +71,6 @@ pub use pixel::{
     every_chroma_subsampling, every_pixel_format,
 };
 pub use time::{
-    Rational, RationalTime, TimeError, TimeRange, check_same_rate, rate_eq, resample, time_add,
-    time_sub,
+    FpsError, NAMED_RATES, Rational, RationalTime, TimeError, TimeRange, check_same_rate, rate_eq,
+    resample, time_add, time_sub,
 };

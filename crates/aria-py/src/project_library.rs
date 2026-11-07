@@ -26,7 +26,7 @@ pub(super) fn add_marker(
         Some(name) => parse_marker_color(name)?,
         None => MarkerColor::cycle(slf.model().timeline().marker_count()),
     };
-    let marker = MarkerModel::new(time_at(t, rate), name, color).with_comment(comment);
+    let marker = MarkerModel::new(time_at(t, rate)?, name, color).with_comment(comment);
     let id = slf
         .model_mut()
         .timeline_mut()

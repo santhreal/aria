@@ -176,6 +176,12 @@ pub enum ExportFormatError {
 /// to go and every backend refuses, so the refusal is ours and it is by name.
 pub const MIN_EXPORT_DIM: u32 = 16;
 
+/// The highest whole frame rate a project or an export takes. Above it
+/// `nvh264enc` writes the last frame of an MP4 with a `1001/30000` s duration
+/// instead of one frame period, so a 2000 fps export of a 0.1 s span played
+/// 0.133 s. At and below it every encoder writes one period per frame.
+pub const MAX_FPS: i32 = 1000;
+
 impl RenderError {
     pub fn unsupported(msg: impl Into<String>) -> Self {
         RenderError::Unsupported(msg.into())

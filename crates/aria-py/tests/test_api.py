@@ -137,6 +137,30 @@ class TestProject:
         assert loaded.track("BG").kind == "sticker"
         assert len(loaded.track("BG").clips) == 1
 
+    def test_fps_takes_a_named_rate_and_reads_it_back(self, tmp_path) -> None:
+        """`fps=29.97` raised TypeError, `fps=0` built a 1 fps project, and
+        `p.fps` read a 29.97 project as 29.970029970029973. A named rate is
+        exact, reads back as the decimal that wrote it, and survives a save."""
+        for fps in (23.976, 29.97, 59.94, "29.970", 24, 24.0, 1, 1000):
+            made = Project("x", fps=fps)
+            assert made.fps == float(fps), fps
+            assert Project("copy", fps=made.fps).fps == made.fps, fps
+        ntsc = Project("x", fps=29.97)
+        ntsc.add_track("sticker").add(Solid("red"), start=0.0, duration=1.0)
+        # 1 s is 30 ticks of 30000/1001, which is 1.001 s.
+        assert ntsc.duration == 30 * 1001 / 30000
+        path = tmp_path / "ntsc.aria"
+        ntsc.save(str(path))
+        loaded = Project.load(str(path))
+        assert (loaded.fps, loaded.duration) == (29.97, ntsc.duration)
+
+    def test_fps_outside_the_rates_is_rejected(self) -> None:
+        for bad in (0, -24, 29.98, 12.5, 1001, float("nan"), float("inf"), "fast"):
+            with pytest.raises(ValueError, match="fps must be a whole number"):
+                Project("x", fps=bad)
+        with pytest.raises(ValueError, match="fps must be a number, got list"):
+            Project("x", fps=[30])  # type: ignore[arg-type]
+
 
 # --- tracks ------------------------------------------------------------------
 
@@ -1209,6 +1233,80 @@ class TestClipLinks:
         _, a, _ = self.pair(image_path)
         with pytest.raises(AriaError):
             a.unlink()
+
+
+# --- time bounds -------------------------------------------------------------
+
+
+class TestTimeBounds:
+    """A time in seconds that is not finite, is before 0, or is past 2**53
+    ticks raises ValueError at every call that takes one, and the project is
+    unchanged. `start=nan` raised OverlapError, `-5` read as 0, and `inf`
+    raised AriaError("time arithmetic overflow")."""
+
+    BAD = (float("nan"), float("inf"), float("-inf"), -1.0, 1e300)
+
+    def calls(self, p: Project, image_path: str) -> dict[str, object]:
+        m = p.import_media(image_path)
+        track = p.add_track("video")
+        clip = track.add(m, start=0.0, duration=2.0)
+        sticker = p.add_track("sticker")
+        marker = p.add_marker(0.5, "m")
+
+        def fade_in(t: float) -> None:
+            clip.fade_in = t
+
+        def fade_out(t: float) -> None:
+            clip.fade_out = t
+
+        def marker_time(t: float) -> None:
+            marker.time = t
+
+        return {
+            "add start": lambda t: sticker.add(Solid("red"), start=t, duration=1.0),
+            "add duration": lambda t: sticker.add(Solid("red"), start=3.0, duration=t),
+            "add media duration": lambda t: track.add(m, start=3.0, duration=t),
+            "slice start": lambda t: track.add(m.subclip(t, 1.0), start=3.0),
+            "split": lambda t: clip.split(t),
+            "trim start": lambda t: clip.trim(start=t),
+            "trim end": lambda t: clip.trim(end=t),
+            "move": lambda t: clip.move(t),
+            "fade in": fade_in,
+            "fade out": fade_out,
+            "transition": lambda t: clip.transition("crossfade", duration=t),
+            "keyframe list": lambda t: clip.animate(opacity=[(0.0, 1.0), (t, 0.5)]),
+            "keyframe at": lambda t: clip.animate(opacity=0.5, at=t),
+            "remove keyframe": lambda t: clip.remove_keyframe("opacity", at=t),
+            "transform at": lambda t: clip.transform_at(t),
+            "relink": lambda t: clip.set_media(m, start=t),
+            "add marker": lambda t: p.add_marker(t, "n"),
+            "marker time": marker_time,
+            "clip at": lambda t: track.clip_at(t),
+            "get frame": lambda t: p.get_frame(t),
+        }
+
+    def test_every_time_outside_the_timeline_is_a_value_error(
+        self, image_path: str, tmp_path
+    ) -> None:
+        p = Project("bounds", fps=30)
+        calls = self.calls(p, image_path)
+        path = tmp_path / "before.aria"
+        p.save(str(path))
+        before = path.read_text()
+        for name, call in calls.items():
+            for bad in self.BAD:
+                with pytest.raises(ValueError):
+                    call(bad)
+                p.save(str(path))
+                assert path.read_text() == before, f"{name} at {bad} changed it"
+
+    def test_a_slice_bound_before_the_start_stops_at_the_start(
+        self, media_path: str
+    ) -> None:
+        p = Project("m", fps=30)
+        m = p.import_media(media_path)
+        whole = p.add_track("video").add(m[-100.0:], start=0.0)
+        assert whole.duration == m.duration
 
 
 # --- errors ------------------------------------------------------------------

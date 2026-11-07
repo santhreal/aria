@@ -55,20 +55,20 @@ impl Pick {
     }
 }
 
-/// The frame rates the dialog offers, in the order it draws them.
+/// The frame rates the dialog offers, in the order it draws them:
+/// [`aria_core::NAMED_RATES`], the table `aria new --fps` and the Python
+/// `Project(fps=)` read, so every surface offers the same rates.
 ///
-/// The list lives with the rows rather than in the panel: it is what the surface
-/// offers, and a census presses every member of it.
-pub const RATES: [Rational; 8] = [
-    Rational::FPS_23_976,
-    Rational::FPS_24,
-    Rational::FPS_25,
-    Rational::FPS_29_97,
-    Rational::FPS_30,
-    Rational::FPS_50,
-    Rational::FPS_59_94,
-    Rational::FPS_60,
-];
+/// A census presses every member of it.
+pub const RATES: [Rational; aria_core::NAMED_RATES.len()] = {
+    let mut rates = [Rational::FPS_24; aria_core::NAMED_RATES.len()];
+    let mut at = 0;
+    while at < rates.len() {
+        rates[at] = aria_core::NAMED_RATES[at].1;
+        at += 1;
+    }
+    rates
+};
 
 /// Install one pick on the open project.
 pub fn apply(state: &mut AppState, pick: Pick) -> Result<(), EngineError> {

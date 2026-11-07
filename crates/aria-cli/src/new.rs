@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use aria_commands::{Command, EditCommand, ProjectCommand, SoundPlacement, SourceChannel};
 use aria_core::count::counted;
-use aria_core::{Rational, RationalTime, resample};
+use aria_core::{NAMED_RATES, Rational, RationalTime, resample};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{TrackId, TrackKind};
 
@@ -20,21 +20,6 @@ use crate::fail::Failure;
 use crate::project::clock;
 
 pub(crate) const FLAGS: &[&str] = &["fps"];
-
-/// Frame rates a `--fps` value may name, in the order a picker would offer them.
-///
-/// A timeline rate is not a free number: 23.976 and 29.97 are `24000/1001` and
-/// `30000/1001`, and a project written at a rounded `24/1` drifts against the
-/// footage. A caller names a rate that exists or is told which ones do.
-pub(crate) const RATES: [(&str, Rational); 7] = [
-    ("23.976", Rational::FPS_23_976),
-    ("24", Rational::FPS_24),
-    ("25", Rational::FPS_25),
-    ("29.97", Rational::FPS_29_97),
-    ("30", Rational::FPS_30),
-    ("50", Rational::new(50, 1)),
-    ("60", Rational::new(60, 1)),
-];
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let out = args.required_path(0, "an output project file")?;
@@ -195,37 +180,21 @@ fn lane_for(engine: &mut Engine, kind: TrackKind) -> Result<TrackId, Failure> {
         .ok_or_else(|| Failure::Failed(format!("the engine did not add a {kind:?} lane")))
 }
 
-/// `raw` as a rate is spelled in [`RATES`]: zeros that end a decimal fraction
-/// are dropped, and the point when nothing follows it, so `29.970` is `29.97`
-/// and `24.0` is `24`, the spellings a script printing a float writes.
-pub(crate) fn rate_spelling(raw: &str) -> &str {
-    if raw.contains('.') {
-        raw.trim_end_matches('0').trim_end_matches('.')
-    } else {
-        raw
-    }
-}
-
 /// The `--fps` flag as an exact [`Rational`].
 fn rate_from(args: &Args) -> Result<Rational, Failure> {
     let Some(raw) = args.value("fps")? else {
         return Ok(Rational::FPS_24);
     };
-    let spelled = rate_spelling(raw);
-    RATES
-        .iter()
-        .find(|(key, _)| *key == spelled)
-        .map(|(_, rate)| *rate)
-        .ok_or_else(|| {
-            Failure::Usage(format!(
-                "--fps wants one of {}, got \"{raw}\"",
-                RATES
-                    .iter()
-                    .map(|(key, _)| *key)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ))
-        })
+    Rational::named(raw).ok_or_else(|| {
+        Failure::Usage(format!(
+            "--fps wants one of {}, got \"{raw}\"",
+            NAMED_RATES
+                .iter()
+                .map(|(key, _)| *key)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))
+    })
 }
 
 #[cfg(test)]
@@ -254,22 +223,12 @@ mod tests {
         assert_eq!(err.code(), 2);
 
         // A rate spelled with zeros after its decimal point is that rate.
-        for (key, rate) in RATES {
+        for (key, rate) in NAMED_RATES {
             let point = if key.contains('.') { "" } else { "." };
             for raw in [format!("{key}{point}0"), format!("{key}{point}00")] {
                 let args = Args::parse(["new", "out.aria", "--fps", raw.as_str()]).unwrap();
                 assert_eq!(rate_from(&args).ok(), Some(rate), "{raw}");
             }
-        }
-    }
-
-    /// Every offered rate is a valid, reduced rational — a typo in the table
-    /// would otherwise ship as a project rate nothing can play.
-    #[test]
-    fn every_offered_rate_is_valid() {
-        for (key, rate) in RATES {
-            assert!(rate.is_valid(), "{key} is not a valid rate");
-            assert!(rate.as_f64() > 0.0, "{key} is not positive");
         }
     }
 

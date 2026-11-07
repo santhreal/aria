@@ -105,6 +105,12 @@ Project(name, fps=30, canvas="auto", background=(0, 0, 0))
 Project.load(path) -> Project
 ```
 
+`fps` is a whole number from `1` to `1000`, or `23.976`, `29.97`, or `59.94`,
+which are `24000/1001`, `30000/1001`, and `60000/1001`, the rates
+`aria new --fps` and the editor set. Any other value raises `ValueError`.
+`p.fps` reads a named rate back as its decimal, so `Project("copy", fps=p.fps)`
+has the same rate.
+
 | Member | Description |
 |---|---|
 | `p.import_media(path) -> Media` | Probe a video, audio, or still-image file and register it in the pool. Stills get `kind == "image"` and a 5 s default duration. |
@@ -116,7 +122,7 @@ Project.load(path) -> Project
 | `p.canvas` | Aspect preset, get/set: `"auto"`, `"16:9"`, `"9:16"`, `"1:1"`, `"4:5"`, `"21:9"`. |
 | `p.background` | Canvas color, get/set. |
 | `p.get_frame(t) -> numpy.ndarray` | Composite frame at timeline `t`, `(H, W, 4)` RGBA uint8. |
-| `p.export(path) -> int` | Encode the whole timeline (video + mixed audio; native encoder on Apple and Windows); returns frames written. |
+| `p.export(path) -> int` | Encode the whole timeline (video + mixed audio) with the platform encoder: VideoToolbox on Apple, Media Foundation on Windows, GStreamer on Linux; returns frames written. |
 | `p.save(path)` / `Project.load(path)` | Aria JSON project documents. |
 | `p.load_font(path)` | Register a TTF/OTF for deterministic text. |
 | `p.duration`, `p.size`, `p.fps` | Read-only. |
@@ -406,7 +412,8 @@ aria.AriaError           # base (also raised on stale handles)
 ├── aria.TrackKindError     # content not allowed on that track kind
 ├── aria.MediaError         # probe/decode failures, missing files, bad source windows
 └── aria.RenderError        # GPU / encode failures
-# ValueError for bad values (negative durations, unknown ids, bad colors)
+# ValueError for bad values (negative durations, unknown ids, bad colors, and
+# a time in seconds that is not finite, is before 0, or is past 2**53 ticks)
 ```
 
 ## How it maps to the Rust model

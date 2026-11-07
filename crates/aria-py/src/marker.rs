@@ -78,7 +78,9 @@ impl Marker {
                 .marker(self.id)
                 .ok_or_else(|| AriaError::new_err("stale marker handle"))?;
             (
-                tick.map_or(marker.tick, |seconds| time_at(seconds, rate)),
+                tick.map(|seconds| time_at(seconds, rate))
+                    .transpose()?
+                    .unwrap_or(marker.tick),
                 name.unwrap_or_else(|| marker.name.to_string()),
                 color.unwrap_or(marker.color),
                 comment.unwrap_or_else(|| marker.comment.to_string()),
