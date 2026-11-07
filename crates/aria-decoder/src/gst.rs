@@ -523,12 +523,18 @@ pub(crate) fn stream_time_ns(sample: &gst::Sample, buffer: &gst::BufferRef) -> O
 const POSTED_WAIT: Duration = Duration::from_millis(500);
 
 /// The decode error for `err`, an error GStreamer posted. GStreamer ends its
-/// own messages with a period, and the sentence after it starts its own.
+/// own messages with a period, and the sentence after it starts its own. A
+/// resource error, such as a directory or a file that cannot be read, is not
+/// one a plugin decodes, so only the other domains suggest installing one.
 fn posted(err: &glib::Error) -> DecodeError {
-    let message = err.message();
+    let hint = if err.kind::<gst::ResourceError>().is_some() {
+        "Pick another file."
+    } else {
+        "Install missing plugins or pick another file."
+    };
     DecodeError::Decode(format!(
-        "GStreamer: {}. Install missing plugins or pick another file.",
-        message.trim_end_matches('.')
+        "GStreamer: {}. {hint}",
+        err.message().trim_end_matches('.')
     ))
 }
 
@@ -707,13 +713,34 @@ mod tests {
 
     /// WHY: GStreamer ends its messages with a period, and the sentence
     /// appended after it doubled it: "Internal data stream error.. Install".
+    /// A directory was told to install missing plugins: a resource error
+    /// suggests another file and no plugin.
     #[test]
     fn a_posted_error_reads_as_two_sentences() {
-        let err = glib::Error::new(gst::CoreError::Failed, "Internal data stream error.");
-        assert_eq!(
-            posted(&err).to_string(),
-            "decode failed: GStreamer: Internal data stream error. Install missing plugins or pick another file."
-        );
+        let cases = [
+            (
+                glib::Error::new(gst::CoreError::Failed, "Internal data stream error."),
+                "Internal data stream error. Install missing plugins or pick another file.",
+            ),
+            (
+                glib::Error::new(gst::StreamError::TypeNotFound, "Could not determine type."),
+                "Could not determine type. Install missing plugins or pick another file.",
+            ),
+            (
+                glib::Error::new(gst::ResourceError::Read, "\"/media\" is a directory."),
+                "\"/media\" is a directory. Pick another file.",
+            ),
+            (
+                glib::Error::new(gst::ResourceError::OpenRead, "Could not open file."),
+                "Could not open file. Pick another file.",
+            ),
+        ];
+        for (err, wording) in cases {
+            assert_eq!(
+                posted(&err).to_string(),
+                format!("decode failed: GStreamer: {wording}")
+            );
+        }
     }
 
     /// WHY: Opening an unreadable or empty source (`/dev/null`, a truncated
@@ -793,10 +820,18 @@ mod tests {
         }
         HELD_ERRORS.with(|held| held.set(None));
         for (input, open, err) in errors {
-            let err = err.unwrap_or_else(|| panic!("the {open} open read a {input} as media"));
+            let err = err
+                .unwrap_or_else(|| panic!("the {open} open read a {input} as media"))
+                .to_string();
             assert!(
-                err.to_string().contains("GStreamer: "),
+                err.contains("GStreamer: "),
                 "the {open} open of a {input} does not state the error GStreamer posted: {err}"
+            );
+            // A plugin decodes a stream it finds; none reads a directory.
+            assert_eq!(
+                err.contains("Install missing plugins"),
+                input == "text file",
+                "the {open} open of a {input}: {err}"
             );
         }
     }

@@ -1378,6 +1378,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new`, `frame`, `demo` and `export` reject an output whose extension is not the format they write, instead of writing MP4 into `out.webm` or a PNG into `still.jpg`.
 - `aria new` names the media file that failed to import.
 - `aria frame --at` and `aria export --at` take the last frame for an instant in the last half frame instead of refusing it as past the end.
+- A media path that cannot be read, such as a directory, reports the read error without suggesting missing plugins.
 
 ## [alpha-0.7.0] - 2026-07-22
 
