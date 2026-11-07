@@ -15,7 +15,8 @@ use crate::action::edit::{
     ripple_insert, set_project_name, set_track_flags, shift_clips, split_clip, trim_clip,
 };
 use aria_models::{
-    Clip, Generator, LinkId, MediaSource, ModelError, Rational, RationalTime, TimeRange, TrackKind,
+    Clip, ClipSetRefusal, Generator, LinkId, MediaSource, ModelError, Rational, RationalTime,
+    TimeRange, TrackKind,
 };
 
 fn setup() -> Project {

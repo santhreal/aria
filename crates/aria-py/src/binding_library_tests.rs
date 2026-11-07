@@ -597,10 +597,20 @@ fn unlinking_dissolves_the_whole_group() {
 #[test]
 fn unlinking_a_clip_that_is_not_linked_is_refused() {
     let message = refused(&code("c.unlink()\n"));
-    assert!(
-        !message.is_empty(),
-        "unlinking an unlinked clip silently succeeded"
-    );
+    assert_eq!(message, "AriaError: none of these clips is linked");
+}
+
+/// A link of a clip with nothing, or with itself, made a link of one clip
+/// that moved nothing with it.
+#[test]
+fn linking_a_clip_with_nothing_or_itself_is_refused() {
+    for others in ["[]", "[c]", "[c, c]"] {
+        let message = refused(&code(&format!("c.link_with({others})\n")));
+        assert_eq!(
+            message, "AriaError: a link needs at least two different clips",
+            "c.link_with({others})"
+        );
+    }
 }
 
 #[test]

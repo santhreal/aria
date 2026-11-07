@@ -649,6 +649,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
 
     const INTERNAL: &[(&str, &str)] = &[
         (
+            "ClipSetRefusal",
+            "reasons a link, group or enable request leaves nothing to do; the error copy census reads every reason",
+        ),
+        (
             "FixtureId",
             "benchmark fixture identifier internal to aria-bench",
         ),

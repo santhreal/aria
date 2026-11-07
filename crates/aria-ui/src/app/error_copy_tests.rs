@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    BinId, ClipId, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId, Rational, SequenceId,
-    SlotMedia, TrackId, TrackKind,
+    BinId, ClipId, ClipSetRefusal, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId,
+    Rational, SequenceId, SlotMedia, TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -152,8 +152,9 @@ fn corrupt_project_names_the_file_and_the_fix() {
     assert!(msg.contains(".aria"));
 }
 
-/// Variants of [`ModelError`]; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 47;
+/// Variants of [`ModelError`], each [`ClipSetRefusal`] counted as its own;
+/// [`variant`] numbers them `0..VARIANTS`.
+const VARIANTS: usize = 52;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -208,6 +209,19 @@ fn variant(err: &ModelError) -> usize {
         ModelError::InsertsFull(_) => 44,
         ModelError::ProjectLoad(_) => 45,
         ModelError::TemplateBundle(_) => 46,
+        ModelError::ClipSet(refusal) => 47 + clip_set_index(*refusal),
+    }
+}
+
+/// Where `refusal` sits in [`ClipSetRefusal`]. No catch-all, so a new refusal
+/// stops compiling here until it is numbered and [`VARIANTS`] grows.
+fn clip_set_index(refusal: ClipSetRefusal) -> usize {
+    match refusal {
+        ClipSetRefusal::NoClips => 0,
+        ClipSetRefusal::LinkOfOne => 1,
+        ClipSetRefusal::GroupOfOne => 2,
+        ClipSetRefusal::NoneLinked => 3,
+        ClipSetRefusal::NoneGrouped => 4,
     }
 }
 
@@ -295,6 +309,9 @@ fn every_refusal() -> Vec<ModelError> {
                 .into(),
         ),
     ]
+    .into_iter()
+    .chain(ClipSetRefusal::ALL.map(ModelError::ClipSet))
+    .collect()
 }
 
 /// Every model refusal reads as its own obstacle and the fix for it: an

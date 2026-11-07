@@ -1,7 +1,7 @@
 //! Human-readable engine errors. Every message names the next action.
 
 use aria_engine::EngineError;
-use aria_models::{MAX_PARENT_DEPTH, ModelError};
+use aria_models::{ClipSetRefusal, MAX_PARENT_DEPTH, ModelError};
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
     match err {
@@ -181,6 +181,21 @@ fn model_copy(err: &ModelError) -> String {
                 "A track or the master holds at most {max} effects. Remove one, then add another."
             );
         }
+        ModelError::ClipSet(refusal) => match refusal {
+            ClipSetRefusal::NoClips => "No clip is selected. Select a clip, then try again.",
+            ClipSetRefusal::LinkOfOne => {
+                "Linking needs two different clips. Select another clip, then try again."
+            }
+            ClipSetRefusal::GroupOfOne => {
+                "Grouping needs two different clips. Select another clip, then try again."
+            }
+            ClipSetRefusal::NoneLinked => {
+                "None of the selected clips is linked. Select a linked clip to unlink."
+            }
+            ClipSetRefusal::NoneGrouped => {
+                "None of the selected clips is in a group. Select a grouped clip to ungroup."
+            }
+        },
     };
     copy.into()
 }

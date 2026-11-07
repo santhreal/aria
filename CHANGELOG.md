@@ -1455,6 +1455,8 @@ Notes for the latest release. For previous releases, see the
 - `aria new --fps` takes `59.94`, a rate the Project Settings dialog offers, and `aria export --fps` takes it as `60000/1001`.
 - Python `Project(fps=)` takes `23.976`, `29.97` and `59.94` as the exact NTSC rates and raises `ValueError` for a rate outside 1 to 1000 instead of building a 1 fps project, and `p.fps` reads a named rate back as the decimal that set it.
 - The Python API raises `ValueError` for a time in seconds that is not finite, is before 0, or is past 2^53 ticks, instead of reading it as 0, failing as an overlap, or failing as an arithmetic overflow, and a failed call changes nothing.
+- Undo of a link, group or enable that names a clip twice restores that clip's earlier link, group or state instead of leaving the new one.
+- A link or group of fewer than two different clips is rejected instead of making a link of one clip, and an unlink or ungroup of clips in no link or group states that instead of reporting an invalid time range.
 
 ## [alpha-0.7.0] - 2026-07-22
 

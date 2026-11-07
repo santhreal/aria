@@ -29,7 +29,9 @@ fn unlink_rejections_leave_all_links_unchanged() {
 
     assert!(matches!(
         link_clips::unlink(&mut ctx, &[]),
-        Err(EngineError::Model(ModelError::InvalidRange))
+        Err(EngineError::Model(ModelError::ClipSet(
+            ClipSetRefusal::NoClips
+        )))
     ));
     let missing = aria_models::ClipId::from_raw(999);
     assert!(matches!(
@@ -38,7 +40,9 @@ fn unlink_rejections_leave_all_links_unchanged() {
     ));
     assert!(matches!(
         link_clips::unlink(&mut ctx, &[unlinked, unlinked]),
-        Err(EngineError::Model(ModelError::InvalidRange))
+        Err(EngineError::Model(ModelError::ClipSet(
+            ClipSetRefusal::NoneLinked
+        )))
     ));
     assert_eq!(ctx.project.clip(a).unwrap().link, Some(group));
     assert_eq!(ctx.project.clip(b).unwrap().link, Some(group));

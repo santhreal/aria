@@ -596,6 +596,48 @@ pub enum ModelError {
 
     #[error("a lane or the master holds at most {0} inserts")]
     InsertsFull(usize),
+
+    /// A link, group or enable request names no clips it can act on.
+    #[error("{0}")]
+    ClipSet(ClipSetRefusal),
+}
+
+/// Why a link, group or enable request leaves nothing to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipSetRefusal {
+    /// A request named no clips.
+    NoClips,
+    /// A link named fewer than two different clips.
+    LinkOfOne,
+    /// A group named fewer than two different clips.
+    GroupOfOne,
+    /// An unlink named only clips in no link.
+    NoneLinked,
+    /// An ungroup named only clips in no group.
+    NoneGrouped,
+}
+
+impl ClipSetRefusal {
+    /// Every refusal, in declaration order.
+    pub const ALL: [ClipSetRefusal; 5] = [
+        Self::NoClips,
+        Self::LinkOfOne,
+        Self::GroupOfOne,
+        Self::NoneLinked,
+        Self::NoneGrouped,
+    ];
+}
+
+impl std::fmt::Display for ClipSetRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NoClips => "no clips were named",
+            Self::LinkOfOne => "a link needs at least two different clips",
+            Self::GroupOfOne => "a group needs at least two different clips",
+            Self::NoneLinked => "none of these clips is linked",
+            Self::NoneGrouped => "none of these clips is in a group",
+        })
+    }
 }
 
 /// Bridge the shared `aria-core` time errors into [`ModelError`] so model

@@ -16,11 +16,6 @@ pub(crate) fn execute(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    if clips.len() < 2 {
-        return Err(EngineError::Model(aria_models::ModelError::InvalidParam(
-            "link requires at least 2 clips".into(),
-        )));
-    }
     let links = ctx.project.link_plan(clips)?;
     Box::new(SetClipLinksAction { links }).apply(ctx)
 }
@@ -54,11 +49,6 @@ pub(crate) fn group(
     ctx: &mut ApplyContext<'_>,
     clips: &[ClipId],
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    if clips.len() < 2 {
-        return Err(EngineError::Model(aria_models::ModelError::InvalidParam(
-            "group requires at least 2 clips".into(),
-        )));
-    }
     let groups = ctx.project.group_plan(clips)?;
     Box::new(SetClipGroupsAction { groups }).apply(ctx)
 }

@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::error::ModelError;
+use crate::error::{ClipSetRefusal, ModelError};
 use crate::ids::{ClipId, GroupId, LinkId};
 use crate::project::Project;
 
@@ -24,20 +24,34 @@ pub type EnableAssignment = (ClipId, bool);
 impl Project {
     /// The assignments that put `clips` into one freshly allocated group.
     ///
-    /// Every input must exist. An empty set is rejected: a group of nothing is
-    /// not a link, and silently succeeding would leave a caller believing it
-    /// had linked something.
+    /// Every input must exist, and a clip named twice counts once. Fewer than
+    /// two different clips is rejected: a link of one clip moves nothing with
+    /// it, and succeeding would leave a caller believing it had linked
+    /// something.
     pub fn link_plan(&self, clips: &[ClipId]) -> Result<Vec<LinkAssignment>, ModelError> {
-        if clips.is_empty() {
-            return Err(ModelError::InvalidRange);
+        let distinct = self.distinct_clips(clips)?;
+        if distinct.len() < 2 {
+            return Err(ModelError::ClipSet(ClipSetRefusal::LinkOfOne));
         }
+        let link = LinkId::next();
+        Ok(distinct
+            .into_iter()
+            .map(|clip| (clip, Some(link)))
+            .collect())
+    }
+
+    /// `clips` in order with each clip once, or the first that does not exist.
+    fn distinct_clips(&self, clips: &[ClipId]) -> Result<Vec<ClipId>, ModelError> {
+        let mut distinct = Vec::with_capacity(clips.len());
         for &clip in clips {
             if self.clip(clip).is_none() {
                 return Err(ModelError::UnknownClip(clip));
             }
+            if !distinct.contains(&clip) {
+                distinct.push(clip);
+            }
         }
-        let link = LinkId::next();
-        Ok(clips.iter().map(|&clip| (clip, Some(link))).collect())
+        Ok(distinct)
     }
 
     /// The assignments that dissolve every group touched by `clips`.
@@ -48,7 +62,7 @@ impl Project {
     /// Members are listed in track/clip order so the plan is deterministic.
     pub fn unlink_plan(&self, clips: &[ClipId]) -> Result<Vec<LinkAssignment>, ModelError> {
         if clips.is_empty() {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::NoClips));
         }
         let mut touched = BTreeSet::new();
         for &clip_id in clips {
@@ -58,7 +72,7 @@ impl Project {
             }
         }
         if touched.is_empty() {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::NoneLinked));
         }
         let mut plan = Vec::new();
         for track in self.timeline().tracks_ordered() {
@@ -71,7 +85,9 @@ impl Project {
         Ok(plan)
     }
 
-    /// Apply a plan, returning the plan that undoes it.
+    /// Apply a plan, returning the plan that undoes it: the values each
+    /// assignment replaced, newest first, so a plan that names a clip twice
+    /// undoes to the value it held before the first.
     ///
     /// The whole set is validated first, so a missing clip cannot leave a group
     /// half-linked — the state a later unlink would silently mis-report.
@@ -90,6 +106,7 @@ impl Project {
             inverse.push((clip_id, clip.link));
             clip.link = link;
         }
+        inverse.reverse();
         Ok(inverse)
     }
 
@@ -99,7 +116,7 @@ impl Project {
         let link = plan
             .first()
             .and_then(|&(_, link)| link)
-            .ok_or(ModelError::InvalidRange)?;
+            .ok_or(ModelError::ClipSet(ClipSetRefusal::LinkOfOne))?;
         self.set_clip_links(&plan)?;
         Ok(link)
     }
@@ -146,17 +163,9 @@ impl Project {
     /// survivor, that survivor is ungrouped in the same plan so undoing
     /// restores the full previous group.
     pub fn group_plan(&self, clips: &[ClipId]) -> Result<Vec<GroupAssignment>, ModelError> {
-        let mut distinct = Vec::with_capacity(clips.len());
-        for &clip in clips {
-            if self.clip(clip).is_none() {
-                return Err(ModelError::UnknownClip(clip));
-            }
-            if !distinct.contains(&clip) {
-                distinct.push(clip);
-            }
-        }
+        let distinct = self.distinct_clips(clips)?;
         if distinct.len() < 2 {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::GroupOfOne));
         }
         let group = GroupId::next();
         let mut plan: Vec<GroupAssignment> =
@@ -183,7 +192,7 @@ impl Project {
     /// The assignments that dissolve every group touched by `clips`.
     pub fn ungroup_plan(&self, clips: &[ClipId]) -> Result<Vec<GroupAssignment>, ModelError> {
         if clips.is_empty() {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::NoClips));
         }
         let mut touched = BTreeSet::new();
         for &clip_id in clips {
@@ -193,7 +202,7 @@ impl Project {
             }
         }
         if touched.is_empty() {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::NoneGrouped));
         }
         let mut plan = Vec::new();
         for track in self.timeline().tracks_ordered() {
@@ -206,7 +215,8 @@ impl Project {
         Ok(plan)
     }
 
-    /// Apply a group plan, returning the plan that undoes it.
+    /// Apply a group plan, returning the plan that undoes it, newest first as
+    /// [`Self::set_clip_links`] returns it.
     pub fn set_clip_groups(
         &mut self,
         plan: &[GroupAssignment],
@@ -222,6 +232,7 @@ impl Project {
             inverse.push((clip_id, clip.group));
             clip.group = group;
         }
+        inverse.reverse();
         Ok(inverse)
     }
 
@@ -304,21 +315,17 @@ impl Project {
         enabled: bool,
     ) -> Result<Vec<EnableAssignment>, ModelError> {
         if clips.is_empty() {
-            return Err(ModelError::InvalidRange);
+            return Err(ModelError::ClipSet(ClipSetRefusal::NoClips));
         }
-        let mut distinct = Vec::with_capacity(clips.len());
-        for &clip in clips {
-            if self.clip(clip).is_none() {
-                return Err(ModelError::UnknownClip(clip));
-            }
-            if !distinct.contains(&clip) {
-                distinct.push(clip);
-            }
-        }
-        Ok(distinct.into_iter().map(|clip| (clip, enabled)).collect())
+        Ok(self
+            .distinct_clips(clips)?
+            .into_iter()
+            .map(|clip| (clip, enabled))
+            .collect())
     }
 
-    /// Apply an enable plan, returning the plan that undoes it.
+    /// Apply an enable plan, returning the plan that undoes it, newest first
+    /// as [`Self::set_clip_links`] returns it.
     pub fn set_clips_enabled(
         &mut self,
         plan: &[EnableAssignment],
@@ -334,6 +341,11 @@ impl Project {
             inverse.push((clip_id, clip.enabled));
             clip.enabled = enabled;
         }
+        inverse.reverse();
         Ok(inverse)
     }
 }
+
+#[cfg(test)]
+#[path = "link_tests.rs"]
+mod tests;
