@@ -12,12 +12,11 @@
 mod support;
 
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use aria_models::{Generator, Project, Rational, TimeRange, TrackKind};
 use aria_render::Renderer;
-use support::scratch;
+use support::{scratch, send_signal, start};
 
 /// An hour of a solid on a 24 fps timeline: longer than any case waits.
 fn project() -> Project {
@@ -69,15 +68,14 @@ fn a_signal_stops_the_export_and_leaves_no_staging_directory() {
         let path = dir.join("long.aria");
         project().save_to_file(&path).expect("save the project");
         let out = dir.join("long.mp4");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_aria"))
-            .arg("export")
-            .arg(&path)
-            .arg(&out)
-            .args(["--size", "160x90", "--quiet"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("start aria export");
+        let mut child = start([
+            "export".as_ref(),
+            path.as_os_str(),
+            out.as_os_str(),
+            "--size".as_ref(),
+            "160x90".as_ref(),
+            "--quiet".as_ref(),
+        ]);
         let staged = within(Duration::from_secs(60), || {
             names(&dir)
                 .iter()
@@ -91,12 +89,7 @@ fn a_signal_stops_the_export_and_leaves_no_staging_directory() {
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-        let sent = Command::new("kill")
-            .arg(format!("-{signal}"))
-            .arg(child.id().to_string())
-            .status()
-            .expect("run kill");
-        assert!(sent.success(), "kill -{signal} failed");
+        send_signal(&child, signal);
         let stopped = within(Duration::from_secs(30), || {
             child.try_wait().expect("poll aria export").is_some()
         });

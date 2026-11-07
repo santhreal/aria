@@ -6,7 +6,7 @@ use super::collect_rs;
 
 /// A file allowed to start another program, and why.
 ///
-/// Nine entries and a self-reference. Everything else that trips this is a
+/// The last entry is this census. Any other file that trips this is a
 /// defect: a second spawn site is a second policy, and the policy here is
 /// that a launch needs the application's permission.
 const SPAWN_OWNERS: &[(&str, &str)] = &[
@@ -20,8 +20,9 @@ const SPAWN_OWNERS: &[(&str, &str)] = &[
     ),
     (
         "crates/aria-cli/tests/support/mod.rs",
-        "runs the `aria` binary this crate builds for its integration tests and reads \
-         what it prints; the crate has no library to call in process",
+        "runs the `aria` binary this crate builds for its integration tests, reads \
+         what it prints, and signals it through `kill`; the crate has no library to \
+         call in process and no libc binding",
     ),
     (
         "crates/aria-bench/src/process.rs",
