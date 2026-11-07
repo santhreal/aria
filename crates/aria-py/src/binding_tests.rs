@@ -543,3 +543,53 @@ fn a_short_name_on_the_wrong_clip_names_the_clips_it_animates_on() {
         );
     }
 }
+
+/// A path a script names that cannot be read is stated with the reason, and an
+/// export named for a container the encoder does not write is rejected before
+/// anything renders.
+///
+/// `load_font` reported "No such file or directory (os error 2)" with no path,
+/// `import_media` of a folder failed in the decoder as a GStreamer read error,
+/// and `export('x.txt')` wrote an MP4 into `x.txt`. Not covered: a file that
+/// exists and does not decode, which reports the decoder's error.
+#[test]
+fn a_path_a_script_names_is_stated_with_the_reason_it_failed() {
+    let folder = env!("CARGO_MANIFEST_DIR");
+    let missing = format!("{folder}/no-such-file.ttf");
+    let ext = aria_render::encoder_capability().extension;
+    for (call, expected) in [
+        (
+            format!("p.load_font({missing:?})"),
+            format!("{missing}: no such file or directory"),
+        ),
+        (
+            format!("p.load_font({folder:?})"),
+            format!("{folder}: is a directory"),
+        ),
+        (
+            format!("p.import_media({missing:?})"),
+            format!("{missing}: no such file or directory"),
+        ),
+        (
+            format!("p.import_media({folder:?})"),
+            format!("{folder}: is a directory"),
+        ),
+        (
+            "p.export('x.txt')".to_owned(),
+            format!(
+                "export writes a .{ext} file; name the output \"x.{ext}\" rather than \"x.txt\""
+            ),
+        ),
+        (
+            "p.export('x')".to_owned(),
+            format!("export writes a .{ext} file; name the output \"x.{ext}\" rather than \"x\""),
+        ),
+    ] {
+        let script = format!("p = aria.Project('scripted', fps = 30)\n{call}\n");
+        let message = refused(&CString::new(script).expect("test source holds no NUL"));
+        assert!(
+            message.ends_with(&format!(": {expected}")),
+            "{call} reported {message:?}"
+        );
+    }
+}

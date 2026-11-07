@@ -38,6 +38,7 @@ mod transactional_file;
 pub use animation::renders_animation;
 pub use aria_compositor::FrameSink;
 pub use aria_core::RgbaImage;
+pub use aria_encoder::capability as encoder_capability;
 pub use audio_processor::{
     AudioBlock, AudioProcessor, AudioProcessorFactory, CostSink, FaultKind, FaultSink, ParamSignal,
     ProcessorFault, ProcessorRegistration, audio_processor_registered, register_audio_processor,

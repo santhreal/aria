@@ -3,8 +3,10 @@
 use std::path::{Path, PathBuf};
 
 use aria_decoder::probe;
-use aria_models::{CanvasAspect, CanvasSettings, MediaSource, Project as Model, Rational};
-use aria_render::{Renderer, canvas_size, export_to_file};
+use aria_models::{
+    CanvasAspect, CanvasSettings, MediaSource, Project as Model, Rational, path_error,
+};
+use aria_render::{Renderer, canvas_size, encoder_capability, export_to_file};
 use numpy::ndarray::Array3;
 use numpy::{IntoPyArray, PyArray3};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
@@ -77,7 +79,12 @@ impl Project {
         let path_buf = PathBuf::from(path);
         let canonical = path_buf
             .canonicalize()
-            .map_err(|e| media_err(format!("{path}: {e}")))?;
+            .map_err(|e| media_err(path_error(&path_buf, &e)))?;
+        // A folder otherwise fails in the decoder as a GStreamer read error.
+        if canonical.is_dir() {
+            let folder = std::io::Error::from(std::io::ErrorKind::IsADirectory);
+            return Err(media_err(path_error(&path_buf, &folder)));
+        }
         if let Some(existing) = slf.model.find_media_by_path(&canonical) {
             return Ok(Media::new(slf.into_pyobject(py)?.unbind(), existing));
         }
@@ -207,7 +214,7 @@ impl Project {
     }
 
     fn load_font(&mut self, path: &str) -> PyResult<()> {
-        let data = std::fs::read(path).map_err(render_err)?;
+        let data = std::fs::read(path).map_err(|e| render_err(path_error(Path::new(path), &e)))?;
         self.ensure_renderer()?;
         self.renderer
             .as_mut()
@@ -232,8 +239,21 @@ impl Project {
     }
 
     fn export(&mut self, py: Python<'_>, path: &str) -> PyResult<u64> {
-        self.ensure_renderer()?;
+        // The encoder writes one container whatever the name says, so a name
+        // for another one is rejected before a renderer opens.
         let path = Path::new(path);
+        let extension = encoder_capability().extension;
+        if !path
+            .extension()
+            .is_some_and(|named| named.eq_ignore_ascii_case(extension))
+        {
+            return Err(PyValueError::new_err(format!(
+                "export writes a .{extension} file; name the output \"{}\" rather than \"{}\"",
+                path.with_extension(extension).display(),
+                path.display()
+            )));
+        }
+        self.ensure_renderer()?;
         let renderer = self.renderer.as_mut().expect("renderer initialized");
         let model = &self.model;
         py.detach(|| export_to_file(renderer, model, path))

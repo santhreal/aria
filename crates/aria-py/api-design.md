@@ -337,9 +337,9 @@ clip.effects                                        # list[Effect]
 clip.remove_effect(fx)
 ```
 
-Effect ids and parameter ranges come from the engine catalog
-(`aria.effects()`): `gaussian_blur`, `vignette`, `sharpen`, `pixelate`,
-`glitch`, `chromatic_aberration`, `grain`, `glow`, `zoom_blur`, `mirror`.
+Effect ids and parameter ranges come from the engine catalog,
+`aria.effects()`. An unknown effect id or parameter name is refused with the
+ids or names the call takes.
 
 ### Transitions
 
@@ -354,9 +354,9 @@ a.transition("crossfade", duration=0.8)   # at a's right edge, into b
 a.remove_transition()
 ```
 
-Catalog (`aria.transitions()`): `crossfade`, `dip_to_black`,
-`dip_to_white`, `wipe_left`, `wipe_right`, `wipe_up`, `wipe_down`, `slide`.
-Editing that breaks the abutment prunes the transition (engine behavior).
+`aria.transitions()` lists the picture transitions. A cut on an audio lane
+takes `constant_power`, `constant_gain` or `exponential_fade`. Editing that
+breaks the abutment prunes the transition.
 
 ### Text & shape editing
 
