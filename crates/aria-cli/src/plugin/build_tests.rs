@@ -5,8 +5,10 @@
 //! colors its diagnostics when `CARGO_TERM_COLOR=always` (set by CI toolchain
 //! actions and by many shells), so an error line started with an escape
 //! sequence instead of `error` and the reason was dropped, along with the
-//! `help:` line holding the fix. Not covered: diagnostics cargo prints in a
-//! format other than rustc's human-readable one.
+//! `help:` line holding the fix. A compiler that stops on a signal prints no
+//! diagnostic, and the report held only `could not compile`; the status from
+//! cargo's `Caused by:` block now follows it. Not covered: diagnostics cargo
+//! prints in a format other than rustc's human-readable one.
 
 use super::{first_error, strip_escapes};
 
@@ -35,7 +37,7 @@ fn a_colored_build_failure_reports_the_error_and_its_fix() {
 
 #[test]
 fn the_first_error_is_reported_with_only_its_own_advice() {
-    let cases: [(&str, Option<&str>); 5] = [
+    let cases: [(&str, Option<&str>); 8] = [
         // No advice: the error line alone.
         (
             "   Compiling demo v0.1.0\nerror[E0425]: cannot find value `x` in this scope\n --> src/lib.rs:1:1\n",
@@ -51,6 +53,27 @@ fn the_first_error_is_reported_with_only_its_own_advice() {
         (
             "error[E1]: first\n  = help: fix first\nerror[E2]: second\n  = help: fix second\n",
             Some("error[E1]: first (help: fix first)"),
+        ),
+        // A compiler that stopped with no diagnostic of its own: how it
+        // exited, from cargo's `Caused by:` block.
+        (
+            "   Compiling demo v0.1.0\nerror: could not compile `demo` (lib)\n\nCaused by:\n  \
+             process didn't exit successfully: `rustc --crate-name demo -C lto src/lib.rs` \
+             (signal: 11, SIGSEGV: invalid memory reference)\n",
+            Some(
+                "error: could not compile `demo` (lib) (signal: 11, SIGSEGV: invalid memory reference)",
+            ),
+        ),
+        (
+            "error: could not compile `demo` (lib)\n\nCaused by:\n  process didn't exit \
+             successfully: `rustc --cfg x=\"a (b)\"` (exit status: 254)\n",
+            Some("error: could not compile `demo` (lib) (exit status: 254)"),
+        ),
+        // The cause line of a later error is not the first error's.
+        (
+            "error[E1]: first\nerror: could not compile `demo` (lib)\n\nCaused by:\n  \
+             process didn't exit successfully: `rustc` (exit status: 1)\n",
+            Some("error[E1]: first"),
         ),
         // A build that printed no error reports nothing, and the caller falls
         // back to the exit status.

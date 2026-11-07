@@ -131,21 +131,33 @@ pub(crate) fn build_and_stage(dir: &Path, profile: BuildProfile) -> Result<PathB
 /// The first compiler error in cargo's `stderr`, followed by the `note:` and
 /// `help:` lines of that diagnostic, which state the fix (a missing
 /// `wasm32-unknown-unknown` target prints the `rustup target add` line
-/// there). Terminal escape sequences are removed first:
-/// `CARGO_TERM_COLOR=always` colors the diagnostics of a piped cargo.
+/// there), and by how the compiler exited when it stopped without a
+/// diagnostic of its own, such as on a signal. Terminal escape sequences are
+/// removed first: `CARGO_TERM_COLOR=always` colors the diagnostics of a piped
+/// cargo.
 fn first_error(stderr: &str) -> Option<String> {
     let plain = strip_escapes(stderr);
     let mut lines = plain.lines().map(str::trim);
     let head = lines.find(|line| line.starts_with("error"))?;
     let advice: Vec<&str> = lines
         .take_while(|line| !line.starts_with("error") && !line.starts_with("warning"))
-        .filter_map(|line| line.strip_prefix("= "))
+        .filter_map(|line| line.strip_prefix("= ").or_else(|| exit_of(line)))
         .collect();
     Some(if advice.is_empty() {
         head.to_owned()
     } else {
         format!("{head} ({})", advice.join("; "))
     })
+}
+
+/// How the process on a `process didn't exit successfully` line of cargo's
+/// `Caused by:` block exited: the status after the quoted command, such as
+/// `signal: 11, SIGSEGV: invalid memory reference`.
+fn exit_of(line: &str) -> Option<&str> {
+    line.strip_prefix("process didn't exit successfully: ")?
+        .rsplit_once("` (")?
+        .1
+        .strip_suffix(')')
 }
 
 /// `text` without ANSI control sequences: CSI (`ESC [` ... final byte) and OSC

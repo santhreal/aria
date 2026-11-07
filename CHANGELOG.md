@@ -1397,6 +1397,7 @@ Notes for the latest release. For previous releases, see the
 - Opening a project file whose clip plays a media, sequence or multicam group the project does not hold, whose sequence contains itself, or whose multicam group is invalid fails with the clip or group at fault instead of rendering black or failing at the first frame.
 - `aria plugin new` rejects `--sdk` for a wasm plugin, which never read it, and exits 2 for a malformed plugin id.
 - Opening a project file that lists a lane, clip, media item, bin, multicam group or sequence under a key other than its own id fails with the entry at fault instead of loading a clip that edits cannot reach.
+- `aria plugin pack` and `aria plugin dev` state how the compiler exited when a build stops without a compiler diagnostic, such as on a signal.
 
 ## [alpha-0.7.0] - 2026-07-22
 
