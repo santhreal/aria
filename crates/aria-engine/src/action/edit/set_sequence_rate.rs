@@ -73,8 +73,7 @@ impl EditAction for RestoreSequenceRateAction {
         self: Box<Self>,
         ctx: &mut ApplyContext<'_>,
     ) -> Result<Box<dyn EditAction>, EngineError> {
-        let current = ctx.project.timeline().clone();
-        *ctx.project.timeline_mut() = self.previous;
+        let current = std::mem::replace(ctx.project.timeline_mut(), self.previous);
         Ok(Box::new(RestoreSequenceRateAction { previous: current }))
     }
 }
