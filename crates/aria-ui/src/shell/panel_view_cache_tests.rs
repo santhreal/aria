@@ -65,10 +65,10 @@ fn every_blind_kind_is_one_its_unmoved_entry_leaves_out() {
 }
 
 /// Tests the registry's panels are cut into.
-const SHARDS: usize = 4;
+pub(super) const SHARDS: usize = 4;
 
 /// The entries of `all` that `shard` draws, with their place in `all`.
-fn shard_of<T: Copy>(all: &[T], shard: usize) -> Vec<(usize, T)> {
+pub(super) fn shard_of<T: Copy>(all: &[T], shard: usize) -> Vec<(usize, T)> {
     assert!(shard < SHARDS, "shard {shard} of {SHARDS}");
     all.iter()
         .copied()

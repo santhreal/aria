@@ -347,9 +347,16 @@ fn room_above(canvas: Bounds<Pixels>, v2: Bounds<Pixels>) -> Pixels {
 /// Every press of `tool` down V1's bars, a row every 4 px through each part
 /// and on the lane's line, acts on V1 alone: a Razor press cuts the clip under
 /// it or reports why it cannot, and a Track Select Shift+press selects the clip
-/// under it on V1 only. One test per tool, so the harness runs them on
-/// separate threads.
-fn every_press_acts_on_v1(cx: &mut TestAppContext, tag: &str, tool: EditorTool, name: &str) {
+/// under it on V1 only. `shard` of `of` takes every `of`-th part from
+/// `shard`. One test per tool and shard, so the harness runs them on separate
+/// threads.
+fn every_press_acts_on_v1(
+    cx: &mut TestAppContext,
+    tag: &str,
+    tool: EditorTool,
+    name: &str,
+    (shard, of): (usize, usize),
+) {
     let (lanes, visual) = two_lanes(cx, tag);
     let v1 = v1_lane(visual);
     let parts = parts(visual, &lanes);
@@ -361,7 +368,7 @@ fn every_press_acts_on_v1(cx: &mut TestAppContext, tag: &str, tool: EditorTool, 
     rows.push(line);
 
     use_tool(visual, &lanes.state, tool);
-    for part in &parts {
+    for part in parts.iter().skip(shard).step_by(of) {
         for &dy in &rows {
             let at = point(px(part.x), v1.top() + px(dy));
             let what = format!("of {name} on {}, {dy} px into V1", part.name);
@@ -376,9 +383,29 @@ fn every_press_acts_on_v1(cx: &mut TestAppContext, tag: &str, tool: EditorTool, 
     }
 }
 
+/// The Razor cuts and undoes at every row, so its parts are cut over three
+/// tests.
+const RAZOR_SHARDS: usize = 3;
+
 #[gpui::test]
-fn a_razor_press_acts_on_the_lane_under_it(cx: &mut TestAppContext) {
-    every_press_acts_on_v1(cx, "lane-tools-razor", EditorTool::Razor, "Razor");
+fn a_razor_press_acts_on_the_lane_under_it_shard_0(cx: &mut TestAppContext) {
+    let tool = EditorTool::Razor;
+    every_press_acts_on_v1(cx, "lane-tools-razor-0", tool, "Razor", (0, RAZOR_SHARDS));
+}
+
+#[gpui::test]
+fn a_razor_press_acts_on_the_lane_under_it_shard_1(cx: &mut TestAppContext) {
+    let tool = EditorTool::Razor;
+    every_press_acts_on_v1(cx, "lane-tools-razor-1", tool, "Razor", (1, RAZOR_SHARDS));
+}
+
+/// The last shard: a fourth shard added to [`RAZOR_SHARDS`] without a test of
+/// its own fails here.
+#[gpui::test]
+fn a_razor_press_acts_on_the_lane_under_it_shard_2(cx: &mut TestAppContext) {
+    assert_eq!(RAZOR_SHARDS, 3, "one test per shard");
+    let tool = EditorTool::Razor;
+    every_press_acts_on_v1(cx, "lane-tools-razor-2", tool, "Razor", (2, RAZOR_SHARDS));
 }
 
 #[gpui::test]
@@ -388,6 +415,7 @@ fn a_track_select_forward_press_acts_on_the_lane_under_it(cx: &mut TestAppContex
         "lane-tools-forward",
         EditorTool::TrackSelectForward,
         "Track Select Forward",
+        (0, 1),
     );
 }
 
@@ -398,6 +426,7 @@ fn a_track_select_backward_press_acts_on_the_lane_under_it(cx: &mut TestAppConte
         "lane-tools-backward",
         EditorTool::TrackSelectBackward,
         "Track Select Backward",
+        (0, 1),
     );
 }
 

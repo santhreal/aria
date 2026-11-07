@@ -24,6 +24,7 @@ use gpui::{Bounds, Modifiers, MouseButton, Pixels, Point, TestAppContext, Visual
 
 use crate::motion::frames;
 
+use super::cache_tests::{SHARDS, shard_of};
 use super::tests::{dock_right, opened};
 
 /// Frames opening a window and docking one panel may draw before it counts as
@@ -136,11 +137,13 @@ fn rest(visual: &mut VisualTestContext, at: Point<Pixels>) -> Result<(), String>
     .map_err(|why| format!("drawn at rest: {why}"))
 }
 
-#[gpui::test]
-fn a_resting_pointer_leaves_every_panel_idle(cx: &mut TestAppContext) {
+/// Rest the pointer over every panel whose place in the registry is `shard`
+/// modulo [`SHARDS`]: one test per shard, so the harness runs them on
+/// separate threads.
+fn every_panel_rests_idle(cx: &mut TestAppContext, shard: usize) {
     cx.executor().allow_parking();
     let panels = bounded(SETUP_FRAMES, || {
-        let (state, visual) = opened(cx, "panel-idle");
+        let (state, visual) = opened(cx, &format!("panel-idle-shard-{shard}"));
         let panels = visual.read(|app| state.read(app).registered_panel_ids());
         visual.update(|window, _| window.remove_window());
         panels
@@ -150,7 +153,7 @@ fn a_resting_pointer_leaves_every_panel_idle(cx: &mut TestAppContext) {
 
     let mut looped = Vec::new();
     let mut lit_any = false;
-    for (index, &panel) in panels.iter().enumerate() {
+    for (index, panel) in shard_of(&panels, shard) {
         let docked = bounded(SETUP_FRAMES, || {
             let (state, visual) = opened(cx, &format!("panel-idle-{index}"));
             let rect = dock_right(&state, visual, panel);
@@ -209,4 +212,27 @@ fn a_resting_pointer_leaves_every_panel_idle(cx: &mut TestAppContext) {
         "windows that kept drawing:\n{}",
         looped.join("\n")
     );
+}
+
+#[gpui::test]
+fn a_resting_pointer_leaves_every_panel_idle_shard_0(cx: &mut TestAppContext) {
+    every_panel_rests_idle(cx, 0);
+}
+
+#[gpui::test]
+fn a_resting_pointer_leaves_every_panel_idle_shard_1(cx: &mut TestAppContext) {
+    every_panel_rests_idle(cx, 1);
+}
+
+#[gpui::test]
+fn a_resting_pointer_leaves_every_panel_idle_shard_2(cx: &mut TestAppContext) {
+    every_panel_rests_idle(cx, 2);
+}
+
+/// The last shard: a fifth shard added to [`SHARDS`] without a test of its
+/// own fails here.
+#[gpui::test]
+fn a_resting_pointer_leaves_every_panel_idle_shard_3(cx: &mut TestAppContext) {
+    assert_eq!(SHARDS, 4, "one test per shard");
+    every_panel_rests_idle(cx, 3);
 }
