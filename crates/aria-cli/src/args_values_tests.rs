@@ -64,3 +64,29 @@ fn a_malformed_value_names_the_flag_and_the_shape() {
         assert_eq!(args.number("bitrate"), want, "{raw}");
     }
 }
+
+/// WHY: a flag given twice kept its last value, so `--fps 24 --fps 30`
+/// exported at 30 and `--at 1 --at 2` rendered 2 s, with no word that the
+/// first value was dropped. Each way a flag enters the map, `--name=value`,
+/// a valueless flag, `--name value`, a flag left open by the next flag, and
+/// one left open at the end, refuses a second occurrence. Not caught: two
+/// flags with different names that set one value, which no verb has today.
+#[test]
+fn a_flag_given_twice_is_a_usage_error() {
+    let twice = |name: &str| {
+        Some(ArgsError::Usage(format!(
+            "--{name} is given more than once; give it once"
+        )))
+    };
+    for (argv, name) in [
+        (&["--fps", "24", "--fps", "30"][..], "fps"),
+        (&["--fps=24", "--fps", "30"], "fps"),
+        (&["--fps", "24", "--fps=30"], "fps"),
+        (&["--no-audio", "--no-audio"], "no-audio"),
+        (&["--at", "1", "--at", "--quiet"], "at"),
+        (&["--at", "1", "--at"], "at"),
+    ] {
+        let words = ["export", "a.aria", "b.mp4"].iter().chain(argv);
+        assert_eq!(Args::parse(words.copied()).err(), twice(name), "{argv:?}");
+    }
+}

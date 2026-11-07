@@ -9,6 +9,7 @@
 //!   naming the flag.
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -169,20 +170,20 @@ impl Args {
         for word in words {
             if let Some(name) = word.strip_prefix("--") {
                 if let Some(open) = pending.take() {
-                    flags.insert(open, None);
+                    insert_flag(&mut flags, open, None)?;
                 }
                 if name.is_empty() {
                     return Err(ArgsError::Usage("\"--\" is not a flag".into()));
                 }
                 if let Some((name, value)) = name.split_once('=') {
-                    flags.insert(name.to_string(), Some(value.to_string()));
+                    insert_flag(&mut flags, name.to_string(), Some(value.to_string()))?;
                 } else if VALUELESS_FLAGS.contains(&name) {
-                    flags.insert(name.to_string(), None);
+                    insert_flag(&mut flags, name.to_string(), None)?;
                 } else {
                     pending = Some(name.to_string());
                 }
             } else if let Some(name) = pending.take() {
-                flags.insert(name, Some(word));
+                insert_flag(&mut flags, name, Some(word))?;
             } else if word.starts_with('-') {
                 // Flags are spelled `--name`. A dash word left as a positional
                 // became an output path: `frame p.aria -o x.png` wrote a file
@@ -196,7 +197,7 @@ impl Args {
             }
         }
         if let Some(open) = pending {
-            flags.insert(open, None);
+            insert_flag(&mut flags, open, None)?;
         }
         Ok(Args {
             verb,
@@ -346,6 +347,26 @@ impl Args {
                 )))
             }
             _ => Ok(()),
+        }
+    }
+}
+
+/// Record `--name` with `value`, refusing a flag given a second time: the
+/// map holds one value per flag, so `--fps 24 --fps 30` exported at 30 with
+/// no word that the 24 was dropped.
+fn insert_flag(
+    flags: &mut BTreeMap<String, Option<String>>,
+    name: String,
+    value: Option<String>,
+) -> Result<(), ArgsError> {
+    match flags.entry(name) {
+        Entry::Occupied(entry) => Err(ArgsError::Usage(format!(
+            "--{} is given more than once; give it once",
+            entry.key()
+        ))),
+        Entry::Vacant(entry) => {
+            entry.insert(value);
+            Ok(())
         }
     }
 }

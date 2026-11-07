@@ -43,7 +43,8 @@ exits `0`.
 
 Flags are spelled `--name`. A word that starts with `-` and is not the value of
 a flag is a usage error, so `aria frame project.aria -o` writes no file named
-`-o`. Write a path that starts with `-` as `./-name`.
+`-o`. Write a path that starts with `-` as `./-name`. A flag given twice, such
+as `--fps 24 --fps 30`, is a usage error.
 
 Each command that writes a file writes one format: `new` a `.aria` project,
 `frame` and `demo` a `.png` image, `export` an `.mp4` file. An output whose
