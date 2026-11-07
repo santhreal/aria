@@ -1468,6 +1468,9 @@ Notes for the latest release. For previous releases, see the
 - A clip whose source window ends at the last tick reads that window's last frame past its end instead of wrapping to its first.
 - An easing preset on a bounded property such as opacity holds its overshoot at the bound instead of saving a project that does not open.
 - Trimming a still, nested sequence or multicam clip whose source window ends at the last tick is refused instead of saving a project that does not open.
+- An export of a project whose frame rate is above 1000 fps is refused naming the ceiling instead of writing a file whose last frame runs past one period, on every export path and not only `aria export --fps`.
+- A sequence rate above 1000 fps set by a plugin, a script or an imported cut is refused instead of leaving a sequence no export writes.
+- An export rate refusal states the rate as `num/den fps` and the ceiling instead of a debug struct.
 
 ## [alpha-0.7.0] - 2026-07-22
 

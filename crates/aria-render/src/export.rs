@@ -21,7 +21,9 @@ use aria_core::{
 };
 use aria_models::Project;
 
-use crate::error::{EmptyExport, ExportFormatError, ExportInput, MIN_EXPORT_DIM, RenderError};
+use crate::error::{
+    EmptyExport, ExportFormatError, ExportInput, MIN_EXPORT_DIM, RenderError, exportable_rate,
+};
 use crate::export_audio::feed::AudioFeed;
 use crate::export_audio::{
     EXPORT_AUDIO_CHANNELS, EXPORT_AUDIO_RATE, ExportAudioMixer, sample_boundary,
@@ -133,11 +135,6 @@ impl ExportSettings {
         {
             return Err(ExportFormatError::Size { asked: (w, h) }.into());
         }
-        if let Some(rate) = format.frame_rate
-            && (rate.num <= 0 || rate.den <= 0)
-        {
-            return Err(ExportFormatError::Rate { asked: rate }.into());
-        }
         if format.bitrate_kbps == Some(0) {
             return Err(ExportFormatError::ZeroBitrate.into());
         }
@@ -160,9 +157,9 @@ impl ExportSettings {
             bitrate_kbps: format.bitrate_kbps,
         }
         .evened();
-        // An empty span is refused here rather than at the frame loop, so a
-        // caller that asked for a range learns it covers nothing before a
-        // staging directory exists.
+        // An empty span and a rate no encoder writes, asked for or the
+        // project's own, are refused here rather than at the frame loop, so a
+        // caller learns it before a staging directory exists.
         export_frame_count(project, settings)?;
         Ok(settings)
     }
@@ -236,8 +233,9 @@ pub type ExportObserver<'a> = &'a mut dyn FnMut(u64, u64) -> bool;
 pub type EncoderOpener<'a> =
     &'a mut dyn FnMut(&Path, EncoderConfig) -> Result<Box<dyn VideoEncoder>, EncodeError>;
 
-/// How many frames an export will write, or a refusal naming why there are
-/// none.
+/// How many frames an export will write, or a refusal naming why it writes
+/// none: a rate no encoder writes ([`ExportFormatError::Rate`]), or an empty
+/// span ([`RenderError::Empty`]).
 ///
 /// One owner of "is there anything to export". Three callers:
 /// [`export_to_file_observed`] checks before it creates a staging directory or
@@ -246,6 +244,7 @@ pub type EncoderOpener<'a> =
 /// shell calls it as a pre-flight so an export sheet refuses in place instead
 /// of spawning a job that dies on its first frame.
 pub fn export_frame_count(project: &Project, settings: ExportSettings) -> Result<u64, RenderError> {
+    check_rate(settings.frame_rate)?;
     let (start, end) = settings.frame_span(project);
     let frames = (end - start).max(0) as u64;
     if frames > 0 {
@@ -259,6 +258,16 @@ pub fn export_frame_count(project: &Project, settings: ExportSettings) -> Result
     } else {
         EmptyExport::Range
     }))
+}
+
+/// `rate`, refused as [`ExportFormatError::Rate`] unless an export writes one
+/// period per frame at it ([`exportable_rate`]).
+fn check_rate(rate: Rational) -> Result<(), RenderError> {
+    if exportable_rate(rate) {
+        Ok(())
+    } else {
+        Err(ExportFormatError::Rate { asked: rate }.into())
+    }
 }
 
 /// Composite the whole timeline and encode it to a video file at `path`, using

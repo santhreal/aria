@@ -52,6 +52,7 @@ pub use driver::{
 };
 pub use error::{
     EmptyExport, ExportFormatError, ExportInput, MAX_FPS, MIN_EXPORT_DIM, RenderError,
+    exportable_rate,
 };
 pub use export::{
     EncoderOpener, ExportObserver, ExportSettings, Exported, PngSequenceEncoder,

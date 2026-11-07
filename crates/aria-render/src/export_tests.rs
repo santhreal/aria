@@ -221,6 +221,90 @@ fn a_zero_bitrate_is_refused_and_any_other_passes() {
     }
 }
 
+/// One frame of a solid in a project whose sequence runs at `rate`.
+fn one_frame_at(rate: Rational) -> Project {
+    let mut project = Project::new("export-rate", rate);
+    let track = project.add_track(TrackKind::Sticker, "S1");
+    project
+        .add_generated(
+            track,
+            Generator::SolidColor {
+                rgba: [10, 120, 200, 255],
+            },
+            TimeRange::at_rate(0, 1, rate),
+        )
+        .expect("place the solid generator");
+    project
+}
+
+/// WHY: only `aria export --fps` held a rate to [`MAX_FPS`]. A project at
+/// 2000 fps, written by a plugin, a script or an imported cut, exported
+/// unchecked through every other path, and above the ceiling `nvh264enc`
+/// writes the last frame a `1001/30000` s duration. The rate the frames are
+/// sampled at, asked for or the project's own, is refused at resolve and at
+/// the frame count every export pass reads, with the ceiling in the message.
+///
+/// Not caught: a rate at or below the ceiling that one encoder still writes
+/// wrongly; the encoder suites own that.
+#[test]
+fn a_rate_no_encoder_writes_is_refused_on_every_export_path() {
+    let max = crate::MAX_FPS;
+    let rates = [
+        (Rational::new(max, 1), true),
+        (Rational::new(2 * max, 2), true),
+        (Rational::FPS_29_97, true),
+        (Rational::new(max + 1, 1), false),
+        (Rational::new(2 * max + 1, 2), false),
+        (Rational::new(i32::MAX, 1), false),
+        (Rational::new(0, 1), false),
+        (Rational::new(-24, 1), false),
+        (Rational::new(24, 0), false),
+        (Rational::new(24, -1), false),
+    ];
+    fn refused<T>(result: &Result<T, RenderError>, rate: Rational) -> bool {
+        matches!(
+            result,
+            Err(RenderError::Format(ExportFormatError::Rate { asked })) if *asked == rate
+        )
+    }
+    let project = one_second();
+    for (rate, writes) in rates {
+        assert_eq!(exportable_rate(rate), writes, "{rate:?}");
+        let format = ExportFormat {
+            frame_rate: Some(rate),
+            ..ExportFormat::default()
+        };
+        let asked = ExportSettings::resolved_for_encoder(&project, format, true);
+        assert_eq!(refused(&asked, rate), !writes, "asked {rate:?}: {asked:?}");
+        if writes {
+            assert_eq!(asked.expect("resolves").frame_rate, rate);
+        }
+        if !rate.is_valid() {
+            continue;
+        }
+        let own = one_frame_at(rate);
+        let resolved = ExportSettings::resolved_for_encoder(&own, ExportFormat::default(), true);
+        assert_eq!(
+            refused(&resolved, rate),
+            !writes,
+            "own {rate:?}: {resolved:?}"
+        );
+        let counted = export_frame_count(&own, ExportSettings::for_project(&own));
+        assert_eq!(
+            refused(&counted, rate),
+            !writes,
+            "count {rate:?}: {counted:?}"
+        );
+    }
+    assert_eq!(
+        RenderError::from(ExportFormatError::Rate {
+            asked: Rational::new(2000, 1)
+        })
+        .to_string(),
+        "2000/1 fps is not a frame rate an export writes; use a rate above 0 and at most 1000 fps"
+    );
+}
+
 /// A one-second project whose pool holds `media` and nothing on its timeline
 /// that reads it, so a refusal can only come from the destination check.
 fn with_media(media: &std::path::Path) -> Project {

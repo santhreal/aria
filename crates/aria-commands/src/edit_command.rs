@@ -791,6 +791,8 @@ pub enum EditCommand {
     /// Set the sequence editing/playback frame rate. Resamples every clip's
     /// timeline placement, fade durations, keyframes, transitions, and marker
     /// ticks to the new rate. The inverse restores the previous rate and exact ticks.
+    /// A rate with a part at or below zero, or above `aria_render::MAX_FPS`
+    /// frames a second, is refused.
     SetSequenceRate { frame_rate: Rational },
     /// Set the sequence audio channel layout (mono, stereo, 5.1 surround).
     /// The inverse restores the previous layout.

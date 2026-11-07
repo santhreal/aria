@@ -167,8 +167,13 @@ pub enum ExportFormatError {
     /// A size no encoder accepts.
     #[error("{}x{} is too small to encode; both sides must be at least {MIN_EXPORT_DIM}", asked.0, asked.1)]
     Size { asked: (u32, u32) },
-    /// A rate that is not a rate.
-    #[error("{asked:?} is not a frame rate an export can sample at")]
+    /// A rate no encoder writes one period per frame at: a part at or below
+    /// zero, or more than [`MAX_FPS`] frames a second.
+    #[error(
+        "{}/{} fps is not a frame rate an export writes; use a rate above 0 and at most {MAX_FPS} fps",
+        asked.num,
+        asked.den
+    )]
     Rate { asked: aria_core::Rational },
 }
 
@@ -181,6 +186,13 @@ pub const MIN_EXPORT_DIM: u32 = 16;
 /// instead of one frame period, so a 2000 fps export of a 0.1 s span played
 /// 0.133 s. At and below it every encoder writes one period per frame.
 pub const MAX_FPS: i32 = 1000;
+
+/// Whether an export writes one period per frame at `rate`: both parts above
+/// zero and at most [`MAX_FPS`] frames a second. The sequence rate edit and
+/// every export pass read this one predicate.
+pub fn exportable_rate(rate: aria_core::Rational) -> bool {
+    rate.is_valid() && i64::from(rate.num) <= i64::from(MAX_FPS) * i64::from(rate.den)
+}
 
 impl RenderError {
     pub fn unsupported(msg: impl Into<String>) -> Self {

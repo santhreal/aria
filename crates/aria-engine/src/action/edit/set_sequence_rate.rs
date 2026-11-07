@@ -7,14 +7,19 @@ use crate::action::{ApplyContext, EditAction};
 use crate::error::EngineError;
 
 /// Set the sequence frame rate; the inverse restores the prior timeline snapshot.
+///
+/// A rate no export writes ([`aria_render::exportable_rate`]) is refused: a
+/// sequence at it plays and saves but every export of it is refused.
 pub(crate) fn set_sequence_rate(
     ctx: &mut ApplyContext<'_>,
     frame_rate: Rational,
 ) -> Result<Box<dyn EditAction>, EngineError> {
-    if !frame_rate.is_valid() {
+    if !aria_render::exportable_rate(frame_rate) {
         return Err(EngineError::Model(ModelError::InvalidParam(format!(
-            "frame rate must have positive numerator and denominator (got {}/{})",
-            frame_rate.num, frame_rate.den
+            "frame rate must have positive numerator and denominator and be at most {} fps (got {}/{})",
+            aria_render::MAX_FPS,
+            frame_rate.num,
+            frame_rate.den
         ))));
     }
     let before = ctx.project.timeline().clone();

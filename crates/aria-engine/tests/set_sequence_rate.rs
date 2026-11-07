@@ -153,6 +153,45 @@ fn invalid_rate_is_refused_with_message_naming_the_rule() {
     }
 }
 
+/// WHY: the sequence rate edit took any positive rate, so a plugin, a script
+/// or an imported cut set a 2000 fps sequence that played and saved while
+/// every export of it was refused. A rate above `aria_render::MAX_FPS` is
+/// refused with the ceiling in the message, leaves the rate and the undo
+/// history as they were, and the ceiling itself applies.
+///
+/// Not caught: a project file written at such a rate; it opens, and its
+/// export is refused (`aria-render` `span_tests`).
+#[test]
+fn a_rate_above_the_export_ceiling_is_refused_and_the_ceiling_applies() {
+    let max = aria_render::MAX_FPS;
+    let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+    for above in [
+        Rational::new(max + 1, 1),
+        Rational::new(2 * max + 1, 2),
+        Rational::new(i32::MAX, 1),
+    ] {
+        let err = engine
+            .apply(Command::Edit(EditCommand::SetSequenceRate {
+                frame_rate: above,
+            }))
+            .expect_err("a rate above the ceiling is refused");
+        let msg = err.to_string();
+        assert!(
+            msg.contains(&format!("at most {max} fps")),
+            "{above:?}: '{msg}' must state the ceiling"
+        );
+        assert_eq!(engine.project().timeline().frame_rate, Rational::FPS_24);
+        assert!(!engine.can_undo(), "{above:?} left an undo step");
+    }
+    let ceiling = Rational::new(max, 1);
+    engine
+        .apply(Command::Edit(EditCommand::SetSequenceRate {
+            frame_rate: ceiling,
+        }))
+        .expect("the ceiling applies");
+    assert_eq!(engine.project().timeline().frame_rate, ceiling);
+}
+
 #[test]
 fn round_trip_through_save_load_keeps_new_rate_and_audio_layout() {
     let mut project = Project::new("test_project", Rational::FPS_24);
