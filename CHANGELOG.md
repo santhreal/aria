@@ -880,6 +880,7 @@ Notes for the latest release. For previous releases, see the
 - The Analysis panel keeps the moments index open for the session instead of opening and closing it for every read and write, which removes four disk syncs from every clear and detector run.
 - The command palette lays out only the rows in view, so a key that moves the highlight or edits the query draws one screen of rows instead of every command.
 - Save dialogs propose a file named after the project, and **Save As**, **Save a Copy**, **Export Frame** and **Export Timeline** open in the project's folder once it has been saved.
+- Enabling a WASM plugin, changing the plugin limits, or reloading a plugin whose component file is unchanged reuses the compiled component instead of compiling it again.
 
 ### Fixed
 

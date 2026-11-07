@@ -9,7 +9,7 @@ use std::thread::ThreadId;
 use aria_plugin::package::{Access, Package, register_declared};
 use aria_plugin::{Names, Plugin, PluginContext, PluginError, PluginManifest, host_wire};
 use parking_lot::Mutex;
-use wasmtime::component::{Component as WasmComponent, HasSelf, Linker};
+use wasmtime::component::{HasSelf, Linker};
 use wasmtime::{Store, StoreLimits, StoreLimitsBuilder};
 
 use crate::bindings;
@@ -154,11 +154,9 @@ impl WasmPlugin {
             path: component_path.to_path_buf(),
             reason: err.to_string(),
         })?;
-        let component = WasmComponent::from_binary(engine.engine(), &bytes).map_err(|err| {
-            LoadError::Compile {
-                path: component_path.to_path_buf(),
-                reason: err.to_string(),
-            }
+        let component = engine.compile(&bytes).map_err(|err| LoadError::Compile {
+            path: component_path.to_path_buf(),
+            reason: err.to_string(),
         })?;
 
         let mut linker = Linker::<HostState>::new(engine.engine());
