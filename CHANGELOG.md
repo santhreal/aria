@@ -1441,6 +1441,7 @@ Notes for the latest release. For previous releases, see the
 - Normalizing a clip measured as silence states the measured loudness in words instead of an internal parameter name.
 - `aria new --fps` and `aria export --fps` accept a rate spelled with zeros after the decimal point, such as `29.970` or `24.0`, instead of refusing it.
 - `aria export` of a timeline with nothing audible prints `no audio` in its `wrote` line instead of naming an AAC track the file does not hold.
+- `aria analyze` on a folder or a missing path states the path and the reason before a decode, as `aria new` does, instead of printing the GStreamer error.
 
 ## [alpha-0.7.0] - 2026-07-22
 

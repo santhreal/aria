@@ -46,6 +46,18 @@ impl Failure {
             aria_models::io_reason(err)
         ))
     }
+
+    /// A media path that is missing or a folder, stated before a decode opens
+    /// it: the decoder's own wording for either names GStreamer. `None` when
+    /// the path is a file.
+    pub(crate) fn not_media(path: &std::path::Path) -> Option<Self> {
+        let why = match std::fs::metadata(path) {
+            Err(_) => "no such file",
+            Ok(meta) if meta.is_dir() => "is a directory; name a media file",
+            Ok(_) => return None,
+        };
+        Some(Failure::Failed(format!("{}: {why}", path.display())))
+    }
 }
 
 impl From<ArgsError> for Failure {

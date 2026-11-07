@@ -21,8 +21,8 @@ pub(crate) const DEFAULT_LIMIT: usize = 40;
 
 pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let path = args.required_path(0, "a media file")?;
-    if !path.exists() {
-        return Err(Failure::Failed(format!("{}: no such file", path.display())));
+    if let Some(failure) = Failure::not_media(&path) {
+        return Err(failure);
     }
     let limit = args.number("limit")?.map_or(DEFAULT_LIMIT, |n| n as usize);
     let shots = args.present("shots");
@@ -253,5 +253,32 @@ mod tests {
             failure.message(),
             format!("{}: {NO_AUDIO_SHOTS}", silent.display())
         );
+    }
+
+    /// WHY: `aria analyze <folder>` failed with "decode failed: GStreamer:
+    /// ... is a directory. Pick another file." after the decoder opened the
+    /// path, while `aria new` states a folder or a missing file before any
+    /// decode. Both commands state the reason through [`Failure::not_media`],
+    /// whichever detectors are named. Not caught: a path replaced between the
+    /// check and the probe.
+    #[test]
+    fn a_media_path_that_is_not_a_file_fails_as_aria_new_states_it() {
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let folder = dir.path().join("clips");
+        std::fs::create_dir(&folder).expect("create folder");
+        let cases = [
+            (dir.path().join("nothere.wav"), "no such file"),
+            (folder, "is a directory; name a media file"),
+        ];
+        for (bad, why) in cases {
+            let want = Err(Failure::Failed(format!("{}: {why}", bad.display())));
+            let flag_sets: [&[&str]; 3] = [&[], &["--shots"], &["--beats", "--shots"]];
+            for flags in flag_sets {
+                let mut raw = vec!["analyze".to_owned(), bad.to_string_lossy().into_owned()];
+                raw.extend(flags.iter().map(|flag| (*flag).to_owned()));
+                let parsed = Args::parse(&raw).expect("valid args");
+                assert_eq!(run(&parsed), want, "{raw:?}");
+            }
+        }
     }
 }

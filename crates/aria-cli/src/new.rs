@@ -49,14 +49,9 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let media: Vec<PathBuf> = args.positional[1..].iter().map(PathBuf::from).collect();
     // Every path is checked before the first import, so a misspelled or
     // folder path late in the list fails before the files ahead of it are
-    // probed. A missing file gets the wording `analyze` prints.
-    for path in &media {
-        let why = match std::fs::metadata(path) {
-            Err(_) => "no such file",
-            Ok(meta) if meta.is_dir() => "is a directory; name a media file",
-            Ok(_) => continue,
-        };
-        return Err(Failure::Failed(format!("{}: {why}", path.display())));
+    // probed. `analyze` states the same reasons through the same check.
+    if let Some(failure) = media.iter().find_map(|path| Failure::not_media(path)) {
+        return Err(failure);
     }
     let rate = rate_from(args)?;
 
