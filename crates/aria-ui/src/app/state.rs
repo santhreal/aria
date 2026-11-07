@@ -214,6 +214,10 @@ pub struct AppState {
     /// The rows plugins added to the menu last opened, in mount order. Kept
     /// after the menu closes so its fade out draws the same rows.
     pub(crate) context_plugin_rows: Arc<[super::ContextPluginRow]>,
+    /// The clip facts of the badge menu last opened, read off the session when
+    /// it opened, so the drawn menu takes no session lock. Kept after the menu
+    /// closes so its fade out draws the same rows.
+    pub(crate) context_badge: Option<crate::surfaces::context_menu::BadgeMenu>,
     /// The palette's query, with its caret and selection.
     pub palette_query: super::line_text::LineText,
     pub(crate) palette_cache: std::cell::RefCell<crate::app::palette::PaletteCache>,

@@ -107,7 +107,7 @@ mod sequence;
 mod transitions;
 mod trim_reach;
 
-pub use freeze::FreezeRefusal;
+pub use freeze::{FreezeRefusal, FreezeRule};
 pub use link::{EnableAssignment, GroupAssignment, LinkAssignment};
 pub use missing_plugins::MissingPlugin;
 pub use trim_reach::TrimReach;

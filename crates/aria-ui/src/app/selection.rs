@@ -748,6 +748,12 @@ impl AppState {
             _ => {}
         }
         self.context_plugin_rows = self.plugin_menu_rows(&target);
+        self.context_badge = match target {
+            ContextTarget::ClipBadge { clip, .. } => {
+                crate::surfaces::context_menu::BadgeMenu::of(self, clip)
+            }
+            _ => None,
+        };
         self.context_menu = Some(target);
         self.context_at = (x, y);
     }

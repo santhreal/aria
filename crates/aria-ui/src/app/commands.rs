@@ -212,6 +212,7 @@ impl AppState {
             context_menu: None,
             context_at: (240.0, 96.0),
             context_plugin_rows: Arc::from([]),
+            context_badge: None,
             palette_query: Default::default(),
             palette_cache: Default::default(),
             palette_index: 0,

@@ -35,6 +35,7 @@ use aria_render::{LayerSource, SceneLayer};
 use crate::app::canvas_overlay::motion_path::{OwnPath, paths_of};
 use crate::app::clip_keys::{KeyParam, key_params_of};
 use crate::app::clip_parent::ParentChoices;
+use crate::app::decline::Decline;
 
 /// Everything the inspector and the canvas overlay read about the selected clip.
 ///
@@ -83,6 +84,12 @@ pub struct SelectedDetail {
     /// selected. The inspector offers the properties they share with this one
     /// and draws a dash where they read differently.
     pub peers: std::sync::Arc<[Peer]>,
+    /// The clip's freeze frame rules at every tick, `None` when the project
+    /// cannot read them. Freeze Frame's row applies them at the playhead.
+    pub freeze: Option<aria_models::FreezeRule>,
+    /// Why a render cannot stand in for the clip, `None` when one can. Render
+    /// and Replace's row reads it.
+    pub bake: Option<Decline>,
 }
 
 /// Another selected clip, as the inspector reads it beside the selected one.
@@ -165,6 +172,8 @@ impl SelectedDetail {
         let parents = ParentChoices::of(project, held);
         let frame = Self::frame_of(project, held, at);
         let pose = Self::pose_of(held, at);
+        let freeze = project.freeze_rule(clip).ok();
+        let bake = bake_decline(project, clip);
         // Last, because measuring takes the engine mutably.
         let (quad, carets) = Self::measured(engine, &model, at);
         Some(Self {
@@ -180,6 +189,8 @@ impl SelectedDetail {
             model,
             audio_lane,
             peers,
+            freeze,
+            bake,
         })
     }
 
@@ -224,6 +235,8 @@ impl SelectedDetail {
             paths: std::sync::Arc::clone(&self.paths),
             pose: Self::pose_of(&self.model, at),
             peers,
+            freeze: self.freeze.clone(),
+            bake: self.bake,
         }
     }
 
@@ -552,6 +565,16 @@ fn blank_title_carets(
     Some((0..=content.chars().count()).map(caret).collect())
 }
 
+/// Why a render cannot stand in for `clip`, in the reason Render and
+/// Replace's run posts; `None` when one can.
+fn bake_decline(project: &Project, clip: ClipId) -> Option<Decline> {
+    match project.bake_medium(clip) {
+        Ok(_) => None,
+        Err(aria_models::ModelError::Bake(why)) => Some(Decline::Bake(why)),
+        Err(_) => Some(Decline::NotBakeable),
+    }
+}
+
 impl crate::app::AppState {
     /// The selected clip as the model holds it, from the projection.
     ///
@@ -561,6 +584,16 @@ impl crate::app::AppState {
     /// for it did.
     pub(crate) fn selected_model(&self) -> Option<&Clip> {
         self.selected.as_ref().map(|detail| &detail.model)
+    }
+
+    /// The projected detail of the clip the selection names first, `None`
+    /// when nothing is selected or that clip is gone. A menu row reads the
+    /// clip a run acts on, [`Self::selected_clip`], through this.
+    pub(crate) fn first_selected_detail(&self) -> Option<&SelectedDetail> {
+        let first = self.selected_clip()?;
+        self.selected
+            .as_ref()
+            .filter(|detail| detail.model.id == first)
     }
 
     /// The selected layer's quad at the playhead in canvas pixels, `(center,

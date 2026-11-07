@@ -45,8 +45,10 @@ pub struct BadgeMenu {
 }
 
 impl BadgeMenu {
-    /// Read the facts a menu would gather when it opens on the badge of
-    /// `clip`, or `None` when the clip is no longer projected.
+    /// Read the facts a menu gathers when it opens on the badge of `clip`, or
+    /// `None` when the clip is no longer projected. Takes the session lock:
+    /// [`AppState::open_context`] reads it once, and the drawn menu reads
+    /// what that stored.
     pub fn of(state: &AppState, clip: u64) -> Option<Self> {
         let (track, audio) = state.store.sequence.tracks.iter().find_map(|lane| {
             lane.clips

@@ -252,18 +252,20 @@ fn matte_source_ready(state: &AppState, source: aria_models::MatteSource) -> Opt
 }
 
 /// Disables Freeze Frame with no clip selected, a clip with no video frame to
-/// hold, or one [`aria_models::Project::freeze_check`], which the engine's
-/// freeze edit applies, refuses at the playhead, in the words the run's error
-/// states.
+/// hold, or one whose [`aria_models::FreezeRule`], which the engine's freeze
+/// edit applies, fails at the playhead, in the words the run's error states.
+/// Reads the rule the selection projected, so a drawn menu takes no session
+/// lock.
 pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::freezable(id, state).or_else(|| {
-        let clip = state.selected_clip()?;
-        let checked = state
-            .engine()
-            .lock()
-            .project()
-            .freeze_check(clip, state.playhead.value);
-        match checked {
+        state.selected_clip()?;
+        let Some(rule) = state
+            .first_selected_detail()
+            .and_then(|detail| detail.freeze.as_ref())
+        else {
+            return Some(Decline::NoFrameToHold);
+        };
+        match rule.check(state.playhead.value) {
             Ok(()) => None,
             Err(aria_models::ModelError::Freeze(why)) => Some(Decline::Freeze(why)),
             Err(aria_models::ModelError::Split(why)) => Some(Decline::Split(why)),
@@ -272,32 +274,27 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<Decline> {
     })
 }
 
-/// Render and Replace's row: disabled for the reason the run would post. Reads
-/// `Project::bake_medium` rather than building the render's pass, which clones
-/// the whole project, because a guard runs on every draw of the menu.
+/// Render and Replace's row: disabled for the reason the run would post, read
+/// from the verdict the selection projected, because a guard runs on every
+/// draw of the menu.
 fn bake_ready(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::selection(id, state).or_else(|| {
         if state.project_path.is_none() {
             return Some(Decline::UnsavedRender);
         }
-        let clip = state.selected_clip()?;
-        match state.engine().lock().project().bake_medium(clip) {
-            Ok(_) => None,
-            Err(aria_models::ModelError::Bake(why)) => Some(Decline::Bake(why)),
-            Err(_) => Some(Decline::NotBakeable),
-        }
+        state.selected_clip()?;
+        state
+            .first_selected_detail()
+            .map_or(Some(Decline::NotBakeable), |detail| detail.bake)
     })
 }
 
 fn baked_clip(id: &str, state: &AppState) -> Option<Decline> {
     super::menu_guards::selection(id, state).or_else(|| {
-        let clip = state.selected_clip()?;
+        state.selected_clip()?;
         (!state
-            .engine()
-            .lock()
-            .project()
-            .clip(clip)
-            .is_some_and(|c| c.is_baked()))
+            .first_selected_detail()
+            .is_some_and(|detail| detail.model.is_baked()))
         .then_some(Decline::NotRendered)
     })
 }

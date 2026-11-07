@@ -65,7 +65,9 @@ pub fn render(
         _ => None,
     };
     let badge = match target {
-        ContextTarget::ClipBadge { clip, .. } => BadgeMenu::of(rows, clip),
+        ContextTarget::ClipBadge { clip, .. } => {
+            rows.context_badge.clone().filter(|menu| menu.clip == clip)
+        }
         _ => None,
     };
     let keyframe = match target {

@@ -590,9 +590,11 @@ fn dropped_video(
 ///
 /// Closes "the row offers what the run refuses": the row re-derived the
 /// engine's freeze rules from the projection, so a rule it missed drew the row
-/// enabled over a run the engine refused. The row and the edit now both read
-/// `Project::freeze_check`. Not covered: refusals no dressing here reaches,
-/// which the model's freeze census and the engine's freeze tests read.
+/// enabled over a run the engine refused. The row and the run now read the
+/// `FreezeRule` the selection projected, which `Project::freeze_check` applies
+/// for the edit, so a lock or an unlink here also proves the projection is
+/// re-read. Not covered: refusals no dressing here reaches, which the model's
+/// freeze census and the engine's freeze tests read.
 #[test]
 fn freeze_frame_runs_exactly_where_its_row_is_offered() {
     use aria_models::FreezeRefusal;
@@ -649,9 +651,9 @@ fn freeze_frame_runs_exactly_where_its_row_is_offered() {
 /// clip lay across the playhead, so a cut the clip cannot express (inside a
 /// fade, an animation's window, a Lottie clip) drew the row enabled over a run
 /// that failed with an engine error. The rows and the run now read
-/// `AppState::add_edit_cuts`, which applies `Project::split_check`. Not
-/// covered: the refusals no fade reaches, which the model's split census
-/// holds `split_check` to.
+/// `AppState::add_edit_cuts`, which applies each clip's projected `CutRule`,
+/// the rule `Project::split_check` applies. Not covered: the refusals no fade
+/// reaches, which the model's split census holds `split_check` to.
 #[test]
 fn add_edit_runs_exactly_where_its_rows_are_offered() {
     use crate::app::decline::Decline;
