@@ -140,10 +140,12 @@ incremental = true
 opt-level = 3
 debug = false
 
-# Tests are dependencies of nothing and run constantly. Optimising them cuts wall
-# time and the CPU a run costs the machine it runs on.
+# Tests rebuild after every edit and run constantly. Dependencies already build
+# at opt-level 3 through the `dev` package override; at opt-level 1 the
+# workspace crates build and link faster than at 2, and the aria-ui lib suite
+# also ran faster (docs/spec/status.md, Performance).
 [profile.test]
-opt-level = 2
+opt-level = 1
 debug = false
 
 [profile.release]
