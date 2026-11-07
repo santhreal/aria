@@ -1379,6 +1379,7 @@ Notes for the latest release. For previous releases, see the
 - `aria new` names the media file that failed to import.
 - `aria frame --at` and `aria export --at` take the last frame for an instant in the last half frame instead of refusing it as past the end.
 - A media path that cannot be read, such as a directory, reports the read error without suggesting missing plugins.
+- Opening a directory as a project reports that it is not an Aria project file instead of an OS error code and a permissions hint.
 
 ## [alpha-0.7.0] - 2026-07-22
 

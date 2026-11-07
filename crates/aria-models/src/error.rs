@@ -65,21 +65,27 @@ pub enum ProjectLoadError {
 }
 
 impl ProjectLoadError {
-    /// Classify an OS file-read error on `path`.
+    /// Classify an OS file-read error on `path`. A directory is not a project
+    /// file, and an OS error reads without its code.
     pub fn from_io(path: &Path, err: &io::Error) -> Self {
-        if err.kind() == io::ErrorKind::NotFound {
-            Self::NotFound {
+        match err.kind() {
+            io::ErrorKind::NotFound => Self::NotFound {
                 path: path.to_path_buf(),
-            }
-        } else {
-            let reason = if err.kind() == io::ErrorKind::PermissionDenied {
-                "permission denied".to_owned()
-            } else {
-                sanitize_load_reason(&err.to_string())
-            };
-            Self::Unreadable {
+            },
+            io::ErrorKind::IsADirectory => Self::not_a_project(Some(path), "a directory"),
+            io::ErrorKind::PermissionDenied => Self::Unreadable {
                 path: path.to_path_buf(),
-                reason,
+                reason: "permission denied".to_owned(),
+            },
+            _ => {
+                let text = err.to_string();
+                let reason = text
+                    .split_once(" (os error ")
+                    .map_or(text.as_str(), |(reason, _)| reason);
+                Self::Unreadable {
+                    path: path.to_path_buf(),
+                    reason: sanitize_load_reason(reason),
+                }
             }
         }
     }
@@ -732,6 +738,19 @@ mod tests {
                             && msg_kind.contains("'other.document'"),
                         "wrong-schema-kind NotAProject wording must name format kind, got: {msg_kind}"
                     );
+
+                    let folder = dir.path().join("folder.aria");
+                    std::fs::create_dir(&folder).expect("make the directory");
+                    let err_dir = crate::Project::load_from_file(&folder).unwrap_err();
+                    assert_eq!(err_dir.load_error_kind(), Some(kind));
+                    assert_eq!(
+                        err_dir.to_string(),
+                        format!(
+                            "Couldn't open {}: it is not an Aria project file (a directory). \
+                             Pick a valid .aria project file.",
+                            folder.display()
+                        )
+                    );
                 }
                 ProjectLoadErrorKind::NewerSchema => {
                     let newer = dir.path().join("newer.aria");
@@ -777,5 +796,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// An OS read error other than a missing file, a refused read or a
+    /// directory reads as the OS states it, without the error code the OS
+    /// numbers it by.
+    #[test]
+    fn an_os_read_error_reads_without_its_code() {
+        let err =
+            ProjectLoadError::from_io(Path::new("cut.aria"), &io::Error::from_raw_os_error(5));
+        let stated = io::Error::from_raw_os_error(5).to_string();
+        let (reason, code) = stated
+            .split_once(" (os error ")
+            .expect("an OS error states its code");
+        assert_eq!(code, "5)");
+        assert_eq!(
+            err,
+            ProjectLoadError::Unreadable {
+                path: "cut.aria".into(),
+                reason: reason.to_owned(),
+            }
+        );
     }
 }
