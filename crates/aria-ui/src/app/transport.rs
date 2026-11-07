@@ -181,7 +181,7 @@ impl AppState {
         self.apply_shuttle_speed(ShuttleSpeed::ONE);
     }
 
-    fn stop_transport(&mut self) {
+    pub(super) fn stop_transport(&mut self) {
         if self.playing {
             self.clear_mixer_automation_pass();
             self.playing = false;

@@ -143,7 +143,9 @@ impl AppState {
     /// Drop every reference the session holds into the open project: the
     /// clip, edge and gap selections, the clipboard, the parent pick whip,
     /// the open property rows and their selected keyframes, the picked pool
-    /// items, the open folder and its rename, and the relink notes.
+    /// items, the open folder and its rename, the relink notes, the Source
+    /// tabs, and the In and Out marks, which are positions on the old
+    /// project's timeline.
     ///
     /// A project file keeps its ids and every launch counts from 1 again, so a
     /// reference kept across a project replacement names nothing in the new
@@ -159,6 +161,9 @@ impl AppState {
         self.pool_selection.clear();
         self.bin_rename = None;
         self.relink_notes.clear();
+        self.mark_in = None;
+        self.mark_out = None;
+        self.sources.retain(|_| false);
     }
 
     /// Ripple-delete a gap on a lane by shifting subsequent clips left.

@@ -1434,6 +1434,7 @@ Notes for the latest release. For previous releases, see the
 - A refused timeline, subtitle, or LUT import states the file's path once rather than twice.
 - A drop or File > Import of several files places every file that imports, and the error line names the file that did not; a file that failed no longer stopped the files after it and left the files before it unplaced in the pool.
 - A file the editor cannot decode reports the decoder's reason, such as a missing GStreamer plugin, rather than only asking for a supported format.
+- Opening, creating or loading a project stops playback and closes the Source tabs and the In and Out marks of the project that was open.
 
 ## [alpha-0.7.0] - 2026-07-22
 

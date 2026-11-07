@@ -258,5 +258,5 @@ Validation, permissions, and session synchronization:
   `PluginContext` and return an error.
 - When a non-editor origin opens or saves a project through `ProjectHost`,
   `AppState::sync_from_plugin_host` updates the window's dirty indicator,
-  recovery file, recent-projects list, and (on open) resets selection, In and
-  Out marks, and the playhead.
+  recovery copy, recent-projects list, and (on open) stops playback, closes
+  the Source tabs, and resets selection, In and Out marks, and the playhead.

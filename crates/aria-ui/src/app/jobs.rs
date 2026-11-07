@@ -466,10 +466,12 @@ impl AppState {
     /// Advance the project epoch, cancel in-flight jobs and queued exports from
     /// the previous project, and clear transient per-project analysis state.
     ///
-    /// Every route that replaces the open project calls this, so it also drops
+    /// Every route that replaces the open project calls this, so it also stops
+    /// playback, which runs on the old project's clock and positions, and drops
     /// the session's references into the project being left; see
     /// [`Self::forget_project_references`].
     pub(crate) fn close_project_jobs(&mut self) {
+        self.stop_transport();
         self.export_queue.cancel_all();
         self.jobs.advance_project_epoch();
         self.analysis.moments.clear();

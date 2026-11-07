@@ -1,13 +1,17 @@
 //! Replacing the open project drops every reference the session held into it.
 //!
 //! The class closed here: session state that names a clip, edge, gap, pool
-//! item, folder or keyframe by id outliving the project it was read from. A
-//! project file keeps its ids and every launch counts from 1 again, so after
-//! an open the id named another project's clip: Delete removed a clip nobody
-//! picked, Paste duplicated it, the Inspector showed it, and the bin opened a
-//! folder of the new project. Each route that replaces the project runs
-//! against a session holding every reference, each one naming an entity the
-//! incoming project has under the same id.
+//! item, folder, keyframe or Source tab by id, or a position on the timeline,
+//! outliving the project it was read from. A project file keeps its ids and
+//! every launch counts from 1 again, so after an open the id named another
+//! project's clip: Delete removed a clip nobody picked, Paste duplicated it,
+//! the Inspector showed it, the bin opened a folder of the new project, and a
+//! Source tab stayed open on the incoming project's media with the old take's marks.
+//! The In and Out marks, read by Play In to Out and the export's marked range,
+//! were positions on the old timeline, and playback ran on into the incoming
+//! project from the old playhead's clock. Each route that replaces the project
+//! runs against a playing session holding every reference, each one naming an
+//! entity the incoming project has under the same id.
 //!
 //! Not caught: a gesture still in flight when the project is replaced, and the
 //! offline announcements, which every projection reconciles against the pool.
@@ -21,6 +25,7 @@ use aria_plugin::Origin;
 use super::AppState;
 use super::bins::BinRename;
 use super::line_text::LineText;
+use super::pool_preview::SourceView;
 use super::premiere_tests::{place_media, save_fixture, with_clip};
 use super::property_rows::SelectedKeyframe;
 use crate::types::{SelectedEdge, SelectedGap, TrimSide};
@@ -87,6 +92,18 @@ fn holding(folder_open: bool) -> (AppState, Incoming) {
         draft: LineText::selecting_all("Kept"),
     });
     state.relink_notes.insert(media, "not found".into());
+    state.mark_in = Some(0);
+    state.mark_out = Some(1);
+    state.playing = true;
+    state.sources.open(SourceView {
+        media,
+        name: "Kept".into(),
+        duration_ticks: 10,
+        tick: 0,
+        mark_in: None,
+        mark_out: None,
+        clip: None,
+    });
     let incoming = Incoming {
         clip,
         track,
@@ -116,6 +133,10 @@ fn held(state: &AppState) -> Vec<&'static str> {
         ("open folder", state.current_bin.is_some()),
         ("folder rename", state.bin_rename.is_some()),
         ("relink notes", !state.relink_notes.is_empty()),
+        ("In mark", state.mark_in.is_some()),
+        ("Out mark", state.mark_out.is_some()),
+        ("playback", state.playing),
+        ("Source tab", !state.sources.tabs().is_empty()),
     ]
     .into_iter()
     .filter_map(|(name, set)| set.then_some(name))
@@ -157,7 +178,7 @@ fn replacing_the_project_drops_every_reference_into_the_old_one() {
         for (route, replace) in routes() {
             let (mut state, incoming) = holding(folder_open);
             let fixture = held(&state).len();
-            assert_eq!(fixture, 11 + usize::from(folder_open), "{route}");
+            assert_eq!(fixture, 15 + usize::from(folder_open), "{route}");
             replace(&mut state, &incoming.project, &incoming.template);
             assert_eq!(
                 held(&state),
