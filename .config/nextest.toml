@@ -4,8 +4,10 @@
 # skipping multi-second subprocess packaging, long media synthesis, and benchmark
 # harness tests.
 #
-# `cargo nextest run --profile ci` runs the complete workspace suite with zero
-# tests skipped.
+# `cargo nextest run --profile ci` runs the complete workspace suite except the
+# aria-ui library suite, which CI runs under `cargo test`, in one process:
+# every aria-ui test process repeats the suite's setup, so the suite takes
+# 156 s under nextest and 37 s under `cargo test` on the same host.
 #
 # `cargo nextest run --profile slow` runs only the multi-second suite skipped by
 # `[profile.default]`.
@@ -62,7 +64,7 @@ threads-required = "num-test-threads"
 priority = 90
 
 [profile.ci]
-default-filter = "all()"
+default-filter = "not (package(aria-ui) & kind(lib))"
 slow-timeout = { period = "60s", terminate-after = 4 }
 fail-fast = false
 

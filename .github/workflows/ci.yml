@@ -93,9 +93,12 @@ jobs:
       - name: Install nextest
         uses: taiki-e/install-action@nextest
 
+      # `--profile ci` leaves out the aria-ui library suite, which runs in one
+      # process under cargo test (see .config/nextest.toml).
       - name: Test
         run: |
           cargo nextest run --workspace --locked --profile ci
+          cargo test -p aria-ui --lib --locked
           cargo test --doc -p aria-core -p aria-text -p aria-sdk --locked
 
   coverage:
