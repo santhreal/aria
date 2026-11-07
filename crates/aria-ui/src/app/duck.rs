@@ -109,6 +109,48 @@ pub(crate) struct DuckRequest {
     pub(crate) label: String,
 }
 
+/// Why a duck cannot run. The menu row's tooltip, the panel's line under its
+/// button and the status line of a run past both read [`Self::reason`], so the
+/// three surfaces state one reason for one state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DuckRefusal {
+    /// No clip is selected to duck.
+    NoSelection,
+    /// No audio track is flagged as the duck source.
+    NoSource,
+    /// The duck source track holds no audio clip with sound on disk.
+    SilentSource,
+    /// Every selected audio clip is on the duck source track.
+    OnlyVoice,
+    /// No selected clip is on an audio track.
+    NoMusic,
+}
+
+impl DuckRefusal {
+    /// Every reason, for a census over the wording and the surfaces.
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 5] = [
+        Self::NoSelection,
+        Self::NoSource,
+        Self::SilentSource,
+        Self::OnlyVoice,
+        Self::NoMusic,
+    ];
+
+    /// The sentence each surface shows.
+    pub(crate) fn reason(self) -> &'static str {
+        match self {
+            Self::NoSelection => "Select the music clip or clips to duck",
+            Self::NoSource => "Flag the voice track as the duck source first",
+            Self::SilentSource => "The duck source track has no audio to measure",
+            Self::OnlyVoice => {
+                "The selected clips are on the duck source track: select the music to duck under it"
+            }
+            Self::NoMusic => "Select an audio clip to duck",
+        }
+    }
+}
+
 /// Where the voice is, per voice clip, in that clip's own source ticks.
 type VoiceSpans = Vec<(ClipId, Vec<(i64, i64)>)>;
 
@@ -139,14 +181,14 @@ impl AppState {
             .map(|track| track.name.to_string())
     }
 
-    /// Resolve a duck, or name the reason it cannot run.
+    /// Resolve a duck, or the reason it cannot run.
     ///
     /// Split from the run so every refusal is reachable without a window, and so
-    /// the panel can gray the button with the same sentence the button would
-    /// have produced.
-    pub(crate) fn duck_precheck(&self) -> Result<DuckRequest, String> {
+    /// the panel and the menu row gray their control with the reason the run
+    /// would have posted.
+    pub(crate) fn duck_precheck(&self) -> Result<DuckRequest, DuckRefusal> {
         if self.selection.is_empty() {
-            return Err("Select the music clip or clips to duck".into());
+            return Err(DuckRefusal::NoSelection);
         }
         let mut music = Vec::new();
         let mut voice = Vec::new();
@@ -186,16 +228,16 @@ impl AppState {
             }
         }
         let Some(lane) = self.duck_source_name() else {
-            return Err("Flag the voice track as the duck source first".into());
+            return Err(DuckRefusal::NoSource);
         };
         if voice.is_empty() {
-            return Err(format!("{lane} has no audio to measure"));
+            return Err(DuckRefusal::SilentSource);
         }
         if music.is_empty() {
             return Err(if on_the_voice_lane > 0 {
-                format!("{lane} is the voice. Select the music to duck under it")
+                DuckRefusal::OnlyVoice
             } else {
-                "Select an audio clip to duck".into()
+                DuckRefusal::NoMusic
             });
         }
         Ok(DuckRequest {
@@ -215,7 +257,9 @@ impl AppState {
 
     /// Measure the voice lane as a job, then write the dip onto the selection.
     pub fn duck_selected(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
-        let request = self.duck_precheck()?;
+        let request = self
+            .duck_precheck()
+            .map_err(|why| why.reason().to_string())?;
         let (wake, wakes) = crate::handoff::wakes::<Result<VoiceSpans, String>>();
         let label = request.label.clone();
         let music = request.music.clone();

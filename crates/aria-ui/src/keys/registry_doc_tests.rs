@@ -665,6 +665,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "what a generated clip has none of, which a speed or sound edit asked it to change; the error copy census reads every reason",
         ),
         (
+            "DuckRefusal",
+            "reasons a duck under voice cannot run; the duck row census reads every reason against the row and the precheck",
+        ),
+        (
             "FixtureId",
             "benchmark fixture identifier internal to aria-bench",
         ),

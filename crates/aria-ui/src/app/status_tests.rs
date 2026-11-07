@@ -468,7 +468,9 @@ fn every_selection_writer_clears_selection_refusals_and_keeps_unrelated_errors()
         .expect_err("nothing selected refuses transcription");
     let duck_unselected = state
         .duck_precheck()
-        .expect_err("nothing selected refuses ducking");
+        .expect_err("nothing selected refuses ducking")
+        .reason()
+        .to_string();
     let bake_unselected = state
         .render_and_replace()
         .expect_err("nothing selected refuses render and replace");

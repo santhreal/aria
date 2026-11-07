@@ -9,7 +9,8 @@
 use aria_models::{ClipId, Rational, TrackKind};
 
 use super::AppState;
-use super::duck::{DuckForm, duck_curve, voice_spans};
+use super::decline::Decline;
+use super::duck::{DuckForm, DuckRefusal, duck_curve, voice_spans};
 use super::premiere_tests::with_clip;
 use crate::types::UiTrackKind;
 
@@ -142,25 +143,85 @@ fn duck_curve_properties_negative_ticks_zero_attack_release_and_sub_tick_gaps() 
     );
 }
 
-/// A duck needs a selection, a flagged voice lane, and something on it. Each
-/// refusal names what to do next, and none of them is reachable only through a
-/// window.
+/// **The Duck Under Voice row and the run state one reason for one state.**
+///
+/// The class closed: a guard that collapsed every refusal of the precheck into
+/// one sentence, so with a voice track already flagged and its lane empty, or
+/// with the voice clip itself selected, the row still read "Flag a voice track
+/// and select an audio clip to duck" while the Audio tab's line under the
+/// button and the status line of a run stated the real reason. Each reason in
+/// [`DuckRefusal::ALL`] is dressed, the precheck is asserted to give it, and the
+/// shipped row's guard is asserted to read it, so a new reason without a
+/// dressing fails to compile and a guard that words a reason its own way fails.
+///
+/// Not covered: the panel line, drawn from the same precheck call.
 #[test]
-fn a_duck_refuses_before_it_costs_a_decode() {
+fn the_duck_row_states_the_reason_the_run_would_post() {
+    let row = crate::commands::BUILTIN_JOB_COMMANDS
+        .iter()
+        .find(|entry| entry.id == "pal-duck")
+        .expect("Duck Under Voice ships");
+    for why in DuckRefusal::ALL {
+        let state = refused(why);
+        assert_eq!(state.duck_precheck().err(), Some(why), "{why:?} dressed");
+        let expected = match why {
+            // Every row that acts on the selection states an empty one the same way.
+            DuckRefusal::NoSelection => Decline::NoSelection.reason(),
+            _ => why.reason(),
+        };
+        assert_eq!((row.blocked)(row.id, &state), Some(expected), "{why:?}");
+    }
+}
+
+/// A state the precheck refuses for `why`, built without a decode.
+fn refused(why: DuckRefusal) -> AppState {
+    match why {
+        DuckRefusal::NoSelection => {
+            let (mut state, _) = with_clip();
+            state.clear_selection();
+            state
+        }
+        // The fixture clip is on a video lane, and no lane is the duck source.
+        DuckRefusal::NoSource => {
+            let (mut state, clip) = with_clip();
+            state.select_clip(clip);
+            state
+        }
+        DuckRefusal::SilentSource => {
+            let mut state = ready_duck();
+            voice_lane(&mut state).clips.to_mut().clear();
+            state
+        }
+        DuckRefusal::OnlyVoice => {
+            let mut state = ready_duck();
+            state.selection = vec![ClipId::from_raw(202)];
+            state
+        }
+        DuckRefusal::NoMusic => {
+            let mut state = ready_duck();
+            state.store_mut().sequence.tracks[0].kind = UiTrackKind::Video;
+            state
+        }
+    }
+}
+
+/// The lane [`ready_duck`] flags as the voice.
+fn voice_lane(state: &mut AppState) -> &mut crate::types::UiTrack {
+    state
+        .store_mut()
+        .sequence
+        .tracks
+        .iter_mut()
+        .find(|track| track.duck_source)
+        .expect("ready_duck flags a voice lane")
+}
+
+/// Flagging a lane through the track's own toggle names it as the source, and
+/// an empty flagged lane refuses before a decode.
+#[test]
+fn a_flagged_empty_lane_refuses_before_it_costs_a_decode() {
     let (mut state, clip) = with_clip();
-    state.clear_selection();
-    assert_eq!(
-        state.duck_precheck().unwrap_err(),
-        "Select the music clip or clips to duck"
-    );
-
     state.select_clip(clip);
-    // The fixture clip is on a video lane, and no lane is the duck source yet.
-    assert_eq!(
-        state.duck_precheck().unwrap_err(),
-        "Flag the voice track as the duck source first"
-    );
-
     state.add_track(TrackKind::Audio, "Voice").expect("lane");
     let voice = state
         .store
@@ -172,11 +233,7 @@ fn a_duck_refuses_before_it_costs_a_decode() {
         .expect("an audio lane");
     state.toggle_track_duck_source(voice).expect("flag it");
     assert_eq!(state.duck_source_name().as_deref(), Some("Voice"));
-    // Flagged, but empty: there is nothing to measure the dips from.
-    assert_eq!(
-        state.duck_precheck().unwrap_err(),
-        "Voice has no audio to measure"
-    );
+    assert_eq!(state.duck_precheck().err(), Some(DuckRefusal::SilentSource));
 }
 
 /// A state a duck can run from: the fixture's clip on a music lane, selected,

@@ -760,14 +760,10 @@ pub(crate) fn transcribe(id: &str, state: &AppState) -> Option<&'static str> {
     })
 }
 
-/// The row ducks the selected music clips under the flagged voice track.
+/// The row ducks the selected music clips under the flagged voice track, and
+/// states the reason the run would post when it cannot.
 pub(crate) fn duck(id: &str, state: &AppState) -> Option<&'static str> {
-    selection(id, state).or_else(|| {
-        state
-            .duck_precheck()
-            .is_err()
-            .then_some("Flag a voice track and select an audio clip to duck")
-    })
+    selection(id, state).or_else(|| state.duck_precheck().err().map(|why| why.reason()))
 }
 
 /// The row tracks the active mask forward from the playhead.

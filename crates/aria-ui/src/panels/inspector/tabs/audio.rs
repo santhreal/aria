@@ -211,7 +211,7 @@ fn duck_rows(
     cx: &mut gpui::Context<crate::shell::Shell>,
 ) -> Vec<gpui::AnyElement> {
     let form = state.read(cx).duck;
-    let refusal = state.read(cx).duck_precheck().err();
+    let refusal = state.read(cx).duck_precheck().err().map(|why| why.reason());
     let lane = state.read(cx).duck_source_name();
     let mut rows: Vec<gpui::AnyElement> = Vec::new();
     let steps: [(String, fn(&mut AppState)); 3] = [
