@@ -416,11 +416,15 @@ fn clip_reads<'p>(
     media.chain(angles).filter_map(|media| project.media(media))
 }
 
-/// A finished file export: the frames written and the encoder that wrote them.
+/// A finished file export: the frames written, the encoder that wrote them,
+/// and whether the file holds a sound track.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Exported {
     pub frames: u64,
     pub encoder: EncoderChoice,
+    /// False when the settings asked for no sound, and when nothing in the
+    /// project is audible: such an export writes a file with no sound track.
+    pub audio: bool,
 }
 
 /// [`export_to_file_observed`] with a caller-supplied encoder opener (such as a
@@ -445,10 +449,9 @@ pub fn export_to_file_with_encoder_observed(
     export_frame_count(project, settings)?;
     check_export_media(project, settings, true)?;
     let staging = TransactionalFile::new(path)?;
-    let mut encoder = open_encoder(
-        staging.staging_path(),
-        export_config_with(project, settings),
-    )?;
+    let config = export_config_with(project, settings);
+    let audio = config.audio.is_some();
+    let mut encoder = open_encoder(staging.staging_path(), config)?;
     let frames = export_observed(renderer, project, encoder.as_mut(), settings, observer)?;
     let choice = encoder.choice();
     drop(encoder);
@@ -456,6 +459,7 @@ pub fn export_to_file_with_encoder_observed(
     Ok(Exported {
         frames,
         encoder: choice,
+        audio,
     })
 }
 

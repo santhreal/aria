@@ -88,7 +88,7 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         counted(exported.frames, "frame", "frames"),
         settings.size.0,
         settings.size.1,
-        aria_encoder::capability().label_for(settings.video_codec, settings.audio),
+        aria_encoder::capability().label_for(settings.video_codec, exported.audio),
         out.display()
     );
     // The encoder line, then one `skipped` line per encoder that did not open.
