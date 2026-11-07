@@ -39,8 +39,7 @@ pub struct Staged {
 /// The package must have a code or data tier this host reads, and an id
 /// that no differently named folder in `plugins_dir` already takes.
 pub fn stage(archive: &Path, plugins_dir: &Path) -> Result<Staged, PackageError> {
-    fs::create_dir_all(plugins_dir)
-        .map_err(|err| PackageError::new(plugins_dir, err.to_string()))?;
+    fs::create_dir_all(plugins_dir).map_err(|err| PackageError::io(plugins_dir, &err))?;
     sweep(plugins_dir);
     let staging = WorkDir::claim(plugins_dir, "install")?;
     let package = unpack(archive, &staging.dir)?;
@@ -135,7 +134,10 @@ impl Staged {
             Some(_) => {
                 let aside = WorkDir::claim(&self.plugins_dir, "replaced")?;
                 fs::rename(&self.target, &aside.dir).map_err(|err| {
-                    PackageError::new(&self.target, format!("moving it aside: {err}"))
+                    PackageError::new(
+                        &self.target,
+                        format!("moving it aside: {}", aria_models::io_reason(&err)),
+                    )
                 })?;
                 Some(aside)
             }
@@ -145,7 +147,7 @@ impl Staged {
             if let Some(aside) = &aside {
                 let _ = fs::rename(&aside.dir, &self.target);
             }
-            return Err(PackageError::new(&self.target, err.to_string()));
+            return Err(PackageError::io(&self.target, &err));
         }
         // Dropping `aside` deletes the previous version; one that fails to
         // delete is left for the next sweep.
@@ -166,9 +168,8 @@ pub fn uninstall(plugins_dir: &Path, id: &str) -> Result<PathBuf, PackageError> 
     // Renamed first, so a removal that fails part way leaves a hidden folder
     // rather than a broken package.
     let aside = WorkDir::claim(plugins_dir, "removed")?;
-    fs::rename(&installed.dir, &aside.dir)
-        .map_err(|err| PackageError::new(&installed.dir, err.to_string()))?;
-    fs::remove_dir_all(&aside.dir).map_err(|err| PackageError::new(&aside.dir, err.to_string()))?;
+    fs::rename(&installed.dir, &aside.dir).map_err(|err| PackageError::io(&installed.dir, &err))?;
+    fs::remove_dir_all(&aside.dir).map_err(|err| PackageError::io(&aside.dir, &err))?;
     Ok(installed.dir)
 }
 
@@ -255,14 +256,17 @@ impl WorkDir {
                 .create(true)
                 .truncate(false)
                 .open(&lock)
-                .map_err(|err| PackageError::new(&lock, err.to_string()))?;
+                .map_err(|err| PackageError::io(plugins_dir, &err))?;
             match file.try_lock() {
                 Ok(()) => {}
                 // A process in another pid namespace has the same pid and
                 // holds this name, or a sweep is deleting it: take the next.
                 Err(TryLockError::WouldBlock) => continue,
                 Err(TryLockError::Error(err)) => {
-                    return Err(PackageError::new(&lock, format!("locking it: {err}")));
+                    return Err(PackageError::new(
+                        &lock,
+                        format!("locking it: {}", aria_models::io_reason(&err)),
+                    ));
                 }
             }
             if !lock.exists() {
@@ -272,7 +276,7 @@ impl WorkDir {
             // Left by a dead process that had this pid; the lock proves it is
             // no one's now.
             if dir.exists() {
-                fs::remove_dir_all(&dir).map_err(|err| PackageError::new(&dir, err.to_string()))?;
+                fs::remove_dir_all(&dir).map_err(|err| PackageError::io(&dir, &err))?;
             }
             return Ok(Self {
                 dir,

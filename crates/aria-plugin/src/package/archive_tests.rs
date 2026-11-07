@@ -359,3 +359,33 @@ fn the_archive_extension_matches_in_any_case() {
     assert!(!is_archive(Path::new("tools.zip")));
     assert!(!is_archive(Path::new("ariaplugin")));
 }
+
+/// WHY: unpacking stated a folder it could not create as the OS states the
+/// error, with its code and without the folder. The reason now holds the
+/// folder and the reason in the words `aria_models::io_reason` gives.
+///
+/// Not caught: a failure writing one entry's bytes, such as a full disk.
+#[cfg(unix)]
+#[test]
+fn an_unpack_folder_that_cannot_be_made_is_stated_by_path() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch();
+    let source = root.path().join("tools");
+    write(&source, "plugin.toml", MANIFEST.as_bytes());
+    let out = root.path().join("tools.ariaplugin");
+    pack(&source, &out).expect("packs");
+    let locked = root.path().join("locked");
+    fs::create_dir_all(&locked).expect("mkdir");
+    let mode = |bits| fs::Permissions::from_mode(bits);
+    fs::set_permissions(&locked, mode(0o555)).expect("make read-only");
+    let probe = fs::write(locked.join("probe"), b"");
+    let into = locked.join("unpacked");
+    let unpacked = unpack(&out, &into).map(drop);
+    fs::set_permissions(&locked, mode(0o755)).expect("restore");
+    if probe.is_ok() {
+        return;
+    }
+    let err = unpacked.expect_err("a folder that cannot be made");
+    assert_eq!(err.path, out);
+    assert_eq!(err.reason, format!("{}: permission denied", into.display()));
+}

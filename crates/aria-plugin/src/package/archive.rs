@@ -60,7 +60,7 @@ pub fn pack(dir: &Path, out: &Path) -> Result<Package, PackageError> {
     let written = write_zip(dir, &files, &partial).and_then(|()| fs::rename(&partial, out));
     if let Err(err) = written {
         let _ = fs::remove_file(&partial);
-        return Err(PackageError::new(out, err.to_string()));
+        return Err(PackageError::io(out, &err));
     }
     Ok(package)
 }
@@ -74,10 +74,10 @@ fn collect(
     files: &mut Vec<PathBuf>,
 ) -> Result<(), PackageError> {
     let here = root.join(dir);
-    let entries = fs::read_dir(&here).map_err(|err| PackageError::new(&here, err.to_string()))?;
+    let entries = fs::read_dir(&here).map_err(|err| PackageError::io(&here, &err))?;
     let mut names = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|err| PackageError::new(&here, err.to_string()))?;
+        let entry = entry.map_err(|err| PackageError::io(&here, &err))?;
         names.push(entry.file_name());
     }
     names.sort();
@@ -92,7 +92,7 @@ fn collect(
         let relative = dir.join(&name);
         let path = root.join(&relative);
         let kind = fs::symlink_metadata(&path)
-            .map_err(|err| PackageError::new(&path, err.to_string()))?
+            .map_err(|err| PackageError::io(&path, &err))?
             .file_type();
         if kind.is_symlink() {
             return Err(PackageError::new(
@@ -143,7 +143,7 @@ fn unpack_within(archive: &Path, into: &Path, max_bytes: u64) -> Result<Package,
 }
 
 fn extract(archive: &Path, into: &Path, max_bytes: u64) -> Result<(), String> {
-    let file = File::open(archive).map_err(|err| err.to_string())?;
+    let file = File::open(archive).map_err(|err| aria_models::io_reason(&err))?;
     let mut zip = ZipArchive::new(file).map_err(|err| format!("not a zip archive: {err}"))?;
     if zip.len() > MAX_ARCHIVE_ENTRIES {
         return Err(format!(
@@ -162,7 +162,7 @@ fn extract(archive: &Path, into: &Path, max_bytes: u64) -> Result<(), String> {
         names.push((parts, entry.is_dir()));
     }
     let prefix = root_prefix(&names)?;
-    fs::create_dir_all(into).map_err(|err| err.to_string())?;
+    fs::create_dir_all(into).map_err(|err| at(into, &err))?;
     let mut budget = max_bytes;
     for (index, (parts, is_dir)) in names.iter().enumerate() {
         let Some(inner) = parts.get(prefix..) else {
@@ -175,25 +175,30 @@ fn extract(archive: &Path, into: &Path, max_bytes: u64) -> Result<(), String> {
             .iter()
             .fold(into.to_path_buf(), |path, part| path.join(part));
         if *is_dir {
-            fs::create_dir_all(&path).map_err(|err| err.to_string())?;
+            fs::create_dir_all(&path).map_err(|err| at(&path, &err))?;
             continue;
         }
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+            fs::create_dir_all(parent).map_err(|err| at(parent, &err))?;
         }
         let mut entry = zip.by_index(index).map_err(|err| err.to_string())?;
-        let mut out =
-            File::create_new(&path).map_err(|err| format!("{}: {err}", inner.join("/")))?;
+        let mut out = File::create_new(&path)
+            .map_err(|err| format!("{}: {}", inner.join("/"), aria_models::io_reason(&err)))?;
         // The sizes in the archive are the archive's own claim: count the
         // bytes as they inflate.
         let copied = io::copy(&mut (&mut entry).take(budget + 1), &mut out)
-            .map_err(|err| format!("{}: {err}", inner.join("/")))?;
+            .map_err(|err| format!("{}: {}", inner.join("/"), aria_models::io_reason(&err)))?;
         if copied > budget {
             return Err(format!("unpacks to more than {max_bytes} bytes"));
         }
         budget -= copied;
     }
     Ok(())
+}
+
+/// A failure to write at `path` while unpacking, stating the path.
+fn at(path: &Path, err: &io::Error) -> String {
+    format!("{}: {}", path.display(), aria_models::io_reason(err))
 }
 
 /// The parts of an entry name, refusing any that would leave the folder.

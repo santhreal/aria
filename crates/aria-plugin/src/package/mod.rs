@@ -115,6 +115,12 @@ impl PackageError {
             reason: reason.into(),
         }
     }
+
+    /// An I/O failure at `path`, its reason as [`aria_models::io_reason`]
+    /// states it: "permission denied", not "Permission denied (os error 13)".
+    fn io(path: &Path, err: &std::io::Error) -> Self {
+        Self::new(path, aria_models::io_reason(err))
+    }
 }
 
 /// The library file name a native package ships for this platform, such as
@@ -256,12 +262,12 @@ fn read_manifest(path: &Path) -> Result<String, String> {
 
     let file = std::fs::File::open(path).map_err(|err| match err.kind() {
         std::io::ErrorKind::NotFound => format!("no {MANIFEST_FILE}"),
-        _ => format!("{MANIFEST_FILE}: {err}"),
+        _ => format!("{MANIFEST_FILE}: {}", aria_models::io_reason(&err)),
     })?;
     let mut text = String::new();
     file.take(MAX_MANIFEST_BYTES + 1)
         .read_to_string(&mut text)
-        .map_err(|err| format!("{MANIFEST_FILE}: {err}"))?;
+        .map_err(|err| format!("{MANIFEST_FILE}: {}", aria_models::io_reason(&err)))?;
     if text.len() as u64 > MAX_MANIFEST_BYTES {
         return Err(format!(
             "{MANIFEST_FILE} is larger than {MAX_MANIFEST_BYTES} bytes"
@@ -273,11 +279,11 @@ fn read_manifest(path: &Path) -> Result<String, String> {
 fn read_icon(path: &Path) -> Result<CommandIcon, String> {
     use std::io::Read as _;
 
-    let file = std::fs::File::open(path).map_err(|err| err.to_string())?;
+    let file = std::fs::File::open(path).map_err(|err| aria_models::io_reason(&err))?;
     let mut bytes = Vec::new();
     file.take(ICON_MAX_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| aria_models::io_reason(&err))?;
     if bytes.len() > ICON_MAX_BYTES {
         return Err(format!("the icon is larger than {ICON_MAX_BYTES} bytes"));
     }
@@ -305,11 +311,10 @@ fn data_files(
             format!("{sub} must be a directory"),
         ));
     }
-    let entries = std::fs::read_dir(&data_dir)
-        .map_err(|err| PackageError::new(&data_dir, err.to_string()))?;
+    let entries = std::fs::read_dir(&data_dir).map_err(|err| PackageError::io(&data_dir, &err))?;
     let mut paths = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|err| PackageError::new(&data_dir, err.to_string()))?;
+        let entry = entry.map_err(|err| PackageError::io(&data_dir, &err))?;
         let path = entry.path();
         if path.extension().is_some_and(|found| found == ext) {
             paths.push(path);
@@ -318,12 +323,11 @@ fn data_files(
     paths.sort();
     let mut files = Vec::with_capacity(paths.len());
     for path in paths {
-        let file =
-            std::fs::File::open(&path).map_err(|err| PackageError::new(&path, err.to_string()))?;
+        let file = std::fs::File::open(&path).map_err(|err| PackageError::io(&path, &err))?;
         let mut bytes = Vec::new();
         file.take(max + 1)
             .read_to_end(&mut bytes)
-            .map_err(|err| PackageError::new(&path, err.to_string()))?;
+            .map_err(|err| PackageError::io(&path, &err))?;
         if bytes.len() as u64 > max {
             return Err(PackageError::new(&path, format!("larger than {max} bytes")));
         }
@@ -393,7 +397,7 @@ fn tier(dir: &Path) -> Result<Tier, String> {
                 return Ok(Tier::Native { library });
             }
             let mut found: Vec<String> = std::fs::read_dir(&libraries)
-                .map_err(|err| format!("{LIBRARY_DIR}/: {err}"))?
+                .map_err(|err| format!("{LIBRARY_DIR}/: {}", aria_models::io_reason(&err)))?
                 .filter_map(Result::ok)
                 .map(|entry| entry.file_name().to_string_lossy().into_owned())
                 .collect();
@@ -420,7 +424,7 @@ pub fn discover(dir: &Path) -> Vec<Result<Package, PackageError>> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
-        Err(err) => return vec![Err(PackageError::new(dir, err.to_string()))],
+        Err(err) => return vec![Err(PackageError::io(dir, &err))],
     };
     let mut paths: Vec<PathBuf> = entries
         .filter_map(Result::ok)

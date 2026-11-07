@@ -382,3 +382,48 @@ fn the_next_install_deletes_every_working_folder_no_live_holder_has() {
     drop(live);
     assert_eq!(entries(&plugins), kept, "a dropped install leaves no lock");
 }
+
+/// WHY: an install's I/O failures read as the OS states them, with its code,
+/// at a path the reader never chose: a plugin folder that cannot be written
+/// failed as "<plugins>/.install-<pid>-<n>.lock: Permission denied (os error
+/// 13)", and an archive that is gone as "No such file or directory (os error
+/// 2)". Each states the folder or the archive and the reason in the words
+/// `aria_models::io_reason` gives, and leaves the plugin folder as it was.
+///
+/// Not caught: a failure after the archive is unpacked, such as a rename that
+/// the file system refuses.
+#[test]
+fn an_install_that_cannot_read_or_write_states_the_path_and_the_reason() {
+    let fixture = Fixture::new();
+    let plugins = fixture.plugins();
+    fs::create_dir_all(&plugins).expect("plugins dir");
+    let gone = fixture.root.path().join("gone.ariaplugin");
+    let err = stage(&gone, &plugins).map(drop).expect_err("no archive");
+    assert_eq!(
+        (err.path, err.reason),
+        (gone, "no such file or directory".to_owned())
+    );
+    assert_eq!(entries(&plugins), Vec::<String>::new());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let archive = fixture.archive(
+            "tools.ariaplugin",
+            &[("plugin.toml", &manifest("1.0.0", ""))],
+        );
+        let mode = |bits| fs::Permissions::from_mode(bits);
+        fs::set_permissions(&plugins, mode(0o555)).expect("make read-only");
+        let probe = fs::write(plugins.join("probe"), b"");
+        let staged = stage(&archive, &plugins).map(drop);
+        fs::set_permissions(&plugins, mode(0o755)).expect("restore");
+        if probe.is_err() {
+            let err = staged.expect_err("a folder that cannot be written");
+            assert_eq!(
+                (err.path, err.reason),
+                (plugins.clone(), "permission denied".to_owned())
+            );
+            assert_eq!(entries(&plugins), Vec::<String>::new());
+        }
+    }
+}
