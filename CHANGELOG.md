@@ -1436,6 +1436,9 @@ Notes for the latest release. For previous releases, see the
 - A file the editor cannot decode reports the decoder's reason, such as a missing GStreamer plugin, rather than only asking for a supported format.
 - Opening, creating or loading a project stops playback and closes the Source tabs and the In and Out marks of the project that was open.
 - `aria help help` prints the usage block instead of failing with "unknown command \"help\"".
+- A settings change that cannot be saved for the next launch is reported on the error line instead of only in the log.
+- Failures to save or clear the Import Recent list, a missing Import Recent file, a Lottie file that does not load, a failed decode check, and a plugin that does not mount or unmount are reported on the error line instead of a status line that fades.
+- Normalizing a clip measured as silence states the measured loudness in words instead of an internal parameter name.
 
 ## [alpha-0.7.0] - 2026-07-22
 

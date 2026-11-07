@@ -148,7 +148,54 @@ fn a_deleted_file_is_listed_disabled_and_imports_nothing() {
     state.import_recent(Path::new(&gone));
     assert_eq!(state.store.media.len(), pooled);
     assert_eq!(
-        state.status_message.as_deref(),
-        Some(format!("{} is missing", gone.display()).as_str())
+        state.last_error.as_deref(),
+        Some(
+            format!(
+                "{} is missing. Move the file back or choose Import… to find it.",
+                gone.display()
+            )
+            .as_str()
+        )
     );
+}
+
+/// WHY: a failed write or delete of the list, and a listed file that is gone
+/// (above), were posted on the status line, which draws a receipt in faint ink
+/// and clears it after a few seconds. Each is a failure with a fix, so each is
+/// on the error line, with the reason in words and no OS error number. A
+/// folder where the list's file goes makes both the delete and the rename of
+/// a save fail. Not caught: a failure of `create_dir_all` alone.
+#[test]
+fn a_failed_save_or_delete_of_the_list_is_on_the_error_line() {
+    let (mut state, _) = with_clip();
+    let listed = file(&state.data_dir);
+    let _ = std::fs::remove_file(&listed);
+    std::fs::create_dir_all(listed.join("blocked")).expect("a folder in the list's place");
+    for (step, run, starts) in [
+        (
+            "Clear Recent Imports",
+            (|state: &mut AppState| state.clear_import_recents()) as fn(&mut AppState),
+            format!("{} could not be deleted: ", listed.display()),
+        ),
+        (
+            "an import",
+            |state: &mut AppState| state.remember_imports(&[fixture()]),
+            format!(
+                "The Import Recent list could not be saved to {}: ",
+                listed.display()
+            ),
+        ),
+    ] {
+        state.status_message = None;
+        run(&mut state);
+        let error = state.last_error.take();
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|error| error.starts_with(&starts) && !error.contains("os error")),
+            "{step} put {error:?} on the error line and {:?} on the status line",
+            state.status_message
+        );
+        assert_eq!(state.status_message, None, "{step}");
+    }
 }

@@ -785,7 +785,14 @@ impl AppState {
                 .spawn(async move { write_settings(&written, generation, &settings, &data_dir) })
                 .await;
             if let Err(err) = saved {
-                tracing::warn!(error = %err, "could not persist ui-settings");
+                let reason = aria_models::io_reason(&err);
+                let _ = this.update(cx, |state, cx| {
+                    state.report_error(format!(
+                        "The settings are in force but could not be saved for the next \
+                         launch: {reason}"
+                    ));
+                    cx.notify();
+                });
             }
         })
         .detach();

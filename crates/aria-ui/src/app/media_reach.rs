@@ -200,7 +200,14 @@ impl AppState {
         let gain = match normalisation_gain(measured, target) {
             Ok(gain) => gain,
             Err(err) => {
-                self.status_message = Some(format!("Cannot normalize: {err}"));
+                // The level the refusal is about, in the words of the readout
+                // rather than the analysis crate's parameter name.
+                let level = match err.field() {
+                    "measured_dbfs" => "measured loudness",
+                    _ => "target level",
+                };
+                self.status_message =
+                    Some(format!("Cannot normalize: the {level} {}", err.reason()));
                 return;
             }
         };
@@ -305,15 +312,14 @@ impl AppState {
             let mut animation = match LottieAnimation::load(&path) {
                 Ok(animation) => animation,
                 Err(err) => {
-                    state.status_message = Some(format!("{}: {err}", path.display()));
+                    state.report_error(format!("{}: {err}", path.display()));
                     return;
                 }
             };
             let (width, height) = animation.intrinsic_size();
             let first = animation.frame_index_at(0.0);
             if let Err(err) = animation.render_frame(first) {
-                state.status_message =
-                    Some(format!("{} does not rasterize: {err}", path.display()));
+                state.report_error(format!("{} does not rasterize: {err}", path.display()));
                 return;
             }
             let seconds = animation.duration_seconds();

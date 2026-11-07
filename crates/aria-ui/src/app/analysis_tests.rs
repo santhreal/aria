@@ -653,6 +653,31 @@ fn normalising_a_clip_ignores_a_loudness_contour_measured_for_another_media_item
     );
 }
 
+/// WHY: normalizing a clip measured as silence put the analysis crate's
+/// parameter name on the status line: "Cannot normalize: invalid analysis
+/// configuration `measured_dbfs`: is silence; …". The line names the level in
+/// the readout's words. Not caught: the target level refusals, which the
+/// target cycle (every target at or under 0 dBFS) cannot reach.
+#[test]
+fn normalising_a_silent_clip_states_the_measured_loudness_in_words() {
+    let (mut state, clip) = with_clip();
+    let media_id = state
+        .selected_ui_clip()
+        .and_then(|ui| ui.media_id)
+        .expect("selected media id");
+    state.analysis.loudness = std::sync::Arc::from([super::analysis::UiLoudness {
+        start_tick: 0,
+        dbfs: -90.0,
+    }]);
+    state.analysis.loudness_media_id = Some(media_id);
+    state.normalise_selected_clip();
+    assert_eq!(
+        state.status_message.as_deref(),
+        Some("Cannot normalize: the measured loudness is silence; there is nothing to normalize")
+    );
+    assert_eq!(state.ui_clip(clip).expect("clip").volume, 1.0);
+}
+
 /// The session holds one moments index and opens it again where the layout
 /// points now. An index opened per call paid four `fsync` calls at every
 /// close of a written index. A held index that outlived a clear, a move, or a

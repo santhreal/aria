@@ -244,7 +244,7 @@ impl AppState {
                     changed
                 }
                 Err(err) => {
-                    self.status_message = Some(format!("{id} was not {verb}: {err}"));
+                    self.report_error(format!("{id} was not {verb}: {err}"));
                     // The choice was kept and the ledger holds the reason, so
                     // the row changed even though nothing mounted.
                     true
@@ -267,7 +267,7 @@ impl AppState {
                     true
                 }
                 Err(err) => {
-                    self.status_message = Some(format!("{id} did not mount: {err}"));
+                    self.report_error(format!("{id} did not mount: {err}"));
                     // The ledger carries the reason for the row, so the list stays
                     // truthful even though nothing mounted.
                     true
@@ -281,7 +281,7 @@ impl AppState {
                     true
                 }
                 Err(err) => {
-                    self.status_message = Some(format!("{id} did not unmount: {err}"));
+                    self.report_error(format!("{id} did not unmount: {err}"));
                     false
                 }
             }

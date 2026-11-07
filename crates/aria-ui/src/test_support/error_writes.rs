@@ -105,3 +105,58 @@ fn no_production_direct_last_error_writes_outside_report_error() {
         offenders.join("\n  ")
     );
 }
+
+/// No production write to `status_message` formats an error value into its
+/// sentence.
+///
+/// The class this closes: a failure with a fix (a file that could not be
+/// written, a plugin that did not mount, a decode that failed) posted on the
+/// status line, which draws a receipt in faint ink and clears it after a few
+/// seconds. A failure goes through `AppState::report_error` to the error line.
+/// A statement that assigns `status_message` and interpolates `{err…}`, `{e}`
+/// or `{error…}` is rejected. Not caught: an error value passed through a
+/// variable of another name, or stored as a dialog's own reason and shown
+/// again (`err.to_string()` of a form's refusal), which is a refusal and not
+/// a failure.
+#[test]
+fn no_production_status_line_formats_an_error_value() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    collect_rs(&src, &mut files);
+    let mut offenders = Vec::new();
+    let mut writes = 0;
+    for file in &files {
+        let rel = file
+            .strip_prefix(&src)
+            .unwrap_or(file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel.ends_with("_tests.rs") || rel.starts_with("test_support") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        let text = super::sources::without_test_items(&text);
+        for (at, _) in text.match_indices("status_message =") {
+            writes += 1;
+            let statement = &text[at..text[at..].find(';').map_or(text.len(), |end| at + end)];
+            if ["{err", "{e}", "{e:", "{error"]
+                .iter()
+                .any(|token| statement.contains(token))
+            {
+                let line = text[..at].matches('\n').count() + 1;
+                offenders.push(format!("{rel}:{line}: {}", statement.trim()));
+            }
+        }
+    }
+    assert!(
+        writes > 50,
+        "found {writes} status line writes, which cannot be this crate"
+    );
+    assert!(
+        offenders.is_empty(),
+        "status line writes that carry an error value; post them with `report_error`:\n  {}",
+        offenders.join("\n  ")
+    );
+}

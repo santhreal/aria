@@ -34,7 +34,7 @@ impl AppState {
         let info = match probe_image(&path) {
             Ok(info) => info,
             Err(err) => {
-                self.status_message = Some(format!("{name}: {err}"));
+                self.report_error(format!("{name}: {err}"));
                 return;
             }
         };

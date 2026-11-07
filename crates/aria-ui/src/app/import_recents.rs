@@ -98,9 +98,10 @@ impl AppState {
         }
         let list = promoted(&self.import_recents, paths);
         if let Err(err) = save(&self.data_dir, &list) {
-            self.status_message = Some(format!(
-                "The Import Recent list could not be saved to {}: {err}",
-                file(&self.data_dir).display()
+            self.report_error(format!(
+                "The Import Recent list could not be saved to {}: {}",
+                file(&self.data_dir).display(),
+                aria_models::io_reason(&err)
             ));
         }
         self.import_recents = Arc::from(list);
@@ -117,8 +118,11 @@ impl AppState {
                 self.status_message = Some("Recent imports cleared".into());
             }
             Err(err) => {
-                self.status_message =
-                    Some(format!("{} could not be deleted: {err}", target.display()));
+                self.report_error(format!(
+                    "{} could not be deleted: {}",
+                    target.display(),
+                    aria_models::io_reason(&err)
+                ));
                 return;
             }
         }
@@ -130,7 +134,10 @@ impl AppState {
     pub fn import_recent(&mut self, path: &Path) {
         if !path.exists() {
             self.refresh_import_recents();
-            self.status_message = Some(format!("{} is missing", path.display()));
+            self.report_error(format!(
+                "{} is missing. Move the file back or choose Import… to find it.",
+                path.display()
+            ));
             return;
         }
         self.import_paths(vec![path.to_path_buf()]);

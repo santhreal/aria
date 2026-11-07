@@ -174,3 +174,39 @@ fn a_settings_write_older_than_the_last_one_landed_is_skipped() {
     assert_eq!(write(3, OUTLINE_MIN + 40.0), OUTLINE_MIN + 40.0);
     assert_eq!(*written.lock(), 3);
 }
+
+/// WHY: a debounced settings write that failed went to the log alone, so a
+/// panel drag or a toggle made in the session was gone at the next launch
+/// with nothing on screen. The failure is on the error line, as the keys'
+/// write made at once already was. The write fails here because
+/// `ui-settings.json` is a link to itself, which no save resolves; a folder in
+/// the file's place is moved aside by the save and does not fail it. Not
+/// caught: a failure in the write made as the session ends, which no line on
+/// screen outlives.
+#[cfg(unix)]
+#[gpui::test]
+fn a_debounced_settings_write_that_fails_is_on_the_error_line(cx: &mut gpui::TestAppContext) {
+    let (state, visual) = crate::test_support::drawn_shell(cx, "settings-unwritable");
+    let path = visual.read(|app| UiSettings::path(&state.read(app).data_dir));
+    let _ = fs::remove_dir_all(&path);
+    let _ = fs::remove_file(&path);
+    let name = path.file_name().expect("a file name");
+    std::os::unix::fs::symlink(name, &path).expect("a link to itself in the file's place");
+    visual.update(|_, app| {
+        state.update(app, |state, cx| {
+            state.last_error = None;
+            state.ui_settings.outline_width = OUTLINE_MIN + 10.0;
+            state.persist_settings_later(cx);
+        })
+    });
+    visual
+        .executor()
+        .advance_clock(Duration::from_millis(SAVE_DEBOUNCE_MS + 50));
+    visual.run_until_parked();
+    let error = visual.read(|app| state.read(app).last_error.clone());
+    assert!(
+        error.as_deref().is_some_and(|error| error
+            .starts_with("The settings are in force but could not be saved for the next launch: ")),
+        "a failed settings write put {error:?} on the error line"
+    );
+}
