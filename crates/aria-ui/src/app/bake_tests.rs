@@ -13,12 +13,18 @@
 //! is reported as started, with a job on the board, rather than as done.
 
 use aria_commands::{Command, EditCommand};
+use aria_engine::EngineError;
+use aria_models::{BakeRefusal, ModelError};
 use aria_plugin::PluginContext;
 
 use super::AppState;
-use crate::app::fixtures::{bake_destination, bakeable, rendered_file};
+use crate::app::bake_copy;
+use crate::app::describe_engine_error;
+use crate::app::fixtures::{adopted_render, bake_destination, bakeable, rendered_file};
 use crate::app::premiere_tests::with_clip;
+use crate::chrome::menu_items::items_of;
 use crate::scratch_pool::scratch;
+use crate::types::AppMenu;
 
 #[test]
 fn a_project_that_was_never_saved_is_refused_by_name() {
@@ -306,4 +312,73 @@ fn a_render_the_assistant_starts_is_reported_as_started_with_a_job() {
             .is_baked(),
         "the clip was swapped before the render finished"
     );
+}
+
+/// Render and Replace's row and its run state the same reason for each refusal
+/// the model has for a render, and none of them reads the value copy.
+///
+/// Closes the class where the row collapsed every refusal into one sentence,
+/// "This clip has nothing to render into a file", which read wrong for a clip
+/// that is already rendered and for a lane bar, and where the run posted the
+/// model's lower-case sentence. Derived from [`BakeRefusal::ALL`], so a new
+/// refusal fails here until it has a dressing. Not covered: a refusal from the
+/// lane, which the lane catalog keeps out of reach of a placed clip.
+#[test]
+fn the_render_row_and_its_run_state_one_reason_per_refusal() {
+    let value = describe_engine_error(&EngineError::Model(ModelError::InvalidParam(String::new())));
+    for why in BakeRefusal::ALL {
+        let mut state = refused(why);
+        let copy = bake_copy(why);
+        let row = items_of(AppMenu::Clip, &state)
+            .into_iter()
+            .find(|item| item.id == "seq-bake-clip")
+            .expect("Render and Replace is on the Clip menu");
+        assert_eq!(
+            row.blocked_by(&state),
+            Some(copy),
+            "{why:?}: the row states another reason"
+        );
+        let run = state.render_and_replace().expect_err("a refused render");
+        assert_eq!(run, copy, "{why:?}: the run posts another reason");
+        assert_ne!(copy, value, "{why:?} reads the value copy");
+        assert!(
+            state.job_view.is_empty(),
+            "{why:?}: a refused render still queued a job"
+        );
+    }
+}
+
+/// A saved project whose selected clip a render is refused for, for `why`.
+fn refused(why: BakeRefusal) -> AppState {
+    match why {
+        BakeRefusal::Rendered => {
+            let (mut state, _) = adopted_render("bake-refused-rendered");
+            state
+                .render_and_replace()
+                .expect("adopt the render on disk");
+            state
+        }
+        BakeRefusal::LaneBar => {
+            let (mut state, _) = with_clip();
+            state.project_path = Some(scratch("bake-refused-bar").join("bar.aria"));
+            let lane = state.add_adjustment_layer().expect("an adjustment layer");
+            let bar = state
+                .engine
+                .lock()
+                .project()
+                .timeline()
+                .track(lane)
+                .and_then(|track| track.clips().next())
+                .map(|clip| clip.id)
+                .expect("the bar on its lane");
+            state.sync_from_engine();
+            state.select_clip(bar);
+            state
+        }
+        BakeRefusal::Undressed => {
+            let (mut state, _) = with_clip();
+            state.project_path = Some(scratch("bake-refused-plain").join("plain.aria"));
+            state
+        }
+    }
 }

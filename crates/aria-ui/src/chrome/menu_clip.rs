@@ -325,15 +325,20 @@ pub(crate) fn freeze_ready(id: &str, state: &AppState) -> Option<&'static str> {
     })
 }
 
+/// Render and Replace's row: disabled for the reason the run would post. Reads
+/// `Project::bake_medium` rather than building the render's pass, which clones
+/// the whole project, because a guard runs on every draw of the menu.
 fn bake_ready(id: &str, state: &AppState) -> Option<&'static str> {
     super::menu_guards::selection(id, state).or_else(|| {
         if state.project_path.is_none() {
             return Some(crate::app::decline::Decline::UnsavedRender.reason());
         }
         let clip = state.selected_clip()?;
-        aria_engine::bake_project(state.engine().lock().project(), clip)
-            .is_err()
-            .then_some("This clip has nothing to render into a file")
+        match state.engine().lock().project().bake_medium(clip) {
+            Ok(_) => None,
+            Err(aria_models::ModelError::Bake(why)) => Some(crate::app::bake_copy(why)),
+            Err(_) => Some("The selected clip is on a track a render cannot stand in for"),
+        }
     })
 }
 

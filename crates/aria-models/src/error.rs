@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::clip::{GeneratedRefusal, SlipRefusal, SlotMedia, SplitRefusal};
+use crate::clip::{BakeRefusal, GeneratedRefusal, SlipRefusal, SlotMedia, SplitRefusal};
 use crate::ids::{BinId, ClipId, MarkerId, MediaId, SequenceId, TrackId};
 use crate::media::MediaKind;
 use crate::schema::ProjectSchema;
@@ -626,6 +626,10 @@ pub enum ModelError {
     /// A generated clip has no speed or sound to change.
     #[error("{0}")]
     Generated(GeneratedRefusal),
+
+    /// A render cannot stand in for the clip.
+    #[error("{0}")]
+    Bake(BakeRefusal),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

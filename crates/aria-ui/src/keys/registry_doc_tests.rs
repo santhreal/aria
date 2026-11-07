@@ -669,6 +669,10 @@ fn const_all_registries_have_recorded_documentation_decisions() {
             "reasons a duck under voice cannot run; the duck row census reads every reason against the row and the precheck",
         ),
         (
+            "BakeRefusal",
+            "reasons a render cannot stand in for a clip; the error copy census and the render row census read every reason",
+        ),
+        (
             "FixtureId",
             "benchmark fixture identifier internal to aria-bench",
         ),

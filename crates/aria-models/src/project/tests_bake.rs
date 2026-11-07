@@ -271,7 +271,7 @@ fn a_lane_bar_cannot_be_baked() {
         let err = project.bake_clip(bar, rendered).expect_err("refusal");
         assert_eq!(
             err,
-            ModelError::InvalidParam("a lane bar has no picture of its own to render".into()),
+            ModelError::Bake(crate::clip::BakeRefusal::LaneBar),
             "'{}' was baked instead of refused",
             spec.id
         );
@@ -353,17 +353,13 @@ fn every_refusal_names_what_is_wrong() {
         project
             .bake_clip(plain, rendered)
             .expect_err("nothing on it"),
-        ModelError::InvalidParam(
-            "nothing is applied to that clip, so rendering it would only re-encode it".into()
-        )
+        ModelError::Bake(crate::clip::BakeRefusal::Undressed)
     );
 
     project.bake_clip(clip, rendered).expect("bake");
     assert_eq!(
         project.bake_clip(clip, rendered).expect_err("twice"),
-        ModelError::InvalidParam(
-            "that clip is already rendered; restore it before rendering it again".into()
-        )
+        ModelError::Bake(crate::clip::BakeRefusal::Rendered)
     );
 
     project

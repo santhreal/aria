@@ -55,7 +55,8 @@ impl AppState {
     pub fn render_clip(&mut self, clip: ClipId) -> Result<Option<u64>, String> {
         let pass = {
             let engine = self.engine.lock();
-            bake_project(engine.project(), clip).map_err(|err| err.to_string())?
+            bake_project(engine.project(), clip)
+                .map_err(|err| super::error_copy::describe_engine_error(&err))?
         };
         let dest = self.bake_file(clip, &pass)?;
         if dest.exists() {

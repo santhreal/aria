@@ -39,6 +39,34 @@
 
 use super::*;
 
+/// Why a render cannot stand in for a clip, read from the clip itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BakeRefusal {
+    /// The clip is already a rendered stand-in.
+    Rendered,
+    /// The clip is a lane bar, which reprocesses what is beneath it.
+    LaneBar,
+    /// A media clip with nothing applied, whose render would re-encode its file.
+    Undressed,
+}
+
+impl BakeRefusal {
+    /// Every refusal, in declaration order.
+    pub const ALL: [BakeRefusal; 3] = [Self::Rendered, Self::LaneBar, Self::Undressed];
+}
+
+impl std::fmt::Display for BakeRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Rendered => "that clip is already rendered; restore it before rendering it again",
+            Self::LaneBar => "a lane bar has no picture of its own to render",
+            Self::Undressed => {
+                "nothing is applied to that clip, so rendering it would only re-encode it"
+            }
+        })
+    }
+}
+
 impl Clip {
     /// Whether this clip is a rendered stand-in for something else.
     pub fn is_baked(&self) -> bool {
@@ -51,16 +79,12 @@ impl Clip {
     /// pre-render validation and [`Clip::baked`] share one check.
     pub fn bakeable(&self) -> Result<(), ModelError> {
         if self.bake.is_some() {
-            return Err(ModelError::InvalidParam(
-                "that clip is already rendered; restore it before rendering it again".into(),
-            ));
+            return Err(ModelError::Bake(BakeRefusal::Rendered));
         }
         if let ClipSource::Generated(generator) = &self.content
             && !generator.spec().paints
         {
-            return Err(ModelError::InvalidParam(
-                "a lane bar has no picture of its own to render".into(),
-            ));
+            return Err(ModelError::Bake(BakeRefusal::LaneBar));
         }
         // Generated, multicam and nested content is computed every frame, so a
         // render is worth having whatever else is on the clip. A media clip with
@@ -68,9 +92,7 @@ impl Clip {
         // the file that is already there: the same picture, one generation down,
         // for no saving at all.
         if matches!(self.content, ClipSource::Media { .. }) && !self.is_dressed() {
-            return Err(ModelError::InvalidParam(
-                "nothing is applied to that clip, so rendering it would only re-encode it".into(),
-            ));
+            return Err(ModelError::Bake(BakeRefusal::Undressed));
         }
         Ok(())
     }

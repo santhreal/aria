@@ -2,9 +2,9 @@ use std::collections::BTreeSet;
 
 use aria_engine::EngineError;
 use aria_models::{
-    BinId, ClipId, ClipSetRefusal, GeneratedRefusal, MarkerId, MediaId, MediaKind, ModelError,
-    MulticamGroupId, Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal, TrackId,
-    TrackKind,
+    BakeRefusal, BinId, ClipId, ClipSetRefusal, GeneratedRefusal, MarkerId, MediaId, MediaKind,
+    ModelError, MulticamGroupId, Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal,
+    TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -188,9 +188,9 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
 }
 
 /// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`],
-/// [`SlipRefusal`] and [`GeneratedRefusal`] counted as its own; [`variant`]
-/// numbers them `0..VARIANTS`.
-const VARIANTS: usize = 70;
+/// [`SlipRefusal`], [`GeneratedRefusal`] and [`BakeRefusal`] counted as its
+/// own; [`variant`] numbers them `0..VARIANTS`.
+const VARIANTS: usize = 73;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -255,6 +255,11 @@ fn variant(err: &ModelError) -> usize {
         ModelError::Generated(refusal) => match refusal {
             GeneratedRefusal::Speed => 68,
             GeneratedRefusal::Sound => 69,
+        },
+        ModelError::Bake(refusal) => match refusal {
+            BakeRefusal::Rendered => 70,
+            BakeRefusal::LaneBar => 71,
+            BakeRefusal::Undressed => 72,
         },
     }
 }
@@ -390,6 +395,7 @@ fn every_refusal() -> Vec<ModelError> {
     .chain(SplitRefusal::ALL.map(ModelError::Split))
     .chain(SlipRefusal::ALL.map(ModelError::Slip))
     .chain(GeneratedRefusal::ALL.map(ModelError::Generated))
+    .chain(BakeRefusal::ALL.map(ModelError::Bake))
     .collect()
 }
 

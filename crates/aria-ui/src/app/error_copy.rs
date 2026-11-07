@@ -2,8 +2,8 @@
 
 use aria_engine::EngineError;
 use aria_models::{
-    ClipSetRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SlipRefusal,
-    SplitRefusal,
+    BakeRefusal, ClipSetRefusal, GeneratedRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError,
+    SlipRefusal, SplitRefusal,
 };
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
@@ -272,8 +272,27 @@ fn model_copy(err: &ModelError) -> String {
                  clip with sound instead."
             }
         },
+        ModelError::Bake(refusal) => bake_copy(*refusal),
     };
     copy.into()
+}
+
+/// The copy for a render that cannot stand in for a clip: the run's error and
+/// the reason Render and Replace's row is disabled, so the two read the same.
+pub(crate) fn bake_copy(refusal: BakeRefusal) -> &'static str {
+    match refusal {
+        BakeRefusal::Rendered => {
+            "That clip is already rendered. Choose Restore Unrendered, then render it again."
+        }
+        BakeRefusal::LaneBar => {
+            "A lane bar reprocesses the tracks beneath it and has no picture of its own. Render \
+             a clip with a picture instead."
+        }
+        BakeRefusal::Undressed => {
+            "Nothing is applied to that clip, so a render would only re-encode its file. Apply \
+             an effect, a look or a speed change first, then render it."
+        }
+    }
 }
 
 /// The copy for an export refused before it starts: an export with nothing to

@@ -353,7 +353,7 @@ fn menu_rows_withhold_paste_bake_ripple_transition_shift_and_nest_until_ready() 
     plain.project_path = Some(crate::scratch_pool::scratch("menu-bake-guard").join("p.aria"));
     assert_eq!(
         blocked(AppMenu::Clip, &plain, "seq-bake-clip"),
-        Some("This clip has nothing to render into a file")
+        Some(crate::app::bake_copy(aria_models::BakeRefusal::Undressed))
     );
     assert_eq!(
         blocked(AppMenu::Clip, &Dress::Rendered.state(), "seq-bake-clip"),

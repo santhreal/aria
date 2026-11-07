@@ -94,7 +94,7 @@ pub use clip::{
     visit_clip_params,
 };
 pub use clip::{
-    GeneratedRefusal, GeneratorSpec, SlipRefusal, SplitRefusal, generator_spec,
+    BakeRefusal, GeneratedRefusal, GeneratorSpec, SlipRefusal, SplitRefusal, generator_spec,
     generator_spec_by_id, generator_specs,
 };
 pub use clip_types::{

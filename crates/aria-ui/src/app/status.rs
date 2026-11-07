@@ -106,7 +106,7 @@ pub(crate) fn as_sentence(mut line: String) -> String {
 }
 
 /// Phrases in an error line that tie the failure to the current selection.
-const SELECTION_CLAUSES: [&str; 12] = [
+const SELECTION_CLAUSES: [&str; 10] = [
     "Select ",
     ": select a clip first",
     "The selected clip ",
@@ -115,8 +115,6 @@ const SELECTION_CLAUSES: [&str; 12] = [
     "The clip is too short to transcribe",
     " has no audio track",
     " is offline. Relink it first",
-    "A nested sequence clip is rendered from inside its sequence",
-    "Only a video or generator clip on a video track can be rendered in place",
     " is already rendered",
     "No selected clip ",
 ];

@@ -1490,6 +1490,7 @@ Notes for the latest release. For previous releases, see the
 - Saving the configuration and the editor's state files syncs their folder to disk, so a crash right after a save no longer brings back the previous file; a failed folder sync is reported and the save stays in force.
 - A rate stretch or a volume edit on a generated clip states that the clip plays no footage or no sound instead of reporting that a value is not accepted, and a generated clip draws no fade handles.
 - The Duck Under Voice row states the reason a duck cannot run, such as an empty duck source track or a selection on the voice track, instead of one sentence about flagging a voice track for every case.
+- The Render and Replace row and its run state why a render is refused for the selected clip, which is already rendered, a lane bar, or a media clip with nothing applied, instead of one sentence about nothing to render for every case.
 
 ## [alpha-0.7.0] - 2026-07-22
 

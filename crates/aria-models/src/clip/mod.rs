@@ -31,6 +31,7 @@ mod values;
 mod tests;
 
 pub use attributes::ClipAttribute;
+pub use bake::BakeRefusal;
 pub use clip_param::{
     ClipParam, ClipParamClass, LookParam, MaskParam, ParamAxis, ParamExclusion, ShapeParam,
     StyleParam, TextParam,
