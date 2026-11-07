@@ -142,10 +142,16 @@ pub(crate) fn freezable(id: &str, state: &AppState) -> Option<&'static str> {
         .or_else(|| (!state.selected_can_freeze_frame()).then_some(Decline::NoFrameToHold.reason()))
 }
 
-/// The row moves a selected clip's sound to a lane of its own.
+/// The row moves a selected clip's sound to a lane of its own: the clip
+/// carries sound it can extract, and shares its link with no other clip.
 pub(crate) fn extractable(id: &str, state: &AppState) -> Option<&'static str> {
     selection(id, state).or_else(|| {
-        (!state.selected_can_extract_audio()).then_some(Decline::NoSoundToExtract.reason())
+        let why = match state.selected_ui_clip_ref() {
+            Some(ui) if ui.can_extract_audio => return None,
+            Some(ui) if ui.extract_needs_unlink => Decline::LinkedSound,
+            _ => Decline::NoSoundToExtract,
+        };
+        Some(why.reason())
     })
 }
 

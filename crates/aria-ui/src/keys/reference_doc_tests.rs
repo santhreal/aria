@@ -517,6 +517,7 @@ fn menus_doc_matches_registry() {
                 | Decline::NoSourceToRemap
                 | Decline::NoFrameToHold
                 | Decline::NoSoundToExtract
+                | Decline::LinkedSound
                 | Decline::NoSound
                 | Decline::NoMarkers
                 | Decline::NoMarkerAtPlayhead

@@ -394,6 +394,9 @@ pub struct UiClip {
     pub can_split: bool,
     pub can_reverse: bool,
     pub can_extract_audio: bool,
+    /// The clip has sound to extract once unlinked from the clips it shares
+    /// its link with.
+    pub extract_needs_unlink: bool,
     pub can_ripple_delete: bool,
     pub can_freeze_frame: bool,
     pub can_stabilize: bool,

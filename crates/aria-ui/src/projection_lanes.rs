@@ -9,9 +9,10 @@
 //!   a caller wrote to them after the projection;
 //! - a clip on the lane entered or left the selection;
 //! - the lane holds a clip linked to a clip on a rebuilt or removed lane: a
-//!   linked clip's drift and its detached-sound flag read its partners. When
-//!   the lane order changed, every lane holding a linked clip is rebuilt,
-//!   because drift is measured against the first partner in lane order.
+//!   linked clip's drift, its detached-sound flag and whether it extracts its
+//!   sound read its partners. When the lane order changed, every lane holding
+//!   a linked clip is rebuilt, because drift is measured against the first
+//!   partner in lane order.
 //!
 //! A rebuilt lane whose previous clips the store still holds takes each row
 //! from them that reads as it did: the clip's revision and whether it abuts
@@ -28,7 +29,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 
 use aria_models::{
-    AudioLaneLinks, ClipId, MediaKind, Project, Rational, Track, TrackId, TrackKind, Transition,
+    AudioLaneLinks, ClipId, MediaKind, Project, Rational, SharedLinks, Track, TrackId, TrackKind,
+    Transition,
 };
 use gpui::SharedString;
 
@@ -261,6 +263,8 @@ pub(super) struct LinkFacts {
     pub(super) drifts: HashMap<ClipId, i64>,
     /// The link groups with a member on an audio lane.
     pub(super) audio: AudioLaneLinks,
+    /// The link groups held by two or more clips.
+    pub(super) shared: SharedLinks,
 }
 
 impl LinkFacts {
@@ -268,6 +272,7 @@ impl LinkFacts {
         Self {
             drifts: project.link_drifts(),
             audio: project.timeline().audio_lane_links(),
+            shared: project.timeline().shared_links(),
         }
     }
 }

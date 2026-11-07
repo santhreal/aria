@@ -5,22 +5,122 @@
 
 use super::*;
 
+/// **Extract Audio runs where its row is offered, and nowhere else.**
+///
+/// The class closed here: a clip the editor offered Extract Audio on that the
+/// engine rejected, so the command posted the value copy for a structural
+/// refusal. A picture linked to another picture read as extractable, though
+/// the engine rejects every clip that shares its link, and a picture linked
+/// to a sound clip read as having no sound. Each shape a clip can be in runs
+/// the row's guard, then the command the menu and context rows both run:
+/// where the guard passes, the extraction adds a clip; where it declines, the
+/// command writes the guard's reason, changes nothing and fails nothing.
+/// Before the extraction, the mixer draws a strip for the clip's picture lane
+/// exactly when the clip's sound plays from that lane, link or no link.
+///
+/// Not covered: a locked source or target lane, which the engine rejects
+/// separately.
 #[test]
-fn extract_audio_is_refused_when_the_clip_has_no_audio() {
-    let (mut state, _) = with_clip();
-    // The fixture is a still image, so capability decides. Whatever the answer,
-    // the UI's gate and the command's gate must agree.
-    let allowed = state.selected_can_extract_audio();
-    let before = state.store.sequence.clip_count();
-    state.extract_selected_audio().expect("extract or refuse");
-    let after = state.store.sequence.clip_count();
-    if allowed {
-        assert_eq!(after, before + 1, "an allowed extract must add a clip");
-    } else {
+fn extract_audio_runs_exactly_where_its_row_is_offered() {
+    use crate::app::decline::Decline;
+    use crate::app::fixtures::{linked_pair, video_in_picture, with_video};
+    use crate::chrome::menu_guards::extractable;
+
+    let picture_pair = || {
+        let (mut state, first) = with_video();
+        let lane = state
+            .add_lane_of_kind(aria_models::TrackKind::Video, None)
+            .expect("a second picture lane");
+        let second = video_in_picture(&mut state, lane);
+        state.selection = vec![first, second];
+        state.sync_from_engine();
+        state.link_selected().expect("link the pictures");
+        state.sync_from_engine();
+        state.select_clip(first);
+        (state, first)
+    };
+    let sound_pair = || {
+        let mut state = linked_pair();
+        let picture = state.selection[0];
+        state.select_clip(picture);
+        (state, picture)
+    };
+    let unlinked_pair = || {
+        let (mut state, first) = picture_pair();
+        state.unlink_selected().expect("unlink the pictures");
+        state.select_clip(first);
+        (state, first)
+    };
+    // The shape, the reason the row declines for, and whether the mixer draws
+    // the clip's picture lane without a strip before the extraction.
+    let cases = [
+        ("an unlinked picture with sound", with_video(), None, false),
+        (
+            "a picture linked to a sound clip",
+            sound_pair(),
+            Some(Decline::LinkedSound),
+            true,
+        ),
+        (
+            "a picture linked to a picture",
+            picture_pair(),
+            Some(Decline::LinkedSound),
+            false,
+        ),
+        (
+            "a picture unlinked from its picture",
+            unlinked_pair(),
+            None,
+            false,
+        ),
+        (
+            "a still",
+            with_clip(),
+            Some(Decline::NoSoundToExtract),
+            true,
+        ),
+    ];
+    for (name, (mut state, clip), want, soundless) in cases {
+        assert_eq!(state.selected_clip(), Some(clip), "{name}: the selection");
         assert_eq!(
-            after, before,
-            "a refused extract must not change the timeline"
+            extractable("seq-extract-audio", &state),
+            want.map(Decline::reason),
+            "{name}: the row's guard"
         );
+        let lane = state
+            .store
+            .sequence
+            .tracks
+            .iter()
+            .find(|lane| lane.clips.iter().any(|ui| ui.id == clip.raw()))
+            .map(|lane| lane.id)
+            .expect("the clip is on a lane");
+        assert_eq!(
+            state.soundless_picture_lanes().contains(&lane),
+            soundless,
+            "{name}: the mixer's strip for the clip's lane"
+        );
+        let before = state.store.sequence.clip_count();
+        state.status_message = None;
+        state
+            .extract_selected_audio()
+            .unwrap_or_else(|err| panic!("{name}: the command failed: {err:?}"));
+        assert_eq!(state.last_error, None, "{name}: an error was posted");
+        let after = state.store.sequence.clip_count();
+        match want {
+            None => assert_eq!(after, before + 1, "{name}: no sound clip was added"),
+            Some(why) => {
+                assert_eq!(
+                    after, before,
+                    "{name}: a declined extract changed the timeline"
+                );
+                assert_eq!(
+                    state.status_message.as_deref(),
+                    Some(why.reason()),
+                    "{name}: the status line"
+                );
+            }
+        }
     }
 }
 #[test]
@@ -73,11 +173,6 @@ fn every_projected_clip_reports_its_capabilities() {
     assert!(
         clip.can_split,
         "a media clip on the timeline must be splittable"
-    );
-    assert_eq!(
-        clip.can_extract_audio,
-        state.selected_can_extract_audio(),
-        "the projected flag and the state helper must agree"
     );
 }
 // --- inline rename -------------------------------------------------------

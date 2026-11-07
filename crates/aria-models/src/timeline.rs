@@ -796,6 +796,43 @@ impl Timeline {
         AudioLaneLinks(self.audio_lane_clips().filter_map(|c| c.link).collect())
     }
 
+    /// Whether `clip_id` shares its link group with another clip, which a
+    /// command that separates one member from its group rejects.
+    ///
+    /// Scans the timeline. A caller that needs every clip reads
+    /// [`Timeline::shared_links`] once and calls [`SharedLinks::shared`]
+    /// instead.
+    pub fn shares_link(&self, clip_id: ClipId) -> bool {
+        self.clip(clip_id)
+            .and_then(|c| c.link)
+            .is_some_and(|link| self.clips_in_link(link).nth(1).is_some())
+    }
+
+    /// Every link group held by two or more clips, read in one pass, so
+    /// [`Timeline::shares_link`] for each clip of the timeline is one set
+    /// lookup rather than one scan.
+    pub fn shared_links(&self) -> SharedLinks {
+        let mut seen = rustc_hash::FxHashSet::default();
+        let mut shared = rustc_hash::FxHashSet::default();
+        for link in self
+            .tracks_ordered()
+            .flat_map(Track::clips)
+            .filter_map(|c| c.link)
+        {
+            if !seen.insert(link) {
+                shared.insert(link);
+            }
+        }
+        SharedLinks(shared)
+    }
+
+    /// Every clip stamped with `link`, in lane order.
+    fn clips_in_link(&self, link: LinkId) -> impl Iterator<Item = &Clip> {
+        self.tracks_ordered()
+            .flat_map(Track::clips)
+            .filter(move |c| c.link == Some(link))
+    }
+
     /// Every clip on an audio lane, in lane order.
     fn audio_lane_clips(&self) -> impl Iterator<Item = &Clip> {
         self.tracks_ordered()
@@ -834,6 +871,19 @@ impl AudioLaneLinks {
     /// [`Timeline::carries_own_audio`] for `clip` on `lane`.
     pub fn carries_own_audio(&self, lane: &Track, clip: &Clip) -> bool {
         own_audio(lane, clip, || self.detached(clip))
+    }
+}
+
+/// The link groups held by two or more clips, as [`Timeline::shared_links`]
+/// read them. A write to a clip's link, or a removal of a clip, makes it
+/// stale.
+#[derive(Debug, Default, Clone)]
+pub struct SharedLinks(rustc_hash::FxHashSet<LinkId>);
+
+impl SharedLinks {
+    /// [`Timeline::shares_link`] for `clip`.
+    pub fn shared(&self, clip: &Clip) -> bool {
+        clip.link.is_some_and(|link| self.0.contains(&link))
     }
 }
 

@@ -167,7 +167,7 @@ pub(super) fn clip_to_ui(
 
     // Capabilities come from the engine's own computation so a menu can never
     // offer an action the command layer would refuse.
-    let caps = ClipCapabilities::for_clip_with(project, clip, track.kind, &links.audio);
+    let caps = ClipCapabilities::for_clip_with(project, clip, track.kind, &links.shared);
     let drift = links.drifts.get(&clip.id).copied();
     // The text-effect chip the Text tab marks active. Read from the style rather
     // than remembered in the UI, so a preset applied by any path shows here.
@@ -262,6 +262,7 @@ pub(super) fn clip_to_ui(
         can_split: caps.allows(ClipAction::Split),
         can_reverse: caps.allows(ClipAction::Reverse),
         can_extract_audio: caps.allows(ClipAction::ExtractAudio),
+        extract_needs_unlink: caps.extract_needs_unlink,
         can_ripple_delete: caps.allows(ClipAction::RippleDelete),
         can_freeze_frame: caps.allows(ClipAction::FreezeFrame),
         can_stabilize: caps.allows(ClipAction::Stabilize),

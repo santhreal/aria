@@ -103,7 +103,7 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `clip-channels-left` | `Audio Channels` | Left to Both | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sends the clip's left source channel to both stereo outputs (`AudioChannels::LeftToBoth`). |
 | `clip-channels-right` | `Audio Channels` | Right to Both | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sends the clip's right source channel to both stereo outputs (`AudioChannels::RightToBoth`). |
 | `clip-channels-mono` | `Audio Channels` | Mono | `none` | Select a clip with sound, or every selected clip with sound already plays that choice (`audio_channels_ready`) | Sums the clip's left and right channels to mono (`AudioChannels::Mono`). |
-| `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected, or the selected clip has no sound to extract (`guards::extractable`) | Extracts the selected video clip's audio stream onto an audio lane. |
+| `seq-extract-audio` | `none` | Extract Audio | `none` | No clip is selected, the selected clip has no sound to extract, or the selected clip shares its link with another clip (`guards::extractable`) | Extracts the selected video clip's audio stream onto an audio lane. |
 | `seq-flip-h` | `Transform` | Flip Horizontal | `none` | No clip is selected (`guards::selection`) | Toggles horizontal mirror flip on the selected clips. |
 | `seq-flip-v` | `Transform` | Flip Vertical | `none` | No clip is selected (`guards::selection`) | Toggles vertical mirror flip on the selected clips. |
 | `seq-crop-reset` | `Transform` | Reset Framing | `none` | No clip is selected, or the selected clip shows its whole frame (`guards::framing`) | Clears all four crop edges, the crop's keyframes, and both mirrors on the selected clip. |
@@ -371,6 +371,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoSourceToRemap` | `The selected clip plays no source media to remap` |
 | `NoFrameToHold` | `The selected clip has no video frame to hold` |
 | `NoSoundToExtract` | `The selected clip has no sound to extract` |
+| `LinkedSound` | `The selected clip is linked to another clip: unlink it to extract its sound` |
 | `NoSound` | `No selected clip carries sound` |
 | `NoMarkers` | `The sequence has no markers` |
 | `NoMarkerAtPlayhead` | `No marker is within a second of the playhead` |

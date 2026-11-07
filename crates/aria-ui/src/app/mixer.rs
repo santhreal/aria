@@ -447,7 +447,7 @@ impl AppState {
             .iter()
             .filter(|lane| {
                 lane.kind == crate::types::UiTrackKind::Video
-                    && !lane.clips.iter().any(|clip| clip.can_extract_audio)
+                    && !lane.clips.iter().any(|clip| clip.has_audio)
             })
             .map(|lane| lane.id)
             .collect()

@@ -458,14 +458,14 @@ fn project_to_ui_sorts_sequence_markers_a_file_lists_out_of_order() {
 }
 
 /// Every projected clip carries the capability flags the model derives for
-/// that clip alone, while the projection reads the link set once for all of
-/// them. Closes the class where the projection reads that set wrong or not at
-/// all: a video clip whose sound was separated to an audio lane offers extract
-/// audio, or one whose sound was not loses it. The fixture links a video clip
-/// to an audio-lane partner and two video clips to each other, and keeps one
-/// video clip unlinked; unlinking the separated clip gives its sound back. A
-/// solid on a sticker lane, which carries no sound, holds no insert chain
-/// while every media clip holds one.
+/// that clip alone, while the projection reads the link sets once for all of
+/// them. Closes the class where the projection reads those sets wrong or not
+/// at all: a video clip sharing its link with another clip offers extract
+/// audio the engine rejects, or one shared with none loses it. The fixture
+/// links a video clip to an audio-lane partner and two video clips to each
+/// other, and keeps one video clip unlinked; unlinking the separated clip
+/// gives its sound back. A solid on a sticker lane, which carries no sound,
+/// holds no insert chain while every media clip holds one.
 #[test]
 fn every_projected_clip_carries_the_capabilities_the_model_derives() {
     use aria_models::{AudioInsertTarget, ClipAction, ClipCapabilities, Generator, TrackId};
@@ -534,6 +534,11 @@ fn every_projected_clip_carries_the_capabilities_the_model_derives() {
                 .map(|action| caps.allows(action));
                 assert_eq!(drawn, derived, "{} on {}", ui.name, lane.name);
                 assert_eq!(
+                    ui.extract_needs_unlink, caps.extract_needs_unlink,
+                    "{} on {} waits on an unlink",
+                    ui.name, lane.name
+                );
+                assert_eq!(
                     ui.can_hold_inserts,
                     project
                         .insert_target_refusal(AudioInsertTarget::Clip(clip.id))
@@ -551,17 +556,16 @@ fn every_projected_clip_carries_the_capabilities_the_model_derives() {
         ids.sort_unstable();
         ids
     };
-    let mut want = [left, right, alone].map(ClipId::raw);
-    want.sort_unstable();
+    let want = vec![alone.raw()];
     assert_eq!(
         extractable(&project),
         want,
-        "the separated picture does not extract its sound"
+        "a picture sharing its link with a sound or a picture does not extract its sound"
     );
     project
         .unlink_clips(&[picture])
         .expect("unlink the picture");
-    let mut want = [picture, left, right, alone].map(ClipId::raw);
+    let mut want = [picture, alone].map(ClipId::raw);
     want.sort_unstable();
     assert_eq!(
         extractable(&project),

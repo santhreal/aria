@@ -569,15 +569,6 @@ impl AppState {
         Ok(())
     }
 
-    /// Whether the selected clip carries audio that can be split off.
-    ///
-    /// Read from the projected clip, which is the engine's own answer, so this
-    /// gate and the command it guards can never disagree.
-    pub fn selected_can_extract_audio(&self) -> bool {
-        self.selected_ui_clip()
-            .is_some_and(|clip| clip.can_extract_audio)
-    }
-
     /// Whether the selected clip can yield a freeze frame.
     pub fn selected_can_freeze_frame(&self) -> bool {
         self.selected_ui_clip()
@@ -592,8 +583,8 @@ impl AppState {
         let Some(clip) = self.selected_clip_or_decline() else {
             return Ok(());
         };
-        if !self.selected_can_extract_audio() {
-            self.decline(Decline::NoSoundToExtract);
+        if let Some(reason) = crate::chrome::menu_guards::extractable("seq-extract-audio", self) {
+            self.status_message = Some(reason.to_string());
             return Ok(());
         }
         self.apply_command(Command::Edit(EditCommand::ExtractAudio {

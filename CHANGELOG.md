@@ -1478,6 +1478,7 @@ Notes for the latest release. For previous releases, see the
 - Adding a mask to a clip that already holds 32 masks reports the cap and the fix instead of a rejected value.
 - A slip drag on a still, a freeze frame, a generated clip or a clip that plays its whole take reports why the clip does not slip instead of a rejected value.
 - Replacing the media of a freeze frame, from the inspector or an Alt drop, reports that the clip is a freeze frame instead of a rejected value.
+- Extract Audio is withheld from a clip linked to another clip and states that the clip must be unlinked first, instead of failing with a value error on a picture linked to a picture or reading "no sound to extract" on a picture linked to its sound.
 
 ## [alpha-0.7.0] - 2026-07-22
 

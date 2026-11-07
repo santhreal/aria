@@ -9,7 +9,7 @@
 
 use crate::clip::{Clip, ClipSource};
 use crate::project::Project;
-use crate::timeline::AudioLaneLinks;
+use crate::timeline::SharedLinks;
 use crate::track::TrackKind;
 
 /// What a clip supports for inspector panels and context-menu actions.
@@ -41,8 +41,12 @@ pub struct ClipCapabilities {
     /// Delete and close the gap on the clip's lane (`RippleDelete`).
     pub can_ripple_delete: bool,
     /// CapCut "extract audio": detach the video clip's sound onto a linked
-    /// audio-lane companion (same media, no new library asset).
+    /// audio-lane companion (same media, no new library asset). Never set for
+    /// a clip that shares its link group with another clip.
     pub can_extract_audio: bool,
+    /// The clip carries sound it would extract, but shares its link group
+    /// with another clip; unlinking it sets `can_extract_audio`.
+    pub extract_needs_unlink: bool,
     /// Hold the frame under the playhead as a still (`FreezeFrame`). Requires a
     /// video-media-backed clip that is not already a freeze frame.
     pub can_freeze_frame: bool,
@@ -67,34 +71,36 @@ pub enum ClipAction {
 
 impl ClipCapabilities {
     /// Derive capabilities from the clip's content, the lane it sits on, and
-    /// project context (media `has_audio`, already-detached link state).
+    /// project context (media `has_audio`, link partners).
     pub fn for_clip(project: &Project, clip: &Clip, kind: TrackKind) -> Self {
         Self::derive(project, clip, kind, || {
-            project.timeline().detached_to_audio_lane(clip.id)
+            project.timeline().shares_link(clip.id)
         })
     }
 
     /// [`ClipCapabilities::for_clip`] for a caller deriving many clips of the
     /// open timeline: `links`, read once with
-    /// [`Timeline::audio_lane_links`](crate::Timeline::audio_lane_links),
-    /// replaces the scan of the audio lanes each linked clip would take.
+    /// [`Timeline::shared_links`](crate::Timeline::shared_links), replaces
+    /// the scan of the timeline each linked clip would take.
     pub fn for_clip_with(
         project: &Project,
         clip: &Clip,
         kind: TrackKind,
-        links: &AudioLaneLinks,
+        links: &SharedLinks,
     ) -> Self {
-        Self::derive(project, clip, kind, || links.detached(clip))
+        Self::derive(project, clip, kind, || links.shared(clip))
     }
 
-    /// The derivation behind both constructors. `detached` reports whether the
-    /// clip's sound was separated to an audio lane; it is called only for a
-    /// clip that could otherwise extract its audio.
+    /// The derivation behind both constructors. `partnered` reports whether
+    /// the clip shares its link group with another clip, which the engine's
+    /// extract rejects; a detached picture's audio-lane companion is one such
+    /// partner. It is called only for a clip that could otherwise extract its
+    /// audio.
     fn derive(
         project: &Project,
         clip: &Clip,
         kind: TrackKind,
-        detached: impl FnOnce() -> bool,
+        partnered: impl FnOnce() -> bool,
     ) -> Self {
         let is_visual = kind.is_visual();
         let is_media = clip.source_range().is_some();
@@ -132,8 +138,9 @@ impl ClipCapabilities {
             ClipSource::Multicam { .. } | ClipSource::Sequence { .. } => false,
             ClipSource::Generated(_) => false,
         };
-        let can_extract_audio =
-            kind.extracts_audio() && !clip.freeze_frame && media_is_video_with_audio && !detached();
+        let has_sound_to_extract =
+            kind.extracts_audio() && !clip.freeze_frame && media_is_video_with_audio;
+        let extract_needs_unlink = has_sound_to_extract && partnered();
 
         Self {
             has_transform: is_visual,
@@ -147,7 +154,8 @@ impl ClipCapabilities {
             can_split: true,
             can_reverse: can_retime,
             can_ripple_delete: true,
-            can_extract_audio,
+            can_extract_audio: has_sound_to_extract && !extract_needs_unlink,
+            extract_needs_unlink,
             can_freeze_frame: is_video_media && !clip.freeze_frame,
             can_stabilize: is_visual && is_media && !media_is_still,
         }
@@ -235,6 +243,7 @@ mod tests {
                 can_reverse: true,
                 can_ripple_delete: true,
                 can_extract_audio: true,
+                extract_needs_unlink: false,
                 can_freeze_frame: true,
                 can_stabilize: true,
             },
@@ -351,6 +360,7 @@ mod tests {
                 can_reverse: true,
                 can_ripple_delete: true,
                 can_extract_audio: false,
+                extract_needs_unlink: false,
                 can_freeze_frame: true,
                 can_stabilize: false,
             },
@@ -378,6 +388,7 @@ mod tests {
                 can_reverse: false,
                 can_ripple_delete: true,
                 can_extract_audio: false,
+                extract_needs_unlink: false,
                 can_freeze_frame: false,
                 can_stabilize: false,
             },
@@ -408,6 +419,7 @@ mod tests {
                 can_reverse: false,
                 can_ripple_delete: true,
                 can_extract_audio: false,
+                extract_needs_unlink: false,
                 can_freeze_frame: false,
                 can_stabilize: false,
             },
@@ -475,16 +487,29 @@ mod tests {
         let caps =
             ClipCapabilities::for_clip(&project, project.clip(video.id).unwrap(), TrackKind::Video);
         assert!(!caps.can_extract_audio);
+        assert!(
+            caps.extract_needs_unlink,
+            "unlinking the pair frees the sound"
+        );
         assert!(!project.timeline().carries_own_audio(video.id));
+
+        project.timeline_mut().clip_mut(audio_id).unwrap().link = None;
+        let caps =
+            ClipCapabilities::for_clip(&project, project.clip(video.id).unwrap(), TrackKind::Video);
+        assert!(
+            caps.can_extract_audio && !caps.extract_needs_unlink,
+            "a link no other clip shares keeps nothing back"
+        );
     }
 
     /// [`ClipCapabilities::for_clip_with`] derives what
     /// [`ClipCapabilities::for_clip`] derives for every clip, with the link
-    /// set read once. The extract flag differs between a detached video clip,
-    /// two video clips linked only to each other, and an unlinked one, so a
-    /// set that answers wrongly changes a derived value.
+    /// set read once, and both mirror the engine's extract: a clip sharing its
+    /// link with another clip, picture or sound, does not extract until
+    /// unlinked, and a clip alone in its link or in none does. A set that
+    /// answers wrongly changes a derived value.
     #[test]
-    fn deriving_with_the_link_set_matches_deriving_alone() {
+    fn extracting_waits_on_every_link_partner() {
         let (mut project, media) = project_with_media(true);
         let timeline = project.timeline_mut();
         let v1 = timeline.add_track(Track::new(TrackKind::Video, "V1"));
@@ -495,17 +520,19 @@ mod tests {
                 .add_clip(lane, Clip::from_media(media, tr(start, 24), tr(start, 24)))
                 .expect("place clip")
         };
-        let pairs = [[place(v1, 0), place(a1, 0)], [place(v1, 48), place(v2, 48)]];
-        place(v2, 96);
-        for pair in pairs {
+        let detached = [place(v1, 0), place(a1, 0)];
+        let pictures = [place(v1, 48), place(v2, 48)];
+        let unlinked = place(v2, 96);
+        let lone = place(v2, 144);
+        for group in [&detached[..], &pictures[..], &[lone][..]] {
             let link = LinkId::next();
-            for clip in pair {
+            for &clip in group {
                 project.timeline_mut().clip_mut(clip).unwrap().link = Some(link);
             }
         }
 
-        let links = project.timeline().audio_lane_links();
-        let mut extractable = 0;
+        let links = project.timeline().shared_links();
+        let mut derived = Vec::new();
         for lane in project.timeline().tracks_ordered() {
             for clip in lane.clips() {
                 let alone = ClipCapabilities::for_clip(&project, clip, lane.kind);
@@ -516,12 +543,23 @@ mod tests {
                     clip.id,
                     lane.name
                 );
-                extractable += usize::from(alone.can_extract_audio);
+                derived.push((clip.id, alone.can_extract_audio, alone.extract_needs_unlink));
             }
         }
+        derived.sort_unstable();
+        let mut want = vec![
+            (detached[0], false, true),
+            (detached[1], false, false),
+            (pictures[0], false, true),
+            (pictures[1], false, true),
+            (unlinked, true, false),
+            (lone, true, false),
+        ];
+        want.sort_unstable();
         assert_eq!(
-            extractable, 3,
-            "the video-linked pair and the unlinked clip extract, the detached one does not"
+            derived, want,
+            "(clip, extracts, waits on an unlink): the sound lane never extracts, \
+             a partnered picture waits on its unlink, and an unshared one extracts"
         );
     }
 

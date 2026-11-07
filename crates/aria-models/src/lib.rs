@@ -168,7 +168,7 @@ pub use time::{
 };
 pub use timeline::{
     AudioLaneLinks, AudioLayout, CanvasAspect, CanvasSettings, Marker, MarkerColor, MarkerKind,
-    RemovedTrack, TimeDisplay, Timeline,
+    RemovedTrack, SharedLinks, TimeDisplay, Timeline,
 };
 pub use track::{ClipMut, ClipsOrdered, Track, TrackDisplay, TrackKind};
 pub use track_catalog::{

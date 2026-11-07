@@ -58,6 +58,9 @@ pub enum Decline {
     NoFrameToHold,
     /// Extract Audio sent to a clip whose sound cannot move to its own lane.
     NoSoundToExtract,
+    /// Extract Audio sent to a clip with sound that shares its link with
+    /// another clip, which the extraction would leave out of sync.
+    LinkedSound,
     /// Audio Gain sent to a selection that carries no sound.
     NoSound,
     /// A marker command sent to a sequence that holds no marker.
@@ -155,7 +158,7 @@ pub enum Decline {
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 57] = [
+    pub const ALL: [Decline; 58] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -172,6 +175,7 @@ impl Decline {
         Decline::NoSourceToRemap,
         Decline::NoFrameToHold,
         Decline::NoSoundToExtract,
+        Decline::LinkedSound,
         Decline::NoSound,
         Decline::NoMarkers,
         Decline::NoMarkerAtPlayhead,
@@ -235,6 +239,9 @@ impl Decline {
             Decline::NoSourceToRemap => "The selected clip plays no source media to remap",
             Decline::NoFrameToHold => "The selected clip has no video frame to hold",
             Decline::NoSoundToExtract => "The selected clip has no sound to extract",
+            Decline::LinkedSound => {
+                "The selected clip is linked to another clip: unlink it to extract its sound"
+            }
             Decline::NoSound => "No selected clip carries sound",
             Decline::NoMarkers => "The sequence has no markers",
             Decline::NoMarkerAtPlayhead => "No marker is within a second of the playhead",

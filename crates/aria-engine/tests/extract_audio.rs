@@ -4,8 +4,8 @@
 use aria_commands::{Command, EditCommand, EditOutcome};
 use aria_engine::{ApplyOutcome, Engine, EngineConfig};
 use aria_models::{
-    AudioRole, Clip, ClipId, Easing, Generator, Keyframe, LinkId, MediaId, MediaSource, Param,
-    Project, Rational, RationalTime, TimeRange, TrackId, TrackKind,
+    AudioRole, Clip, ClipCapabilities, ClipId, Easing, Generator, Keyframe, LinkId, MediaId,
+    MediaSource, Param, Project, Rational, RationalTime, TimeRange, TrackId, TrackKind,
 };
 
 const FPS: Rational = Rational::FPS_24;
@@ -412,4 +412,100 @@ fn linked_and_already_extracted_sources_reject_without_mutation() {
     assert_eq!(project_snapshot(engine.project()), before);
     assert!(engine.can_undo(), "the first extraction remains undoable");
     assert!(!engine.can_redo());
+}
+
+/// **A clip offers extraction exactly where the engine extracts it.**
+///
+/// The class closed here: [`ClipCapabilities::can_extract_audio`], which every
+/// surface draws its Extract Audio row from, disagreeing with the command.
+/// It offered the row on a picture linked to another picture, which the
+/// engine rejects, so the rejection reached the editor as a value error; and
+/// it withheld the row from a freeze frame the engine extracted. Every clip
+/// of a timeline holding each shape is walked from the timeline itself, and
+/// each one the capability withholds only for its link extracts once
+/// unlinked.
+///
+/// Not covered: a locked lane, which a surface excludes from the selection
+/// before the capability is read.
+#[test]
+fn every_clip_offers_extraction_exactly_where_the_engine_extracts() {
+    let mut project = Project::new("capabilities", FPS);
+    let sound = project.add_media(MediaSource::new("take.mp4", 1920, 1080, FPS, 1_000, true));
+    let silent = project.add_media(MediaSource::new("mute.mp4", 1920, 1080, FPS, 1_000, false));
+    let place = |project: &mut Project, kind: TrackKind, media: MediaId| {
+        let lane = project.add_track(kind, format!("{kind:?}"));
+        project
+            .add_clip(lane, media, tr(0, 48), rt(0))
+            .expect("a clip on an empty lane")
+    };
+    place(&mut project, TrackKind::Video, sound);
+    place(&mut project, TrackKind::Video, silent);
+    place(&mut project, TrackKind::Audio, sound);
+    let frozen = place(&mut project, TrackKind::Video, sound);
+    project
+        .timeline_mut()
+        .clip_mut(frozen)
+        .unwrap()
+        .freeze_frame = true;
+    let detached = [
+        place(&mut project, TrackKind::Video, sound),
+        place(&mut project, TrackKind::Audio, sound),
+    ];
+    let pictures = [
+        place(&mut project, TrackKind::Video, sound),
+        place(&mut project, TrackKind::Video, sound),
+    ];
+    for pair in [detached, pictures] {
+        project.link_clips(&pair).expect("link the pair");
+    }
+    let lone = place(&mut project, TrackKind::Video, sound);
+    project.timeline_mut().clip_mut(lone).unwrap().link = Some(LinkId::next());
+    let titles = project.add_track(TrackKind::Text, "Text");
+    project
+        .add_generated(titles, Generator::text("Title"), tr(0, 48))
+        .expect("a title");
+
+    let apply = |project: &Project, clip: ClipId| {
+        engine(project.clone())
+            .apply(Command::Edit(EditCommand::ExtractAudio {
+                clip,
+                to_track: None,
+            }))
+            .is_ok()
+    };
+    let mut walked = Vec::new();
+    for lane in project.timeline().tracks_ordered() {
+        for clip in lane.clips() {
+            let caps = ClipCapabilities::for_clip(&project, clip, lane.kind);
+            let extracts = apply(&project, clip.id);
+            assert_eq!(
+                caps.can_extract_audio, extracts,
+                "{:?} on {}: the capability and the engine disagree",
+                clip.id, lane.name
+            );
+            if caps.extract_needs_unlink {
+                assert!(
+                    !extracts,
+                    "{:?} waits on an unlink it does not need",
+                    clip.id
+                );
+                let mut unlinked = project.clone();
+                unlinked.unlink_clips(&[clip.id]).expect("unlink the clip");
+                assert!(
+                    apply(&unlinked, clip.id),
+                    "{:?} on {}: unlinking it did not free its sound",
+                    clip.id,
+                    lane.name
+                );
+            }
+            walked.push((extracts, caps.extract_needs_unlink));
+        }
+    }
+    let count = |want: (bool, bool)| walked.iter().filter(|&&shape| shape == want).count();
+    assert_eq!(
+        (count((true, false)), count((false, true)), walked.len()),
+        (2, 3, 10),
+        "the unlinked and lone-linked pictures extract, the three partnered pictures \
+         wait on an unlink, of ten clips"
+    );
 }
