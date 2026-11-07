@@ -15,9 +15,7 @@ pub(crate) fn describe_engine_error(err: &EngineError) -> String {
         EngineError::Export(msg) => {
             format!("Couldn't write the export: {msg}. Check the destination and free disk space.")
         }
-        EngineError::Decode(_) => {
-            "Couldn't decode this file. Use a supported video, audio, or image format.".into()
-        }
+        EngineError::Decode(err) => decode_copy(err),
         EngineError::Io(err) => format!(
             "Couldn't read or write that file ({}). Check the path, its permissions and the free \
              disk space.",
@@ -213,5 +211,26 @@ fn empty_export_copy(reason: aria_render::EmptyExport) -> &'static str {
             "Nothing to export. Nothing in this sequence is audible. Unmute a lane or raise its \
              fader, then try again."
         }
+    }
+}
+
+/// The copy for a file the decoder could not read: the decoder's reason, then
+/// the supported formats as the fix. A reason that ends with a full stop is a
+/// sentence that names its own fix, such as GStreamer's "Install missing
+/// plugins or pick another file.", and is not followed by the formats, which
+/// would point at the wrong fix for a supported container missing a codec.
+fn decode_copy(err: &aria_core::DecodeError) -> String {
+    use aria_core::DecodeError;
+    let (DecodeError::Open(reason)
+    | DecodeError::Io(reason)
+    | DecodeError::Decode(reason)
+    | DecodeError::Seek(reason)
+    | DecodeError::Unsupported(reason)) = err;
+    match reason.trim() {
+        "" => "Couldn't decode this file. Use a supported video, audio, or image format.".into(),
+        reason if reason.ends_with('.') => format!("Couldn't decode this file: {reason}"),
+        reason => format!(
+            "Couldn't decode this file: {reason}. Use a supported video, audio, or image format."
+        ),
     }
 }

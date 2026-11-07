@@ -1433,6 +1433,7 @@ Notes for the latest release. For previous releases, see the
 - The Import dialog and file drops accept every still the decoder reads, and the Import Still dialog no longer offers HEIC, HEIF, or AVIF where only macOS and iOS decode them.
 - A refused timeline, subtitle, or LUT import states the file's path once rather than twice.
 - A drop or File > Import of several files places every file that imports, and the error line names the file that did not; a file that failed no longer stopped the files after it and left the files before it unplaced in the pool.
+- A file the editor cannot decode reports the decoder's reason, such as a missing GStreamer plugin, rather than only asking for a supported format.
 
 ## [alpha-0.7.0] - 2026-07-22
 

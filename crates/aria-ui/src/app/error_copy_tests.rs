@@ -36,12 +36,47 @@ fn export_names_disk_as_the_fix() {
     assert!(msg.contains("export"));
 }
 
+/// WHY: every decode failure read "Couldn't decode this file. Use a supported
+/// video, audio, or image format.", which dropped the decoder's reason. A
+/// supported container whose codec had no GStreamer plugin was sent to "a
+/// supported format" rather than told to install the plugin. Each variant
+/// carries its reason: a reason that is a sentence keeps its own fix, any
+/// other is followed by the supported formats, and an empty one reads as the
+/// formats alone. Not caught: a decoder that ends a reason with a full stop
+/// and names no fix.
 #[test]
-fn decode_points_at_supported_formats() {
-    let msg = describe_engine_error(&EngineError::Decode(aria_core::DecodeError::Unsupported(
-        "xyz".into(),
-    )));
-    assert!(msg.contains("supported"));
+fn decode_copy_states_the_decoders_reason_and_one_fix() {
+    use aria_core::DecodeError;
+    let formats = "Use a supported video, audio, or image format.";
+    let variants: [fn(String) -> DecodeError; 5] = [
+        DecodeError::Open,
+        DecodeError::Io,
+        DecodeError::Decode,
+        DecodeError::Seek,
+        DecodeError::Unsupported,
+    ];
+    for variant in variants {
+        for (reason, copy) in [
+            (
+                "GStreamer: Could not determine type of stream. Install missing plugins or pick \
+                 another file.",
+                "Couldn't decode this file: GStreamer: Could not determine type of stream. \
+                 Install missing plugins or pick another file."
+                    .to_owned(),
+            ),
+            (
+                "a.heic: no portable decoder for HEIF stills on this platform",
+                format!(
+                    "Couldn't decode this file: a.heic: no portable decoder for HEIF stills on \
+                     this platform. {formats}"
+                ),
+            ),
+            (" ", format!("Couldn't decode this file. {formats}")),
+        ] {
+            let err = EngineError::Decode(variant(reason.to_owned()));
+            assert_eq!(describe_engine_error(&err), copy, "{err:?}");
+        }
+    }
 }
 
 /// Each reason an export can be empty gets copy of its own, naming the control
