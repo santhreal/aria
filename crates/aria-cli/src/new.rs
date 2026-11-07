@@ -47,6 +47,14 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         )));
     }
     let media: Vec<PathBuf> = args.positional[1..].iter().map(PathBuf::from).collect();
+    // Every file is checked before the first import, so a misspelled last
+    // file fails before the others are probed, with the wording `analyze` prints.
+    if let Some(missing) = media.iter().find(|path| !path.exists()) {
+        return Err(Failure::Failed(format!(
+            "{}: no such file",
+            missing.display()
+        )));
+    }
     let rate = rate_from(args)?;
 
     let mut engine = Engine::new(EngineConfig::default()).map_err(|err| err.to_string())?;
@@ -415,5 +423,37 @@ mod tests {
         );
         assert_eq!(err.code(), 1);
         assert!(!out.exists(), "a project was written");
+    }
+
+    /// WHY: a media file that does not exist failed with "nothere.mp4: No such
+    /// file or directory (os error 2)", the OS error and its code, and only
+    /// after every file listed before it was imported. Each file is checked
+    /// first: the failure is the one `analyze` prints, whichever place in the
+    /// list the file has, and no project is written. Not caught: a file removed
+    /// between the check and its import.
+    #[test]
+    fn a_media_file_that_does_not_exist_is_named_before_any_import() {
+        let shot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let missing = dir.path().join("nothere.mp4");
+        let out = dir.path().join("cut.aria");
+        let (out_arg, shot_arg, missing_arg) = (
+            out.to_str().expect("utf-8 path"),
+            shot.to_str().expect("utf-8 path"),
+            missing.to_str().expect("utf-8 path"),
+        );
+        for media in [[shot_arg, missing_arg], [missing_arg, shot_arg]] {
+            let args = Args::parse(["new", out_arg, media[0], media[1]]).expect("parse");
+            assert_eq!(
+                run(&args),
+                Err(Failure::Failed(format!(
+                    "{}: no such file",
+                    missing.display()
+                ))),
+                "{media:?}"
+            );
+            assert!(!out.exists(), "a project was written for {media:?}");
+        }
     }
 }
