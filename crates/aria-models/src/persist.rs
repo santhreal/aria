@@ -163,17 +163,25 @@ impl Project {
 }
 
 /// Refuse a project a sequence of which breaks a placement rule
-/// ([`crate::Timeline::layout_fault`]), naming the field and the clip. Both
-/// parse paths read this, so no edit or render reads a clip
-/// [`crate::Timeline::add_clip`] refuses.
+/// ([`crate::Timeline::layout_fault`]) or holds a clip playing something the
+/// project does not hold or a sequence containing itself
+/// ([`Project::reference_fault`]), or a multicam group of which is invalid
+/// ([`Project::multicam_fault`]), naming the field and the clip or group.
+/// Both parse paths read this, so no edit or render reads a clip
+/// [`crate::Timeline::add_clip`] or [`Project::add_clip`] refuses.
 fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError> {
-    let fault = project
-        .root_timeline()
-        .layout_fault()
+    let timeline_fault = |timeline: &crate::Timeline, holder: Option<crate::SequenceId>| {
+        timeline.layout_fault().or_else(|| {
+            project
+                .reference_fault(timeline, holder)
+                .map(|reason| ("tracks", reason))
+        })
+    };
+    let fault = timeline_fault(project.root_timeline(), None)
         .map(|(field, reason)| (field, format!("timeline.{field}"), reason))
         .or_else(|| {
             project.sequences().find_map(|sequence| {
-                sequence.timeline.layout_fault().map(|(field, reason)| {
+                timeline_fault(&sequence.timeline, Some(sequence.id)).map(|(field, reason)| {
                     (
                         field,
                         format!("sequences.timeline.{field}"),
@@ -181,6 +189,12 @@ fn check_layout(project: &Project, path: Option<&Path>) -> Result<(), ModelError
                     )
                 })
             })
+        })
+        .or_else(|| {
+            let field = "multicam_groups";
+            project
+                .multicam_fault()
+                .map(|reason| (field, field.to_owned(), reason))
         });
     match fault {
         Some((field, json_path, reason)) => {
@@ -896,3 +910,6 @@ mod tests_layout;
 #[cfg(test)]
 #[path = "persist/tests_mask_stack.rs"]
 mod tests_mask_stack;
+#[cfg(test)]
+#[path = "persist/tests_refs.rs"]
+mod tests_refs;

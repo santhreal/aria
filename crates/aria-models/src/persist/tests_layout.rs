@@ -54,7 +54,7 @@ fn clip(doc: &mut Value) -> &mut Value {
 /// `doc` as the fast path reads it, then as the migrating path reads it. The
 /// fast path reads a file whose first key is a current `schema`, and a
 /// [`Value`] writes its keys sorted, so the first text puts `schema` first.
-fn both_paths(mut doc: Value) -> [(&'static str, String); 2] {
+pub(super) fn both_paths(mut doc: Value) -> [(&'static str, String); 2] {
     let mut rest = doc.clone();
     let schema = rest
         .as_object_mut()
@@ -66,7 +66,7 @@ fn both_paths(mut doc: Value) -> [(&'static str, String); 2] {
 }
 
 /// `text` loaded, asserting it took the parse path `route` names.
-fn load(route: &str, text: &str) -> Result<Project, ModelError> {
+pub(super) fn load(route: &str, text: &str) -> Result<Project, ModelError> {
     reset_value_fallback_count();
     let loaded = Project::load_from_string(text);
     assert_eq!(

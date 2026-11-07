@@ -97,6 +97,7 @@ mod multicam;
 mod params;
 mod parent;
 mod placement;
+mod references;
 #[path = "sequence.rs"]
 mod sequence;
 mod transitions;
@@ -180,7 +181,6 @@ impl Project {
             .map(|entries| entries.keys().cloned().collect())
             .unwrap_or_default()
     }
-
 
     // --- timeline ---------------------------------------------------------
 
