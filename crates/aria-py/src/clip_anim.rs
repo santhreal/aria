@@ -105,7 +105,7 @@ pub(super) fn remove_keyframe(handle: &Clip, py: Python, name: &str, at: f64) ->
     handle.with_project(py, |project| {
         let (clip_start, clip_dur) = Clip::span_ticks(project, handle.id)?;
         let abs = clip_key_time(clip_start, clip_dur, at, project.rate())?;
-        let param = clip_param(name)?;
+        let param = clip_param(project, handle.id, name)?;
         project
             .model_mut()
             .remove_param_keyframe(handle.id, param, abs)
@@ -129,7 +129,7 @@ pub(super) fn clear_animation(
     handle.with_project(py, |project| {
         project.atomic(|project| {
             for name in list {
-                let param = clip_param(&name)?;
+                let param = clip_param(project, handle.id, &name)?;
                 let value = sample_param_at_clip_start(project, handle.id, &param)?;
                 project
                     .model_mut()

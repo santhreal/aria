@@ -189,9 +189,7 @@ impl Generator {
                     ),
                     _ => f(ShapeParamTarget::Color(&mut s.rgba), ShapeParamKind::Color),
                 },
-                None => Err(ModelError::InvalidParam(
-                    "shape has no stroke — set one via SetGenerator first".into(),
-                )),
+                None => Err(ModelError::InvalidParam("shape has no stroke".into())),
             },
         }
     }
@@ -257,9 +255,7 @@ impl Generator {
                         TextParamKind::Color,
                     ),
                 },
-                None => Err(ModelError::InvalidParam(
-                    "text has no stroke — set one via SetGenerator first".into(),
-                )),
+                None => Err(ModelError::InvalidParam("text has no stroke".into())),
             },
             TextParam::ShadowBlur | TextParam::ShadowDistance | TextParam::ShadowColor => {
                 match &mut style.shadow {
@@ -284,9 +280,7 @@ impl Generator {
                             TextParamKind::Color,
                         ),
                     },
-                    None => Err(ModelError::InvalidParam(
-                        "text has no shadow — set one via SetGenerator first".into(),
-                    )),
+                    None => Err(ModelError::InvalidParam("text has no shadow".into())),
                 }
             }
             TextParam::BackgroundColor | TextParam::BackgroundRadius => {
@@ -301,9 +295,7 @@ impl Generator {
                             TextParamKind::Color,
                         ),
                     },
-                    None => Err(ModelError::InvalidParam(
-                        "text has no background — set one via SetGenerator first".into(),
-                    )),
+                    None => Err(ModelError::InvalidParam("text has no background".into())),
                 }
             }
         }

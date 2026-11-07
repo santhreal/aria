@@ -37,6 +37,68 @@ fn shape_param_routing_rejects_wrong_targets() {
     );
 }
 
+/// Every refusal a generator gives a shape or text property edit reads as
+/// copy a script, CLI or panel caller can act on.
+///
+/// The refusals reach callers that have no engine command to name: a Python
+/// `animate` on a shape with no stroke used to report "set one via
+/// SetGenerator first". Derived from `generator_specs()` and both params'
+/// `ALL`, so a new generator kind or property is checked without a row here.
+/// Not covered: the "no keyframe at tick" refusal of a keyframe removal, which
+/// still prints the param's Rust name and a tick.
+#[test]
+fn generator_param_refusals_name_no_rust_identifier() {
+    let mut generators: Vec<Generator> = generator_specs()
+        .iter()
+        .map(|spec| (spec.census)())
+        .collect();
+    generators.push(Generator::shape(Shape::Rectangle, [255, 255, 255, 255]));
+    generators.push(Generator::text("hi"));
+    let values = [ParamValue::Scalar(1.0), ParamValue::Color([0, 0, 0, 255])];
+    let mut refusals = Vec::new();
+    for generator in &generators {
+        for value in values {
+            for &param in ShapeParam::ALL {
+                let mut g = generator.clone();
+                refusals.extend(g.set_shape_param_constant(param, value).err());
+                refusals.extend(
+                    g.set_shape_param_keyframe(param, 0, value, Easing::Linear)
+                        .err(),
+                );
+            }
+            for &param in TextParam::ALL {
+                let mut g = generator.clone();
+                refusals.extend(g.set_text_param_constant(param, value).err());
+                refusals.extend(
+                    g.set_text_param_keyframe(param, 0, value, Easing::Linear)
+                        .err(),
+                );
+            }
+        }
+    }
+    let refusals: Vec<String> = refusals.iter().map(ToString::to_string).collect();
+    for absent in [
+        "invalid parameter: shape has no stroke",
+        "invalid parameter: text has no stroke",
+        "invalid parameter: text has no shadow",
+        "invalid parameter: text has no background",
+    ] {
+        assert!(
+            refusals.iter().any(|refusal| refusal == absent),
+            "no edit reported {absent:?}; the census reached {refusals:#?}"
+        );
+    }
+    for refusal in &refusals {
+        let identifier = refusal
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .find(|word| word.chars().skip(1).any(|c| c.is_ascii_uppercase()));
+        assert_eq!(
+            identifier, None,
+            "the refusal {refusal:?} names a Rust identifier"
+        );
+    }
+}
+
 #[test]
 fn text_style_roundtrips_through_serde() {
     let style = TextStyle {

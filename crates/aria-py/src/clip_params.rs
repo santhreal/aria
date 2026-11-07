@@ -7,65 +7,84 @@
 
 use super::*;
 
-/// Resolve a Python property name to a [`ClipParam`].
+/// The registry group of a text clip's own rows (`text-size`, `text-fill`).
+const TEXT_GROUP: &str = "text";
+/// The registry group of a shape clip's own rows (`shape-width`, `shape-fill`).
+const SHAPE_GROUP: &str = "shape";
+
+/// Resolve a Python property name to the [`ClipParam`] it names on `clip`.
 ///
-/// The short aliases below are this binding's own naming surface and stay. What
-/// does not stay is a second list of *which* properties exist: anything else is
-/// looked up by its registry id, so a property added to the model is animatable
-/// from Python without a row here.
-pub(super) fn clip_param(name: &str) -> PyResult<ClipParam> {
-    Ok(match name {
-        "position" => ClipParam::Position,
-        "anchor" | "anchor_point" => ClipParam::AnchorPoint,
-        "scale" => ClipParam::Scale,
-        "rotation" => ClipParam::Rotation,
-        "opacity" => ClipParam::Opacity,
-        "volume" => ClipParam::Volume,
-        "width" => ClipParam::Shape {
-            param: ShapeParam::Width,
-        },
-        "height" => ClipParam::Shape {
-            param: ShapeParam::Height,
-        },
-        "corner_radius" => ClipParam::Shape {
-            param: ShapeParam::CornerRadius,
-        },
-        "inner_ratio" => ClipParam::Shape {
-            param: ShapeParam::InnerRatio,
-        },
-        "fill" | "color" => ClipParam::Shape {
-            param: ShapeParam::Fill,
-        },
-        "stroke_color" => ClipParam::Shape {
-            param: ShapeParam::StrokeColor,
-        },
-        "stroke_width" => ClipParam::Shape {
-            param: ShapeParam::StrokeWidth,
-        },
-        other => {
-            // Ids are hyphenated (`anchor-point`, `mask-0-feather`); Python
-            // names are not, so try both spellings of the same id.
-            let hyphenated = other.replace('_', "-");
-            return aria_models::property_row(other)
-                .or_else(|| aria_models::property_row(&hyphenated))
-                .map(|spec| spec.param)
-                .ok_or_else(|| {
-                    PyValueError::new_err(format!("unknown animatable property {other:?}"))
-                });
-        }
-    })
+/// The transform aliases below are this binding's own naming surface. Every
+/// other name is a registry id: a text or shape clip first reads its short name
+/// in its own group (`stroke_width` is `text-stroke-width` on a title and
+/// `shape-stroke-width` on a box), then as a full id, so a property added to the
+/// model is animatable from Python without a row here.
+pub(super) fn clip_param(project: &Project, clip: ClipId, name: &str) -> PyResult<ClipParam> {
+    let group = generator_group(Clip::require(project, clip)?);
+    resolve_param(group, name)
+}
+
+/// The group a clip's short names resolve in, read off the generator's
+/// `has_text` / `has_shape` column, the one `set_style` opens its block by.
+fn generator_group(clip: &aria_models::Clip) -> Option<&'static str> {
+    let aria_models::ClipSource::Generated(generator) = &clip.content else {
+        return None;
+    };
+    let spec = generator.spec();
+    if spec.has_text {
+        Some(TEXT_GROUP)
+    } else if spec.has_shape {
+        Some(SHAPE_GROUP)
+    } else {
+        None
+    }
+}
+
+fn resolve_param(group: Option<&str>, name: &str) -> PyResult<ClipParam> {
+    let fixed = match name {
+        "position" => Some(ClipParam::Position),
+        "anchor" | "anchor_point" => Some(ClipParam::AnchorPoint),
+        "scale" => Some(ClipParam::Scale),
+        "rotation" => Some(ClipParam::Rotation),
+        "opacity" => Some(ClipParam::Opacity),
+        "volume" => Some(ClipParam::Volume),
+        _ => None,
+    };
+    if let Some(param) = fixed {
+        return Ok(param);
+    }
+    // Ids are hyphenated (`anchor-point`, `mask-0-feather`); Python names are
+    // not. `color` is the descriptors' keyword for a generator's fill.
+    let id = name.replace('_', "-");
+    let short = if id == "color" { "fill" } else { id.as_str() };
+    let in_group = |axis: &str| aria_models::property_row(&format!("{axis}-{short}"));
+    if let Some(spec) = group
+        .and_then(in_group)
+        .or_else(|| aria_models::property_row(&id))
+    {
+        return Ok(spec.param);
+    }
+    let owners: Vec<&str> = [TEXT_GROUP, SHAPE_GROUP]
+        .into_iter()
+        .filter(|owner| in_group(owner).is_some())
+        .collect();
+    Err(PyValueError::new_err(if owners.is_empty() {
+        format!("unknown animatable property {name:?}")
+    } else {
+        format!("{name:?} animates only on {} clips", owners.join(" and "))
+    }))
 }
 
 /// A `set_style` keyword on a shape clip → the shape parameter + constant value.
 ///
-/// The name resolves through [`clip_param`], so the shape axis keeps no second
-/// id table, and the value's kind comes off the parameter's own registry row
+/// The name resolves in the `shape` group, so the shape axis keeps no second id
+/// table, and the value's kind comes off the parameter's own registry row
 /// rather than a color-or-scalar guess made here.
 pub(super) fn shape_style_param(
     name: &str,
     value: &Bound<'_, PyAny>,
 ) -> PyResult<(ShapeParam, ParamValue)> {
-    let Ok(ClipParam::Shape { param }) = clip_param(name) else {
+    let Ok(ClipParam::Shape { param }) = resolve_param(Some(SHAPE_GROUP), name) else {
         return Err(PyValueError::new_err(format!(
             "unknown shape style parameter {name:?}"
         )));
@@ -183,7 +202,7 @@ pub(super) fn apply_clip_animation(
     default_easing: Easing,
 ) -> PyResult<()> {
     let (clip_start, clip_dur) = clip_span;
-    let param = clip_param(name)?;
+    let param = clip_param(project, clip_id, name)?;
     if value.is_instance_of::<PyList>() {
         let list = value.cast::<PyList>()?;
         let pairs = parse_keyframe_pairs(value.py(), list, default_easing, |v| {

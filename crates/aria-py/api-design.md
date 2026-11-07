@@ -122,7 +122,7 @@ has the same rate.
 | `p.canvas` | Aspect preset, get/set: `"auto"`, `"16:9"`, `"9:16"`, `"1:1"`, `"4:5"`, `"21:9"`. |
 | `p.background` | Canvas color, get/set. |
 | `p.get_frame(t) -> numpy.ndarray` | Composite frame at timeline `t`, `(H, W, 4)` RGBA uint8. |
-| `p.export(path) -> int` | Encode the whole timeline (video + mixed audio) with the platform encoder: VideoToolbox on Apple, Media Foundation on Windows, GStreamer on Linux; returns frames written. |
+| `p.export(path) -> int` | Encode the whole timeline (video + mixed audio) with the platform encoder: VideoToolbox on Apple, Media Foundation on Windows, GStreamer on Linux; returns frames written. `path` ends in the encoder's extension (`.mp4`); another name raises `ValueError`. |
 | `p.save(path)` / `Project.load(path)` | Aria JSON project documents. |
 | `p.load_font(path)` | Register a TTF/OTF for deterministic text. |
 | `p.duration`, `p.size`, `p.fps` | Read-only. |
@@ -276,8 +276,14 @@ incrementally; `clear_animation` flattens back to a constant. Batch pairs
 may be listed in any order (sorted internally); duplicate times within one
 call raise `ValueError`.
 
-A property is named by a short alias (`opacity`, `anchor`, `fill`) or by its
+A property is named by a short alias (`opacity`, `anchor`) or by its
 registry id with underscores for hyphens (`anchor_point`, `filter_intensity`).
+On a text or shape clip, a property of its own block also takes its short
+name: `stroke_width` is `text_stroke_width` on a title and
+`shape_stroke_width` on a shape, and `color` is `fill`. A short name on a clip
+without that property raises `ValueError` naming the clips it animates on.
+A stroke, shadow or background property needs the block on the clip: a title
+built without `stroke=` has no `stroke_width` to animate.
 A mask property includes the mask's index in the clip's stack, top first:
 `mask_0_feather`, `mask_1_center`. Naming a mask the clip does not have
 raises an error.
@@ -293,8 +299,10 @@ considered and rejected: two lists synced by position are easy to get
 wrong, and pairs keep each keyframe's time and value together.
 
 Animatable: `position`, `anchor`, `scale`, `rotation`, `opacity`, `volume`
-(media clips), effect parameters (via `Effect.animate`), and shape
-properties (below).
+(media clips), effect parameters (via `Effect.animate`), text properties
+(`size`, `fill`, `letter_spacing`, `line_spacing`, `stroke_width`,
+`stroke_color`, `shadow_blur`, `shadow_distance`, `shadow_color`,
+`background_color`, `background_radius`), and shape properties (below).
 
 ### Audio (media-backed clips)
 

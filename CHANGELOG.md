@@ -1500,6 +1500,8 @@ Notes for the latest release. For previous releases, see the
 - Lift and Extract are disabled while no unlocked track is targeted, and state the reason their run states.
 - A frame with the Clip menu or a clip's badge menu open no longer waits for a preview decode to finish.
 - A Python `animate`, `clear_animation`, `add_effect`, `transition` or `set_style` call that fails now leaves the project as it was instead of keeping the steps before the failure.
+- Python `animate`, `remove_keyframe` and `clear_animation` resolve `stroke_width`, `fill`, `color`, `size`, `shadow_blur` and the other short names on the text or shape clip they are called on.
+- Animating a stroke, shadow or background on a clip without one reports the missing block without naming an engine command.
 
 ## [alpha-0.7.0] - 2026-07-22
 

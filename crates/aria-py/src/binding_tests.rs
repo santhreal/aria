@@ -11,7 +11,7 @@
 //! `cargo test --all-targets` runs them with no flags. A wheel build is the
 //! build that turns it off.
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 
 use aria_models::{Generator, Param, Shape};
 use pyo3::exceptions::PyValueError;
@@ -432,4 +432,114 @@ c.set_speed(200.0)
 ",
     );
     assert!(msg_high.starts_with("ValueError:"));
+}
+
+/// The scene the alias tests name properties on: a title with every optional
+/// text block and a star with a stroke, so every text and shape row exists.
+const STYLED_GENERATORS: &CStr = c"p = aria.Project('scripted', fps = 30)
+title = p.add_track('text').add(aria.Text('hi', stroke = aria.TextStroke('#ff0000'),
+    background = aria.TextBackground('#0000ff'), shadow = aria.TextShadow('#000000')), 0.0, 2.0)
+star = p.add_track('sticker').add(aria.Star(5, stroke = aria.ShapeStroke('#ff0000')), 0.0, 2.0)
+";
+
+/// A short property name animates the property of that name on the clip it is
+/// applied to.
+///
+/// `stroke_width` on a title reached the shape axis and failed with "shape
+/// parameters apply only to shape generator clips", and `size` and
+/// `shadow_blur` were unknown. The names are derived from each clip's own
+/// registry rows (`text-*` on the title, `shape-*` on the star), so a property
+/// added to either group is driven here without a row. Each name is keyed,
+/// unkeyed and flattened, which fails unless all three reach one property. Not
+/// covered: a clip whose generator has no text or shape rows has no short names.
+#[test]
+fn a_short_property_name_animates_the_clip_it_is_applied_to() {
+    let (driven, failures) = with_aria(|py, globals| {
+        py.run(STYLED_GENERATORS, Some(globals), None)?;
+        let mut names = vec![
+            (
+                "title".to_owned(),
+                "color".to_owned(),
+                "(9, 9, 9, 255)".to_owned(),
+            ),
+            (
+                "star".to_owned(),
+                "color".to_owned(),
+                "(9, 9, 9, 255)".to_owned(),
+            ),
+        ];
+        for (handle, group) in [("title", "text-"), ("star", "shape-")] {
+            let bound = globals
+                .get_item(handle)?
+                .expect("the scene binds every handle");
+            let clip = bound.cast::<crate::clip::Clip>()?.borrow();
+            clip.with_project_ref(py, |project| {
+                let model = project
+                    .model()
+                    .clip(clip.id())
+                    .expect("the clip was placed");
+                aria_models::visit_clip_params(model, |spec| {
+                    let Some(short) = spec.id.strip_prefix(group) else {
+                        return;
+                    };
+                    let literal = match spec.sample(model, 0) {
+                        Some(aria_models::ParamValue::Scalar(v)) => format!("{v:?}"),
+                        Some(aria_models::ParamValue::Color([r, g, b, a])) => {
+                            format!("({r}, {g}, {b}, {a})")
+                        }
+                        other => panic!("{} samples to {other:?}", spec.id),
+                    };
+                    names.push((handle.to_owned(), short.replace('-', "_"), literal));
+                });
+                Ok(())
+            })?;
+        }
+        let mut failures = Vec::new();
+        for (handle, short, literal) in &names {
+            let script = format!(
+                "{handle}.animate({short} = [(0.0, {literal}), (0.5, {literal})])
+{handle}.remove_keyframe('{short}', at = 0.5)
+{handle}.clear_animation('{short}')
+"
+            );
+            let code = CString::new(script).expect("test source holds no NUL");
+            if let Err(err) = py.run(&code, Some(globals), None) {
+                failures.push(format!("{handle}.{short}: {err}"));
+            }
+        }
+        let driven: Vec<String> = names
+            .into_iter()
+            .map(|(handle, short, _)| format!("{handle}.{short}"))
+            .collect();
+        Ok((driven, failures))
+    });
+    assert_eq!(failures, Vec::<String>::new());
+    assert_eq!(
+        driven.len(),
+        2 + aria_models::TextParam::ALL.len() + aria_models::ShapeParam::ALL.len(),
+        "the scene declares a row for every text and shape property: {driven:?}"
+    );
+}
+
+/// A short name on a clip that lacks the property states which clips have it.
+#[test]
+fn a_short_name_on_the_wrong_clip_names_the_clips_it_animates_on() {
+    for (call, expected) in [
+        (
+            "title.animate(width = 10.0, at = 0.0)",
+            "\"width\" animates only on shape clips",
+        ),
+        (
+            "star.animate(size = 10.0, at = 0.0)",
+            "\"size\" animates only on text clips",
+        ),
+    ] {
+        let script = format!("{}{call}\n", STYLED_GENERATORS.to_str().expect("utf-8"));
+        let code = CString::new(script).expect("test source holds no NUL");
+        let message = refused(&code);
+        assert!(
+            message.starts_with("ValueError:") && message.ends_with(&format!(": {expected}")),
+            "{call} reported {message:?}"
+        );
+    }
 }
