@@ -68,11 +68,11 @@ aria new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
 | --- | --- | --- |
 | `--fps <RATE>` | `24` | Sequence frame rate: `23.976`, `24`, `25`, `29.97`, `30`, `50`, or `60` |
 
-Import each media file and place it after the previous one: the picture on
-`V1` and the sound on `A1`, linked, as a drop in the editor places them. Each
-file starts where every lane it lands on is free. Assembly applies the edits a
-drop in the editor applies, so the saved project opens in the editor without
-repair.
+Import each media file in order: the picture on `V1` and the sound on `A1`,
+linked, as a drop in the editor places them. Each file starts at the latest
+clip end on the lanes it lands on, so a sound file after a still starts at `0`
+under the still. Assembly applies the edits a drop in the editor applies, so
+the saved project opens in the editor without repair.
 
 An `<out.aria>` that already exists, as a file, a folder, or a link, fails
 with exit code `2` and is left as it was.

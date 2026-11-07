@@ -415,8 +415,8 @@ COMMANDS
         Composite a text layer on a headless GPU and write the canvas.
 
     new <out.aria> [media...] [--fps 23.976|24|25|29.97|30|50|60]
-        Assemble a project: import each file and lay it after the previous
-        one, video on V1 and audio-only files on A1.
+        Assemble a project: import each file and lay it at the end of the
+        lanes it lands on, the picture on V1 and the sound on A1.
 
     frame <project.aria> [out.png] [--at SECONDS] [--fit WxH]
         Render one timeline instant. --at defaults to 0, --fit scales the

@@ -356,6 +356,61 @@ mod tests {
         assert_eq!(links[0], links[1], "the picture and its sound share a link");
     }
 
+    /// WHY: `aria new`'s usage said each file lands "after the previous one",
+    /// but a sound file after a still with no sound starts at `0` under the
+    /// still: a file starts at the latest clip end on the lanes it lands on,
+    /// and lanes it has no channel for do not hold it back. Each order of a
+    /// picture-and-sound shot, a still and a tone is assembled and its lane
+    /// spans compared. Not caught: a second video lane, which `aria new` never
+    /// creates.
+    #[test]
+    fn each_file_starts_at_the_latest_clip_end_on_its_own_lanes() {
+        let fixture = |name: &str| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures")
+                .join(name)
+                .to_str()
+                .expect("utf-8 path")
+                .to_owned()
+        };
+        let (shot, still, tone) = (
+            fixture("fixture-640x360-24fps-3s-av.mp4"),
+            fixture("texture.png"),
+            fixture("fixture-sine-48k-2s.wav"),
+        );
+        let (shot, still, tone) = (shot.as_str(), still.as_str(), tone.as_str());
+        type Spans = Vec<(i64, i64)>;
+        let cases: [(Vec<&str>, Spans, Spans); 3] = [
+            (vec![still, tone], vec![(0, 48)], vec![(0, 120)]),
+            (vec![tone, still], vec![(0, 48)], vec![(0, 120)]),
+            (
+                vec![still, shot, tone],
+                vec![(120, 168), (168, 216)],
+                vec![(0, 120), (120, 168)],
+            ),
+        ];
+        for (files, audio, video) in cases {
+            let dir = tempfile::tempdir().expect("scratch directory");
+            let out = dir.path().join("order.aria");
+            let mut argv = vec!["new", out.to_str().expect("utf-8 path")];
+            argv.extend(&files);
+            if let Err(err) = run(&Args::parse(argv).expect("arguments parse")) {
+                panic!("aria new {files:?} failed: {}", err.message());
+            }
+            let project = aria_models::Project::load_from_file(&out).expect("the project loads");
+            let spans = |name: &str| -> Spans {
+                project
+                    .timeline()
+                    .tracks_ordered()
+                    .filter(|track| track.name == name)
+                    .flat_map(|track| track.clips_ordered())
+                    .map(|clip| (clip.timeline.start.value, clip.timeline.end_tick()))
+                    .collect()
+            };
+            assert_eq!((spans("A1"), spans("V1")), (audio, video), "{files:?}");
+        }
+    }
+
     /// WHY: `aria new a.mp4 b.mp4`, with the output left out, saved a project
     /// over `a.mp4`, and `aria new p.aria` replaced an existing project; both
     /// exited 0. An output that exists, as a file, a folder or a link, is a

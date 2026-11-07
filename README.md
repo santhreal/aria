@@ -55,7 +55,7 @@ A clip bar is filled with its label color. UI text is Inter. The footage is
   scopes.
 - Audio analysis: beat grids on the clip, silence, loudness, and a measured
   duck under a flagged voice lane.
-- Export to H.264 / AAC MP4.
+- Export to H.264 or H.265 MP4 with AAC audio.
 - Optional assistant (configure a provider in Settings), a command-line
   interface, and plugins.
 
