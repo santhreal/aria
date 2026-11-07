@@ -154,8 +154,10 @@ aria inspect <project.aria> [--clips]
 | `--clips` | off | List every clip on every lane with its timeline span and source description |
 
 Print the project's schema version, canvas size, frame rate, duration, marker
-count, media pool, and lanes from bottom to top. A media pool entry whose file
-is missing on disk is marked `OFFLINE`.
+count, media pool, and lanes from bottom to top. A media pool entry prints a
+video's size, frame rate and length, `audio` and a sound's length, or a still's
+size and `still`, then its path. An entry whose file is missing on disk is
+marked `OFFLINE`.
 
 Lane state flags appear in brackets: `disabled`, `muted`, `solo`, `locked`,
 `main`, `duck source`, `not targeted`, `no sync lock`.

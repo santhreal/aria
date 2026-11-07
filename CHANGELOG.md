@@ -1380,6 +1380,7 @@ Notes for the latest release. For previous releases, see the
 - `aria frame --at` and `aria export --at` take the last frame for an instant in the last half frame instead of refusing it as past the end.
 - A media path that cannot be read, such as a directory, reports the read error without suggesting missing plugins.
 - Opening a directory as a project reports that it is not an Aria project file instead of an OS error code and a permissions hint.
+- `aria inspect` prints a sound in the media pool as `audio` and its length and a still as its size and `still`, instead of a zero size and a tick rate.
 
 ## [alpha-0.7.0] - 2026-07-22
 
