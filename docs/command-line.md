@@ -187,7 +187,9 @@ at `30` fps up to `30` minutes (`1800` seconds) and reports a cut where a frame
 change stands out from the changes before it and the changes after it, and
 lasts more than five frames.
 `--limit` caps the printed rows per detector (`40` by default) and prints the
-count of remaining rows.
+count of remaining rows. A detector whose track the file lacks, such as an
+audio detector on a video with no sound or `--shots` on a sound file, fails
+with exit code `1` before any decode and states the missing track.
 
 ```
 aria analyze interview.wav --silence

@@ -34,13 +34,42 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
     let silence = args.present("silence") || !named;
     let loudness = args.present("loudness") || !named;
 
+    let probed = aria_decoder::probe(&path)
+        .map_err(|err| Failure::Failed(format!("{}: {err}", path.display())))?;
+    let audio = beats || silence || loudness;
+    if let Some(missing) = missing_track(&probed, shots, audio) {
+        return Err(Failure::Failed(format!("{}: {missing}", path.display())));
+    }
     if shots {
         run_shots(&path, limit)?;
     }
-    if beats || silence || loudness {
+    if audio {
         run_audio(&path, limit, beats, silence, loudness)?;
     }
     Ok(())
+}
+
+/// The track a requested detector reads that `probed` lacks, stated before a
+/// decode starts. Each detector's decode failed on its own with "source has
+/// no audio track" or "source has no video track" behind two prefixes, and a
+/// run with no detector named on a silent video did not mention `--shots`.
+fn missing_track(
+    probed: &aria_decoder::MediaProbe,
+    shots: bool,
+    audio: bool,
+) -> Option<&'static str> {
+    let video = probed.width > 0 && !probed.is_image;
+    if shots && !video {
+        return Some("the file has no video track for --shots to sample");
+    }
+    if audio && !probed.has_audio {
+        return Some(if video {
+            "the file has no audio track; --shots detects the shots in its video"
+        } else {
+            "the file has no audio track"
+        });
+    }
+    None
 }
 
 fn run_shots(path: &Path, limit: usize) -> Result<(), Failure> {
@@ -162,5 +191,66 @@ mod tests {
         ];
         let parsed = Args::parse(&raw).expect("valid args");
         run(&parsed).expect("--shots on video-only file must succeed without audio decode");
+    }
+
+    fn fixture(name: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(name)
+    }
+
+    /// WHY: `aria analyze silent.mp4` failed with "audio decode failed:
+    /// unsupported: source has no audio track" and no mention of `--shots`,
+    /// and `--shots` on a sound file failed inside the shot sampler. Each
+    /// detector's track is checked against the probe before a decode starts,
+    /// for sound alone, picture alone, picture and sound, and a still.
+    #[test]
+    fn a_detector_whose_track_the_file_lacks_is_named_before_a_decode() {
+        const NO_VIDEO: &str = "the file has no video track for --shots to sample";
+        const NO_AUDIO: &str = "the file has no audio track";
+        const NO_AUDIO_SHOTS: &str =
+            "the file has no audio track; --shots detects the shots in its video";
+        for (name, shots_only, audio_only, both) in [
+            (
+                "fixture-sine-48k-2s.wav",
+                Some(NO_VIDEO),
+                None,
+                Some(NO_VIDEO),
+            ),
+            (
+                "fixture-160x90-30fps-cuts.mp4",
+                None,
+                Some(NO_AUDIO_SHOTS),
+                Some(NO_AUDIO_SHOTS),
+            ),
+            ("fixture-640x360-24fps-3s-av.mp4", None, None, None),
+            (
+                "texture.png",
+                Some(NO_VIDEO),
+                Some(NO_AUDIO),
+                Some(NO_VIDEO),
+            ),
+        ] {
+            let probed = aria_decoder::probe(&fixture(name)).expect("probe the fixture");
+            for (shots, audio, want) in [
+                (true, false, shots_only),
+                (false, true, audio_only),
+                (true, true, both),
+            ] {
+                assert_eq!(
+                    missing_track(&probed, shots, audio),
+                    want,
+                    "{name} shots {shots} audio {audio}"
+                );
+            }
+        }
+        let silent = fixture("fixture-160x90-30fps-cuts.mp4");
+        let parsed = Args::parse(["analyze".to_owned(), silent.to_string_lossy().into_owned()])
+            .expect("valid args");
+        let failure = run(&parsed).expect_err("a silent video ran the audio detectors");
+        assert_eq!(
+            failure.message(),
+            format!("{}: {NO_AUDIO_SHOTS}", silent.display())
+        );
     }
 }
