@@ -28,8 +28,12 @@ pub fn rgba_bytes_to_render(width: u32, height: u32, rgba: &[u8]) -> Option<Arc<
         return None;
     }
     let mut bgra = rgba.to_vec();
+    // A whole-array store per pixel, not `swap`: below opt-level 2 a shared
+    // generic `swap` stays an out-of-line call per pixel, which was 6% of the
+    // library's test CPU through the preview thread.
     for px in bgra.as_chunks_mut::<4>().0 {
-        px.swap(0, 2);
+        let [r, g, b, a] = *px;
+        *px = [b, g, r, a];
     }
     bgra_to_render(width, height, bgra)
 }
@@ -95,16 +99,24 @@ mod tests {
         assert!(rgba_to_render(&RgbaImage::new(2, 2, vec![1, 2, 3])).is_none());
     }
 
+    /// Every pixel's red and blue trade places and green and alpha stay, so a
+    /// conversion that skips a pixel or moves the wrong channel shows.
     #[test]
     fn converts_well_formed_rgba() {
-        let mut pixels = vec![0u8; 2 * 2 * 4];
-        pixels[0] = 255;
-        pixels[3] = 255;
-        let image = rgba_to_render(&RgbaImage::new(2, 2, pixels)).expect("render image");
+        let pixels: Vec<u8> = (0..2 * 2 * 4).map(|byte| byte as u8 * 9 + 1).collect();
+        let image = rgba_to_render(&RgbaImage::new(2, 2, pixels.clone())).expect("render image");
         assert_eq!(image.frame_count(), 1);
         let size = image.size(0);
         assert_eq!(u32::from(size.width), 2);
         assert_eq!(u32::from(size.height), 2);
+        let bgra = image.as_bytes(0).expect("one frame");
+        let expected: Vec<u8> = pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(|&[r, g, b, a]| [b, g, r, a])
+            .collect();
+        assert_eq!(bgra, expected.as_slice());
     }
 
     /// A pixel shows the grid in proportion to how transparent it is: none
