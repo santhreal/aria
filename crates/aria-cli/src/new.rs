@@ -47,13 +47,16 @@ pub(crate) fn run(args: &Args) -> Result<(), Failure> {
         )));
     }
     let media: Vec<PathBuf> = args.positional[1..].iter().map(PathBuf::from).collect();
-    // Every file is checked before the first import, so a misspelled last
-    // file fails before the others are probed, with the wording `analyze` prints.
-    if let Some(missing) = media.iter().find(|path| !path.exists()) {
-        return Err(Failure::Failed(format!(
-            "{}: no such file",
-            missing.display()
-        )));
+    // Every path is checked before the first import, so a misspelled or
+    // folder path late in the list fails before the files ahead of it are
+    // probed. A missing file gets the wording `analyze` prints.
+    for path in &media {
+        let why = match std::fs::metadata(path) {
+            Err(_) => "no such file",
+            Ok(meta) if meta.is_dir() => "is a directory; name a media file",
+            Ok(_) => continue,
+        };
+        return Err(Failure::Failed(format!("{}: {why}", path.display())));
     }
     let rate = rate_from(args)?;
 
@@ -479,34 +482,39 @@ mod tests {
     }
 
     /// WHY: a media file that does not exist failed with "nothere.mp4: No such
-    /// file or directory (os error 2)", the OS error and its code, and only
-    /// after every file listed before it was imported. Each file is checked
-    /// first: the failure is the one `analyze` prints, whichever place in the
-    /// list the file has, and no project is written. Not caught: a file removed
-    /// between the check and its import.
+    /// file or directory (os error 2)", the OS error and its code, and a folder
+    /// failed as "decode failed: GStreamer: ... is a directory", both only after
+    /// every file listed before them was imported. Each path is checked first:
+    /// the failure states the path and why it is not media, whichever place in
+    /// the list it has, and no project is written. Not caught: a file removed
+    /// or replaced between the check and its import.
     #[test]
-    fn a_media_file_that_does_not_exist_is_named_before_any_import() {
+    fn a_media_path_that_is_not_a_file_is_named_before_any_import() {
         let shot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4");
         let dir = tempfile::tempdir().expect("scratch directory");
-        let missing = dir.path().join("nothere.mp4");
+        let folder = dir.path().join("clips");
+        std::fs::create_dir(&folder).expect("create folder");
         let out = dir.path().join("cut.aria");
-        let (out_arg, shot_arg, missing_arg) = (
+        let (out_arg, shot_arg) = (
             out.to_str().expect("utf-8 path"),
             shot.to_str().expect("utf-8 path"),
-            missing.to_str().expect("utf-8 path"),
         );
-        for media in [[shot_arg, missing_arg], [missing_arg, shot_arg]] {
-            let args = Args::parse(["new", out_arg, media[0], media[1]]).expect("parse");
-            assert_eq!(
-                run(&args),
-                Err(Failure::Failed(format!(
-                    "{}: no such file",
-                    missing.display()
-                ))),
-                "{media:?}"
-            );
-            assert!(!out.exists(), "a project was written for {media:?}");
+        let cases = [
+            (dir.path().join("nothere.mp4"), "no such file"),
+            (folder, "is a directory; name a media file"),
+        ];
+        for (bad, why) in &cases {
+            let bad_arg = bad.to_str().expect("utf-8 path");
+            for media in [[shot_arg, bad_arg], [bad_arg, shot_arg]] {
+                let args = Args::parse(["new", out_arg, media[0], media[1]]).expect("parse");
+                assert_eq!(
+                    run(&args),
+                    Err(Failure::Failed(format!("{}: {why}", bad.display()))),
+                    "{media:?}"
+                );
+                assert!(!out.exists(), "a project was written for {media:?}");
+            }
         }
     }
 }

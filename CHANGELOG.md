@@ -1420,6 +1420,7 @@ Notes for the latest release. For previous releases, see the
 - Installing, checking and packing a plugin state a failed read or write by its path and reason, and a plugin folder that cannot be written by that folder, instead of a hidden lock file and the OS error code.
 - The features page no longer lists object detection, which the build does not have.
 - A failed save states the reason without the OS error code, and Save a Copy no longer suggests choosing another folder for a failure a folder does not cause.
+- `aria new` fails on a folder among its media with "<path>: is a directory; name a media file" before importing any file.
 
 ## [alpha-0.7.0] - 2026-07-22
 
