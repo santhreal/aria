@@ -34,8 +34,8 @@ pub enum EngineError {
     #[error("media file not found: {}", .0.join(", "))]
     MissingMedia(Vec<String>),
 
-    /// A command whose backend isn't available in this build (e.g. audio
-    /// ducking and beat detection, which need the decoder's audio reader).
+    /// A command the calling surface does not offer: the phone surface
+    /// duplicates neither a multicam clip nor a nested sequence.
     #[error("unsupported on this build: {0}")]
     Unsupported(String),
 
