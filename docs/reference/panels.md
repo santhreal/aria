@@ -76,7 +76,7 @@ Rows with a default frame have a `DockSpec` and appear as dockable tabs in the w
 | `Animations` | `Effects` | Animations | In, Out, and Loop clip animation catalog (`docs/reference/animations.md`) with hover preview. |
 | `Stock` | `Library` | Stock | Video, photo, and audio stock search via Pexels, Pixabay, or the Aria cloud backend. |
 | `CloudSfx` | `Library` | SFX | Cloud sound-effect catalog with download caching and pool import. |
-| `Generate` | `Library` | Generate | Prompt-driven image, video, and voice generation through `fal` / `elevenlabs`. |
+| `Generate` | `Library` | Generate | Prompt-driven image, video, and voice generation through `fal`. |
 | `Captions` | `Analyze` | Captions | Offline Whisper speech-to-text transcription and caption/marker commit controls. |
 | `Analysis` | `Analyze` | Analysis | Offline shot, silence, and beat detectors with moment navigation and split/ripple-delete actions. |
 

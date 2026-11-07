@@ -157,11 +157,10 @@ pub enum StockRoute {
 /// call that a list: the interesting case is the provider with no key, which is
 /// exactly the one missing from the map. This table is the list of names that mean
 /// something, so an unset one is shown as unset instead of being invisible.
-pub const BYOK_PROVIDERS: [(&str, &str); 4] = [
+pub const BYOK_PROVIDERS: [(&str, &str); 3] = [
     ("pexels", "Stock search"),
     ("pixabay", "Stock search"),
-    ("elevenlabs", "Voice generation"),
-    ("fal", "Image and video generation"),
+    ("fal", "Image, video and voice generation"),
 ];
 
 /// The product name shown for a `[providers.<name>]` key.
@@ -169,7 +168,6 @@ pub fn provider_label(name: &str) -> &'static str {
     match name {
         "pexels" => "Pexels",
         "pixabay" => "Pixabay",
-        "elevenlabs" => "ElevenLabs",
         "fal" => "fal.ai",
         _ => "Unknown",
     }

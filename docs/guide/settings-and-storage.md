@@ -37,7 +37,7 @@ trim readout all read in it. It is saved with the sequence and is one undo step.
 ## Provider keys
 
 Settings has a Provider keys section listing every BYOK provider Aria can use
-(Pexels, Pixabay, ElevenLabs, fal), with what each one powers and where its
+(Pexels, Pixabay, fal), with what each one powers and where its
 key comes from. A provider with no key is listed as `Not set` rather than omitted.
 
 Set a key in `~/.aria/config.toml`:

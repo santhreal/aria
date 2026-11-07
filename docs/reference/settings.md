@@ -77,8 +77,7 @@ api_key_env = "PEXELS_API_KEY"
 | `plugin_limits.wasm_memory_mib` | `integer` | `64` | `16` to `4096` MiB | `Plugins` | Linear memory ceiling per Tier 2 WASM plugin instance. |
 | `providers.pexels` | `table` | unconfigured | `{ api_key = "..." }` or `{ api_key_env = "..." }` | `Provider keys` | Direct Pexels stock search API key. |
 | `providers.pixabay` | `table` | unconfigured | `{ api_key = "..." }` or `{ api_key_env = "..." }` | `Provider keys` | Direct Pixabay stock search API key. |
-| `providers.elevenlabs` | `table` | unconfigured | `{ api_key = "..." }` or `{ api_key_env = "..." }` | `Provider keys` | Direct ElevenLabs voice generation API key. |
-| `providers.fal` | `table` | unconfigured | `{ api_key = "..." }` or `{ api_key_env = "..." }` | `Provider keys` | Direct fal.ai image and video generation API key. |
+| `providers.fal` | `table` | unconfigured | `{ api_key = "..." }` or `{ api_key_env = "..." }` | `Provider keys` | Direct fal.ai image, video and voice generation API key. |
 | `plugins.<key>` | `string` | unset | Non-empty key name and string value declared by a plugin's `[settings]` schema | Plugin section | Per-plugin string setting exposed to the declaring plugin via `SettingsHost`. |
 
 ## Schema version table (`[schema]`)

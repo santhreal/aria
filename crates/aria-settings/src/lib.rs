@@ -69,8 +69,8 @@
 //! [providers.pexels]
 //! api_key_env = "PEXELS_API_KEY"
 //!
-//! [providers.elevenlabs]
-//! api_key = "sk-..."
+//! [providers.fal]
+//! api_key = "..."
 //!
 //! # Every table above is a versioned shape; see the `schema` module.
 //! [schema]
@@ -697,7 +697,7 @@ pub struct Settings {
     /// `[ai]`.
     pub ai: AiSettings,
     /// `[providers.<name>]` — BYOK keys by provider name ("pexels",
-    /// "pixabay", "elevenlabs", …). Sorted map so saves are deterministic.
+    /// "pixabay", "fal"). Sorted map so saves are deterministic.
     pub providers: BTreeMap<String, ProviderSettings>,
     /// `[cloud]`.
     pub cloud: CloudSettings,

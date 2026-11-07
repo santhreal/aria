@@ -73,6 +73,28 @@ fn every_provider_is_listed_even_with_no_key() {
         );
     }
 }
+/// WHY: closes the class of a Provider keys row whose key no feature reads.
+/// An ElevenLabs row stated voice generation while the Voice kind of the
+/// Generate panel sent its request with the fal.ai key, so a key entered
+/// there changed nothing. Every listed provider must be a stock search
+/// provider or the generation provider, the two readers of a key, so a row
+/// added for a provider nothing reads is red here.
+///
+/// What this does not catch: a reader that stops reading a key it is still
+/// listed under in `STOCK_PROVIDERS` or `GENERATE_PROVIDER`.
+#[test]
+fn every_listed_provider_key_has_a_reader() {
+    let readers: Vec<&str> = STOCK_PROVIDERS
+        .into_iter()
+        .chain([crate::app::generate::GENERATE_PROVIDER])
+        .collect();
+    let unread: Vec<&str> = crate::cloud::BYOK_PROVIDERS
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| !readers.contains(name))
+        .collect();
+    assert!(unread.is_empty(), "no feature reads the key of {unread:?}");
+}
 #[test]
 fn a_key_naming_an_unset_environment_variable_is_not_a_key() {
     // `is_configured` is true for a *named* variable; only `resolve_key` knows whether
