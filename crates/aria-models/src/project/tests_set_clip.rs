@@ -1,6 +1,7 @@
 //! `set_clip` cases.
 
 use super::*;
+use crate::clip::SlipRefusal;
 
 #[test]
 fn split_clip_rejects_wrong_timeline_rate() {
@@ -89,37 +90,52 @@ fn a_nested_sequence_slips_on_until_its_window_ends_at_the_last_tick() {
     }
 }
 
+/// Every [`SlipRefusal`] is what a slip returns for the clip that raises it,
+/// and the refused slip leaves the clip as it was.
+///
+/// Closes the class where a slip drag on a clip with no take to move inside
+/// returned `InvalidParam`, which the editor reads as "That value isn't
+/// accepted here. Enter another value": a slip of a still pointed at a value
+/// field. Derived from [`SlipRefusal::ALL`] through an exhaustive match, so a
+/// new refusal fails to build until it has a fixture. Not covered: a linked
+/// partner's refusal through [`Project::slip_reach`].
 #[test]
-fn slip_is_refused_where_there_is_no_take_to_slip_within() {
-    // A generated clip has no source at all.
-    let mut project = Project::new("slip", R24);
-    let track = project.add_track(TrackKind::Text, "T1");
-    let text = project
-        .add_generated(
-            track,
-            Generator::Text {
-                content: "hi".into(),
-                style: Default::default(),
-            },
-            tr(0, 48),
-        )
-        .unwrap();
-    assert!(project.slip_clip(text, 5).is_err());
-
-    // A still shows one frame throughout.
-    let video = project.add_track(TrackKind::Video, "V1");
-    let image = project.add_media(MediaSource::image("/tmp/slip.png", 64, 64));
-    let full = project.media(image).unwrap().full_range();
-    let still = project.add_clip(video, image, full, rt(240)).unwrap();
-    assert!(project.slip_clip(still, 5).is_err());
-
-    // A clip spanning its whole source has nowhere to go.
-    let (mut whole, media_id, lane) = project_with_media(100);
-    let full = whole.add_clip(lane, media_id, tr(0, 100), rt(0)).unwrap();
-    assert!(
-        whole.slip_clip(full, 1).is_err(),
-        "a window that is the whole take reports that rather than doing nothing"
-    );
+fn every_slip_refusal_is_raised_by_its_clip_and_leaves_it_whole() {
+    for refusal in SlipRefusal::ALL {
+        let (mut project, media_id, video) = project_with_media(100);
+        let clip = match refusal {
+            SlipRefusal::FreezeFrame => {
+                let clip = project.add_clip(video, media_id, tr(0, 50), rt(0)).unwrap();
+                project.timeline_mut().clip_mut(clip).unwrap().freeze_frame = true;
+                clip
+            }
+            SlipRefusal::Still => {
+                let image = project.add_media(MediaSource::image("slip.png", 64, 64));
+                let full = project.media(image).unwrap().full_range();
+                project.add_clip(video, image, full, rt(240)).unwrap()
+            }
+            SlipRefusal::Generated => {
+                let text = project.add_track(TrackKind::Text, "T1");
+                let generator = Generator::Text {
+                    content: "hi".into(),
+                    style: Default::default(),
+                };
+                project.add_generated(text, generator, tr(0, 48)).unwrap()
+            }
+            SlipRefusal::WholeTake => project
+                .add_clip(video, media_id, tr(0, 100), rt(0))
+                .unwrap(),
+        };
+        let before = project.clip(clip).unwrap().clone();
+        for by in [-5, 0, 5] {
+            assert_eq!(
+                project.slip_clip(clip, by),
+                Err(ModelError::Slip(refusal)),
+                "{refusal:?} by {by}"
+            );
+        }
+        assert_eq!(project.clip(clip), Some(&before), "{refusal:?}");
+    }
 }
 
 #[test]
@@ -162,8 +178,9 @@ fn slip_multicam_moves_window_and_clamps_within_group_span() {
     let full = project
         .add_multicam_clip(track2, group, tr(0, 240), rt(0))
         .unwrap();
-    assert!(
-        project.slip_clip(full, 1).is_err(),
+    assert_eq!(
+        project.slip_clip(full, 1),
+        Err(ModelError::Slip(SlipRefusal::WholeTake)),
         "a multicam clip spanning the whole group span has nowhere to slip"
     );
 }

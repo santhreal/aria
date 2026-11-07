@@ -94,7 +94,7 @@ pub use clip::{
     visit_clip_params,
 };
 pub use clip::{
-    GeneratorSpec, SplitRefusal, generator_spec, generator_spec_by_id, generator_specs,
+    GeneratorSpec, SlipRefusal, SplitRefusal, generator_spec, generator_spec_by_id, generator_specs,
 };
 pub use clip_types::{
     CLIP_TYPE_ID_MAX_BYTES, CLIP_TYPE_MAX_HANDLES, CLIP_TYPE_NAME_MAX_BYTES, ClipTypeIcon,

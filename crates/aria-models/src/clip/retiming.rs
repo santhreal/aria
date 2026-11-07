@@ -23,6 +23,40 @@ pub const MIN_SPEED: f32 = 0.05;
 /// Fastest instantaneous speed multiplier a ramp keyframe may hold.
 pub const MAX_SPEED: f32 = 100.0;
 
+/// Why a clip's take cannot slip inside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlipRefusal {
+    /// The clip is a freeze frame, which holds one frame.
+    FreezeFrame,
+    /// The clip shows a still, which is one frame throughout.
+    Still,
+    /// The clip is generated and plays no take.
+    Generated,
+    /// The clip already plays its whole take.
+    WholeTake,
+}
+
+impl SlipRefusal {
+    /// Every refusal, in declaration order.
+    pub const ALL: [SlipRefusal; 4] = [
+        Self::FreezeFrame,
+        Self::Still,
+        Self::Generated,
+        Self::WholeTake,
+    ];
+}
+
+impl std::fmt::Display for SlipRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::FreezeFrame => "a freeze frame holds one frame; there is nothing to slip",
+            Self::Still => "a still shows one frame throughout; there is nothing to slip",
+            Self::Generated => "a generated clip has no source to slip",
+            Self::WholeTake => "the clip already spans its whole source",
+        })
+    }
+}
+
 /// Which time a clip's parameter keyframes are addressed in.
 ///
 /// A picture clip's transform is clip-local: the animation belongs to the

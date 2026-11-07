@@ -1,7 +1,9 @@
 //! Human-readable engine errors. Every message names the next action.
 
 use aria_engine::EngineError;
-use aria_models::{ClipSetRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SplitRefusal};
+use aria_models::{
+    ClipSetRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SlipRefusal, SplitRefusal,
+};
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
     match err {
@@ -235,6 +237,24 @@ fn model_copy(err: &ModelError) -> String {
             SplitRefusal::RampKeyframeAtCut => {
                 "That cut lands too close to a speed-ramp keyframe. Move the cut or the keyframe, \
                  then try again."
+            }
+        },
+        ModelError::Slip(refusal) => match refusal {
+            SlipRefusal::FreezeFrame => {
+                "A freeze frame holds one frame, so it has nothing to slip. Trim or move the clip \
+                 instead."
+            }
+            SlipRefusal::Still => {
+                "A still shows one frame throughout, so it has nothing to slip. Trim or move the \
+                 clip instead."
+            }
+            SlipRefusal::Generated => {
+                "A generated clip plays no footage, so it has nothing to slip. Trim or move the \
+                 clip instead."
+            }
+            SlipRefusal::WholeTake => {
+                "That clip already plays its whole take, so there is nothing to slip. Trim the \
+                 clip shorter, then slip it."
             }
         },
     };

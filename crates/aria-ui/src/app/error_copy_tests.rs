@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use aria_engine::EngineError;
 use aria_models::{
     BinId, ClipId, ClipSetRefusal, MarkerId, MediaId, MediaKind, ModelError, MulticamGroupId,
-    Rational, SequenceId, SlotMedia, SplitRefusal, TrackId, TrackKind,
+    Rational, SequenceId, SlipRefusal, SlotMedia, SplitRefusal, TrackId, TrackKind,
 };
 
 use super::{describe_engine_error, describe_export_refusal};
@@ -186,9 +186,10 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
     );
 }
 
-/// Variants of [`ModelError`], each [`ClipSetRefusal`] and [`SplitRefusal`]
-/// counted as its own; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 63;
+/// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`] and
+/// [`SlipRefusal`] counted as its own; [`variant`] numbers them
+/// `0..VARIANTS`.
+const VARIANTS: usize = 67;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -248,6 +249,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::ClipSet(refusal) => 49 + clip_set_index(*refusal),
         ModelError::Split(refusal) => 54 + split_index(*refusal),
         ModelError::MasksFull(_) => 62,
+        ModelError::Slip(refusal) => 63 + slip_index(*refusal),
     }
 }
 
@@ -275,6 +277,17 @@ fn split_index(refusal: SplitRefusal) -> usize {
         SplitRefusal::Lottie => 5,
         SplitRefusal::AnimatedSticker => 6,
         SplitRefusal::RampKeyframeAtCut => 7,
+    }
+}
+
+/// Where `refusal` sits in [`SlipRefusal`]. No catch-all, so a new refusal
+/// stops compiling here until it is numbered and [`VARIANTS`] grows.
+fn slip_index(refusal: SlipRefusal) -> usize {
+    match refusal {
+        SlipRefusal::FreezeFrame => 0,
+        SlipRefusal::Still => 1,
+        SlipRefusal::Generated => 2,
+        SlipRefusal::WholeTake => 3,
     }
 }
 
@@ -368,6 +381,7 @@ fn every_refusal() -> Vec<ModelError> {
     .into_iter()
     .chain(ClipSetRefusal::ALL.map(ModelError::ClipSet))
     .chain(SplitRefusal::ALL.map(ModelError::Split))
+    .chain(SlipRefusal::ALL.map(ModelError::Slip))
     .collect()
 }
 

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::clip::{SlotMedia, SplitRefusal};
+use crate::clip::{SlipRefusal, SlotMedia, SplitRefusal};
 use crate::ids::{BinId, ClipId, MarkerId, MediaId, SequenceId, TrackId};
 use crate::media::MediaKind;
 use crate::schema::ProjectSchema;
@@ -615,6 +615,10 @@ pub enum ModelError {
 
     #[error("clip {0} already holds {max} masks, the most a clip holds", max = crate::look::MAX_CLIP_MASKS)]
     MasksFull(ClipId),
+
+    /// A clip's take cannot move inside it.
+    #[error("{0}")]
+    Slip(SlipRefusal),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

@@ -1,5 +1,5 @@
 use crate::clip::{
-    Clip, ClipSource, CropRect, split_speed_curve, validate_split_render_continuity,
+    Clip, ClipSource, CropRect, SlipRefusal, split_speed_curve, validate_split_render_continuity,
 };
 use crate::error::ModelError;
 use crate::ids::{ClipId, TrackId};
@@ -358,11 +358,9 @@ impl Project {
     /// in a take), and a clip that already spans its whole take.
     fn slip_room(&self, clip: &Clip) -> Result<(TimeRange, (i64, i64)), ModelError> {
         if clip.freeze_frame {
-            return Err(ModelError::InvalidParam(
-                "a freeze frame holds one frame; there is nothing to slip".into(),
-            ));
+            return Err(ModelError::Slip(SlipRefusal::FreezeFrame));
         }
-        let whole = || ModelError::InvalidParam("the clip already spans its whole source".into());
+        let whole = || ModelError::Slip(SlipRefusal::WholeTake);
         let (source, limit) = match &clip.content {
             ClipSource::Media { media, source } => {
                 let media = self
@@ -370,9 +368,7 @@ impl Project {
                     .get(media)
                     .ok_or(ModelError::UnknownMedia(*media))?;
                 if media.is_image {
-                    return Err(ModelError::InvalidParam(
-                        "a still shows one frame throughout; there is nothing to slip".into(),
-                    ));
+                    return Err(ModelError::Slip(SlipRefusal::Still));
                 }
                 let limit = media.duration.value - source.duration.value;
                 if limit <= 0 {
@@ -396,11 +392,7 @@ impl Project {
                 }
                 (*source, limit)
             }
-            ClipSource::Generated(_) => {
-                return Err(ModelError::InvalidParam(
-                    "a generated clip has no source to slip".into(),
-                ));
-            }
+            ClipSource::Generated(_) => return Err(ModelError::Slip(SlipRefusal::Generated)),
         };
         let back = source.start.value.saturating_neg();
         let on = if limit == i64::MAX {
