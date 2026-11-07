@@ -1475,6 +1475,7 @@ Notes for the latest release. For previous releases, see the
 - An audio role set on a clip on a picture track is rejected naming the lane it needs instead of the drop message.
 - A generator write on a media clip is rejected stating the clip is media-backed instead of reporting a track kind mismatch.
 - A cut inside a fade, off a combo animation cycle, too close to an entrance or exit animation or a speed-ramp keyframe, or on a Lottie clip or animated sticker is rejected with copy naming that obstacle and its fix instead of reporting that a value is not accepted.
+- Adding a mask to a clip that already holds 32 masks reports the cap and the fix instead of a rejected value.
 
 ## [alpha-0.7.0] - 2026-07-22
 

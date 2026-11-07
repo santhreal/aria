@@ -612,6 +612,9 @@ pub enum ModelError {
     /// A cut at that point would change what the clip renders.
     #[error("{0}")]
     Split(SplitRefusal),
+
+    #[error("clip {0} already holds {max} masks, the most a clip holds", max = crate::look::MAX_CLIP_MASKS)]
+    MasksFull(ClipId),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

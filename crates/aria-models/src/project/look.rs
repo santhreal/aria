@@ -58,9 +58,7 @@ impl Project {
         self.require_visual(clip_id)?;
         self.edit_clip(clip_id, |clip| {
             if clip.masks.len() >= MAX_CLIP_MASKS {
-                return Err(ModelError::InvalidParam(format!(
-                    "clip {clip_id} already carries {MAX_CLIP_MASKS} masks"
-                )));
+                return Err(ModelError::MasksFull(clip_id));
             }
             clip.masks.push(mask);
             Ok((clip.masks.len() - 1) as u32)

@@ -1,7 +1,7 @@
 //! Human-readable engine errors. Every message names the next action.
 
 use aria_engine::EngineError;
-use aria_models::{ClipSetRefusal, MAX_PARENT_DEPTH, ModelError, SplitRefusal};
+use aria_models::{ClipSetRefusal, MAX_CLIP_MASKS, MAX_PARENT_DEPTH, ModelError, SplitRefusal};
 
 pub(crate) fn describe_engine_error(err: &EngineError) -> String {
     match err {
@@ -185,6 +185,11 @@ fn model_copy(err: &ModelError) -> String {
         ModelError::InsertsFull(max) => {
             return format!(
                 "A track or the master holds at most {max} effects. Remove one, then add another."
+            );
+        }
+        ModelError::MasksFull(_) => {
+            return format!(
+                "A clip holds at most {MAX_CLIP_MASKS} masks. Remove one, then add another."
             );
         }
         ModelError::ClipSet(refusal) => match refusal {

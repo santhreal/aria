@@ -173,9 +173,22 @@ fn an_edit_on_the_wrong_lane_reads_as_the_lane_not_a_drop() {
     );
 }
 
+/// A 33rd mask reads as the cap and the fix, not as a rejected value: the
+/// mask itself is valid, so "Enter another value" sends the reader after the
+/// wrong fix.
+#[test]
+fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
+    assert_eq!(
+        describe_engine_error(&EngineError::Model(ModelError::MasksFull(
+            ClipId::from_raw(4)
+        ))),
+        "A clip holds at most 32 masks. Remove one, then add another."
+    );
+}
+
 /// Variants of [`ModelError`], each [`ClipSetRefusal`] and [`SplitRefusal`]
 /// counted as its own; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 62;
+const VARIANTS: usize = 63;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -234,6 +247,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::NotOnSound { .. } => 48,
         ModelError::ClipSet(refusal) => 49 + clip_set_index(*refusal),
         ModelError::Split(refusal) => 54 + split_index(*refusal),
+        ModelError::MasksFull(_) => 62,
     }
 }
 
@@ -341,6 +355,7 @@ fn every_refusal() -> Vec<ModelError> {
         ModelError::ClipCarriesNoSound(clip),
         ModelError::UnknownInsert { index: 4, len: 2 },
         ModelError::InsertsFull(8),
+        ModelError::MasksFull(clip),
         ModelError::ProjectLoad(aria_models::ProjectLoadError::NotFound {
             path: "missing.aria".into(),
         }),

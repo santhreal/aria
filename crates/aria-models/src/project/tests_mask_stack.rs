@@ -49,9 +49,12 @@ fn masks_append_to_the_bottom_of_the_stack_up_to_the_cap() {
     }
     let err = project
         .add_clip_mask(clip, Mask::new(MaskKind::Heart))
-        .unwrap_err()
-        .to_string();
-    assert!(err.contains("already carries"), "{err}");
+        .unwrap_err();
+    assert_eq!(err, ModelError::MasksFull(clip));
+    assert_eq!(
+        err.to_string(),
+        format!("clip {clip} already holds {MAX_CLIP_MASKS} masks, the most a clip holds")
+    );
     assert_eq!(project.clip(clip).unwrap().masks.len(), MAX_CLIP_MASKS);
 }
 
