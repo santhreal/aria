@@ -49,6 +49,7 @@ dependencies = [
  "naga",
  "objc2",
  "objc2-metal",
+ "parking_lot",
  "pollster",
  "rustc-hash 2.1.2",
  "sha2",
@@ -78,6 +79,7 @@ dependencies = [
  "gstreamer-audio",
  "gstreamer-pbutils",
  "gstreamer-video",
+ "image",
  "kurbo",
  "libc",
  "ndk-sys",
@@ -89,6 +91,7 @@ dependencies = [
  "objc2-core-video",
  "objc2-foundation",
  "objc2-image-io",
+ "parking_lot",
  "peniko",
  "png 0.17.16",
  "rustix",
@@ -128,6 +131,7 @@ name = "aria-models"
 version = "0.7.0-alpha.0"
 dependencies = [
  "aria-core",
+ "parking_lot",
  "rustc-hash 2.1.2",
  "serde",
  "serde_json",
@@ -161,6 +165,7 @@ dependencies = [
  "aria-shapes",
  "aria-text",
  "nnnoiseless",
+ "parking_lot",
  "png 0.17.16",
  "qoi",
  "serde_json",
@@ -671,6 +676,12 @@ name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
+
+[[package]]
+name = "fax"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a"
 
 [[package]]
 name = "fdeflate"
@@ -1307,8 +1318,22 @@ checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
+ "color_quant",
+ "gif",
+ "image-webp",
  "moxcms",
  "num-traits",
+ "tiff",
+]
+
+[[package]]
+name = "image-webp"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
+dependencies = [
+ "byteorder-lite",
+ "quick-error",
 ]
 
 [[package]]
@@ -2118,6 +2143,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-error"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+
+[[package]]
 name = "quote"
 version = "1.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2558,6 +2589,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tiff"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b63feaf3343d35b6ca4d50483f94843803b0f51634937cc2ec519fc32232bc52"
+dependencies = [
+ "fax",
+ "flate2",
+ "half",
+ "quick-error",
+ "weezl",
+ "zune-jpeg",
 ]
 
 [[package]]

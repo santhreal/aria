@@ -5,8 +5,9 @@ Run after `maturin develop --features extension-module`:
     python -m pytest tests/ -q
 
 The media tests bootstrap their own sample file by exporting a tiny project
-to mp4, so no fixtures need to be checked in. Render/export tests require a
-working GPU + encoder (they run on macOS dev machines).
+to mp4, so no fixtures need to be checked in. Render and export tests need a
+GPU adapter and a video encoder; CI runs them with the Vulkan software adapter
+and x264enc.
 """
 
 from __future__ import annotations
@@ -1112,7 +1113,7 @@ class TestErrors:
 
 class TestRegression179To184:
     def test_concurrent_getters_reentrant(self, p: Project) -> None:
-        t = p.add_track("text")
+        t = p.add_track("text", name="Titles")
         c1 = t.add(Text("one"), start=0.0, duration=1.0)
         c2 = t.add(Text("two"), start=1.0, duration=1.0)
         # Nested and reentrant reads from tracks and clips
@@ -1121,12 +1122,13 @@ class TestRegression179To184:
         assert [c.start for c in t.clips] == [0.0, 1.0]
         assert [c.duration for c in t.clips] == [1.0, 1.0]
         assert [c.text for c in t.clips] == ["one", "two"]
-        assert t.name == "Text"
+        assert t.name == "Titles"
         assert t.kind == "text"
 
-    def test_speed_validation(self, p: Project) -> None:
-        t = p.add_track("text")
-        c = t.add(Text("one"), start=0.0, duration=1.0)
+    def test_speed_validation(self, media_path: str) -> None:
+        p = Project("m", fps=30)
+        m = p.import_media(media_path)
+        c = p.add_track("video").add(m, start=0.0, duration=1.0)
         c.set_speed(0.05)
         c.set_speed(100.0)
         with pytest.raises(ValueError):

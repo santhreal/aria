@@ -33,12 +33,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Mirrors the desktop Release targets: Apple Silicon macOS and x64
-        # Windows — the platforms with native decode/encode backends (media
-        # is AVFoundation/VideoToolbox and Media Foundation; nothing to
-        # install on the runners). Linux has no media backend yet; add it
-        # here when one lands. Intel macOS / arm64 Windows are possible
-        # follow-ups via `target:` cross builds.
+        # Apple Silicon macOS and x64 Windows decode and encode through the
+        # system frameworks (AVFoundation/VideoToolbox and Media Foundation),
+        # so their wheels need nothing installed beside them. Linux decodes and
+        # encodes through the system GStreamer, which a wheel does not carry;
+        # Linux installs build from source. Intel macOS / arm64 Windows are
+        # possible follow-ups via `target:` cross builds.
         platform:
           - { name: macos-arm64, runner: macos-15 }
           - { name: windows-x64, runner: windows-latest }
