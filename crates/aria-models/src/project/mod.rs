@@ -95,6 +95,7 @@ mod media;
 mod missing_plugins;
 #[path = "multicam.rs"]
 mod multicam;
+mod orient;
 mod params;
 mod parent;
 mod placement;

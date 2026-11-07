@@ -30,8 +30,10 @@ use aria_analysis::moments::MediaContentKey;
 use aria_core::RgbaImage;
 
 /// Magic and version. The last byte is the container version: bump it when the
-/// header or the pixel layout changes, and every older file stops being read.
-const MAGIC: [u8; 8] = *b"ARIATHM\x01";
+/// header, the pixel layout, or the picture a decode yields for the same file
+/// changes, and every older file stops being read. Version 2 draws a source
+/// whose container states a rotation upright.
+const MAGIC: [u8; 8] = *b"ARIATHM\x02";
 
 /// Magic, width, height. The pixels follow, tightly packed straight-alpha RGBA8.
 const HEADER: usize = MAGIC.len() + 8;

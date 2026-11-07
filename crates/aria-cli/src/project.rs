@@ -9,9 +9,12 @@ use std::path::Path;
 use aria_core::{Rational, RationalTime};
 use aria_models::Project;
 
-/// Read a `.aria` file.
+/// Read a `.aria` file, correcting the size of each video a save from before
+/// the container's display rotation was applied recorded sideways.
 pub(crate) fn load(path: &Path) -> Result<Project, String> {
-    Project::load_from_file(path).map_err(|err| err.to_string())
+    let mut project = Project::load_from_file(path).map_err(|err| err.to_string())?;
+    aria_engine::orient_pool(&mut project);
+    Ok(project)
 }
 
 /// Print every driver that failed while `project` rendered. A failed driver's
@@ -193,5 +196,53 @@ mod tests {
             err.message(),
             "No project at /nonexistent.aria. Check the path or pick another .aria file."
         );
+    }
+
+    /// WHY: `frame`, `export`, and `inspect` read a project through `load`, and
+    /// a save from before the probe applied the container's display rotation
+    /// states a phone video's sideways size, which renders the upright picture
+    /// squashed. The stale entry is a landscape file stored transposed, which is
+    /// what such an entry looks like to the repair. Skipped where no renderer or
+    /// encoder opens. Not caught: a probe that reads the wrong upright size.
+    #[test]
+    fn load_corrects_a_size_a_save_stored_sideways() {
+        use aria_models::{CanvasSettings, Generator, MediaSource, Rational, TimeRange};
+
+        let Ok(mut renderer) = aria_render::Renderer::new_headless() else {
+            return;
+        };
+        if !aria_encoder::capability().available {
+            return;
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut source = Project::new("landscape", Rational::FPS_24);
+        source.timeline_mut().set_canvas(CanvasSettings {
+            resolution: Some([64, 32]),
+            ..CanvasSettings::default()
+        });
+        let generator = Generator::SolidColor {
+            rgba: [10, 120, 200, 255],
+        };
+        let kind = aria_models::TrackKind::for_generator(&generator).expect("a lane kind");
+        let track = source.add_track(kind, "Solid");
+        source
+            .add_generated(track, generator, TimeRange::at_rate(0, 6, Rational::FPS_24))
+            .expect("place the solid");
+        let file = dir.path().join("landscape.mp4");
+        aria_render::export_to_file(&mut renderer, &source, &file).expect("write the source");
+
+        let mut stale = Project::new("stale", Rational::FPS_24);
+        let mut media = MediaSource::new(&file, 32, 64, Rational::FPS_24, 6, false);
+        media.upright = false;
+        stale.add_media(media);
+        let path = dir.path().join("stale.aria");
+        stale.save_to_file(&path).expect("save the stale project");
+
+        let loaded = load(&path).expect("load the stale project");
+        let entries: Vec<_> = loaded
+            .media_iter()
+            .map(|media| (media.width, media.height, media.upright))
+            .collect();
+        assert_eq!(entries, [(64, 32, true)]);
     }
 }

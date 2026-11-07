@@ -46,5 +46,6 @@ pub(crate) fn execute(
     entry.duration = probed.duration;
     entry.has_audio = probed.has_audio;
     entry.is_image = probed.is_image;
+    entry.upright = probed.upright;
     Ok(())
 }

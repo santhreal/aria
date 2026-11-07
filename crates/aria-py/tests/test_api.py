@@ -11,6 +11,7 @@ working GPU + encoder (they run on macOS dev machines).
 
 from __future__ import annotations
 
+import json
 import struct
 import zlib
 
@@ -672,6 +673,23 @@ class TestMedia:
         p.import_media(media_path)
         p.import_media(media_path)
         assert len(p.media) == 1
+
+    def test_load_corrects_a_size_an_earlier_save_stored_sideways(
+        self, media_path: str, tmp_path
+    ) -> None:
+        """A save written before rotated video imported upright holds such a
+        video's size sideways and no `upright` flag; loading it stores the size
+        the file probes at."""
+        p = Project("m", fps=30)
+        p.import_media(media_path)
+        path = tmp_path / "old.aria"
+        p.save(str(path))
+        doc = json.loads(path.read_text())
+        for _, entry in doc["media"]:
+            assert entry.pop("upright") is True
+            entry["width"], entry["height"] = entry["height"], entry["width"]
+        path.write_text(json.dumps(doc))
+        assert [m.size for m in Project.load(str(path)).media] == [(1920, 1080)]
 
     def test_import_rejects_missing_and_corrupt(self, tmp_path) -> None:
         p = Project("m", fps=30)

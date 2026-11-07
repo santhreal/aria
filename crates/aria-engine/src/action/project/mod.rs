@@ -44,10 +44,19 @@ pub(crate) fn load_session(
             return Err(EngineError::MissingMedia(missing));
         }
     }
-    *ctx.project = loaded;
-    *ctx.project_path = Some(path);
-    ctx.history.clear();
+    adopt(ctx, loaded, Some(path));
     Ok(())
+}
+
+/// Make `project`, read from a file, the session's project at `path`, with an
+/// empty history: a fresh document has no undo past. The size of each video
+/// that a save from before the probe applied the container's display rotation
+/// recorded sideways is corrected first ([`crate::orient_pool`]).
+pub(crate) fn adopt(ctx: &mut ApplyContext<'_>, mut project: Project, path: Option<PathBuf>) {
+    crate::import::orient_pool(&mut project);
+    *ctx.project = project;
+    *ctx.project_path = path;
+    ctx.history.clear();
 }
 
 /// Adopt the file stem of `path`, ignoring internal shadow files (`untitled.aria`,

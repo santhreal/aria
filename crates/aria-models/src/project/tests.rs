@@ -161,3 +161,6 @@ mod trim_edges;
 
 #[path = "tests_stretch.rs"]
 mod stretch;
+
+#[path = "tests_orient.rs"]
+mod orient;

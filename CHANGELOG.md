@@ -1449,6 +1449,7 @@ Notes for the latest release. For previous releases, see the
 - `aria plugin pack` and `aria plugin dev` print cargo's build output as cargo writes it, instead of all at once after the build ends.
 - `aria export` stopped by SIGINT, SIGTERM, or SIGHUP deletes its partial file and exits `128` plus the signal number, instead of leaving a staging folder with the partial file beside the output.
 - Video whose container states a rotation, such as video a phone recorded upright, imports at its upright size and draws upright, instead of sideways on Linux and squashed across its frame on macOS, Windows, and Android.
+- A project saved before rotated video imported upright opens with each such video at its upright size, in the editor, `aria`, and the Python module, and a proxy or pool thumbnail made from such a video before then is made again.
 
 ## [alpha-0.7.0] - 2026-07-22
 

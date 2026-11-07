@@ -40,6 +40,8 @@ mod linked_slip;
 mod multicam;
 #[path = "../nested_sequence.rs"]
 mod nested_sequence;
+#[path = "../orient.rs"]
+mod orient;
 #[path = "../overwrite.rs"]
 mod overwrite;
 #[path = "../overwrite_move.rs"]

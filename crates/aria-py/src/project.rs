@@ -60,10 +60,7 @@ impl Project {
     #[staticmethod]
     fn load(path: &str) -> PyResult<Self> {
         let model = Model::load_from_file(Path::new(path)).map_err(model_err)?;
-        Ok(Self {
-            model,
-            renderer: None,
-        })
+        Ok(Self::from_model(model))
     }
 
     fn save(&self, path: &str) -> PyResult<()> {
@@ -306,10 +303,21 @@ fn rgb_of(rgba: [u8; 4]) -> [u8; 3] {
     [rgba[0], rgba[1], rgba[2]]
 }
 
+/// The size the probe imports use reads for the video at `path`, upright.
+fn upright_size(path: &Path) -> Option<(u32, u32)> {
+    probe(path)
+        .ok()
+        .filter(|probed| !probed.is_image)
+        .map(|probed| (probed.width, probed.height))
+}
+
 impl Project {
-    /// Wrap a model a filled template produced. The renderer is created on
-    /// first use, so a project that is only inspected never brings up a GPU.
-    pub(crate) fn from_model(model: Model) -> Self {
+    /// Wrap a model read from a file or filled from a template. The size of
+    /// each video a save from before the probe applied the container's
+    /// rotation recorded sideways is corrected first. The renderer is created
+    /// on first use, so a project that is only inspected never brings up a GPU.
+    pub(crate) fn from_model(mut model: Model) -> Self {
+        model.orient_media(upright_size);
         Self {
             model,
             renderer: None,

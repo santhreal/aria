@@ -38,8 +38,6 @@ pub(crate) fn execute(
     }
 
     let filled = template.apply(&resolved)?;
-    *ctx.project = filled;
-    *ctx.project_path = None;
-    ctx.history.clear();
+    super::adopt(ctx, filled, None);
     Ok(())
 }

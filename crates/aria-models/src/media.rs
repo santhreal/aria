@@ -44,6 +44,13 @@ pub struct MediaSource {
     /// load unchanged.
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_image: bool,
+    /// Whether `width` and `height` were read with the container's display
+    /// rotation applied, so a video recorded upright on a phone states its
+    /// upright size. Absent from saves made before the probe applied it; a
+    /// loader probes such a video again and corrects a stored size that the
+    /// rotation transposed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub upright: bool,
     /// Operator grouping color for the bin row, from the clip label set.
     /// Absent from saves while unset, so old files load unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -111,6 +118,7 @@ impl MediaSource {
             duration: RationalTime::new(duration_ticks, frame_rate),
             has_audio,
             is_image: false,
+            upright: true,
             label: None,
             imported_at: now_unix(),
             video_codec: None,
@@ -188,6 +196,7 @@ impl MediaSource {
             duration,
             has_audio: parent.has_audio,
             is_image: parent.is_image,
+            upright: parent.upright,
             label: parent.label,
             imported_at: now_unix(),
             video_codec: parent.video_codec.as_ref().map(|s| s.to_string()),
@@ -302,6 +311,7 @@ mod tests {
             duration: RationalTime::new(100, R24),
             has_audio: true,
             is_image: false,
+            upright: true,
             label: None,
             imported_at: Some(1_700_000_000),
             video_codec: Some("H.264".into()),
@@ -366,6 +376,27 @@ mod tests {
         let loaded: MediaSource = serde_json::from_str(legacy).unwrap();
         assert!(!loaded.is_image);
         assert_eq!(loaded.kind(), MediaKind::Video);
+    }
+
+    /// A save from before the probe applied the container's rotation reads as
+    /// not upright, so a loader probes it again; one written since keeps the
+    /// flag, so it is probed once and never again.
+    #[test]
+    fn the_upright_flag_roundtrips_and_is_false_in_old_saves() {
+        let media = sample("held.mp4", 10);
+        assert!(media.upright, "a probed source states its upright size");
+        let json = serde_json::to_string(&media).unwrap();
+        let loaded: MediaSource = serde_json::from_str(&json).unwrap();
+        assert!(loaded.upright, "{json}");
+
+        let legacy = r#"{"id":1,"path":"old.mp4","width":1080,"height":1920,
+            "frame_rate":{"num":24,"den":1},
+            "duration":{"value":48,"rate":{"num":24,"den":1}},"has_audio":true}"#;
+        let loaded: MediaSource = serde_json::from_str(legacy).unwrap();
+        assert!(!loaded.upright);
+        let part = MediaSource::subclip(&loaded, "part", TimeRange::at_rate(0, 4, R24))
+            .expect("a subclip of the old entry");
+        assert!(!part.upright, "a subclip states the size its parent states");
     }
 
     #[test]

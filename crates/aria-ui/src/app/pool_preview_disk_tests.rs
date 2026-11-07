@@ -111,14 +111,27 @@ fn a_file_that_is_not_this_container_is_a_miss() {
     }
 }
 
-/// A version bump must retire every file written under the old one, which is the
-/// half of "version anything persisted" that is easy to skip: the magic carries
-/// the version, so a file written by an older container reads as a miss above.
+/// A version bump must retire every file written under an older one, which is
+/// the half of "version anything persisted" that is easy to skip: a poster from
+/// before a source's container rotation was applied is a sideways picture.
+/// Every earlier version, derived from the shipped one, reads as a miss.
 #[test]
-fn the_container_version_is_the_last_byte_of_the_magic() {
+fn a_file_from_every_earlier_container_version_is_a_miss() {
     assert_eq!(&MAGIC[..7], b"ARIATHM");
-    assert_eq!(MAGIC[7], 1, "the shipped container version");
+    assert_eq!(MAGIC[7], 2, "the shipped container version");
     assert_eq!(HEADER, 16, "magic, width, height");
+    let root = scratch("poster-versions");
+    let good = poster_path(&root, key(7), 4, 4);
+    write(&good, &picture(4, 4)).expect("write a good file");
+    assert!(read(&good).is_some(), "the current version reads");
+    let bytes = std::fs::read(&good).expect("read it back raw");
+    for version in 0..MAGIC[7] {
+        let mut older = bytes.clone();
+        older[MAGIC.len() - 1] = version;
+        let path = root.join(format!("version-{version}.athumb"));
+        std::fs::write(&path, &older).expect("write the older file");
+        assert!(read(&path).is_none(), "version {version} was served");
+    }
 }
 
 #[test]

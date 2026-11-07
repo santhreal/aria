@@ -10,9 +10,9 @@
 //!
 //! - **One file per source, named by its content.** The proxy's name is the same
 //!   digest of path, size, and modification time that analysis batches are keyed
-//!   by, so editing the source silently orphans its proxy instead of decoding a
-//!   picture the file no longer has, and reopening a project finds the proxy that
-//!   was already built.
+//!   by, plus [`PROXY_GENERATION`], so editing the source or changing the pass
+//!   orphans its proxy instead of decoding a picture the file no longer has, and
+//!   reopening a project finds the proxy that was already built.
 //! - **The proxy registers itself.** The job holds the shared engine and installs
 //!   the substitution as its last act, so nothing has to poll for the file or
 //!   carry a completion back into the state. The pass itself runs on its own
@@ -35,6 +35,13 @@ use aria_storage::CacheId;
 use super::AppState;
 use super::analysis::content_key_for;
 
+/// The version of the picture a proxy pass writes, in each proxy's file name,
+/// so a proxy an earlier pass wrote is rendered again rather than decoded in
+/// place of the source. Bump it when the pass writes a different picture for
+/// the same source. Version 1 wrote no suffix; version 2 draws a source whose
+/// container states a rotation upright.
+const PROXY_GENERATION: u32 = 2;
+
 impl AppState {
     /// Where `media`'s proxy lives, or why it has no home.
     ///
@@ -48,7 +55,7 @@ impl AppState {
             .resolve(CacheId::Proxies)
             .ok_or_else(|| "The proxies cache has no directory".to_string())?;
         let key = content_key_for(&source)?;
-        Ok(root.join(format!("{key}.mp4")))
+        Ok(root.join(format!("{key}-p{PROXY_GENERATION}.mp4")))
     }
 
     /// The pool file behind `media`, as the project records it.

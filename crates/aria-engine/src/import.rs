@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use aria_decoder::probe;
-use aria_models::MediaSource;
+use aria_models::{MediaSource, Project};
 use tracing::debug;
 
 use crate::error::EngineError;
@@ -51,4 +51,19 @@ pub fn import_media(path: &Path) -> Result<MediaSource, EngineError> {
     );
 
     Ok(media)
+}
+
+/// Correct the stored size of every video in `project` that a save from before
+/// the probe applied the container's display rotation recorded
+/// ([`Project::orient_media`] with the probe imports use). Returns how many
+/// entries changed size.
+pub fn orient_pool(project: &mut Project) -> usize {
+    let changed = project.orient_media(|path| {
+        probe(path)
+            .ok()
+            .filter(|probed| !probed.is_image)
+            .map(|probed| (probed.width, probed.height))
+    });
+    debug!(changed, "oriented the media pool");
+    changed
 }

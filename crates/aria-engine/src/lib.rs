@@ -26,5 +26,5 @@ pub use frame_stats_catalog::{FrameStageSpec, frame_stages};
 // The one reading of "what does this file state about itself": relink verifies
 // a candidate with the same call that would adopt it, so a match cannot be
 // judged by one conversion and applied by another.
-pub use import::import_media;
+pub use import::{import_media, orient_pool};
 pub use proxy::{PROXY_MAX_EDGE, proxy_project, proxy_size};

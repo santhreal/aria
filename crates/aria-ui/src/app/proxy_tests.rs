@@ -84,6 +84,51 @@ fn editing_the_source_orphans_its_proxy_instead_of_reusing_it() {
     );
 }
 
+/// WHY: a proxy keyed by its source alone outlived a change to the picture the
+/// pass writes: one written before a source's container rotation was applied
+/// draws sideways under the upright size. Every earlier generation's name is
+/// derived from [`PROXY_GENERATION`], and a file at any of them must be neither
+/// adopted nor the path a new proxy is written to. Not caught: a change to the
+/// pass that ships without a bump.
+#[test]
+fn a_proxy_an_earlier_pass_wrote_is_not_adopted() {
+    use super::PROXY_GENERATION;
+
+    let (mut state, _) = with_clip();
+    let media = pool_item(&state);
+    let current = state.proxy_file(media).expect("a proxy path");
+    let root = current
+        .parent()
+        .expect("the proxies directory")
+        .to_path_buf();
+    let source = state
+        .engine
+        .lock()
+        .project()
+        .media(media)
+        .expect("the pool item")
+        .path
+        .clone();
+    let key = super::content_key_for(&source).expect("a key");
+    let earlier: Vec<_> = std::iter::once(root.join(format!("{key}.mp4")))
+        .chain(
+            (2..PROXY_GENERATION).map(|generation| root.join(format!("{key}-p{generation}.mp4"))),
+        )
+        .collect();
+    for path in &earlier {
+        assert_ne!(path, &current, "an earlier pass shares the current name");
+        write_stand_in(path);
+    }
+
+    // The fixture is a still, so a pass is refused: what is asserted is that
+    // the earlier files were not taken for this pass's output.
+    let _ = state.use_media_proxy(media);
+    assert!(
+        !state.media_has_proxy(media),
+        "a proxy from an earlier pass was adopted"
+    );
+}
+
 #[test]
 fn a_proxy_already_on_disk_is_adopted_without_a_job_and_the_pool_row_says_so() {
     let (mut state, _) = with_clip();
