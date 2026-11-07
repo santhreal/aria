@@ -118,7 +118,7 @@ fn corrupt_project_names_the_file_and_the_fix() {
 }
 
 /// Variants of [`ModelError`]; [`variant`] numbers them `0..VARIANTS`.
-const VARIANTS: usize = 46;
+const VARIANTS: usize = 47;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -172,6 +172,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::UnknownInsert { .. } => 43,
         ModelError::InsertsFull(_) => 44,
         ModelError::ProjectLoad(_) => 45,
+        ModelError::TemplateBundle(_) => 46,
     }
 }
 
@@ -253,6 +254,11 @@ fn every_refusal() -> Vec<ModelError> {
         ModelError::ProjectLoad(aria_models::ProjectLoadError::NotFound {
             path: "missing.aria".into(),
         }),
+        ModelError::TemplateBundle(
+            "Couldn't open the template bundle gone.ariab: no such file. Pick another .ariab \
+             file."
+                .into(),
+        ),
     ]
 }
 

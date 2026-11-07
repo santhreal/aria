@@ -25,12 +25,13 @@
 //! Extraction validates entry names (the tar path-traversal classic) and
 //! refuses anything outside `media/` and the two known files.
 
+use std::fmt::Display;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::ModelError;
+use crate::error::{ModelError, io_reason, unwritable_directory};
 use crate::schema::PROJECT_SCHEMA_VERSION;
 use crate::template::Template;
 
@@ -53,6 +54,20 @@ pub struct BundleManifest {
     pub min_schema_version: u32,
 }
 
+/// The fix for a file that is not a bundle this build can open.
+const PICK_ANOTHER: &str = "Pick another .ariab file.";
+
+/// The fix for a folder a bundle could not be written in.
+const CHECK_THE_FOLDER: &str = "Check the folder and the free disk space.";
+
+/// A refusal that states the bundle at `path`, what `verb` met, and the fix.
+fn refused(verb: &str, path: &Path, reason: impl Display, fix: &str) -> ModelError {
+    ModelError::TemplateBundle(format!(
+        "Couldn't {verb} the template bundle {}: {reason}. {fix}",
+        path.display()
+    ))
+}
+
 /// Write `template` as a distributable bundle at `path`. Every pool media
 /// file is read from its current (absolute) path and archived under
 /// `media/`; the archived template references those relative paths.
@@ -64,18 +79,26 @@ pub struct BundleManifest {
 /// failed write leaves an existing bundle whole. A path the media pool plays
 /// from, or a symbolic link, fails before anything is written.
 pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
-    let io_err = |e: std::io::Error| ModelError::InvalidProjectFile(e.to_string());
-    crate::persist::reject_pool_media(template.project(), path, "bundle").map_err(io_err)?;
+    if crate::persist::reject_pool_media(template.project(), path, "bundle").is_err() {
+        return Err(refused(
+            "write",
+            path,
+            "it is media this bundle uses",
+            "Write the bundle to another file.",
+        ));
+    }
 
     // Plan the rewrite first: media id -> (source path, archive name).
     let mut entries: Vec<(crate::ids::MediaId, PathBuf, String)> = Vec::new();
     for (index, media) in template.project().media_iter().enumerate() {
         let source = media.path().to_path_buf();
         if !source.is_file() {
-            return Err(ModelError::InvalidProjectFile(format!(
-                "bundle refused: sample media missing on disk: {}",
-                source.display()
-            )));
+            return Err(refused(
+                "write",
+                path,
+                format_args!("the sample media {} is missing", source.display()),
+                "Relink it, then write the bundle again.",
+            ));
         }
         let ext = source
             .extension()
@@ -99,10 +122,9 @@ pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
         min_schema_version: PROJECT_SCHEMA_VERSION,
     };
 
-    let manifest_json = serde_json::to_vec_pretty(&manifest)
-        .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
-    let template_json = serde_json::to_vec_pretty(&doc)
-        .map_err(|e| ModelError::InvalidProjectFile(e.to_string()))?;
+    let unwritten = |e: &dyn Display| refused("write", path, e, CHECK_THE_FOLDER);
+    let manifest_json = serde_json::to_vec_pretty(&manifest).map_err(|e| unwritten(&e))?;
+    let template_json = serde_json::to_vec_pretty(&doc).map_err(|e| unwritten(&e))?;
 
     crate::persist::save_streamed(path, |out| {
         let mut builder = tar::Builder::new(out);
@@ -114,26 +136,58 @@ pub fn write(template: &Template, path: &Path) -> Result<(), ModelError> {
         builder.into_inner()?;
         Ok(())
     })
-    .map_err(io_err)
+    .map_err(|e| unwritten(&io_reason(&e)))
+}
+
+/// Open the bundle at `path` as a tar archive.
+fn open_archive(
+    path: &Path,
+) -> Result<tar::Archive<std::io::BufReader<std::fs::File>>, ModelError> {
+    let file = std::fs::File::open(path).map_err(|e| {
+        let reason = match e.kind() {
+            std::io::ErrorKind::NotFound => "no such file".to_owned(),
+            _ => io_reason(&e),
+        };
+        refused("open", path, reason, PICK_ANOTHER)
+    })?;
+    Ok(tar::Archive::new(std::io::BufReader::new(file)))
+}
+
+/// The refusal for an archive that does not read as a tar file.
+fn not_a_bundle(path: &Path, e: &std::io::Error) -> ModelError {
+    refused(
+        "open",
+        path,
+        format_args!("it is not a template bundle ({})", io_reason(e)),
+        PICK_ANOTHER,
+    )
 }
 
 /// Read just the manifest — the cheap compatibility check a gallery runs
 /// before downloading nothing else or offering "requires a newer Aria".
 pub fn read_manifest(path: &Path) -> Result<BundleManifest, ModelError> {
-    let io_err = |e: std::io::Error| ModelError::InvalidProjectFile(e.to_string());
-    let file = std::fs::File::open(path).map_err(io_err)?;
-    let mut archive = tar::Archive::new(std::io::BufReader::new(file));
-    for entry in archive.entries().map_err(io_err)? {
-        let mut entry = entry.map_err(io_err)?;
-        if entry.path().map_err(io_err)?.as_ref() == Path::new("bundle.json") {
+    let garbled = |e: std::io::Error| not_a_bundle(path, &e);
+    let mut archive = open_archive(path)?;
+    for entry in archive.entries().map_err(garbled)? {
+        let mut entry = entry.map_err(garbled)?;
+        if entry.path().map_err(garbled)?.as_ref() == Path::new("bundle.json") {
             let mut raw = String::new();
-            entry.read_to_string(&mut raw).map_err(io_err)?;
-            return serde_json::from_str(&raw)
-                .map_err(|e| ModelError::InvalidProjectFile(format!("bad bundle manifest: {e}")));
+            entry.read_to_string(&mut raw).map_err(garbled)?;
+            return serde_json::from_str(&raw).map_err(|e| {
+                refused(
+                    "open",
+                    path,
+                    format_args!("its bundle.json is not a bundle manifest ({e})"),
+                    PICK_ANOTHER,
+                )
+            });
         }
     }
-    Err(ModelError::InvalidProjectFile(
-        "not a template bundle: no bundle.json".into(),
+    Err(refused(
+        "open",
+        path,
+        "it is not a template bundle (it has no bundle.json)",
+        PICK_ANOTHER,
     ))
 }
 
@@ -142,40 +196,71 @@ pub fn read_manifest(path: &Path) -> Result<BundleManifest, ModelError> {
 /// `dest_dir/media/`. The rewritten `template.ariat` is left in
 /// `dest_dir`, so subsequent sessions load it directly with
 /// [`Template::load_from_file`] — install once, open forever.
+///
+/// Every entry name is checked before the first is extracted, so a bundle
+/// with an entry outside the layout writes nothing.
 pub fn install(path: &Path, dest_dir: &Path) -> Result<Template, ModelError> {
-    let io_err = |e: std::io::Error| ModelError::InvalidProjectFile(e.to_string());
+    let garbled = |e: std::io::Error| not_a_bundle(path, &e);
+    let unwritten = |e: std::io::Error| {
+        refused(
+            "install",
+            path,
+            io_reason(&unwritable_directory(dest_dir, &e)),
+            CHECK_THE_FOLDER,
+        )
+    };
+    let newer = |what: &str, found: u32, read: u32| {
+        refused(
+            "install",
+            path,
+            format_args!(
+                "it uses {what} version {found}, which is newer than this build reads ({read})"
+            ),
+            "Update Aria to install it.",
+        )
+    };
 
     let manifest = read_manifest(path)?;
     if manifest.format_version > BUNDLE_FORMAT_VERSION {
-        return Err(ModelError::InvalidProjectFile(format!(
-            "bundle format v{} is newer than this build supports (v{BUNDLE_FORMAT_VERSION})",
-            manifest.format_version
-        )));
+        return Err(newer(
+            "bundle format",
+            manifest.format_version,
+            BUNDLE_FORMAT_VERSION,
+        ));
     }
     if manifest.min_schema_version > PROJECT_SCHEMA_VERSION {
-        return Err(ModelError::InvalidProjectFile(format!(
-            "template requires a newer Aria (schema v{}, this build supports v{PROJECT_SCHEMA_VERSION})",
-            manifest.min_schema_version
-        )));
+        return Err(newer(
+            "project format",
+            manifest.min_schema_version,
+            PROJECT_SCHEMA_VERSION,
+        ));
     }
 
-    std::fs::create_dir_all(dest_dir).map_err(io_err)?;
-    let file = std::fs::File::open(path).map_err(io_err)?;
-    let mut archive = tar::Archive::new(std::io::BufReader::new(file));
-    for entry in archive.entries().map_err(io_err)? {
-        let mut entry = entry.map_err(io_err)?;
-        let name = entry.path().map_err(io_err)?.into_owned();
+    for entry in open_archive(path)?.entries_with_seek().map_err(garbled)? {
+        let entry = entry.map_err(garbled)?;
+        let name = entry.path().map_err(garbled)?;
         if !safe_entry_name(&name) {
-            return Err(ModelError::InvalidProjectFile(format!(
-                "bundle refused: unsafe entry path {:?}",
-                name
-            )));
+            return Err(refused(
+                "install",
+                path,
+                format_args!(
+                    "it holds \"{}\", a path outside the bundle layout",
+                    name.display()
+                ),
+                PICK_ANOTHER,
+            ));
         }
-        let dest = dest_dir.join(&name);
+    }
+
+    std::fs::create_dir_all(dest_dir).map_err(unwritten)?;
+    let mut archive = open_archive(path)?;
+    for entry in archive.entries().map_err(garbled)? {
+        let mut entry = entry.map_err(garbled)?;
+        let dest = dest_dir.join(entry.path().map_err(garbled)?);
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(io_err)?;
+            std::fs::create_dir_all(parent).map_err(unwritten)?;
         }
-        entry.unpack(&dest).map_err(io_err)?;
+        entry.unpack(&dest).map_err(unwritten)?;
     }
 
     // Rewrite the extracted template's relative media paths to absolute.
@@ -189,7 +274,7 @@ pub fn install(path: &Path, dest_dir: &Path) -> Result<Template, ModelError> {
             media.path = dest_dir.join(&media.path);
         }
     }
-    template.save_to_file(&template_path).map_err(io_err)?;
+    template.save_to_file(&template_path).map_err(unwritten)?;
     Ok(template)
 }
 
@@ -277,21 +362,149 @@ mod tests {
         assert!(reloaded.project().media_iter().all(|m| m.path.is_file()));
     }
 
+    /// Build a tar archive at `path` holding `entries` in order.
+    fn tar_of(path: &Path, entries: &[(&str, &[u8])]) {
+        let mut builder = tar::Builder::new(std::fs::File::create(path).unwrap());
+        for (name, bytes) in entries {
+            append_bytes(&mut builder, name, bytes).unwrap();
+        }
+        builder.into_inner().unwrap();
+    }
+
+    fn manifest_json(format_version: u32, min_schema_version: u32) -> Vec<u8> {
+        let name = "Bundled".into();
+        serde_json::to_vec(&BundleManifest {
+            format_version,
+            name,
+            min_schema_version,
+        })
+        .unwrap()
+    }
+
+    /// WHY: every bundle failure read "Couldn't open this project: the
+    /// project file is damaged or corrupted (...). Pick another .aria file.",
+    /// writing one included, and a bundle with an entry outside its layout
+    /// had the entries before that one extracted. Each refusal states the
+    /// bundle, what it met and the fix, and a refused install writes nothing.
+    /// Not caught: a refusal this table has no case for.
     #[test]
-    fn write_refuses_missing_sample_media() {
-        let mut project = Project::new("Broken", R24);
-        project.add_media(MediaSource::new(
-            "/definitely/not/here.mp4",
-            1920,
-            1080,
-            R24,
-            240,
-            true,
-        ));
-        let template = Template::from_project(project, TemplateMeta::new("Broken"));
+    fn every_bundle_refusal_states_the_bundle_and_its_fix() {
         let dir = tempfile::tempdir().unwrap();
-        let err = write(&template, &dir.path().join("broken.ariab")).unwrap_err();
-        assert!(err.to_string().contains("sample media missing"));
+        let at = |name: &str| dir.path().join(name);
+        let mut project = Project::new("Broken", R24);
+        let gone = "/definitely/not/here.mp4";
+        project.add_media(MediaSource::new(gone, 1920, 1080, R24, 240, true));
+        let broken = Template::from_project(project, TemplateMeta::new("Broken"));
+        write(&template_with_real_media(dir.path()), &at("good.ariab")).unwrap();
+        std::fs::write(at("taken"), b"a file").unwrap();
+        std::fs::write(at("text.ariab"), b"not an archive").unwrap();
+        tar_of(&at("plain.ariab"), &[("readme.txt", &b"hello"[..])]);
+        tar_of(&at("garbled.ariab"), &[("bundle.json", &b"{"[..])]);
+        let (format, schema) = (BUNDLE_FORMAT_VERSION, PROJECT_SCHEMA_VERSION);
+        let manifests = [
+            manifest_json(format + 1, 1),
+            manifest_json(format, schema + 1),
+            manifest_json(format, 1),
+        ];
+        tar_of(&at("format.ariab"), &[("bundle.json", &manifests[0][..])]);
+        tar_of(&at("schema.ariab"), &[("bundle.json", &manifests[1][..])]);
+        let evil = [
+            ("bundle.json", &manifests[2][..]),
+            ("media/0.mp4", &b"bytes"[..]),
+            ("not-media/escape.txt", &b"pwned"[..]),
+        ];
+        tar_of(&at("evil.ariab"), &evil);
+
+        let state = |verb: &str, name: &str, reason: &str, fix: &str| {
+            let path = at(name);
+            format!(
+                "Couldn't {verb} the template bundle {}: {reason}. {fix}",
+                path.display()
+            )
+        };
+        let open = |name: &str, reason: &str| state("open", name, reason, PICK_ANOTHER);
+        let newer = |name: &str, what: &str, found: u32, read: u32| {
+            let reason =
+                format!("it uses {what} version {found}, which is newer than this build reads");
+            let reason = format!("{reason} ({read})");
+            state("install", name, &reason, "Update Aria to install it.")
+        };
+        let installed = at("installed");
+        let install_into = |name: &str, dest: &Path| match install(&at(name), dest) {
+            Ok(_) => panic!("{name} installed"),
+            Err(err) => err.to_string(),
+        };
+        let mut cases = vec![
+            (
+                write(&broken, &at("broken.ariab")).unwrap_err().to_string(),
+                state(
+                    "write",
+                    "broken.ariab",
+                    &format!("the sample media {gone} is missing"),
+                    "Relink it, then write the bundle again.",
+                ),
+            ),
+            (
+                read_manifest(&at("absent.ariab")).unwrap_err().to_string(),
+                open("absent.ariab", "no such file"),
+            ),
+            (
+                read_manifest(&at("plain.ariab")).unwrap_err().to_string(),
+                open(
+                    "plain.ariab",
+                    "it is not a template bundle (it has no bundle.json)",
+                ),
+            ),
+            (
+                install_into("format.ariab", &installed),
+                newer("format.ariab", "bundle format", format + 1, format),
+            ),
+            (
+                install_into("schema.ariab", &installed),
+                newer("schema.ariab", "project format", schema + 1, schema),
+            ),
+            (
+                install_into("evil.ariab", &installed),
+                state(
+                    "install",
+                    "evil.ariab",
+                    "it holds \"not-media/escape.txt\", a path outside the bundle layout",
+                    PICK_ANOTHER,
+                ),
+            ),
+        ];
+        // A destination that is a file: `create_dir_all` fails with EEXIST.
+        #[cfg(unix)]
+        cases.push((
+            install_into("good.ariab", &at("taken")),
+            state(
+                "install",
+                "good.ariab",
+                &format!(
+                    "cannot write in \"{}\": {}",
+                    at("taken").display(),
+                    io_reason(&std::io::Error::from_raw_os_error(17))
+                ),
+                CHECK_THE_FOLDER,
+            ),
+        ));
+        for (got, want) in cases {
+            assert_eq!(got, want);
+        }
+        for (name, reason) in [
+            ("text.ariab", "it is not a template bundle ("),
+            (
+                "garbled.ariab",
+                "its bundle.json is not a bundle manifest (",
+            ),
+        ] {
+            let got = read_manifest(&at(name)).unwrap_err().to_string();
+            let head = state("open", name, reason, "");
+            let head = head.trim_end_matches(". ");
+            assert!(got.starts_with(head), "{got}");
+            assert!(got.ends_with("). Pick another .ariab file."), "{got}");
+        }
+        assert!(!installed.exists(), "a refused install wrote files");
     }
 
     /// A bundle written over its own sample media fails and leaves the media
@@ -314,7 +527,14 @@ mod tests {
 
         let err = write(&template, &sample).unwrap_err();
 
-        assert!(err.to_string().contains("media this bundle uses"), "{err}");
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "Couldn't write the template bundle {}: it is media this bundle uses. Write the \
+                 bundle to another file.",
+                sample.display()
+            )
+        );
         assert_eq!(std::fs::read(&sample).unwrap(), before);
     }
 
@@ -338,78 +558,6 @@ mod tests {
     }
 
     #[test]
-    fn install_refuses_future_schema() {
-        let dir = tempfile::tempdir().unwrap();
-        let template = template_with_real_media(dir.path());
-        let bundle = dir.path().join("future.ariab");
-        write(&template, &bundle).unwrap();
-
-        // Rewrite the manifest to demand a future schema.
-        let raw = std::fs::read(&bundle).unwrap();
-        let mut archive = tar::Archive::new(raw.as_slice());
-        let out = dir.path().join("rebuild.ariab");
-        let mut builder = tar::Builder::new(std::fs::File::create(&out).unwrap());
-        for entry in archive.entries().unwrap() {
-            let mut entry = entry.unwrap();
-            let name = entry.path().unwrap().into_owned();
-            let mut bytes = Vec::new();
-            entry.read_to_end(&mut bytes).unwrap();
-            if name == Path::new("bundle.json") {
-                let mut manifest: BundleManifest = serde_json::from_slice(&bytes).unwrap();
-                manifest.min_schema_version = 99;
-                bytes = serde_json::to_vec(&manifest).unwrap();
-            }
-            let mut header = tar::Header::new_gnu();
-            header.set_size(bytes.len() as u64);
-            header.set_mode(0o644);
-            header.set_cksum();
-            builder
-                .append_data(&mut header, name.to_str().unwrap(), bytes.as_slice())
-                .unwrap();
-        }
-        builder.into_inner().unwrap();
-
-        let err = install(&out, &dir.path().join("nope")).unwrap_err();
-        assert!(err.to_string().contains("newer Aria"), "{err}");
-    }
-
-    #[test]
-    fn install_refuses_path_traversal_entries() {
-        let dir = tempfile::tempdir().unwrap();
-        let evil = dir.path().join("evil.ariab");
-        let mut builder = tar::Builder::new(std::fs::File::create(&evil).unwrap());
-        let manifest = BundleManifest {
-            format_version: BUNDLE_FORMAT_VERSION,
-            name: "Evil".into(),
-            min_schema_version: 1,
-        };
-        let bytes = serde_json::to_vec(&manifest).unwrap();
-        let mut header = tar::Header::new_gnu();
-        header.set_size(bytes.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, "bundle.json", bytes.as_slice())
-            .unwrap();
-        // (tar::Builder itself refuses `..` in entry names, so the archived
-        // probe uses an unknown root; the `..` form is covered below on the
-        // validator directly.)
-        let payload = b"pwned".to_vec();
-        let mut header = tar::Header::new_gnu();
-        header.set_size(payload.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, "not-media/escape.txt", payload.as_slice())
-            .unwrap();
-        builder.into_inner().unwrap();
-
-        let err = install(&evil, &dir.path().join("safe")).unwrap_err();
-        assert!(err.to_string().contains("unsafe entry"), "{err}");
-        assert!(!dir.path().join("safe/not-media/escape.txt").exists());
-    }
-
-    #[test]
     fn entry_name_validator_rejects_traversal_and_absolutes() {
         assert!(safe_entry_name(Path::new("bundle.json")));
         assert!(safe_entry_name(Path::new("template.ariat")));
@@ -419,22 +567,5 @@ mod tests {
         assert!(!safe_entry_name(Path::new("../escape.txt")));
         assert!(!safe_entry_name(Path::new("/etc/passwd")));
         assert!(!safe_entry_name(Path::new("other.txt")));
-    }
-
-    #[test]
-    fn manifest_of_non_bundle_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
-        let not_bundle = dir.path().join("plain.tar");
-        let mut builder = tar::Builder::new(std::fs::File::create(&not_bundle).unwrap());
-        let bytes = b"hello".to_vec();
-        let mut header = tar::Header::new_gnu();
-        header.set_size(bytes.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder
-            .append_data(&mut header, "readme.txt", bytes.as_slice())
-            .unwrap();
-        builder.into_inner().unwrap();
-        assert!(read_manifest(&not_bundle).is_err());
     }
 }

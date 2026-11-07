@@ -57,6 +57,7 @@ fn model_copy(err: &ModelError) -> String {
     let copy = match err {
         ModelError::ProjectLoad(_)
         | ModelError::TemplateLoad(_)
+        | ModelError::TemplateBundle(_)
         | ModelError::InvalidProjectFile(_) => {
             return err.to_string();
         }

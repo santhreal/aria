@@ -1413,6 +1413,8 @@ Notes for the latest release. For previous releases, see the
 - A template whose project breaks a layout or reference rule a project file is checked against is refused on load instead of applied.
 - `aria new`, `frame`, `export` and `demo` refuse an output that is a directory or a symbolic link as a usage error (exit code `2`) before reading an input, instead of an i/o error with exit code `1`.
 - `aria new`, `aria frame`, `aria export` and Save As into a folder that cannot be written state the folder and the reason instead of a bare "Permission denied (os error 13)".
+- Writing, opening or installing a `.ariab` template bundle that fails states the bundle, the obstacle and the fix instead of reporting a damaged `.aria` project.
+- Installing a template bundle with an entry outside its layout writes no file; the entries before that one were extracted.
 
 ## [alpha-0.7.0] - 2026-07-22
 

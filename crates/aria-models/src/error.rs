@@ -434,6 +434,11 @@ pub enum ModelError {
     #[error("{}", .0.describe_template())]
     TemplateLoad(ProjectLoadError),
 
+    /// A `.ariab` template bundle could not be written, opened or installed.
+    /// The message states the bundle, the obstacle and the fix.
+    #[error("{0}")]
+    TemplateBundle(String),
+
     #[error("{}", ProjectLoadError::damaged(None, "", "", .0).describe())]
     InvalidProjectFile(String),
     #[error("unknown track: {0}")]
