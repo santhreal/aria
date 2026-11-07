@@ -52,11 +52,11 @@ impl AppState {
     /// File > Revert: reopen the saved file, dropping every edit made since.
     pub fn revert_project(&mut self) {
         let Some(path) = self.project_path.clone() else {
-            self.status_message = Some("The project has never been saved".into());
+            self.decline(Decline::NeverSaved);
             return;
         };
         if !self.store.is_dirty {
-            self.status_message = Some("There are no changes since the last save".into());
+            self.decline(Decline::NoUnsavedChanges);
             return;
         }
         match self.open_project(path) {
@@ -227,7 +227,7 @@ impl AppState {
             .filter(|(_, count)| *count > 0)
             .collect();
         if chains.is_empty() {
-            self.status_message = Some("The selected clips have no effects".into());
+            self.decline(Decline::NoEffects);
             return Ok(());
         }
         let removed: usize = chains.iter().map(|(_, count)| count).sum();
@@ -246,7 +246,7 @@ impl AppState {
     /// Apply the effect applied last to the selection.
     pub fn apply_last_effect(&mut self) -> Result<(), EngineError> {
         let Some(effect) = self.last_effect.clone() else {
-            self.status_message = Some("No effect has been applied yet".into());
+            self.decline(Decline::NoEffectApplied);
             return Ok(());
         };
         self.add_effect_to_selected(effect)
@@ -283,7 +283,7 @@ impl AppState {
     pub fn delete_empty_tracks(&mut self) -> Result<(), EngineError> {
         let tracks = self.empty_track_ids();
         if tracks.is_empty() {
-            self.status_message = Some("Every track holds a clip".into());
+            self.decline(Decline::NoEmptyTrack);
             return Ok(());
         }
         let count = tracks.len();

@@ -37,6 +37,7 @@ use aria_storage::{
 };
 
 use super::AppState;
+use super::decline::Decline;
 use super::picker::{Ask, FileSpec};
 
 /// One registry row as the dialog needs it.
@@ -603,7 +604,7 @@ impl AppState {
             }
         }
         if cleared == 0 {
-            self.status_message = Some("No proxies in use".into());
+            self.decline(Decline::NoProxies);
             return;
         }
         self.status_message = Some(format!("Cleared {cleared} proxies"));

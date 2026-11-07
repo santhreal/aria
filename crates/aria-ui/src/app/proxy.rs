@@ -34,6 +34,7 @@ use aria_storage::CacheId;
 
 use super::AppState;
 use super::analysis::content_key_for;
+use super::decline::Decline;
 
 /// The version of the picture a proxy pass writes, in each proxy's file name,
 /// so a proxy an earlier pass wrote is rendered again rather than decoded in
@@ -177,7 +178,7 @@ impl AppState {
     pub fn proxy_whole_pool(&mut self) {
         let items: Vec<u64> = self.store.media.iter().map(|item| item.id).collect();
         if items.is_empty() {
-            self.status_message = Some("The pool is empty".into());
+            self.decline(Decline::PoolEmpty);
             return;
         }
         let mut queued = 0usize;

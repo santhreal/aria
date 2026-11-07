@@ -20,7 +20,7 @@ impl AppState {
     /// embedded content through the byte column.
     pub fn verify_selected_decode(&mut self) {
         let Some(item) = self.selected_media_item() else {
-            self.status_message = Some("Select a clip that plays a pool entry".into());
+            self.decline(Decline::NoPoolEntry);
             return;
         };
         let path = PathBuf::from(&*item.path);
@@ -85,7 +85,7 @@ impl AppState {
     /// bucket count can, at the same cost for any length.
     pub fn file_loudness_overview(&mut self) {
         let Some(item) = self.selected_media_item() else {
-            self.status_message = Some("Select a clip that plays a pool entry".into());
+            self.decline(Decline::NoPoolEntry);
             return;
         };
         if let Some(refusal) = crate::app::analysis::AnalysisRefusal::of_media(item, true) {

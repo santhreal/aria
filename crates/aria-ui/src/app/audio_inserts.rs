@@ -14,6 +14,7 @@ use aria_models::{
 };
 
 use super::AppState;
+use super::decline::Decline;
 use crate::types::{UiInsert, UiInsertParam, UiKeyChoice};
 
 /// The rows of `chain`, in signal order.
@@ -125,7 +126,7 @@ impl AppState {
     pub fn add_audio_effect_to_selection(&mut self, effect_id: &str) -> Result<(), EngineError> {
         let clips = self.sounding_selection();
         if clips.is_empty() {
-            self.status_message = Some("Select a clip with sound".into());
+            self.decline(Decline::SelectSound);
             return Ok(());
         }
         self.one_step(|this| {

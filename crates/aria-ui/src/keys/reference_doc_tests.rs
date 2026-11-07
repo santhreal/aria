@@ -528,6 +528,7 @@ fn menus_doc_matches_registry() {
                 | Decline::NoClipOrGap
                 | Decline::InAtEnd
                 | Decline::NoTargetedClipAtPlayhead
+                | Decline::NoTargetedTrack
                 | Decline::NoMediaClipAtPlayhead
                 | Decline::NoClipToCut
                 | Decline::NoCutForTransition

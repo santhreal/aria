@@ -16,6 +16,7 @@ use aria_engine::EngineError;
 use aria_models::{ClipId, MediaId, Replaceable, SlotMedia, TimeRange, TrackId};
 
 use super::AppState;
+use super::decline::Decline;
 
 /// Every slot restriction, with its label, in one place so a picker and a test
 /// read the same list.
@@ -161,7 +162,7 @@ impl AppState {
             return Ok(());
         }
         if !self.selected_can_be_slot() {
-            self.status_message = Some("Only media clips can be template slots".into());
+            self.decline(Decline::NotSlotMedia);
             return Ok(());
         }
         let accepts = self

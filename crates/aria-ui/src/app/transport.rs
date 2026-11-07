@@ -212,7 +212,7 @@ impl AppState {
             if self.store.sequence.duration_ticks > 0 {
                 self.decline(Decline::InAtEnd);
             } else {
-                self.status_message = Some("The sequence has no clips".into());
+                self.decline(Decline::NoClips);
             }
             return;
         }

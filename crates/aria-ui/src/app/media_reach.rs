@@ -38,6 +38,7 @@ use aria_jobs::JobCompletion;
 use aria_models::{Generator, MAX_CLIP_VOLUME};
 
 use super::AppState;
+use super::decline::Decline;
 use super::picker::{Answer, Ask, FileSpec};
 use crate::types::UiMediaItem;
 use gpui::SharedString;
@@ -192,8 +193,7 @@ impl AppState {
             return;
         };
         let Some(measured) = self.loudness_peak_dbfs() else {
-            self.status_message =
-                Some("Measure loudness in the Analysis panel first, then normalize".into());
+            self.decline(Decline::NoLoudness);
             return;
         };
         let target = self.media_reach.target_dbfs;
@@ -244,7 +244,7 @@ impl AppState {
     /// of its GPU texture when it has no CPU copy.
     pub fn measure_exposure(&mut self) {
         let Some(frame) = self.picture_on_screen() else {
-            self.status_message = Some("No frame on screen to measure".into());
+            self.decline(Decline::NoFrameOnScreen);
             return;
         };
         let Ok(view) = Rgba8Frame::new(

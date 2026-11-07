@@ -86,6 +86,8 @@ pub enum Decline {
     /// A command that acts on the clips under the playhead on the targeted
     /// lanes, sent with no unlocked clip there.
     NoTargetedClipAtPlayhead,
+    /// Lift or Extract sent with no unlocked track targeted.
+    NoTargetedTrack,
     /// Match Frame sent with no media clip under the playhead.
     NoMediaClipAtPlayhead,
     /// Add Edit sent with no clip it cuts strictly inside under the playhead.
@@ -302,7 +304,7 @@ pub enum Decline {
 
 impl Decline {
     /// Every reason, for a census over the wording.
-    pub const ALL: [Decline; 149] = [
+    pub const ALL: [Decline; 150] = [
         Decline::NoSelection,
         Decline::NoAbuttingCut,
         Decline::UnknownTransition,
@@ -330,6 +332,7 @@ impl Decline {
         Decline::NoClipOrGap,
         Decline::InAtEnd,
         Decline::NoTargetedClipAtPlayhead,
+        Decline::NoTargetedTrack,
         Decline::NoMediaClipAtPlayhead,
         Decline::NoClipToCut,
         Decline::NoCutForTransition,
@@ -487,6 +490,7 @@ impl Decline {
             Decline::NoClipOrGap => "No clip or gap is selected",
             Decline::InAtEnd => "The In point is at the end of the sequence",
             Decline::NoTargetedClipAtPlayhead => "No clip under the playhead on a targeted track",
+            Decline::NoTargetedTrack => "Target a track first",
             Decline::NoMediaClipAtPlayhead => "No media clip under the playhead",
             Decline::NoClipToCut => "No clip under the playhead to cut",
             Decline::NoCutForTransition => "No cut between two clips to put a transition on",

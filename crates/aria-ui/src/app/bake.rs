@@ -72,7 +72,7 @@ impl AppState {
     pub fn restore_unrendered(&mut self) -> Result<(), String> {
         let clip = self
             .selected_clip()
-            .ok_or_else(|| "Select a rendered clip to restore".to_string())?;
+            .ok_or_else(|| Decline::NotRendered.reason().to_string())?;
         self.apply_command(Command::Edit(EditCommand::RestoreBakedClip { clip }))
             .map_err(|err| err.to_string())?;
         self.status_message = Some("Restored the clip that was rendered".into());

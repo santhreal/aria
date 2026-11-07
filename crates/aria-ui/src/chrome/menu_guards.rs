@@ -240,12 +240,10 @@ pub(crate) fn clips(_: &str, state: &AppState) -> Option<Decline> {
         .then_some(Decline::NoClips)
 }
 
-/// The row acts on the span between the In and Out points.
+/// The row removes the span between the In and Out points from the targeted
+/// tracks.
 pub(crate) fn range(_: &str, state: &AppState) -> Option<Decline> {
-    state
-        .marked_range()
-        .is_none()
-        .then_some(Decline::NoMarkedRange)
+    state.range_to_remove().err()
 }
 
 /// The row acts on the selected keyframes, or on the keyframes under the

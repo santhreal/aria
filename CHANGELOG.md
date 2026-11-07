@@ -1497,6 +1497,7 @@ Notes for the latest release. For previous releases, see the
 - An edit refusal about the selected clips, such as a slip of a freeze frame or a cut inside a fade-in, is cleared from the error line when the selection changes.
 - Freeze Frame is disabled, with the reason its run states, where the freeze would cut inside an edge animation or a fade, instead of offered and then refused.
 - Add Edit and Add Edit to All Tracks are disabled where a cut at the playhead is refused, such as inside a fade, and state the reason the run states instead of an engine error.
+- Lift and Extract are disabled while no unlocked track is targeted, and state the reason their run states.
 
 ## [alpha-0.7.0] - 2026-07-22
 

@@ -25,6 +25,7 @@ use aria_models::{
 };
 
 use super::AppState;
+use super::decline::Decline;
 use super::picker::{Answer, Ask, FileSpec};
 
 // The report's row types live with the report: [`crate::app::project_report`].
@@ -129,7 +130,7 @@ impl AppState {
         self.measure_project_report();
         self.status_message = Some(match self.selected_content_size() {
             Some((width, height)) => format!("Content draws {width}×{height} px"),
-            None => "The selection draws no measurable content".to_string(),
+            None => Decline::NothingToMeasure.reason().to_string(),
         });
     }
 
@@ -157,7 +158,7 @@ impl AppState {
         };
         match found {
             Some(clip) => self.select_clip(clip),
-            None => self.status_message = Some("No clip under the playhead".into()),
+            None => self.decline(Decline::NoClipAtPlayhead),
         }
     }
 
@@ -215,7 +216,7 @@ impl AppState {
     pub fn duplicate_selection_to_next_lane(&mut self) -> Result<(), EngineError> {
         let choices = self.lanes_accepting_selection();
         if choices.is_empty() {
-            self.status_message = Some("No other track accepts this clip".into());
+            self.decline(Decline::NoOtherTrack);
             return Ok(());
         }
         let (start, end) = self
@@ -275,7 +276,7 @@ impl AppState {
         let undo = self.next_undo_label();
         let redo = self.next_redo_label();
         self.status_message = Some(match (undo, redo) {
-            (None, None) => "No steps to undo or redo".to_string(),
+            (None, None) => Decline::NoHistory.reason().to_string(),
             (Some(undo), None) => format!("Undo: {undo}"),
             (None, Some(redo)) => format!("Redo: {redo}"),
             (Some(undo), Some(redo)) => format!("Undo: {undo} · Redo: {redo}"),

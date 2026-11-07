@@ -722,3 +722,62 @@ fn add_edit_runs_exactly_where_its_rows_are_offered() {
         }
     }
 }
+
+/// Lift and Extract are withheld with no unlocked track targeted, whether the
+/// tracks are untargeted or locked, and their run states the same line and
+/// records no step; with a track targeted they are offered.
+///
+/// Closes "the row offers what the run declines": the rows read only the In
+/// and Out marks, so with no track targeted the row was drawn enabled over a
+/// run that removed nothing. The rows and the run now read
+/// `AppState::range_to_remove`. Not covered: a range whose cuts a clip
+/// refuses, which only a run of the cuts can tell.
+#[test]
+fn lift_and_extract_run_exactly_where_their_rows_are_offered() {
+    use crate::app::decline::Decline;
+    for id in ["seq-lift", "seq-extract"] {
+        assert_eq!(
+            blocked(AppMenu::Sequence, &Dress::Ranged.state(), id),
+            None,
+            "{id}: a targeted track"
+        );
+        for lock in [false, true] {
+            let mut state = Dress::Ranged.state();
+            let lanes: Vec<_> = state
+                .store
+                .sequence
+                .tracks
+                .iter()
+                .map(|lane| (aria_models::TrackId::from_raw(lane.id), lane.targeted))
+                .collect();
+            for (lane, targeted) in lanes {
+                if lock {
+                    state.set_track_locked(lane, true).expect("lock the track");
+                } else if targeted {
+                    state
+                        .toggle_track_targeted(lane)
+                        .expect("untarget the track");
+                }
+            }
+            let case = format!("{id}, locked {lock}");
+            let why = Decline::NoTargetedTrack.reason();
+            assert_eq!(
+                blocked(AppMenu::Sequence, &state, id),
+                Some(why),
+                "{case}: the row"
+            );
+            let depth = state.history_depth();
+            state.status_message = None;
+            state
+                .remove_marked_range(id == "seq-extract")
+                .unwrap_or_else(|err| panic!("{case}: failed instead of declining: {err}"));
+            assert_eq!(
+                state.status_message.as_deref(),
+                Some(why),
+                "{case}: the run"
+            );
+            assert_eq!(state.history_depth(), depth, "{case}: undo steps");
+            assert_eq!(state.last_error, None, "{case}: an error");
+        }
+    }
+}

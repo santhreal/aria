@@ -34,6 +34,7 @@ use aria_models::MediaId;
 use aria_render::{ExportSettings, StarterLut};
 use aria_storage::CacheId;
 
+use super::decline::Decline;
 use super::picker::{Ask, FileSpec};
 use super::{AppState, DialogKind};
 
@@ -127,7 +128,7 @@ impl AppState {
     /// from the keyboard would repair a file that is not selected.
     pub fn reload_selected_media(&mut self) {
         let Some(id) = self.pool_selection.focus() else {
-            self.status_message = Some("Pick a pool item to reload".into());
+            self.decline(Decline::NoPoolFocus);
             return;
         };
         self.reload_media_from_disk(MediaId::from_raw(id));
@@ -142,7 +143,7 @@ impl AppState {
             .map(|item| (item.id, item.path.to_string()))
             .collect();
         if items.is_empty() {
-            self.status_message = Some("The pool is empty".into());
+            self.decline(Decline::PoolEmpty);
             return;
         }
         let mut reloaded = 0usize;

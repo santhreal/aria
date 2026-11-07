@@ -16,6 +16,7 @@ use aria_models::{ClipParam, MaskParam};
 
 use super::AppState;
 use super::canvas_overlay::OverlayDrag;
+use super::decline::Decline;
 use super::param_units::Units;
 use super::value_scrub::write_number;
 use crate::preview_worker::{ProbeAsk, Probed};
@@ -232,7 +233,7 @@ impl AppState {
     pub fn report_render_cost(&mut self) {
         let rows = self.frame_rows();
         self.status_message = Some(if rows.is_empty() {
-            "No frame has been rendered yet".to_string()
+            Decline::NoFrameRendered.reason().to_string()
         } else {
             rows.iter()
                 .map(|row| format!("{} {}", row.label, row.value))

@@ -175,13 +175,27 @@ impl AppState {
             .collect()
     }
 
+    /// The In to Out range Lift and Extract remove, or why they remove
+    /// nothing: no range is marked, or no unlocked track is targeted. Their
+    /// rows' guard reads the same answer.
+    pub(crate) fn range_to_remove(&self) -> Result<(i64, i64), Decline> {
+        let range = self.marked_range().ok_or(Decline::NoMarkedRange)?;
+        if self.targeted_lanes().next().is_none() {
+            return Err(Decline::NoTargetedTrack);
+        }
+        Ok(range)
+    }
+
     /// Lift (`close_gap` false) or Extract (`close_gap` true): remove the In to
     /// Out range from every targeted lane, as one undo step. Extract also slides
     /// each lane's later clips left by the range's length.
     pub fn remove_marked_range(&mut self, close_gap: bool) -> Result<(), EngineError> {
-        let Some((from, to)) = self.marked_range() else {
-            self.decline(Decline::NoMarkedRange);
-            return Ok(());
+        let (from, to) = match self.range_to_remove() {
+            Ok(range) => range,
+            Err(why) => {
+                self.decline(why);
+                return Ok(());
+            }
         };
         let label = if close_gap { "Extract" } else { "Lift" };
         let Some(removed) = self.remove_range(from, to, close_gap, label)? else {
@@ -210,7 +224,7 @@ impl AppState {
     ) -> Result<Option<usize>, EngineError> {
         let lanes: Vec<u64> = self.targeted_lanes().map(|lane| lane.id).collect();
         if lanes.is_empty() {
-            self.status_message = Some("Target a track first".into());
+            self.decline(Decline::NoTargetedTrack);
             return Ok(None);
         }
         let rate = self.playhead.rate;
@@ -303,10 +317,10 @@ impl AppState {
             points.iter().find(|&&tick| tick > at).map(|&to| (at, to))
         };
         let Some((from, to)) = span else {
-            self.status_message = Some(if head {
-                "No earlier edit on a targeted track".into()
+            self.decline(if head {
+                Decline::NoEarlierEdit
             } else {
-                "No later edit on a targeted track".into()
+                Decline::NoLaterEdit
             });
             return Ok(());
         };

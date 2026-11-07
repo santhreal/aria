@@ -191,16 +191,41 @@ fn written_lines(files: &[(String, String)], calls: &[&str]) -> Vec<(String, Str
 
 /// **Every status line the crate writes reads as its sentences do.**
 ///
-/// Fails when fewer lines are read than the crate writes, so a renamed sink
-/// does not leave a rule that matches nothing.
+/// Fails when a sink is written nowhere, so a renamed sink does not leave a
+/// rule that matches nothing, and when a literal written straight into a sink,
+/// found by substring apart from the scanner, is not read.
 #[test]
 fn every_status_line_the_crate_writes_reads_as_its_sentences() {
     let sources = production_sources();
     let posted = written_lines(&sources, &SINKS);
+    let unused: Vec<&str> = SINKS
+        .into_iter()
+        .filter(|call| !sources.iter().any(|(_, code)| code.contains(call)))
+        .collect();
+    assert!(unused.is_empty(), "no source writes at {unused:?}");
+    let read: std::collections::BTreeSet<&str> = posted.iter().map(|(at, _)| at.as_str()).collect();
+    let direct: Vec<String> = sources
+        .iter()
+        .flat_map(|(rel, code)| {
+            SINKS.into_iter().flat_map(move |call| {
+                ["\"", "format!(\""].into_iter().flat_map(move |head| {
+                    code.match_indices(&format!("{call}{head}"))
+                        .map(move |(at, _)| {
+                            format!("{rel}:{}", code[..at].matches('\n').count() + 1)
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+        })
+        .collect();
+    let unread: Vec<&String> = direct
+        .iter()
+        .filter(|at| !read.contains(at.as_str()))
+        .collect();
     assert!(
-        posted.len() > 400,
-        "read only {} posted lines",
-        posted.len()
+        !direct.is_empty() && unread.is_empty(),
+        "of {} lines written straight into a sink, these were not read: {unread:?}",
+        direct.len()
     );
     let declined = Decline::ALL.map(|why| (format!("{why:?}"), why.reason().to_string()));
     let offenders: Vec<String> = posted

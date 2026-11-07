@@ -37,6 +37,7 @@ use gpui::Context;
 use sha2::{Digest, Sha256};
 
 use super::AppState;
+use super::decline::Decline;
 
 #[path = "analysis_kind.rs"]
 mod analysis_kind;
@@ -388,12 +389,12 @@ impl AppState {
                     .sounding_selection()
                     .into_iter()
                     .next()
-                    .ok_or_else(|| "Select a clip with sound".to_string())?;
+                    .ok_or_else(|| Decline::SelectSound.reason().to_string())?;
                 let timeline = project
                     .timeline()
                     .clip(clip)
                     .map(|c| c.timeline)
-                    .ok_or_else(|| "Select a clip with sound".to_string())?;
+                    .ok_or_else(|| Decline::SelectSound.reason().to_string())?;
                 (aria_plugin::AudioSource::Clip(clip), timeline)
             }
             aria_plugin::AnalyzerScope::Sequence => {
@@ -403,7 +404,7 @@ impl AppState {
                     .value
                     .max(self.store.sequence.duration_ticks);
                 if duration <= 0 {
-                    return Err("The sequence has no clips".into());
+                    return Err(Decline::NoClips.reason().into());
                 }
                 (
                     aria_plugin::AudioSource::Open,
@@ -413,9 +414,9 @@ impl AppState {
             aria_plugin::AnalyzerScope::InOut => {
                 let (start, end) = self
                     .work_area_or_sequence_range()
-                    .ok_or_else(|| "The sequence has no clips".to_string())?;
+                    .ok_or_else(|| Decline::NoClips.reason().to_string())?;
                 if end <= start {
-                    return Err("The sequence has no clips".into());
+                    return Err(Decline::NoClips.reason().into());
                 }
                 (
                     aria_plugin::AudioSource::Open,

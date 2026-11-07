@@ -167,7 +167,7 @@ impl AppState {
     /// spend the next Undo on nothing.
     pub fn set_audio_channels(&mut self, choice: AudioChannels) -> Result<(), EngineError> {
         if !self.selection_has_sound() {
-            self.status_message = Some("Select a clip with sound".into());
+            self.decline(Decline::SelectSound);
             return Ok(());
         }
         let clips = self.channel_targets(choice);

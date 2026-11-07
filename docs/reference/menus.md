@@ -125,8 +125,8 @@ Set an in-point and out-point around a range, add a sequence marker, and render 
 | `seq-trim-edit` | `none` | Trim Edit | `none` | No unlocked track holds a clip (`guards::edit_point`) | Selects the edit point nearest the playhead on an unlocked track for keyboard trim nudging. |
 | `seq-extend-edit` | `none` | Extend Edit | `none` | No edit point is selected, or the selected one is at the playhead (`guards::edge_to_extend`) | Extends the selected edit point to the current playhead tick. |
 | `seq-default-transitions` | `none` | Apply Default Transitions | `Ctrl+T` | The selected edge has no clip on its other side, or with no edge selected no targeted track has a cut between two pictures, or that cut already has the default transition (`guards::picture_cut`) | Applies the default picture transition (`crossfade`) at the cut of the selected edge, or at the picture cut nearest the playhead on the targeted tracks. |
-| `seq-lift` | `none` | Lift | `;` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and leaves a timeline gap. |
-| `seq-extract` | `none` | Extract | `'` | Mark an In and an Out point first (`guards::range`) | Removes material between In and Out and ripple-closes the gap. |
+| `seq-lift` | `none` | Lift | `;` | No In and Out point is marked, or no unlocked track is targeted (`guards::range`) | Removes material between In and Out and leaves a timeline gap. |
+| `seq-extract` | `none` | Extract | `'` | No In and Out point is marked, or no unlocked track is targeted (`guards::range`) | Removes material between In and Out and ripple-closes the gap. |
 | `seq-snap` | `none` | Snap | `S` | Always enabled | Toggles magnetic timeline snapping (`snap_enabled`). |
 | `seq-linked-selection` | `none` | Linked Selection | `none` | Always enabled | Toggles whether clicking a linked clip selects its linked siblings (`linked_selection`). |
 | `seq-v` | `Add Tracks` | Video Track | `none` | Always enabled | Appends a new video track (`V<n>`) to the active sequence. |
@@ -382,6 +382,7 @@ Defined in `crates/aria-ui/src/app/decline.rs` (`Decline::ALL`). When a command 
 | `NoClipOrGap` | `No clip or gap is selected` |
 | `InAtEnd` | `The In point is at the end of the sequence` |
 | `NoTargetedClipAtPlayhead` | `No clip under the playhead on a targeted track` |
+| `NoTargetedTrack` | `Target a track first` |
 | `NoMediaClipAtPlayhead` | `No media clip under the playhead` |
 | `NoClipToCut` | `No clip under the playhead to cut` |
 | `NoCutForTransition` | `No cut between two clips to put a transition on` |
