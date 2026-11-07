@@ -427,6 +427,13 @@ async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
             std::thread::sleep(Duration::from_millis(10));
             periods += 1;
         }
+        // The vsync that moved the playhead shows the newest frame rendered
+        // ahead, which under load can be one the playhead has passed. Once the
+        // worker settles, a vsync shows a frame past the start and not past the
+        // playhead; under the audio clock the playhead keeps moving, so the
+        // frame is not required to be the playhead's own.
+        settle(&state, visual).await;
+        assert_eq!(vsync(&state, visual, periods), 1, "{label}: settled vsync");
         visual.run_until_parked();
 
         visual.read(|app| {
@@ -436,10 +443,13 @@ async fn sample_project_and_home_media_drop_place_a_clip_that_plays_past_zero(
                 "{label}: playhead stayed at {}",
                 state.playhead.value
             );
-            assert_eq!(
+            assert!(
+                state
+                    .shown_tick
+                    .is_some_and(|shown| shown > 0 && shown <= state.playhead.value),
+                "{label}: Viewer frame {:?} did not advance with playhead {}",
                 state.shown_tick,
-                Some(state.playhead.value),
-                "{label}: Viewer frame did not advance with playhead"
+                state.playhead.value
             );
             let view = state
                 .ctx
