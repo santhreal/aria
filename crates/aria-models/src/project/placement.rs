@@ -271,9 +271,7 @@ impl Project {
             .ok_or(ModelError::UnknownClip(clip_id))?;
         let kind = self.timeline().require_track(track_id)?.kind;
         if self.timeline().require_clip(clip_id)?.freeze_frame {
-            return Err(ModelError::InvalidParam(
-                "cannot replace the media of a freeze-frame clip".into(),
-            ));
+            return Err(ModelError::FrozenMedia(clip_id));
         }
         let media = self
             .media

@@ -286,3 +286,63 @@ fn an_alt_drop_repoints_the_clip_under_it_and_reports_an_empty_position() {
             .expect("unknown lane"),
     );
 }
+
+/// A replace aimed at a freeze frame, from the inspector pick or an Alt drop,
+/// reads as the freeze frame and leaves its media in place.
+///
+/// Closes the class where the refusal read "That value isn't accepted here.
+/// Enter another value": the drop carried no value. Not covered: whether the
+/// drop should place the media beside the freeze frame instead.
+#[test]
+fn a_replace_on_a_freeze_frame_reads_as_the_freeze_frame() {
+    let (mut state, clip) = super::premiere_tests::with_media(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/fixture-640x360-24fps-3s.mp4"),
+    );
+    let other = state
+        .import_media(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/texture.png"),
+        )
+        .expect("import a second item");
+    let rate = state.playhead.rate;
+    state
+        .apply_command(aria_commands::Command::Edit(
+            aria_commands::EditCommand::FreezeFrame {
+                clip,
+                at: aria_models::RationalTime::new(12, rate),
+                duration: aria_models::RationalTime::new(24, rate),
+            },
+        ))
+        .expect("freeze a frame");
+    let (frozen, track, tick, media) = {
+        let engine = state.engine().lock();
+        let timeline = engine.project().timeline();
+        timeline
+            .tracks_ordered()
+            .find_map(|track| {
+                let held = track.clips().find(|held| held.freeze_frame)?;
+                Some((held.id, track.id, held.timeline.start.value, held.media()))
+            })
+            .expect("the freeze frame is on the timeline")
+    };
+    let copy = "That clip is a freeze frame, which holds one frame of its media. Delete it, then \
+                place the new media.";
+
+    let err = state
+        .replace_media_at(other, track, tick)
+        .expect_err("an Alt drop on a freeze frame is refused");
+    assert_eq!(super::describe_engine_error(&err), copy);
+    state.select_clip(frozen);
+    let err = state
+        .replace_selected_media(other)
+        .expect_err("a pick on a freeze frame is refused");
+    assert_eq!(super::describe_engine_error(&err), copy);
+    let held = state
+        .engine()
+        .lock()
+        .project()
+        .clip(frozen)
+        .map(|c| c.media());
+    assert_eq!(held, Some(media), "the freeze frame changed media");
+}

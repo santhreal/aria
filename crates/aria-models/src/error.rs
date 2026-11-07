@@ -619,6 +619,9 @@ pub enum ModelError {
     /// A clip's take cannot move inside it.
     #[error("{0}")]
     Slip(SlipRefusal),
+
+    #[error("clip {0} is a freeze frame, so its media cannot be replaced")]
+    FrozenMedia(ClipId),
 }
 
 /// Why a link, group or enable request leaves nothing to do.

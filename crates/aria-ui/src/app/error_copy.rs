@@ -257,6 +257,10 @@ fn model_copy(err: &ModelError) -> String {
                  clip shorter, then slip it."
             }
         },
+        ModelError::FrozenMedia(_) => {
+            "That clip is a freeze frame, which holds one frame of its media. Delete it, then \
+             place the new media."
+        }
     };
     copy.into()
 }

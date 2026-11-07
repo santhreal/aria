@@ -41,8 +41,8 @@ impl AppState {
     /// length where the new media is long enough, and otherwise takes as much as
     /// the media has. Returns whether the clip took it.
     ///
-    /// Inert on unknown media, on a generated clip, and on a freeze-frame clip,
-    /// all of which the model refuses.
+    /// Inert on unknown media and on a generated clip. A freeze frame is
+    /// rejected by the model with [`aria_models::ModelError::FrozenMedia`].
     pub fn replace_clip_media(
         &mut self,
         clip: ClipId,

@@ -189,7 +189,7 @@ fn a_full_mask_stack_reads_as_its_cap_not_a_value() {
 /// Variants of [`ModelError`], each [`ClipSetRefusal`], [`SplitRefusal`] and
 /// [`SlipRefusal`] counted as its own; [`variant`] numbers them
 /// `0..VARIANTS`.
-const VARIANTS: usize = 67;
+const VARIANTS: usize = 68;
 
 /// Where `err` sits in [`ModelError`]. The match has no catch-all, so a new
 /// variant stops compiling here until it is numbered, and
@@ -250,6 +250,7 @@ fn variant(err: &ModelError) -> usize {
         ModelError::Split(refusal) => 54 + split_index(*refusal),
         ModelError::MasksFull(_) => 62,
         ModelError::Slip(refusal) => 63 + slip_index(*refusal),
+        ModelError::FrozenMedia(_) => 67,
     }
 }
 
@@ -356,6 +357,7 @@ fn every_refusal() -> Vec<ModelError> {
         ModelError::MulticamAngleOutOfBounds { index: 5, total: 3 },
         ModelError::InvalidMulticamCuts,
         ModelError::InvalidMulticamOffset("NaN".into()),
+        ModelError::FrozenMedia(clip),
         ModelError::NotABus(track),
         ModelError::LaneCarriesNoSound(track),
         ModelError::RoutingCycle(track),

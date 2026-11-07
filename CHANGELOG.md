@@ -1477,6 +1477,7 @@ Notes for the latest release. For previous releases, see the
 - A cut inside a fade, off a combo animation cycle, too close to an entrance or exit animation or a speed-ramp keyframe, or on a Lottie clip or animated sticker is rejected with copy naming that obstacle and its fix instead of reporting that a value is not accepted.
 - Adding a mask to a clip that already holds 32 masks reports the cap and the fix instead of a rejected value.
 - A slip drag on a still, a freeze frame, a generated clip or a clip that plays its whole take reports why the clip does not slip instead of a rejected value.
+- Replacing the media of a freeze frame, from the inspector or an Alt drop, reports that the clip is a freeze frame instead of a rejected value.
 
 ## [alpha-0.7.0] - 2026-07-22
 
