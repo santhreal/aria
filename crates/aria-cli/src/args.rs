@@ -119,8 +119,9 @@ pub(crate) struct Args {
 pub(crate) enum ArgsError {
     /// No verb at all: print the usage block on stdout, exit 0.
     NoVerb,
-    /// `--help` or `-h` anywhere: after a command, that command's `USAGE`
-    /// entries ([`synopsis`]); otherwise the usage block. Exit 0.
+    /// `--help` or `-h` anywhere, or `help` as the first word: after a command,
+    /// or with `help` before one, that command's `USAGE` entries
+    /// ([`synopsis`]); otherwise the usage block. Exit 0.
     Help(Option<Verb>),
     /// `--version` as the first word: print the version on stdout, exit 0.
     Version,
@@ -140,6 +141,17 @@ impl Args {
             return Err(ArgsError::Help(
                 words.first().and_then(|word| Verb::named(word)),
             ));
+        }
+        if words.first().is_some_and(|word| word == "help") {
+            return Err(match &words[1..] {
+                [] => ArgsError::Help(None),
+                [name] => {
+                    ArgsError::Help(Some(Verb::named(name).ok_or_else(|| {
+                        ArgsError::Usage(format!("unknown command \"{name}\""))
+                    })?))
+                }
+                _ => ArgsError::Usage("help takes one command name".into()),
+            });
         }
         if words.first().is_some_and(|word| word == "--version") {
             return Err(ArgsError::Version);
@@ -396,6 +408,7 @@ USAGE
     aria <command> [arguments]
     aria --help | --version
     aria <command> --help
+    aria help [command]
 
 COMMANDS
     demo [out.png]

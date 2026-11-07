@@ -218,6 +218,38 @@ fn no_verb_and_help_are_not_errors() {
     );
 }
 
+/// WHY: `aria help frame` failed with "unknown command \"help\"", exit 2,
+/// though `cargo help build` and `git help log` take that spelling. `help`
+/// alone is the usage block and `help <command>` that command's entries for
+/// every verb in `Verb::ALL`; a word that is no command after it, or two words,
+/// is a usage error. Not caught: `help` after a verb, which is that verb's
+/// positional.
+#[test]
+fn help_as_the_first_word_names_the_command_after_it() {
+    assert_eq!(Args::parse(["help"]).err(), Some(ArgsError::Help(None)));
+    for verb in Verb::ALL {
+        assert_eq!(
+            Args::parse(["help", verb.key()]).err(),
+            Some(ArgsError::Help(Some(verb))),
+            "help {}",
+            verb.key()
+        );
+    }
+    for (argv, says) in [
+        (vec!["help", "render"], "unknown command \"render\""),
+        (
+            vec!["help", "frame", "export"],
+            "help takes one command name",
+        ),
+    ] {
+        assert_eq!(
+            Args::parse(argv.clone()).err(),
+            Some(ArgsError::Usage(says.into())),
+            "{argv:?}"
+        );
+    }
+}
+
 /// WHY: a word with one leading dash fell through to the positionals, so
 /// `aria frame p.aria -o` wrote a PNG named `-o`, `aria new -x` a project
 /// named `-x`, and `aria frame p.aria -o x.png` failed on "x.png" instead of
