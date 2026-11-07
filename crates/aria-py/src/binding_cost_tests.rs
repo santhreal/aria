@@ -13,7 +13,7 @@
 //! asserting them.
 
 use std::ffi::CString;
-use std::time::Instant;
+use std::time::Duration;
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -30,19 +30,33 @@ const ASSIGNMENTS: usize = 2_000;
 const CEILING_US: f64 = 200.0;
 
 /// Runs `code` in a fresh set of globals with `aria` bound, the way a script
-/// sees the module, and returns how long it took.
-fn timed(globals: &Bound<'_, PyDict>, py: Python<'_>, code: &str) -> std::time::Duration {
-    let code = CString::new(code).expect("test source holds no NUL");
-    let start = Instant::now();
+/// sees the module, and returns the CPU time the calling thread spent on it.
+///
+/// Thread CPU time, not wall time: the library's tests share one interpreter,
+/// so a script waits for the GIL while another test's script holds it, and
+/// wall time charged that wait to the binding. Placing a clip measured
+/// 13 us/call alone and 217.90 us/call in a parallel run.
+fn timed(globals: &Bound<'_, PyDict>, py: Python<'_>, code: &str) -> Duration {
+    let code = CString::new(format!(
+        "import time as _clock\n_start = _clock.thread_time_ns()\n{code}\n\
+         _spent = _clock.thread_time_ns() - _start\n"
+    ))
+    .expect("test source holds no NUL");
     py.run(code.as_c_str(), Some(globals), None)
         .unwrap_or_else(|err| {
             err.print(py);
             panic!("the script failed: {err}")
         });
-    start.elapsed()
+    let spent: u64 = globals
+        .get_item("_spent")
+        .expect("a bound name")
+        .expect("the script records the time it spent")
+        .extract()
+        .expect("a nanosecond count");
+    Duration::from_nanos(spent)
 }
 
-fn per_call_us(elapsed: std::time::Duration, calls: usize) -> f64 {
+fn per_call_us(elapsed: Duration, calls: usize) -> f64 {
     elapsed.as_secs_f64() * 1e6 / calls as f64
 }
 
@@ -169,6 +183,21 @@ for i in range({ASSIGNMENTS}):
             large < small * 10.0 + CEILING_US,
             "a transform costs {large:.2} us/call on {CLIPS} clips against \
              {small:.2} us/call on one, so the call is paying for the project"
+        );
+    });
+}
+
+/// A script that waits is not charged for the wait, as a script waiting for
+/// the GIL behind another test's script is not: the ceilings above measure the
+/// binding's work, so a parallel run cannot push a call over them.
+#[test]
+fn a_wait_is_not_charged_to_the_binding() {
+    Python::attach(|py| {
+        let globals = PyDict::new(py);
+        let spent = timed(&globals, py, "import time\ntime.sleep(0.05)\n");
+        assert!(
+            spent < Duration::from_millis(25),
+            "a 50 ms sleep was charged {spent:?}"
         );
     });
 }
