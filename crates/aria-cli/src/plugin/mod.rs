@@ -8,10 +8,32 @@ pub(crate) mod pack;
 pub(crate) mod process;
 
 #[cfg(test)]
+#[path = "path_tests.rs"]
+mod path_tests;
+#[cfg(test)]
 mod tests;
+
+use std::path::Path;
 
 use crate::args::Args;
 use crate::fail::Failure;
+
+/// Fail unless `path` is a directory, stating a missing path apart from one
+/// that is something else; `what` is what the sub-command reads at `path`.
+/// `check` read a missing directory as one with "no plugin.toml", a file as
+/// "plugin.toml: Not a directory (os error 20)", and `dev` printed the OS
+/// error with its code.
+pub(crate) fn require_dir(path: &Path, what: &str) -> Result<(), Failure> {
+    if path.is_dir() {
+        return Ok(());
+    }
+    let why = if path.exists() {
+        format!("not {what}")
+    } else {
+        "no such file or directory".to_owned()
+    };
+    Err(Failure::Failed(format!("{}: {why}", path.display())))
+}
 
 /// Sub-commands under `aria plugin`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

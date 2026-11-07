@@ -27,12 +27,7 @@ pub(crate) fn pack_dir(
     out: Option<&Path>,
     no_build: bool,
 ) -> Result<(Package, PathBuf), Failure> {
-    if !dir.is_dir() {
-        return Err(Failure::Failed(format!(
-            "{}: not a directory",
-            dir.display()
-        )));
-    }
+    super::require_dir(dir, "a plugin directory")?;
     if !no_build && dir.join("Cargo.toml").is_file() {
         build::build_and_stage(dir, BuildProfile::Release)?;
     }

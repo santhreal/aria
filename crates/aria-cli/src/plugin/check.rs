@@ -45,6 +45,7 @@ pub(crate) fn check_path(path: &Path) -> Result<Package, Failure> {
         unpack(path, &unpacked_dir).map_err(|err| Failure::Failed(err.to_string()))?;
         check_dir(&unpacked_dir)
     } else {
+        super::require_dir(path, "a plugin directory or .ariaplugin archive")?;
         check_dir(path)
     }
 }

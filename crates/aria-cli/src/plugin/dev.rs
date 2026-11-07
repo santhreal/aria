@@ -41,15 +41,10 @@ pub(crate) fn run_dev(
     editor_arg: Option<&Path>,
     data_dir_arg: Option<&Path>,
 ) -> Result<(), Failure> {
+    super::require_dir(dir, "a plugin directory")?;
     let abs_dir = dir
         .canonicalize()
         .map_err(|err| Failure::Failed(format!("{}: {err}", dir.display())))?;
-    if !abs_dir.is_dir() {
-        return Err(Failure::Failed(format!(
-            "{}: not a directory",
-            abs_dir.display()
-        )));
-    }
 
     let manifest_path = abs_dir.join(MANIFEST_FILE);
     let manifest_text = fs::read_to_string(&manifest_path)
