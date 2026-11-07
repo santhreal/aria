@@ -15,7 +15,8 @@
 struct Placement {
     // Columns of the 2x2 unit-quad → clip-space linear part (m00, m10, m01, m11).
     linear: vec4<f32>,
-    // Clip-space translation (x, y), layer opacity (z), pad (w).
+    // Clip-space translation (x, y), layer opacity (z), and 1 (w) when the
+    // quad's x axis reads the texture's y axis under a container rotation.
     trans_opacity: vec4<f32>,
     // Sampled UV rect (u0, v0, u1, v1) across the quad.
     uv_rect: vec4<f32>,
@@ -46,6 +47,12 @@ fn quad_corner(vertex_index: u32) -> vec2<f32> {
     return corners[vertex_index];
 }
 
+// The texture corner a quad corner (in [0, 1]²) samples: with `swap` set, the
+// quad's x axis runs along the texture's y axis.
+fn texture_corner(q: vec2<f32>, swap: f32) -> vec2<f32> {
+    return select(q, q.yx, swap > 0.5);
+}
+
 @vertex
 fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     let c = quad_corner(vertex_index);
@@ -58,7 +65,7 @@ fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
         0.0,
         1.0,
     );
-    out.uv = mix(p.uv_rect.xy, p.uv_rect.zw, c + vec2(0.5, 0.5));
+    out.uv = mix(p.uv_rect.xy, p.uv_rect.zw, texture_corner(c + vec2(0.5, 0.5), t.w));
     out.quad_uv = c + vec2(0.5, 0.5);
     return out;
 }

@@ -450,6 +450,35 @@ pub(crate) fn source_info(width: u32, height: u32, fps: Option<gst::Fraction>) -
     }
 }
 
+/// The rotation the stream at `pad` is shown with: the `image-orientation`
+/// tag a demuxer states for a container's display matrix, read from the tag
+/// events the pad holds. A phone held upright records `rotate-90`. A mirrored
+/// orientation (`flip-rotate-*`) and a stream with no such tag read as
+/// [`Rotation::None`].
+pub(crate) fn pad_rotation(pad: &gst::Pad) -> Rotation {
+    let mut rotation = Rotation::None;
+    pad.sticky_events_foreach(|event| {
+        if let gst::EventView::Tag(tag) = event.view()
+            && let Some(orientation) = tag.tag().get::<gst::tags::ImageOrientation>()
+        {
+            rotation = orientation_rotation(orientation.get());
+            return std::ops::ControlFlow::Break(gst::EventForeachAction::Keep);
+        }
+        std::ops::ControlFlow::Continue(gst::EventForeachAction::Keep)
+    });
+    rotation
+}
+
+/// [`Rotation`] for an `image-orientation` tag value: `rotate-N` is `N`
+/// degrees clockwise.
+fn orientation_rotation(orientation: &str) -> Rotation {
+    orientation
+        .strip_prefix("rotate-")
+        .and_then(|degrees| degrees.parse().ok())
+        .and_then(Rotation::from_degrees)
+        .unwrap_or(Rotation::None)
+}
+
 pub(crate) fn sample_to_cpu_frame(
     sample: &gst::Sample,
     info: &SourceInfo,

@@ -2,6 +2,8 @@
 
 struct Placement {
     linear: vec4<f32>,
+    // Translation (x, y), opacity (z), and 1 (w) when the quad's x axis reads
+    // the texture's y axis under a container rotation.
     trans_opacity: vec4<f32>,
     uv_rect: vec4<f32>,
     coeffs: vec4<f32>,
@@ -43,6 +45,12 @@ fn quad_corner(vertex_index: u32) -> vec2<f32> {
     return corners[vertex_index];
 }
 
+// The texture corner a quad corner (in [0, 1]²) samples: with `swap` set, the
+// quad's x axis runs along the texture's y axis.
+fn texture_corner(q: vec2<f32>, swap: f32) -> vec2<f32> {
+    return select(q, q.yx, swap > 0.5);
+}
+
 @vertex
 fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     let c = quad_corner(vertex_index);
@@ -55,7 +63,7 @@ fn vs(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
         0.0,
         1.0,
     );
-    out.uv = mix(p.uv_rect.xy, p.uv_rect.zw, c + vec2(0.5, 0.5));
+    out.uv = mix(p.uv_rect.xy, p.uv_rect.zw, texture_corner(c + vec2(0.5, 0.5), t.w));
     out.local = c * 2.0 * fx.half.xy;
     out.quad_uv = c + vec2(0.5, 0.5);
     return out;

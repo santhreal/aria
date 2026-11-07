@@ -13,23 +13,30 @@ use parking_lot::Mutex;
 use std::path::Path;
 use std::sync::Arc;
 
-use aria_core::{DecodeError, SourceInfo, VideoDecoder};
+use aria_core::{DecodeError, Rotation, SourceInfo, VideoDecoder};
 use gstreamer as gst;
 use gstreamer::prelude::*;
 
 use crate::OutputMode;
-use crate::gst::{PipelineGuard, bus_or, ensure_init, failed_change_or, gst_err, path_uri};
+use crate::gst::{
+    PipelineGuard, bus_or, ensure_init, failed_change_or, gst_err, pad_rotation, path_uri,
+};
 use crate::probe::{MediaProbe, Tracks};
 
 /// How long the pass may take to reach every stream before the probe fails.
 const PROBE_WAIT: gst::ClockTime = gst::ClockTime::from_seconds(8);
 
 /// The first video stream and the first audio stream the pass exposed, at the
-/// caps they were exposed with.
+/// caps they were exposed with, and the rotation the video stream is shown
+/// with.
 #[derive(Default)]
 struct Exposed {
     video: Option<gst::Caps>,
     audio: Option<gst::Caps>,
+    /// The sink the video stream was linked to, until the pass reads its
+    /// rotation.
+    video_sink: Option<gst::Pad>,
+    rotation: Rotation,
 }
 
 impl Exposed {
@@ -47,6 +54,7 @@ pub(crate) fn probe(path: &Path) -> Result<MediaProbe, DecodeError> {
         (Some(video), duration) => {
             let mut info = video_info(path, &video)?;
             info.duration = duration;
+            info.rotation = exposed.rotation;
             Ok(MediaProbe::video(
                 &info,
                 Tracks {
@@ -110,7 +118,12 @@ fn pass(path: &Path) -> Result<(Exposed, Option<aria_core::RationalTime>), Decod
         Err(e) => return Err(failed_change_or(&pipeline, gst_err(DecodeError::Open, e))),
     }
     let duration = crate::gst::stream_duration(&pipeline);
-    let exposed = std::mem::take(&mut *exposed.lock());
+    let mut exposed = std::mem::take(&mut *exposed.lock());
+    // Tag events precede the first buffer, so the prerolled sink holds them;
+    // the pipeline drops them when it stops.
+    if let Some(pad) = exposed.video_sink.take() {
+        exposed.rotation = pad_rotation(&pad);
+    }
     Ok((exposed, duration))
 }
 
@@ -129,13 +142,18 @@ fn take_stream(exposed: &Mutex<Exposed>, src: &gst::Element, pad: &gst::Pad) {
     let Some(caps) = pad.current_caps() else {
         return;
     };
-    let mut exposed = exposed.lock();
-    let slot = match caps.structure(0).map(|stream| stream.name()) {
-        Some(name) if name.starts_with("video/") => &mut exposed.video,
-        Some(name) if name.starts_with("audio/") => &mut exposed.audio,
+    let is_video = match caps.structure(0).map(|stream| stream.name()) {
+        Some(name) if name.starts_with("video/") => true,
+        Some(name) if name.starts_with("audio/") => false,
         _ => return,
     };
-    if slot.is_some() {
+    let mut exposed = exposed.lock();
+    let taken = if is_video {
+        exposed.video.is_some()
+    } else {
+        exposed.audio.is_some()
+    };
+    if taken {
         return;
     }
     let Some(bin) = src.parent().and_downcast::<gst::Bin>() else {
@@ -151,7 +169,12 @@ fn take_stream(exposed: &Mutex<Exposed>, src: &gst::Element, pad: &gst::Pad) {
     if let Some(sink_pad) = sink.static_pad("sink")
         && pad.link(&sink_pad).is_ok()
     {
-        *slot = Some(caps);
+        if is_video {
+            exposed.video = Some(caps);
+            exposed.video_sink = Some(sink_pad);
+        } else {
+            exposed.audio = Some(caps);
+        }
     }
 }
 
@@ -194,3 +217,7 @@ fn codec_description(caps: &gst::CapsRef) -> Option<String> {
 #[cfg(test)]
 #[path = "gst_probe_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "gst_rotation_tests.rs"]
+mod rotation_tests;

@@ -11,10 +11,7 @@ use crate::layer::{
 use crate::planes::PlaneSet;
 
 use super::cover::covers_target;
-use super::upload::{
-    luma_coeffs, pack_grade, placement_affine, placement_affine_rot, placement_rotation,
-    visible_uv_rect,
-};
+use super::upload::{frame_uv, luma_coeffs, pack_grade, placement_affine};
 use super::{
     Bound, Compositor, FxEffectsUniform, LayerGpu, LayerPipeline, RgbaUniforms, SdfUniforms,
     SolidUniforms, YuvUniforms,
@@ -59,7 +56,7 @@ impl Compositor {
         use aria_shapes::SdfParams;
 
         let placement = &layer.placement;
-        let (linear, mut trans) = placement_affine(config, &layer.placement, 0.0);
+        let (linear, mut trans) = placement_affine(config, &layer.placement);
         let stroke = shape.stroke.filter(|s| s.width > 0.0);
         trans[3] = stroke.map_or(0.0, |s| s.width);
 
@@ -124,7 +121,7 @@ impl Compositor {
         rgba: [u8; 4],
         color_grade: Option<ColorGrade>,
     ) -> Result<LayerGpu, CompositorError> {
-        let (linear, trans) = placement_affine(config, &layer.placement, 0.0);
+        let (linear, trans) = placement_affine(config, &layer.placement);
         let grade = pack_grade(color_grade);
         let uniforms = SolidUniforms {
             color: [
@@ -195,10 +192,11 @@ impl Compositor {
         let full = if resolved.range.is_full() { 1.0 } else { 0.0 };
         let plane_mode = if nv12 { 1.0 } else { 0.0 };
 
-        // Container rotation rides on top of the placement rotation.
-        let rotation = placement_rotation(layer, frame);
-        let (linear, trans) = placement_affine_rot(config, &layer.placement, rotation);
-        let uv_rect = visible_uv_rect(frame, layer.uv);
+        // The quad stands upright at the placement; a container rotation
+        // turns the sampled texture, flagged in the translation's spare lane.
+        let (linear, mut trans) = placement_affine(config, &layer.placement);
+        let (uv_rect, swap) = frame_uv(frame, layer.uv);
+        trans[3] = if swap { 1.0 } else { 0.0 };
 
         let grade = pack_grade(color_grade);
         let uniforms = YuvUniforms {
@@ -485,7 +483,7 @@ impl Compositor {
         sampling: Sampling,
         color_grade: Option<ColorGrade>,
     ) -> LayerGpu {
-        let (linear, trans) = placement_affine(config, &layer.placement, 0.0);
+        let (linear, trans) = placement_affine(config, &layer.placement);
         let grade = pack_grade(color_grade);
         let placement_uniforms = RgbaUniforms {
             linear,

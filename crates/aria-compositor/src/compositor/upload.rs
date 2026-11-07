@@ -1,13 +1,15 @@
 use std::sync::{Arc, Weak};
 
-use aria_core::{CpuImage, MatrixCoefficients, PixelFormat, Plane, RgbaImage, VideoFrame};
+use aria_core::{
+    CpuImage, MatrixCoefficients, PixelFormat, Plane, RgbaImage, Rotation, VideoFrame,
+};
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
 use crate::error::CompositorError;
 use crate::gpu::GpuContext;
 use crate::grade::ColorGrade;
-use crate::layer::{Bitmap, CompositeLayer, CompositorConfig, LayerPlacement};
+use crate::layer::{Bitmap, CompositorConfig, LayerPlacement};
 use crate::planes::{PlaneSet, PlaneTexture};
 
 const MAX_RETAINED_PLANE_TEXTURES: usize = 16;
@@ -444,15 +446,28 @@ pub(super) fn luma_coeffs(matrix: MatrixCoefficients) -> (f32, f32) {
     }
 }
 
-/// Effective clockwise rotation (radians): the placement plus the frame's
-/// container rotation, so sideways-recorded phone video plays upright.
-pub(super) fn placement_rotation(layer: &CompositeLayer<'_>, frame: &VideoFrame) -> f32 {
-    layer.placement.rotation + (frame.rotation.degrees() as f32).to_radians()
+/// The sampled texture rect for a video frame, and whether the quad's x axis
+/// reads the texture's y axis. `uv` addresses the upright picture, as the
+/// probed size, crop, and flip do; the frame's container rotation carries it
+/// into the decoded picture, and the visible rect into the coded texture. The
+/// quad stays upright at its placement, so a mask, style, or vignette lands
+/// where it does on any other layer.
+pub(super) fn frame_uv(frame: &VideoFrame, uv: [f32; 4]) -> ([f32; 4], bool) {
+    let [u0, v0, u1, v1] = uv;
+    // An upright point (x, y) reads the decoded picture at (y, 1 - x) when
+    // the picture turns 90° clockwise to stand upright, and so on.
+    let (rect, swap) = match frame.rotation {
+        Rotation::None => (uv, false),
+        Rotation::Cw90 => ([v0, 1.0 - u0, v1, 1.0 - u1], true),
+        Rotation::Cw180 => ([1.0 - u0, 1.0 - v0, 1.0 - u1, 1.0 - v1], false),
+        Rotation::Cw270 => ([1.0 - v0, u0, 1.0 - v1, u1], true),
+    };
+    (visible_uv_rect(frame, rect), swap)
 }
 
 /// Map the layer's UV rect (in visible-picture space) into the coded texture,
 /// since the visible picture may be a sub-rect of a padded decode buffer.
-pub(super) fn visible_uv_rect(frame: &VideoFrame, uv: [f32; 4]) -> [f32; 4] {
+fn visible_uv_rect(frame: &VideoFrame, uv: [f32; 4]) -> [f32; 4] {
     let (cw, ch) = (frame.coded_size.0 as f32, frame.coded_size.1 as f32);
     let vx = frame.visible.x as f32 / cw;
     let vy = frame.visible.y as f32 / ch;
@@ -469,9 +484,8 @@ pub(super) fn visible_uv_rect(frame: &VideoFrame, uv: [f32; 4]) -> [f32; 4] {
 pub(super) fn placement_affine(
     config: &CompositorConfig,
     p: &LayerPlacement,
-    extra_rotation: f32,
 ) -> ([f32; 4], [f32; 4]) {
-    placement_affine_rot(config, p, p.rotation + extra_rotation)
+    placement_affine_rot(config, p, p.rotation)
 }
 
 /// Build the unit-quad ([-0.5, 0.5]², +y down) → clip-space affine for a

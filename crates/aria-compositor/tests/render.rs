@@ -266,6 +266,8 @@ mod pass_batching;
 mod planes;
 #[path = "render_rgba.rs"]
 mod rgba;
+#[path = "render_rotation.rs"]
+mod rotation;
 #[path = "render_sdf.rs"]
 mod sdf;
 #[path = "render_yuv.rs"]

@@ -451,6 +451,10 @@ fn try_open(
         ));
     }
     info.duration = crate::gst::stream_duration(&pipeline);
+    // Tag events precede the first buffer, so the prerolled sink holds them.
+    if let Some(pad) = sink.static_pad("sink") {
+        info.rotation = crate::gst::pad_rotation(&pad);
+    }
     pipeline
         .set_state(gst::State::Playing)
         .map_err(|e| failed_change_or(&pipeline, gst_err(DecodeError::Open, e)))?;

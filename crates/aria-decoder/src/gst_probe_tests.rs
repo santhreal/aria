@@ -285,7 +285,11 @@ fn sound_alone_needs_an_audio_stream_and_no_video_stream() {
         (caps("video/x-h264"), None, false),
         (None, None, false),
     ] {
-        let exposed = Exposed { video, audio };
+        let exposed = Exposed {
+            video,
+            audio,
+            ..Exposed::default()
+        };
         assert_eq!(
             exposed.is_sound_alone(),
             alone,

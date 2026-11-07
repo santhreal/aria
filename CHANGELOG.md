@@ -1448,6 +1448,7 @@ Notes for the latest release. For previous releases, see the
 - The Python bindings README no longer gives `pip install --pre aria-py`, which installs an unrelated PyPI package; the bindings install from source with `maturin develop`.
 - `aria plugin pack` and `aria plugin dev` print cargo's build output as cargo writes it, instead of all at once after the build ends.
 - `aria export` stopped by SIGINT, SIGTERM, or SIGHUP deletes its partial file and exits `128` plus the signal number, instead of leaving a staging folder with the partial file beside the output.
+- Video whose container states a rotation, such as video a phone recorded upright, imports at its upright size and draws upright, instead of sideways on Linux and squashed across its frame on macOS, Windows, and Android.
 
 ## [alpha-0.7.0] - 2026-07-22
 
