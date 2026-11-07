@@ -152,8 +152,9 @@ skipped vaapih264enc could not open its device
 The flags resolve to the export settings the editor's export sheet resolves for
 the same choices. An `--at` at or past the end of the timeline, or a
 `--to` at or before `--at` once both are rounded to frames, fails with exit
-code `2`. An export with zero frames (an empty timeline) fails with exit code
-`1` and states the reason.
+code `2`. When `--to` is after `--at` but both land on the same frame, the
+message states the length of one frame. An export with zero frames (an empty
+timeline) fails with exit code `1` and states the reason.
 
 ```
 aria export rough.aria out.mp4 --at 0 --to 30 --codec h265 --bitrate 8000

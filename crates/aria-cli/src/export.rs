@@ -188,11 +188,26 @@ pub(crate) fn resolve_export_range(
         None => duration,
     };
     if end.value <= from.value {
-        return Err(format!(
-            "--to ({}) must be after --at ({})",
-            project::clock(end.seconds()),
-            project::clock(from.seconds())
-        ));
+        // `--to` past `--at` that still rounds onto the same frame holds no
+        // frame; printing both rounded instants would show two equal times.
+        let at_seconds = at.unwrap_or(0.0);
+        let to_seconds = to.unwrap_or(0.0);
+        let start = match at {
+            Some(_) => format!("--at ({})", project::clock(at_seconds)),
+            None => format!("the start ({})", project::clock(0.0)),
+        };
+        return Err(if to_seconds > at_seconds {
+            format!(
+                "{start} and --to ({}) land on the same frame; make the span at least one frame ({}) long",
+                project::clock(to_seconds),
+                project::clock(f64::from(rate.den) / f64::from(rate.num))
+            )
+        } else {
+            format!(
+                "--to ({}) must be after {start}",
+                project::clock(to_seconds)
+            )
+        });
     }
     Ok(Some((from, end)))
 }
@@ -239,8 +254,18 @@ mod tests {
         );
 
         // at >= to
-        let err = resolve_export_range(Some(6.0), Some(4.0), duration, rate).unwrap_err();
-        assert!(err.contains("must be after --at"), "{err}");
+        assert_eq!(
+            resolve_export_range(Some(6.0), Some(4.0), duration, rate),
+            Err("--to (0:00:04.000) must be after --at (0:00:06.000)".to_owned())
+        );
+        assert_eq!(
+            resolve_export_range(Some(1.0), Some(1.0), duration, rate),
+            Err("--to (0:00:01.000) must be after --at (0:00:01.000)".to_owned())
+        );
+        assert_eq!(
+            resolve_export_range(None, Some(0.0), duration, rate),
+            Err("--to (0:00:00.000) must be after the start (0:00:00.000)".to_owned())
+        );
 
         // negative at / to
         assert_eq!(
@@ -250,6 +275,46 @@ mod tests {
         assert_eq!(
             resolve_export_range(Some(1.0), Some(-4.0), duration, rate),
             Err("--to cannot be negative".to_owned())
+        );
+    }
+
+    /// The class closed here is "a span shorter than a frame is refused with
+    /// two equal times". `--to` after `--at` that rounds onto the same frame
+    /// prints the instants as typed and the length of one frame, so the
+    /// refusal states what to widen. A span that reaches the next frame
+    /// exports that one frame.
+    #[test]
+    fn a_span_inside_one_frame_is_refused_with_the_frame_length() {
+        let rate = aria_core::Rational::FPS_24;
+        let duration = aria_core::RationalTime::new(240, rate);
+        for (at, to, typed) in [
+            (
+                Some(0.01),
+                0.02,
+                "--at (0:00:00.010) and --to (0:00:00.020)",
+            ),
+            (Some(1.0), 1.01, "--at (0:00:01.000) and --to (0:00:01.010)"),
+            (
+                Some(1.03),
+                1.04,
+                "--at (0:00:01.030) and --to (0:00:01.040)",
+            ),
+            (None, 0.01, "the start (0:00:00.000) and --to (0:00:00.010)"),
+        ] {
+            assert_eq!(
+                resolve_export_range(at, Some(to), duration, rate),
+                Err(format!(
+                    "{typed} land on the same frame; make the span at least one frame (0:00:00.042) long"
+                )),
+                "--at {at:?} --to {to}"
+            );
+        }
+        assert_eq!(
+            resolve_export_range(Some(1.0), Some(1.03), duration, rate),
+            Ok(Some((
+                aria_core::RationalTime::new(24, rate),
+                aria_core::RationalTime::new(25, rate),
+            )))
         );
     }
 
