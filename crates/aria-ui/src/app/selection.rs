@@ -142,10 +142,10 @@ impl AppState {
 
     /// Drop every reference the session holds into the open project: the
     /// clip, edge and gap selections, the clipboard, the parent pick whip,
-    /// the open property rows and their selected keyframes, the picked pool
-    /// items, the open folder and its rename, the relink notes, the Source
-    /// tabs, and the In and Out marks, which are positions on the old
-    /// project's timeline.
+    /// the open property rows with their open groups and selected keyframes,
+    /// the picked pool items, the open folder and its rename, the relink
+    /// notes, the Source tabs, and the In and Out marks, which are positions
+    /// on the old project's timeline.
     ///
     /// A project file keeps its ids and every launch counts from 1 again, so a
     /// reference kept across a project replacement names nothing in the new
@@ -155,8 +155,7 @@ impl AppState {
         self.clipboard = None;
         self.parent_whip = None;
         self.expanded_clips = std::sync::Arc::default();
-        self.prop_rows.selected_keyframes.clear();
-        self.prop_rows.graph_params.clear();
+        self.prop_rows.forget_clips();
         self.open_bin(None);
         self.pool_selection.clear();
         self.bin_rename = None;

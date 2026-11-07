@@ -350,6 +350,16 @@ pub(crate) struct PropertyRowsState {
     search_focused: bool,
 }
 
+impl PropertyRowsState {
+    /// Drop what names a clip by id: each clip's open groups or revealed
+    /// properties, the selected keyframes, and the graph's curves.
+    pub(crate) fn forget_clips(&mut self) {
+        self.clip_modes.clear();
+        self.selected_keyframes.clear();
+        self.graph_params.clear();
+    }
+}
+
 impl AppState {
     pub(crate) fn with_prop_rows<R>(&self, f: impl FnOnce(&PropertyRowsState) -> R) -> R {
         f(&self.prop_rows)

@@ -1485,6 +1485,7 @@ Notes for the latest release. For previous releases, see the
 - Close Gap at Playhead is offered only when at least one second is free before the next clip, instead of failing with the copy of a clip left with no length.
 - File > Import Timeline… is disabled, with the reason, when no timeline importer is mounted.
 - Placing a clip type or generator that cannot be placed shows the reason the Generators list gives instead of reporting that a value is not accepted.
+- A clip opened after another project is opened shows its default property groups instead of the groups a clip with the same id had open in the project left.
 
 ## [alpha-0.7.0] - 2026-07-22
 

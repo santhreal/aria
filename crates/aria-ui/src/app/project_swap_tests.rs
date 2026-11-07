@@ -27,7 +27,7 @@ use super::bins::BinRename;
 use super::line_text::LineText;
 use super::pool_preview::SourceView;
 use super::premiere_tests::{place_media, save_fixture, with_clip};
-use super::property_rows::SelectedKeyframe;
+use super::property_rows::{PropertyGroup, SelectedKeyframe, TimelineOutlineRow};
 use crate::types::{SelectedEdge, SelectedGap, TrimSide};
 
 /// The ids of the project on disk that every route brings in.
@@ -230,4 +230,48 @@ fn the_incoming_project_has_what_the_references_name() {
     assert!(store.sequence.tracks.iter().any(|t| t.id == incoming.track));
     assert!(store.media.iter().any(|item| item.id == incoming.media));
     assert!(store.bins.iter().any(|item| item.id == incoming.bin));
+}
+
+/// A clip of the incoming project opens with the default groups, never the
+/// groups a clip with its id had open in the project left.
+///
+/// The class closed here: each clip's open groups and revealed properties
+/// outliving the project its rows were opened in, as the open rows did not,
+/// so a clip opened by a double-click after an open showed the Effects group
+/// the old clip had open, and toggling that group closed it. Each route that
+/// brings the clip in is read.
+///
+/// Not caught: a route whose incoming project lacks the clip, as File > New's
+/// does, since nothing there opens under the id.
+#[test]
+fn a_clip_opened_after_a_swap_shows_its_default_groups() {
+    let mut read = Vec::new();
+    for (route, replace) in routes() {
+        let (mut state, incoming) = holding(false);
+        state.toggle_property_group(incoming.clip, PropertyGroup::Effects);
+        replace(&mut state, &incoming.project, &incoming.template);
+        state.sync_from_engine();
+        if state.ui_clip_ref(incoming.clip).is_none() {
+            continue;
+        }
+        state.toggle_expanded(incoming.clip.raw());
+        let open: Vec<PropertyGroup> = state
+            .track_outline_rows(incoming.track)
+            .into_iter()
+            .filter_map(|row| match row {
+                TimelineOutlineRow::GroupHeader {
+                    group,
+                    expanded: true,
+                    ..
+                } => Some(group),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(open, [PropertyGroup::Transform], "{route}");
+        read.push(route);
+    }
+    assert!(
+        read.contains(&"File > Open"),
+        "no route brought the clip in: {read:?}"
+    );
 }
