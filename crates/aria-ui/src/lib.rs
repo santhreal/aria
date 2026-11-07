@@ -85,6 +85,12 @@ pub use types::{ActivePanel, UiEditorStore};
 /// allocator the editor ships with.
 pub use mimalloc::MiMalloc as Allocator;
 
+/// The lib test binary installs the editor's allocator too, so a test runs on
+/// the allocator the editor ships with rather than the system one.
+#[cfg(test)]
+#[global_allocator]
+static TEST_ALLOCATOR: Allocator = Allocator;
+
 /// Embedded UI typeface: Inter in four static weights, © The Inter Project
 /// Authors, licensed under the SIL Open Font License 1.1 (text in
 /// `LICENSES/Inter-OFL-1.1.txt`). Static faces, because the text system picks
