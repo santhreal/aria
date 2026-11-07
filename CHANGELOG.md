@@ -1427,6 +1427,7 @@ Notes for the latest release. For previous releases, see the
 - `aria frame`, `aria export`, Export Frame and Export Image Sequence state the path and the reason of a file they cannot write, without an "i/o error:" prefix or an OS error number.
 - An import, relink or template pick of a missing file states the file's path.
 - A frame that fails to render during playback shows the same error copy as a frame that fails while paused, instead of the renderer's raw error text.
+- An Export Frame whose file cannot be written states the destination once, with the reason.
 
 ## [alpha-0.7.0] - 2026-07-22
 

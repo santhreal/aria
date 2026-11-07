@@ -806,6 +806,34 @@ fn a_frame_export_over_the_project_file_or_a_pool_file_is_refused_before_a_job_e
     assert_eq!(std::fs::read(&media).expect("read the footage"), footage);
 }
 
+/// WHY: an Export Frame whose file could not be written failed with its
+/// destination stated twice, "exporting the frame to P: P: not a directory":
+/// the job put the path before a write error that already states it. The
+/// failure states the destination once, with the reason. Not caught: the
+/// wording of a render failure, which the renderer owns.
+#[test]
+fn a_frame_export_that_cannot_write_states_its_destination_once() {
+    let (mut state, _clip) = with_clip();
+    let blocker = crate::scratch_pool::scratch("frame_unwritable").join("blocker");
+    std::fs::write(&blocker, b"a file").expect("write the blocker");
+    let destination = blocker.join("still.png");
+    let id = state
+        .export_frame_job(destination.clone())
+        .expect("a frame export under a file is queued");
+    assert_eq!(
+        settle(&state.jobs, JobId::from_raw(id)).state,
+        JobState::Failed
+    );
+    state.refresh_jobs();
+    let reason = std::fs::metadata(&destination).expect_err("nothing is under a file");
+    let stated = format!(
+        "{}: {}",
+        destination.display(),
+        aria_models::io_reason(&reason)
+    );
+    assert_eq!(state.status_message.as_deref(), Some(stated.as_str()));
+}
+
 /// WHY: closing or switching projects while background jobs were in flight
 /// left those jobs running in the old project's epoch and allowed their late
 /// completions to land in the new project, while quitting with jobs in flight

@@ -264,8 +264,10 @@ impl AppState {
             move |context| {
                 context.set_progress(0.0, "rendering".to_string());
                 let mut renderer = super::render_device::renderer_on(gpu, "the frame export")?;
+                // The job row states the destination, and a write error states
+                // the path it could not write, so the error is shown as is.
                 let (w, h) = aria_render::export_frame_png(&mut renderer, &project, at, &path)
-                    .map_err(|err| format!("exporting the frame to {}: {err}", path.display()))?;
+                    .map_err(|err| err.to_string())?;
                 JobCompletion::new(format!("{w}×{h} PNG"))
                     .with_output("path", path.display().to_string())
                     .map_err(String::from)
