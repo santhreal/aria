@@ -373,7 +373,7 @@ fn an_unclaimed_path_is_media_when_no_plugin_is_mounted_at_all() {
 /// reads a format the File dialog will not let anyone pick".
 #[test]
 fn import_dialogs_offer_what_decoder_plugins_read() {
-    use crate::app::media::import::{MEDIA_IMPORT_EXTENSIONS, media_import_extensions};
+    use crate::app::media::import::{AV_IMPORT_EXTENSIONS, media_import_extensions};
 
     struct Nothing;
     impl aria_plugin::ExternalDecoder for Nothing {
@@ -401,10 +401,12 @@ fn import_dialogs_offer_what_decoder_plugins_read() {
         )
         .expect("registers");
     let offered = media_import_extensions();
-    assert_eq!(
-        offered[..MEDIA_IMPORT_EXTENSIONS.len()],
-        *MEDIA_IMPORT_EXTENSIONS
-    );
+    let shipped: Vec<&str> = AV_IMPORT_EXTENSIONS
+        .iter()
+        .copied()
+        .chain(aria_decoder::image_extensions())
+        .collect();
+    assert_eq!(offered[..shipped.len()], *shipped);
     assert!(offered.contains(&"ariauionly".to_owned()), "{offered:?}");
     drop(held);
     assert!(!media_import_extensions().contains(&"ariauionly".to_owned()));

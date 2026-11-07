@@ -827,3 +827,59 @@ fn guide_timeline_importing_and_storage_claims_match_registries() {
         "docs/guide/settings-and-storage.md schema version table drifted"
     );
 }
+
+/// Closes the class where a page listing what an import accepts drifts from
+/// the list the import dialogs offer: `AV_IMPORT_EXTENSIONS` and every still
+/// container with a portable decoder, in that order, then after the page's
+/// `macOS` mention the containers only the Apple backend reads. A container
+/// that gains a decoder, or a page that lists one the build refuses, fails
+/// here. Does not read the prose about decoder plugins.
+#[test]
+fn import_type_lists_match_the_import_dialogs() {
+    let mut everywhere: Vec<&str> = crate::app::media::import::AV_IMPORT_EXTENSIONS.to_vec();
+    let mut apple_only: Vec<&str> = Vec::new();
+    for format in aria_decoder::every_image_format() {
+        let spec = format.spec();
+        if spec.portable_decode.is_some() {
+            everywhere.extend(spec.extensions);
+        } else {
+            apple_only.extend(spec.extensions);
+        }
+    }
+    let ticked = |text: &str| -> Vec<String> {
+        text.split('`')
+            .skip(1)
+            .step_by(2)
+            .map(|token| token.trim_start_matches('.').to_owned())
+            .collect()
+    };
+    let getting_started = read_doc("getting-started.md");
+    let importing = read_doc("guide/importing-media.md");
+    for (page, list) in [
+        (
+            "docs/getting-started.md",
+            getting_started
+                .split("\n\n")
+                .find(|block| block.starts_with("Supported import types:")),
+        ),
+        (
+            "docs/guide/importing-media.md",
+            importing.lines().find(|line| line.starts_with("| Media (")),
+        ),
+    ] {
+        let list = list.unwrap_or_else(|| panic!("{page} has no import type list"));
+        let (before, after) = list
+            .split_once("macOS")
+            .unwrap_or_else(|| panic!("{page}'s import type list states no macOS containers"));
+        assert_eq!(
+            ticked(before),
+            everywhere,
+            "{page}: types every platform imports"
+        );
+        assert_eq!(
+            ticked(after),
+            apple_only,
+            "{page}: types macOS and iOS import"
+        );
+    }
+}

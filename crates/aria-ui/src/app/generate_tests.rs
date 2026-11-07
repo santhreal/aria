@@ -52,6 +52,7 @@ fn without_providers(state: &mut AppState) {
 
 #[test]
 fn every_kind_has_a_label_and_an_importable_extension() {
+    let importable = crate::app::media::import::media_import_extensions();
     for (kind, label, ext) in GenerateKind::ALL {
         assert!(!label.is_empty(), "{kind:?} has no label");
         assert_eq!(kind.label(), label);
@@ -59,7 +60,7 @@ fn every_kind_has_a_label_and_an_importable_extension() {
         // A kind whose fallback is not a container the pool accepts would save a file
         // that imports as nothing.
         assert!(
-            crate::app::media::import::MEDIA_IMPORT_EXTENSIONS.contains(&ext),
+            importable.iter().any(|offered| offered == ext),
             "{kind:?} saves .{ext}, which the importer does not accept"
         );
     }

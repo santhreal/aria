@@ -426,6 +426,7 @@ dependencies = [
  "gstreamer-audio",
  "gstreamer-pbutils",
  "gstreamer-video",
+ "image",
  "kurbo",
  "libc",
  "ndk-sys 0.6.0+11769913",

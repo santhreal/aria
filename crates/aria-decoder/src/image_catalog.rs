@@ -119,11 +119,11 @@ pub const SHIPPED: &[ImageFormatSpec] = &[
         magic: |head| head.len() >= 12 && &head[..4] == b"RIFF" && &head[8..12] == b"WEBP",
         census: b"RIFF\x24\x00\x00\x00WEBPVP8 ",
         animates: true,
-        // No pure-Rust WebP path in this build; ImageIO covers it on Apple and
-        // every other platform refuses by name.
-        portable_probe: None,
-        portable_decode: None,
-        portable_decode_bytes: None,
+        portable_probe: Some(|path| portable::image_probe(path, ::image::ImageFormat::WebP)),
+        portable_decode: Some(|path| portable::image_decode(path, ::image::ImageFormat::WebP)),
+        portable_decode_bytes: Some(|bytes| {
+            portable::image_decode_bytes(bytes, ::image::ImageFormat::WebP)
+        }),
         portable_animate: None,
     },
     ImageFormatSpec {
@@ -147,9 +147,11 @@ pub const SHIPPED: &[ImageFormatSpec] = &[
         magic: |head| head.starts_with(b"GIF87a") || head.starts_with(b"GIF89a"),
         census: b"GIF89a\x01\x00",
         animates: true,
-        portable_probe: None,
-        portable_decode: None,
-        portable_decode_bytes: None,
+        portable_probe: Some(|path| portable::image_probe(path, ::image::ImageFormat::Gif)),
+        portable_decode: Some(|path| portable::image_decode(path, ::image::ImageFormat::Gif)),
+        portable_decode_bytes: Some(|bytes| {
+            portable::image_decode_bytes(bytes, ::image::ImageFormat::Gif)
+        }),
         portable_animate: Some(crate::animation::gif_decode),
     },
     ImageFormatSpec {
@@ -160,9 +162,11 @@ pub const SHIPPED: &[ImageFormatSpec] = &[
         magic: |head| head.starts_with(b"BM"),
         census: b"BM\x36\x00\x00\x00",
         animates: false,
-        portable_probe: None,
-        portable_decode: None,
-        portable_decode_bytes: None,
+        portable_probe: Some(|path| portable::image_probe(path, ::image::ImageFormat::Bmp)),
+        portable_decode: Some(|path| portable::image_decode(path, ::image::ImageFormat::Bmp)),
+        portable_decode_bytes: Some(|bytes| {
+            portable::image_decode_bytes(bytes, ::image::ImageFormat::Bmp)
+        }),
         portable_animate: None,
     },
     ImageFormatSpec {
@@ -173,9 +177,11 @@ pub const SHIPPED: &[ImageFormatSpec] = &[
         magic: |head| head.starts_with(b"II*\0") || head.starts_with(b"MM\0*"),
         census: b"II*\0\x08\0\0\0",
         animates: false,
-        portable_probe: None,
-        portable_decode: None,
-        portable_decode_bytes: None,
+        portable_probe: Some(|path| portable::image_probe(path, ::image::ImageFormat::Tiff)),
+        portable_decode: Some(|path| portable::image_decode(path, ::image::ImageFormat::Tiff)),
+        portable_decode_bytes: Some(|bytes| {
+            portable::image_decode_bytes(bytes, ::image::ImageFormat::Tiff)
+        }),
         portable_animate: None,
     },
 ];
@@ -233,20 +239,30 @@ impl ImageFormat {
     }
 }
 
+impl ImageFormatSpec {
+    /// Whether this build decodes the container: ImageIO on Apple, a pure-Rust
+    /// decoder column everywhere else.
+    #[must_use]
+    pub fn decodes(&self) -> bool {
+        cfg!(target_vendor = "apple") || self.portable_decode.is_some()
+    }
+}
+
 /// Every recognized container, read from the catalog rather than hand-listed.
 pub fn every_image_format() -> impl Iterator<Item = ImageFormat> {
     SHIPPED.iter().map(|spec| spec.format)
 }
 
-/// Every extension a file dialog should offer for stills, deduplicated and in
-/// row order.
+/// Every extension a file dialog offers for stills: the extensions of each
+/// container this build decodes, deduplicated and in row order.
 ///
-/// The one list an import filter reads, so a container added to the catalog is
-/// pickable without editing a dialog.
+/// The one list an import filter reads, so a container that gains a decoder is
+/// pickable without editing a dialog, and one this build cannot decode is not
+/// offered.
 #[must_use]
 pub fn image_extensions() -> Vec<&'static str> {
     let mut out: Vec<&'static str> = Vec::new();
-    for spec in SHIPPED {
+    for spec in SHIPPED.iter().filter(|spec| spec.decodes()) {
         for extension in spec.extensions {
             if !out.contains(extension) {
                 out.push(extension);
@@ -317,7 +333,12 @@ mod tests {
             listed,
             "two containers claim one extension"
         );
-        assert_eq!(image_extensions().len(), listed);
+        let decoded: usize = SHIPPED
+            .iter()
+            .filter(|spec| spec.decodes())
+            .map(|spec| spec.extensions.len())
+            .sum();
+        assert_eq!(image_extensions().len(), decoded);
     }
 
     /// Every row must be offerable: a container with no extension cannot be
@@ -369,5 +390,73 @@ mod tests {
                 spec.id
             );
         }
+    }
+
+    /// Each container a dialog offers is one this build reads: a sample written
+    /// in it probes and decodes to its size and colour, from a path and from
+    /// memory. A row offered with no decoder behind it fails here, as WebP, GIF,
+    /// BMP, and TIFF did when every import dialog offered them and the portable
+    /// backend refused each one. Does not cover HEIF on Apple, which `image`
+    /// cannot write.
+    #[test]
+    fn every_offered_container_reads_a_written_sample() {
+        const SIZE: (u32, u32) = (37, 21);
+        const RED: [u8; 3] = [200, 30, 30];
+        let dir = tempfile::tempdir().expect("scratch directory");
+        let offered = image_extensions();
+        let mut checked = 0;
+        for spec in SHIPPED {
+            let ext = spec.extensions[0];
+            if !offered.contains(&ext) {
+                continue;
+            }
+            let Some(format) =
+                ::image::ImageFormat::from_extension(ext).filter(|f| f.writing_enabled())
+            else {
+                assert!(
+                    cfg!(target_vendor = "apple"),
+                    "{} is offered and no sample of it can be written",
+                    spec.id
+                );
+                continue;
+            };
+            let mut bytes = std::io::Cursor::new(Vec::new());
+            ::image::DynamicImage::ImageRgb8(::image::RgbImage::from_pixel(
+                SIZE.0,
+                SIZE.1,
+                ::image::Rgb(RED),
+            ))
+            .write_to(&mut bytes, format)
+            .unwrap_or_else(|err| panic!("write a {} sample: {err}", spec.id));
+            let bytes = bytes.into_inner();
+            let path = dir.path().join(format!("sample.{ext}"));
+            std::fs::write(&path, &bytes).expect("write the sample");
+
+            let probed = crate::image::probe_image(&path)
+                .unwrap_or_else(|err| panic!("probe the {} sample: {err}", spec.id));
+            assert_eq!((probed.width, probed.height), SIZE, "{} probe", spec.id);
+            for (from, decoded) in [
+                ("path", crate::image::decode_image(&path)),
+                ("memory", crate::image::decode_image_bytes(&bytes)),
+            ] {
+                let image = decoded.unwrap_or_else(|err| {
+                    panic!("decode the {} sample from {from}: {err}", spec.id)
+                });
+                assert_eq!((image.width, image.height), SIZE, "{} from {from}", spec.id);
+                let center = ((SIZE.1 / 2 * SIZE.0 + SIZE.0 / 2) * 4) as usize;
+                let pixel = &image.pixels[center..center + 4];
+                assert!(
+                    pixel[..3]
+                        .iter()
+                        .zip(RED)
+                        .all(|(got, want)| got.abs_diff(want) <= 8)
+                        && pixel[3] == 255,
+                    "{} from {from} decoded the center as {pixel:?}",
+                    spec.id
+                );
+            }
+            checked += 1;
+        }
+        assert!(checked >= 6, "only {checked} containers were checked");
     }
 }

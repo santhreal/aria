@@ -9,16 +9,17 @@
 use super::*;
 use crate::app::picker::{Ask, FileSpec};
 
-/// The extensions the platform decoders read, offered by every import dialog.
-pub(crate) const MEDIA_IMPORT_EXTENSIONS: &[&str] = &[
-    "mp4", "mov", "mkv", "webm", "wav", "mp3", "png", "jpg", "jpeg", "webp",
-];
+/// The video and audio containers the platform decoders read. Stills come from
+/// the decoder's image catalog.
+pub(crate) const AV_IMPORT_EXTENSIONS: &[&str] = &["mp4", "mov", "mkv", "webm", "wav", "mp3"];
 
 /// The extensions an import dialog offers and a drop claim accepts:
-/// [`MEDIA_IMPORT_EXTENSIONS`], then every extension a decoder plugin claims.
+/// [`AV_IMPORT_EXTENSIONS`], then every still this build decodes, then every
+/// extension a decoder plugin claims.
 pub(crate) fn media_import_extensions() -> Vec<String> {
-    let mut all: Vec<String> = MEDIA_IMPORT_EXTENSIONS
+    let mut all: Vec<String> = AV_IMPORT_EXTENSIONS
         .iter()
+        .chain(&aria_decoder::image_extensions())
         .map(|ext| (*ext).to_owned())
         .collect();
     for ext in aria_decoder::external_decoder_extensions() {

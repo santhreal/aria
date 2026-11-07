@@ -1429,6 +1429,8 @@ Notes for the latest release. For previous releases, see the
 - A frame that fails to render during playback shows the same error copy as a frame that fails while paused, instead of the renderer's raw error text.
 - An Export Frame whose file cannot be written states the destination once, with the reason.
 - A multicam sync refused because the angles' sound matches at more than one offset states that reason.
+- Importing a WebP, GIF, BMP, or TIFF still on Linux and Windows decodes it instead of failing with "no portable decoder".
+- The Import dialog and file drops accept every still the decoder reads, and the Import Still dialog no longer offers HEIC, HEIF, or AVIF where only macOS and iOS decode them.
 
 ## [alpha-0.7.0] - 2026-07-22
 

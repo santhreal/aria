@@ -330,14 +330,9 @@ impl AppState {
         });
     }
 
-    /// Import stills and animations, offering every container the decoder
-    /// actually recognizes.
-    ///
-    /// The pool's own import filter is a hand-written list that predates half
-    /// the catalog, so a GIF or a HEIC the decoder reads fine was not offered by
-    /// the dialog. This filter is `image_extensions()`, which is the catalog's
-    /// own extension column: a container added upstream becomes pickable with no
-    /// edit here and none in the dialog.
+    /// Import stills and animations, offering every container this build
+    /// decodes: `image_extensions()`, the catalog's extension column for the
+    /// rows with a decoder.
     pub fn import_still_image(&mut self) {
         let extensions = aria_decoder::image_extensions();
         let spec = FileSpec::new("Import Still or Animation").filter("Images", &extensions);

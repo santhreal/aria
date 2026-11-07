@@ -13,12 +13,20 @@ aria-core = { path = "../aria-core" }
 parking_lot = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-# Portable still-image decode (PNG/JPEG), pure Rust. Compiled on every
+# Portable still-image decode, pure Rust. Compiled on every
 # platform: it is the primary path where no native image codec is wired
 # (Windows/Android/Linux hosts) and the fallback behind ImageIO on Apple.
 # `png` is pinned to the same 0.17 line aria-render already uses.
 png = "0.17"
 zune-jpeg = "0.5"
+# WebP, GIF, BMP, and TIFF stills. The GUI build already compiles these
+# decoders for gpui's image loading.
+image = { version = "0.25", default-features = false, features = [
+    "bmp",
+    "gif",
+    "tiff",
+    "webp",
+] }
 # Portable animated-sticker decode: GIF frames (APNG rides on `png` above).
 gif = "0.14"
 # Lottie vector animation: velato parses + replays draw calls; vello_cpu
@@ -78,6 +86,15 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
+# Writes a sample of each offered still container for the catalog's decode test.
+image = { version = "0.25", default-features = false, features = [
+    "bmp",
+    "gif",
+    "jpeg",
+    "png",
+    "tiff",
+    "webp",
+] }
 
 # Scrub seek cost, cold and warm, over the committed fixture clip.
 [[bench]]

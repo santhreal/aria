@@ -11,9 +11,9 @@
 //! - **Apple** (`image_apple`): ImageIO / `CGImageSource`, which
 //!   covers HEIC/HEIF (the iPhone camera default), WebP, GIF, TIFF, and BMP
 //!   on top of PNG/JPEG, and applies EXIF orientation.
-//! - **Portable** ([`portable`]): pure-Rust PNG + JPEG, compiled everywhere.
-//!   It is the primary path on platforms with no native image backend yet
-//!   and the fallback behind ImageIO on Apple.
+//! - **Portable** ([`portable`]): pure-Rust PNG, JPEG, WebP, GIF, BMP, and
+//!   TIFF, compiled everywhere. It is the primary path on platforms with no
+//!   native image backend yet and the fallback behind ImageIO on Apple.
 
 use std::io::Read;
 use std::path::Path;
@@ -350,6 +350,48 @@ pub mod portable {
             )));
         }
         Ok(RgbaImage::new(width as u32, height as u32, pixels))
+    }
+
+    /// Dimensions of the `format` file at `path`, read by the `image` crate's
+    /// decoder for that container.
+    pub(super) fn image_probe(
+        path: &Path,
+        format: ::image::ImageFormat,
+    ) -> Result<ImageInfo, DecodeError> {
+        let (width, height) = ::image::ImageReader::with_format(open(path)?, format)
+            .into_dimensions()
+            .map_err(|e| DecodeError::Open(format!("{}: {e}", path.display())))?;
+        Ok(ImageInfo { width, height })
+    }
+
+    /// The first frame of the `format` file at `path`, decoded by the `image`
+    /// crate.
+    pub(super) fn image_decode(
+        path: &Path,
+        format: ::image::ImageFormat,
+    ) -> Result<RgbaImage, DecodeError> {
+        image_decode_reader(open(path)?, format, &path.display().to_string())
+    }
+
+    /// [`image_decode`] from memory.
+    pub(super) fn image_decode_bytes(
+        bytes: &[u8],
+        format: ::image::ImageFormat,
+    ) -> Result<RgbaImage, DecodeError> {
+        image_decode_reader(std::io::Cursor::new(bytes), format, BYTES_CTX)
+    }
+
+    fn image_decode_reader(
+        reader: impl std::io::BufRead + std::io::Seek,
+        format: ::image::ImageFormat,
+        ctx: &str,
+    ) -> Result<RgbaImage, DecodeError> {
+        let decoded = ::image::ImageReader::with_format(reader, format)
+            .decode()
+            .map_err(|e| DecodeError::Decode(format!("{ctx}: {e}")))?
+            .into_rgba8();
+        let (width, height) = decoded.dimensions();
+        Ok(RgbaImage::new(width, height, decoded.into_raw()))
     }
 
     /// Expand `channels`-per-pixel rows to RGBA with `map`.
